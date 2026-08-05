@@ -6,7 +6,7 @@
  */
 
 type ExecFn = (sql: string) => unknown
-type QueryFn = (sql: string) => Array<Record<string, unknown>>
+type QueryFn = (sql: string) => unknown
 
 /**
  * 修复 session_novel 的历史遗留外键。
@@ -22,7 +22,8 @@ type QueryFn = (sql: string) => Array<Record<string, unknown>>
 export function runMigrations(exec: ExecFn, query: QueryFn): void {
   let hasDanglingFk = false
   try {
-    const fks = query("PRAGMA foreign_key_list(session_novel)")
+    const result = query("PRAGMA foreign_key_list(session_novel)")
+    const fks = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
     hasDanglingFk = fks.some((fk) => fk.table === "session")
   } catch {
     // 表不存在或 pragma 查询失败时无需迁移
