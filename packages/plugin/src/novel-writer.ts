@@ -1463,6 +1463,280 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      check_relationships: tool({
+        description:
+          "全局关系完整性检查（不绑定章节）。检测自指关系、悬空引用、重复关系、对称冗余、孤立角色、空类型、非标准类型、空描述、敌友矛盾等问题。仅报告不修改；如需修复请用 update_settings / delete_settings。这是结构性检查，不是叙事连续性；如需章节级连续性请用 check_continuity（其中包含关系类型一致 / 敌友转变有因 / 亲密度变化 / 信任度变化 4 维）。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+
+          const characters = await db
+            .select({ id: CharacterTable.id, name: CharacterTable.name })
+            .from(CharacterTable)
+            .where(eq(CharacterTable.novel_id, novelId))
+            .all()
+          const relationships = await db
+            .select()
+            .from(RelationshipTable)
+            .where(eq(RelationshipTable.novel_id, novelId))
+            .all()
+
+          const charById = new Map(characters.map((c) => [c.id, c]))
+          type Issue = {
+            severity: "FAIL" | "WARN"
+            dimension: string
+            detail: string
+            ids?: string[]
+          }
+          const issues: Issue[] = []
+
+          if (relationships.length === 0 && characters.length > 0) {
+            issues.push({
+              severity: "WARN",
+              dimension: "no_relationships",
+              detail: "本小说尚无任何关系",
+            })
+          }
+
+          const validTypes = new Set([
+            "亲情",
+            "友情",
+            "爱情",
+            "敌对",
+            "师徒",
+            "同门",
+            "盟友",
+            "仇敌",
+            "主仆",
+            "竞争",
+            "合作",
+            "陌生人",
+            "同学",
+            "同事",
+            "邻居",
+            "family",
+            "friend",
+            "romantic",
+            "enemy",
+            "mentor",
+            "ally",
+            "rival",
+            "master_servant",
+            "competition",
+            "cooperation",
+            "stranger",
+            "classmate",
+          ])
+
+          const charRelCount = new Map<string, number>()
+          for (const c of characters) charRelCount.set(c.id, 0)
+
+          // 收集"对方向"关系列表：用于对称冗余和重复检测
+          const forwardList = new Map<string, string[]>() // key = "a||b"，value = relationship id 列表（保持插入顺序）
+          const reportedSymmetric = new Set<string>() // 已经报过对称冗余的对
+
+          for (const rel of relationships) {
+            charRelCount.set(rel.char_a_id, (charRelCount.get(rel.char_a_id) ?? 0) + 1)
+            charRelCount.set(rel.char_b_id, (charRelCount.get(rel.char_b_id) ?? 0) + 1)
+
+            // 1. 自指
+            if (rel.char_a_id === rel.char_b_id) {
+              const name = charById.get(rel.char_a_id)?.name ?? rel.char_a_id
+              issues.push({
+                severity: "FAIL",
+                dimension: "self_loop",
+                detail: `自指关系 [${rel.id.slice(0, 8)}]：「${name}」指向自身`,
+                ids: [rel.id],
+              })
+            }
+
+            // 2. 悬空引用
+            if (!charById.has(rel.char_a_id)) {
+              issues.push({
+                severity: "FAIL",
+                dimension: "dangling_reference",
+                detail: `悬空引用 [${rel.id.slice(0, 8)}]：char_a_id "${rel.char_a_id.slice(0, 8)}…" 不在本小说角色列表中`,
+                ids: [rel.id],
+              })
+            }
+            if (!charById.has(rel.char_b_id)) {
+              issues.push({
+                severity: "FAIL",
+                dimension: "dangling_reference",
+                detail: `悬空引用 [${rel.id.slice(0, 8)}]：char_b_id "${rel.char_b_id.slice(0, 8)}…" 不在本小说角色列表中`,
+                ids: [rel.id],
+              })
+            }
+
+            // 3. 对称冗余（A→B 与 B→A 同时存在）
+            if (rel.char_a_id !== rel.char_b_id) {
+              const reverseKey = `${rel.char_b_id}||${rel.char_a_id}`
+              const reverseIds = forwardList.get(reverseKey) ?? []
+              const symmetricPair = [rel.char_a_id, rel.char_b_id].sort().join("||")
+              if (reverseIds.length > 0 && !reportedSymmetric.has(symmetricPair)) {
+                const aName = charById.get(rel.char_a_id)?.name ?? rel.char_a_id.slice(0, 8)
+                const bName = charById.get(rel.char_b_id)?.name ?? rel.char_b_id.slice(0, 8)
+                const allIds = [...reverseIds, rel.id]
+                issues.push({
+                  severity: "WARN",
+                  dimension: "symmetric_redundancy",
+                  detail: `对称冗余：「${aName}」↔「${bName}」双向关系均存在 [${allIds.map((id) => id.slice(0, 8)).join(", ")}]，建议合并为单条或确认是否需要双向记录`,
+                  ids: allIds,
+                })
+                reportedSymmetric.add(symmetricPair)
+              }
+            }
+
+            // 4. 重复（A→B 多次）
+            const pairKey = `${rel.char_a_id}||${rel.char_b_id}`
+            const list = forwardList.get(pairKey) ?? []
+            list.push(rel.id)
+            forwardList.set(pairKey, list)
+
+            // 5. 空类型
+            if (rel.type === "") {
+              issues.push({
+                severity: "FAIL",
+                dimension: "empty_type",
+                detail: `空类型 [${rel.id.slice(0, 8)}]：未指定关系类型`,
+                ids: [rel.id],
+              })
+            } else if (!validTypes.has(rel.type)) {
+              issues.push({
+                severity: "WARN",
+                dimension: "non_standard_type",
+                detail: `非标准类型 [${rel.id.slice(0, 8)}]：「${rel.type}」不在常见关系类型白名单中`,
+                ids: [rel.id],
+              })
+            }
+
+            // 6. 空描述
+            if (rel.description === "") {
+              issues.push({
+                severity: "WARN",
+                dimension: "empty_description",
+                detail: `空描述 [${rel.id.slice(0, 8)}]：type="${rel.type}" 缺少说明`,
+                ids: [rel.id],
+              })
+            }
+          }
+
+          // 重复（同方向 A→B 出现多次）
+          for (const [pairKey, ids] of forwardList) {
+            if (ids.length > 1) {
+              const [aId, bId] = pairKey.split("||")
+              const aName = charById.get(aId!)?.name ?? aId!.slice(0, 8)
+              const bName = charById.get(bId!)?.name ?? bId!.slice(0, 8)
+              issues.push({
+                severity: "FAIL",
+                dimension: "duplicate",
+                detail: `重复关系：「${aName}」→「${bName}」出现 ${ids.length} 次 [${ids.map((id) => id.slice(0, 8)).join(", ")}]`,
+                ids,
+              })
+            }
+          }
+
+          // 孤立角色
+          const orphans: string[] = []
+          for (const [id, count] of charRelCount) {
+            if (count === 0) {
+              orphans.push(charById.get(id)?.name ?? id.slice(0, 8))
+            }
+          }
+          if (orphans.length > 0) {
+            issues.push({
+              severity: "WARN",
+              dimension: "orphan_character",
+              detail: `${orphans.length} 个角色无任何关系：${orphans.slice(0, 10).join("、")}${orphans.length > 10 ? "…" : ""}`,
+            })
+          }
+
+          // 敌友矛盾
+          const hostileTypes = new Set(["敌对", "仇敌", "enemy"])
+          const friendlyTypes = new Set([
+            "亲情",
+            "友情",
+            "爱情",
+            "师徒",
+            "同门",
+            "盟友",
+            "family",
+            "friend",
+            "romantic",
+            "mentor",
+            "ally",
+          ])
+          const typeByPair = new Map<string, Set<string>>()
+          for (const rel of relationships) {
+            const key = [rel.char_a_id, rel.char_b_id].sort().join("||")
+            const set = typeByPair.get(key) ?? new Set<string>()
+            set.add(rel.type)
+            typeByPair.set(key, set)
+          }
+          const conflicts: string[] = []
+          for (const [key, types] of typeByPair) {
+            const hasHostile = [...types].some((t) => hostileTypes.has(t))
+            const hasFriendly = [...types].some((t) => friendlyTypes.has(t))
+            if (hasHostile && hasFriendly) {
+              const [aId, bId] = key.split("||")
+              conflicts.push(`${charById.get(aId!)?.name ?? aId!.slice(0, 8)} ↔ ${charById.get(bId!)?.name ?? bId!.slice(0, 8)}`)
+            }
+          }
+          if (conflicts.length > 0) {
+            issues.push({
+              severity: "WARN",
+              dimension: "hostile_friendly_conflict",
+              detail: `${conflicts.length} 对角色关系同时存在敌对与友好类型：${conflicts.slice(0, 5).join("；")}${conflicts.length > 5 ? "…" : ""}`,
+            })
+          }
+
+          // 输出报告
+          const fails = issues.filter((i) => i.severity === "FAIL")
+          const warns = issues.filter((i) => i.severity === "WARN")
+          const lines: string[] = []
+          lines.push("## 关系完整性检查报告")
+          lines.push("")
+          lines.push(`- 角色数：${characters.length}`)
+          lines.push(`- 关系数：${relationships.length}`)
+          lines.push(`- FAIL：${fails.length}  WARN：${warns.length}`)
+          lines.push("")
+          if (issues.length === 0) {
+            lines.push("未发现问题。")
+          } else {
+            if (fails.length > 0) {
+              lines.push("### FAIL（需处理）")
+              for (const i of fails) lines.push(`- **${i.dimension}**：${i.detail}`)
+              lines.push("")
+            }
+            if (warns.length > 0) {
+              lines.push("### WARN（建议处理）")
+              for (const i of warns) lines.push(`- **${i.dimension}**：${i.detail}`)
+              lines.push("")
+            }
+            lines.push("修复方式：用 list_settings 拿到 entity_id，再用 update_settings / delete_settings 修改或删除。")
+          }
+
+          return {
+            title: "check_relationships",
+            output: lines.join("\n"),
+            metadata: {
+              fail_count: fails.length,
+              warn_count: warns.length,
+              character_count: characters.length,
+              relationship_count: relationships.length,
+              issues: issues.map((i) => ({
+                severity: i.severity,
+                dimension: i.dimension,
+                detail: i.detail,
+                ids: i.ids ?? [],
+              })),
+            },
+          }
+        },
+      }),
       check_novel_settings: tool({
         description:
           "一键拉取小说所有设定（角色/世界观/伏笔/剧情线索/关系/卷/风格指南）的概览 + 完整内容 + 状态摘要，供 director 做'检查设定/审查设定/审一遍设定'类指令使用。可选 scope 限定范围。仅查询不修改，是审计设定类指令的入口工具。",
@@ -2416,6 +2690,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             manage_characters: "allow",
             save_novel_settings: "allow",
             create_relationship: "allow",
+            check_relationships: "allow",
             check_novel_settings: "allow",
             cascade_check: "allow",
             cascade_create_tasks: "allow",
@@ -2446,6 +2721,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             grep: "allow",
             save_novel_settings: "allow",
             create_relationship: "allow",
+            check_relationships: "allow",
           },
         },
         // pipeline: subagent，由 director 调度，执行8步写作流水线
