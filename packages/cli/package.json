@@ -20,7 +20,6 @@
     "@opennovel-ai/core": "workspace:*",
     "@opennovel-ai/sdk": "workspace:*",
     "@opennovel-ai/server": "workspace:*",
-    "@opennovel-ai/tui": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/solid": "catalog:",
     "@parcel/watcher": "2.5.1",
