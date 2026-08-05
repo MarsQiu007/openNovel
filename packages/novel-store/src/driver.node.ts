@@ -6,11 +6,16 @@
  */
 import { DatabaseSync } from "node:sqlite"
 import { drizzle } from "drizzle-orm/node-sqlite"
+import { runMigrations } from "./migrate.js"
 
 export type Db = ReturnType<typeof drizzle>
 
 export function createDb(path: string, schemaSql: string): Db {
   const sqlite = new DatabaseSync(path)
   sqlite.exec(schemaSql)
+  runMigrations(
+    (sql) => sqlite.exec(sql),
+    (sql) => sqlite.prepare(sql).all(),
+  )
   return drizzle({ client: sqlite })
 }

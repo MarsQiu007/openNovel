@@ -8,7 +8,7 @@
  */
 import type { Plugin } from "./index.js"
 import { tool } from "./tool.js"
-import { existsSync, readFileSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { eq, desc, and, asc, lt, sql } from "drizzle-orm"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
@@ -91,6 +91,135 @@ function projectDirFromCtx(directory?: string | null): string {
   return join(dirname(dbPath), "..")
 }
 
+/**
+ * 系统提示注入逻辑。从 hook 中提取出来，便于 hook 层捕获 DB 异常后降级：
+ * 小说库 schema 损坏等问题不应阻断整条消息，仅跳过上下文注入。
+ */
+async function injectSystemContext(sessionId: string, directory: string | null | undefined, system: string[]) {
+  // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
+  const novelId = await resolveNovelForSession(sessionId, directory)
+  if (!novelId) return
+
+  // 查询当前最新章节序号
+  const db = getDb(directory)
+  const [latestChapter] = await db
+    .select()
+    .from(ChapterTable)
+    .where(eq(ChapterTable.novel_id, novelId))
+    .orderBy(desc(ChapterTable.order))
+    .limit(1)
+    .all()
+  const chapterNumber = latestChapter?.order ?? 0
+
+  // 组装上下文快照
+  const snapshot = await assembleSnapshot(novelId, chapterNumber, directory)
+  if (!snapshot) return
+
+  // 将快照序列化为文本注入 output.system
+  const lines: string[] = ["【小说写作上下文快照】"]
+  lines.push("")
+  lines.push(`【小说蓝图】\n书名：${snapshot.novelTitle}\n题材：${snapshot.genre}\n梗概：${snapshot.synopsis}`)
+  lines.push("")
+
+  if (snapshot.activeCharacters.length > 0) {
+    lines.push("【活跃角色】")
+    for (const c of snapshot.activeCharacters) {
+      lines.push(`- ${c.name}（${c.role}）${c.description ? `：${c.description}` : ""}`)
+      if (c.location || c.mood || c.summary) {
+        lines.push(`  位置：${c.location} | 情绪：${c.mood} | 状态：${c.summary}`)
+      }
+    }
+    lines.push("")
+  }
+
+  if (snapshot.volumeSummary) {
+    lines.push(`【当前卷摘要】\n${snapshot.volumeSummary}`)
+    lines.push("")
+  }
+
+  if (snapshot.recentChapterSummaries.length > 0) {
+    lines.push("【最近章节摘要】")
+    for (const ch of snapshot.recentChapterSummaries) {
+      lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+      if (ch.keyEvents.length > 0) {
+        lines.push(`  关键事件：${ch.keyEvents.join("、")}`)
+      }
+    }
+    lines.push("")
+  }
+
+  if (snapshot.plotThreads.length > 0) {
+    lines.push("【剧情线索】")
+    for (const t of snapshot.plotThreads) {
+      lines.push(`- ${t.title}（${t.status}）${t.description ? `：${t.description}` : ""}`)
+    }
+    lines.push("")
+  }
+
+  if (snapshot.foreshadowing.length > 0) {
+    lines.push("【伏笔】")
+    for (const f of snapshot.foreshadowing) {
+      lines.push(`- [${f.id}] ${f.content}（${f.state === "planted" ? "已埋设" : "已揭晓"}）`)
+    }
+    lines.push("")
+  }
+
+  if (snapshot.styleGuide) {
+    lines.push("【风格指南】")
+    if (snapshot.styleGuide.tone) lines.push(`基调：${snapshot.styleGuide.tone}`)
+    if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
+    if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
+    lines.push("")
+  }
+
+  if (snapshot.genreRules.length > 0) {
+    lines.push("【题材规则】")
+    for (const rule of snapshot.genreRules) {
+      lines.push(`- ${rule}`)
+    }
+    lines.push("")
+  }
+
+  system.push(lines.join("\n"))
+}
+
+/** 会话压缩时的小说上下文注入逻辑，同上支持 hook 层降级。 */
+async function injectCompactionContext(sessionId: string, directory: string | null | undefined, context: string[]) {
+  // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
+  const novelId = await resolveNovelForSession(sessionId, directory)
+  if (!novelId) return
+
+  const db = getDb(directory)
+
+  // P0: 小说蓝图（书名、题材、梗概）
+  const [novel] = await db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).all()
+  if (novel) {
+    context.push(`【小说蓝图】\n书名：${novel.title}\n题材：${novel.genre}\n梗概：${novel.synopsis}`)
+  }
+
+  // P1: 活跃角色列表（名称+一句话描述）
+  const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
+  if (characters.length > 0) {
+    const charLines = characters.map(
+      (c) => `- ${c.name}${c.role ? `（${c.role}）` : ""}${c.description ? `：${c.description}` : ""}`,
+    )
+    context.push(`【活跃角色】\n${charLines.join("\n")}`)
+  }
+
+  // P2: 当前卷摘要（最新一卷的摘要）
+  const volumes = await db
+    .select()
+    .from(VolumeTable)
+    .where(eq(VolumeTable.novel_id, novelId))
+    .orderBy(desc(VolumeTable.order))
+    .limit(1)
+    .all()
+  if (volumes.length > 0) {
+    const vol = volumes[0]
+    context.push(`【当前卷摘要】\n卷名：${vol.title}\n摘要：${vol.summary}`)
+  }
+}
+
 export const NovelWriterPlugin: Plugin = async (ctx) => {
   return {
     /**
@@ -103,91 +232,14 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       // 无会话ID时跳过（隐藏agent如compaction/title/summary等）
       if (!input.sessionID) return
 
-      // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
-      const novelId = await resolveNovelForSession(input.sessionID, ctx.directory)
-      if (!novelId) return
-
-      // 查询当前最新章节序号
-      const db = getDb(ctx.directory)
-      const [latestChapter] = await db
-        .select()
-        .from(ChapterTable)
-        .where(eq(ChapterTable.novel_id, novelId))
-        .orderBy(desc(ChapterTable.order))
-        .limit(1)
-        .all()
-      const chapterNumber = latestChapter?.order ?? 0
-
-      // 组装上下文快照
-      const snapshot = await assembleSnapshot(novelId, chapterNumber, ctx.directory)
-      if (!snapshot) return
-
-      // 将快照序列化为文本注入 output.system
-      const lines: string[] = ["【小说写作上下文快照】"]
-      lines.push("")
-      lines.push(`【小说蓝图】\n书名：${snapshot.novelTitle}\n题材：${snapshot.genre}\n梗概：${snapshot.synopsis}`)
-      lines.push("")
-
-      if (snapshot.activeCharacters.length > 0) {
-        lines.push("【活跃角色】")
-        for (const c of snapshot.activeCharacters) {
-          lines.push(`- ${c.name}（${c.role}）${c.description ? `：${c.description}` : ""}`)
-          if (c.location || c.mood || c.summary) {
-            lines.push(`  位置：${c.location} | 情绪：${c.mood} | 状态：${c.summary}`)
-          }
-        }
-        lines.push("")
+      try {
+        await injectSystemContext(input.sessionID, ctx.directory, output.system)
+      } catch (error) {
+        console.warn(
+          "[novel-writer] system.transform hook failed, skipping novel context injection:",
+          error instanceof Error ? error.message : error,
+        )
       }
-
-      if (snapshot.volumeSummary) {
-        lines.push(`【当前卷摘要】\n${snapshot.volumeSummary}`)
-        lines.push("")
-      }
-
-      if (snapshot.recentChapterSummaries.length > 0) {
-        lines.push("【最近章节摘要】")
-        for (const ch of snapshot.recentChapterSummaries) {
-          lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
-          if (ch.keyEvents.length > 0) {
-            lines.push(`  关键事件：${ch.keyEvents.join("、")}`)
-          }
-        }
-        lines.push("")
-      }
-
-      if (snapshot.plotThreads.length > 0) {
-        lines.push("【剧情线索】")
-        for (const t of snapshot.plotThreads) {
-          lines.push(`- ${t.title}（${t.status}）${t.description ? `：${t.description}` : ""}`)
-        }
-        lines.push("")
-      }
-
-      if (snapshot.foreshadowing.length > 0) {
-        lines.push("【伏笔】")
-        for (const f of snapshot.foreshadowing) {
-          lines.push(`- [${f.id}] ${f.content}（${f.state === "planted" ? "已埋设" : "已揭晓"}）`)
-        }
-        lines.push("")
-      }
-
-      if (snapshot.styleGuide) {
-        lines.push("【风格指南】")
-        if (snapshot.styleGuide.tone) lines.push(`基调：${snapshot.styleGuide.tone}`)
-        if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
-        if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
-        lines.push("")
-      }
-
-      if (snapshot.genreRules.length > 0) {
-        lines.push("【题材规则】")
-        for (const rule of snapshot.genreRules) {
-          lines.push(`- ${rule}`)
-        }
-        lines.push("")
-      }
-
-      output.system.push(lines.join("\n"))
     },
 
     /**
@@ -198,38 +250,13 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       output.context = output.context ?? []
       if (!input.sessionID) return
 
-      // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
-      const novelId = await resolveNovelForSession(input.sessionID, ctx.directory)
-      if (!novelId) return
-
-      const db = getDb(ctx.directory)
-
-      // P0: 小说蓝图（书名、题材、梗概）
-      const [novel] = await db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).all()
-      if (novel) {
-        output.context.push(`【小说蓝图】\n书名：${novel.title}\n题材：${novel.genre}\n梗概：${novel.synopsis}`)
-      }
-
-      // P1: 活跃角色列表（名称+一句话描述）
-      const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
-      if (characters.length > 0) {
-        const charLines = characters.map(
-          (c) => `- ${c.name}${c.role ? `（${c.role}）` : ""}${c.description ? `：${c.description}` : ""}`,
+      try {
+        await injectCompactionContext(input.sessionID, ctx.directory, output.context)
+      } catch (error) {
+        console.warn(
+          "[novel-writer] session.compacting hook failed, skipping novel context injection:",
+          error instanceof Error ? error.message : error,
         )
-        output.context.push(`【活跃角色】\n${charLines.join("\n")}`)
-      }
-
-      // P2: 当前卷摘要（最新一卷的摘要）
-      const volumes = await db
-        .select()
-        .from(VolumeTable)
-        .where(eq(VolumeTable.novel_id, novelId))
-        .orderBy(desc(VolumeTable.order))
-        .limit(1)
-        .all()
-      if (volumes.length > 0) {
-        const vol = volumes[0]
-        output.context.push(`【当前卷摘要】\n卷名：${vol.title}\n摘要：${vol.summary}`)
       }
     },
 
@@ -2254,6 +2281,37 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      check_project_config: tool({
+        description:
+          "一键拉取项目配置文件的关键字段概览。读取 opennovel.json（model/small_model/default_agent/username/share/autoupdate/logLevel）和 .novel/config.json（name/created_at/version），供 director 路由'改模型配置/改项目名称/查看当前配置'类指令使用。仅查询不修改，文件不存在或字段不在白名单时跳过。",
+        args: {},
+        async execute(_args, ctx) {
+          return readProjectConfig(projectDirFromCtx(ctx.directory))
+        },
+      }),
+      update_project_config: tool({
+        description:
+          "更新项目配置文件的白名单字段。target=opennovel 时改 opennovel.json，支持 model（provider/model 格式）、small_model、default_agent、username、share、autoupdate、logLevel；target=novel 时改 .novel/config.json，支持 name、version。改前自动备份原文件到 <file>.bak；拒绝改 provider/mcp/permission/plugin/agent.*.permission 等敏感字段（防止越权改认证信息或权限）。",
+        args: {
+          target: tool.schema
+            .enum(["opennovel", "novel"])
+            .describe("目标配置文件：opennovel=opennovel.json，novel=.novel/config.json"),
+          field: tool.schema.string().describe("要修改的字段名（受白名单限制，见 description）"),
+          value: tool.schema
+            .string()
+            .describe(
+              "新值。字符串字段（model/name 等）直接传字符串；enum/boolean 字段传 JSON 字面量如 true / \"auto\" / \"DEBUG\"",
+            ),
+        },
+        async execute(args, ctx) {
+          return writeProjectConfig(
+            projectDirFromCtx(ctx.directory),
+            args.target as "opennovel" | "novel",
+            args.field,
+            args.value,
+          )
+        },
+      }),
     },
 
     /**
@@ -2299,6 +2357,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             generate_master_outline: "allow",
             generate_volume_outline: "allow",
             generate_chapter_outline: "allow",
+            check_project_config: "allow",
+            update_project_config: "allow",
           },
         },
         // architect: subagent，由 director 调度，生成并持久化小说设定（世界观/角色/伏笔/剧情线索/风格指南/卷/关系）
@@ -2561,4 +2621,323 @@ function resolveCharRef(
     return { error: `姓名 "${raw}" 未匹配到任何角色` }
   }
   return { error: "未提供 ref 或 id" }
+}
+
+// ─── 项目配置工具辅助（check_project_config / update_project_config） ───
+
+const PROVIDER_MODEL_PATTERN = /^[\w.-]+\/[\w.-]+$/
+
+/** opennovel.json 中允许 agent 读取/修改的字段（白名单） */
+const OPENNOVEL_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "model", label: "默认模型" },
+  { key: "small_model", label: "小模型" },
+  { key: "default_agent", label: "默认 agent" },
+  { key: "username", label: "用户名" },
+  { key: "share", label: "分享策略" },
+  { key: "autoupdate", label: "自动更新" },
+  { key: "logLevel", label: "日志级别" },
+]
+
+/** .novel/config.json 中允许 agent 读取/修改的字段 */
+const NOVEL_CONFIG_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "name", label: "项目名称" },
+  { key: "created_at", label: "创建时间" },
+  { key: "version", label: "版本" },
+]
+
+type FieldSpec = {
+  parseJson: boolean
+  validate: (value: unknown) => string | null
+}
+
+/** 校验函数：返回 null 表示通过，返回字符串表示错误原因 */
+const OPENNOVEL_FIELD_SPECS: Record<string, FieldSpec> = {
+  model: {
+    parseJson: false,
+    validate: (v) =>
+      typeof v === "string" && PROVIDER_MODEL_PATTERN.test(v)
+        ? null
+        : "必须是 'provider/model' 格式（如 anthropic/claude-sonnet-4-5）",
+  },
+  small_model: {
+    parseJson: false,
+    validate: (v) =>
+      typeof v === "string" && PROVIDER_MODEL_PATTERN.test(v)
+        ? null
+        : "必须是 'provider/model' 格式",
+  },
+  default_agent: {
+    parseJson: false,
+    validate: (v) => (typeof v === "string" && v.length > 0 ? null : "必须是非空字符串"),
+  },
+  username: {
+    parseJson: false,
+    validate: (v) => (typeof v === "string" ? null : "必须是字符串"),
+  },
+  share: {
+    parseJson: true,
+    validate: (v) =>
+      v === "manual" || v === "auto" || v === "disabled" ? null : "必须是 manual / auto / disabled 之一",
+  },
+  autoupdate: {
+    parseJson: true,
+    validate: (v) =>
+      typeof v === "boolean" || v === "notify" ? null : "必须是 true / false / \"notify\" 之一",
+  },
+  logLevel: {
+    parseJson: true,
+    validate: (v) =>
+      v === "DEBUG" || v === "INFO" || v === "WARN" || v === "ERROR"
+        ? null
+        : "必须是 DEBUG / INFO / WARN / ERROR 之一",
+  },
+}
+
+const NOVEL_CONFIG_FIELD_SPECS: Record<string, FieldSpec> = {
+  name: {
+    parseJson: false,
+    validate: (v) =>
+      typeof v === "string" && v.length > 0 && v.length <= 100 ? null : "必须是 1-100 字符的字符串",
+  },
+  version: {
+    parseJson: false,
+    validate: (v) =>
+      typeof v === "string" && /^\d+\.\d+\.\d+/.test(v) ? null : "必须是语义化版本字符串（如 1.0.0）",
+  },
+}
+
+type ProjectConfigSpec = {
+  resolvePath: (projectDir: string) => string
+  fields: Record<string, FieldSpec>
+}
+
+const PROJECT_CONFIG_SPECS: Record<string, ProjectConfigSpec> = {
+  opennovel: {
+    resolvePath: (projectDir) => {
+      const found = findOpennovelConfig(projectDir)
+      return found ?? join(projectDir, "opennovel.json")
+    },
+    fields: OPENNOVEL_FIELD_SPECS,
+  },
+  novel: {
+    resolvePath: (projectDir) => join(projectDir, ".novel", "config.json"),
+    fields: NOVEL_CONFIG_FIELD_SPECS,
+  },
+}
+
+/**
+ * 在项目根目录查找 opennovel 配置文件。优先 opennovel.jsonc（带注释），
+ * 其次 opennovel.json。都不存在返回 undefined。
+ *
+ * 工具不读 .jsonc 注释（plugin 包不依赖 jsonc-parser），如果 .jsonc 含注释
+ * 解析会失败，工具会报告并拒绝写入——让用户手工去掉注释或转纯 .json。
+ */
+function findOpennovelConfig(projectDir: string): string | undefined {
+  const jsonc = join(projectDir, "opennovel.jsonc")
+  if (existsSync(jsonc)) return jsonc
+  const json = join(projectDir, "opennovel.json")
+  if (existsSync(json)) return json
+  return undefined
+}
+
+function formatConfigValue(value: unknown): string {
+  if (value === undefined) return "（未设置）"
+  if (value === null) return "null"
+  if (typeof value === "string") return value.length > 80 ? value.slice(0, 80) + "…" : value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+/**
+ * 读取项目配置（opennovel.json + .novel/config.json）白名单字段，组装展示文本。
+ * 由 check_project_config 工具调用。文件不存在或 JSON 损坏时返回提示，不抛异常。
+ */
+export function readProjectConfig(projectDir: string): {
+  title: string
+  output: string
+  metadata: {
+    opennovel_path: string | undefined
+    novel_config_path: string
+    novel_config_exists: boolean
+  }
+} {
+  const sections: string[] = []
+
+  const opennovelPath = findOpennovelConfig(projectDir)
+  if (opennovelPath) {
+    try {
+      const raw = readFileSync(opennovelPath, "utf-8")
+      const data = JSON.parse(raw) as Record<string, unknown>
+      sections.push(`## opennovel.json（${opennovelPath}）`)
+      let shown = 0
+      for (const field of OPENNOVEL_FIELDS) {
+        if (field.key in data) {
+          sections.push(`- ${field.label}：${formatConfigValue(data[field.key])}`)
+          shown++
+        }
+      }
+      if (shown === 0) sections.push("- （白名单字段均为空，使用默认值）")
+    } catch (err) {
+      sections.push(`## opennovel.json（解析失败）`)
+      sections.push(
+        `- ⚠ ${opennovelPath} 不是合法 JSON：${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  } else {
+    sections.push(`## opennovel.json（未找到）`)
+    sections.push("- 项目根目录没有 opennovel.json / opennovel.jsonc")
+  }
+
+  const novelConfigPath = join(projectDir, ".novel", "config.json")
+  sections.push("")
+  if (existsSync(novelConfigPath)) {
+    try {
+      const raw = readFileSync(novelConfigPath, "utf-8")
+      const data = JSON.parse(raw) as Record<string, unknown>
+      sections.push(`## .novel/config.json（${novelConfigPath}）`)
+      let shown = 0
+      for (const field of NOVEL_CONFIG_FIELDS) {
+        if (field.key in data) {
+          sections.push(`- ${field.label}：${formatConfigValue(data[field.key])}`)
+          shown++
+        }
+      }
+      if (shown === 0) sections.push("- （白名单字段均为空）")
+    } catch (err) {
+      sections.push(`## .novel/config.json（解析失败）`)
+      sections.push(
+        `- ⚠ ${novelConfigPath} 不是合法 JSON：${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  } else {
+    sections.push(`## .novel/config.json（未找到）`)
+    sections.push("- 项目未通过 initNovelProject 初始化")
+  }
+
+  return {
+    title: "check_project_config",
+    output: sections.join("\n"),
+    metadata: {
+      opennovel_path: opennovelPath,
+      novel_config_path: novelConfigPath,
+      novel_config_exists: existsSync(novelConfigPath),
+    },
+  }
+}
+
+/**
+ * 更新项目配置白名单字段，写入前自动备份原文件。由 update_project_config 工具调用。
+ * 拒绝写入白名单外的字段（防越权改 provider/mcp/permission 等敏感配置）。
+ */
+export function writeProjectConfig(
+  projectDir: string,
+  target: "opennovel" | "novel",
+  field: string,
+  rawValue: string,
+): {
+  title: string
+  output: string
+  metadata?: {
+    target: string
+    field: string
+    old_value: unknown
+    new_value: unknown
+    file: string
+    had_original: boolean
+  }
+} {
+  const spec = PROJECT_CONFIG_SPECS[target]
+  if (!spec) {
+    return { title: "update_project_config", output: `不支持的 target：${target}` }
+  }
+  const fieldSpec = spec.fields[field]
+  if (!fieldSpec) {
+    const allowed = Object.keys(spec.fields).join("、")
+    return {
+      title: "update_project_config",
+      output: `target=${target} 不支持字段 "${field}"。允许的字段：${allowed}`,
+    }
+  }
+
+  let parsed: unknown
+  if (fieldSpec.parseJson) {
+    try {
+      parsed = JSON.parse(rawValue)
+    } catch {
+      return {
+        title: "update_project_config",
+        output: `字段 ${field} 需要合法的 JSON 字面量：${rawValue}`,
+      }
+    }
+  } else {
+    parsed = rawValue
+  }
+  const validationError = fieldSpec.validate(parsed)
+  if (validationError) {
+    return { title: "update_project_config", output: `字段 ${field} 校验失败：${validationError}` }
+  }
+
+  const filePath = spec.resolvePath(projectDir)
+  mkdirSync(dirname(filePath), { recursive: true })
+
+  let data: Record<string, unknown> = {}
+  let hadOriginal = false
+  if (existsSync(filePath)) {
+    try {
+      const raw = readFileSync(filePath, "utf-8")
+      data = JSON.parse(raw) as Record<string, unknown>
+      hadOriginal = true
+    } catch (err) {
+      return {
+        title: "update_project_config",
+        output: `${filePath} 不是合法 JSON，拒绝覆盖以防损坏：${err instanceof Error ? err.message : String(err)}`,
+      }
+    }
+  }
+
+  const oldValue = data[field]
+  data[field] = parsed
+
+  if (hadOriginal) {
+    try {
+      const backupPath = filePath + ".bak"
+      writeFileSync(backupPath, readFileSync(filePath))
+    } catch (err) {
+      return {
+        title: "update_project_config",
+        output: `备份原文件失败：${err instanceof Error ? err.message : String(err)}`,
+      }
+    }
+  }
+
+  try {
+    writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n")
+  } catch (err) {
+    return {
+      title: "update_project_config",
+      output: `写入失败：${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+
+  return {
+    title: "update_project_config",
+    output: [
+      `已更新 ${target}.${field}`,
+      `旧值：${formatConfigValue(oldValue)}`,
+      `新值：${formatConfigValue(parsed)}`,
+      `文件：${filePath}`,
+      hadOriginal ? `备份：${filePath}.bak` : "（首次写入，无备份）",
+    ].join("\n"),
+    metadata: {
+      target,
+      field,
+      old_value: oldValue,
+      new_value: parsed,
+      file: filePath,
+      had_original: hadOriginal,
+    },
+  }
 }
