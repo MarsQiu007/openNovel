@@ -1,0 +1,35 @@
+name: Update models.dev catalog
+
+on:
+  schedule:
+    # Every Monday 00:00 UTC
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest models.dev catalog
+        run: |
+          curl -fsSL https://models.dev/api.json -o packages/opennovel/script/api.json
+          echo "size: $(wc -c < packages/opennovel/script/api.json) bytes"
+
+      - name: Validate JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('packages/opennovel/script/api.json', 'utf-8'))" \
+            || (echo "Invalid JSON, aborting" && exit 1)
+
+      - name: Commit if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          file_pattern: packages/opennovel/script/api.json
+          commit_message: "chore: update models.dev catalog"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          commit_author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>

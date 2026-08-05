@@ -32,7 +32,6 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
-packages/opennovel/script/.models-dev-api.local.json
 
 # Novel project data (project-level databases, configs with API keys)
 .novel/
