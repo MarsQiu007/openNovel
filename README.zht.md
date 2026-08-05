@@ -3,8 +3,8 @@
 **AI 驅動的小說創作工作台** —— 透過 8 步寫作流水線與 37 維連續性審計，規劃、起草、審計並修訂長篇小說。
 
 <p>
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
+  <a href="README.en.md">English</a> |
+  <a href="README.md">简体中文</a> |
   <a href="README.zht.md">繁體中文</a>
 </p>
 
@@ -40,18 +40,21 @@ git clone https://github.com/MarsQiu007/openNovel.git
 cd openNovel
 bun install
 
-# 終端 1 —— 後端（端口 4096）
-cd packages/opennovel
-bun run --conditions=browser ./src/index.ts serve --port 4096
-
-# 終端 2 —— Web 界面（端口 4444）
-cd packages/app
-bun dev -- --port 4444
+# 推薦：以桌面應用方式啟動（Electron，自動拉起後端，無需單獨啟動）
+bun run dev:desktop
 ```
 
-打開 <http://localhost:4444>，添加專案資料夾，從書架創建你的第一部小說。
+也可選擇以 Web 方式在瀏覽器中執行：
 
-界面支援 English、简体中文與繁體中文。
+```bash
+# 一條命令同時啟動後端（端口 4096）與 Web 界面（端口 4444）
+bun run dev:all
+# 打開 http://localhost:4444
+```
+
+打開應用後，添加專案資料夾，從書架創建你的第一部小說。
+
+界面支援 简体中文、English 與繁體中文。
 
 ## 架構
 
@@ -59,6 +62,7 @@ openNovel 是一個 Bun monorepo：
 
 - `packages/novel-store` —— 核心資料層（小說、章節、角色、章節評審）
 - `packages/schema` + `packages/protocol` —— 服務端與客戶端共享的 API 契約
+- `packages/desktop` —— Electron 桌面應用（自動拉起後端）
 - `packages/opennovel` —— 後端服務與 CLI
 - `packages/app` —— SolidJS Web 界面（書架、工作台、審批流）
 - `packages/plugin` —— 寫作流水線工具（起草、連續性審計、評審提交）
