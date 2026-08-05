@@ -23,7 +23,6 @@ import { EOL } from "os"
 import { Filesystem } from "@/util/filesystem"
 import { createOpenNovelClient, type OpenNovelClient, type ToolPart } from "@opennovel-ai/sdk/v2"
 import { FormatError, FormatUnknownError } from "../error"
-import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
 
 type ModelInput = Parameters<OpenNovelClient["session"]["prompt"]>[0]["model"]
 
@@ -74,52 +73,22 @@ function inline(info: Inline) {
   UI.println(UI.Style.TEXT_NORMAL + info.icon, UI.Style.TEXT_NORMAL + info.title + suffix)
 }
 
-function block(info: Inline, output?: string) {
-  UI.empty()
-  inline(info)
-  if (!output?.trim()) return
-  UI.println(output)
-  UI.empty()
-}
-
 function formatRunError(error: unknown) {
   return FormatError(error) ?? FormatUnknownError(error)
 }
 
 async function tool(part: ToolPart) {
-  try {
-    const { toolInlineInfo } = await import("./run/tool")
-    const next = toolInlineInfo(part)
-    if (next.mode === "block") {
-      block(next, next.body)
-      return
-    }
-
-    inline(next)
-  } catch {
-    inline({
-      icon: "\u2699",
-      title: part.tool,
-    })
-  }
+  inline({
+    icon: "\u2699",
+    title: part.tool,
+  })
 }
 
 async function toolError(part: ToolPart) {
-  try {
-    const { toolInlineInfo } = await import("./run/tool")
-    const next = toolInlineInfo(part)
-    inline({
-      icon: "✗",
-      title: `${next.title} failed`,
-      ...(next.description && { description: next.description }),
-    })
-    return
-  } catch {
-    inline({
-      icon: "✗",
-      title: `${part.tool} failed`,
-    })
-  }
+  inline({
+    icon: "✗",
+    title: `${part.tool} failed`,
+  })
 }
 
 export const RunCommand = effectCmd({
@@ -269,62 +238,20 @@ export const RunCommand = effectCmd({
     const localInstance = yield* InstanceRef
     yield* Effect.promise(async () => {
       const rawMessage = [...args.message, ...(args["--"] || [])].join(" ")
-      const interactive = args.mini
+      // interactive/tui 模式已停用
       const auto = args.auto || args.yolo || args["dangerously-skip-permissions"]
-      const thinking = interactive ? (args.thinking ?? true) : (args.thinking ?? false)
+      const thinking = args.thinking ?? false
       const die = (message: string): never => {
         UI.error(message)
         process.exit(1)
-      }
-      const dieInteractive = (error: unknown): never => {
-        if (error instanceof Error && error.message === INTERACTIVE_INPUT_ERROR) {
-          die(error.message)
-        }
-
-        throw error
       }
 
       let message = [...args.message, ...(args["--"] || [])]
         .map((arg) => (arg.includes(" ") ? `"${arg.replace(/"/g, '\\"')}"` : arg))
         .join(" ")
 
-      if (interactive && args.command) {
-        die("--mini cannot be used with --command")
-      }
-
-      if (interactive && args._?.[0] !== "mini") {
-        die("--mini must be used without the run subcommand")
-      }
-
-      if (args.demo && !interactive) {
-        die("--demo requires --mini")
-      }
-
-      if (interactive && args.format === "json") {
-        die("--mini cannot be used with --format json")
-      }
-
-      if (args["replay-limit"] !== undefined && !interactive) {
-        die("--replay-limit requires --mini")
-      }
-
-      if (
-        args["replay-limit"] !== undefined &&
-        (!Number.isInteger(args["replay-limit"]) || args["replay-limit"] <= 0)
-      ) {
-        die("--replay-limit must be a positive integer")
-      }
-
-      if (interactive && !process.stdout.isTTY) {
-        die("--mini requires a TTY stdout")
-      }
-
-      if (interactive) {
-        try {
-          resolveInteractiveStdin().cleanup?.()
-        } catch (error) {
-          dieInteractive(error)
-        }
+      if (args.demo) {
+        die("--demo 已停用（TUI 模式已移除）")
       }
 
       const replay = args.replay === false ? false : args.replay || args["replay-limit"] !== undefined
@@ -416,7 +343,7 @@ export const RunCommand = effectCmd({
       message = resolveRunInput(message, piped) ?? ""
       const initialInput = resolveRunInput(rawMessage, piped)
 
-      if (message.trim().length === 0 && !args.command && !interactive) {
+      if (message.trim().length === 0 && !args.command) {
         UI.error("You must provide a message or a command")
         process.exit(1)
       }
@@ -426,14 +353,12 @@ export const RunCommand = effectCmd({
         process.exit(1)
       }
 
-      const rules: PermissionV1.Ruleset = interactive
-        ? []
-        : [
-            {
-              permission: "question",
-              action: "deny",
-              pattern: "*",
-            },
+      const rules: PermissionV1.Ruleset = [
+        {
+          permission: "question",
+          action: "deny",
+          pattern: "*",
+        },
             {
               permission: "plan_enter",
               action: "deny",
@@ -824,43 +749,25 @@ export const RunCommand = effectCmd({
 
         await share(client, sessionID)
 
-        if (!interactive) {
-          const events = await client.event.subscribe()
-          const completed = loop(client, events).catch((e) => {
-            console.error(e)
-            process.exitCode = 1
-          })
-          async function finish() {
-            if (args.attach) return
-            const error = await completed
-            if (error) process.exitCode = 1
-          }
+        const events = await client.event.subscribe()
+        const completed = loop(client, events).catch((e) => {
+          console.error(e)
+          process.exitCode = 1
+        })
+        async function finish() {
+          if (args.attach) return
+          const error = await completed
+          if (error) process.exitCode = 1
+        }
 
-          if (args.command) {
-            const result = await client.session.command({
-              sessionID,
-              agent,
-              model: args.model,
-              command: args.command,
-              arguments: message,
-              variant: args.variant,
-            })
-            if (result.error) {
-              if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
-              process.exitCode = 1
-              return
-            }
-            await finish()
-            return
-          }
-
-          const model = pick(args.model)
-          const result = await client.session.prompt({
+        if (args.command) {
+          const result = await client.session.command({
             sessionID,
             agent,
-            model,
+            model: args.model,
+            command: args.command,
+            arguments: message,
             variant: args.variant,
-            parts: [...files, { type: "text", text: message }],
           })
           if (result.error) {
             if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
@@ -872,66 +779,20 @@ export const RunCommand = effectCmd({
         }
 
         const model = pick(args.model)
-        const { runInteractiveMode } = await import("./run/runtime")
-        try {
-          await runInteractiveMode({
-            sdk: client,
-            directory: cwd,
-            sessionID,
-            sessionTitle: sess.title,
-            resume: Boolean(args.session || args.continue) && !args.fork,
-            replay,
-            replayLimit: args["replay-limit"],
-            agent,
-            model,
-            variant: args.variant,
-            files,
-            initialInput,
-            createSession: createFreshSession,
-            thinking,
-            backgroundSubagents: flags.experimentalBackgroundSubagents,
-            demo: args.demo,
-          })
-        } catch (error) {
-          dieInteractive(error)
+        const result = await client.session.prompt({
+          sessionID,
+          agent,
+          model,
+          variant: args.variant,
+          parts: [...files, { type: "text", text: message }],
+        })
+        if (result.error) {
+          if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
+          process.exitCode = 1
+          return
         }
+        await finish()
         return
-      }
-
-      if (interactive && !args.attach && !args.session && !args.continue) {
-        const model = pick(args.model)
-        const { runInteractiveLocalMode } = await import("./run/runtime")
-        const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
-          const { Server } = await import("@/server/server")
-          const request = new Request(input, init)
-          const headers = new Headers(request.headers)
-          const auth = ServerAuth.header()
-          if (auth) headers.set("Authorization", auth)
-          return Server.Default().app.fetch(new Request(request, { headers }))
-        }) as typeof globalThis.fetch
-
-        try {
-          return await runInteractiveLocalMode({
-            directory: directory ?? root,
-            fetch: fetchFn,
-            resolveAgent: localAgent,
-            session,
-            share,
-            createSession: createFreshSession,
-            agent: args.agent,
-            model,
-            variant: args.variant,
-            replay,
-            replayLimit: args["replay-limit"],
-            files,
-            initialInput,
-            thinking,
-            backgroundSubagents: flags.experimentalBackgroundSubagents,
-            demo: args.demo,
-          })
-        } catch (error) {
-          dieInteractive(error)
-        }
       }
 
       if (args.attach) {
