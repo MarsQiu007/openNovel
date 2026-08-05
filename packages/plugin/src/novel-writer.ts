@@ -1391,6 +1391,78 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      create_relationship: tool({
+        description:
+          "建立两个角色之间的单条关系。char_a 和 char_b 都可以是角色名（需在本小说内唯一）或角色 UUID；type 必填，描述关系类型（如 friend/enemy/mentor/亲人/师徒/宿敌）。这是单条创建入口，比 save_novel_settings 批量模式更直接；如需批量创建或多条设定一起落库，请用 save_novel_settings。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          char_a: tool.schema.string().describe("角色 A 的名称或 UUID"),
+          char_b: tool.schema.string().describe("角色 B 的名称或 UUID"),
+          type: tool.schema.string().describe("关系类型（如 friend/enemy/mentor/亲人/师徒/宿敌）"),
+          description: tool.schema.string().optional().describe("关系的详细说明（可选）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+
+          const resolveChar = async (
+            input: string,
+            label: string,
+          ): Promise<{ id: string } | { error: string }> => {
+            const trimmed = input.trim()
+            if (!trimmed) return { error: `${label}：不能为空` }
+            if (trimmed.length === 36 && trimmed.includes("-")) {
+              const [row] = await db
+                .select({ id: CharacterTable.id })
+                .from(CharacterTable)
+                .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, trimmed)))
+                .limit(1)
+                .all()
+              return row ? { id: row.id } : { error: `${label}：ID "${trimmed}" 不属于本小说或不存在` }
+            }
+            const rows = await db
+              .select({ id: CharacterTable.id })
+              .from(CharacterTable)
+              .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.name, trimmed)))
+              .all()
+            if (rows.length === 1) return { id: rows[0].id }
+            if (rows.length > 1) {
+              return { error: `${label}：姓名 "${trimmed}" 匹配到 ${rows.length} 个角色，存在歧义，请使用 UUID` }
+            }
+            return { error: `${label}：姓名 "${trimmed}" 未匹配到任何角色` }
+          }
+
+          const a = await resolveChar(args.char_a, "char_a")
+          if ("error" in a) return { title: "create_relationship", output: a.error }
+          const b = await resolveChar(args.char_b, "char_b")
+          if ("error" in b) return { title: "create_relationship", output: b.error }
+          if (a.id === b.id) {
+            return { title: "create_relationship", output: "char_a 和 char_b 不能是同一角色" }
+          }
+          if (!args.type.trim()) {
+            return { title: "create_relationship", output: "type 不能为空" }
+          }
+
+          const id = crypto.randomUUID()
+          await db
+            .insert(RelationshipTable)
+            .values({
+              id,
+              novel_id: novelId,
+              char_a_id: a.id,
+              char_b_id: b.id,
+              type: args.type.trim(),
+              description: (args.description ?? "").trim(),
+            })
+            .run()
+
+          return {
+            title: "create_relationship",
+            output: `已建立关系 [${id.slice(0, 8)}] ${args.char_a.trim()} — ${args.type.trim()} → ${args.char_b.trim()}`,
+            metadata: { relationship_id: id },
+          }
+        },
+      }),
       check_novel_settings: tool({
         description:
           "一键拉取小说所有设定（角色/世界观/伏笔/剧情线索/关系/卷/风格指南）的概览 + 完整内容 + 状态摘要，供 director 做'检查设定/审查设定/审一遍设定'类指令使用。可选 scope 限定范围。仅查询不修改，是审计设定类指令的入口工具。",
@@ -2343,6 +2415,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             revise_chapter: "allow",
             manage_characters: "allow",
             save_novel_settings: "allow",
+            create_relationship: "allow",
             check_novel_settings: "allow",
             cascade_check: "allow",
             cascade_create_tasks: "allow",
@@ -2372,6 +2445,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             glob: "allow",
             grep: "allow",
             save_novel_settings: "allow",
+            create_relationship: "allow",
           },
         },
         // pipeline: subagent，由 director 调度，执行8步写作流水线
