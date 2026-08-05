@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: infrastructure
+title: 基础设施与云资源编排（SST IaC）
+scope:
+    - infra/
+source_files: []
+depends_on: []
+related_to:
+    - path: github_actions

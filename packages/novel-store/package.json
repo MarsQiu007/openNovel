@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opennovel-ai/novel-store",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "build": "tsc"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "imports": {
+    "#driver": {
+      "bun": "./src/driver.bun.ts",
+      "node": "./src/driver.node.ts",
+      "default": "./src/driver.bun.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@tsconfig/node22": "catalog:",
+    "typescript": "catalog:",
+    "@typescript/native-preview": "catalog:"
+  }
+}

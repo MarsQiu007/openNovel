@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opennovel-ai/sdk-next",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test --timeout 5000",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@opennovel-ai/client": "workspace:*",
+    "@opennovel-ai/core": "workspace:*",
+    "@opennovel-ai/server": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@typescript/native-preview": "catalog:"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "summary": {
+    "projectName": "openNovel",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "项目通过 AGENTS.md 和三个 CI 工作流建立了基础代理指导与验证管线，但缺少可复用技能配置和学习捕获机制，限制了代理工作效率的持续提升。",
+    "aiAgentPractice": {
+      "inspectedSurfaces": ["Rules", "Workflows"],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": ["Project"],
+          "count": 1,
+          "paths": ["AGENTS.md"]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": ["Project"],
+          "count": 3,
+          "paths": [".github/workflows/generate.yml", ".github/workflows/test.yml", ".github/workflows/typecheck.yml"]
+        },
+        {
+          "surface": "Skills",
+          "scopes": ["Project"],
+          "count": 0
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": ["Project"],
+          "count": 0
+        },
+        {
+          "surface": "Hooks",
+          "scopes": ["Project"],
+          "count": 0
+        },
+        {
+          "surface": "Commands",
+          "scopes": ["Project"],
+          "count": 0
+        },
+        {
+          "surface": "Plugins",
+          "scopes": ["Project"],
+          "count": 0
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 59,
+        "summary": "AGENTS.md 提供了详尽的代理指导，涵盖分支命名、提交规范和代码风格；但当前会话证据不足以观察代理是否正确应用这些指导。",
+        "findingRefs": []
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 59,
+        "summary": "工作区包含 41 个清单文件和构建/测试脚本，提供了可复现的启动路径；未配置项目级命令、钩子或权限边界机制。",
+        "findingRefs": []
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 59,
+        "summary": "875 个测试文件和三个 CI 工作流（generate、test、typecheck）覆盖了主要验证路径；但当前会话中未观察到验证行为的执行。",
+        "findingRefs": []
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 59,
+        "summary": "CI 工作流提供了基础交付管线；未观察到交付验收、高风险审批或回滚恢复的实际执行。",
+        "findingRefs": []
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 35,
+        "summary": "无任务周期事件记录、无可复用改进追踪、无技能观察；学习捕获机制尚未建立。",
+        "findingRefs": ["project-skill-coverage"]
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "project-skill-coverage",
+      "title": "项目无可复用技能配置，候选技能文件停留在测试夹具或非路由目录",
+      "severity": "Low",
+      "reason": "项目配置了 0 个可复用技能，但存在 3 个候选 SKILL.md 文件（.opencode/skills/effect/、两个 test/fixture/skills/ 目录）。候选文件缺乏触发器、输出定义或路由配置。当代理遇到重复性工作流程需求时，没有已配置的技能可供激活，重复过程只能每次从头执行。",
+      "expectedOutput": ["至少一个已路由的项目级技能，包含触发器、流程和验证定义", "技能清单显示非零技能计数"],
+      "expectedArtifact": "已配置的项目级技能",
+      "aiFixPrompt": "/better-harness fix this issue\n\n审查 .opencode/skills/effect/SKILL.md 候选文件，判断其是否满足项目级技能的触发器、流程和验证要求。如果满足，将其路由到正确的技能目录；如果不满足，为项目中识别到的重复工作流创建新的技能定义。\n\n## 验证\n\n- 运行技能清单命令确认新技能已被发现\n- 确认技能的触发器、流程和输出定义完整",
+      "dimensionRefs": ["learning-capture"]
+    }
+  ]
+}

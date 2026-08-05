@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: dev_scripts
+title: 开发辅助与发布脚本集
+scope:
+    - script/
+source_files: []
+depends_on: []
+related_to:
+    - path: documentation_specs
+    - path: nix_packaging

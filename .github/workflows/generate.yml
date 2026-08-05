@@ -1,0 +1,39 @@
+name: generate
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Configure git committer
+        run: |
+          git config --global user.name "opennovel-bot"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate
+        run: ./script/generate.ts
+
+      - name: Commit and push
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add -A
+          git commit -m "chore: generate" --allow-empty
+          git push origin HEAD:${{ github.ref_name }} --no-verify

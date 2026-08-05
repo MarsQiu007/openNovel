@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=OpenNovel
+Exec=/opt/OpenNovel/ai.opennovel.desktop %U
+Terminal=false
+Type=Application
+Icon=ai.opennovel.desktop
+StartupWMClass=ai.opennovel.desktop
+NoDisplay=true
+Comment=AI-powered novel writing workbench
+Categories=Development;

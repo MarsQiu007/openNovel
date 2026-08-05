@@ -1,0 +1,825 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel acp --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel acp
+
+start ACP (Agent Client Protocol) server
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  mDNS 服务的自定义域名 (默认: opennovel.local)
+                                                               [string] [default: "opennovel.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+      --cwd          working directory [string] [default: "<HOME>"]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel mcp
+
+manage MCP (Model Context Protocol) servers
+
+Commands:
+  opennovel mcp add [name]     add an MCP server
+  opennovel mcp list           list MCP servers and their status                       [aliases: ls]
+  opennovel mcp auth [name]    authenticate with an OAuth-enabled MCP server
+  opennovel mcp logout [name]  remove OAuth credentials for an MCP server
+  opennovel mcp debug <name>   debug OAuth connection for an MCP server
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel attach --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel attach <url>
+
+连接到正在运行的 opennovel 服务器
+
+Positionals:
+  url  http://localhost:4096                                                     [string] [required]
+
+Options:
+  -h, --help          show help                                                            [boolean]
+  -v, --version       show version number                                                  [boolean]
+      --print-logs    print logs to stderr                                                 [boolean]
+      --log-level     log level                 [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure          run without external plugins                                         [boolean]
+      --dir           directory to run in                                                   [string]
+  -c, --continue      continue the last session                                            [boolean]
+  -s, --session       session id to continue                                                [string]
+      --fork          fork the session when continuing (use with --continue or --session)  [boolean]
+  -p, --password      basic auth password (defaults to OPENNOVEL_SERVER_PASSWORD)           [string]
+  -u, --username      基本认证用户名 (默认使用 OPENNOVEL_SERVER_USERNAME 或 'opennovel')    [string]
+      --mini          start the minimal interactive interface             [boolean] [default: false]
+      --no-replay     disable mini session history replay on resume and after resize       [boolean]
+      --replay-limit  cap visible mini replay to the newest N messages                      [number]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel run --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel run [message..]
+
+使用消息运行 opennovel
+
+Positionals:
+  message  message to send                                                     [array] [default: []]
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --command      the command to run, use message for args                               [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session before continuing (requires --continue or --session) [boolean]
+      --share        share the session                                                     [boolean]
+  -m, --model        model to use in the format of provider/model                           [string]
+      --agent        agent to use                                                           [string]
+      --format       format: default (formatted) or json (raw JSON events)
+                                          [string] [choices: "default", "json"] [default: "default"]
+  -f, --file         file(s) to attach to message                                            [array]
+      --title        title for the session (uses truncated prompt if no value provided)     [string]
+      --attach       连接到正在运行的 opennovel 服务器 (例如 http://localhost:4096)         [string]
+  -p, --password     基本认证密码 (默认使用 OPENNOVEL_SERVER_PASSWORD)                      [string]
+  -u, --username     基本认证用户名 (默认使用 OPENNOVEL_SERVER_USERNAME 或 'opennovel')     [string]
+      --dir          directory to run in, path on remote server if attaching                [string]
+      --port         port for the local server (defaults to random port if no value provided)
+                                                                                            [number]
+      --variant      model variant (provider-specific reasoning effort, e.g., high, max, minimal)
+                                                                                            [string]
+      --thinking     show thinking blocks                                                  [boolean]
+  -i, --interactive  run in direct interactive split-footer mode          [boolean] [default: false]
+      --auto         auto-approve permissions that are not explicitly denied (dangerous!)
+                                                                          [boolean] [default: false]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel debug --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel debug
+
+debugging and troubleshooting tools
+
+Commands:
+  opennovel debug config        show resolved configuration
+  opennovel debug lsp           LSP debugging utilities
+  opennovel debug rg            ripgrep debugging utilities
+  opennovel debug file          file system debugging utilities
+  opennovel debug scrap         list all known projects
+  opennovel debug skill         list all available skills
+  opennovel debug snapshot      snapshot debugging utilities
+  opennovel debug startup       print startup timing
+  opennovel debug agent <name>  show agent configuration details
+  opennovel debug v2            debug v2 catalog and built-in plugins
+  opennovel debug info          show debug information
+  opennovel debug paths         show global paths (data, config, cache, state)
+  opennovel debug wait          wait indefinitely (for debugging)
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel providers --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel providers
+
+manage AI providers and credentials
+
+Commands:
+  opennovel providers list               list providers and credentials                [aliases: ls]
+  opennovel providers login [url]        log in to a provider
+  opennovel providers logout [provider]  log out from a configured provider
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel agent --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel agent
+
+manage agents
+
+Commands:
+  opennovel agent create  create a new agent
+  opennovel agent list    list all available agents
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel upgrade --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel upgrade [target]
+
+将 opennovel 升级到最新版本或指定版本
+
+Positionals:
+  target  version to upgrade to, for ex '0.1.48' or 'v0.1.48'                               [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+  -m, --method      installation method to use
+                          [string] [choices: "curl", "npm", "pnpm", "bun", "brew", "choco", "scoop"]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel uninstall --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel uninstall
+
+卸载 opennovel 并移除所有相关文件
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+  -c, --keep-config  keep configuration files                             [boolean] [default: false]
+  -d, --keep-data    keep session data and snapshots                      [boolean] [default: false]
+      --dry-run      show what would be removed without removing          [boolean] [default: false]
+  -f, --force        skip confirmation prompts                            [boolean] [default: false]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel serve --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel serve
+
+启动无头 opennovel 服务器
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  mDNS 服务的自定义域名 (默认: opennovel.local)
+                                                               [string] [default: "opennovel.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel web --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel web
+
+启动 opennovel 服务器并打开 Web 界面
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  mDNS 服务的自定义域名 (默认: opennovel.local)
+                                                               [string] [default: "opennovel.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel models --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel models [provider]
+
+list all available models
+
+Positionals:
+  provider  provider ID to filter models by                                                 [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --verbose     use more verbose model output (includes metadata like costs)           [boolean]
+      --refresh     refresh the models cache from models.dev                               [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel stats --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel stats
+
+show token usage and cost statistics
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --days        show stats for the last N days (default: all time)                      [number]
+      --tools       number of tools to show (default: all)                                  [number]
+      --models      show model statistics (default: hidden). Pass a number to show top N, otherwise
+                    shows all
+      --project     filter by project (default: all projects, empty string: current project)[string]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel export --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel export [sessionID]
+
+export session data as JSON
+
+Positionals:
+  sessionID  session id to export                                                           [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --sanitize    redact sensitive transcript and file data                              [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel import --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel import <file>
+
+import session data from JSON file or URL
+
+Positionals:
+  file  path to JSON file or share URL                                           [string] [required]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel github
+
+manage GitHub agent
+
+Commands:
+  opennovel github install  install the GitHub agent
+  opennovel github run      run the GitHub agent
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel pr --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel pr <number>
+
+获取并检出 GitHub PR 分支，然后运行 opennovel
+
+Positionals:
+  number  PR number to checkout                                                  [number] [required]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel session --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel session
+
+manage sessions
+
+Commands:
+  opennovel session list                list sessions
+  opennovel session delete <sessionID>  delete a session
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel plugin --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel plugin <module>
+
+install plugin and update config
+
+Positionals:
+  module  npm module name                                                        [string] [required]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+  -g, --global      install in global config                              [boolean] [default: false]
+  -f, --force       replace existing plugin version                       [boolean] [default: false]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel db --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel db
+
+database tools
+
+Commands:
+  opennovel db [query]     open an interactive sqlite3 shell or run a query                [default]
+  opennovel db path        print the database path
+
+Positionals:
+  query  SQL query to execute                                                               [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --format      Output format                 [string] [choices: "json", "tsv"] [default: "tsv"]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp list --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel mcp list
+
+list MCP servers and their status
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp add --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel mcp add [name]
+
+add an MCP server
+
+Positionals:
+  name  name of the MCP server                                                              [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --url         URL for a remote MCP server                                             [string]
+      --env         environment variable for a local MCP server (KEY=VALUE)                  [array]
+      --header      HTTP header for a remote MCP server (KEY=VALUE)                          [array]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp auth --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel mcp auth [name]
+
+authenticate with an OAuth-enabled MCP server
+
+Commands:
+  opennovel mcp auth list  list OAuth-capable MCP servers and their auth status        [aliases: ls]
+
+Positionals:
+  name  name of the MCP server                                                              [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp logout --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel mcp logout [name]
+
+remove OAuth credentials for an MCP server
+
+Positionals:
+  name  name of the MCP server                                                              [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel providers list --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel providers list
+
+list providers and credentials
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel providers login --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel providers login [url]
+
+log in to a provider
+
+Positionals:
+  url  opennovel 认证提供商                                                                 [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+  -p, --provider    provider id or name to log in to (skips provider selection)             [string]
+  -m, --method      login method label (skips method selection)                             [string]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel providers logout --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel providers logout [provider]
+
+log out from a configured provider
+
+Positionals:
+  provider  provider id or name to log out from                                             [string]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel agent create --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel agent create
+
+create a new agent
+
+Options:
+  -h, --help                  show help                                                    [boolean]
+  -v, --version               show version number                                          [boolean]
+      --print-logs            print logs to stderr                                         [boolean]
+      --log-level             log level         [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure                  run without external plugins                                 [boolean]
+      --path                  directory path to generate the agent file                     [string]
+      --description           what the agent should do                                      [string]
+      --mode                  agent mode            [string] [choices: "all", "primary", "subagent"]
+      --permissions, --tools  comma-separated list of permissions to allow (default: all).
+                              Available: "bash, read, edit, glob, grep, webfetch, task, todowrite,
+                              websearch, lsp, skill"                                        [string]
+  -m, --model                 model to use in the format of provider/model                  [string]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel agent list --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel agent list
+
+list all available agents
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel session list --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel session list
+
+list sessions
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+  -n, --max-count   limit to N most recent sessions                                         [number]
+      --format      output format             [string] [choices: "table", "json"] [default: "table"]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel session delete --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel session delete <sessionID>
+
+delete a session
+
+Positionals:
+  sessionID  session ID to delete                                                [string] [required]
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github install --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel github install
+
+install the GitHub agent
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github run --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel github run
+
+run the GitHub agent
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+      --event       GitHub mock event to run the agent for                                  [string]
+      --token       GitHub personal access token (github_pat_********)                      [string]
+"
+`;
+
+exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel db path --help 1`] = `
+"⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+opennovel db path
+
+print the database path
+
+Options:
+  -h, --help        show help                                                              [boolean]
+  -v, --version     show version number                                                    [boolean]
+      --print-logs  print logs to stderr                                                   [boolean]
+      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure        run without external plugins                                           [boolean]
+"
+`;

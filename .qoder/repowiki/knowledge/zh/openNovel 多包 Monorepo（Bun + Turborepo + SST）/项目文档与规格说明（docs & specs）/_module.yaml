@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: documentation_specs
+title: 项目文档与规格说明（docs & specs）
+scope:
+    - docs/
+    - specs/
+source_files: []
+depends_on: []
+related_to:
+    - path: artifacts
+    - path: dev_scripts

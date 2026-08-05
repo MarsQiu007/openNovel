@@ -1,0 +1,34 @@
+schema_version: 1
+module_path: ""
+title: openNovel 多包 Monorepo（Bun + Turborepo + SST）
+scope:
+    - README.md
+    - CONTRIBUTING.md
+    - .gitignore
+    - bunfig.toml
+    - turbo.json
+    - package.json
+    - tsconfig.json
+    - flake.nix
+    - flake.lock
+    - .dockerignore
+    - .editorconfig
+    - .gitattributes
+    - .gitleaksignore
+    - .oxlintrc.json
+    - .prettierignore
+    - AGENTS.md
+    - CONTEXT.md
+    - LICENSE
+    - README.zh.md
+    - README.zht.md
+    - SECURITY.md
+    - STATS.md
+    - bun.lock
+    - install
+    - screenshot-uk.png
+    - sst-env.d.ts
+    - sst.config.ts
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: opencode_agent
+title: OpenCode 项目配置与扩展目录
+scope:
+    - .opencode/
+source_files: []
+depends_on: []
+related_to:
+    - path: github_actions

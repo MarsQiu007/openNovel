@@ -1,0 +1,2264 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenNovel 工作台</title>
+    <style>
+      :root {
+        --bg: #fafbfc;
+        --fg: #1f2328;
+        --muted: #656d76;
+        --border: #d0d7de;
+        --sb-bg: #fff;
+        --panel-bg: #fff;
+        --hover: #f3f4f6;
+        --accent: #5b6ee1;
+        --accent-soft: #e8eaf6;
+        --card: #fff;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        --r-lg: 8px;
+        --r-md: 6px;
+        --r-sm: 4px;
+        --fs: -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+        --fser: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+        --err: #ef4444;
+        --info: #3b82f6;
+        --sb-w: 220px;
+        --pw: 280px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --fg: #c9d1d9;
+          --muted: #8b949e;
+          --border: #30363d;
+          --sb-bg: #161b22;
+          --panel-bg: #161b22;
+          --hover: #21262d;
+          --accent: #7c8cf5;
+          --accent-soft: #1e2340;
+          --card: #161b22;
+          --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+          --ok: #3fb950;
+          --warn: #d29922;
+          --err: #f85149;
+          --info: #58a6ff;
+        }
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        font-family: var(--fs);
+        background: var(--bg);
+        color: var(--fg);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: var(--sb-w) 1fr var(--pw);
+        height: 100vh;
+      }
+      .sidebar {
+        background: var(--sb-bg);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .main {
+        overflow-y: auto;
+        padding: 24px;
+      }
+      .right-panel {
+        background: var(--panel-bg);
+        border-left: 1px solid var(--border);
+        overflow-y: auto;
+        padding: 20px;
+      }
+      .sb-top {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .sb-top select {
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        background: var(--card);
+        color: var(--fg);
+        font-size: 14px;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .nav {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        cursor: pointer;
+        border-radius: var(--r-md);
+        margin-bottom: 2px;
+        font-size: 14px;
+        color: var(--fg);
+        transition: background 0.15s;
+      }
+      .nav-item:hover {
+        background: var(--hover);
+      }
+      .nav-item.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .nav-item svg {
+        flex-shrink: 0;
+        opacity: 0.8;
+      }
+      .nav-item.active svg {
+        opacity: 1;
+      }
+      .nav-badge {
+        margin-left: auto;
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: var(--hover);
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .nav-item.active .nav-badge {
+        background: var(--accent);
+        color: #fff;
+      }
+      .sb-footer {
+        padding: 8px 12px;
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .kbd {
+        display: inline-flex;
+        padding: 1px 5px;
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        font-size: 10px;
+        font-family: monospace;
+        background: var(--card);
+      }
+      .content {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .content.wide {
+        max-width: 100%;
+      }
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 80px 20px;
+        font-size: 15px;
+      }
+      .loading {
+        text-align: center;
+        color: var(--muted);
+        padding: 40px 20px;
+        font-size: 14px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: var(--shadow);
+      }
+      .card-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .card-body {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 8px;
+        border-radius: var(--r-md);
+        font-size: 12px;
+        font-weight: 500;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .badge.success {
+        background: rgba(34, 197, 94, 0.12);
+        color: var(--ok);
+      }
+      .badge.warning {
+        background: rgba(245, 158, 11, 0.12);
+        color: var(--warn);
+      }
+      .badge.danger {
+        background: rgba(239, 68, 68, 0.12);
+        color: var(--err);
+      }
+      .badge.info {
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--info);
+      }
+      .badge.neutral {
+        background: var(--hover);
+        color: var(--muted);
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 16px;
+        text-align: center;
+        box-shadow: var(--shadow);
+        transition: transform 0.15s;
+      }
+      .stat-card:hover {
+        transform: translateY(-1px);
+      }
+      .stat-icon {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto 8px;
+        color: var(--accent);
+        opacity: 0.7;
+      }
+      .stat-num {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+      }
+      .stat-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .section-h {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 24px 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .section-h:first-child {
+        margin-top: 0;
+      }
+      .section-h .count {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .char-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 680px;
+      }
+      .char-card {
+        cursor: pointer;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .char-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .char-card.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-soft);
+      }
+      .char-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .char-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .char-name {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .char-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        background: var(--hover);
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--fg);
+        margin-bottom: 16px;
+        transition: background 0.15s;
+      }
+      .back-btn:hover {
+        background: var(--border);
+      }
+      .char-detail {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .char-detail-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .char-detail-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .char-detail-name {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .char-detail-section {
+        margin-bottom: 24px;
+      }
+      .char-detail-section-h {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      .char-detail-desc {
+        font-size: 15px;
+        line-height: 1.8;
+        color: var(--fg);
+      }
+      .char-detail-rel {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .char-detail-rel:last-child {
+        border-bottom: none;
+      }
+      .char-detail-rel-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .char-detail-rel-name {
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .char-detail-rel-desc {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .char-mini {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .char-mini:hover {
+        background: var(--hover);
+      }
+      .char-mini.active {
+        background: var(--accent-soft);
+      }
+      .char-mini-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .char-mini-name {
+        font-size: 13px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .char-desc.expanded {
+        -webkit-line-clamp: unset;
+      }
+      .expand-btn {
+        color: var(--accent);
+        cursor: pointer;
+        font-size: 13px;
+        margin-top: 4px;
+        display: inline-block;
+        user-select: none;
+      }
+      .ch-item {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.15s;
+        border-radius: var(--r-sm);
+      }
+      .ch-item:hover {
+        background: var(--hover);
+      }
+      .ch-item:last-child {
+        border-bottom: none;
+      }
+      .ch-item.active {
+        background: var(--accent-soft);
+      }
+      .s-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .s-dot.final {
+        background: var(--ok);
+      }
+      .s-dot.revising {
+        background: var(--warn);
+      }
+      .s-dot.draft {
+        background: var(--muted);
+        opacity: 0.5;
+      }
+      .ch-meta {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .reader {
+        max-width: 720px;
+        margin: 0 auto;
+        line-height: 1.9;
+        font-size: 17px;
+        font-family: var(--fser);
+      }
+      .reader h1 {
+        font-size: 24px;
+        margin-bottom: 8px;
+        text-align: center;
+        font-family: var(--fs);
+      }
+      .reader .ch-info {
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 24px;
+        font-family: var(--fs);
+      }
+      .reader h2 {
+        font-size: 20px;
+        margin: 1.5em 0 0.5em;
+        font-family: var(--fs);
+      }
+      .reader h3 {
+        font-size: 18px;
+        margin: 1.2em 0 0.5em;
+        font-family: var(--fs);
+      }
+      .reader p {
+        margin-bottom: 1em;
+        text-indent: 2em;
+      }
+      .reader blockquote {
+        margin: 1em 0;
+        padding: 8px 16px;
+        border-left: 3px solid var(--accent);
+        color: var(--muted);
+        background: var(--hover);
+        border-radius: 0 var(--r-sm) var(--r-sm) 0;
+      }
+      .reader ul {
+        margin: 1em 0;
+        padding-left: 2em;
+      }
+      .reader li {
+        margin-bottom: 0.3em;
+      }
+      .reader strong {
+        font-weight: 700;
+      }
+      .nav-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 3em 0 1em;
+        padding-top: 1em;
+        border-top: 1px solid var(--border);
+      }
+      .nav-btn {
+        padding: 8px 18px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+        transition: opacity 0.15s;
+      }
+      .nav-btn:hover {
+        opacity: 0.9;
+      }
+      .nav-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .acc-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 15px;
+        user-select: none;
+      }
+      .acc-h .chevron {
+        transition: transform 0.15s;
+      }
+      .acc-h.collapsed .chevron {
+        transform: rotate(-90deg);
+      }
+      .acc-body {
+        padding: 12px 0;
+      }
+      .acc-body.collapsed {
+        display: none;
+      }
+      .vol-acc {
+        margin-bottom: 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        background: var(--card);
+      }
+      .vol-acc-h {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        cursor: pointer;
+        background: var(--hover);
+        font-weight: 600;
+        font-size: 15px;
+        user-select: none;
+        transition: background 0.15s;
+      }
+      .vol-acc-h:hover {
+        background: var(--border);
+      }
+      .vol-acc-h .chev {
+        transition: transform 0.15s;
+        flex-shrink: 0;
+        color: var(--muted);
+      }
+      .vol-acc-h.collapsed .chev {
+        transform: rotate(-90deg);
+      }
+      .vol-acc-b {
+        padding: 16px;
+      }
+      .vol-acc-b.collapsed {
+        display: none;
+      }
+      .vol-summary {
+        background: var(--accent-soft);
+        border-radius: var(--r-md);
+        padding: 12px 14px;
+        margin-bottom: 14px;
+      }
+      .vol-summary-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+      .vol-ch-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .ch-block {
+        padding: 10px 12px;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+        transition: background 0.15s;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .ch-block:hover {
+        background: var(--hover);
+      }
+      .ch-block .s-dot {
+        margin-top: 5px;
+      }
+      .ch-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .ch-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ch-title {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .ch-outline {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-top: 4px;
+      }
+      .graph-wrap {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 16px;
+        position: relative;
+        overflow: hidden;
+      }
+      .graph-svg {
+        width: 100%;
+        height: 440px;
+        display: block;
+      }
+      .graph-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .graph-node {
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .graph-node:hover {
+        opacity: 0.85;
+      }
+      .graph-node text {
+        font-size: 12px;
+        font-family: var(--fs);
+        pointer-events: none;
+        user-select: none;
+      }
+      .graph-edge {
+        stroke-width: 2;
+        opacity: 0.6;
+      }
+      .graph-edge.highlight {
+        opacity: 1;
+        stroke-width: 2.5;
+      }
+      .graph-node.highlight circle {
+        stroke-width: 3;
+      }
+      .cmd-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 100;
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 15vh;
+      }
+      .cmd-overlay.open {
+        display: flex;
+      }
+      .cmd-box {
+        width: 560px;
+        max-width: 92vw;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+      .cmd-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .cmd-input-wrap svg {
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+      .cmd-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--fg);
+        font-size: 15px;
+        font-family: inherit;
+      }
+      .cmd-input::placeholder {
+        color: var(--muted);
+      }
+      .cmd-results {
+        max-height: 360px;
+        overflow-y: auto;
+      }
+      .cmd-group-h {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 8px 16px 4px;
+      }
+      .cmd-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.1s;
+      }
+      .cmd-item:hover,
+      .cmd-item.active {
+        background: var(--hover);
+      }
+      .cmd-item-name {
+        flex: 1;
+      }
+      .cmd-item-type {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .cmd-empty {
+        padding: 20px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .panel-section {
+        margin-bottom: 20px;
+      }
+      .panel-h {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+      .panel-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .panel-card-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      .panel-card-body {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .rel-mini {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+      }
+      .rel-mini:last-child {
+        border-bottom: none;
+      }
+      .panel-char-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .panel-char-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .panel-char-name {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .panel-desc-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+      .panel-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.7;
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .rel-detail {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .rel-detail:last-child {
+        border-bottom: none;
+      }
+      .rel-detail-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .rel-detail-name {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .rel-detail-desc {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+        margin-top: 3px;
+      }
+      .mobile-btn {
+        display: none;
+        position: fixed;
+        z-index: 50;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--fg);
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: var(--shadow);
+      }
+      .mobile-menu {
+        bottom: 16px;
+        left: 16px;
+      }
+      .mobile-panel {
+        bottom: 16px;
+        right: 16px;
+      }
+      .md-content h1 {
+        font-size: 18px;
+        margin: 12px 0 8px;
+      }
+      .md-content h2 {
+        font-size: 16px;
+        margin: 10px 0 6px;
+      }
+      .md-content h3 {
+        font-size: 15px;
+        margin: 8px 0 4px;
+      }
+      .md-content p {
+        margin-bottom: 8px;
+        line-height: 1.7;
+      }
+      .md-content blockquote {
+        margin: 8px 0;
+        padding: 6px 12px;
+        border-left: 3px solid var(--accent);
+        background: var(--hover);
+        border-radius: 0 var(--r-sm) var(--r-sm) 0;
+      }
+      .md-content ul {
+        margin: 8px 0;
+        padding-left: 1.5em;
+      }
+      .md-content li {
+        margin-bottom: 4px;
+      }
+      .md-content table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0;
+        font-size: 14px;
+      }
+      .md-content th {
+        background: var(--hover);
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        text-align: left;
+        font-weight: 600;
+      }
+      .md-content td {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+      }
+      .md-content tr:nth-child(even) {
+        background: var(--hover);
+      }
+      .md-content hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 16px 0;
+      }
+      @media (max-width: 1023px) {
+        .app {
+          grid-template-columns: var(--sb-w) 1fr 0;
+        }
+        .right-panel {
+          position: fixed;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          width: var(--pw);
+          z-index: 40;
+          transform: translateX(100%);
+          transition: transform 0.2s;
+        }
+        .right-panel.open {
+          transform: translateX(0);
+        }
+        .mobile-panel {
+          display: flex;
+        }
+      }
+      @media (max-width: 767px) {
+        .app {
+          grid-template-columns: 0 1fr 0;
+        }
+        .sidebar {
+          position: fixed;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: var(--sb-w);
+          z-index: 40;
+          transform: translateX(-100%);
+          transition: transform 0.2s;
+        }
+        .sidebar.open {
+          transform: translateX(0);
+        }
+        .main {
+          padding: 16px;
+        }
+        .mobile-menu {
+          display: flex;
+        }
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .char-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="sb-top">
+          <select id="novelSelect" onchange="selNovel(this.value)">
+            <option value="">选择小说...</option>
+          </select>
+        </div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sb-footer"><span class="kbd">Ctrl K</span><span>快速搜索</span></div>
+      </aside>
+      <main class="main" id="main">
+        <div id="content" class="content"><div class="empty">请选择一部小说</div></div>
+      </main>
+      <aside class="right-panel" id="rightPanel"><div id="panelContent"></div></aside>
+    </div>
+    <button class="mobile-btn mobile-menu" onclick="toggleSidebar()">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+    <button class="mobile-btn mobile-panel" onclick="togglePanel()">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <line x1="15" y1="3" x2="15" y2="21" />
+      </svg>
+    </button>
+    <div class="cmd-overlay" id="cmdOverlay" onclick="closeCmd(event)">
+      <div class="cmd-box" onclick="event.stopPropagation()">
+        <div class="cmd-input-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" /></svg
+          ><input
+            class="cmd-input"
+            id="cmdInput"
+            placeholder="搜索角色、章节、世界观..."
+            oninput="updateCmd()"
+            onkeydown="cmdKeydown(event)"
+          />
+        </div>
+        <div class="cmd-results" id="cmdResults"></div>
+      </div>
+    </div>
+    <script>
+      let curNovel = null,
+        curTab = "overview",
+        curChapter = null,
+        chList = [],
+        selectedCharId = null
+      let cachedData = { characters: null, world: null, forereshadowing: null, style: null, volumes: null }
+      const dirParam = new URLSearchParams(location.search).get("dir")
+      const dirQs = dirParam ? "?directory=" + encodeURIComponent(dirParam) : ""
+      const api = {
+        novels: () =>
+          fetch("/api/novels" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || []),
+        novel: (id) =>
+          fetch("/api/novels/" + id + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data),
+        chapters: (id) =>
+          fetch("/api/novels/" + id + "/chapters" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || []),
+        chapter: (nid, cid) =>
+          fetch("/api/novels/" + nid + "/chapters/" + cid + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data),
+        volumes: (id) =>
+          fetch("/api/novels/" + id + "/volumes" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || []),
+        characters: (id) =>
+          fetch("/api/novels/" + id + "/characters" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || { characters: [], relationships: [] }),
+        world: (id) =>
+          fetch("/api/novels/" + id + "/world" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || []),
+        foreshadowing: (id) =>
+          fetch("/api/novels/" + id + "/foreshadowing" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || { foreshadowing: [], threads: [] }),
+        style: (id) =>
+          fetch("/api/novels/" + id + "/style" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data),
+        outlines: (id) =>
+          fetch("/api/novels/" + id + "/outlines" + dirQs)
+            .then((r) => r.json())
+            .then((j) => j.data || []),
+      }
+      const ICONS = {
+        overview:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+        outline:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+        characters:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        world:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+        chapters:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+        foreshadowing:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+        style:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+        graph:
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
+      }
+      const TABS = [
+        ["overview", "概览", "overview"],
+        ["outline", "大纲", "outline"],
+        ["characters", "角色", "characters"],
+        ["world", "世界观", "world"],
+        ["chapters", "章节", "chapters"],
+        ["foreshadowing", "伏笔", "foreshadowing"],
+        ["style", "风格", "style"],
+        ["graph", "关系图", "graph"],
+      ]
+      const ROLE_COLORS = { 主角: "#3b82f6", 配角: "#22c55e", 反派: "#ef4444", 导师: "#f59e0b", 其他: "#8b949e" }
+      const REL_COLORS = {
+        盟友: "#22c55e",
+        敌对: "#ef4444",
+        师徒: "#f59e0b",
+        亲情: "#3b82f6",
+        爱情: "#ec4899",
+        其他: "#8b949e",
+      }
+      function esc(s) {
+        return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      }
+      function mdToHtml(md) {
+        if (!md) return '<p style="color:var(--muted)">（无内容）</p>'
+        let h = esc(md)
+        h = h.replace(/^(-{3,}|\*{3,}|_{3,})\s*$/gm, "<hr>")
+        h = h.replace(/((?:^\|.*\|\s*\n?)+)/gm, function (m) {
+          var rows = m
+            .trim()
+            .split("\n")
+            .filter(function (r) {
+              return r.trim()
+            })
+          if (rows.length < 2) return m
+          var sep = rows[1].trim()
+          if (!/^\|[\s:|-]+\|$/.test(sep)) return m
+          var hdr = rows[0]
+            .split("|")
+            .slice(1, -1)
+            .map(function (c) {
+              return c.trim()
+            })
+          var body = rows.slice(2).map(function (r) {
+            return r
+              .split("|")
+              .slice(1, -1)
+              .map(function (c) {
+                return c.trim()
+              })
+          })
+          var t = "<table><thead><tr>"
+          hdr.forEach(function (c) {
+            t += "<th>" + c + "</th>"
+          })
+          t += "</tr></thead><tbody>"
+          body.forEach(function (r) {
+            t += "<tr>"
+            r.forEach(function (c) {
+              t += "<td>" + c + "</td>"
+            })
+            t += "</tr>"
+          })
+          return t + "</tbody></table>"
+        })
+        h = h.replace(/^### (.+)$/gm, "<h3>$1</h3>")
+        h = h.replace(/^## (.+)$/gm, "<h2>$1</h2>")
+        h = h.replace(/^# (.+)$/gm, "<h1>$1</h1>")
+        h = h.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        h = h.replace(/\*(.+?)\*/g, "<em>$1</em>")
+        h = h.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>")
+        h = h.replace(/^- (.+)$/gm, "<li>$1</li>")
+        h = h
+          .split(/\n\n+/)
+          .map(function (b) {
+            if (/^<(h\d|blockquote|li|table|hr)/.test(b)) return b
+            return "<p>" + b.replace(/\n/g, "<br>") + "</p>"
+          })
+          .join("\n")
+        return h.replace(/(<li>.*<\/li>\n?)+/g, function (m) {
+          return "<ul>" + m + "</ul>"
+        })
+      }
+      function roleColor(r) {
+        if (!r) return ROLE_COLORS["其他"]
+        if (r.includes("主角")) return ROLE_COLORS["主角"]
+        if (r.includes("反派")) return ROLE_COLORS["反派"]
+        if (r.includes("导师")) return ROLE_COLORS["导师"]
+        if (r.includes("配") || r.includes("友") || r.includes("母") || r.includes("知音") || r.includes("来源"))
+          return ROLE_COLORS["配角"]
+        return ROLE_COLORS["其他"]
+      }
+      function relColor(t) {
+        return REL_COLORS[t] || REL_COLORS["其他"]
+      }
+      function statusBadge(s) {
+        const cls = s === "final" ? "success" : s === "draft" ? "neutral" : "warning"
+        return '<span class="badge ' + cls + '">' + esc(s) + "</span>"
+      }
+      function avatarColor(name) {
+        const colors = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#f97316"]
+        let h = 0
+        for (let i = 0; i < (name || "").length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
+        return colors[Math.abs(h) % colors.length]
+      }
+      function toggleSidebar() {
+        document.getElementById("sidebar").classList.toggle("open")
+      }
+      function togglePanel() {
+        document.getElementById("rightPanel").classList.toggle("open")
+      }
+      function renderNav() {
+        document.getElementById("nav").innerHTML = TABS.map(
+          (t) =>
+            '<div class="nav-item' +
+            (t[0] === curTab ? " active" : "") +
+            '" onclick="switchTab(\'' +
+            t[0] +
+            "')\">" +
+            ICONS[t[2]] +
+            "<span>" +
+            t[1] +
+            "</span>" +
+            getNavBadge(t[0]) +
+            "</div>",
+        ).join("")
+      }
+      function getNavBadge(tab) {
+        if (!curNovel) return ""
+        if (tab === "characters" && cachedData.characters)
+          return '<span class="nav-badge">' + (cachedData.characters.characters || []).length + "</span>"
+        if (tab === "world" && cachedData.world)
+          return '<span class="nav-badge">' + (cachedData.world || []).length + "</span>"
+        if (tab === "chapters" && chList.length) return '<span class="nav-badge">' + chList.length + "</span>"
+        if (tab === "foreshadowing" && cachedData.foreshadowing) {
+          const d = cachedData.foreshadowing
+          return '<span class="nav-badge">' + ((d.foreshadowing || []).length + (d.threads || []).length) + "</span>"
+        }
+        return ""
+      }
+      function switchTab(tab) {
+        curTab = tab
+        curChapter = null
+        selectedCharId = null
+        renderNav()
+        renderTab()
+      }
+      async function selNovel(id, tab) {
+        if (!id) return
+        curNovel = id
+        curTab = tab || "overview"
+        curChapter = null
+        cachedData = { characters: null, world: null, foreshadowing: null, style: null, volumes: null }
+        renderNav()
+        renderTab()
+      }
+      async function renderTab() {
+        if (!curNovel) return
+        clearPanel()
+        const el = document.getElementById("content")
+        el.className = curTab === "chapters" && curChapter ? "reader" : curTab === "graph" ? "content wide" : "content"
+        if (curTab === "overview") return renderOverview(el)
+        if (curTab === "outline") return renderOutline(el)
+        if (curTab === "characters") return renderCharacters(el)
+        if (curTab === "world") return renderWorld(el)
+        if (curTab === "chapters") return renderChaptersTab(el)
+        if (curTab === "foreshadowing") return renderForeshadowing(el)
+        if (curTab === "style") return renderStyle(el)
+        if (curTab === "graph") return renderGraph(el)
+      }
+      function clearPanel() {
+        document.getElementById("panelContent").innerHTML = ""
+      }
+      async function renderOverview(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        clearPanel()
+        const [novel, chapters, charData, worldData, foreData] = await Promise.all([
+          api.novel(curNovel),
+          api.chapters(curNovel),
+          api.characters(curNovel),
+          api.world(curNovel),
+          api.foreshadowing(curNovel),
+        ])
+        cachedData.characters = charData
+        cachedData.world = worldData
+        cachedData.foreshadowing = foreData
+        chList = chapters
+        const totalWords = chapters.reduce((s, c) => s + (c.word_count || 0), 0)
+        const byStatus = {}
+        chapters.forEach((c) => {
+          byStatus[c.status] = (byStatus[c.status] || 0) + 1
+        })
+        const charCount = (charData.characters || []).length
+        const volCount = await api
+          .volumes(curNovel)
+          .then((v) => v.length)
+          .catch(() => 0)
+        const foreCount = (foreData.foreshadowing || []).length
+        const threadCount = (foreData.threads || []).length
+        el.innerHTML =
+          '<h1 style="font-size:28px;margin-bottom:8px">' +
+          esc(novel.title) +
+          '</h1><div style="margin-bottom:20px"><span class="badge info">' +
+          esc(novel.genre) +
+          "</span>" +
+          statusBadge(novel.status) +
+          '</div><div class="stats-grid"><div class="stat-card"><div class="stat-icon">' +
+          ICONS.chapters +
+          '</div><div class="stat-num">' +
+          chapters.length +
+          '</div><div class="stat-label">章节</div></div><div class="stat-card"><div class="stat-icon">' +
+          ICONS.characters +
+          '</div><div class="stat-num">' +
+          charCount +
+          '</div><div class="stat-label">角色</div></div><div class="stat-card"><div class="stat-icon">' +
+          ICONS.world +
+          '</div><div class="stat-num">' +
+          (worldData || []).length +
+          '</div><div class="stat-label">世界观</div></div><div class="stat-card"><div class="stat-icon">' +
+          ICONS.outline +
+          '</div><div class="stat-num">' +
+          volCount +
+          '</div><div class="stat-label">卷数</div></div><div class="stat-card"><div class="stat-icon">' +
+          ICONS.foreshadowing +
+          '</div><div class="stat-num">' +
+          foreCount +
+          '</div><div class="stat-label">伏笔</div></div><div class="stat-card"><div class="stat-icon">' +
+          ICONS.graph +
+          '</div><div class="stat-num">' +
+          threadCount +
+          '</div><div class="stat-label">情节线索</div></div></div><div class="section-h">简介</div><div class="card"><div class="card-body md-content">' +
+          mdToHtml(novel.synopsis) +
+          "</div></div>"
+        renderNav()
+      }
+      async function renderOutline(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        var outlines = await api.outlines()
+        var volumes = await api.volumes(curNovel)
+        var chapters = await api.chapters(curNovel)
+        var html = ""
+        var masterO = outlines.find(function (o) {
+          return o.filename === "master-outline.md"
+        })
+        if (masterO) {
+          html +=
+            '<div class="card" style="cursor:pointer;margin-bottom:16px" onclick="showOutlineFile(\'master-outline.md\')"><div class="card-title">整体大纲</div><div class="card-body" style="color:var(--muted);font-size:13px">点击查看完整整体大纲</div></div>'
+        }
+        html += '<div class="section-h">卷目 <span class="count">(' + volumes.length + "卷)</span></div>"
+        volumes.forEach(function (v) {
+          var volCh = chapters.filter(function (c) {
+            return c.volume_id === v.id
+          })
+          var outlineCount = volCh.filter(function (c) {
+            return c.status === "outline"
+          }).length
+          html +=
+            '<div class="card" style="cursor:pointer" onclick="showVolumeOutline(\'' +
+            v.id +
+            '\')"><div class="card-title">第' +
+            v.order +
+            "卷 · " +
+            esc(v.title) +
+            "</div>"
+          if (v.summary)
+            html +=
+              '<div class="card-body md-content" style="max-height:60px;overflow:hidden">' +
+              mdToHtml(v.summary) +
+              "</div>"
+          if (outlineCount)
+            html += '<span class="badge neutral" style="margin-top:8px">' + outlineCount + " 章大纲</span>"
+          html += "</div>"
+        })
+        if (!volumes.length && !masterO) {
+          html = '<div class="empty">暂无大纲</div>'
+        }
+        el.innerHTML = html
+        renderNav()
+      }
+
+      async function showOutlineFile(filename) {
+        var el = document.getElementById("content")
+        el.className = "reader"
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        var outlines = await api.outlines()
+        var o = outlines.find(function (f) {
+          return f.filename === filename
+        })
+        if (!o) {
+          el.innerHTML = '<div class="empty">文件不存在</div>'
+          return
+        }
+        var html =
+          '<div class="back-btn" onclick="renderOutline(document.getElementById(\'content\'))"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回卷目</div>'
+        html += "<h1>" + esc(filename.replace(/\.md$/, "")) + "</h1>"
+        html += mdToHtml(o.content)
+        el.innerHTML = html
+        document.getElementById("main").scrollTop = 0
+      }
+
+      async function showVolumeOutline(volId) {
+        var el = document.getElementById("content")
+        el.className = "content"
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        var data = await Promise.all([api.volumes(curNovel), api.chapters(curNovel), api.outlines()])
+        var volumes = data[0]
+        var chapters = data[1]
+        var outlines = data[2]
+        var vol = volumes.find(function (v) {
+          return v.id === volId
+        })
+        if (!vol) {
+          el.innerHTML = '<div class="empty">卷不存在</div>'
+          return
+        }
+        var volCh = chapters.filter(function (c) {
+          return c.volume_id === volId
+        })
+        var volOutline = outlines.find(function (o) {
+          return o.filename === "volume-" + vol.order + ".md"
+        })
+        var html =
+          '<div class="back-btn" onclick="renderOutline(document.getElementById(\'content\'))"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回卷目</div>'
+        html += "<h2>第" + vol.order + "卷 · " + esc(vol.title) + "</h2>"
+        if (vol.summary)
+          html += '<div class="card"><div class="card-body md-content">' + mdToHtml(vol.summary) + "</div></div>"
+        if (volOutline) {
+          html +=
+            '<div class="section-h">卷大纲</div><div class="card"><div class="card-body md-content">' +
+            mdToHtml(volOutline.content) +
+            "</div></div>"
+        }
+        if (volCh.length) {
+          html += '<div class="section-h">章节大纲 <span class="count">(' + volCh.length + ")</span></div>"
+          volCh.forEach(function (c) {
+            html +=
+              '<div class="ch-block" onclick="showChapterOutline(\'' +
+              c.id +
+              '\')"><span class="s-dot ' +
+              esc(c.status || "draft") +
+              '"></span><div class="ch-info"><div class="ch-title-row"><span class="ch-title">' +
+              esc(c.title) +
+              "</span>" +
+              (c.word_count
+                ? '<span class="badge neutral">' + c.word_count + "字</span>"
+                : '<span class="badge info">大纲</span>') +
+              "</div></div></div>"
+          })
+        }
+        el.innerHTML = html
+        renderNav()
+      }
+
+      async function showChapterOutline(chId) {
+        var el = document.getElementById("content")
+        el.className = "reader"
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        var ch = await api.chapter(curNovel, chId)
+        var html =
+          '<div class="back-btn" onclick="showVolumeOutline(\'' +
+          (ch.volume_id || "") +
+          '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回章节列表</div>'
+        html += "<h1>" + esc(ch.title) + "</h1>"
+        if (ch.content) {
+          html += mdToHtml(ch.content)
+        } else {
+          html += '<div class="empty">暂无大纲内容</div>'
+        }
+        el.innerHTML = html
+        document.getElementById("main").scrollTop = 0
+      }
+
+      function toggleVolAcc(h) {
+        var b = h.nextElementSibling
+        h.classList.toggle("collapsed")
+        b.classList.toggle("collapsed")
+      }
+      async function renderCharacters(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        var data = await api.characters(curNovel)
+        cachedData.characters = data
+        var chars = data.characters || []
+        if (!chars.length) {
+          el.innerHTML = '<div class="empty">暂无角色</div>'
+          return
+        }
+        if (selectedCharId) {
+          var ch = chars.find(function (c) {
+            return c.id === selectedCharId
+          })
+          if (ch) {
+            renderCharDetail(el, ch, data)
+            renderCharMiniList(data)
+            renderNav()
+            return
+          }
+        }
+        var html =
+          '<div class="section-h">角色列表 <span class="count">(' +
+          chars.length +
+          ')</span></div><div class="char-grid">'
+        chars.forEach(function (c) {
+          var color = avatarColor(c.name)
+          var initial = (c.name || "?").charAt(0)
+          html +=
+            '<div class="char-card card" onclick="selectChar(\'' +
+            c.id +
+            '\')" id="char-' +
+            c.id +
+            '"><div class="char-header"><div class="char-avatar" style="background:' +
+            color +
+            '">' +
+            esc(initial) +
+            '</div><div><div class="char-name">' +
+            esc(c.name) +
+            '</div><span class="badge" style="background:' +
+            roleColor(c.role) +
+            "20;color:" +
+            roleColor(c.role) +
+            '">' +
+            esc(c.role || "其他") +
+            '</span></div></div><div class="char-desc md-content">' +
+            mdToHtml(c.description) +
+            "</div></div>"
+        })
+        html += "</div>"
+        el.innerHTML = html
+        renderNav()
+      }
+      function selectChar(id) {
+        selectedCharId = id
+        renderCharacters(document.getElementById("content"))
+      }
+      function backToList() {
+        selectedCharId = null
+        renderCharacters(document.getElementById("content"))
+      }
+      function renderCharDetail(el, ch, data) {
+        var color = avatarColor(ch.name)
+        var initial = (ch.name || "?").charAt(0)
+        var rc = roleColor(ch.role)
+        var rels = (data.relationships || []).filter(function (r) {
+          return r.char_a_id === ch.id || r.char_b_id === ch.id
+        })
+        var charMap = {}
+        ;(data.characters || []).forEach(function (c) {
+          charMap[c.id] = c.name
+        })
+        var relHtml = ""
+        rels.forEach(function (r) {
+          var otherId = r.char_a_id === ch.id ? r.char_b_id : r.char_a_id
+          var rcol = relColor(r.type)
+          relHtml +=
+            '<div class="char-detail-rel"><div class="char-detail-rel-head"><span class="badge" style="background:' +
+            rcol +
+            "20;color:" +
+            rcol +
+            '">' +
+            esc(r.type) +
+            '</span><span class="char-detail-rel-name">' +
+            esc(charMap[otherId] || "?") +
+            "</span></div>" +
+            (r.description ? '<div class="char-detail-rel-desc">' + esc(r.description) + "</div>" : "") +
+            "</div>"
+        })
+        el.innerHTML =
+          '<div class="char-detail"><div class="back-btn" onclick="backToList()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回列表</div><div class="char-detail-header"><div class="char-detail-avatar" style="background:' +
+          color +
+          '">' +
+          esc(initial) +
+          '</div><div><div class="char-detail-name">' +
+          esc(ch.name) +
+          '</div><span class="badge" style="background:' +
+          rc +
+          "20;color:" +
+          rc +
+          '">' +
+          esc(ch.role || "其他") +
+          '</span></div></div><div class="char-detail-section"><div class="char-detail-section-h">简介</div><div class="char-detail-desc md-content">' +
+          mdToHtml(ch.description) +
+          "</div></div>" +
+          (rels.length
+            ? '<div class="char-detail-section"><div class="char-detail-section-h">关系 (' +
+              rels.length +
+              ")</div>" +
+              relHtml +
+              "</div>"
+            : "") +
+          "</div>"
+      }
+      function renderCharMiniList(data) {
+        var chars = data.characters || []
+        var html = '<div class="panel-section"><div class="panel-h">角色列表 (' + chars.length + ")</div>"
+        chars.forEach(function (c) {
+          var color = avatarColor(c.name)
+          var initial = (c.name || "?").charAt(0)
+          html +=
+            '<div class="char-mini' +
+            (c.id === selectedCharId ? " active" : "") +
+            '" onclick="selectChar(\'' +
+            c.id +
+            '\')"><div class="char-mini-avatar" style="background:' +
+            color +
+            '">' +
+            esc(initial) +
+            '</div><div class="char-mini-name">' +
+            esc(c.name) +
+            "</div></div>"
+        })
+        html += "</div>"
+        document.getElementById("panelContent").innerHTML = html
+      }
+      async function renderWorld(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        const entries = await api.world(curNovel)
+        cachedData.world = entries
+        if (!entries.length) {
+          el.innerHTML = '<div class="empty">暂无世界观设定</div>'
+          return
+        }
+        const byCat = {}
+        entries.forEach((e) => {
+          const cat = e.category || "其他"
+          if (!byCat[cat]) byCat[cat] = []
+          byCat[cat].push(e)
+        })
+        let html = ""
+        Object.keys(byCat).forEach((cat) => {
+          html += '<div class="section-h">' + esc(cat) + ' <span class="count">(' + byCat[cat].length + ")</span></div>"
+          byCat[cat].forEach((e) => {
+            html +=
+              '<div class="card"><div class="card-title">' +
+              esc(e.title) +
+              '</div><div class="card-body md-content">' +
+              mdToHtml(e.content) +
+              "</div></div>"
+          })
+        })
+        el.innerHTML = html
+        renderNav()
+      }
+      async function renderChaptersTab(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        chList = await api.chapters(curNovel)
+        chList = chList.filter(function (c) {
+          return c.status !== "outline"
+        })
+        if (!chList.length) {
+          el.innerHTML = '<div class="empty">暂无章节</div>'
+          return
+        }
+        let html = '<div class="section-h">章节列表 <span class="count">(' + chList.length + ")</span></div>"
+        chList.forEach((c) => {
+          html +=
+            '<div class="ch-item" onclick="readCh(\'' +
+            c.id +
+            '\')"><span class="s-dot ' +
+            esc(c.status || "draft") +
+            '"></span><span>' +
+            esc(c.title) +
+            '</span><span class="ch-meta">' +
+            statusBadge(c.status) +
+            '<span class="badge neutral">' +
+            c.word_count +
+            "字</span></span></div>"
+        })
+        el.innerHTML = html
+        renderNav()
+      }
+      async function readCh(id) {
+        curChapter = id
+        const ch = await api.chapter(curNovel, id)
+        const idx = chList.findIndex((c) => c.id === id)
+        const prev = idx > 0 ? chList[idx - 1] : null
+        const next = idx < chList.length - 1 ? chList[idx + 1] : null
+        const el = document.getElementById("content")
+        el.className = "reader"
+        el.innerHTML =
+          "<h1>" +
+          esc(ch.title) +
+          '</h1><div class="ch-info">' +
+          ch.word_count +
+          " 字</div>" +
+          mdToHtml(ch.content) +
+          '<div class="nav-bar"><button class="nav-btn"' +
+          (prev ? "" : " disabled") +
+          " onclick=\"readCh('" +
+          (prev ? prev.id : "") +
+          '\')">上一章</button><span style="color:var(--muted);font-size:13px">' +
+          (idx + 1) +
+          " / " +
+          chList.length +
+          '</span><button class="nav-btn"' +
+          (next ? "" : " disabled") +
+          " onclick=\"readCh('" +
+          (next ? next.id : "") +
+          "')\">下一章</button></div>"
+        document.getElementById("main").scrollTop = 0
+        document.getElementById("panelContent").innerHTML =
+          '<div class="panel-section"><div class="panel-h">章节导航</div><div class="panel-card"><div class="panel-card-title">' +
+          esc(ch.title) +
+          '</div><div class="panel-card-body">第 ' +
+          (idx + 1) +
+          " 章 / 共 " +
+          chList.length +
+          " 章<br>" +
+          ch.word_count +
+          " 字</div></div>" +
+          (prev
+            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(\'' +
+              prev.id +
+              '\')"><div class="panel-card-title" style="font-size:13px">上一章</div><div class="panel-card-body">' +
+              esc(prev.title) +
+              "</div></div>"
+            : "") +
+          (next
+            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(\'' +
+              next.id +
+              '\')"><div class="panel-card-title" style="font-size:13px">下一章</div><div class="panel-card-body">' +
+              esc(next.title) +
+              "</div></div>"
+            : "") +
+          "</div>"
+      }
+      async function renderForeshadowing(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        const data = await api.foreshadowing(curNovel)
+        cachedData.foreshadowing = data
+        const fs = data.foreshadowing || []
+        const threads = data.threads || []
+        if (!fs.length && !threads.length) {
+          el.innerHTML = '<div class="empty">暂无伏笔记录</div>'
+          return
+        }
+        let html = ""
+        if (fs.length) {
+          html += '<div class="section-h">伏笔 <span class="count">(' + fs.length + ")</span></div>"
+          fs.forEach((f) => {
+            const cls = f.state === "resolved" ? "success" : f.state === "planted" ? "warning" : "neutral"
+            html +=
+              '<div class="card"><div class="card-title">' +
+              esc(f.content) +
+              ' <span class="badge ' +
+              cls +
+              '">' +
+              esc(f.state) +
+              "</span></div></div>"
+          })
+        }
+        if (threads.length) {
+          html += '<div class="section-h">情节线索 <span class="count">(' + threads.length + ")</span></div>"
+          threads.forEach((t) => {
+            const cls = t.status === "closed" ? "success" : t.status === "open" ? "warning" : "neutral"
+            const pcls = t.priority === "high" ? "danger" : t.priority === "medium" ? "info" : "neutral"
+            html +=
+              '<div class="card"><div class="card-title">' +
+              esc(t.title) +
+              ' <span class="badge ' +
+              cls +
+              '">' +
+              esc(t.status) +
+              '</span> <span class="badge ' +
+              pcls +
+              '">' +
+              esc(t.priority) +
+              "</span></div>"
+            if (t.description) html += '<div class="card-body md-content">' + mdToHtml(t.description) + "</div>"
+            html += "</div>"
+          })
+        }
+        el.innerHTML = html
+        renderNav()
+      }
+      async function renderStyle(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        const style = await api.style(curNovel)
+        cachedData.style = style
+        if (!style) {
+          el.innerHTML = '<div class="empty">暂无风格指南</div>'
+          return
+        }
+        let rulesHtml = ""
+        try {
+          const rules = typeof style.rules === "string" ? JSON.parse(style.rules) : style.rules
+          if (rules && typeof rules === "object") {
+            Object.keys(rules).forEach((k) => {
+              rulesHtml += '<div class="rel-mini"><strong>' + esc(k) + ":</strong> " + esc(String(rules[k])) + "</div>"
+            })
+          }
+        } catch (e) {}
+        el.innerHTML =
+          '<div class="section-h">风格指南</div><div class="card"><div class="card-title">基本设定</div><div class="rel-mini"><strong>语气:</strong> ' +
+          esc(style.tone || "-") +
+          '</div><div class="rel-mini"><strong>视角:</strong> ' +
+          esc(style.pov || "-") +
+          '</div><div class="rel-mini"><strong>时态:</strong> ' +
+          esc(style.tense || "-") +
+          "</div></div>" +
+          (rulesHtml ? '<div class="card"><div class="card-title">规则列表</div>' + rulesHtml + "</div>" : "")
+      }
+      async function renderGraph(el) {
+        el.innerHTML = '<div class="loading">加载中...</div>'
+        const data = await api.characters(curNovel)
+        cachedData.characters = data
+        const chars = data.characters || []
+        const rels = data.relationships || []
+        if (!chars.length) {
+          el.innerHTML = '<div class="empty">暂无角色数据</div>'
+          return
+        }
+        if (chars.length === 1) {
+          el.innerHTML = '<div class="empty">仅有一个角色，无法绘制关系图</div>'
+          return
+        }
+        const nodes = chars.map((c) => ({ id: c.id, name: c.name, role: c.role || "其他", x: 0, y: 0, vx: 0, vy: 0 }))
+        const nodeMap = {}
+        nodes.forEach((n) => {
+          nodeMap[n.id] = n
+        })
+        const edges = rels
+          .filter((r) => nodeMap[r.char_a_id] && nodeMap[r.char_b_id])
+          .map((r) => ({
+            source: nodeMap[r.char_a_id],
+            target: nodeMap[r.char_b_id],
+            type: r.type || "其他",
+            desc: r.description || "",
+          }))
+        const connCount = {}
+        edges.forEach((e) => {
+          connCount[e.source.id] = (connCount[e.source.id] || 0) + 1
+          connCount[e.target.id] = (connCount[e.target.id] || 0) + 1
+        })
+        nodes.forEach((n) => {
+          n.connections = connCount[n.id] || 0
+        })
+        const w = 600,
+          h = 420
+        nodes.forEach((n, i) => {
+          n.x = 100 + (i % 4) * 140 + Math.random() * 30
+          n.y = 120 + Math.floor(i / 4) * 160 + Math.random() * 30
+        })
+        for (let iter = 0; iter < 120; iter++) {
+          for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+              const dx = nodes[j].x - nodes[i].x
+              const dy = nodes[j].y - nodes[i].y
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1
+              const force = 2000 / (dist * dist)
+              nodes[i].vx -= (force * dx) / dist
+              nodes[i].vy -= (force * dy) / dist
+              nodes[j].vx += (force * dx) / dist
+              nodes[j].vy += (force * dy) / dist
+            }
+          }
+          edges.forEach((e) => {
+            const dx = e.target.x - e.source.x
+            const dy = e.target.y - e.source.y
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1
+            const force = (dist - 150) * 0.05
+            e.source.vx += (force * dx) / dist
+            e.source.vy += (force * dy) / dist
+            e.target.vx -= (force * dx) / dist
+            e.target.vy -= (force * dy) / dist
+          })
+          nodes.forEach((n) => {
+            n.x += Math.max(-3, Math.min(3, n.vx))
+            n.y += Math.max(-3, Math.min(3, n.vy))
+            n.vx *= 0.85
+            n.vy *= 0.85
+            n.x = Math.max(40, Math.min(w - 40, n.x))
+            n.y = Math.max(30, Math.min(h - 30, n.y))
+          })
+        }
+        let svg = '<div class="graph-wrap"><svg class="graph-svg" viewBox="0 0 ' + w + " " + h + '">'
+        edges.forEach((e, i) => {
+          svg +=
+            '<line class="graph-edge" id="edge-' +
+            i +
+            '" x1="' +
+            e.source.x +
+            '" y1="' +
+            e.source.y +
+            '" x2="' +
+            e.target.x +
+            '" y2="' +
+            e.target.y +
+            '" stroke="' +
+            relColor(e.type) +
+            '" />'
+        })
+        nodes.forEach((n, i) => {
+          const r = 12 + Math.min(n.connections * 3, 12)
+          svg +=
+            '<g class="graph-node" id="node-' +
+            i +
+            '" transform="translate(' +
+            n.x +
+            "," +
+            n.y +
+            ')" onmouseover="highlightNode(' +
+            i +
+            ')" onmouseout="resetHighlight()"><circle r="' +
+            r +
+            '" fill="' +
+            roleColor(n.role) +
+            '" fill-opacity="0.7" stroke="' +
+            roleColor(n.role) +
+            '" stroke-width="2" /><text text-anchor="middle" dy="' +
+            (r + 14) +
+            '" fill="var(--fg)">' +
+            esc(n.name) +
+            "</text></g>"
+        })
+        svg += '</svg><div class="graph-legend">'
+        const roleTypes = [...new Set(nodes.map((n) => n.role))]
+        roleTypes.forEach((r) => {
+          svg +=
+            '<div class="legend-item"><div class="legend-dot" style="background:' +
+            roleColor(r) +
+            '"></div>' +
+            esc(r) +
+            "</div>"
+        })
+        const relTypes = [...new Set(edges.map((e) => e.type))]
+        relTypes.forEach((r) => {
+          svg +=
+            '<div class="legend-item"><div class="legend-dot" style="background:' +
+            relColor(r) +
+            '"></div>' +
+            esc(r) +
+            "</div>"
+        })
+        svg += "</div></div>"
+        el.innerHTML = svg
+        window._graphNodes = nodes
+        window._graphEdges = edges
+      }
+      function highlightNode(i) {
+        const nodes = window._graphNodes || []
+        const edges = window._graphEdges || []
+        const node = nodes[i]
+        if (!node) return
+        document.querySelectorAll(".graph-node").forEach((n) => (n.style.opacity = "0.3"))
+        document.querySelectorAll(".graph-edge").forEach((e) => (e.style.opacity = "0.1"))
+        const nodeEl = document.getElementById("node-" + i)
+        if (nodeEl) {
+          nodeEl.style.opacity = "1"
+          nodeEl.classList.add("highlight")
+        }
+        edges.forEach((e, idx) => {
+          if (e.source.id === node.id || e.target.id === node.id) {
+            const edgeEl = document.getElementById("edge-" + idx)
+            if (edgeEl) {
+              edgeEl.style.opacity = "1"
+              edgeEl.classList.add("highlight")
+              const otherId = e.source.id === node.id ? e.target.id : e.source.id
+              const otherIdx = nodes.findIndex((n) => n.id === otherId)
+              if (otherIdx >= 0) {
+                const otherEl = document.getElementById("node-" + otherIdx)
+                if (otherEl) otherEl.style.opacity = "1"
+              }
+            }
+          }
+        })
+        let relHtml = ""
+        edges
+          .filter((e) => e.source.id === node.id || e.target.id === node.id)
+          .forEach((e) => {
+            const other = e.source.id === node.id ? e.target : e.source
+            relHtml +=
+              '<div class="rel-mini"><span class="badge" style="background:' +
+              relColor(e.type) +
+              "20;color:" +
+              relColor(e.type) +
+              '">' +
+              esc(e.type) +
+              "</span><span>" +
+              esc(other.name) +
+              "</span></div>"
+          })
+        document.getElementById("panelContent").innerHTML =
+          '<div class="panel-section"><div class="panel-h">角色详情</div><div class="panel-card"><div class="panel-card-title">' +
+          esc(node.name) +
+          '</div><div class="panel-card-body">角色: ' +
+          esc(node.role) +
+          "<br>关系数: " +
+          node.connections +
+          "</div></div></div>" +
+          (relHtml
+            ? '<div class="panel-section"><div class="panel-h">关系 (' +
+              node.connections +
+              ')</div><div class="panel-card">' +
+              relHtml +
+              "</div></div>"
+            : "")
+      }
+      function resetHighlight() {
+        document.querySelectorAll(".graph-node").forEach((n) => {
+          n.style.opacity = "1"
+          n.classList.remove("highlight")
+        })
+        document.querySelectorAll(".graph-edge").forEach((e) => {
+          e.style.opacity = ""
+          e.classList.remove("highlight")
+        })
+      }
+      let cmdItems = [],
+        cmdSelIdx = 0
+      async function buildCmdIndex() {
+        if (!curNovel) return
+        const [chars, chapters, world, fore] = await Promise.all([
+          api.characters(curNovel),
+          api.chapters(curNovel),
+          api.world(curNovel),
+          api.foreshadowing(curNovel),
+        ])
+        cmdItems = []
+        ;(chars.characters || []).forEach((c) =>
+          cmdItems.push({ type: "角色", name: c.name, id: c.id, tab: "characters", icon: ICONS.characters }),
+        )
+        ;(world || []).forEach((e) =>
+          cmdItems.push({ type: "世界观", name: e.title, id: e.id, tab: "world", icon: ICONS.world }),
+        )
+        chapters.forEach((c) =>
+          cmdItems.push({ type: "章节", name: c.title, id: c.id, tab: "chapters", icon: ICONS.chapters }),
+        )
+        ;(fore.foreshadowing || []).forEach((f) =>
+          cmdItems.push({
+            type: "伏笔",
+            name: f.content.substring(0, 30),
+            id: f.id,
+            tab: "foreshadowing",
+            icon: ICONS.foreshadowing,
+          }),
+        )
+        ;(fore.threads || []).forEach((t) =>
+          cmdItems.push({ type: "线索", name: t.title, id: t.id, tab: "foreshadowing", icon: ICONS.graph }),
+        )
+      }
+      function openCmd() {
+        if (!curNovel) return
+        const overlay = document.getElementById("cmdOverlay")
+        overlay.classList.add("open")
+        const input = document.getElementById("cmdInput")
+        input.value = ""
+        input.focus()
+        if (!cmdItems.length) buildCmdIndex()
+        updateCmd()
+      }
+      function closeCmd(e) {
+        if (e && e.target !== e.currentTarget) return
+        document.getElementById("cmdOverlay").classList.remove("open")
+      }
+      function updateCmd() {
+        const q = document.getElementById("cmdInput").value.toLowerCase().trim()
+        let filtered = q ? cmdItems.filter((i) => i.name.toLowerCase().includes(q)) : cmdItems.slice(0, 20)
+        cmdSelIdx = 0
+        let html = ""
+        if (!filtered.length) {
+          html = '<div class="cmd-empty">未找到匹配项</div>'
+        } else {
+          const groups = {}
+          filtered.forEach((item, idx) => {
+            if (!groups[item.type]) groups[item.type] = []
+            groups[item.type].push({ ...item, idx })
+          })
+          Object.keys(groups).forEach((type) => {
+            html += '<div class="cmd-group-h">' + type + "</div>"
+            groups[type].forEach((item) => {
+              html +=
+                '<div class="cmd-item' +
+                (item.idx === cmdSelIdx ? " active" : "") +
+                '" onclick="cmdSelect(' +
+                item.idx +
+                ')" onmouseover="cmdHover(' +
+                item.idx +
+                ')">' +
+                item.icon +
+                '<span class="cmd-item-name">' +
+                esc(item.name) +
+                '</span><span class="cmd-item-type">' +
+                item.type +
+                "</span></div>"
+            })
+          })
+        }
+        document.getElementById("cmdResults").innerHTML = html
+      }
+      function cmdHover(idx) {
+        cmdSelIdx = idx
+        document.querySelectorAll(".cmd-item").forEach((el, i) => {
+          const active = i === idx
+          if (active && el.classList.contains("active") === false) {
+            document.querySelectorAll(".cmd-item.active").forEach((a) => a.classList.remove("active"))
+            el.classList.add("active")
+          }
+        })
+      }
+      function cmdKeydown(e) {
+        let filtered = getFilteredCmd()
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          cmdSelIdx = Math.min(cmdSelIdx + 1, filtered.length - 1)
+          updateCmdActive()
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault()
+          cmdSelIdx = Math.max(cmdSelIdx - 1, 0)
+          updateCmdActive()
+        } else if (e.key === "Enter") {
+          e.preventDefault()
+          if (filtered[cmdSelIdx]) cmdSelect(filtered[cmdSelIdx].origIdx)
+        } else if (e.key === "Escape") {
+          e.preventDefault()
+          closeCmd()
+        }
+      }
+      function getFilteredCmd() {
+        const q = document.getElementById("cmdInput").value.toLowerCase().trim()
+        let filtered = q ? cmdItems.filter((i) => i.name.toLowerCase().includes(q)) : cmdItems.slice(0, 20)
+        return filtered.map((item, idx) => ({ ...item, origIdx: cmdItems.indexOf(item) }))
+      }
+      function updateCmdActive() {
+        const items = document.querySelectorAll(".cmd-item")
+        items.forEach((el, i) => {
+          el.classList.toggle("active", i === cmdSelIdx)
+        })
+      }
+      function cmdSelect(idx) {
+        const item = cmdItems[idx]
+        if (!item) return
+        closeCmd()
+        switchTab(item.tab)
+        if (item.tab === "chapters") {
+          setTimeout(() => readCh(item.id), 200)
+        } else if (item.tab === "characters") {
+          setTimeout(() => selectChar(item.id), 200)
+        }
+      }
+      document.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+          e.preventDefault()
+          openCmd()
+        }
+      })
+      ;(async function () {
+        const novels = await api.novels()
+        const sel = document.getElementById("novelSelect")
+        novels.forEach((n) => {
+          const opt = document.createElement("option")
+          opt.value = n.id
+          opt.textContent = n.title
+          sel.appendChild(opt)
+        })
+        if (novels.length === 1) {
+          const t = new URLSearchParams(location.search).get("tab")
+          var c = new URLSearchParams(location.search).get("char")
+          if (c) selectedCharId = c
+          selNovel(novels[0].id, t || undefined)
+        }
+      })()
+    </script>
+  </body>
+</html>

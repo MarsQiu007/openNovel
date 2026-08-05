@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow shared content pages
+Disallow: /s/
+Disallow: /share/
+
+Sitemap: https://opennovel.ai/sitemap.xml
+Sitemap: https://opennovel.ai/data/sitemap.xml

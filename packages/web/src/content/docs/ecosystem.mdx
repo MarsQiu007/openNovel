@@ -1,0 +1,83 @@
+---
+title: Ecosystem
+description: Projects and integrations built with OpenNovel.
+---
+
+A collection of community projects built on OpenNovel.
+
+:::note
+Want to add your OpenNovel related project to this list? Submit a PR.
+:::
+
+You can also check out [awesome-opennovel](https://github.com/awesome-opennovel/awesome-opennovel) and [opennovel.cafe](https://opennovel.cafe), a community that aggregates the ecosystem and community.
+
+---
+
+## Plugins
+
+| Name                                                                                                 | Description                                                                                        |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [opennovel-daytona](https://github.com/daytonaio/daytona/tree/main/libs/opennovel-plugin)            | Automatically run OpenNovel sessions in isolated Daytona sandboxes with git sync and live previews |
+| [opennovel-helicone-session](https://github.com/H2Shami/opennovel-helicone-session)                  | Automatically inject Helicone session headers for request grouping                                 |
+| [opennovel-type-inject](https://github.com/nick-vi/opennovel-type-inject)                            | Auto-inject TypeScript/Svelte types into file reads with lookup tools                              |
+| [opennovel-openai-codex-auth](https://github.com/numman-ali/opennovel-openai-codex-auth)             | Use your ChatGPT Plus/Pro subscription instead of API credits                                      |
+| [opennovel-gemini-auth](https://github.com/jenslys/opennovel-gemini-auth)                            | Use your existing Gemini plan instead of API billing                                               |
+| [opennovel-antigravity-auth](https://github.com/NoeFabris/opennovel-antigravity-auth)                | Use Antigravity's free models instead of API billing                                               |
+| [opennovel-devcontainers](https://github.com/athal7/opennovel-devcontainers)                         | Multi-branch devcontainer isolation with shallow clones and auto-assigned ports                    |
+| [opennovel-google-antigravity-auth](https://github.com/shekohex/opennovel-google-antigravity-auth)   | Google Antigravity OAuth Plugin, with support for Google Search, and more robust API handling      |
+| [opennovel-dynamic-context-pruning](https://github.com/Tarquinen/opennovel-dynamic-context-pruning)  | Optimize token usage by pruning obsolete tool outputs                                              |
+| [opennovel-vibeguard](https://github.com/inkdust2021/opennovel-vibeguard)                            | Redact secrets/PII into VibeGuard-style placeholders before LLM calls; restore locally             |
+| [opennovel-websearch-cited](https://github.com/ghoulr/opennovel-websearch-cited.git)                 | Add native websearch support for supported providers with Google grounded style                    |
+| [opennovel-pty](https://github.com/shekohex/opennovel-pty.git)                                       | Enables AI agents to run background processes in a PTY, send interactive input to them.            |
+| [opennovel-shell-strategy](https://github.com/JRedeker/opennovel-shell-strategy)                     | Instructions for non-interactive shell commands - prevents hangs from TTY-dependent operations     |
+| [opennovel-wakatime](https://github.com/angristan/opennovel-wakatime)                                | Track OpenNovel usage with Wakatime                                                                |
+| [opennovel-md-table-formatter](https://github.com/franlol/opennovel-md-table-formatter/tree/main)    | Clean up markdown tables produced by LLMs                                                          |
+| [opennovel-morph-fast-apply](https://github.com/JRedeker/opennovel-morph-fast-apply)                 | 10x faster code editing with Morph Fast Apply API and lazy edit markers                            |
+| [opennovel-morph-plugin](https://github.com/morphllm/opennovel-morph-plugin)                         | Fast Apply editing, WarpGrep codebase search, and context compaction via Morph                     |
+| [oh-my-opennovel](https://github.com/code-yeongyu/oh-my-opennovel)                                   | Background agents, pre-built LSP/AST/MCP tools, curated agents, Claude Code compatible             |
+| [opennovel-notificator](https://github.com/panta82/opennovel-notificator)                            | Desktop notifications and sound alerts for OpenNovel sessions                                      |
+| [opennovel-notifier](https://github.com/mohak34/opennovel-notifier)                                  | Desktop notifications and sound alerts for permission, completion, and error events                |
+| [opennovel-zellij-namer](https://github.com/24601/opennovel-zellij-namer)                            | AI-powered automatic Zellij session naming based on OpenNovel context                              |
+| [opennovel-skillful](https://github.com/zenobi-us/opennovel-skillful)                                | Allow OpenNovel agents to lazy load prompts on demand with skill discovery and injection           |
+| [opennovel-supermemory](https://github.com/supermemoryai/opennovel-supermemory)                      | Persistent memory across sessions using Supermemory                                                |
+| [@plannotator/opennovel](https://github.com/backnotprop/plannotator/tree/main/apps/opennovel-plugin) | Interactive plan review with visual annotation and private/offline sharing                         |
+| [@openspoon/subtask2](https://github.com/spoons-and-mirrors/subtask2)                                | Extend opennovel /commands into a powerful orchestration system with granular flow control         |
+| [opennovel-scheduler](https://github.com/different-ai/opennovel-scheduler)                           | Schedule recurring jobs using launchd (Mac) or systemd (Linux) with cron syntax                    |
+| [opennovel-conductor](https://github.com/derekbar90/opennovel-conductor)                             | Protocol-Driven Workflow: Automation of the Context -> Spec -> Plan -> Implement lifecycle.        |
+| [micode](https://github.com/vtemian/micode)                                                          | Structured Brainstorm → Plan → Implement workflow with session continuity                          |
+| [octto](https://github.com/vtemian/octto)                                                            | Interactive browser UI for AI brainstorming with multi-question forms                              |
+| [opennovel-background-agents](https://github.com/kdcokenny/opennovel-background-agents)              | Claude Code-style background agents with async delegation and context persistence                  |
+| [opennovel-notify](https://github.com/kdcokenny/opennovel-notify)                                    | Native OS notifications for OpenNovel – know when tasks complete                                   |
+| [opennovel-workspace](https://github.com/kdcokenny/opennovel-workspace)                              | Bundled multi-agent orchestration harness – 16 components, one install                             |
+| [opennovel-worktree](https://github.com/kdcokenny/opennovel-worktree)                                | Zero-friction git worktrees for OpenNovel                                                          |
+| [opennovel-sentry-monitor](https://github.com/stolinski/opennovel-sentry-monitor)                    | Trace and debug your AI agents with Sentry AI Monitoring                                           |
+| [opennovel-firecrawl](https://github.com/firecrawl/opennovel-firecrawl)                              | Web scraping, crawling, and search via the Firecrawl CLI                                           |
+| [opennovel-jfrog-plugin](https://github.com/jfrog/opennovel-jfrog-plugin)                            | JFrog Plugin for seamless integration of OpenNovel users to JFrog platform                         |
+| [opennovel-goal-plugin](https://github.com/willytop8/OpenNovel-goal-plugin)                          | Session-scoped `/goal` workflow that keeps objectives in context and auto-continues until complete |
+
+---
+
+## Projects
+
+| Name                                                                                         | Description                                                       |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [kimaki](https://github.com/remorses/kimaki)                                                 | Discord bot to control OpenNovel sessions, built on the SDK       |
+| [opennovel.nvim](https://github.com/NickvanDyke/opennovel.nvim)                              | Neovim plugin for editor-aware prompts, built on the API          |
+| [portal](https://github.com/hosenur/portal)                                                  | Mobile-first web UI for OpenNovel over Tailscale/VPN              |
+| [opennovel plugin template](https://github.com/zenobi-us/opennovel-plugin-template/)         | Template for building OpenNovel plugins                           |
+| [opennovel.nvim](https://github.com/sudo-tee/opennovel.nvim)                                 | Neovim frontend for opennovel - a terminal-based AI coding agent  |
+| [ai-sdk-provider-opennovel-sdk](https://github.com/ben-vargas/ai-sdk-provider-opennovel-sdk) | Vercel AI SDK provider for using OpenNovel via @opennovel-ai/sdk  |
+| [OpenChamber](https://github.com/btriapitsyn/openchamber)                                    | Web / Desktop App and VS Code Extension for OpenNovel             |
+| [OpenNovel-Obsidian](https://github.com/mtymek/opennovel-obsidian)                           | Obsidian plugin that embeds OpenNovel in Obsidian's UI            |
+| [OpenWork](https://github.com/different-ai/openwork)                                         | An open-source alternative to Claude Cowork, powered by OpenNovel |
+| [ocx](https://github.com/kdcokenny/ocx)                                                      | OpenNovel extension manager with portable, isolated profiles.     |
+| [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)                                     | Desktop, Web, Mobile and Remote Client App for OpenNovel          |
+
+---
+
+## Agents
+
+| Name                                                                | Description                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [Agentic](https://github.com/Cluster444/agentic)                    | Modular AI agents and commands for structured development    |
+| [opennovel-agents](https://github.com/darrenhinde/opennovel-agents) | Configs, prompts, agents, and plugins for enhanced workflows |

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: github_actions
+title: openNovel GitHub Action（GitHub 工作流集成）
+scope:
+    - github/
+    - .github/
+source_files: []
+depends_on: []
+related_to:
+    - path: infrastructure
+    - path: opencode_agent

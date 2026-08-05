@@ -1,0 +1,124 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: dev
+nodes_managed: true
+exported_at: "2026-08-05T02:32:25Z"
+modules:
+    "":
+        dir_name: openNovel 多包 Monorepo（Bun + Turborepo + SST）
+        title: openNovel 多包 Monorepo（Bun + Turborepo + SST）
+        scope:
+            - README.md
+            - CONTRIBUTING.md
+            - .gitignore
+            - bunfig.toml
+            - turbo.json
+            - package.json
+            - tsconfig.json
+            - flake.nix
+            - flake.lock
+            - .dockerignore
+            - .editorconfig
+            - .gitattributes
+            - .gitleaksignore
+            - .oxlintrc.json
+            - .prettierignore
+            - AGENTS.md
+            - CONTEXT.md
+            - LICENSE
+            - README.zh.md
+            - README.zht.md
+            - SECURITY.md
+            - STATS.md
+            - bun.lock
+            - install
+            - screenshot-uk.png
+            - sst-env.d.ts
+            - sst.config.ts
+        source_files: []
+        children:
+            - artifacts
+            - dev_scripts
+            - documentation_specs
+            - github_actions
+            - infrastructure
+            - nix_packaging
+            - opencode_agent
+        depends_on: []
+        related_to: []
+    artifacts:
+        dir_name: GLM-5.2 Rise 视频可视化（Remotion 动画）
+        title: GLM-5.2 Rise 视频可视化（Remotion 动画）
+        scope:
+            - artifacts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: documentation_specs
+    dev_scripts:
+        dir_name: 开发辅助与发布脚本集
+        title: 开发辅助与发布脚本集
+        scope:
+            - script/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: documentation_specs
+            - path: nix_packaging
+    documentation_specs:
+        dir_name: 项目文档与规格说明（docs & specs）
+        title: 项目文档与规格说明（docs & specs）
+        scope:
+            - docs/
+            - specs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: artifacts
+            - path: dev_scripts
+    github_actions:
+        dir_name: openNovel GitHub Action（GitHub 工作流集成）
+        title: openNovel GitHub Action（GitHub 工作流集成）
+        scope:
+            - github/
+            - .github/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: infrastructure
+            - path: opencode_agent
+    infrastructure:
+        dir_name: 基础设施与云资源编排（SST IaC）
+        title: 基础设施与云资源编排（SST IaC）
+        scope:
+            - infra/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: github_actions
+    nix_packaging:
+        dir_name: OpenNovel Nix 打包与桌面应用构建
+        title: OpenNovel Nix 打包与桌面应用构建
+        scope:
+            - nix/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: dev_scripts
+    opencode_agent:
+        dir_name: OpenCode 项目配置与扩展目录
+        title: OpenCode 项目配置与扩展目录
+        scope:
+            - .opencode/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: github_actions
