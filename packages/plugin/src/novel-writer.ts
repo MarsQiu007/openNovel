@@ -1364,6 +1364,148 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      check_novel_settings: tool({
+        description:
+          "一键拉取小说所有设定（角色/世界观/伏笔/剧情线索/关系/卷/风格指南）的概览 + 完整内容 + 状态摘要，供 director 做'检查设定/审查设定/审一遍设定'类指令使用。可选 scope 限定范围。仅查询不修改，是审计设定类指令的入口工具。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          scope: tool.schema
+            .enum(["all", "world", "characters", "relationships", "threads", "foreshadowing", "style_guide"])
+            .optional()
+            .describe(
+              "限定范围：all=全部（默认）；world=世界观条目；characters=角色；relationships=关系；threads=剧情线索；foreshadowing=伏笔；style_guide=风格指南",
+            ),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const scope = args.scope ?? "all"
+          const lines: string[] = []
+          const counts: Record<string, number> = {}
+
+          if (scope === "all" || scope === "world") {
+            const rows = await db
+              .select()
+              .from(WorldEntryTable)
+              .where(eq(WorldEntryTable.novel_id, novelId))
+              .all()
+            counts.world = rows.length
+            if (rows.length > 0) {
+              lines.push(`## 世界观条目（${rows.length}）`)
+              for (const r of rows) {
+                lines.push(`- [${r.id.slice(0, 8)}] ${r.category}: ${r.title}`)
+                if (r.content) lines.push(`  ${r.content}`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (scope === "all" || scope === "characters") {
+            const rows = await db
+              .select()
+              .from(CharacterTable)
+              .where(eq(CharacterTable.novel_id, novelId))
+              .orderBy(CharacterTable.name)
+              .all()
+            counts.characters = rows.length
+            if (rows.length > 0) {
+              lines.push(`## 角色（${rows.length}）`)
+              for (const r of rows) {
+                lines.push(`- [${r.id.slice(0, 8)}] ${r.name}（${r.role || "无角色"}）`)
+                if (r.description) lines.push(`  ${r.description}`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (scope === "all" || scope === "relationships") {
+            const rows = await db
+              .select()
+              .from(RelationshipTable)
+              .where(eq(RelationshipTable.novel_id, novelId))
+              .all()
+            counts.relationships = rows.length
+            if (rows.length > 0) {
+              lines.push(`## 关系（${rows.length}）`)
+              for (const r of rows) {
+                lines.push(`- [${r.id.slice(0, 8)}] ${r.type || "未分类"}`)
+                if (r.description) lines.push(`  ${r.description}`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (scope === "all" || scope === "threads") {
+            const rows = await db
+              .select()
+              .from(PlotThreadTable)
+              .where(eq(PlotThreadTable.novel_id, novelId))
+              .orderBy(PlotThreadTable.title)
+              .all()
+            counts.threads = rows.length
+            if (rows.length > 0) {
+              lines.push(`## 剧情线索（${rows.length}）`)
+              for (const r of rows) {
+                lines.push(`- [${r.id.slice(0, 8)}] ${r.title}（${r.status}，优先级=${r.priority}）`)
+                if (r.description) lines.push(`  ${r.description}`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (scope === "all" || scope === "foreshadowing") {
+            const rows = await db
+              .select()
+              .from(ForeshadowingTable)
+              .where(eq(ForeshadowingTable.novel_id, novelId))
+              .orderBy(asc(ForeshadowingTable.created_at))
+              .all()
+            counts.foreshadowing = rows.length
+            if (rows.length > 0) {
+              lines.push(`## 伏笔（${rows.length}）`)
+              for (const r of rows) {
+                const planted = r.planted_chapter_id ? `埋于第${r.planted_chapter_id.slice(0, 8)}章` : ""
+                const resolved = r.resolved_chapter_id ? `，收于第${r.resolved_chapter_id.slice(0, 8)}章` : ""
+                lines.push(`- [${r.id.slice(0, 8)}] ${r.content}（${r.state}${planted}${resolved}）`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (scope === "all" || scope === "style_guide") {
+            const [sg] = await db
+              .select()
+              .from(StyleGuideTable)
+              .where(eq(StyleGuideTable.novel_id, novelId))
+              .all()
+            counts.style_guide = sg ? 1 : 0
+            if (sg) {
+              lines.push(`## 风格指南`)
+              if (sg.tone) lines.push(`- 基调：${sg.tone}`)
+              if (sg.pov) lines.push(`- 视角：${sg.pov}`)
+              if (sg.tense) lines.push(`- 时态：${sg.tense}`)
+              if (sg.rules) {
+                const parsed = parseStyleRules(sg.rules)
+                lines.push(`- 规则：${JSON.stringify(parsed)}`)
+              }
+              lines.push("")
+            }
+          }
+
+          if (lines.length === 0) {
+            return { title: "check_novel_settings", output: "小说暂无任何设定记录" }
+          }
+
+          const header = `小说设定概览（${novelId.slice(0, 8)}）\n范围：${scope} | 统计：${Object.entries(counts)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", ")}\n`
+          return {
+            title: "check_novel_settings",
+            output: header + "\n" + lines.join("\n"),
+            metadata: { novel_id: novelId, scope, counts },
+          }
+        },
+      }),
       list_settings: tool({
         description:
           "列出小说设定。返回 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型记录的 ID、名称/内容摘要、状态等，供 agent 在删除或修改前定位 entity_id。",
@@ -2143,6 +2285,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             revise_chapter: "allow",
             manage_characters: "allow",
             save_novel_settings: "allow",
+            check_novel_settings: "allow",
             cascade_check: "allow",
             cascade_create_tasks: "allow",
             cascade_list_pending: "allow",
