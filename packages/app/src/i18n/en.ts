@@ -1287,6 +1287,7 @@
   "novel.relations.directCount": "{{count}} direct relations",
   "novel.relations.noDirectRelations": "This character has no direct relations",
   "novel.relations.resetView": "Reset view",
+  "novel.relations.resetLayout": "Reset layout",
   "novel.character.role.protagonist": "Protagonist",
   "novel.character.role.major": "Major",
   "novel.character.role.supporting": "Supporting",

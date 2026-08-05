@@ -2,6 +2,7 @@ import { type Accessor, createMemo, createSignal, For, Show, onMount, onCleanup 
 import { useLanguage } from "@/context/language"
 import { useCharacters, useRelationships } from "@/context/novel-queries"
 import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
+import { useSpring } from "@opennovel-ai/ui/motion-spring"
 
 type Character = { id: string; name: string; role: string; description: string }
 type Relationship = { id: string; charAId: string; charBId: string; type: string; description: string }
@@ -40,14 +41,16 @@ type EdgeView = {
   key: string
   from: { x: number; y: number }
   to: { x: number; y: number }
+  fromId: string
+  toId: string
   label: string
   dashed: boolean
 }
 
 /**
  * 单个角色的直接关系图。
- * 使用稳定的环形静态布局：中心为当前角色，周围节点按顺序固定在圆周上，
- * 避免动画/物理模拟导致节点和边错位。
+ * 基础布局为稳定的环形静态布局：中心为当前角色，周围节点按顺序固定在圆周上。
+ * 节点支持鼠标拖拽重新排布，拖拽后的位置被持久化直到点击"重置布局"。
  */
 function EgoGraph(props: {
   novelID: Accessor<string>
@@ -60,6 +63,8 @@ function EgoGraph(props: {
   const [offset, setOffset] = createSignal({ x: 0, y: 0 })
   const [hoverNode, setHoverNode] = createSignal<string | null>(null)
   const [size, setSize] = createSignal({ w: 800, h: 560 })
+  const [userOffsets, setUserOffsets] = createSignal<ReadonlyMap<string, { dx: number; dy: number }>>(new Map())
+  const [draggingId, setDraggingId] = createSignal<string | null>(null)
 
   let svgRef: SVGSVGElement | undefined
   let ro: ResizeObserver | undefined
@@ -107,29 +112,42 @@ function EgoGraph(props: {
     const count = neighbors().length
     const shortSide = Math.min(size().w, size().h)
     const radius = Math.max(130, Math.min(shortSide * 0.32, 130 + count * 18))
+    const offsets = userOffsets()
+    const centerOffset = offsets.get(props.center.id) ?? { dx: 0, dy: 0 }
     const nodes: GraphNode[] = [
-      { id: props.center.id, name: props.center.name, role: props.center.role, x: 0, y: 0, center: true },
+      {
+        id: props.center.id,
+        name: props.center.name,
+        role: props.center.role,
+        x: centerOffset.dx,
+        y: centerOffset.dy,
+        center: true,
+      },
     ]
     for (let i = 0; i < count; i++) {
       const angle = -Math.PI / 2 + (i / Math.max(count, 1)) * Math.PI * 2
       const c = neighbors()[i]
+      const o = offsets.get(c.id) ?? { dx: 0, dy: 0 }
       nodes.push({
         id: c.id,
         name: c.name,
         role: c.role,
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
+        x: Math.cos(angle) * radius + o.dx,
+        y: Math.sin(angle) * radius + o.dy,
         center: false,
       })
     }
     const byId = new Map(nodes.map((n) => [n.id, n]))
+    const center = byId.get(props.center.id)!
     const edges: EdgeView[] = []
     for (const node of nodes) {
       if (node.center) continue
       const labels = directEdgeLabelMap().get(node.id) ?? []
       edges.push({
         key: `center-${node.id}`,
-        from: { x: 0, y: 0 },
+        fromId: props.center.id,
+        toId: node.id,
+        from: { x: center.x, y: center.y },
         to: { x: node.x, y: node.y },
         label: labels.join(" / "),
         dashed: false,
@@ -142,6 +160,8 @@ function EgoGraph(props: {
       if (!a || !b) continue
       edges.push({
         key: rel.id,
+        fromId: rel.charAId,
+        toId: rel.charBId,
         from: { x: a.x, y: a.y },
         to: { x: b.x, y: b.y },
         label: rel.type?.trim() ?? "",
@@ -180,6 +200,50 @@ function EgoGraph(props: {
     setScale(Math.max(0.5, Math.min(2, next)))
   }
 
+  function clientToSvg(clientX: number, clientY: number) {
+    if (!svgRef) return { x: 0, y: 0 }
+    const rect = svgRef.getBoundingClientRect()
+    return {
+      x: (clientX - rect.left - size().w / 2 - offset().x) / scale(),
+      y: (clientY - rect.top - size().h / 2 - offset().y) / scale(),
+    }
+  }
+
+  function currentPos(n: GraphNode) {
+    const o = userOffsets().get(n.id)
+    return { x: n.x + (o?.dx ?? 0), y: n.y + (o?.dy ?? 0) }
+  }
+
+  function startDrag(e: MouseEvent, n: GraphNode) {
+    e.stopPropagation()
+    e.preventDefault()
+    setDraggingId(n.id)
+    const base = currentPos(n)
+    const grab = clientToSvg(e.clientX, e.clientY)
+    const grabDx = grab.x - base.x
+    const grabDy = grab.y - base.y
+
+    const onMove = (ev: MouseEvent) => {
+      const p = clientToSvg(ev.clientX, ev.clientY)
+      setUserOffsets((prev) => {
+        const next = new Map(prev)
+        next.set(n.id, { dx: p.x - grabDx - n.x, dy: p.y - grabDy - n.y })
+        return next
+      })
+    }
+    const onUp = () => {
+      setDraggingId(null)
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+  }
+
+  function resetLayout() {
+    setUserOffsets(new Map())
+  }
+
   function edgePoint(from: { x: number; y: number }, to: { x: number; y: number }, ratio: number) {
     return { x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio }
   }
@@ -195,16 +259,27 @@ function EgoGraph(props: {
             {language.t("novel.relations.directCount", { count: neighbors().length })}
           </span>
         </div>
-        <button
-          type="button"
-          class="px-2 py-1 text-xs rounded hover:bg-v2-background-bg-hover text-v2-text-text-muted"
-          onClick={() => {
-            setScale(1)
-            setOffset({ x: 0, y: 0 })
-          }}
-        >
-          {language.t("novel.relations.resetView")}
-        </button>
+        <div class="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            class="px-2 py-1 text-xs rounded hover:bg-v2-background-bg-hover text-v2-text-text-muted disabled:opacity-40 disabled:hover:bg-transparent"
+            onClick={resetLayout}
+            disabled={userOffsets().size === 0}
+            title={language.t("novel.relations.resetLayout")}
+          >
+            {language.t("novel.relations.resetLayout")}
+          </button>
+          <button
+            type="button"
+            class="px-2 py-1 text-xs rounded hover:bg-v2-background-bg-hover text-v2-text-text-muted"
+            onClick={() => {
+              setScale(1)
+              setOffset({ x: 0, y: 0 })
+            }}
+          >
+            {language.t("novel.relations.resetView")}
+          </button>
+        </div>
       </div>
 
       <Show
@@ -218,6 +293,7 @@ function EgoGraph(props: {
         <svg
           ref={svgRef}
           class="flex-1 w-full min-h-0 cursor-grab active:cursor-grabbing select-none"
+          style={{ "touch-action": "none" }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
@@ -228,6 +304,10 @@ function EgoGraph(props: {
             <For each={layout().edges}>
               {(edge) => {
                 const labelPos = edgePoint(edge.from, edge.to, 0.55)
+                const isHighlighted = () => {
+                  const id = draggingId()
+                  return id !== null && (edge.fromId === id || edge.toId === id)
+                }
                 return (
                   <>
                     <line
@@ -235,9 +315,10 @@ function EgoGraph(props: {
                       y1={edge.from.y}
                       x2={edge.to.x}
                       y2={edge.to.y}
-                      stroke={edge.dashed ? "#cbd5e1" : "#94a3b8"}
-                      stroke-width={edge.dashed ? 1 : 1.5}
+                      stroke={isHighlighted() ? "#6366f1" : edge.dashed ? "#cbd5e1" : "#94a3b8"}
+                      stroke-width={isHighlighted() ? 2.5 : edge.dashed ? 1 : 1.5}
                       stroke-dasharray={edge.dashed ? "5 4" : undefined}
+                      style={{ transition: "stroke 0.15s, stroke-width 0.15s" }}
                     />
                     <Show when={edge.label}>
                       <text
@@ -245,11 +326,11 @@ function EgoGraph(props: {
                         y={labelPos.y - 5}
                         text-anchor="middle"
                         font-size="11"
-                        fill="#64748b"
+                        fill={isHighlighted() ? "#4f46e5" : "#64748b"}
                         stroke="#ffffff"
                         stroke-width="3"
                         paint-order="stroke"
-                        style={{ "pointer-events": "none" }}
+                        style={{ "pointer-events": "none", transition: "fill 0.15s" }}
                       >
                         {edge.label}
                       </text>
@@ -262,17 +343,28 @@ function EgoGraph(props: {
             <For each={layout().nodes}>
               {(n) => {
                 const r = n.center ? 28 : 22
+                const isHovered = () => hoverNode() === n.id
+                const isDragging = () => draggingId() === n.id
+                const targetScale = () => {
+                  if (isDragging()) return 1.12
+                  if (isHovered()) return 1.08
+                  return 1.0
+                }
+                const springScale = useSpring(targetScale, { visualDuration: 0.18, bounce: 0.25 })
                 return (
                   <g
-                    transform={`translate(${n.x} ${n.y})`}
+                    transform={`translate(${n.x} ${n.y}) scale(${springScale()})`}
                     onMouseEnter={() => setHoverNode(n.id)}
                     onMouseLeave={() => setHoverNode(null)}
+                    onMouseDown={(e) => startDrag(e, n)}
+                    style={{ cursor: isDragging() ? "grabbing" : "grab" }}
                   >
                     <circle
                       r={r}
                       fill={roleColor(n.role)}
-                      stroke={hoverNode() === n.id ? "#0f172a" : "#ffffff"}
-                      stroke-width={hoverNode() === n.id ? 3 : 2}
+                      stroke={isHovered() || isDragging() ? "#0f172a" : "#ffffff"}
+                      stroke-width={isHovered() || isDragging() ? 3 : 2}
+                      style={{ filter: isDragging() ? "drop-shadow(0 4px 6px rgba(15,23,42,0.3))" : undefined }}
                     />
                     <text
                       text-anchor="middle"

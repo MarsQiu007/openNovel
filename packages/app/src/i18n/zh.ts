@@ -1264,6 +1264,7 @@ export const dict = {
   "novel.relations.directCount": "{{count}} 个直接关系",
   "novel.relations.noDirectRelations": "该角色暂无直接关系",
   "novel.relations.resetView": "重置视图",
+  "novel.relations.resetLayout": "重置布局",
   "novel.character.role.protagonist": "主角",
   "novel.character.role.major": "主要角色",
   "novel.character.role.supporting": "配角",
