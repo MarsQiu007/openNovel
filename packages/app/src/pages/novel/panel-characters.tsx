@@ -275,22 +275,23 @@ function CharacterList(props: {
   )
 }
 
-function CharacterDetail(props: {
+export function CharacterDetail(props: {
   character: {
     id: string
     name: string
     role: string
     description: string
-    createdAt: number
+    createdAt?: number
   }
   characters: ReadonlyArray<{
     id: string
     name: string
     role: string
     description: string
-    createdAt: number
+    createdAt?: number
   }>
   onBack: () => void
+  onClose?: () => void
   language: ReturnType<typeof useLanguage>
   novelID: Accessor<string>
 }) {
@@ -333,7 +334,8 @@ function CharacterDetail(props: {
       novelID: props.novelID(),
       characterID: props.character.id,
     })
-    props.onBack()
+    if (props.onClose) props.onClose()
+    else props.onBack()
   }
 
   return (
@@ -343,11 +345,18 @@ function CharacterDetail(props: {
         <ButtonV2 variant="ghost" size="small" onClick={props.onBack}>
           {props.language.t("novel.panel.characters.back")}
         </ButtonV2>
-        <Show when={!isEditing()}>
-          <ButtonV2 variant="ghost" size="small" onClick={handleEdit}>
-            {props.language.t("novel.panel.characters.edit")}
-          </ButtonV2>
-        </Show>
+        <div class="flex items-center gap-1">
+          <Show when={!isEditing()}>
+            <ButtonV2 variant="ghost" size="small" onClick={handleEdit}>
+              {props.language.t("novel.panel.characters.edit")}
+            </ButtonV2>
+          </Show>
+          <Show when={props.onClose}>
+            <ButtonV2 variant="ghost" size="small" onClick={props.onClose} title="close">
+              ×
+            </ButtonV2>
+          </Show>
+        </div>
       </div>
 
       <Show
@@ -436,7 +445,7 @@ function CharacterDetail(props: {
   )
 }
 
-function StatesSection(props: {
+export function StatesSection(props: {
   novelID: Accessor<string>
   characterID: string
   language: ReturnType<typeof useLanguage>
@@ -565,7 +574,7 @@ function StatesSection(props: {
   )
 }
 
-function RelationshipsSection(props: {
+export function RelationshipsSection(props: {
   novelID: Accessor<string>
   characterID: string
   characters: ReadonlyArray<{ id: string; name: string }>
