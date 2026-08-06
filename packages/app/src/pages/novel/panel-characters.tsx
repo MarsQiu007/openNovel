@@ -401,32 +401,31 @@ export function CharacterDetail(props: {
         }
       >
         {/* Edit Mode */}
-        <div class="px-3 py-3 space-y-3">
-          <div>
+        <div class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0">
+          <div class="shrink-0">
             <label class="block text-xs text-v2-text-text-muted mb-1">
               {props.language.t("novel.panel.characters.name")} *
             </label>
             <TextInputV2 fluid type="text" value={name()} onInput={(e) => setName(e.currentTarget.value)} />
           </div>
-          <div>
+          <div class="shrink-0">
             <label class="block text-xs text-v2-text-text-muted mb-1">
               {props.language.t("novel.panel.characters.role")}
             </label>
             <TextInputV2 fluid type="text" value={role()} onInput={(e) => setRole(e.currentTarget.value)} />
           </div>
-          <div>
-            <label class="block text-xs text-v2-text-text-muted mb-1">
+          <div class="flex flex-1 flex-col min-h-0">
+            <label class="block text-xs text-v2-text-text-muted mb-1 shrink-0">
               {props.language.t("novel.panel.characters.description")}
             </label>
             <TextareaV2
               fluid
-              class="resize-none"
+              class="resize-none flex-1!"
               value={description()}
               onInput={(e) => setDescription(e.currentTarget.value)}
-              rows={5}
             />
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 shrink-0">
             <ButtonV2
               variant="contrast"
               size="small"

@@ -434,6 +434,9 @@ function GlobalGraph(props: {
   let panning = false
   let panStart = { x: 0, y: 0, ox: 0, oy: 0 }
 
+  // 主角锚定在图中心：力导向模拟中固定不动，其余节点自然环绕排布
+  const protagonistId = createMemo(() => props.characters.find((c) => c.role === "protagonist")?.id)
+
   // Fruchterman-Reingold 简化版力导向算法
   function runSimulation() {
     const w = size().w
@@ -446,8 +449,12 @@ function GlobalGraph(props: {
     const area = w * h
     const k = Math.sqrt(area / Math.max(chars.length, 1)) * 0.7
 
-    // 初始位置：圆周 + 抖动，避免同点起始
+    // 初始位置：主角锚定原点，其余节点圆周 + 抖动，避免同点起始
+    const pid = protagonistId()
     const nodes = chars.map((c, i) => {
+      if (c.id === pid) {
+        return { id: c.id, x: 0, y: 0, vx: 0, vy: 0, fixed: true }
+      }
       const angle = (i / chars.length) * Math.PI * 2
       const r = Math.min(w, h) * 0.3
       return {
@@ -456,6 +463,7 @@ function GlobalGraph(props: {
         y: Math.sin(angle) * r + (Math.random() - 0.5) * 40,
         vx: 0,
         vy: 0,
+        fixed: false,
       }
     })
     const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -501,8 +509,9 @@ function GlobalGraph(props: {
         n.vx -= n.x * 0.005
         n.vy -= n.y * 0.005
       }
-      // 4. 应用位移 + 温度衰减
+      // 4. 应用位移 + 温度衰减（主角锚定不动）
       for (const n of nodes) {
+        if (n.fixed) continue
         const disp = Math.sqrt(n.vx * n.vx + n.vy * n.vy)
         if (disp < 0.001) continue
         const limit = Math.min(disp, temperature)
@@ -601,6 +610,7 @@ function GlobalGraph(props: {
   const layout = createMemo(() => {
     const pos = positions()
     const offsets = userOffsets()
+    const pid = protagonistId()
     const nodes: GraphNode[] = props.characters.map((c) => {
       const p = pos.get(c.id) ?? { x: 0, y: 0 }
       const o = offsets.get(c.id) ?? { dx: 0, dy: 0 }
@@ -610,7 +620,7 @@ function GlobalGraph(props: {
         role: c.role,
         x: p.x + o.dx,
         y: p.y + o.dy,
-        center: false,
+        center: c.id === pid,
       }
     })
     const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -727,7 +737,7 @@ function GlobalGraph(props: {
 
             <For each={layout().nodes}>
               {(n) => {
-                const r = 22
+                const r = n.center ? 28 : 22
                 const isHovered = () => hoverNode() === n.id
                 const isDragging = () => draggingId() === n.id
                 const targetScale = () => {
@@ -758,7 +768,7 @@ function GlobalGraph(props: {
                     <text
                       text-anchor="middle"
                       dominant-baseline="central"
-                      font-size="13"
+                      font-size={n.center ? "15" : "13"}
                       font-weight={600}
                       fill="#ffffff"
                       style={{ "pointer-events": "none" }}
@@ -769,7 +779,7 @@ function GlobalGraph(props: {
                       y={r + 16}
                       text-anchor="middle"
                       font-size="12"
-                      font-weight={500}
+                      font-weight={n.center ? 600 : 500}
                       fill="#334155"
                       stroke="#ffffff"
                       stroke-width="3"
@@ -810,14 +820,16 @@ function CharacterEditDrawer(props: {
       <DrawerContent>
         <Show when={character()} fallback={null}>
           {(c) => (
-            <CharacterDetail
-              character={c()}
-              characters={props.characters}
-              onBack={props.onClose}
-              onClose={props.onClose}
-              language={language}
-              novelID={props.novelID}
-            />
+            <div class="flex w-full flex-1 min-h-0 flex-col">
+              <CharacterDetail
+                character={c()}
+                characters={props.characters}
+                onBack={props.onClose}
+                onClose={props.onClose}
+                language={language}
+                novelID={props.novelID}
+              />
+            </div>
           )}
         </Show>
       </DrawerContent>
