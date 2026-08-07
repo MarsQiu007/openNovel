@@ -132,6 +132,12 @@ async function injectSystemContext(sessionId: string, directory: string | null |
     lines.push("")
   }
 
+  if (snapshot.departedCharacters.length > 0) {
+    lines.push(`【已退场角色】${snapshot.departedCharacters.join("、")}`)
+    lines.push("（后续章节不要再安排这些角色出场，但历史章节中的提及仍然有效）")
+    lines.push("")
+  }
+
   if (snapshot.volumeSummary) {
     lines.push(`【当前卷摘要】\n${snapshot.volumeSummary}`)
     lines.push("")
@@ -442,14 +448,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
       }),
       manage_characters: tool({
-        description: "管理小说角色信息。可新增或更新角色（name/role/description）。character_id 为空时新增。",
+        description:
+          "管理小说角色信息。可新增或更新角色（name/role/description/status）。character_id 为空时新增。status 可设为 'active'（活跃）或 'departed'（退场）；退场后后续章节不再安排出场，但历史章节提及仍然有效。主角不能设为 departed。",
         args: {
           character_id: tool.schema.string().describe("角色 ID；传空字符串表示新增角色"),
-          update: tool.schema.string().describe("角色更新内容 JSON：{name?,role?,description?,novel_id?}"),
+          update: tool.schema.string().describe("角色更新内容 JSON：{name?,role?,description?,status?,novel_id?}"),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
-          let patch: { name?: string; role?: string; description?: string; novel_id?: string }
+          let patch: { name?: string; role?: string; description?: string; status?: string; novel_id?: string }
           try {
             patch = JSON.parse(args.update)
           } catch {
@@ -525,12 +532,21 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             await archiveDescription(ctx.directory, existing.novel_id, "character", args.character_id, oldDesc, newDesc)
           }
 
+          // 主角保护：不能退场
+          if (patch.status === "departed" && existing.role === "protagonist") {
+            return {
+              title: "manage_characters（已拦截）",
+              output: `主角「${existing.name}」不能退场。如需更换主角，请先创建新主角并用 update 将旧主角的 role 改为非主角。`,
+            }
+          }
+
           await db
             .update(CharacterTable)
             .set({
               name: patch.name ?? existing.name,
               role: patch.role ?? existing.role,
               description: newDesc,
+              ...(patch.status !== undefined ? { status: patch.status } : {}),
             })
             .where(eq(CharacterTable.id, args.character_id))
             .run()
@@ -1973,7 +1989,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       delete_setting: tool({
         description:
-          "删除小说设定。支持删除 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型的记录。删除前建议先用 list_settings 获取 entity_id，再用 cascade_check 检查影响范围。",
+          "删除小说设定。支持删除 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型的记录。删除前建议先用 list_settings 获取 entity_id，再用 cascade_check 检查影响范围。注意：角色（character）删除有保护--主角不能删除；已在章节正文中出场的角色不能硬删除（会破坏叙事连续性），应改用 update_setting 将 status 设为 'departed' 让角色退场。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           entity_type: tool.schema
@@ -2040,10 +2056,14 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               metadata: { entity_type: type, entity_id: id },
             }
           } catch (err) {
-            return {
-              title: "delete_setting",
-              output: `删除失败：${err instanceof Error ? err.message : String(err)}`,
+            const msg = err instanceof Error ? err.message : String(err)
+            let output = `删除失败：${msg}`
+            if (msg === "PROTAGONIST_CANNOT_BE_DELETED") {
+              output = `主角不能删除。如需更换主角，请先创建新主角并用 update_setting 将旧主角的 role 改为非主角，再退场或删除。`
+            } else if (msg === "CHARACTER_APPEARED_IN_CHAPTERS") {
+              output = `此角色已在章节正文中出场，不能硬删除（会破坏叙事连续性）。请改用 update_setting 将 status 设为 "departed" 让角色退场：退场后后续章节不再安排出场，但历史章节中的提及仍然有效。`
             }
+            return { title: "delete_setting", output }
           }
         },
       }),

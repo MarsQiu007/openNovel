@@ -913,6 +913,7 @@ export function useUpdateCharacter() {
       name?: string
       role?: string
       description?: string
+      status?: string
     }) => {
       const dir = sdk().directory
       return client()["server.novel"]["update-character"]({
@@ -922,6 +923,7 @@ export function useUpdateCharacter() {
         name: input.name,
         role: input.role,
         description: input.description,
+        status: input.status,
       })
     },
     onSuccess: (_data, variables) => {

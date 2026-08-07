@@ -1,6 +1,7 @@
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { useConfirmDelete } from "./confirm-dialog"
 import { useCreateTensionPoint, useDeleteTensionPoint, useTension } from "@/context/novel-queries"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
@@ -35,6 +36,7 @@ export function TensionChart(props: Props) {
   const tension = useTension(props.novelID)
   const createTension = useCreateTensionPoint()
   const deleteTension = useDeleteTensionPoint()
+  const confirmDelete = useConfirmDelete()
   const [selectedPoint, setSelectedPoint] = createSignal<{ id: string; x: number; y: number } | null>(null)
   const [form, setForm] = createStore({ chapterNumber: "", level: "" })
   const [hovered, setHovered] = createSignal<{
@@ -111,10 +113,16 @@ export function TensionChart(props: Props) {
     setForm("level", "")
   }
 
-  const handleDelete = async (pointID: string) => {
-    await deleteTension.mutateAsync({ novelID: props.novelID(), pointID })
-    setSelectedPoint(null)
-    setHovered(null)
+  const handleDelete = (pointID: string) => {
+    confirmDelete({
+      title: language.t("novel.panel.tension.delete"),
+      message: language.t("novel.panel.tension.deleteConfirm"),
+      onConfirm: async () => {
+        await deleteTension.mutateAsync({ novelID: props.novelID(), pointID })
+        setSelectedPoint(null)
+        setHovered(null)
+      },
+    })
   }
 
   return (

@@ -5,12 +5,14 @@ import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
 import { useSpring } from "@opennovel-ai/ui/motion-spring"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { CharacterDetail } from "@/pages/novel/panel-characters"
+import { useDialog } from "@opennovel-ai/ui/context/dialog"
 
 type Character = {
   id: string
   name: string
   role: string
   description: string
+  status?: string
   createdAt?: number
 }
 type Relationship = { id: string; charAId: string; charBId: string; type: string; description: string }
@@ -808,6 +810,10 @@ function CharacterEditDrawer(props: {
   onClose: () => void
 }) {
   const language = useLanguage()
+  // 全局确认弹窗（useDialog/Kobalte）打开期间禁止抽屉的"点击外部关闭"：
+  // 否则点击弹窗按钮会被 corvu 判定为抽屉外部交互而连带关闭抽屉，
+  // 两套 modal 系统竞争还原 body pointer-events，会把界面卡死在不可点击状态
+  const dialog = useDialog()
 
   const character = createMemo<Character | null>(() => {
     const id = props.characterId
@@ -816,7 +822,16 @@ function CharacterEditDrawer(props: {
   })
 
   return (
-    <Drawer open={props.open} onOpenChange={(o) => { if (!o) props.onClose() }}>
+    <Drawer
+      open={props.open}
+      onOpenChange={(o) => { if (!o) props.onClose() }}
+      // 全局确认弹窗（useDialog/Kobalte）打开期间禁止抽屉的"外部交互关闭"：
+      // Kobalte 弹窗的 FocusScope 会把焦点抢到弹窗内，corvu 的 closeOnOutsideFocus
+      // 会据此判定焦点离开抽屉而关闭抽屉；两套 modal 系统竞争还原 body pointer-events
+      // 会把界面卡死在不可点击状态。pointer 和 focus 两条路径都要拦。
+      closeOnOutsidePointer={dialog.active === undefined}
+      closeOnOutsideFocus={dialog.active === undefined}
+    >
       <DrawerContent>
         <Show when={character()} fallback={null}>
           {(c) => (

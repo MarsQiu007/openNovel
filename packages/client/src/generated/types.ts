@@ -3104,6 +3104,7 @@ export type ServerNovelCharactersOutput = ReadonlyArray<{
   readonly name: string
   readonly role: string
   readonly description: string
+  readonly status: string
   readonly createdAt: number
 }>
 
@@ -3732,6 +3733,7 @@ export type ServerNovelCreateCharacterOutput = {
   readonly name: string
   readonly role: string
   readonly description: string
+  readonly status: string
   readonly createdAt: number
 }
 
@@ -3741,13 +3743,30 @@ export type ServerNovelUpdateCharacterInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
-  readonly name?: { readonly name?: string; readonly role?: string; readonly description?: string }["name"]
-  readonly role?: { readonly name?: string; readonly role?: string; readonly description?: string }["role"]
+  readonly name?: {
+    readonly name?: string
+    readonly role?: string
+    readonly description?: string
+    readonly status?: string
+  }["name"]
+  readonly role?: {
+    readonly name?: string
+    readonly role?: string
+    readonly description?: string
+    readonly status?: string
+  }["role"]
   readonly description?: {
     readonly name?: string
     readonly role?: string
     readonly description?: string
+    readonly status?: string
   }["description"]
+  readonly status?: {
+    readonly name?: string
+    readonly role?: string
+    readonly description?: string
+    readonly status?: string
+  }["status"]
 }
 
 export type ServerNovelUpdateCharacterOutput = {
@@ -3756,6 +3775,7 @@ export type ServerNovelUpdateCharacterOutput = {
   readonly name: string
   readonly role: string
   readonly description: string
+  readonly status: string
   readonly createdAt: number
 }
 

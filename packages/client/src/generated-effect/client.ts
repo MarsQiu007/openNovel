@@ -1239,12 +1239,13 @@ type Endpoint18_44Input = {
   readonly name?: Endpoint18_44Request["payload"]["name"]
   readonly role?: Endpoint18_44Request["payload"]["role"]
   readonly description?: Endpoint18_44Request["payload"]["description"]
+  readonly status?: Endpoint18_44Request["payload"]["status"]
 }
 const Endpoint18_44 = (raw: RawClient["server.novel"]) => (input: Endpoint18_44Input) =>
   raw["novel.update-character"]({
     params: { novelID: input["novelID"], characterID: input["characterID"] },
     query: { location: input["location"] },
-    payload: { name: input["name"], role: input["role"], description: input["description"] },
+    payload: { name: input["name"], role: input["role"], description: input["description"], status: input["status"] },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_45Request = Parameters<RawClient["server.novel"]["novel.delete-character"]>[0]

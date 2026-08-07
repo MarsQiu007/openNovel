@@ -1,5 +1,6 @@
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { useConfirmDelete } from "./confirm-dialog"
 import { useCreateWorldEntry, useDeleteWorldEntry, useWorldEntries } from "@/context/novel-queries"
 import type { ServerNovelWorldEntriesOutput } from "@opennovel-ai/client"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -17,6 +18,7 @@ export function PanelWorld(props: PanelWorldProps) {
   const query = useWorldEntries(props.novelID)
   const createWorld = useCreateWorldEntry()
   const deleteWorld = useDeleteWorldEntry()
+  const confirmDelete = useConfirmDelete()
   const [search, setSearch] = createSignal("")
   const [isAdding, setIsAdding] = createSignal(false)
   const [newCategory, setNewCategory] = createSignal("")
@@ -155,9 +157,14 @@ export function PanelWorld(props: PanelWorldProps) {
                         size="small"
                         class="shrink-0"
                         onClick={() =>
-                          deleteWorld.mutate({
-                            novelID: props.novelID(),
-                            entryID: entry.id,
+                          confirmDelete({
+                            title: language.t("novel.panel.world.delete"),
+                            message: language.t("novel.panel.world.deleteConfirm"),
+                            onConfirm: () =>
+                              deleteWorld.mutate({
+                                novelID: props.novelID(),
+                                entryID: entry.id,
+                              }),
                           })
                         }
                       >

@@ -7,7 +7,7 @@
  *
  * 不持有任何 hook 或 tool 注册逻辑。
  */
-import { eq, and, asc, desc, isNull } from "drizzle-orm"
+import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { join } from "path"
@@ -51,6 +51,7 @@ export const CharacterTable = sqliteTable("characters", {
   name: text().notNull(),
   role: text().notNull().default(""),
   description: text().notNull().default(""),
+  status: text().notNull().default("active"),
   created_at: integer()
     .notNull()
     .$default(() => Date.now()),
@@ -358,7 +359,7 @@ CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
-CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_summaries (id text PRIMARY KEY, chapter_id text NOT NULL, summary text DEFAULT '' NOT NULL, key_events text DEFAULT '[]' NOT NULL, char_changes text DEFAULT '[]' NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS foreshadowing (id text PRIMARY KEY, novel_id text NOT NULL, planted_chapter_id text, resolved_chapter_id text, content text NOT NULL, state text DEFAULT 'planted' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (planted_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL, FOREIGN KEY (resolved_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
@@ -765,7 +766,7 @@ export async function createCharacter(
 
 export async function updateCharacter(
   characterId: string,
-  fields: { name?: string; role?: string; description?: string },
+  fields: { name?: string; role?: string; description?: string; status?: string },
   directory?: string | null,
 ): Promise<typeof CharacterTable.$inferSelect> {
   const db = getDb(directory)
@@ -773,12 +774,52 @@ export async function updateCharacter(
   if (fields.name !== undefined) updates.name = fields.name
   if (fields.role !== undefined) updates.role = fields.role
   if (fields.description !== undefined) updates.description = fields.description
+  if (fields.status !== undefined) updates.status = fields.status
   await db.update(CharacterTable).set(updates).where(eq(CharacterTable.id, characterId)).run()
   return db.select().from(CharacterTable).where(eq(CharacterTable.id, characterId)).get()!
 }
 
+/**
+ * 删除角色。
+ *
+ * 保护规则：
+ * 1. 主角（role=protagonist）禁止删除——删主角等于删小说。
+ * 2. 已在章节正文中出场过的角色禁止硬删——叙事历史不可抹除，
+ *    应改用退场（updateCharacter status=departed）。
+ * 3. 满足删除条件时手动级联清理 character_states / relationships / entity_refs，
+ *    不依赖 FK CASCADE（Node 运行时 foreign_keys 行为不稳）。
+ */
 export async function deleteCharacter(characterId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
+  const [char] = await db.select().from(CharacterTable).where(eq(CharacterTable.id, characterId)).all()
+  if (!char) return
+  if (char.role === "protagonist") {
+    throw new Error("PROTAGONIST_CANNOT_BE_DELETED")
+  }
+  const appeared = await db
+    .select({ id: EntityRefTable.id })
+    .from(EntityRefTable)
+    .where(
+      and(
+        eq(EntityRefTable.target_type, "character"),
+        eq(EntityRefTable.target_id, characterId),
+        eq(EntityRefTable.source_type, "chapter"),
+      ),
+    )
+    .limit(1)
+    .all()
+  if (appeared.length > 0) {
+    throw new Error("CHARACTER_APPEARED_IN_CHAPTERS")
+  }
+  await db.delete(CharacterStateTable).where(eq(CharacterStateTable.character_id, characterId)).run()
+  await db
+    .delete(RelationshipTable)
+    .where(or(eq(RelationshipTable.char_a_id, characterId), eq(RelationshipTable.char_b_id, characterId)))
+    .run()
+  await db
+    .delete(EntityRefTable)
+    .where(and(eq(EntityRefTable.target_type, "character"), eq(EntityRefTable.target_id, characterId)))
+    .run()
   await db.delete(CharacterTable).where(eq(CharacterTable.id, characterId)).run()
 }
 

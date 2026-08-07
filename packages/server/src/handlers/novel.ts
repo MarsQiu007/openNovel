@@ -165,6 +165,7 @@ function toCharacter(row: CharacterRow) {
     name: row.name,
     role: row.role,
     description: row.description,
+    status: row.status,
     createdAt: row.created_at,
   }
 }
@@ -317,7 +318,7 @@ type BindSessionInput = { sessionID: string }
 type CreateChapterInput = { title: string; volumeId?: string; order?: number }
 type UpdateNovelInput = { title?: string; synopsis?: string; genre?: string }
 type CreateCharacterInput = { name: string; role?: string; description?: string }
-type UpdateCharacterInput = { name?: string; role?: string; description?: string }
+type UpdateCharacterInput = { name?: string; role?: string; description?: string; status?: string }
 type CreateTensionPointInput = { chapterNumber: number; level: number }
 type UpdateTensionPointInput = { level?: number }
 type CreatePlotThreadInput = { title: string; priority?: string; description?: string }

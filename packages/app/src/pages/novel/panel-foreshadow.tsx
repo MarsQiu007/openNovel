@@ -1,5 +1,6 @@
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { useConfirmDelete } from "./confirm-dialog"
 import {
   useCreateForeshadowing,
   useDeleteForeshadowing,
@@ -47,6 +48,7 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
   const createForeshadow = useCreateForeshadowing()
   const updateForeshadow = useUpdateForeshadowing()
   const deleteForeshadow = useDeleteForeshadowing()
+  const confirmDelete = useConfirmDelete()
   const [isAdding, setIsAdding] = createSignal(false)
   const [content, setContent] = createSignal("")
 
@@ -188,9 +190,14 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
                   variant="danger"
                   size="small"
                   onClick={() =>
-                    deleteForeshadow.mutate({
-                      novelID: props.novelID(),
-                      entryID: entry.id,
+                    confirmDelete({
+                      title: language.t("novel.panel.foreshadow.delete"),
+                      message: language.t("novel.panel.foreshadow.deleteConfirm"),
+                      onConfirm: () =>
+                        deleteForeshadow.mutate({
+                          novelID: props.novelID(),
+                          entryID: entry.id,
+                        }),
                     })
                   }
                 >

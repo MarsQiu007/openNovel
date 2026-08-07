@@ -1,5 +1,6 @@
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { useConfirmDelete } from "./confirm-dialog"
 import { useCreatePlotThread, useDeletePlotThread, usePlotThreads, useUpdatePlotThread } from "@/context/novel-queries"
 import type { ServerNovelPlotThreadsOutput } from "@opennovel-ai/client"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -18,6 +19,7 @@ export function PanelThreads(props: PanelThreadsProps) {
   const createThread = useCreatePlotThread()
   const updateThread = useUpdatePlotThread()
   const deleteThread = useDeletePlotThread()
+  const confirmDelete = useConfirmDelete()
   const [isAdding, setIsAdding] = createSignal(false)
   const [title, setTitle] = createSignal("")
   const [priority, setPriority] = createSignal("medium")
@@ -176,9 +178,14 @@ export function PanelThreads(props: PanelThreadsProps) {
                       variant="danger"
                       size="small"
                       onClick={() =>
-                        deleteThread.mutate({
-                          novelID: props.novelID(),
-                          threadID: thread.id,
+                        confirmDelete({
+                          title: language.t("novel.panel.threads.delete"),
+                          message: language.t("novel.panel.threads.deleteConfirm"),
+                          onConfirm: () =>
+                            deleteThread.mutate({
+                              novelID: props.novelID(),
+                              threadID: thread.id,
+                            }),
                         })
                       }
                     >
@@ -215,9 +222,14 @@ export function PanelThreads(props: PanelThreadsProps) {
                     size="small"
                     class="shrink-0"
                     onClick={() =>
-                      deleteThread.mutate({
-                        novelID: props.novelID(),
-                        threadID: thread.id,
+                      confirmDelete({
+                        title: language.t("novel.panel.threads.delete"),
+                        message: language.t("novel.panel.threads.deleteConfirm"),
+                        onConfirm: () =>
+                          deleteThread.mutate({
+                            novelID: props.novelID(),
+                            threadID: thread.id,
+                          }),
                       })
                     }
                   >

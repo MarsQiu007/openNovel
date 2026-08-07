@@ -122,3 +122,56 @@ describe("session_novel 悬空外键迁移", () => {
     expect(sessionNovelRows(dbPath)).toEqual([{ id: "sn-1", session_id: "ses_old", novel_id: "novel-1" }])
   })
 })
+
+describe("characters status 列迁移", () => {
+  const LEGACY_CHARACTERS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
+CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+`
+
+  test("遗留库：自动添加 status 列，默认 active", () => {
+    const seed = new Database(dbPath)
+    seed.exec(LEGACY_CHARACTERS_SCHEMA)
+    seed.query("insert into novels (id, title, genre, created_at, updated_at) values (?, ?, ?, ?, ?)").run(
+      "novel-1",
+      "测试",
+      "玄幻",
+      1,
+      1,
+    )
+    seed.query("insert into characters (id, novel_id, name, role, description, created_at) values (?, ?, ?, ?, ?, ?)").run(
+      "char-1",
+      "novel-1",
+      "陆沉",
+      "protagonist",
+      "主角",
+      1,
+    )
+    seed.close()
+
+    // 迁移前无 status 列
+    const before = new Database(dbPath, { readonly: true })
+    const colsBefore = before.query("PRAGMA table_info(characters)").all().map((r) => r.name)
+    before.close()
+    expect(colsBefore).not.toContain("status")
+
+    // 打开 DB 触发迁移
+    getDb(projectDir)
+
+    // 迁移后有 status 列，默认 active
+    const after = new Database(dbPath, { readonly: true })
+    const colsAfter = after.query("PRAGMA table_info(characters)").all().map((r) => r.name)
+    const char = after.query("select status from characters where id = 'char-1'").get()
+    after.close()
+    expect(colsAfter).toContain("status")
+    expect(char.status).toBe("active")
+  })
+
+  test("新建库：characters 自带 status 列", () => {
+    getDb(projectDir)
+    const db = new Database(dbPath, { readonly: true })
+    const cols = db.query("PRAGMA table_info(characters)").all().map((r) => r.name)
+    db.close()
+    expect(cols).toContain("status")
+  })
+})

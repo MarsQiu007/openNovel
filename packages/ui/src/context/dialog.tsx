@@ -40,6 +40,21 @@ function init() {
     timer.current = undefined
   })
 
+  // 兜底校准 body pointer-events。
+  // Kobalte 打开弹窗时会捕获当时的 body pointer-events 并在关闭时原样写回；
+  // 若弹窗是在 corvu 抽屉（body 已被置为 none）之上打开的，写回的 "none"
+  // 可能在抽屉关闭后残留，导致整个界面无法点击。这里在最后一个弹窗关闭、
+  // 且 corvu 关闭过渡结束后检查一次：没有任何 modal 存活时恢复为可点击。
+  const syncBodyPointerEvents = () => {
+    if (stack().length > 0) return
+    const body = document.body
+    if (body.style.pointerEvents !== "none") return
+    // corvu 抽屉/弹窗仍挂载（含关闭过渡中）时由其自行还原，不干预
+    if (document.querySelector("[data-corvu-drawer-content], [data-corvu-dialog-content]")) return
+    body.style.pointerEvents = ""
+    if (body.style.length === 0) body.removeAttribute("style")
+  }
+
   const close = (id?: string) => {
     const items = stack()
     const current = id ? items.find((item) => item.id === id) : items.at(-1)
@@ -59,6 +74,10 @@ function init() {
       current.dispose()
       setStack((items) => items.filter((item) => item.id !== closed))
       lock.value = false
+      // 等 corvu 关闭过渡（约 300ms）结束后再校准
+      if (stack().length === 0) {
+        setTimeout(syncBodyPointerEvents, 400)
+      }
     }, 100)
   }
 
@@ -77,7 +96,10 @@ function init() {
 
   const mount = (element: DialogElement, owner: Owner, onClose: (() => void) | undefined, layer: number) => {
     const id = Math.random().toString(36).slice(2)
-    const zIndex = 50 + layer * 10
+    // 基准 z-index 必须高于抽屉（如角色编辑抽屉 z-[100]），否则确认弹窗会被抽屉遮罩盖住，
+    // 点击落在抽屉 overlay 上会导致 Kobalte 弹窗与 corvu 抽屉互相触发关闭，
+    // 两套 modal 系统先后还原 body pointer-events 时残留 none，造成整个界面无法点击
+    const zIndex = 200 + layer * 10
     let dispose: (() => void) | undefined
     let setClosing: ((closing: boolean) => void) | undefined
 

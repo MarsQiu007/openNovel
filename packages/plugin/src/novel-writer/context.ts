@@ -128,8 +128,11 @@ export type ContextPacket = {
   genre: string
   synopsis: string
 
-  /** P1: 活跃角色（已过滤 dormant 角色） */
+  /** P1: 活跃角色（已过滤 dormant / departed 角色） */
   activeCharacters: ActiveCharacter[]
+
+  /** P1b: 已退场角色名（director 不再安排出场，但历史章节提及仍然有效） */
+  departedCharacters: string[]
 
   /** P2: 卷摘要 + 最近3章摘要 */
   volumeSummary: string | null
@@ -208,10 +211,16 @@ export async function assembleSnapshot(
   const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
 
   const activeCharacters: ActiveCharacter[] = []
+  const departedCharacters: string[] = []
   if (characters.length > 0) {
     const charIds = characters.map((c) => c.id)
     // 逐个查询每个角色的最新状态，过滤 active = 1
     for (const char of characters) {
+      // 已退场角色不进活跃列表，但记录名字告知 director 不要再安排出场
+      if (char.status === "departed") {
+        departedCharacters.push(char.name)
+        continue
+      }
       const [latestState] = await db
         .select()
         .from(CharacterStateTable)
@@ -288,6 +297,7 @@ export async function assembleSnapshot(
     synopsis: novel.synopsis,
 
     activeCharacters,
+    departedCharacters,
 
     volumeSummary,
     recentChapterSummaries,

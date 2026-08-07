@@ -365,6 +365,7 @@ export async function getEffectiveContext(
     synopsis: novel.synopsis,
 
     activeCharacters,
+    departedCharacters: [],
 
     volumeSummary,
     recentChapterSummaries,

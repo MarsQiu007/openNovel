@@ -126,6 +126,7 @@ export const Character = Schema.Struct({
   name: Schema.String,
   role: Schema.String,
   description: Schema.String,
+  status: Schema.String,
   createdAt: Schema.Int,
 }).annotate({ identifier: "Novel.Character" })
 export interface Character extends Schema.Schema.Type<typeof Character> {}
@@ -383,6 +384,7 @@ export const UpdateCharacterInput = Schema.Struct({
   name: optional(Schema.String),
   role: optional(Schema.String),
   description: optional(Schema.String),
+  status: optional(Schema.String),
 }).annotate({ identifier: "Novel.UpdateCharacterInput" })
 export interface UpdateCharacterInput extends Schema.Schema.Type<typeof UpdateCharacterInput> {}
 

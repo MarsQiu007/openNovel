@@ -19,6 +19,7 @@ import {
   useAllCharacterStates,
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
+import { useConfirmDelete } from "./confirm-dialog"
 import { Marked } from "marked"
 
 const marked = new Marked()
@@ -129,6 +130,7 @@ function CharacterList(props: {
     name: string
     role: string
     description: string
+    status?: string
     createdAt: number
   }>
   onSelect: (id: string) => void
@@ -201,10 +203,16 @@ function CharacterList(props: {
               <button
                 onClick={() => props.onSelect(character.id)}
                 class="w-full text-left px-3 py-2.5 border-b border-v2-border-border-base hover:bg-v2-background-bg-layer-01 transition-colors"
+                classList={{ "opacity-50": character.status === "departed" }}
               >
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-medium text-v2-text-text-base truncate">{character.name}</span>
                   <Tag class="shrink-0">{character.role}</Tag>
+                  <Show when={character.status === "departed"}>
+                    <Tag class="shrink-0 opacity-60">
+                      {props.language.t("novel.panel.characters.departed")}
+                    </Tag>
+                  </Show>
                 </div>
                 <p class="mt-0.5 text-xs text-v2-text-text-muted line-clamp-2">{character.description}</p>
               </button>
@@ -281,6 +289,7 @@ export function CharacterDetail(props: {
     name: string
     role: string
     description: string
+    status?: string
     createdAt?: number
   }
   characters: ReadonlyArray<{
@@ -288,6 +297,7 @@ export function CharacterDetail(props: {
     name: string
     role: string
     description: string
+    status?: string
     createdAt?: number
   }>
   onBack: () => void
@@ -301,6 +311,7 @@ export function CharacterDetail(props: {
   const [description, setDescription] = createSignal(props.character.description)
   const updateChar = useUpdateCharacter()
   const deleteChar = useDeleteCharacter()
+  const confirmDelete = useConfirmDelete()
 
   const descriptionHtml = createMemo(() =>
     sanitize(marked.parse(props.character.description, { async: false }) as string),
@@ -329,13 +340,44 @@ export function CharacterDetail(props: {
     setIsEditing(false)
   }
 
-  const handleDelete = async () => {
-    await deleteChar.mutateAsync({
+  const isProtagonist = () => props.character.role === "protagonist"
+  const isDeparted = () => props.character.status === "departed"
+
+  const handleDelete = () => {
+    confirmDelete({
+      title: props.language.t("novel.panel.characters.delete"),
+      message: props.language.t("novel.panel.characters.deleteConfirm", { name: props.character.name }),
+      onConfirm: async () => {
+        await deleteChar.mutateAsync({
+          novelID: props.novelID(),
+          characterID: props.character.id,
+        })
+        if (props.onClose) props.onClose()
+        else props.onBack()
+      },
+    })
+  }
+
+  const handleWriteOut = () => {
+    confirmDelete({
+      title: props.language.t("novel.panel.characters.writeOut"),
+      message: props.language.t("novel.panel.characters.writeOutConfirm", { name: props.character.name }),
+      confirmLabel: props.language.t("novel.panel.characters.writeOut"),
+      onConfirm: () =>
+        updateChar.mutateAsync({
+          novelID: props.novelID(),
+          characterID: props.character.id,
+          status: "departed",
+        }),
+    })
+  }
+
+  const handleRestore = () => {
+    updateChar.mutate({
       novelID: props.novelID(),
       characterID: props.character.id,
+      status: "active",
     })
-    if (props.onClose) props.onClose()
-    else props.onBack()
   }
 
   return (
@@ -366,7 +408,12 @@ export function CharacterDetail(props: {
             {/* Header */}
             <div class="px-3 py-3 border-b border-v2-border-border-base">
               <h3 class="text-base font-semibold text-v2-text-text-base">{props.character.name}</h3>
-              <Tag class="mt-1">{props.character.role}</Tag>
+              <div class="flex items-center gap-1.5 mt-1">
+                <Tag>{props.character.role}</Tag>
+                <Show when={isDeparted()}>
+                  <Tag class="opacity-60">{props.language.t("novel.panel.characters.departed")}</Tag>
+                </Show>
+              </div>
             </div>
 
             {/* Description */}
@@ -391,11 +438,39 @@ export function CharacterDetail(props: {
               language={props.language}
             />
 
-            {/* Delete Button */}
-            <div class="px-3 py-3 border-t border-v2-border-border-base mt-auto">
-              <ButtonV2 variant="danger" class="w-full" onClick={handleDelete} disabled={deleteChar.isPending}>
-                {props.language.t("novel.panel.characters.delete")}
-              </ButtonV2>
+            {/* Status-based actions: writeOut / delete / restore */}
+            <div class="px-3 py-3 border-t border-v2-border-border-base mt-auto space-y-2">
+              <Show when={deleteChar.error}>
+                <p class="text-xs text-v2-state-fg-danger">
+                  {props.language.t("novel.panel.characters.deleteRefusedAppeared")}
+                </p>
+              </Show>
+              <Show
+                when={!isProtagonist()}
+                fallback={
+                  <p class="text-xs text-v2-text-text-muted text-center py-1">
+                    {props.language.t("novel.panel.characters.protagonistProtect")}
+                  </p>
+                }
+              >
+                <Show
+                  when={!isDeparted()}
+                  fallback={
+                    <ButtonV2 variant="outline" class="w-full" onClick={handleRestore} disabled={updateChar.isPending}>
+                      {props.language.t("novel.panel.characters.restore")}
+                    </ButtonV2>
+                  }
+                >
+                  <div class="flex gap-2">
+                    <ButtonV2 variant="contrast" class="flex-1" onClick={handleWriteOut} disabled={updateChar.isPending}>
+                      {props.language.t("novel.panel.characters.writeOut")}
+                    </ButtonV2>
+                    <ButtonV2 variant="danger" class="flex-1" onClick={handleDelete} disabled={deleteChar.isPending}>
+                      {props.language.t("novel.panel.characters.delete")}
+                    </ButtonV2>
+                  </div>
+                </Show>
+              </Show>
             </div>
           </>
         }
@@ -453,6 +528,7 @@ export function StatesSection(props: {
   const createState = useCreateCharacterState()
   const updateState = useUpdateCharacterState()
   const deleteState = useDeleteCharacterState()
+  const confirmDelete = useConfirmDelete()
   const [isAdding, setIsAdding] = createSignal(false)
   const [place, setPlace] = createSignal("")
   const [mood, setMood] = createSignal("")
@@ -523,10 +599,15 @@ export function StatesSection(props: {
                 </div>
                 <button
                   onClick={() =>
-                    void deleteState.mutateAsync({
-                      novelID: props.novelID(),
-                      characterID: props.characterID,
-                      stateID: state.id,
+                    confirmDelete({
+                      title: props.language.t("novel.panel.characters.delete"),
+                      message: props.language.t("novel.panel.characters.state.deleteConfirm"),
+                      onConfirm: () =>
+                        deleteState.mutateAsync({
+                          novelID: props.novelID(),
+                          characterID: props.characterID,
+                          stateID: state.id,
+                        }),
                     })
                   }
                   class="opacity-0 group-hover:opacity-100 shrink-0 text-xs text-v2-text-text-faint hover:text-v2-state-fg-danger transition-opacity"
@@ -582,6 +663,7 @@ export function RelationshipsSection(props: {
   const relQuery = useRelationships(props.novelID)
   const createRel = useCreateRelationship()
   const deleteRel = useDeleteRelationship()
+  const confirmDelete = useConfirmDelete()
   const [isAdding, setIsAdding] = createSignal(false)
   const [targetId, setTargetId] = createSignal("")
   const [type, setType] = createSignal("")
@@ -645,7 +727,14 @@ export function RelationshipsSection(props: {
                   </Show>
                 </div>
                 <button
-                  onClick={() => void deleteRel.mutateAsync({ novelID: props.novelID(), relationshipID: rel.id })}
+                  onClick={() =>
+                    confirmDelete({
+                      title: props.language.t("novel.panel.characters.delete"),
+                      message: props.language.t("novel.panel.characters.rel.deleteConfirm"),
+                      onConfirm: () =>
+                        deleteRel.mutateAsync({ novelID: props.novelID(), relationshipID: rel.id }),
+                    })
+                  }
                   class="opacity-0 group-hover:opacity-100 shrink-0 text-xs text-v2-text-text-faint hover:text-v2-state-fg-danger transition-opacity"
                   type="button"
                   title={props.language.t("common.action.delete")}

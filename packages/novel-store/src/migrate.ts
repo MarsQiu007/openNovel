@@ -20,34 +20,53 @@ type QueryFn = (sql: string) => unknown
  * 检测到悬空外键时原地重建表（保留数据）去除该外键。迁移失败不阻塞 DB 打开。
  */
 export function runMigrations(exec: ExecFn, query: QueryFn): void {
-  let hasDanglingFk = false
+  // 1. 修复 session_novel 悬空外键
   try {
     const result = query("PRAGMA foreign_key_list(session_novel)")
     const fks = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
-    hasDanglingFk = fks.some((fk) => fk.table === "session")
-  } catch {
-    // 表不存在或 pragma 查询失败时无需迁移
-    return
-  }
-  if (!hasDanglingFk) return
-
-  exec("BEGIN")
-  try {
-    exec("ALTER TABLE session_novel RENAME TO session_novel_legacy")
-    exec(
-      "CREATE TABLE session_novel (id text PRIMARY KEY, session_id text NOT NULL, novel_id text NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE)",
-    )
-    exec(
-      "INSERT INTO session_novel (id, session_id, novel_id, created_at) SELECT id, session_id, novel_id, created_at FROM session_novel_legacy",
-    )
-    exec("DROP TABLE session_novel_legacy")
-    exec("COMMIT")
-  } catch (error) {
-    try {
-      exec("ROLLBACK")
-    } catch {
-      // 回滚失败时忽略，保留现场便于排查
+    const hasDanglingFk = fks.some((fk) => fk.table === "session")
+    if (hasDanglingFk) {
+      exec("BEGIN")
+      try {
+        exec("ALTER TABLE session_novel RENAME TO session_novel_legacy")
+        exec(
+          "CREATE TABLE session_novel (id text PRIMARY KEY, session_id text NOT NULL, novel_id text NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE)",
+        )
+        exec(
+          "INSERT INTO session_novel (id, session_id, novel_id, created_at) SELECT id, session_id, novel_id, created_at FROM session_novel_legacy",
+        )
+        exec("DROP TABLE session_novel_legacy")
+        exec("COMMIT")
+      } catch (error) {
+        try {
+          exec("ROLLBACK")
+        } catch {
+          // 回滚失败时忽略，保留现场便于排查
+        }
+        console.warn("[novel-store] session_novel migration failed:", error instanceof Error ? error.message : error)
+      }
     }
-    console.warn("[novel-store] session_novel migration failed:", error instanceof Error ? error.message : error)
+  } catch {
+    // session_novel 表不存在或 pragma 查询失败时跳过此迁移
+  }
+
+  // 2. 给 characters 表添加 status 列（始终执行，幂等）
+  migrateCharacterStatus(exec, query)
+}
+
+/**
+ * 给 characters 表添加 status 列（active / departed），用于角色退场生命周期。
+ * SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查 PRAGMA table_info 判断。
+ */
+function migrateCharacterStatus(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(characters)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    const hasStatus = cols.some((c) => c.name === "status")
+    if (!hasStatus) {
+      exec("ALTER TABLE characters ADD COLUMN status text NOT NULL DEFAULT 'active'")
+    }
+  } catch {
+    // characters 表不存在时无需迁移，CREATE_TABLES_SQL 会带 status 列创建
   }
 }
