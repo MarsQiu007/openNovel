@@ -1,0 +1,121 @@
+name: Prepare Release
+
+# 触发方式：
+# 1. 手动触发 workflow_dispatch，选择 bump 类型和 channel
+# 2. 未来可扩展为 push 到 release/* 分支自动触发
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      channel:
+        description: "Release channel"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - beta
+          - prod
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release_id: ${{ steps.version.outputs.release_id }}
+      channel: ${{ steps.version.outputs.channel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Configure git
+        run: |
+          git config --global user.name "opennovel-bot"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # 生成 changelog 并创建 draft release
+      # OPENNOVEL_BUMP 用于 @opennovel-ai/script 计算下一个版本号
+      # OPENNOVEL_CHANNEL=latest 表示正式版，其他为 preview
+      - name: Generate changelog and create draft release
+        id: version
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENNOVEL_BUMP: ${{ inputs.bump }}
+          OPENNOVEL_CHANNEL: ${{ inputs.channel == 'prod' && 'latest' || inputs.channel }}
+          OPENNOVEL_RELEASE: "true"
+        run: |
+          set -e
+          SUMMARY=$(bun script/version.ts | tail -n 1)
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "version=$(echo "$SUMMARY" | jq -r '.version')" >> "$GITHUB_OUTPUT"
+          echo "tag=$(echo "$SUMMARY" | jq -r '.tag')" >> "$GITHUB_OUTPUT"
+          echo "release_id=$(echo "$SUMMARY" | jq -r '.release')" >> "$GITHUB_OUTPUT"
+          echo "channel=$(echo "$SUMMARY" | jq -r '.channel')" >> "$GITHUB_OUTPUT"
+          echo "Generated summary: $SUMMARY"
+
+      # 把 release 信息写入 artifact，供下游 workflow 读取
+      - name: Save release info artifact
+        run: |
+          mkdir -p .release-info
+          cat > .release-info/info.json <<EOF
+          {
+            "version": "${{ steps.version.outputs.version }}",
+            "tag": "${{ steps.version.outputs.tag }}",
+            "release_id": "${{ steps.version.outputs.release_id }}",
+            "channel": "${{ steps.version.outputs.channel }}"
+          }
+          EOF
+
+      - name: Upload release info artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-info
+          path: .release-info/info.json
+          retention-days: 7
+          if-no-files-found: error
+
+      # version.ts 会生成 UPCOMING_CHANGELOG.md，保留为 artifact 供审阅
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: upcoming-changelog
+          path: UPCOMING_CHANGELOG.md
+          retention-days: 30
+
+      # 触发桌面端构建 workflow
+      - name: Trigger desktop builds
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-desktop.yml \
+            -f version="${{ steps.version.outputs.version }}" \
+            -f tag="${{ steps.version.outputs.tag }}" \
+            -f release_id="${{ steps.version.outputs.release_id }}" \
+            -f channel="${{ steps.version.outputs.channel }}"

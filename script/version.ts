@@ -29,8 +29,20 @@ if (!Script.preview) {
 
 output.push(`repo=${process.env.GH_REPO}`)
 
+// 同时写入 GitHub Actions output 和 stdout，方便 workflow 解析
+const outputText = output.join("\n")
 if (process.env.GITHUB_OUTPUT) {
-  await Bun.write(process.env.GITHUB_OUTPUT, output.join("\n"))
+  await Bun.write(process.env.GITHUB_OUTPUT, outputText)
 }
+
+// 额外输出 JSON 摘要，供调用方解析
+const summary = {
+  version: Script.version,
+  tag: `v${Script.version}`,
+  release: output.find((line) => line.startsWith("release="))?.split("=")[1] ?? null,
+  channel: Script.channel,
+  preview: Script.preview,
+}
+console.log(JSON.stringify(summary))
 
 process.exit(0)

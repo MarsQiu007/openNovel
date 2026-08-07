@@ -1,0 +1,71 @@
+name: Publish Release
+
+# 当 build-desktop.yml 成功完成后触发
+# 也可以 workflow_dispatch 手动触发
+on:
+  workflow_run:
+    workflows:
+      - "Build Desktop"
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish release
+    # 只有在 build-desktop 成功时才自动运行
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      # workflow_dispatch 时直接用输入的 tag
+      # workflow_run 时从最新的 release-info-windows artifact 读取
+      - name: Resolve release tag
+        id: resolve
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            # 尝试下载 release-info-windows artifact
+            if gh run download "${{ github.event.workflow_run.id }}" --name release-info-windows --dir .release-info 2>/dev/null; then
+              TAG=$(jq -r '.tag' .release-info/info.json)
+              echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            else
+              # 兜底：查找最新的 draft release
+              TAG=$(gh release list --limit 1 --json tagName,isDraft --jq '.[0].tagName')
+              echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 取消 draft 状态，正式发布
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.resolve.outputs.tag }}"
+          echo "Publishing release $TAG"
+          gh release edit "$TAG" --draft=false --repo ${{ github.repository }}
+
+      - name: Summary
+        run: |
+          echo "## Release Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: ${{ steps.resolve.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.resolve.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
