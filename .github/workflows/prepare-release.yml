@@ -57,9 +57,23 @@ jobs:
           git config --global user.name "opennovel-bot"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Bump version and push
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENNOVEL_BUMP: ${{ inputs.bump }}
+          OPENNOVEL_CHANNEL: ${{ inputs.channel == 'prod' && 'latest' || inputs.channel }}
+        run: |
+          set -e
+          echo "Bumping version..."
+          bun script/bump-version.ts
+
       # 生成 changelog 并创建 draft release
       # OPENNOVEL_BUMP 用于 @opennovel-ai/script 计算下一个版本号
       # OPENNOVEL_CHANNEL=latest 表示正式版，其他为 preview
+      # 注意：version.ts 里 Script.version 会再次计算版本号，但因为 bump-version.ts
+      # 已经更新了 package.json，这里计算出的版本号应该一致。
       - name: Generate changelog and create draft release
         id: version
         env:
