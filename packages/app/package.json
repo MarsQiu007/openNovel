@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/app",
-  "version": "0.0.0",
+  "version": "0.0.0-dev-202608071051",
   "description": "",
   "type": "module",
   "exports": {
