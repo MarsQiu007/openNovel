@@ -25,8 +25,8 @@ for (const file of pkgjsons) {
 
 await $`bun install`
 
-// 只有在非 preview 且不是 dry-run 时才提交推送
-if (!Script.preview && process.env.OPENNOVEL_DRY_RUN !== "true") {
+// 只有在不是 dry-run 时才提交推送（preview channel 也需要 commit）
+if (process.env.OPENNOVEL_DRY_RUN !== "true") {
   await $`git add -A`
   await $`git commit -m "chore(release): bump version to ${version}" --allow-empty`
   await $`git push origin HEAD:${process.env.GITHUB_REF_NAME ?? "main"} --no-verify`
