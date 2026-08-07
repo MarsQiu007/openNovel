@@ -294,10 +294,10 @@ function EgoGraph(props: {
       </div>
 
       <Show
-        when={neighbors().length > 0}
+        when={props.characters.length > 0}
         fallback={
           <div class="flex flex-1 items-center justify-center text-sm text-v2-text-text-faint italic">
-            {language.t("novel.relations.noDirectRelations")}
+            {language.t("novel.relations.emptyGraph")}
           </div>
         }
       >
@@ -444,25 +444,27 @@ function GlobalGraph(props: {
     const w = size().w
     const h = size().h
     const chars = props.characters
-    if (chars.length === 0) {
+    if (chars.length === 0 || w <= 0 || h <= 0) {
       setPositions(new Map())
       return
     }
     const area = w * h
     const k = Math.sqrt(area / Math.max(chars.length, 1)) * 0.7
 
-    // 初始位置：主角锚定原点，其余节点圆周 + 抖动，避免同点起始
+    // 初始位置：主角锚定原点，其余节点按角色 index 均匀分布在圆周上。
+    // 使用确定性角度（而非 Math.random()），避免同一批角色每次渲染位置不同，
+    // 也避免节点因随机抖动被初始斥力弹射出视野。
     const pid = protagonistId()
     const nodes = chars.map((c, i) => {
       if (c.id === pid) {
         return { id: c.id, x: 0, y: 0, vx: 0, vy: 0, fixed: true }
       }
-      const angle = (i / chars.length) * Math.PI * 2
-      const r = Math.min(w, h) * 0.3
+      const angle = ((i + 1) / chars.length) * Math.PI * 2
+      const r = Math.min(w, h) * 0.28
       return {
         id: c.id,
-        x: Math.cos(angle) * r + (Math.random() - 0.5) * 40,
-        y: Math.sin(angle) * r + (Math.random() - 0.5) * 40,
+        x: Math.cos(angle) * r,
+        y: Math.sin(angle) * r,
         vx: 0,
         vy: 0,
         fixed: false,
@@ -479,6 +481,10 @@ function GlobalGraph(props: {
 
     const iterations = 300
     let temperature = Math.min(w, h) * 0.12
+    // 限制节点始终留在画布范围内（含节点半径余量），避免孤立节点被斥力推到视野外
+    const padding = 40
+    const halfW = Math.max(0, w / 2 - padding)
+    const halfH = Math.max(0, h / 2 - padding)
 
     for (let iter = 0; iter < iterations; iter++) {
       // 1. 库仑斥力（任意节点对）
@@ -508,10 +514,10 @@ function GlobalGraph(props: {
       }
       // 3. 中心向心力，避免漂出视野
       for (const n of nodes) {
-        n.vx -= n.x * 0.005
-        n.vy -= n.y * 0.005
+        n.vx -= n.x * 0.01
+        n.vy -= n.y * 0.01
       }
-      // 4. 应用位移 + 温度衰减（主角锚定不动）
+      // 4. 应用位移 + 温度衰减（主角锚定不动），并强制限制在画布内
       for (const n of nodes) {
         if (n.fixed) continue
         const disp = Math.sqrt(n.vx * n.vx + n.vy * n.vy)
@@ -519,6 +525,8 @@ function GlobalGraph(props: {
         const limit = Math.min(disp, temperature)
         n.x += (n.vx / disp) * limit
         n.y += (n.vy / disp) * limit
+        n.x = Math.max(-halfW, Math.min(halfW, n.x))
+        n.y = Math.max(-halfH, Math.min(halfH, n.y))
       }
       temperature *= 0.96
     }
