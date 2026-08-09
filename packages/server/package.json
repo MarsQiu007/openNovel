@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@opennovel-ai/server",
-  "version": "0.0.0-dev-202608090136",
+  "version": "0.0.0-dev-202608090243",
   "private": true,
   "type": "module",
   "license": "MIT",

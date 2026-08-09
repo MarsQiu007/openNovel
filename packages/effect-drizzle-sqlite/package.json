@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "version": "0.0.0-dev-202608090136",
+  "version": "0.0.0-dev-202608090243",
   "name": "@opennovel-ai/effect-drizzle-sqlite",
   "type": "module",
   "license": "MIT",
