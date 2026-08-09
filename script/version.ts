@@ -26,6 +26,10 @@ if (!Script.preview) {
     await $`gh release view v${Script.version} --json tagName,databaseId --repo ${process.env.GH_REPO}`.json()
   output.push(`release=${release.databaseId}`)
   output.push(`tag=${release.tagName}`)
+
+  // preview channel 也要创建对应的 git tag，否则 build-desktop 无法 checkout
+  await $`git tag -f ${release.tagName}`.nothrow()
+  await $`git push origin ${release.tagName} --no-verify`.nothrow()
 }
 
 output.push(`repo=${process.env.GH_REPO}`)
