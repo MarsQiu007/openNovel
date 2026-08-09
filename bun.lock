@@ -29,7 +29,7 @@
     },
     "packages/app": {
       "name": "@opennovel-ai/app",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@corvu/drawer": "catalog:",
         "@dnd-kit/abstract": "0.5.0",
@@ -96,7 +96,7 @@
     },
     "packages/cli": {
       "name": "@opennovel-ai/cli",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "bin": {
         "lildax": "./bin/lildax.cjs",
       },
@@ -143,7 +143,7 @@
     },
     "packages/codemode": {
       "name": "@opennovel-ai/codemode",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "acorn": "8.15.0",
         "effect": "catalog:",
@@ -157,7 +157,7 @@
     },
     "packages/console/app": {
       "name": "@opennovel-ai/console-app",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@cloudflare/vite-plugin": "1.15.2",
         "@ibm/plex": "6.4.1",
@@ -193,7 +193,7 @@
     },
     "packages/console/core": {
       "name": "@opennovel-ai/console-core",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@aws-sdk/client-sts": "3.782.0",
         "@jsx-email/render": "1.1.1",
@@ -220,7 +220,7 @@
     },
     "packages/console/function": {
       "name": "@opennovel-ai/console-function",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@ai-sdk/anthropic": "3.0.82",
         "@ai-sdk/openai": "3.0.48",
@@ -242,7 +242,7 @@
     },
     "packages/console/mail": {
       "name": "@opennovel-ai/console-mail",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@jsx-email/all": "2.2.3",
         "@jsx-email/cli": "1.4.3",
@@ -266,7 +266,7 @@
     },
     "packages/console/support": {
       "name": "@opennovel-ai/console-support",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@cloudflare/vite-plugin": "1.15.2",
         "@opennovel-ai/console-core": "workspace:*",
@@ -286,7 +286,7 @@
     },
     "packages/core": {
       "name": "@opennovel-ai/core",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "bin": {
         "opennovel": "./bin/opennovel",
       },
@@ -380,7 +380,7 @@
     },
     "packages/desktop": {
       "name": "@opennovel-ai/desktop",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@zip.js/zip.js": "2.7.62",
         "effect": "catalog:",
@@ -434,7 +434,7 @@
     },
     "packages/effect-drizzle-sqlite": {
       "name": "@opennovel-ai/effect-drizzle-sqlite",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
@@ -448,7 +448,7 @@
     },
     "packages/effect-sqlite-node": {
       "name": "@opennovel-ai/effect-sqlite-node",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "effect": "catalog:",
       },
@@ -460,7 +460,7 @@
     },
     "packages/enterprise": {
       "name": "@opennovel-ai/enterprise",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@hono/standard-validator": "catalog:",
         "@opennovel-ai/core": "workspace:*",
@@ -492,7 +492,7 @@
     },
     "packages/function": {
       "name": "@opennovel-ai/function",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@octokit/auth-app": "8.0.1",
         "@octokit/rest": "catalog:",
@@ -508,7 +508,7 @@
     },
     "packages/http-recorder": {
       "name": "@opennovel-ai/http-recorder",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@effect/platform-node": "4.0.0-beta.83",
         "@effect/platform-node-shared": "4.0.0-beta.83",
@@ -539,7 +539,7 @@
     },
     "packages/llm": {
       "name": "@opennovel-ai/llm",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@opennovel-ai/schema": "workspace:*",
         "@smithy/eventstream-codec": "4.2.14",
@@ -558,7 +558,7 @@
     },
     "packages/novel-store": {
       "name": "@opennovel-ai/novel-store",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "drizzle-orm": "catalog:",
       },
@@ -571,7 +571,7 @@
     },
     "packages/opennovel": {
       "name": "opennovel",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "bin": {
         "opennovel": "./bin/opennovel",
       },
@@ -701,7 +701,7 @@
     },
     "packages/plugin": {
       "name": "@opennovel-ai/plugin",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@ai-sdk/provider": "3.0.8",
         "@opennovel-ai/novel-store": "workspace:*",
@@ -779,7 +779,7 @@
     },
     "packages/sdk/js": {
       "name": "@opennovel-ai/sdk",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "cross-spawn": "catalog:",
       },
@@ -794,7 +794,7 @@
     },
     "packages/server": {
       "name": "@opennovel-ai/server",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@opennovel-ai/core": "workspace:*",
         "@opennovel-ai/novel-store": "workspace:*",
@@ -810,7 +810,7 @@
     },
     "packages/session-ui": {
       "name": "@opennovel-ai/session-ui",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@kobalte/core": "catalog:",
         "@opennovel-ai/core": "workspace:*",
@@ -854,7 +854,7 @@
     },
     "packages/slack": {
       "name": "@opennovel-ai/slack",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@opennovel-ai/sdk": "workspace:*",
         "@slack/bolt": "^3.17.1",
@@ -867,7 +867,7 @@
     },
     "packages/stats/app": {
       "name": "@opennovel-ai/stats-app",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@ibm/plex": "6.4.1",
         "@kobalte/core": "catalog:",
@@ -901,7 +901,7 @@
     },
     "packages/stats/core": {
       "name": "@opennovel-ai/stats-core",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@aws-sdk/client-athena": "3.933.0",
         "@planetscale/database": "1.19.0",
@@ -920,7 +920,7 @@
     },
     "packages/stats/server": {
       "name": "@opennovel-ai/stats-server",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@aws-sdk/client-firehose": "3.933.0",
         "@effect/platform-node": "catalog:",
@@ -938,7 +938,7 @@
     },
     "packages/ui": {
       "name": "@opennovel-ai/ui",
-      "version": "0.0.0-dev-202608090602",
+      "version": "0.0.0-dev-202608091509",
       "dependencies": {
         "@kobalte/core": "catalog:",
         "@pierre/diffs": "catalog:",
