@@ -96,11 +96,20 @@ jobs:
         id: info
         run: |
           # 优先使用 inputs，fallback 到 artifact，最后从 tag 解析
+          mkdir -p .release-info
           if [ -n "${{ inputs.version }}" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
             echo "release_id=${{ inputs.release_id }}" >> "$GITHUB_OUTPUT"
             echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+            cat > .release-info/info.json <<EOF
+          {
+            "version": "${{ inputs.version }}",
+            "tag": "${{ inputs.tag }}",
+            "release_id": "${{ inputs.release_id }}",
+            "channel": "${{ inputs.channel }}"
+          }
+EOF
           elif [ -f .release-info/info.json ]; then
             echo "version=$(jq -r '.version' .release-info/info.json)" >> "$GITHUB_OUTPUT"
             echo "tag=$(jq -r '.tag' .release-info/info.json)" >> "$GITHUB_OUTPUT"
