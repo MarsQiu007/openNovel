@@ -1,0 +1,187 @@
+name: Release
+
+# 统一 release 流程：prepare → build → publish
+# 触发方式：手动 workflow_dispatch，选择 bump 类型和 channel
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      channel:
+        description: "Release channel"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - beta
+          - prod
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ========== 阶段 1：准备 release ==========
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release_id: ${{ steps.version.outputs.release_id }}
+      channel: ${{ steps.version.outputs.channel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Configure git
+        run: |
+          git config --global user.name "opennovel-bot"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version and push
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENNOVEL_BUMP: ${{ inputs.bump }}
+          OPENNOVEL_CHANNEL: ${{ inputs.channel == 'prod' && 'latest' || inputs.channel }}
+        run: |
+          set -e
+          echo "Bumping version..."
+          bun script/bump-version.ts
+
+      - name: Generate changelog and create draft release
+        id: version
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENNOVEL_BUMP: ${{ inputs.bump }}
+          OPENNOVEL_CHANNEL: ${{ inputs.channel == 'prod' && 'latest' || inputs.channel }}
+          OPENNOVEL_RELEASE: "true"
+        run: |
+          set -e
+          SUMMARY=$(bun script/version.ts | tail -n 1)
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "version=$(echo "$SUMMARY" | jq -r '.version')" >> "$GITHUB_OUTPUT"
+          echo "tag=$(echo "$SUMMARY" | jq -r '.tag')" >> "$GITHUB_OUTPUT"
+          echo "release_id=$(echo "$SUMMARY" | jq -r '.release')" >> "$GITHUB_OUTPUT"
+          echo "channel=$(echo "$SUMMARY" | jq -r '.channel')" >> "$GITHUB_OUTPUT"
+          echo "Generated summary: $SUMMARY"
+
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: upcoming-changelog
+          path: UPCOMING_CHANGELOG.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ========== 阶段 2：构建 Windows 安装包 ==========
+  build-windows:
+    name: Build Windows installer
+    needs: prepare
+    runs-on: windows-latest
+    env:
+      OPENNOVEL_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      WIN_CSC_LINK: ""
+      WIN_CSC_KEY_PASSWORD: ""
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Build and package
+        working-directory: packages/desktop
+        run: |
+          bun run build
+          bun run package:win
+
+      - name: List dist contents
+        working-directory: packages/desktop
+        run: ls -la dist/
+
+      - name: Upload artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        working-directory: packages/desktop
+        run: |
+          shopt -s nullglob
+          files=( dist/opennovel-desktop-win-*.exe dist/latest*.yml )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No artifacts found"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "Uploading $f to release $TAG"
+            gh release upload "$TAG" "$f" --clobber --repo ${{ github.repository }}
+          done
+
+  # TODO: 未来扩展 macOS
+  # build-macos:
+  #   name: Build macOS installer
+  #   needs: prepare
+  #   runs-on: macos-latest
+  #   steps: ...
+
+  # TODO: 未来扩展 Linux
+  # build-linux:
+  #   name: Build Linux installer
+  #   needs: prepare
+  #   runs-on: ubuntu-latest
+  #   steps: ...
+
+  # ========== 阶段 3：发布 release ==========
+  publish:
+    name: Publish release
+    needs:
+      - prepare
+      - build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          echo "Publishing release $TAG"
+          gh release edit "$TAG" --draft=false --repo ${{ github.repository }}
+
+      - name: Summary
+        run: |
+          echo "## Release Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${{ needs.prepare.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: ${{ needs.prepare.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
