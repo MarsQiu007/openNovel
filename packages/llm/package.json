@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "version": "0.0.0-dev-202608100619",
+  "version": "0.0.0-dev-202608100726",
   "name": "@opennovel-ai/llm",
   "type": "module",
   "license": "MIT",
