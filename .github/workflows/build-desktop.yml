@@ -82,19 +82,26 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
-      # 如果是 workflow_dispatch 触发但没有 inputs（例如从 prepare-release 触发），
-      # 下载 release-info artifact 获取参数
+      # 优先使用 workflow_dispatch 传入的 inputs（prepare-release 触发时会传参）
+      # 没有 inputs 时（例如 push tag 触发），尝试下载 release-info artifact 获取参数
       - name: Download release info artifact
         if: inputs.version == ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-info
           path: .release-info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read release info
         id: info
         run: |
-          if [ -f .release-info/info.json ]; then
+          # 优先使用 inputs，fallback 到 artifact，最后从 tag 解析
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "release_id=${{ inputs.release_id }}" >> "$GITHUB_OUTPUT"
+            echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+          elif [ -f .release-info/info.json ]; then
             echo "version=$(jq -r '.version' .release-info/info.json)" >> "$GITHUB_OUTPUT"
             echo "tag=$(jq -r '.tag' .release-info/info.json)" >> "$GITHUB_OUTPUT"
             echo "release_id=$(jq -r '.release_id' .release-info/info.json)" >> "$GITHUB_OUTPUT"
