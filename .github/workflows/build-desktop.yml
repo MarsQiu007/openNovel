@@ -44,7 +44,7 @@ jobs:
             os: windows-latest
             package_script: package:win
             artifact_pattern: "dist/opennovel-desktop-win-*.exe"
-            updater_pattern: "dist/latest.yml"
+            updater_pattern: "dist/latest*.yml"
           # TODO: 未来启用 macOS
           # - name: macos
           #   os: macos-latest
