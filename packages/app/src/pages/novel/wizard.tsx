@@ -80,6 +80,12 @@ export default function NovelWizard() {
   return (
     <div class="flex flex-col h-full items-center justify-center p-8">
       <div class="w-full max-w-2xl">
+        {/* 退出向导返回书架（没有书籍时标题栏书架菜单是主要出口之一，向导自身也提供返回） */}
+        <div class="mb-6 flex">
+          <ButtonV2 variant="ghost-muted" size="small" onClick={() => navigate("/")}>
+            ← {language.t("novel.workspace.back")}
+          </ButtonV2>
+        </div>
         {/* Step indicator */}
         <div class="flex items-center gap-2 mb-8">
           <For each={steps}>

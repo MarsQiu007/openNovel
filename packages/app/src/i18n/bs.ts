@@ -1115,6 +1115,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Nije uspjelo kreiranje trajne ikone projekta",
   "error.childStore.storeCreateFailed": "Nije uspjelo kreiranje skladišta",
   "terminal.connectionLost.abnormalClose": "WebSocket zatvoren nenormalno: {{code}}",
+  "novel.bookshelf.open": "Nazad na policu",
   "novel.relations.tab": "Relations",
   "novel.relations.title": "Relations",
   "novel.relations.global": "All relations",

@@ -1107,6 +1107,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Kunne ikke oprette vedvarende projektikon",
   "error.childStore.storeCreateFailed": "Kunne ikke oprette lager",
   "terminal.connectionLost.abnormalClose": "WebSocket lukkede unormalt: {{code}}",
+  "novel.bookshelf.open": "Tilbage til boghylden",
   "novel.relations.tab": "Relations",
   "novel.relations.title": "Relations",
   "novel.relations.global": "All relations",

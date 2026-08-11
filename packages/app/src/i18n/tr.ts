@@ -1121,6 +1121,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Kalıcı proje simgesi oluşturulamadı",
   "error.childStore.storeCreateFailed": "Depo oluşturulamadı",
   "terminal.connectionLost.abnormalClose": "WebSocket anormal şekilde kapandı: {{code}}",
+  "novel.bookshelf.open": "Kitaplığa dön",
   "novel.relations.tab": "Relations",
   "novel.relations.title": "Relations",
   "novel.relations.global": "All relations",

@@ -527,6 +527,15 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                     />
                     <MenuV2.Portal>
                       <MenuV2.Content>
+                        <MenuV2.Item onSelect={() => navigate("/")}>
+                          {language.t("novel.bookshelf.open")}
+                        </MenuV2.Item>
+                        <MenuV2.Item
+                          onSelect={() => navigate(`/${base64Encode(novelDirectory())}/novel/wizard`)}
+                        >
+                          {language.t("novel.bookshelf.create")}
+                        </MenuV2.Item>
+                        <MenuV2.Separator />
                         <Show
                           when={titlebarNovels().length > 0}
                           fallback={<MenuV2.Item disabled>{language.t("novel.bookshelf.empty")}</MenuV2.Item>}

@@ -1097,6 +1097,7 @@ export const dict = {
   "novel.bookshelf.title": "書架",
   "novel.bookshelf.subTitle": "我的小說",
   "novel.bookshelf.empty": "還沒有小說",
+  "novel.bookshelf.open": "返回書架",
   "novel.bookshelf.emptyProject": "建立你的第一部小說，開始創作之旅",
   "novel.bookshelf.create": "建立小說",
   "novel.bookshelf.allGenres": "全部類型",

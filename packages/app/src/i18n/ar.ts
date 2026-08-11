@@ -1023,6 +1023,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "فشل إنشاء أيقونة المشروع الدائمة",
   "error.childStore.storeCreateFailed": "فشل إنشاء المخزن",
   "terminal.connectionLost.abnormalClose": "تم إغلاق WebSocket بشكل غير طبيعي: {{code}}",
+  "novel.bookshelf.open": "العودة إلى الرف",
   "novel.workspace.modeChapters": "Chapters",
   "novel.workspace.modeOutlines": "Outlines",
   "novel.outline.empty": "Select an outline",

@@ -1123,6 +1123,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Error al crear icono de proyecto persistente",
   "error.childStore.storeCreateFailed": "Error al crear almacén",
   "terminal.connectionLost.abnormalClose": "WebSocket cerrado anormalmente: {{code}}",
+  "novel.bookshelf.open": "Volver a la estantería",
   "novel.relations.tab": "Relations",
   "novel.relations.title": "Relations",
   "novel.relations.global": "All relations",

@@ -1125,6 +1125,7 @@ export const dict = {
   "novel.bookshelf.title": "Bookshelf",
   "novel.bookshelf.subTitle": "My Novels",
   "novel.bookshelf.empty": "No novels yet",
+  "novel.bookshelf.open": "Back to bookshelf",
   "novel.bookshelf.emptyProject": "Create your first novel to get started",
   "novel.bookshelf.create": "Create Novel",
   "novel.bookshelf.allGenres": "All genres",

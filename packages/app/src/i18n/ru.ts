@@ -1118,6 +1118,7 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Не удалось создать постоянный значок проекта",
   "error.childStore.storeCreateFailed": "Не удалось создать хранилище",
   "terminal.connectionLost.abnormalClose": "WebSocket закрыт аварийно: {{code}}",
+  "novel.bookshelf.open": "Вернуться на полку",
   "novel.relations.tab": "Relations",
   "novel.relations.title": "Relations",
   "novel.relations.global": "All relations",

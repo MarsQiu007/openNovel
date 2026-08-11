@@ -1102,6 +1102,7 @@ export const dict = {
   "novel.bookshelf.title": "书架",
   "novel.bookshelf.subTitle": "我的小说",
   "novel.bookshelf.empty": "还没有小说",
+  "novel.bookshelf.open": "返回书架",
   "novel.bookshelf.emptyProject": "创建你的第一部小说，开始创作之旅",
   "novel.bookshelf.create": "创建小说",
   "novel.bookshelf.allGenres": "全部类型",
