@@ -617,6 +617,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "收起",
   "home.sessions.sidebar.archiveTitle": "封存對話",
   "home.sessions.sidebar.archiveWithChildren": "此對話包含 {{count}} 個子代理對話，封存後將一併移除。確定繼續嗎？",
+  "home.sessions.sidebar.subagent": "子代理對話",
   "home.sessions.title": "會話",
   "home.providerTip": "連接 75 個以上的供應商，使用 Claude、GPT、Gemini 等其他模型",
 

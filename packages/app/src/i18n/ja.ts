@@ -569,6 +569,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "折りたたむ",
   "home.sessions.sidebar.archiveTitle": "セッションをアーカイブ",
   "home.sessions.sidebar.archiveWithChildren": "このセッションには {{count}} 個のサブエージェントセッションが含まれています。一緒にアーカイブされます。続行しますか？",
+  "home.sessions.sidebar.subagent": "サブエージェントセッション",
   "home.sessions.title": "セッション",
   "home.providerTip": "75以上のプロバイダーに接続して、Claude、GPT、Geminiなどの他のモデルを利用できます",
   "session.tab.session": "セッション",

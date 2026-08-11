@@ -646,6 +646,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "Collapse",
   "home.sessions.sidebar.archiveTitle": "Archive session",
   "home.sessions.sidebar.archiveWithChildren": "This session has {{count}} sub-agent session(s). They will be archived together. Continue?",
+  "home.sessions.sidebar.subagent": "Sub-agent session",
   "home.sessions.title": "Sessions",
   "home.providerTip": "Connect to 75+ providers to use other models, including Claude, GPT, Gemini, etc",
 

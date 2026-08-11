@@ -626,6 +626,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "Daralt",
   "home.sessions.sidebar.archiveTitle": "Oturumu arşivle",
   "home.sessions.sidebar.archiveWithChildren": "Bu oturum {{count}} alt ajan oturumu içeriyor. Birlikte arşivlenecekler. Devam edilsin mi?",
+  "home.sessions.sidebar.subagent": "Alt ajan oturumu",
   "home.sessions.title": "Oturumlar",
   "home.providerTip": "Claude, GPT, Gemini ve diğer modelleri kullanmak için 75'ten fazla sağlayıcıya bağlanın",
 

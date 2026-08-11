@@ -622,6 +622,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "Contraer",
   "home.sessions.sidebar.archiveTitle": "Archivar sesión",
   "home.sessions.sidebar.archiveWithChildren": "Esta sesión contiene {{count}} sesión(es) de subagente. Se archivarán juntas. ¿Continuar?",
+  "home.sessions.sidebar.subagent": "Sesión de subagente",
   "home.sessions.title": "Sesiones",
   "home.providerTip":
     "Conéctate a más de 75 proveedores para usar otros modelos, como Claude, GPT, Gemini y muchos más",

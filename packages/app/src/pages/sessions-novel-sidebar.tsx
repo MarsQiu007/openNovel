@@ -87,6 +87,20 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
   const isExpanded = (novelID: string) => expanded[novelID] ?? true
   const toggle = (novelID: string) => setExpanded(novelID, !isExpanded(novelID))
 
+  // 子代理会话（parentID 指向主会话）按父会话分组，嵌套展示在主会话下方；
+  // 只收录直接子会话——写作流水线的子代理均直接挂在书籍主会话下
+  const childrenByParent = createMemo(() => {
+    const map = new Map<string, Session[]>()
+    for (const session of props.sessions) {
+      if (!session.parentID || session.time.archived) continue
+      const list = map.get(session.parentID) ?? []
+      list.push(session)
+      map.set(session.parentID, list)
+    }
+    for (const list of map.values()) list.sort((a, b) => sessionTime(b) - sessionTime(a))
+    return map
+  })
+
   async function handleCreate(novel: NovelSessionNovel) {
     if (creating()) return
     setCreating(novel.id)
@@ -231,45 +245,85 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
                   <For each={group.sessions}>
                     {(session) => {
                       const active = () => props.activeSessionID === session.id
+                      const children = () => childrenByParent().get(session.id) ?? []
                       return (
-                        <div
-                          class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
-                          classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
-                        >
-                          <button
-                            type="button"
-                            data-component="novel-sidebar-session"
-                            class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-9 pr-8`}
-                            onClick={() => props.openSessionById(session.id)}
+                        <>
+                          <div
+                            class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
+                            classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
                           >
-                            <span
-                              class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:440]"
-                              classList={{ "text-v2-text-text-base [font-weight:530]": active() }}
+                            <button
+                              type="button"
+                              data-component="novel-sidebar-session"
+                              class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-9 pr-8`}
+                              onClick={() => props.openSessionById(session.id)}
                             >
-                              {sessionTitle(session.title) || language.t("home.sessions.sidebar.untitled")}
-                            </span>
-                            <span class="shrink-0 text-[11px] text-v2-text-text-faint">{relativeTime(session)}</span>
-                          </button>
-                          <div class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/sidebar-session:opacity-100 focus-within:opacity-100">
-                            <TooltipV2
-                              class="flex shrink-0 items-center"
-                              placement="bottom"
-                              value={language.t("common.archive")}
-                            >
-                              <IconButtonV2
-                                data-action="novel-sidebar-archive"
-                                variant="ghost-muted"
-                                size="small"
-                                icon={<IconV2 name="archive" />}
-                                aria-label={language.t("common.archive")}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleArchive(session)
-                                }}
-                              />
-                            </TooltipV2>
+                              <span
+                                class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:440]"
+                                classList={{ "text-v2-text-text-base [font-weight:530]": active() }}
+                              >
+                                {sessionTitle(session.title) || language.t("home.sessions.sidebar.untitled")}
+                              </span>
+                              <Show when={children().length > 0}>
+                                <span class="flex shrink-0 items-center gap-0.5 text-[11px] text-v2-text-text-faint">
+                                  <IconV2 name="branch" size="small" />
+                                  {children().length}
+                                </span>
+                              </Show>
+                              <span class="shrink-0 text-[11px] text-v2-text-text-faint">{relativeTime(session)}</span>
+                            </button>
+                            <div class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/sidebar-session:opacity-100 focus-within:opacity-100">
+                              <TooltipV2
+                                class="flex shrink-0 items-center"
+                                placement="bottom"
+                                value={language.t("common.archive")}
+                              >
+                                <IconButtonV2
+                                  data-action="novel-sidebar-archive"
+                                  variant="ghost-muted"
+                                  size="small"
+                                  icon={<IconV2 name="archive" />}
+                                  aria-label={language.t("common.archive")}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    handleArchive(session)
+                                  }}
+                                />
+                              </TooltipV2>
+                            </div>
                           </div>
-                        </div>
+                          {/* 子代理会话：只读，随主会话级联归档，这里仅提供查看入口 */}
+                          <For each={children()}>
+                            {(child) => {
+                              const childActive = () => props.activeSessionID === child.id
+                              return (
+                                <div
+                                  class="relative flex h-8 min-w-0 items-center rounded-[6px]"
+                                  classList={{ "bg-v2-overlay-simple-overlay-hover": childActive() }}
+                                >
+                                  <button
+                                    type="button"
+                                    data-component="novel-sidebar-sub-session"
+                                    aria-label={language.t("home.sessions.sidebar.subagent")}
+                                    class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-12 pr-2`}
+                                    onClick={() => props.openSessionById(child.id)}
+                                  >
+                                    <IconV2 name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                                    <span
+                                      class="min-w-0 flex-1 truncate text-[12px] italic text-v2-text-text-faint [font-weight:440]"
+                                      classList={{ "text-v2-text-text-muted": childActive() }}
+                                    >
+                                      {sessionTitle(child.title) || language.t("home.sessions.sidebar.subagent")}
+                                    </span>
+                                    <span class="shrink-0 text-[11px] text-v2-text-text-faint">
+                                      {relativeTime(child)}
+                                    </span>
+                                  </button>
+                                </div>
+                              )
+                            }}
+                          </For>
+                        </>
                       )
                     }}
                   </For>

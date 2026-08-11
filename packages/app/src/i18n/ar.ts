@@ -566,6 +566,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "طي",
   "home.sessions.sidebar.archiveTitle": "أرشفة الجلسة",
   "home.sessions.sidebar.archiveWithChildren": "تحتوي هذه الجلسة على {{count}} جلسات وكيل فرعي. سيتم أرشفتها معًا. هل تريد المتابعة؟",
+  "home.sessions.sidebar.subagent": "جلسة وكيل فرعي",
   "home.sessions.title": "الجلسات",
   "home.providerTip": "اتصل بأكثر من 75 مزودًا لاستخدام نماذج أخرى، بما فيها Claude وGPT وGemini وغيرها",
   "session.tab.session": "جلسة",

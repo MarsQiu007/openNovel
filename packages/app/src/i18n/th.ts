@@ -617,6 +617,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "ยุบ",
   "home.sessions.sidebar.archiveTitle": "จัดเก็บเซสชัน",
   "home.sessions.sidebar.archiveWithChildren": "เซสชันนี้มีเซสชันตัวแทนย่อย {{count}} รายการ จะถูกจัดเก็บพร้อมกัน ดำเนินการต่อหรือไม่",
+  "home.sessions.sidebar.subagent": "เซสชันตัวแทนย่อย",
   "home.sessions.title": "เซสชัน",
   "home.providerTip": "เชื่อมต่อกับผู้ให้บริการกว่า 75 รายเพื่อใช้โมเดลอื่นๆ รวมถึง Claude, GPT, Gemini และอีกมากมาย",
 

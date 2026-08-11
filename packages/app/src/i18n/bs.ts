@@ -621,6 +621,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "Sakrij",
   "home.sessions.sidebar.archiveTitle": "Arhiviraj sesiju",
   "home.sessions.sidebar.archiveWithChildren": "Ova sesija sadrži {{count}} podagent sesija. Bit će arhivirane zajedno. Nastaviti?",
+  "home.sessions.sidebar.subagent": "Podagent sesija",
   "home.sessions.title": "Sesije",
   "home.providerTip":
     "Povežite se s više od 75 pružalaca usluga kako biste koristili druge modele, uključujući Claude, GPT, Gemini i druge",

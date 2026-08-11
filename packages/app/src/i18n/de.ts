@@ -578,6 +578,7 @@ export const dict = {
   "home.sessions.sidebar.collapse": "Einklappen",
   "home.sessions.sidebar.archiveTitle": "Sitzung archivieren",
   "home.sessions.sidebar.archiveWithChildren": "Diese Sitzung enthält {{count}} Sub-Agent-Sitzung(en). Sie werden zusammen archiviert. Fortfahren?",
+  "home.sessions.sidebar.subagent": "Sub-Agent-Sitzung",
   "home.sessions.title": "Sitzungen",
   "home.providerTip":
     "Verbinde dich mit über 75 Anbietern, um weitere Modelle wie Claude, GPT, Gemini und andere zu nutzen",
