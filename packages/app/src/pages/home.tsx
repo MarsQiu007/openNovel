@@ -133,8 +133,13 @@ export function NewHome() {
         location: { directory },
       })) as readonly NovelSessionBinding[]
       boundIds = bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID)
-    } catch {
-      // 绑定查询失败不阻塞删除，相关会话会残留为未绑定对话
+    } catch (error) {
+      // 绑定查询失败不阻塞删除，但必须显式提示——相关会话会残留为未绑定对话
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: errorMessage(error, language.t("common.requestFailed")),
+      })
     }
     await deleteNovel.mutateAsync({ novelID, directory })
     setDeletingNovelId(null)
