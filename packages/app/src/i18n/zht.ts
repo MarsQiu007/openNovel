@@ -1106,7 +1106,7 @@ export const dict = {
   "novel.bookshelf.stats": "{{count}} 部小說，{{chapters}} 個章節",
   "novel.bookshelf.total": "總計",
   "novel.bookshelf.progress": "進度",
-  "novel.bookshelf.confirmDelete": "確定要刪除這部小說嗎？",
+  "novel.bookshelf.confirmDelete": "確定要刪除這部小說嗎？書籍內容及其關聯對話將一併移除，且無法復原。",
 
   "novel.wizard.title": "建立小說",
   "novel.wizard.step.basic": "基本資訊",

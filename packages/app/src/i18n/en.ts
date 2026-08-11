@@ -1134,7 +1134,7 @@ export const dict = {
   "novel.bookshelf.stats": "{{count}} novels, {{chapters}} chapters",
   "novel.bookshelf.total": "Total",
   "novel.bookshelf.progress": "Progress",
-  "novel.bookshelf.confirmDelete": "Are you sure you want to delete this novel?",
+  "novel.bookshelf.confirmDelete": "Delete this novel? Its content and linked chats will be removed. This cannot be undone.",
 
   "novel.wizard.title": "Create Novel",
   "novel.wizard.step.basic": "Basic Info",

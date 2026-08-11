@@ -55,7 +55,10 @@ import { type ServerHealth } from "@/utils/server-health"
 import { Persist, persisted } from "@/utils/persist"
 import { showToast } from "@/utils/toast"
 import { fileManagerApp } from "@/utils/file-manager"
-import { useNovels, useDeleteNovel } from "@/context/novel-queries"
+import { useNovels, useDeleteNovel, useNovelClient } from "@/context/novel-queries"
+import { useQueryClient } from "@tanstack/solid-query"
+import { Binary } from "@opennovel-ai/core/util/binary"
+import { archiveSessionCascade, type NovelSessionBinding } from "./novel-sessions"
 
 const HOME_ROW_LAYOUT =
   "flex min-w-0 w-full shrink-0 cursor-default items-center rounded-[6px] bg-transparent text-left transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out focus-visible:outline-none"
@@ -116,6 +119,55 @@ export function NewHome() {
   const [deletingNovelId, setDeletingNovelId] = createSignal<string | null>(null)
 
   const deleteNovel = useDeleteNovel()
+  const novelClient = useNovelClient()
+  const queryClient = useQueryClient()
+
+  // 删除书籍并级联归档其绑定的会话（含子代理会话），避免残留为「未绑定书籍的对话」
+  async function handleDeleteNovel(novelID: string) {
+    const directory = bookshelfDirectory()
+    const conn = focusedServer()
+    // 绑定关系随书籍删除级联清除，必须在删除前取出
+    let boundIds: string[] = []
+    try {
+      const bindings = (await novelClient()["server.novel"]["session-bindings"]({
+        location: { directory },
+      })) as readonly NovelSessionBinding[]
+      boundIds = bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID)
+    } catch {
+      // 绑定查询失败不阻塞删除，相关会话会残留为未绑定对话
+    }
+    await deleteNovel.mutateAsync({ novelID, directory })
+    setDeletingNovelId(null)
+    if (!conn || boundIds.length === 0) return
+    const ctx = global.ensureServerCtx(conn)
+    const res = await ctx.sdk.client.session.list({ directory }).catch(() => undefined)
+    const sessions = res?.data ?? []
+    const [, setStore] = ctx.sync.child(directory)
+    for (const sessionID of boundIds) {
+      const session = sessions.find((s) => s.id === sessionID)
+      if (!session || session.time.archived) continue
+      await archiveSessionCascade({
+        server: ServerConnection.key(conn),
+        session,
+        sessions,
+        update: (value) => ctx.sdk.client.session.update(value),
+        remove: (target) =>
+          setStore(
+            produce((draft) => {
+              const match = Binary.search(draft.session, target.id, (s) => s.id)
+              if (match.found) draft.session.splice(match.index, 1)
+            }),
+          ),
+        onError: (error) =>
+          showToast({
+            title: language.t("common.requestFailed"),
+            description: errorMessage(error, language.t("common.requestFailed")),
+          }),
+      })
+    }
+    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings"] })
+    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-sessions"] })
+  }
 
   const filteredNovels = createMemo(() => {
     let result = novels()
@@ -459,11 +511,7 @@ export function NewHome() {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      void deleteNovel.mutateAsync({
-                                        novelID: novel.id,
-                                        directory: bookshelfDirectory(),
-                                      })
-                                      setDeletingNovelId(null)
+                                      void handleDeleteNovel(novel.id)
                                     }}
                                     class="px-3 py-1.5 text-xs font-medium rounded bg-v2-icon-icon-critical text-white hover:opacity-90"
                                     type="button"

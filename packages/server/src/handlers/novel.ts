@@ -59,6 +59,7 @@ import {
 } from "@opennovel-ai/novel-store"
 import { eq, asc, desc, like, or, inArray } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
+import { rm } from "fs/promises"
 import { join, dirname } from "path"
 
 const VALID_GENRES = new Set(["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"])
@@ -1072,6 +1073,22 @@ export function deleteNovel(novelID: string, directory: string) {
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
     yield* Effect.promise(() => storeDeleteNovel(novelID, directory))
+    // 大纲 Markdown 文件按项目目录共享存放（volume-N.md / chapter-N.md 不按书籍隔离），
+    // 多书共存时无法安全归属到某本书，仅当目录下已无任何书籍时整体清理
+    const remaining = db.select({ id: NovelTable.id }).from(NovelTable).limit(1).get()
+    if (!remaining) {
+      const outlinesDir = join(dirname(getDbPath(directory)), "outlines")
+      if (existsSync(outlinesDir)) {
+        yield* Effect.promise(async () => {
+          try {
+            await rm(outlinesDir, { recursive: true, force: true })
+          } catch (error) {
+            // 文件清理失败不阻塞删除结果
+            console.warn("[novel] outlines cleanup failed:", error instanceof Error ? error.message : error)
+          }
+        })
+      }
+    }
     return { deleted: true }
   })
 }

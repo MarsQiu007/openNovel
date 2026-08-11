@@ -12,6 +12,9 @@ export type Db = ReturnType<typeof drizzle>
 
 export function createDb(path: string, schemaSql: string): Db {
   const sqlite = new DatabaseSync(path)
+  // node:sqlite 默认已启用外键（enableForeignKeys: true），这里显式开启
+  // 与 bun 驱动行为对齐，避免运行时差异导致 ON DELETE CASCADE 失效
+  sqlite.exec("PRAGMA foreign_keys = ON")
   sqlite.exec(schemaSql)
   runMigrations(
     (sql) => sqlite.exec(sql),

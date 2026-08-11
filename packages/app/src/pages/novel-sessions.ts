@@ -31,6 +31,36 @@ export type NovelSessionNovel = {
   title: string
 }
 
+type SessionArchiveUpdate = {
+  directory: string
+  sessionID: string
+  time: { archived: number }
+}
+
+/**
+ * 级联归档主会话及其全部子代理会话（侧边栏归档、删除书籍共用）。
+ */
+export async function archiveSessionCascade(input: {
+  server: ServerConnection.Key
+  session: Session
+  /** 当前目录完整会话列表，用于收集子代理后代 */
+  sessions: readonly Session[]
+  update: (value: SessionArchiveUpdate) => Promise<unknown>
+  remove: (session: Session) => void
+  onError: (error: unknown) => void
+}) {
+  const descendants = collectDescendants(input.session.id, input.sessions).filter((s) => !s.time.archived)
+  for (const target of [input.session, ...descendants]) {
+    await archiveHomeSession({
+      server: input.server,
+      session: target,
+      update: input.update,
+      remove: () => input.remove(target),
+      onError: input.onError,
+    })
+  }
+}
+
 export function useNovelSessions(input: {
   conn: Accessor<ServerConnection.Any | undefined>
   directory: Accessor<string | undefined>
@@ -136,26 +166,24 @@ export function useNovelSessions(input: {
     if (!conn) return
     const ctx = global.ensureServerCtx(conn)
     const [, setStore] = ctx.sync.child(session.directory)
-    const descendants = collectDescendants(session.id, sessionsQuery.data ?? []).filter((s) => !s.time.archived)
-    for (const target of [session, ...descendants]) {
-      await archiveHomeSession({
-        server: ServerConnection.key(conn),
-        session: target,
-        update: (value) => ctx.sdk.client.session.update(value),
-        remove: () =>
-          setStore(
-            produce((draft) => {
-              const match = Binary.search(draft.session, target.id, (s) => s.id)
-              if (match.found) draft.session.splice(match.index, 1)
-            }),
-          ),
-        onError: (error) =>
-          showToast({
-            title: language.t("common.requestFailed"),
-            description: errorMessage(error, language.t("common.requestFailed")),
+    await archiveSessionCascade({
+      server: ServerConnection.key(conn),
+      session,
+      sessions: sessionsQuery.data ?? [],
+      update: (value) => ctx.sdk.client.session.update(value),
+      remove: (target) =>
+        setStore(
+          produce((draft) => {
+            const match = Binary.search(draft.session, target.id, (s) => s.id)
+            if (match.found) draft.session.splice(match.index, 1)
           }),
-      })
-    }
+        ),
+      onError: (error) =>
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: errorMessage(error, language.t("common.requestFailed")),
+        }),
+    })
     refresh()
   }
 

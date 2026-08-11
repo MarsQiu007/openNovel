@@ -1111,7 +1111,7 @@ export const dict = {
   "novel.bookshelf.stats": "{{count}} 部小说，{{chapters}} 个章节",
   "novel.bookshelf.total": "总计",
   "novel.bookshelf.progress": "进度",
-  "novel.bookshelf.confirmDelete": "确定要删除这部小说吗？",
+  "novel.bookshelf.confirmDelete": "确定要删除这部小说吗？书籍内容及其关联对话将一并移除，且不可恢复。",
 
   "novel.wizard.title": "创建小说",
   "novel.wizard.step.basic": "基本信息",

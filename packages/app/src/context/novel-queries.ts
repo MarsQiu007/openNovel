@@ -7,7 +7,7 @@ import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
 
-function useNovelClient() {
+export function useNovelClient() {
   const serverSDK = useServerSDK()
   return createMemo(() => {
     const s = serverSDK()
