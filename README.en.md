@@ -3,9 +3,9 @@
 **AI-powered novel writing workbench** — plan, draft, audit, and revise long-form fiction with an 8-step writing pipeline and 37-dimension continuity auditing.
 
 <p>
-  <a href="README.en.md">English</a> |
   <a href="README.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a>
+  <a href="README.zht.md">繁體中文</a> |
+  <a href="README.en.md">English</a>
 </p>
 
 ![Tests](https://img.shields.io/github/actions/workflow/status/MarsQiu007/openNovel/test.yml?style=flat-square&branch=dev)

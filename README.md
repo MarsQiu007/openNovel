@@ -3,9 +3,9 @@
 **AI 驱动的小说创作工作台** —— 通过 8 步写作流水线与 37 维连续性审计，规划、起草、审计并修订长篇小说。
 
 <p>
-  <a href="README.en.md">English</a> |
   <a href="README.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a>
+  <a href="README.zht.md">繁體中文</a> |
+  <a href="README.en.md">English</a>
 </p>
 
 ![Tests](https://img.shields.io/github/actions/workflow/status/MarsQiu007/openNovel/test.yml?style=flat-square&branch=dev)
