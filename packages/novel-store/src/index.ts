@@ -434,6 +434,26 @@ export async function getNovelForSession(sessionId: string, directory?: string |
 }
 
 /**
+ * 列出当前目录下所有「会话 ↔ 小说」绑定关系（含小说标题），
+ * 供会话页侧边栏一次性构建书籍分组，避免逐会话 N+1 查询。
+ */
+export async function listSessionNovelBindings(
+  directory?: string | null,
+): Promise<Array<{ sessionID: string; novelID: string; novelTitle: string }>> {
+  const db = getDb(directory)
+  const rows = await db
+    .select({
+      sessionID: SessionNovelTable.session_id,
+      novelID: SessionNovelTable.novel_id,
+      novelTitle: NovelTable.title,
+    })
+    .from(SessionNovelTable)
+    .innerJoin(NovelTable, eq(SessionNovelTable.novel_id, NovelTable.id))
+    .all()
+  return rows
+}
+
+/**
  * 检查是否为小说会话
  */
 export async function isNovelSession(sessionId: string, directory?: string | null): Promise<boolean> {

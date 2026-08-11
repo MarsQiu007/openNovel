@@ -1,4 +1,4 @@
-﻿import { dict as en } from "./en"
+import { dict as en } from "./en"
 
 type Keys = keyof typeof en
 
@@ -615,6 +615,18 @@ export const dict = {
   "home.sessions.group.today": "Bugün",
   "home.sessions.group.yesterday": "Dün",
   "home.sessions.group.older": "Daha eski",
+  "home.sessions.sidebar.books": "Kitap sohbetleri",
+  "home.sessions.sidebar.newChat": "Yeni sohbet",
+  "home.sessions.sidebar.openNovel": "Kitabı aç",
+  "home.sessions.sidebar.noChats": "Henüz sohbet yok — başlamak için başlığa tıklayın",
+  "home.sessions.sidebar.empty": "Henüz kitap yok",
+  "home.sessions.sidebar.empty.description": "Bir kitap oluşturduğunuzda sohbetler burada kitaba göre gruplandırılır.",
+  "home.sessions.sidebar.untitled": "İsimsiz oturum",
+  "home.sessions.sidebar.inSidebar": "Kitap sohbetleri sol kenar çubuğunda gruplandırıldı.",
+  "home.sessions.sidebar.collapse": "Daralt",
+  "home.sessions.sidebar.archiveTitle": "Oturumu arşivle",
+  "home.sessions.sidebar.archiveWithChildren": "Bu oturum {{count}} alt ajan oturumu içeriyor. Birlikte arşivlenecekler. Devam edilsin mi?",
+  "home.sessions.title": "Oturumlar",
   "home.providerTip": "Claude, GPT, Gemini ve diğer modelleri kullanmak için 75'ten fazla sağlayıcıya bağlanın",
 
   "session.tab.session": "Oturum",

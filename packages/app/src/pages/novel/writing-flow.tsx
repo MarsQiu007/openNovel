@@ -15,13 +15,16 @@ export async function findBoundNovelSession(
   novel: ReturnType<typeof useNovel>,
   novelID: string,
 ): Promise<string | null> {
-  const { data: sessionList } = await sdk().client.session.list()
-  if (!sessionList) return null
-  for (const session of sessionList) {
-    const boundNovel = await novel.getNovelForSession(session.id)
-    if (boundNovel && boundNovel.id === novelID) return session.id
-  }
-  return null
+  // 用批量绑定接口一次拿到全部绑定关系，避免逐会话 N+1 查询
+  const [{ data: sessionList }, bindings] = await Promise.all([
+    sdk().client.session.list(),
+    novel.listSessionBindings(),
+  ])
+  if (!sessionList || !bindings) return null
+  const boundIds = new Set(bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID))
+  if (boundIds.size === 0) return null
+  const session = sessionList.find((s) => boundIds.has(s.id) && !s.time.archived)
+  return session?.id ?? null
 }
 
 export default function WritingFlowButton(props: { novelID: string; novelTitle: string }) {

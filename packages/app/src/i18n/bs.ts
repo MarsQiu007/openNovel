@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Predloženo",
   "command.category.view": "Prikaz",
   "command.category.project": "Projekat",
@@ -610,6 +610,18 @@
   "home.sessions.group.today": "Danas",
   "home.sessions.group.yesterday": "Jučer",
   "home.sessions.group.older": "Starije",
+  "home.sessions.sidebar.books": "Razgovori po knjigama",
+  "home.sessions.sidebar.newChat": "Novi razgovor",
+  "home.sessions.sidebar.openNovel": "Otvori knjigu",
+  "home.sessions.sidebar.noChats": "Nema razgovora — kliknite na naslov za početak",
+  "home.sessions.sidebar.empty": "Još nema knjiga",
+  "home.sessions.sidebar.empty.description": "Razgovori će se ovdje grupisati po knjigama kada kreirate jednu.",
+  "home.sessions.sidebar.untitled": "Sesija bez naslova",
+  "home.sessions.sidebar.inSidebar": "Razgovori po knjigama grupisani su u lijevoj bočnoj traci.",
+  "home.sessions.sidebar.collapse": "Sakrij",
+  "home.sessions.sidebar.archiveTitle": "Arhiviraj sesiju",
+  "home.sessions.sidebar.archiveWithChildren": "Ova sesija sadrži {{count}} podagent sesija. Bit će arhivirane zajedno. Nastaviti?",
+  "home.sessions.title": "Sesije",
   "home.providerTip":
     "Povežite se s više od 75 pružalaca usluga kako biste koristili druge modele, uključujući Claude, GPT, Gemini i druge",
 

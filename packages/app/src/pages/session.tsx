@@ -40,6 +40,7 @@ import { base64Encode, checksum } from "@opennovel-ai/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { ErrorPage } from "@/pages/error"
+import { SessionNovelPanel } from "@/pages/session-novel-panel"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
 import { DirectoryDataProvider } from "@/pages/directory-layout"
@@ -271,7 +272,12 @@ function ResolvedTargetSessionRoute() {
     <Show when={directory()}>
       <SDKProvider directory={targetDirectory}>
         <DirectoryDataProvider directory={targetDirectory} server={serverKey}>
-          <TargetSessionPage />
+          <div class="flex size-full min-h-0 min-w-0">
+            <SessionNovelPanel serverKey={serverKey} directory={directory} activeSessionID={() => params.id} />
+            <div class="flex min-w-0 min-h-0 flex-1 flex-col">
+              <TargetSessionPage />
+            </div>
+          </div>
         </DirectoryDataProvider>
       </SDKProvider>
     </Show>

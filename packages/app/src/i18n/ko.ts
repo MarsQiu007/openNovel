@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "추천",
   "command.category.view": "보기",
   "command.category.project": "프로젝트",
@@ -961,6 +961,18 @@
   "home.sessions.group.today": "오늘",
   "home.sessions.group.yesterday": "어제",
   "home.sessions.group.older": "이전",
+  "home.sessions.sidebar.books": "책별 대화",
+  "home.sessions.sidebar.newChat": "새 대화",
+  "home.sessions.sidebar.openNovel": "책 열기",
+  "home.sessions.sidebar.noChats": "대화가 없습니다. 제목을 클릭해 시작하세요",
+  "home.sessions.sidebar.empty": "아직 책이 없습니다",
+  "home.sessions.sidebar.empty.description": "책을 만들면 대화가 여기에 책별로 표시됩니다.",
+  "home.sessions.sidebar.untitled": "제목 없는 세션",
+  "home.sessions.sidebar.inSidebar": "책 대화는 왼쪽 사이드바에 그룹화되어 있습니다.",
+  "home.sessions.sidebar.collapse": "접기",
+  "home.sessions.sidebar.archiveTitle": "세션 보관",
+  "home.sessions.sidebar.archiveWithChildren": "이 세션에는 하위 에이전트 세션 {{count}}개가 포함되어 있습니다. 함께 보관됩니다. 계속하시겠습니까?",
+  "home.sessions.title": "세션",
   "home.providerTip": "75개 이상의 제공업체에 연결하여 Claude, GPT, Gemini 등의 다른 모델을 사용하세요",
 
   "session.tab.unknown": "알 수 없는 세션",

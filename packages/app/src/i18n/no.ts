@@ -1,4 +1,4 @@
-﻿import { dict as en } from "./en"
+import { dict as en } from "./en"
 type Keys = keyof typeof en
 
 export const dict = {
@@ -1053,6 +1053,18 @@ export const dict = {
   "home.sessions.group.today": "I dag",
   "home.sessions.group.yesterday": "I går",
   "home.sessions.group.older": "Eldre",
+  "home.sessions.sidebar.books": "Samtaler etter bok",
+  "home.sessions.sidebar.newChat": "Ny samtale",
+  "home.sessions.sidebar.openNovel": "Åpne bok",
+  "home.sessions.sidebar.noChats": "Ingen samtaler ennå — klikk på tittelen for å starte",
+  "home.sessions.sidebar.empty": "Ingen bøker ennå",
+  "home.sessions.sidebar.empty.description": "Samtaler grupperes etter bok her når du oppretter en.",
+  "home.sessions.sidebar.untitled": "Økt uten tittel",
+  "home.sessions.sidebar.inSidebar": "Boksamtaler er gruppert i sidefeltet til venstre.",
+  "home.sessions.sidebar.collapse": "Skjul",
+  "home.sessions.sidebar.archiveTitle": "Arkiver økt",
+  "home.sessions.sidebar.archiveWithChildren": "Denne økten inneholder {{count}} underagent-økter. De arkiveres sammen. Fortsette?",
+  "home.sessions.title": "Økter",
   "home.providerTip":
     "Koble til over 75 leverandører for å bruke andre modeller, inkludert Claude, GPT, Gemini og flere",
 

@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Sugerowane",
   "command.category.view": "Widok",
   "command.category.project": "Projekt",
@@ -560,6 +560,18 @@
   "home.sessions.group.today": "Dzisiaj",
   "home.sessions.group.yesterday": "Wczoraj",
   "home.sessions.group.older": "Starsze",
+  "home.sessions.sidebar.books": "Czaty według książek",
+  "home.sessions.sidebar.newChat": "Nowy czat",
+  "home.sessions.sidebar.openNovel": "Otwórz książkę",
+  "home.sessions.sidebar.noChats": "Brak czatów — kliknij tytuł, aby rozpocząć",
+  "home.sessions.sidebar.empty": "Brak książek",
+  "home.sessions.sidebar.empty.description": "Po utworzeniu książki czaty będą tu grupowane według książek.",
+  "home.sessions.sidebar.untitled": "Sesja bez tytułu",
+  "home.sessions.sidebar.inSidebar": "Czaty książkowe są pogrupowane na lewym pasku bocznym.",
+  "home.sessions.sidebar.collapse": "Zwiń",
+  "home.sessions.sidebar.archiveTitle": "Archiwizuj sesję",
+  "home.sessions.sidebar.archiveWithChildren": "Ta sesja zawiera {{count}} sesji subagentów. Zostaną zarchiwizowane razem. Kontynuować?",
+  "home.sessions.title": "Sesje",
   "home.providerTip":
     "Połącz się z ponad 75 dostawcami, aby korzystać z innych modeli, w tym Claude, GPT, Gemini i innych",
   "session.tab.session": "Sesja",

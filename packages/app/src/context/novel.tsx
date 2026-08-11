@@ -115,6 +115,17 @@ export const { use: useNovel, provider: NovelProvider } = createSimpleContext({
       }
     }
 
+    async function listSessionBindings() {
+      try {
+        const result = await novelClient()["server.novel"]["session-bindings"]({
+          location: { directory: directory() },
+        })
+        return result as readonly { sessionID: string; novelID: string; novelTitle: string }[]
+      } catch {
+        return null
+      }
+    }
+
     return {
       get novels() {
         return store.novels
@@ -134,6 +145,7 @@ export const { use: useNovel, provider: NovelProvider } = createSimpleContext({
       fetchNovels,
       setCurrentNovel,
       getNovelForSession,
+      listSessionBindings,
     }
   },
 })

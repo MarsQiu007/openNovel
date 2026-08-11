@@ -2895,6 +2895,18 @@ export type ServerNovelForSessionOutput = {
   readonly updatedAt: number
 }
 
+export type ServerNovelSessionBindingsInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelSessionBindingsOutput = ReadonlyArray<{
+  readonly sessionID: string
+  readonly novelID: string
+  readonly novelTitle: string
+}>
+
 export type ServerNovelDetailInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {

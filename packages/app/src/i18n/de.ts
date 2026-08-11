@@ -1,4 +1,4 @@
-﻿import { dict as en } from "./en"
+import { dict as en } from "./en"
 
 type Keys = keyof typeof en
 
@@ -567,6 +567,18 @@ export const dict = {
   "home.sessions.group.today": "Heute",
   "home.sessions.group.yesterday": "Gestern",
   "home.sessions.group.older": "Älter",
+  "home.sessions.sidebar.books": "Buch-Chats",
+  "home.sessions.sidebar.newChat": "Neuer Chat",
+  "home.sessions.sidebar.openNovel": "Buch öffnen",
+  "home.sessions.sidebar.noChats": "Noch keine Chats — klicke auf den Titel, um zu starten",
+  "home.sessions.sidebar.empty": "Noch keine Bücher",
+  "home.sessions.sidebar.empty.description": "Chats werden hier nach Buch gruppiert, sobald du eines erstellst.",
+  "home.sessions.sidebar.untitled": "Unbenannte Sitzung",
+  "home.sessions.sidebar.inSidebar": "Buch-Chats sind in der linken Seitenleiste gruppiert.",
+  "home.sessions.sidebar.collapse": "Einklappen",
+  "home.sessions.sidebar.archiveTitle": "Sitzung archivieren",
+  "home.sessions.sidebar.archiveWithChildren": "Diese Sitzung enthält {{count}} Sub-Agent-Sitzung(en). Sie werden zusammen archiviert. Fortfahren?",
+  "home.sessions.title": "Sitzungen",
   "home.providerTip":
     "Verbinde dich mit über 75 Anbietern, um weitere Modelle wie Claude, GPT, Gemini und andere zu nutzen",
   "session.tab.session": "Sitzung",

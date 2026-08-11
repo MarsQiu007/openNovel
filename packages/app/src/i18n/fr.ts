@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Suggéré",
   "command.category.view": "Affichage",
   "command.category.project": "Projet",
@@ -564,6 +564,18 @@
   "home.sessions.group.today": "Aujourd'hui",
   "home.sessions.group.yesterday": "Hier",
   "home.sessions.group.older": "Plus anciennes",
+  "home.sessions.sidebar.books": "Discussions par livre",
+  "home.sessions.sidebar.newChat": "Nouvelle discussion",
+  "home.sessions.sidebar.openNovel": "Ouvrir le livre",
+  "home.sessions.sidebar.noChats": "Aucune discussion — cliquez sur le titre pour commencer",
+  "home.sessions.sidebar.empty": "Aucun livre",
+  "home.sessions.sidebar.empty.description": "Les discussions seront regroupées par livre ici.",
+  "home.sessions.sidebar.untitled": "Session sans titre",
+  "home.sessions.sidebar.inSidebar": "Les discussions de livres sont regroupées dans la barre latérale.",
+  "home.sessions.sidebar.collapse": "Réduire",
+  "home.sessions.sidebar.archiveTitle": "Archiver la session",
+  "home.sessions.sidebar.archiveWithChildren": "Cette session contient {{count}} session(s) de sous-agent. Elles seront archivées ensemble. Continuer ?",
+  "home.sessions.title": "Discussions",
   "home.providerTip":
     "Connectez-vous à plus de 75 fournisseurs pour utiliser d’autres modèles, notamment Claude, GPT, Gemini, etc.",
   "session.tab.session": "Session",

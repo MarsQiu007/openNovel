@@ -546,6 +546,20 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                   </MenuV2>
                 </Show>
 
+                <TooltipV2 placement="bottom" value={language.t("home.sessions.title")} class="shrink-0">
+                  <IconButtonV2
+                    type="button"
+                    variant="ghost-muted"
+                    size="large"
+                    class="!w-9 shrink-0"
+                    icon={<IconV2 name="review" />}
+                    state={location.pathname === "/sessions" ? "pressed" : undefined}
+                    onClick={() => navigate("/sessions")}
+                    aria-label={language.t("home.sessions.title")}
+                    aria-pressed={location.pathname === "/sessions"}
+                  />
+                </TooltipV2>
+
                 <TitlebarTabStrip
                   tabs={tabsStore}
                   currentTab={currentTab}

@@ -1,4 +1,4 @@
-﻿import { dict as en } from "./en"
+import { dict as en } from "./en"
 
 type Keys = keyof typeof en
 
@@ -606,6 +606,18 @@ export const dict = {
   "home.sessions.group.today": "今天",
   "home.sessions.group.yesterday": "昨天",
   "home.sessions.group.older": "更早",
+  "home.sessions.sidebar.books": "書籍對話",
+  "home.sessions.sidebar.newChat": "新建對話",
+  "home.sessions.sidebar.openNovel": "打開書籍",
+  "home.sessions.sidebar.noChats": "暫無對話，點擊書名開始",
+  "home.sessions.sidebar.empty": "還沒有書籍",
+  "home.sessions.sidebar.empty.description": "創建書籍後，對話會按書籍顯示在這裡。",
+  "home.sessions.sidebar.untitled": "未命名會話",
+  "home.sessions.sidebar.inSidebar": "書籍對話已歸入左側邊欄。",
+  "home.sessions.sidebar.collapse": "收起",
+  "home.sessions.sidebar.archiveTitle": "封存對話",
+  "home.sessions.sidebar.archiveWithChildren": "此對話包含 {{count}} 個子代理對話，封存後將一併移除。確定繼續嗎？",
+  "home.sessions.title": "會話",
   "home.providerTip": "連接 75 個以上的供應商，使用 Claude、GPT、Gemini 等其他模型",
 
   "session.tab.session": "工作階段",

@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "แนะนำ",
   "command.category.view": "มุมมอง",
   "command.category.project": "โปรเจกต์",
@@ -606,6 +606,18 @@
   "home.sessions.group.today": "วันนี้",
   "home.sessions.group.yesterday": "เมื่อวาน",
   "home.sessions.group.older": "ก่อนหน้านี้",
+  "home.sessions.sidebar.books": "แชทตามหนังสือ",
+  "home.sessions.sidebar.newChat": "แชทใหม่",
+  "home.sessions.sidebar.openNovel": "เปิดหนังสือ",
+  "home.sessions.sidebar.noChats": "ยังไม่มีแชท — คลิกที่ชื่อเพื่อเริ่ม",
+  "home.sessions.sidebar.empty": "ยังไม่มีหนังสือ",
+  "home.sessions.sidebar.empty.description": "เมื่อสร้างหนังสือ แชทจะถูกจัดกลุ่มตามหนังสือที่นี่",
+  "home.sessions.sidebar.untitled": "เซสชันที่ไม่มีชื่อ",
+  "home.sessions.sidebar.inSidebar": "แชทของหนังสือถูกจัดกลุ่มในแถบด้านซ้าย",
+  "home.sessions.sidebar.collapse": "ยุบ",
+  "home.sessions.sidebar.archiveTitle": "จัดเก็บเซสชัน",
+  "home.sessions.sidebar.archiveWithChildren": "เซสชันนี้มีเซสชันตัวแทนย่อย {{count}} รายการ จะถูกจัดเก็บพร้อมกัน ดำเนินการต่อหรือไม่",
+  "home.sessions.title": "เซสชัน",
   "home.providerTip": "เชื่อมต่อกับผู้ให้บริการกว่า 75 รายเพื่อใช้โมเดลอื่นๆ รวมถึง Claude, GPT, Gemini และอีกมากมาย",
 
   "session.tab.session": "เซสชัน",

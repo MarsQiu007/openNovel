@@ -118,6 +118,8 @@ import type {
   ServerNovelCreateOutput,
   ServerNovelForSessionInput,
   ServerNovelForSessionOutput,
+  ServerNovelSessionBindingsInput,
+  ServerNovelSessionBindingsOutput,
   ServerNovelDetailInput,
   ServerNovelDetailOutput,
   ServerNovelVolumesInput,
@@ -1137,6 +1139,18 @@ export function make(options: ClientOptions) {
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "session-bindings": (input?: ServerNovelSessionBindingsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSessionBindingsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/session-bindings`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
             empty: false,
           },
           requestOptions,

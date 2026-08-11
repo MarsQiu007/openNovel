@@ -359,6 +359,13 @@ export const BindSessionInput = Schema.Struct({
 }).annotate({ identifier: "Novel.BindSessionInput" })
 export interface BindSessionInput extends Schema.Schema.Type<typeof BindSessionInput> {}
 
+export const SessionBinding = Schema.Struct({
+  sessionID: Schema.String,
+  novelID: Schema.String,
+  novelTitle: Schema.String,
+}).annotate({ identifier: "Novel.SessionBinding" })
+export interface SessionBinding extends Schema.Schema.Type<typeof SessionBinding> {}
+
 export const CreateChapterInput = Schema.Struct({
   title: Schema.String,
   volumeId: optional(Schema.String),

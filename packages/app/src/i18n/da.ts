@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Foreslået",
   "command.category.view": "Vis",
   "command.category.project": "Projekt",
@@ -607,6 +607,18 @@
   "home.sessions.group.today": "I dag",
   "home.sessions.group.yesterday": "I går",
   "home.sessions.group.older": "Ældre",
+  "home.sessions.sidebar.books": "Bog-chats",
+  "home.sessions.sidebar.newChat": "Ny chat",
+  "home.sessions.sidebar.openNovel": "Åbn bog",
+  "home.sessions.sidebar.noChats": "Ingen chats endnu — klik på titlen for at starte",
+  "home.sessions.sidebar.empty": "Ingen bøger endnu",
+  "home.sessions.sidebar.empty.description": "Chats grupperes efter bog her, når du opretter en.",
+  "home.sessions.sidebar.untitled": "Session uden titel",
+  "home.sessions.sidebar.inSidebar": "Bog-chats er grupperet i sidepanelet til venstre.",
+  "home.sessions.sidebar.collapse": "Skjul",
+  "home.sessions.sidebar.archiveTitle": "Arkivér session",
+  "home.sessions.sidebar.archiveWithChildren": "Denne session indeholder {{count}} underagent-sessioner. De arkiveres sammen. Fortsætte?",
+  "home.sessions.title": "Sessioner",
   "home.providerTip":
     "Opret forbindelse til mere end 75 udbydere for at bruge andre modeller, herunder Claude, GPT, Gemini og flere",
 

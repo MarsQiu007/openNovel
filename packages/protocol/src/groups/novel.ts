@@ -28,6 +28,7 @@ import {
   PlotThread,
   Relationship,
   RestoreVersionInput,
+  SessionBinding,
   StyleGuide,
   TensionPoint,
   UpdateChapterContentInput,
@@ -124,6 +125,22 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.for-session",
           summary: "Novel for session",
           description: "Resolve the novel bound to a session. Declared before /:novelID to avoid route swallowing.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.session-bindings", `${root}/session-bindings`, {
+      query: LocationQuery,
+      success: Schema.Array(SessionBinding),
+      error: NovelValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.session-bindings",
+          summary: "List session-novel bindings",
+          description:
+            "List all session-to-novel bindings in a directory. Declared before /:novelID to avoid route swallowing.",
         }),
       ),
   )

@@ -450,6 +450,8 @@ export function useBindSession() {
       queryClient.invalidateQueries({
         queryKey: novelKeys["for-session"](dir, variables.sessionID),
       })
+      // 同步刷新会话页侧边栏的书籍分组数据
+      queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings"] })
     },
   }))
 }

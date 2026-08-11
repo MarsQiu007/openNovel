@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Рекомендовані",
   "command.category.view": "Вигляд",
   "command.category.project": "Проєкт",
@@ -633,6 +633,18 @@
   "home.sessions.group.today": "Сьогодні",
   "home.sessions.group.yesterday": "Учора",
   "home.sessions.group.older": "Раніше",
+  "home.sessions.sidebar.books": "Чати за книгами",
+  "home.sessions.sidebar.newChat": "Новий чат",
+  "home.sessions.sidebar.openNovel": "Відкрити книгу",
+  "home.sessions.sidebar.noChats": "Чатів ще немає — натисніть на назву, щоб почати",
+  "home.sessions.sidebar.empty": "Книг ще немає",
+  "home.sessions.sidebar.empty.description": "Після створення книги чати групуватимуться тут за книгами.",
+  "home.sessions.sidebar.untitled": "Сесія без назви",
+  "home.sessions.sidebar.inSidebar": "Чати за книгами згруповано в лівій панелі.",
+  "home.sessions.sidebar.collapse": "Згорнути",
+  "home.sessions.sidebar.archiveTitle": "Архівувати сесію",
+  "home.sessions.sidebar.archiveWithChildren": "Ця сесія містить {{count}} сесій субагентів. Вони будуть заархівовані разом. Продовжити?",
+  "home.sessions.title": "Сесії",
   "home.providerTip":
     "Підключіться до понад 75 провайдерів, щоб використовувати інші моделі, зокрема Claude, GPT, Gemini та інші",
 

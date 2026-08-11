@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Suggested",
   "command.category.view": "View",
   "command.category.project": "Project",
@@ -635,6 +635,18 @@
   "home.sessions.group.today": "Today",
   "home.sessions.group.yesterday": "Yesterday",
   "home.sessions.group.older": "Older",
+  "home.sessions.sidebar.books": "Novel chats",
+  "home.sessions.sidebar.newChat": "New chat",
+  "home.sessions.sidebar.openNovel": "Open novel",
+  "home.sessions.sidebar.noChats": "No chats yet — click the title to start",
+  "home.sessions.sidebar.empty": "No novels yet",
+  "home.sessions.sidebar.empty.description": "Chats will be grouped by novel here once you create one.",
+  "home.sessions.sidebar.untitled": "Untitled session",
+  "home.sessions.sidebar.inSidebar": "Novel chats are grouped in the left sidebar.",
+  "home.sessions.sidebar.collapse": "Collapse",
+  "home.sessions.sidebar.archiveTitle": "Archive session",
+  "home.sessions.sidebar.archiveWithChildren": "This session has {{count}} sub-agent session(s). They will be archived together. Continue?",
+  "home.sessions.title": "Sessions",
   "home.providerTip": "Connect to 75+ providers to use other models, including Claude, GPT, Gemini, etc",
 
   "session.tab.session": "Session",

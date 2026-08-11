@@ -13,7 +13,7 @@ import {
   startTransition,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { createStore, produce } from "solid-js/store"
+import { createStore } from "solid-js/store"
 import { useQuery } from "@tanstack/solid-query"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ScrollView } from "@opennovel-ai/ui/scroll-view"
@@ -35,18 +35,17 @@ import { sessionHasOpenTab, useTabs } from "@/context/tabs"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
-import { displayName, errorMessage, getProjectAvatarSource, projectForSession } from "@/pages/layout/helpers"
+import { displayName, getProjectAvatarSource, projectForSession } from "@/pages/layout/helpers"
 import { SessionTabAvatar } from "@/pages/layout/session-tab-avatar"
 import { sessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { useGlobal } from "@/context/global"
 import { useCommand } from "@/context/command"
-import { Binary } from "@opennovel-ai/core/util/binary"
+import { useNovelSessions } from "./novel-sessions"
+import { SessionsNovelSidebar } from "./sessions-novel-sidebar"
 import { useMarked } from "@opennovel-ai/ui/context/marked"
 import { preloadMarkdown } from "@opennovel-ai/session-ui/markdown-cache"
-import { archiveHomeSession } from "./home-session-archive"
 import { shouldOpenSessionInBackground } from "./home-session-open"
-import { showToast } from "@/utils/toast"
 import {
   loadHomeSessionIndex,
   retainHomeSessions,
@@ -789,6 +788,15 @@ export function SessionsPage() {
   const projectByID = createMemo(
     () => new Map(projects().flatMap((project) => (project.id ? [[project.id, project] as const] : []))),
   )
+  // ─── 书籍对话侧边栏数据 ───
+  // 小说与会话的绑定关系按目录存储，侧边栏展示当前选中项目目录下的书籍分组
+  const novelDirectory = createMemo(() => selectedProject()?.worktree ?? newSessionProject()?.worktree)
+  const novelSessions = useNovelSessions({
+    conn: focusedServer,
+    directory: novelDirectory,
+    server: () => selection().server,
+  })
+  const boundSessionIds = novelSessions.boundSessionIds
   const indexedSessions = createMemo(() =>
     retainHomeSessions(
       homeSessions().sessions(sessionLoad.data, sessionEventLoad.data),
@@ -804,7 +812,12 @@ export function SessionsPage() {
       projectByID,
     }),
   )
-  const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
+  const records = createMemo(() =>
+    // 已绑定书籍的会话归入左侧边栏管理，主列表只保留未绑定会话，避免两处重复
+    allRecords()
+      .filter((record) => !boundSessionIds().has(record.session.id))
+      .slice(0, HOME_SESSION_LIMIT),
+  )
   const searchResults = createMemo(() => {
     const query = search().toLowerCase()
     if (!query) return []
@@ -909,27 +922,7 @@ export function SessionsPage() {
   }
 
   async function archiveSession(session: Session) {
-    const conn = focusedServer()
-    const ctx = focusedServerCtx()
-    if (!conn || !ctx) return
-    const [, setStore] = ctx.sync.child(session.directory)
-    await archiveHomeSession({
-      server: ServerConnection.key(conn),
-      session,
-      update: (value) => ctx.sdk.client.session.update(value),
-      remove: () =>
-        setStore(
-          produce((draft) => {
-            const match = Binary.search(draft.session, session.id, (s) => s.id)
-            if (match.found) draft.session.splice(match.index, 1)
-          }),
-        ),
-      onError: (error) =>
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: errorMessage(error, language.t("common.requestFailed")),
-        }),
-    })
+    await novelSessions.archiveSession(session)
   }
 
   return (
@@ -950,6 +943,16 @@ export function SessionsPage() {
         }}
       >
         <div class="mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3 lg:grid-cols-[280px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6">
+          <SessionsNovelSidebar
+            directory={novelDirectory()}
+            novels={novelSessions.novels()}
+            bindings={novelSessions.bindings()}
+            sessions={novelSessions.sessions()}
+            loading={novelSessions.loading()}
+            openSessionById={novelSessions.openSessionById}
+            createNovelSession={novelSessions.createNovelSession}
+            archiveSession={archiveSession}
+          />
           <section
             ref={setSessionHoverTarget}
             class="min-h-0 min-w-0 flex-1 flex flex-col lg:col-start-2"
@@ -1012,7 +1015,19 @@ export function SessionsPage() {
               >
                 <Show
                   when={groups().length > 0}
-                  fallback={<HomeSessionsEmpty onNewSession={newSessionProject() ? openNewSession : undefined} />}
+                  fallback={
+                    // 所有会话都已绑定书籍时，主列表为空属于正常情况，给出提示而非"创建会话"空态
+                    <Show
+                      when={boundSessionIds().size === 0}
+                      fallback={
+                        <div class="px-3 pt-6 text-[13px] text-v2-text-text-muted [font-weight:440]">
+                          {language.t("home.sessions.sidebar.inSidebar")}
+                        </div>
+                      }
+                    >
+                      <HomeSessionsEmpty onNewSession={newSessionProject() ? openNewSession : undefined} />
+                    </Show>
+                  }
                 >
                   <div ref={sessionHeaderOpacity.setContentRef} class="flex flex-col pt-3 pr-3 pb-16">
                     <For each={groups()}>

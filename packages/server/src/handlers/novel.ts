@@ -8,6 +8,7 @@ import {
   getDbPath,
   tagNovelSession,
   getNovelForSession,
+  listSessionNovelBindings,
   handleApproval,
   NovelTable,
   VolumeTable,
@@ -394,6 +395,10 @@ export function novelForSession(sessionID: string, directory: string) {
     if (!row) yield* Effect.fail(novelNotFound(novelId!))
     return toNovel(row!)
   })
+}
+
+export function listSessionBindings(directory: string) {
+  return Effect.promise(() => listSessionNovelBindings(directory))
 }
 
 export function novelDetail(novelID: string, directory: string) {
@@ -1268,6 +1273,12 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* novelForSession(ctx.params.sessionID, location.directory)
+        }),
+      )
+      .handle("novel.session-bindings", () =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listSessionBindings(location.directory)
         }),
       )
       .handle("novel.detail", (ctx) =>

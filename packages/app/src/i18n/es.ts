@@ -1,4 +1,4 @@
-﻿export const dict = {
+export const dict = {
   "command.category.suggested": "Sugerido",
   "command.category.view": "Ver",
   "command.category.project": "Proyecto",
@@ -611,6 +611,18 @@
   "home.sessions.group.today": "Hoy",
   "home.sessions.group.yesterday": "Ayer",
   "home.sessions.group.older": "Anteriores",
+  "home.sessions.sidebar.books": "Chats por libro",
+  "home.sessions.sidebar.newChat": "Nuevo chat",
+  "home.sessions.sidebar.openNovel": "Abrir libro",
+  "home.sessions.sidebar.noChats": "Aún no hay chats: haz clic en el título para empezar",
+  "home.sessions.sidebar.empty": "Aún no hay libros",
+  "home.sessions.sidebar.empty.description": "Los chats se agruparán por libro aquí cuando crees uno.",
+  "home.sessions.sidebar.untitled": "Sesión sin título",
+  "home.sessions.sidebar.inSidebar": "Los chats de libros están agrupados en la barra lateral izquierda.",
+  "home.sessions.sidebar.collapse": "Contraer",
+  "home.sessions.sidebar.archiveTitle": "Archivar sesión",
+  "home.sessions.sidebar.archiveWithChildren": "Esta sesión contiene {{count}} sesión(es) de subagente. Se archivarán juntas. ¿Continuar?",
+  "home.sessions.title": "Sesiones",
   "home.providerTip":
     "Conéctate a más de 75 proveedores para usar otros modelos, como Claude, GPT, Gemini y muchos más",
 
