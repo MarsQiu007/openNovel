@@ -42,9 +42,118 @@ export type NovelSessionGroupListProps = {
   loading: boolean
   /** 当前正在查看的会话（聊天页侧边栏用于高亮） */
   activeSessionID?: string
+  /** 是否枚举未绑定书籍的会话（聊天页使用；会话页由主列表负责，避免同页重复） */
+  showUnbound?: boolean
   openSessionById: (sessionID: string) => void
   createNovelSession: (novelID: string, title: string) => Promise<void>
   archiveSession: (session: Session) => Promise<void>
+}
+
+/** 未绑定分组的展开状态在 expanded store 中使用的固定 key */
+const UNBOUND_GROUP_KEY = "__unbound__"
+
+/**
+ * 子代理会话行（只读查看入口，不提供单独归档）。
+ */
+function SidebarChildSessionRow(props: {
+  child: Session
+  activeSessionID: string | undefined
+  openSessionById: (sessionID: string) => void
+}) {
+  const language = useLanguage()
+  const active = () => props.activeSessionID === props.child.id
+  return (
+    <div
+      class="relative flex h-8 min-w-0 items-center rounded-[6px]"
+      classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
+    >
+      <button
+        type="button"
+        data-component="novel-sidebar-sub-session"
+        aria-label={language.t("home.sessions.sidebar.subagent")}
+        class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-12 pr-2`}
+        onClick={() => props.openSessionById(props.child.id)}
+      >
+        <IconV2 name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+        <span
+          class="min-w-0 flex-1 truncate text-[12px] italic text-v2-text-text-faint [font-weight:440]"
+          classList={{ "text-v2-text-text-muted": active() }}
+        >
+          {sessionTitle(props.child.title) || language.t("home.sessions.sidebar.subagent")}
+        </span>
+        <span class="shrink-0 text-[11px] text-v2-text-text-faint">{relativeTime(props.child)}</span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * 单条主会话行 + 其子代理会话嵌套行。
+ */
+function SidebarSessionEntry(props: {
+  session: Session
+  activeSessionID: string | undefined
+  childrenByParent: Map<string, Session[]>
+  openSessionById: (sessionID: string) => void
+  onArchive: (session: Session) => void
+}) {
+  const language = useLanguage()
+  const active = () => props.activeSessionID === props.session.id
+  const children = () => props.childrenByParent.get(props.session.id) ?? []
+  return (
+    <>
+      <div
+        class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
+        classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
+      >
+        <button
+          type="button"
+          data-component="novel-sidebar-session"
+          class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-9 pr-8`}
+          onClick={() => props.openSessionById(props.session.id)}
+        >
+          <span
+            class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:440]"
+            classList={{ "text-v2-text-text-base [font-weight:530]": active() }}
+          >
+            {sessionTitle(props.session.title) || language.t("home.sessions.sidebar.untitled")}
+          </span>
+          <Show when={children().length > 0}>
+            <span class="flex shrink-0 items-center gap-0.5 text-[11px] text-v2-text-text-faint">
+              <IconV2 name="branch" size="small" />
+              {children().length}
+            </span>
+          </Show>
+          <span class="shrink-0 text-[11px] text-v2-text-text-faint">{relativeTime(props.session)}</span>
+        </button>
+        <div class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/sidebar-session:opacity-100 focus-within:opacity-100">
+          <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={language.t("common.archive")}>
+            <IconButtonV2
+              data-action="novel-sidebar-archive"
+              variant="ghost-muted"
+              size="small"
+              icon={<IconV2 name="archive" />}
+              aria-label={language.t("common.archive")}
+              onClick={(event) => {
+                event.stopPropagation()
+                props.onArchive(props.session)
+              }}
+            />
+          </TooltipV2>
+        </div>
+      </div>
+      {/* 子代理会话：只读，随主会话级联归档，这里仅提供查看入口 */}
+      <For each={children()}>
+        {(child) => (
+          <SidebarChildSessionRow
+            child={child}
+            activeSessionID={props.activeSessionID}
+            openSessionById={props.openSessionById}
+          />
+        )}
+      </For>
+    </>
+  )
 }
 
 /**
@@ -101,6 +210,17 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
     return map
   })
 
+  // 未绑定书籍的主会话，按最近更新排序（仅 showUnbound 时枚举，如聊天页侧边栏）
+  const unboundSessions = createMemo(() => {
+    if (!props.showUnbound) return []
+    const bound = new Set(props.bindings.map((binding) => binding.sessionID))
+    return props.sessions
+      .filter((session) => !session.parentID && !session.time.archived && !bound.has(session.id))
+      .sort((a, b) => sessionTime(b) - sessionTime(a))
+  })
+  const unboundExpanded = () => expanded[UNBOUND_GROUP_KEY] ?? false
+  const hasContent = () => groups().length > 0 || unboundSessions().length > 0
+
   async function handleCreate(novel: NovelSessionNovel) {
     if (creating()) return
     setCreating(novel.id)
@@ -156,7 +276,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
       }
     >
       <Show
-        when={groups().length > 0}
+        when={hasContent()}
         fallback={
           <div class="flex flex-col gap-1.5 px-3 pt-6 text-center">
             <span class="text-[13px] text-v2-text-text-base [font-weight:530]">
@@ -243,89 +363,15 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
               <Show when={isExpanded(group.novel.id)}>
                 <div class="flex min-w-0 flex-col gap-px">
                   <For each={group.sessions}>
-                    {(session) => {
-                      const active = () => props.activeSessionID === session.id
-                      const children = () => childrenByParent().get(session.id) ?? []
-                      return (
-                        <>
-                          <div
-                            class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
-                            classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
-                          >
-                            <button
-                              type="button"
-                              data-component="novel-sidebar-session"
-                              class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-9 pr-8`}
-                              onClick={() => props.openSessionById(session.id)}
-                            >
-                              <span
-                                class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:440]"
-                                classList={{ "text-v2-text-text-base [font-weight:530]": active() }}
-                              >
-                                {sessionTitle(session.title) || language.t("home.sessions.sidebar.untitled")}
-                              </span>
-                              <Show when={children().length > 0}>
-                                <span class="flex shrink-0 items-center gap-0.5 text-[11px] text-v2-text-text-faint">
-                                  <IconV2 name="branch" size="small" />
-                                  {children().length}
-                                </span>
-                              </Show>
-                              <span class="shrink-0 text-[11px] text-v2-text-text-faint">{relativeTime(session)}</span>
-                            </button>
-                            <div class="absolute right-1 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/sidebar-session:opacity-100 focus-within:opacity-100">
-                              <TooltipV2
-                                class="flex shrink-0 items-center"
-                                placement="bottom"
-                                value={language.t("common.archive")}
-                              >
-                                <IconButtonV2
-                                  data-action="novel-sidebar-archive"
-                                  variant="ghost-muted"
-                                  size="small"
-                                  icon={<IconV2 name="archive" />}
-                                  aria-label={language.t("common.archive")}
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    handleArchive(session)
-                                  }}
-                                />
-                              </TooltipV2>
-                            </div>
-                          </div>
-                          {/* 子代理会话：只读，随主会话级联归档，这里仅提供查看入口 */}
-                          <For each={children()}>
-                            {(child) => {
-                              const childActive = () => props.activeSessionID === child.id
-                              return (
-                                <div
-                                  class="relative flex h-8 min-w-0 items-center rounded-[6px]"
-                                  classList={{ "bg-v2-overlay-simple-overlay-hover": childActive() }}
-                                >
-                                  <button
-                                    type="button"
-                                    data-component="novel-sidebar-sub-session"
-                                    aria-label={language.t("home.sessions.sidebar.subagent")}
-                                    class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-12 pr-2`}
-                                    onClick={() => props.openSessionById(child.id)}
-                                  >
-                                    <IconV2 name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                                    <span
-                                      class="min-w-0 flex-1 truncate text-[12px] italic text-v2-text-text-faint [font-weight:440]"
-                                      classList={{ "text-v2-text-text-muted": childActive() }}
-                                    >
-                                      {sessionTitle(child.title) || language.t("home.sessions.sidebar.subagent")}
-                                    </span>
-                                    <span class="shrink-0 text-[11px] text-v2-text-text-faint">
-                                      {relativeTime(child)}
-                                    </span>
-                                  </button>
-                                </div>
-                              )
-                            }}
-                          </For>
-                        </>
-                      )
-                    }}
+                    {(session) => (
+                      <SidebarSessionEntry
+                        session={session}
+                        activeSessionID={props.activeSessionID}
+                        childrenByParent={childrenByParent()}
+                        openSessionById={props.openSessionById}
+                        onArchive={handleArchive}
+                      />
+                    )}
                   </For>
                   <Show when={group.sessions.length === 0}>
                     <div class="py-1.5 pl-9 pr-2 text-[12px] italic text-v2-text-text-faint">
@@ -337,6 +383,51 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
             </div>
           )}
         </For>
+        {/* 未绑定书籍的会话：默认收起，展开后可查看/归档，子代理会话同样嵌套展示 */}
+        <Show when={props.showUnbound && unboundSessions().length > 0}>
+          <div class="mt-1 flex min-w-0 flex-col">
+            <div class="group/novel relative flex h-9 min-w-0 items-center rounded-[6px] transition-colors hover:bg-v2-overlay-simple-overlay-hover">
+              <button
+                type="button"
+                class="flex h-full w-6 shrink-0 items-center justify-center text-v2-icon-icon-muted"
+                aria-label={language.t("home.sessions.sidebar.unbound")}
+                onClick={() => setExpanded(UNBOUND_GROUP_KEY, !unboundExpanded())}
+              >
+                <IconV2
+                  name="chevron-down"
+                  size="small"
+                  class={unboundExpanded() ? "transition-transform" : "-rotate-90 transition-transform"}
+                />
+              </button>
+              <button
+                type="button"
+                data-component="novel-sidebar-unbound"
+                class="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
+                onClick={() => setExpanded(UNBOUND_GROUP_KEY, !unboundExpanded())}
+              >
+                <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+                  {language.t("home.sessions.sidebar.unbound")}
+                </span>
+                <span class="shrink-0 pr-2 text-[11px] text-v2-text-text-faint">{unboundSessions().length}</span>
+              </button>
+            </div>
+            <Show when={unboundExpanded()}>
+              <div class="flex min-w-0 flex-col gap-px">
+                <For each={unboundSessions()}>
+                  {(session) => (
+                    <SidebarSessionEntry
+                      session={session}
+                      activeSessionID={props.activeSessionID}
+                      childrenByParent={childrenByParent()}
+                      openSessionById={props.openSessionById}
+                      onArchive={handleArchive}
+                    />
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+        </Show>
       </Show>
     </Show>
   )

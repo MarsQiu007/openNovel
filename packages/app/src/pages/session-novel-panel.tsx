@@ -93,6 +93,7 @@ export function SessionNovelPanel(props: {
                 sessions={novelSessions.sessions()}
                 loading={novelSessions.loading()}
                 activeSessionID={props.activeSessionID()}
+                showUnbound
                 openSessionById={novelSessions.openSessionById}
                 createNovelSession={novelSessions.createNovelSession}
                 archiveSession={novelSessions.archiveSession}

@@ -623,6 +623,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "Архивировать сессию",
   "home.sessions.sidebar.archiveWithChildren": "Эта сессия содержит {{count}} сессий субагентов. Они будут заархивированы вместе. Продолжить?",
   "home.sessions.sidebar.subagent": "Сессия субагента",
+  "home.sessions.sidebar.unbound": "Чаты без книги",
   "home.sessions.title": "Сессии",
   "home.providerTip":
     "Подключитесь к более чем 75 провайдерам, чтобы использовать другие модели, включая Claude, GPT, Gemini и другие",

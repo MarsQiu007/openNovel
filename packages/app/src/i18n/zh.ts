@@ -624,6 +624,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "归档会话",
   "home.sessions.sidebar.archiveWithChildren": "该会话包含 {{count}} 个子代理会话，归档后将一并移除。确定继续吗？",
   "home.sessions.sidebar.subagent": "子代理会话",
+  "home.sessions.sidebar.unbound": "未绑定书籍的对话",
   "home.sessions.title": "会话",
   "home.providerTip": "连接 75 个以上的提供商，使用 Claude、GPT、Gemini 等其他模型",
 
