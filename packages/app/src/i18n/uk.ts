@@ -645,7 +645,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "Архівувати сесію",
   "home.sessions.sidebar.archiveWithChildren": "Ця сесія містить {{count}} сесій субагентів. Вони будуть заархівовані разом. Продовжити?",
   "home.sessions.sidebar.subagent": "Сесія субагента",
-  "home.sessions.sidebar.unbound": "Чати без книги",
+  "home.sessions.sidebar.unbound": "Глобальні чати",
   "home.sessions.title": "Сесії",
   "home.providerTip":
     "Підключіться до понад 75 провайдерів, щоб використовувати інші моделі, зокрема Claude, GPT, Gemini та інші",

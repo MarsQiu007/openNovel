@@ -570,7 +570,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "セッションをアーカイブ",
   "home.sessions.sidebar.archiveWithChildren": "このセッションには {{count}} 個のサブエージェントセッションが含まれています。一緒にアーカイブされます。続行しますか？",
   "home.sessions.sidebar.subagent": "サブエージェントセッション",
-  "home.sessions.sidebar.unbound": "書籍に未紐付けのチャット",
+  "home.sessions.sidebar.unbound": "グローバルチャット",
   "home.sessions.title": "セッション",
   "home.providerTip": "75以上のプロバイダーに接続して、Claude、GPT、Geminiなどの他のモデルを利用できます",
   "session.tab.session": "セッション",

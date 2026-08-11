@@ -1065,7 +1065,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "Arkiver økt",
   "home.sessions.sidebar.archiveWithChildren": "Denne økten inneholder {{count}} underagent-økter. De arkiveres sammen. Fortsette?",
   "home.sessions.sidebar.subagent": "Underagent-økt",
-  "home.sessions.sidebar.unbound": "Samtaler uten bok",
+  "home.sessions.sidebar.unbound": "Globale samtaler",
   "home.sessions.title": "Økter",
   "home.providerTip":
     "Koble til over 75 leverandører for å bruke andre modeller, inkludert Claude, GPT, Gemini og flere",

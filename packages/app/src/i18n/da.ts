@@ -619,7 +619,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "Arkivér session",
   "home.sessions.sidebar.archiveWithChildren": "Denne session indeholder {{count}} underagent-sessioner. De arkiveres sammen. Fortsætte?",
   "home.sessions.sidebar.subagent": "Underagent-session",
-  "home.sessions.sidebar.unbound": "Samtaler uden bog",
+  "home.sessions.sidebar.unbound": "Globale samtaler",
   "home.sessions.title": "Sessioner",
   "home.providerTip":
     "Opret forbindelse til mere end 75 udbydere for at bruge andre modeller, herunder Claude, GPT, Gemini og flere",

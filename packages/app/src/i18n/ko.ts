@@ -973,7 +973,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "세션 보관",
   "home.sessions.sidebar.archiveWithChildren": "이 세션에는 하위 에이전트 세션 {{count}}개가 포함되어 있습니다. 함께 보관됩니다. 계속하시겠습니까?",
   "home.sessions.sidebar.subagent": "하위 에이전트 세션",
-  "home.sessions.sidebar.unbound": "책에 연결되지 않은 대화",
+  "home.sessions.sidebar.unbound": "글로벌 대화",
   "home.sessions.title": "세션",
   "home.providerTip": "75개 이상의 제공업체에 연결하여 Claude, GPT, Gemini 등의 다른 모델을 사용하세요",
 

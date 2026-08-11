@@ -42,7 +42,7 @@ export type NovelSessionGroupListProps = {
   loading: boolean
   /** 当前正在查看的会话（聊天页侧边栏用于高亮） */
   activeSessionID?: string
-  /** 是否枚举未绑定书籍的会话（聊天页使用；会话页由主列表负责，避免同页重复） */
+  /** 是否在底部展示「全局对话」栏目（不纳入书籍的对话） */
   showUnbound?: boolean
   openSessionById: (sessionID: string) => void
   createNovelSession: (novelID: string, title: string) => Promise<void>
@@ -88,28 +88,50 @@ function SidebarChildSessionRow(props: {
 }
 
 /**
- * 单条主会话行 + 其子代理会话嵌套行。
+ * 单条主会话行 + 其子代理会话嵌套行（子对话默认收纳，点击左侧箭头展开）。
  */
 function SidebarSessionEntry(props: {
   session: Session
   activeSessionID: string | undefined
   childrenByParent: Map<string, Session[]>
+  childrenExpanded: boolean
+  onToggleChildren: () => void
   openSessionById: (sessionID: string) => void
   onArchive: (session: Session) => void
 }) {
   const language = useLanguage()
   const active = () => props.activeSessionID === props.session.id
   const children = () => props.childrenByParent.get(props.session.id) ?? []
+  // 当前打开的若是子对话，自动展开父会话收纳，保证活动项可见
+  const showChildren = () => props.childrenExpanded || children().some((c) => c.id === props.activeSessionID)
   return (
     <>
       <div
         class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
         classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
       >
+        <Show when={children().length > 0}>
+          <button
+            type="button"
+            data-action="novel-sidebar-toggle-children"
+            class="ml-5 flex h-full w-4 shrink-0 items-center justify-center text-v2-icon-icon-muted"
+            aria-label={language.t("home.sessions.sidebar.subagent")}
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onToggleChildren()
+            }}
+          >
+            <IconV2
+              name="chevron-down"
+              size="small"
+              class={showChildren() ? "transition-transform" : "-rotate-90 transition-transform"}
+            />
+          </button>
+        </Show>
         <button
           type="button"
           data-component="novel-sidebar-session"
-          class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pl-9 pr-8`}
+          class={`${HOME_ROW} h-8 min-w-0 flex-1 gap-2 py-1.5 pr-8 ${children().length > 0 ? "pl-1" : "pl-9"}`}
           onClick={() => props.openSessionById(props.session.id)}
         >
           <span
@@ -142,16 +164,18 @@ function SidebarSessionEntry(props: {
           </TooltipV2>
         </div>
       </div>
-      {/* 子代理会话：只读，随主会话级联归档，这里仅提供查看入口 */}
-      <For each={children()}>
-        {(child) => (
-          <SidebarChildSessionRow
-            child={child}
-            activeSessionID={props.activeSessionID}
-            openSessionById={props.openSessionById}
-          />
-        )}
-      </For>
+      {/* 子代理会话：只读，随主会话级联归档，默认收纳在主会话内 */}
+      <Show when={showChildren()}>
+        <For each={children()}>
+          {(child) => (
+            <SidebarChildSessionRow
+              child={child}
+              activeSessionID={props.activeSessionID}
+              openSessionById={props.openSessionById}
+            />
+          )}
+        </For>
+      </Show>
     </>
   )
 }
@@ -195,6 +219,9 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
 
   const isExpanded = (novelID: string) => expanded[novelID] ?? true
   const toggle = (novelID: string) => setExpanded(novelID, !isExpanded(novelID))
+  // 子对话收纳状态（key 加 sub: 前缀与书籍分组区分），默认收纳
+  const subExpanded = (sessionID: string) => expanded[`sub:${sessionID}`] ?? false
+  const toggleSub = (sessionID: string) => setExpanded(`sub:${sessionID}`, !subExpanded(sessionID))
 
   // 子代理会话（parentID 指向主会话）按父会话分组，嵌套展示在主会话下方；
   // 只收录直接子会话——写作流水线的子代理均直接挂在书籍主会话下
@@ -210,7 +237,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
     return map
   })
 
-  // 未绑定书籍的主会话，按最近更新排序（仅 showUnbound 时枚举，如聊天页侧边栏）
+  // 全局对话：未绑定书籍的主会话，按最近更新排序（仅 showUnbound 时枚举）
   const unboundSessions = createMemo(() => {
     if (!props.showUnbound) return []
     const bound = new Set(props.bindings.map((binding) => binding.sessionID))
@@ -368,6 +395,8 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
                         session={session}
                         activeSessionID={props.activeSessionID}
                         childrenByParent={childrenByParent()}
+                        childrenExpanded={subExpanded(session.id)}
+                        onToggleChildren={() => toggleSub(session.id)}
                         openSessionById={props.openSessionById}
                         onArchive={handleArchive}
                       />
@@ -383,7 +412,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
             </div>
           )}
         </For>
-        {/* 未绑定书籍的会话：默认收起，展开后可查看/归档，子代理会话同样嵌套展示 */}
+        {/* 全局对话：不纳入书籍的会话，默认收起，展开后可查看/归档，子代理会话同样收纳展示 */}
         <Show when={props.showUnbound && unboundSessions().length > 0}>
           <div class="mt-1 flex min-w-0 flex-col">
             <div class="group/novel relative flex h-9 min-w-0 items-center rounded-[6px] transition-colors hover:bg-v2-overlay-simple-overlay-hover">
@@ -419,6 +448,8 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
                       session={session}
                       activeSessionID={props.activeSessionID}
                       childrenByParent={childrenByParent()}
+                      childrenExpanded={subExpanded(session.id)}
+                      onToggleChildren={() => toggleSub(session.id)}
                       openSessionById={props.openSessionById}
                       onArchive={handleArchive}
                     />

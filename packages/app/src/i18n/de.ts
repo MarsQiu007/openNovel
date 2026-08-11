@@ -579,7 +579,7 @@ export const dict = {
   "home.sessions.sidebar.archiveTitle": "Sitzung archivieren",
   "home.sessions.sidebar.archiveWithChildren": "Diese Sitzung enthält {{count}} Sub-Agent-Sitzung(en). Sie werden zusammen archiviert. Fortfahren?",
   "home.sessions.sidebar.subagent": "Sub-Agent-Sitzung",
-  "home.sessions.sidebar.unbound": "Chats ohne Roman",
+  "home.sessions.sidebar.unbound": "Globale Chats",
   "home.sessions.title": "Sitzungen",
   "home.providerTip":
     "Verbinde dich mit über 75 Anbietern, um weitere Modelle wie Claude, GPT, Gemini und andere zu nutzen",

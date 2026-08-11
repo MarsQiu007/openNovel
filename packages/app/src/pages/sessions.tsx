@@ -949,6 +949,7 @@ export function SessionsPage() {
             bindings={novelSessions.bindings()}
             sessions={novelSessions.sessions()}
             loading={novelSessions.loading()}
+            showUnbound
             openSessionById={novelSessions.openSessionById}
             createNovelSession={novelSessions.createNovelSession}
             archiveSession={archiveSession}
