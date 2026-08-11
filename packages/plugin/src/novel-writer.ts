@@ -1206,6 +1206,52 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      init_novel: tool({
+        description:
+          "初始化一本新书并绑定到当前会话。未绑定书籍的全局对话专用：根据对话中讨论好的书籍创意创建小说记录（书名/类型/简介），创建后当前会话自动成为该书的主会话，随后可直接使用 save_novel_settings 保存设定、generate_master_outline 生成总纲等写作工具。若当前会话已绑定书籍则返回已有绑定，不重复创建。",
+        args: {
+          title: tool.schema.string().describe("书名"),
+          genre: tool.schema.string().describe("类型，必须是：玄幻/都市/仙侠/历史/科幻/悬疑/言情/游戏 之一"),
+          synopsis: tool.schema.string().describe("一句话简介或故事梗概"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          // 已绑定会话不重复创建，防止一个会话挂多本书
+          const bound = await getNovelForSession(ctx.sessionID, ctx.directory)
+          if (bound) {
+            const [existing] = await db.select().from(NovelTable).where(eq(NovelTable.id, bound)).limit(1).all()
+            return {
+              title: "init_novel",
+              output: `当前会话已绑定书籍《${existing?.title ?? bound}》（id: ${bound}），无需重复初始化。如需另开新书，请新建全局对话。`,
+            }
+          }
+          const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"]
+          if (!GENRES.includes(args.genre)) {
+            return { title: "init_novel", output: `类型「${args.genre}」不合法，必须是：${GENRES.join("/")} 之一` }
+          }
+          const id = crypto.randomUUID()
+          const now = Date.now()
+          await db
+            .insert(NovelTable)
+            .values({
+              id,
+              title: args.title,
+              genre: args.genre,
+              synopsis: args.synopsis,
+              status: "draft",
+              created_at: now,
+              updated_at: now,
+            })
+            .run()
+          await tagNovelSession(ctx.sessionID, id, ctx.directory)
+          return {
+            title: "init_novel",
+            output: `已创建书籍《${args.title}》（id: ${id}，类型：${args.genre}）并绑定到当前会话。下一步建议：用 save_novel_settings 保存世界观/角色等设定，再用 generate_master_outline 生成整体大纲。`,
+            metadata: { novelId: id },
+          }
+        },
+      }),
+
       save_novel_settings: tool({
         description:
           '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（先删后插）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。',
