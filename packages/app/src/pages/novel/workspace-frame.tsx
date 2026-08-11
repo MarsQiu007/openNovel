@@ -221,7 +221,17 @@ export default function NovelWorkspaceFrame() {
           {/* Header */}
           <header class="flex items-center justify-between px-6 py-4 border-b border-v2-border-border-base">
             <div class="flex items-center gap-4">
-              <ButtonV2 variant="ghost-muted" size="small" onClick={() => navigate("/")}>
+              <ButtonV2
+                variant="ghost-muted"
+                size="small"
+                onClick={() => {
+                  if (activeTab() === "relations" || activeTab() === "map") {
+                    navigate(`/${params.dir}/novel/${params.novelID}`)
+                  } else {
+                    navigate("/")
+                  }
+                }}
+              >
                 ← {language.t("novel.workspace.back")}
               </ButtonV2>
               <Show

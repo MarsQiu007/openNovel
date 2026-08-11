@@ -1131,7 +1131,7 @@ export const dict = {
   "novel.wizard.validation.genreRequired": "请选择题材",
 
   "novel.workspace.title": "创作空间",
-  "novel.workspace.back": "返回书架",
+  "novel.workspace.back": "返回",
   "novel.workspace.startWriting": "开始写作",
   "novel.workspace.continueWriting": "继续写作",
   "novel.workspace.writingInProgress": "写作中...",

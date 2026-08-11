@@ -1154,7 +1154,7 @@
   "novel.wizard.validation.genreRequired": "Please select a genre",
 
   "novel.workspace.title": "Workspace",
-  "novel.workspace.back": "Back to Bookshelf",
+  "novel.workspace.back": "Back",
   "novel.workspace.startWriting": "Start Writing",
   "novel.workspace.continueWriting": "Continue Writing",
   "novel.workspace.writingInProgress": "Writing...",
