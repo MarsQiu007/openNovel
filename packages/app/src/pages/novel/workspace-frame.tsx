@@ -22,6 +22,7 @@ import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
 import ApprovalBar from "./approval-bar"
 import ChapterEditor from "./chapter-editor"
+import ModeBadge from "./mode-badge"
 import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
 import WritingFlowButton, { findBoundNovelSession } from "./writing-flow"
@@ -286,6 +287,7 @@ export default function NovelWorkspaceFrame() {
                   {language.t("novel.workspace.pendingApproval")} ({pendingCount()})
                 </Tag>
               </Show>
+              <ModeBadge />
             </div>
           </header>
 

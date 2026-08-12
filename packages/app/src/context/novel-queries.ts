@@ -28,7 +28,7 @@ export function useNovelClient() {
 
 // ---- Query keys ----
 
-const novelKeys = {
+export const novelKeys = {
   all: ["novel"] as const,
   list: (directory: string) => ["novel", "list", directory] as const,
   detail: (directory: string, novelID: string) => ["novel", "detail", directory, novelID] as const,
@@ -54,6 +54,7 @@ const novelKeys = {
   "style-guide": (directory: string, novelID: string) => ["novel", "style-guide", directory, novelID] as const,
   search: (directory: string, novelID: string, q: string) => ["novel", "search", directory, novelID, q] as const,
   "for-session": (directory: string, sessionID: string) => ["novel", "for-session", directory, sessionID] as const,
+  mode: (directory: string) => ["novel", "mode", directory] as const,
 }
 
 // ---- createQuery hooks (13) ----
@@ -428,6 +429,43 @@ export function useSubmitApproval() {
       queryClient.invalidateQueries({
         queryKey: novelKeys["chapter-reviews"](dir, variables.novelID, variables.chapterID),
       })
+    },
+  }))
+}
+
+// ─── Project mode（项目级，无 novelID 维度）───
+
+/** 读取项目级写作模式与初始化模式。project-level，不依赖当前打开的 book。 */
+export function useMode() {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.mode(sdk().directory),
+    queryFn: () => client().novelModes.get({ location: { directory: sdk().directory } }),
+    enabled: !!sdk().directory,
+    staleTime: 30_000,
+  }))
+}
+
+/** 更新项目级模式（PATCH 语义：只传需要改的字段）。切换后 invalidate mode query。 */
+export function useSetMode() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      writing_mode?: "auto" | "review"
+      setup_mode?: "interactive" | "auto"
+    }) => {
+      const dir = sdk().directory
+      return client().novelModes.set({
+        location: { directory: dir },
+        writing_mode: input.writing_mode,
+        setup_mode: input.setup_mode,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.mode(sdk().directory) })
     },
   }))
 }
