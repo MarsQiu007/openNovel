@@ -8,7 +8,7 @@
  */
 import type { Plugin } from "./index.js"
 import { tool } from "./tool.js"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 import { eq, desc, and, asc, lt, sql } from "drizzle-orm"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
@@ -82,6 +82,9 @@ import {
   updateForeshadowing,
   updateWorldEntry,
   createForeshadowing,
+  readNovelConfig,
+  type WritingMode,
+  type SetupMode,
 } from "./novel-writer/session-store.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
@@ -89,6 +92,60 @@ export { tagNovelSession, getNovelForSession, isNovelSession }
 function projectDirFromCtx(directory?: string | null): string {
   const dbPath = getDbPath(directory)
   return join(dirname(dbPath), "..")
+}
+
+/**
+ * 模式注入逻辑（项目级，与小说是否绑定无关）
+ *
+ * 从 .novel/config.json 读取 writing_mode / setup_mode，渲染成中文行为规则。
+ * 注入位置在 system.transform 开头，先于小说上下文注入执行，
+ * 这样后续 dispatch 的 subagent（writer/reviser/auditor/observer 等）也都能看到。
+ *
+ * 错误策略：读取失败时降级为默认 auto/interactive，永不抛错。
+ */
+function injectModeContext(directory: string | null | undefined, system: string[]): void {
+  // projectDirFromCtx 会基于 directory 反推项目根；directory 为 null/undefined 时返回 process.cwd()
+  let projectDir: string
+  try {
+    projectDir = projectDirFromCtx(directory)
+  } catch {
+    return
+  }
+
+  let mode: { writing_mode: WritingMode; setup_mode: SetupMode }
+  try {
+    mode = readNovelConfig(projectDir)
+  } catch {
+    // 文件损坏等异常情况按默认配置走
+    mode = { writing_mode: "auto", setup_mode: "interactive" }
+  }
+
+  const writingDesc =
+    mode.writing_mode === "review"
+      ? "每章完成后将章节状态置为 pending_review 并暂停，等用户在阅读页审批后再继续"
+      : "写完整章后自动置 final 并推进，无需人工审批"
+
+  const setupDesc =
+    mode.setup_mode === "interactive"
+      ? "新书初始化必须先与用户讨论并呈现完整方案（书名/类型/梗概/主要角色/世界观要点），用户明确确认后才可落库"
+      : "新书初始化无需确认，直接落库"
+
+  const lines: string[] = ["【写作模式与初始化模式（项目级，持久化）】", ""]
+  lines.push(`writing_mode: ${mode.writing_mode}`)
+  lines.push(`  行为：${writingDesc}。`)
+  lines.push(`setup_mode: ${mode.setup_mode}`)
+  lines.push(`  行为：${setupDesc}。`)
+  lines.push("")
+  lines.push("单次覆盖规则（仅作用于本次执行，不修改配置）：")
+  lines.push("- 用户本次指令明确说\"写完给我看 / 写完看看 / 写完等我审\" → 本章按 review 处理（review 模式时此覆盖为冗余但允许）")
+  lines.push("- 用户本次指令明确说\"直接写 / 直接发 / 不用看\" → 本章按 auto 处理（auto 模式时此覆盖为冗余但允许）")
+  lines.push("- 其余情况按配置模式执行")
+  lines.push("")
+  lines.push("模式切换：通过 update_project_config(target=\"novel\", field=\"writing_mode\"|\"setup_mode\", value=\"...\") 切换；切换后下次写作起生效，本次正在执行的流水线不重读。")
+
+  // unshift 到 system[0] 位置，确保模式契约始终是 system prompt 的 header，
+  // 不会被后续注入的【小说写作上下文快照】等段落挤压到尾部、稀释优先级
+  system.unshift(lines.join("\n"))
 }
 
 /**
@@ -237,6 +294,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       output.system = output.system ?? []
       // 无会话ID时跳过（隐藏agent如compaction/title/summary等）
       if (!input.sessionID) return
+
+      // 模式注入：项目级，无论是否绑定小说都执行；注入到所有 subagent 都能感知
+      try {
+        injectModeContext(ctx.directory, output.system)
+      } catch (error) {
+        console.warn(
+          "[novel-writer] system.transform hook failed at mode injection:",
+          error instanceof Error ? error.message : error,
+        )
+      }
 
       try {
         await injectSystemContext(input.sessionID, ctx.directory, output.system)
@@ -998,7 +1065,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       update_chapter: tool({
         description:
-          "更新章节标题或状态。用于修改章节标题、推进章节状态（如 draft→audited→final）。正文内容请用 write_chapter/revise_chapter，不要用本工具写正文。",
+          "更新章节标题或状态。用于修改章节标题、推进章节状态。\n" +
+          "**审批门禁**：项目 writing_mode=review 时，禁止直接设 status=final（必须走阅读页审批流 — 调 submitApproval 工具）；auto 模式下允许。其他状态（draft/pending_review/rejected/audited/revised/published）按需可设。\n" +
+          "正文内容请用 write_chapter/revise_chapter，不要用本工具写正文。",
         args: {
           chapter_id: tool.schema.string().describe("章节 ID"),
           title: tool.schema.string().optional().describe("新的章节标题（不传则不改）"),
@@ -1019,6 +1088,22 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (Object.keys(fields).length === 0) {
             return { title: "update_chapter", output: "未提供任何要更新的字段" }
           }
+
+          // 审批门禁：review 模式下禁止直接设 final/published — 必须走审批流
+          if (args.status !== undefined) {
+            const mode = readNovelConfig(projectDirFromCtx(ctx.directory))
+            if (mode.writing_mode === "review" && (args.status === "final" || args.status === "published")) {
+              return {
+                title: "update_chapter（被门禁拦截）",
+                output:
+                  `当前项目写作模式为 review，禁止直接设 status=${args.status}。` +
+                  `必须先在阅读页提交审批（submitApproval 工具）或用户在阅读页批准/驳回。` +
+                  `如需立即结案，请先切换为 auto 模式（update_project_config 改 writing_mode=auto），或用 director 对话让用户改模式。`,
+                metadata: { blocked: true, reason: "review_mode_bypass" },
+              }
+            }
+          }
+
           const updated = await updateChapter(args.chapter_id, fields, ctx.directory)
           return {
             title: "update_chapter",
@@ -2695,7 +2780,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       check_project_config: tool({
         description:
-          "一键拉取项目配置文件的关键字段概览。读取 opennovel.json（model/small_model/default_agent/username/share/autoupdate/logLevel）和 .novel/config.json（name/created_at/version），供 director 路由'改模型配置/改项目名称/查看当前配置'类指令使用。仅查询不修改，文件不存在或字段不在白名单时跳过。",
+          "一键拉取项目配置文件的关键字段概览。读取 opennovel.json（model/small_model/default_agent/username/share/autoupdate/logLevel）和 .novel/config.json（name/created_at/version/writing_mode/setup_mode），供 director 路由'改模型配置/改项目名称/查看当前配置/切换写作模式'类指令使用。仅查询不修改，文件不存在或字段不在白名单时跳过。",
         args: {},
         async execute(_args, ctx) {
           return readProjectConfig(projectDirFromCtx(ctx.directory))
@@ -2703,7 +2788,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       update_project_config: tool({
         description:
-          "更新项目配置文件的白名单字段。target=opennovel 时改 opennovel.json，支持 model（provider/model 格式）、small_model、default_agent、username、share、autoupdate、logLevel；target=novel 时改 .novel/config.json，支持 name、version。改前自动备份原文件到 <file>.bak；拒绝改 provider/mcp/permission/plugin/agent.*.permission 等敏感字段（防止越权改认证信息或权限）。",
+          "更新项目配置文件的白名单字段。target=opennovel 时改 opennovel.json，支持 model（provider/model 格式）、small_model、default_agent、username、share、autoupdate、logLevel；target=novel 时改 .novel/config.json，支持 name、version、writing_mode（auto 自动 / review 审核）、setup_mode（interactive 确认 / auto 自动）。改前自动备份原文件到 <file>.bak；拒绝改 provider/mcp/permission/plugin/agent.*.permission 等敏感字段（防止越权改认证信息或权限）。",
         args: {
           target: tool.schema
             .enum(["opennovel", "novel"])
@@ -2809,6 +2894,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             read_chapter_content: "allow",
             commit_observer_delta: "allow",
             advance_chapter: "allow",
+            // 模式分支：review 模式置 pending_review、auto 模式置 final
+            update_chapter: "allow",
+            // 驳回后重写指定章节
+            revise_chapter: "allow",
           },
         },
         // writer: subagent，由 pipeline 调度，生成章节正文
@@ -3059,6 +3148,8 @@ const NOVEL_CONFIG_FIELDS: Array<{ key: string; label: string }> = [
   { key: "name", label: "项目名称" },
   { key: "created_at", label: "创建时间" },
   { key: "version", label: "版本" },
+  { key: "writing_mode", label: "写作模式" },
+  { key: "setup_mode", label: "初始化模式" },
 ]
 
 type FieldSpec = {
@@ -3119,6 +3210,15 @@ const NOVEL_CONFIG_FIELD_SPECS: Record<string, FieldSpec> = {
     parseJson: false,
     validate: (v) =>
       typeof v === "string" && /^\d+\.\d+\.\d+/.test(v) ? null : "必须是语义化版本字符串（如 1.0.0）",
+  },
+  writing_mode: {
+    parseJson: true,
+    validate: (v) => (v === "auto" || v === "review" ? null : "必须是 auto（自动）/ review（审核）之一"),
+  },
+  setup_mode: {
+    parseJson: true,
+    validate: (v) =>
+      v === "interactive" || v === "auto" ? null : "必须是 interactive（确认）/ auto（自动）之一",
   },
 }
 
@@ -3320,7 +3420,14 @@ export function writeProjectConfig(
   if (hadOriginal) {
     try {
       const backupPath = filePath + ".bak"
-      writeFileSync(backupPath, readFileSync(filePath))
+      // 备份走 fsync — 断电时不留半截 .bak
+      const backupFd = openSync(backupPath, "w")
+      try {
+        writeSync(backupFd, readFileSync(filePath))
+        fsyncSync(backupFd)
+      } finally {
+        closeSync(backupFd)
+      }
     } catch (err) {
       return {
         title: "update_project_config",
@@ -3330,7 +3437,14 @@ export function writeProjectConfig(
   }
 
   try {
-    writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n")
+    // 主文件走 fsync — 断电时不留半截 JSON，避免 user 配的 model / writing_mode 静默丢失
+    const fd = openSync(filePath, "w")
+    try {
+      writeSync(fd, JSON.stringify(data, null, 2) + "\n")
+      fsyncSync(fd)
+    } finally {
+      closeSync(fd)
+    }
   } catch (err) {
     return {
       title: "update_project_config",

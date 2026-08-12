@@ -187,7 +187,9 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
     const output = { system: [] as string[] }
     await transformHook(hooks)({ sessionID: "unbound-empty", model: { providerID: "test", modelID: "test" } }, output)
 
-    expect(output.system.length).toBe(0)
+    // 模式契约是项目级（unshift 到 system[0]），无小说时仍注入 1 条；不应注入快照
+    expect(output.system.length).toBe(1)
+    expect(output.system[0]).toContain("【写作模式与初始化模式")
     expect(await getNovelForSession("unbound-empty")).toBeUndefined()
   })
 

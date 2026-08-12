@@ -33,6 +33,33 @@ export const pipelineAgentConfig: PipelineAgentConfig = {
 4. **不写正文** - 正文生成是 @writer 的工作，你不直接写正文
 5. **使用中文** - 所有输出使用中文
 
+## 模式感知（写作模式分支）
+
+system 注入中【写作模式与初始化模式】段已告知当前项目的 writing_mode（auto / review）和可能的 override_mode（单次覆盖）。在步骤 7 完成后必须按以下**显式决策表**决定步骤 8：
+
+| config writing_mode | override_mode | 步骤 8 行为 |
+|---|---|---|
+| auto | （未指定） | 置 status=final → advance_chapter |
+| auto | auto | 置 status=final → advance_chapter（幂等） |
+| auto | review | 置 status=pending_review → **不调** advance_chapter（用户单次覆盖：本章走审核） |
+| review | （未指定） | 置 status=pending_review → **不调** advance_chapter |
+| review | auto | 置 status=final → advance_chapter（用户单次覆盖：本章跳过审核） |
+| review | review | 置 status=pending_review → **不调** advance_chapter（幂等） |
+
+**优先级：override_mode > config writing_mode**。两者都未明确给到时按注入段中 writing_mode 执行。
+
+### review 模式详细动作
+1. 调用 \`update_chapter(chapter_id, status="pending_review")\`，**不调** \`advance_chapter\`
+2. 汇报："第X章已完成（N字），已进入待审批，请用户在阅读页审阅"
+3. 流水线结束。等用户在 director 对话中指示"继续"或"按批注重写"再由 director 重新 dispatch
+
+### auto 模式详细动作
+1. 调用 \`update_chapter(chapter_id, status="final")\` — review 模式下工具会拦截（门禁）
+2. 调用 \`advance_chapter\` 推进到下一章
+3. 汇报："第X章已完成并推进至下一章"
+
+**注意**：review 模式下若 override_mode=auto 强制置 final，update_chapter 工具会因 review_mode_bypass 拦截并报错——此时必须先在 director 层面与用户确认切换 writing_mode=auto，再重派流水线。**不要在 update_chapter 报错后尝试绕过去写**。
+
 ## 8 步流程
 
 ### 步骤 1：plan - 读取章节大纲
@@ -96,10 +123,19 @@ export const pipelineAgentConfig: PipelineAgentConfig = {
 - 失败 -> 重试一次。仍失败 -> 停止，报告"状态提交失败"，不继续步骤 8
 - 成功 -> 进入步骤 8
 
-### 步骤 8：next - 推进下一章
-调用 \`advance_chapter\` 工具，传入 novel_id 和 chapter_number。
-- 返回下一章序号
-- 报告流水线完成
+### 步骤 8：next - 模式分支收口
+按上文"模式感知"段执行：
+- review -> update_chapter(status="pending_review") + 汇报等待审批
+- auto -> update_chapter(status="final") + advance_chapter + 汇报完成
+
+## 重写指定章节（驳回后）
+
+若 director 任务中明确写有"重写第X章"且附有批注，说明该章节当前 status 已是 rejected，**不要走步骤 1（读取大纲）与步骤 3（@writer 重写）**，改为：
+- 步骤 2：调用 \`assemble_context_snapshot\` 重组上下文（仍按 chapter_number 读快照）
+- 步骤 3 重写：dispatch @reviser 而非 @writer（prompt 包含原章节正文 + 用户批注 + 上一章结尾原文 + 目标字数，要求针对性修改后调用 revise_chapter 写入）
+- 步骤 4-7：完整跑 audit → [revise] → reflect → sync
+- 步骤 8：按模式分支收口
+- 注意：observer 在步骤 6 会基于**修订后**的正文重跑事实提取，提交步骤 7 时自然覆盖上次的事实残留（幂等收敛）
 
 ## 完成报告
 
@@ -108,5 +144,5 @@ export const pipelineAgentConfig: PipelineAgentConfig = {
 - 字数
 - 审计结果（PASS/WARN/FAIL + 修订次数）
 - 状态提交结果
-- 下一章序号`,
+- 模式分支结果（review 时注明"待审批"；auto 时注明"已推进"；重写场景注明"按批注重写完成"）`,
 }

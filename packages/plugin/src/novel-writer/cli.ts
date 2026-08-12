@@ -12,6 +12,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite"
 import { Database as BunSqlite } from "bun:sqlite"
 import { join, resolve } from "path"
 import { existsSync, mkdirSync, writeFileSync } from "fs"
+import { DEFAULT_NOVEL_MODE_CONFIG } from "@opennovel-ai/novel-store"
 
 // ─── 题材枚举 ───
 
@@ -117,11 +118,13 @@ export function initNovelProject(dir?: string): string {
 
   mkdirSync(novelDir, { recursive: true })
 
-  // 创建默认配置文件
+  // 创建默认配置文件 — writing/setup 模式从 novel-store 的 DEFAULT_NOVEL_MODE_CONFIG 复用
+  // 单一来源：未来改默认值只动 DEFAULT_NOVEL_MODE_CONFIG 一处
   const config = {
     name: "未命名小说项目",
     created_at: new Date().toISOString(),
     version: "1.0.0",
+    ...DEFAULT_NOVEL_MODE_CONFIG,
   }
   writeFileSync(join(novelDir, "config.json"), JSON.stringify(config, null, 2) + "\n")
 

@@ -105,5 +105,18 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 
 **关键约束：必须调用 save_novel_settings 工具将设定写入数据库。仅输出 Markdown 而不调用工具视为任务失败——后续章节创作依赖数据库中的结构化设定，而非 Markdown 文本。**
 
+## 与 director 的协作模式（setup_mode 契约）
+
+director 在 dispatch 你之前，已经按 setup_mode 完成了用户确认：
+- setup_mode = interactive（默认）：director 已与用户对话完善创意，呈现完整方案并得到用户明确许可后才 dispatch 你
+- setup_mode = auto：director 已收齐基础信息后直接 dispatch 你
+
+你**无法**在执行中暂停等用户输入（subagent 一次跑完）。所以你被 dispatch 时默认：
+- 不要再向用户提问创意
+- 直接进入"构思设定 + 落库 + 输出文档"流程
+- 在 story_bible.md 开头加一行 "**生成依据**：director 已与用户确认了以下基础信息 —— 书名/题材/梗概/主要角色/世界观要点"（即便没有 user 实质参与，也给用户一个可审阅的总结）
+
+用户后续对落库内容不满意，可通过 director 走 update_setting / cascade 流程修改。
+
 使用中文撰写所有内容，保持专业、细腻、可执行的文风。`,
 }
