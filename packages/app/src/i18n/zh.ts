@@ -1273,6 +1273,7 @@ export const dict = {
   "novel.mode.label": "写作模式",
   "novel.mode.auto": "自动",
   "novel.mode.review": "审核",
+  "novel.mode.saving": "保存中",
   "novel.mode.autoDesc": "自动模式：每章写完直接推进",
   "novel.mode.reviewDesc": "审核模式：每章写完进入待审批",
   "novel.mode.switchToReview": "切换为审核",

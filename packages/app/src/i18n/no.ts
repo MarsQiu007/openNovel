@@ -1146,6 +1146,7 @@ export const dict = {
   "novel.mode.label": "Writing Mode",
   "novel.mode.auto": "Auto",
   "novel.mode.review": "Review",
+  "novel.mode.saving": "Saving",
   "novel.mode.autoDesc": "Auto: chapters are committed and the next one is written immediately",
   "novel.mode.reviewDesc": "Review: each chapter is held for your approval before moving on",
   "novel.mode.switchToReview": "Switch to review",

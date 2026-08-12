@@ -1268,6 +1268,7 @@ export const dict = {
   "novel.mode.label": "寫作模式",
   "novel.mode.auto": "自動",
   "novel.mode.review": "審核",
+  "novel.mode.saving": "儲存中",
   "novel.mode.autoDesc": "自動模式：每章寫完直接推進",
   "novel.mode.reviewDesc": "審核模式：每章寫完進入待審批",
   "novel.mode.switchToReview": "切換為審核",

@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/solid-query"
 import { useLanguage } from "@/context/language"
 import { useMode, useSetMode, novelKeys } from "@/context/novel-queries"
 import { useSDK } from "@/context/sdk"
+import { Spinner } from "@opennovel-ai/ui/spinner"
 import { Tag, type TagProps } from "@opennovel-ai/ui/v2/badge-v2"
 import { showToast } from "@/utils/toast"
 
@@ -86,15 +87,26 @@ export default function ModeBadge() {
           class="inline-flex items-center gap-1 cursor-pointer rounded focus:outline-none focus:ring-1 focus:ring-v2-border-border-accent disabled:opacity-60 disabled:cursor-not-allowed"
           title={language.t(currentMode() === "auto" ? "novel.mode.autoDesc" : "novel.mode.reviewDesc")}
           aria-label={language.t("novel.mode.label")}
+          aria-busy={setMode.isPending}
           aria-pressed={currentMode() === "review"}
           onClick={() => toggle()}
           disabled={setMode.isPending}
           data-component="mode-badge"
         >
           <span class="text-[11px] text-v2-text-text-faint">{language.t("novel.mode.label")}:</span>
-          <Tag variant={WRITING_VARIANT[currentMode()]}>
-            {language.t(currentMode() === "auto" ? "novel.mode.auto" : "novel.mode.review")}
-          </Tag>
+          <Show
+            when={!setMode.isPending}
+            fallback={
+              <span class="inline-flex items-center gap-1 text-[11px] text-v2-text-text-faint" data-testid="mode-badge-pending">
+                <Spinner style={{ width: "10px", height: "10px" }} />
+                <span>{language.t("novel.mode.saving")}</span>
+              </span>
+            }
+          >
+            <Tag variant={WRITING_VARIANT[currentMode()]}>
+              {language.t(currentMode() === "auto" ? "novel.mode.auto" : "novel.mode.review")}
+            </Tag>
+          </Show>
         </button>
       </Show>
     </Suspense>
