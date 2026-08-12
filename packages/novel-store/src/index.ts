@@ -491,6 +491,10 @@ export async function resolveNovelForSession(
 
 export * from "./approval.js"
 
+// ─── Project mode helpers (re-export) ───
+
+export * from "./mode.js"
+
 export async function createChapter(
   novelId: string,
   title: string,

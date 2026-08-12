@@ -22,7 +22,8 @@
     "dist"
   ],
   "dependencies": {
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "@opennovel-ai/schema": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
