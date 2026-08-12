@@ -389,9 +389,15 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
 
             // Bookshelf entry: resolves the current project directory so novels can be
             // reopened directly from the titlebar without going through home first.
+            // Falls back to the first known project worktree so the shelf is always reachable.
             const novelDirectory = createMemo(() => {
               if (params.dir) return base64Decode(params.dir)
-              return layout.home.selection().directory ?? ""
+              return (
+                layout.home.selection().directory ??
+                layout.projects.list()[0]?.worktree ??
+                global.servers.list().flatMap((conn) => global.ensureServerCtx(conn).projects.list())[0]?.worktree ??
+                ""
+              )
             })
             const novelsQuery = useNovels(novelDirectory)
             const titlebarNovels = createMemo(() =>

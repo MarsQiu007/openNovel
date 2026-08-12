@@ -11,13 +11,13 @@ import { ScrollView } from "@opennovel-ai/ui/scroll-view"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
+import { useNavigate } from "@solidjs/router"
 import { ServerConnection, useServer } from "@/context/server"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { Persist, persisted } from "@/utils/persist"
 import { useNovelSessions } from "./novel-sessions"
 import { NovelSessionGroupList } from "./sessions-novel-sidebar"
-import { HOME_SECTION_LABEL } from "./sessions"
 
 export function SessionNovelPanel(props: {
   serverKey: Accessor<ServerConnection.Key>
@@ -27,6 +27,7 @@ export function SessionNovelPanel(props: {
   const language = useLanguage()
   const global = useGlobal()
   const server = useServer()
+  const navigate = useNavigate()
 
   const conn = createMemo(
     () => global.servers.list().find((c) => ServerConnection.key(c) === props.serverKey()) ?? server.current,
@@ -49,8 +50,19 @@ export function SessionNovelPanel(props: {
       <Show
         when={!collapsed()}
         fallback={
-          // 折叠态：窄栏只留一个展开按钮
-          <div class="flex w-9 shrink-0 flex-col items-center border-r border-v2-border-border-base bg-v2-background-bg-base pt-2">
+          // 折叠态：窄栏保留返回书架与展开按钮
+          <div class="flex w-9 shrink-0 flex-col items-center gap-1 border-r border-v2-border-border-base bg-v2-background-bg-base pt-2">
+            <TooltipV2 placement="right" value={language.t("novel.bookshelf.open")}>
+              <IconButtonV2
+                type="button"
+                data-action="novel-panel-back-home"
+                variant="ghost-muted"
+                size="small"
+                icon={<IconV2 name="chevron-down" class="-rotate-90" />}
+                aria-label={language.t("novel.bookshelf.open")}
+                onClick={() => navigate("/")}
+              />
+            </TooltipV2>
             <TooltipV2 placement="right" value={language.t("home.sessions.sidebar.books")}>
               <IconButtonV2
                 type="button"
@@ -71,7 +83,15 @@ export function SessionNovelPanel(props: {
           aria-label={language.t("home.sessions.sidebar.books")}
         >
           <div class="flex h-9 shrink-0 items-center justify-between pl-3 pr-1.5 border-b border-v2-border-border-base">
-            <span class={HOME_SECTION_LABEL}>{language.t("home.sessions.sidebar.books")}</span>
+            <button
+              type="button"
+              data-action="novel-panel-back-home"
+              class="flex items-center gap-1 text-[12px] text-v2-text-text-muted transition-colors hover:text-v2-text-text-base [font-weight:440]"
+              onClick={() => navigate("/")}
+            >
+              <IconV2 name="chevron-down" size="small" class="-rotate-90" />
+              {language.t("novel.bookshelf.open")}
+            </button>
             <TooltipV2 placement="right" value={language.t("home.sessions.sidebar.collapse")}>
               <IconButtonV2
                 type="button"
