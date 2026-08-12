@@ -46,6 +46,7 @@ const providerFamilies = [
   ["deepinfra", OpenAICompatible.deepinfra, "https://api.deepinfra.com/v1/openai"],
   ["deepseek", OpenAICompatible.deepseek, "https://api.deepseek.com"],
   ["fireworks", OpenAICompatible.fireworks, "https://api.fireworks.ai/inference/v1"],
+  ["ollama", OpenAICompatible.ollama, "http://localhost:11434/v1"],
   ["togetherai", OpenAICompatible.togetherai, "https://api.together.xyz/v1"],
 ] as const
 

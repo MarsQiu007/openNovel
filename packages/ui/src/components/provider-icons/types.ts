@@ -36,6 +36,7 @@ export const iconNames = [
   "opennovel",
   "opennovel-go",
   "openai",
+  "ollama",
   "ollama-cloud",
   "nvidia",
   "novita-ai",
