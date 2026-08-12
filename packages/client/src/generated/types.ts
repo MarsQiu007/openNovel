@@ -126,6 +126,10 @@ export type ChapterNotFoundError = {
 export const isChapterNotFoundError = (value: unknown): value is ChapterNotFoundError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "ChapterNotFoundError"
 
+export type NovelModeError = { readonly name: "NovelModeError"; readonly data: { readonly message: string } }
+export const isNovelModeError = (value: unknown): value is NovelModeError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelModeError"
+
 export type HealthGetOutput = { readonly healthy: true }
 
 export type LocationGetInput = {
@@ -4029,3 +4033,33 @@ export type ServerNovelDeleteWorldEntryInput = {
 }
 
 export type ServerNovelDeleteWorldEntryOutput = { readonly deleted: boolean }
+
+export type NovelModesGetInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type NovelModesGetOutput = {
+  readonly writing_mode: "auto" | "review"
+  readonly setup_mode: "interactive" | "auto"
+}
+
+export type NovelModesSetInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly writing_mode?: {
+    readonly writing_mode?: ("auto" | "review") | undefined
+    readonly setup_mode?: ("interactive" | "auto") | undefined
+  }["writing_mode"]
+  readonly setup_mode?: {
+    readonly writing_mode?: ("auto" | "review") | undefined
+    readonly setup_mode?: ("interactive" | "auto") | undefined
+  }["setup_mode"]
+}
+
+export type NovelModesSetOutput = {
+  readonly writing_mode: "auto" | "review"
+  readonly setup_mode: "interactive" | "auto"
+}

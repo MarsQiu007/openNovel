@@ -230,6 +230,10 @@ import type {
   ServerNovelUpdateWorldEntryOutput,
   ServerNovelDeleteWorldEntryInput,
   ServerNovelDeleteWorldEntryOutput,
+  NovelModesGetInput,
+  NovelModesGetOutput,
+  NovelModesSetInput,
+  NovelModesSetOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -1857,6 +1861,33 @@ export function make(options: ClientOptions) {
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    novelModes: {
+      get: (input?: NovelModesGetInput, requestOptions?: RequestOptions) =>
+        request<NovelModesGetOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/mode`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      set: (input?: NovelModesSetInput, requestOptions?: RequestOptions) =>
+        request<NovelModesSetOutput>(
+          {
+            method: "PUT",
+            path: `/api/novel/mode`,
+            query: { location: input?.["location"] },
+            body: { writing_mode: input?.["writing_mode"], setup_mode: input?.["setup_mode"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
             empty: false,
           },
           requestOptions,

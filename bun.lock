@@ -560,6 +560,7 @@
       "name": "@opennovel-ai/novel-store",
       "version": "0.0.0-dev-202608100756",
       "dependencies": {
+        "@opennovel-ai/schema": "workspace:*",
         "drizzle-orm": "catalog:",
       },
       "devDependencies": {

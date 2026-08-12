@@ -1501,6 +1501,25 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "delete-world-entry": Endpoint18_58(raw),
 })
 
+type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]
+type Endpoint19_0Input = { readonly location?: Endpoint19_0Request["query"]["location"] }
+const Endpoint19_0 = (raw: RawClient["server.novelMode"]) => (input?: Endpoint19_0Input) =>
+  raw["novelMode.get"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint19_1Request = Parameters<RawClient["server.novelMode"]["novelMode.set"]>[0]
+type Endpoint19_1Input = {
+  readonly location?: Endpoint19_1Request["query"]["location"]
+  readonly writing_mode?: Endpoint19_1Request["payload"]["writing_mode"]
+  readonly setup_mode?: Endpoint19_1Request["payload"]["setup_mode"]
+}
+const Endpoint19_1 = (raw: RawClient["server.novelMode"]) => (input?: Endpoint19_1Input) =>
+  raw["novelMode.set"]({
+    query: { location: input?.["location"] },
+    payload: { writing_mode: input?.["writing_mode"], setup_mode: input?.["setup_mode"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+const adaptGroup19 = (raw: RawClient["server.novelMode"]) => ({ get: Endpoint19_0(raw), set: Endpoint19_1(raw) })
+
 const adaptClient = (raw: RawClient) => ({
   health: adaptGroup0(raw["server.health"]),
   location: adaptGroup1(raw["server.location"]),
@@ -1521,6 +1540,7 @@ const adaptClient = (raw: RawClient) => ({
   references: adaptGroup16(raw["server.reference"]),
   projectCopies: adaptGroup17(raw["server.projectCopy"]),
   "server.novel": adaptGroup18(raw["server.novel"]),
+  novelModes: adaptGroup19(raw["server.novelMode"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>
