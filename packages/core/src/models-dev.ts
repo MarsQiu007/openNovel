@@ -136,8 +136,9 @@ declare const OPENNOVEL_MODELS_DEV: Record<string, Provider> | undefined
  * openNovel 注入此 entry 让 desktop UI 模型提供商下拉里始终出现 "Ollama (Local)"，
  * 用户点击后手填模型名（如 llama3.1:8b）即可。
  *
- * 留空 models dict：本地模型列表是用户 `ollama pull` 拉取的，openNovel 不可能预先知道。
- * Provider schema 允许空 models dict（key 留待用户连上后 server 端按需补）。
+ * 含 1 个 placeholder model "custom"：server Provider.defaultModelIDs 会对每个 provider
+ * 取 Object.values(models)[0].id，空 models dict 会抛 TypeError 导致 /provider 500。
+ * placeholder 也让用户在 UI 看到明确的"需自填模型名"提示。
  */
 export const LOCAL_OLLAMA_PROVIDER: Provider = {
   id: "ollama",
@@ -145,7 +146,18 @@ export const LOCAL_OLLAMA_PROVIDER: Provider = {
   env: ["OLLAMA_HOST"],
   npm: "@ai-sdk/openai-compatible",
   api: "http://localhost:11434/v1",
-  models: {},
+  models: {
+    custom: {
+      id: "custom",
+      name: "自定义本地模型（填写 ollama pull 拉取的模型名）",
+      release_date: "2025-01-01",
+      attachment: false,
+      reasoning: false,
+      temperature: true,
+      tool_call: true,
+      limit: { context: 8192, output: 4096 },
+    },
+  },
 }
 
 export interface Interface {
