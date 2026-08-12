@@ -129,6 +129,25 @@ export const Event = ModelsDev.Event
 
 declare const OPENNOVEL_MODELS_DEV: Record<string, Provider> | undefined
 
+/**
+ * Ollama 本地 provider —— 不依赖 models.dev 联网拉取
+ *
+ * models.dev 官方只有 ollama-cloud（云服务），没有 ollama 本地 entry。
+ * openNovel 注入此 entry 让 desktop UI 模型提供商下拉里始终出现 "Ollama (Local)"，
+ * 用户点击后手填模型名（如 llama3.1:8b）即可。
+ *
+ * 留空 models dict：本地模型列表是用户 `ollama pull` 拉取的，openNovel 不可能预先知道。
+ * Provider schema 允许空 models dict（key 留待用户连上后 server 端按需补）。
+ */
+export const LOCAL_OLLAMA_PROVIDER: Provider = {
+  id: "ollama",
+  name: "Ollama (Local)",
+  env: ["OLLAMA_HOST"],
+  npm: "@ai-sdk/openai-compatible",
+  api: "http://localhost:11434/v1",
+  models: {},
+}
+
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
   readonly refresh: (force?: boolean) => Effect.Effect<void>

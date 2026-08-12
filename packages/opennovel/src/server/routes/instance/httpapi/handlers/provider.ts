@@ -1,6 +1,6 @@
 import { ProviderAuth } from "@/provider/auth"
 import { Config } from "@/config/config"
-import { ModelsDev } from "@opennovel-ai/core/models-dev"
+import { ModelsDev, LOCAL_OLLAMA_PROVIDER } from "@opennovel-ai/core/models-dev"
 import { Provider } from "@/provider/provider"
 
 import { mapValues } from "remeda"
@@ -46,6 +46,9 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       for (const [key, value] of Object.entries(all)) {
         if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) filtered[key] = value
       }
+      // 注入本地 Ollama provider —— models.dev 官方只有 ollama-cloud，本地 ollama 不在拉取列表里。
+      // 在 enabled/disabled 过滤之后注入，所以用户也可用 enabled_providers/disabled_providers 控制它。
+      filtered.ollama = LOCAL_OLLAMA_PROVIDER
       const connected = yield* provider.list()
       const providers = Object.assign(
         mapValues(filtered, (item) => Provider.fromModelsDevProvider(item)),
