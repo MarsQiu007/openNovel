@@ -173,6 +173,71 @@ export function writeNovelConfig(
   return next
 }
 
+// ─── 审计日志（append-only JSONL） ───
+
+/** 审计日志文件相对项目根的路径 — JSONL 格式便于 grep/awk/jq 解析 */
+const NOVEL_MODE_AUDIT_FILE = join(".novel", "audit", "mode.jsonl")
+
+/** 解析项目级 audit log 绝对路径 */
+export function getNovelModeAuditPath(projectDir: string): string {
+  return join(projectDir, NOVEL_MODE_AUDIT_FILE)
+}
+
+/** 模式变更审计记录 */
+export interface ModeAuditEntry {
+  /** 毫秒级 Unix 时间戳 */
+  ts: number
+  /** 变更前完整配置 */
+  before: NovelModeConfig
+  /** 变更后完整配置 */
+  after: NovelModeConfig
+  /** 本次 patch（只含被改的字段） */
+  patch: Partial<NovelModeConfig>
+}
+
+/**
+ * 追加一条模式变更审计到 `.novel/audit/mode.jsonl`。
+ * 设计目标：可排错"什么时候被改成 review 模式了"——mode 变更可能由 plugin / CLI / UI 多源触发，
+ * 落盘审计让用户能 grep 历史变更而不必翻 git。
+ *
+ * IO 策略：openSync(O_APPEND) + writeSync + fsyncSync + closeSync。
+ * 失败只 warn 不抛错——审计是 best-effort，不应阻塞主写入。
+ */
+export function appendModeAudit(
+  projectDir: string,
+  entry: Omit<ModeAuditEntry, "ts">,
+): void {
+  const path = getNovelModeAuditPath(projectDir)
+  try {
+    mkdirSync(dirname(path), { recursive: true })
+  } catch (err) {
+    warnIO("appendModeAudit.mkdir", dirname(path), err)
+    return
+  }
+
+  const line = JSON.stringify({ ...entry, ts: Date.now() }) + "\n"
+  let fd: number | null = null
+  try {
+    // O_APPEND: 原子追加，允许多进程并发（虽不期望，但不会损坏文件）
+    fd = openSync(path, "a")
+    // 用 Buffer 而非 string：某些 fs 实现对 string writeSync 的 position/encoding 参数
+    // 处理不一致（部分写入会丢失尾字节），Buffer.length 显式传 length 最稳
+    const buf = Buffer.from(line, "utf-8")
+    writeSync(fd, buf, 0, buf.length)
+    fsyncSync(fd)
+  } catch (err) {
+    warnIO("appendModeAudit.write", path, err)
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd)
+      } catch {
+        // 关闭错忽略
+      }
+    }
+  }
+}
+
 // ─── 工具 ───
 
 function warnIO(op: string, path: string, err: unknown): void {

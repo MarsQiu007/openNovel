@@ -133,3 +133,61 @@ describe("getMode + setMode 闭环", () => {
     expect(result).toEqual({ writing_mode: "review", setup_mode: "auto" })
   })
 })
+
+describe("setMode audit log", () => {
+  test("首次写入时记录 before=默认值 → after=patch", async () => {
+    // 删掉预创建的 config（如果有）让 before 等于默认值
+    const configPath = join(tempDir, ".novel", "config.json")
+    if (existsSync(configPath)) rmSync(configPath)
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review" }))
+
+    const auditPath = join(tempDir, ".novel", "audit", "mode.jsonl")
+    expect(existsSync(auditPath)).toBe(true)
+    const lines = readFileSync(auditPath, "utf-8").trim().split("\n")
+    expect(lines.length).toBe(1)
+
+    const entry = JSON.parse(lines[0])
+    expect(entry).toMatchObject({
+      before: { writing_mode: "auto", setup_mode: "interactive" },
+      after: { writing_mode: "review", setup_mode: "interactive" },
+      patch: { writing_mode: "review" },
+    })
+    expect(typeof entry.ts).toBe("number")
+    expect(entry.ts).toBeGreaterThan(0)
+  })
+
+  test("patch 与现状相同时不写 audit（避免噪声）", async () => {
+    // 先写入一次
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review" }))
+    const auditPath = join(tempDir, ".novel", "audit", "mode.jsonl")
+    const beforeLines = readFileSync(auditPath, "utf-8").trim().split("\n").length
+
+    // 再次写入相同值 → 不应产生新 audit
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review" }))
+    const afterLines = readFileSync(auditPath, "utf-8").trim().split("\n").length
+    expect(afterLines).toBe(beforeLines)
+  })
+
+  test("patch 只包含实际变更的字段", async () => {
+    // 起始：writing=auto, setup=interactive
+    // 用户只改 setup_mode=auto → audit.patch 应只有 setup_mode
+    await Effect.runPromise(setMode(tempDir, { setup_mode: "auto" }))
+
+    const auditPath = join(tempDir, ".novel", "audit", "mode.jsonl")
+    const entry = JSON.parse(readFileSync(auditPath, "utf-8").trim())
+    expect(entry.patch).toEqual({ setup_mode: "auto" })
+    expect(entry.patch.writing_mode).toBeUndefined()
+  })
+
+  test("多次变更累加为多行 JSONL", async () => {
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review" }))
+    await Effect.runPromise(setMode(tempDir, { setup_mode: "auto" }))
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "auto" }))
+
+    const auditPath = join(tempDir, ".novel", "audit", "mode.jsonl")
+    const lines = readFileSync(auditPath, "utf-8").trim().split("\n")
+    expect(lines.length).toBe(3)
+    // 每行都是合法 JSON
+    lines.forEach((l) => expect(() => JSON.parse(l)).not.toThrow())
+  })
+})

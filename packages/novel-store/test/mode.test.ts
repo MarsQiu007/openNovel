@@ -9,6 +9,8 @@ import {
   readNovelConfig,
   writeNovelConfig,
   getNovelConfigPath,
+  appendModeAudit,
+  getNovelModeAuditPath,
   DEFAULT_NOVEL_MODE_CONFIG,
   type WritingMode,
   type SetupMode,
@@ -172,5 +174,67 @@ describe("鲁棒性 — 边界文件形态", () => {
     writeNovelConfig(spDir, { setup_mode: "auto" })
     expect(readNovelConfig(spDir).setup_mode).toBe("auto")
     rmSync(spDir, { recursive: true, force: true })
+  })
+})
+
+describe("appendModeAudit", () => {
+  test("首次追加自动创建 .novel/audit/ 目录与 JSONL 文件", () => {
+    appendModeAudit(projectDir, {
+      before: DEFAULT_NOVEL_MODE_CONFIG,
+      after: { writing_mode: "review", setup_mode: "interactive" },
+      patch: { writing_mode: "review" },
+    })
+
+    const path = getNovelModeAuditPath(projectDir)
+    expect(existsSync(path)).toBe(true)
+    const content = readFileSync(path, "utf-8")
+    expect(content.endsWith("\n")).toBe(true)
+  })
+
+  test("每次追加为新行且 JSON 合法", () => {
+    const path = getNovelModeAuditPath(projectDir)
+    appendModeAudit(projectDir, {
+      before: DEFAULT_NOVEL_MODE_CONFIG,
+      after: { writing_mode: "review", setup_mode: "interactive" },
+      patch: { writing_mode: "review" },
+    })
+    appendModeAudit(projectDir, {
+      before: { writing_mode: "review", setup_mode: "interactive" },
+      after: { writing_mode: "review", setup_mode: "auto" },
+      patch: { setup_mode: "auto" },
+    })
+
+    const lines = readFileSync(path, "utf-8").trim().split("\n")
+    expect(lines.length).toBe(2)
+    const e1 = JSON.parse(lines[0])
+    expect(e1).toMatchObject({
+      before: { writing_mode: "auto", setup_mode: "interactive" },
+      after: { writing_mode: "review", setup_mode: "interactive" },
+      patch: { writing_mode: "review" },
+    })
+    expect(typeof e1.ts).toBe("number")
+  })
+
+  test("目录不存在时 mkdirSync recursive 创建成功", () => {
+    const dir = join(tmpdir(), `audit-cold-${Date.now()}`)
+    appendModeAudit(dir, {
+      before: DEFAULT_NOVEL_MODE_CONFIG,
+      after: { writing_mode: "auto", setup_mode: "auto" },
+      patch: { setup_mode: "auto" },
+    })
+    expect(existsSync(getNovelModeAuditPath(dir))).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test("IO 失败（路径被文件占用）只 warn 不抛错", () => {
+    const blocker = join(projectDir, ".novel", "audit")
+    writeFileSync(blocker, "blocking file")
+    expect(() =>
+      appendModeAudit(projectDir, {
+        before: DEFAULT_NOVEL_MODE_CONFIG,
+        after: { writing_mode: "review", setup_mode: "auto" },
+        patch: { writing_mode: "review" },
+      }),
+    ).not.toThrow()
   })
 })
