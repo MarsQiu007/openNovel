@@ -852,6 +852,9 @@ function ProviderConnection(props: {
       return id === "ollama" || id === "lmstudio"
     }
 
+    // baseURL 输入防抖 timer：用户改 baseURL 后 600ms 自动重新 fetch
+    let refreshDebounce: ReturnType<typeof setTimeout> | undefined
+
     // 从 serverSync 拿该 provider 的已持久化配置（如果之前连过），做表单预填
     onMount(() => {
       if (newLayout()) apiKey?.focus({ preventScroll: true })
@@ -1090,7 +1093,19 @@ function ProviderConnection(props: {
                   invalid={formStore.baseURLError !== undefined}
                   autocomplete="off"
                   spellcheck={false}
-                  onInput={(event) => setFormStore("baseURL", event.currentTarget.value)}
+                  onInput={(event) => {
+                    const next = event.currentTarget.value
+                    const prev = formStore.baseURL
+                    setFormStore("baseURL", next)
+                    // baseURL 从空/无效 → 有效时自动 debounce 重新拉取。
+                    // 避免 '用户改了 baseURL 还必须再点刷新' 的别扭流程。
+                    if (next && next !== prev) {
+                      clearTimeout(refreshDebounce)
+                      refreshDebounce = setTimeout(() => {
+                        void refreshLocalModels(false)
+                      }, 600)
+                    }
+                  }}
                 />
                 <span class="font-[440] text-[12px] leading-4 text-v2-text-text-weaker">
                   {language.t("provider.connect.field.baseURL.description")}
