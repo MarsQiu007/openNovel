@@ -137,6 +137,9 @@ export const dict = {
   "provider.connect.apiKey.label": "คีย์ API ของ {{provider}}",
   "provider.connect.apiKey.placeholder": "คีย์ API",
   "provider.connect.apiKey.required": "ต้องใช้คีย์ API",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}} เป็นบริการภายในเครื่อง — ไม่ต้องใช้คีย์ API เว้นว่างไว้เพื่อเชื่อมต่อ",
+  "provider.connect.apiKey.optionalPlaceholder": "เว้นว่าง (ไม่ต้องใช้คีย์)",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zen ให้คุณเข้าถึงชุดโมเดลที่เชื่อถือได้และปรับแต่งแล้วสำหรับเอเจนต์การเขียนโค้ด",
   "provider.connect.opennovelZen.line2":

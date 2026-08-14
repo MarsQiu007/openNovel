@@ -125,6 +125,8 @@ export const dict = {
   "provider.connect.apiKey.label": "مفتاح واجهة برمجة تطبيقات {{provider}}",
   "provider.connect.apiKey.placeholder": "مفتاح API",
   "provider.connect.apiKey.required": "مفتاح API مطلوب",
+  "provider.connect.apiKey.optionalDescription": "{{provider}} خدمة محلية - لا حاجة لمفتاح API. اتركه فارغًا للاتصال.",
+  "provider.connect.apiKey.optionalPlaceholder": "اتركه فارغًا (لا حاجة لمفتاح)",
   "provider.connect.opennovelZen.line1":
     "يمنحك OpenNovel Zen الوصول إلى مجموعة مختارة من النماذج الموثوقة والمحسنة لوكلاء البرمجة.",
   "provider.connect.opennovelZen.line2":

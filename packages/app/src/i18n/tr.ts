@@ -141,6 +141,9 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API anahtarı",
   "provider.connect.apiKey.placeholder": "API anahtarı",
   "provider.connect.apiKey.required": "API anahtarı gerekli",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}} yerel bir hizmettir — API anahtarı gerekmez. Bağlanmak için boş bırakın.",
+  "provider.connect.apiKey.optionalPlaceholder": "Boş bırakın (anahtar gerekmez)",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zen, kodlama ajanları için seçilmiş güvenilir optimize edilmiş modellere erişim sağlar.",
   "provider.connect.opennovelZen.line2":

@@ -137,6 +137,9 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API ключ",
   "provider.connect.apiKey.placeholder": "API ключ",
   "provider.connect.apiKey.required": "API ключ обязателен",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}} — это локальный сервис, API-ключ не требуется. Оставьте поле пустым, чтобы подключиться.",
+  "provider.connect.apiKey.optionalPlaceholder": "Оставьте пустым (ключ не требуется)",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zen даёт вам доступ к отобранным надёжным оптимизированным моделям для агентов программирования.",
   "provider.connect.opennovelZen.line2":

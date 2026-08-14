@@ -163,6 +163,8 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API 密钥",
   "provider.connect.apiKey.placeholder": "API 密钥",
   "provider.connect.apiKey.required": "API 密钥为必填项",
+  "provider.connect.apiKey.optionalDescription": "{{provider}} 是本地服务，无需 API key。直接留空即可连接。",
+  "provider.connect.apiKey.optionalPlaceholder": "留空（无需 key）",
   "provider.connect.opennovelZen.line1": "OpenNovel Zen 为你提供一组精选的可靠优化模型，用于代码智能体。",
   "provider.connect.opennovelZen.line2": "只需一个 API 密钥，你就能使用 Claude、GPT、Gemini、GLM 等模型。",
   "provider.connect.opennovelZen.visit.prefix": "访问 ",

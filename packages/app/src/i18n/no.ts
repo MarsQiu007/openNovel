@@ -136,6 +136,9 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API-nøkkel",
   "provider.connect.apiKey.placeholder": "API-nøkkel",
   "provider.connect.apiKey.required": "API-nøkkel er påkrevd",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}} er en lokal tjeneste — ingen API-nøkkel nødvendig. La feltet stå tomt for å koble til.",
+  "provider.connect.apiKey.optionalPlaceholder": "La feltet stå tomt (ingen nøkkel nødvendig)",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zen gir deg tilgang til et utvalg av pålitelige optimaliserte modeller for kodeagenter.",
   "provider.connect.opennovelZen.line2":

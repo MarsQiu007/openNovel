@@ -121,6 +121,9 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API 키",
   "provider.connect.apiKey.placeholder": "API 키",
   "provider.connect.apiKey.required": "API 키가 필요합니다",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}}는 로컬 서비스입니다 — API 키가 필요하지 않습니다. 비워 두고 연결하세요.",
+  "provider.connect.apiKey.optionalPlaceholder": "비워 두기 (키 불필요)",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zen은 코딩 에이전트를 위해 최적화된 신뢰할 수 있는 엄선된 모델에 대한 액세스를 제공합니다.",
   "provider.connect.opennovelZen.line2":

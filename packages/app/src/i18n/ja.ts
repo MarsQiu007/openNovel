@@ -125,6 +125,9 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} APIキー",
   "provider.connect.apiKey.placeholder": "APIキー",
   "provider.connect.apiKey.required": "APIキーが必要です",
+  "provider.connect.apiKey.optionalDescription":
+    "{{provider}} はローカルサービスです。API キーは不要です。空のまま接続できます。",
+  "provider.connect.apiKey.optionalPlaceholder": "空のまま（キー不要）",
   "provider.connect.opennovelZen.line1":
     "OpenNovel Zenは、コーディングエージェント向けに最適化された信頼性の高いモデルへのアクセスを提供します。",
   "provider.connect.opennovelZen.line2": "1つのAPIキーで、Claude、GPT、Gemini、GLMなどのモデルにアクセスできます。",

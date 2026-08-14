@@ -832,6 +832,12 @@ function ProviderConnection(props: {
       value: "",
       error: undefined as string | undefined,
     })
+    // 本地服务（Ollama、LM Studio 等用户自托管的 openai-compatible）通常不需要 API key，
+    // apiKey 留空也允许提交；描述与 placeholder 切换为「无需 key」文案避免误导。
+    const isOptionalApiKey = () => {
+      const id = provider().id
+      return id === "ollama" || id === "lmstudio"
+    }
 
     onMount(() => {
       if (!newLayout()) return
@@ -845,7 +851,7 @@ function ProviderConnection(props: {
       const formData = new FormData(form)
       const apiKey = formData.get("apiKey") as string
 
-      if (!apiKey?.trim()) {
+      if (!isOptionalApiKey() && !apiKey?.trim()) {
         setFormStore("error", language.t("provider.connect.apiKey.required"))
         return
       }
@@ -855,7 +861,9 @@ function ProviderConnection(props: {
         providerID: props.provider,
         auth: {
           type: "api",
-          key: apiKey,
+          // 本地服务（Ollama / LM Studio 等）无需 key：传空串满足 SDK required，
+          // 运行时 Auth.bearer 退化为空 bearer，对未鉴权的本地服务无副作用。
+          key: apiKey?.trim() ?? "",
           ...(store.promptInputs ? { metadata: store.promptInputs } : {}),
         },
       })
@@ -867,7 +875,11 @@ function ProviderConnection(props: {
         <div class="flex flex-col gap-5 px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
           <Show
             when={provider().id === "opennovel"}
-            fallback={language.t("provider.connect.apiKey.description", { provider: provider().name })}
+            fallback={
+              isOptionalApiKey()
+                ? language.t("provider.connect.apiKey.optionalDescription", { provider: provider().name })
+                : language.t("provider.connect.apiKey.description", { provider: provider().name })
+            }
           >
             <div class="flex flex-col gap-5">
               <div>{language.t("provider.connect.opennovelZen.line1")}</div>
@@ -891,7 +903,11 @@ function ProviderConnection(props: {
                 ref={apiKey}
                 class="!w-full"
                 name="apiKey"
-                placeholder={language.t("provider.connect.apiKey.placeholder")}
+                placeholder={
+                  isOptionalApiKey()
+                    ? language.t("provider.connect.apiKey.optionalPlaceholder")
+                    : language.t("provider.connect.apiKey.placeholder")
+                }
                 value={formStore.value}
                 invalid={formStore.error !== undefined}
                 aria-describedby={formStore.error ? errorID : undefined}
@@ -932,7 +948,9 @@ function ProviderConnection(props: {
           </Match>
           <Match when={true}>
             <div class="text-14-regular text-text-base">
-              {language.t("provider.connect.apiKey.description", { provider: provider().name })}
+              {isOptionalApiKey()
+                ? language.t("provider.connect.apiKey.optionalDescription", { provider: provider().name })
+                : language.t("provider.connect.apiKey.description", { provider: provider().name })}
             </div>
           </Match>
         </Switch>
@@ -942,7 +960,11 @@ function ProviderConnection(props: {
             ref={apiKey}
             type="text"
             label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
-            placeholder={language.t("provider.connect.apiKey.placeholder")}
+            placeholder={
+              isOptionalApiKey()
+                ? language.t("provider.connect.apiKey.optionalPlaceholder")
+                : language.t("provider.connect.apiKey.placeholder")
+            }
             name="apiKey"
             value={formStore.value}
             onChange={(v) => setFormStore("value", v)}
