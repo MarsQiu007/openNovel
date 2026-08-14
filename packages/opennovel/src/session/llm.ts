@@ -107,6 +107,7 @@ const live: Layer.Layer<
         ...input,
         provider: item,
         auth: info,
+        outputLanguage: cfg.general?.outputLanguage,
         plugin,
         flags,
         isWorkflow,

@@ -1,6 +1,6 @@
 export * as ConfigV1 from "./config"
 
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import { NonNegativeInt, PositiveInt, type DeepMutable } from "../../schema"
 import { ConfigExperimental } from "../../config/experimental"
 import { ConfigReference } from "../../config/reference"
@@ -27,6 +27,31 @@ export const WellKnown = Schema.Struct({
 const LogLevelRef = Schema.Literals(["DEBUG", "INFO", "WARN", "ERROR"]).annotate({
   identifier: "LogLevel",
   description: "Log level",
+})
+
+const OutputLanguageRef = Schema.Literals([
+  "off",
+  "en",
+  "zh",
+  "zht",
+  "ko",
+  "de",
+  "es",
+  "fr",
+  "da",
+  "ja",
+  "pl",
+  "ru",
+  "uk",
+  "ar",
+  "no",
+  "br",
+  "th",
+  "bs",
+  "tr",
+]).annotate({
+  identifier: "OutputLanguage",
+  description: "Output language for model responses. 'off' adds no language override; otherwise the model is asked to reply in that language.",
 })
 
 export const Info = Schema.Struct({
@@ -86,6 +111,19 @@ export const Info = Schema.Struct({
   }),
   username: Schema.optional(Schema.String).annotate({
     description: "Custom username to display in conversations instead of system username",
+  }),
+  general: Schema.optional(
+    Schema.Struct({
+      outputLanguage: OutputLanguageRef.pipe(
+        Schema.optional,
+        Schema.withDecodingDefault(Effect.succeed("en" as const)),
+      ).annotate({
+        description:
+          "Force the model to reply in a specific language for all sessions. 'off' adds no language override; otherwise the model is asked to reply in that language.",
+      }),
+    }),
+  ).annotate({
+    description: "General model-output preferences applied to every session",
   }),
   mode: Schema.optional(
     Schema.StructWithRest(

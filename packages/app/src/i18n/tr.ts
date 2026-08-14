@@ -813,6 +813,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Dil",
   "settings.general.row.language.description": "OpenNovel'un görünüm dilini değiştirin",
+  "settings.general.row.outputLanguage.title": "Çıktı dili",
+  "settings.general.row.outputLanguage.description":
+    "Modelin tüm oturumlarda belirli bir dilde yanıt vermesini zorunlu kıl.",
+  "settings.general.option.off": "Kapalı (geçersiz kılma yok)",
   "settings.general.row.shell.title": "Terminal Kabuğu",
   "settings.general.row.shell.description":
     "Terminalinizde kullanılacak kabuğu seçin. Uyumlu kabuklar, ajan araç çağrılarında da kullanılır.",

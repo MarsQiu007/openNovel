@@ -909,6 +909,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Language",
   "settings.general.row.language.description": "Change the display language for OpenNovel",
+  "settings.general.row.outputLanguage.title": "Output language",
+  "settings.general.row.outputLanguage.description":
+    "Force the model to reply in a specific language for all sessions.",
+  "settings.general.option.off": "Off (no override)",
   "settings.general.row.shell.title": "Terminal shell",
   "settings.general.row.shell.description": "Shell used by the terminal and agent tools",
   "settings.general.row.shell.autoDefault": "Auto (Default)",

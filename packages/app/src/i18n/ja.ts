@@ -740,6 +740,10 @@ export const dict = {
   "settings.general.section.display": "ディスプレイ",
   "settings.general.row.language.title": "言語",
   "settings.general.row.language.description": "OpenNovelの表示言語を変更します",
+  "settings.general.row.outputLanguage.title": "出力言語",
+  "settings.general.row.outputLanguage.description":
+    "すべてのセッションでモデルが特定の言語で応答するように強制します。",
+  "settings.general.option.off": "オフ（オーバーライドなし）",
   "settings.general.row.shell.title": "ターミナルシェル",
   "settings.general.row.shell.description":
     "ターミナルで使用するシェルを選択します。互換性のあるシェルはエージェントのツール呼び出しにも使用されます。",

@@ -126,6 +126,7 @@ import type {
   NovelCreateVolumeInput,
   NovelCreateWorldEntryInput,
   NovelMoveChapterInput,
+  NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
   NovelUpdateChapterContentInput,
@@ -394,6 +395,10 @@ import type {
   V2NovelForSessionResponses,
   V2NovelListErrors,
   V2NovelListResponses,
+  V2NovelModeGetErrors,
+  V2NovelModeGetResponses,
+  V2NovelModeSetErrors,
+  V2NovelModeSetResponses,
   V2NovelMoveChapterErrors,
   V2NovelMoveChapterResponses,
   V2NovelOutlineErrors,
@@ -408,6 +413,8 @@ import type {
   V2NovelRollbackResponses,
   V2NovelSearchErrors,
   V2NovelSearchResponses,
+  V2NovelSessionBindingsErrors,
+  V2NovelSessionBindingsResponses,
   V2NovelStyleGuideErrors,
   V2NovelStyleGuideResponses,
   V2NovelTensionErrors,
@@ -7225,6 +7232,32 @@ export class Novel extends HeyApiClient {
   }
 
   /**
+   * List session-novel bindings
+   *
+   * List all session-to-novel bindings in a directory. Declared before /:novelID to avoid route swallowing.
+   */
+  public sessionBindings<ThrowOnError extends boolean = false>(
+    parameters?: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    return (options?.client ?? this.client).get<
+      V2NovelSessionBindingsResponses,
+      V2NovelSessionBindingsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/session-bindings",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Delete novel
    */
   public delete<ThrowOnError extends boolean = false>(
@@ -9348,6 +9381,68 @@ export class Novel extends HeyApiClient {
   }
 }
 
+export class NovelMode extends HeyApiClient {
+  /**
+   * 读取项目写作模式
+   *
+   * 读取 .novel/config.json 中的 writing_mode / setup_mode；文件不存在时返回默认值。
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    return (options?.client ?? this.client).get<V2NovelModeGetResponses, V2NovelModeGetErrors, ThrowOnError>({
+      url: "/api/novel/mode",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * 更新项目写作模式
+   *
+   * PATCH 语义：仅修改入参中显式给出的字段，其余字段保持原值。
+   */
+  public set<ThrowOnError extends boolean = false>(
+    parameters: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelNovelModePatch: NovelNovelModePatch
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { key: "novelNovelModePatch", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<V2NovelModeSetResponses, V2NovelModeSetErrors, ThrowOnError>({
+      url: "/api/novel/mode",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class V2 extends HeyApiClient {
   private _health?: Health
   get health(): Health {
@@ -9437,6 +9532,11 @@ export class V2 extends HeyApiClient {
   private _novel?: Novel
   get novel(): Novel {
     return (this._novel ??= new Novel({ client: this.client }))
+  }
+
+  private _novelMode?: NovelMode
+  get novelMode(): NovelMode {
+    return (this._novelMode ??= new NovelMode({ client: this.client }))
   }
 }
 

@@ -811,6 +811,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Idioma",
   "settings.general.row.language.description": "Cambiar el idioma de visualización para OpenNovel",
+  "settings.general.row.outputLanguage.title": "Idioma de salida",
+  "settings.general.row.outputLanguage.description":
+    "Forzar al modelo a responder en un idioma específico en todas las sesiones.",
+  "settings.general.option.off": "Desactivado (sin anulación)",
   "settings.general.row.shell.title": "Shell del terminal",
   "settings.general.row.shell.description":
     "Elige el shell que se usará en el terminal. Los shells compatibles también se usarán para las llamadas a herramientas del agente.",

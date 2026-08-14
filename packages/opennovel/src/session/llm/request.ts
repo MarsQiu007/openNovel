@@ -17,6 +17,35 @@ import { mergeDeep } from "remeda"
 
 const USER_AGENT = `opennovel/${InstallationVersion}`
 
+const OUTPUT_LANGUAGE_DISPLAY: Record<string, string> = {
+  en: "English",
+  zh: "简体中文",
+  zht: "繁體中文",
+  ko: "한국어",
+  de: "Deutsch",
+  es: "Español",
+  fr: "Français",
+  da: "Dansk",
+  ja: "日本語",
+  pl: "Polski",
+  ru: "Русский",
+  uk: "Українська",
+  ar: "العربية",
+  no: "Norsk",
+  br: "Português (Brasil)",
+  th: "ไทย",
+  bs: "Bosanski",
+  tr: "Türkçe",
+}
+
+function buildOutputLanguageInstruction(locale: string): string {
+  if (locale === "zh") return "请始终使用简体中文回复所有面向用户的内容。"
+  if (locale === "zht") return "請始終使用繁體中文回覆所有面向用戶的內容。"
+  const display = OUTPUT_LANGUAGE_DISPLAY[locale]
+  if (display) return `Always respond in ${display}.`
+  return `Always respond in the language with locale code "${locale}".`
+}
+
 type PrepareInput = {
   readonly user: SessionV1.User
   readonly sessionID: string
@@ -33,6 +62,7 @@ type PrepareInput = {
   readonly plugin: Plugin.Interface
   readonly flags: RuntimeFlags.Info
   readonly isWorkflow: boolean
+  readonly outputLanguage?: string
 }
 
 export type Prepared = {
@@ -64,6 +94,11 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
       .filter((x) => x)
       .join("\n"),
   ]
+
+  const outputLanguage = input.outputLanguage
+  if (outputLanguage && outputLanguage !== "off") {
+    system.push(buildOutputLanguageInstruction(outputLanguage))
+  }
 
   const header = system[0]
   yield* input.plugin.trigger(

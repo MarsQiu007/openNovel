@@ -1654,6 +1654,27 @@ export type ServerConfig = {
   cors?: Array<string>
 }
 
+export type OutputLanguage =
+  | "off"
+  | "en"
+  | "zh"
+  | "zht"
+  | "ko"
+  | "de"
+  | "es"
+  | "fr"
+  | "da"
+  | "ja"
+  | "pl"
+  | "ru"
+  | "uk"
+  | "ar"
+  | "no"
+  | "br"
+  | "th"
+  | "bs"
+  | "tr"
+
 export type PermissionActionConfig = "ask" | "allow" | "deny"
 
 export type PermissionObjectConfig = {
@@ -1930,6 +1951,9 @@ export type Config = {
   default_agent?: string
   subagent_depth?: number
   username?: string
+  general?: {
+    outputLanguage?: OutputLanguage
+  }
   mode?: {
     build?: AgentConfig
     plan?: AgentConfig
@@ -2975,6 +2999,13 @@ export type ChapterNotFoundError = {
     message: string
     novelId?: string
     chapterId?: string
+  }
+}
+
+export type NovelModeError = {
+  name: "NovelModeError"
+  data: {
+    message: string
   }
 }
 
@@ -6188,6 +6219,12 @@ export type NovelCreateNovelInput = {
   synopsis: string
 }
 
+export type NovelSessionBinding = {
+  sessionID: string
+  novelID: string
+  novelTitle: string
+}
+
 export type NovelStyleGuide = {
   id: string
   novelId: string
@@ -6299,6 +6336,7 @@ export type NovelCharacter = {
   name: string
   role: string
   description: string
+  status: string
   createdAt: number
 }
 
@@ -6475,6 +6513,7 @@ export type NovelUpdateCharacterInput = {
   name?: string
   role?: string
   description?: string
+  status?: string
 }
 
 export type NovelCreateTensionPointInput = {
@@ -6520,6 +6559,20 @@ export type NovelUpdateWorldEntryInput = {
   category?: string
   title?: string
   content?: string
+}
+
+export type NovelWritingMode = "auto" | "review"
+
+export type NovelSetupMode = "interactive" | "auto"
+
+export type NovelNovelMode = {
+  writing_mode: NovelWritingMode
+  setup_mode: NovelSetupMode
+}
+
+export type NovelNovelModePatch = {
+  writing_mode?: NovelWritingMode
+  setup_mode?: NovelSetupMode
 }
 
 export type EventModelsDevRefreshed = {
@@ -14064,6 +14117,40 @@ export type V2NovelForSessionResponses = {
 
 export type V2NovelForSessionResponse = V2NovelForSessionResponses[keyof V2NovelForSessionResponses]
 
+export type V2NovelSessionBindingsData = {
+  body?: never
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/session-bindings"
+}
+
+export type V2NovelSessionBindingsErrors = {
+  /**
+   * NovelValidationError | InvalidRequestError
+   */
+  400: NovelValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelSessionBindingsError = V2NovelSessionBindingsErrors[keyof V2NovelSessionBindingsErrors]
+
+export type V2NovelSessionBindingsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelSessionBinding>
+}
+
+export type V2NovelSessionBindingsResponse = V2NovelSessionBindingsResponses[keyof V2NovelSessionBindingsResponses]
+
 export type V2NovelDeleteData = {
   body?: never
   path: {
@@ -16325,6 +16412,74 @@ export type V2NovelUpdateWorldEntryResponses = {
 }
 
 export type V2NovelUpdateWorldEntryResponse = V2NovelUpdateWorldEntryResponses[keyof V2NovelUpdateWorldEntryResponses]
+
+export type V2NovelModeGetData = {
+  body?: never
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/mode"
+}
+
+export type V2NovelModeGetErrors = {
+  /**
+   * NovelModeError | InvalidRequestError
+   */
+  400: NovelModeError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelModeGetError = V2NovelModeGetErrors[keyof V2NovelModeGetErrors]
+
+export type V2NovelModeGetResponses = {
+  /**
+   * 项目级写作模式与初始化模式
+   */
+  200: NovelNovelMode
+}
+
+export type V2NovelModeGetResponse = V2NovelModeGetResponses[keyof V2NovelModeGetResponses]
+
+export type V2NovelModeSetData = {
+  body: NovelNovelModePatch
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/mode"
+}
+
+export type V2NovelModeSetErrors = {
+  /**
+   * NovelModeError | InvalidRequestError
+   */
+  400: NovelModeError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelModeSetError = V2NovelModeSetErrors[keyof V2NovelModeSetErrors]
+
+export type V2NovelModeSetResponses = {
+  /**
+   * 项目级写作模式与初始化模式
+   */
+  200: NovelNovelMode
+}
+
+export type V2NovelModeSetResponse = V2NovelModeSetResponses[keyof V2NovelModeSetResponses]
 
 export type PtyConnectData = {
   body?: never

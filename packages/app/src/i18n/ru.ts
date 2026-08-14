@@ -808,6 +808,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Язык",
   "settings.general.row.language.description": "Изменить язык отображения OpenNovel",
+  "settings.general.row.outputLanguage.title": "Язык вывода",
+  "settings.general.row.outputLanguage.description":
+    "Заставить модель отвечать на определённом языке во всех сессиях.",
+  "settings.general.option.off": "Выкл (без переопределения)",
   "settings.general.row.shell.title": "Оболочка терминала",
   "settings.general.row.shell.description":
     "Выберите оболочку для терминала. Совместимые оболочки также используются агентом при вызове инструментов.",

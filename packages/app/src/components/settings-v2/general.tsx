@@ -1,5 +1,6 @@
 import { Component, Show, createMemo, createResource, onMount } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
+import { type OutputLanguage } from "@opennovel-ai/sdk/v2/types"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
@@ -194,6 +195,16 @@ export const SettingsGeneralV2: Component<{
     })),
   )
 
+  const outputLanguageOptions = createMemo(() => {
+    const off = { value: "off", label: language.t("settings.general.option.off") }
+    return [off, ...languageOptions()]
+  })
+
+  const currentOutputLanguage = createMemo(() => {
+    const value = serverSync().data.config.general?.outputLanguage
+    return value ?? language.locale()
+  })
+
   const noneSound = { id: "none", label: "sound.option.none" } as const
   const soundOptions = [noneSound, ...SOUND_OPTIONS]
   const mono = () => monoInput(settings.appearance.font())
@@ -269,6 +280,27 @@ export const SettingsGeneralV2: Component<{
             value={(o) => o.value}
             label={(o) => o.label}
             onSelect={(option) => option && language.setLocale(option.value)}
+          />
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.outputLanguage.title")}
+          description={language.t("settings.general.row.outputLanguage.description")}
+        >
+          <SelectV2
+            appearance="inline"
+            data-action="settings-output-language"
+            options={outputLanguageOptions()}
+            placement="bottom-end"
+            gutter={6}
+            current={outputLanguageOptions().find((o) => o.value === currentOutputLanguage())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(option) => {
+              if (!option) return
+              if (option.value === currentOutputLanguage()) return
+              serverSync().updateConfig({ general: { outputLanguage: option.value as OutputLanguage } })
+            }}
           />
         </SettingsRowV2>
 

@@ -1,4 +1,5 @@
 import { Component, Show, createMemo, createResource, onMount, type JSX } from "solid-js"
+import { type OutputLanguage } from "@opennovel-ai/sdk/v2/types"
 import { Button } from "@opennovel-ai/ui/button"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { Select } from "@opennovel-ai/ui/select"
@@ -213,6 +214,16 @@ export const SettingsGeneral: Component = () => {
     })),
   )
 
+  const outputLanguageOptions = createMemo(() => {
+    const off = { value: "off", label: language.t("settings.general.option.off") }
+    return [off, ...languageOptions()]
+  })
+
+  const currentOutputLanguage = createMemo(() => {
+    const value = serverSync().data.config.general?.outputLanguage
+    return value ?? language.locale()
+  })
+
   const noneSound = { id: "none", label: "sound.option.none" } as const
   const soundOptions = [noneSound, ...SOUND_OPTIONS]
   const mono = () => monoInput(settings.appearance.font())
@@ -310,6 +321,28 @@ export const SettingsGeneral: Component = () => {
             variant="secondary"
             size="small"
             triggerVariant="settings"
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.row.outputLanguage.title")}
+          description={language.t("settings.general.row.outputLanguage.description")}
+        >
+          <Select
+            data-action="settings-output-language"
+            options={outputLanguageOptions()}
+            current={outputLanguageOptions().find((o) => o.value === currentOutputLanguage())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(option) => {
+              if (!option) return
+              if (option.value === currentOutputLanguage()) return
+              serverSync().updateConfig({ general: { outputLanguage: option.value as OutputLanguage } })
+            }}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+            triggerStyle={{ "min-width": "180px" }}
           />
         </SettingsRow>
 

@@ -808,6 +808,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Jezik",
   "settings.general.row.language.description": "Promijeni jezik prikaza u OpenNovel-u",
+  "settings.general.row.outputLanguage.title": "Izlazni jezik",
+  "settings.general.row.outputLanguage.description":
+    "Prisilite model da odgovara na određenom jeziku u svim sesijama.",
+  "settings.general.option.off": "Isključeno (bez zamjene)",
   "settings.general.row.shell.title": "Shell terminala",
   "settings.general.row.shell.description":
     "Odaberi shell koji se koristi za terminal. Kompatibilni shellovi koriste se i za pozive alata agenta.",

@@ -733,6 +733,10 @@ export const dict = {
   "settings.general.section.display": "شاشة العرض",
   "settings.general.row.language.title": "اللغة",
   "settings.general.row.language.description": "تغيير لغة العرض لـ OpenNovel",
+  "settings.general.row.outputLanguage.title": "لغة الإخراج",
+  "settings.general.row.outputLanguage.description":
+    "إجبار النموذج على الرد بلغة محددة لجميع الجلسات.",
+  "settings.general.option.off": "إيقاف (بدون تجاوز)",
   "settings.general.row.shell.title": "Shell المحطة الطرفية",
   "settings.general.row.shell.description":
     "اختر shell المستخدم في المحطة الطرفية. تُستخدم واجهات shell المتوافقة أيضًا في استدعاءات أدوات الوكيل.",

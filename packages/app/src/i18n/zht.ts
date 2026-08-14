@@ -796,6 +796,9 @@ export const dict = {
 
   "settings.general.row.language.title": "語言",
   "settings.general.row.language.description": "變更 OpenNovel 的顯示語言",
+  "settings.general.row.outputLanguage.title": "輸出語言",
+  "settings.general.row.outputLanguage.description": "強制模型喺所有會話中用指定語言回覆。",
+  "settings.general.option.off": "關閉（不覆蓋）",
   "settings.general.row.shell.title": "終端機 Shell",
   "settings.general.row.shell.description": "選擇終端機使用的 Shell。相容的 Shell 也會用於代理程式工具呼叫。",
   "settings.general.row.shell.autoDefault": "自動（預設）",

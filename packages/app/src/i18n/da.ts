@@ -803,6 +803,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Sprog",
   "settings.general.row.language.description": "Ændr visningssproget for OpenNovel",
+  "settings.general.row.outputLanguage.title": "Outputsprog",
+  "settings.general.row.outputLanguage.description":
+    "Tving modellen til at svare på et bestemt sprog i alle sessioner.",
+  "settings.general.option.off": "Fra (ingen tilsidesættelse)",
   "settings.general.row.shell.title": "Terminalshell",
   "settings.general.row.shell.description":
     "Vælg den shell, der bruges i din terminal. Kompatible shells bruges også til agentens værktøjskald.",

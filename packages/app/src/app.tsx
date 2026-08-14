@@ -164,13 +164,30 @@ function LegacyTargetSessionRedirect() {
   return null
 }
 
+// One-time bootstrap: seed server config.general.outputLanguage with the current UI
+// locale when it has never been set, so a brand-new install "just works" in the user's
+// language without forcing them through the settings dialog.
+function OutputLanguageBootstrap() {
+  const serverSync = useServerSync()
+  const language = useLanguage()
+  createEffect(() => {
+    if (!serverSync().ready) return
+    if (serverSync().data.config.general?.outputLanguage !== undefined) return
+    void serverSync().updateConfig({ general: { outputLanguage: language.locale() } })
+  })
+  return null
+}
+
 // Wraps the non-draft routes. They are gated on (and keyed to) the globally selected
 // server via ServerKey, then provide the server-scoped shell for that server.
 function SelectedServerProviders(props: ParentProps) {
   return (
     <ServerKey>
       <ServerSDKProvider>
-        <ServerSyncProvider>{props.children}</ServerSyncProvider>
+        <ServerSyncProvider>
+          <OutputLanguageBootstrap />
+          {props.children}
+        </ServerSyncProvider>
       </ServerSDKProvider>
     </ServerKey>
   )

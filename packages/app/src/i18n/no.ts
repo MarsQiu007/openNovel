@@ -674,6 +674,10 @@ export const dict = {
 
   "settings.general.row.language.title": "Språk",
   "settings.general.row.language.description": "Endre visningsspråket for OpenNovel",
+  "settings.general.row.outputLanguage.title": "Utgangspråk",
+  "settings.general.row.outputLanguage.description":
+    "Tving modellen til å svare på et bestemt språk i alle økter.",
+  "settings.general.option.off": "Av (ingen overstyring)",
   "settings.general.row.appearance.title": "Utseende",
   "settings.general.row.appearance.description": "Tilpass hvordan OpenNovel ser ut på enheten din",
   "settings.general.row.colorScheme.title": "Fargevalg",
