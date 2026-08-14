@@ -914,7 +914,6 @@ function ProviderConnection(props: {
       }
       const origin = baseURL.replace(/\/v1\/?$/, "")
       const url = `${origin}/api/tags`
-      console.log("[ollama] refresh start", { url })
       setFormStore("fetchingModels", true)
       // 进入 fetching 时清掉旧状态
       setFormStore("fetchedCount", undefined)
@@ -930,7 +929,6 @@ function ProviderConnection(props: {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as { models?: Array<{ name: string }> }
         const names = (body.models ?? []).map((m) => m.name).filter(Boolean)
-        console.log("[ollama] refresh ok", { count: names.length, names })
         setFormStore("modelOptions", names)
         setFormStore("fetchedCount", names.length)
         if (!formStore.modelName && names.length > 0) {
@@ -942,7 +940,6 @@ function ProviderConnection(props: {
           // dialog 关闭导致 abort，不算 fetch 失败，不写 fetchError / 不弹 toast
           return
         }
-        console.log("[ollama] refresh failed", { url, error: String(e) })
         setFormStore(
           "fetchError",
           language.t("provider.connect.field.fetchStatus.failed"),
