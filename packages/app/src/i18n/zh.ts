@@ -185,6 +185,20 @@ export const dict = {
   "provider.connect.toast.connected.title": "{{provider}} 已连接",
   "provider.connect.toast.connected.description": "现在可以使用 {{provider}} 模型了。",
 
+  // 本地/自托管 OpenAI 兼容 provider (Ollama / LM Studio) 专用字段
+  "provider.connect.field.baseURL.label": "Base URL",
+  "provider.connect.field.baseURL.placeholder": "http://localhost:11434/v1",
+  "provider.connect.field.baseURL.description": "本地服务的 OpenAI 兼容端点。Ollama 默认为 http://localhost:11434/v1。",
+  "provider.connect.field.modelName.label": "模型名",
+  "provider.connect.field.modelName.placeholder": "例如 llama3.1:8b",
+  "provider.connect.field.modelName.description": "已通过 `ollama pull` 拉取的模型名（或本地服务接受的任意名称）。",
+  "provider.connect.field.refreshModels": "刷新",
+  "provider.connect.error.baseURL.required": "Base URL 不能为空",
+  "provider.connect.error.baseURL.format": "Base URL 必须以 http:// 或 https:// 开头",
+  "provider.connect.error.modelName.required": "模型名不能为空",
+  "provider.connect.toast.fetchModelsFailed.title": "无法拉取本地模型",
+  "provider.connect.toast.fetchModelsFailed.description": "请确认本地服务已启动且可访问，你仍可手动输入模型名。",
+
   "provider.custom.title": "自定义提供商",
   "provider.custom.description.prefix": "配置与 OpenAI 兼容的提供商。请查看",
   "provider.custom.description.link": "提供商配置文档",

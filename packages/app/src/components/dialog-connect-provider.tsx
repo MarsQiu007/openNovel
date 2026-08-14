@@ -830,7 +830,13 @@ function ProviderConnection(props: {
     const errorID = createUniqueId()
     const [formStore, setFormStore] = createStore({
       value: "",
+      baseURL: "",
+      modelName: "",
+      modelOptions: [] as string[],
+      fetchingModels: false,
       error: undefined as string | undefined,
+      baseURLError: undefined as string | undefined,
+      modelError: undefined as string | undefined,
     })
     // 本地服务（Ollama、LM Studio 等用户自托管的 openai-compatible）通常不需要 API key，
     // apiKey 留空也允许提交；描述与 placeholder 切换为「无需 key」文案避免误导。
@@ -839,10 +845,98 @@ function ProviderConnection(props: {
       return id === "ollama" || id === "lmstudio"
     }
 
+    // 从 serverSync 拿该 provider 的已持久化配置（如果之前连过），做表单预填
     onMount(() => {
       if (!newLayout()) return
       apiKey?.focus({ preventScroll: true })
+      const cfg = serverSync().data.config.provider?.[props.provider]
+      if (cfg) {
+        const persistedBaseURL = (cfg.options as { baseURL?: string } | undefined)?.baseURL
+        const persistedModel = cfg.models
+          ? Object.keys(cfg.models).find((id) => id !== "custom")
+          : undefined
+        if (persistedBaseURL && !formStore.baseURL) setFormStore("baseURL", persistedBaseURL)
+        if (persistedModel && !formStore.modelName) setFormStore("modelName", persistedModel)
+      }
+      // 拉一次本地模型列表（Ollama 等本地服务的核心体验）
+      if (isOptionalApiKey()) void refreshLocalModels(false)
     })
+
+    /**
+     * 调 `${baseURL origin}/api/tags` 拉取本地已下载模型列表，填到 formStore.modelOptions。
+     * 失败：toast 提示，但仍允许用户手填。
+     * showToast: 失败时弹 true（默认 false = 静默）以提示用户。
+     */
+    async function refreshLocalModels(showToastOnError = true) {
+      const baseURL = formStore.baseURL.trim()
+      if (!baseURL) return
+      const origin = baseURL.replace(/\/v1\/?$/, "")
+      const url = `${origin}/api/tags`
+      setFormStore("fetchingModels", true)
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = (await res.json()) as { models?: Array<{ name: string }> }
+        const names = (body.models ?? []).map((m) => m.name).filter(Boolean)
+        setFormStore("modelOptions", names)
+        if (!formStore.modelName && names.length > 0) {
+          setFormStore("modelName", names[0]!)
+        }
+      } catch {
+        if (showToastOnError) {
+          showToast({
+            variant: "error",
+            icon: "warning",
+            title: language.t("provider.connect.toast.fetchModelsFailed.title"),
+            description: language.t("provider.connect.toast.fetchModelsFailed.description"),
+          })
+        }
+      } finally {
+        setFormStore("fetchingModels", false)
+      }
+    }
+
+    function validateLocalFields(): boolean {
+      const baseURL = formStore.baseURL.trim()
+      const modelName = formStore.modelName.trim()
+      let ok = true
+      if (!baseURL) {
+        setFormStore("baseURLError", language.t("provider.connect.error.baseURL.required"))
+        ok = false
+      } else if (!/^https?:\/\//.test(baseURL)) {
+        setFormStore("baseURLError", language.t("provider.connect.error.baseURL.format"))
+        ok = false
+      } else {
+        setFormStore("baseURLError", undefined)
+      }
+      if (!modelName) {
+        setFormStore("modelError", language.t("provider.connect.error.modelName.required"))
+        ok = false
+      } else {
+        setFormStore("modelError", undefined)
+      }
+      return ok
+    }
+
+    /**
+     * 把 baseURL + modelName 持久化进 opennovel.json，server 端 Provider.list() 流程会自动 merge。
+     * 不依赖 server 端 OllamaModels service 也能用 —— 这是「用户感知」路径。
+     */
+    async function persistLocalProviderConfig(baseURL: string, modelName: string) {
+      const next = structuredClone(serverSync().data.config)
+      const existing = next.provider?.[props.provider]
+      next.provider = {
+        ...next.provider,
+        [props.provider]: {
+          ...(existing ?? {}),
+          npm: "@ai-sdk/openai-compatible",
+          name: existing?.name ?? provider().name,
+          options: { ...(existing?.options ?? {}), baseURL },
+          models: { ...(existing?.models ?? {}), [modelName]: { name: modelName } },
+        },
+      }
+      await serverSync().updateConfig(next)
+    }
 
     async function handleSubmit(e: SubmitEvent) {
       e.preventDefault()
@@ -856,6 +950,8 @@ function ProviderConnection(props: {
         return
       }
 
+      if (isOptionalApiKey() && !validateLocalFields()) return
+
       setFormStore("error", undefined)
       await serverSDK().client.auth.set({
         providerID: props.provider,
@@ -867,6 +963,10 @@ function ProviderConnection(props: {
           ...(store.promptInputs ? { metadata: store.promptInputs } : {}),
         },
       })
+      // 本地 provider：把 baseURL + modelName 写入 config.json，下次启动仍可用
+      if (isOptionalApiKey()) {
+        await persistLocalProviderConfig(formStore.baseURL.trim(), formStore.modelName.trim())
+      }
       await complete()
     }
 
@@ -916,6 +1016,70 @@ function ProviderConnection(props: {
                 onInput={(event) => setFormStore("value", event.currentTarget.value)}
               />
             </label>
+            <Show when={isOptionalApiKey()}>
+              <label class="flex w-full flex-col gap-1 font-[530] leading-4 text-v2-text-text-base">
+                {language.t("provider.connect.field.baseURL.label")}
+                <TextInputV2
+                  class="!w-full"
+                  name="baseURL"
+                  placeholder={language.t("provider.connect.field.baseURL.placeholder")}
+                  value={formStore.baseURL}
+                  invalid={formStore.baseURLError !== undefined}
+                  autocomplete="off"
+                  spellcheck={false}
+                  onInput={(event) => setFormStore("baseURL", event.currentTarget.value)}
+                />
+                <span class="font-[440] text-[12px] leading-4 text-v2-text-text-weaker">
+                  {language.t("provider.connect.field.baseURL.description")}
+                </span>
+                <Show when={formStore.baseURLError}>
+                  {(err) => (
+                    <div role="alert" class="text-xs text-v2-state-fg-danger">
+                      {err()}
+                    </div>
+                  )}
+                </Show>
+              </label>
+              <label class="flex w-full flex-col gap-1 font-[530] leading-4 text-v2-text-text-base">
+                {language.t("provider.connect.field.modelName.label")}
+                <div class="flex w-full items-center gap-2">
+                  <TextInputV2
+                    class="!w-full"
+                    name="modelName"
+                    placeholder={language.t("provider.connect.field.modelName.placeholder")}
+                    value={formStore.modelName}
+                    invalid={formStore.modelError !== undefined}
+                    list={formStore.modelOptions.length > 0 ? "ollama-models-list" : undefined}
+                    autocomplete="off"
+                    spellcheck={false}
+                    onInput={(event) => setFormStore("modelName", event.currentTarget.value)}
+                  />
+                  <ButtonV2
+                    type="button"
+                    variant="ghost"
+                    disabled={formStore.fetchingModels}
+                    onClick={() => void refreshLocalModels(true)}
+                  >
+                    <Show when={formStore.fetchingModels} fallback={language.t("provider.connect.field.refreshModels")}>
+                      <Spinner class="size-3" />
+                    </Show>
+                  </ButtonV2>
+                </div>
+                <datalist id="ollama-models-list">
+                  <For each={formStore.modelOptions}>{(name) => <option value={name} />}</For>
+                </datalist>
+                <span class="font-[440] text-[12px] leading-4 text-v2-text-text-weaker">
+                  {language.t("provider.connect.field.modelName.description")}
+                </span>
+                <Show when={formStore.modelError}>
+                  {(err) => (
+                    <div role="alert" class="text-xs text-v2-state-fg-danger">
+                      {err()}
+                    </div>
+                  )}
+                </Show>
+              </label>
+            </Show>
             <Show when={formStore.error}>
               {(error) => (
                 <div id={errorID} role="alert" class="-mt-4 text-xs text-v2-state-fg-danger">
@@ -971,6 +1135,58 @@ function ProviderConnection(props: {
             validationState={formStore.error ? "invalid" : undefined}
             error={formStore.error}
           />
+          <Show when={isOptionalApiKey()}>
+            <TextField
+              label={language.t("provider.connect.field.baseURL.label")}
+              placeholder={language.t("provider.connect.field.baseURL.placeholder")}
+              description={language.t("provider.connect.field.baseURL.description")}
+              name="baseURL"
+              value={formStore.baseURL}
+              onChange={(v) => setFormStore("baseURL", v)}
+              validationState={formStore.baseURLError ? "invalid" : undefined}
+              error={formStore.baseURLError}
+            />
+            <div class="flex w-full flex-col gap-1">
+              <div class="flex items-end gap-2">
+                <div class="flex-1">
+                  <TextField
+                    label={language.t("provider.connect.field.modelName.label")}
+                    placeholder={language.t("provider.connect.field.modelName.placeholder")}
+                    description={language.t("provider.connect.field.modelName.description")}
+                    name="modelName"
+                    value={formStore.modelName}
+                    onChange={(v) => setFormStore("modelName", v)}
+                    validationState={formStore.modelError ? "invalid" : undefined}
+                    error={formStore.modelError}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="large"
+                  disabled={formStore.fetchingModels}
+                  onClick={() => void refreshLocalModels(true)}
+                >
+                  {formStore.fetchingModels ? <Spinner class="size-3" /> : language.t("provider.connect.field.refreshModels")}
+                </Button>
+              </div>
+              <Show when={formStore.modelOptions.length > 0}>
+                <div class="flex flex-wrap gap-1.5 pt-1">
+                  <For each={formStore.modelOptions}>
+                    {(name) => (
+                      <button
+                        type="button"
+                        class="rounded-md border border-border-base px-2 py-0.5 text-12-regular text-text-base hover:bg-surface-base"
+                        onClick={() => setFormStore("modelName", name)}
+                      >
+                        {name}
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+          </Show>
           <Button class="w-auto" type="submit" size="large" variant="primary">
             {language.t("common.continue")}
           </Button>

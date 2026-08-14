@@ -11,6 +11,7 @@ import { Plugin } from "../plugin"
 import { serviceUse } from "@opennovel-ai/core/effect/service-use"
 import { type LanguageModelV3 } from "@ai-sdk/provider"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
+import { OllamaModels } from "./ollama-models"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { InstallationVersion } from "@opennovel-ai/core/installation/version"
@@ -1333,6 +1334,7 @@ const layer = Layer.effect(
     const env = yield* Env.Service
     const plugin = yield* Plugin.Service
     const modelsDevSvc = yield* ModelsDev.Service
+    const ollamaModels = yield* OllamaModels.Service
     const runtimeFlags = yield* RuntimeFlags.Service
 
     const state = yield* InstanceState.make<State>(() =>
@@ -1601,6 +1603,22 @@ const layer = Layer.effect(
               }
             } catch (e) {}
           })
+        }
+
+        // Ollama 本地 provider：调 /api/tags 拉取已下载模型，merge 进 models dict。
+        // 失败/超时/解析错误由 OllamaModels.list 内部吞掉返回 {}，不阻塞主流程。
+        // 用户在 ApiAuthView 自填的模型（已在 cfg.provider[ollama].models 持久化）保留。
+        // 只在用户显式配置了 baseURL 时才触发 —— 避免测试/CI 环境无 ollama 时 5s timeout 阻塞 list()。
+        // 默认 baseURL 走前端 ApiAuthView 的 fetch 兜底（fetch 失败 toast 而非阻塞）。
+        const ollamaID = ProviderV2.ID.make("ollama")
+        const ollamaBaseURL = cfg.provider?.[ollamaID]?.options?.baseURL as string | undefined
+        if (ollamaBaseURL && providers[ollamaID] && isProviderAllowed(ollamaID)) {
+          const discovered = yield* ollamaModels.list(ollamaBaseURL)
+          for (const [modelID, model] of Object.entries(discovered)) {
+            if (!providers[ollamaID].models[modelID]) {
+              providers[ollamaID].models[modelID] = model
+            }
+          }
         }
 
         for (const [id, provider] of Object.entries(providers)) {
@@ -2001,7 +2019,7 @@ export function parseModel(model: string) {
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [FSUtil.node, Config.node, Auth.node, Env.node, Plugin.node, ModelsDev.node, RuntimeFlags.node],
+  deps: [FSUtil.node, Config.node, Auth.node, Env.node, Plugin.node, ModelsDev.node, OllamaModels.node, RuntimeFlags.node],
 })
 
 export * as Provider from "./provider"

@@ -163,6 +163,20 @@ export const dict = {
   "provider.connect.toast.connected.title": "{{provider}} forbundet",
   "provider.connect.toast.connected.description": "{{provider}} modeller er nu tilgængelige.",
 
+  // Local / self-hosted OpenAI-compatible provider (Ollama / LM Studio) fields
+  "provider.connect.field.baseURL.label": "Base URL",
+  "provider.connect.field.baseURL.placeholder": "http://localhost:11434/v1",
+  "provider.connect.field.baseURL.description": "OpenAI-compatible endpoint of your local server. Ollama defaults to http://localhost:11434/v1.",
+  "provider.connect.field.modelName.label": "Model name",
+  "provider.connect.field.modelName.placeholder": "e.g. llama3.1:8b",
+  "provider.connect.field.modelName.description": "A model you have already pulled (or any name your local server accepts).",
+  "provider.connect.field.refreshModels": "Refresh",
+  "provider.connect.error.baseURL.required": "Base URL is required",
+  "provider.connect.error.baseURL.format": "Base URL must start with http:// or https://",
+  "provider.connect.error.modelName.required": "Model name is required",
+  "provider.connect.toast.fetchModelsFailed.title": "Could not fetch local models",
+  "provider.connect.toast.fetchModelsFailed.description": "Make sure the local server is running and reachable. You can still type a model name manually.",
+
   "provider.custom.title": "Brugerdefineret udbyder",
   "provider.custom.description.prefix": "Konfigurer en OpenAI-kompatibel udbyder. Se ",
   "provider.custom.description.link": "dokumentation for udbyderkonfiguration",
