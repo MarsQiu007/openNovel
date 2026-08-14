@@ -27,7 +27,7 @@ import {
   Show,
   Switch,
 } from "solid-js"
-import { createStore, produce } from "solid-js/store"
+import { createStore, produce, unwrap } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
@@ -990,7 +990,12 @@ function ProviderConnection(props: {
      *   会作为 spread 写进 models dict。userModelName 放在最后，保证用户自填的名字不被覆盖。
      */
     async function persistLocalProviderConfig(baseURL: string, modelName: string, additionalModels: string[] = []) {
-      const next = structuredClone(serverSync().data.config)
+      // serverSync().data.config 是 solid-js/store 的 proxy，不能直接 structuredClone
+      // (DataCloneError: proxy traps 不可跨 realm)。unwrap 把 proxy 解构成 plain object
+      // 后再 clone。
+      const next = structuredClone(unwrap(serverSync().data.config)) as ReturnType<
+        typeof serverSync
+      >["data"]["config"]
       const existing = next.provider?.[props.provider]
       const fetchedModels = Object.fromEntries(
         additionalModels.filter((n) => n && n !== modelName).map((n) => [n, { name: n }]),
