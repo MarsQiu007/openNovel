@@ -876,9 +876,22 @@ function ProviderConnection(props: {
      */
     async function refreshLocalModels(showToastOnError = true) {
       const baseURL = formStore.baseURL.trim()
-      if (!baseURL) return
+      if (!baseURL) {
+        // 没填 baseURL 就点刷新，给用户明确提示（避免「点了没反应」困惑）
+        setFormStore("fetchError", language.t("provider.connect.field.fetchStatus.failed"))
+        if (showToastOnError) {
+          showToast({
+            variant: "error",
+            icon: "warning",
+            title: language.t("provider.connect.toast.fetchModelsFailed.title"),
+            description: language.t("provider.connect.toast.fetchModelsFailed.description"),
+          })
+        }
+        return
+      }
       const origin = baseURL.replace(/\/v1\/?$/, "")
       const url = `${origin}/api/tags`
+      console.log("[ollama] refresh start", { url })
       setFormStore("fetchingModels", true)
       // 进入 fetching 时清掉旧状态
       setFormStore("fetchedCount", undefined)
@@ -888,12 +901,14 @@ function ProviderConnection(props: {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as { models?: Array<{ name: string }> }
         const names = (body.models ?? []).map((m) => m.name).filter(Boolean)
+        console.log("[ollama] refresh ok", { count: names.length, names })
         setFormStore("modelOptions", names)
         setFormStore("fetchedCount", names.length)
         if (!formStore.modelName && names.length > 0) {
           setFormStore("modelName", names[0]!)
         }
-      } catch {
+      } catch (e) {
+        console.log("[ollama] refresh failed", { url, error: String(e) })
         setFormStore(
           "fetchError",
           language.t("provider.connect.field.fetchStatus.failed"),
