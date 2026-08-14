@@ -199,6 +199,14 @@ export const dict = {
   "provider.connect.toast.fetchModelsFailed.title": "无法拉取本地模型",
   "provider.connect.toast.fetchModelsFailed.description": "请确认本地服务已启动且可访问，你仍可手动输入模型名。",
 
+  // 本地 provider fetch /api/tags 状态反馈 + 导入全部
+  "provider.connect.field.fetchStatus.fetching": "正在连接本地服务...",
+  "provider.connect.field.fetchStatus.fetched": "已拉取 {{count}} 个模型",
+  "provider.connect.field.fetchStatus.failed": "拉取失败，请检查 Base URL。",
+  "provider.connect.field.importAll": "导入全部",
+  "provider.connect.toast.importAllSuccess.title": "已导入 {{count}} 个模型",
+  "provider.connect.toast.importAllSuccess.description": "现在可以在模型选择器里使用 {{provider}} 的 {{count}} 个模型。",
+
   "provider.custom.title": "自定义提供商",
   "provider.custom.description.prefix": "配置与 OpenAI 兼容的提供商。请查看",
   "provider.custom.description.link": "提供商配置文档",

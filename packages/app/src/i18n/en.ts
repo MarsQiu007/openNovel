@@ -181,6 +181,15 @@ export const dict = {
   "provider.connect.toast.fetchModelsFailed.description":
     "Make sure the local server is running and reachable. You can still type a model name manually.",
 
+  // 本地 provider fetch /api/tags 状态反馈 + 导入全部
+  "provider.connect.field.fetchStatus.fetching": "Connecting to local server...",
+  "provider.connect.field.fetchStatus.fetched": "Fetched {{count}} models",
+  "provider.connect.field.fetchStatus.failed": "Could not fetch models. Check Base URL.",
+  "provider.connect.field.importAll": "Import all",
+  "provider.connect.toast.importAllSuccess.title": "Imported {{count}} models",
+  "provider.connect.toast.importAllSuccess.description":
+    "{{provider}} now has the imported models available in the model selector.",
+
   "provider.custom.title": "Custom provider",
   "provider.custom.description.prefix": "Configure an OpenAI-compatible provider. See the ",
   "provider.custom.description.link": "provider config docs",

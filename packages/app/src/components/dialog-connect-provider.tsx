@@ -833,6 +833,13 @@ function ProviderConnection(props: {
       baseURL: "",
       modelName: "",
       modelOptions: [] as string[],
+      // fetch 状态机四态由三字段组合：
+      //   idle:    fetchedCount=undefined, fetchError=undefined, fetchingModels=false
+      //   fetching: fetchingModels=true
+      //   fetched:  fetchedCount=N, fetchError=undefined, fetchingModels=false
+      //   failed:   fetchError=string, fetchedCount=undefined, fetchingModels=false
+      fetchedCount: undefined as number | undefined,
+      fetchError: undefined as string | undefined,
       fetchingModels: false,
       error: undefined as string | undefined,
       baseURLError: undefined as string | undefined,
@@ -847,10 +854,9 @@ function ProviderConnection(props: {
 
     // 从 serverSync 拿该 provider 的已持久化配置（如果之前连过），做表单预填
     onMount(() => {
-      if (!newLayout()) return
-      apiKey?.focus({ preventScroll: true })
+      if (newLayout()) apiKey?.focus({ preventScroll: true })
       const cfg = serverSync().data.config.provider?.[props.provider]
-      if (cfg) {
+      if (cfg && newLayout()) {
         const persistedBaseURL = (cfg.options as { baseURL?: string } | undefined)?.baseURL
         const persistedModel = cfg.models
           ? Object.keys(cfg.models).find((id) => id !== "custom")
@@ -859,13 +865,14 @@ function ProviderConnection(props: {
         if (persistedModel && !formStore.modelName) setFormStore("modelName", persistedModel)
       }
       // 拉一次本地模型列表（Ollama 等本地服务的核心体验）
+      // 两套 layout 都触发 —— 旧 layout 之前完全跳过 onMount，导致用户看不到任何反馈
       if (isOptionalApiKey()) void refreshLocalModels(false)
     })
 
     /**
      * 调 `${baseURL origin}/api/tags` 拉取本地已下载模型列表，填到 formStore.modelOptions。
-     * 失败：toast 提示，但仍允许用户手填。
-     * showToast: 失败时弹 true（默认 false = 静默）以提示用户。
+     * 失败：toast 提示 + formStore.fetchError 写入（供状态行渲染），但仍允许用户手填。
+     * showToastOnError: 失败时弹 toast（默认 true）；onMount 静默调用时传 false。
      */
     async function refreshLocalModels(showToastOnError = true) {
       const baseURL = formStore.baseURL.trim()
@@ -873,16 +880,24 @@ function ProviderConnection(props: {
       const origin = baseURL.replace(/\/v1\/?$/, "")
       const url = `${origin}/api/tags`
       setFormStore("fetchingModels", true)
+      // 进入 fetching 时清掉旧状态
+      setFormStore("fetchedCount", undefined)
+      setFormStore("fetchError", undefined)
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as { models?: Array<{ name: string }> }
         const names = (body.models ?? []).map((m) => m.name).filter(Boolean)
         setFormStore("modelOptions", names)
+        setFormStore("fetchedCount", names.length)
         if (!formStore.modelName && names.length > 0) {
           setFormStore("modelName", names[0]!)
         }
       } catch {
+        setFormStore(
+          "fetchError",
+          language.t("provider.connect.field.fetchStatus.failed"),
+        )
         if (showToastOnError) {
           showToast({
             variant: "error",
@@ -894,6 +909,28 @@ function ProviderConnection(props: {
       } finally {
         setFormStore("fetchingModels", false)
       }
+    }
+
+    /**
+     * 「导入全部已下载模型」按钮回调。
+     * 把 fetch 拉到的所有 modelOptions + 当前 modelName 一起写进 config，弹 toast 提示 N 个已导入。
+     * 不调 dialog.close / complete —— 让用户继续操作或自己点提交关闭。
+     */
+    async function importAllLocalModels() {
+      const baseURL = formStore.baseURL.trim()
+      const modelName = formStore.modelName.trim() || formStore.modelOptions[0] || ""
+      if (!baseURL || !modelName) return
+      await persistLocalProviderConfig(baseURL, modelName, formStore.modelOptions)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("provider.connect.toast.importAllSuccess.title", {
+          count: formStore.modelOptions.length,
+        }),
+        description: language.t("provider.connect.toast.importAllSuccess.description", {
+          provider: provider().name,
+        }),
+      })
     }
 
     function validateLocalFields(): boolean {
@@ -921,10 +958,16 @@ function ProviderConnection(props: {
     /**
      * 把 baseURL + modelName 持久化进 opennovel.json，server 端 Provider.list() 流程会自动 merge。
      * 不依赖 server 端 OllamaModels service 也能用 —— 这是「用户感知」路径。
+     *
+     * @param additionalModels 「导入全部」时传入 fetch 拉到的所有 model names；
+     *   会作为 spread 写进 models dict。userModelName 放在最后，保证用户自填的名字不被覆盖。
      */
-    async function persistLocalProviderConfig(baseURL: string, modelName: string) {
+    async function persistLocalProviderConfig(baseURL: string, modelName: string, additionalModels: string[] = []) {
       const next = structuredClone(serverSync().data.config)
       const existing = next.provider?.[props.provider]
+      const fetchedModels = Object.fromEntries(
+        additionalModels.filter((n) => n && n !== modelName).map((n) => [n, { name: n }]),
+      )
       next.provider = {
         ...next.provider,
         [props.provider]: {
@@ -932,7 +975,12 @@ function ProviderConnection(props: {
           npm: "@ai-sdk/openai-compatible",
           name: existing?.name ?? provider().name,
           options: { ...(existing?.options ?? {}), baseURL },
-          models: { ...(existing?.models ?? {}), [modelName]: { name: modelName } },
+          models: {
+            ...(existing?.models ?? {}),
+            ...fetchedModels,
+            // userModelName 最后写，保证用户在 ApiAuthView 自填的名字不丢
+            [modelName]: { name: modelName },
+          },
         },
       }
       await serverSync().updateConfig(next)
@@ -1068,6 +1116,46 @@ function ProviderConnection(props: {
                 <datalist id="ollama-models-list">
                   <For each={formStore.modelOptions}>{(name) => <option value={name} />}</For>
                 </datalist>
+                {/* fetch 状态行 + 「导入全部」按钮 —— 让用户清楚知道自动获取发生了什么 */}
+                <Show when={formStore.fetchingModels}>
+                  <div class="flex items-center gap-2 text-[12px] leading-4 text-v2-text-text-weaker">
+                    <Spinner class="size-3 text-v2-icon-icon-muted" />
+                    <span>{language.t("provider.connect.field.fetchStatus.fetching")}</span>
+                  </div>
+                </Show>
+                <Show
+                  when={
+                    !formStore.fetchingModels &&
+                    formStore.fetchedCount !== undefined &&
+                    formStore.fetchError === undefined
+                  }
+                >
+                  <div class="flex flex-wrap items-center gap-2 text-[12px] leading-4">
+                    <div class="flex items-center gap-1.5 text-v2-state-fg-success">
+                      <Icon name="circle-check" class="size-3" />
+                      <span>
+                        {language.t("provider.connect.field.fetchStatus.fetched", {
+                          count: formStore.fetchedCount!,
+                        })}
+                      </span>
+                    </div>
+                    <Show when={formStore.modelOptions.length > 0}>
+                      <ButtonV2
+                        type="button"
+                        variant="ghost"
+                        onClick={() => void importAllLocalModels()}
+                      >
+                        {language.t("provider.connect.field.importAll")} ({formStore.modelOptions.length})
+                      </ButtonV2>
+                    </Show>
+                  </div>
+                </Show>
+                <Show when={!formStore.fetchingModels && formStore.fetchError !== undefined}>
+                  <div class="flex items-center gap-1.5 text-[12px] leading-4 text-v2-state-fg-danger">
+                    <Icon name="circle-x" class="size-3" />
+                    <span>{formStore.fetchError}</span>
+                  </div>
+                </Show>
                 <span class="font-[440] text-[12px] leading-4 text-v2-text-text-weaker">
                   {language.t("provider.connect.field.modelName.description")}
                 </span>
@@ -1170,6 +1258,46 @@ function ProviderConnection(props: {
                   {formStore.fetchingModels ? <Spinner class="size-3" /> : language.t("provider.connect.field.refreshModels")}
                 </Button>
               </div>
+              {/* fetch 状态行 + 「导入全部」按钮 —— 旧 layout 也补上自动获取反馈 */}
+              <Show when={formStore.fetchingModels}>
+                <div class="flex items-center gap-2 text-12-regular text-text-weaker">
+                  <Spinner class="size-3" />
+                  <span>{language.t("provider.connect.field.fetchStatus.fetching")}</span>
+                </div>
+              </Show>
+              <Show
+                when={
+                  !formStore.fetchingModels &&
+                  formStore.fetchedCount !== undefined &&
+                  formStore.fetchError === undefined
+                }
+              >
+                <div class="flex flex-wrap items-center gap-2 text-12-regular">
+                  <div class="flex items-center gap-1.5 text-state-fg-success">
+                    <Icon name="circle-check" class="size-3" />
+                    <span>
+                      {language.t("provider.connect.field.fetchStatus.fetched", {
+                        count: formStore.fetchedCount!,
+                      })}
+                    </span>
+                  </div>
+                  <Show when={formStore.modelOptions.length > 0}>
+                    <button
+                      type="button"
+                      class="rounded-md border border-border-base px-2 py-0.5 text-12-regular text-text-base hover:bg-surface-base"
+                      onClick={() => void importAllLocalModels()}
+                    >
+                      {language.t("provider.connect.field.importAll")} ({formStore.modelOptions.length})
+                    </button>
+                  </Show>
+                </div>
+              </Show>
+              <Show when={!formStore.fetchingModels && formStore.fetchError !== undefined}>
+                <div class="flex items-center gap-1.5 text-12-regular text-state-fg-danger">
+                  <Icon name="circle-x" class="size-3" />
+                  <span>{formStore.fetchError}</span>
+                </div>
+              </Show>
               <Show when={formStore.modelOptions.length > 0}>
                 <div class="flex flex-wrap gap-1.5 pt-1">
                   <For each={formStore.modelOptions}>
