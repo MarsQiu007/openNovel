@@ -854,6 +854,8 @@ function ProviderConnection(props: {
 
     // baseURL 输入防抖 timer：用户改 baseURL 后 600ms 自动重新 fetch
     let refreshDebounce: ReturnType<typeof setTimeout> | undefined
+    // 当前 fetch 的 AbortController：unmount 时 abort，避免 dialog 关闭后还在跑
+    let refreshAbort: AbortController | undefined
 
     // 从 serverSync 拿该 provider 的已持久化配置（如果之前连过），做表单预填
     onMount(() => {
@@ -879,6 +881,15 @@ function ProviderConnection(props: {
       // 拉一次本地模型列表（Ollama 等本地服务的核心体验）
       // 两套 layout 都触发 —— 旧 layout 之前完全跳过 onMount，导致用户看不到任何反馈
       if (isOptionalApiKey()) void refreshLocalModels(false)
+    })
+
+    // 对话框关闭 / unmount 时清理：debounce timer + 进行中的 fetch + 关联 computation。
+    // 之前 setTimeout 在 onInput 里调用，没 onCleanup → 用户改 baseURL 时累积未释放 computation，
+    // solid-js 报警告 'computations created outside a createRoot or render will never be disposed'
+    // 'cleanups created outside a createRoot or render will never be run'。
+    onCleanup(() => {
+      clearTimeout(refreshDebounce)
+      refreshAbort?.abort()
     })
 
     /**
@@ -908,8 +919,14 @@ function ProviderConnection(props: {
       // 进入 fetching 时清掉旧状态
       setFormStore("fetchedCount", undefined)
       setFormStore("fetchError", undefined)
+      // 用 closure AbortController 而不是 AbortSignal.timeout(5000) —
+      // 后者无法被 onCleanup 中断，dialog 关闭后还在跑会触发 solid 警告 + 内存泄漏
+      refreshAbort?.abort()
+      refreshAbort = new AbortController()
+      const timeout = setTimeout(() => refreshAbort?.abort(), 5000)
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+        const res = await fetch(url, { signal: refreshAbort.signal })
+        clearTimeout(timeout)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as { models?: Array<{ name: string }> }
         const names = (body.models ?? []).map((m) => m.name).filter(Boolean)
@@ -920,6 +937,11 @@ function ProviderConnection(props: {
           setFormStore("modelName", names[0]!)
         }
       } catch (e) {
+        clearTimeout(timeout)
+        if (refreshAbort?.signal.aborted) {
+          // dialog 关闭导致 abort，不算 fetch 失败，不写 fetchError / 不弹 toast
+          return
+        }
         console.log("[ollama] refresh failed", { url, error: String(e) })
         setFormStore(
           "fetchError",
@@ -934,7 +956,11 @@ function ProviderConnection(props: {
           })
         }
       } finally {
-        setFormStore("fetchingModels", false)
+        // 如果是 dialog unmount 触发的 abort（onCleanup 已跑），跳过 setFormStore
+        // —— 在已销毁的 store 上写值会触发 'computations created outside' 警告
+        if (!refreshAbort?.signal.aborted) {
+          setFormStore("fetchingModels", false)
+        }
       }
     }
 
