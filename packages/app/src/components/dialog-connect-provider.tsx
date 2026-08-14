@@ -1090,22 +1090,23 @@ function ProviderConnection(props: {
               </label>
               <label class="flex w-full flex-col gap-1 font-[530] leading-4 text-v2-text-text-base">
                 {language.t("provider.connect.field.modelName.label")}
-                <div class="flex w-full items-center gap-2">
-                  <TextInputV2
-                    class="!w-full"
-                    name="modelName"
-                    placeholder={language.t("provider.connect.field.modelName.placeholder")}
-                    value={formStore.modelName}
-                    invalid={formStore.modelError !== undefined}
-                    list={formStore.modelOptions.length > 0 ? "ollama-models-list" : undefined}
-                    autocomplete="off"
-                    spellcheck={false}
-                    onInput={(event) => setFormStore("modelName", event.currentTarget.value)}
-                  />
+                <TextInputV2
+                  class="!w-full"
+                  name="modelName"
+                  placeholder={language.t("provider.connect.field.modelName.placeholder")}
+                  value={formStore.modelName}
+                  invalid={formStore.modelError !== undefined}
+                  list={formStore.modelOptions.length > 0 ? "ollama-models-list" : undefined}
+                  autocomplete="off"
+                  spellcheck={false}
+                  onInput={(event) => setFormStore("modelName", event.currentTarget.value)}
+                />
+                {/* 手动拉取按钮独立一行 —— 之前与 TextInputV2 flex 平分宽度，在窄 dialog 中被挤成 1-2px。
+                    现在独占行，宽度由自身 padding 决定，绝对可见。 */}
+                <div class="flex items-center gap-2">
                   <ButtonV2
                     type="button"
                     variant="outline"
-                    class="shrink-0"
                     disabled={formStore.fetchingModels}
                     aria-label={language.t("provider.connect.field.refreshModels")}
                     onClick={() => void refreshLocalModels(true)}
