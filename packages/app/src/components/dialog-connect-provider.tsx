@@ -1104,8 +1104,10 @@ function ProviderConnection(props: {
                   />
                   <ButtonV2
                     type="button"
-                    variant="ghost"
+                    variant="outline"
+                    class="shrink-0"
                     disabled={formStore.fetchingModels}
+                    aria-label={language.t("provider.connect.field.refreshModels")}
                     onClick={() => void refreshLocalModels(true)}
                   >
                     <Show when={formStore.fetchingModels} fallback={language.t("provider.connect.field.refreshModels")}>
