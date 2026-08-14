@@ -867,6 +867,15 @@ function ProviderConnection(props: {
         if (persistedBaseURL && !formStore.baseURL) setFormStore("baseURL", persistedBaseURL)
         if (persistedModel && !formStore.modelName) setFormStore("modelName", persistedModel)
       }
+      // 预填默认 baseURL（仅当 formStore 还空且是本地 provider）——
+      // 之前设计为"留空让用户自己填"，但实际体验别扭：
+      // 留空 → onMount refresh 早返回 → 用户看到"拉取失败"提示，必须先填正确地址才能拉。
+      // 现在预填 Ollama 默认地址 `http://localhost:11434/v1`（最常见场景），
+      // onMount 直接 fetch，看到成功/失败反馈，再决定是否改地址。
+      // 用户改了地址 → onInput debounce 600ms 自动重拉（上一轮已加）。
+      if (isOptionalApiKey() && !formStore.baseURL) {
+        setFormStore("baseURL", "http://localhost:11434/v1")
+      }
       // 拉一次本地模型列表（Ollama 等本地服务的核心体验）
       // 两套 layout 都触发 —— 旧 layout 之前完全跳过 onMount，导致用户看不到任何反馈
       if (isOptionalApiKey()) void refreshLocalModels(false)
