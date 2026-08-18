@@ -1,19 +1,27 @@
+/**
+ * 设定中心 — 左栏世界条目列表
+ *
+ * 复用 panel-world 的搜索 / 添加 / 分组 / 删除逻辑，
+ * 新增 selectedEntryId 高亮 + 点击列表项通过 onSelect 通知父组件。
+ * 编辑/详情移到中央的 WorldReader。
+ */
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
 import { useCreateWorldEntry, useDeleteWorldEntry, useWorldEntries } from "@/context/novel-queries"
-import type { ServerNovelWorldEntriesOutput } from "@opennovel-ai/client"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import fuzzysort from "fuzzysort"
 
-type PanelWorldProps = {
+type WorldSidebarProps = {
   novelID: Accessor<string>
+  selectedEntryId: Accessor<string | null>
+  onSelect: (entryID: string) => void
 }
 
-export function PanelWorld(props: PanelWorldProps) {
+export function WorldSidebar(props: WorldSidebarProps) {
   const language = useLanguage()
   const query = useWorldEntries(props.novelID)
   const createWorld = useCreateWorldEntry()
@@ -27,13 +35,13 @@ export function PanelWorld(props: PanelWorldProps) {
 
   const grouped = createMemo(() => {
     const data = query.data
-    if (!data) return new Map<string, ServerNovelWorldEntriesOutput>()
+    if (!data) return new Map<string, NonNullable<typeof data>>()
 
     const filtered = search()
       ? fuzzysort.go(search(), data, { key: "title", threshold: -1000 }).map((r) => r.obj)
       : data
 
-    const groups = new Map<string, ServerNovelWorldEntriesOutput>()
+    const groups = new Map<string, NonNullable<typeof data>>()
     for (const entry of filtered) {
       const cat = entry.category || language.t("novel.panel.world.uncategorized")
       const existing = groups.get(cat)
@@ -149,9 +157,18 @@ export function PanelWorld(props: PanelWorldProps) {
               </h4>
               <For each={entries}>
                 {(entry) => (
-                  <div class="flex flex-col gap-1 px-3 py-2 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
+                  <div class="flex flex-col gap-1 mx-2 px-2 py-2 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
                     <div class="flex items-center justify-between gap-2">
-                      <span class="text-sm font-medium text-v2-text-text-base">{entry.title}</span>
+                      <button
+                        type="button"
+                        class="flex-1 min-w-0 text-left text-sm font-medium text-v2-text-text-base truncate"
+                        classList={{
+                          "text-v2-text-text-base": props.selectedEntryId() !== entry.id,
+                        }}
+                        onClick={() => props.onSelect(entry.id)}
+                      >
+                        {entry.title}
+                      </button>
                       <ButtonV2
                         variant="danger"
                         size="small"
@@ -171,7 +188,6 @@ export function PanelWorld(props: PanelWorldProps) {
                         {language.t("novel.panel.world.delete")}
                       </ButtonV2>
                     </div>
-                    <p class="text-xs text-v2-text-text-muted line-clamp-3">{entry.content}</p>
                   </div>
                 )}
               </For>

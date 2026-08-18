@@ -31,6 +31,8 @@ import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
 import RelationsView from "./relations-view"
 import MapView from "./map-view"
+import { WorldSidebar } from "./world-sidebar"
+import { WorldReader } from "./world-reader"
 
 export default function NovelWorkspaceFrame() {
   const params = useParams()
@@ -69,8 +71,9 @@ export default function NovelWorkspaceFrame() {
     setReadingProgress(novelID(), chapterID)
   }
   const [selectedRelationCharacterId, setSelectedRelationCharacterId] = createSignal<string | null>(null)
-  const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines">("chapters")
+  const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines" | "world">("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
+  const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
   const [panelTab, setPanelTab] = createSignal<"characters" | "foreshadow" | "tension">("characters")
   const [isEditing, setIsEditing] = createSignal(false)
   const [editTitle, setEditTitle] = createSignal("")
@@ -387,7 +390,7 @@ export default function NovelWorkspaceFrame() {
 
             <Show when={!isSessionMode()}>
               {/* Relations / Map views: full-width (no left/right sidebars) */}
-              <Show when={activeTab() === "relations" || activeTab() === "map"}>
+              <Show when={(activeTab() === "relations" || activeTab() === "map") && leftMode() !== "world"}>
                 <div class="flex-1 flex flex-col min-w-0">
                   <Show when={activeTab() === "relations"}>
                     <RelationsView
@@ -402,21 +405,24 @@ export default function NovelWorkspaceFrame() {
                 </div>
               </Show>
 
-              {/* Reading / Writing views: classic three-column layout */}
-              <Show when={activeTab() === "reading" || activeTab() === "writing"}>
+              {/* Reading / Writing / World views: classic three-column layout */}
+              <Show when={activeTab() === "reading" || activeTab() === "writing" || leftMode() === "world"}>
                 <aside class="w-64 border-r border-v2-border-border-base flex flex-col min-h-0">
                   {/* Left mode switcher */}
                   <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
                     <SegmentedControlV2
                       class="segmented-control-v2--full-width"
                       value={leftMode()}
-                      onChange={(value) => value && setLeftMode(value as "chapters" | "outlines")}
+                      onChange={(value) => value && setLeftMode(value as "chapters" | "outlines" | "world")}
                     >
-                      <SegmentedControlItemV2 value="chapters">
-                        {language.t("novel.workspace.modeChapters")}
+                      <SegmentedControlItemV2 value="world">
+                        {language.t("novel.workspace.modeSettings")}
                       </SegmentedControlItemV2>
                       <SegmentedControlItemV2 value="outlines">
                         {language.t("novel.workspace.modeOutlines")}
+                      </SegmentedControlItemV2>
+                      <SegmentedControlItemV2 value="chapters">
+                        {language.t("novel.workspace.modeChapters")}
                       </SegmentedControlItemV2>
                     </SegmentedControlV2>
                   </div>
@@ -437,6 +443,13 @@ export default function NovelWorkspaceFrame() {
                         chapters={data.chapters}
                         selectedOutline={selectedOutline}
                         onSelectOutline={setSelectedOutline}
+                      />
+                    </Show>
+                    <Show when={leftMode() === "world"}>
+                      <WorldSidebar
+                        novelID={novelID}
+                        selectedEntryId={selectedWorldEntryId}
+                        onSelect={setSelectedWorldEntryId}
                       />
                     </Show>
                   </div>
@@ -510,6 +523,14 @@ export default function NovelWorkspaceFrame() {
                         selectedOutline={selectedOutline}
                       />
                     </div>
+                  </Show>
+
+                  <Show when={leftMode() === "world"}>
+                    <WorldReader
+                      novelID={novelID}
+                      selectedEntryId={selectedWorldEntryId}
+                      onEntryDeleted={() => setSelectedWorldEntryId(null)}
+                    />
                   </Show>
                 </div>
 
