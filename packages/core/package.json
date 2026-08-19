@@ -20,6 +20,7 @@
     "./effect/app-node": "./src/effect/app-node.ts",
     "./session/runner": "./src/session/runner/index.ts",
     "./system-context": "./src/system-context/index.ts",
+    "./sync": "./src/sync/index.ts",
     "./*": "./src/*.ts"
   },
   "imports": {
@@ -37,6 +38,11 @@
       "bun": "./src/filesystem/fff.bun.ts",
       "node": "./src/filesystem/fff.node.ts",
       "default": "./src/filesystem/fff.bun.ts"
+    },
+    "#sync-sqlite": {
+      "bun": "./src/sync/sqlite.bun.ts",
+      "node": "./src/sync/sqlite.node.ts",
+      "default": "./src/sync/sqlite.bun.ts"
     }
   },
   "devDependencies": {
@@ -122,6 +128,7 @@
     "semver": "^7.6.3",
     "turndown": "7.2.0",
     "venice-ai-sdk-provider": "2.1.1",
+    "webdav": "^5.8.0",
     "which": "6.0.1",
     "xdg-basedir": "5.1.0",
     "zod": "catalog:"

@@ -14,6 +14,7 @@ import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { useWorkspaceData } from "./workspace-data"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
+import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
@@ -55,6 +56,7 @@ export default function NovelWorkspaceFrame() {
   const sdk = useSDK()
   // Must match the decoded directory used by novel-queries keys — params.dir is base64-encoded
   useNovelLiveInvalidation(sdk().directory, novelID())
+  createCloudSyncAutoPilot()
   const [selectedChapterId, setSelectedChapterId] = createSignal<string | null>(null)
   // Remember the last-read chapter per novel so reopening a book restores the reading position
   const [readingProgress, setReadingProgress, _, readingProgressReady] = persisted(

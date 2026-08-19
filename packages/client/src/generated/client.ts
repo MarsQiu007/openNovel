@@ -234,6 +234,17 @@ import type {
   NovelModesGetOutput,
   NovelModesSetInput,
   NovelModesSetOutput,
+  ServerSyncStatusOutput,
+  ServerSyncTestInput,
+  ServerSyncTestOutput,
+  ServerSyncSaveInput,
+  ServerSyncSaveOutput,
+  ServerSyncRemoveOutput,
+  ServerSyncSetInput,
+  ServerSyncSetOutput,
+  ServerSyncRunOutput,
+  ServerSyncResolveInput,
+  ServerSyncResolveOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -1886,6 +1897,87 @@ export function make(options: ClientOptions) {
             path: `/api/novel/mode`,
             query: { location: input?.["location"] },
             body: { writing_mode: input?.["writing_mode"], setup_mode: input?.["setup_mode"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    "server.sync": {
+      status: (requestOptions?: RequestOptions) =>
+        request<ServerSyncStatusOutput>(
+          { method: "GET", path: `/api/sync/status`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
+          requestOptions,
+        ),
+      test: (input: ServerSyncTestInput, requestOptions?: RequestOptions) =>
+        request<ServerSyncTestOutput>(
+          {
+            method: "POST",
+            path: `/api/sync/connection/test`,
+            body: {
+              url: input["url"],
+              username: input["username"],
+              password: input["password"],
+              remoteRoot: input["remoteRoot"],
+            },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      save: (input: ServerSyncSaveInput, requestOptions?: RequestOptions) =>
+        request<ServerSyncSaveOutput>(
+          {
+            method: "PUT",
+            path: `/api/sync/connection`,
+            body: {
+              url: input["url"],
+              username: input["username"],
+              password: input["password"],
+              remoteRoot: input["remoteRoot"],
+            },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      remove: (requestOptions?: RequestOptions) =>
+        request<ServerSyncRemoveOutput>(
+          {
+            method: "DELETE",
+            path: `/api/sync/connection`,
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      set: (input: ServerSyncSetInput, requestOptions?: RequestOptions) =>
+        request<ServerSyncSetOutput>(
+          {
+            method: "PUT",
+            path: `/api/sync/root`,
+            body: { rootDir: input["rootDir"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      run: (requestOptions?: RequestOptions) =>
+        request<ServerSyncRunOutput>(
+          { method: "POST", path: `/api/sync/run`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
+          requestOptions,
+        ),
+      resolve: (input: ServerSyncResolveInput, requestOptions?: RequestOptions) =>
+        request<ServerSyncResolveOutput>(
+          {
+            method: "POST",
+            path: `/api/sync/resolve`,
+            body: { name: input["name"], action: input["action"], names: input["names"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,

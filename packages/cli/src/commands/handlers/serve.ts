@@ -2,6 +2,7 @@ import { NodeHttpServer } from "@effect/platform-node"
 import { Credential } from "@opennovel-ai/core/credential"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
+import { Global } from "@opennovel-ai/core/global"
 import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { Context, Layer, Option } from "effect"
 import * as Effect from "effect/Effect"
@@ -40,7 +41,7 @@ function bind(hostname: string, port: number, password: string) {
   return Layer.build(
     HttpRouter.serve(createRoutes(password), { disableListenLog: true, disableLogger: true }).pipe(
       Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port, host: hostname })),
-      Layer.provide(AppNodeBuilder.build(LayerNode.group([Credential.node, PermissionSaved.node]))),
+      Layer.provide(AppNodeBuilder.build(LayerNode.group([Credential.node, PermissionSaved.node, Global.node]))),
     ),
   ).pipe(Effect.map((context) => Context.get(context, HttpServer.HttpServer).address))
 }

@@ -404,6 +404,20 @@ export function getDb(directory?: string | null, options?: { fresh?: boolean }):
   return db
 }
 
+/**
+ * 关闭并驱逐某项目的缓存连接。
+ *
+ * 云盘同步拉取远端快照替换 novel.db 文件前必须调用——否则替换后旧连接
+ * 仍持有已失效的文件句柄，后续写入会落到被替换掉的旧文件上。
+ */
+export function closeDb(directory?: string | null): void {
+  const dbPath = getDbPath(directory)
+  const cached = _dbCache.get(dbPath)
+  if (!cached) return
+  _dbCache.delete(dbPath)
+  cached.$client.close()
+}
+
 // ─── 会话标记 API ───
 
 /**

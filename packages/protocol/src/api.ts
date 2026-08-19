@@ -23,6 +23,7 @@ import { CredentialGroup } from "./groups/credential"
 import { ProjectCopyGroup } from "./groups/project-copy"
 import { NovelGroup } from "./groups/novel"
 import { NovelModeGroup } from "./groups/novel-mode"
+import { SyncGroup } from "./groups/sync"
 
 // Protocol owns middleware placement, while Server injects concrete keys so Core service identities stay downstream.
 const makeApiFromGroup = <
@@ -57,6 +58,7 @@ const makeApiFromGroup = <
     .add(ProjectCopyGroup.middleware(locationMiddleware))
     .add(NovelGroup.middleware(locationMiddleware))
     .add(NovelModeGroup.middleware(locationMiddleware))
+    .add(SyncGroup.middleware(locationMiddleware))
     .annotateMerge(
       OpenApi.annotations({
         title: "opennovel HttpApi",

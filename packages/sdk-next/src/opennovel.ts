@@ -1,6 +1,8 @@
 import { OpenNovel } from "@opennovel-ai/client/effect"
+import { Credential } from "@opennovel-ai/core/credential"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
+import { Global } from "@opennovel-ai/core/global"
 import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
 import { createEmbeddedRoutes } from "@opennovel-ai/server/routes"
@@ -11,17 +13,22 @@ export const create = Effect.fn("OpenNovel.create")(function* () {
   const scope = yield* Scope.Scope
   const memoMap = yield* Layer.makeMemoMap
   const context = yield* Layer.buildWithMemoMap(
-    AppNodeBuilder.build(LayerNode.group([ApplicationTools.node, PermissionSaved.node])),
+    AppNodeBuilder.build(LayerNode.group([ApplicationTools.node, PermissionSaved.node, Global.node, Credential.node])),
     memoMap,
     scope,
   )
   const tools = Context.get(context, ApplicationTools.Service)
-  const permissions = Context.get(context, PermissionSaved.Service)
   const web = yield* Effect.acquireRelease(
     Effect.sync(() =>
       HttpRouter.toWebHandler(
         createEmbeddedRoutes().pipe(
-          HttpRouter.provideRequest(Layer.succeed(PermissionSaved.Service, permissions)),
+          HttpRouter.provideRequest(
+            Layer.mergeAll(
+              Layer.succeed(PermissionSaved.Service, Context.get(context, PermissionSaved.Service)),
+              Layer.succeed(Global.Service, Context.get(context, Global.Service)),
+              Layer.succeed(Credential.Service, Context.get(context, Credential.Service)),
+            ),
+          ),
           Layer.provide(HttpServer.layerServices),
         ),
         { disableLogger: true, memoMap },

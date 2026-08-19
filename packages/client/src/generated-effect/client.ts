@@ -1520,6 +1520,74 @@ const Endpoint19_1 = (raw: RawClient["server.novelMode"]) => (input?: Endpoint19
 
 const adaptGroup19 = (raw: RawClient["server.novelMode"]) => ({ get: Endpoint19_0(raw), set: Endpoint19_1(raw) })
 
+const Endpoint20_0 = (raw: RawClient["server.sync"]) => () =>
+  raw["sync.status"]({}).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_1Request = Parameters<RawClient["server.sync"]["sync.connection.test"]>[0]
+type Endpoint20_1Input = {
+  readonly url: Endpoint20_1Request["payload"]["url"]
+  readonly username: Endpoint20_1Request["payload"]["username"]
+  readonly password: Endpoint20_1Request["payload"]["password"]
+  readonly remoteRoot?: Endpoint20_1Request["payload"]["remoteRoot"]
+}
+const Endpoint20_1 = (raw: RawClient["server.sync"]) => (input: Endpoint20_1Input) =>
+  raw["sync.connection.test"]({
+    payload: {
+      url: input["url"],
+      username: input["username"],
+      password: input["password"],
+      remoteRoot: input["remoteRoot"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_2Request = Parameters<RawClient["server.sync"]["sync.connection.save"]>[0]
+type Endpoint20_2Input = {
+  readonly url: Endpoint20_2Request["payload"]["url"]
+  readonly username: Endpoint20_2Request["payload"]["username"]
+  readonly password: Endpoint20_2Request["payload"]["password"]
+  readonly remoteRoot?: Endpoint20_2Request["payload"]["remoteRoot"]
+}
+const Endpoint20_2 = (raw: RawClient["server.sync"]) => (input: Endpoint20_2Input) =>
+  raw["sync.connection.save"]({
+    payload: {
+      url: input["url"],
+      username: input["username"],
+      password: input["password"],
+      remoteRoot: input["remoteRoot"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+const Endpoint20_3 = (raw: RawClient["server.sync"]) => () =>
+  raw["sync.connection.remove"]({}).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_4Request = Parameters<RawClient["server.sync"]["sync.root.set"]>[0]
+type Endpoint20_4Input = { readonly rootDir: Endpoint20_4Request["payload"]["rootDir"] }
+const Endpoint20_4 = (raw: RawClient["server.sync"]) => (input: Endpoint20_4Input) =>
+  raw["sync.root.set"]({ payload: { rootDir: input["rootDir"] } }).pipe(Effect.mapError(mapClientError))
+
+const Endpoint20_5 = (raw: RawClient["server.sync"]) => () => raw["sync.run"]({}).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_6Request = Parameters<RawClient["server.sync"]["sync.resolve"]>[0]
+type Endpoint20_6Input = {
+  readonly name?: Endpoint20_6Request["payload"]["name"]
+  readonly action: Endpoint20_6Request["payload"]["action"]
+  readonly names?: Endpoint20_6Request["payload"]["names"]
+}
+const Endpoint20_6 = (raw: RawClient["server.sync"]) => (input: Endpoint20_6Input) =>
+  raw["sync.resolve"]({ payload: { name: input["name"], action: input["action"], names: input["names"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+const adaptGroup20 = (raw: RawClient["server.sync"]) => ({
+  status: Endpoint20_0(raw),
+  test: Endpoint20_1(raw),
+  save: Endpoint20_2(raw),
+  remove: Endpoint20_3(raw),
+  set: Endpoint20_4(raw),
+  run: Endpoint20_5(raw),
+  resolve: Endpoint20_6(raw),
+})
+
 const adaptClient = (raw: RawClient) => ({
   health: adaptGroup0(raw["server.health"]),
   location: adaptGroup1(raw["server.location"]),
@@ -1541,6 +1609,7 @@ const adaptClient = (raw: RawClient) => ({
   projectCopies: adaptGroup17(raw["server.projectCopy"]),
   "server.novel": adaptGroup18(raw["server.novel"]),
   novelModes: adaptGroup19(raw["server.novelMode"]),
+  "server.sync": adaptGroup20(raw["server.sync"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>

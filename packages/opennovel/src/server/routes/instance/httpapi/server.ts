@@ -50,7 +50,9 @@ import { Truncate } from "@/tool/truncate"
 import { Worktree } from "@/worktree"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { MoveSession } from "@opennovel-ai/core/control-plane/move-session"
+import { Credential } from "@opennovel-ai/core/credential"
 import { Database } from "@opennovel-ai/core/database/database"
+import { Global } from "@opennovel-ai/core/global"
 import { AppNodeBuilderV1 } from "@/effect/app-node-builder-v1"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { httpClient } from "@opennovel-ai/core/effect/app-node-platform"
@@ -214,6 +216,8 @@ const app = LayerNode.group([
   Npm.node,
   FSUtil.node,
   Database.node,
+  Global.node,
+  Credential.node,
   Auth.node,
   Account.node,
   Config.node,

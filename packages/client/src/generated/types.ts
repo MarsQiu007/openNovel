@@ -130,6 +130,13 @@ export type NovelModeError = { readonly name: "NovelModeError"; readonly data: {
 export const isNovelModeError = (value: unknown): value is NovelModeError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelModeError"
 
+export type SyncErrorResponse = {
+  readonly name: "SyncErrorResponse"
+  readonly data: { readonly message: string; readonly code?: string | undefined }
+}
+export const isSyncErrorResponse = (value: unknown): value is SyncErrorResponse =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "SyncErrorResponse"
+
 export type HealthGetOutput = { readonly healthy: true }
 
 export type LocationGetInput = {
@@ -4062,4 +4069,191 @@ export type NovelModesSetInput = {
 export type NovelModesSetOutput = {
   readonly writing_mode: "auto" | "review"
   readonly setup_mode: "interactive" | "auto"
+}
+
+export type ServerSyncStatusOutput = {
+  readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }
+  readonly rootDir?: string
+  readonly projects: ReadonlyArray<{
+    readonly name: string
+    readonly state:
+      | "in_sync"
+      | "local_ahead"
+      | "remote_ahead"
+      | "new_local"
+      | "new_remote"
+      | "conflict"
+      | "pending_delete"
+    readonly lastSyncedAt?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly novels?: ReadonlyArray<string>
+  }>
+}
+
+export type ServerSyncTestInput = {
+  readonly url: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["url"]
+  readonly username: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["username"]
+  readonly password: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["password"]
+  readonly remoteRoot?: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["remoteRoot"]
+}
+
+export type ServerSyncTestOutput = { readonly ok: boolean; readonly error?: string }
+
+export type ServerSyncSaveInput = {
+  readonly url: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["url"]
+  readonly username: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["username"]
+  readonly password: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["password"]
+  readonly remoteRoot?: {
+    readonly url: string
+    readonly username: string
+    readonly password: string
+    readonly remoteRoot?: string
+  }["remoteRoot"]
+}
+
+export type ServerSyncSaveOutput = {
+  readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }
+  readonly rootDir?: string
+  readonly projects: ReadonlyArray<{
+    readonly name: string
+    readonly state:
+      | "in_sync"
+      | "local_ahead"
+      | "remote_ahead"
+      | "new_local"
+      | "new_remote"
+      | "conflict"
+      | "pending_delete"
+    readonly lastSyncedAt?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly novels?: ReadonlyArray<string>
+  }>
+}
+
+export type ServerSyncRemoveOutput = {
+  readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }
+  readonly rootDir?: string
+  readonly projects: ReadonlyArray<{
+    readonly name: string
+    readonly state:
+      | "in_sync"
+      | "local_ahead"
+      | "remote_ahead"
+      | "new_local"
+      | "new_remote"
+      | "conflict"
+      | "pending_delete"
+    readonly lastSyncedAt?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly novels?: ReadonlyArray<string>
+  }>
+}
+
+export type ServerSyncSetInput = { readonly rootDir: { readonly rootDir: string }["rootDir"] }
+
+export type ServerSyncSetOutput = {
+  readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }
+  readonly rootDir?: string
+  readonly projects: ReadonlyArray<{
+    readonly name: string
+    readonly state:
+      | "in_sync"
+      | "local_ahead"
+      | "remote_ahead"
+      | "new_local"
+      | "new_remote"
+      | "conflict"
+      | "pending_delete"
+    readonly lastSyncedAt?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly novels?: ReadonlyArray<string>
+  }>
+}
+
+export type ServerSyncRunOutput = {
+  readonly results: ReadonlyArray<{
+    readonly name: string
+    readonly action: "uploaded" | "downloaded" | "deleted_remote"
+  }>
+  readonly decisions: ReadonlyArray<
+    | {
+        readonly kind: "pair_conflict"
+        readonly name: string
+        readonly remote: { readonly device: string; readonly at: number; readonly novels: ReadonlyArray<string> }
+      }
+    | {
+        readonly kind: "tie_conflict"
+        readonly name: string
+        readonly localTime: number | null
+        readonly remoteTime: number | null
+      }
+    | { readonly kind: "delete_confirm"; readonly names: ReadonlyArray<string> }
+  >
+}
+
+export type ServerSyncResolveInput = {
+  readonly name?: {
+    readonly name?: string
+    readonly action: "keep_local" | "keep_remote" | "keep_both" | "confirm_delete" | "skip"
+    readonly names?: ReadonlyArray<string>
+  }["name"]
+  readonly action: {
+    readonly name?: string
+    readonly action: "keep_local" | "keep_remote" | "keep_both" | "confirm_delete" | "skip"
+    readonly names?: ReadonlyArray<string>
+  }["action"]
+  readonly names?: {
+    readonly name?: string
+    readonly action: "keep_local" | "keep_remote" | "keep_both" | "confirm_delete" | "skip"
+    readonly names?: ReadonlyArray<string>
+  }["names"]
+}
+
+export type ServerSyncResolveOutput = {
+  readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }
+  readonly rootDir?: string
+  readonly projects: ReadonlyArray<{
+    readonly name: string
+    readonly state:
+      | "in_sync"
+      | "local_ahead"
+      | "remote_ahead"
+      | "new_local"
+      | "new_remote"
+      | "conflict"
+      | "pending_delete"
+    readonly lastSyncedAt?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly novels?: ReadonlyArray<string>
+  }>
 }

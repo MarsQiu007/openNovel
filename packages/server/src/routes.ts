@@ -4,6 +4,7 @@ import { httpClient } from "@opennovel-ai/core/effect/app-node-platform"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { Credential } from "@opennovel-ai/core/credential"
+import { Global } from "@opennovel-ai/core/global"
 import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { PtyTicket } from "@opennovel-ai/core/pty/ticket"
 import { SessionV2 } from "@opennovel-ai/core/session"
@@ -32,6 +33,7 @@ const applicationServices = LayerNode.group([
   PermissionSaved.node,
   PtyTicket.node,
   Credential.node,
+  Global.node,
   PtyEnvironment.node,
   LocationServiceMap.node,
 ])

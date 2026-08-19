@@ -10,6 +10,7 @@ import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsServers } from "./settings-servers"
+import { SettingsSync } from "./settings-sync"
 
 export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
   const language = useLanguage()
@@ -49,6 +50,10 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
                       <Icon name="server" />
                       {language.t("status.popover.tab.servers")}
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="sync">
+                      <Icon name="cloud-upload" />
+                      {language.t("settings.sync.tab")}
+                    </Tabs.Trigger>
                   </div>
                 </div>
 
@@ -81,6 +86,9 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="servers" class="no-scrollbar">
           <SettingsServers />
+        </Tabs.Content>
+        <Tabs.Content value="sync" class="no-scrollbar">
+          <SettingsSync />
         </Tabs.Content>
         <Tabs.Content value="providers" class="no-scrollbar">
           <SettingsProviders onBack={showProviders} />
