@@ -32,6 +32,7 @@ function assert(cond: boolean, msg: string) {
 // ─── 加载插件，拿到工具 ───
 const hooks = await NovelWriterPlugin({
   client: {} as never,
+  clientV2: {} as never,
   project: {} as never,
   directory: import.meta.dirname,
   worktree: import.meta.dirname,

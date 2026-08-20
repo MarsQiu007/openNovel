@@ -8,6 +8,8 @@
 import { createOpenNovelClient } from "@opennovel-ai/sdk"
 import type { PluginInput } from "../../src/index.js"
 
+const { createOpenNovelClient: createClientV2 } = await import("@opennovel-ai/sdk/v2/client")
+
 export function createPluginInput(directory: string): PluginInput {
   return {
     directory,
@@ -17,6 +19,7 @@ export function createPluginInput(directory: string): PluginInput {
       register() {},
     },
     client: createOpenNovelClient({ baseUrl: "http://localhost:1" }),
+    clientV2: createClientV2({ baseUrl: "http://localhost:1" }),
     project: {
       id: "test-project",
       worktree: directory,

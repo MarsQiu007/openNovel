@@ -11,6 +11,7 @@ import type {
   Config as SDKConfig,
 } from "@opennovel-ai/sdk"
 import type { Provider as ProviderV2, Model as ModelV2, Auth } from "@opennovel-ai/sdk/v2"
+import type { OpenNovelClient } from "@opennovel-ai/sdk/v2/client"
 
 import type { BunShell } from "./shell.js"
 import { type ToolDefinition } from "./tool.js"
@@ -55,6 +56,9 @@ export type WorkspaceAdapter = {
 
 export type PluginInput = {
   client: ReturnType<typeof createOpenNovelClient>
+  // v2 客户端：新端点（如灵魂 /api/soul/global）只存在于 v2 gen SDK；
+  // legacy v1 client 无 v2 桥且 auth plugin 依赖其旧签名，故并存而非替换。
+  clientV2: OpenNovelClient
   project: Project
   directory: string
   worktree: string

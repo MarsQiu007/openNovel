@@ -151,9 +151,23 @@ const layer = Layer.effect(
           headers: ServerAuth.headers(),
           ...(serverUrl ? {} : { fetch: async (...args) => Server.Default().app.fetch(...args) }),
         })
+        // v2 客户端携带新端点（灵魂等）；与 v1 client 同配置并存，见 PluginInput.clientV2
+        const { createOpenNovelClient: createClientV2 } = yield* Effect.promise(
+          () => import("@opennovel-ai/sdk/v2/client"),
+        )
+        const clientV2 = createClientV2({
+          baseUrl: serverUrl?.toString() ?? "http://localhost:4096",
+          directory: ctx.directory,
+          headers: ServerAuth.headers(),
+          // v2 Config.fetch 要求完整 typeof fetch 签名；内存模式只转发 Request
+          ...(serverUrl
+            ? {}
+            : { fetch: ((request: Request) => Server.Default().app.fetch(request)) as typeof fetch }),
+        })
         const cfg = yield* config.get()
         const input: PluginInput = {
           client,
+          clientV2,
           project: ctx.project,
           worktree: ctx.worktree,
           directory: ctx.directory,

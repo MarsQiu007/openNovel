@@ -383,6 +383,7 @@ test("remaps fallback oauth model urls to the enterprise host", async () => {
 
   const hooks = await CopilotAuthPlugin({
     client: {} as never,
+    clientV2: {} as never,
     project: {} as never,
     directory: "",
     worktree: "",

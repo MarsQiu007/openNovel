@@ -253,6 +253,7 @@ describe("plugin.codex", () => {
             },
           },
         } as never,
+        clientV2: {} as never,
         project: {} as never,
         directory: "",
         worktree: "",

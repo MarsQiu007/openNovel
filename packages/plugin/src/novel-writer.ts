@@ -83,9 +83,11 @@ import {
   updateWorldEntry,
   createForeshadowing,
   readNovelConfig,
+  getSoul,
   type WritingMode,
   type SetupMode,
 } from "./novel-writer/session-store.js"
+import { chooseSoul, fetchGlobalSoul } from "./novel-writer/soul.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 
@@ -146,6 +148,25 @@ function injectModeContext(directory: string | null | undefined, system: string[
   // unshift 到 system[0] 位置，确保模式契约始终是 system prompt 的 header，
   // 不会被后续注入的【小说写作上下文快照】等段落挤压到尾部、稀释优先级
   system.unshift(lines.join("\n"))
+}
+
+/**
+ * 灵魂注入：模式契约固定在 system[0]（injectModeContext 已 unshift），
+ * 灵魂插到其后（splice 到 index 1），快照仍由 injectSystemContext push 到尾部。
+ * 全局灵魂对所有会话生效；小说灵魂仅在解析到 novelId 时参与合并。
+ */
+async function injectSoul(
+  sessionId: string,
+  directory: string | null | undefined,
+  system: string[],
+  client: Parameters<typeof fetchGlobalSoul>[0],
+) {
+  const novelId = await resolveNovelForSession(sessionId, directory)
+  const novelSoul = novelId ? (await getSoul(novelId, directory))?.content : undefined
+  const globalSoul = await fetchGlobalSoul(client).catch(() => undefined)
+  const soul = chooseSoul(novelSoul, globalSoul)
+  if (!soul) return
+  system.splice(1, 0, `【灵魂】\n${soul}`)
 }
 
 /**
@@ -301,6 +322,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       } catch (error) {
         console.warn(
           "[novel-writer] system.transform hook failed at mode injection:",
+          error instanceof Error ? error.message : error,
+        )
+      }
+
+      try {
+        await injectSoul(input.sessionID, ctx.directory, output.system, ctx.clientV2)
+      } catch (error) {
+        console.warn(
+          "[novel-writer] system.transform hook failed at soul injection:",
           error instanceof Error ? error.message : error,
         )
       }

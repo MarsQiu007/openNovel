@@ -3,6 +3,7 @@ import { CloudflareAIGatewayAuthPlugin } from "@/plugin/cloudflare"
 
 const pluginInput = {
   client: {} as never,
+  clientV2: {} as never,
   project: {} as never,
   directory: "",
   worktree: "",
