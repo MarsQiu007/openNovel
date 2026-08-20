@@ -1539,7 +1539,7 @@ export const dict = {
   "novel.settings.entry.deleteConfirm": "Are you sure you want to delete \"{{title}}\"? This cannot be undone.",
   "novel.settings.style.saved": "Style saved.",
 "settings.soul.tab": "Soul",
-  "settings.soul.description": "Write a persona injected into every AI session as a system prompt. A novel with its own soul overrides this global one.",
+  "settings.soul.description": "Write a persona injected into every AI session as a system prompt. A novel with its own soul overrides this global one. Set a per-novel soul in the novel workspace → left “Settings” → “Soul” tab.",
   "settings.soul.placeholder": "e.g. You are a sharp-tongued but dependable writing partner...",
   "settings.soul.templates": "Templates",
   "settings.soul.template.gentle.name": "Gentle Editor",
@@ -1554,7 +1554,7 @@ export const dict = {
   "settings.soul.charCount": "{{count}} characters",
   "settings.soul.tooLong": "{{count}} characters — long souls may crowd the model context",
   "novel.settings.tabSoul": "Soul",
-  "novel.settings.soul.globalHint": "If unset, the global soul (Settings -> Soul) applies to this novel.",
+  "novel.settings.soul.globalHint": "If unset, or after you clear the content and save, the global soul (Settings -> Soul) applies to this novel.",
 
   "novel.editor.save": "Save",
   "novel.editor.saved": "Saved",

@@ -1504,7 +1504,7 @@ export const dict = {
   "novel.settings.entry.deleteConfirm": "确定要删除「{{title}}」吗？此操作不可逆。",
   "novel.settings.style.saved": "风格已保存。",
 "settings.soul.tab": "灵魂",
-  "settings.soul.description": "写一段人格文本，作为系统提示词注入所有 AI 会话；小说设定了自己的灵魂时会覆盖它。",
+  "settings.soul.description": "写一段人格文本，作为系统提示词注入所有 AI 会话；小说设定了自己的灵魂时会覆盖它。单本书的灵魂在「小说工作区 → 左侧设定 → 灵魂」中设置。",
   "settings.soul.placeholder": "例：你是「老毒」，一个毒舌但靠谱的写作搭档……",
   "settings.soul.templates": "模板",
   "settings.soul.template.gentle.name": "温柔责编",
@@ -1519,7 +1519,7 @@ export const dict = {
   "settings.soul.charCount": "{{count}} 字",
   "settings.soul.tooLong": "{{count}} 字——内容较长，可能挤占模型上下文",
   "novel.settings.tabSoul": "灵魂",
-  "novel.settings.soul.globalHint": "未设置时，本书使用全局灵魂（设置 → 灵魂）。",
+  "novel.settings.soul.globalHint": "未设置或清空内容并保存后，本书使用全局灵魂（设置 → 灵魂）。",
 
   "novel.editor.save": "保存",
   "novel.editor.saved": "已保存",
