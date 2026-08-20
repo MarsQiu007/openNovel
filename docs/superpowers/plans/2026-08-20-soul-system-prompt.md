@@ -1,6 +1,6 @@
 # 「灵魂」系统提示词注入 — 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 新增用户可编辑的「灵魂」人格文本（全局默认 + 每本小说覆盖），注入 AI 会话系统提示词；顺带把世界观条目标题导览注入上下文快照。
 
@@ -25,7 +25,7 @@
 - Modify: `packages/novel-store/src/migrate.ts`（`cleanupOrphanRows` 的 statements 列表，约 :73-96）
 - Test: `packages/novel-store/test/soul.test.ts`（新建；参照 `test/session-bindings.test.ts` 的 tmpdir 模式）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
@@ -78,12 +78,12 @@ describe("soul", () => {
 
 > 注意：`createNovel` 的确切签名以 `packages/novel-store/src/index.ts` 中现有导出为准（其他测试如 `session-bindings.test.ts` 里有真实用法，照抄其调用方式）。若签名不同，只调整测试里的建小说调用，不改断言。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd packages/novel-store && bun test test/soul.test.ts`
 Expected: FAIL（`getSoul is not a function` / 导入错误）
 
-- [ ] **Step 3: 实现表定义 + CRUD**
+- [x] **Step 3: 实现表定义 + CRUD**
 
 `packages/novel-store/src/index.ts`，在 `StyleGuideTable`（:180-187）之后插入：
 
@@ -134,17 +134,17 @@ export async function upsertSoul(novelId: string, content: string, directory?: s
     "DELETE FROM soul WHERE novel_id NOT IN (SELECT id FROM novels)",
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `cd packages/novel-store && bun test test/soul.test.ts`
 Expected: 3 pass
 
-- [ ] **Step 5: 全量测试 + typecheck**
+- [x] **Step 5: 全量测试 + typecheck**
 
 Run: `cd packages/novel-store && bun test && bun typecheck`
 Expected: 全绿
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/novel-store
@@ -159,7 +159,7 @@ git commit -m "feat(novel-store): 新增 soul 表与 CRUD（小说灵魂存储�
 - Modify: `packages/schema/src/novel.ts`（`StyleGuide` 在 :188-196 之后；`UpdateSoulInput` 加在 :322-328 `UpdateStyleGuideInput` 之后）
 - Modify: `packages/protocol/src/groups/novel.ts`（:614-636 style-guide 两个端点之后）
 
-- [ ] **Step 1: schema 定义**
+- [x] **Step 1: schema 定义**
 
 `packages/schema/src/novel.ts` 在 `StyleGuide` 定义后加：
 
@@ -182,7 +182,7 @@ export const UpdateSoulInput = Schema.Struct({
 export interface UpdateSoulInput extends Schema.Schema.Type<typeof UpdateSoulInput> {}
 ```
 
-- [ ] **Step 2: protocol 端点**
+- [x] **Step 2: protocol 端点**
 
 `packages/protocol/src/groups/novel.ts` 在 `novel.update-style-guide` 端点（:624-636）之后加两个端点，并把 `Soul, UpdateSoulInput` 加入文件顶部对 `@opennovel-ai/schema/novel` 的现有 import 列表：
 
@@ -210,12 +210,12 @@ export interface UpdateSoulInput extends Schema.Schema.Type<typeof UpdateSoulInp
   )
 ```
 
-- [ ] **Step 3: typecheck**
+- [x] **Step 3: typecheck**
 
 Run: `cd packages/schema && bun typecheck && cd ../protocol && bun typecheck`
 Expected: 通过
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/schema packages/protocol
@@ -232,7 +232,7 @@ git commit -m "feat(schema+protocol): 小说灵魂读取/更新端点定义"
 - Create: `packages/protocol/src/groups/soul.ts`
 - Modify: `packages/protocol/src/api.ts`（`SyncGroup` 注册在 :61，照抄一行）
 
-- [ ] **Step 1: schema 定义**
+- [x] **Step 1: schema 定义**
 
 新建 `packages/schema/src/soul.ts`（开头自导出模式照 `schema/src/sync.ts`）：
 
@@ -259,7 +259,7 @@ export const UpdateGlobalInput = Schema.Struct({
 export { Soul } from "./soul"
 ```
 
-- [ ] **Step 2: protocol 端点组**
+- [x] **Step 2: protocol 端点组**
 
 新建 `packages/protocol/src/groups/soul.ts`（照 `groups/sync.ts` 模式）：
 
@@ -296,12 +296,12 @@ export const SoulGroup = HttpApiGroup.make("server.soul")
 
 > 说明：SyncGroup 虽为全局操作同样挂 locationMiddleware（容忍无 location 的调用），此处保持一致。
 
-- [ ] **Step 3: typecheck**
+- [x] **Step 3: typecheck**
 
 Run: `cd packages/schema && bun typecheck && cd ../protocol && bun typecheck`
 Expected: 通过
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/schema packages/protocol
@@ -317,7 +317,7 @@ git commit -m "feat(schema+protocol): 全局灵魂读取/更新端点定义"
 - Create: `packages/server/src/handlers/soul.ts`
 - Modify: `packages/server/src/handlers.ts`（Layer.mergeAll 列表）
 
-- [ ] **Step 1: 小说级端点实现**
+- [x] **Step 1: 小说级端点实现**
 
 `packages/server/src/handlers/novel.ts`：
 
@@ -378,7 +378,7 @@ export function updateSoulEndpoint(novelID: string, input: UpdateSoulInput, dire
       )
 ```
 
-- [ ] **Step 2: 全局端点实现**
+- [x] **Step 2: 全局端点实现**
 
 新建 `packages/server/src/handlers/soul.ts`：
 
@@ -426,7 +426,7 @@ export const SoulHandler = HttpApiBuilder.group(Api, "server.soul", (handlers) =
 
 > 注意：`Global.Service` 的请求级标记在 `cli`（serve.ts 已提供 `Global.node`）与 `sdk-next`（opennovel.ts 已 provideRequest）均已闭合，本 handler 复用同一服务，不会引入新泄漏——下一步用 typecheck 验证这一点。
 
-- [ ] **Step 3: typecheck（含 cli / sdk-next 回归）**
+- [x] **Step 3: typecheck（含 cli / sdk-next 回归）**
 
 Run:
 ```bash
@@ -436,7 +436,7 @@ cd ../sdk-next && bun typecheck
 ```
 Expected: 全部通过（若 cli/sdk-next 报 `Global.Service` 相关类型错误，说明标记泄漏，按 sync 提交 65667aa7b 中 serve.ts / opennovel.ts 的既有模式补齐提供）
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/server
@@ -449,7 +449,7 @@ git commit -m "feat(server): 灵魂端点实现（小说级走 Location，全局
 
 app 前端用 `packages/client`（HttpApi 生成）；plugin 的 `ctx.client` 是 legacy SDK（`@opennovel-ai/sdk`，从 opennovel OpenAPI 生成）。两边都要重新生成。
 
-- [ ] **Step 1: 生成新 client**
+- [x] **Step 1: 生成新 client**
 
 Run: `cd packages/client && bun run generate`
 Expected: `src/generated*` 更新，包含 `server.soul` 组与 `novel.soul` / `novel.update-soul` 端点
@@ -461,7 +461,7 @@ grep -n "soul" packages/client/src/generated-effect/client.ts | head -5
 ```
 Expected: 有命中
 
-- [ ] **Step 2: 生成 legacy SDK**
+- [x] **Step 2: 生成 legacy SDK**
 
 Run: `./packages/sdk/js/script/build.ts`
 Expected: 生成成功
@@ -472,12 +472,12 @@ grep -n "soul" packages/sdk/js/src/gen/sdk.gen.ts | head -10
 ```
 Expected: 看到 `v2.soul.global` / `v2.soul.update-global` 对应的生成方法。**记下确切方法名**，Task 6 的 `fetchGlobalSoul` 要用。
 
-- [ ] **Step 3: typecheck 受影响的包**
+- [x] **Step 3: typecheck 受影响的包**
 
 Run: `cd packages/client && bun typecheck && cd ../sdk && bun typecheck`
 Expected: 通过
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/client packages/sdk
@@ -493,7 +493,7 @@ git commit -m "chore(sdk): 重新生成客户端（灵魂端点）"
 - Modify: `packages/plugin/src/novel-writer.ts`（hook 内 :299-315 两段 try 之间插入 injectSoul；injectSoul 函数加在 :155 `injectSystemContext` 之前）
 - Test: `packages/plugin/test/novel-writer/soul.test.ts`（新建）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, test, expect } from "bun:test"
@@ -522,12 +522,12 @@ describe("chooseSoul", () => {
 })
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd packages/plugin && bun test test/novel-writer/soul.test.ts`
 Expected: FAIL（模块不存在）
 
-- [ ] **Step 3: 实现 soul.ts**
+- [x] **Step 3: 实现 soul.ts**
 
 新建 `packages/plugin/src/novel-writer/soul.ts`：
 
@@ -568,7 +568,7 @@ export async function fetchGlobalSoul(client: PluginClient): Promise<string> {
 
 > **`client.soul.global()` 的方法名以 Task 5 Step 2 grep 到的 code 生成为准**（hey-api 由 identifier `v2.soul.global` 生成，可能是 `client.soul.global()` 或平铺命名）。若名字不同，只改这一行调用；返回值取 `data.content`，`data` 可能包一层 `{ data }` 或直接返回，以生成类型为准。
 
-- [ ] **Step 4: hook 接线**
+- [x] **Step 4: hook 接线**
 
 `packages/plugin/src/novel-writer.ts`：
 
@@ -615,17 +615,17 @@ async function injectSoul(
       }
 ```
 
-- [ ] **Step 5: 跑测试确认通过 + typecheck**
+- [x] **Step 5: 跑测试确认通过 + typecheck**
 
 Run: `cd packages/plugin && bun test test/novel-writer/soul.test.ts && bun typecheck`
 Expected: 4 pass，typecheck 通过
 
-- [ ] **Step 6: 全量 plugin 测试**
+- [x] **Step 6: 全量 plugin 测试**
 
 Run: `cd packages/plugin && bun test`
 Expected: 全绿（不破坏现有测试）
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/plugin
@@ -641,7 +641,7 @@ git commit -m "feat(plugin): 灵魂注入系统提示词（全局默认 + 小说
 - Modify: `packages/plugin/src/novel-writer.ts`（injectSystemContext 渲染段，:230-236【风格指南】之后）
 - Test: `packages/plugin/test/novel-writer/context-snapshot.test.ts`（新建）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
@@ -687,12 +687,12 @@ describe("assembleSnapshot 世界观导览", () => {
 
 > `createWorldEntry` / `createNovel` 的确切签名以 novel-store 现有导出为准（`packages/plugin/test/novel-writer/` 其他测试有真实建库用法可照抄，如 `db-consistency.test.ts`）；签名不同则只调整建数据调用。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd packages/plugin && bun test test/novel-writer/context-snapshot.test.ts`
 Expected: FAIL（`worldEntries` 不存在）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `packages/plugin/src/novel-writer/context.ts`：
 
@@ -754,12 +754,12 @@ return 对象（:294-330）中 `genreRules,` 之后加：
   }
 ```
 
-- [ ] **Step 4: 跑测试确认通过 + typecheck + 全量**
+- [x] **Step 4: 跑测试确认通过 + typecheck + 全量**
 
 Run: `cd packages/plugin && bun test && bun typecheck`
 Expected: 全绿
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/plugin
@@ -777,7 +777,7 @@ git commit -m "feat(plugin): 上下文快照新增世界观条目标题导览"
 
 模板内容走 i18n（key 在 Task 10 定义，本任务直接用 `language.t("settings.soul.template.gentle.content")` 等读取）。
 
-- [ ] **Step 1: 共享编辑器组件**
+- [x] **Step 1: 共享编辑器组件**
 
 新建 `packages/app/src/components/soul-editor.tsx`：
 
@@ -888,7 +888,7 @@ export const SoulEditor: Component<SoulEditorProps> = (props) => {
 
 > `dialog.confirm` 的确切签名以 `@opennovel-ai/ui/context/dialog` 现有导出为准（app 内多处删除确认在用，如 world-reader.tsx 的 `useConfirmDelete`；若签名不同，改用该 hook 或既有确认弹窗工具）。
 
-- [ ] **Step 2: 设置页面板**
+- [x] **Step 2: 设置页面板**
 
 新建 `packages/app/src/components/settings-soul.tsx`（外壳照 `settings-sync.tsx` 的 v2 用法）：
 
@@ -934,7 +934,7 @@ export const SettingsSoul: Component<{ v2?: boolean }> = () => {
 
 > `client()["server.soul"].global()` / `["update-global"]` 的方法名以 Task 5 生成结果为准（参照 `settings-sync.tsx` 中 `client()["server.sync"].status()` 的访问模式）；返回数据可能是 `{ content }` 或包一层 `{ data }`，以生成类型为准。
 
-- [ ] **Step 3: 注册进设置导航**
+- [x] **Step 3: 注册进设置导航**
 
 `packages/app/src/components/settings-v2/dialog-settings-v2.tsx`：
 
@@ -963,12 +963,12 @@ Content 区（:99-101 `models` Content 之后）加：
 
 > `brain` 图标已存在于 `@opennovel-ai/ui/icon`（icon.tsx 的 icons 表中有 `brain`）。
 
-- [ ] **Step 4: typecheck**
+- [x] **Step 4: typecheck**
 
 Run: `cd packages/app && bun typecheck`
 Expected: 通过（i18n key 尚未添加时会报 missing key 错误——属预期，Task 10 补齐后消失；若希望本任务即绿，可先只在 en/zh 加 key）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/app/src/components/soul-editor.tsx packages/app/src/components/settings-soul.tsx packages/app/src/components/settings-v2/dialog-settings-v2.tsx
@@ -983,7 +983,7 @@ git commit -m "feat(app): 设置页新增「灵魂」全局人格编辑器"
 - Modify: `packages/app/src/context/novel-queries.ts`（novelKeys :31-56 加 soul；hooks 加在 :297-303 `useStyleGuide` 与 :850-874 `useUpdateStyleGuide` 之后）
 - Modify: `packages/app/src/pages/novel/world-reader.tsx`（WorldSubTab :36；SegmentedControl :50-59；Show 区 :62-71；编辑器组件加在 StyleGuideEditor :269 之后）
 
-- [ ] **Step 1: 数据 hooks**
+- [x] **Step 1: 数据 hooks**
 
 `packages/app/src/context/novel-queries.ts`：
 
@@ -1030,7 +1030,7 @@ export function useUpdateSoul() {
 }
 ```
 
-- [ ] **Step 2: 设定页 tab**
+- [x] **Step 2: 设定页 tab**
 
 `packages/app/src/pages/novel/world-reader.tsx`：
 
@@ -1078,12 +1078,12 @@ function NovelSoulEditor(props: { novelID: Accessor<string> }) {
 
 import 区加：`useSoul, useUpdateSoul`（加入对 `@/context/novel-queries` 的现有 import）、`SoulEditor` from `@/components/soul-editor`。`showToast` 与 `useLanguage` 该文件已有则复用。
 
-- [ ] **Step 3: typecheck**
+- [x] **Step 3: typecheck**
 
 Run: `cd packages/app && bun typecheck`
 Expected: 通过（同 Task 8 的 i18n 说明）
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/app/src/context/novel-queries.ts packages/app/src/pages/novel/world-reader.tsx
@@ -1097,7 +1097,7 @@ git commit -m "feat(app): 小说设定页新增「灵魂」子 tab（覆盖全�
 **Files:**
 - Modify: `packages/app/src/i18n/*.ts`（全部 locale 文件，含 en/zh 等 18 个）
 
-- [ ] **Step 1: 定义 key 清单并写入所有 locale**
+- [x] **Step 1: 定义 key 清单并写入所有 locale**
 
 新增 key（en 值 / zh 值如下，其余 16 语言翻译后填入；key 插入位置参照 `settings.sync.*`（en.ts :899 起）与 `novel.settings.*`（en.ts :1530 起）分组）：
 
@@ -1123,17 +1123,17 @@ novel.settings.soul.globalHint         = If unset, the global soul (Settings →
 
 > locale 文件清单：`ls packages/app/src/i18n/*.ts`。parity 要求所有 locale key 完全一致（含 `{{count}}` 占位符）。其余语言可用英文打底再翻，但 key 必须全。
 
-- [ ] **Step 2: 本地跑 parity 测试（CI 跳过，必须本地）**
+- [x] **Step 2: 本地跑 parity 测试（CI 跳过，必须本地）**
 
 Run: `cd packages/app && bun test src/i18n/parity.test.ts`
 Expected: 全绿（无 missing/extra key）
 
-- [ ] **Step 3: app 全量 typecheck + 单测**
+- [x] **Step 3: app 全量 typecheck + 单测**
 
 Run: `cd packages/app && bun typecheck && bun test --preload ./happydom.ts ./src`
 Expected: 通过
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/app/src/i18n
@@ -1144,12 +1144,12 @@ git commit -m "feat(app): 灵魂功能 i18n 全语言补齐"
 
 ## Task 11: 收尾全量验证
 
-- [ ] **Step 1: 全仓 typecheck**
+- [x] **Step 1: 全仓 typecheck**
 
 Run: `bun turbo typecheck`（仓库根）
 Expected: 30 个包全部通过（重点看 cli / sdk-next 无 Global.Service 标记泄漏回归）
 
-- [ ] **Step 2: 相关包测试全跑**
+- [x] **Step 2: 相关包测试全跑**
 
 Run:
 ```bash
@@ -1159,19 +1159,19 @@ cd ../app && bun test --preload ./happydom.ts ./src
 ```
 Expected: 全绿
 
-- [ ] **Step 3: lint**
+- [x] **Step 3: lint**
 
 Run: `bunx oxlint`（仓库根）
 Expected: 0 error
 
-- [ ] **Step 4: 手动冒烟（开发服务器）**
+- [x] **Step 4: 手动冒烟（开发服务器）**
 
 启动 desktop/app 开发环境，验证：
 1. 设置 → 灵魂：填入模板保存，重启后内容仍在（config/soul.md 已写入）
 2. 小说设定页 → 灵魂 tab：填入内容保存；清空保存后提示回落全局
 3. 发起一次小说会话，确认系统提示词含【灵魂】段且在模式契约之后（可临时 console.log 或通过 devtools 查看请求）
 
-- [ ] **Step 5: 更新设计文档状态 + 最终提交**
+- [x] **Step 5: 更新设计文档状态 + 最终提交**
 
 把 `docs/superpowers/specs/2026-08-20-soul-system-prompt-design.md` 的状态改为「已实施」。
 
