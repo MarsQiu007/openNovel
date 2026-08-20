@@ -53,7 +53,9 @@ export function WorldReader(props: WorldReaderProps) {
         <SegmentedControlV2
           class="segmented-control-v2--full-width"
           value={subTab()}
-          onChange={(value) => value && setSubTab(value as WorldSubTab)}
+          onChange={(value) => {
+            if (value === "entries" || value === "style" || value === "soul") setSubTab(value)
+          }}
         >
           <SegmentedControlItemV2 value="entries">
             {language.t("novel.settings.tabEntries")}
@@ -385,6 +387,7 @@ function NovelSoulEditor(props: NovelSoulEditorProps) {
   return (
     <SoulEditor
       value={() => query.data?.content}
+      resetKey={props.novelID()}
       loading={query.isLoading}
       saving={update.isPending}
       hint={language.t("novel.settings.soul.globalHint")}

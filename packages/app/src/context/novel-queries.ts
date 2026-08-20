@@ -903,7 +903,7 @@ export function useUpdateSoul() {
       })
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: novelKeys.soul(sdk().directory, variables.novelID) })
+      void queryClient.invalidateQueries({ queryKey: novelKeys.soul(sdk().directory, variables.novelID) })
     },
   }))
 }

@@ -11,6 +11,7 @@ import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
 import { SettingsServers } from "./settings-servers"
 import { SettingsSync } from "./settings-sync"
+import { SettingsSoul } from "./settings-soul"
 
 export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
   const language = useLanguage()
@@ -68,6 +69,10 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
                       <Icon name="models" />
                       {language.t("settings.models.title")}
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="soul">
+                      <Icon name="brain" />
+                      {language.t("settings.soul.tab")}
+                    </Tabs.Trigger>
                   </div>
                 </div>
               </div>
@@ -95,6 +100,9 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
+        </Tabs.Content>
+        <Tabs.Content value="soul" class="no-scrollbar">
+          <SettingsSoul />
         </Tabs.Content>
       </Tabs>
     </Dialog>

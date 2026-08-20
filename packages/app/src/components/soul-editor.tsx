@@ -19,6 +19,7 @@ const SOFT_LIMIT = 2000
 type SoulEditorProps = {
   /** 初始内容（远端数据加载完成后变化时填充一次） */
   value: () => string | undefined
+  resetKey?: string
   loading: boolean
   saving: boolean
   /** 顶部说明（如"未设置时使用全局灵魂"），全局编辑器可不传 */
@@ -31,9 +32,15 @@ export const SoulEditor: Component<SoulEditorProps> = (props) => {
   const dialog = useDialog()
   const [content, setContent] = createSignal("")
 
-  // 远端数据到达时填充（只填充一次，避免覆盖用户输入）
+  // 远端数据到达时填充（同一作用域只填充一次，避免覆盖用户输入；切换小说时重新填充）
   let filled = false
+  let resetKey = props.resetKey
   createEffect(() => {
+    if (props.resetKey !== resetKey) {
+      resetKey = props.resetKey
+      filled = false
+      setContent("")
+    }
     if (filled || props.loading) return
     const value = props.value()
     if (value === undefined) return
@@ -44,33 +51,32 @@ export const SoulEditor: Component<SoulEditorProps> = (props) => {
   function confirmOverwrite(title: string): Promise<boolean> {
     return new Promise((resolve) => {
       // 用 push 叠加在设置弹窗之上，避免 show 关掉底层设置弹窗
-      dialog.push(() => (
-        <DialogV2 fit>
-          <DialogHeader hideClose>
-            <DialogTitleGroup title={title} description={language.t("settings.soul.overwriteConfirm")} />
-          </DialogHeader>
-          <DialogFooter>
-            <ButtonV2
-              variant="ghost"
-              onClick={() => {
-                dialog.close()
-                resolve(false)
-              }}
-            >
-              {language.t("common.cancel")}
-            </ButtonV2>
-            <ButtonV2
-              variant="contrast"
-              onClick={() => {
-                dialog.close()
-                resolve(true)
-              }}
-            >
-              {language.t("common.continue")}
-            </ButtonV2>
-          </DialogFooter>
-        </DialogV2>
-      ))
+      let settled = false
+      const finish = (value: boolean) => {
+        if (settled) return
+        settled = true
+        dialog.close()
+        resolve(value)
+      }
+      // Escape / 点遮罩关闭视为取消
+      void dialog.push(
+        () => (
+          <DialogV2 fit>
+            <DialogHeader hideClose>
+              <DialogTitleGroup title={title} description={language.t("settings.soul.overwriteConfirm")} />
+            </DialogHeader>
+            <DialogFooter>
+              <ButtonV2 variant="ghost" onClick={() => finish(false)}>
+                {language.t("common.cancel")}
+              </ButtonV2>
+              <ButtonV2 variant="contrast" onClick={() => finish(true)}>
+                {language.t("common.continue")}
+              </ButtonV2>
+            </DialogFooter>
+          </DialogV2>
+        ),
+        () => finish(false),
+      )
     })
   }
 

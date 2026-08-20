@@ -20,7 +20,7 @@ export const SettingsSoul: Component<{ v2?: boolean }> = () => {
   const update = useMutation(() => ({
     mutationFn: (content: string) => client()["server.soul"]["update-global"]({ content }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soulKeys.global })
+      void queryClient.invalidateQueries({ queryKey: soulKeys.global })
       showToast({ variant: "success", title: language.t("settings.soul.saved") })
     },
   }))
