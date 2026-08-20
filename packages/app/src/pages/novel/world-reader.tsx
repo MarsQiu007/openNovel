@@ -12,7 +12,9 @@ import { useConfirmDelete } from "./confirm-dialog"
 import { showToast } from "@/utils/toast"
 import {
   useDeleteWorldEntry,
+  useSoul,
   useStyleGuide,
+  useUpdateSoul,
   useUpdateStyleGuide,
   useUpdateWorldEntry,
   useWorldEntries,
@@ -22,6 +24,7 @@ import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
+import { SoulEditor } from "@/components/soul-editor"
 
 const marked = new Marked()
 
@@ -33,7 +36,7 @@ function sanitize(html: string): string {
     .replace(/javascript:/gi, "")
 }
 
-type WorldSubTab = "entries" | "style"
+type WorldSubTab = "entries" | "style" | "soul"
 
 type WorldReaderProps = {
   novelID: Accessor<string>
@@ -56,6 +59,7 @@ export function WorldReader(props: WorldReaderProps) {
             {language.t("novel.settings.tabEntries")}
           </SegmentedControlItemV2>
           <SegmentedControlItemV2 value="style">{language.t("novel.settings.tabStyle")}</SegmentedControlItemV2>
+          <SegmentedControlItemV2 value="soul">{language.t("novel.settings.tabSoul")}</SegmentedControlItemV2>
         </SegmentedControlV2>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -68,6 +72,9 @@ export function WorldReader(props: WorldReaderProps) {
         </Show>
         <Show when={subTab() === "style"}>
           <StyleGuideEditor novelID={props.novelID} />
+        </Show>
+        <Show when={subTab() === "soul"}>
+          <NovelSoulEditor novelID={props.novelID} />
         </Show>
       </div>
     </div>
@@ -364,5 +371,27 @@ function StyleGuideEditor(props: StyleGuideEditorProps) {
         </div>
       </Show>
     </div>
+  )
+}
+
+type NovelSoulEditorProps = {
+  novelID: Accessor<string>
+}
+
+function NovelSoulEditor(props: NovelSoulEditorProps) {
+  const language = useLanguage()
+  const query = useSoul(props.novelID)
+  const update = useUpdateSoul()
+  return (
+    <SoulEditor
+      value={() => query.data?.content}
+      loading={query.isLoading}
+      saving={update.isPending}
+      hint={language.t("novel.settings.soul.globalHint")}
+      onSave={async (content) => {
+        await update.mutateAsync({ novelID: props.novelID(), content })
+        showToast({ variant: "success", title: language.t("settings.soul.saved") })
+      }}
+    />
   )
 }

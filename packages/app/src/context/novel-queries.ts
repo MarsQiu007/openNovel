@@ -52,6 +52,7 @@ export const novelKeys = {
   "all-character-states": (directory: string, novelID: string) =>
     ["novel", "all-character-states", directory, novelID] as const,
   "style-guide": (directory: string, novelID: string) => ["novel", "style-guide", directory, novelID] as const,
+  soul: (directory: string, novelID: string) => ["novel", "soul", directory, novelID] as const,
   search: (directory: string, novelID: string, q: string) => ["novel", "search", directory, novelID, q] as const,
   "for-session": (directory: string, sessionID: string) => ["novel", "for-session", directory, sessionID] as const,
   mode: (directory: string) => ["novel", "mode", directory] as const,
@@ -301,6 +302,17 @@ export function useStyleGuide(novelID: Accessor<string>) {
     queryKey: novelKeys["style-guide"](sdk().directory, novelID()),
     queryFn: () =>
       client()["server.novel"]["style-guide"]({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useSoul(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.soul(sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"].soul({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
 }
@@ -873,6 +885,25 @@ export function useUpdateStyleGuide() {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["style-guide"](dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.detail(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useUpdateSoul() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; content: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["update-soul"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+        content: input.content,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.soul(sdk().directory, variables.novelID) })
     },
   }))
 }
