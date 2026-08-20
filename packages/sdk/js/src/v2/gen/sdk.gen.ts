@@ -137,6 +137,7 @@ import type {
   NovelUpdateNovelInput,
   NovelUpdatePlotThreadInput,
   NovelUpdateRelationshipInput,
+  NovelUpdateSoulInput,
   NovelUpdateStyleGuideInput,
   NovelUpdateTensionPointInput,
   NovelUpdateVolumeInput,
@@ -251,11 +252,15 @@ import type {
   SessionUnshareResponses,
   SessionUpdateErrors,
   SessionUpdateResponses,
+  SoulUpdateGlobalInput,
   SubtaskPartInput,
+  SyncConnectionInput,
   SyncHistoryListErrors,
   SyncHistoryListResponses,
   SyncReplayErrors,
   SyncReplayResponses,
+  SyncResolveInput,
+  SyncRootInput,
   SyncStartErrors,
   SyncStartResponses,
   SyncStealErrors,
@@ -415,6 +420,8 @@ import type {
   V2NovelSearchResponses,
   V2NovelSessionBindingsErrors,
   V2NovelSessionBindingsResponses,
+  V2NovelSoulErrors,
+  V2NovelSoulResponses,
   V2NovelStyleGuideErrors,
   V2NovelStyleGuideResponses,
   V2NovelTensionErrors,
@@ -437,6 +444,8 @@ import type {
   V2NovelUpdateRelationshipErrors,
   V2NovelUpdateRelationshipResponses,
   V2NovelUpdateResponses,
+  V2NovelUpdateSoulErrors,
+  V2NovelUpdateSoulResponses,
   V2NovelUpdateStyleGuideErrors,
   V2NovelUpdateStyleGuideResponses,
   V2NovelUpdateTensionErrors,
@@ -535,6 +544,24 @@ import type {
   V2SessionWaitResponses,
   V2SkillListErrors,
   V2SkillListResponses,
+  V2SoulGlobalErrors,
+  V2SoulGlobalResponses,
+  V2SoulUpdateGlobalErrors,
+  V2SoulUpdateGlobalResponses,
+  V2SyncConnectionRemoveErrors,
+  V2SyncConnectionRemoveResponses,
+  V2SyncConnectionSaveErrors,
+  V2SyncConnectionSaveResponses,
+  V2SyncConnectionTestErrors,
+  V2SyncConnectionTestResponses,
+  V2SyncResolveErrors,
+  V2SyncResolveResponses,
+  V2SyncRootSetErrors,
+  V2SyncRootSetResponses,
+  V2SyncRunErrors,
+  V2SyncRunResponses,
+  V2SyncStatusErrors,
+  V2SyncStatusResponses,
   VcsApplyErrors,
   VcsApplyResponses,
   VcsDiffErrors,
@@ -8828,6 +8855,75 @@ export class Novel extends HeyApiClient {
   }
 
   /**
+   * Get novel soul
+   */
+  public soul<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelSoulResponses, V2NovelSoulErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/soul",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update novel soul
+   */
+  public updateSoul<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateSoulInput: NovelUpdateSoulInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateSoulInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<V2NovelUpdateSoulResponses, V2NovelUpdateSoulErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/soul",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Full-text search across chapter titles and content
    */
   public search<ThrowOnError extends boolean = false>(
@@ -9443,6 +9539,197 @@ export class NovelMode extends HeyApiClient {
   }
 }
 
+export class Connection extends HeyApiClient {
+  /**
+   * Test connection
+   *
+   * Test a WebDAV connection without saving it.
+   */
+  public test<ThrowOnError extends boolean = false>(
+    parameters: {
+      syncConnectionInput: SyncConnectionInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "syncConnectionInput", map: "body" }] }])
+    return (options?.client ?? this.client).post<
+      V2SyncConnectionTestResponses,
+      V2SyncConnectionTestErrors,
+      ThrowOnError
+    >({
+      url: "/api/sync/connection/test",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Remove connection
+   *
+   * Remove the cloud drive connection and credential.
+   */
+  public remove<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).delete<
+      V2SyncConnectionRemoveResponses,
+      V2SyncConnectionRemoveErrors,
+      ThrowOnError
+    >({ url: "/api/sync/connection", ...options })
+  }
+
+  /**
+   * Save connection
+   *
+   * Test, then persist the cloud drive connection. The password goes to the credential store.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters: {
+      syncConnectionInput: SyncConnectionInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "syncConnectionInput", map: "body" }] }])
+    return (options?.client ?? this.client).put<
+      V2SyncConnectionSaveResponses,
+      V2SyncConnectionSaveErrors,
+      ThrowOnError
+    >({
+      url: "/api/sync/connection",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Root extends HeyApiClient {
+  /**
+   * Set root directory
+   *
+   * Set the local working root directory. Every non-hidden subdirectory containing .novel/ is a synced project.
+   */
+  public set<ThrowOnError extends boolean = false>(
+    parameters: {
+      syncRootInput: SyncRootInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "syncRootInput", map: "body" }] }])
+    return (options?.client ?? this.client).put<V2SyncRootSetResponses, V2SyncRootSetErrors, ThrowOnError>({
+      url: "/api/sync/root",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Sync2 extends HeyApiClient {
+  /**
+   * Get sync status
+   *
+   * Get the library-level cloud sync status for the configured root directory.
+   */
+  public status<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2SyncStatusResponses, V2SyncStatusErrors, ThrowOnError>({
+      url: "/api/sync/status",
+      ...options,
+    })
+  }
+
+  /**
+   * Sync now
+   *
+   * Sync the whole library: newer content wins on both directions; ambiguous cases come back as decisions.
+   */
+  public run<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).post<V2SyncRunResponses, V2SyncRunErrors, ThrowOnError>({
+      url: "/api/sync/run",
+      ...options,
+    })
+  }
+
+  /**
+   * Resolve decision
+   *
+   * Execute a single decision item (keep local/remote/both, confirm deletions, or skip).
+   */
+  public resolve<ThrowOnError extends boolean = false>(
+    parameters: {
+      syncResolveInput: SyncResolveInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "syncResolveInput", map: "body" }] }])
+    return (options?.client ?? this.client).post<V2SyncResolveResponses, V2SyncResolveErrors, ThrowOnError>({
+      url: "/api/sync/resolve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _connection?: Connection
+  get connection(): Connection {
+    return (this._connection ??= new Connection({ client: this.client }))
+  }
+
+  private _root?: Root
+  get root(): Root {
+    return (this._root ??= new Root({ client: this.client }))
+  }
+}
+
+export class Soul extends HeyApiClient {
+  /**
+   * Get global soul
+   */
+  public global<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<V2SoulGlobalResponses, V2SoulGlobalErrors, ThrowOnError>({
+      url: "/api/soul/global",
+      ...options,
+    })
+  }
+
+  /**
+   * Update global soul
+   */
+  public updateGlobal<ThrowOnError extends boolean = false>(
+    parameters: {
+      soulUpdateGlobalInput: SoulUpdateGlobalInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "soulUpdateGlobalInput", map: "body" }] }])
+    return (options?.client ?? this.client).put<V2SoulUpdateGlobalResponses, V2SoulUpdateGlobalErrors, ThrowOnError>({
+      url: "/api/soul/global",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class V2 extends HeyApiClient {
   private _health?: Health
   get health(): Health {
@@ -9537,6 +9824,16 @@ export class V2 extends HeyApiClient {
   private _novelMode?: NovelMode
   get novelMode(): NovelMode {
     return (this._novelMode ??= new NovelMode({ client: this.client }))
+  }
+
+  private _sync?: Sync2
+  get sync(): Sync2 {
+    return (this._sync ??= new Sync2({ client: this.client }))
+  }
+
+  private _soul?: Soul
+  get soul(): Soul {
+    return (this._soul ??= new Soul({ client: this.client }))
   }
 }
 

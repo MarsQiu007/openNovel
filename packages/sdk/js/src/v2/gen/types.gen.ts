@@ -3009,6 +3009,14 @@ export type NovelModeError = {
   }
 }
 
+export type SyncErrorResponse = {
+  name: "SyncErrorResponse"
+  data: {
+    message: string
+    code?: string
+  }
+}
+
 export type EffectHttpApiErrorForbidden = {
   _tag: "Forbidden"
 }
@@ -6471,6 +6479,17 @@ export type NovelUpdateStyleGuideInput = {
   }
 }
 
+export type NovelSoul = {
+  id: string
+  novelId: string
+  content: string
+  updatedAt: number
+}
+
+export type NovelUpdateSoulInput = {
+  content: string
+}
+
 export type NovelNovelSearchResult = {
   chapterId: string
   title: string
@@ -6573,6 +6592,87 @@ export type NovelNovelMode = {
 export type NovelNovelModePatch = {
   writing_mode?: NovelWritingMode
   setup_mode?: NovelSetupMode
+}
+
+export type SyncConnection = {
+  url: string
+  username: string
+  remoteRoot: string
+}
+
+export type SyncProjectStatus = {
+  name: string
+  state: "in_sync" | "local_ahead" | "remote_ahead" | "new_local" | "new_remote" | "conflict" | "pending_delete"
+  lastSyncedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  novels?: Array<string>
+}
+
+export type SyncLibraryStatus = {
+  connection?: SyncConnection
+  rootDir?: string
+  projects: Array<SyncProjectStatus>
+}
+
+export type SyncConnectionInput = {
+  url: string
+  username: string
+  password: string
+  remoteRoot?: string
+}
+
+export type SyncTestResult = {
+  ok: boolean
+  error?: string
+}
+
+export type SyncRootInput = {
+  rootDir: string
+}
+
+export type SyncRunResult = {
+  name: string
+  action: "uploaded" | "downloaded" | "deleted_remote"
+}
+
+export type SyncPairConflict = {
+  kind: "pair_conflict"
+  name: string
+  remote: {
+    device: string
+    at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    novels: Array<string>
+  }
+}
+
+export type SyncTieConflict = {
+  kind: "tie_conflict"
+  name: string
+  localTime: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  remoteTime: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
+export type SyncDeleteConfirm = {
+  kind: "delete_confirm"
+  names: Array<string>
+}
+
+export type SyncRunOutput = {
+  results: Array<SyncRunResult>
+  decisions: Array<SyncPairConflict | SyncTieConflict | SyncDeleteConfirm>
+}
+
+export type SyncResolveInput = {
+  name?: string
+  action: "keep_local" | "keep_remote" | "keep_both" | "confirm_delete" | "skip"
+  names?: Array<string>
+}
+
+export type SoulGlobal = {
+  content: string
+}
+
+export type SoulUpdateGlobalInput = {
+  content: string
 }
 
 export type EventModelsDevRefreshed = {
@@ -15830,6 +15930,86 @@ export type V2NovelUpdateStyleGuideResponses = {
 
 export type V2NovelUpdateStyleGuideResponse = V2NovelUpdateStyleGuideResponses[keyof V2NovelUpdateStyleGuideResponses]
 
+export type V2NovelSoulData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/soul"
+}
+
+export type V2NovelSoulErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSoulError = V2NovelSoulErrors[keyof V2NovelSoulErrors]
+
+export type V2NovelSoulResponses = {
+  /**
+   * Novel.Soul
+   */
+  200: NovelSoul
+}
+
+export type V2NovelSoulResponse = V2NovelSoulResponses[keyof V2NovelSoulResponses]
+
+export type V2NovelUpdateSoulData = {
+  body: NovelUpdateSoulInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/soul"
+}
+
+export type V2NovelUpdateSoulErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateSoulError = V2NovelUpdateSoulErrors[keyof V2NovelUpdateSoulErrors]
+
+export type V2NovelUpdateSoulResponses = {
+  /**
+   * Novel.Soul
+   */
+  200: NovelSoul
+}
+
+export type V2NovelUpdateSoulResponse = V2NovelUpdateSoulResponses[keyof V2NovelUpdateSoulResponses]
+
 export type V2NovelSearchData = {
   body?: never
   path: {
@@ -16480,6 +16660,267 @@ export type V2NovelModeSetResponses = {
 }
 
 export type V2NovelModeSetResponse = V2NovelModeSetResponses[keyof V2NovelModeSetResponses]
+
+export type V2SyncStatusData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/sync/status"
+}
+
+export type V2SyncStatusErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncStatusError = V2SyncStatusErrors[keyof V2SyncStatusErrors]
+
+export type V2SyncStatusResponses = {
+  /**
+   * Sync.LibraryStatus
+   */
+  200: SyncLibraryStatus
+}
+
+export type V2SyncStatusResponse = V2SyncStatusResponses[keyof V2SyncStatusResponses]
+
+export type V2SyncConnectionTestData = {
+  body: SyncConnectionInput
+  path?: never
+  query?: never
+  url: "/api/sync/connection/test"
+}
+
+export type V2SyncConnectionTestErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncConnectionTestError = V2SyncConnectionTestErrors[keyof V2SyncConnectionTestErrors]
+
+export type V2SyncConnectionTestResponses = {
+  /**
+   * Sync.TestResult
+   */
+  200: SyncTestResult
+}
+
+export type V2SyncConnectionTestResponse = V2SyncConnectionTestResponses[keyof V2SyncConnectionTestResponses]
+
+export type V2SyncConnectionRemoveData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/sync/connection"
+}
+
+export type V2SyncConnectionRemoveErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncConnectionRemoveError = V2SyncConnectionRemoveErrors[keyof V2SyncConnectionRemoveErrors]
+
+export type V2SyncConnectionRemoveResponses = {
+  /**
+   * Sync.LibraryStatus
+   */
+  200: SyncLibraryStatus
+}
+
+export type V2SyncConnectionRemoveResponse = V2SyncConnectionRemoveResponses[keyof V2SyncConnectionRemoveResponses]
+
+export type V2SyncConnectionSaveData = {
+  body: SyncConnectionInput
+  path?: never
+  query?: never
+  url: "/api/sync/connection"
+}
+
+export type V2SyncConnectionSaveErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncConnectionSaveError = V2SyncConnectionSaveErrors[keyof V2SyncConnectionSaveErrors]
+
+export type V2SyncConnectionSaveResponses = {
+  /**
+   * Sync.LibraryStatus
+   */
+  200: SyncLibraryStatus
+}
+
+export type V2SyncConnectionSaveResponse = V2SyncConnectionSaveResponses[keyof V2SyncConnectionSaveResponses]
+
+export type V2SyncRootSetData = {
+  body: SyncRootInput
+  path?: never
+  query?: never
+  url: "/api/sync/root"
+}
+
+export type V2SyncRootSetErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncRootSetError = V2SyncRootSetErrors[keyof V2SyncRootSetErrors]
+
+export type V2SyncRootSetResponses = {
+  /**
+   * Sync.LibraryStatus
+   */
+  200: SyncLibraryStatus
+}
+
+export type V2SyncRootSetResponse = V2SyncRootSetResponses[keyof V2SyncRootSetResponses]
+
+export type V2SyncRunData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/sync/run"
+}
+
+export type V2SyncRunErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncRunError = V2SyncRunErrors[keyof V2SyncRunErrors]
+
+export type V2SyncRunResponses = {
+  /**
+   * Sync.RunOutput
+   */
+  200: SyncRunOutput
+}
+
+export type V2SyncRunResponse = V2SyncRunResponses[keyof V2SyncRunResponses]
+
+export type V2SyncResolveData = {
+  body: SyncResolveInput
+  path?: never
+  query?: never
+  url: "/api/sync/resolve"
+}
+
+export type V2SyncResolveErrors = {
+  /**
+   * SyncErrorResponse | InvalidRequestError
+   */
+  400: SyncErrorResponse | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SyncResolveError = V2SyncResolveErrors[keyof V2SyncResolveErrors]
+
+export type V2SyncResolveResponses = {
+  /**
+   * Sync.LibraryStatus
+   */
+  200: SyncLibraryStatus
+}
+
+export type V2SyncResolveResponse = V2SyncResolveResponses[keyof V2SyncResolveResponses]
+
+export type V2SoulGlobalData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/api/soul/global"
+}
+
+export type V2SoulGlobalErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SoulGlobalError = V2SoulGlobalErrors[keyof V2SoulGlobalErrors]
+
+export type V2SoulGlobalResponses = {
+  /**
+   * Soul.Global
+   */
+  200: SoulGlobal
+}
+
+export type V2SoulGlobalResponse = V2SoulGlobalResponses[keyof V2SoulGlobalResponses]
+
+export type V2SoulUpdateGlobalData = {
+  body: SoulUpdateGlobalInput
+  path?: never
+  query?: never
+  url: "/api/soul/global"
+}
+
+export type V2SoulUpdateGlobalErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2SoulUpdateGlobalError = V2SoulUpdateGlobalErrors[keyof V2SoulUpdateGlobalErrors]
+
+export type V2SoulUpdateGlobalResponses = {
+  /**
+   * Soul.Global
+   */
+  200: SoulGlobal
+}
+
+export type V2SoulUpdateGlobalResponse = V2SoulUpdateGlobalResponses[keyof V2SoulUpdateGlobalResponses]
 
 export type PtyConnectData = {
   body?: never

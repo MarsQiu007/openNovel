@@ -3624,6 +3624,35 @@ export type ServerNovelUpdateStyleGuideOutput = {
   readonly tense: string
 }
 
+export type ServerNovelSoulInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelSoulOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly content: string
+  readonly updatedAt: number
+}
+
+export type ServerNovelUpdateSoulInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly content: { readonly content: string }["content"]
+}
+
+export type ServerNovelUpdateSoulOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly content: string
+  readonly updatedAt: number
+}
+
 export type ServerNovelSearchInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly q: {
@@ -4257,3 +4286,9 @@ export type ServerSyncResolveOutput = {
     readonly novels?: ReadonlyArray<string>
   }>
 }
+
+export type ServerSoulGlobalOutput = { readonly content: string }
+
+export type ServerSoulUpdateGlobalInput = { readonly content: { readonly content: string }["content"] }
+
+export type ServerSoulUpdateGlobalOutput = { readonly content: string }

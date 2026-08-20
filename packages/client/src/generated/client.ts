@@ -188,6 +188,10 @@ import type {
   ServerNovelStyleGuideOutput,
   ServerNovelUpdateStyleGuideInput,
   ServerNovelUpdateStyleGuideOutput,
+  ServerNovelSoulInput,
+  ServerNovelSoulOutput,
+  ServerNovelUpdateSoulInput,
+  ServerNovelUpdateSoulOutput,
   ServerNovelSearchInput,
   ServerNovelSearchOutput,
   ServerNovelTensionInput,
@@ -245,6 +249,9 @@ import type {
   ServerSyncRunOutput,
   ServerSyncResolveInput,
   ServerSyncResolveOutput,
+  ServerSoulGlobalOutput,
+  ServerSoulUpdateGlobalInput,
+  ServerSoulUpdateGlobalOutput,
 } from "./types"
 import { ClientError } from "./client-error"
 
@@ -1601,6 +1608,31 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      soul: (input: ServerNovelSoulInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSoulOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/soul`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "update-soul": (input: ServerNovelUpdateSoulInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpdateSoulOutput>(
+          {
+            method: "PUT",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/soul`,
+            query: { location: input["location"] },
+            body: { content: input["content"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
       search: (input: ServerNovelSearchInput, requestOptions?: RequestOptions) =>
         request<ServerNovelSearchOutput>(
           {
@@ -1980,6 +2012,25 @@ export function make(options: ClientOptions) {
             body: { name: input["name"], action: input["action"], names: input["names"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    "server.soul": {
+      global: (requestOptions?: RequestOptions) =>
+        request<ServerSoulGlobalOutput>(
+          { method: "GET", path: `/api/soul/global`, successStatus: 200, declaredStatuses: [401, 400], empty: false },
+          requestOptions,
+        ),
+      "update-global": (input: ServerSoulUpdateGlobalInput, requestOptions?: RequestOptions) =>
+        request<ServerSoulUpdateGlobalOutput>(
+          {
+            method: "PUT",
+            path: `/api/soul/global`,
+            body: { content: input["content"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
             empty: false,
           },
           requestOptions,
