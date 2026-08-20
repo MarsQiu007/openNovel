@@ -18,6 +18,11 @@ Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes a
 
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
 
+## Workflow
+
+- Do not create git worktrees. Switch to or create a new branch in the current working tree instead.
+- Prefer Simplified Chinese for generated prose: code comments, documentation, commit messages, PR titles, and user-facing chat. Keep code, file paths, identifiers, CLI arguments, and API names in ASCII English. Leave i18n locale files (e.g. `packages/app/src/i18n/*.ts`) untouched.
+
 ## Style Guide
 
 ### General Principles

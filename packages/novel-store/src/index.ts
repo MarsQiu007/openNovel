@@ -348,6 +348,82 @@ export const DescriptionHistoryTable = sqliteTable(
   (table) => [index("description_history_entity_idx").on(table.entity_type, table.entity_id)],
 )
 
+/**
+ * 候选设定表 — observer 提取的"重要性不足"或"关系强度不足"的实体暂存这里。
+ * 候选区是"半自动"反向设定的关键：避免 LLM 一次性污染 P5 设定层。
+ *
+ * 候选来源：
+ * - character / world_entry / location 的 importance=1（次要设定，候选）
+ * - relationship 的 type_strength="weak"（弱关系，候选）
+ * - importance=0 / 一次性提及不入候选区，只入 chapter_summary.key_events
+ *
+ * 状态机：pending（初始）→ accepted（director 确认入库）| rejected（丢弃）| merged（合并到另一正式条目）
+ */
+export const PendingSettingTable = sqliteTable(
+  "pending_settings",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    /** 候选类型：character / world_entry / location / relationship */
+    candidate_type: text().notNull(),
+    /** 来源章节 ID（从哪一章提取出来的） */
+    source_chapter_id: text(),
+    /** 完整的 entity_id 建议（如 char_xxx / world_xxx / rel_xxx_yyy） */
+    suggested_entity_id: text().notNull().default(""),
+    /** 候选 payload（JSON 字符串，accept 时按字段写入正式表） */
+    payload_json: text().notNull().default("{}"),
+    /** 候选重要性：1-3（observer 评的，0 不入候选区） */
+    importance: integer().notNull().default(1),
+    /** 关系强度：strong / weak（仅 relationship 类型有意义） */
+    type_strength: text().default(""),
+    /** 候选标题（用于显示和去重） */
+    display_title: text().notNull().default(""),
+    /** 状态：pending / accepted / rejected / merged */
+    status: text().notNull().default("pending"),
+    /** 合并目标 ID（status=merged 时记录被合并到哪个正式条目） */
+    merged_into: text().default(""),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    resolved_at: integer(),
+  },
+  (table) => [
+    index("pending_settings_novel_idx").on(table.novel_id, table.status),
+    index("pending_settings_title_idx").on(table.novel_id, table.display_title),
+  ],
+)
+
+/**
+ * 世界观冲突表 — observer 提的 ⚠️ 冲突标注单独存这里，**不污染** WorldEntryTable.content。
+ * 解决之前 task 14 的副作用：冲突标注写到 content 末尾，下次 writer 在 P5 看到污染的设定。
+ *
+ * 字段：
+ * - world_entry_id：被冲突的条目（已入库或候选）
+ * - conflict_note：冲突描述
+ * - source_chapter_id：从哪一章发现冲突
+ * - resolved：是否已由用户审阅
+ */
+export const WorldEntryConflictTable = sqliteTable(
+  "world_entry_conflicts",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    /** 冲突涉及的 world_entry ID（可能指向正式表也可能指向候选表） */
+    world_entry_id: text().notNull(),
+    /** 冲突类型：number_inconsistency（同 category 数字冲突）| synonym_drift（跨 category 同义）| semantic_conflict（语义冲突） */
+    conflict_kind: text().notNull().default("semantic_conflict"),
+    /** 冲突来源：observer (自动提取) | user_report (用户报告) */
+    source: text().notNull().default("observer"),
+    source_chapter_id: text(),
+    conflict_note: text().notNull().default(""),
+    resolved: integer().notNull().default(0),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [index("world_entry_conflicts_novel_idx").on(table.novel_id, table.resolved)],
+)
+
 // ─── DB 路径解析 ───
 
 /**
@@ -384,6 +460,11 @@ CREATE TABLE IF NOT EXISTS soul (id text PRIMARY KEY, novel_id text NOT NULL, co
 CREATE TABLE IF NOT EXISTS volume_summaries (id text PRIMARY KEY, volume_id text NOT NULL, summary text DEFAULT '' NOT NULL, char_active text DEFAULT '[]' NOT NULL, char_dormant text DEFAULT '[]' NOT NULL, threads_open text DEFAULT '[]' NOT NULL, threads_closed text DEFAULT '[]' NOT NULL, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, level real NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS pending_settings_novel_idx ON pending_settings(novel_id, status);
+CREATE INDEX IF NOT EXISTS pending_settings_title_idx ON pending_settings(novel_id, display_title);
+CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS world_entry_conflicts_novel_idx ON world_entry_conflicts(novel_id, resolved);
 CREATE TABLE IF NOT EXISTS hook_rotation (id text PRIMARY KEY, novel_id text NOT NULL, hook_type text NOT NULL, chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS hook_rotation_novel_id_idx ON hook_rotation(novel_id);
 CREATE INDEX IF NOT EXISTS hook_rotation_created_at_idx ON hook_rotation(novel_id, created_at);

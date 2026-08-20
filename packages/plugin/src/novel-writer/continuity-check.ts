@@ -118,6 +118,7 @@ interface CheckContext {
   chapterNumber: number
   novel: typeof NovelTable.$inferSelect | null
   currentChapter: typeof ChapterTable.$inferSelect | null
+  currentChapterContent: string | null
   allChapters: (typeof ChapterTable.$inferSelect)[]
   characters: (typeof CharacterTable.$inferSelect)[]
   characterStates: (typeof CharacterStateTable.$inferSelect)[]
@@ -195,6 +196,7 @@ export async function checkContinuity(
     chapterNumber,
     novel,
     currentChapter,
+    currentChapterContent: currentChapter?.content ?? null,
     allChapters,
     characters,
     characterStates: characterStates.filter((s) => characters.some((c) => c.id === s.character_id)),
@@ -856,118 +858,178 @@ function checkPlotContinuity(ctx: CheckContext): ContinuityResult[] {
 function checkWorldBuildingContinuity(ctx: CheckContext): ContinuityResult[] {
   const results: ContinuityResult[] = []
 
-  // 力量体系：检查世界观条目中的力量体系内容
-  const powerEntries = ctx.worldEntries.filter(
-    (w) =>
-      w.category === "power_system" ||
-      w.category === "力量体系" ||
-      w.title.includes("境界") ||
-      w.title.includes("修炼") ||
-      w.title.includes("等级"),
-  )
-  if (powerEntries.length > 0) {
-    results.push({
-      dimension: "力量体系",
-      status: "PASS",
-      detail: `世界观中定义了 ${powerEntries.length} 条力量体系条目`,
+  // ── 维度 23 力量体系：检查章节是否引用了设定的力量体系，且无明显漂移 ──
+  {
+    const coverage = checkCategoryCoverage(ctx, {
+      category: "力量体系",
+      titleIncludes: ["境界", "等级", "力量", "修炼", "体系"],
     })
-  } else {
-    results.push({
-      dimension: "力量体系",
-      status: "WARN",
-      detail: "世界观中未定义力量体系，建议添加以确保战斗/能力描写一致",
+    const drift = scanDriftTerms(ctx, {
+      category: "力量体系",
+      titleIncludes: ["境界", "等级", "力量", "修炼", "体系"],
     })
+
+    if (coverage.total === 0) {
+      results.push({
+        dimension: "力量体系",
+        status: "WARN",
+        detail: "世界观中未定义力量体系，建议添加以确保战斗/能力描写一致",
+      })
+    } else if (!coverage.chapterHasContent) {
+      results.push({
+        dimension: "力量体系",
+        status: "WARN",
+        detail: `力量体系相关设定 ${coverage.total} 条，但当前章节正文为空，无法做覆盖度检查`,
+      })
+    } else {
+      const status: CheckStatus =
+        coverage.hitRate >= 0.5 ? "PASS" : coverage.hitRate >= 0.2 ? "WARN" : "FAIL"
+      const driftSuffix = drift.drifts.length > 0
+        ? `；反向扫描发现 ${drift.drifts.length} 个疑似漂移词（如 ${drift.drifts.slice(0, 3).map((d) => `${d.term}×${d.count}`).join("、")}），需 LLM 审计确认`
+        : ""
+      results.push({
+        dimension: "力量体系",
+        status,
+        detail: `力量体系 ${coverage.total} 条 → 章节命中 ${coverage.hitTerms.length} 条（命中率 ${(coverage.hitRate * 100).toFixed(0)}%）。命中：${coverage.hitTerms.slice(0, 3).join("、") || "无"}；未命中：${coverage.missTerms.slice(0, 3).join("、") || "—"}${driftSuffix}`,
+      })
+    }
   }
 
-  // 规则一致：检查风格指南中的规则
-  const styleRules = ctx.styleGuide.length > 0 ? ((ctx.styleGuide[0]!.rules as Record<string, unknown>) ?? {}) : {}
-  const ruleCount = Object.keys(styleRules).length
-  if (ruleCount > 0) {
-    results.push({
-      dimension: "规则一致",
-      status: "PASS",
-      detail: `风格指南中定义了 ${ruleCount} 条写作规则`,
+  // ── 维度 25 社会结构：检查章节是否引用了设定的社会制度 ──
+  {
+    const coverage = checkCategoryCoverage(ctx, {
+      category: "社会制度",
+      titleIncludes: ["社会", "制度", "等级", "贵族", "平民", "贱民", "组织", "国家", "门派", "家族"],
     })
-  } else {
-    results.push({
-      dimension: "规则一致",
-      status: "WARN",
-      detail: "风格指南中未定义写作规则，建议添加世界观规则以保证一致性",
+    const drift = scanDriftTerms(ctx, {
+      category: "社会制度",
+      titleIncludes: ["社会", "制度", "等级", "贵族", "平民", "贱民", "组织", "国家", "门派", "家族"],
     })
+
+    if (coverage.total === 0) {
+      results.push({
+        dimension: "社会结构",
+        status: "WARN",
+        detail: "世界观中未定义社会结构，建议添加社会/组织/家族设定",
+      })
+    } else if (!coverage.chapterHasContent) {
+      results.push({
+        dimension: "社会结构",
+        status: "WARN",
+        detail: `社会结构相关设定 ${coverage.total} 条，但当前章节正文为空，无法做覆盖度检查`,
+      })
+    } else {
+      const status: CheckStatus =
+        coverage.hitRate >= 0.5 ? "PASS" : coverage.hitRate >= 0.2 ? "WARN" : "FAIL"
+      const driftSuffix = drift.drifts.length > 0
+        ? `；反向扫描发现 ${drift.drifts.length} 个疑似漂移词（如 ${drift.drifts.slice(0, 3).map((d) => `${d.term}×${d.count}`).join("、")}），需 LLM 审计确认`
+        : ""
+      results.push({
+        dimension: "社会结构",
+        status,
+        detail: `社会结构 ${coverage.total} 条 → 章节命中 ${coverage.hitTerms.length} 条（命中率 ${(coverage.hitRate * 100).toFixed(0)}%）。命中：${coverage.hitTerms.slice(0, 3).join("、") || "无"}；未命中：${coverage.missTerms.slice(0, 3).join("、") || "—"}${driftSuffix}`,
+      })
+    }
   }
 
-  // 社会结构：检查世界观条目中的社会相关内容
-  const societyEntries = ctx.worldEntries.filter(
-    (w) =>
-      w.category === "society" ||
-      w.category === "社会" ||
-      w.title.includes("社会") ||
-      w.title.includes("家族") ||
-      w.title.includes("组织") ||
-      w.title.includes("国家") ||
-      w.title.includes("门派"),
-  )
-  if (societyEntries.length > 0) {
-    results.push({
-      dimension: "社会结构",
-      status: "PASS",
-      detail: `世界观中定义了 ${societyEntries.length} 条社会结构条目`,
-    })
-  } else {
-    results.push({
-      dimension: "社会结构",
-      status: "WARN",
-      detail: "世界观中未定义社会结构，建议添加社会/组织/家族设定",
-    })
+  // ── 维度 24 规则一致：检查风格指南 + 世界观规则是否被章节执行 ──
+  {
+    const styleRules = ctx.styleGuide.length > 0 ? ((ctx.styleGuide[0]!.rules as Record<string, unknown>) ?? {}) : {}
+    const ruleCount = Object.keys(styleRules).length
+    // 也把 worldview 里的"规则"类条目算进来
+    const ruleWorldEntries = ctx.worldEntries.filter(
+      (w) =>
+        w.category === "规则" || w.category === "rule" || w.title.includes("规则") || w.title.includes("禁忌"),
+    )
+    const totalRules = ruleCount + ruleWorldEntries.length
+
+    if (totalRules === 0) {
+      results.push({
+        dimension: "规则一致",
+        status: "WARN",
+        detail: "风格指南与世界观中均未定义写作规则，建议添加规则以保证一致性",
+      })
+    } else if (!ctx.currentChapterContent) {
+      results.push({
+        dimension: "规则一致",
+        status: "WARN",
+        detail: `规则 ${totalRules} 条（风格指南 ${ruleCount} + 世界观 ${ruleWorldEntries.length}），但当前章节正文为空，无法做覆盖检查`,
+      })
+    } else {
+      // 把所有规则关键词合并成检查词表
+      const allTerms: string[] = []
+      for (const v of Object.values(styleRules)) {
+        if (typeof v === "string" && v.length >= 2) allTerms.push(v)
+      }
+      for (const w of ruleWorldEntries) allTerms.push(w.title)
+      const uniqueTerms = [...new Set(allTerms)]
+      const hitCount = uniqueTerms.filter((t) => ctx.currentChapterContent!.includes(t)).length
+      const hitRate = uniqueTerms.length > 0 ? hitCount / uniqueTerms.length : 1
+      const status: CheckStatus = hitRate >= 0.4 ? "PASS" : hitRate >= 0.15 ? "WARN" : "FAIL"
+      results.push({
+        dimension: "规则一致",
+        status,
+        detail: `规则 ${totalRules} 条（${ruleCount} 风格指南 + ${ruleWorldEntries.length} 世界观），其中 ${hitCount}/${uniqueTerms.length} 个关键词被章节正文引用（${(hitRate * 100).toFixed(0)}%）`,
+      })
+    }
   }
 
-  // 文化细节：检查世界观条目中的文化相关内容
-  const cultureEntries = ctx.worldEntries.filter(
-    (w) =>
-      w.category === "culture" ||
-      w.category === "文化" ||
-      w.title.includes("文化") ||
-      w.title.includes("风俗") ||
-      w.title.includes("节日") ||
-      w.title.includes("礼仪") ||
-      w.title.includes("传统"),
-  )
-  if (cultureEntries.length > 0) {
-    results.push({
-      dimension: "文化细节",
-      status: "PASS",
-      detail: `世界观中定义了 ${cultureEntries.length} 条文化细节条目`,
+  // ── 维度 22 文化细节：检查章节是否引用了设定的文化/风俗 ──
+  {
+    const coverage = checkCategoryCoverage(ctx, {
+      category: "文化",
+      titleIncludes: ["文化", "风俗", "节日", "礼仪", "传统"],
     })
-  } else {
-    results.push({
-      dimension: "文化细节",
-      status: "WARN",
-      detail: "世界观中未定义文化细节，建议添加文化/风俗/传统设定",
-    })
+    if (coverage.total === 0) {
+      results.push({
+        dimension: "文化细节",
+        status: "WARN",
+        detail: "世界观中未定义文化细节，建议添加文化/风俗/传统设定",
+      })
+    } else if (!coverage.chapterHasContent) {
+      results.push({
+        dimension: "文化细节",
+        status: "WARN",
+        detail: `文化细节相关设定 ${coverage.total} 条，但当前章节正文为空，无法做覆盖度检查`,
+      })
+    } else {
+      const status: CheckStatus =
+        coverage.hitRate >= 0.5 ? "PASS" : coverage.hitRate >= 0.2 ? "WARN" : "FAIL"
+      results.push({
+        dimension: "文化细节",
+        status,
+        detail: `文化细节 ${coverage.total} 条 → 章节命中 ${coverage.hitTerms.length} 条（命中率 ${(coverage.hitRate * 100).toFixed(0)}%）。命中：${coverage.hitTerms.slice(0, 3).join("、") || "无"}；未命中：${coverage.missTerms.slice(0, 3).join("、") || "—"}`,
+      })
+    }
   }
 
-  // 经济系统：检查世界观条目中的经济相关内容
-  const economyEntries = ctx.worldEntries.filter(
-    (w) =>
-      w.category === "economy" ||
-      w.category === "经济" ||
-      w.title.includes("经济") ||
-      w.title.includes("货币") ||
-      w.title.includes("交易") ||
-      w.title.includes("资源"),
-  )
-  if (economyEntries.length > 0) {
-    results.push({
-      dimension: "经济系统",
-      status: "PASS",
-      detail: `世界观中定义了 ${economyEntries.length} 条经济系统条目`,
+  // ── 维度 27 经济系统：检查章节是否引用了设定的经济/资源 ──
+  {
+    const coverage = checkCategoryCoverage(ctx, {
+      category: "经济",
+      titleIncludes: ["经济", "货币", "交易", "资源", "财富"],
     })
-  } else {
-    results.push({
-      dimension: "经济系统",
-      status: "WARN",
-      detail: "世界观中未定义经济系统，建议添加货币/资源/经济设定",
-    })
+    if (coverage.total === 0) {
+      results.push({
+        dimension: "经济系统",
+        status: "WARN",
+        detail: "世界观中未定义经济系统，建议添加货币/资源/经济设定",
+      })
+    } else if (!coverage.chapterHasContent) {
+      results.push({
+        dimension: "经济系统",
+        status: "WARN",
+        detail: `经济系统相关设定 ${coverage.total} 条，但当前章节正文为空，无法做覆盖度检查`,
+      })
+    } else {
+      const status: CheckStatus =
+        coverage.hitRate >= 0.5 ? "PASS" : coverage.hitRate >= 0.2 ? "WARN" : "FAIL"
+      results.push({
+        dimension: "经济系统",
+        status,
+        detail: `经济系统 ${coverage.total} 条 → 章节命中 ${coverage.hitTerms.length} 条（命中率 ${(coverage.hitRate * 100).toFixed(0)}%）。命中：${coverage.hitTerms.slice(0, 3).join("、") || "无"}；未命中：${coverage.missTerms.slice(0, 3).join("、") || "—"}`,
+      })
+    }
   }
 
   return results
@@ -1200,6 +1262,184 @@ function checkDetailContinuity(ctx: CheckContext): ContinuityResult[] {
 }
 
 // ─── 辅助分析函数 ───
+
+/**
+ * 中文常见停用词 / 助词 / 副词，用于从章节正文中过滤"不像专有名词"的词
+ */
+const STOP_WORDS = new Set([
+  "我们", "你们", "他们", "她们", "它们", "自己", "什么", "怎么", "为什么", "因为", "所以",
+  "但是", "然而", "虽然", "即使", "如果", "虽然", "不过", "只是", "只有", "已经", "正在",
+  "一直", "马上", "立刻", "突然", "忽然", "很快", "非常", "特别", "十分", "极其", "比较",
+  "应该", "可以", "可能", "或许", "大概", "也许", "一定", "必须", "需要", "想要", "希望",
+  "这个", "那个", "这些", "那些", "这样", "那样", "这么", "那么", "如此", "如何", "为何",
+  "现在", "以前", "之后", "之前", "当时", "那时", "此刻", "后来", "前面", "后面", "里面",
+  "上面", "下面", "旁边", "中间", "其中", "以外", "以内", "之上", "之下", "之间", "左右",
+  "但是", "然而", "不过", "可是", "并且", "而且", "以及", "或是", "或者", "还是", "因为",
+  "于是", "然后", "接着", "最后", "终于", "最终", "首先", "其次", "再者", "另外", "此外",
+  "听说", "据说", "觉得", "认为", "知道", "明白", "理解", "发现", "感觉", "意识", "看来",
+  "似乎", "仿佛", "好像", "犹如", "如同", "正是", "就是", "才是", "全是", "都是", "不是",
+  "没有", "不会", "不能", "不要", "不许", "不曾", "尚未", "从未", "刚刚", "刚才", "终于",
+  "还有", "已经", "仍是", "仍是", "依旧", "仍然", "依然", "正在", "曾经", "将要", "准备",
+  "开始", "结束", "完成", "进行", "持续", "保持", "维持", "存在", "出现", "消失", "展现",
+  "看到", "听到", "想到", "感到", "觉得", "认为", "以为", "发现", "明白", "清楚", "明确",
+  "已经", "正是", "果然", "竟然", "居然", "甚至", "包括", "尤其", "特别", "主要", "重要",
+  "现在", "今天", "明天", "昨天", "白天", "夜晚", "凌晨", "中午", "傍晚", "清晨", "深夜",
+  "一些", "一点", "一直", "一定", "一边", "一面", "一起", "一种", "一样", "一片", "一样",
+  "非常", "十分", "格外", "尤其", "特别", "比较", "相当", "几乎", "大概", "大约", "左右",
+])
+
+/**
+ * 从 worldEntries 抽取"设定关键词集合"
+ *
+ * 抽取策略：
+ * 1. 标题整词（最高优先级）
+ * 2. 内容里所有 2-6 字连续非停用词（启发式）
+ *
+ * 返回的词表是 "设定权威词表"，用于检查章节正文是否引用了这些词，
+ * 以及反向找出"看起来是专有名词但不在设定中"的疑似漂移词。
+ */
+function extractSettingKeywords(worldEntries: (typeof WorldEntryTable.$inferSelect)[]): Set<string> {
+  const keywords = new Set<string>()
+  for (const w of worldEntries) {
+    // 标题整词
+    if (w.title) keywords.add(w.title)
+    // 内容里抽取 2-6 字连续非停用词（启发式：按非字母数字边界切分）
+    if (w.content) {
+      const tokens = w.content.match(/[一-龥]{2,6}/g) ?? []
+      for (const t of tokens) {
+        if (!STOP_WORDS.has(t)) keywords.add(t)
+      }
+    }
+  }
+  return keywords
+}
+
+/**
+ * 从章节正文里抽取"专有名词候选"
+ *
+ * 简单启发式：抽取 2-4 字连续中文，过滤停用词，统计出现频次。
+ * 返回按频次降序的前 N 个，作为"可能漂移的专有名词"候选。
+ */
+function extractNounCandidates(content: string, topN = 30): Array<{ term: string; count: number }> {
+  if (!content) return []
+  const tokens = content.match(/[一-龥]{2,4}/g) ?? []
+  const counter = new Map<string, number>()
+  for (const t of tokens) {
+    if (STOP_WORDS.has(t)) continue
+    // 单字/虚词已过滤；这里只关心 2-4 字的连续词
+    counter.set(t, (counter.get(t) ?? 0) + 1)
+  }
+  // 频次>=2 的优先（出现 1 次的可能是偶然）
+  return [...counter.entries()]
+    .filter(([, c]) => c >= 1)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([term, count]) => ({ term, count }))
+}
+
+/**
+ * 找出"在章节正文里出现但不在设定关键词集合里"的疑似漂移词
+ *
+ * 用于反向扫描：当 chapter 出现大量"看起来是专有名词（频次高）但不在 worldEntries 中"
+ * 的词时，提示可能有设定漂移。具体由 LLM 审计做最终判断。
+ */
+function findSuspectedDriftTerms(
+  content: string,
+  settingKeywords: Set<string>,
+  topN = 30,
+): Array<{ term: string; count: number }> {
+  const candidates = extractNounCandidates(content, 200) // 多取一些候选
+  const drifts: Array<{ term: string; count: number }> = []
+  for (const { term, count } of candidates) {
+    if (settingKeywords.has(term)) continue // 在设定中，正常
+    if (count < 2) continue // 只出现 1 次的可能是偶然/专有名
+    drifts.push({ term, count })
+    if (drifts.length >= topN) break
+  }
+  return drifts
+}
+
+/**
+ * 检查"章节正文是否引用了相关分类的 worldEntries"
+ *
+ * 用于 checkWorldBuildingContinuity 的几个维度：
+ * 1. 从指定分类/标题关键词筛出"本维度相关的 worldEntries"
+ * 2. 抽这些条目的标题作为"本维度应被引用的关键术语"
+ * 3. 扫章节正文看这些术语的出现次数
+ * 4. 计算覆盖率 hit/total
+ *
+ * @returns 命中率、命中词、未命中词
+ */
+function checkCategoryCoverage(
+  ctx: CheckContext,
+  matchers: { category?: string; titleIncludes?: string[] },
+): { hitTerms: string[]; missTerms: string[]; total: number; hitRate: number; chapterHasContent: boolean } {
+  const chapterHasContent = !!(ctx.currentChapterContent && ctx.currentChapterContent.length > 0)
+
+  // 筛选本维度相关的 worldEntries
+  const related = ctx.worldEntries.filter((w) => {
+    if (matchers.category && w.category !== matchers.category) return false
+    if (matchers.titleIncludes && !matchers.titleIncludes.some((kw) => w.title.includes(kw))) return false
+    return true
+  })
+
+  // 关键术语：相关条目的标题
+  const keyTerms = related.map((w) => w.title).filter((t) => t && t.length >= 2)
+  const total = keyTerms.length
+
+  if (total === 0) {
+    return { hitTerms: [], missTerms: [], total: 0, hitRate: 1, chapterHasContent }
+  }
+
+  if (!chapterHasContent) {
+    return { hitTerms: [], missTerms: keyTerms, total, hitRate: 0, chapterHasContent }
+  }
+
+  const content = ctx.currentChapterContent!
+  const hitTerms: string[] = []
+  const missTerms: string[] = []
+  for (const term of keyTerms) {
+    if (content.includes(term)) hitTerms.push(term)
+    else missTerms.push(term)
+  }
+
+  return {
+    hitTerms,
+    missTerms,
+    total,
+    hitRate: hitTerms.length / total,
+    chapterHasContent,
+  }
+}
+
+/**
+ * 在章节正文里反向扫描疑似漂移词
+ */
+function scanDriftTerms(
+  ctx: CheckContext,
+  matchers: { category?: string; titleIncludes?: string[] },
+): { drifts: Array<{ term: string; count: number }>; relatedCount: number; chapterHasContent: boolean } {
+  const chapterHasContent = !!(ctx.currentChapterContent && ctx.currentChapterContent.length > 0)
+
+  // 本维度相关的 worldEntries 关键词（用全量关键词集合）
+  const allSettingKeywords = extractSettingKeywords(ctx.worldEntries)
+
+  // 本维度相关的 worldEntries（用于判断相关设定是否贫瘠）
+  const related = ctx.worldEntries.filter((w) => {
+    if (matchers.category && w.category !== matchers.category) return false
+    if (matchers.titleIncludes && !matchers.titleIncludes.some((kw) => w.title.includes(kw))) return false
+    return true
+  })
+
+  if (!chapterHasContent) {
+    return { drifts: [], relatedCount: related.length, chapterHasContent }
+  }
+
+  const drifts = findSuspectedDriftTerms(ctx.currentChapterContent!, allSettingKeywords, 20)
+  return { drifts, relatedCount: related.length, chapterHasContent }
+}
+
+
 
 /** 分析角色情绪变化的一致性 */
 function analyzeMoodConsistency(ctx: CheckContext): { totalChars: number; rapidChanges: number } {

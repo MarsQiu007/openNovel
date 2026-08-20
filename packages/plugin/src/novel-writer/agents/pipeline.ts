@@ -85,14 +85,22 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 ### 步骤 4：audit - 连续性检查
 调用 \`check_continuity\` 工具，传入 novel_id 和 chapter_number。
-- PASS -> 跳过步骤 5，直接进入步骤 6
-- WARN -> 跳过步骤 5（WARN 不阻塞），直接进入步骤 6
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"
-  - prompt: 传入 novel_id、chapter_id、章节正文、确定性检查的失败维度，指示 auditor 进行 37 维深度审计
+  - prompt: **第一行加 "mode: full"** 标识，其余传入 novel_id、chapter_id、章节正文、确定性检查的失败维度，指示 auditor 进行 37 维深度审计
   - @auditor 会通过 submit_chapter_review 工具提交结构化审计结果（持久化供人工审批查阅），随后返回文本审计报告
   - @auditor 返回审计结果后，进入步骤 5
+- WARN -> **必须 dispatch @auditor 做轻量设定对照审计**，不允许跳过。理由：设定对照维度的 WARN（命中率低 / 疑似漂移词）正是 LLM 才能准确判断的，确定性扫描可能误报。
+  - subagent_type: "auditor"
+  - description: "设定一致性专项审计（第X章）"
+  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告里的所有 WARN/FAIL 维度和疑似漂移词列表，指示 auditor 重点跑 23/24/25/26/27 + 1-5 + 35-37 共 13 维
+  - @auditor 返回审计结果后：若结果含 FAIL → 进入步骤 5 revise；若仅 WARN/PASS → 进入步骤 6
+- PASS -> 仍需 dispatch @auditor 做「设定一致性专项审计」，理由：即使关键词命中率达标，也可能有 LLM 自创的同形异义词（如"黄金级"vs"子爵"）。
+  - subagent_type: "auditor"
+  - description: "设定一致性专项审计（第X章，快检）"
+  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告全文，指示 auditor 仅重点跑 23/24/25 这 3 维（其余维度在 audit 报告中标 PASS + "本轮聚焦设定一致性，跳过"）
+  - @auditor 返回审计结果后：若结果含 FAIL/WARN → 进入步骤 5 revise；若全 PASS → 进入步骤 6
 
 ### 步骤 5：revise - 自动修订（仅步骤4为FAIL时执行）
 通过 task 工具 dispatch @reviser 子 agent：
@@ -121,7 +129,8 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 ### 步骤 7：sync - 提交状态变更
 调用 \`commit_observer_delta\` 工具，传入 novel_id、chapter_id 和 reflector 校验通过的 delta JSON。
 - 失败 -> 重试一次。仍失败 -> 停止，报告"状态提交失败"，不继续步骤 8
-- 成功 -> 进入步骤 8
+- 成功 -> **必须**把 commit_observer_delta 返回的元数据里的「候选区待审阅 N 条」和「冲突标注 N 条」原文提取出来，纳入步骤 8 之后的「完成报告」。如果 report.pending 列表非空，再**追加一次** \`list_pending_settings\` 工具调用，列出本章节 observer 提的具体候选（display_title + candidate_type + type_strength/importance 标签），把列表追加到报告中——方便 director 在用户界面引导用户 review
+- 进入步骤 8
 
 ### 步骤 8：next - 模式分支收口
 按上文"模式感知"段执行：
@@ -144,5 +153,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 字数
 - 审计结果（PASS/WARN/FAIL + 修订次数）
 - 状态提交结果
+- **候选区待审阅** — commit_observer_delta 返回的 pending 列表（display_title + candidate_type + type_strength/importance 标签）。**非空时必须提醒 director 在用户界面引导用户 review**：候选项 ≥ 1 时追加一句"建议在用户界面审阅后 accept / reject / merge"。如果本章节的候选区为空也明确写"无新增候选"
+- **冲突标注** — commit_observer_delta 返回的 conflicts 列表（world_entry_id + conflict_kind + conflict_note）。**非空时必须提醒 director**：这些冲突已分离到 WorldEntryConflictTable，不污染 WorldEntryTable.content，但需要用户决定取舍（合并 / 覆盖 / 忽略）
 - 模式分支结果（review 时注明"待审批"；auto 时注明"已推进"；重写场景注明"按批注重写完成"）`,
 }

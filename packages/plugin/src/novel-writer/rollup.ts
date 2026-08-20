@@ -392,7 +392,10 @@ export async function getEffectiveContext(
         }
       : null,
     genreRules,
+
     worldEntries: [],
+    volumeList: [],
+    relationships: [],
 
     prevChapterTail,
     targetWordCount,

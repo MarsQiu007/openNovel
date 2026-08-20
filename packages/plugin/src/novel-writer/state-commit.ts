@@ -30,6 +30,8 @@ import {
   VolumeTable,
   ChapterTable,
   DescriptionHistoryTable,
+  PendingSettingTable,
+  WorldEntryConflictTable,
 } from "./session-store.js"
 import { join } from "path"
 import { mkdirSync, appendFileSync } from "fs"
@@ -76,6 +78,108 @@ export type StateDeltaEntry = z.infer<typeof StateDeltaEntrySchema>
 
 /** 状态变更 delta 类型 */
 export type StateDelta = z.infer<typeof StateDeltaSchema>
+
+/** commitState 报告：含落库条目数 + 候选区新增 + 冲突标注 */
+export interface CommitReport {
+  /** 落库日志条目数 */
+  count: number
+  /** 本次提交入候选区的设定 */
+  pending: Array<{
+    id: string
+    candidate_type: string
+    display_title: string
+    importance: number
+    type_strength: string
+  }>
+  /** 本次提交的冲突标注 */
+  conflicts: Array<{
+    id: string
+    world_entry_id: string
+    conflict_kind: string
+    conflict_note: string
+  }>
+  /** importance=0/不入库的"临时提及"数量（仅记日志不入任何表） */
+  discarded: number
+}
+
+// ─── 候选区 + 冲突标注辅助函数 ───
+
+/** 从 data 中提取 importance（默认 2 = 默认"重要"——保守走正式表） */
+function getEntryImportance(data: Record<string, unknown>): number {
+  const v = data.importance
+  if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 3) return v
+  return 2
+}
+
+/** 从 data 中提取 type_strength（默认 "weak"——保守走候选区） */
+function getEntryTypeStrength(data: Record<string, unknown>): "strong" | "weak" {
+  const v = data.type_strength
+  if (v === "strong" || v === "weak") return v
+  return "weak"
+}
+
+/** 从 data 中提取 conflict_note 字符串（不污染 content） */
+function extractConflictNote(data: Record<string, unknown>): string {
+  const v = data.conflict_note
+  return typeof v === "string" ? v : ""
+}
+
+/** 把候选实体入候选区（status=pending） */
+async function enqueueToPending(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  sourceChapterId: string | null,
+  candidateType: "character" | "world_entry" | "relationship" | "location",
+  entityId: string,
+  data: Record<string, unknown>,
+  importance: number,
+  typeStrength: string,
+  displayTitle: string,
+): Promise<string> {
+  const id = crypto.randomUUID()
+  await db
+    .insert(PendingSettingTable)
+    .values({
+      id,
+      novel_id: novelId,
+      candidate_type: candidateType,
+      source_chapter_id: sourceChapterId,
+      suggested_entity_id: entityId,
+      payload_json: JSON.stringify(data),
+      importance,
+      type_strength: typeStrength,
+      display_title: displayTitle,
+      status: "pending",
+    } as any)
+    .run()
+  return id
+}
+
+/** 记录一条冲突标注到 WorldEntryConflictTable（不污染 WorldEntryTable.content） */
+async function recordConflict(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  worldEntryId: string,
+  conflictNote: string,
+  sourceChapterId: string | null,
+  conflictKind: "number_inconsistency" | "synonym_drift" | "semantic_conflict" = "semantic_conflict",
+): Promise<string> {
+  const id = crypto.randomUUID()
+  await db
+    .insert(WorldEntryConflictTable)
+    .values({
+      id,
+      novel_id: novelId,
+      world_entry_id: worldEntryId,
+      conflict_kind: conflictKind,
+      source: "observer",
+      source_chapter_id: sourceChapterId,
+      conflict_note: conflictNote,
+      resolved: 0,
+    } as any)
+    .run()
+  return id
+}
 
 // ─── Markdown 同步辅助函数 ───
 
@@ -323,6 +427,7 @@ async function applyToMaterializedView(
   novelId: string,
   chapterId: string,
   entry: StateDeltaEntry,
+  report: CommitReport,
 ): Promise<void> {
   const { fact_type, action, entity_id, data } = entry
 
@@ -333,6 +438,33 @@ async function applyToMaterializedView(
       const resolvedId = await resolveCharacterId(db, novelId, entity_id, data)
 
       if (action === "create") {
+        // 重要度分流：importance=0 仅记日志不入库；=1 入候选区；2-3 入正式表
+        const importance = getEntryImportance(data)
+        if (importance === 0) {
+          report.discarded++
+          break
+        }
+        if (importance === 1) {
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "character",
+            resolvedId,
+            data,
+            importance,
+            "",
+            String(data.name ?? entity_id),
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "character",
+            display_title: String(data.name ?? entity_id),
+            importance,
+            type_strength: "",
+          })
+          break
+        }
         if (resolvedId === entity_id) {
           // 角色不存在，插入基本信息
           await db.insert(CharacterTable).values({
@@ -392,6 +524,30 @@ async function applyToMaterializedView(
 
     case "relationship": {
       if (action === "create") {
+        // 关系强度分流：weak 入候选区（避免点头之交污染关系网）
+        const typeStrength = getEntryTypeStrength(data)
+        if (typeStrength === "weak") {
+          const displayTitle = `${data.char_a_id ?? "?"} ↔ ${data.char_b_id ?? "?"} [${data.type ?? "未分类"}]`
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "relationship",
+            entity_id,
+            data,
+            1,
+            typeStrength,
+            displayTitle,
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "relationship",
+            display_title: displayTitle,
+            importance: 1,
+            type_strength: typeStrength,
+          })
+          break
+        }
         const resolvedId = await resolveEntityId(db, novelId, "relationship", entity_id, data)
         if (resolvedId === entity_id) {
           await db.insert(RelationshipTable).values({
@@ -525,7 +681,57 @@ async function applyToMaterializedView(
 
     case "world_entry": {
       if (action === "create") {
+        // 重要度分流：importance=0 仅记日志不入库；=1 入候选区；2-3 入正式表
+        const importance = getEntryImportance(data)
+        if (importance === 0) {
+          report.discarded++
+          break
+        }
+        if (importance === 1) {
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "world_entry",
+            entity_id,
+            data,
+            importance,
+            "",
+            String(data.title ?? entity_id),
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "world_entry",
+            display_title: String(data.title ?? entity_id),
+            importance,
+            type_strength: "",
+          })
+          break
+        }
+        // importance ≥ 2：走原入正式表逻辑
         const resolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, data)
+        // 冲突标注分离：data.conflict_note 不入 WorldEntryTable.content，独立存 WorldEntryConflictTable
+        const conflictNote = extractConflictNote(data)
+        if (conflictNote) {
+          const conflictId = await recordConflict(
+            db,
+            novelId,
+            resolvedId,
+            conflictNote,
+            chapterId,
+            data.conflict_kind === "number_inconsistency"
+              ? "number_inconsistency"
+              : data.conflict_kind === "synonym_drift"
+                ? "synonym_drift"
+                : "semantic_conflict",
+          )
+          report.conflicts.push({
+            id: conflictId,
+            world_entry_id: resolvedId,
+            conflict_kind: "semantic_conflict",
+            conflict_note: conflictNote,
+          })
+        }
         if (resolvedId === entity_id) {
           await db.insert(WorldEntryTable).values({
             id: entity_id,
@@ -659,7 +865,59 @@ async function applyToMaterializedView(
 
     case "timeline":
     case "location":
-      // timeline 和 location 仅记录日志，不更新物化视图
+      // timeline: 仅记录日志，不更新物化视图
+      // location: 按 importance 分流；importance≥2 入 WorldEntryTable(category=地点)；1 入候选区；0 丢弃
+      if (fact_type === "location" && action === "create") {
+        const importance = getEntryImportance(data)
+        if (importance === 0) {
+          report.discarded++
+          break
+        }
+        if (importance === 1) {
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "location",
+            entity_id,
+            data,
+            importance,
+            "",
+            String(data.name ?? entity_id),
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "location",
+            display_title: String(data.name ?? entity_id),
+            importance,
+            type_strength: "",
+          })
+          break
+        }
+        // importance ≥ 2：入 WorldEntryTable，category=地点
+        const locResolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, {
+          category: "地点",
+          title: String(data.name ?? ""),
+        })
+        if (locResolvedId === entity_id) {
+          await db.insert(WorldEntryTable).values({
+            id: entity_id,
+            novel_id: novelId,
+            category: "地点",
+            title: String(data.name ?? ""),
+            content: String(data.description ?? ""),
+          } as any)
+        } else {
+          await db
+            .update(WorldEntryTable)
+            .set({
+              category: "地点",
+              title: String(data.name ?? ""),
+              content: String(data.description ?? ""),
+            } as any)
+            .where(eq(WorldEntryTable.id, locResolvedId))
+        }
+      }
       break
 
     default:
@@ -700,6 +958,26 @@ export async function commitState(
   // 验证 delta 格式
   const validated = StateDeltaSchema.parse(delta)
   const db = getDb(directory)
+  const result = await commitStateWithReport(novelId, chapterId, validated, db)
+  return result.count
+}
+
+/**
+ * 状态提交 + 报告版本。返回：
+ * - count: 落库的 novel_state_log 条目数
+ * - pending: 本次入候选区的设定列表（director 报告给用户）
+ * - conflicts: 本次冲突标注列表（WorldEntryConflictTable）
+ * - discarded: 重要性=0/不入库的临时提及数量
+ */
+export async function commitStateWithReport(
+  novelId: string,
+  chapterId: string,
+  delta: StateDelta,
+  dbOrDirectory: ReturnType<typeof getDb> | string | null | undefined,
+): Promise<CommitReport> {
+  const validated = StateDeltaSchema.parse(delta)
+  const db = typeof dbOrDirectory === "string" || dbOrDirectory == null ? getDb(dbOrDirectory as any) : dbOrDirectory
+  const report: CommitReport = { count: 0, pending: [], conflicts: [], discarded: 0 }
 
   // 1. 写入 append-only 日志
   for (const entry of validated) {
@@ -712,6 +990,7 @@ export async function commitState(
       fact_data: entry.data,
       created_at: Date.now(),
     } as any)
+    report.count++
   }
 
   // 2. 重跑章节时先清理本章归属的快照数据，保证"一章一份"语义幂等。
@@ -723,7 +1002,7 @@ export async function commitState(
 
   // 3. 更新物化视图
   for (const entry of validated) {
-    await applyToMaterializedView(db, novelId, chapterId, entry)
+    await applyToMaterializedView(db, novelId, chapterId, entry, report)
   }
 
   // 4. 同步 Markdown
@@ -745,7 +1024,7 @@ export async function commitState(
     )
   }
 
-  return validated.length
+  return report
 }
 
 // ─── 级联一致性：依赖追踪 + 统查统改 ───
@@ -1618,11 +1897,25 @@ export async function restoreDescription(
   if (entry.entity_type === "character") {
     await db.update(CharacterTable).set({ description: oldValue }).where(eq(CharacterTable.id, entry.entity_id)).run()
   } else if (entry.entity_type === "relationship") {
-    await db
-      .update(RelationshipTable)
-      .set({ description: oldValue })
-      .where(eq(RelationshipTable.id, entry.entity_id))
-      .run()
+    if (entry.field === "type") {
+      await db.update(RelationshipTable).set({ type: oldValue }).where(eq(RelationshipTable.id, entry.entity_id)).run()
+    } else {
+      // 默认按 description 恢复（兼容历史 description 字段归档）
+      await db
+        .update(RelationshipTable)
+        .set({ description: oldValue })
+        .where(eq(RelationshipTable.id, entry.entity_id))
+        .run()
+    }
+  } else if (entry.entity_type === "world_entry") {
+    const field = entry.field as "category" | "title" | "content"
+    await db.update(WorldEntryTable).set({ [field]: oldValue }).where(eq(WorldEntryTable.id, entry.entity_id)).run()
+  } else if (entry.entity_type === "plot_thread") {
+    const field = entry.field as "title" | "status" | "priority" | "description"
+    await db.update(PlotThreadTable).set({ [field]: oldValue }).where(eq(PlotThreadTable.id, entry.entity_id)).run()
+  } else if (entry.entity_type === "foreshadowing") {
+    const field = entry.field as "content" | "state"
+    await db.update(ForeshadowingTable).set({ [field]: oldValue }).where(eq(ForeshadowingTable.id, entry.entity_id)).run()
   }
 
   await archiveDescription(

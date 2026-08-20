@@ -9,7 +9,7 @@
 import type { Plugin } from "./index.js"
 import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
-import { eq, desc, and, asc, lt, sql } from "drizzle-orm"
+import { eq, desc, and, asc, lt, sql, inArray } from "drizzle-orm"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
@@ -27,6 +27,7 @@ import { reviserAgent } from "./novel-writer/agents/reviser.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
 import {
   commitState,
+  commitStateWithReport,
   StateDeltaSchema,
   scanReferences,
   cascadeCheck,
@@ -62,6 +63,8 @@ import {
   EntityRefTable,
   NovelStateLogTable,
   HookRotationTable,
+  PendingSettingTable,
+  WorldEntryConflictTable,
   resolveNovelForSession,
   tagNovelSession,
   getNovelForSession,
@@ -891,6 +894,31 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               `风格：基调=${snapshot.styleGuide.tone ?? "无"} 视角=${snapshot.styleGuide.pov ?? "无"} 时态=${snapshot.styleGuide.tense ?? "无"}`,
             )
           }
+          // ── P5: 世界观硬约束（writer 必须严格遵守的权威来源） ──
+          if (snapshot.worldEntries.length > 0) {
+            lines.push("")
+            lines.push("═══ 世界观硬约束（P5 权威来源）═══")
+            lines.push("⚠️ 以下设定是本章创作的硬约束：等级称谓、力量体系、制度名称、势力名等必须逐字遵循；")
+            lines.push("   已列出的概念不得自创变体；未列出的概念如需新增须在 observer 提取时显式 propose 为新 world_entry。")
+            for (const w of snapshot.worldEntries) {
+              lines.push(`- [${w.category}] ${w.title}`)
+              if (w.content) lines.push(`  ${w.content}`)
+            }
+          }
+          if (snapshot.volumeList.length > 0) {
+            lines.push("")
+            lines.push("═══ 卷纲（章节归属参考）═══")
+            for (const v of snapshot.volumeList) {
+              lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
+            }
+          }
+          if (snapshot.relationships.length > 0) {
+            lines.push("")
+            lines.push("═══ 角色关系 ═══")
+            for (const r of snapshot.relationships) {
+              lines.push(`- ${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}）：${r.description || "—"}`)
+            }
+          }
           if (snapshot.targetWordCount) {
             lines.push(`目标字数：每章至少 ${snapshot.targetWordCount} 字（write_chapter 会拒绝低于此字数的章节）`)
           }
@@ -1304,6 +1332,319 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      list_chapter_versions: tool({
+        description:
+          "列出某章节的所有历史版本（按版本号降序）。返回每版的 version 号、字数、创建时间、创建者，以及前 80 字摘要预览。**不返回完整正文**（用 read_chapter_version 读取指定版本）。常用于：发现误改后查看历史、或修订前对比上下文。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          limit: tool.schema.number().optional().describe("最多返回条数，默认 20"),
+          offset: tool.schema.number().optional().describe("跳过前 N 条，默认 0（用于分页翻看更早版本）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          // 校验 chapter 存在
+          const [chapter] = await db
+            .select({ id: ChapterTable.id, title: ChapterTable.title, order: ChapterTable.order })
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .all()
+          if (!chapter) {
+            return { title: "list_chapter_versions", output: `章节不存在：${args.chapter_id}` }
+          }
+          const total = await db
+            .select({ c: sql<number>`count(*)` })
+            .from(ChapterVersionTable)
+            .where(eq(ChapterVersionTable.chapter_id, args.chapter_id))
+            .get()
+          const totalCount = total?.c ?? 0
+          const rows = await db
+            .select()
+            .from(ChapterVersionTable)
+            .where(eq(ChapterVersionTable.chapter_id, args.chapter_id))
+            .orderBy(desc(ChapterVersionTable.version))
+            .limit(args.limit ?? 20)
+            .offset(args.offset ?? 0)
+            .all()
+          if (rows.length === 0) {
+            return {
+              title: "list_chapter_versions",
+              output: `第${chapter.order}章 ${chapter.title} 暂无任何版本记录（异常：章节存在但无 version 行）`,
+            }
+          }
+          const lines: string[] = [
+            `第${chapter.order}章 ${chapter.title} — 共 ${totalCount} 个版本，显示 ${rows.length} 条：`,
+          ]
+          for (const r of rows) {
+            const time = new Date(r.created_at).toLocaleString("zh-CN")
+            const summary = r.content.replace(/\s+/g, " ").slice(0, 80)
+            const marker = r.version === rows[0].version ? "（最新）" : ""
+            lines.push(
+              `\n[v${r.version}] ${time} by ${r.created_by} | ${r.word_count} 字${marker}\n  ${summary}…`,
+            )
+          }
+          return {
+            title: "list_chapter_versions",
+            output: lines.join("\n"),
+            metadata: {
+              chapter_id: args.chapter_id,
+              total: totalCount,
+              returned: rows.length,
+              offset: args.offset ?? 0,
+              latest_version: rows[0].version,
+              versions: rows.map((r) => ({
+                version: r.version,
+                word_count: r.word_count,
+                created_at: r.created_at,
+                created_by: r.created_by,
+                preview: r.content.replace(/\s+/g, " ").slice(0, 80),
+              })),
+            },
+          }
+        },
+      }),
+      read_chapter_version: tool({
+        description:
+          "读取章节的指定历史版本的完整正文。默认 read_chapter_content 只读最新版本；想查看历史版本（修订前/驳回前）必须用本工具。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          version: tool.schema.number().int().positive().describe("版本号（整数，从 1 起；用 list_chapter_versions 查到）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const [chapter] = await db
+            .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .all()
+          if (!chapter) {
+            return { title: "read_chapter_version", output: `章节不存在：${args.chapter_id}` }
+          }
+          const [row] = await db
+            .select()
+            .from(ChapterVersionTable)
+            .where(
+              and(eq(ChapterVersionTable.chapter_id, args.chapter_id), eq(ChapterVersionTable.version, args.version)),
+            )
+            .all()
+          if (!row) {
+            return {
+              title: "read_chapter_version",
+              output: `第${chapter.order}章 不存在 v${args.version}（用 list_chapter_versions 查看可用版本号）`,
+            }
+          }
+          return {
+            title: `read_chapter_version（v${args.version}）`,
+            output:
+              `第${chapter.order}章《${chapter.title}》v${args.version}（${row.word_count} 字，${new Date(row.created_at).toLocaleString("zh-CN")} by ${row.created_by}）：\n\n` +
+              row.content,
+            metadata: {
+              chapter_id: args.chapter_id,
+              version: row.version,
+              word_count: row.word_count,
+              created_at: row.created_at,
+              created_by: row.created_by,
+            },
+          }
+        },
+      }),
+      diff_chapter_version: tool({
+        description:
+          "对比某章节任意两个版本的差异（段落级 diff，+ 新增 / - 删除 / 空格 相同）。to_version 默认取最新版本。用于：审批驳回后查看 LLM 改了哪些地方、user 手动修订后看与上一版差异。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          from_version: tool.schema.number().int().positive().describe("起始版本（旧版）"),
+          to_version: tool.schema
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("目标版本（新版），默认取最新版本"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const [chapter] = await db
+            .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .all()
+          if (!chapter) {
+            return { title: "diff_chapter_version", output: `章节不存在：${args.chapter_id}` }
+          }
+          // 解析 to_version
+          let targetVersion = args.to_version
+          if (targetVersion == null) {
+            const [latest] = await db
+              .select({ version: ChapterVersionTable.version })
+              .from(ChapterVersionTable)
+              .where(eq(ChapterVersionTable.chapter_id, args.chapter_id))
+              .orderBy(desc(ChapterVersionTable.version))
+              .limit(1)
+              .all()
+            if (!latest) {
+              return { title: "diff_chapter_version", output: "该章节无任何版本" }
+            }
+            targetVersion = latest.version
+          }
+          if (args.from_version === targetVersion) {
+            return {
+              title: "diff_chapter_version",
+              output: `from_version 与 to_version 相同（都是 v${args.from_version}），无差异可对比`,
+            }
+          }
+          const [fromRow] = await db
+            .select()
+            .from(ChapterVersionTable)
+            .where(
+              and(
+                eq(ChapterVersionTable.chapter_id, args.chapter_id),
+                eq(ChapterVersionTable.version, args.from_version),
+              ),
+            )
+            .all()
+          const [toRow] = await db
+            .select()
+            .from(ChapterVersionTable)
+            .where(
+              and(
+                eq(ChapterVersionTable.chapter_id, args.chapter_id),
+                eq(ChapterVersionTable.version, targetVersion),
+              ),
+            )
+            .all()
+          if (!fromRow || !toRow) {
+            const missing = [
+              fromRow ? null : `v${args.from_version}`,
+              toRow ? null : `v${targetVersion}`,
+            ].filter(Boolean)
+            return {
+              title: "diff_chapter_version",
+              output: `版本不存在：${missing.join("、")}（用 list_chapter_versions 查看可用版本号）`,
+            }
+          }
+          // 段落级 diff：按 \n 切，简化 LCS 求最长公共子序列对齐
+          const split = (s: string) => s.split(/\n+/).map((p) => p.trim()).filter((p) => p.length > 0)
+          const a = split(fromRow.content)
+          const b = split(toRow.content)
+          const diff = computeParagraphDiff(a, b)
+          let added = 0
+          let removed = 0
+          const lines: string[] = []
+          for (const op of diff) {
+            if (op.kind === "same") {
+              lines.push(`  ${op.text}`)
+            } else if (op.kind === "add") {
+              added += op.text.length
+              lines.push(`+ ${op.text}`)
+            } else {
+              removed += op.text.length
+              lines.push(`- ${op.text}`)
+            }
+          }
+          const header =
+            `第${chapter.order}章《${chapter.title}》v${args.from_version} → v${targetVersion} 段落级 diff：\n` +
+            `字数：v${args.from_version}=${fromRow.word_count} → v${targetVersion}=${toRow.word_count}（Δ ${toRow.word_count - fromRow.word_count}）\n` +
+            `段落级：+${added} 字 / -${removed} 字（粗略统计按行长度）\n` +
+            `（"+ "为新增段、"  "为相同段、"- "为删除段；段落按 \\\\n 切分，最长公共子序列对齐）\n\n`
+          return {
+            title: `diff_chapter_version（v${args.from_version} → v${targetVersion}）`,
+            output: header + lines.join("\n"),
+            metadata: {
+              chapter_id: args.chapter_id,
+              from_version: args.from_version,
+              to_version: targetVersion,
+              from_word_count: fromRow.word_count,
+              to_word_count: toRow.word_count,
+              added_chars: added,
+              removed_chars: removed,
+              same_paragraphs: diff.filter((d) => d.kind === "same").length,
+              added_paragraphs: diff.filter((d) => d.kind === "add").length,
+              removed_paragraphs: diff.filter((d) => d.kind === "remove").length,
+            },
+          }
+        },
+      }),
+      restore_chapter_version: tool({
+        description:
+          "把章节回滚到指定历史版本。**采用追加新版本语义**：不会删除中间任何历史版本，而是把目标 version 的 content 复制为新的 latest version（version 号 = 当前最新 + 1）。同时同步更新 ChapterTable.content 字段。这样：(1) 完整保留所有修订轨迹；(2) review/审批流仍按 latest 工作。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          target_version: tool.schema.number().int().positive().describe("要回滚到的目标版本号（用 list_chapter_versions 查到）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const [chapter] = await db
+            .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .all()
+          if (!chapter) {
+            return { title: "restore_chapter_version", output: `章节不存在：${args.chapter_id}` }
+          }
+          const [targetRow] = await db
+            .select()
+            .from(ChapterVersionTable)
+            .where(
+              and(
+                eq(ChapterVersionTable.chapter_id, args.chapter_id),
+                eq(ChapterVersionTable.version, args.target_version),
+              ),
+            )
+            .all()
+          if (!targetRow) {
+            return {
+              title: "restore_chapter_version",
+              output: `v${args.target_version} 不存在（用 list_chapter_versions 查看可用版本号）`,
+            }
+          }
+          const [latest] = await db
+            .select({ version: ChapterVersionTable.version, word_count: ChapterVersionTable.word_count })
+            .from(ChapterVersionTable)
+            .where(eq(ChapterVersionTable.chapter_id, args.chapter_id))
+            .orderBy(desc(ChapterVersionTable.version))
+            .limit(1)
+            .all()
+          const oldLatestVersion = latest?.version ?? 0
+          if (targetRow.version === oldLatestVersion) {
+            return {
+              title: "restore_chapter_version",
+              output: `v${targetRow.version} 已经是最新版本，无需回滚`,
+            }
+          }
+          // 复制为新 latest version
+          const newVersion = oldLatestVersion + 1
+          await db
+            .insert(ChapterVersionTable)
+            .values({
+              id: crypto.randomUUID(),
+              chapter_id: args.chapter_id,
+              version: newVersion,
+              content: targetRow.content,
+              word_count: targetRow.word_count,
+              created_at: Date.now(),
+              created_by: `restore_from_v${targetRow.version}`,
+            })
+            .run()
+          // 同步 ChapterTable.content 字段（保持一致）
+          await db
+            .update(ChapterTable)
+            .set({ content: targetRow.content, word_count: targetRow.word_count, updated_at: Date.now() })
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .run()
+          return {
+            title: `restore_chapter_version（v${targetRow.version} → 新 v${newVersion}）`,
+            output:
+              `已回滚第${chapter.order}章《${chapter.title}》：v${oldLatestVersion} → v${newVersion}（内容拷贝自 v${targetRow.version}，${targetRow.word_count} 字）\n` +
+              `所有历史版本已保留（v1 ~ v${newVersion}），可随时再次回滚。`,
+            metadata: {
+              chapter_id: args.chapter_id,
+              target_version: targetRow.version,
+              old_latest_version: oldLatestVersion,
+              new_version: newVersion,
+              restored_content_preview: targetRow.content.replace(/\s+/g, " ").slice(0, 200),
+            },
+          }
+        },
+      }),
       commit_observer_delta: tool({
         description:
           "提交 observer 提取并经 reflector 校验的状态变更 delta。接收 delta JSON 字符串，解析后调用 commitState 写入数据库日志和物化视图。",
@@ -1325,16 +1666,339 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
           try {
-            const count = await commitState(novelId, args.chapter_id, delta, ctx.directory)
+            const report = await commitStateWithReport(novelId, args.chapter_id, delta, db)
+            const lines: string[] = [`状态变更已提交，共 ${report.count} 条日志`]
+            if (report.pending.length > 0) {
+              lines.push(`\n📋 候选区新增 ${report.pending.length} 条（importance=1 或 type_strength=weak，待用户审阅）：`)
+              for (const p of report.pending.slice(0, 5)) {
+                const tag = p.type_strength ? ` [${p.type_strength}]` : ` [imp=${p.importance}]`
+                lines.push(`  - [${p.candidate_type}${tag}] ${p.display_title} (id=${p.id.slice(0, 8)})`)
+              }
+              if (report.pending.length > 5) lines.push(`  …还有 ${report.pending.length - 5} 条`)
+              lines.push(`  → 用 list_pending_settings 查看，accept_pending_setting / reject_pending_setting / merge_pending_settings 管理`)
+            }
+            if (report.conflicts.length > 0) {
+              lines.push(`\n⚠️ 冲突标注 ${report.conflicts.length} 条（不污染 WorldEntryTable.content，已分离到 WorldEntryConflictTable）：`)
+              for (const c of report.conflicts.slice(0, 5)) {
+                lines.push(`  - [${c.conflict_kind}] ${c.conflict_note.slice(0, 80)}`)
+              }
+            }
+            if (report.discarded > 0) {
+              lines.push(`\n🗑️ 临时提及 ${report.discarded} 条（importance=0，不入库）`)
+            }
             return {
               title: "commit_observer_delta",
-              output: `状态变更已提交，共 ${count} 条日志`,
-              metadata: { count },
+              output: lines.join("\n"),
+              metadata: report,
             }
           } catch (err) {
             return {
               title: "commit_observer_delta",
               output: `状态提交失败：${err instanceof Error ? err.message : String(err)}`,
+            }
+          }
+        },
+      }),
+      list_pending_settings: tool({
+        description:
+          "列出 pending_settings 候选区。observer 提的 importance=1 设定或 type_strength=weak 关系都先入这里，等用户审阅。director 每章写完后会用本工具列出本章新增的候选，引导用户决定入库 / 拒绝 / 合并。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          status: tool.schema
+            .enum(["pending", "accepted", "rejected", "merged"])
+            .optional()
+            .describe("状态过滤（默认 pending）"),
+          candidate_type: tool.schema
+            .enum(["character", "world_entry", "relationship", "location"])
+            .optional()
+            .describe("候选类型过滤（可选）"),
+          limit: tool.schema.number().optional().describe("最多返回条数，默认 20"),
+          offset: tool.schema.number().optional().describe("跳过前 N 条，默认 0"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const status = args.status ?? "pending"
+          const conditions: any[] = [eq(PendingSettingTable.novel_id, novelId), eq(PendingSettingTable.status, status)]
+          if (args.candidate_type) conditions.push(eq(PendingSettingTable.candidate_type, args.candidate_type))
+          const total = await db
+            .select({ c: sql<number>`count(*)` })
+            .from(PendingSettingTable)
+            .where(and(...conditions))
+            .get()
+          const totalCount = total?.c ?? 0
+          const rows = await db
+            .select()
+            .from(PendingSettingTable)
+            .where(and(...conditions))
+            .orderBy(desc(PendingSettingTable.created_at))
+            .limit(args.limit ?? 20)
+            .offset(args.offset ?? 0)
+            .all()
+          if (rows.length === 0) {
+            return {
+              title: "list_pending_settings",
+              output: `无 ${status} 候选${args.candidate_type ? `（类型=${args.candidate_type}）` : ""}`,
+              metadata: { total: totalCount, returned: 0, items: [] },
+            }
+          }
+          const lines: string[] = [`共 ${totalCount} 条 ${status} 候选，显示 ${rows.length} 条：`]
+          for (const r of rows) {
+            const tag = r.type_strength ? ` [${r.type_strength}]` : ` [imp=${r.importance}]`
+            const time = new Date(r.created_at).toLocaleString("zh-CN")
+            const payloadPreview = r.payload_json.length > 60 ? r.payload_json.slice(0, 60) + "…" : r.payload_json
+            lines.push(
+              `\n[${r.id.slice(0, 8)}] ${time} | ${r.candidate_type}${tag} | ${r.display_title}\n  payload: ${payloadPreview}`,
+            )
+          }
+          return {
+            title: "list_pending_settings",
+            output: lines.join("\n"),
+            metadata: {
+              total: totalCount,
+              returned: rows.length,
+              items: rows.map((r) => ({
+                id: r.id,
+                candidate_type: r.candidate_type,
+                display_title: r.display_title,
+                importance: r.importance,
+                type_strength: r.type_strength,
+                source_chapter_id: r.source_chapter_id,
+                created_at: r.created_at,
+                payload_json: r.payload_json,
+              })),
+            },
+          }
+        },
+      }),
+      accept_pending_setting: tool({
+        description:
+          "把候选区的一条 pending 设定正式入库到对应正式表（CharacterTable / WorldEntryTable / RelationshipTable），并把 status 标为 accepted。\n\n**跨 category 同义检测**：accept world_entry 前自动查同 title 的已有 world_entry（任意 category），有则提示合并（仍会执行入库，但 output 会警告「同标题已存在 X 条」）。",
+        args: {
+          pending_id: tool.schema.string().describe("候选 ID（list_pending_settings 拿）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, args.pending_id)).all()
+          if (!row) {
+            return { title: "accept_pending_setting", output: `候选不存在：${args.pending_id.slice(0, 8)}` }
+          }
+          if (row.status !== "pending") {
+            return { title: "accept_pending_setting", output: `候选状态为 ${row.status}，不是 pending，不可接受` }
+          }
+          let payload: Record<string, unknown>
+          try {
+            payload = JSON.parse(row.payload_json) as Record<string, unknown>
+          } catch {
+            return { title: "accept_pending_setting", output: `payload_json 解析失败：${row.payload_json}` }
+          }
+          const newId = row.suggested_entity_id || crypto.randomUUID()
+          let createdId = ""
+          let sameTitleWarning = ""
+          try {
+            if (row.candidate_type === "character") {
+              await db.insert(CharacterTable).values({
+                id: newId,
+                novel_id: row.novel_id,
+                name: String(payload.name ?? row.display_title),
+                role: String(payload.role ?? ""),
+                description: String(payload.description ?? ""),
+                status: "active",
+              } as any)
+              createdId = newId
+            } else if (row.candidate_type === "world_entry") {
+              // 跨 category 同义检测
+              const sameTitle = await db
+                .select({ id: WorldEntryTable.id, category: WorldEntryTable.category })
+                .from(WorldEntryTable)
+                .where(
+                  and(eq(WorldEntryTable.novel_id, row.novel_id), eq(WorldEntryTable.title, String(payload.title ?? ""))),
+                )
+                .all()
+              if (sameTitle.length > 0) {
+                const cats = [...new Set(sameTitle.map((s) => s.category))].join(" / ")
+                sameTitleWarning = `⚠️ 同标题「${payload.title}」已有 ${sameTitle.length} 条（category: ${cats}）。建议用 merge_pending_settings 合并到现有条目。`
+              }
+              await db.insert(WorldEntryTable).values({
+                id: newId,
+                novel_id: row.novel_id,
+                category: String(payload.category ?? ""),
+                title: String(payload.title ?? row.display_title),
+                content: String(payload.content ?? ""),
+              } as any)
+              createdId = newId
+            } else if (row.candidate_type === "location") {
+              await db.insert(WorldEntryTable).values({
+                id: newId,
+                novel_id: row.novel_id,
+                category: "地点",
+                title: String(payload.name ?? row.display_title),
+                content: String(payload.description ?? ""),
+              } as any)
+              createdId = newId
+            } else if (row.candidate_type === "relationship") {
+              await db.insert(RelationshipTable).values({
+                id: newId,
+                novel_id: row.novel_id,
+                char_a_id: String(payload.char_a_id ?? ""),
+                char_b_id: String(payload.char_b_id ?? ""),
+                type: String(payload.type ?? ""),
+                description: String(payload.description ?? ""),
+              } as any)
+              createdId = newId
+            } else {
+              return { title: "accept_pending_setting", output: `不支持的 candidate_type：${row.candidate_type}` }
+            }
+            // 标记 accepted
+            await db
+              .update(PendingSettingTable)
+              .set({ status: "accepted", resolved_at: Date.now() })
+              .where(eq(PendingSettingTable.id, args.pending_id))
+              .run()
+            const warnLine = sameTitleWarning ? `\n${sameTitleWarning}` : ""
+            return {
+              title: "accept_pending_setting",
+              output: `已接受 ${row.candidate_type} 候选「${row.display_title}」，入库到正式表（id=${createdId.slice(0, 8)}）${warnLine}`,
+              metadata: { pending_id: args.pending_id, created_id: createdId, candidate_type: row.candidate_type, same_title_warning: sameTitleWarning },
+            }
+          } catch (err) {
+            return {
+              title: "accept_pending_setting",
+              output: `入库失败：${err instanceof Error ? err.message : String(err)}`,
+            }
+          }
+        },
+      }),
+      reject_pending_setting: tool({
+        description: "把候选区的一条 pending 设定标记为 rejected（丢弃）。不会删除记录，只是改 status；用户后续可调 list_pending_settings status=rejected 复查。",
+        args: {
+          pending_id: tool.schema.string().describe("候选 ID"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, args.pending_id)).all()
+          if (!row) {
+            return { title: "reject_pending_setting", output: `候选不存在：${args.pending_id.slice(0, 8)}` }
+          }
+          if (row.status !== "pending") {
+            return { title: "reject_pending_setting", output: `候选状态为 ${row.status}，不是 pending，不可拒绝` }
+          }
+          await db
+            .update(PendingSettingTable)
+            .set({ status: "rejected", resolved_at: Date.now() })
+            .where(eq(PendingSettingTable.id, args.pending_id))
+            .run()
+          return {
+            title: "reject_pending_setting",
+            output: `已拒绝 ${row.candidate_type} 候选「${row.display_title}」（id=${args.pending_id.slice(0, 8)}）`,
+            metadata: { pending_id: args.pending_id, candidate_type: row.candidate_type, display_title: row.display_title },
+          }
+        },
+      }),
+      merge_pending_settings: tool({
+        description:
+          "合并 N 条候选（≥2）到一条新正式条目。常用于：同一章节 observer 提了多个相似候选项，或 accept 时提示同标题已存在。把所有候选的 payload 按字段合并（取最长 content/description 优先），创建新正式条目后把源候选 status 标为 merged, merged_into=新条目 ID。",
+        args: {
+          pending_ids: tool.schema
+            .array(tool.schema.string())
+            .min(2)
+            .describe("要合并的候选 ID 列表（≥2 条，必须同 candidate_type）"),
+          new_id: tool.schema.string().optional().describe("新正式条目的 ID（不传则自动生成 UUID）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const rows = await db
+            .select()
+            .from(PendingSettingTable)
+            .where(inArray(PendingSettingTable.id, args.pending_ids))
+            .all()
+          if (rows.length !== args.pending_ids.length) {
+            return {
+              title: "merge_pending_settings",
+              output: `部分候选不存在（找到 ${rows.length}/${args.pending_ids.length} 条）`,
+            }
+          }
+          const ct = rows[0].candidate_type
+          if (!rows.every((r) => r.candidate_type === ct)) {
+            return {
+              title: "merge_pending_settings",
+              output: `候选必须同 candidate_type，检测到多种类型混用：${[...new Set(rows.map((r) => r.candidate_type))].join(", ")}`,
+            }
+          }
+          if (rows.some((r) => r.status !== "pending")) {
+            return { title: "merge_pending_settings", output: `存在非 pending 状态的候选，不可合并` }
+          }
+          // 解析所有 payload，合并字段
+          const payloads = rows.map((r) => {
+            try {
+              return { row: r, data: JSON.parse(r.payload_json) as Record<string, unknown> }
+            } catch {
+              return { row: r, data: {} as Record<string, unknown> }
+            }
+          })
+          const merged: Record<string, unknown> = {}
+          for (const p of payloads) {
+            for (const [k, v] of Object.entries(p.data)) {
+              if (typeof v === "string") {
+                if (!merged[k] || (merged[k] as string).length < v.length) merged[k] = v
+              } else if (merged[k] === undefined) {
+                merged[k] = v
+              }
+            }
+          }
+          const createdId = args.new_id || crypto.randomUUID()
+          const novelId = rows[0].novel_id
+          try {
+            if (ct === "character") {
+              await db.insert(CharacterTable).values({
+                id: createdId,
+                novel_id: novelId,
+                name: String(merged.name ?? rows[0].display_title),
+                role: String(merged.role ?? ""),
+                description: String(merged.description ?? ""),
+                status: "active",
+              } as any)
+            } else if (ct === "world_entry" || ct === "location") {
+              await db.insert(WorldEntryTable).values({
+                id: createdId,
+                novel_id: novelId,
+                category: ct === "location" ? "地点" : String(merged.category ?? ""),
+                title: String(merged.title ?? merged.name ?? rows[0].display_title),
+                content: String(merged.content ?? merged.description ?? ""),
+              } as any)
+            } else if (ct === "relationship") {
+              await db.insert(RelationshipTable).values({
+                id: createdId,
+                novel_id: novelId,
+                char_a_id: String(merged.char_a_id ?? ""),
+                char_b_id: String(merged.char_b_id ?? ""),
+                type: String(merged.type ?? ""),
+                description: String(merged.description ?? ""),
+              } as any)
+            }
+            // 标记源候选为 merged
+            for (const id of args.pending_ids) {
+              await db
+                .update(PendingSettingTable)
+                .set({ status: "merged", resolved_at: Date.now(), merged_into: createdId })
+                .where(eq(PendingSettingTable.id, id))
+                .run()
+            }
+            return {
+              title: "merge_pending_settings",
+              output: `已合并 ${rows.length} 条 ${ct} 候选到新正式条目（id=${createdId.slice(0, 8)}，display_title=${rows[0].display_title}）`,
+              metadata: {
+                merged_count: rows.length,
+                created_id: createdId,
+                candidate_type: ct,
+                source_pending_ids: args.pending_ids,
+                merged_payload: merged,
+              },
+            }
+          } catch (err) {
+            return {
+              title: "merge_pending_settings",
+              output: `合并失败：${err instanceof Error ? err.message : String(err)}`,
             }
           }
         },
@@ -1581,7 +2245,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
           return {
             title: "save_novel_settings",
-            output: `已保存 ${count} 条设定${errors.length > 0 ? "，错误：" + errors.join("; ") : ""}`,
+            output:
+              `已保存 ${count} 条设定${errors.length > 0 ? "，错误：" + errors.join("; ") : ""}\n` +
+              `💡 建议：保存设定后调用 check_settings_consistency 验证设定内部自洽性（避免不同条目定义同一概念但数字/术语不一致）`,
             metadata: { count, errors },
           }
         },
@@ -2166,6 +2832,150 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      check_settings_consistency: tool({
+        description:
+          "扫描小说设定内部的自相矛盾（intra-setting consistency）。检查 worldEntries / characters / relationships 内部和跨条目的冲突，输出 WARN/FAIL 级别问题列表，供 director 在 save_novel_settings 后或人工审查设定时使用。**不是**审计章节与设定的对照（那个由 37 维审计/auditor 负责）。检查项：(1) 同 category 下标题完全重复的条目；(2) 同 category 下数字冲突（如一条说『12 神主』另一条说『10 神主』）；(3) 跨 category 引用但关键词冲突（如社会制度定义神主数量与势力定义神主数量不一致）。语义级矛盾需 LLM 审计最终判断。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const issues: Array<{ severity: "WARN" | "FAIL"; kind: string; message: string; entries: string[] }> = []
+
+          // ── 1) 拉所有 worldEntries / characters / relationships ──
+          const worldEntries = await db
+            .select()
+            .from(WorldEntryTable)
+            .where(eq(WorldEntryTable.novel_id, novelId))
+            .all()
+          const characters = await db
+            .select()
+            .from(CharacterTable)
+            .where(eq(CharacterTable.novel_id, novelId))
+            .all()
+          const relationships = await db
+            .select()
+            .from(RelationshipTable)
+            .where(eq(RelationshipTable.novel_id, novelId))
+            .all()
+
+          // ── 2) 同 category 下标题完全重复 ──
+          const titleCount = new Map<string, typeof worldEntries>()
+          for (const w of worldEntries) {
+            const key = `${w.category}::${w.title.trim()}`
+            const arr = titleCount.get(key) ?? []
+            arr.push(w)
+            titleCount.set(key, arr)
+          }
+          for (const [key, dup] of titleCount) {
+            if (dup.length > 1) {
+              issues.push({
+                severity: "FAIL",
+                kind: "duplicate_title",
+                message: `同 category 同标题存在 ${dup.length} 条重复条目：${key}`,
+                entries: dup.map((d) => `[${d.id.slice(0, 8)}] ${d.title}`),
+              })
+            }
+          }
+
+          // ── 3) 数字冲突：扫描内容里的"X 个/位/名/条 + 名词"短语 ──
+          // 只检测"明确量词"的定义型短语（如"12 位神主"），不检测"X万年""X万亿"
+          // 这类"不同子项的不同数值"（如 5万年/10万年 是不同境界的寿元），不算冲突。
+          // 判定逻辑：跨条目出现"X+量词+同一短主词"且数字不同 → 视为总量定义冲突
+          //
+          // 简化策略：只抽取"恰好 2 字"主词（最稳的实词头），
+          // 并要求主词后必须是**非中文边界**（标点/空白/换行/英文/数字）以避免贪婪匹配吞字。
+          // 3+ 字长词（如"元婴期探索者"）归一化困难，**先 drop**（避免误报）。
+          // 这意味着当前实现只捕获最明显的冲突；语义级冲突需 LLM 审计。
+          const numberPhraseMap = new Map<
+            string,
+            Array<{ entryId: string; title: string; phrase: string; number: number }>
+          >()
+          // 主词恰好 2 字，且后面必须是"非中文边界"（标点/空白/换行/英文/数字/结束）
+          const numRegex = /(\d+)\s*(个|位|名|条|种|重|层)\s*([一-龥]{2})(?:[，。！？；：、\s()\[\]【】（）《》「」『』""''\n]|$)/g
+          for (const w of worldEntries) {
+            const text = w.title + "\n" + (w.content ?? "")
+            let m: RegExpExecArray | null
+            while ((m = numRegex.exec(text))) {
+              const number = parseInt(m[1]!, 10)
+              const noun = m[3]!
+              if (number < 2 || number > 10000) continue
+              const key = noun
+              const arr = numberPhraseMap.get(key) ?? []
+              arr.push({ entryId: w.id, title: w.title, phrase: m[0], number })
+              numberPhraseMap.set(key, arr)
+            }
+          }
+          // 同一短主词出现不同数字 → 提示（不直接 FAIL，因为可能不同语境）
+          // 例：「12 位神主」vs「10 位神主在蓝星立国」可能是总数 vs 立国数，不一定冲突
+          // 改标 WARN 并附 LLM 审计建议，避免启发式扫描的误报阻塞工作流
+          for (const [noun, occurrences] of numberPhraseMap) {
+            if (occurrences.length < 2) continue
+            const uniqueNums = [...new Set(occurrences.map((o) => o.number))]
+            if (uniqueNums.length > 1) {
+              issues.push({
+                severity: "WARN",
+                kind: "number_inconsistency",
+                message: `"${noun}"在不同条目中出现不同数字（${uniqueNums.join(" vs ")}）— 可能不同语境（如总数 vs 子集），建议 LLM 审计确认是否真有冲突`,
+                entries: occurrences.map((o) => `[${o.entryId.slice(0, 8)}] ${o.title}: "${o.phrase}"`),
+              })
+            }
+          }
+
+          // ── 4) 角色表：同 name 不同 id（疑似重名） ──
+          const nameCount = new Map<string, typeof characters>()
+          for (const c of characters) {
+            const arr = nameCount.get(c.name.trim()) ?? []
+            arr.push(c)
+            nameCount.set(c.name.trim(), arr)
+          }
+          for (const [name, dup] of nameCount) {
+            if (dup.length > 1) {
+              issues.push({
+                severity: "WARN",
+                kind: "duplicate_character_name",
+                message: `同名称「${name}」存在 ${dup.length} 个角色记录，建议确认是否同人`,
+                entries: dup.map((c) => `[${c.id.slice(0, 8)}] ${c.name}（${c.role}）`),
+              })
+            }
+          }
+
+          // ── 5) 关系表：自引用 (char_a == char_b) ──
+          for (const r of relationships) {
+            if (r.char_a_id === r.char_b_id) {
+              issues.push({
+                severity: "WARN",
+                kind: "self_relationship",
+                message: `关系记录自引用：char_a == char_b（${r.type}：${r.description}）`,
+                entries: [`[${r.id.slice(0, 8)}]`],
+              })
+            }
+          }
+
+          // ── 汇总输出 ──
+          if (issues.length === 0) {
+            return {
+              title: "check_settings_consistency",
+              output: `设定自洽性检查通过（${worldEntries.length} worldEntries + ${characters.length} 角色 + ${relationships.length} 关系），未发现明显矛盾`,
+              metadata: { novel_id: novelId, issue_count: 0 },
+            }
+          }
+          const failCount = issues.filter((i) => i.severity === "FAIL").length
+          const warnCount = issues.filter((i) => i.severity === "WARN").length
+          const lines: string[] = []
+          lines.push(`⚠️ 设定自洽性检查发现 ${issues.length} 个问题（FAIL ${failCount} / WARN ${warnCount}）：`)
+          for (const i of issues) {
+            lines.push(`\n[${i.severity}] ${i.kind}: ${i.message}`)
+            for (const e of i.entries) lines.push(`  - ${e}`)
+          }
+          return {
+            title: "check_settings_consistency",
+            output: lines.join("\n"),
+            metadata: { novel_id: novelId, issue_count: issues.length, fail_count: failCount, warn_count: warnCount, issues },
+          }
+        },
+      }),
       delete_setting: tool({
         description:
           "删除小说设定。支持删除 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型的记录。删除前建议先用 list_settings 获取 entity_id，再用 cascade_check 检查影响范围。注意：角色（character）删除有保护--主角不能删除；已在章节正文中出场的角色不能硬删除（会破坏叙事连续性），应改用 update_setting 将 status 设为 'departed' 让角色退场。",
@@ -2248,7 +3058,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       update_setting: tool({
         description:
-          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。",
+          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。\n\n副作用（设定修改会级联到已写章节）：\n- world_entry.title 改名：自动重建 EntityRef 引用追踪；旧标题若已被章节正文引用，会在 PendingUpdate 表创建级联任务，提示 director/用户是否要统改这些章节的对应称谓。\n- world_entry.content 大改（如改爵位体系/境界名等关键定义）：同样会触发引用了该条目的章节的级联任务。\n- 其他类型修改不触发级联（仅引用关系可能变化，scanReferences 在下次 commit 时重建）。",
         args: {
           entity_type: tool.schema
             .string()
@@ -2272,21 +3082,111 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
             return { title: "update_setting", output: "fields_json 必须是非空对象" }
           }
+          const db = getDb(ctx.directory)
+          // 引用追踪 + 级联副作用
+          let cascadeSummary: { affected_chapters: number; tasks_created: number; old_title?: string; new_title?: string; old_content_head?: string; new_content_head?: string } | null = null
+          // 设定修改历史归档：每个真实变化的字段都记一条 description_history
+          const historyEntries: Array<{ field: string; old_len: number; new_len: number }> = []
           try {
             if (type === "world_entry") {
+              // 1) 拿旧值，用于比对 + 构造 cascade reason + 归档
+              const oldRow = await db
+                .select()
+                .from(WorldEntryTable)
+                .where(eq(WorldEntryTable.id, id))
+                .get()
+              if (!oldRow) {
+                return { title: "update_setting", output: `world_entry 不存在：${id.slice(0, 8)}` }
+              }
               const f: { category?: string; title?: string; content?: string } = {}
               if (typeof fields.category === "string") f.category = fields.category
               if (typeof fields.title === "string") f.title = fields.title
               if (typeof fields.content === "string") f.content = fields.content
               await updateWorldEntry(id, f, ctx.directory)
+
+              // 2) 重建本 world_entry 在所有 chapter_versions.content 中的引用追踪
+              //    新 title / 新 content 重新 scan（EntityRefTable 里本 world_entry 的旧引用作废）
+              const newContent = (f.content ?? oldRow.content) ?? ""
+              await scanReferences(db, oldRow.novel_id, "world_entry", id, "content", newContent)
+
+              // 3) 每个真实变化的字段 → 归档到 description_history
+              if (f.category !== undefined && f.category !== oldRow.category) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "world_entry", id, oldRow.category, f.category, "category")
+                historyEntries.push({ field: "category", old_len: oldRow.category.length, new_len: f.category.length })
+              }
+              if (f.title !== undefined && f.title !== oldRow.title) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "world_entry", id, oldRow.title, f.title, "title")
+                historyEntries.push({ field: "title", old_len: oldRow.title.length, new_len: f.title.length })
+              }
+              if (f.content !== undefined && f.content !== (oldRow.content ?? "")) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "world_entry", id, oldRow.content ?? "", f.content, "content")
+                historyEntries.push({ field: "content", old_len: (oldRow.content ?? "").length, new_len: f.content.length })
+              }
+
+              // 4) title 或 content 变化 → 触发章节级联（影响已写正文的连贯性）
+              const titleChanged = typeof f.title === "string" && f.title !== oldRow.title
+              const contentChanged = typeof f.content === "string" && f.content !== oldRow.content
+              if (titleChanged || contentChanged) {
+                const oldVal = titleChanged ? oldRow.title : (oldRow.content ?? "").slice(0, 80)
+                const newVal = titleChanged ? (f.title as string) : (f.content as string).slice(0, 80)
+                const reason = titleChanged
+                  ? `world_entry 标题由「${oldRow.title}」改为「${f.title}」，可能影响已写章节中对该条目的称谓`
+                  : `world_entry「${oldRow.title}」内容有大幅修改，已写章节可能与新设定不一致`
+                const tasksCreated = await cascadeCreateTasks(
+                  db,
+                  oldRow.novel_id,
+                  "world_entry",
+                  id,
+                  titleChanged ? "title" : "content",
+                  oldVal,
+                  newVal,
+                  reason,
+                )
+                // 实际受影响的章节数（去重）—— cascadeCreateTasks 内部已 dedup，仅作展示
+                const affectedRefs = await cascadeCheck(db, oldRow.novel_id, "world_entry", id)
+                const affectedChapters = new Set(affectedRefs.filter((r) => r.source_type === "chapter").map((r) => r.source_id)).size
+                cascadeSummary = {
+                  affected_chapters: affectedChapters,
+                  tasks_created: tasksCreated,
+                  old_title: titleChanged ? oldRow.title : undefined,
+                  new_title: titleChanged ? (f.title as string) : undefined,
+                  old_content_head: contentChanged ? (oldRow.content ?? "").slice(0, 40) : undefined,
+                  new_content_head: contentChanged ? (f.content as string).slice(0, 40) : undefined,
+                }
+              }
             } else if (type === "plot_thread") {
+              const oldRow = await db
+                .select()
+                .from(PlotThreadTable)
+                .where(eq(PlotThreadTable.id, id))
+                .get()
+              if (!oldRow) {
+                return { title: "update_setting", output: `plot_thread 不存在：${id.slice(0, 8)}` }
+              }
               const f: { title?: string; status?: string; priority?: string; description?: string } = {}
               if (typeof fields.title === "string") f.title = fields.title
               if (typeof fields.status === "string") f.status = fields.status
               if (typeof fields.priority === "string") f.priority = fields.priority
               if (typeof fields.description === "string") f.description = fields.description
               await updatePlotThread(id, f, ctx.directory)
+              // 归档每个真实变化的字段
+              for (const field of ["title", "status", "priority", "description"] as const) {
+                if (f[field] === undefined) continue
+                const newVal = f[field] as string
+                const oldVal = (oldRow[field] ?? "") as string
+                if (newVal === oldVal) continue
+                await archiveDescription(ctx.directory, oldRow.novel_id, "plot_thread", id, oldVal, newVal, field)
+                historyEntries.push({ field, old_len: oldVal.length, new_len: newVal.length })
+              }
             } else if (type === "foreshadowing") {
+              const oldRow = await db
+                .select()
+                .from(ForeshadowingTable)
+                .where(eq(ForeshadowingTable.id, id))
+                .get()
+              if (!oldRow) {
+                return { title: "update_setting", output: `foreshadowing 不存在：${id.slice(0, 8)}` }
+              }
               const f: { content?: string; state?: string; resolvedChapterId?: string | null } = {}
               if (typeof fields.content === "string") f.content = fields.content
               if (typeof fields.state === "string") f.state = fields.state
@@ -2294,18 +3194,68 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 f.resolvedChapterId = fields.resolved_chapter_id == null ? null : String(fields.resolved_chapter_id)
               }
               await updateForeshadowing(id, f, ctx.directory)
+              // 归档 content / state
+              if (f.content !== undefined && f.content !== (oldRow.content ?? "")) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "foreshadowing", id, oldRow.content ?? "", f.content, "content")
+                historyEntries.push({ field: "content", old_len: (oldRow.content ?? "").length, new_len: f.content.length })
+              }
+              if (f.state !== undefined && f.state !== oldRow.state) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "foreshadowing", id, oldRow.state, f.state, "state")
+                historyEntries.push({ field: "state", old_len: oldRow.state.length, new_len: f.state.length })
+              }
             } else if (type === "relationship") {
+              const oldRow = await db
+                .select()
+                .from(RelationshipTable)
+                .where(eq(RelationshipTable.id, id))
+                .get()
+              if (!oldRow) {
+                return { title: "update_setting", output: `relationship 不存在：${id.slice(0, 8)}` }
+              }
               const f: { type?: string; description?: string } = {}
               if (typeof fields.type === "string") f.type = fields.type
               if (typeof fields.description === "string") f.description = fields.description
               await updateRelationship(id, f, ctx.directory)
+              // 归档 type / description
+              if (f.type !== undefined && f.type !== (oldRow.type ?? "")) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "relationship", id, oldRow.type ?? "", f.type, "type")
+                historyEntries.push({ field: "type", old_len: (oldRow.type ?? "").length, new_len: f.type.length })
+              }
+              if (f.description !== undefined && f.description !== (oldRow.description ?? "")) {
+                await archiveDescription(ctx.directory, oldRow.novel_id, "relationship", id, oldRow.description ?? "", f.description, "description")
+                historyEntries.push({ field: "description", old_len: (oldRow.description ?? "").length, new_len: f.description.length })
+              }
             } else {
               return { title: "update_setting", output: `不支持的实体类型：${type}` }
             }
+            // 拼接级联提示 + 历史归档提示
+            let cascadeLine = ""
+            if (cascadeSummary) {
+              const parts: string[] = []
+              if (cascadeSummary.tasks_created > 0) {
+                parts.push(
+                  `已为 ${cascadeSummary.tasks_created} 个引用章节创建级联任务（在 cascade_list_pending 中可见）`,
+                )
+              } else if (cascadeSummary.affected_chapters > 0) {
+                parts.push(
+                  `检测到 ${cascadeSummary.affected_chapters} 个章节引用此条目，但已存在同类级联任务，未重复创建`,
+                )
+              } else if (cascadeSummary.old_title || cascadeSummary.old_content_head) {
+                parts.push(`暂无章节引用此条目，无级联任务`)
+              }
+              if (cascadeSummary.old_title && cascadeSummary.new_title) {
+                parts.push(`称谓：${cascadeSummary.old_title} → ${cascadeSummary.new_title}`)
+              }
+              if (parts.length > 0) cascadeLine = `\n⚠️ 级联提醒：${parts.join("；")}`
+            }
+            let historyLine = ""
+            if (historyEntries.length > 0) {
+              historyLine = `\n📜 历史归档：${historyEntries.length} 个字段已记录（${historyEntries.map((h) => `${h.field}: ${h.old_len}→${h.new_len}字`).join("，")}）；用 description_history 工具查看/恢复历史版本`
+            }
             return {
               title: "update_setting",
-              output: `已更新 ${type} ${id.slice(0, 8)}：${Object.keys(fields).join(", ")}`,
-              metadata: { entity_type: type, entity_id: id, updated: Object.keys(fields) },
+              output: `已更新 ${type} ${id.slice(0, 8)}：${Object.keys(fields).join(", ")}${cascadeLine}${historyLine}`,
+              metadata: { entity_type: type, entity_id: id, updated: Object.keys(fields), cascade: cascadeSummary, history_archived: historyEntries },
             }
           } catch (err) {
             return {
@@ -2774,11 +3724,13 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       description_history: tool({
         description:
-          "查看或恢复角色/关系的描述历史。action=list（默认）列出指定实体的所有历史版本，显示新旧描述长度和前 100 字预览；action=restore 恢复指定历史版本（将旧描述写回当前记录，同时归档当前值）。用于找回被意外缩减或丢失的描述内容。",
+          "查看或恢复任意设定字段的修改历史。action=list（默认）列出指定实体的所有历史版本，显示字段名/新旧值长度/前 100 字预览；action=restore 恢复指定历史版本（将旧值写回当前记录，同时归档当前值）。覆盖 character / world_entry / plot_thread / foreshadowing / relationship 5 种实体，每种实体的可恢复字段由 update_setting 的 fields 决定（character.description, world_entry.{category|title|content}, plot_thread.{title|status|priority|description}, foreshadowing.{content|state}, relationship.{type|description}）。用于找回被误改/缩减/丢失的设定内容。",
         args: {
           action: tool.schema.string().describe("list=查看历史版本（默认）；restore=恢复指定版本"),
-          entity_type: tool.schema.string().describe("实体类型：character 或 relationship"),
-          entity_id: tool.schema.string().describe("实体 ID（角色 ID 或关系 ID）"),
+          entity_type: tool.schema
+            .string()
+            .describe("实体类型：character / world_entry / plot_thread / foreshadowing / relationship"),
+          entity_id: tool.schema.string().describe("实体 ID"),
           history_id: tool.schema.string().describe("action=restore 时必填：要恢复的历史记录 ID"),
         },
         async execute(args, ctx) {
@@ -2804,17 +3756,17 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (history.length === 0) {
             return {
               title: "description_history",
-              output: `${args.entity_type} ${args.entity_id.slice(0, 8)} 没有描述历史记录`,
+              output: `${args.entity_type} ${args.entity_id.slice(0, 8)} 暂无历史记录`,
             }
           }
 
           const lines: string[] = []
-          lines.push(`${args.entity_type} ${args.entity_id.slice(0, 8)} 的描述历史（${history.length} 条）：`)
+          lines.push(`${args.entity_type} ${args.entity_id.slice(0, 8)} 的历史记录（${history.length} 条）：`)
           for (const h of history) {
             lines.push("")
-            lines.push(`  [${h.id.slice(0, 8)}] ${new Date(h.created_at).toLocaleString("zh-CN")}`)
+            lines.push(`  [${h.id.slice(0, 8)}] field=${h.field} | ${new Date(h.created_at).toLocaleString("zh-CN")}`)
             lines.push(`    旧: ${h.old_len} 字 | 新: ${h.new_len} 字${h.new_len < h.old_len ? " ⚠ 缩短" : ""}`)
-            lines.push(`    旧描述预览: ${h.old_value.slice(0, 100) || "(空)"}...`)
+            lines.push(`    旧值预览: ${h.old_value.slice(0, 100) || "(空)"}...`)
           }
           lines.push("")
           lines.push("要恢复某个版本，使用 action=restore 并传入对应的 history_id")
@@ -2901,6 +3853,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             deduplicate_characters: "allow",
             deduplicate_relationships: "allow",
             description_history: "allow",
+            list_chapter_versions: "allow",
+            read_chapter_version: "allow",
+            diff_chapter_version: "allow",
+            restore_chapter_version: "allow",
             generate_master_outline: "allow",
             generate_volume_outline: "allow",
             generate_chapter_outline: "allow",
@@ -2937,6 +3893,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             read_chapter_outline: "allow",
             assemble_context_snapshot: "allow",
             check_continuity: "allow",
+            check_settings_consistency: "allow",
             validate_state_delta: "allow",
             commit_state_delta: "allow",
             read_chapter_content: "allow",
@@ -3035,6 +3992,62 @@ async function nextVersion(db: ReturnType<typeof getDb>, chapterId: string): Pro
     .limit(1)
     .all()
   return (rows[0]?.version ?? 0) + 1
+}
+
+/**
+ * 段落级 diff。用最长公共子序列（LCS）对齐两段按行/段切分的内容，
+ * 输出 same / add / remove 三种操作的数组，供 diff_chapter_version 工具使用。
+ *
+ * - 同一段：标记 same（输出空格前缀）
+ * - 仅旧版本有：标记 remove（- 前缀）
+ * - 仅新版本有：标记 add（+ 前缀）
+ *
+ * 简化版：跳过 block move（顺序敏感），LCS 对齐保证相同段落不被误标 add/remove。
+ * 对章节正文来说，正文很少整体 block move，常见模式是「保留大部分 + 改几段」，
+ * 这种模式下 LCS 准确率足够。
+ */
+type DiffOp = { kind: "same" | "add" | "remove"; text: string }
+
+function computeParagraphDiff(a: string[], b: string[]): DiffOp[] {
+  const m = a.length
+  const n = b.length
+  // 1) dp[i][j] = LCS length of a[0..i-1], b[0..j-1]
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+      }
+    }
+  }
+  // 2) 反向回溯生成 diff
+  const out: DiffOp[] = []
+  let i = m
+  let j = n
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) {
+      out.push({ kind: "same", text: a[i - 1] })
+      i--
+      j--
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      out.push({ kind: "remove", text: a[i - 1] })
+      i--
+    } else {
+      out.push({ kind: "add", text: b[j - 1] })
+      j--
+    }
+  }
+  while (i > 0) {
+    out.push({ kind: "remove", text: a[i - 1] })
+    i--
+  }
+  while (j > 0) {
+    out.push({ kind: "add", text: b[j - 1] })
+    j--
+  }
+  return out.reverse()
 }
 
 /**

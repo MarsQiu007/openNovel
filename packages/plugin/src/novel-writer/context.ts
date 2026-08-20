@@ -19,6 +19,7 @@ import {
   ChapterTable,
   CharacterTable,
   CharacterStateTable,
+  RelationshipTable,
   PlotThreadTable,
   ForeshadowingTable,
   ChapterSummaryTable,
@@ -101,6 +102,40 @@ export type ChapterSummaryItem = {
   keyEvents: string[]
 }
 
+/** 世界观条目摘要 */
+export type WorldEntrySummary = {
+  /** 条目 ID */
+  id: string
+  /** 分类（如：社会制度/力量体系/势力/地理/科技/文化/生物/核心设定） */
+  category: string
+  /** 条目标题 */
+  title: string
+  /** 条目完整内容（writer 的硬约束来源） */
+  content: string
+}
+
+/** 卷纲摘要 */
+export type VolumeListItem = {
+  /** 卷序号 */
+  order: number
+  /** 卷标题 */
+  title: string
+  /** 卷摘要 */
+  summary: string
+}
+
+/** 关系摘要 */
+export type RelationshipSummary = {
+  /** 关系类型 */
+  type: string
+  /** 关系描述 */
+  description: string
+  /** 角色 A 名称 */
+  charAName: string
+  /** 角色 B 名称 */
+  charBName: string
+}
+
 /** 风格指南信息 */
 export type StyleGuideInfo = {
   /** 写作风格规则（JSON 对象） */
@@ -113,12 +148,6 @@ export type StyleGuideInfo = {
   tense: string
 }
 
-/** 世界观条目导览（仅分类+标题，正文靠 check_novel_settings 工具按需查询） */
-export type WorldEntryItem = {
-  category: string
-  title: string
-}
-
 /**
  * 上下文快照数据包
  *
@@ -128,6 +157,7 @@ export type WorldEntryItem = {
  * - P2 卷+3章摘要（约2K）：当前卷摘要 + 最近3章摘要
  * - P3 线索+伏笔（约2K）：剧情线索和伏笔
  * - P4 风格+规则（约1.5K）：风格指南和题材规则
+ * - P5 世界观硬约束（约2K）：worldEntries + volumeList + relationships（writer 必须严格遵守的权威来源）
  */
 export type ContextPacket = {
   /** P0: 小说蓝图 */
@@ -153,8 +183,10 @@ export type ContextPacket = {
   styleGuide: StyleGuideInfo | null
   genreRules: string[]
 
-  /** P4b: 世界观条目标题导览（不含正文，控制 token） */
-  worldEntries: WorldEntryItem[]
+  /** P5: 世界观硬约束（writer 创作的权威来源） */
+  worldEntries: WorldEntrySummary[]
+  volumeList: VolumeListItem[]
+  relationships: RelationshipSummary[]
 
   /** 上一章结尾原文（约600字），writer 必须承接其后展开，严禁重复前文已发生的内容 */
   prevChapterTail: string | null
@@ -283,15 +315,38 @@ export async function assembleSnapshot(
     .where(eq(ForeshadowingTable.novel_id, novelId))
     .all()
 
-  // ── P4: 风格指南 + 题材规则 ──
-  const [styleGuideRow] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
-
-  // ── P4b: 世界观条目标题导览 ──
-  const worldEntryRows = await db
-    .select({ category: WorldEntryTable.category, title: WorldEntryTable.title })
+  // ── P5: 世界观硬约束（writer 创作的权威来源） ──
+  // 等级称谓、力量体系、制度名称、势力名等一切世界观细节
+  // 全部以 worldEntries 为唯一来源，禁止 LLM 自创或调用题材模板硬编码。
+  const worldEntries = await db
+    .select()
     .from(WorldEntryTable)
     .where(eq(WorldEntryTable.novel_id, novelId))
     .all()
+
+  const volumeList = await db
+    .select()
+    .from(VolumeTable)
+    .where(eq(VolumeTable.novel_id, novelId))
+    .orderBy(VolumeTable.order)
+    .all()
+
+  // 关系：拉关系 + 用 character_id 解析名字
+  const relationshipRows = await db
+    .select()
+    .from(RelationshipTable)
+    .where(eq(RelationshipTable.novel_id, novelId))
+    .all()
+  const charIdToName = new Map(characters.map((c) => [c.id, c.name]))
+  const relationships: RelationshipSummary[] = relationshipRows.map((r) => ({
+    type: r.type,
+    description: r.description,
+    charAName: charIdToName.get(r.char_a_id) ?? "(未知角色)",
+    charBName: charIdToName.get(r.char_b_id) ?? "(未知角色)",
+  }))
+
+  // ── P4: 风格指南 + 题材规则 ──
+  const [styleGuideRow] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
 
   const genreRules = await loadGenreRules(novel.genre)
 
@@ -341,7 +396,20 @@ export async function assembleSnapshot(
         }
       : null,
     genreRules,
-    worldEntries: worldEntryRows,
+
+    // P5: 世界观硬约束
+    worldEntries: worldEntries.map((w) => ({
+      id: w.id,
+      category: w.category,
+      title: w.title,
+      content: w.content,
+    })),
+    volumeList: volumeList.map((v) => ({
+      order: v.order,
+      title: v.title,
+      summary: v.summary,
+    })),
+    relationships,
 
     prevChapterTail,
     targetWordCount,
