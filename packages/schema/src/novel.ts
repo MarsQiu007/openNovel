@@ -195,6 +195,14 @@ export const StyleGuide = Schema.Struct({
 }).annotate({ identifier: "Novel.StyleGuide" })
 export interface StyleGuide extends Schema.Schema.Type<typeof StyleGuide> {}
 
+export const Soul = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  content: Schema.String,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.Soul" })
+export interface Soul extends Schema.Schema.Type<typeof Soul> {}
+
 export const TensionPoint = Schema.Struct({
   id: Schema.String,
   novelId: Schema.String,
@@ -326,6 +334,11 @@ export const UpdateStyleGuideInput = Schema.Struct({
   rules: optional(Schema.Record(Schema.String, Schema.String)),
 }).annotate({ identifier: "Novel.UpdateStyleGuideInput" })
 export interface UpdateStyleGuideInput extends Schema.Schema.Type<typeof UpdateStyleGuideInput> {}
+
+export const UpdateSoulInput = Schema.Struct({
+  content: Schema.String,
+}).annotate({ identifier: "Novel.UpdateSoulInput" })
+export interface UpdateSoulInput extends Schema.Schema.Type<typeof UpdateSoulInput> {}
 
 export const NovelSearchResult = Schema.Struct({
   chapterId: Schema.String,

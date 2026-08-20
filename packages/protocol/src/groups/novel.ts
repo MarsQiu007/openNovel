@@ -29,6 +29,7 @@ import {
   Relationship,
   RestoreVersionInput,
   SessionBinding,
+  Soul,
   StyleGuide,
   TensionPoint,
   UpdateChapterContentInput,
@@ -39,6 +40,7 @@ import {
   UpdateNovelInput,
   UpdatePlotThreadInput,
   UpdateRelationshipInput,
+  UpdateSoulInput,
   UpdateStyleGuideInput,
   UpdateTensionPointInput,
   UpdateVolumeInput,
@@ -633,6 +635,27 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       .annotateMerge(
         OpenApi.annotations({ identifier: "v2.novel.update-style-guide", summary: "Update novel style guide" }),
       ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.soul", `${root}/:novelID/soul`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Soul,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.soul", summary: "Get novel soul" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.update-soul", `${root}/:novelID/soul`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateSoulInput,
+      success: Soul,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-soul", summary: "Update novel soul" })),
   )
   .add(
     HttpApiEndpoint.get("novel.search", `${root}/:novelID/search`, {
