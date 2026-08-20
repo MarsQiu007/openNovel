@@ -34,7 +34,7 @@
     "marked": "^15"
   },
   "devDependencies": {
-    "@actions/artifact": "4.0.0",
+    "@actions/artifact": "6.2.1",
     "@lydell/node-pty": "catalog:",
     "@opennovel-ai/app": "workspace:*",
     "@opennovel-ai/ui": "workspace:*",

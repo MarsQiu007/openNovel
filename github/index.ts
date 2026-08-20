@@ -4,7 +4,7 @@ import { Octokit } from "@octokit/rest"
 import { graphql } from "@octokit/graphql"
 import * as core from "@actions/core"
 import * as github from "@actions/github"
-import type { Context as GitHubContext } from "@actions/github/lib/context"
+type GitHubContext = typeof github.context
 import type { IssueCommentEvent, PullRequestReviewCommentEvent } from "@octokit/webhooks-types"
 import { createOpenNovelClient } from "@opennovel-ai/sdk"
 import { spawn } from "node:child_process"
