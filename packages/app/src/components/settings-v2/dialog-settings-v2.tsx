@@ -11,6 +11,7 @@ import { SettingsModelsV2 } from "./models"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
 import { SettingsSync } from "../settings-sync"
+import { SettingsSoul } from "../settings-soul"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 
 export const DialogSettings: Component<{
@@ -72,6 +73,10 @@ export const DialogSettings: Component<{
                       <Icon name="models" />
                       {language.t("settings.models.title")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="soul">
+                      <Icon name="brain" />
+                      {language.t("settings.soul.tab")}
+                    </TabsV2.Trigger>
                   </div>
                 </div>
               </div>
@@ -99,6 +104,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="models" class="settings-v2-panel">
           <SettingsModelsV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="soul" class="settings-v2-panel">
+          <SettingsSoul v2 />
         </TabsV2.Content>
       </TabsV2>
     </Dialog>
