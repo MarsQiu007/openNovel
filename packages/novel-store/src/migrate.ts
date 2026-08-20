@@ -86,6 +86,7 @@ function cleanupOrphanRows(exec: ExecFn): void {
     "DELETE FROM relationships WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM session_novel WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM style_guide WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM soul WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM world_entries WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM tension_log WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM hook_rotation WHERE novel_id NOT IN (SELECT id FROM novels)",

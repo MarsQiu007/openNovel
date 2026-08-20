@@ -186,6 +186,18 @@ export const StyleGuideTable = sqliteTable("style_guide", {
   tense: text().notNull().default(""),
 })
 
+export const SoulTable = sqliteTable("soul", {
+  id: text().primaryKey(),
+  novel_id: text().notNull(),
+  content: text().notNull().default(""),
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+})
+
 export const VolumeSummaryTable = sqliteTable("volume_summaries", {
   id: text().primaryKey(),
   volume_id: text().notNull(),
@@ -368,6 +380,7 @@ CREATE TABLE IF NOT EXISTS plot_threads (id text PRIMARY KEY, novel_id text NOT 
 CREATE TABLE IF NOT EXISTS relationships (id text PRIMARY KEY, novel_id text NOT NULL, char_a_id text NOT NULL, char_b_id text NOT NULL, type text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (char_a_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (char_b_id) REFERENCES characters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS session_novel (id text PRIMARY KEY, session_id text NOT NULL, novel_id text NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS style_guide (id text PRIMARY KEY, novel_id text NOT NULL, rules text DEFAULT '{}' NOT NULL, tone text DEFAULT '' NOT NULL, pov text DEFAULT '' NOT NULL, tense text DEFAULT '' NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS soul (id text PRIMARY KEY, novel_id text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS volume_summaries (id text PRIMARY KEY, volume_id text NOT NULL, summary text DEFAULT '' NOT NULL, char_active text DEFAULT '[]' NOT NULL, char_dormant text DEFAULT '[]' NOT NULL, threads_open text DEFAULT '[]' NOT NULL, threads_closed text DEFAULT '[]' NOT NULL, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, level real NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
@@ -757,6 +770,30 @@ export async function upsertStyleGuide(
   if (fields.rules !== undefined) updates.rules = fields.rules
   await db.update(StyleGuideTable).set(updates).where(eq(StyleGuideTable.id, existing.id)).run()
   return db.select().from(StyleGuideTable).where(eq(StyleGuideTable.id, existing.id)).get()!
+}
+
+export async function getSoul(
+  novelId: string,
+  directory?: string | null,
+): Promise<typeof SoulTable.$inferSelect | undefined> {
+  const db = getDb(directory)
+  return db.select().from(SoulTable).where(eq(SoulTable.novel_id, novelId)).get()
+}
+
+export async function upsertSoul(
+  novelId: string,
+  content: string,
+  directory?: string | null,
+): Promise<typeof SoulTable.$inferSelect> {
+  const db = getDb(directory)
+  const existing = await db.select().from(SoulTable).where(eq(SoulTable.novel_id, novelId)).get()
+  if (!existing) {
+    const id = crypto.randomUUID()
+    await db.insert(SoulTable).values({ id, novel_id: novelId, content }).run()
+    return db.select().from(SoulTable).where(eq(SoulTable.id, id)).get()!
+  }
+  await db.update(SoulTable).set({ content, updated_at: Date.now() }).where(eq(SoulTable.id, existing.id)).run()
+  return db.select().from(SoulTable).where(eq(SoulTable.id, existing.id)).get()!
 }
 
 export async function updateNovel(
