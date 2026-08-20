@@ -20,6 +20,7 @@ import { ProjectCopyHandler } from "./handlers/project-copy"
 import { NovelHandler } from "./handlers/novel"
 import { NovelModeHandler } from "./handlers/novel-mode"
 import { SyncHandler } from "./handlers/sync"
+import { SoulHandler } from "./handlers/soul"
 
 export const handlers = Layer.mergeAll(
   HealthHandler,
@@ -43,4 +44,5 @@ export const handlers = Layer.mergeAll(
   NovelHandler,
   NovelModeHandler,
   SyncHandler,
+  SoulHandler,
 )

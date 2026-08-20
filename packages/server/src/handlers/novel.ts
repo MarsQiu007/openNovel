@@ -22,6 +22,7 @@ import {
   ForeshadowingTable,
   WorldEntryTable,
   StyleGuideTable,
+  SoulTable,
   TensionLogTable,
   createChapter as storeCreateChapter,
   updateNovel as storeUpdateNovel,
@@ -54,6 +55,7 @@ import {
   updateCharacterState as storeUpdateCharacterState,
   deleteCharacterState as storeDeleteCharacterState,
   upsertStyleGuide as storeUpsertStyleGuide,
+  upsertSoul as storeUpsertSoul,
   listChapterReviews as storeListChapterReviews,
   createChapterReview as storeCreateChapterReview,
 } from "@opennovel-ai/novel-store"
@@ -78,6 +80,7 @@ type PlotThreadRow = typeof PlotThreadTable.$inferSelect
 type ForeshadowingRow = typeof ForeshadowingTable.$inferSelect
 type WorldEntryRow = typeof WorldEntryTable.$inferSelect
 type StyleGuideRow = typeof StyleGuideTable.$inferSelect
+type SoulRow = typeof SoulTable.$inferSelect
 type TensionRow = typeof TensionLogTable.$inferSelect
 type RelationshipRow = typeof RelationshipTable.$inferSelect
 type CharacterStateRow = typeof CharacterStateTable.$inferSelect
@@ -220,6 +223,10 @@ function toStyleGuide(row: StyleGuideRow) {
   }
 }
 
+function toSoul(row: SoulRow) {
+  return { id: row.id, novelId: row.novel_id, content: row.content, updatedAt: row.updated_at }
+}
+
 function toRelationship(row: RelationshipRow) {
   return {
     id: row.id,
@@ -339,6 +346,7 @@ type UpdateRelationshipInput = { type?: string; description?: string }
 type CreateCharacterStateInput = { chapterId?: string; place?: string; mood?: string; summary?: string }
 type UpdateCharacterStateInput = { active?: number; place?: string; mood?: string; summary?: string }
 type UpdateStyleGuideInput = { tone?: string; pov?: string; tense?: string; rules?: Record<string, string> }
+type UpdateSoulInput = { content: string }
 
 export function listNovels(directory: string) {
   return Effect.sync(() => {
@@ -1057,6 +1065,26 @@ export function updateStyleGuideEndpoint(novelID: string, input: UpdateStyleGuid
   })
 }
 
+export function getSoulEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const row = db.select().from(SoulTable).where(eq(SoulTable.novel_id, novelID)).get()
+    return row ? toSoul(row) : { id: "", novelId: novelID, content: "", updatedAt: 0 }
+  })
+}
+
+export function updateSoulEndpoint(novelID: string, input: UpdateSoulInput, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const row = yield* Effect.promise(() => storeUpsertSoul(novelID, input.content, directory))
+    return toSoul(row)
+  })
+}
+
 export function updateNovel(novelID: string, input: UpdateNovelInput, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
@@ -1515,6 +1543,18 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* updateStyleGuideEndpoint(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.soul", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* getSoulEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.update-soul", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* updateSoulEndpoint(ctx.params.novelID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.search", (ctx) =>
