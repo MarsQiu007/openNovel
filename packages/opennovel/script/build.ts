@@ -156,7 +156,6 @@ for (const item of targets) {
   console.log(`building ${name}`)
   await $`mkdir -p dist/${name}/bin`
 
-  const workerPath = "./src/cli/tui/worker.ts"
   const treeSitterWorkerPath = "opentui-tree-sitter-worker.js"
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
 
@@ -185,7 +184,6 @@ for (const item of targets) {
     },
     entrypoints: [
       "./src/index.ts",
-      workerPath,
       treeSitterWorkerPath,
       ...(embeddedFileMap ? ["opennovel-web-ui.gen.ts"] : []),
     ],
@@ -194,7 +192,6 @@ for (const item of targets) {
       OPENNOVEL_VERSION: `'${Script.version}'`,
       OPENNOVEL_MODELS_DEV: generated.modelsData,
       OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + treeSitterWorkerPath,
-      OPENNOVEL_WORKER_PATH: workerPath,
       OPENNOVEL_CHANNEL: `'${Script.channel}'`,
       OPENNOVEL_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
       ...(item.os === "linux" ? { "process.env.OPENTUI_LIBC": JSON.stringify(item.abi ?? "glibc") } : {}),
