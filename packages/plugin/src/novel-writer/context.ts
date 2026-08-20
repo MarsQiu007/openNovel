@@ -24,6 +24,7 @@ import {
   ChapterSummaryTable,
   VolumeSummaryTable,
   StyleGuideTable,
+  WorldEntryTable,
 } from "./session-store.js"
 
 /**
@@ -112,6 +113,12 @@ export type StyleGuideInfo = {
   tense: string
 }
 
+/** 世界观条目导览（仅分类+标题，正文靠 check_novel_settings 工具按需查询） */
+export type WorldEntryItem = {
+  category: string
+  title: string
+}
+
 /**
  * 上下文快照数据包
  *
@@ -145,6 +152,9 @@ export type ContextPacket = {
   /** P4: 风格指南 + 题材规则 */
   styleGuide: StyleGuideInfo | null
   genreRules: string[]
+
+  /** P4b: 世界观条目标题导览（不含正文，控制 token） */
+  worldEntries: WorldEntryItem[]
 
   /** 上一章结尾原文（约600字），writer 必须承接其后展开，严禁重复前文已发生的内容 */
   prevChapterTail: string | null
@@ -276,6 +286,13 @@ export async function assembleSnapshot(
   // ── P4: 风格指南 + 题材规则 ──
   const [styleGuideRow] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
 
+  // ── P4b: 世界观条目标题导览 ──
+  const worldEntryRows = await db
+    .select({ category: WorldEntryTable.category, title: WorldEntryTable.title })
+    .from(WorldEntryTable)
+    .where(eq(WorldEntryTable.novel_id, novelId))
+    .all()
+
   const genreRules = await loadGenreRules(novel.genre)
 
   // ── 上一章结尾原文：writer 必须承接其后，防止重写已演过的场景 ──
@@ -324,6 +341,7 @@ export async function assembleSnapshot(
         }
       : null,
     genreRules,
+    worldEntries: worldEntryRows,
 
     prevChapterTail,
     targetWordCount,

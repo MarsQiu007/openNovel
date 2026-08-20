@@ -178,6 +178,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     foreshadowing,
     styleGuide,
     genreRules,
+    worldEntries: [],
   }
 }
 
@@ -796,6 +797,7 @@ describe("规模测试 — 审计矛盾检测", () => {
         tense: "过去时",
       },
       genreRules: ["规则1"],
+      worldEntries: [],
     }
 
     const result = auditContradictions(cleanPacket, 10)

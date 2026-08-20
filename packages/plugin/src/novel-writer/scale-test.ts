@@ -175,6 +175,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     foreshadowing,
     styleGuide,
     genreRules,
+    worldEntries: [],
     prevChapterTail: null,
     targetWordCount: 2500,
   }

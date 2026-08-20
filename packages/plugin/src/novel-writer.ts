@@ -256,6 +256,24 @@ async function injectSystemContext(sessionId: string, directory: string | null |
     lines.push("")
   }
 
+  if (snapshot.worldEntries.length > 0) {
+    const MAX_WORLD_TITLES = 50
+    lines.push("【世界观设定】")
+    const byCategory = new Map<string, string[]>()
+    for (const entry of snapshot.worldEntries.slice(0, MAX_WORLD_TITLES)) {
+      const key = entry.category || "未分类"
+      byCategory.set(key, [...(byCategory.get(key) ?? []), entry.title])
+    }
+    for (const [category, titles] of byCategory) {
+      lines.push(`${category}：${titles.join("、")}`)
+    }
+    if (snapshot.worldEntries.length > MAX_WORLD_TITLES) {
+      lines.push(`（共 ${snapshot.worldEntries.length} 条，仅列出前 ${MAX_WORLD_TITLES} 条标题）`)
+    }
+    lines.push('（以上为标题导览；需要某条设定的完整内容时，调用 check_novel_settings(scope="world") 查询）')
+    lines.push("")
+  }
+
   if (snapshot.genreRules.length > 0) {
     lines.push("【题材规则】")
     for (const rule of snapshot.genreRules) {
