@@ -19,8 +19,8 @@ It holds **no** hook or tool registration logic — those live in `packages/plug
 
 - `src/index.ts` — tables (`novels`, `volumes`, `chapters`, `chapter_versions`,
   `characters`, `character_states`, `relationships`, `plot_threads`, `foreshadowing`,
-  `world_entries`, `chapter_summaries`, `style_guide`, `tension_log`, `hook_rotation`,
-  …), `getDbPath` / `getDb`, session binding, and CRUD helpers.
+  `world_entries`, `chapter_summaries`, `style_guide`, `soul`, `tension_log`,
+  `hook_rotation`, …), `getDbPath` / `getDb`, session binding, and CRUD helpers.
 - `src/approval.ts` — `requestApproval` / `handleApproval` for the chapter approval
   gate (`APPROVE` / `REJECT` / `EDIT`).
 - `src/driver.bun.ts`, `src/driver.node.ts` — platform-specific SQLite drivers.
