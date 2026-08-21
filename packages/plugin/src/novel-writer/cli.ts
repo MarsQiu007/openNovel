@@ -12,6 +12,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite"
 import { Database as BunSqlite } from "bun:sqlite"
 import { join, resolve } from "path"
 import { existsSync, mkdirSync, writeFileSync } from "fs"
+import { readFile, writeFile } from "fs/promises"
 import { DEFAULT_NOVEL_MODE_CONFIG } from "@opennovel-ai/novel-store"
 
 // ─── 题材枚举 ───
@@ -210,4 +211,59 @@ async function tagNovelSession(sessionId: string, novelId: string): Promise<void
   const db = getDb()
   const id = crypto.randomUUID()
   await db.insert(SessionNovelTable).values({ id, session_id: sessionId, novel_id: novelId }).run()
+}
+
+// ─── 技法提取与种子导入 ───
+
+export interface ExtractOptions {
+  chunkSize?: number
+  overlap?: number
+}
+
+/**
+ * 从文本文件中提取写作技法并输出 JSON。
+ * LLM 调用由调用方注入（保持 provider 无关，便于测试）。
+ */
+export async function runTechniqueExtraction(
+  inputPath: string,
+  outputPath: string,
+  llm: (prompt: string) => Promise<string>,
+  options?: ExtractOptions,
+): Promise<{ segments: number; highlights: number; techniques: number }> {
+  const { segmentText, highlightTechniques, distillTechniques, filterTechniques } = await import(
+    "./technique-extract.js"
+  )
+  const { normalizeTechnique } = await import("./technique-normalize.js")
+
+  const content = await readFile(inputPath, "utf-8")
+  const segments = segmentText(content, {
+    chunkSize: options?.chunkSize ?? 3000,
+    overlap: options?.overlap ?? 500,
+  })
+
+  const highlights = await highlightTechniques(segments, llm)
+  const distilled = await distillTechniques(highlights, llm)
+  const filtered = filterTechniques(distilled)
+  const normalized = filtered.map((partial) => normalizeTechnique(partial))
+
+  await writeFile(outputPath, JSON.stringify(normalized, null, 2), "utf-8")
+  return { segments: segments.length, highlights: highlights.length, techniques: normalized.length }
+}
+
+/**
+ * 导入人工精选的种子技法（JSON 数组），初始状态为 verified。
+ */
+export async function importSeedTechniques(
+  inputPath: string,
+  directory?: string | null,
+): Promise<number> {
+  const { normalizeTechnique } = await import("./technique-normalize.js")
+  const { upsertTechnique } = await import("./technique-store.js")
+
+  const content = JSON.parse(await readFile(inputPath, "utf-8"))
+  const items = Array.isArray(content) ? content : [content]
+  for (const item of items) {
+    await upsertTechnique(normalizeTechnique(item, { seed: true }), directory)
+  }
+  return items.length
 }

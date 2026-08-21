@@ -1,9 +1,11 @@
 import type { Argv } from "yargs"
 import { Effect } from "effect"
-import { effectCmd, fail } from "../effect-cmd"
+import { generateText } from "ai"
+import { effectCmd, fail, CliError } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opennovel-ai/core/flag/flag"
-import { GENRES } from "@opennovel-ai/plugin/novel-writer/cli"
+import { GENRES, runTechniqueExtraction, importSeedTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
+import { Provider } from "@/provider/provider"
 
 /**
  * 小说项目初始化命令 — `opennovel init`
@@ -101,6 +103,82 @@ export const NovelCommand = effectCmd({
   command: "novel",
   describe: "小说写作工具",
   instance: false,
-  builder: (yargs: Argv) => yargs.command(InitCommand).command(BookCommand).command(NovelServerCommand).demandCommand(),
+  builder: (yargs: Argv) =>
+    yargs
+      .command(InitCommand)
+      .command(BookCommand)
+      .command(NovelServerCommand)
+      .command(ExtractTechniquesCommand)
+      .command(SeedTechniquesCommand)
+      .demandCommand(),
   handler: Effect.fn("Cli.novel")(function* () {}),
+})
+
+/**
+ * 技法提取命令 - `opennovel novel extract-techniques`
+ */
+const ExtractTechniquesCommand = effectCmd({
+  command: "extract-techniques",
+  describe: "从小说文本中提取写作技法",
+  instance: false,
+  builder: (yargs: Argv) =>
+    yargs
+      .option("input", { type: "string", describe: "输入文件路径", demandOption: true })
+      .option("output", { type: "string", describe: "输出 JSON 路径", demandOption: true })
+      .option("chunk-size", { type: "number", describe: "分段大小", default: 3000 })
+      .option("overlap", { type: "number", describe: "分段重叠", default: 500 }),
+  handler: Effect.fn("Cli.novel.extract-techniques")(function* (args) {
+    const provider = yield* Provider.Service
+    const modelError = (msg: string) => (e: { _tag?: string }) =>
+      new CliError({ message: `${msg}: ${e._tag ?? "unknown"}` })
+    const modelRef = yield* provider.defaultModel().pipe(Effect.mapError(modelError("无法解析默认模型")))
+    const model = yield* provider
+      .getModel(modelRef.providerID, modelRef.modelID)
+      .pipe(Effect.mapError(modelError("无法加载模型")))
+    const languageModel = yield* provider
+      .getLanguage(model)
+      .pipe(Effect.mapError(modelError("无法加载语言模型")))
+
+    const llm = async (prompt: string) => {
+      const { text } = await generateText({ model: languageModel, prompt })
+      return text
+    }
+
+    try {
+      const result = yield* Effect.promise(() =>
+        runTechniqueExtraction(args.input, args.output, llm, {
+          chunkSize: (args as { chunkSize?: number }).chunkSize ?? 3000,
+          overlap: args.overlap,
+        }),
+      )
+      console.log(
+        `分段 ${result.segments}，高亮 ${result.highlights}，提取 ${result.techniques} 条技法 -> ${args.output}`,
+      )
+    } catch (error) {
+      yield* fail(error instanceof Error ? error.message : String(error))
+    }
+  }),
+})
+
+/**
+ * 种子技法导入命令 - `opennovel novel seed-techniques`
+ */
+const SeedTechniquesCommand = effectCmd({
+  command: "seed-techniques",
+  describe: "导入人工精选的种子技法",
+  instance: false,
+  builder: (yargs: Argv) =>
+    yargs
+      .option("input", { type: "string", describe: "种子技法 JSON 路径", demandOption: true })
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
+  handler: Effect.fn("Cli.novel.seed-techniques")(function* (
+    args: { input: string; dir?: string },
+  ) {
+    try {
+      const count = yield* Effect.promise(() => importSeedTechniques(args.input, args.dir ?? null))
+      console.log(`已导入 ${count} 条种子技法（verified）`)
+    } catch (error) {
+      yield* fail(error instanceof Error ? error.message : String(error))
+    }
+  }),
 })
