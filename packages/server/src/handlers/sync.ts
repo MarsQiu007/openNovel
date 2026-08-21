@@ -12,12 +12,13 @@ import { Api } from "../api"
 // 集成，该孤儿 ID 不会出现在集成页
 const WEBDAV_INTEGRATION_ID = Schema.decodeUnknownSync(Integration.ID)("webdav")
 
-/** 把 SyncError 翻译成协议错误，其余异常原样抛出（500） */
+/** 把同步异常翻译成协议错误，避免未知异常导致请求挂起 */
 const mapError = (error: unknown) => {
   if (error instanceof Sync.SyncError) {
     return new SyncErrorResponse({ name: "SyncErrorResponse", data: { message: error.message, code: error.code } })
   }
-  throw error
+  const message = error instanceof Error ? error.message : String(error)
+  return new SyncErrorResponse({ name: "SyncErrorResponse", data: { message, code: "io" } })
 }
 
 export const SyncHandler = HttpApiBuilder.group(Api, "server.sync", (handlers) => {

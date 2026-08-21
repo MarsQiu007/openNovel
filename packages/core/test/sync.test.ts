@@ -313,6 +313,21 @@ describe("library sync", () => {
     expect(await stat(path.join(remote, "opennovel", "draft-b")).catch(() => undefined)).toBeUndefined()
   })
 
+  test("数据库包含 FTS5 虚拟表时也能正常读取同步状态", async () => {
+    const m = machine("fts")
+    await mkdir(m.rootDir, { recursive: true })
+    await connect(m)
+    await writeChapter(m, "fts-demo", "FTS", T0)
+
+    const file = path.join(m.rootDir, "fts-demo", ".novel", "novel.db")
+    const db = new Database(file)
+    db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS chapter_summary_fts USING fts5(title, body)")
+    db.close()
+
+    const status = await Sync.getStatus(deps(m))
+    expect(status.projects).toContainEqual(expect.objectContaining({ name: "fts-demo", state: "new_local" }))
+  })
+
   test("最终收敛：所有机器一键同步后无决策且全部 in_sync", async () => {
     for (const m of [A, B, machine("c")]) {
       const run = await Sync.syncAll(deps(m))

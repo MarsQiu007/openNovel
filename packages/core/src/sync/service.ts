@@ -138,18 +138,50 @@ async function fileSha256(file: string): Promise<string | undefined> {
  * 数据库逻辑内容哈希：按固定表序逐行哈希，与物理字节布局无关。
  * VACUUM INTO 会重排页面导致文件字节变化，若用文件哈希做脏检测，
  * 两台机器会把逻辑相同的内容来回互推（ping-pong）。
+ *
+ * FTS5 虚拟表及其影子表是从正文派生的索引，不参与逻辑哈希，
+ * 既避免 WITHOUT ROWID 影子表导致的崩溃，也避免索引内部合并
+ * 造成的伪变更。其余表按 rowid 或主键排序保证跨副本行序一致。
  */
 function contentHash(db: string): string {
   const hash = createHash("sha256")
-  const tables = queryAll(db, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-  for (const { name } of tables) {
-    hash.update(String(name))
-    // 本项目所有表均有 rowid；ORDER BY rowid 保证跨副本行序一致
-    for (const row of queryAll(db, `SELECT * FROM "${String(name).replaceAll('"', '""')}" ORDER BY rowid`)) {
+  const tables = queryAll(
+    db,
+    "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+  )
+  const virtualTables = tables
+    .filter((table) => typeof table.sql === "string" && table.sql.includes("VIRTUAL TABLE"))
+    .map((table) => String(table.name))
+  const ftsShadowSuffixes = ["_data", "_idx", "_content", "_docsize", "_config"]
+
+  for (const table of tables) {
+    const name = String(table.name)
+    if (virtualTables.includes(name)) continue
+    if (virtualTables.some((virtual) => ftsShadowSuffixes.some((suffix) => name === virtual + suffix))) continue
+
+    hash.update(name)
+    for (const row of queryAll(db, `SELECT * FROM ${quoteIdent(name)} ORDER BY ${rowOrder(db, name)}`)) {
       hash.update(JSON.stringify(row))
     }
   }
   return hash.digest("hex")
+}
+
+function quoteIdent(name: string): string {
+  return `"${name.replaceAll('"', '""')}"`
+}
+
+function rowOrder(db: string, table: string): string {
+  try {
+    queryAll(db, `SELECT rowid FROM ${quoteIdent(table)} LIMIT 1`)
+    return "rowid"
+  } catch {
+    const columns = queryAll(db, `PRAGMA table_info(${quoteIdent(table)})`)
+      .filter((column) => Number(column.pk) > 0)
+      .sort((a, b) => Number(a.pk) - Number(b.pk))
+      .map((column) => quoteIdent(String(column.name)))
+    return columns.length > 0 ? columns.join(", ") : "1"
+  }
 }
 
 /** 内容级最后编辑时间：max(novels.updated_at, chapters.updated_at)；无内容或表缺失时为 null */
