@@ -95,6 +95,27 @@ function sessionNovelRows(dbPath: string, sessionId: string) {
   return rows
 }
 
+function seedNovel(dbPath: string, novelId: string) {
+  mkdirSync(join(dbPath, ".."), { recursive: true })
+  bootstrapSchema(dbPath)
+
+  const sqlite = new BunSqlite(dbPath)
+  const db = drizzle({ client: sqlite })
+  const now = Date.now()
+  db.insert(Novel)
+    .values({
+      id: novelId,
+      title: `测试小说 ${novelId}`,
+      genre: "玄幻",
+      synopsis: "用于会话绑定测试",
+      created_at: now,
+      updated_at: now,
+      status: "draft",
+    })
+    .run()
+  sqlite.close()
+}
+
 describe("NovelWriterPlugin runtime assembly regressions", () => {
   beforeAll(() => {
     mkdirSync(TempRoot, { recursive: true })
@@ -126,9 +147,9 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
     const pluginDir = join(TempRoot, "bug1-tag-project")
     mkdirSync(pluginDir, { recursive: true })
 
-    await tagNovelSession("session-bug1-tag", "novel-bug1-tag", pluginDir)
-
     const expectedDbPath = join(pluginDir, ".novel", "novel.db")
+    seedNovel(expectedDbPath, "novel-bug1-tag")
+    await tagNovelSession("session-bug1-tag", "novel-bug1-tag", pluginDir)
     expect(existsSync(expectedDbPath)).toBe(true)
     const rows = sessionNovelRows(expectedDbPath, "session-bug1-tag")
     expect(rows.length).toBe(1)
@@ -201,10 +222,10 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
     const pluginDir = join(TempRoot, "bug3-project")
     mkdirSync(pluginDir, { recursive: true })
 
-    await tagNovelSession("session-dup", "novel-dup", pluginDir)
-    await tagNovelSession("session-dup", "novel-dup", pluginDir)
-
     const dbPath = join(pluginDir, ".novel", "novel.db")
+    seedNovel(dbPath, "novel-dup")
+    await tagNovelSession("session-dup", "novel-dup", pluginDir)
+    await tagNovelSession("session-dup", "novel-dup", pluginDir)
     const rows = sessionNovelRows(dbPath, "session-dup")
     expect(rows.length).toBe(1)
     expect(rows[0].novel_id).toBe("novel-dup")

@@ -16,6 +16,8 @@ import { Database as BunSqlite } from "bun:sqlite"
 // DB 路径必须在模块导入前设置，因为各模块的 getDb() 在首次调用时读取该环境变量
 const testDir = join(tmpdir(), `novel-writer-e2e-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
+const projectDir = join(testDir, "novel-project")
+const originalOpenNovelDb = process.env.OPENNOVEL_DB
 process.env.OPENNOVEL_DB = dbPath
 mkdirSync(testDir, { recursive: true })
 
@@ -27,8 +29,8 @@ import { assembleSnapshot } from "../../src/novel-writer/context.js"
 import { requestApproval, handleApproval } from "../../src/novel-writer/approval-gate.js"
 import { checkContinuity } from "../../src/novel-writer/continuity-check.js"
 import { commitState } from "../../src/novel-writer/state-commit.js"
-import { chapterWrite, chapterPlan } from "../../src/novel-writer/chapter-tools.js"
-import { updateChapterStatus } from "../../src/novel-writer/chapter-status.js"
+import { chapterWrite } from "../../src/novel-writer/chapter-tools.js"
+import { closeDb } from "@opennovel-ai/novel-store"
 
 // 合成章节内容（2000+ 中文字符，满足 chapterWrite 的字数验证）
 const CHAPTER_1_CONTENT = `第1章 陨落的天才
@@ -230,172 +232,12 @@ describe("小说写作完整流水线 E2E 测试", () => {
   let novelId: string
   let chapter1Id: string
   let chapter2Id: string
-  let projectDir: string
-
-  beforeAll(() => {
-    // 创建所有必要的数据库表（使用原始 SQL，因为 drizzle push 不可用）
-    const sqlite = new BunSqlite(dbPath)
-    sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS novels (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        genre TEXT NOT NULL,
-        synopsis TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'draft'
-      );
-
-      CREATE TABLE IF NOT EXISTS volumes (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        summary TEXT NOT NULL DEFAULT '',
-        "order" INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS volume_summaries (
-        id TEXT PRIMARY KEY,
-        volume_id TEXT NOT NULL,
-        summary TEXT NOT NULL DEFAULT '',
-        char_active TEXT NOT NULL DEFAULT '[]',
-        char_dormant TEXT NOT NULL DEFAULT '[]',
-        threads_open TEXT NOT NULL DEFAULT '[]',
-        threads_closed TEXT NOT NULL DEFAULT '[]'
-      );
-
-      CREATE TABLE IF NOT EXISTS chapters (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        volume_id TEXT,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL DEFAULT '',
-        word_count INTEGER NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'draft',
-        "order" INTEGER NOT NULL,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS chapter_versions (
-        id TEXT PRIMARY KEY,
-        chapter_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        word_count INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        created_by TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS novel_state_log (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        chapter_id TEXT,
-        fact_type TEXT NOT NULL,
-        fact_data TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS novel_state_log_novel_id_idx ON novel_state_log(novel_id);
-      CREATE INDEX IF NOT EXISTS novel_state_log_chapter_id_idx ON novel_state_log(chapter_id);
-      CREATE INDEX IF NOT EXISTS novel_state_log_fact_type_idx ON novel_state_log(novel_id, fact_type);
-
-      CREATE TABLE IF NOT EXISTS characters (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT '',
-        description TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS character_states (
-        id TEXT PRIMARY KEY,
-        character_id TEXT NOT NULL,
-        chapter_id TEXT,
-        active INTEGER NOT NULL DEFAULT 1,
-        location TEXT NOT NULL DEFAULT '',
-        mood TEXT NOT NULL DEFAULT '',
-        summary TEXT NOT NULL DEFAULT ''
-      );
-
-      CREATE TABLE IF NOT EXISTS relationships (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        char_a_id TEXT NOT NULL,
-        char_b_id TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT '',
-        description TEXT NOT NULL DEFAULT ''
-      );
-
-      CREATE TABLE IF NOT EXISTS plot_threads (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'open',
-        priority TEXT NOT NULL DEFAULT 'medium',
-        description TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL,
-        closed_at INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS foreshadowing (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        planted_chapter_id TEXT,
-        resolved_chapter_id TEXT,
-        content TEXT NOT NULL,
-        state TEXT NOT NULL DEFAULT 'planted',
-        created_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS world_entries (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        category TEXT NOT NULL DEFAULT '',
-        title TEXT NOT NULL,
-        content TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS chapter_summaries (
-        id TEXT PRIMARY KEY,
-        chapter_id TEXT NOT NULL,
-        summary TEXT NOT NULL DEFAULT '',
-        key_events TEXT NOT NULL DEFAULT '[]',
-        char_changes TEXT NOT NULL DEFAULT '[]'
-      );
-
-      CREATE TABLE IF NOT EXISTS style_guide (
-        id TEXT PRIMARY KEY,
-        novel_id TEXT NOT NULL,
-        rules TEXT NOT NULL DEFAULT '{}',
-        tone TEXT NOT NULL DEFAULT '',
-        pov TEXT NOT NULL DEFAULT '',
-        tense TEXT NOT NULL DEFAULT ''
-      );
-
-      CREATE TABLE IF NOT EXISTS session (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        time_created INTEGER,
-        time_updated INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS session_novel (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        novel_id TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-    `)
-    sqlite.close()
-
-    projectDir = join(testDir, "novel-project")
-  })
 
   afterAll(() => {
-    rmSync(testDir, { recursive: true, force: true })
+    closeDb(projectDir)
+    if (originalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+    else process.env.OPENNOVEL_DB = originalOpenNovelDb
+    try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
   })
 
   test("步骤1：初始化小说项目", async () => {
@@ -449,10 +291,6 @@ describe("小说写作完整流水线 E2E 测试", () => {
   })
 
   test("步骤4：撰写第1章（writer agent + chapter-tools + context 组装）", async () => {
-    // 先通过 chapterPlan 查询章节信息
-    const planResult = await chapterPlan.execute({
-      chapterId: "", // 需要先获取章节 ID
-    } as any)
     // 查找第1章的真实 ID
     const { drizzle } = await import("drizzle-orm/bun-sqlite")
     const { eq, and } = await import("drizzle-orm")
@@ -501,7 +339,7 @@ describe("小说写作完整流水线 E2E 测试", () => {
     const writeResult = await chapterWrite.execute({
       chapterId: chapter1Id,
       content: CHAPTER_1_CONTENT,
-    } as any)
+    }, { directory: projectDir } as any)
 
     expect(writeResult).toBeTruthy()
     expect(typeof writeResult).toBe("object")
@@ -660,7 +498,7 @@ describe("小说写作完整流水线 E2E 测试", () => {
     const writeResult = await chapterWrite.execute({
       chapterId: chapter2Id,
       content: CHAPTER_2_CONTENT,
-    } as any)
+    }, { directory: projectDir } as any)
 
     expect(writeResult).toBeTruthy()
     const output = typeof writeResult === "string" ? writeResult : (writeResult as any).output
