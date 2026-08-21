@@ -212,6 +212,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     chapterOutline: "本章大纲需要明确主角目标、冲突升级、关键设定和结尾钩子。".repeat(120),
     prevChapterTail: null,
     targetWordCount: 2500,
+    techniques: [],
   }
 }
 

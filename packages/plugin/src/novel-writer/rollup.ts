@@ -402,6 +402,7 @@ export async function getEffectiveContext(
     worldEntryIndex: [],
     recalledHistory: [],
     chapterOutline: null,
+    techniques: [],
   }
 }
 

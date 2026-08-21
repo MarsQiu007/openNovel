@@ -12,6 +12,7 @@
  */
 
 import { eq, and, lte, desc, sql } from "drizzle-orm"
+import type { RetrievedTechnique } from "./technique.js"
 import {
   getDb,
   NovelTable,
@@ -226,6 +227,9 @@ export type ContextPacket = {
 
   /** 目标字数下限（style_guide.rules.chapter_length），writer 不得低于此字数 */
   targetWordCount: number | null
+
+  /** P7: 技法检索结果（shadow mode 阶段不注入 prompt） */
+  techniques: RetrievedTechnique[]
 }
 
 // ─── 题材 → 文件模块名映射 ───
@@ -449,6 +453,7 @@ export async function assembleSnapshot(
 
     prevChapterTail,
     targetWordCount,
+    techniques: [],
   }
 }
 

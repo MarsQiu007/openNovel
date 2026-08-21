@@ -1,0 +1,57 @@
+import { describe, test, expect } from "bun:test"
+import { applyP7Budget, formatTechniquesForPrompt } from "../../src/novel-writer/technique-inject.js"
+import type { RetrievedTechnique } from "../../src/novel-writer/technique.js"
+
+function makeTechnique(name: string, instructionLen: number, score = 0.9): RetrievedTechnique {
+  return {
+    entry: {
+      id: `tech_${name}`,
+      name,
+      principle: "原则",
+      instruction: "A".repeat(instructionLen),
+      sceneTypes: ["dialogue"],
+      level: "paragraph",
+      evidence: [],
+      commonMisuse: "",
+      confidence: 0.8,
+      status: "verified",
+      embedding: null,
+      usageCount: 0,
+      lastUsedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    },
+    matchScore: score,
+  }
+}
+
+describe("applyP7Budget", () => {
+  test("truncates to fit 1K token budget", () => {
+    const techniques = Array.from({ length: 20 }, (_, i) => makeTechnique(`技法${i}`, 200))
+    const result = applyP7Budget(techniques)
+    expect(result.length).toBeLessThan(20)
+    expect(result.length).toBeGreaterThan(3)
+  })
+
+  test("empty returns empty", () => {
+    expect(applyP7Budget([])).toEqual([])
+  })
+
+  test("higher match score kept first", () => {
+    const techniques = [makeTechnique("低分", 100, 0.3), makeTechnique("高分", 100, 0.9)]
+    const result = applyP7Budget(techniques)
+    expect(result[0].entry.name).toBe("高分")
+  })
+})
+
+describe("formatTechniquesForPrompt", () => {
+  test("produces readable section", () => {
+    const result = formatTechniquesForPrompt([makeTechnique("测试", 50)])
+    expect(result).toContain("测试")
+    expect(result).toContain("写作技法")
+  })
+
+  test("empty returns empty string", () => {
+    expect(formatTechniquesForPrompt([])).toBe("")
+  })
+})
