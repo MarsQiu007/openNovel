@@ -4070,6 +4070,970 @@ export type ServerNovelDeleteWorldEntryInput = {
 
 export type ServerNovelDeleteWorldEntryOutput = { readonly deleted: boolean }
 
+export type ServerNovelStructureInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelStructureOutput = {
+  readonly volumes: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly title: string
+    readonly summary: string
+    readonly order: number
+    readonly createdAt: number
+  }>
+  readonly chapters: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly volumeId?: string
+    readonly title: string
+    readonly order: number
+    readonly status: string
+    readonly wordCount: number
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+  readonly arcs: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary: string
+    readonly status: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number | null
+    readonly plannedEndChapter?: number | null
+    readonly actualStartChapter?: number | null
+    readonly actualEndChapter?: number | null
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+  readonly beats: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly arcId: string
+    readonly chapterId?: string | null
+    readonly chapterOrder?: number | null
+    readonly label: string
+    readonly kind: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary: string
+    readonly status: "planned" | "drafted" | "reviewed"
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+  readonly threads: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly title: string
+    readonly status: string
+    readonly priority: string
+    readonly description: string
+    readonly createdAt: number
+    readonly closedAt?: number
+  }>
+  readonly foreshadowing: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly plantedChapterId?: string
+    readonly resolvedChapterId?: string
+    readonly content: string
+    readonly state: string
+    readonly createdAt: number
+  }>
+  readonly characters: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly name: string
+    readonly role: string
+    readonly description: string
+    readonly status: string
+    readonly createdAt: number
+  }>
+}
+
+export type ServerNovelArcsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelArcsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly arcType: "narrative" | "character" | "subplot"
+  readonly title: string
+  readonly summary: string
+  readonly status: "planned" | "active" | "completed" | "abandoned"
+  readonly targetCharacterId?: string
+  readonly plannedStartChapter?: number | null
+  readonly plannedEndChapter?: number | null
+  readonly actualStartChapter?: number | null
+  readonly actualEndChapter?: number | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}>
+
+export type ServerNovelCreateArcInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly arcType: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["arcType"]
+  readonly title: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["title"]
+  readonly summary?: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["summary"]
+  readonly status?: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["status"]
+  readonly targetCharacterId?: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["targetCharacterId"]
+  readonly plannedStartChapter?: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["plannedStartChapter"]
+  readonly plannedEndChapter?: {
+    readonly arcType: "narrative" | "character" | "subplot"
+    readonly title: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+  }["plannedEndChapter"]
+}
+
+export type ServerNovelCreateArcOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly arcType: "narrative" | "character" | "subplot"
+  readonly title: string
+  readonly summary: string
+  readonly status: "planned" | "active" | "completed" | "abandoned"
+  readonly targetCharacterId?: string
+  readonly plannedStartChapter?: number | null
+  readonly plannedEndChapter?: number | null
+  readonly actualStartChapter?: number | null
+  readonly actualEndChapter?: number | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelUpdateArcInput = {
+  readonly novelID: { readonly novelID: string; readonly arcID: string }["novelID"]
+  readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly title?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["title"]
+  readonly summary?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["summary"]
+  readonly status?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["status"]
+  readonly arcType?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["arcType"]
+  readonly targetCharacterId?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["targetCharacterId"]
+  readonly plannedStartChapter?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["plannedStartChapter"]
+  readonly plannedEndChapter?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["plannedEndChapter"]
+  readonly actualStartChapter?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["actualStartChapter"]
+  readonly actualEndChapter?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly status?: "planned" | "active" | "completed" | "abandoned"
+    readonly arcType?: "narrative" | "character" | "subplot"
+    readonly targetCharacterId?: string
+    readonly plannedStartChapter?: number
+    readonly plannedEndChapter?: number
+    readonly actualStartChapter?: number
+    readonly actualEndChapter?: number
+  }["actualEndChapter"]
+}
+
+export type ServerNovelUpdateArcOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly arcType: "narrative" | "character" | "subplot"
+  readonly title: string
+  readonly summary: string
+  readonly status: "planned" | "active" | "completed" | "abandoned"
+  readonly targetCharacterId?: string
+  readonly plannedStartChapter?: number | null
+  readonly plannedEndChapter?: number | null
+  readonly actualStartChapter?: number | null
+  readonly actualEndChapter?: number | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelDeleteArcInput = {
+  readonly novelID: { readonly novelID: string; readonly arcID: string }["novelID"]
+  readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteArcOutput = { readonly deleted: boolean }
+
+export type ServerNovelArcBeatsInput = {
+  readonly novelID: { readonly novelID: string; readonly arcID: string }["novelID"]
+  readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelArcBeatsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly arcId: string
+  readonly chapterId?: string | null
+  readonly chapterOrder?: number | null
+  readonly label: string
+  readonly kind: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  readonly summary: string
+  readonly status: "planned" | "drafted" | "reviewed"
+  readonly createdAt: number
+  readonly updatedAt: number
+}>
+
+export type ServerNovelCreateBeatInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly arcId: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["arcId"]
+  readonly chapterId?: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["chapterId"]
+  readonly chapterOrder?: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["chapterOrder"]
+  readonly label: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["label"]
+  readonly kind?: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["kind"]
+  readonly summary?: {
+    readonly arcId: string
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+    readonly label: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+  }["summary"]
+}
+
+export type ServerNovelCreateBeatOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly arcId: string
+  readonly chapterId?: string | null
+  readonly chapterOrder?: number | null
+  readonly label: string
+  readonly kind: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  readonly summary: string
+  readonly status: "planned" | "drafted" | "reviewed"
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelUpdateBeatInput = {
+  readonly novelID: { readonly novelID: string; readonly beatID: string }["novelID"]
+  readonly beatID: { readonly novelID: string; readonly beatID: string }["beatID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly label?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["label"]
+  readonly kind?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["kind"]
+  readonly summary?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["summary"]
+  readonly status?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["status"]
+  readonly chapterId?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["chapterId"]
+  readonly chapterOrder?: {
+    readonly label?: string
+    readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+    readonly summary?: string
+    readonly status?: "planned" | "drafted" | "reviewed"
+    readonly chapterId?: string
+    readonly chapterOrder?: number
+  }["chapterOrder"]
+}
+
+export type ServerNovelUpdateBeatOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly arcId: string
+  readonly chapterId?: string | null
+  readonly chapterOrder?: number | null
+  readonly label: string
+  readonly kind: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  readonly summary: string
+  readonly status: "planned" | "drafted" | "reviewed"
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelDeleteBeatInput = {
+  readonly novelID: { readonly novelID: string; readonly beatID: string }["novelID"]
+  readonly beatID: { readonly novelID: string; readonly beatID: string }["beatID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteBeatOutput = { readonly deleted: boolean }
+
+export type ServerNovelVolumeReviewsInput = {
+  readonly novelID: { readonly novelID: string; readonly volumeID: string }["novelID"]
+  readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelVolumeReviewsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly volumeId: string
+  readonly round: number
+  readonly overall: string
+  readonly score?: number | "Infinity" | "-Infinity" | "NaN" | null
+  readonly strengths: ReadonlyArray<string>
+  readonly weaknesses: ReadonlyArray<string>
+  readonly structure: JsonValue
+  readonly characterArcs: ReadonlyArray<JsonValue>
+  readonly openThreads: ReadonlyArray<string>
+  readonly recommendations: ReadonlyArray<string>
+  readonly createdAt: number
+}>
+
+export type ServerNovelCreateVolumeReviewInput = {
+  readonly novelID: { readonly novelID: string; readonly volumeID: string }["novelID"]
+  readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly overall: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["overall"]
+  readonly score?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["score"]
+  readonly strengths?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["strengths"]
+  readonly weaknesses?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["weaknesses"]
+  readonly structure?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["structure"]
+  readonly characterArcs?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["characterArcs"]
+  readonly openThreads?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["openThreads"]
+  readonly recommendations?: {
+    readonly overall: string
+    readonly score?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly strengths?: ReadonlyArray<string>
+    readonly weaknesses?: ReadonlyArray<string>
+    readonly structure?: JsonValue
+    readonly characterArcs?: ReadonlyArray<JsonValue>
+    readonly openThreads?: ReadonlyArray<string>
+    readonly recommendations?: ReadonlyArray<string>
+  }["recommendations"]
+}
+
+export type ServerNovelCreateVolumeReviewOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly volumeId: string
+  readonly round: number
+  readonly overall: string
+  readonly score?: number | "Infinity" | "-Infinity" | "NaN" | null
+  readonly strengths: ReadonlyArray<string>
+  readonly weaknesses: ReadonlyArray<string>
+  readonly structure: JsonValue
+  readonly characterArcs: ReadonlyArray<JsonValue>
+  readonly openThreads: ReadonlyArray<string>
+  readonly recommendations: ReadonlyArray<string>
+  readonly createdAt: number
+}
+
+export type ServerNovelEditorialReportsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelEditorialReportsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly scopeType: string
+  readonly scopeId?: string | null
+  readonly summary: string
+  readonly risks: ReadonlyArray<JsonValue>
+  readonly recommendations: ReadonlyArray<string>
+  readonly createdAt: number
+}>
+
+export type ServerNovelCreateEditorialReportInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly scopeType?: {
+    readonly scopeType?: string
+    readonly scopeId?: string
+    readonly summary?: string
+    readonly risks?: ReadonlyArray<JsonValue>
+    readonly recommendations?: ReadonlyArray<string>
+  }["scopeType"]
+  readonly scopeId?: {
+    readonly scopeType?: string
+    readonly scopeId?: string
+    readonly summary?: string
+    readonly risks?: ReadonlyArray<JsonValue>
+    readonly recommendations?: ReadonlyArray<string>
+  }["scopeId"]
+  readonly summary?: {
+    readonly scopeType?: string
+    readonly scopeId?: string
+    readonly summary?: string
+    readonly risks?: ReadonlyArray<JsonValue>
+    readonly recommendations?: ReadonlyArray<string>
+  }["summary"]
+  readonly risks?: {
+    readonly scopeType?: string
+    readonly scopeId?: string
+    readonly summary?: string
+    readonly risks?: ReadonlyArray<JsonValue>
+    readonly recommendations?: ReadonlyArray<string>
+  }["risks"]
+  readonly recommendations?: {
+    readonly scopeType?: string
+    readonly scopeId?: string
+    readonly summary?: string
+    readonly risks?: ReadonlyArray<JsonValue>
+    readonly recommendations?: ReadonlyArray<string>
+  }["recommendations"]
+}
+
+export type ServerNovelCreateEditorialReportOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly scopeType: string
+  readonly scopeId?: string | null
+  readonly summary: string
+  readonly risks: ReadonlyArray<JsonValue>
+  readonly recommendations: ReadonlyArray<string>
+  readonly createdAt: number
+}
+
+export type ServerNovelAnnotationsInput = {
+  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
+  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelAnnotationsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly parentId?: string | null
+  readonly source: "user" | "ai"
+  readonly anchorType: "paragraph" | "range" | "chapter"
+  readonly paragraphIndex?: number | null
+  readonly startOffset?: number | null
+  readonly endOffset?: number | null
+  readonly quote: string
+  readonly comment: string
+  readonly suggestedReplacement?: string | null
+  readonly status: "open" | "resolved" | "wontfix" | "applied"
+  readonly authorSessionId?: string | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}>
+
+export type ServerNovelCreateAnnotationInput = {
+  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
+  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly source?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["source"]
+  readonly anchorType?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["anchorType"]
+  readonly paragraphIndex?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["paragraphIndex"]
+  readonly startOffset?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["startOffset"]
+  readonly endOffset?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["endOffset"]
+  readonly quote?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["quote"]
+  readonly comment: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["comment"]
+  readonly suggestedReplacement?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["suggestedReplacement"]
+}
+
+export type ServerNovelCreateAnnotationOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly parentId?: string | null
+  readonly source: "user" | "ai"
+  readonly anchorType: "paragraph" | "range" | "chapter"
+  readonly paragraphIndex?: number | null
+  readonly startOffset?: number | null
+  readonly endOffset?: number | null
+  readonly quote: string
+  readonly comment: string
+  readonly suggestedReplacement?: string | null
+  readonly status: "open" | "resolved" | "wontfix" | "applied"
+  readonly authorSessionId?: string | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelUpdateAnnotationInput = {
+  readonly novelID: { readonly novelID: string; readonly annotationID: string }["novelID"]
+  readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly comment?: {
+    readonly comment?: string
+    readonly status?: "open" | "resolved" | "wontfix" | "applied"
+    readonly suggestedReplacement?: string
+    readonly quote?: string
+  }["comment"]
+  readonly status?: {
+    readonly comment?: string
+    readonly status?: "open" | "resolved" | "wontfix" | "applied"
+    readonly suggestedReplacement?: string
+    readonly quote?: string
+  }["status"]
+  readonly suggestedReplacement?: {
+    readonly comment?: string
+    readonly status?: "open" | "resolved" | "wontfix" | "applied"
+    readonly suggestedReplacement?: string
+    readonly quote?: string
+  }["suggestedReplacement"]
+  readonly quote?: {
+    readonly comment?: string
+    readonly status?: "open" | "resolved" | "wontfix" | "applied"
+    readonly suggestedReplacement?: string
+    readonly quote?: string
+  }["quote"]
+}
+
+export type ServerNovelUpdateAnnotationOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly parentId?: string | null
+  readonly source: "user" | "ai"
+  readonly anchorType: "paragraph" | "range" | "chapter"
+  readonly paragraphIndex?: number | null
+  readonly startOffset?: number | null
+  readonly endOffset?: number | null
+  readonly quote: string
+  readonly comment: string
+  readonly suggestedReplacement?: string | null
+  readonly status: "open" | "resolved" | "wontfix" | "applied"
+  readonly authorSessionId?: string | null
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelDeleteAnnotationInput = {
+  readonly novelID: { readonly novelID: string; readonly annotationID: string }["novelID"]
+  readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteAnnotationOutput = { readonly deleted: boolean }
+
+export type ServerNovelCanvasLayoutInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelCanvasLayoutOutput = {
+  readonly columns: ReadonlyArray<{
+    readonly id: string
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly width: number | "Infinity" | "-Infinity" | "NaN"
+  }>
+  readonly cards: ReadonlyArray<{
+    readonly id: string
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly y: number | "Infinity" | "-Infinity" | "NaN"
+    readonly columnId?: string | null
+  }>
+  readonly viewport?: {
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly y: number | "Infinity" | "-Infinity" | "NaN"
+    readonly zoom: number | "Infinity" | "-Infinity" | "NaN"
+  }
+} | null
+
+export type ServerNovelUpsertCanvasLayoutInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly layout: {
+    readonly layout: {
+      readonly columns: ReadonlyArray<{
+        readonly id: string
+        readonly x: number | "Infinity" | "-Infinity" | "NaN"
+        readonly width: number | "Infinity" | "-Infinity" | "NaN"
+      }>
+      readonly cards: ReadonlyArray<{
+        readonly id: string
+        readonly x: number | "Infinity" | "-Infinity" | "NaN"
+        readonly y: number | "Infinity" | "-Infinity" | "NaN"
+        readonly columnId?: string | null
+      }>
+      readonly viewport?: {
+        readonly x: number | "Infinity" | "-Infinity" | "NaN"
+        readonly y: number | "Infinity" | "-Infinity" | "NaN"
+        readonly zoom: number | "Infinity" | "-Infinity" | "NaN"
+      }
+    }
+  }["layout"]
+}
+
+export type ServerNovelUpsertCanvasLayoutOutput = {
+  readonly columns: ReadonlyArray<{
+    readonly id: string
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly width: number | "Infinity" | "-Infinity" | "NaN"
+  }>
+  readonly cards: ReadonlyArray<{
+    readonly id: string
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly y: number | "Infinity" | "-Infinity" | "NaN"
+    readonly columnId?: string | null
+  }>
+  readonly viewport?: {
+    readonly x: number | "Infinity" | "-Infinity" | "NaN"
+    readonly y: number | "Infinity" | "-Infinity" | "NaN"
+    readonly zoom: number | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
 export type NovelModesGetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined

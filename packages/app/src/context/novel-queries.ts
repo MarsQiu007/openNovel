@@ -56,6 +56,18 @@ export const novelKeys = {
   search: (directory: string, novelID: string, q: string) => ["novel", "search", directory, novelID, q] as const,
   "for-session": (directory: string, sessionID: string) => ["novel", "for-session", directory, sessionID] as const,
   mode: (directory: string) => ["novel", "mode", directory] as const,
+  structure: (directory: string, novelID: string) => ["novel", "structure", directory, novelID] as const,
+  arcs: (directory: string, novelID: string) => ["novel", "arcs", directory, novelID] as const,
+  "arc-beats": (directory: string, novelID: string, arcID: string) =>
+    ["novel", "arc-beats", directory, novelID, arcID] as const,
+  "volume-reviews": (directory: string, novelID: string, volumeID: string) =>
+    ["novel", "volume-reviews", directory, novelID, volumeID] as const,
+  "editorial-reports": (directory: string, novelID: string) =>
+    ["novel", "editorial-reports", directory, novelID] as const,
+  annotations: (directory: string, novelID: string, chapterID: string) =>
+    ["novel", "annotations", directory, novelID, chapterID] as const,
+  "canvas-layout": (directory: string, novelID: string) =>
+    ["novel", "canvas-layout", directory, novelID] as const,
 }
 
 // ---- createQuery hooks (13) ----
@@ -1290,6 +1302,301 @@ export function useDeleteWorldEntry() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["world-entries"](dir, variables.novelID) })
+    },
+  }))
+}
+
+
+// ---- B/C: Structure & Collaboration hooks ----
+
+export function useStructure(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.structure(sdk().directory, novelID()),
+    queryFn: () => client()["server.novel"].structure({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useStoryArcs(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.arcs(sdk().directory, novelID()),
+    queryFn: () => client()["server.novel"].arcs({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useArcBeats(novelID: Accessor<string>, arcID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["arc-beats"](sdk().directory, novelID(), arcID()),
+    queryFn: () =>
+      client()["server.novel"]["arc-beats"]({ novelID: novelID(), arcID: arcID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID() && !!arcID(),
+  }))
+}
+
+export function useAnnotations(novelID: Accessor<string>, chapterID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.annotations(sdk().directory, novelID(), chapterID()),
+    queryFn: () =>
+      client()["server.novel"].annotations({
+        novelID: novelID(),
+        chapterID: chapterID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID() && !!chapterID(),
+  }))
+}
+
+export function useCanvasLayout(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["canvas-layout"](sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"]["canvas-layout"]({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useEditorialReports(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["editorial-reports"](sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"]["editorial-reports"]({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useVolumeReviews(novelID: Accessor<string>, volumeID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["volume-reviews"](sdk().directory, novelID(), volumeID()),
+    queryFn: () =>
+      client()["server.novel"]["volume-reviews"]({
+        novelID: novelID(),
+        volumeID: volumeID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID() && !!volumeID(),
+  }))
+}
+
+// ---- B/C mutations ----
+
+export function useCreateArc() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; arcType: "narrative" | "character" | "subplot"; title: string; summary?: string; status?: "planned" | "active" | "completed" | "abandoned"; targetCharacterId?: string; plannedStartChapter?: number; plannedEndChapter?: number }) => {
+      const dir = sdk().directory
+      const { novelID, ...rest } = input
+      return client()["server.novel"]["create-arc"]({ novelID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.arcs(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useUpdateArc() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; arcID: string; title?: string; summary?: string; status?: "planned" | "active" | "completed" | "abandoned" }) => {
+      const dir = sdk().directory
+      const { novelID, arcID, ...rest } = input
+      return client()["server.novel"]["update-arc"]({ novelID, arcID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.arcs(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useDeleteArc() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; arcID: string }) => {
+      const dir = sdk().directory
+      const { novelID, arcID } = input
+      return client()["server.novel"]["delete-arc"]({ novelID, arcID, location: { directory: dir } })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.arcs(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useCreateBeat() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; arcId: string; label: string; kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"; summary?: string; chapterId?: string; chapterOrder?: number }) => {
+      const dir = sdk().directory
+      const { novelID, ...rest } = input
+      return client()["server.novel"]["create-beat"]({ novelID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.arcs(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useUpdateBeat() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; beatID: string; label?: string; kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"; summary?: string; status?: "planned" | "drafted" | "reviewed"; chapterId?: string; chapterOrder?: number }) => {
+      const dir = sdk().directory
+      const { novelID, beatID, ...rest } = input
+      return client()["server.novel"]["update-beat"]({ novelID, beatID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useDeleteBeat() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; beatID: string }) => {
+      const dir = sdk().directory
+      const { novelID, beatID } = input
+      return client()["server.novel"]["delete-beat"]({ novelID, beatID, location: { directory: dir } })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useCreateAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; chapterID: string; source?: "user" | "ai"; anchorType?: "paragraph" | "range" | "chapter"; paragraphIndex?: number; quote?: string; comment: string; suggestedReplacement?: string }) => {
+      const dir = sdk().directory
+      const { novelID, chapterID, ...rest } = input
+      return client()["server.novel"]["create-annotation"]({ novelID, chapterID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.annotations(dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useUpdateAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; annotationID: string; chapterID: string; status?: "open" | "resolved" | "wontfix" | "applied"; comment?: string }) => {
+      const dir = sdk().directory
+      const { novelID, annotationID, chapterID: _chapterID, ...rest } = input
+      return client()["server.novel"]["update-annotation"]({ novelID, annotationID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.annotations(dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useDeleteAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; annotationID: string; chapterID: string }) => {
+      const dir = sdk().directory
+      const { novelID, annotationID } = input
+      return client()["server.novel"]["delete-annotation"]({ novelID, annotationID, location: { directory: dir } })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys.annotations(dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useUpsertCanvasLayout() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; layout: { columns: Array<{ id: string; x: number; width: number }>; cards: Array<{ id: string; x: number; y: number; columnId?: string | null }>; viewport?: { x: number; y: number; zoom: number } } }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["upsert-canvas-layout"]({ novelID: input.novelID, location: { directory: dir }, layout: input.layout })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["canvas-layout"](dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useCreateVolumeReview() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; volumeID: string; overall: string; score?: number; strengths?: string[]; weaknesses?: string[]; recommendations?: string[] }) => {
+      const dir = sdk().directory
+      const { novelID, volumeID, ...rest } = input
+      return client()["server.novel"]["create-volume-review"]({ novelID, volumeID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["volume-reviews"](dir, variables.novelID, variables.volumeID) })
+    },
+  }))
+}
+
+export function useCreateEditorialReport() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; summary?: string }) => {
+      const dir = sdk().directory
+      const { novelID, ...rest } = input
+      return client()["server.novel"]["create-editorial-report"]({ novelID, location: { directory: dir }, ...rest })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["editorial-reports"](dir, variables.novelID) })
     },
   }))
 }

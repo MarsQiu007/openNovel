@@ -94,6 +94,12 @@ function cleanupOrphanRows(exec: ExecFn): void {
     "DELETE FROM pending_updates WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM saga_sessions WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM description_history WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM story_arcs WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM arc_beats WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM volume_reviews WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM editorial_reports WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM chapter_annotations WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM outline_canvas_layout WHERE novel_id NOT IN (SELECT id FROM novels)",
   ]
   try {
     // 逐条执行：带悬空外键的旧表（如指向不存在 session 表的 session_novel）

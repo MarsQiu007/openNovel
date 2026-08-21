@@ -92,6 +92,36 @@ import {
   type SetupMode,
 } from "./novel-writer/session-store.js"
 import { chooseSoul, fetchGlobalSoul } from "./novel-writer/soul.js"
+import {
+  StoryArcTable,
+  ArcBeatTable,
+  VolumeReviewTable,
+  EditorialReportTable,
+  ChapterAnnotationTable,
+  OutlineCanvasLayoutTable,
+  createStoryArc,
+  updateStoryArc,
+  deleteStoryArc,
+  listStoryArcs,
+  createArcBeat,
+  updateArcBeat,
+  deleteArcBeat,
+  listArcBeats,
+  createVolumeReview,
+  listVolumeReviews,
+  createEditorialReport,
+  listEditorialReports,
+  createChapterAnnotation,
+  updateChapterAnnotation,
+  deleteChapterAnnotation,
+  listChapterAnnotations,
+  getOutlineCanvasLayout,
+  upsertOutlineCanvasLayout,
+  listStructureForEditor,
+} from "./novel-writer/session-store.js"
+import { checkStructure } from "./novel-writer/structure.js"
+import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } from "./novel-writer/annotation.js"
+import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 
@@ -3892,6 +3922,379 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             args.field,
             args.value,
           )
+        },
+      }),
+
+      plan_story_arc: tool({
+        description:
+          "创建或更新叙事弧/角色弧/支线。arc_type=narrative 主线、character 角色弧光、subplot 支线。可规划起止章节，也可记录实际章节。",
+        args: {
+          action: tool.schema.enum(["create", "update"]).describe("创建或更新"),
+          arc_id: tool.schema.string().optional().describe("更新时必填"),
+          arc_type: tool.schema.enum(["narrative", "character", "subplot"]).describe("结构线类型"),
+          title: tool.schema.string().describe("结构线标题"),
+          summary: tool.schema.string().optional().describe("结构线摘要"),
+          status: tool.schema.enum(["planned", "active", "completed", "abandoned"]).optional(),
+          target_character_id: tool.schema.string().optional().describe("角色弧关联的角色 ID"),
+          planned_start_chapter: tool.schema.number().optional(),
+          planned_end_chapter: tool.schema.number().optional(),
+          actual_start_chapter: tool.schema.number().optional(),
+          actual_end_chapter: tool.schema.number().optional(),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "plan_story_arc", output: "未找到当前小说项目" }
+          if (args.action === "update" && args.arc_id) {
+            const updated = await updateStoryArc(
+              args.arc_id,
+              {
+                title: args.title,
+                summary: args.summary,
+                status: args.status,
+                targetCharacterId: args.target_character_id,
+                plannedStartChapter: args.planned_start_chapter,
+                plannedEndChapter: args.planned_end_chapter,
+                actualStartChapter: args.actual_start_chapter,
+                actualEndChapter: args.actual_end_chapter,
+              },
+              ctx.directory,
+            )
+            return {
+              title: "plan_story_arc",
+              output: `已更新结构线「${updated.title}」状态为 ${updated.status}`,
+              metadata: { arc_id: updated.id, arc_type: updated.arc_type, status: updated.status },
+            }
+          }
+          const arc = await createStoryArc(
+            novelId,
+            {
+              arcType: args.arc_type,
+              title: args.title,
+              summary: args.summary ?? "",
+              status: args.status ?? "planned",
+              targetCharacterId: args.target_character_id ?? null,
+              plannedStartChapter: args.planned_start_chapter ?? null,
+              plannedEndChapter: args.planned_end_chapter ?? null,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "plan_story_arc",
+            output: `已创建结构线「${arc.title}」(${arc.arc_type})`,
+            metadata: { arc_id: arc.id, arc_type: arc.arc_type, title: arc.title, status: arc.status },
+          }
+        },
+      }),
+      record_arc_beat: tool({
+        description:
+          "在结构线上记录关键节点（开场/升温/转折/中点/危机/高潮/结局）。可锚定已写章节或仅记录规划章节序号。",
+        args: {
+          action: tool.schema.enum(["create", "update", "delete"]).describe("操作类型"),
+          arc_id: tool.schema.string().describe("所属结构线 ID"),
+          beat_id: tool.schema.string().optional().describe("更新/删除时必填"),
+          chapter_id: tool.schema.string().optional().describe("锚定的章节 ID"),
+          chapter_order: tool.schema.number().optional().describe("规划章节序号"),
+          label: tool.schema.string().describe("节点标题"),
+          kind: tool.schema
+            .enum(["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"])
+            .optional(),
+          summary: tool.schema.string().optional().describe("节点描述"),
+          status: tool.schema.enum(["planned", "drafted", "reviewed"]).optional(),
+        },
+        async execute(args, ctx) {
+          if (args.action === "delete" && args.beat_id) {
+            await deleteArcBeat(args.beat_id, ctx.directory)
+            return { title: "record_arc_beat", output: "已删除节点", metadata: { beat_id: args.beat_id } }
+          }
+          if (args.action === "update" && args.beat_id) {
+            const updated = await updateArcBeat(
+              args.beat_id,
+              {
+                label: args.label,
+                kind: args.kind,
+                summary: args.summary,
+                status: args.status,
+                chapterId: args.chapter_id,
+                chapterOrder: args.chapter_order,
+              },
+              ctx.directory,
+            )
+            return {
+              title: "record_arc_beat",
+              output: `已更新节点「${updated.label}」`,
+              metadata: { beat_id: updated.id, status: updated.status },
+            }
+          }
+          const beat = await createArcBeat(
+            args.arc_id,
+            {
+              chapterId: args.chapter_id ?? null,
+              chapterOrder: args.chapter_order ?? null,
+              label: args.label,
+              kind: args.kind ?? "note",
+              summary: args.summary ?? "",
+            },
+            ctx.directory,
+          )
+          return {
+            title: "record_arc_beat",
+            output: `已记录节点「${beat.label}」(${beat.kind})`,
+            metadata: { beat_id: beat.id, arc_id: beat.arc_id, kind: beat.kind, chapter_order: beat.chapter_order },
+          }
+        },
+      }),
+      review_volume: tool({
+        description:
+          "生成卷末复盘报告。包含结构、节奏、角色弧、线索、伏笔和下卷牵引。每调用一次新增一轮复盘记录。",
+        args: {
+          volume_id: tool.schema.string().describe("卷 ID"),
+          overall: tool.schema.string().describe("总体评价"),
+          score: tool.schema.number().optional().describe("评分 0-10"),
+          strengths: tool.schema.array(tool.schema.string()).optional().describe("优点列表"),
+          weaknesses: tool.schema.array(tool.schema.string()).optional().describe("不足列表"),
+          structure: tool.schema.string().optional().describe("结构分析 JSON 字符串"),
+          character_arcs: tool.schema.string().optional().describe("角色弧分析 JSON 字符串"),
+          open_threads: tool.schema.array(tool.schema.string()).optional().describe("未闭合线索"),
+          recommendations: tool.schema.array(tool.schema.string()).optional().describe("下卷建议"),
+        },
+        async execute(args, ctx) {
+          const review = await createVolumeReview(
+            args.volume_id,
+            {
+              overall: args.overall,
+              score: args.score ?? null,
+              strengths: args.strengths ?? [],
+              weaknesses: args.weaknesses ?? [],
+              structure: args.structure ? JSON.parse(args.structure) : {},
+              characterArcs: args.character_arcs ? JSON.parse(args.character_arcs) : [],
+              openThreads: args.open_threads ?? [],
+              recommendations: args.recommendations ?? [],
+            },
+            ctx.directory,
+          )
+          return {
+            title: "review_volume",
+            output: `已生成第 ${review.round} 轮卷末复盘（评分 ${review.score ?? "N/A"}）`,
+            metadata: { review_id: review.id, round: review.round, score: review.score, volume_id: review.volume_id },
+          }
+        },
+      }),
+      editorial_review: tool({
+        description:
+          "运行确定性结构检查，聚合弧覆盖、伏笔回收、线索闭合等风险。不依赖 LLM，返回结构化问题列表。",
+        args: {},
+        async execute(_args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "editorial_review", output: "未找到当前小说项目" }
+          const data = await listStructureForEditor(novelId, ctx.directory)
+          const report = checkStructure({
+            arcs: data.arcs,
+            beats: data.beats,
+            threads: data.threads,
+            foreshadowing: data.foreshadowing,
+            chapters: data.chapters,
+          })
+          const saved = await createEditorialReport(
+            novelId,
+            {
+              scopeType: "book",
+              scopeId: null,
+              summary: `全书结构检查发现 ${report.issues.length} 个问题（${report.issues.filter((i) => i.severity === "high").length} 严重）`,
+              risks: report.issues,
+              recommendations: report.issues
+                .filter((i) => i.severity === "high")
+                .map((i) => i.message),
+            },
+            ctx.directory,
+          )
+          return {
+            title: "editorial_review",
+            output: saved.summary,
+            metadata: {
+              report_id: saved.id,
+              issue_count: report.issues.length,
+              high_count: report.issues.filter((i) => i.severity === "high").length,
+              open_threads: report.openThreadCount,
+              unresolved_foreshadowing: report.unresolvedForeshadowingCount,
+              arc_coverage: report.arcCoverage,
+              issues: report.issues,
+            },
+          }
+        },
+      }),
+      annotate_chapter: tool({
+        description:
+          "对章节段落创建批注或润色建议。source=user 用户批注，source=ai AI 批注；suggested_replacement 非空时即为润色建议。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          source: tool.schema.enum(["user", "ai"]).optional().describe("批注来源"),
+          anchor_type: tool.schema.enum(["paragraph", "range", "chapter"]).optional(),
+          paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
+          start_offset: tool.schema.number().optional(),
+          end_offset: tool.schema.number().optional(),
+          quote: tool.schema.string().optional().describe("引用的原文片段"),
+          comment: tool.schema.string().describe("批注内容"),
+          suggested_replacement: tool.schema.string().optional().describe("润色替换文本"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "annotate_chapter", output: "未找到当前小说项目" }
+          const ann = await createChapterAnnotation(
+            args.chapter_id,
+            novelId,
+            {
+              source: args.source ?? "user",
+              anchorType: args.anchor_type ?? "paragraph",
+              paragraphIndex: args.paragraph_index ?? null,
+              startOffset: args.start_offset ?? null,
+              endOffset: args.end_offset ?? null,
+              quote: args.quote ?? "",
+              comment: args.comment,
+              suggestedReplacement: args.suggested_replacement ?? null,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "annotate_chapter",
+            output: ann.suggested_replacement ? "已创建润色建议" : "已创建批注",
+            metadata: {
+              annotation_id: ann.id,
+              chapter_id: ann.chapter_id,
+              paragraph_index: ann.paragraph_index,
+              status: ann.status,
+              has_suggestion: ann.suggested_replacement != null,
+            },
+          }
+        },
+      }),
+      list_annotations: tool({
+        description: "列出章节的批注和润色建议，可按状态筛选。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).optional(),
+        },
+        async execute(args, ctx) {
+          const annotations = await listChapterAnnotations(args.chapter_id, ctx.directory, {
+            status: args.status,
+          })
+          return {
+            title: "list_annotations",
+            output: `共 ${annotations.length} 条批注`,
+            metadata: {
+              total: annotations.length,
+              annotations: annotations.map((a) => ({
+                id: a.id,
+                source: a.source,
+                paragraph_index: a.paragraph_index,
+                quote: a.quote,
+                comment: a.comment,
+                status: a.status,
+                has_suggestion: a.suggested_replacement != null,
+                created_at: a.created_at,
+              })),
+            },
+          }
+        },
+      }),
+      resolve_annotation: tool({
+        description: "解决批注：标记为 resolved（已解决）、wontfix（不处理）或 applied（已采纳润色）。",
+        args: {
+          annotation_id: tool.schema.string().describe("批注 ID"),
+          status: tool.schema.enum(["resolved", "wontfix", "applied", "open"]).describe("目标状态"),
+          comment: tool.schema.string().optional().describe("更新批注内容"),
+        },
+        async execute(args, ctx) {
+          const updated = await updateChapterAnnotation(
+            args.annotation_id,
+            { status: args.status, comment: args.comment },
+            ctx.directory,
+          )
+          return {
+            title: "resolve_annotation",
+            output: `批注状态已更新为 ${updated.status}`,
+            metadata: { annotation_id: updated.id, status: updated.status },
+          }
+        },
+      }),
+      polish_paragraph: tool({
+        description:
+          "对指定段落生成润色建议并保存为批注。作者可之后采纳或拒绝。不直接修改正文。",
+        args: {
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          paragraph_index: tool.schema.number().describe("段落索引（从 0 开始）"),
+          comment: tool.schema.string().describe("润色说明"),
+          suggested_replacement: tool.schema.string().describe("润色后的文本"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "polish_paragraph", output: "未找到当前小说项目" }
+          const db = getDb(ctx.directory)
+          const chapter = await db
+            .select()
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, args.chapter_id))
+            .get()
+          if (!chapter) return { title: "polish_paragraph", output: "章节不存在" }
+          const paragraphs = splitParagraphs(chapter.content)
+          const quote = paragraphs[args.paragraph_index] ?? ""
+          const ann = await createChapterAnnotation(
+            args.chapter_id,
+            novelId,
+            {
+              source: "ai",
+              anchorType: "paragraph",
+              paragraphIndex: args.paragraph_index,
+              quote,
+              comment: args.comment,
+              suggestedReplacement: args.suggested_replacement,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "polish_paragraph",
+            output: "已生成润色建议",
+            metadata: { annotation_id: ann.id, paragraph_index: ann.paragraph_index, quote },
+          }
+        },
+      }),
+      read_outline_canvas: tool({
+        description: "读取大纲画布布局。损坏时返回自动布局。",
+        args: {},
+        async execute(_args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "read_outline_canvas", output: "未找到当前小说项目" }
+          const raw = await getOutlineCanvasLayout(novelId, ctx.directory)
+          const data = await listStructureForEditor(novelId, ctx.directory)
+          const layout = sanitizeLayout(
+            raw?.layout_json,
+            defaultLayout(
+              data.volumes.map((v) => ({ id: v.id, order: v.order })),
+              data.chapters.map((c) => ({ id: c.id, order: c.order, volume_id: c.volume_id })),
+            ),
+          )
+          return {
+            title: "read_outline_canvas",
+            output: `画布布局：${layout.columns.length} 列，${layout.cards.length} 张卡`,
+            metadata: { layout, volumes: data.volumes, arcs: data.arcs, beats: data.beats },
+          }
+        },
+      }),
+      write_outline_canvas: tool({
+        description: "保存大纲画布布局（仅 UI 坐标和视图状态）。",
+        args: {
+          layout: tool.schema.string().describe("画布布局 JSON 字符串"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "write_outline_canvas", output: "未找到当前小说项目" }
+          const parsed = JSON.parse(args.layout)
+          const layout = sanitizeLayout(parsed)
+          await upsertOutlineCanvasLayout(novelId, layout, ctx.directory)
+          return {
+            title: "write_outline_canvas",
+            output: "画布布局已保存",
+            metadata: { columns: layout.columns.length, cards: layout.cards.length },
+          }
         },
       }),
     },

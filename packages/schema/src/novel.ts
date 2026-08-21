@@ -460,3 +460,216 @@ export const UpdateWorldEntryInput = Schema.Struct({
   content: optional(Schema.String),
 }).annotate({ identifier: "Novel.UpdateWorldEntryInput" })
 export interface UpdateWorldEntryInput extends Schema.Schema.Type<typeof UpdateWorldEntryInput> {}
+
+
+// ─── B/C 阶段：结构质量与协作体验 ───
+
+export const StoryArc = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  arcType: Schema.Literals(["narrative", "character", "subplot"]),
+  title: Schema.String,
+  summary: Schema.String,
+  status: Schema.Literals(["planned", "active", "completed", "abandoned"]),
+  targetCharacterId: optional(Schema.String),
+  plannedStartChapter: optional(Schema.NullOr(Schema.Int)),
+  plannedEndChapter: optional(Schema.NullOr(Schema.Int)),
+  actualStartChapter: optional(Schema.NullOr(Schema.Int)),
+  actualEndChapter: optional(Schema.NullOr(Schema.Int)),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.StoryArc" })
+export interface StoryArc extends Schema.Schema.Type<typeof StoryArc> {}
+
+export const ArcBeat = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  arcId: Schema.String,
+  chapterId: optional(Schema.NullOr(Schema.String)),
+  chapterOrder: optional(Schema.NullOr(Schema.Int)),
+  label: Schema.String,
+  kind: Schema.Literals(["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"]),
+  summary: Schema.String,
+  status: Schema.Literals(["planned", "drafted", "reviewed"]),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.ArcBeat" })
+export interface ArcBeat extends Schema.Schema.Type<typeof ArcBeat> {}
+
+export const VolumeReview = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  volumeId: Schema.String,
+  round: PositiveInt,
+  overall: Schema.String,
+  score: optional(Schema.NullOr(Schema.Number)),
+  strengths: Schema.Array(Schema.String),
+  weaknesses: Schema.Array(Schema.String),
+  structure: Schema.Unknown,
+  characterArcs: Schema.Array(Schema.Unknown),
+  openThreads: Schema.Array(Schema.String),
+  recommendations: Schema.Array(Schema.String),
+  createdAt: Schema.Int,
+}).annotate({ identifier: "Novel.VolumeReview" })
+export interface VolumeReview extends Schema.Schema.Type<typeof VolumeReview> {}
+
+export const EditorialReport = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  scopeType: Schema.String,
+  scopeId: optional(Schema.NullOr(Schema.String)),
+  summary: Schema.String,
+  risks: Schema.Array(Schema.Unknown),
+  recommendations: Schema.Array(Schema.String),
+  createdAt: Schema.Int,
+}).annotate({ identifier: "Novel.EditorialReport" })
+export interface EditorialReport extends Schema.Schema.Type<typeof EditorialReport> {}
+
+export const ChapterAnnotation = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  chapterId: Schema.String,
+  parentId: optional(Schema.NullOr(Schema.String)),
+  source: Schema.Literals(["user", "ai"]),
+  anchorType: Schema.Literals(["paragraph", "range", "chapter"]),
+  paragraphIndex: optional(Schema.NullOr(Schema.Int)),
+  startOffset: optional(Schema.NullOr(Schema.Int)),
+  endOffset: optional(Schema.NullOr(Schema.Int)),
+  quote: Schema.String,
+  comment: Schema.String,
+  suggestedReplacement: optional(Schema.NullOr(Schema.String)),
+  status: Schema.Literals(["open", "resolved", "wontfix", "applied"]),
+  authorSessionId: optional(Schema.NullOr(Schema.String)),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.ChapterAnnotation" })
+export interface ChapterAnnotation extends Schema.Schema.Type<typeof ChapterAnnotation> {}
+
+export const CanvasLayout = Schema.Struct({
+  columns: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      x: Schema.Number,
+      width: Schema.Number,
+    }),
+  ),
+  cards: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      x: Schema.Number,
+      y: Schema.Number,
+      columnId: optional(Schema.NullOr(Schema.String)),
+    }),
+  ),
+  viewport: optional(
+    Schema.Struct({
+      x: Schema.Number,
+      y: Schema.Number,
+      zoom: Schema.Number,
+    }),
+  ),
+}).annotate({ identifier: "Novel.CanvasLayout" })
+export interface CanvasLayout extends Schema.Schema.Type<typeof CanvasLayout> {}
+
+export const StructureEditorData = Schema.Struct({
+  volumes: Schema.Array(Volume),
+  chapters: Schema.Array(Chapter),
+  arcs: Schema.Array(StoryArc),
+  beats: Schema.Array(ArcBeat),
+  threads: Schema.Array(PlotThread),
+  foreshadowing: Schema.Array(Foreshadowing),
+  characters: Schema.Array(Character),
+}).annotate({ identifier: "Novel.StructureEditorData" })
+export interface StructureEditorData extends Schema.Schema.Type<typeof StructureEditorData> {}
+
+// ─── Input types ───
+
+export const CreateStoryArcInput = Schema.Struct({
+  arcType: Schema.Literals(["narrative", "character", "subplot"]),
+  title: Schema.String,
+  summary: optional(Schema.String),
+  status: optional(Schema.Literals(["planned", "active", "completed", "abandoned"])),
+  targetCharacterId: optional(Schema.String),
+  plannedStartChapter: optional(Schema.Int),
+  plannedEndChapter: optional(Schema.Int),
+}).annotate({ identifier: "Novel.CreateStoryArcInput" })
+export interface CreateStoryArcInput extends Schema.Schema.Type<typeof CreateStoryArcInput> {}
+
+export const UpdateStoryArcInput = Schema.Struct({
+  title: optional(Schema.String),
+  summary: optional(Schema.String),
+  status: optional(Schema.Literals(["planned", "active", "completed", "abandoned"])),
+  arcType: optional(Schema.Literals(["narrative", "character", "subplot"])),
+  targetCharacterId: optional(Schema.String),
+  plannedStartChapter: optional(Schema.Int),
+  plannedEndChapter: optional(Schema.Int),
+  actualStartChapter: optional(Schema.Int),
+  actualEndChapter: optional(Schema.Int),
+}).annotate({ identifier: "Novel.UpdateStoryArcInput" })
+export interface UpdateStoryArcInput extends Schema.Schema.Type<typeof UpdateStoryArcInput> {}
+
+export const CreateArcBeatInput = Schema.Struct({
+  arcId: Schema.String,
+  chapterId: optional(Schema.String),
+  chapterOrder: optional(Schema.Int),
+  label: Schema.String,
+  kind: optional(Schema.Literals(["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"])),
+  summary: optional(Schema.String),
+}).annotate({ identifier: "Novel.CreateArcBeatInput" })
+export interface CreateArcBeatInput extends Schema.Schema.Type<typeof CreateArcBeatInput> {}
+
+export const UpdateArcBeatInput = Schema.Struct({
+  label: optional(Schema.String),
+  kind: optional(Schema.Literals(["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"])),
+  summary: optional(Schema.String),
+  status: optional(Schema.Literals(["planned", "drafted", "reviewed"])),
+  chapterId: optional(Schema.String),
+  chapterOrder: optional(Schema.Int),
+}).annotate({ identifier: "Novel.UpdateArcBeatInput" })
+export interface UpdateArcBeatInput extends Schema.Schema.Type<typeof UpdateArcBeatInput> {}
+
+export const CreateVolumeReviewInput = Schema.Struct({
+  overall: Schema.String,
+  score: optional(Schema.Number),
+  strengths: optional(Schema.Array(Schema.String)),
+  weaknesses: optional(Schema.Array(Schema.String)),
+  structure: optional(Schema.Unknown),
+  characterArcs: optional(Schema.Array(Schema.Unknown)),
+  openThreads: optional(Schema.Array(Schema.String)),
+  recommendations: optional(Schema.Array(Schema.String)),
+}).annotate({ identifier: "Novel.CreateVolumeReviewInput" })
+export interface CreateVolumeReviewInput extends Schema.Schema.Type<typeof CreateVolumeReviewInput> {}
+
+export const CreateEditorialReportInput = Schema.Struct({
+  scopeType: optional(Schema.String),
+  scopeId: optional(Schema.String),
+  summary: optional(Schema.String),
+  risks: optional(Schema.Array(Schema.Unknown)),
+  recommendations: optional(Schema.Array(Schema.String)),
+}).annotate({ identifier: "Novel.CreateEditorialReportInput" })
+export interface CreateEditorialReportInput extends Schema.Schema.Type<typeof CreateEditorialReportInput> {}
+
+export const CreateAnnotationInput = Schema.Struct({
+  source: optional(Schema.Literals(["user", "ai"])),
+  anchorType: optional(Schema.Literals(["paragraph", "range", "chapter"])),
+  paragraphIndex: optional(Schema.Int),
+  startOffset: optional(Schema.Int),
+  endOffset: optional(Schema.Int),
+  quote: optional(Schema.String),
+  comment: Schema.String,
+  suggestedReplacement: optional(Schema.String),
+}).annotate({ identifier: "Novel.CreateAnnotationInput" })
+export interface CreateAnnotationInput extends Schema.Schema.Type<typeof CreateAnnotationInput> {}
+
+export const UpdateAnnotationInput = Schema.Struct({
+  comment: optional(Schema.String),
+  status: optional(Schema.Literals(["open", "resolved", "wontfix", "applied"])),
+  suggestedReplacement: optional(Schema.String),
+  quote: optional(Schema.String),
+}).annotate({ identifier: "Novel.UpdateAnnotationInput" })
+export interface UpdateAnnotationInput extends Schema.Schema.Type<typeof UpdateAnnotationInput> {}
+
+export const UpsertCanvasLayoutInput = Schema.Struct({
+  layout: CanvasLayout,
+}).annotate({ identifier: "Novel.UpsertCanvasLayoutInput" })
+export interface UpsertCanvasLayoutInput extends Schema.Schema.Type<typeof UpsertCanvasLayoutInput> {}

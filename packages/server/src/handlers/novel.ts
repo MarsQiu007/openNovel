@@ -58,6 +58,30 @@ import {
   upsertSoul as storeUpsertSoul,
   listChapterReviews as storeListChapterReviews,
   createChapterReview as storeCreateChapterReview,
+  StoryArcTable,
+  ArcBeatTable,
+  VolumeReviewTable,
+  EditorialReportTable,
+  ChapterAnnotationTable,
+  createStoryArc as storeCreateStoryArc,
+  updateStoryArc as storeUpdateStoryArc,
+  deleteStoryArc as storeDeleteStoryArc,
+  listStoryArcs as storeListStoryArcs,
+  createArcBeat as storeCreateArcBeat,
+  updateArcBeat as storeUpdateArcBeat,
+  deleteArcBeat as storeDeleteArcBeat,
+  listArcBeats as storeListArcBeats,
+  createVolumeReview as storeCreateVolumeReview,
+  listVolumeReviews as storeListVolumeReviews,
+  createEditorialReport as storeCreateEditorialReport,
+  listEditorialReports as storeListEditorialReports,
+  createChapterAnnotation as storeCreateChapterAnnotation,
+  updateChapterAnnotation as storeUpdateChapterAnnotation,
+  deleteChapterAnnotation as storeDeleteChapterAnnotation,
+  listChapterAnnotations as storeListChapterAnnotations,
+  getOutlineCanvasLayout as storeGetOutlineCanvasLayout,
+  upsertOutlineCanvasLayout as storeUpsertOutlineCanvasLayout,
+  listStructureForEditor as storeListStructureForEditor,
 } from "@opennovel-ai/novel-store"
 import { eq, asc, desc, like, or, inArray } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
@@ -1299,6 +1323,312 @@ export function deleteWorldEntry(novelID: string, entryID: string, directory: st
 
 // ─── HttpApiBuilder group (wires endpoints to per-endpoint functions) ───
 
+
+type StoryArcRow = typeof StoryArcTable.$inferSelect
+type ArcBeatRow = typeof ArcBeatTable.$inferSelect
+type VolumeReviewRow = typeof VolumeReviewTable.$inferSelect
+type EditorialReportRow = typeof EditorialReportTable.$inferSelect
+type ChapterAnnotationRow = typeof ChapterAnnotationTable.$inferSelect
+
+function toStoryArc(row: StoryArcRow) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    arcType: row.arc_type as "narrative" | "character" | "subplot",
+    title: row.title,
+    summary: row.summary,
+    status: row.status as "planned" | "active" | "completed" | "abandoned",
+    targetCharacterId: row.target_character_id ?? undefined,
+    plannedStartChapter: row.planned_start_chapter ?? undefined,
+    plannedEndChapter: row.planned_end_chapter ?? undefined,
+    actualStartChapter: row.actual_start_chapter ?? undefined,
+    actualEndChapter: row.actual_end_chapter ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function toArcBeat(row: ArcBeatRow) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    arcId: row.arc_id,
+    chapterId: row.chapter_id ?? undefined,
+    chapterOrder: row.chapter_order ?? undefined,
+    label: row.label,
+    kind: row.kind as "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note",
+    summary: row.summary,
+    status: row.status as "planned" | "drafted" | "reviewed",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function toVolumeReview(row: VolumeReviewRow) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    volumeId: row.volume_id,
+    round: row.round,
+    overall: row.overall,
+    score: row.score,
+    strengths: JSON.parse(row.strengths_json) as string[],
+    weaknesses: JSON.parse(row.weaknesses_json) as string[],
+    structure: JSON.parse(row.structure_json) as Record<string, unknown>,
+    characterArcs: JSON.parse(row.character_arcs_json) as Array<Record<string, unknown>>,
+    openThreads: JSON.parse(row.open_threads_json) as string[],
+    recommendations: JSON.parse(row.recommendations_json) as string[],
+    createdAt: row.created_at,
+  }
+}
+
+function toEditorialReport(row: EditorialReportRow) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    scopeType: row.scope_type,
+    scopeId: row.scope_id ?? undefined,
+    summary: row.summary,
+    risks: JSON.parse(row.risks_json) as Array<Record<string, unknown>>,
+    recommendations: JSON.parse(row.recommendations_json) as string[],
+    createdAt: row.created_at,
+  }
+}
+
+function toChapterAnnotation(row: ChapterAnnotationRow) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    chapterId: row.chapter_id,
+    parentId: row.parent_id ?? undefined,
+    source: row.source as "user" | "ai",
+    anchorType: row.anchor_type as "paragraph" | "range" | "chapter",
+    paragraphIndex: row.paragraph_index ?? undefined,
+    startOffset: row.start_offset ?? undefined,
+    endOffset: row.end_offset ?? undefined,
+    quote: row.quote,
+    comment: row.comment,
+    suggestedReplacement: row.suggested_replacement ?? undefined,
+    status: row.status as "open" | "resolved" | "wontfix" | "applied",
+    authorSessionId: row.author_session_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function listStructureEditor(novelId: string, directory: string) {
+  return Effect.gen(function* () {
+    const data = yield* Effect.promise(() => storeListStructureForEditor(novelId, directory))
+    return {
+      volumes: data.volumes.map(toVolume),
+      chapters: data.chapters.map(toChapter),
+      arcs: data.arcs.map(toStoryArc),
+      beats: data.beats.map(toArcBeat),
+      threads: data.threads.map(toPlotThread),
+      foreshadowing: data.foreshadowing.map(toForeshadowing),
+      characters: data.characters.map(toCharacter),
+    }
+  })
+}
+
+function createArc(novelId: string, input: {
+  arcType: string; title: string; summary?: string; status?: string
+  targetCharacterId?: string; plannedStartChapter?: number; plannedEndChapter?: number
+}, directory: string) {
+  return Effect.gen(function* () {
+    const arc = yield* Effect.promise(() => storeCreateStoryArc(novelId, {
+      arcType: input.arcType, title: input.title, summary: input.summary,
+      status: input.status, targetCharacterId: input.targetCharacterId ?? null,
+      plannedStartChapter: input.plannedStartChapter ?? null,
+      plannedEndChapter: input.plannedEndChapter ?? null,
+    }, directory))
+    return toStoryArc(arc)
+  })
+}
+
+function updateArc(arcId: string, input: Record<string, unknown>, directory: string) {
+  return Effect.gen(function* () {
+    const arc = yield* Effect.promise(() => storeUpdateStoryArc(arcId, {
+      title: input.title as string | undefined,
+      summary: input.summary as string | undefined,
+      status: input.status as "planned" | "active" | "completed" | "abandoned" | undefined,
+      arcType: input.arcType as "narrative" | "character" | "subplot" | undefined,
+      targetCharacterId: input.targetCharacterId as string | null | undefined,
+      plannedStartChapter: input.plannedStartChapter as number | null | undefined,
+      plannedEndChapter: input.plannedEndChapter as number | null | undefined,
+      actualStartChapter: input.actualStartChapter as number | null | undefined,
+      actualEndChapter: input.actualEndChapter as number | null | undefined,
+    }, directory))
+    return toStoryArc(arc)
+  })
+}
+
+function deleteArc(arcId: string, directory: string) {
+  return Effect.gen(function* () {
+    yield* Effect.promise(() => storeDeleteStoryArc(arcId, directory))
+    return { deleted: true as const }
+  })
+}
+
+function createBeat(novelId: string, input: {
+  arcId: string; chapterId?: string; chapterOrder?: number
+  label: string; kind?: string; summary?: string
+}, directory: string) {
+  return Effect.gen(function* () {
+    const beat = yield* Effect.promise(() => storeCreateArcBeat(input.arcId, {
+      chapterId: input.chapterId ?? null, chapterOrder: input.chapterOrder ?? null,
+      label: input.label, kind: input.kind, summary: input.summary, novelId,
+    }, directory))
+    return toArcBeat(beat)
+  })
+}
+
+function updateBeat(beatId: string, input: Record<string, unknown>, directory: string) {
+  return Effect.gen(function* () {
+    const beat = yield* Effect.promise(() => storeUpdateArcBeat(beatId, {
+      label: input.label as string | undefined,
+      kind: input.kind as string | undefined,
+      summary: input.summary as string | undefined,
+      status: input.status as "planned" | "drafted" | "reviewed" | undefined,
+      chapterId: input.chapterId as string | null | undefined,
+      chapterOrder: input.chapterOrder as number | null | undefined,
+    }, directory))
+    return toArcBeat(beat)
+  })
+}
+
+function deleteBeat(beatId: string, directory: string) {
+  return Effect.gen(function* () {
+    yield* Effect.promise(() => storeDeleteArcBeat(beatId, directory))
+    return { deleted: true as const }
+  })
+}
+
+function listArcs(novelId: string, directory: string) {
+  return Effect.gen(function* () {
+    const arcs = yield* Effect.promise(() => storeListStoryArcs(novelId, directory))
+    return arcs.map(toStoryArc)
+  })
+}
+
+function listBeats(arcId: string, directory: string) {
+  return Effect.gen(function* () {
+    const beats = yield* Effect.promise(() => storeListArcBeats(arcId, directory))
+    return beats.map(toArcBeat)
+  })
+}
+
+function listVolumeReviews(volumeId: string, directory: string) {
+  return Effect.gen(function* () {
+    const reviews = yield* Effect.promise(() => storeListVolumeReviews(volumeId, directory))
+    return reviews.map(toVolumeReview)
+  })
+}
+
+function createVolumeReview(_novelId: string, volumeId: string, input: {
+  overall: string; score?: number; strengths?: readonly string[]; weaknesses?: readonly string[]
+  structure?: unknown; characterArcs?: readonly unknown[]
+  openThreads?: readonly string[]; recommendations?: readonly string[]
+}, directory: string) {
+  return Effect.gen(function* () {
+    const review = yield* Effect.promise(() => storeCreateVolumeReview(volumeId, {
+      overall: input.overall, score: input.score ?? null,
+      strengths: input.strengths ? [...input.strengths] : [],
+      weaknesses: input.weaknesses ? [...input.weaknesses] : [],
+      structure: input.structure && typeof input.structure === "object"
+        ? (input.structure as Record<string, unknown>)
+        : {},
+      characterArcs: input.characterArcs
+        ? input.characterArcs.filter((r): r is Record<string, unknown> => r !== null && typeof r === "object")
+        : [],
+      openThreads: input.openThreads ? [...input.openThreads] : [],
+      recommendations: input.recommendations ? [...input.recommendations] : [],
+    }, directory))
+    return toVolumeReview(review)
+  })
+}
+
+function listEditorialReports(novelId: string, directory: string) {
+  return Effect.gen(function* () {
+    const reports = yield* Effect.promise(() => storeListEditorialReports(novelId, directory))
+    return reports.map(toEditorialReport)
+  })
+}
+
+function createEditorialReport(novelId: string, input: {
+  scopeType?: string; scopeId?: string; summary?: string
+  risks?: readonly unknown[]; recommendations?: readonly string[]
+}, directory: string) {
+  return Effect.gen(function* () {
+    const report = yield* Effect.promise(() => storeCreateEditorialReport(novelId, {
+      scopeType: input.scopeType ?? "book", scopeId: input.scopeId ?? null,
+      summary: input.summary ?? "",
+      risks: input.risks
+        ? input.risks.filter((r): r is Record<string, unknown> => r !== null && typeof r === "object")
+        : [],
+      recommendations: input.recommendations ? [...input.recommendations] : [],
+    }, directory))
+    return toEditorialReport(report)
+  })
+}
+
+function listAnnotations(chapterId: string, directory: string) {
+  return Effect.gen(function* () {
+    const annotations = yield* Effect.promise(() => storeListChapterAnnotations(chapterId, directory))
+    return annotations.map(toChapterAnnotation)
+  })
+}
+
+function createAnnotation(chapterId: string, novelId: string, input: {
+  source?: string; anchorType?: string; paragraphIndex?: number
+  startOffset?: number; endOffset?: number; quote?: string
+  comment: string; suggestedReplacement?: string
+}, directory: string) {
+  return Effect.gen(function* () {
+    const ann = yield* Effect.promise(() => storeCreateChapterAnnotation(chapterId, novelId, {
+      source: input.source ?? "user", anchorType: input.anchorType ?? "paragraph",
+      paragraphIndex: input.paragraphIndex ?? null, startOffset: input.startOffset ?? null,
+      endOffset: input.endOffset ?? null, quote: input.quote ?? "",
+      comment: input.comment, suggestedReplacement: input.suggestedReplacement ?? null,
+    }, directory))
+    return toChapterAnnotation(ann)
+  })
+}
+
+function updateAnnotation(annotationId: string, input: {
+  comment?: string; status?: string; suggestedReplacement?: string; quote?: string
+}, directory: string) {
+  return Effect.gen(function* () {
+    const ann = yield* Effect.promise(() => storeUpdateChapterAnnotation(annotationId, {
+      comment: input.comment, status: input.status,
+      suggestedReplacement: input.suggestedReplacement, quote: input.quote,
+    }, directory))
+    return toChapterAnnotation(ann)
+  })
+}
+
+function deleteAnnotation(annotationId: string, directory: string) {
+  return Effect.gen(function* () {
+    yield* Effect.promise(() => storeDeleteChapterAnnotation(annotationId, directory))
+    return { deleted: true as const }
+  })
+}
+
+function getCanvasLayout(novelId: string, directory: string) {
+  return Effect.gen(function* () {
+    const row = yield* Effect.promise(() => storeGetOutlineCanvasLayout(novelId, directory))
+    if (!row) return null
+    return typeof row.layout_json === "string" ? JSON.parse(row.layout_json) : row.layout_json
+  })
+}
+
+function upsertCanvasLayout(novelId: string, layout: unknown, directory: string) {
+  return Effect.gen(function* () {
+    const row = yield* Effect.promise(() => storeUpsertOutlineCanvasLayout(novelId, layout as Record<string, unknown>, directory))
+    return typeof row.layout_json === "string" ? JSON.parse(row.layout_json) : row.layout_json
+  })
+}
+
 export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers) =>
   Effect.succeed(
     handlers
@@ -1681,6 +2011,120 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* deleteWorldEntry(ctx.params.novelID, ctx.params.entryID, location.directory)
+        }),
+      )
+      .handle("novel.structure", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listStructureEditor(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.arcs", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listArcs(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.create-arc", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createArc(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.update-arc", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* updateArc(ctx.params.arcID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.delete-arc", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* deleteArc(ctx.params.arcID, location.directory)
+        }),
+      )
+      .handle("novel.arc-beats", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listBeats(ctx.params.arcID, location.directory)
+        }),
+      )
+      .handle("novel.create-beat", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createBeat(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.update-beat", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* updateBeat(ctx.params.beatID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.delete-beat", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* deleteBeat(ctx.params.beatID, location.directory)
+        }),
+      )
+      .handle("novel.volume-reviews", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listVolumeReviews(ctx.params.volumeID, location.directory)
+        }),
+      )
+      .handle("novel.create-volume-review", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createVolumeReview(ctx.params.novelID, ctx.params.volumeID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.editorial-reports", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listEditorialReports(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.create-editorial-report", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createEditorialReport(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.annotations", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listAnnotations(ctx.params.chapterID, location.directory)
+        }),
+      )
+      .handle("novel.create-annotation", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createAnnotation(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.update-annotation", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* updateAnnotation(ctx.params.annotationID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.delete-annotation", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* deleteAnnotation(ctx.params.annotationID, location.directory)
+        }),
+      )
+      .handle("novel.canvas-layout", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* getCanvasLayout(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.upsert-canvas-layout", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upsertCanvasLayout(ctx.params.novelID, ctx.payload.layout, location.directory)
         }),
       ),
   ),

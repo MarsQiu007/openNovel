@@ -424,6 +424,124 @@ export const WorldEntryConflictTable = sqliteTable(
   (table) => [index("world_entry_conflicts_novel_idx").on(table.novel_id, table.resolved)],
 )
 
+// ─── B/C 阶段：结构质量与协作体验 ───
+
+export const StoryArcTable = sqliteTable(
+  "story_arcs",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    arc_type: text().notNull(),
+    title: text().notNull(),
+    summary: text().notNull().default(""),
+    status: text().notNull().default("planned"),
+    target_character_id: text(),
+    planned_start_chapter: integer(),
+    planned_end_chapter: integer(),
+    actual_start_chapter: integer(),
+    actual_end_chapter: integer(),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("story_arcs_novel_id_idx").on(table.novel_id),
+    index("story_arcs_arc_type_idx").on(table.novel_id, table.arc_type),
+  ],
+)
+
+export const ArcBeatTable = sqliteTable(
+  "arc_beats",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    arc_id: text().notNull(),
+    chapter_id: text(),
+    chapter_order: integer(),
+    label: text().notNull(),
+    kind: text().notNull().default("note"),
+    summary: text().notNull().default(""),
+    status: text().notNull().default("planned"),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("arc_beats_arc_id_idx").on(table.arc_id),
+    index("arc_beats_novel_chapter_idx").on(table.novel_id, table.chapter_order),
+    index("arc_beats_chapter_id_idx").on(table.chapter_id),
+  ],
+)
+
+export const VolumeReviewTable = sqliteTable(
+  "volume_reviews",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    volume_id: text().notNull(),
+    round: integer().notNull(),
+    overall: text().notNull().default(""),
+    score: real(),
+    strengths_json: text().notNull().default("[]"),
+    weaknesses_json: text().notNull().default("[]"),
+    structure_json: text().notNull().default("{}"),
+    character_arcs_json: text().notNull().default("[]"),
+    open_threads_json: text().notNull().default("[]"),
+    recommendations_json: text().notNull().default("[]"),
+    created_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("volume_reviews_volume_id_idx").on(table.volume_id, table.round),
+    index("volume_reviews_novel_id_idx").on(table.novel_id),
+  ],
+)
+
+export const EditorialReportTable = sqliteTable(
+  "editorial_reports",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    scope_type: text().notNull().default("book"),
+    scope_id: text(),
+    summary: text().notNull().default(""),
+    risks_json: text().notNull().default("[]"),
+    recommendations_json: text().notNull().default("[]"),
+    created_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [index("editorial_reports_novel_id_idx").on(table.novel_id, table.created_at)],
+)
+
+export const ChapterAnnotationTable = sqliteTable(
+  "chapter_annotations",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    chapter_id: text().notNull(),
+    parent_id: text(),
+    source: text().notNull().default("user"),
+    anchor_type: text().notNull().default("paragraph"),
+    paragraph_index: integer(),
+    start_offset: integer(),
+    end_offset: integer(),
+    quote: text().notNull().default(""),
+    comment: text().notNull().default(""),
+    suggested_replacement: text(),
+    status: text().notNull().default("open"),
+    author_session_id: text(),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("chapter_annotations_chapter_id_idx").on(table.chapter_id, table.status),
+    index("chapter_annotations_novel_id_idx").on(table.novel_id),
+  ],
+)
+
+export const OutlineCanvasLayoutTable = sqliteTable("outline_canvas_layout", {
+  novel_id: text().primaryKey(),
+  layout_json: text({ mode: "json" }).notNull().default("{}"),
+  updated_at: integer().notNull().$default(() => Date.now()),
+})
+
+
 // ─── DB 路径解析 ───
 
 /**
@@ -465,6 +583,23 @@ CREATE INDEX IF NOT EXISTS pending_settings_novel_idx ON pending_settings(novel_
 CREATE INDEX IF NOT EXISTS pending_settings_title_idx ON pending_settings(novel_id, display_title);
 CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS world_entry_conflicts_novel_idx ON world_entry_conflicts(novel_id, resolved);
+CREATE TABLE IF NOT EXISTS story_arcs (id text PRIMARY KEY, novel_id text NOT NULL, arc_type text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, status text DEFAULT 'planned' NOT NULL, target_character_id text, planned_start_chapter integer, planned_end_chapter integer, actual_start_chapter integer, actual_end_chapter integer, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (target_character_id) REFERENCES characters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS story_arcs_novel_id_idx ON story_arcs(novel_id);
+CREATE INDEX IF NOT EXISTS story_arcs_arc_type_idx ON story_arcs(novel_id, arc_type);
+CREATE TABLE IF NOT EXISTS arc_beats (id text PRIMARY KEY, novel_id text NOT NULL, arc_id text NOT NULL, chapter_id text, chapter_order integer, label text NOT NULL, kind text DEFAULT 'note' NOT NULL, summary text DEFAULT '' NOT NULL, status text DEFAULT 'planned' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (arc_id) REFERENCES story_arcs(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS arc_beats_arc_id_idx ON arc_beats(arc_id);
+CREATE INDEX IF NOT EXISTS arc_beats_novel_chapter_idx ON arc_beats(novel_id, chapter_order);
+CREATE INDEX IF NOT EXISTS arc_beats_chapter_id_idx ON arc_beats(chapter_id);
+CREATE TABLE IF NOT EXISTS volume_reviews (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text NOT NULL, round integer NOT NULL, overall text DEFAULT '' NOT NULL, score real, strengths_json text DEFAULT '[]' NOT NULL, weaknesses_json text DEFAULT '[]' NOT NULL, structure_json text DEFAULT '{}' NOT NULL, character_arcs_json text DEFAULT '[]' NOT NULL, open_threads_json text DEFAULT '[]' NOT NULL, recommendations_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS volume_reviews_volume_id_idx ON volume_reviews(volume_id, round);
+CREATE INDEX IF NOT EXISTS volume_reviews_novel_id_idx ON volume_reviews(novel_id);
+CREATE TABLE IF NOT EXISTS editorial_reports (id text PRIMARY KEY, novel_id text NOT NULL, scope_type text DEFAULT 'book' NOT NULL, scope_id text, summary text DEFAULT '' NOT NULL, risks_json text DEFAULT '[]' NOT NULL, recommendations_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS editorial_reports_novel_id_idx ON editorial_reports(novel_id, created_at);
+CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS chapter_annotations_chapter_id_idx ON chapter_annotations(chapter_id, status);
+CREATE INDEX IF NOT EXISTS chapter_annotations_novel_id_idx ON chapter_annotations(novel_id);
+CREATE TABLE IF NOT EXISTS outline_canvas_layout (novel_id text PRIMARY KEY, layout_json text DEFAULT '{}' NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+
 CREATE TABLE IF NOT EXISTS hook_rotation (id text PRIMARY KEY, novel_id text NOT NULL, hook_type text NOT NULL, chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS hook_rotation_novel_id_idx ON hook_rotation(novel_id);
 CREATE INDEX IF NOT EXISTS hook_rotation_created_at_idx ON hook_rotation(novel_id, created_at);
@@ -1223,4 +1358,427 @@ export async function listChapterReviews(
     .where(eq(ChapterReviewTable.chapter_id, chapterId))
     .orderBy(desc(ChapterReviewTable.created_at))
     .all()
+}
+
+
+// ─── B/C 阶段 CRUD ───
+
+export async function createStoryArc(
+  novelId: string,
+  input: {
+    arcType: string
+    title: string
+    summary?: string
+    status?: string
+    targetCharacterId?: string | null
+    plannedStartChapter?: number | null
+    plannedEndChapter?: number | null
+  },
+  directory?: string | null,
+): Promise<typeof StoryArcTable.$inferSelect> {
+  const db = getDb(directory)
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  await db
+    .insert(StoryArcTable)
+    .values({
+      id,
+      novel_id: novelId,
+      arc_type: input.arcType,
+      title: input.title,
+      summary: input.summary ?? "",
+      status: input.status ?? "planned",
+      target_character_id: input.targetCharacterId ?? null,
+      planned_start_chapter: input.plannedStartChapter ?? null,
+      planned_end_chapter: input.plannedEndChapter ?? null,
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(StoryArcTable).where(eq(StoryArcTable.id, id)).get()!
+}
+
+export async function updateStoryArc(
+  arcId: string,
+  fields: {
+    title?: string
+    summary?: string
+    status?: string
+    arcType?: string
+    targetCharacterId?: string | null
+    plannedStartChapter?: number | null
+    plannedEndChapter?: number | null
+    actualStartChapter?: number | null
+    actualEndChapter?: number | null
+  },
+  directory?: string | null,
+): Promise<typeof StoryArcTable.$inferSelect> {
+  const db = getDb(directory)
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (fields.title !== undefined) updates.title = fields.title
+  if (fields.summary !== undefined) updates.summary = fields.summary
+  if (fields.status !== undefined) updates.status = fields.status
+  if (fields.arcType !== undefined) updates.arc_type = fields.arcType
+  if (fields.targetCharacterId !== undefined) updates.target_character_id = fields.targetCharacterId
+  if (fields.plannedStartChapter !== undefined) updates.planned_start_chapter = fields.plannedStartChapter
+  if (fields.plannedEndChapter !== undefined) updates.planned_end_chapter = fields.plannedEndChapter
+  if (fields.actualStartChapter !== undefined) updates.actual_start_chapter = fields.actualStartChapter
+  if (fields.actualEndChapter !== undefined) updates.actual_end_chapter = fields.actualEndChapter
+  await db.update(StoryArcTable).set(updates).where(eq(StoryArcTable.id, arcId)).run()
+  return db.select().from(StoryArcTable).where(eq(StoryArcTable.id, arcId)).get()!
+}
+
+export async function deleteStoryArc(arcId: string, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
+  await db.delete(ArcBeatTable).where(eq(ArcBeatTable.arc_id, arcId)).run()
+  await db.delete(StoryArcTable).where(eq(StoryArcTable.id, arcId)).run()
+}
+
+export async function listStoryArcs(
+  novelId: string,
+  directory?: string | null,
+): Promise<(typeof StoryArcTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  return db
+    .select()
+    .from(StoryArcTable)
+    .where(eq(StoryArcTable.novel_id, novelId))
+    .orderBy(asc(StoryArcTable.created_at))
+    .all()
+}
+
+export async function createArcBeat(
+  arcId: string,
+  input: {
+    chapterId?: string | null
+    chapterOrder?: number | null
+    label: string
+    kind?: string
+    summary?: string
+    novelId?: string
+  },
+  directory?: string | null,
+): Promise<typeof ArcBeatTable.$inferSelect> {
+  const db = getDb(directory)
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  const arc = await db.select().from(StoryArcTable).where(eq(StoryArcTable.id, arcId)).get()
+  if (!arc) throw new Error(`Story arc not found: ${arcId}`)
+  await db
+    .insert(ArcBeatTable)
+    .values({
+      id,
+      novel_id: input.novelId ?? arc.novel_id,
+      arc_id: arcId,
+      chapter_id: input.chapterId ?? null,
+      chapter_order: input.chapterOrder ?? null,
+      label: input.label,
+      kind: input.kind ?? "note",
+      summary: input.summary ?? "",
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, id)).get()!
+}
+
+export async function updateArcBeat(
+  beatId: string,
+  fields: {
+    label?: string
+    kind?: string
+    summary?: string
+    status?: string
+    chapterId?: string | null
+    chapterOrder?: number | null
+  },
+  directory?: string | null,
+): Promise<typeof ArcBeatTable.$inferSelect> {
+  const db = getDb(directory)
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (fields.label !== undefined) updates.label = fields.label
+  if (fields.kind !== undefined) updates.kind = fields.kind
+  if (fields.summary !== undefined) updates.summary = fields.summary
+  if (fields.status !== undefined) updates.status = fields.status
+  if (fields.chapterId !== undefined) updates.chapter_id = fields.chapterId
+  if (fields.chapterOrder !== undefined) updates.chapter_order = fields.chapterOrder
+  await db.update(ArcBeatTable).set(updates).where(eq(ArcBeatTable.id, beatId)).run()
+  return db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, beatId)).get()!
+}
+
+export async function deleteArcBeat(beatId: string, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
+  await db.delete(ArcBeatTable).where(eq(ArcBeatTable.id, beatId)).run()
+}
+
+export async function listArcBeats(
+  arcId: string,
+  directory?: string | null,
+): Promise<(typeof ArcBeatTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  return db
+    .select()
+    .from(ArcBeatTable)
+    .where(eq(ArcBeatTable.arc_id, arcId))
+    .orderBy(asc(ArcBeatTable.chapter_order), asc(ArcBeatTable.created_at))
+    .all()
+}
+
+export async function createVolumeReview(
+  volumeId: string,
+  input: {
+    novelId?: string
+    overall?: string
+    score?: number | null
+    strengths?: string[]
+    weaknesses?: string[]
+    structure?: Record<string, unknown>
+    characterArcs?: Array<Record<string, unknown>>
+    openThreads?: string[]
+    recommendations?: string[]
+  },
+  directory?: string | null,
+): Promise<typeof VolumeReviewTable.$inferSelect> {
+  const db = getDb(directory)
+  const volume = await db.select().from(VolumeTable).where(eq(VolumeTable.id, volumeId)).get()
+  if (!volume) throw new Error(`Volume not found: ${volumeId}`)
+  const latest = await db
+    .select()
+    .from(VolumeReviewTable)
+    .where(eq(VolumeReviewTable.volume_id, volumeId))
+    .orderBy(desc(VolumeReviewTable.round))
+    .limit(1)
+    .get()
+  const round = latest ? latest.round + 1 : 1
+  const id = crypto.randomUUID()
+  await db
+    .insert(VolumeReviewTable)
+    .values({
+      id,
+      novel_id: input.novelId ?? volume.novel_id,
+      volume_id: volumeId,
+      round,
+      overall: input.overall ?? "",
+      score: input.score ?? null,
+      strengths_json: JSON.stringify(input.strengths ?? []),
+      weaknesses_json: JSON.stringify(input.weaknesses ?? []),
+      structure_json: JSON.stringify(input.structure ?? {}),
+      character_arcs_json: JSON.stringify(input.characterArcs ?? []),
+      open_threads_json: JSON.stringify(input.openThreads ?? []),
+      recommendations_json: JSON.stringify(input.recommendations ?? []),
+      created_at: Date.now(),
+    })
+    .run()
+  return db.select().from(VolumeReviewTable).where(eq(VolumeReviewTable.id, id)).get()!
+}
+
+export async function listVolumeReviews(
+  volumeId: string,
+  directory?: string | null,
+): Promise<(typeof VolumeReviewTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  return db
+    .select()
+    .from(VolumeReviewTable)
+    .where(eq(VolumeReviewTable.volume_id, volumeId))
+    .orderBy(desc(VolumeReviewTable.round))
+    .all()
+}
+
+export async function createEditorialReport(
+  novelId: string,
+  input: {
+    scopeType?: string
+    scopeId?: string | null
+    summary?: string
+    risks?: Array<Record<string, unknown>>
+    recommendations?: string[]
+  },
+  directory?: string | null,
+): Promise<typeof EditorialReportTable.$inferSelect> {
+  const db = getDb(directory)
+  const id = crypto.randomUUID()
+  await db
+    .insert(EditorialReportTable)
+    .values({
+      id,
+      novel_id: novelId,
+      scope_type: input.scopeType ?? "book",
+      scope_id: input.scopeId ?? null,
+      summary: input.summary ?? "",
+      risks_json: JSON.stringify(input.risks ?? []),
+      recommendations_json: JSON.stringify(input.recommendations ?? []),
+      created_at: Date.now(),
+    })
+    .run()
+  return db.select().from(EditorialReportTable).where(eq(EditorialReportTable.id, id)).get()!
+}
+
+export async function listEditorialReports(
+  novelId: string,
+  directory?: string | null,
+): Promise<(typeof EditorialReportTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  return db
+    .select()
+    .from(EditorialReportTable)
+    .where(eq(EditorialReportTable.novel_id, novelId))
+    .orderBy(desc(EditorialReportTable.created_at))
+    .all()
+}
+
+export async function createChapterAnnotation(
+  chapterId: string,
+  novelId: string,
+  input: {
+    parentId?: string | null
+    source?: string
+    anchorType?: string
+    paragraphIndex?: number | null
+    startOffset?: number | null
+    endOffset?: number | null
+    quote?: string
+    comment?: string
+    suggestedReplacement?: string | null
+    authorSessionId?: string | null
+  },
+  directory?: string | null,
+): Promise<typeof ChapterAnnotationTable.$inferSelect> {
+  const db = getDb(directory)
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  await db
+    .insert(ChapterAnnotationTable)
+    .values({
+      id,
+      novel_id: novelId,
+      chapter_id: chapterId,
+      parent_id: input.parentId ?? null,
+      source: input.source ?? "user",
+      anchor_type: input.anchorType ?? "paragraph",
+      paragraph_index: input.paragraphIndex ?? null,
+      start_offset: input.startOffset ?? null,
+      end_offset: input.endOffset ?? null,
+      quote: input.quote ?? "",
+      comment: input.comment ?? "",
+      suggested_replacement: input.suggestedReplacement ?? null,
+      status: "open",
+      author_session_id: input.authorSessionId ?? null,
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, id)).get()!
+}
+
+export async function updateChapterAnnotation(
+  annotationId: string,
+  fields: {
+    comment?: string
+    status?: string
+    suggestedReplacement?: string | null
+    quote?: string
+  },
+  directory?: string | null,
+): Promise<typeof ChapterAnnotationTable.$inferSelect> {
+  const db = getDb(directory)
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (fields.comment !== undefined) updates.comment = fields.comment
+  if (fields.status !== undefined) updates.status = fields.status
+  if (fields.suggestedReplacement !== undefined) updates.suggested_replacement = fields.suggestedReplacement
+  if (fields.quote !== undefined) updates.quote = fields.quote
+  await db.update(ChapterAnnotationTable).set(updates).where(eq(ChapterAnnotationTable.id, annotationId)).run()
+  return db.select().from(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, annotationId)).get()!
+}
+
+export async function deleteChapterAnnotation(annotationId: string, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
+  await db.delete(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, annotationId)).run()
+}
+
+export async function listChapterAnnotations(
+  chapterId: string,
+  directory?: string | null,
+  filter?: { status?: string },
+): Promise<(typeof ChapterAnnotationTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  const query = db
+    .select()
+    .from(ChapterAnnotationTable)
+    .where(
+      filter?.status
+        ? and(eq(ChapterAnnotationTable.chapter_id, chapterId), eq(ChapterAnnotationTable.status, filter.status))
+        : eq(ChapterAnnotationTable.chapter_id, chapterId),
+    )
+    .orderBy(asc(ChapterAnnotationTable.paragraph_index), desc(ChapterAnnotationTable.created_at))
+  return query.all()
+}
+
+export async function getOutlineCanvasLayout(
+  novelId: string,
+  directory?: string | null,
+): Promise<typeof OutlineCanvasLayoutTable.$inferSelect | undefined> {
+  const db = getDb(directory)
+  return db.select().from(OutlineCanvasLayoutTable).where(eq(OutlineCanvasLayoutTable.novel_id, novelId)).get()
+}
+
+export async function upsertOutlineCanvasLayout(
+  novelId: string,
+  layout: Record<string, unknown>,
+  directory?: string | null,
+): Promise<typeof OutlineCanvasLayoutTable.$inferSelect> {
+  const db = getDb(directory)
+  const existing = await db
+    .select()
+    .from(OutlineCanvasLayoutTable)
+    .where(eq(OutlineCanvasLayoutTable.novel_id, novelId))
+    .get()
+  if (!existing) {
+    await db
+      .insert(OutlineCanvasLayoutTable)
+      .values({ novel_id: novelId, layout_json: layout, updated_at: Date.now() })
+      .run()
+  } else {
+    await db
+      .update(OutlineCanvasLayoutTable)
+      .set({ layout_json: layout, updated_at: Date.now() })
+      .where(eq(OutlineCanvasLayoutTable.novel_id, novelId))
+      .run()
+  }
+  return db.select().from(OutlineCanvasLayoutTable).where(eq(OutlineCanvasLayoutTable.novel_id, novelId)).get()!
+}
+
+export async function listStructureForEditor(
+  novelId: string,
+  directory?: string | null,
+): Promise<{
+  volumes: (typeof VolumeTable.$inferSelect)[]
+  chapters: (typeof ChapterTable.$inferSelect)[]
+  arcs: (typeof StoryArcTable.$inferSelect)[]
+  beats: (typeof ArcBeatTable.$inferSelect)[]
+  threads: (typeof PlotThreadTable.$inferSelect)[]
+  foreshadowing: (typeof ForeshadowingTable.$inferSelect)[]
+  characters: (typeof CharacterTable.$inferSelect)[]
+}> {
+  const db = getDb(directory)
+  const [volumes, chapters, arcs, beats, threads, foreshadowing, characters] = await Promise.all([
+    db.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).orderBy(asc(VolumeTable.order)).all(),
+    db
+      .select()
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, novelId))
+      .orderBy(asc(ChapterTable.order))
+      .all(),
+    db.select().from(StoryArcTable).where(eq(StoryArcTable.novel_id, novelId)).orderBy(asc(StoryArcTable.created_at)).all(),
+    db
+      .select()
+      .from(ArcBeatTable)
+      .where(eq(ArcBeatTable.novel_id, novelId))
+      .orderBy(asc(ArcBeatTable.chapter_order), asc(ArcBeatTable.created_at))
+      .all(),
+    db.select().from(PlotThreadTable).where(eq(PlotThreadTable.novel_id, novelId)).all(),
+    db.select().from(ForeshadowingTable).where(eq(ForeshadowingTable.novel_id, novelId)).all(),
+    db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all(),
+  ])
+  return { volumes, chapters, arcs, beats, threads, foreshadowing, characters }
 }

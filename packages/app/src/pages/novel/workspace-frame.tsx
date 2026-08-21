@@ -34,6 +34,9 @@ import RelationsView from "./relations-view"
 import MapView from "./map-view"
 import { WorldSidebar } from "./world-sidebar"
 import { WorldReader } from "./world-reader"
+import StructurePanel from "./structure-panel"
+import { AnnotationPanel } from "./annotation-panel"
+import CanvasPanel from "./canvas-panel"
 
 export default function NovelWorkspaceFrame() {
   const params = useParams()
@@ -76,7 +79,7 @@ export default function NovelWorkspaceFrame() {
   const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines" | "world">("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
   const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
-  const [panelTab, setPanelTab] = createSignal<"characters" | "foreshadow" | "tension">("characters")
+  const [panelTab, setPanelTab] = createSignal<"characters" | "foreshadow" | "tension" | "structure" | "annotations" | "canvas">("characters")
   const [isEditing, setIsEditing] = createSignal(false)
   const [editTitle, setEditTitle] = createSignal("")
   const [editSynopsis, setEditSynopsis] = createSignal("")
@@ -544,7 +547,7 @@ export default function NovelWorkspaceFrame() {
                       <SegmentedControlV2
                         class="segmented-control-v2--full-width"
                         value={panelTab()}
-                        onChange={(value) => value && setPanelTab(value as "characters" | "foreshadow" | "tension")}
+                        onChange={(value) => value && setPanelTab(value as "characters" | "foreshadow" | "tension" | "structure" | "annotations" | "canvas")}
                       >
                         <SegmentedControlItemV2 value="characters">
                           {language.t("novel.panel.characters")}
@@ -555,6 +558,9 @@ export default function NovelWorkspaceFrame() {
                         <SegmentedControlItemV2 value="tension">
                           {language.t("novel.panel.tension")}
                         </SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="structure">结构</SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="annotations">批注</SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="canvas">画布</SegmentedControlItemV2>
                       </SegmentedControlV2>
                     </div>
                     {/* Tab content */}
@@ -579,6 +585,21 @@ export default function NovelWorkspaceFrame() {
                           selectedChapterId={selectedChapterId}
                           chapters={data.chapters}
                         />
+                      </Show>
+                      <Show when={panelTab() === "structure"}>
+                        <StructurePanel
+                          novelID={novelID}
+                          selectedVolumeId={() => {
+                            const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
+                            return ch?.volumeId ?? null
+                          }}
+                        />
+                      </Show>
+                      <Show when={panelTab() === "annotations"}>
+                        <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
+                      </Show>
+                      <Show when={panelTab() === "canvas"}>
+                        <CanvasPanel novelID={novelID} />
                       </Show>
                     </div>
                   </div>

@@ -47,6 +47,22 @@ import {
   UpdateWorldEntryInput,
   Volume,
   WorldEntry,
+  StoryArc,
+  ArcBeat,
+  VolumeReview,
+  EditorialReport,
+  ChapterAnnotation,
+  CanvasLayout,
+  StructureEditorData,
+  CreateStoryArcInput,
+  UpdateStoryArcInput,
+  CreateArcBeatInput,
+  UpdateArcBeatInput,
+  CreateVolumeReviewInput,
+  CreateEditorialReportInput,
+  CreateAnnotationInput,
+  UpdateAnnotationInput,
+  UpsertCanvasLayoutInput,
 } from "@opennovel-ai/schema/novel"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -908,4 +924,203 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-world-entry", summary: "Delete world entry" })),
   )
-  .annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))
+    .add(
+    HttpApiEndpoint.get("novel.structure", `${root}/:novelID/structure`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: StructureEditorData,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.structure", summary: "Get structure editor data" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.arcs", `${root}/:novelID/arcs`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(StoryArc),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.arcs", summary: "List story arcs" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-arc", `${root}/:novelID/arcs`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: CreateStoryArcInput,
+      success: StoryArc,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-arc", summary: "Create story arc" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.update-arc", `${root}/:novelID/arcs/:arcID`, {
+      params: { novelID: Schema.String, arcID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateStoryArcInput,
+      success: StoryArc,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-arc", summary: "Update story arc" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-arc", `${root}/:novelID/arcs/:arcID`, {
+      params: { novelID: Schema.String, arcID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-arc", summary: "Delete story arc" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.arc-beats", `${root}/:novelID/arcs/:arcID/beats`, {
+      params: { novelID: Schema.String, arcID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(ArcBeat),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.arc-beats", summary: "List arc beats" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-beat", `${root}/:novelID/beats`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: CreateArcBeatInput,
+      success: ArcBeat,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-beat", summary: "Create arc beat" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.update-beat", `${root}/:novelID/beats/:beatID`, {
+      params: { novelID: Schema.String, beatID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateArcBeatInput,
+      success: ArcBeat,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-beat", summary: "Update arc beat" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-beat", `${root}/:novelID/beats/:beatID`, {
+      params: { novelID: Schema.String, beatID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-beat", summary: "Delete arc beat" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.volume-reviews", `${root}/:novelID/volumes/:volumeID/reviews`, {
+      params: { novelID: Schema.String, volumeID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(VolumeReview),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.volume-reviews", summary: "List volume reviews" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-volume-review", `${root}/:novelID/volumes/:volumeID/reviews`, {
+      params: { novelID: Schema.String, volumeID: Schema.String },
+      query: LocationQuery,
+      payload: CreateVolumeReviewInput,
+      success: VolumeReview,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-volume-review", summary: "Create volume review" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.editorial-reports", `${root}/:novelID/editorial-reports`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(EditorialReport),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.editorial-reports", summary: "List editorial reports" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-editorial-report", `${root}/:novelID/editorial-reports`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: CreateEditorialReportInput,
+      success: EditorialReport,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-editorial-report", summary: "Create editorial report" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.annotations", `${root}/:novelID/chapters/:chapterID/annotations`, {
+      params: { novelID: Schema.String, chapterID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(ChapterAnnotation),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.annotations", summary: "List chapter annotations" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-annotation", `${root}/:novelID/chapters/:chapterID/annotations`, {
+      params: { novelID: Schema.String, chapterID: Schema.String },
+      query: LocationQuery,
+      payload: CreateAnnotationInput,
+      success: ChapterAnnotation,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-annotation", summary: "Create annotation" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.update-annotation", `${root}/:novelID/annotations/:annotationID`, {
+      params: { novelID: Schema.String, annotationID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateAnnotationInput,
+      success: ChapterAnnotation,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-annotation", summary: "Update annotation" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-annotation", `${root}/:novelID/annotations/:annotationID`, {
+      params: { novelID: Schema.String, annotationID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-annotation", summary: "Delete annotation" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.canvas-layout", `${root}/:novelID/canvas-layout`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.NullOr(CanvasLayout),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.canvas-layout", summary: "Get canvas layout" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.upsert-canvas-layout", `${root}/:novelID/canvas-layout`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: UpsertCanvasLayoutInput,
+      success: CanvasLayout,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upsert-canvas-layout", summary: "Upsert canvas layout" })),
+  )
+.annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))
