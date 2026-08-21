@@ -17,6 +17,7 @@ import { tmpdir } from "os"
 // @ts-ignore - bun:sqlite 类型仅在 bun 运行时可用
 import { Database as BunSqlite } from "bun:sqlite"
 import { globSync } from "glob"
+import { closeDb } from "@opennovel-ai/novel-store"
 
 // ─── 静态分析：源码中不得存在本地 DB 入口 ───
 
@@ -37,7 +38,7 @@ describe("静态：无模块定义本地 DB 入口", () => {
   ]
 
   for (const file of listSourceFiles()) {
-    const basename = file.split("/").pop()!
+    const basename = file.split(/[\\/]/).pop()!
     const isAllowed = ALLOWED_LOCAL_DB_MODULES.has(basename)
 
     for (const { regex, label } of forbiddenPatterns) {
@@ -56,7 +57,7 @@ describe("静态：无模块定义本地 DB 入口", () => {
     const srcDir = join(import.meta.dir, "..", "..", "src", "novel-writer")
     // 列出所有导入 session-store 的模块
     const files = listSourceFiles().filter((f) => {
-      const basename = f.split("/").pop()!
+      const basename = f.split(/[\\/]/).pop()!
       return !ALLOWED_LOCAL_DB_MODULES.has(basename)
     })
     // 检查使用 drizzle 的模块是否从 session-store 导入了 getDb
@@ -82,7 +83,8 @@ beforeAll(() => {
 
 afterAll(() => {
   delete process.env.OPENNOVEL_DB
-  rmSync(testDir, { recursive: true, force: true })
+  closeDb()
+  try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 
 describe("功能：各模块使用同一 DB 实例", () => {

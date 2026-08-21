@@ -246,7 +246,7 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 3. data 字段必须是对象（键值对），不能是 null、数组或基本类型
 4. 同一实体在同一章节中多次出现时，只输出最终状态（合并为一条 update 或 create）
 5. 必须先识别已有的实体（通过上下文快照判断），再区分 create 和 update
-6. 不确定的实体优先使用 create（反射器会校验重复创建）
+6. 无法确认实体是否已存在时，先在快照中查找同名/同标题实体；确实找不到再 create，且 name/title 必须与原文逐字一致（系统会按名称去重）
 7. 所有字段名和值使用中文描述，但 fact_type、action、entity_id 使用英文标识符
 8. 输出必须是合法的 JSON 数组，不包含任何其他文字、注释或 Markdown 标记
 9. **character / world_entry / location 的 create 必须带 importance 字段**；update/delete 不需要

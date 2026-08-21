@@ -412,6 +412,17 @@ async function resetChapterScopedState(
       .where(and(eq(TensionLogTable.novel_id, novelId), eq(TensionLogTable.chapter_number, order)))
       .run()
   }
+  // 清理本章 observer 产生的未决候选和未解决冲突，保证重跑幂等
+  await db
+    .delete(PendingSettingTable)
+    .where(and(eq(PendingSettingTable.source_chapter_id, chapterId), eq(PendingSettingTable.status, "pending")))
+    .run()
+  await db
+    .delete(WorldEntryConflictTable)
+    .where(and(eq(WorldEntryConflictTable.source_chapter_id, chapterId), eq(WorldEntryConflictTable.resolved, 0)))
+    .run()
+  // 清理本章摘要的 FTS 索引（applyToMaterializedView 会重建）
+  await db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
 }
 
 /**
@@ -712,26 +723,12 @@ async function applyToMaterializedView(
         const resolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, data)
         // 冲突标注分离：data.conflict_note 不入 WorldEntryTable.content，独立存 WorldEntryConflictTable
         const conflictNote = extractConflictNote(data)
-        if (conflictNote) {
-          const conflictId = await recordConflict(
-            db,
-            novelId,
-            resolvedId,
-            conflictNote,
-            chapterId,
-            data.conflict_kind === "number_inconsistency"
-              ? "number_inconsistency"
-              : data.conflict_kind === "synonym_drift"
-                ? "synonym_drift"
-                : "semantic_conflict",
-          )
-          report.conflicts.push({
-            id: conflictId,
-            world_entry_id: resolvedId,
-            conflict_kind: "semantic_conflict",
-            conflict_note: conflictNote,
-          })
-        }
+        const conflictKind =
+          data.conflict_kind === "number_inconsistency"
+            ? "number_inconsistency"
+            : data.conflict_kind === "synonym_drift"
+              ? "synonym_drift"
+              : "semantic_conflict"
         if (resolvedId === entity_id) {
           await db.insert(WorldEntryTable).values({
             id: entity_id,
@@ -751,6 +748,22 @@ async function applyToMaterializedView(
               .set(fields as any)
               .where(eq(WorldEntryTable.id, resolvedId))
           }
+        }
+        if (conflictNote) {
+          const conflictId = await recordConflict(
+            db,
+            novelId,
+            resolvedId,
+            conflictNote,
+            chapterId,
+            conflictKind,
+          )
+          report.conflicts.push({
+            id: conflictId,
+            world_entry_id: resolvedId,
+            conflict_kind: conflictKind,
+            conflict_note: conflictNote,
+          })
         }
       } else if (action === "update") {
         const fields: Record<string, unknown> = {}
@@ -979,52 +992,124 @@ export async function commitStateWithReport(
   const db = typeof dbOrDirectory === "string" || dbOrDirectory == null ? getDb(dbOrDirectory as any) : dbOrDirectory
   const report: CommitReport = { count: 0, pending: [], conflicts: [], discarded: 0 }
 
-  // 1. 写入 append-only 日志
-  for (const entry of validated) {
-    const logId = crypto.randomUUID()
-    await db.insert(NovelStateLogTable).values({
-      id: logId,
-      novel_id: novelId,
-      chapter_id: chapterId ?? null,
-      fact_type: entry.fact_type,
-      fact_data: entry.data,
-      created_at: Date.now(),
-    } as any)
-    report.count++
+  // 核心写操作包在事务内：drizzle 的 async transaction 在 bun:sqlite 下不回滚，
+  // 故用原生 SQL BEGIN/COMMIT/ROLLBACK。任一步失败整体回滚，杜绝半更新状态。
+  // Markdown 审计日志在事务提交后追加（文件系统无法回滚，且仅为旁路记录）。
+  await db.run(sql`BEGIN`)
+  try {
+    // 1. 写入 append-only 日志
+    for (const entry of validated) {
+      const logId = crypto.randomUUID()
+      await db.insert(NovelStateLogTable).values({
+        id: logId,
+        novel_id: novelId,
+        chapter_id: chapterId ?? null,
+        fact_type: entry.fact_type,
+        fact_data: entry.data,
+        created_at: Date.now(),
+      } as any)
+      report.count++
+    }
+
+    // 2. 重跑章节时先清理本章归属的快照数据，保证"一章一份"语义幂等
+    await resetChapterScopedState(db, novelId, chapterId)
+
+    // 3. 更新物化视图
+    for (const entry of validated) {
+      await applyToMaterializedView(db, novelId, chapterId, entry, report)
+    }
+
+    // 4. 同步 FTS 索引（本章摘要）
+    await syncChapterSummaryFts(db, novelId, chapterId)
+
+    // 5. 触发级联统改任务（仅 update 操作）
+    for (const entry of validated) {
+      if (entry.action !== "update") continue
+      const changedFields = Object.keys(entry.data).join(", ")
+      await cascadeCreateTasks(
+        db,
+        novelId,
+        entry.fact_type,
+        entry.entity_id,
+        changedFields,
+        "",
+        JSON.stringify(entry.data),
+        `${entry.fact_type} 更新（${changedFields}）`,
+      )
+    }
+
+    await db.run(sql`COMMIT`)
+  } catch (err) {
+    await Promise.resolve(db.run(sql`ROLLBACK`)).catch(() => {})
+    throw err
   }
 
-  // 2. 重跑章节时先清理本章归属的快照数据，保证"一章一份"语义幂等。
-  //    character_states / chapter_summaries / tension_logs 都是本章快照，
-  //    用本轮 delta 完整替换；小说级实体（character/foreshadow 等）的去重在
-  //    applyToMaterializedView 内按业务键 find-or-create。
-  //    novel_state_log 是审计日志、hook_rotation 是历史，不在此清理。
-  await resetChapterScopedState(db, novelId, chapterId)
-
-  // 3. 更新物化视图
-  for (const entry of validated) {
-    await applyToMaterializedView(db, novelId, chapterId, entry, report)
-  }
-
-  // 4. 同步 Markdown
+  // 6. 同步 Markdown（事务提交后，旁路审计日志）
   appendToMarkdown(novelId, chapterId, validated)
 
-  // 5. 触发级联统改任务（仅 update 操作）
-  for (const entry of validated) {
-    if (entry.action !== "update") continue
-    const changedFields = Object.keys(entry.data).join(", ")
-    await cascadeCreateTasks(
-      db,
-      novelId,
-      entry.fact_type,
-      entry.entity_id,
-      changedFields,
-      "",
-      JSON.stringify(entry.data),
-      `${entry.fact_type} 更新（${changedFields}）`,
+  return report
+}
+
+/**
+ * 将本章的 chapter_summaries 行同步到 chapter_summary_fts。
+ * 在事务内调用，先删后插，幂等。
+ */
+async function syncChapterSummaryFts(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  chapterId: string,
+): Promise<void> {
+  if (!chapterId) return
+  await db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
+  const summaries = await db
+    .select({
+      chapter_id: ChapterSummaryTable.chapter_id,
+      summary: ChapterSummaryTable.summary,
+      key_events: ChapterSummaryTable.key_events,
+    })
+    .from(ChapterSummaryTable)
+    .where(eq(ChapterSummaryTable.chapter_id, chapterId))
+    .all()
+  for (const s of summaries) {
+    const keyEvents = Array.isArray(s.key_events) ? s.key_events.map(String).join(" ") : ""
+    const [chapter] = await db
+      .select({ order: ChapterTable.order, title: ChapterTable.title })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.id, s.chapter_id))
+      .limit(1)
+      .all()
+    await db.run(
+      sql`INSERT INTO chapter_summary_fts (novel_id, chapter_id, chapter_order, title, body) VALUES (${novelId}, ${s.chapter_id}, ${chapter?.order ?? 0}, ${chapter?.title ?? ""}, ${s.summary + " " + keyEvents})`,
     )
   }
+}
 
-  return report
+/**
+ * 重建某本小说的章节摘要 FTS。
+ */
+async function rebuildChapterSummaryFts(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+): Promise<void> {
+  await db.run(sql`DELETE FROM chapter_summary_fts WHERE novel_id = ${novelId}`)
+  const rows = await db
+    .select({
+      chapter_id: ChapterSummaryTable.chapter_id,
+      summary: ChapterSummaryTable.summary,
+      key_events: ChapterSummaryTable.key_events,
+      order: ChapterTable.order,
+      title: ChapterTable.title,
+    })
+    .from(ChapterSummaryTable)
+    .innerJoin(ChapterTable, eq(ChapterTable.id, ChapterSummaryTable.chapter_id))
+    .where(eq(ChapterTable.novel_id, novelId))
+    .all()
+  for (const row of rows) {
+    const keyEvents = Array.isArray(row.key_events) ? row.key_events.map(String).join(" ") : ""
+    await db.run(
+      sql`INSERT INTO chapter_summary_fts (novel_id, chapter_id, chapter_order, title, body) VALUES (${novelId}, ${row.chapter_id}, ${row.order}, ${row.title}, ${row.summary + " " + keyEvents})`,
+    )
+  }
 }
 
 // ─── 级联一致性：依赖追踪 + 统查统改 ───
@@ -1257,6 +1342,8 @@ export async function cascadeRebuildRefs(
       volumeCount++
     }
   }
+
+  await rebuildChapterSummaryFts(db, novelId)
 
   return { chapters: chapterCount, characters: characterCount, volumes: volumeCount }
 }

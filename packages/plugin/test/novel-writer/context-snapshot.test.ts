@@ -35,8 +35,8 @@ describe("assembleSnapshot 世界观导览", () => {
     const snapshot = await assembleSnapshot("novel-1", 0, dir)
     expect(snapshot).not.toBeNull()
     expect(snapshot!.worldEntries).toEqual([
-      { category: "地理", title: "风息城" },
-      { category: "势力", title: "旧议会" },
+      expect.objectContaining({ category: "地理", title: "风息城", content: "正文" }),
+      expect.objectContaining({ category: "势力", title: "旧议会", content: "正文" }),
     ])
   })
 

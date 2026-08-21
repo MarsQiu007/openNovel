@@ -479,7 +479,14 @@ CREATE INDEX IF NOT EXISTS saga_sessions_novel_id_idx ON saga_sessions(novel_id)
 CREATE INDEX IF NOT EXISTS saga_sessions_status_idx ON saga_sessions(novel_id, status);
 CREATE TABLE IF NOT EXISTS description_history (id text PRIMARY KEY, novel_id text NOT NULL, entity_type text NOT NULL, entity_id text NOT NULL, field text DEFAULT 'description' NOT NULL, old_value text DEFAULT '' NOT NULL, new_value text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS description_history_entity_idx ON description_history(entity_type, entity_id);
-`
+CREATE VIRTUAL TABLE IF NOT EXISTS chapter_summary_fts USING fts5(novel_id UNINDEXED, chapter_id UNINDEXED, chapter_order UNINDEXED, title, body, tokenize = 'trigram');
+INSERT INTO chapter_summary_fts(novel_id, chapter_id, chapter_order, title, body)
+SELECT c.novel_id, s.chapter_id, c."order", c.title, COALESCE(s.summary, '') || ' ' || COALESCE(s.key_events, '[]')
+FROM chapter_summaries s
+JOIN chapters c ON c.id = s.chapter_id
+WHERE NOT EXISTS (
+  SELECT 1 FROM chapter_summary_fts f WHERE f.novel_id = c.novel_id AND f.chapter_id = s.chapter_id
+);`
 
 // ─── DB 连接缓存 ───
 

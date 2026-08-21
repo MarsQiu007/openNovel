@@ -1,8 +1,8 @@
 /**
- * 层级预算模块 — P0-P4 分层 token 预算裁剪
+ * 层级预算模块 — P0-P6 分层 token 预算裁剪
  *
- * 确保上下文快照总 token 数不超过 8K tokens。
- * 预算分配：P0 1K + P1 1.5K + P2 2K + P3 2K + P4 1.5K = 8K
+ * 确保分层上下文不超过 12K tokens，章纲额外保留 1.5K。
+ * 预算分配：P0 1K + P1 1.5K + P2 2K + P3 2K + P4 1K + P5 2K + P6 2.5K = 12K
  *
  * 导出：
  * - applyBudget(packet) — 对快照应用预算裁剪，返回裁剪后的 ContextPacket
@@ -15,6 +15,11 @@ import type {
   PlotThreadSummary,
   ForeshadowingSummary,
   StyleGuideInfo,
+  WorldEntrySummary,
+  WorldEntryIndexItem,
+  RelationshipSummary,
+  VolumeListItem,
+  RecalledHistoryItem,
 } from "./context.js"
 
 // ─── Token 估算工具 ───
@@ -47,6 +52,31 @@ function foreshadowTokens(f: ForeshadowingSummary): number {
 /** 估算风格指南的 token 数量 */
 function styleGuideTokens(sg: StyleGuideInfo): number {
   return estimateTokens(JSON.stringify(sg.rules) + sg.tone + sg.pov + sg.tense)
+}
+
+/** 估算世界观条目的 token 数量 */
+function worldEntryTokens(w: WorldEntrySummary): number {
+  return estimateTokens(w.category + w.title + w.content)
+}
+
+/** 估算召回历史条目的 token 数量 */
+function recalledTokens(r: RecalledHistoryItem): number {
+  return estimateTokens(r.chapterTitle + r.summary + r.keyEvents.join(""))
+}
+
+/** 估算世界观导览条目的 token 数量 */
+function worldEntryIndexTokens(item: WorldEntryIndexItem): number {
+  return estimateTokens(item.category + item.title)
+}
+
+/** 估算关系条目的 token 数量 */
+function relationshipTokens(r: RelationshipSummary): number {
+  return estimateTokens(r.type + r.description + r.charAName + r.charBName)
+}
+
+/** 估算卷纲条目的 token 数量 */
+function volumeTokens(v: VolumeListItem): number {
+  return estimateTokens(v.title + v.summary)
 }
 
 /**
@@ -140,13 +170,13 @@ function applyP3Budget(packet: ContextPacket): void {
 }
 
 /**
- * P4 预算裁剪：优先保留 styleGuide，再裁剪 genreRules，确保不超过 1.5K tokens
+ * P4 预算裁剪：优先保留 styleGuide，再裁剪 genreRules，确保不超过 1K tokens
  *
  * P4 字段：styleGuide, genreRules
- * 策略：风格指南通常较小，优先保留；题材规则按需截断
+ * 策略：风格指南通常较小，优先保留；题材规则按需截断（从 1.5K 收紧到 1K）
  */
 function applyP4Budget(packet: ContextPacket): void {
-  const P4_BUDGET = 1500 // 1.5K tokens
+  const P4_BUDGET = 1000 // 1K tokens
   const sgTokens = packet.styleGuide ? styleGuideTokens(packet.styleGuide) : 0
   const remaining = P4_BUDGET - sgTokens
   if (remaining <= 0) {
@@ -158,17 +188,70 @@ function applyP4Budget(packet: ContextPacket): void {
   packet.genreRules = truncateArray(packet.genreRules, (r) => estimateTokens(r), remaining)
 }
 
+/**
+ * P5 预算裁剪：设定全文、关系、卷纲和标题导览合计不超过 2K。
+ */
+function applyP5Budget(packet: ContextPacket): void {
+  const P5_BUDGET = 2000
+  const SUPPORT_BUDGET = 300
+  const INDEX_BUDGET = 250
+
+  packet.volumeList = truncateArray(packet.volumeList, volumeTokens, 100)
+  packet.relationships = truncateArray(packet.relationships, relationshipTokens, 200)
+
+  const supportTokens =
+    packet.volumeList.reduce((sum, v) => sum + volumeTokens(v), 0) +
+    packet.relationships.reduce((sum, r) => sum + relationshipTokens(r), 0)
+  const indexBudget = Math.min(INDEX_BUDGET, Math.max(0, P5_BUDGET - supportTokens - 500))
+  const coreBudget = Math.max(0, P5_BUDGET - supportTokens - indexBudget)
+
+  let total = 0
+  const kept: WorldEntrySummary[] = []
+  for (const w of packet.worldEntries) {
+    const tokens = worldEntryTokens(w)
+    if (total + tokens > coreBudget) break
+    total += tokens
+    kept.push(w)
+  }
+
+  const keptIds = new Set(kept.map((w) => w.id))
+  const demoted = packet.worldEntries
+    .filter((w) => !keptIds.has(w.id))
+    .map((w) => ({ category: w.category, title: w.title }))
+  packet.worldEntries = kept
+  packet.worldEntryIndex = truncateArray([...packet.worldEntryIndex, ...demoted], worldEntryIndexTokens, INDEX_BUDGET)
+}
+
+/**
+ * P6 预算裁剪：召回历史不超过 2.5K。
+ */
+function applyP6Budget(packet: ContextPacket): void {
+  const P6_BUDGET = 2500
+  packet.recalledHistory = truncateArray(packet.recalledHistory, recalledTokens, P6_BUDGET)
+}
+
+/**
+ * 章纲裁剪：不超过 1.5K。
+ */
+function applyChapterOutlineBudget(packet: ContextPacket): void {
+  if (packet.chapterOutline && estimateTokens(packet.chapterOutline) > 1500) {
+    packet.chapterOutline = packet.chapterOutline.slice(0, 2200)
+  }
+}
+
 // ─── 导出函数 ───
 
 /**
  * 对上下文快照应用预算裁剪
  *
- * 按优先级分层裁剪，确保总上下文不超过 8K tokens：
+ * 按优先级分层裁剪，确保 P0-P6 分层不超过 12K tokens（章纲另计 1.5K）：
  * - P0 蓝图（1K）：novelTitle, genre, synopsis
  * - P1 活跃角色（1.5K）：activeCharacters
  * - P2 卷+3章摘要（2K）：volumeSummary, recentChapterSummaries
  * - P3 线索+伏笔（2K）：plotThreads, foreshadowing
- * - P4 归档（1.5K）：styleGuide, genreRules
+ * - P4 归档（1K）：styleGuide, genreRules
+ * - P5 设定（2K）：worldEntries, worldEntryIndex, volumeList, relationships
+ * - P6 召回历史（2.5K）：recalledHistory
  *
  * 每层超出预算时，从最不重要的条目开始截断（保留前面的条目）。
  * 字符数估算：1 token ≈ 1.5 中文字符。
@@ -185,11 +268,19 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
     plotThreads: [...packet.plotThreads],
     foreshadowing: [...packet.foreshadowing],
     genreRules: [...packet.genreRules],
+    worldEntries: [...packet.worldEntries],
+    worldEntryIndex: [...packet.worldEntryIndex],
+    recalledHistory: [...packet.recalledHistory],
+    volumeList: [...packet.volumeList],
+    relationships: [...packet.relationships],
     styleGuide: packet.styleGuide ? { ...packet.styleGuide } : null,
   }
 
   // P0: 蓝图 - 1K tokens
   applyP0Budget(result)
+
+  // 章纲 - 1.5K
+  applyChapterOutlineBudget(result)
 
   // P1: 活跃角色 - 1.5K tokens
   applyP1Budget(result)
@@ -200,8 +291,14 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
   // P3: 线索+伏笔 - 2K tokens
   applyP3Budget(result)
 
-  // P4: 归档 - 1.5K tokens
+  // P4: 归档 - 1K tokens
   applyP4Budget(result)
+
+  // P5: 世界观硬约束 - 2K tokens
+  applyP5Budget(result)
+
+  // P6: 召回历史 - 2.5K tokens
+  applyP6Budget(result)
 
   return result
 }

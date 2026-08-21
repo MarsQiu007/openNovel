@@ -14,7 +14,8 @@
 
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { join } from "path"
-import { mkdirSync, rmSync, existsSync } from "fs"
+import { mkdirSync, rmSync, existsSync, readdirSync } from "fs"
+import { closeDb } from "@opennovel-ai/novel-store"
 import { tmpdir } from "os"
 import { Database as BunSqlite } from "bun:sqlite"
 import { drizzle } from "drizzle-orm/bun-sqlite"
@@ -102,7 +103,10 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
   afterAll(() => {
     if (OriginalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
     else process.env.OPENNOVEL_DB = OriginalOpenNovelDb
-    rmSync(TempRoot, { recursive: true, force: true })
+    for (const entry of readdirSync(TempRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) closeDb(join(TempRoot, entry.name))
+    }
+    try { rmSync(TempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
   })
 
   test("Bug 1: getDbPath honors PluginInput.directory when OPENNOVEL_DB is unset", async () => {

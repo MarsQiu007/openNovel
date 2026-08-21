@@ -114,6 +114,30 @@ export type WorldEntrySummary = {
   content: string
 }
 
+/** 召回的历史章节摘要 */
+export type RecalledHistoryItem = {
+  /** 章节序号 */
+  chapterOrder: number
+  /** 章节标题 */
+  chapterTitle: string
+  /** 摘要内容 */
+  summary: string
+  /** 关键事件 */
+  keyEvents: string[]
+  /** 召回途径：entity / fts / foreshadow */
+  matchedBy: "entity" | "fts" | "foreshadow"
+  /** 匹配到的实体名或查询词 */
+  matchedEntities: string[]
+  /** 召回得分（越高越相关） */
+  score: number
+}
+
+/** 世界观导览条目（非核心设定，仅标题） */
+export type WorldEntryIndexItem = {
+  category: string
+  title: string
+}
+
 /** 卷纲摘要 */
 export type VolumeListItem = {
   /** 卷序号 */
@@ -183,10 +207,19 @@ export type ContextPacket = {
   styleGuide: StyleGuideInfo | null
   genreRules: string[]
 
-  /** P5: 世界观硬约束（writer 创作的权威来源） */
+  /** P5: 世界观硬约束（writer 创作的权威来源，仅核心相关条目，已裁剪） */
   worldEntries: WorldEntrySummary[]
   volumeList: VolumeListItem[]
   relationships: RelationshipSummary[]
+
+  /** P5 导览：非核心世界观条目（仅分类+标题），需要全文时调用 recall_history */
+  worldEntryIndex: WorldEntryIndexItem[]
+
+  /** P6: 按本章大纲相关性召回的历史章节摘要 */
+  recalledHistory: RecalledHistoryItem[]
+
+  /** 本章大纲 Markdown 原文（来自 .novel/outlines/chapter-{n}.md），截断 1.5K */
+  chapterOutline: string | null
 
   /** 上一章结尾原文（约600字），writer 必须承接其后展开，严禁重复前文已发生的内容 */
   prevChapterTail: string | null
@@ -410,6 +443,9 @@ export async function assembleSnapshot(
       summary: v.summary,
     })),
     relationships,
+    worldEntryIndex: [],
+    recalledHistory: [],
+    chapterOutline: null,
 
     prevChapterTail,
     targetWordCount,

@@ -7,6 +7,7 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
+import { closeDb } from "@opennovel-ai/novel-store"
 
 const testDir = join(tmpdir(), `novel-cascade-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
@@ -18,7 +19,8 @@ beforeAll(() => {
 
 afterAll(() => {
   delete process.env.OPENNOVEL_DB
-  rmSync(testDir, { recursive: true, force: true })
+  closeDb()
+  try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 
 const NOVEL_ID = "test-novel-cascade"

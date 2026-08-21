@@ -9,6 +9,7 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
+import { closeDb } from "@opennovel-ai/novel-store"
 import { tmpdir } from "os"
 
 // DB 路径必须在模块导入前设置，因为各模块的 getDb() 在首次调用时读取该环境变量
@@ -61,7 +62,8 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  rmSync(testDir, { recursive: true, force: true })
+  closeDb()
+  try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 
 describe("createChapterReview", () => {

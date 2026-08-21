@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync
 import { eq, desc, and, asc, lt, sql, inArray } from "drizzle-orm"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
+import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
 import { stringifyRules } from "./novel-writer/state-commit.js"
 import { generateMasterOutline, generateVolumeOutline, generateChapterOutline } from "./novel-writer/outline.js"
@@ -863,11 +864,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
-          const snapshot = await assembleSnapshot(novelId, args.chapter_number, ctx.directory)
+          const snapshot = await assembleWriterSnapshot(novelId, args.chapter_number, ctx.directory)
           if (!snapshot) {
             return { title: "assemble_context_snapshot", output: `无法组装上下文快照，小说 ${novelId} 不存在` }
           }
           const lines: string[] = [`小说：${snapshot.novelTitle}（${snapshot.genre}）`, `梗概：${snapshot.synopsis}`]
+          if (snapshot.chapterOutline) {
+            lines.push("")
+            lines.push("═══ 本章大纲 ═══")
+            lines.push(snapshot.chapterOutline)
+          }
           if (snapshot.activeCharacters.length > 0) {
             lines.push("活跃角色：")
             for (const c of snapshot.activeCharacters) {
@@ -879,6 +885,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             lines.push("最近章节摘要：")
             for (const ch of snapshot.recentChapterSummaries) {
               lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+            }
+          }
+          if (snapshot.recalledHistory.length > 0) {
+            lines.push("")
+            lines.push("═══ 召回历史（与本章相关的前文摘要）═══")
+            for (const r of snapshot.recalledHistory) {
+              const tag = r.matchedBy === "foreshadow" ? "伏笔" : r.matchedBy === "fts" ? "检索" : "实体"
+              lines.push(`- [第${r.chapterOrder}章·${tag}] ${r.chapterTitle}：${r.summary}`)
+              if (r.keyEvents.length > 0) lines.push(`  事件：${r.keyEvents.join("、")}`)
             }
           }
           if (snapshot.plotThreads.length > 0) {
@@ -903,6 +918,17 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             for (const w of snapshot.worldEntries) {
               lines.push(`- [${w.category}] ${w.title}`)
               if (w.content) lines.push(`  ${w.content}`)
+            }
+          }
+          if (snapshot.worldEntryIndex.length > 0) {
+            const byCategory = new Map<string, string[]>()
+            for (const item of snapshot.worldEntryIndex) {
+              byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item.title])
+            }
+            lines.push("")
+            lines.push("═══ 世界观导览（仅标题，需要全文时调用 recall_history 或 check_novel_settings）═══")
+            for (const [cat, titles] of byCategory) {
+              lines.push(`${cat}：${titles.join("、")}`)
             }
           }
           if (snapshot.volumeList.length > 0) {
@@ -1104,6 +1130,30 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             output: chapter.content.length > 0 ? chapter.content : "章节正文为空",
             metadata: { chapter_id: chapter.id, chapter_number: chapter.order, word_count: chapter.word_count },
           }
+        },
+      }),
+      recall_history: tool({
+        description:
+          "按关键词召回历史章节。用于查询前文发生过的事件、承诺、数字、对话等细节。summary 模式返回章节摘要，snippet 模式返回正文中匹配位置前后各200字的片段。写当前章需要回忆前文细节时使用。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          query: tool.schema.string().describe("查询关键词（角色名、事件、物品、地名等，3字以上效果最佳）"),
+          scope: tool.schema.enum(["summary", "snippet"]).optional().describe("返回模式：summary（默认）返回摘要，snippet 返回正文片段"),
+          limit: tool.schema.number().optional().describe("最多返回条数，默认 5"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const results = await recallByQuery(db, novelId, args.query, args.limit ?? 5, args.scope ?? "summary")
+          if (results.length === 0) {
+            return { title: "recall_history", output: `未找到与「${args.query}」相关的章节` }
+          }
+          const lines = [`找到 ${results.length} 条与「${args.query}」相关的章节：`]
+          for (const r of results) {
+            lines.push(`- 第${r.chapterNumber}章 ${r.chapterTitle}（${r.matchedBy}）`)
+            if (r.snippet) lines.push(`  ${r.snippet}`)
+          }
+          return { title: "recall_history", output: lines.join("\n"), metadata: { count: results.length } }
         },
       }),
       list_chapters: tool({
@@ -1712,6 +1762,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             .enum(["character", "world_entry", "relationship", "location"])
             .optional()
             .describe("候选类型过滤（可选）"),
+          source_chapter_id: tool.schema.string().optional().describe("只列来自某章节的候选（可选）"),
           limit: tool.schema.number().optional().describe("最多返回条数，默认 20"),
           offset: tool.schema.number().optional().describe("跳过前 N 条，默认 0"),
         },
@@ -1721,6 +1772,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const status = args.status ?? "pending"
           const conditions: any[] = [eq(PendingSettingTable.novel_id, novelId), eq(PendingSettingTable.status, status)]
           if (args.candidate_type) conditions.push(eq(PendingSettingTable.candidate_type, args.candidate_type))
+          if (args.source_chapter_id) conditions.push(eq(PendingSettingTable.source_chapter_id, args.source_chapter_id))
           const total = await db
             .select({ c: sql<number>`count(*)` })
             .from(PendingSettingTable)
@@ -1797,10 +1849,23 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           let sameTitleWarning = ""
           try {
             if (row.candidate_type === "character") {
+              const charName = String(payload.name ?? row.display_title)
+              const [existingChar] = await db
+                .select({ id: CharacterTable.id })
+                .from(CharacterTable)
+                .where(and(eq(CharacterTable.novel_id, row.novel_id), eq(CharacterTable.name, charName)))
+                .limit(1)
+                .all()
+              if (existingChar) {
+                return {
+                  title: "accept_pending_setting",
+                  output: "已存在同名角色「" + charName + "」，不重复创建。请用 merge_pending_settings 合并或更新已有条目。",
+                }
+              }
               await db.insert(CharacterTable).values({
                 id: newId,
                 novel_id: row.novel_id,
-                name: String(payload.name ?? row.display_title),
+                name: charName,
                 role: String(payload.role ?? ""),
                 description: String(payload.description ?? ""),
                 status: "active",
@@ -1817,7 +1882,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 .all()
               if (sameTitle.length > 0) {
                 const cats = [...new Set(sameTitle.map((s) => s.category))].join(" / ")
-                sameTitleWarning = `⚠️ 同标题「${payload.title}」已有 ${sameTitle.length} 条（category: ${cats}）。建议用 merge_pending_settings 合并到现有条目。`
+                return {
+                  title: "accept_pending_setting",
+                  output: "已存在同标题世界观条目" + String(payload.title ?? "") + "（" + sameTitle.length + " 条，category: " + cats + "）。拒绝重复创建以避免硬约束冲突。请用 merge_pending_settings 合并或更新已有条目。",
+                }
               }
               await db.insert(WorldEntryTable).values({
                 id: newId,
@@ -1828,11 +1896,24 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               } as any)
               createdId = newId
             } else if (row.candidate_type === "location") {
+              const locName = String(payload.name ?? row.display_title)
+              const [existingLoc] = await db
+                .select({ id: WorldEntryTable.id })
+                .from(WorldEntryTable)
+                .where(and(eq(WorldEntryTable.novel_id, row.novel_id), eq(WorldEntryTable.title, locName)))
+                .limit(1)
+                .all()
+              if (existingLoc) {
+                return {
+                  title: "accept_pending_setting",
+                  output: "已存在同名地点「" + locName + "」，不重复创建。请用 merge_pending_settings 合并或更新已有条目。",
+                }
+              }
               await db.insert(WorldEntryTable).values({
                 id: newId,
                 novel_id: row.novel_id,
                 category: "地点",
-                title: String(payload.name ?? row.display_title),
+                title: locName,
                 content: String(payload.description ?? ""),
               } as any)
               createdId = newId
@@ -1927,6 +2008,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
           if (rows.some((r) => r.status !== "pending")) {
             return { title: "merge_pending_settings", output: `存在非 pending 状态的候选，不可合并` }
+          }
+          const novelIds = new Set(rows.map((r) => r.novel_id))
+          if (novelIds.size > 1) {
+            return { title: "merge_pending_settings", output: `候选分属不同小说，不可跨书合并` }
           }
           // 解析所有 payload，合并字段
           const payloads = rows.map((r) => {
@@ -3839,6 +3924,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             write_chapter: "allow",
             revise_chapter: "allow",
             manage_characters: "allow",
+            recall_history: "allow",
             save_novel_settings: "allow",
             create_relationship: "allow",
             check_relationships: "allow",
@@ -3918,6 +4004,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             write_chapter: "allow",
             revise_chapter: "allow",
             manage_characters: "allow",
+            recall_history: "allow",
           },
         },
         // observer: subagent，由 pipeline 调度，从章节正文提取状态变更
@@ -3931,6 +4018,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             glob: "allow",
             grep: "allow",
             read_chapter_content: "allow",
+            recall_history: "allow",
           },
         },
         // reflector: subagent，由 pipeline 调度，校验 observer 输出的 delta
@@ -3951,6 +4039,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             glob: "allow",
             grep: "allow",
             read_chapter_content: "allow",
+            recall_history: "allow",
             submit_chapter_review: "allow",
           },
         },

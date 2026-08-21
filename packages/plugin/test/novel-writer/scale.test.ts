@@ -179,6 +179,13 @@ function generateMockData(chapterCount: number): ContextPacket {
     styleGuide,
     genreRules,
     worldEntries: [],
+    worldEntryIndex: [],
+    recalledHistory: [],
+    volumeList: [],
+    relationships: [],
+    chapterOutline: null,
+    prevChapterTail: null,
+    targetWordCount: 2500,
   }
 }
 
@@ -798,6 +805,13 @@ describe("规模测试 — 审计矛盾检测", () => {
       },
       genreRules: ["规则1"],
       worldEntries: [],
+      worldEntryIndex: [],
+      recalledHistory: [],
+      volumeList: [],
+      relationships: [],
+      chapterOutline: null,
+      prevChapterTail: null,
+      targetWordCount: 2500,
     }
 
     const result = auditContradictions(cleanPacket, 10)

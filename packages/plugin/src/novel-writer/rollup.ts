@@ -399,6 +399,9 @@ export async function getEffectiveContext(
 
     prevChapterTail,
     targetWordCount,
+    worldEntryIndex: [],
+    recalledHistory: [],
+    chapterOutline: null,
   }
 }
 
