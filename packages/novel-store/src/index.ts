@@ -541,6 +541,53 @@ export const OutlineCanvasLayoutTable = sqliteTable("outline_canvas_layout", {
   updated_at: integer().notNull().$default(() => Date.now()),
 })
 
+export const TechniqueTable = sqliteTable("techniques", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  principle: text().notNull(),
+  instruction: text().notNull(),
+  scene_types: text().notNull().default("[]"),
+  level: text().notNull(),
+  evidence: text().notNull().default("[]"),
+  common_misuse: text().notNull().default(""),
+  confidence: real().notNull().default(0.5),
+  status: text().notNull().default("unverified"),
+  embedding: text(),
+  usage_count: integer().notNull().default(0),
+  last_used_at: integer(),
+  created_at: integer().notNull().$default(() => Date.now()),
+  updated_at: integer().notNull().$default(() => Date.now()),
+}, (table) => [
+  index("technique_status_idx").on(table.status),
+  index("technique_level_idx").on(table.level),
+])
+
+export const TechniqueFeedbackTable = sqliteTable("technique_feedback", {
+  id: text().primaryKey(),
+  technique_id: text().notNull(),
+  chapter_id: text().notNull(),
+  score: real().notNull(),
+  was_used: integer().notNull().default(0),
+  comment: text().notNull().default(""),
+  created_at: integer().notNull().$default(() => Date.now()),
+}, (table) => [
+  index("technique_feedback_technique_id_idx").on(table.technique_id),
+  index("technique_feedback_chapter_id_idx").on(table.chapter_id),
+])
+
+export const TechniqueShadowLogTable = sqliteTable("technique_shadow_log", {
+  id: text().primaryKey(),
+  novel_id: text().notNull(),
+  chapter_number: integer().notNull(),
+  scene_type: text().notNull(),
+  query_text: text().notNull().default(""),
+  retrieved_technique_ids: text().notNull().default("[]"),
+  retrieved_technique_names: text().notNull().default("[]"),
+  created_at: integer().notNull().$default(() => Date.now()),
+}, (table) => [
+  index("technique_shadow_log_novel_id_idx").on(table.novel_id),
+])
+
 
 // ─── DB 路径解析 ───
 
@@ -621,7 +668,15 @@ FROM chapter_summaries s
 JOIN chapters c ON c.id = s.chapter_id
 WHERE NOT EXISTS (
   SELECT 1 FROM chapter_summary_fts f WHERE f.novel_id = c.novel_id AND f.chapter_id = s.chapter_id
-);`
+);
+CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, created_at integer NOT NULL, updated_at integer NOT NULL);
+CREATE INDEX IF NOT EXISTS technique_status_idx ON techniques(status);
+CREATE INDEX IF NOT EXISTS technique_level_idx ON techniques(level);
+CREATE TABLE IF NOT EXISTS technique_feedback (id text PRIMARY KEY, technique_id text NOT NULL, chapter_id text NOT NULL, score real NOT NULL, was_used integer DEFAULT 0 NOT NULL, comment text DEFAULT '' NOT NULL, created_at integer NOT NULL);
+CREATE INDEX IF NOT EXISTS technique_feedback_technique_id_idx ON technique_feedback(technique_id);
+CREATE INDEX IF NOT EXISTS technique_feedback_chapter_id_idx ON technique_feedback(chapter_id);
+CREATE TABLE IF NOT EXISTS technique_shadow_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, scene_type text NOT NULL, query_text text DEFAULT '' NOT NULL, retrieved_technique_ids text DEFAULT '[]' NOT NULL, retrieved_technique_names text DEFAULT '[]' NOT NULL, created_at integer NOT NULL);
+CREATE INDEX IF NOT EXISTS technique_shadow_log_novel_id_idx ON technique_shadow_log(novel_id);`
 
 // ─── DB 连接缓存 ───
 
