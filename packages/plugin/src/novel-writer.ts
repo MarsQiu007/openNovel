@@ -4297,6 +4297,37 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+
+      record_technique_feedback: tool({
+        description:
+          "记录写作技法的使用反馈（auditor 专用）。对 shadow-mode 检索到的技法，评估其在本章是否被有效运用，并给出评分。",
+        args: {
+          technique_id: tool.schema.string().describe("技法 ID"),
+          chapter_id: tool.schema.string().describe("章节 ID"),
+          score: tool.schema.number().describe("技法运用效果评分 0-1，1 为效果显著"),
+          was_used: tool.schema.boolean().describe("技法是否在正文中被实际运用"),
+          comment: tool.schema.string().describe("评语（可为空字符串）"),
+        },
+        async execute(args, ctx) {
+          const { recordFeedback, updateConfidenceFromFeedback } = await import("./novel-writer/technique-store.js")
+          await recordFeedback(
+            {
+              techniqueId: args.technique_id,
+              chapterId: args.chapter_id,
+              score: Math.max(0, Math.min(1, args.score)),
+              wasUsed: args.was_used,
+              comment: args.comment,
+              createdAt: Date.now(),
+            },
+            ctx.directory,
+          )
+          await updateConfidenceFromFeedback(args.technique_id, ctx.directory)
+          return {
+            title: "record_technique_feedback",
+            output: `已记录技法 ${args.technique_id.slice(0, 8)} 反馈（score=${args.score}）`,
+          }
+        },
+      }),
     },
 
     /**
@@ -4381,6 +4412,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             task: "allow",
             read_chapter_outline: "allow",
             assemble_context_snapshot: "allow",
+            record_technique_feedback: "allow",
             check_continuity: "allow",
             check_settings_consistency: "allow",
             validate_state_delta: "allow",
@@ -4444,6 +4476,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             read_chapter_content: "allow",
             recall_history: "allow",
             submit_chapter_review: "allow",
+            record_technique_feedback: "allow",
           },
         },
         // reviser: subagent，由 pipeline 调度，修正 auditor 发现的章节问题

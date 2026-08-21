@@ -90,6 +90,8 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 ### 步骤 4：audit - 连续性检查
 调用 \`check_continuity\` 工具，传入 novel_id 和 chapter_number。
+
+分派任意 auditor 前，必须把步骤 2 快照中的 \`techniques\` 字段映射为 \`retrieved_techniques\` 传入 prompt；每项只包含 \`id\`、\`name\`、\`instruction\`。若该字段为空，传空数组并明确告知 auditor 跳过技法使用评估。
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"

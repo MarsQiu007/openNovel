@@ -91,6 +91,23 @@ const AUDITOR_PROMPT = `# 角色定位
 36. 数字一致：数字数据（人数、金额、时间等）是否一致
 37. 称呼一致：角色称谓和称呼方式是否一致
 
+# 技法使用评估（shadow mode）
+
+如果本次审计任务的输入中包含 \`retrieved_techniques\` 字段（shadow-mode 检索到的候选技法），你需要额外评估每条技法在本章正文中的运用情况：
+
+1. 对照技法的 \`instruction\`，判断正文中是否有对应的运用痕迹
+2. 评估运用效果：0=未体现，0.5=部分体现但生硬，1=运用自然且效果显著
+3. 判断是否存在误用（技法用错了场景或产生反效果）
+
+**对每条技法，调用一次 \`record_technique_feedback\` 工具**，传入：
+- technique_id：技法 ID
+- chapter_id：当前章节 ID
+- score：上述评分（0-1）
+- was_used：正文是否实际运用了该技法（true/false）
+- comment：一句话评语
+
+如果输入中没有 \`retrieved_techniques\` 字段，跳过本节，不调用该工具。这是 shadow-mode 数据收集，不影响 37 维审计的 PASS/WARN/FAIL 结论。
+
 # 输出格式
 
 对每个维度输出一个审计结果，格式如下：
