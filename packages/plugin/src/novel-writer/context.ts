@@ -400,6 +400,33 @@ export async function assembleSnapshot(
   const parsedTarget = Number(rawTarget)
   const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : null
 
+  // ── P7: 技法检索（shadow mode - 只记录，不注入 writer prompt） ──
+  let techniques: RetrievedTechnique[] = []
+  try {
+    const { queryTechniques, recordShadowLog } = await import("./technique-store.js")
+    const sceneType = inferSceneType(currentChapter?.title ?? "", novel.synopsis)
+    techniques = await queryTechniques({ sceneType, contextText: currentChapter?.title ?? "", limit: 5 }, directory)
+
+    if (techniques.length > 0) {
+      await recordShadowLog(
+        {
+          id: `shadow_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          novelId,
+          chapterNumber,
+          sceneType,
+          queryText: (currentChapter?.title ?? "").slice(0, 200),
+          retrievedTechniqueIds: techniques.map((t) => t.entry.id),
+          retrievedTechniqueNames: techniques.map((t) => t.entry.name),
+          createdAt: Date.now(),
+        },
+        directory,
+      )
+    }
+  } catch {
+    // 技法库不可用时静默降级，不影响正常写作
+    techniques = []
+  }
+
   return {
     novelTitle: novel.title,
     genre: novel.genre,
@@ -453,8 +480,19 @@ export async function assembleSnapshot(
 
     prevChapterTail,
     targetWordCount,
-    techniques: [],
+    techniques,
   }
+}
+
+function inferSceneType(chapterTitle: string, synopsis: string): string {
+  const text = `${chapterTitle} ${synopsis}`
+  if (/战斗|冲突|对决|打斗|交战/.test(text)) return "action"
+  if (/对话|谈判|交谈|质问/.test(text)) return "dialogue"
+  if (/描写|环境|风景|氛围/.test(text)) return "description"
+  if (/悬念|谜团|线索|伏笔/.test(text)) return "suspense"
+  if (/情感|回忆|内心|情绪/.test(text)) return "emotion_shift"
+  if (/过渡|转场|时间流逝/.test(text)) return "transition"
+  return "general"
 }
 
 /**

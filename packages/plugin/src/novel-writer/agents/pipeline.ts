@@ -72,6 +72,11 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 失败 -> 停止，报告"无法组装上下文快照"
 - 成功 -> 进入步骤 3
 
+### 步骤 2.5：技法检索报告（shadow mode）
+如果步骤 2 返回的快照中 \`techniques\` 字段非空，在 dispatch writer 之前输出一行报告：
+"技法检索(shadow): N 条技法候选 - [名称1, 名称2, ...]"
+但**不要**将这些技法内容注入 writer prompt。这是 shadow mode 阶段，仅用于验证检索质量。如果 \`techniques\` 为空，静默进入步骤 3。
+
 ### 步骤 3：write - 调用 writer agent 生成正文
 通过 task 工具 dispatch @writer 子 agent：
 - subagent_type: "writer"
