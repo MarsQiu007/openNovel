@@ -111,6 +111,41 @@ export async function recordShadowLog(log: ShadowLogEntry, directory?: string | 
   })
 }
 
+export async function updateConfidenceFromFeedback(
+  techniqueId: string,
+  directory?: string | null,
+): Promise<void> {
+  const db = getDb(directory)
+  const [technique] = await db
+    .select()
+    .from(TechniqueTable)
+    .where(eq(TechniqueTable.id, techniqueId))
+    .all()
+  if (!technique) return
+
+  const feedbacks = await db
+    .select()
+    .from(TechniqueFeedbackTable)
+    .where(eq(TechniqueFeedbackTable.technique_id, techniqueId))
+    .all()
+  if (feedbacks.length === 0) return
+
+  const avgScore = feedbacks.reduce((sum, f) => sum + f.score, 0) / feedbacks.length
+  // 贝叶斯加权：先验权重随反馈量递减，反馈越多越主导
+  const priorWeight = Math.max(1, 5 - feedbacks.length)
+  const newConfidence = Math.min(
+    1,
+    Math.max(0, (technique.confidence * priorWeight + avgScore * feedbacks.length) / (priorWeight + feedbacks.length)),
+  )
+  const newStatus =
+    newConfidence >= 0.75 && feedbacks.length >= 5 ? "verified" : technique.status
+
+  await db
+    .update(TechniqueTable)
+    .set({ confidence: newConfidence, status: newStatus, updated_at: Date.now() })
+    .where(eq(TechniqueTable.id, techniqueId))
+}
+
 function rowToEntry(row: typeof TechniqueTable.$inferSelect): TechniqueEntry {
   return {
     id: row.id,

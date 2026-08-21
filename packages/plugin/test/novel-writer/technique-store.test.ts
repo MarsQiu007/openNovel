@@ -9,6 +9,7 @@ import {
   updateTechniqueStatus,
   recordFeedback,
   recordShadowLog,
+  updateConfidenceFromFeedback,
 } from "../../src/novel-writer/technique-store.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-test-"))
@@ -129,5 +130,31 @@ describe("technique store", () => {
       },
       testDir,
     )
+  })
+
+  test("positive feedback increases confidence", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    const base = Date.now()
+    for (let i = 0; i < 5; i++) {
+      await recordFeedback(
+        { techniqueId: entry.id, chapterId: `ch${i}`, score: 0.9, wasUsed: true, comment: "", createdAt: base + i },
+        testDir,
+      )
+    }
+    await updateConfidenceFromFeedback(entry.id, testDir)
+    const results = await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)
+    const found = results.find((r) => r.entry.id === entry.id)
+    expect(found?.entry.confidence).toBeGreaterThan(0.5)
+    expect(found?.entry.status).toBe("verified")
+  })
+
+  test("no feedback leaves confidence unchanged", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    await updateConfidenceFromFeedback(entry.id, testDir)
+    const results = await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)
+    const found = results.find((r) => r.entry.id === entry.id)
+    expect(found?.entry.confidence).toBe(0.5)
   })
 })
