@@ -15,9 +15,10 @@ const novelKeys = {
 /**
  * Subscribes to existing directory SSE events and invalidates novel query keys.
  *
- * - `session.status` for a bound session → immediate invalidation of chapters/detail/tension/outline
- * - `message.part.updated` → 5s debounce then batch invalidate
- * - Active (busy/retry) bound sessions → 15s polling on chapter (approval) queries
+ * - `session.status` for a bound session → immediate broad invalidation (角色/世界观/弧光/章节列表等)
+ * - `message.part.updated` → 5s debounce then broad invalidate
+ * - Active (busy/retry) bound sessions → 15s polling broad invalidation
+ * - 单章正文/版本/批注不在实时失效范围内，挂载时自行刷新
  */
 export function useNovelLiveInvalidation(directory: string, novelID: string) {
   const serverSDK = useServerSDK()
@@ -26,11 +27,25 @@ export function useNovelLiveInvalidation(directory: string, novelID: string) {
 
   // ---- helpers ----
 
+  // 失效本小说下的查询。AI 在写作过程中可能改动角色、世界观、伏笔、
+  // 结构线/弧光、关系等任意实体，只失效少量 key 会导致这些面板停留在旧数据。
+  // 用 predicate 覆盖所有 ["novel", *, directory, novelID, ...] 形态的 key；
+  // 但排除单章正文/版本/批注这类 per-chapter 查询——它们会在对应面板挂载时
+  // 凭借 refetchOnMount 拉取最新数据，实时失效可能覆盖编辑器里未保存的改动。
+  const EXCLUDED_LIVE = new Set(["chapter", "chapter-versions", "chapter-reviews", "annotations"])
   const invalidateNovel = () => {
-    queryClient.invalidateQueries({ queryKey: novelKeys.detail(directory, novelID) })
-    queryClient.invalidateQueries({ queryKey: novelKeys.chapters(directory, novelID) })
-    queryClient.invalidateQueries({ queryKey: novelKeys.outline(directory, novelID) })
-    queryClient.invalidateQueries({ queryKey: novelKeys.tension(directory, novelID) })
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey
+        return (
+          Array.isArray(key) &&
+          key[0] === "novel" &&
+          !EXCLUDED_LIVE.has(String(key[1])) &&
+          key.includes(directory) &&
+          key.includes(novelID)
+        )
+      },
+    })
   }
 
   // ---- message.part.updated: 5s debounce ----
@@ -53,7 +68,7 @@ export function useNovelLiveInvalidation(directory: string, novelID: string) {
   const startPolling = () => {
     if (pollTimer) return
     pollTimer = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: novelKeys.chapters(directory, novelID) })
+      invalidateNovel()
     }, 15000)
   }
 

@@ -272,7 +272,7 @@ function QueryProvider(props: ParentProps) {
     defaultOptions: {
       queries: {
         refetchOnReconnect: false,
-        refetchOnMount: false,
+        refetchOnMount: true,
         refetchOnWindowFocus: false,
       },
     },
