@@ -4631,6 +4631,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: directorAgentConfig.mode,
           prompt: directorAgentConfig.systemPrompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4672,6 +4673,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: architectAgent.mode,
           prompt: architectAgent.systemPrompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4692,6 +4694,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: pipelineAgentConfig.mode,
           prompt: pipelineAgentConfig.systemPrompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4719,6 +4722,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: writerAgentConfig.mode,
           prompt: writerAgentConfig.systemPrompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4735,6 +4739,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: observerAgent.mode,
           prompt: observerAgent.prompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4748,7 +4753,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           description: reflectorAgent.description,
           mode: reflectorAgent.mode,
           prompt: reflectorAgent.prompt,
-          permission: {},
+          permission: {
+            "*": "allow",
+          },
         },
         // auditor: subagent，由 pipeline 调度，37 维 LLM 深度审计
         auditor: {
@@ -4756,6 +4763,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: auditorAgent.mode,
           prompt: auditorAgent.prompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
@@ -4772,6 +4780,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           mode: reviserAgent.mode,
           prompt: reviserAgent.prompt,
           permission: {
+            "*": "allow",
             read: "allow",
             list: "allow",
             glob: "allow",
