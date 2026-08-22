@@ -123,7 +123,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 1. 通过 task 工具 dispatch @observer 子 agent：
    - subagent_type: "observer"
    - description: "提取第X章状态变更"
-   - prompt: 传入 novel_id 和 chapter_id，指示 observer 调用 read_chapter_content 工具读取章节正文，提取 10 种事实类型（含张力评分）的变更，输出 delta JSON
+   - prompt: 传入 novel_id 和 chapter_id，指示 observer 先调用 read_chapter_content 读取章节正文、list_story_arcs 读取已有弧光，然后：① 提取 10 种事实类型（含张力评分）的变更，输出 delta JSON；② 维护结构线/弧光进度——把本章落地的计划外进展补成节点、发现新弧光时创建弧光与起始节点（详见 observer 系统提示第 11 节）。弧光通过 plan_story_arc/record_arc_beat 工具直接落库，不进 delta JSON。
 2. observer 返回 delta JSON 后，通过 task 工具 dispatch @reflector 子 agent：
    - subagent_type: "reflector"
    - description: "校验状态变更"

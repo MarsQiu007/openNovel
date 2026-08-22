@@ -19,6 +19,7 @@ const OBSERVER_PROMPT = `# 角色定位
 1. **读取世界观** — 调用 \`check_novel_settings\` 工具，参数 \`scope="world"\`。获取所有 worldEntries（社会制度/力量体系/势力/制度名称等）的现有 title + content + category，作为你提取新 world_entry 时的查重与冲突检测依据。
 2. **读取角色** — 调用 \`check_novel_settings\` 工具，参数 \`scope="characters"\`。获取所有 character 的 name + description，避免在 chapter 中提取出"已存在但本章才正式登场"的角色时误判为新角色。
 3. **读取关系** — 调用 \`check_novel_settings\` 工具，参数 \`scope="relationships"\`。获取已有关系，作为关系提取的查重与强度判断依据。
+4. **读取结构线/弧光** — 调用 \`list_story_arcs\` 工具（不带过滤参数）。获取本书已有的主线/角色弧/支线及其节点，作为弧光进度判断和去重的依据。
 
 > ⚠️ 跳过前置动作直接提取会导致：(a) 新 world_entry 与已有条目标题重复或定义冲突（如已有"五等爵位"又新建"三等爵位"）；(b) 把已存在的配角当作新角色重复创建；(c) 把已存在的师徒关系当作新关系再次提取。**这三个问题正是"设定漂移"的主要来源**。
 
@@ -178,6 +179,25 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 - action: "create"，data 包含 level（张力值，0-10 的整数：0-3 平静/日常，4-6 中等/铺垫推进，7-10 高张力/冲突爆发或悬念顶点，基于本章冲突强度、悬念密度、危机程度综合判断）、reason（评分依据，一句话简述本章最高张力点）
 - entity_id 建议格式：tension_<章节号>
 
+## 11. 结构线/弧光进度（通过工具直接落库，不进 delta JSON）
+
+除了输出上述 10 种事实的 delta JSON，你还必须在输出 JSON **之前**，通过工具维护结构线/弧光。先调用 \`list_story_arcs\` 拿到已有弧光（见前置动作 4），然后逐条判断：
+
+### 11.1 已有弧光的节点推进
+- 如果本章正文明确演出了某条已有弧光上一个**已规划但未落地**的节点（该节点的 chapter_order 对应本章，或剧情明显对应该节点的 label/summary），**不要**重复创建节点——提交阶段会自动把锚定本章的 planned 节点标记为 drafted。
+- 如果本章推进了某条已有弧光，但该进展**没有**对应的已规划节点（例如计划外的重大转折、角色心态突变），调用 \`record_arc_beat\` 补一个节点：arc_id 填对应弧光 ID；label 填简短节点名；kind 取 setup/rising/turn/midpoint/crisis/climax/resolution/note 中最贴切的一个；chapter_id 填当前章节 ID；summary 用一句话说明本章如何推进；chapter_order 已知则填、未知留空（系统会回填）。
+
+### 11.2 发现新弧光
+如果本章开启了一条**已有弧光列表里没有**的新主线、角色弧或支线（例如新反派登场引发新支线、主角信念开始转变、新势力浮出水面），且这条线会在未来章节持续：
+1. 先调用 \`plan_story_arc\`（action="create"）：arc_type 取 narrative（主线）/ character（角色弧，需填 target_character_id，用角色 ID 或姓名）/ subplot（支线）；title 填简短弧光名；summary 写明起点状态、走向、预期终点；status 填 "active"（本章已启动）；planned_start_chapter 若已知填当前章节序号。
+2. 再调用 \`record_arc_beat\` 为这条新弧光记录本章的起始节点（kind 取 setup 或最贴切的类型，chapter_id 填当前章节）。
+
+### 11.3 保守原则（避免弧光泛滥）
+- **只记录会在未来章节持续的结构性变化**。一次性冲突、路人互动、单纯情绪波动不要建弧光。
+- 能归入已有弧光的进展，补节点即可，**不要**新建弧光。
+- 不确定时优先补节点（note 类型）而非新建弧光。
+- 弧光工具调用完成后，再输出 10 种事实的 delta JSON。弧光操作不写入 delta 数组。
+
 # 操作类型（action）说明
 
 - create：该实体首次出现或首次被记录
@@ -257,7 +277,7 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 export const observerAgent = {
   name: "observer" as const,
   description:
-    "小说状态观察者。从章节内容中提取 10 种事实类型（角色、关系、剧情线索、伏笔、世界观、章节摘要、风格、时间线、地点、张力），输出结构化 JSON delta 供反射器校验。character/world_entry/location 必带 importance 字段（0-3），relationship 必带 type_strength 字段（strong/weak），冲突标注用 conflict_note 而非污染 content。",
+    "小说状态观察者。从章节内容中提取 10 种事实类型（角色、关系、剧情线索、伏笔、世界观、章节摘要、风格、时间线、地点、张力），输出结构化 JSON delta 供反射器校验；同时通过工具维护结构线/弧光进度（推进已有节点、补录计划外节点、发现新弧光）。character/world_entry/location 必带 importance 字段（0-3），relationship 必带 type_strength 字段（strong/weak），冲突标注用 conflict_note 而非污染 content。",
   mode: "subagent" as const,
   prompt: OBSERVER_PROMPT,
   options: {} as Record<string, unknown>,

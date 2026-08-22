@@ -44,6 +44,7 @@ import {
   listDescriptionHistory,
   restoreDescription,
 } from "./novel-writer/state-commit.js"
+import { syncArcProgress } from "./novel-writer/arc-progress.js"
 import {
   getDb,
   NovelTable,
@@ -1811,10 +1812,19 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             if (report.discarded > 0) {
               lines.push(`\n🗑️ 临时提及 ${report.discarded} 条（importance=0，不入库）`)
             }
+            // 结构线/弧光进度同步：把锚定本章的节点标记为已写，更新弧光实际区间/状态
+            const arcProgress = await syncArcProgress(db, novelId, args.chapter_id)
+            if (arcProgress.beatsDrafted > 0) {
+              lines.push(`\n🎬 弧光进度：${arcProgress.beatsDrafted} 个节点已落地`)
+              if (arcProgress.arcsStarted.length > 0)
+                lines.push(`  启动：${arcProgress.arcsStarted.join("、")}`)
+              if (arcProgress.arcsCompleted.length > 0)
+                lines.push(`  完结：${arcProgress.arcsCompleted.join("、")}`)
+            }
             return {
               title: "commit_observer_delta",
               output: lines.join("\n"),
-              metadata: report,
+              metadata: { ...report, arcProgress },
             }
           } catch (err) {
             return {
