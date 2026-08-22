@@ -475,7 +475,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
-          // 字数校验：低于目标字数或超过目标 130% 均拒绝写入，强制 writer 补足/精简后再提交
+          // 字数校验：下限为硬性要求（低于目标拒绝写入），上限不做硬性截断——
+          // 场景需要时允许超出目标字数，但内容必须扎实，不得用废话/重复描写凑字数。
           const target = await getTargetWordCount(db, chapter.novel_id)
           const wordCount = countWords(args.content)
           if (wordCount < target) {
@@ -483,14 +484,6 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               title: "write_chapter（字数不达标）",
               output: `字数不足：当前 ${wordCount} 字，本章目标至少 ${target} 字，还差 ${target - wordCount} 字。请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容。`,
               metadata: { rejected: true, reason: "too_short", word_count: wordCount, target },
-            }
-          }
-          const maxWords = Math.ceil(target * 1.3)
-          if (wordCount > maxWords) {
-            return {
-              title: "write_chapter（字数超限）",
-              output: `字数超限：当前 ${wordCount} 字，本章目标 ${target} 字，最多允许 ${maxWords} 字。请精简后重新调用 write_chapter。`,
-              metadata: { rejected: true, reason: "too_long", word_count: wordCount, target },
             }
           }
 
@@ -565,7 +558,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
-          // 修订后仍需满足字数要求，防止修订把章节字数改少
+          // 修订后仍需满足字数下限，防止修订把章节字数改少；上限不做硬性截断
           const target = await getTargetWordCount(db, chapter.novel_id)
           const wordCount = countWords(args.revision)
           if (wordCount < target) {
@@ -573,14 +566,6 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               title: "revise_chapter（字数不达标）",
               output: `修订后字数不足：当前 ${wordCount} 字，本章目标至少 ${target} 字，还差 ${target - wordCount} 字。请在修订内容中补足字数后重新调用 revise_chapter。`,
               metadata: { rejected: true, reason: "too_short", word_count: wordCount, target },
-            }
-          }
-          const maxWords = Math.ceil(target * 1.3)
-          if (wordCount > maxWords) {
-            return {
-              title: "revise_chapter（字数超限）",
-              output: `修订后字数超限：当前 ${wordCount} 字，本章目标 ${target} 字，最多允许 ${maxWords} 字。请精简后重新调用 revise_chapter。`,
-              metadata: { rejected: true, reason: "too_long", word_count: wordCount, target },
             }
           }
 
