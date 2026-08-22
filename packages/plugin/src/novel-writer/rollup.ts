@@ -23,7 +23,7 @@ import {
   ForeshadowingTable,
   StyleGuideTable,
 } from "./session-store.js"
-import { parseStyleRules, type ContextPacket, type ActiveCharacter, type ChapterSummaryItem } from "./context.js"
+import { parseStyleRules, loadActiveArcs, type ContextPacket, type ActiveCharacter, type ChapterSummaryItem } from "./context.js"
 
 // ─── 题材 → 文件模块名映射 ───
 
@@ -342,6 +342,10 @@ export async function getEffectiveContext(
     .where(eq(ForeshadowingTable.novel_id, novelId))
     .all()
 
+  // ── P3b: 当前章节相关的结构线/弧光 ──
+  const charIdToName = new Map(characters.map((c) => [c.id, c.name]))
+  const activeArcs = await loadActiveArcs(db, novelId, chapterNumber, charIdToName)
+
   // ── P4: 风格指南 + 题材规则 ──
   const [styleGuideRow] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
 
@@ -396,6 +400,7 @@ export async function getEffectiveContext(
     worldEntries: [],
     volumeList: [],
     relationships: [],
+    activeArcs,
 
     prevChapterTail,
     targetWordCount,

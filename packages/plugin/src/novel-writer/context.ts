@@ -27,6 +27,8 @@ import {
   VolumeSummaryTable,
   StyleGuideTable,
   WorldEntryTable,
+  StoryArcTable,
+  ArcBeatTable,
 } from "./session-store.js"
 
 /**
@@ -161,6 +163,28 @@ export type RelationshipSummary = {
   charBName: string
 }
 
+/** 弧光节点摘要 */
+export type ArcBeatSummary = {
+  label: string
+  kind: string
+  status: string
+  chapterOrder: number | null
+  summary: string
+}
+
+/** 结构线/弧光摘要 */
+export type StoryArcSummary = {
+  id: string
+  arcType: string
+  title: string
+  summary: string
+  status: string
+  targetCharacterName: string | null
+  plannedStartChapter: number | null
+  plannedEndChapter: number | null
+  beats: ArcBeatSummary[]
+}
+
 /** 风格指南信息 */
 export type StyleGuideInfo = {
   /** 写作风格规则（JSON 对象） */
@@ -203,6 +227,9 @@ export type ContextPacket = {
   /** P3: 剧情线索 + 伏笔 */
   plotThreads: PlotThreadSummary[]
   foreshadowing: ForeshadowingSummary[]
+
+  /** P3b: 当前章节相关的结构线/弧光及其节点 */
+  activeArcs: StoryArcSummary[]
 
   /** P4: 风格指南 + 题材规则 */
   styleGuide: StyleGuideInfo | null
@@ -247,6 +274,72 @@ const GENRE_MODULE_MAP: Record<string, string> = {
 }
 
 // ─── 导出函数 ───
+
+/**
+ * 加载当前章节相关的结构线/弧光及其节点。
+ *
+ * 选取 active/planned 且章节区间覆盖本章附近的弧光，并携带本章前后窗口内的节点。
+ * completed/abandoned 的弧光不再注入写作上下文。
+ */
+export async function loadActiveArcs(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  chapterNumber: number,
+  charIdToName: Map<string, string>,
+): Promise<StoryArcSummary[]> {
+  const allArcs = await db
+    .select()
+    .from(StoryArcTable)
+    .where(eq(StoryArcTable.novel_id, novelId))
+    .all()
+  const allBeats = await db
+    .select()
+    .from(ArcBeatTable)
+    .where(eq(ArcBeatTable.novel_id, novelId))
+    .all()
+  const beatsByArc = new Map<string, typeof allBeats[number][]>()
+  for (const beat of allBeats) {
+    const list = beatsByArc.get(beat.arc_id) ?? []
+    list.push(beat)
+    beatsByArc.set(beat.arc_id, list)
+  }
+  return allArcs
+    .filter((arc) => {
+      if (arc.status === "completed" || arc.status === "abandoned") return false
+      const start = arc.planned_start_chapter ?? arc.actual_start_chapter
+      const end = arc.planned_end_chapter ?? arc.actual_end_chapter
+      if (start == null && end == null) return true
+      if (start == null) return chapterNumber <= (end ?? chapterNumber) + 3
+      if (end == null) return chapterNumber >= start - 3
+      return chapterNumber >= start - 3 && chapterNumber <= end + 3
+    })
+    .map((arc) => {
+      const beats = (beatsByArc.get(arc.id) ?? [])
+        .filter((b) => {
+          if (b.chapter_order == null) return true
+          return b.chapter_order >= chapterNumber - 3 && b.chapter_order <= chapterNumber + 5
+        })
+        .sort((a, b) => (a.chapter_order ?? 0) - (b.chapter_order ?? 0))
+        .map((b) => ({
+          label: b.label,
+          kind: b.kind,
+          status: b.status,
+          chapterOrder: b.chapter_order,
+          summary: b.summary,
+        }))
+      return {
+        id: arc.id,
+        arcType: arc.arc_type,
+        title: arc.title,
+        summary: arc.summary,
+        status: arc.status,
+        targetCharacterName: arc.target_character_id ? charIdToName.get(arc.target_character_id) ?? null : null,
+        plannedStartChapter: arc.planned_start_chapter,
+        plannedEndChapter: arc.planned_end_chapter,
+        beats,
+      }
+    })
+}
 
 /**
  * 组装小说上下文快照
@@ -382,6 +475,9 @@ export async function assembleSnapshot(
     charBName: charIdToName.get(r.char_b_id) ?? "(未知角色)",
   }))
 
+  // ── P3b: 当前章节相关的结构线/弧光 ──
+  const activeArcs = await loadActiveArcs(db, novelId, chapterNumber, charIdToName)
+
   // ── P4: 风格指南 + 题材规则 ──
   const [styleGuideRow] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
 
@@ -474,6 +570,7 @@ export async function assembleSnapshot(
       summary: v.summary,
     })),
     relationships,
+    activeArcs,
     worldEntryIndex: [],
     recalledHistory: [],
     chapterOutline: null,

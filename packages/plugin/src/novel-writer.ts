@@ -11,7 +11,7 @@ import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 import { eq, desc, and, asc, lt, sql, inArray } from "drizzle-orm"
 import { join, dirname } from "path"
-import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
+import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
 import { stringifyRules } from "./novel-writer/state-commit.js"
@@ -207,6 +207,32 @@ async function injectSoul(
  * 系统提示注入逻辑。从 hook 中提取出来，便于 hook 层捕获 DB 异常后降级：
  * 小说库 schema 损坏等问题不应阻断整条消息，仅跳过上下文注入。
  */
+function formatActiveArcs(arcs: StoryArcSummary[]): string[] {
+  if (arcs.length === 0) return []
+  const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
+  const beatLabel: Record<string, string> = {
+    setup: "开场", rising: "升温", turn: "转折", midpoint: "中点",
+    crisis: "危机", climax: "高潮", resolution: "结局", note: "备注",
+  }
+  const lines: string[] = ["【结构线/弧光 — 本章需推进】"]
+  for (const arc of arcs) {
+    const range =
+      arc.plannedStartChapter != null || arc.plannedEndChapter != null
+        ? `（规划 ${arc.plannedStartChapter ?? "?"}-${arc.plannedEndChapter ?? "?"} 章）`
+        : ""
+    const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
+    lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}${range}：${arc.summary || "（无摘要）"}`)
+    for (const b of arc.beats) {
+      const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
+      const status = b.status === "drafted" || b.status === "reviewed" ? "已写" : "待写"
+      lines.push(`    · [${beatLabel[b.kind] ?? b.kind}/${status}] ${ch} ${b.label}${b.summary ? `：${b.summary}` : ""}`)
+    }
+  }
+  lines.push("（以上节点为当前章节窗口内的结构目标；待写节点请在正文中自然推进，已写节点注意承接，勿重复演出）")
+  lines.push("")
+  return lines
+}
+
 async function injectSystemContext(sessionId: string, directory: string | null | undefined, system: string[]) {
   // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
   const novelId = await resolveNovelForSession(sessionId, directory)
@@ -281,6 +307,8 @@ async function injectSystemContext(sessionId: string, directory: string | null |
     }
     lines.push("")
   }
+
+  lines.push(...formatActiveArcs(snapshot.activeArcs))
 
   if (snapshot.styleGuide) {
     lines.push("【风格指南】")
@@ -933,6 +961,23 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (snapshot.foreshadowing.length > 0) {
             lines.push("伏笔：")
             for (const f of snapshot.foreshadowing) lines.push(`- [${f.id}] ${f.content}（${f.state}）`)
+          }
+          if (snapshot.activeArcs.length > 0) {
+            lines.push("")
+            lines.push("═══ 结构线/弧光（本章需推进）═══")
+            const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
+            const beatLabel: Record<string, string> = {
+              setup: "开场", rising: "升温", turn: "转折", midpoint: "中点",
+              crisis: "危机", climax: "高潮", resolution: "结局", note: "备注",
+            }
+            for (const arc of snapshot.activeArcs) {
+              const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
+              lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}：${arc.summary || "（无摘要）"}`)
+              for (const b of arc.beats) {
+                const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
+                lines.push(`    · [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
+              }
+            }
           }
           if (snapshot.styleGuide) {
             lines.push(
@@ -3922,6 +3967,55 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             args.field,
             args.value,
           )
+        },
+      }),
+
+      list_story_arcs: tool({
+        description:
+          "列出本书所有结构线/弧光（主线/角色弧/支线）及其节点。写作前用此工具确认当前章节应推进哪些弧光、落在哪些节点。可按 status 或 arc_type 过滤。",
+        args: {
+          status: tool.schema
+            .enum(["planned", "active", "completed", "abandoned"])
+            .optional()
+            .describe("按状态过滤，默认返回未完成的 planned/active"),
+          arc_type: tool.schema
+            .enum(["narrative", "character", "subplot"])
+            .optional()
+            .describe("按类型过滤"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "list_story_arcs", output: "未找到当前小说项目" }
+          const allArcs = await listStoryArcs(novelId, ctx.directory)
+          const arcs = allArcs.filter(
+            (a) =>
+              (!args.status ? a.status !== "completed" && a.status !== "abandoned" : a.status === args.status) &&
+              (!args.arc_type || a.arc_type === args.arc_type),
+          )
+          const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
+          const statusLabel: Record<string, string> = {
+            planned: "规划中", active: "进行中", completed: "已完成", abandoned: "已弃用",
+          }
+          const lines: string[] = [`共 ${arcs.length} 条结构线：`]
+          for (const arc of arcs) {
+            const range =
+              arc.planned_start_chapter != null || arc.planned_end_chapter != null
+                ? `（规划 ${arc.planned_start_chapter ?? "?"}-${arc.planned_end_chapter ?? "?"} 章）`
+                : ""
+            lines.push(
+              `- [${typeLabel[arc.arc_type] ?? arc.arc_type}] ${arc.title}（${statusLabel[arc.status] ?? arc.status}）${range}：${arc.summary || "（无摘要）"}`,
+            )
+            const beats = await listArcBeats(arc.id, ctx.directory)
+            for (const b of beats) {
+              const ch = b.chapter_order != null ? `第${b.chapter_order}章` : "未锚定"
+              lines.push(`    · [${b.kind}/${b.status}] ${ch} ${b.label}${b.summary ? `：${b.summary}` : ""}`)
+            }
+          }
+          return {
+            title: "list_story_arcs",
+            output: lines.join("\n"),
+            metadata: { count: arcs.length, arcs: arcs.map((a) => ({ id: a.id, title: a.title, status: a.status })) },
+          }
         },
       }),
 

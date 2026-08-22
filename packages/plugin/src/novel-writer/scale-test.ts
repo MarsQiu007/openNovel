@@ -194,6 +194,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     recentChapterSummaries,
     plotThreads,
     foreshadowing,
+    activeArcs: [],
     styleGuide,
     genreRules: [
       "修炼体系要清晰，从低到高有明确等级划分",
