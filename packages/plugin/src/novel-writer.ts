@@ -487,6 +487,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
+          // 大纲标签校验：禁止把章纲模板/节拍标签写进读者正文
+          const outlineLeaks = detectOutlineLabels(args.content)
+          if (outlineLeaks.length > 0) {
+            return {
+              title: "write_chapter（正文含提纲标签）",
+              output: `正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请将这些提纲转化为连续小说正文，用自然段落和场景转换表达，去掉所有标题、编号和【】标签后重新调用 write_chapter。`,
+              metadata: { rejected: true, reason: "outline_label", samples: outlineLeaks },
+            }
+          }
+
           // 重复度校验：与前文章节重复（照抄或开头场景重演）拒绝写入，防止重写已写过的内容
           const dup = await checkDuplicateRatio(db, chapter.novel_id, args.content, chapter.order)
           if (dup.duplicate) {
@@ -566,6 +576,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               title: "revise_chapter（字数不达标）",
               output: `修订后字数不足：当前 ${wordCount} 字，本章目标至少 ${target} 字，还差 ${target - wordCount} 字。请在修订内容中补足字数后重新调用 revise_chapter。`,
               metadata: { rejected: true, reason: "too_short", word_count: wordCount, target },
+            }
+          }
+
+          // 大纲标签校验：修订时同样禁止把章纲模板/节拍标签写进正文
+          const outlineLeaks = detectOutlineLabels(args.revision)
+          if (outlineLeaks.length > 0) {
+            return {
+              title: "revise_chapter（正文含提纲标签）",
+              output: `修订正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请改为连续小说正文，去掉所有标题、编号和【】标签后重新调用 revise_chapter。`,
+              metadata: { rejected: true, reason: "outline_label", samples: outlineLeaks },
             }
           }
 
@@ -4866,6 +4886,38 @@ function countWords(text: string): number {
   const tokens = text.match(/[a-zA-Z0-9]+/g)
   if (tokens) count += tokens.length
   return count
+}
+
+/**
+ * 检测正文中误入的大纲/节拍标签。
+ * 这些文字属于创作提纲，不应出现在读者可见正文中；命中则要求 writer 重写。
+ */
+function detectOutlineLabels(text: string): string[] {
+  const beatLabels = ["开篇钩子", "发展推进", "高潮/转折", "结尾悬念", "场景概要", "出场角色", "字数预估"]
+  const samples: string[] = []
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    if (line.startsWith("【") && line.endsWith("】") && beatLabels.some((label) => line.includes(label))) {
+      samples.push(line.slice(0, 40))
+      continue
+    }
+    if (/^#{1,6}\s+/.test(line)) {
+      samples.push(line.slice(0, 40))
+      continue
+    }
+    if (/^场景[一二三四五六七八九十百千0-9]+/.test(line)) {
+      samples.push(line.slice(0, 40))
+      continue
+    }
+    // 短行的中文编号通常是提纲分节，不是小说正文；避免误杀长句叙事。
+    if (/^[一二三四五六七八九十百]+、/.test(line) && line.length <= 40) {
+      samples.push(line.slice(0, 40))
+      continue
+    }
+    if (beatLabels.includes(line)) samples.push(line)
+  }
+  return [...new Set(samples)].slice(0, 5)
 }
 
 /**
