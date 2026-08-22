@@ -41,7 +41,7 @@ const SETUP_MODES: readonly SetupMode[] = SetupModeSchema.literals as readonly S
 /** 默认值：用户拍板 — writing 默认 auto（说"审核"时才审），setup 默认 interactive（初始化必确认） */
 export const DEFAULT_NOVEL_MODE_CONFIG: NovelModeConfig = {
   writing_mode: "auto",
-  setup_mode: "interactive",
+  setup_mode: "auto",
 }
 
 /** 配置文件相对项目根的路径（与 .novel/novel.db 平级） */

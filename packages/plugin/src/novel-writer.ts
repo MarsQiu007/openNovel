@@ -139,7 +139,7 @@ function projectDirFromCtx(directory?: string | null): string {
  * 注入位置在 system.transform 开头，先于小说上下文注入执行，
  * 这样后续 dispatch 的 subagent（writer/reviser/auditor/observer 等）也都能看到。
  *
- * 错误策略：读取失败时降级为默认 auto/interactive，永不抛错。
+ * 错误策略：读取失败时降级为默认 auto/auto，永不抛错。
  */
 function injectModeContext(directory: string | null | undefined, system: string[]): void {
   // projectDirFromCtx 会基于 directory 反推项目根；directory 为 null/undefined 时返回 process.cwd()
@@ -155,7 +155,7 @@ function injectModeContext(directory: string | null | undefined, system: string[
     mode = readNovelConfig(projectDir)
   } catch {
     // 文件损坏等异常情况按默认配置走
-    mode = { writing_mode: "auto", setup_mode: "interactive" }
+    mode = { writing_mode: "auto", setup_mode: "auto" }
   }
 
   const writingDesc =
