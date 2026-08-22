@@ -299,12 +299,14 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
        - 弱许可（要再追问一次）：好 / 嗯 / ok / 好的 / 没问题
        - 强否决：取消 / 算了 / 不要 / 再想想 / cancel / no
        弱许可词应追问"那我按这个方案落库了？"再走 init
-    4. 调 \`init_novel\` 创建项目（如果项目还没初始化）+ 调 \`create_book\`（或同等工具）创建数据库中的 book 记录
-    5. dispatch @architect 生成完整设定（角色/世界观/伏笔/卷纲/风格指南）并 save_novel_settings 落库
-    6. architect 完成后，输出"已落库，可在阅读页/卷纲页查看"
+    4. 先调 \`list_novels\` 检查项目中是否已存在同名书籍；若已存在，告知用户并询问是要继续使用已有书籍还是换一个书名，不要重复创建
+    5. 调 \`init_novel\` 创建书籍并绑定当前会话（该工具自带同名去重，若同名已存在会自动绑定到已有书籍）
+    6. dispatch @architect 生成完整设定（角色/世界观/伏笔/卷纲/风格指南）并 save_novel_settings 落库
+    7. architect 完成后，输出"已落库，可在阅读页/卷纲页查看"
   → 若 setup_mode = auto：
     1. 与用户简单确认基础信息（书名/类型/一句话梗概）
-    2. 直接调 \`init_novel\` + \`create_book\` + dispatch @architect（无确认门）
+    2. 先调 \`list_novels\` 确认无同名书籍，再调 \`init_novel\` 创建书籍并绑定当前会话（同名时工具会自动复用已有书籍而非重复创建）
+    3. dispatch @architect（无确认门）
 
 - 用户说"改成要我确认"（setup_mode 切换）后再开新书 → 走 interactive 分支
 - 用户说"不要确认，直接开"（setup_mode 切换）后再开新书 → 走 auto 分支
