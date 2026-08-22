@@ -1510,6 +1510,7 @@ export async function createArcBeat(
     label: string
     kind?: string
     summary?: string
+    status?: string
     novelId?: string
   },
   directory?: string | null,
@@ -1530,6 +1531,7 @@ export async function createArcBeat(
       label: input.label,
       kind: input.kind ?? "note",
       summary: input.summary ?? "",
+      status: input.status ?? "planned",
       created_at: now,
       updated_at: now,
     })

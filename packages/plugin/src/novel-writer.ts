@@ -45,6 +45,7 @@ import {
   restoreDescription,
 } from "./novel-writer/state-commit.js"
 import { syncArcProgress } from "./novel-writer/arc-progress.js"
+import { backfillStoryArcs } from "./novel-writer/arc-backfill.js"
 import {
   getDb,
   NovelTable,
@@ -4137,6 +4138,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               label: args.label,
               kind: args.kind ?? "note",
               summary: args.summary ?? "",
+              ...(args.status ? { status: args.status } : {}),
             },
             ctx.directory,
           )
@@ -4144,6 +4146,126 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             title: "record_arc_beat",
             output: `已记录节点「${beat.label}」(${beat.kind})`,
             metadata: { beat_id: beat.id, arc_id: beat.arc_id, kind: beat.kind, chapter_order: beat.chapter_order },
+          }
+        },
+      }),
+      backfill_story_arcs: tool({
+        description:
+          "批量补建或重建结构线/弧光与节点。architect 反推弧光结构后一次性调用本工具落库。" +
+          " mode=create_only（默认）：增量补建，同标题+类型已存在则跳过；" +
+          " mode=replace_all：删除项目全部弧光与节点后重建（全局重建）；" +
+          " mode=replace_matching：删除 replace_match 指定类型/角色的弧光后重建（重建主线/某角色弧）。" +
+          " 工具自动处理状态推导、actual_start/end 回填、角色名->ID 解析、chapter_id 回填、事务原子提交。",
+        args: {
+          arcs: tool.schema
+            .array(
+              tool.schema.object({
+                arc_type: tool.schema
+                  .enum(["narrative", "character", "subplot"])
+                  .describe("主线/角色弧/支线"),
+                title: tool.schema.string().describe("弧光标题"),
+                summary: tool.schema.string().optional().describe("弧光摘要：起点状态、走向、预期终点"),
+                target_character_name: tool.schema
+                  .string()
+                  .optional()
+                  .describe("角色弧必填：角色名，工具自动解析为角色 ID"),
+                beats: tool.schema
+                  .array(
+                    tool.schema.object({
+                      label: tool.schema.string().describe("节点标题"),
+                      kind: tool.schema
+                        .enum(["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"])
+                        .describe("节点类型"),
+                      summary: tool.schema.string().optional().describe("节点描述"),
+                      chapter_order: tool.schema
+                        .number()
+                        .int()
+                        .optional()
+                        .describe("章节序号：已发生节点填实际序号，未来节点填预计序号"),
+                      chapter_id: tool.schema.string().optional().describe("已发生节点的章节 ID；未填时按 chapter_order 自动回填"),
+                      drafted: tool.schema
+                        .boolean()
+                        .optional()
+                        .describe("true=该节点已在正文中发生(drafted)，false/省略=规划中(planned)"),
+                    }),
+                  )
+                  .min(1)
+                  .describe("该弧光的关键节点列表"),
+              }),
+            )
+            .min(1)
+            .describe("要补建的弧光列表"),
+          mode: tool.schema
+            .enum(["create_only", "replace_all", "replace_matching"])
+            .optional()
+            .describe("create_only=增量补建(默认)；replace_all=删除全部后重建；replace_matching=按 replace_match 删除匹配弧光后重建"),
+          replace_match: tool.schema
+            .object({
+              arc_type: tool.schema
+                .enum(["narrative", "character", "subplot"])
+                .optional()
+                .describe("按弧光类型匹配（如重建主线传 narrative）"),
+              target_character_name: tool.schema
+                .string()
+                .optional()
+                .describe("按角色名匹配（重建某角色弧时传角色名，自动配合 arc_type=character）"),
+            })
+            .optional()
+            .describe("mode=replace_matching 时必填，指定要替换哪些弧光"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "backfill_story_arcs", output: "未找到当前小说项目" }
+          try {
+            const result = await backfillStoryArcs(
+              ctx.directory,
+              novelId,
+              args.arcs,
+              args.mode ?? "create_only",
+              args.replace_match,
+            )
+            if (result.skipped) {
+              return {
+                title: "backfill_story_arcs",
+                output: result.reason ?? "已跳过",
+                metadata: result,
+              }
+            }
+            const typeLabel: Record<string, string> = {
+              narrative: "主线",
+              character: "角色弧",
+              subplot: "支线",
+            }
+            const modeLabel: Record<string, string> = {
+              create_only: "补建",
+              replace_all: "全局重建",
+              replace_matching: "定向重建",
+            }
+            const action = modeLabel[result.mode] ?? "操作"
+            const lines: string[] = [
+              "弧光" + action + "完成：新建 " + result.arcs_created + " 条、跳过 " + result.arcs_skipped + " 条、删除旧弧光 " + result.arcs_deleted + " 条、节点 " + result.beats_created + " 个",
+            ]
+            for (const arc of result.arcs) {
+              let range = ""
+              if (arc.actual_start_chapter != null) {
+                range = "（已写至第" + arc.actual_start_chapter + "章"
+                if (arc.actual_end_chapter != null) range += "-" + arc.actual_end_chapter + "章"
+                range += "）"
+              }
+              lines.push(
+                "- [" + (typeLabel[arc.arc_type] ?? arc.arc_type) + "] " + arc.title + " [" + arc.status + "]" + range + "：" + arc.drafted_beats + " 个已落地节点，" + arc.planned_beats + " 个规划节点",
+              )
+            }
+            return {
+              title: "backfill_story_arcs",
+              output: lines.join("\n"),
+              metadata: result,
+            }
+          } catch (err) {
+            return {
+              title: "backfill_story_arcs",
+              output: "弧光操作失败：" + (err instanceof Error ? err.message : String(err)),
+            }
           }
         },
       }),
@@ -4467,6 +4589,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             create_relationship: "allow",
             check_relationships: "allow",
             check_novel_settings: "allow",
+            list_story_arcs: "allow",
             cascade_check: "allow",
             cascade_create_tasks: "allow",
             cascade_list_pending: "allow",
@@ -4501,6 +4624,11 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             save_novel_settings: "allow",
             create_relationship: "allow",
             check_relationships: "allow",
+            check_novel_settings: "allow",
+            list_story_arcs: "allow",
+            backfill_story_arcs: "allow",
+            recall_history: "allow",
+            read_chapter_content: "allow",
           },
         },
         // pipeline: subagent，由 director 调度，执行8步写作流水线

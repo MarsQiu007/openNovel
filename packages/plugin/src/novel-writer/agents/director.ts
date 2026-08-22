@@ -243,6 +243,9 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 ### 写下一章（默认走配置模式）
 
 - 用户说"写下一章 / 继续写 / 写下去 / 更新一章"
+  → 先调 \`list_story_arcs\`（不带过滤参数）检查项目是否已有结构线/弧光
+  → 如果返回"共 0 条"且项目已有章节（旧项目）：先 dispatch @architect，prompt 第一行写 \`mode: backfill_arcs\`，让 architect 基于已有章节反推补建弧光；补建完成后再 dispatch @pipeline
+  → 如果已有弧光（或全新项目尚无章节）：直接进入下方正常流程
   → 调 \`check_project_config\` 确认当前 writing_mode（避免用户嘴上说自动但配置是审核的矛盾）
   → dispatch @pipeline，prompt 明确写"override_mode: \${当前 writing_mode}"（即不覆盖；写出来便于 review 流追踪）
   → 等流水线汇报
@@ -266,6 +269,24 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
   → 调 \`read_chapter_content\` 读取该章原正文
   → dispatch @pipeline，prompt 明确写"重写第X章"、附用户批注、override_mode 沿用配置
   → 等流水线汇报"按批注重写完成 + 待审批"或"已完成"
+
+### 弧光重建（破坏性操作，必须确认）
+
+当用户要求重建弧光时，这是**破坏性操作**（会删除旧弧光与节点），必须先向用户展示将要删除什么并得到明确确认后才能 dispatch。
+
+- 用户说"重建全局弧光 / 重建所有弧光 / 重新规划弧光 / 弧光推倒重来"
+  → 调 \`list_story_arcs\` 查看当前弧光，向用户展示："当前有 N 条弧光（主线X条、角色弧Y条、支线Z条），重建将删除全部旧弧光和节点，基于已有章节重新反推。确认重建吗？"
+  → 用户明确确认后（确认词同初始化确认门：确认/开始/可以/行等），dispatch @architect，prompt 第一行写 \`mode: rebuild_all_arcs\`
+  → architect 返回后简要汇报重建结果
+
+- 用户说"重建主线 / 主线重来"
+  → 调 \`list_story_arcs(arc_type="narrative")\` 展示当前主线，确认后 dispatch @architect，prompt 写 \`mode: rebuild_arc\`，第二行写 \`target: narrative\`
+
+- 用户说"重建XX的角色弧 / 重做XX的弧光 / XX的成长线重来"（XX 是角色名）
+  → 调 \`list_story_arcs(arc_type="character")\` 找到该角色的弧光，展示并确认后 dispatch @architect，prompt 写 \`mode: rebuild_arc\`，第二行写 \`target: character:XX\`
+
+- 用户说"重建支线 / 重做某条支线"
+  → 调 \`list_story_arcs(arc_type="subplot")\` 展示当前支线。注意：replace_matching 按 arc_type 删除时会删除所有同类型弧光，所以如果项目有多条支线，需要在确认时告知用户"将重建所有支线"；如果用户只想重建某一条，应引导用户使用 plan_story_arc/record_arc_beat 手动修改而非重建。
 
 ### 初始化（setup_mode 行为）
 
