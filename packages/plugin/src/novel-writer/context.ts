@@ -278,9 +278,16 @@ const GENRE_MODULE_MAP: Record<string, string> = {
 /**
  * 加载当前章节相关的结构线/弧光及其节点。
  *
- * 选取 active/planned 且章节区间覆盖本章附近的弧光，并携带本章前后窗口内的节点。
- * completed/abandoned 的弧光不再注入写作上下文。
+ * 选取规则：
+ * - completed/abandoned 的弧光不注入；
+ * - 有章节区间的弧光，区间覆盖本章附近（前后各 3/5 章）才注入；
+ * - 没有章节区间的弧光，仅当 status=active（作者明确标记进行中）才注入，
+ *   planned 且无区间的远期规划不占用每章 prompt；
+ * - 弧光总数和每弧光节点数均有上限，避免长篇规划数据导致 prompt 无界膨胀。
  */
+const MAX_ACTIVE_ARCS = 12
+const MAX_BEATS_PER_ARC = 8
+
 export async function loadActiveArcs(
   db: ReturnType<typeof getDb>,
   novelId: string,
@@ -303,24 +310,46 @@ export async function loadActiveArcs(
     list.push(beat)
     beatsByArc.set(beat.arc_id, list)
   }
-  return allArcs
-    .filter((arc) => {
-      if (arc.status === "completed" || arc.status === "abandoned") return false
-      const start = arc.planned_start_chapter ?? arc.actual_start_chapter
-      const end = arc.planned_end_chapter ?? arc.actual_end_chapter
-      if (start == null && end == null) return true
-      if (start == null) return chapterNumber <= (end ?? chapterNumber) + 3
-      if (end == null) return chapterNumber >= start - 3
-      return chapterNumber >= start - 3 && chapterNumber <= end + 3
-    })
-    .map((arc) => {
+
+  type ScoredArc = { arc: typeof allArcs[number]; score: number }
+  const scored: ScoredArc[] = []
+  for (const arc of allArcs) {
+    if (arc.status === "completed" || arc.status === "abandoned") continue
+    const start = arc.planned_start_chapter ?? arc.actual_start_chapter
+    const end = arc.planned_end_chapter ?? arc.actual_end_chapter
+    if (start == null && end == null) {
+      // 无区间：只注入进行中的；规划中的远期弧不进每章上下文
+      if (arc.status !== "active") continue
+      scored.push({ arc, score: 1000 })
+      continue
+    }
+    const s = start ?? chapterNumber
+    const e = end ?? chapterNumber
+    if (chapterNumber < s - 3 || chapterNumber > e + 3) continue
+    // 越靠近区间中心/越在区间内，优先级越高
+    const center = (s + e) / 2
+    const distance = Math.abs(chapterNumber - center)
+    scored.push({ arc, score: -distance })
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_ACTIVE_ARCS)
+    .map(({ arc }) => {
       const beats = (beatsByArc.get(arc.id) ?? [])
-        .filter((b) => {
-          if (b.chapter_order == null) return true
-          return b.chapter_order >= chapterNumber - 3 && b.chapter_order <= chapterNumber + 5
+        .map((b) => {
+          const inWindow =
+            b.chapter_order == null
+              ? true
+              : b.chapter_order >= chapterNumber - 3 && b.chapter_order <= chapterNumber + 5
+          // 排序键：窗口内已锚定节点按章节号升序，未锚定节点排在后面
+          const sortKey = b.chapter_order == null ? Number.POSITIVE_INFINITY : b.chapter_order
+          return { b, inWindow, sortKey }
         })
-        .sort((a, b) => (a.chapter_order ?? 0) - (b.chapter_order ?? 0))
-        .map((b) => ({
+        .filter((x) => x.inWindow)
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .slice(0, MAX_BEATS_PER_ARC)
+        .map(({ b }) => ({
           label: b.label,
           kind: b.kind,
           status: b.status,
