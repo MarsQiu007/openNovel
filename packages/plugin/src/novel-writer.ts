@@ -554,6 +554,11 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (!chapter) return { title: "revise_chapter", output: `章节不存在：${args.chapter_id}` }
           if (chapter.content.length === 0)
             return { title: "revise_chapter", output: `章节尚无正文，无需修订：${args.chapter_id}` }
+          if (typeof args.revision !== "string" || args.revision.trim().length === 0)
+            return {
+              title: "revise_chapter（参数错误）",
+              output: "缺少 revision：请传入 chapter_id 和 revision（修订后的完整章节正文），正文参数名是 revision，不是 content。",
+            }
 
           const pendingCount = await db
             .select({ id: PendingUpdateTable.id })
@@ -5161,17 +5166,31 @@ const PROJECT_CONFIG_SPECS: Record<string, ProjectConfigSpec> = {
 }
 
 /**
- * 在项目根目录查找 opennovel 配置文件。优先 opennovel.jsonc（带注释），
- * 其次 opennovel.json。都不存在返回 undefined。
+ * 查找 opennovel 配置文件。查找顺序：
+ * 1. 项目根目录 opennovel.jsonc / opennovel.json
+ * 2. 项目根目录 .opennovel/opennovel.jsonc / .opennovel/opennovel.json
+ * 3. 全局用户目录 ~/.config/opennovel/opennovel.jsonc / ~/.config/opennovel/opennovel.json
  *
  * 工具不读 .jsonc 注释（plugin 包不依赖 jsonc-parser），如果 .jsonc 含注释
  * 解析会失败，工具会报告并拒绝写入——让用户手工去掉注释或转纯 .json。
  */
 function findOpennovelConfig(projectDir: string): string | undefined {
-  const jsonc = join(projectDir, "opennovel.jsonc")
-  if (existsSync(jsonc)) return jsonc
-  const json = join(projectDir, "opennovel.json")
-  if (existsSync(json)) return json
+  const candidates: string[] = []
+  // 项目根目录
+  candidates.push(join(projectDir, "opennovel.jsonc"))
+  candidates.push(join(projectDir, "opennovel.json"))
+  // 项目级 .opennovel 子目录（openNovel 官方标准路径）
+  candidates.push(join(projectDir, ".opennovel", "opennovel.jsonc"))
+  candidates.push(join(projectDir, ".opennovel", "opennovel.json"))
+  // 全局用户目录
+  const home = process.env["HOME"] || process.env["USERPROFILE"]
+  if (home) {
+    candidates.push(join(home, ".config", "opennovel", "opennovel.jsonc"))
+    candidates.push(join(home, ".config", "opennovel", "opennovel.json"))
+  }
+  for (const path of candidates) {
+    if (existsSync(path)) return path
+  }
   return undefined
 }
 
