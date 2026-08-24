@@ -56,7 +56,7 @@ export function OutlineReader(props: OutlineReaderProps) {
     }
     const chapter = props.chapters.find((c) => String(c.order) === t.id)
     return chapter
-      ? `${language.t("novel.chapter.volume", { number: chapter.order })} ${chapter.title}`
+      ? chapter.title
       : language.t("novel.panel.outline.chapterOutline")
   })
 

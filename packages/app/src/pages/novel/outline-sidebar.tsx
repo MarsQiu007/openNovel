@@ -128,7 +128,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                               type="button"
                             >
                               <span class="text-sm truncate">
-                                {language.t("novel.chapter.volume", { number: chapter.order })} {chapter.title}
+                                {chapter.title}
                               </span>
                             </button>
                           </Show>
@@ -162,7 +162,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                         type="button"
                       >
                         <span class="text-sm truncate">
-                          {language.t("novel.chapter.volume", { number: chapter.order })} {chapter.title}
+                          {chapter.title}
                         </span>
                       </button>
                     </Show>
