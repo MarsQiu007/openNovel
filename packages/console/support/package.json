@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/console-support",
-  "version": "0.0.0-dev-202608100756",
+  "version": "0.0.0-dev-202608240323",
   "type": "module",
   "license": "MIT",
   "scripts": {
