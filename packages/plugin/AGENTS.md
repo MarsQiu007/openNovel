@@ -27,7 +27,7 @@ and never import host packages (`@opennovel-ai/core`, `@opennovel-ai/server`).
 - `src/novel-writer.ts` — `NovelWriterPlugin` registration: hooks + writing tools.
 - `src/novel-writer/agents/` — agent configs for the writing pipeline:
   `writer`, `director`, `pipeline`, `observer`, `reflector`, `auditor`, `reviser`,
-  `architect`, `outliner`, `librarian`, `summarizer`.
+  `architect`, `outliner`, `librarian`.
 - `src/novel-writer/session-store.ts` — session↔novel binding shim over
   `@opennovel-ai/novel-store` (re-export boundary used by hosts).
 - `src/novel-writer/approval-gate.ts` — approval state transitions re-exported for

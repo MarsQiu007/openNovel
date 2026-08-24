@@ -88,7 +88,7 @@ describe("commitState 可靠性", () => {
     db.insert(WorldEntryTable).values({
       id: "we-existing",
       novel_id: NOVEL,
-      category: "力量",
+      category: "力量体系",
       title: "炼气期",
       content: "旧内容",
     }).run()
@@ -109,7 +109,7 @@ describe("commitState 可靠性", () => {
         action: "create" as const,
         entity_id: "we-pending",
         data: {
-          category: "力量",
+          category: "力量体系",
           title: "金丹期",
           content: "新境界",
           importance: 1,
@@ -120,7 +120,7 @@ describe("commitState 可靠性", () => {
         action: "create" as const,
         entity_id: "we-local",
         data: {
-          category: "力量",
+          category: "力量体系",
           title: "炼气期",
           content: "新内容",
           conflict_note: "层数不一致",

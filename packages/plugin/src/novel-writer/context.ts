@@ -120,7 +120,7 @@ export type ChapterSummaryItem = {
 export type WorldEntrySummary = {
   /** 条目 ID */
   id: string
-  /** 分类（如：社会制度/力量体系/势力/地理/科技/文化/生物/核心设定） */
+  /** 分类（受控词汇，见 world-category.ts 的 WORLD_ENTRY_CATEGORIES） */
   category: string
   /** 条目标题 */
   title: string

@@ -49,6 +49,7 @@ import {
   restoreDescription,
 } from "./novel-writer/state-commit.js"
 import { syncArcProgress } from "./novel-writer/arc-progress.js"
+import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "./novel-writer/world-category.js"
 import { backfillStoryArcs } from "./novel-writer/arc-backfill.js"
 import {
   getDb,
@@ -2043,6 +2044,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           "把候选区的一条 pending 设定正式入库到对应正式表（CharacterTable / WorldEntryTable / RelationshipTable），并把 status 标为 accepted。\n\n**跨 category 同义检测**：accept world_entry 前自动查同 title 的已有 world_entry（任意 category），有则提示合并（仍会执行入库，但 output 会警告「同标题已存在 X 条」）。",
         args: {
           pending_id: tool.schema.string().describe("候选 ID（list_pending_settings 拿）"),
+          allow_new_category: tool.schema
+            .boolean()
+            .optional()
+            .describe(`world_entry 专用：允许使用标准列表之外的分类。${WORLD_ENTRY_CATEGORY_HINT}`),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
@@ -2087,6 +2092,11 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               } as any)
               createdId = newId
             } else if (row.candidate_type === "world_entry") {
+              // 分类白名单校验：category 是导览/组装的结构字段，必须使用受控词汇
+              const categoryError = validateWorldCategory(String(payload.category ?? ""))
+              if (categoryError && !args.allow_new_category) {
+                return { title: "accept_pending_setting", output: categoryError }
+              }
               // 跨 category 同义检测
               const sameTitle = await db
                 .select({ id: WorldEntryTable.id, category: WorldEntryTable.category })
@@ -2200,6 +2210,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             .min(2)
             .describe("要合并的候选 ID 列表（≥2 条，必须同 candidate_type）"),
           new_id: tool.schema.string().optional().describe("新正式条目的 ID（不传则自动生成 UUID）"),
+          allow_new_category: tool.schema
+            .boolean()
+            .optional()
+            .describe(`world_entry 专用：允许使用标准列表之外的分类。${WORLD_ENTRY_CATEGORY_HINT}`),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
@@ -2259,10 +2273,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 status: "active",
               } as any)
             } else if (ct === "world_entry" || ct === "location") {
+              const mergedCategory = ct === "location" ? "地点" : String(merged.category ?? "")
+              const categoryError = validateWorldCategory(mergedCategory)
+              if (categoryError && !args.allow_new_category) {
+                return { title: "merge_pending_settings", output: categoryError }
+              }
               await db.insert(WorldEntryTable).values({
                 id: createdId,
                 novel_id: novelId,
-                category: ct === "location" ? "地点" : String(merged.category ?? ""),
+                category: mergedCategory,
                 title: String(merged.title ?? merged.name ?? rows[0].display_title),
                 content: String(merged.content ?? merged.description ?? ""),
               } as any)
@@ -2414,6 +2433,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             .describe(
               '设定 JSON 数组，如 [{"type":"character","data":{"ref":"protagonist","name":"陆沉","role":"主角"}},{"type":"relationship","data":{"char_a_ref":"protagonist","char_b_ref":"antagonist","type":"宿敌","description":"..."}}]',
             ),
+          allow_new_category: tool.schema
+            .boolean()
+            .optional()
+            .describe(`world_entry 专用：允许使用标准列表之外的分类。${WORLD_ENTRY_CATEGORY_HINT}`),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
@@ -2498,19 +2521,26 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             try {
               const d = s.data
               switch (s.type) {
-                case "world_entry":
+                case "world_entry": {
+                  const category = String(d.category ?? "")
+                  const categoryError = validateWorldCategory(category)
+                  if (categoryError && !args.allow_new_category) {
+                    errors.push(`第${i}条（world_entry「${String(d.title ?? "")}」）：${categoryError}`)
+                    break
+                  }
                   await db
                     .insert(WorldEntryTable)
                     .values({
                       id: crypto.randomUUID(),
                       novel_id: novelId,
-                      category: String(d.category ?? ""),
+                      category,
                       title: String(d.title ?? ""),
                       content: String(d.content ?? ""),
                     })
                     .run()
                   count++
                   break
+                }
                 case "plot_thread":
                   await db
                     .insert(PlotThreadTable)
@@ -3331,6 +3361,137 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      lint_settings: tool({
+        description:
+          "设定体检（只读）。扫描小说的 world_entry/character/plot_thread/foreshadowing，报告不符合规范的结构问题：非标准分类、空字段、跨分类同标题，并给出分类统计与标准分类列表。存量设定整理的入口：先 lint_settings 拿报告，再用 rename_world_category 批量归类、update_setting 精修单条。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const entries = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.novel_id, novelId)).all()
+          const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
+          const threads = await db.select().from(PlotThreadTable).where(eq(PlotThreadTable.novel_id, novelId)).all()
+          const foreshadows = await db.select().from(ForeshadowingTable).where(eq(ForeshadowingTable.novel_id, novelId)).all()
+
+          const lines: string[] = []
+          let issues = 0
+
+          // 1) 非标准分类
+          const badByCategory = new Map<string, { id: string; title: string }[]>()
+          for (const e of entries) {
+            if (validateWorldCategory(e.category) !== null) {
+              const list = badByCategory.get(e.category) ?? []
+              list.push({ id: e.id, title: e.title })
+              badByCategory.set(e.category, list)
+            }
+          }
+          if (badByCategory.size > 0) {
+            lines.push("## 非标准分类（建议用 rename_world_category 批量归类）")
+            for (const [cat, list] of badByCategory) {
+              issues += list.length
+              const sample = list.map((e) => `${e.title}[${e.id.slice(0, 8)}]`).join("、")
+              lines.push(`- 「${cat || "（空）"}」× ${list.length}：${sample}`)
+            }
+            lines.push("")
+          }
+
+          // 2) 空字段条目
+          const emptyItems: string[] = [
+            ...entries.filter((e) => !e.title.trim() || !e.content.trim()).map((e) => `world_entry「${e.title || "（无标题）"}」[${e.id.slice(0, 8)}]`),
+            ...characters.filter((c) => !c.name.trim() || !c.description.trim()).map((c) => `character「${c.name || "（无名）"}」[${c.id.slice(0, 8)}]`),
+            ...threads.filter((t) => !t.title.trim()).map((t) => `plot_thread[${t.id.slice(0, 8)}]`),
+            ...foreshadows.filter((f) => !f.content.trim()).map((f) => `foreshadowing[${f.id.slice(0, 8)}]`),
+          ]
+          if (emptyItems.length > 0) {
+            issues += emptyItems.length
+            lines.push("## 空字段条目（建议用 update_setting 补全或 delete_setting 清理）")
+            for (const item of emptyItems) lines.push(`- ${item}`)
+            lines.push("")
+          }
+
+          // 3) 跨分类同标题（同义重复的隐患）
+          const catsByTitle = new Map<string, Set<string>>()
+          for (const e of entries) {
+            const cats = catsByTitle.get(e.title) ?? new Set<string>()
+            cats.add(e.category)
+            catsByTitle.set(e.title, cats)
+          }
+          const dupTitles = [...catsByTitle].filter(([, cats]) => cats.size > 1)
+          if (dupTitles.length > 0) {
+            issues += dupTitles.length
+            lines.push("## 跨分类同标题（同一设定被拆到多个分类，建议合并）")
+            for (const [title, cats] of dupTitles) lines.push(`- 「${title}」分布在：${[...cats].join(" / ")}`)
+            lines.push("")
+          }
+
+          // 4) 分类统计总览
+          if (entries.length > 0) {
+            const countByCategory = new Map<string, number>()
+            for (const e of entries) {
+              countByCategory.set(e.category, (countByCategory.get(e.category) ?? 0) + 1)
+            }
+            lines.push("## 分类统计")
+            for (const [cat, n] of [...countByCategory].sort((a, b) => b[1] - a[1])) {
+              lines.push(`- ${cat || "（空）"}：${n} 条`)
+            }
+            lines.push("")
+          }
+
+          const header = issues === 0 ? "✅ 未发现结构问题。" : `发现 ${issues} 处结构问题。${WORLD_ENTRY_CATEGORY_HINT}。`
+          lines.unshift(header, `共扫描：world_entry ${entries.length} 条 / character ${characters.length} 条 / plot_thread ${threads.length} 条 / foreshadowing ${foreshadows.length} 条`, "")
+          return {
+            title: "lint_settings",
+            output: lines.join("\n"),
+            metadata: { novel_id: novelId, issues, entries: entries.length },
+          }
+        },
+      }),
+      rename_world_category: tool({
+        description:
+          "批量归类：把小说中 category 完全等于 old_category 的所有世界观条目改为 new_category（精确匹配，含\"主分类/子分类\"形式）。new_category 默认必须在标准分类列表内，确需新分类传 allow_new_category=true。每条变更记录 description_history 可回溯。配合 lint_settings 使用：先看报告，再批量归类。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          old_category: tool.schema.string().describe("要归类的旧分类（精确匹配）"),
+          new_category: tool.schema.string().describe(`目标分类。${WORLD_ENTRY_CATEGORY_HINT}`),
+          allow_new_category: tool.schema
+            .boolean()
+            .optional()
+            .describe("允许使用标准列表之外的新分类"),
+        },
+        async execute(args, ctx) {
+          const categoryError = validateWorldCategory(args.new_category)
+          if (categoryError && !args.allow_new_category) {
+            return { title: "rename_world_category", output: categoryError }
+          }
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const rows = await db
+            .select()
+            .from(WorldEntryTable)
+            .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.category, args.old_category)))
+            .all()
+          if (rows.length === 0) {
+            return { title: "rename_world_category", output: `未找到分类为「${args.old_category}」的条目，未执行任何修改` }
+          }
+          // 单条批量 UPDATE：SQLite 单语句原子，避免逐条更新中途失败留下部分归类的中间态
+          await db
+            .update(WorldEntryTable)
+            .set({ category: args.new_category })
+            .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.category, args.old_category)))
+            .run()
+          // 历史记录逐条写入（仅审计追溯，失败不影响已完成的归类）
+          for (const row of rows) {
+            await archiveDescription(ctx.directory, novelId, "world_entry", row.id, row.category, args.new_category, "category")
+          }
+          return {
+            title: "rename_world_category",
+            output: `已将 ${rows.length} 条条目的分类由「${args.old_category}」改为「${args.new_category}」`,
+            metadata: { novel_id: novelId, updated: rows.length },
+          }
+        },
+      }),
       delete_setting: tool({
         description:
           "删除小说设定。支持删除 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型的记录。删除前建议先用 list_settings 获取 entity_id，再用 cascade_check 检查影响范围。注意：角色（character）删除有保护--主角不能删除；已在章节正文中出场的角色不能硬删除（会破坏叙事连续性），应改用 update_setting 将 status 设为 'departed' 让角色退场。",
@@ -3424,6 +3585,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             .describe(
               '要更新的字段 JSON，例如 {"state":"resolved","resolved_chapter_id":"uuid"} 或 {"status":"closed"}',
             ),
+          allow_new_category: tool.schema
+            .boolean()
+            .optional()
+            .describe(`world_entry 改 category 时专用：允许使用标准列表之外的分类。${WORLD_ENTRY_CATEGORY_HINT}`),
         },
         async execute(args, ctx) {
           const type = args.entity_type
@@ -3454,7 +3619,13 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 return { title: "update_setting", output: `world_entry 不存在：${id.slice(0, 8)}` }
               }
               const f: { category?: string; title?: string; content?: string } = {}
-              if (typeof fields.category === "string") f.category = fields.category
+              if (typeof fields.category === "string") {
+                const categoryError = validateWorldCategory(fields.category)
+                if (categoryError && !args.allow_new_category) {
+                  return { title: "update_setting", output: categoryError }
+                }
+                f.category = fields.category
+              }
               if (typeof fields.title === "string") f.title = fields.title
               if (typeof fields.content === "string") f.content = fields.content
               await updateWorldEntry(id, f, ctx.directory)
@@ -4796,6 +4967,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             check_project_config: "allow",
             update_project_config: "allow",
             volume_rollup: "allow",
+            lint_settings: "allow",
+            rename_world_category: "allow",
           },
         },
         // architect: subagent，由 director 调度，生成并持久化小说设定（世界观/角色/伏笔/剧情线索/风格指南/卷/关系）

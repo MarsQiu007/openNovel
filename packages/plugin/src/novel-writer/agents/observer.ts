@@ -117,7 +117,7 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 
 ## 5. world_entry（世界观条目）
 提取世界观设定的变化：
-- 新揭示的世界观设定 → action: "create"，data 包含 category（分类，如力量体系/地理/历史/文化/组织）、title（条目标题）、content（详细内容）、importance（0-3）、conflict_note（可选，字符串，详见下文）
+- 新揭示的世界观设定 → action: "create"，data 包含 category（必须从标准列表选择：核心设定/世界背景/力量体系/社会制度/势力/地理/历史/文化/生物/物品/功法/科技/地点，支持"主分类/子分类"）、title（条目标题）、content（详细内容）、importance（0-3）、conflict_note（可选，字符串，详见下文）。不在标准列表的分类会被降级到候选区等待人工归类
 - 设定补充或修正 → action: "update"，data 中**不输出 importance**（已有条目不需要重评）；若新内容与旧内容冲突，在 data.conflict_note 标注
 - entity_id 建议格式：world_<简短标识>
 

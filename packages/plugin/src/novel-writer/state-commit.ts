@@ -33,6 +33,7 @@ import {
   PendingSettingTable,
   WorldEntryConflictTable,
 } from "./session-store.js"
+import { validateWorldCategory } from "./world-category.js"
 import { join } from "path"
 import { mkdirSync, appendFileSync } from "fs"
 
@@ -720,6 +721,29 @@ async function applyToMaterializedView(
           break
         }
         // importance ≥ 2：走原入正式表逻辑
+        // 分类白名单校验：不在标准列表的分类不直达正式表，降级到 pending 候选区由人工归类，
+        // 避免 observer 自造分类导致设定导航碎裂
+        if (validateWorldCategory(String(data.category ?? "")) !== null) {
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "world_entry",
+            entity_id,
+            data,
+            importance,
+            "",
+            String(data.title ?? entity_id),
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "world_entry",
+            display_title: String(data.title ?? entity_id),
+            importance,
+            type_strength: "",
+          })
+          break
+        }
         const resolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, data)
         // 冲突标注分离：data.conflict_note 不入 WorldEntryTable.content，独立存 WorldEntryConflictTable
         const conflictNote = extractConflictNote(data)
@@ -739,7 +763,8 @@ async function applyToMaterializedView(
           } as any)
         } else {
           const fields: Record<string, unknown> = {}
-          if (data.category !== undefined) fields.category = data.category
+          // 已有条目的 category 更新同样受白名单约束；非法分类静默丢弃（title/content 仍正常更新）
+          if (data.category !== undefined && validateWorldCategory(String(data.category)) === null) fields.category = data.category
           if (data.title !== undefined) fields.title = data.title
           if (data.content !== undefined) fields.content = data.content
           if (Object.keys(fields).length > 0) {
@@ -767,7 +792,10 @@ async function applyToMaterializedView(
         }
       } else if (action === "update") {
         const fields: Record<string, unknown> = {}
-        if (data.category !== undefined) fields.category = data.category
+        // 与 create 路径一致：非法分类静默丢弃（title/content 仍正常更新），避免绕过白名单
+        if (data.category !== undefined && validateWorldCategory(String(data.category)) === null) {
+          fields.category = data.category
+        }
         if (data.title !== undefined) fields.title = data.title
         if (data.content !== undefined) fields.content = data.content
         if (Object.keys(fields).length > 0) {

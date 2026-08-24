@@ -143,6 +143,11 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 → 配合 @librarian 查 XX 的历史引用；
 → 如需修改某条具体设定，先 list_settings 定位 entity_id，再 manage_characters / update_setting 改，并跑 cascade_check。
 
+### 用户说"整理一下设定/设定太乱了/统一一下分类"
+→ 先调用 lint_settings 拿体检报告（非标准分类、空字段、跨分类同标题、分类统计），向用户展示并确认整理方案；
+→ 批量归类用 rename_world_category(old_category → new_category)，单条精修用 update_setting，冗余条目用 delete_setting；
+→ 整理完成后再次 lint_settings 验证问题清零。
+
 ### 用户说"第X章有问题/修一下第X章"
 → 先调用 @auditor 检查问题，如果确认有问题，调用 @reviser 修订
 
