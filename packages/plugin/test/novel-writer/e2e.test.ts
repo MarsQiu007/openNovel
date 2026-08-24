@@ -282,6 +282,9 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(ch1Outline).toContain("章节目标")
     expect(ch1Outline).toContain("关键场景")
     expect(ch1Outline).toContain("角色出场")
+    // 文件头卷号不得为 undefined（首章兜底第1卷）
+    expect(ch1Outline).toContain("所属卷：第1卷")
+    expect(ch1Outline).not.toContain("undefined")
 
     // 章节大纲（第2章）
     const ch2Outline = await generateChapterOutline(novelId, 2, projectDir)

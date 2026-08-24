@@ -64,7 +64,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 ### 步骤 1：plan - 读取章节大纲
 调用 \`read_chapter_outline\` 工具，传入 novel_id 和 chapter_number。
-- 失败 -> 停止，报告"第X章不存在，请先调用 @outliner 生成大纲"
+- 失败（章节不存在）-> 通过 task 工具 dispatch @outliner 子 agent（subagent_type: "outliner"，prompt 传入 novel_id、chapter_number，指示其生成创作意图并调用 generate_chapter_outline 持久化本章大纲），然后重试一次；仍失败 -> 停止，报告"第X章大纲生成失败，需人工介入"
 - 成功 -> 进入步骤 2
 
 ### 步骤 2：compose - 组装上下文快照

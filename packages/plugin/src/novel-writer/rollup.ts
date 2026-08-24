@@ -1,7 +1,8 @@
 /**
  * 卷级汇总模块 — 实现层级压缩系统的核心逻辑
  *
- * 每50章自动生成卷摘要，标记角色 active/dormant，归档已关闭线索。
+ * 卷完结时生成卷摘要，标记角色 active/dormant，归档已关闭线索。
+ * 卷长度由剧情决定：章节归属以 chapters.volume_id 为准，不做固定章数映射。
  * 导出两个核心函数：
  * - performVolumeRollup(novelId, volumeNumber) — 执行卷级汇总
  * - getEffectiveContext(novelId, chapterNumber) — 获取有效上下文（用卷摘要替代章摘要）
@@ -9,7 +10,7 @@
  * 遵循 novel-writer.ts 和 context.ts 的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
  */
 
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm"
+import { eq, and, gte, lte, asc, desc, sql } from "drizzle-orm"
 import {
   getDb,
   NovelTable,
@@ -24,6 +25,7 @@ import {
   StyleGuideTable,
 } from "./session-store.js"
 import { parseStyleRules, loadActiveArcs, type ContextPacket, type ActiveCharacter, type ChapterSummaryItem } from "./context.js"
+import { ensureSegmentSummaries, listSegmentSummaries } from "./segment-rollup.js"
 
 // ─── 题材 → 文件模块名映射 ───
 
@@ -44,7 +46,7 @@ const GENRE_MODULE_MAP: Record<string, string> = {
 /**
  * 执行卷级汇总
  *
- * 以50章为单位，生成卷摘要，标记角色 active/dormant，归档已关闭线索。
+ * 以 chapters.volume_id 归属为准（卷长度由剧情决定），生成卷摘要，标记角色 active/dormant，归档已关闭线索。
  * 将卷摘要记录写入 VolumeSummaryTable。
  *
  * @param novelId 小说 ID
@@ -66,23 +68,33 @@ export async function performVolumeRollup(
     .all()
   if (!volume) return null
 
-  // 计算章节范围：每50章为一卷
-  const firstChapter = (volumeNumber - 1) * 50 + 1
-  const lastChapter = volumeNumber * 50
-
-  // 获取本卷所有章节
-  const chapters = await db
+  // 章节范围：以 chapters.volume_id 归属为准（卷长度由剧情决定）。
+  const ownChapters = await db
     .select()
     .from(ChapterTable)
-    .where(
-      and(
-        eq(ChapterTable.novel_id, novelId),
-        gte(ChapterTable.order, firstChapter),
-        lte(ChapterTable.order, lastChapter),
-      ),
-    )
+    .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.volume_id, volume.id)))
     .orderBy(ChapterTable.order)
     .all()
+  let chapters = ownChapters
+  // 兼容旧数据：本卷无归属章节、且算术范围内章节均未归属任何卷（volume_id IS NULL）时，
+  // 才退回固定 50 章范围；若这些章节已归属他卷则不能挪用，空卷直接无可汇总内容。
+  if (chapters.length === 0) {
+    const legacy = await db
+      .select()
+      .from(ChapterTable)
+      .where(
+        and(
+          eq(ChapterTable.novel_id, novelId),
+          gte(ChapterTable.order, (volumeNumber - 1) * 50 + 1),
+          lte(ChapterTable.order, volumeNumber * 50),
+          sql`${ChapterTable.volume_id} IS NULL`,
+        ),
+      )
+      .orderBy(ChapterTable.order)
+      .all()
+    if (legacy.length === 0) return null
+    chapters = legacy
+  }
 
   // 获取章节摘要
   const chapterSummaries: Record<string, { summary: string; keyEvents: string[] }> = {}
@@ -227,7 +239,6 @@ export async function getEffectiveContext(
   directory?: string | null,
 ): Promise<ContextPacket | null> {
   const db = getDb(directory)
-  const volumeNumber = Math.ceil(chapterNumber / 50)
 
   // ── P0: 小说蓝图 ──
   const [novel] = await db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).all()
@@ -239,6 +250,26 @@ export async function getEffectiveContext(
     .from(ChapterTable)
     .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber)))
     .all()
+
+  // 当前卷号与本卷起始章：以章节实际归属（volume_id）为准，卷长度由剧情决定
+  let volumeNumber = 0
+  let firstChapterOfVolume = 1
+  if (currentChapter?.volume_id) {
+    const [currentVolume] = await db
+      .select()
+      .from(VolumeTable)
+      .where(eq(VolumeTable.id, currentChapter.volume_id))
+      .all()
+    volumeNumber = currentVolume?.order ?? 0
+    const [first] = await db
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.volume_id, currentChapter.volume_id))
+      .orderBy(asc(ChapterTable.order))
+      .limit(1)
+      .all()
+    firstChapterOfVolume = first?.order ?? 1
+  }
 
   // 构建卷摘要文本（当前卷 + 上一卷）
   let volumeSummary: string | null = null
@@ -279,6 +310,10 @@ export async function getEffectiveContext(
     volumeSummary = volumeSummaries.join("\n\n")
   }
 
+  // ── P2b: 章节段摘要（惰性生成已关闭的段，幂等） ──
+  await ensureSegmentSummaries(db, novelId, chapterNumber)
+  const segmentSummaries = await listSegmentSummaries(db, novelId)
+
   // ── P1: 活跃角色（过滤 dormant 角色） ──
   const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
 
@@ -304,7 +339,6 @@ export async function getEffectiveContext(
   }
 
   // ── P2: 最近3章摘要（仅从当前卷中取） ──
-  const firstChapterOfVolume = (volumeNumber - 1) * 50 + 1
   const recentChapters = await db
     .select()
     .from(ChapterTable)
@@ -373,6 +407,7 @@ export async function getEffectiveContext(
 
     volumeSummary,
     recentChapterSummaries,
+    segmentSummaries,
 
     plotThreads: openThreadsOnly.map((t) => ({
       title: t.title,

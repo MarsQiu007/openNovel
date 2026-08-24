@@ -208,6 +208,17 @@ export const VolumeSummaryTable = sqliteTable("volume_summaries", {
   threads_closed: text({ mode: "json" }).notNull().default("[]"),
 })
 
+export const SegmentSummaryTable = sqliteTable("segment_summaries", {
+  id: text().primaryKey(),
+  novel_id: text().notNull(),
+  start_chapter: integer().notNull(),
+  end_chapter: integer().notNull(),
+  summary: text().notNull().default(""),
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+})
+
 export const NovelStateLogTable = sqliteTable(
   "novel_state_log",
   {
@@ -623,6 +634,8 @@ CREATE TABLE IF NOT EXISTS session_novel (id text PRIMARY KEY, session_id text N
 CREATE TABLE IF NOT EXISTS style_guide (id text PRIMARY KEY, novel_id text NOT NULL, rules text DEFAULT '{}' NOT NULL, tone text DEFAULT '' NOT NULL, pov text DEFAULT '' NOT NULL, tense text DEFAULT '' NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS soul (id text PRIMARY KEY, novel_id text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS volume_summaries (id text PRIMARY KEY, volume_id text NOT NULL, summary text DEFAULT '' NOT NULL, char_active text DEFAULT '[]' NOT NULL, char_dormant text DEFAULT '[]' NOT NULL, threads_open text DEFAULT '[]' NOT NULL, threads_closed text DEFAULT '[]' NOT NULL, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS segment_summaries (id text PRIMARY KEY, novel_id text NOT NULL, start_chapter integer NOT NULL, end_chapter integer NOT NULL, summary text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE UNIQUE INDEX IF NOT EXISTS segment_summaries_novel_start_idx ON segment_summaries(novel_id, start_chapter);
 CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, level real NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);

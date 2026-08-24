@@ -26,6 +26,10 @@ import { reflectorAgent } from "./novel-writer/agents/reflector.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
 import { reviserAgent } from "./novel-writer/agents/reviser.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
+import { outlinerAgent } from "./novel-writer/agents/outliner.js"
+import { librarianAgent } from "./novel-writer/agents/librarian.js"
+import { lookupDormantCharacters, lookupClosedThreads, lookupPastVolumes } from "./novel-writer/archive.js"
+import { performVolumeRollup } from "./novel-writer/rollup.js"
 import {
   commitState,
   commitStateWithReport,
@@ -826,7 +830,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       generate_chapter_outline: tool({
         description:
-          "生成章节大纲，创建 chapters 表记录并写入 .novel/outlines/chapter-{n}.md。自动创建所属卷记录。传入 content 参数时使用实际内容（director 根据小说设定生成的完整章纲）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。",
+          "生成章节大纲，创建 chapters 表记录并写入 .novel/outlines/chapter-{n}.md。自动创建所属卷记录。传入 content 参数时使用实际内容（director 根据小说设定生成的完整章纲）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。卷长度由剧情决定：省略 volume_number 时沿用上一章所属卷；仅当本章在剧情上开启新卷时才传入新卷号（通常先调用 generate_volume_outline 生成该卷大纲），此时会自动对上一卷执行卷级汇总。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("章节序号（从 1 开始）"),
@@ -838,21 +842,44 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             .describe(
               "章节大纲 Markdown 全文。director 应先阅读小说设定（角色/卷纲/伏笔/前文摘要等），根据剧情发展生成实际的章节大纲内容后传入。包含：章节目标、关键场景（地点/时间/角色/概要/字数）、角色出场、剧情推进等。留空则生成模板。",
             ),
+          volume_number: tool.schema
+            .number()
+            .optional()
+            .describe("所属卷号（可选）。省略时沿用上一章所属卷；仅当本章在剧情上开启新卷时传入新卷号。传入与上一章不同的卷号会自动对上一卷做卷级汇总。"),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
           const projectDir = projectDirFromCtx(ctx.directory)
+          // 剧情上开启新卷时，先对上一卷做卷级汇总（幂等：先删后插，可安全重复）
+          let rollupNote = ""
+          if (args.volume_number !== undefined && args.chapter_number > 1) {
+            const prev = await db
+              .select()
+              .from(ChapterTable)
+              .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, args.chapter_number - 1)))
+              .get()
+            const prevVolume = prev?.volume_id
+              ? await db.select().from(VolumeTable).where(eq(VolumeTable.id, prev.volume_id)).get()
+              : undefined
+            if (prevVolume && prevVolume.order !== args.volume_number) {
+              const rollup = await performVolumeRollup(novelId, prevVolume.order, ctx.directory)
+              if (rollup) {
+                rollupNote = `\n第${prevVolume.order}卷已随新卷开启完成卷级汇总（卷摘要/角色休眠标记/线索归档）`
+              }
+            }
+          }
           const result = await generateChapterOutline(
             novelId,
             args.chapter_number,
             projectDir,
             args.content || undefined,
             args.title || undefined,
+            args.volume_number,
           )
           return {
             title: "generate_chapter_outline",
-            output: `已生成第${args.chapter_number}章大纲（chapter-${args.chapter_number}.md，${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}`,
+            output: `已生成第${args.chapter_number}章大纲（chapter-${args.chapter_number}.md，${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}${rollupNote}`,
             metadata: { novel_id: novelId, chapter_number: args.chapter_number, length: result.length },
           }
         },
@@ -955,6 +982,14 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             lines.push("最近章节摘要：")
             for (const ch of snapshot.recentChapterSummaries) {
               lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+            }
+          }
+          if (snapshot.segmentSummaries.length > 0) {
+            lines.push("")
+            lines.push("═══ 早期章节段摘要（每 20 章的压缩记忆，细节可调用 recall_history 深挖）═══")
+            for (const s of snapshot.segmentSummaries) {
+              lines.push(`- 第${s.startChapter}-${s.endChapter}章`)
+              lines.push(s.summary)
             }
           }
           if (snapshot.recalledHistory.length > 0) {
@@ -1173,7 +1208,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
       }),
       advance_chapter: tool({
-        description: "推进到下一章。返回下一章序号，流水线步骤8（next）。",
+        description: "推进到下一章。返回下一章序号，流水线步骤8（next）。卷级汇总在新卷首章生成大纲时由 generate_chapter_outline 自动触发，本工具不负责。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("当前章节序号"),
@@ -1241,6 +1276,90 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             if (r.snippet) lines.push(`  ${r.snippet}`)
           }
           return { title: "recall_history", output: lines.join("\n"), metadata: { count: results.length } }
+        },
+      }),
+      lookup_dormant_characters: tool({
+        description:
+          "查询休眠角色。查找小说中处于休眠状态（不再活跃出场）的角色，按角色名模糊匹配，最多返回 3 条摘要。供 librarian 查询世界百科使用。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          query: tool.schema.string().describe("搜索关键词（匹配角色名）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const results = await lookupDormantCharacters(novelId, args.query, ctx.directory)
+          if (results.length === 0) {
+            return { title: "lookup_dormant_characters", output: `未找到匹配「${args.query}」的休眠角色` }
+          }
+          return {
+            title: "lookup_dormant_characters",
+            output: results.map((r) => `- ${r.name}：${r.summary}`).join("\n"),
+            metadata: { count: results.length },
+          }
+        },
+      }),
+      lookup_closed_threads: tool({
+        description:
+          "查询已关闭线索。查找小说中已关闭的剧情线索，按线索标题模糊匹配，最多返回 3 条摘要。供 librarian 查询世界百科使用。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          query: tool.schema.string().describe("搜索关键词（匹配线索标题）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const results = await lookupClosedThreads(novelId, args.query, ctx.directory)
+          if (results.length === 0) {
+            return { title: "lookup_closed_threads", output: `未找到匹配「${args.query}」的已关闭线索` }
+          }
+          return {
+            title: "lookup_closed_threads",
+            output: results.map((r) => `- ${r.title}：${r.summary}`).join("\n"),
+            metadata: { count: results.length },
+          }
+        },
+      }),
+      lookup_past_volumes: tool({
+        description:
+          "查询历史卷摘要。查找指定卷号之前的历史卷摘要，最多返回 3 条（按卷号降序，最近优先）。供 librarian 查询世界百科使用。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          volume_number: tool.schema.number().describe("当前卷号（返回比此卷号小的历史卷）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const results = await lookupPastVolumes(novelId, args.volume_number, ctx.directory)
+          if (results.length === 0) {
+            return { title: "lookup_past_volumes", output: `第${args.volume_number}卷之前暂无历史卷摘要` }
+          }
+          return {
+            title: "lookup_past_volumes",
+            output: results.map((r) => `- ${r.title}：${r.summary}`).join("\n"),
+            metadata: { count: results.length },
+          }
+        },
+      }),
+      volume_rollup: tool({
+        description:
+          "执行卷级汇总。生成卷摘要、标记角色 active/dormant、归档已关闭线索，写入卷摘要记录。章节归属以 chapters.volume_id 为准（卷长度由剧情决定）。新卷首章生成大纲时会自动对上一卷汇总；本工具用于手动触发（如全书最后一卷完结时）。幂等，可安全重复。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          volume_number: tool.schema.number().describe("卷号（从 1 开始）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const result = await performVolumeRollup(novelId, args.volume_number, ctx.directory)
+          if (!result) {
+            return { title: "volume_rollup", output: `第${args.volume_number}卷不存在，无法汇总` }
+          }
+          return {
+            title: "volume_rollup",
+            output: `已完成第${args.volume_number}卷汇总`,
+            metadata: { novel_id: novelId, ...result },
+          }
         },
       }),
       list_chapters: tool({
@@ -4625,6 +4744,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
      * 运行时 Agent 注册 hook
      * 注册 director 为唯一 primary agent，writer 降为 subagent。
      * director 负责意图识别和路由，writer 负责具体写作执行。
+     * outliner/librarian 为辅助 subagent，分别负责大纲生成、世界百科查询。章节摘要由 observer 的 chapter_summary delta 产出，卷级汇总由新卷首章自动触发或 volume_rollup 手动触发。
      */
     config: async (input) => {
       input.default_agent = "director"
@@ -4675,6 +4795,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             generate_chapter_outline: "allow",
             check_project_config: "allow",
             update_project_config: "allow",
+            volume_rollup: "allow",
           },
         },
         // architect: subagent，由 director 调度，生成并持久化小说设定（世界观/角色/伏笔/剧情线索/风格指南/卷/关系）
@@ -4724,6 +4845,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             update_chapter: "allow",
             // 驳回后重写指定章节
             revise_chapter: "allow",
+            // 手动触发卷级汇总（如全书最后一卷完结、自动机制覆盖不到时）
+            volume_rollup: "allow",
           },
         },
         // writer: subagent，由 pipeline 调度，生成章节正文
@@ -4796,6 +4919,40 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             glob: "allow",
             grep: "allow",
             revise_chapter: "allow",
+          },
+        },
+        // outliner: subagent，由 pipeline/director 调度，生成章节创作意图与章节大纲
+        outliner: {
+          description: outlinerAgent.description,
+          mode: outlinerAgent.mode,
+          prompt: outlinerAgent.prompt,
+          permission: {
+            "*": "allow",
+            read: "allow",
+            list: "allow",
+            glob: "allow",
+            grep: "allow",
+            read_chapter_outline: "allow",
+            assemble_context_snapshot: "allow",
+            generate_chapter_outline: "allow",
+            recall_history: "allow",
+          },
+        },
+        // librarian: subagent，由 director 调度，查询休眠角色/已关闭线索/历史卷摘要
+        librarian: {
+          description: librarianAgent.description,
+          mode: librarianAgent.mode,
+          prompt: librarianAgent.prompt,
+          permission: {
+            "*": "allow",
+            read: "allow",
+            list: "allow",
+            glob: "allow",
+            grep: "allow",
+            recall_history: "allow",
+            lookup_dormant_characters: "allow",
+            lookup_closed_threads: "allow",
+            lookup_past_volumes: "allow",
           },
         },
       }

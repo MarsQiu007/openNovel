@@ -174,6 +174,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     activeCharacters,
     volumeSummary,
     recentChapterSummaries,
+    segmentSummaries: [],
     plotThreads,
     foreshadowing,
     styleGuide,
@@ -782,6 +783,7 @@ describe("规模测试 — 审计矛盾检测", () => {
           keyEvents: ["事件1"],
         },
       ],
+      segmentSummaries: [],
       plotThreads: [
         {
           title: "主线",

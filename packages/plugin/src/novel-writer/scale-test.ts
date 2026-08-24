@@ -192,6 +192,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     departedCharacters: [],
     volumeSummary,
     recentChapterSummaries,
+    segmentSummaries: [],
     plotThreads,
     foreshadowing,
     activeArcs: [],

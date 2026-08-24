@@ -1,9 +1,9 @@
 /**
  * 摘要生成器 Agent 配置 — summarizerAgent
  *
- * 模式 primary 隐藏 agent：每章完成后生成章节摘要 + 状态变更 delta，
- * 通过 state.commit 提交状态变更，并在第50/100/150章触发卷级汇总。
- * 引用 state-commit.ts（commitState / StateDelta）和 rollup.ts（performVolumeRollup）。
+ * 模式 subagent（隐藏）：每章完成后生成章节摘要 + 状态变更 delta，
+ * 通过 commit_observer_delta 工具提交状态变更，并在卷完结时通过 volume_rollup 工具执行卷级汇总（卷长度由剧情决定）。
+ * 引用 state-commit.ts（StateDelta）和 rollup.ts（performVolumeRollup）。
  */
 
 const SUMMARIZER_PROMPT = `# 角色定位
@@ -32,7 +32,7 @@ const SUMMARIZER_PROMPT = `# 角色定位
 ### 2. 创建状态变更 delta
 
 你必须根据章节摘要中的角色变化，生成结构化的状态变更 delta（StateDelta），
-并通过 state.commit 工具提交。delta 格式如下：
+并通过 commit_observer_delta 工具提交。delta 格式如下：
 
 \\\`\\\`\\\`json
 [
@@ -65,11 +65,11 @@ const SUMMARIZER_PROMPT = `# 角色定位
 
 ### 3. 触发卷级汇总
 
-当章节序号达到特定阈值时，你必须触发卷级汇总（W3-T4），调用 performVolumeRollup：
+卷长度由剧情决定，不做固定章数映射。当某卷的第一章大纲以新卷号生成时，系统会自动对上一卷执行卷级汇总。
+你需要手动调用 volume_rollup 工具的场景：
 
-- **第50章**：触发第1卷汇总（卷号=1，章节范围 1-50）
-- **第100章**：触发第2卷汇总（卷号=2，章节范围 51-100）
-- **第150章**：触发第3卷汇总（卷号=3，章节范围 101-150）
+- **全书最后一卷完结**：不会再有新卷开启，自动机制覆盖不到
+- **用户或 director 明确要求**重新汇总某卷（汇总幂等，可安全重复执行）
 
 卷级汇总会执行以下操作：
 - 生成卷摘要（Markdown 格式，包含主要事件、角色变化、线索进展）
@@ -93,8 +93,8 @@ const SUMMARIZER_PROMPT = `# 角色定位
 3. 识别关键事件节点（3-5 个）
 4. 分析角色变化（出场、位置、情绪、关系、能力）
 5. 构建状态变更 delta 数组
-6. 调用 commitState(novelId, chapterId, delta) 提交状态变更
-7. 检查章节序号，如果达到 50/100/150，调用 performVolumeRollup(novelId, volumeNumber)
+6. 调用 commit_observer_delta 工具提交状态变更 delta
+7. 检查是否有卷已完结但未汇总（尤其是全书最后一卷），如有则调用 volume_rollup 工具执行卷级汇总
 8. 输出摘要结果和状态变更总结
 
 ## 注意事项
@@ -102,7 +102,7 @@ const SUMMARIZER_PROMPT = `# 角色定位
 - 所有输出内容必须使用中文
 - 章节摘要必须准确反映本章内容，不得虚构未发生的事件
 - delta 条目必须遵循 state-commit.ts 中定义的 schema 格式
-- 卷级汇总触发条件必须精确：仅在第50/100/150章触发，不可提前或延后
+- 卷级汇总以 chapters.volume_id 归属为准，不做固定章数触发；仅在确认某卷完结时手动触发，汇总是幂等的
 - 角色名称和 entity_id 必须与数据库中已有记录保持一致
 - 如果本章没有特定类型的变化（如没有新伏笔），则不需要创建该类型的 delta 条目
 - 隐藏 agent 模式：作为后台 agent 运行，用户不可见，仅输摘要和状态变更结果`
@@ -110,8 +110,8 @@ const SUMMARIZER_PROMPT = `# 角色定位
 export const summarizerAgent = {
   name: "summarizer" as const,
   description:
-    "摘要生成器 agent。每章完成后自动生成章节摘要和状态变更 delta，通过 state.commit 提交状态，并在第50/100/150章触发卷级汇总。",
-  mode: "primary" as const,
+    "摘要生成器 agent。每章完成后自动生成章节摘要和状态变更 delta，通过 commit_observer_delta 提交状态，并在卷完结时执行卷级汇总（卷长度由剧情决定）。",
+  mode: "subagent" as const,
   hidden: true,
   prompt: SUMMARIZER_PROMPT,
   options: {} as Record<string, unknown>,

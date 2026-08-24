@@ -1,14 +1,14 @@
 /**
  * 大纲生成 Agent 配置
  *
- * 模式 primary：从上下文快照中生成章节创作意图，指导后续写作。
- * 引用大纲系统（outline.ts）、上下文快照（context.ts）、输入治理（governance.ts）。
+ * 模式 subagent：由 pipeline/director 调度，从上下文快照中生成章节创作意图，指导后续写作。
+ * 引用大纲系统（outline.ts）、上下文快照（context.ts）。
  */
 
 export const outlinerAgent = {
   name: "outliner",
   description: "大纲生成 agent。从上下文快照中分析当前状态，生成章节创作意图，规划场景编排、角色焦点和剧情推进方向。",
-  mode: "primary" as const,
+  mode: "subagent" as const,
   prompt: `你是一位资深小说大纲策划师，专门负责从上下文快照中生成章节创作意图。
 
 ## 你的职责
@@ -90,5 +90,6 @@ export const outlinerAgent = {
 - 角色焦点分配要合理，避免某些角色长期不出场。
 - 剧情推进必须有实质内容，不能原地踏步。
 - 如果上下文快照显示有紧急待回收的伏笔，优先处理。
-- 遵循题材特定的写作规则（P4 层级中的风格指南和题材规则）。`,
+- 遵循题材特定的写作规则（P4 层级中的风格指南和题材规则）。
+- 生成创作意图后，必须调用 generate_chapter_outline 工具将章节大纲持久化（传入 novel_id、chapter_number、title 和完整的 Markdown content），否则流水线无法读取本章大纲。`,
 }

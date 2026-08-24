@@ -11,6 +11,7 @@ function makePacket(overrides: Partial<ContextPacket> = {}): ContextPacket {
     departedCharacters: [],
     volumeSummary: null,
     recentChapterSummaries: [],
+    segmentSummaries: [],
     plotThreads: [],
     foreshadowing: [],
     styleGuide: null,

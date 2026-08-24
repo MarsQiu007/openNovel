@@ -17,9 +17,6 @@ import { existsSync, mkdirSync, writeFileSync } from "fs"
 
 // ─── 辅助函数 ───
 
-/** 每卷默认章节数 */
-const CHAPTERS_PER_VOLUME = 50
-
 /** 确保 outlines 目录存在 */
 function ensureOutlineDir(projectDir: string): string {
   const dir = join(projectDir, ".novel", "outlines")
@@ -29,9 +26,28 @@ function ensureOutlineDir(projectDir: string): string {
   return dir
 }
 
-/** 根据章节编号计算所属卷号 */
-function chapterToVolumeNumber(chapterNumber: number): number {
-  return Math.ceil(chapterNumber / CHAPTERS_PER_VOLUME)
+/** 查询上一章所属卷号（卷长度由剧情决定，不做固定章数映射）；无法推断时返回 null */
+async function previousVolumeOrder(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  chapterNumber: number,
+): Promise<number | null> {
+  if (chapterNumber <= 1) return null
+  const [prev] = await db
+    .select()
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber - 1)))
+    .all()
+  if (!prev?.volume_id) return null
+  const [volume] = await db.select().from(VolumeTable).where(eq(VolumeTable.id, prev.volume_id)).all()
+  return volume?.order ?? null
+}
+
+/** 查询当前最新卷号；没有任何卷记录时返回 null */
+async function latestVolumeOrder(db: ReturnType<typeof getDb>, novelId: string): Promise<number | null> {
+  const volumes = await db.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).all()
+  if (volumes.length === 0) return null
+  return Math.max(...volumes.map((v) => v.order))
 }
 
 /** 获取或创建卷记录 */
@@ -49,15 +65,13 @@ async function ensureVolume(
   if (existing) return existing.id
 
   const id = crypto.randomUUID()
-  const startChapter = (volumeNumber - 1) * CHAPTERS_PER_VOLUME + 1
-  const endChapter = volumeNumber * CHAPTERS_PER_VOLUME
   await db
     .insert(VolumeTable)
     .values({
       id,
       novel_id: novelId,
       title: `第${volumeNumber}卷`,
-      summary: `《${novelTitle}》第${volumeNumber}卷（第${startChapter}章 - 第${endChapter}章）`,
+      summary: `《${novelTitle}》第${volumeNumber}卷`,
       order: volumeNumber,
       created_at: Date.now(),
     })
@@ -199,15 +213,12 @@ export async function generateVolumeOutline(
     await db.update(VolumeTable).set({ title: volumeTitle }).where(eq(VolumeTable.id, volumeId)).run()
   }
 
-  const startChapter = (volumeNumber - 1) * CHAPTERS_PER_VOLUME + 1
-  const endChapter = volumeNumber * CHAPTERS_PER_VOLUME
-
   const lines: string[] = []
 
   lines.push(`# 《${novel.title}》${volumeTitle} 大纲`)
   lines.push("")
   lines.push(`> 卷 ID：${volumeId}`)
-  lines.push(`> 章节范围：第${startChapter}章 - 第${endChapter}章`)
+  lines.push(`> 章节范围：由剧情决定（本卷章节以 chapters.volume_id 归属为准）`)
   lines.push(`> 生成时间：${new Date().toISOString()}`)
   lines.push("")
 
@@ -225,13 +236,15 @@ export async function generateVolumeOutline(
   lines.push("> （请描述本卷的整体情感基调，如热血、悬疑、温情等）")
   lines.push("")
 
-  // 章节列表
+  // 章节列表（章节数量由剧情决定，模板仅给占位行）
   lines.push("## 章节列表")
+  lines.push("")
+  lines.push("> （章节数量由剧情决定，不固定；逐章列出本卷计划章节）")
   lines.push("")
   lines.push("| 章节 | 标题 | 核心事件 | 字数目标 |")
   lines.push("|------|------|----------|----------|")
-  for (let i = startChapter; i <= endChapter; i++) {
-    lines.push(`| 第${i}章 | （待填写） | （待填写） | （待填写） |`)
+  for (let i = 1; i <= 3; i++) {
+    lines.push(`| （待填写） | （待填写） | （待填写） | （待填写） |`)
   }
   lines.push("")
 
@@ -276,9 +289,13 @@ export async function generateVolumeOutline(
  * 章节目标、关键场景、角色出场。
  * 自动创建所属卷记录（如不存在）。
  *
+ * 卷归属由剧情决定：显式传入 volumeNumber 时使用指定卷（开启新卷的场景）；
+ * 否则沿用上一章所属卷；首章或无法推断时默认第1卷。
+ *
  * @param novelId 小说 ID
  * @param chapterNumber 章节编号（从 1 开始）
  * @param projectDir 小说项目目录（包含 .novel/ 的目录）
+ * @param volumeNumber 可选，显式指定所属卷号
  * @returns 生成的章节大纲 Markdown 内容
  */
 export async function generateChapterOutline(
@@ -287,13 +304,18 @@ export async function generateChapterOutline(
   projectDir: string,
   content?: string,
   title?: string,
+  volumeNumber?: number,
 ): Promise<string> {
   const db = getDb(projectDir)
   const [novel] = await db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).all()
   if (!novel) throw new Error(`小说不存在：${novelId}`)
 
-  const volumeNumber = chapterToVolumeNumber(chapterNumber)
-  const volumeId = await ensureVolume(db, novelId, novel.title, volumeNumber)
+  const volumeOrder =
+    volumeNumber ??
+    (await previousVolumeOrder(db, novelId, chapterNumber)) ??
+    (await latestVolumeOrder(db, novelId)) ??
+    1
+  const volumeId = await ensureVolume(db, novelId, novel.title, volumeOrder)
 
   const chapterTitle = title ?? `第${chapterNumber}章`
 
@@ -306,10 +328,15 @@ export async function generateChapterOutline(
   let chapterId: string
   if (existingChapter) {
     chapterId = existingChapter.id
-    if (title && title !== existingChapter.title) {
+    const shouldRename = title !== undefined && title !== existingChapter.title
+    if (shouldRename || volumeNumber !== undefined) {
       await db
         .update(ChapterTable)
-        .set({ title: chapterTitle, volume_id: volumeId, status: "outline", updated_at: Date.now() })
+        .set({
+          ...(shouldRename ? { title: chapterTitle, status: "outline" } : {}),
+          volume_id: volumeId,
+          updated_at: Date.now(),
+        })
         .where(eq(ChapterTable.id, chapterId))
         .run()
     }
@@ -338,7 +365,7 @@ export async function generateChapterOutline(
   lines.push(`# 《${novel.title}》${chapterTitle} 大纲`)
   lines.push("")
   lines.push(`> 章节 ID：${chapterId}`)
-  lines.push(`> 所属卷：第${volumeNumber}卷`)
+  lines.push(`> 所属卷：第${volumeOrder}卷`)
   lines.push(`> 生成时间：${new Date().toISOString()}`)
   lines.push("")
 

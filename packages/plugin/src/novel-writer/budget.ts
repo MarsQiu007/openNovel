@@ -12,6 +12,7 @@ import type {
   ContextPacket,
   ActiveCharacter,
   ChapterSummaryItem,
+  SegmentSummaryItem,
   PlotThreadSummary,
   ForeshadowingSummary,
   StyleGuideInfo,
@@ -37,6 +38,11 @@ function charTokens(char: ActiveCharacter): number {
 /** 估算章节摘要的 token 数量 */
 function chapterTokens(ch: ChapterSummaryItem): number {
   return estimateTokens(ch.chapterTitle + ch.summary + ch.keyEvents.join(""))
+}
+
+/** 估算段摘要的 token 数量 */
+function segmentTokens(s: SegmentSummaryItem): number {
+  return estimateTokens(s.summary)
 }
 
 /** 估算剧情线索的 token 数量 */
@@ -132,10 +138,11 @@ function applyP1Budget(packet: ContextPacket): void {
 }
 
 /**
- * P2 预算裁剪：优先保留 volumeSummary，再裁剪 chapter summaries，确保不超过 2K tokens
+ * P2 预算裁剪：卷摘要 > 最近章节摘要 > 段摘要，确保不超过 2K tokens
  *
- * P2 字段：volumeSummary, recentChapterSummaries
- * 策略：volumeSummary 更紧凑，优先保留；chapter summaries 按需截断
+ * P2 字段：volumeSummary, recentChapterSummaries, segmentSummaries
+ * 策略：volumeSummary 更紧凑，优先保留；最近章节摘要对连续性最关键，其次保留；
+ * 段摘要（中景记忆）用剩余预算保留最新的段，丢弃最旧的段
  */
 function applyP2Budget(packet: ContextPacket): void {
   const P2_BUDGET = 2000 // 2K tokens
@@ -143,9 +150,13 @@ function applyP2Budget(packet: ContextPacket): void {
   const remaining = P2_BUDGET - volumeTokens
   if (remaining <= 0) {
     packet.recentChapterSummaries = []
+    packet.segmentSummaries = []
     return
   }
   packet.recentChapterSummaries = truncateArray(packet.recentChapterSummaries, chapterTokens, remaining)
+  const recentUsed = packet.recentChapterSummaries.reduce((sum, ch) => sum + chapterTokens(ch), 0)
+  // 段摘要按时间升序存储；反转为最新优先裁剪，截断后恢复升序
+  packet.segmentSummaries = truncateArray([...packet.segmentSummaries].reverse(), segmentTokens, remaining - recentUsed).reverse()
 }
 
 /**

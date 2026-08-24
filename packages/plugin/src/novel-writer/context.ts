@@ -13,6 +13,7 @@
 
 import { eq, and, lte, desc, sql } from "drizzle-orm"
 import type { RetrievedTechnique } from "./technique.js"
+import { ensureSegmentSummaries, listSegmentSummaries } from "./segment-rollup.js"
 import {
   getDb,
   NovelTable,
@@ -91,6 +92,16 @@ export type ForeshadowingSummary = {
   state: string
   /** 埋设章节 ID */
   plantedChapterId: string | null
+}
+
+/** 章节段摘要条目（每 20 章的确定性压缩，详见 segment-rollup.ts） */
+export type SegmentSummaryItem = {
+  /** 段起始章节序号 */
+  startChapter: number
+  /** 段结束章节序号 */
+  endChapter: number
+  /** 段摘要内容 */
+  summary: string
 }
 
 /** 章节摘要条目 */
@@ -203,7 +214,7 @@ export type StyleGuideInfo = {
  * 按优先级分层组装，目标在 ch100 时 under 8K tokens：
  * - P0 蓝图（约1K）：小说名、题材、梗概
  * - P1 活跃角色（约1.5K）：当前活跃角色及其状态
- * - P2 卷+3章摘要（约2K）：当前卷摘要 + 最近3章摘要
+ * - P2 卷+3章摘要（约2K）：当前卷摘要 + 段摘要 + 最近3章摘要
  * - P3 线索+伏笔（约2K）：剧情线索和伏笔
  * - P4 风格+规则（约1.5K）：风格指南和题材规则
  * - P5 世界观硬约束（约2K）：worldEntries + volumeList + relationships（writer 必须严格遵守的权威来源）
@@ -223,6 +234,9 @@ export type ContextPacket = {
   /** P2: 卷摘要 + 最近3章摘要 */
   volumeSummary: string | null
   recentChapterSummaries: ChapterSummaryItem[]
+
+  /** P2b: 章节段摘要（每 20 章确定性压缩的中景记忆，与分卷无关） */
+  segmentSummaries: SegmentSummaryItem[]
 
   /** P3: 剧情线索 + 伏笔 */
   plotThreads: PlotThreadSummary[]
@@ -408,6 +422,10 @@ export async function assembleSnapshot(
     volumeSummary = vs?.summary ?? null
   }
 
+  // ── P2b: 章节段摘要（惰性生成已关闭的段，幂等） ──
+  await ensureSegmentSummaries(db, novelId, chapterNumber)
+  const segmentSummaries = await listSegmentSummaries(db, novelId)
+
   // ── P1: 活跃角色（过滤 dormant 角色） ──
   const characters = await db.select().from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
 
@@ -562,6 +580,7 @@ export async function assembleSnapshot(
 
     volumeSummary,
     recentChapterSummaries,
+    segmentSummaries,
 
     plotThreads: plotThreads.map((t) => ({
       title: t.title,
