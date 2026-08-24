@@ -1353,7 +1353,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const novelId = await resolveNovelId(db, args.novel_id)
           const result = await performVolumeRollup(novelId, args.volume_number, ctx.directory)
           if (!result) {
-            return { title: "volume_rollup", output: `第${args.volume_number}卷不存在，无法汇总` }
+            return { title: "volume_rollup", output: `第${args.volume_number}卷不存在或本卷暂无可汇总的章节` }
           }
           return {
             title: "volume_rollup",

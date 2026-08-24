@@ -42,7 +42,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
     .from(SegmentSummaryTable)
     .where(eq(SegmentSummaryTable.novel_id, novelId))
     .all()
-  const existingById = new Map(existingRows.map((r) => [r.start_chapter, r]))
+  const existingByStart = new Map(existingRows.map((r) => [r.start_chapter, r]))
 
   // 新生成或刷新的段数
   let created = 0
@@ -64,7 +64,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
     const summaryMap = new Map(summaries.map((s) => [s.chapter_id, s]))
     const summary = buildSegmentSummary(start, end, chapters, summaryMap)
 
-    const prev = existingById.get(start)
+    const prev = existingByStart.get(start)
     if (prev) {
       // 已有段：仅当之前含“暂无摘要”占位、而当前缺失数减少时刷新，避免摘要落库晚于段关闭导致永久占位
       const prevMissing = (prev.summary.match(PLACEHOLDER_RE) || []).length
@@ -76,7 +76,12 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
       continue
     }
 
-    await db
+    // onConflictDoNothing：injectSystemContext 每次聊天请求都会触发本函数，
+    // 同一小说被多个 session 并发绑定时，唯一索引 (novel_id, start_chapter) 会拒绝重复插入，
+    // 此处静默吞掉冲突，避免 constraint 错误击穿 assembleSnapshot
+    // onConflictDoNothing + returning：并发下唯一索引冲突时返回空数组，
+    // 仅在真正插入时计入 created
+    const inserted = await db
       .insert(SegmentSummaryTable)
       .values({
         id: crypto.randomUUID(),
@@ -86,8 +91,10 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
         summary,
         created_at: Date.now(),
       })
-      .run()
-    created++
+      .onConflictDoNothing()
+      .returning()
+      .all()
+    if (inserted.length > 0) created++
   }
   return created
 }
