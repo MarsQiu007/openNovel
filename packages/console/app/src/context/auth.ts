@@ -14,6 +14,12 @@ export const AuthClient = createClient({
 import { useSession } from "@solidjs/start/http"
 import { Resource } from "@opennovel-ai/console-resource"
 
+declare module "solid-js/web" {
+  interface RequestEventLocals {
+    actor?: Promise<Actor.Info>
+  }
+}
+
 export interface AuthSession {
   account?: Record<
     string,
@@ -104,7 +110,7 @@ export const getActor = async (workspace?: string): Promise<Actor.Info> => {
           properties: {
             userID: user.id,
             workspaceID: user.workspaceID,
-            accountID: user.accountID,
+            accountID: user.accountID!,
             role: user.role,
           },
         }
@@ -112,5 +118,5 @@ export const getActor = async (workspace?: string): Promise<Actor.Info> => {
     }
     throw redirect("/auth/authorize")
   })()
-  return evt.locals.actor
+  return evt.locals.actor!
 }
