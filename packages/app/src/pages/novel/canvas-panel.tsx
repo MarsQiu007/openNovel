@@ -1,6 +1,7 @@
 import { Accessor, createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useCanvasLayout, useStructure, useUpsertCanvasLayout } from "@/context/novel-queries"
+import { useLanguage } from "@/context/language"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
@@ -76,6 +77,7 @@ function mergeLayout(saved: LocalLayout | null | undefined, volumes: readonly Vo
 }
 
 export default function CanvasPanel(props: CanvasPanelProps) {
+  const language = useLanguage()
   const structure = useStructure(props.novelID)
   const canvas = useCanvasLayout(props.novelID)
   const upsert = useUpsertCanvasLayout()
@@ -168,21 +170,21 @@ export default function CanvasPanel(props: CanvasPanelProps) {
   return (
     <div class="flex flex-col gap-2 p-3 h-full min-h-0">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-v2-text-primary">大纲画布</h3>
+        <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.canvas.title")}</h3>
         <ButtonV2 size="small" variant="outline" onClick={resetLayout} loading={upsert.isPending}>
-          重置布局
+          {language.t("novel.canvas.reset")}
         </ButtonV2>
       </div>
       <Show when={!structure.isLoading} fallback={<Spinner />}>
-        <div class="relative flex-1 min-h-0 overflow-auto rounded border border-v2-border-default bg-v2-bg-secondary/40">
+        <div class="relative flex-1 min-h-0 overflow-auto rounded border border-v2-border-border-base bg-v2-background-bg-layer-01/40">
           <div class="relative" style={{ width: `${surfaceWidth()}px`, height: `${surfaceHeight()}px` }}>
             <For each={layout.columns}>
               {(col) => (
                 <div
-                  class="absolute top-0 bottom-0 rounded border border-v2-border-default bg-v2-bg-primary/40"
+                  class="absolute top-0 bottom-0 rounded border border-v2-border-border-base bg-v2-background-bg-base/40"
                   style={{ left: `${col.x}px`, width: `${col.width}px` }}
                 >
-                  <div class="px-2 py-1 text-xs font-medium text-v2-text-muted border-b border-v2-border-default truncate">
+                  <div class="px-2 py-1 text-xs font-medium text-v2-text-text-faint border-b border-v2-border-border-base truncate">
                     {volumeTitle().get(col.id) ?? col.id}
                   </div>
                 </div>
@@ -193,7 +195,7 @@ export default function CanvasPanel(props: CanvasPanelProps) {
                 const chapter = createMemo(() => chapterMap().get(card.id))
                 return (
                   <div
-                    class="absolute rounded border border-v2-border-default bg-v2-bg-primary px-2 py-1.5 shadow-sm select-none"
+                    class="absolute rounded border border-v2-border-border-base bg-v2-background-bg-base px-2 py-1.5 shadow-sm select-none"
                     style={{
                       left: `${card.x}px`,
                       top: `${card.y}px`,
@@ -204,16 +206,16 @@ export default function CanvasPanel(props: CanvasPanelProps) {
                     }}
                     onPointerDown={(e) => onCardPointerDown(e, card)}
                   >
-                    <Show when={chapter()} fallback={<span class="text-xs text-v2-text-muted">{card.id}</span>}>
+                    <Show when={chapter()} fallback={<span class="text-xs text-v2-text-text-faint">{card.id}</span>}>
                       {(ch) => (
                         <>
-                          <div class="flex items-center gap-1 text-[10px] text-v2-text-muted">
-                            <span>第 {ch().order + 1} 章</span>
+                          <div class="flex items-center gap-1 text-[10px] text-v2-text-text-faint">
+                            <span>{language.t("novel.chapter.label", { order: ch().order + 1 })}</span>
                             <Show when={ch().status === "published"}>
-                              <span class="text-green-400">已完成</span>
+                              <span class="text-v2-state-fg-success">{language.t("novel.common.completed")}</span>
                             </Show>
                           </div>
-                          <div class="text-xs text-v2-text-primary line-clamp-2 leading-tight mt-0.5">{ch().title}</div>
+                          <div class="text-xs text-v2-text-text-base line-clamp-2 leading-tight mt-0.5">{ch().title}</div>
                         </>
                       )}
                     </Show>

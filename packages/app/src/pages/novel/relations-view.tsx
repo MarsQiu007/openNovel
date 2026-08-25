@@ -17,17 +17,18 @@ type Character = {
 }
 type Relationship = { id: string; charAId: string; charBId: string; type: string; description: string }
 
-// 角色 role 对应的节点配色
+// 角色 role 对应的节点配色。使用 v2 调色板原语而非语义 token:
+// 两亮暗模式下数值恒定(保证白色首字母的对比度),主题可通过 v2Overrides 覆盖。
 const ROLE_COLORS: Record<string, string> = {
-  protagonist: "#6366f1", // 主角 靛蓝
-  major: "#0ea5e9", // 主要角色 天蓝
-  supporting: "#64748b", // 配角 石板灰
-  antagonist: "#ef4444", // 反派 红
-  minor: "#a78bfa", // 次要 紫
+  protagonist: "var(--v2-blue-600)", // 主角
+  major: "var(--v2-cyan-600)", // 主要角色
+  supporting: "var(--v2-grey-600)", // 配角
+  antagonist: "var(--v2-red-600)", // 反派
+  minor: "var(--v2-purple-500)", // 次要
 }
 
 function roleColor(role: string): string {
-  return ROLE_COLORS[role] ?? "#94a3b8"
+  return ROLE_COLORS[role] ?? "var(--v2-grey-500)"
 }
 
 type Translator = { t: (key: string, params?: Record<string, string | number>) => string }
@@ -326,7 +327,13 @@ function EgoGraph(props: {
                       y1={edge.from.y}
                       x2={edge.to.x}
                       y2={edge.to.y}
-                      stroke={isHighlighted() ? "#6366f1" : edge.dashed ? "#cbd5e1" : "#94a3b8"}
+                      stroke={
+                        isHighlighted()
+                          ? "var(--v2-text-text-accent)"
+                          : edge.dashed
+                            ? "var(--v2-border-border-muted)"
+                            : "var(--v2-border-border-strong)"
+                      }
                       stroke-width={isHighlighted() ? 2.5 : edge.dashed ? 1 : 1.5}
                       stroke-dasharray={edge.dashed ? "5 4" : undefined}
                       style={{ transition: "stroke 0.15s, stroke-width 0.15s" }}
@@ -337,8 +344,8 @@ function EgoGraph(props: {
                         y={labelPos.y - 5}
                         text-anchor="middle"
                         font-size="11"
-                        fill={isHighlighted() ? "#4f46e5" : "#64748b"}
-                        stroke="#ffffff"
+                        fill={isHighlighted() ? "var(--v2-text-text-accent)" : "var(--v2-text-text-muted)"}
+                        stroke="var(--v2-background-bg-base)"
                         stroke-width="3"
                         paint-order="stroke"
                         style={{ "pointer-events": "none", transition: "fill 0.15s" }}
@@ -377,7 +384,7 @@ function EgoGraph(props: {
                     <circle
                       r={r}
                       fill={roleColor(n.role)}
-                      stroke={isHovered() || isDragging() ? "#0f172a" : "#ffffff"}
+                      stroke={isHovered() || isDragging() ? "var(--v2-text-text-base)" : "var(--v2-background-bg-base)"}
                       stroke-width={isHovered() || isDragging() ? 3 : 2}
                       style={{ filter: isDragging() ? "drop-shadow(0 4px 6px rgba(15,23,42,0.3))" : undefined }}
                     />
@@ -386,7 +393,7 @@ function EgoGraph(props: {
                       dominant-baseline="central"
                       font-size={n.center ? "15" : "13"}
                       font-weight={600}
-                      fill="#ffffff"
+                      fill="var(--v2-text-text-contrast)"
                       style={{ "pointer-events": "none" }}
                     >
                       {n.name.trim().charAt(0)}
@@ -396,8 +403,8 @@ function EgoGraph(props: {
                       text-anchor="middle"
                       font-size="12"
                       font-weight={n.center ? 600 : 400}
-                      fill="#334155"
-                      stroke="#ffffff"
+                      fill="var(--v2-text-text-base)"
+                      stroke="var(--v2-background-bg-base)"
                       stroke-width="3"
                       paint-order="stroke"
                       style={{ "pointer-events": "none" }}
@@ -720,7 +727,7 @@ function GlobalGraph(props: {
                       y1={edge.from.y}
                       x2={edge.to.x}
                       y2={edge.to.y}
-                      stroke={isHighlighted() ? "#6366f1" : "#94a3b8"}
+                      stroke={isHighlighted() ? "var(--v2-text-text-accent)" : "var(--v2-border-border-strong)"}
                       stroke-width={isHighlighted() ? 2.5 : 1.2}
                       stroke-opacity={isHighlighted() ? 1 : 0.6}
                       style={{ transition: "stroke 0.15s, stroke-width 0.15s" }}
@@ -731,8 +738,8 @@ function GlobalGraph(props: {
                         y={labelPos.y - 4}
                         text-anchor="middle"
                         font-size="10"
-                        fill={isHighlighted() ? "#4f46e5" : "#64748b"}
-                        stroke="#ffffff"
+                        fill={isHighlighted() ? "var(--v2-text-text-accent)" : "var(--v2-text-text-muted)"}
+                        stroke="var(--v2-background-bg-base)"
                         stroke-width="3"
                         paint-order="stroke"
                         style={{ "pointer-events": "none", transition: "fill 0.15s" }}
@@ -771,7 +778,7 @@ function GlobalGraph(props: {
                     <circle
                       r={r}
                       fill={roleColor(n.role)}
-                      stroke={isHovered() || isDragging() ? "#0f172a" : "#ffffff"}
+                      stroke={isHovered() || isDragging() ? "var(--v2-text-text-base)" : "var(--v2-background-bg-base)"}
                       stroke-width={isHovered() || isDragging() ? 3 : 2}
                       style={{ filter: isDragging() ? "drop-shadow(0 4px 6px rgba(15,23,42,0.3))" : undefined }}
                     />
@@ -780,7 +787,7 @@ function GlobalGraph(props: {
                       dominant-baseline="central"
                       font-size={n.center ? "15" : "13"}
                       font-weight={600}
-                      fill="#ffffff"
+                      fill="var(--v2-text-text-contrast)"
                       style={{ "pointer-events": "none" }}
                     >
                       {n.name.trim().charAt(0)}
@@ -790,8 +797,8 @@ function GlobalGraph(props: {
                       text-anchor="middle"
                       font-size="12"
                       font-weight={n.center ? 600 : 500}
-                      fill="#334155"
-                      stroke="#ffffff"
+                      fill="var(--v2-text-text-base)"
+                      stroke="var(--v2-background-bg-base)"
                       stroke-width="3"
                       paint-order="stroke"
                       style={{ "pointer-events": "none" }}

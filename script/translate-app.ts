@@ -4,43 +4,10 @@ import path from "path"
 import { parseArgs } from "util"
 import { pathToFileURL } from "url"
 
-const locales = [
-  "ar",
-  "br",
-  "bs",
-  "da",
-  "de",
-  "es",
-  "fr",
-  "ja",
-  "ko",
-  "no",
-  "pl",
-  "ru",
-  "uk",
-  "th",
-  "tr",
-  "zh",
-  "zht",
-] as const
+const locales = ["zh", "zht"] as const
 type Locale = (typeof locales)[number]
 
 const languages = {
-  ar: "Arabic",
-  br: "Brazilian Portuguese",
-  bs: "Bosnian",
-  da: "Danish",
-  de: "German",
-  es: "Spanish",
-  fr: "French",
-  ja: "Japanese",
-  ko: "Korean",
-  no: "Norwegian Bokmal",
-  pl: "Polish",
-  ru: "Russian",
-  uk: "Ukrainian",
-  th: "Thai",
-  tr: "Turkish",
   zh: "Simplified Chinese",
   zht: "Traditional Chinese",
 } as const satisfies Record<Locale, string>
@@ -49,7 +16,7 @@ type Dictionary = Record<string, string>
 type Drift = ReturnType<typeof findDrift>
 type Domain = { name: string; source: string; target: string; drift: Drift }
 
-const desktopLocales = new Set<Locale>(locales.filter((locale) => locale !== "th" && locale !== "tr"))
+const desktopLocales: ReadonlySet<Locale> = new Set(locales)
 const root = path.resolve(import.meta.dir, "..")
 
 export function parseTranslationArgs(args: string[]) {

@@ -394,7 +394,7 @@ export function CharacterDetail(props: {
             </ButtonV2>
           </Show>
           <Show when={props.onClose}>
-            <ButtonV2 variant="ghost" size="small" onClick={props.onClose} title="close">
+            <ButtonV2 variant="ghost" size="small" onClick={props.onClose} title={props.language.t("common.close")}>
               ×
             </ButtonV2>
           </Show>

@@ -15,8 +15,8 @@ import {
 
 describe("translate app", () => {
   test("parses one locale with the public model defaults", () => {
-    expect(parseTranslationArgs(["fr"])).toEqual({
-      target: "fr",
+    expect(parseTranslationArgs(["zht"])).toEqual({
+      target: "zht",
       concurrency: 1,
       model: "opennovel/gpt-5.5",
       variant: "xhigh",
@@ -56,20 +56,18 @@ describe("translate app", () => {
   })
 
   test("parses fresh-process parity checks without requesting translation", () => {
-    expect(parseTranslationArgs(["fr", "--check"]).check).toBe(true)
+    expect(parseTranslationArgs(["zht", "--check"]).check).toBe(true)
   })
 
   test("limits each locale to its app surfaces", () => {
-    expect(targetFiles("fr")).toEqual([
-      "packages/app/src/i18n/fr.ts",
-      "packages/ui/src/i18n/fr.ts",
-      "packages/desktop/src/renderer/i18n/fr.ts",
+    expect(targetFiles("zh")).toEqual([
+      "packages/app/src/i18n/zh.ts",
+      "packages/ui/src/i18n/zh.ts",
+      "packages/desktop/src/renderer/i18n/zh.ts",
     ])
-    expect(targetFiles("tr")).toEqual(["packages/app/src/i18n/tr.ts", "packages/ui/src/i18n/tr.ts"])
   })
 
   test("maps product locale codes to their glossaries", () => {
-    expect(glossaryFile("fr")).toBe(".opennovel/glossary/fr.md")
     expect(glossaryFile("zh")).toBe(".opennovel/glossary/zh-cn.md")
     expect(glossaryFile("zht")).toBe(".opennovel/glossary/zh-tw.md")
   })

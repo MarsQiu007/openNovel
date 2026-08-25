@@ -4,6 +4,7 @@ import {
   useUpdateAnnotation,
   useDeleteAnnotation,
 } from "@/context/novel-queries"
+import { useLanguage } from "@/context/language"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
@@ -12,21 +13,24 @@ type AnnotationPanelProps = {
   chapterID: Accessor<string | null>
 }
 
-const statusLabel: Record<string, string> = {
-  open: "待处理",
-  resolved: "已解决",
-  wontfix: "不处理",
-  applied: "已采纳",
+type Translator = { t: (key: string, params?: Record<string, string | number>) => string }
+
+// 枚举值翻译:字典缺失时回退到原始枚举值
+function enumLabel(language: Translator, prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  const translated = language.t(key)
+  return translated === key ? value : translated
 }
 
 const statusColor: Record<string, string> = {
-  open: "text-amber-400",
-  resolved: "text-green-400",
-  wontfix: "text-v2-text-muted",
-  applied: "text-blue-400",
+  open: "text-v2-state-fg-warning",
+  resolved: "text-v2-state-fg-success",
+  wontfix: "text-v2-text-text-faint",
+  applied: "text-v2-state-fg-info",
 }
 
 export function AnnotationPanel(props: AnnotationPanelProps) {
+  const language = useLanguage()
   const annotations = useAnnotations(
     props.novelID,
     createMemo(() => props.chapterID() ?? ""),
@@ -62,16 +66,16 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   return (
     <div class="flex flex-col gap-2 p-3 overflow-y-auto h-full">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-v2-text-primary">批注</h3>
+        <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
         <div class="flex gap-1">
           <FilterButton active={filter() === "all"} onClick={() => setFilter("all")}>
-            全部
+            {language.t("novel.annotations.filter.all")}
           </FilterButton>
           <FilterButton active={filter() === "open"} onClick={() => setFilter("open")}>
-            待处理
+            {language.t("novel.annotations.status.open")}
           </FilterButton>
           <FilterButton active={filter() === "resolved"} onClick={() => setFilter("resolved")}>
-            已解决
+            {language.t("novel.annotations.status.resolved")}
           </FilterButton>
         </div>
       </div>
@@ -81,40 +85,40 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
       </Show>
 
       <Show when={!annotations.isLoading && filtered().length === 0}>
-        <p class="text-xs text-v2-text-muted py-4 text-center">暂无批注</p>
+        <p class="text-xs text-v2-text-text-faint py-4 text-center">{language.t("novel.annotations.empty")}</p>
       </Show>
 
       <For each={filtered()}>
         {(ann) => (
-          <div class="rounded border border-v2-border-default p-2 flex flex-col gap-1.5">
+          <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-1.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>
-                  {statusLabel[ann.status] ?? ann.status}
+                  {enumLabel(language, "novel.annotations.status", ann.status)}
                 </span>
                 <Show when={ann.source === "ai"}>
-                  <span class="text-xs px-1 py-0.5 rounded bg-v2-bg-secondary text-v2-text-muted">AI</span>
+                  <span class="text-xs px-1 py-0.5 rounded bg-v2-background-bg-layer-01 text-v2-text-text-faint">AI</span>
                 </Show>
                 <Show when={ann.suggestedReplacement}>
-                  <span class="text-xs px-1 py-0.5 rounded bg-blue-500/20 text-blue-300">润色</span>
+                  <span class="text-xs px-1 py-0.5 rounded bg-v2-state-bg-info text-v2-state-fg-info">{language.t("novel.annotations.polish")}</span>
                 </Show>
               </div>
               <Show when={ann.paragraphIndex != null}>
-                <span class="text-xs text-v2-text-muted">P{ann.paragraphIndex! + 1}</span>
+                <span class="text-xs text-v2-text-text-faint">P{ann.paragraphIndex! + 1}</span>
               </Show>
             </div>
 
             <Show when={ann.quote}>
-              <blockquote class="text-xs text-v2-text-muted border-l-2 border-v2-border-default pl-2 italic truncate">
+              <blockquote class="text-xs text-v2-text-text-faint border-l-2 border-v2-border-border-base pl-2 italic truncate">
                 {ann.quote}
               </blockquote>
             </Show>
 
-            <p class="text-xs text-v2-text-primary">{ann.comment}</p>
+            <p class="text-xs text-v2-text-text-base">{ann.comment}</p>
 
             <Show when={ann.suggestedReplacement}>
-              <div class="rounded bg-v2-bg-secondary p-1.5 text-xs text-v2-text-secondary">
-                <span class="text-v2-text-muted">建议: </span>
+              <div class="rounded bg-v2-background-bg-layer-01 p-1.5 text-xs text-v2-text-text-muted">
+                <span class="text-v2-text-text-faint">{language.t("novel.annotations.suggestion")} </span>
                 {ann.suggestedReplacement}
               </div>
             </Show>
@@ -123,24 +127,24 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
               <div class="flex gap-1 mt-1">
                 <Show when={ann.suggestedReplacement}>
                   <ButtonV2 size="small" variant="contrast" onClick={() => setStatus(ann.id, "applied")}>
-                    采纳
+                    {language.t("novel.annotations.apply")}
                   </ButtonV2>
                 </Show>
                 <ButtonV2 size="small" variant="outline" onClick={() => setStatus(ann.id, "resolved")}>
-                  解决
+                  {language.t("novel.annotations.resolve")}
                 </ButtonV2>
                 <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "wontfix")}>
-                  忽略
+                  {language.t("novel.annotations.dismiss")}
                 </ButtonV2>
                 <ButtonV2 size="small" variant="ghost" onClick={() => remove(ann.id)}>
-                  删除
+                  {language.t("common.delete")}
                 </ButtonV2>
               </div>
             </Show>
 
             <Show when={ann.status !== "open"}>
               <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "open")}>
-                重新打开
+                {language.t("novel.annotations.reopen")}
               </ButtonV2>
             </Show>
           </div>
@@ -155,8 +159,8 @@ function FilterButton(props: { active: boolean; onClick: () => void; children: a
     <button
       class={`text-xs px-2 py-0.5 rounded transition-colors ${
         props.active
-          ? "bg-v2-bg-secondary text-v2-text-primary"
-          : "text-v2-text-muted hover:text-v2-text-primary"
+          ? "bg-v2-background-bg-layer-01 text-v2-text-text-base"
+          : "text-v2-text-text-faint hover:text-v2-text-text-base"
       }`}
       onClick={props.onClick}
     >

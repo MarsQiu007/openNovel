@@ -1,4 +1,4 @@
-import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
@@ -13,19 +13,12 @@ type Props = {
   chapters: ReadonlyArray<{ id: string; order: number; title: string }>
 }
 
-const WIDTH = 320
 const HEIGHT = 180
 const PAD_TOP = 16
 const PAD_RIGHT = 16
 const PAD_BOTTOM = 24
 const PAD_LEFT = 28
-const PLOT_W = WIDTH - PAD_LEFT - PAD_RIGHT
 const PLOT_H = HEIGHT - PAD_TOP - PAD_BOTTOM
-
-function toX(chapter: number, min: number, max: number) {
-  if (max === min) return PAD_LEFT + PLOT_W / 2
-  return PAD_LEFT + ((chapter - min) / (max - min)) * PLOT_W
-}
 
 function toY(level: number) {
   return PAD_TOP + (1 - level / 10) * PLOT_H
@@ -46,6 +39,28 @@ export function TensionChart(props: Props) {
     x: number
     y: number
   } | null>(null)
+
+  // 图表宽度跟随容器(右栏内容区约 256px)。viewBox 与实测像素 1:1,tooltip 定位无需换算
+  const [width, setWidth] = createSignal(256)
+  const [containerRef, setContainerRef] = createSignal<HTMLDivElement>()
+
+  createEffect(() => {
+    const el = containerRef()
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 0) setWidth(w)
+    })
+    ro.observe(el)
+    onCleanup(() => ro.disconnect())
+  })
+
+  const plotW = createMemo(() => width() - PAD_LEFT - PAD_RIGHT)
+
+  function toX(chapter: number, min: number, max: number) {
+    if (max === min) return PAD_LEFT + plotW() / 2
+    return PAD_LEFT + ((chapter - min) / (max - min)) * plotW()
+  }
 
   const sorted = createMemo(() => {
     const d = tension.data
@@ -134,7 +149,7 @@ export function TensionChart(props: Props) {
         </div>
       }
     >
-      <div class="px-4 py-4">
+      <div class="px-4 py-4" ref={setContainerRef}>
         <h2 class="text-base font-semibold text-v2-text-text-base mb-3">{language.t("novel.panel.tension")}</h2>
 
         <Show
@@ -145,8 +160,8 @@ export function TensionChart(props: Props) {
             </div>
           }
         >
-          <div class="relative" style={{ width: `${WIDTH}px` }}>
-            <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} class="w-full" style={{ height: `${HEIGHT}px` }}>
+          <div class="relative w-full">
+            <svg viewBox={`0 0 ${width()} ${HEIGHT}`} class="w-full" style={{ height: `${HEIGHT}px` }}>
               {/* Y-axis grid lines */}
               <For each={yGrid}>
                 {(level) => {
@@ -156,7 +171,7 @@ export function TensionChart(props: Props) {
                       <line
                         x1={PAD_LEFT}
                         y1={y}
-                        x2={WIDTH - PAD_RIGHT}
+                        x2={width() - PAD_RIGHT}
                         y2={y}
                         stroke="var(--v2-border-border-muted)"
                         stroke-width="0.5"

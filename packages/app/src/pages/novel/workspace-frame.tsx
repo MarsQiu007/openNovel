@@ -558,9 +558,15 @@ export default function NovelWorkspaceFrame() {
                         <SegmentedControlItemV2 value="tension">
                           {language.t("novel.panel.tension")}
                         </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="structure">结构</SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="annotations">批注</SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="canvas">画布</SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="structure">
+                          {language.t("novel.panel.structure")}
+                        </SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="annotations">
+                          {language.t("novel.panel.annotations")}
+                        </SegmentedControlItemV2>
+                        <SegmentedControlItemV2 value="canvas">
+                          {language.t("novel.panel.canvas")}
+                        </SegmentedControlItemV2>
                       </SegmentedControlV2>
                     </div>
                     {/* Tab content */}

@@ -8,6 +8,7 @@ import {
   useCreateEditorialReport,
   useVolumeReviews,
 } from "@/context/novel-queries"
+import { useLanguage } from "@/context/language"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
@@ -18,49 +19,35 @@ type StructurePanelProps = {
   selectedVolumeId: Accessor<string | null>
 }
 
-const arcTypeLabel: Record<string, string> = {
-  narrative: "主线",
-  character: "角色弧",
-  subplot: "支线",
-}
+type Translator = { t: (key: string, params?: Record<string, string | number>) => string }
 
-const arcStatusLabel: Record<string, string> = {
-  planned: "规划中",
-  active: "进行中",
-  completed: "已完成",
-  abandoned: "已弃用",
-}
-
-const beatKindLabel: Record<string, string> = {
-  setup: "开场",
-  rising: "升温",
-  turn: "转折",
-  midpoint: "中点",
-  crisis: "危机",
-  climax: "高潮",
-  resolution: "结局",
-  note: "备注",
+// 枚举值翻译:字典缺失时回退到原始枚举值
+function enumLabel(language: Translator, prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  const translated = language.t(key)
+  return translated === key ? value : translated
 }
 
 const beatKindColor: Record<string, string> = {
-  setup: "bg-v2-bg-secondary",
-  rising: "bg-blue-500/20 text-blue-300",
-  turn: "bg-amber-500/20 text-amber-300",
-  midpoint: "bg-purple-500/20 text-purple-300",
-  crisis: "bg-orange-500/20 text-orange-300",
-  climax: "bg-red-500/20 text-red-300",
-  resolution: "bg-green-500/20 text-green-300",
-  note: "bg-v2-bg-secondary text-v2-text-muted",
+  setup: "bg-v2-background-bg-layer-01",
+  rising: "bg-v2-state-bg-info text-v2-state-fg-info",
+  turn: "bg-v2-state-bg-warning text-v2-state-fg-warning",
+  midpoint: "bg-v2-background-bg-accent text-v2-text-text-accent",
+  crisis: "bg-v2-state-bg-danger text-v2-state-fg-danger",
+  climax: "bg-v2-state-bg-danger text-v2-state-fg-danger",
+  resolution: "bg-v2-state-bg-success text-v2-state-fg-success",
+  note: "bg-v2-background-bg-layer-01 text-v2-text-text-faint",
 }
 
 const arcStatusColor: Record<string, string> = {
-  planned: "text-v2-text-muted",
-  active: "text-blue-400",
-  completed: "text-green-400",
-  abandoned: "text-red-400",
+  planned: "text-v2-text-text-faint",
+  active: "text-v2-state-fg-info",
+  completed: "text-v2-state-fg-success",
+  abandoned: "text-v2-state-fg-danger",
 }
 
 export default function StructurePanel(props: StructurePanelProps) {
+  const language = useLanguage()
   const structure = useStructure(props.novelID)
   const arcs = useStoryArcs(props.novelID)
   const editorial = useEditorialReports(props.novelID)
@@ -130,17 +117,19 @@ export default function StructurePanel(props: StructurePanelProps) {
         {/* 主编视角 */}
         <section class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-v2-text-primary">主编视角</h3>
+            <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.structure.editorial")}</h3>
             <ButtonV2 size="small" variant="outline" onClick={runEditorialReview} loading={createReport.isPending}>
-              运行检查
+              {language.t("novel.structure.editorial.run")}
             </ButtonV2>
           </div>
           <Show when={editorial.data?.[0]}>
             {(report) => (
-              <div class="rounded border border-v2-border-default p-2 text-xs">
-                <p class="text-v2-text-secondary mb-1">{report().summary}</p>
-                <div class="text-v2-text-muted">
-                  {report().recommendations?.length ?? 0} 条建议
+              <div class="rounded border border-v2-border-border-base p-2 text-xs">
+                <p class="text-v2-text-text-muted mb-1">{report().summary}</p>
+                <div class="text-v2-text-text-faint">
+                  {language.t("novel.structure.editorial.recommendations", {
+                    count: report().recommendations?.length ?? 0,
+                  })}
                 </div>
               </div>
             )}
@@ -150,59 +139,64 @@ export default function StructurePanel(props: StructurePanelProps) {
         {/* 结构线 */}
         <section class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-v2-text-primary">结构线</h3>
+            <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.structure.arcs")}</h3>
             <ButtonV2 size="small" variant="ghost" onClick={() => setShowAddArc(!showAddArc())}>
-              {showAddArc() ? "取消" : "+ 新增"}
+              {showAddArc() ? language.t("common.cancel") : language.t("novel.structure.arcs.add")}
             </ButtonV2>
           </div>
 
           <Show when={showAddArc()}>
-            <div class="flex flex-col gap-1.5 rounded border border-v2-border-default p-2">
+            <div class="flex flex-col gap-1.5 rounded border border-v2-border-border-base p-2">
               <SelectV2
                 options={["narrative", "character", "subplot"]}
                 current={newArcType() as "narrative" | "character" | "subplot"}
-                label={(t) => arcTypeLabel[t] ?? t}
+                label={(t) => enumLabel(language, "novel.structure.arcType", t)}
                 onSelect={(t) => t && setNewArcType(t)}
               />
               <TextInputV2
-                placeholder="结构线标题"
+                placeholder={language.t("novel.structure.arcs.titlePlaceholder")}
                 value={newArcTitle()}
                 onInput={(e) => setNewArcTitle(e.currentTarget.value)}
               />
-              <ButtonV2 size="small" onClick={handleCreateArc}>创建</ButtonV2>
+              <ButtonV2 size="small" onClick={handleCreateArc}>{language.t("novel.structure.arcs.create")}</ButtonV2>
             </div>
           </Show>
 
           <Show when={arcs.data?.length === 0 && !showAddArc()}>
-            <p class="text-xs text-v2-text-muted py-2">暂无结构线，点击新增开始规划。</p>
+            <p class="text-xs text-v2-text-text-faint py-2">{language.t("novel.structure.arcs.empty")}</p>
           </Show>
 
           <For each={arcs.data ?? []}>
             {(arc) => (
-              <div class="rounded border border-v2-border-default">
+              <div class="rounded border border-v2-border-border-base">
                 <button
-                  class="w-full flex items-center justify-between p-2 text-left hover:bg-v2-bg-secondary"
+                  class="w-full flex items-center justify-between p-2 text-left hover:bg-v2-background-bg-layer-01"
                   onClick={() => setExpandedArc(expandedArc() === arc.id ? null : arc.id)}
                 >
                   <div class="flex items-center gap-2 min-w-0">
-                    <span class="text-xs px-1.5 py-0.5 rounded bg-v2-bg-secondary text-v2-text-muted shrink-0">
-                      {arcTypeLabel[arc.arcType] ?? arc.arcType}
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-v2-background-bg-layer-01 text-v2-text-text-faint shrink-0">
+                      {enumLabel(language, "novel.structure.arcType", arc.arcType)}
                     </span>
-                    <span class="text-sm font-medium text-v2-text-primary truncate">{arc.title}</span>
+                    <span class="text-sm font-medium text-v2-text-text-base truncate">{arc.title}</span>
                   </div>
                   <span class={`text-xs ${arcStatusColor[arc.status] ?? ""}`}>
-                    {arcStatusLabel[arc.status] ?? arc.status}
+                    {enumLabel(language, "novel.structure.arcStatus", arc.status)}
                   </span>
                 </button>
 
                 <Show when={expandedArc() === arc.id}>
-                  <div class="border-t border-v2-border-default p-2 flex flex-col gap-1.5">
+                  <div class="border-t border-v2-border-border-base p-2 flex flex-col gap-1.5">
                     <Show when={arc.summary}>
-                      <p class="text-xs text-v2-text-secondary">{arc.summary}</p>
+                      <p class="text-xs text-v2-text-text-muted">{arc.summary}</p>
                     </Show>
-                    <div class="flex gap-2 text-xs text-v2-text-muted">
+                    <div class="flex gap-2 text-xs text-v2-text-text-faint">
                       <Show when={arc.plannedStartChapter != null}>
-                        <span>规划: 第{arc.plannedStartChapter}-{arc.plannedEndChapter ?? "?"}章</span>
+                        <span>
+                          {language.t("novel.structure.arcs.planned", {
+                            start: arc.plannedStartChapter!,
+                            end: arc.plannedEndChapter ?? "?",
+                          })}
+                        </span>
                       </Show>
                     </div>
 
@@ -217,23 +211,23 @@ export default function StructurePanel(props: StructurePanelProps) {
                         <SelectV2
                           options={["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"]}
                           current={newBeatKind() as "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"}
-                          label={(k) => beatKindLabel[k] ?? k}
+                          label={(k) => enumLabel(language, "novel.structure.beatKind", k)}
                           onSelect={(k) => k && setNewBeatKind(k)}
                         />
                         <TextInputV2
-                          placeholder="节点标题"
+                          placeholder={language.t("novel.structure.beat.titlePlaceholder")}
                           value={newBeatLabel()}
                           onInput={(e) => setNewBeatLabel(e.currentTarget.value)}
                         />
                         <div class="flex gap-1.5">
-                          <ButtonV2 size="small" onClick={() => handleCreateBeat(arc.id)}>添加</ButtonV2>
-                          <ButtonV2 size="small" variant="ghost" onClick={() => setShowAddBeat(null)}>取消</ButtonV2>
+                          <ButtonV2 size="small" onClick={() => handleCreateBeat(arc.id)}>{language.t("novel.structure.beat.add")}</ButtonV2>
+                          <ButtonV2 size="small" variant="ghost" onClick={() => setShowAddBeat(null)}>{language.t("common.cancel")}</ButtonV2>
                         </div>
                       </div>
                     </Show>
                     <Show when={showAddBeat() !== arc.id}>
                       <ButtonV2 size="small" variant="ghost" onClick={() => setShowAddBeat(arc.id)}>
-                        + 添加节点
+                        {language.t("novel.structure.beat.addToArc")}
                       </ButtonV2>
                     </Show>
                   </div>
@@ -246,30 +240,30 @@ export default function StructurePanel(props: StructurePanelProps) {
         {/* 卷末复盘 */}
         <Show when={selectedVolume()}>
           <section class="flex flex-col gap-2">
-            <h3 class="text-sm font-semibold text-v2-text-primary">
-              {selectedVolume()!.title} - 复盘
+            <h3 class="text-sm font-semibold text-v2-text-text-base">
+              {language.t("novel.structure.review.title", { title: selectedVolume()!.title })}
             </h3>
             <Show when={volumeReviews.data?.length}>
               <For each={volumeReviews.data ?? []}>
                 {(review) => (
-                  <div class="rounded border border-v2-border-default p-2 text-xs">
+                  <div class="rounded border border-v2-border-border-base p-2 text-xs">
                     <div class="flex items-center justify-between mb-1">
-                      <span class="text-v2-text-secondary">第 {review.round} 轮</span>
+                      <span class="text-v2-text-text-muted">{language.t("novel.structure.review.round", { round: review.round })}</span>
                       <Show when={review.score != null}>
-                        <span class="text-v2-text-primary font-medium">{review.score}/10</span>
+                        <span class="text-v2-text-text-base font-medium">{review.score}/10</span>
                       </Show>
                     </div>
-                    <p class="text-v2-text-secondary">{review.overall}</p>
+                    <p class="text-v2-text-text-muted">{review.overall}</p>
                     <Show when={review.strengths?.length}>
                       <div class="mt-1">
-                        <span class="text-green-400">优点: </span>
-                        <span class="text-v2-text-muted">{(review.strengths ?? []).join("、")}</span>
+                        <span class="text-v2-state-fg-success">{language.t("novel.structure.review.strengths")} </span>
+                        <span class="text-v2-text-text-faint">{(review.strengths ?? []).join("、")}</span>
                       </div>
                     </Show>
                     <Show when={review.weaknesses?.length}>
                       <div class="mt-1">
-                        <span class="text-amber-400">不足: </span>
-                        <span class="text-v2-text-muted">{(review.weaknesses ?? []).join("、")}</span>
+                        <span class="text-v2-state-fg-warning">{language.t("novel.structure.review.weaknesses")} </span>
+                        <span class="text-v2-text-text-faint">{(review.weaknesses ?? []).join("、")}</span>
                       </div>
                     </Show>
                   </div>
@@ -287,6 +281,7 @@ function StructureBeats(props: {
   beats: ReadonlyArray<{ id: string; arcId: string; chapterOrder?: number | null; label: string; kind: string; status: string }>
   arcId: string
 }) {
+  const language = useLanguage()
   const beats = createMemo(() =>
     props.beats
       .filter((b) => b.arcId === props.arcId)
@@ -298,12 +293,14 @@ function StructureBeats(props: {
       <For each={beats()}>
         {(beat) => (
           <div class="flex items-center gap-2 text-xs">
-            <span class={`px-1.5 py-0.5 rounded shrink-0 ${beatKindColor[beat.kind] ?? "bg-v2-bg-secondary"}`}>
-              {beatKindLabel[beat.kind] ?? beat.kind}
+            <span class={`px-1.5 py-0.5 rounded shrink-0 ${beatKindColor[beat.kind] ?? "bg-v2-background-bg-layer-01"}`}>
+              {enumLabel(language, "novel.structure.beatKind", beat.kind)}
             </span>
-            <span class="text-v2-text-primary truncate">{beat.label}</span>
+            <span class="text-v2-text-text-base truncate">{beat.label}</span>
             <Show when={beat.chapterOrder != null}>
-              <span class="text-v2-text-muted ml-auto shrink-0">第{beat.chapterOrder}章</span>
+              <span class="text-v2-text-text-faint ml-auto shrink-0">
+                {language.t("novel.chapter.label", { order: beat.chapterOrder! })}
+              </span>
             </Show>
           </div>
         )}
