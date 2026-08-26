@@ -3,8 +3,21 @@ import * as Tool from "./tool"
 import DESCRIPTION_WRITE from "./todowrite.txt"
 import { Todo } from "../session/todo"
 
+// Constrain status/priority to the documented vocabulary at the tool boundary so
+// invalid values fail validation; Todo.Info in @opennovel-ai/schema stays a plain
+// string for shared storage use.
+const Item = Schema.Struct({
+  content: Schema.String.annotate({ description: "Brief description of the task" }),
+  status: Schema.Literals(["pending", "in_progress", "completed", "cancelled"]).annotate({
+    description: "Current status of the task: pending, in_progress, completed, cancelled",
+  }),
+  priority: Schema.Literals(["high", "medium", "low"]).annotate({
+    description: "Priority level of the task: high, medium, low",
+  }),
+}).annotate({ identifier: "Todo" })
+
 export const Parameters = Schema.Struct({
-  todos: Schema.mutable(Schema.Array(Todo.Info)).annotate({ description: "The updated todo list" }),
+  todos: Schema.mutable(Schema.Array(Item)).annotate({ description: "The updated todo list" }),
 })
 
 type Metadata = {
