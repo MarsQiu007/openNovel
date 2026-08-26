@@ -67,7 +67,10 @@ export const apply = Effect.fn("SessionReminders.apply")(function* (input: {
     return input.messages
   }
 
-  if (input.agent.name !== "plan" || assistantMessage?.info.agent === "plan") return input.messages
+  // plan_exit is only registered for the cli client (tool/registry.ts), so keep this
+  // gate in sync to avoid telling other clients to call an unregistered tool.
+  if (flags.client !== "cli" || input.agent.name !== "plan" || assistantMessage?.info.agent === "plan")
+    return input.messages
 
   const ctx = yield* InstanceState.context
   const plan = Session.plan(input.session, ctx)
