@@ -281,7 +281,9 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
                           when={ui.renamingId === volume.id}
                           fallback={
                             <>
-                              <span class="flex-1 truncate min-w-0">{volume.title}</span>
+                              <span class="flex-1 truncate min-w-0">
+                                {language.t("novel.chapter.volume", { number: volume.order })} · {volume.title}
+                              </span>
                               <Show
                                 when={ui.deletingVolumeId === volume.id}
                                 fallback={

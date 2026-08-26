@@ -43,11 +43,24 @@ async function previousVolumeOrder(
   return volume?.order ?? null
 }
 
-/** 查询当前最新卷号；没有任何卷记录时返回 null */
-async function latestVolumeOrder(db: ReturnType<typeof getDb>, novelId: string): Promise<number | null> {
+/**
+ * 推断当前写作卷号：取已包含章节的最新一卷；所有卷都还没有章节时取最早一卷；
+ * 没有任何卷记录时返回 null。
+ * 注意不能用"最新创建的卷"兜底——architect 会在开书时预建全部规划卷，
+ * 若取最新卷，第1章会被错误归入最后一卷。
+ */
+async function currentVolumeOrder(db: ReturnType<typeof getDb>, novelId: string): Promise<number | null> {
   const volumes = await db.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).all()
   if (volumes.length === 0) return null
-  return Math.max(...volumes.map((v) => v.order))
+  const chapters = await db
+    .select({ volume_id: ChapterTable.volume_id })
+    .from(ChapterTable)
+    .where(eq(ChapterTable.novel_id, novelId))
+    .all()
+  const usedIds = new Set(chapters.map((c) => c.volume_id))
+  const used = volumes.filter((v) => usedIds.has(v.id))
+  if (used.length > 0) return Math.max(...used.map((v) => v.order))
+  return Math.min(...volumes.map((v) => v.order))
 }
 
 /** 获取或创建卷记录 */
@@ -290,7 +303,8 @@ export async function generateVolumeOutline(
  * 自动创建所属卷记录（如不存在）。
  *
  * 卷归属由剧情决定：显式传入 volumeNumber 时使用指定卷（开启新卷的场景）；
- * 否则沿用上一章所属卷；首章或无法推断时默认第1卷。
+ * 否则沿用上一章所属卷；无法推断时归入当前写作卷（已含章节的最新一卷，
+ * 全书尚无章节时取最早一卷），最终兜底第1卷。
  *
  * @param novelId 小说 ID
  * @param chapterNumber 章节编号（从 1 开始）
@@ -313,7 +327,7 @@ export async function generateChapterOutline(
   const volumeOrder =
     volumeNumber ??
     (await previousVolumeOrder(db, novelId, chapterNumber)) ??
-    (await latestVolumeOrder(db, novelId)) ??
+    (await currentVolumeOrder(db, novelId)) ??
     1
   const volumeId = await ensureVolume(db, novelId, novel.title, volumeOrder)
 

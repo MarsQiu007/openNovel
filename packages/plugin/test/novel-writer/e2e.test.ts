@@ -293,6 +293,34 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(ch2Outline).toContain("关键场景")
   })
 
+  test("回归：architect 预建全部规划卷时，第1章应归入第1卷而非最新卷", async () => {
+    const nid = await createBook("卷归属回归", "都市", "模拟开书时预建 4 卷后直接写第 1 章的场景。")
+    const sqlite = new BunSqlite(dbPath)
+    const volIds: string[] = []
+    for (let i = 1; i <= 4; i++) {
+      const vid = crypto.randomUUID()
+      volIds.push(vid)
+      sqlite.run(`INSERT INTO volumes (id, novel_id, title, summary, "order", created_at) VALUES (?, ?, ?, '', ?, ?)`, [
+        vid,
+        nid,
+        `规划卷${i}`,
+        i,
+        Date.now(),
+      ])
+    }
+    sqlite.close()
+
+    const outline = await generateChapterOutline(nid, 1, projectDir)
+    expect(outline).toContain("所属卷：第1卷")
+
+    const check = new BunSqlite(dbPath)
+    const row = check.query(`SELECT volume_id FROM chapters WHERE novel_id = ? AND "order" = 1`).get(nid) as {
+      volume_id: string
+    }
+    check.close()
+    expect(row.volume_id).toBe(volIds[0])
+  })
+
   test("步骤4：撰写第1章（writer agent + chapter-tools + context 组装）", async () => {
     // 查找第1章的真实 ID
     const { drizzle } = await import("drizzle-orm/bun-sqlite")
