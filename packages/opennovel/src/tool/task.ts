@@ -134,7 +134,9 @@ export const TaskTool = Tool.define(
       }
 
       const session = params.task_id
-        ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+        ? yield* sessions
+            .get(SessionID.make(params.task_id))
+            .pipe(Effect.catchCause(() => Effect.fail(new Error(`Task not found: ${params.task_id}`))))
         : undefined
       const childPermission = deriveSubagentSessionPermission({
         parentSessionPermission: parent.permission ?? [],
