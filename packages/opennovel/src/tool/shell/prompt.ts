@@ -2,7 +2,6 @@ import { Schema } from "effect"
 import DESCRIPTION from "./shell.txt"
 import { PositiveInt } from "@opennovel-ai/core/schema"
 import { Global } from "@opennovel-ai/core/global"
-import { ShellID } from "./id"
 
 const PS = new Set(["powershell", "pwsh"])
 const CMD = new Set(["cmd"])
@@ -98,7 +97,7 @@ Usage notes:
   - If the output exceeds ${limits.maxLines} lines or ${limits.maxBytes} bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use \`head\`, \`tail\`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.
 
   - Avoid using Bash with the \`find\`, \`grep\`, \`cat\`, \`head\`, \`tail\`, \`sed\`, \`awk\`, or \`echo\` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
-    - File search: Use Glob (NOT find or ls)
+    - File search: Use Glob (NOT find or ls; \`ls\` is only for verifying that a directory exists, as in step 1)
     - Content search: Use Grep (NOT grep or rg)
     - Read files: Use Read (NOT cat/head/tail)
     - Edit files: Use Edit (NOT sed/awk)
@@ -148,7 +147,7 @@ Usage notes:
   - You can specify an optional timeout in milliseconds. If not specified, commands will time out after ${defaultTimeoutMs}ms.
   - If the output exceeds ${limits.maxLines} lines or ${limits.maxBytes} bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use \`Select-Object -First\`, \`Select-Object -Last\`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.
 
-  - Avoid using Shell with PowerShell file/content cmdlets unless explicitly instructed or when these cmdlets are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+  - Avoid using the bash tool with PowerShell file/content cmdlets unless explicitly instructed or when these cmdlets are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use Glob (NOT Get-ChildItem)
     - Content search: Use Grep (NOT Select-String)
     - Read files: Use Read (NOT Get-Content)
@@ -197,7 +196,7 @@ Usage notes:
   - You can specify an optional timeout in milliseconds. If not specified, commands will time out after ${defaultTimeoutMs}ms.
   - If the output exceeds ${limits.maxLines} lines or ${limits.maxBytes} bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use \`more\` or other pagination commands to limit output; the full output will already be captured to a file for more precise searching.
 
-  - Avoid using Shell with cmd.exe file/content commands unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+  - Avoid using the bash tool with cmd.exe file/content commands unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
     - File search: Use Glob (NOT dir /s)
     - Content search: Use Grep (NOT findstr)
     - Read files: Use Read (NOT type)
@@ -227,10 +226,6 @@ function profile(name: string, platform: NodeJS.Platform, limits: Limits, defaul
       workdirSection:
         "All commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID changing directories inside the command - use `workdir` instead.",
       commandSection: cmdCommandSection(chain, limits, defaultTimeoutMs),
-      gitCommands: "git commands",
-      gitCommandRestriction: "git commands",
-      createPrInstruction: "Create PR using a temporary body file so cmd.exe quoting stays simple.",
-      createPrExample: `(\n  echo ## Summary\n  echo - ^<1-3 bullet points^>\n) > pr-body.txt\ngh pr create --title "the pr title" --body-file pr-body.txt`,
     }
   }
   if (isPowerShell) {
@@ -245,28 +240,13 @@ function profile(name: string, platform: NodeJS.Platform, limits: Limits, defaul
         limits,
         defaultTimeoutMs,
       ),
-      gitCommands: "git commands",
-      gitCommandRestriction: "git commands",
-      createPrInstruction: "Create PR using gh pr create with a PowerShell here-string to pass the body correctly.",
-      createPrExample: `gh pr create --title "the pr title" --body @'
-## Summary
-- <1-3 bullet points>
-'@`,
     }
   }
   return {
-    intro:
-      "Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.",
+    intro: `Executes a given ${shellDisplayName(name)} command with optional timeout, ensuring proper handling and security measures.`,
     workdirSection:
       "All commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID using `cd <directory> && <command>` patterns - use `workdir` instead.",
     commandSection: bashCommandSection(chain, limits, defaultTimeoutMs),
-    gitCommands: "bash commands",
-    gitCommandRestriction: "git bash commands",
-    createPrInstruction:
-      "Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.",
-    createPrExample: `gh pr create --title "the pr title" --body "$(cat <<'EOF'
-## Summary
-<1-3 bullet points>`,
   }
 }
 
@@ -280,11 +260,6 @@ export function render(name: string, platform: NodeJS.Platform, limits: Limits, 
       tmp: Global.Path.tmp,
       workdirSection: selected.workdirSection,
       commandSection: selected.commandSection,
-      gitCommands: selected.gitCommands,
-      toolName: ShellID.ToolID,
-      gitCommandRestriction: selected.gitCommandRestriction,
-      createPrInstruction: selected.createPrInstruction,
-      createPrExample: selected.createPrExample,
     }),
     parameters: parameterSchema(),
   }
