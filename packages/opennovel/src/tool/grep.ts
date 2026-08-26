@@ -63,6 +63,7 @@ export const GrepTool = Tool.define(
           const result = yield* ripgrep.grep({
             cwd,
             pattern: params.pattern,
+            file: info?.type === "Directory" ? undefined : search,
             include: params.include,
             limit: 100,
           })

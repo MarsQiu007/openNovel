@@ -21,6 +21,9 @@ Skip when:
 - `completed` - finished successfully
 - `cancelled` - no longer needed
 
+## Priority
+- Every todo must include a `priority` field with one of: `high`, `medium`, `low`
+
 ## Rules
 - Update status in real time; don't batch completions
 - Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.

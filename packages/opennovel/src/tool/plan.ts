@@ -27,23 +27,34 @@ export const PlanExitTool = Tool.define(
           const instance = yield* InstanceState.context
           const info = yield* session.get(ctx.sessionID)
           const plan = path.relative(instance.worktree, Session.plan(info, instance))
-          const answers = yield* question.ask({
-            sessionID: ctx.sessionID,
-            questions: [
-              {
-                question: `Plan at ${plan} is complete. Would you like to switch to the build agent and start implementing?`,
-                header: "Build Agent",
-                custom: false,
-                options: [
-                  { label: "Yes", description: "Switch to build agent and start implementing the plan" },
-                  { label: "No", description: "Stay with plan agent to continue refining the plan" },
-                ],
-              },
-            ],
-            tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
-          })
+          const answers = yield* question
+            .ask({
+              sessionID: ctx.sessionID,
+              questions: [
+                {
+                  question: `Plan at ${plan} is complete. Would you like to switch to the build agent and start implementing?`,
+                  header: "Build Agent",
+                  custom: false,
+                  options: [
+                    { label: "Yes", description: "Switch to build agent and start implementing the plan" },
+                    { label: "No", description: "Stay with plan agent to continue refining the plan" },
+                  ],
+                },
+              ],
+              tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
+            })
+            .pipe(
+              Effect.catchTag("QuestionRejectedError", () =>
+                Effect.succeed([["No"]] as ReadonlyArray<readonly string[]>),
+              ),
+            )
 
-          if (answers[0]?.[0] === "No") yield* new Question.RejectedError()
+          if (answers[0]?.[0] === "No")
+            return {
+              title: "Staying with plan agent",
+              output: "The user chose to stay with the plan agent. Continue refining the plan.",
+              metadata: {},
+            }
 
           const messages = yield* session.messages({ sessionID: ctx.sessionID }).pipe(Effect.orDie)
           const lastUser = messages.findLast((item) => item.info.role === "user" && item.info.model)
