@@ -14,6 +14,7 @@ import { tmpdir } from "os"
 
 // DB 路径必须在模块导入前设置，因为各模块的 getDb() 在首次调用时读取该环境变量
 const testDir = join(tmpdir(), `novel-review-test-${Date.now()}`)
+const originalOpenNovelDb = process.env.OPENNOVEL_DB
 process.env.OPENNOVEL_DB = join(testDir, "test.db")
 mkdirSync(testDir, { recursive: true })
 
@@ -63,6 +64,9 @@ beforeAll(async () => {
 
 afterAll(() => {
   closeDb()
+  // 恢复原值，避免污染同进程内按 directory 隔离的其他测试文件
+  if (originalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+  else process.env.OPENNOVEL_DB = originalOpenNovelDb
   try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 

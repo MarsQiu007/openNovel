@@ -2425,7 +2425,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
       save_novel_settings: tool({
         description:
-          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（先删后插）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。',
+          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。',
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           settings_json: tool.schema
@@ -2568,21 +2568,42 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                     .run()
                   count++
                   break
-                case "style_guide":
-                  await db.delete(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).run()
-                  await db
-                    .insert(StyleGuideTable)
-                    .values({
-                      id: crypto.randomUUID(),
-                      novel_id: novelId,
-                      rules: stringifyRules(d.rules),
-                      tone: String(d.tone ?? ""),
-                      pov: String(d.pov ?? ""),
-                      tense: String(d.tense ?? ""),
-                    })
-                    .run()
+                case "style_guide": {
+                  // 单条覆盖语义用 update-if-exists / insert-if-not 实现：单条 SQL 原子，
+                  // 失败时旧数据仍在；不允许先删后插（insert 失败会丢失原有风格指南）
+                  const [existingSg] = await db
+                    .select({ id: StyleGuideTable.id })
+                    .from(StyleGuideTable)
+                    .where(eq(StyleGuideTable.novel_id, novelId))
+                    .limit(1)
+                    .all()
+                  if (existingSg) {
+                    await db
+                      .update(StyleGuideTable)
+                      .set({
+                        rules: stringifyRules(d.rules),
+                        tone: String(d.tone ?? ""),
+                        pov: String(d.pov ?? ""),
+                        tense: String(d.tense ?? ""),
+                      })
+                      .where(eq(StyleGuideTable.id, existingSg.id))
+                      .run()
+                  } else {
+                    await db
+                      .insert(StyleGuideTable)
+                      .values({
+                        id: crypto.randomUUID(),
+                        novel_id: novelId,
+                        rules: stringifyRules(d.rules),
+                        tone: String(d.tone ?? ""),
+                        pov: String(d.pov ?? ""),
+                        tense: String(d.tense ?? ""),
+                      })
+                      .run()
+                  }
                   count++
                   break
+                }
                 case "volume":
                   await db
                     .insert(VolumeTable)
@@ -4395,7 +4416,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           title: tool.schema.string().describe("结构线标题"),
           summary: tool.schema.string().optional().describe("结构线摘要"),
           status: tool.schema.enum(["planned", "active", "completed", "abandoned"]).optional(),
-          target_character_id: tool.schema.string().optional().describe("角色弧关联的角色 ID"),
+          target_character_id: tool.schema.string().optional().describe("角色弧关联的角色 ID 或角色名（传名字时自动解析为 ID）"),
           planned_start_chapter: tool.schema.number().optional(),
           planned_end_chapter: tool.schema.number().optional(),
           actual_start_chapter: tool.schema.number().optional(),
@@ -4404,6 +4425,36 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         async execute(args, ctx) {
           const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "plan_story_arc", output: "未找到当前小说项目" }
+          // target_character_id 接受角色 ID 或角色名：architect/observer 手里通常只有名字，
+          // 这里解析到真实 UUID，避免把名字直接写入外键触发 FOREIGN KEY constraint failed
+          let resolvedCharacterId: string | null | undefined
+          if (args.target_character_id) {
+            const db = getDb(ctx.directory)
+            const ref = args.target_character_id.trim()
+            const [byId] = await db
+              .select({ id: CharacterTable.id })
+              .from(CharacterTable)
+              .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, ref)))
+              .limit(1)
+              .all()
+            if (byId) {
+              resolvedCharacterId = byId.id
+            } else {
+              const [byName] = await db
+                .select({ id: CharacterTable.id })
+                .from(CharacterTable)
+                .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.name, ref)))
+                .limit(1)
+                .all()
+              if (!byName) {
+                return {
+                  title: "plan_story_arc",
+                  output: `未找到角色「${ref}」，请先用 save_novel_settings 创建该角色，或传入正确的角色 ID`,
+                }
+              }
+              resolvedCharacterId = byName.id
+            }
+          }
           if (args.action === "update" && args.arc_id) {
             const updated = await updateStoryArc(
               args.arc_id,
@@ -4411,7 +4462,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 title: args.title,
                 summary: args.summary,
                 status: args.status,
-                targetCharacterId: args.target_character_id,
+                targetCharacterId: resolvedCharacterId,
                 plannedStartChapter: args.planned_start_chapter,
                 plannedEndChapter: args.planned_end_chapter,
                 actualStartChapter: args.actual_start_chapter,
@@ -4432,7 +4483,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               title: args.title,
               summary: args.summary ?? "",
               status: args.status ?? "planned",
-              targetCharacterId: args.target_character_id ?? null,
+              targetCharacterId: resolvedCharacterId ?? null,
               plannedStartChapter: args.planned_start_chapter ?? null,
               plannedEndChapter: args.planned_end_chapter ?? null,
             },
