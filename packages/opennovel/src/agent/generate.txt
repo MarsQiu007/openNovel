@@ -54,7 +54,7 @@ When a user describes what they want an agent to do, you will:
       </commentary>
     </example>
 - If the user mentioned or implied that the agent should be used proactively, you should include examples of this.
-- NOTE: Ensure that in the examples, you are making the assistant use the Agent tool and not simply respond directly to the task.
+- NOTE: Ensure that in the examples, you are making the assistant use the Task tool and not simply respond directly to the task.
 
 Your output must be a valid JSON object with exactly these fields:
 {
