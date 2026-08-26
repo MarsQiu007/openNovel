@@ -45,7 +45,9 @@ function lock(filePath: string) {
 }
 
 export const Parameters = Schema.Struct({
-  filePath: Schema.String.annotate({ description: "The absolute path to the file to modify" }),
+  filePath: Schema.String.annotate({
+    description: "The path to the file to modify (relative paths resolve against the project directory)",
+  }),
   oldString: Schema.String.annotate({ description: "The text to replace" }),
   newString: Schema.String.annotate({
     description: "The text to replace it with (must be different from oldString)",
