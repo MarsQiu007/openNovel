@@ -124,7 +124,6 @@ const layer = Layer.effect(
             ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
           },
           question: "deny",
-          plan_enter: "deny",
           plan_exit: "deny",
           // 匹配 .env 文件模式（来自 github/gitignore 的 Node.gitignore 模式）
           read: {
@@ -137,7 +136,6 @@ const layer = Layer.effect(
           bash: "deny",
           edit: "deny",
           write: "deny",
-          applypatch: "deny",
           webfetch: "deny",
           websearch: "deny",
         })
@@ -153,7 +151,6 @@ const layer = Layer.effect(
               defaults,
               Permission.fromConfig({
                 question: "allow",
-                plan_enter: "allow",
               }),
               user,
             ),
@@ -209,7 +206,6 @@ const layer = Layer.effect(
                 "*": "deny",
                 grep: "allow",
                 glob: "allow",
-                list: "allow",
                 read: "allow",
                 external_directory: readonlyExternalDirectory,
               }),
