@@ -75,6 +75,12 @@ export const ApplyPatchTool = Tool.define(
 
         switch (hunk.type) {
           case "add": {
+            // Add File must not silently overwrite an existing file
+            const stats = yield* afs.stat(filePath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (stats) {
+              return yield* Effect.fail(new Error(`File already exists: ${filePath}`))
+            }
+
             const oldContent = ""
             const newContent =
               hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`

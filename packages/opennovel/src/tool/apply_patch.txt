@@ -31,3 +31,7 @@ It is important to remember:
 
 - You must include a header with your intended action (Add/Delete/Update)
 - You must prefix new lines with `+` even when creating a new file
+- In an Add File section, lines without a `+` prefix are ignored
+- In Update File hunks, lines prefixed with a space are context lines that stay unchanged; include them to help locate the change
+- `*** End of File` can be used as an anchor to match at the end of the file
+- Files may be auto-formatted after the patch is applied, and the output may include LSP diagnostics you should fix
