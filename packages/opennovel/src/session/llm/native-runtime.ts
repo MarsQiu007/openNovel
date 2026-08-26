@@ -113,7 +113,9 @@ export function stream(input: StreamInput): StreamResult {
         const provider = input.llmClient
           .stream(
             LLMRequest.update(request, {
-              tools: [...request.tools, ...toDefinitions(tools)],
+              // Mirror the AI SDK path (../llm.ts activeTools): the invalid tool stays
+              // dispatchable but is never advertised to the model.
+              tools: [...request.tools, ...toDefinitions(tools).filter((tool) => tool.name !== "invalid")],
             }),
           )
           .pipe(
