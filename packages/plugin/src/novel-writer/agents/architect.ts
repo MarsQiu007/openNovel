@@ -79,7 +79,7 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 **剧情弧线（结构线/弧光）**
 你必须为本书规划结构化的弧光，后续每章写作会自动注入相关弧光与节点，writer 据此推进剧情。规划时同时给出每条弧光的关键节点（beat）：
 - 主线（narrative）：四幕结构（开端->发展->高潮->结局），每幕核心目标、关键事件、转折点。用一条 arc_type=narrative 的结构线表达，关键转折拆成 setup/rising/midpoint/crisis/climax/resolution 节点，并标注预计章节区间（如全书 200 章则中点约 100 章）。
-- 角色弧（character）：主角及 1-3 个核心配角的成长弧光，写明起点信念、触发事件、认知转变、终点状态。每个角色一条 arc_type=character 的结构线，target_character_id 后续用角色名关联。
+- 角色弧（character）：主角及 1-3 个核心配角的成长弧光，写明起点信念、触发事件、认知转变、终点状态。每个角色一条 arc_type=character 的结构线，target_character_id 填关联角色的名字（工具会自动解析为角色 ID；也可直接传 ID）。
 - 支线（subplot）：重要支线（反派线、感情线、势力线等）各一条结构线，标注预计起止章节。
 - 卷级规划：每卷的主题、核心冲突、必写事件，作为节点挂到主线或对应支线上。卷长度由剧情决定，不做固定章数预设。
 - 伏笔体系：全局伏笔的埋设和回收计划（仍走 save_novel_settings 的 foreshadowing 类型）。
@@ -103,7 +103,7 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 
 1. 构思全部设定（世界观、角色、剧情、伏笔、风格、卷、关系、结构线/弧光）
 2. 调用 save_novel_settings 工具持久化世界观/角色/伏笔/剧情线索/风格/卷/关系到数据库（一次性提交）
-3. 调用 plan_story_arc 工具把规划好的主线/角色弧/支线逐条落库（status 视进度取 planned，角色弧 target_character_id 用刚保存的角色名），再对每条弧光调用 record_arc_beat 录入关键节点（kind 取 setup/rising/turn/midpoint/crisis/climax/resolution，chapter_order 填预计章节号）。这一步必须执行——后续章节写作依赖这些弧光数据来推进剧情
+3. 调用 plan_story_arc 工具把规划好的主线/角色弧/支线逐条落库（status 视进度取 planned，角色弧 target_character_id 用刚保存角色的名字（传名字即可，工具会自动解析为 ID）），再对每条弧光调用 record_arc_beat 录入关键节点（kind 取 setup/rising/turn/midpoint/crisis/climax/resolution，chapter_order 填预计章节号）。这一步必须执行——后续章节写作依赖这些弧光数据来推进剧情
 4. 输出故事蓝图摘要完整内容
 5. 输出题材与写作规则摘要完整内容
 
@@ -160,7 +160,7 @@ director 派发你的任务第一行可能包含以下模式标记。所有模�
 
 ### 通用规则（所有模式适用）
 
-- arcs 数组中每条弧光包含：arc_type / title / summary / target_character_name（角色弧填角色名）/ beats。
+- arcs 数组中每条弧光包含：arc_type / title / summary / target_character_id（角色弧填角色名或 ID）/ beats。
 - beats 中每个节点：label / kind / summary / chapter_order。**已发生节点**设 \`drafted: true\`（工具自动回填 chapter_id、推导弧光 status 和 actual_start/actual_end），**未来节点**不设 drafted（默认 planned）。
 - 不要逐条调 plan_story_arc / record_arc_beat——backfill_story_arcs 内部会做状态推导和事务原子提交。
 - 工具返回后简要汇报：哪些弧光被新建/删除、已落地节点、未来规划。

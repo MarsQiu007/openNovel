@@ -5,6 +5,7 @@
  * annotate_chapter / list_annotations / resolve_annotation / polish_paragraph /
  * read_outline_canvas / write_outline_canvas 的端到端流程。
  */
+import { eq } from "drizzle-orm"
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
@@ -94,6 +95,33 @@ describe("B/C tools", () => {
     const meta = "metadata" in result ? result.metadata : undefined
     expect(meta?.arc_id).toBeDefined()
     expect(meta?.arc_type).toBe("narrative")
+  })
+
+  test("plan_story_arc 角色弧接受角色名并解析为角色 ID", async () => {
+    await setupNovel()
+    const hooks = await getHooks()
+    // 传入角色名而非 UUID，工具应自动解析，避免外键约束失败
+    const result = await hooks.tool!.plan_story_arc!.execute(
+      { action: "create", arc_type: "character", title: "主角成长弧", target_character_id: "主角" },
+      toolCtx(),
+    )
+    expect(result).toMatchObject({ title: "plan_story_arc" })
+    const arcId = ("metadata" in result ? result.metadata : {})?.arc_id as string
+    const db = getDb(projectDir)
+    const { StoryArcTable } = await import("../../src/novel-writer/session-store.js")
+    const arc = db.select().from(StoryArcTable).where(eq(StoryArcTable.id, arcId)).get()!
+    expect(arc.target_character_id).toBe("char-1")
+  })
+
+  test("plan_story_arc 角色弧引用不存在的角色名时返回清晰错误", async () => {
+    await setupNovel()
+    const hooks = await getHooks()
+    const result = await hooks.tool!.plan_story_arc!.execute(
+      { action: "create", arc_type: "character", title: "弧光", target_character_id: "林小满" },
+      toolCtx(),
+    )
+    expect(result.output).toContain("未找到角色")
+    expect(result.output).toContain("林小满")
   })
 
   test("record_arc_beat 创建节点", async () => {
