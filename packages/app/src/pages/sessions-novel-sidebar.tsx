@@ -8,6 +8,7 @@ import { ScrollView } from "@opennovel-ai/ui/scroll-view"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
+import { ContextMenu } from "@opennovel-ai/ui/context-menu"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { useLanguage } from "@/context/language"
 import { errorMessage } from "@/pages/layout/helpers"
@@ -47,6 +48,7 @@ export type NovelSessionGroupListProps = {
   openSessionById: (sessionID: string) => void
   createNovelSession: (novelID: string, title: string) => Promise<void>
   archiveSession: (session: Session) => Promise<void>
+  exportSession: (session: Session) => Promise<void>
 }
 
 /** 未绑定分组的展开状态在 expanded store 中使用的固定 key */
@@ -98,6 +100,7 @@ function SidebarSessionEntry(props: {
   onToggleChildren: () => void
   openSessionById: (sessionID: string) => void
   onArchive: (session: Session) => void
+  onExport: (session: Session) => void
 }) {
   const language = useLanguage()
   const active = () => props.activeSessionID === props.session.id
@@ -106,7 +109,8 @@ function SidebarSessionEntry(props: {
   const showChildren = () => props.childrenExpanded || children().some((c) => c.id === props.activeSessionID)
   return (
     <>
-      <div
+      <ContextMenu>
+      <ContextMenu.Trigger as="div"
         class="group/sidebar-session relative flex h-8 min-w-0 items-center rounded-[6px]"
         classList={{ "bg-v2-overlay-simple-overlay-hover": active() }}
       >
@@ -163,7 +167,15 @@ function SidebarSessionEntry(props: {
             />
           </TooltipV2>
         </div>
-      </div>
+      </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content>
+            <ContextMenu.Item onSelect={() => void props.onExport(props.session)}>
+              <ContextMenu.ItemLabel>导出会话（JSON）</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu>
       {/* 子代理会话：只读，随主会话级联归档，默认收纳在主会话内 */}
       <Show when={showChildren()}>
         <For each={children()}>
@@ -399,6 +411,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
                         onToggleChildren={() => toggleSub(session.id)}
                         openSessionById={props.openSessionById}
                         onArchive={handleArchive}
+                        onExport={props.exportSession}
                       />
                     )}
                   </For>
@@ -452,6 +465,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
                       onToggleChildren={() => toggleSub(session.id)}
                       openSessionById={props.openSessionById}
                       onArchive={handleArchive}
+                      onExport={props.exportSession}
                     />
                   )}
                 </For>

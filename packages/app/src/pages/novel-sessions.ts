@@ -161,6 +161,30 @@ export function useNovelSessions(input: {
   }
 
   // 归档主会话时级联归档其全部子代理会话，避免遗留孤儿会话
+  // 导出会话完整内容为 JSON（调试用）
+  async function exportSession(session: Session) {
+    const conn = input.conn()
+    if (!conn) return
+    const ctx = global.ensureServerCtx(conn)
+    const client = ctx.sdk.client
+    const [info, messages] = await Promise.all([
+      client.session.get({ sessionID: session.id }).then((r) => r.data),
+      client.session.messages({ sessionID: session.id }).then((r) => r.data),
+    ]).catch(() => [undefined, undefined])
+    if (!info || !messages) {
+      showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })
+      return
+    }
+    const payload = { exported_at: new Date().toISOString(), info, messages }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `session-${session.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast({ title: "已导出会话 JSON", variant: "success" })
+  }
+
   async function archiveSession(session: Session) {
     const conn = input.conn()
     if (!conn) return
@@ -197,5 +221,6 @@ export function useNovelSessions(input: {
     openSessionById,
     createNovelSession,
     archiveSession,
+    exportSession,
   }
 }

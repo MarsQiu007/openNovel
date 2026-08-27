@@ -5,14 +5,17 @@ import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
 import { IconButton } from "@opennovel-ai/ui/icon-button"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { Tooltip } from "@opennovel-ai/ui/tooltip"
+import { ContextMenu } from "@opennovel-ai/ui/context-menu"
 import { getFilename } from "@opennovel-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
 import { useServerSync } from "@/context/server-sync"
+import { useServerSDK } from "@/context/server-sdk"
 import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
+import { showToast } from "@/utils/toast"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
@@ -150,6 +153,28 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const notification = useNotification()
   const permission = usePermission()
   const serverSync = useServerSync()
+  const serverSDK = useServerSDK()
+
+  // 导出完整会话（含每条消息的工具调用参数与结果）为 JSON 文件，供问题排查时交给开发者分析
+  const exportSession = async () => {
+    const client = serverSDK().ensureDirSdkContext(props.session.directory).client
+    const [info, messages] = await Promise.all([
+      client.session.get({ sessionID: props.session.id }).then((r) => r.data),
+      client.session.messages({ sessionID: props.session.id }).then((r) => r.data),
+    ]).catch(() => [undefined, undefined])
+    if (!info || !messages) {
+      showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })
+      return
+    }
+    const payload = { exported_at: new Date().toISOString(), info, messages }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `session-${props.session.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast({ title: "已导出会话 JSON", variant: "success" })
+  }
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)
@@ -217,11 +242,13 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
 
   return (
     <>
-      <div
-        data-session-id={props.session.id}
-        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
-        style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
-      >
+      <ContextMenu>
+        <ContextMenu.Trigger
+          as="div"
+          data-session-id={props.session.id}
+          class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
+          style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
+        >
         <div class="flex min-w-0 items-center gap-1">
           <div class="min-w-0 flex-1">
             <Show
@@ -267,7 +294,15 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             </div>
           </Show>
         </div>
-      </div>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content>
+            <ContextMenu.Item onSelect={() => void exportSession()}>
+              <ContextMenu.ItemLabel>导出会话（JSON）</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu>
       <Show when={currentChild()} keyed>
         {(child) => (
           <div class="w-full">

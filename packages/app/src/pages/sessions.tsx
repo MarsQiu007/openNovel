@@ -953,6 +953,7 @@ export function SessionsPage() {
             openSessionById={novelSessions.openSessionById}
             createNovelSession={novelSessions.createNovelSession}
             archiveSession={archiveSession}
+            exportSession={novelSessions.exportSession}
           />
           <section
             ref={setSessionHoverTarget}

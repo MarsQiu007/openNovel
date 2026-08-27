@@ -117,6 +117,7 @@ export function SessionNovelPanel(props: {
                 openSessionById={novelSessions.openSessionById}
                 createNovelSession={novelSessions.createNovelSession}
                 archiveSession={novelSessions.archiveSession}
+                exportSession={novelSessions.exportSession}
               />
             </div>
           </ScrollView>
