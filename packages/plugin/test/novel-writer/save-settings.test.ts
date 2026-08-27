@@ -54,6 +54,14 @@ async function saveStyle(settings: Array<{ type: string; data: Record<string, un
 }
 
 describe("save_novel_settings style_guide", () => {
+  test("rules 传 JSON 字符串时解析保存，不被吞成 {}", async () => {
+    const db = await seed()
+    // agent 常把 rules 序列化成字符串传来；旧实现 stringifyRules 直接返回 {}
+    await saveStyle([{ type: "style_guide", data: { tone: "热血", rules: '{"chapter_length":3000,"pacing":"3:1"}' } }])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.rules).toMatchObject({ chapter_length: "3000", pacing: "3:1" })
+  })
+
   test("首次保存插入风格指南", async () => {
     const db = await seed()
     await saveStyle([{ type: "style_guide", data: { tone: "热血", pov: "第三人称限制", tense: "过去时", rules: { chapter_length: 3000 } } }])
@@ -74,5 +82,33 @@ describe("save_novel_settings style_guide", () => {
     expect(after[0].id).toBe(before.id)
     expect(after[0].tone).toBe("轻松")
     expect(after[0].pov).toBe("第一人称")
+  })
+
+  test("兼容中文键名（基调/视角/时态/规则），避免保存后数据全空", async () => {
+    const db = await seed()
+    // director agent 可能从 check_novel_settings 的中文展示反推格式，用中文键名
+    await saveStyle([{
+      type: "style_guide",
+      data: {
+        "基调": "现实主义末世",
+        "视角": "第三人称限知",
+        "时态": "过去时",
+        "规则": { "叙事节奏": "紧凑推进", "语言风格": "简洁克制" },
+      },
+    }])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.tone).toBe("现实主义末世")
+    expect(row.pov).toBe("第三人称限知")
+    expect(row.tense).toBe("过去时")
+    expect(row.rules).toMatchObject({ "叙事节奏": "紧凑推进", "语言风格": "简洁克制" })
+  })
+
+  test("data 不含任何有效字段时报错，不静默 count++", async () => {
+    await seed()
+    const result = await saveStyle([{ type: "style_guide", data: { foo: "bar", baz: 123 } }])
+    expect(result.output).toContain("错误")
+    expect(result.output).toContain("有效字段")
+    expect(result.metadata.count).toBe(0)
+    expect(result.metadata.errors.length).toBeGreaterThan(0)
   })
 })

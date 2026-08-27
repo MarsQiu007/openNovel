@@ -14,7 +14,7 @@ import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
-import { stringifyRules } from "./novel-writer/state-commit.js"
+import { stringifyRules, normalizeStyleGuideData } from "./novel-writer/state-commit.js"
 import { generateMasterOutline, generateVolumeOutline, generateChapterOutline } from "./novel-writer/outline.js"
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "./novel-writer/continuity-check.js"
 import { trackHook, getHookStats, HOOK_TYPES } from "./novel-writer/hook-rotation.js"
@@ -2425,7 +2425,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
       save_novel_settings: tool({
         description:
-          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。',
+          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。',
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           settings_json: tool.schema
@@ -2569,6 +2569,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                   count++
                   break
                 case "style_guide": {
+                  // 兼容中英文键名：agent 可能从 check 输出的中文展示反推格式
+                  const normalized = normalizeStyleGuideData(d)
+                  if (!normalized) {
+                    errors.push(`第${i}条：style_guide 数据中未找到任何有效字段（支持 tone/基调, pov/视角, tense/时态, rules/规则）`)
+                    break
+                  }
                   // 单条覆盖语义用 update-if-exists / insert-if-not 实现：单条 SQL 原子，
                   // 失败时旧数据仍在；不允许先删后插（insert 失败会丢失原有风格指南）
                   const [existingSg] = await db
@@ -2581,10 +2587,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                     await db
                       .update(StyleGuideTable)
                       .set({
-                        rules: stringifyRules(d.rules),
-                        tone: String(d.tone ?? ""),
-                        pov: String(d.pov ?? ""),
-                        tense: String(d.tense ?? ""),
+                        rules: stringifyRules(normalized.rules),
+                        tone: normalized.tone,
+                        pov: normalized.pov,
+                        tense: normalized.tense,
                       })
                       .where(eq(StyleGuideTable.id, existingSg.id))
                       .run()
@@ -2594,10 +2600,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                       .values({
                         id: crypto.randomUUID(),
                         novel_id: novelId,
-                        rules: stringifyRules(d.rules),
-                        tone: String(d.tone ?? ""),
-                        pov: String(d.pov ?? ""),
-                        tense: String(d.tense ?? ""),
+                        rules: stringifyRules(normalized.rules),
+                        tone: normalized.tone,
+                        pov: normalized.pov,
+                        tense: normalized.tense,
                       })
                       .run()
                   }

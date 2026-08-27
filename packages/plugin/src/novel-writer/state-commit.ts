@@ -981,6 +981,15 @@ async function applyToMaterializedView(
  */
 // 流水线产生的 rules 可能含数字/布尔值（如 chapter_length: 2500），统一转成字符串
 export function stringifyRules(rules: unknown): Record<string, string> {
+  // agent 常把 rules 序列化成 JSON 字符串传来，先解析再按对象处理，
+  // 否则会被下面的类型检查吞成 {}（风格指南保存后规则为空的 bug）
+  if (typeof rules === "string") {
+    try {
+      rules = JSON.parse(rules)
+    } catch {
+      return {}
+    }
+  }
   if (!rules || typeof rules !== "object" || Array.isArray(rules)) return {}
   const record: Record<string, string> = {}
   for (const [key, value] of Object.entries(rules)) {
@@ -988,6 +997,28 @@ export function stringifyRules(rules: unknown): Record<string, string> {
     else if (typeof value === "number" || typeof value === "boolean") record[key] = String(value)
   }
   return record
+}
+
+/**
+ * 归一化 style_guide 数据，兼容中英文键名。
+ *
+ * agent 可能从 check_novel_settings 的中文展示输出反推格式，
+ * 传入 { 基调, 视角, 时态, 规则 } 而非规范的 { tone, pov, tense, rules }，
+ * 这里统一归一化到英文字段，避免保存后数据全空但不报错的问题。
+ */
+export function normalizeStyleGuideData(data: Record<string, unknown>): {
+  rules: unknown
+  tone: string
+  pov: string
+  tense: string
+} | null {
+  const rules = data.rules ?? data["规则"]
+  const tone = String(data.tone ?? data["基调"] ?? "")
+  const pov = String(data.pov ?? data["视角"] ?? "")
+  const tense = String(data.tense ?? data["时态"] ?? "")
+  const hasAny = rules !== undefined || tone.length > 0 || pov.length > 0 || tense.length > 0
+  if (!hasAny) return null
+  return { rules, tone, pov, tense }
 }
 
 export async function commitState(
