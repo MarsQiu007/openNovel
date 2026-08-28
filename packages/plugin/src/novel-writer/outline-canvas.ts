@@ -70,6 +70,7 @@ export function defaultLayout(
   const columnWidth = 280
   const columnGap = 16
   const cardHeight = 80
+  const columnHeaderHeight = 28
   const cardGap = 8
   const sortedVolumes = [...volumes].sort((a, b) => a.order - b.order)
   const columns: CanvasColumn[] = sortedVolumes.map((v, i) => ({
@@ -86,7 +87,7 @@ export function defaultLayout(
       cards.push({
         id: ch.id,
         x: col.x,
-        y: i * (cardHeight + cardGap),
+        y: columnHeaderHeight + i * (cardHeight + cardGap),
         columnId: col.id,
       })
     })
