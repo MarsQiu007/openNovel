@@ -80,7 +80,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                 class={
                   isSelected(props.selectedOutline(), "master")
                     ? "w-full text-left px-4 py-2 bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
-                    : "w-full text-left px-4 py-2 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
+                    : "w-full text-left px-4 py-2.5 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
                 }
                 type="button"
               >
@@ -97,14 +97,14 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                 const volumeChapters = chaptersByVolume().grouped.get(volume.id) ?? []
                 return (
                   <Show when={hasVolumeOutline() || volumeChapters.length > 0}>
-                    <div class="px-4 py-2 text-xs font-medium text-v2-text-text-muted">{volume.title}</div>
+                    <div class="px-4 pt-3 pb-1.5 text-xs font-medium text-v2-text-text-muted">{volume.title}</div>
                     <Show when={hasVolumeOutline()}>
                       <button
                         onClick={() => props.onSelectOutline({ section: "volume", id: volume.id })}
                         class={
                           isSelected(props.selectedOutline(), "volume", volume.id)
                             ? "w-full text-left px-4 py-2 bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
-                            : "w-full text-left px-4 py-2 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
+                            : "w-full text-left px-4 py-2.5 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
                         }
                         type="button"
                       >
@@ -123,7 +123,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                               class={
                                 isSelected(props.selectedOutline(), "chapter", String(chapter.order))
                                   ? "w-full text-left px-4 pl-6 py-2 bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
-                                  : "w-full text-left px-4 pl-6 py-2 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
+                                  : "w-full text-left px-4 pl-6 py-2.5 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
                               }
                               type="button"
                             >
@@ -142,7 +142,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
 
             {/* Ungrouped chapter outlines */}
             <Show when={chaptersByVolume().ungrouped.length > 0}>
-              <div class="px-4 py-2 text-xs font-medium text-v2-text-text-muted">
+              <div class="px-4 pt-3 pb-1.5 text-xs font-medium text-v2-text-text-muted">
                 {language.t("novel.chapter.ungrouped")}
               </div>
               <For each={chaptersByVolume().ungrouped}>
@@ -157,7 +157,7 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                         class={
                           isSelected(props.selectedOutline(), "chapter", String(chapter.order))
                             ? "w-full text-left px-4 py-2 bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
-                            : "w-full text-left px-4 py-2 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
+                            : "w-full text-left px-4 py-2.5 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
                         }
                         type="button"
                       >

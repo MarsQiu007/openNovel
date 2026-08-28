@@ -63,11 +63,11 @@ export function WorldSidebar(props: WorldSidebarProps) {
       </Show>
 
       <Show when={query.error}>
-        <p class="text-sm text-v2-state-fg-danger px-3 py-2">{String(query.error)}</p>
+        <p class="text-sm text-v2-state-fg-danger px-4 py-3">{String(query.error)}</p>
       </Show>
 
       {/* Search box */}
-      <div class="px-3">
+      <div class="px-4">
         <TextInputV2
           value={search()}
           onInput={(e) => setSearch(e.currentTarget.value)}
@@ -77,7 +77,7 @@ export function WorldSidebar(props: WorldSidebarProps) {
       </div>
 
       {/* Add form */}
-      <div class="px-3">
+      <div class="px-4">
         <Show
           when={isAdding()}
           fallback={
@@ -145,19 +145,19 @@ export function WorldSidebar(props: WorldSidebarProps) {
       </div>
 
       <Show when={query.data && query.data.length === 0 && !search() && !isAdding()}>
-        <p class="text-sm text-v2-text-text-muted px-3 py-8 text-center">{language.t("novel.panel.world.empty")}</p>
+        <p class="text-sm text-v2-text-text-muted px-4 py-8 text-center">{language.t("novel.panel.world.empty")}</p>
       </Show>
 
       <Show when={grouped().size > 0}>
         <For each={Array.from(grouped().entries())}>
           {([category, entries]) => (
             <div class="flex flex-col gap-1">
-              <h4 class="text-xs font-medium text-v2-text-text-muted px-3 uppercase tracking-wider">
+              <h4 class="text-xs font-medium text-v2-text-text-muted px-4 uppercase tracking-wider">
                 {category} ({entries.length})
               </h4>
               <For each={entries}>
                 {(entry) => (
-                  <div class="flex flex-col gap-1 mx-2 px-2 py-2 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
+                  <div class="flex flex-col gap-1 mx-3 px-3 py-2.5 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
                     <div class="flex items-center justify-between gap-2">
                       <button
                         type="button"
@@ -197,7 +197,7 @@ export function WorldSidebar(props: WorldSidebarProps) {
       </Show>
 
       <Show when={search() && query.data && query.data.length > 0 && grouped().size === 0}>
-        <p class="text-sm text-v2-text-text-muted px-3 py-4 text-center">{language.t("palette.empty")}</p>
+        <p class="text-sm text-v2-text-text-muted px-4 py-4 text-center">{language.t("palette.empty")}</p>
       </Show>
     </div>
   )

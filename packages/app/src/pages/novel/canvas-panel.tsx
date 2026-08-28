@@ -175,7 +175,7 @@ export default function CanvasPanel(props: CanvasPanelProps) {
   }
 
   return (
-    <div class="flex flex-col gap-2 p-3 h-full min-h-0">
+    <div class="flex flex-col gap-2 p-4 h-full min-h-0">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.canvas.title")}</h3>
         <ButtonV2 size="small" variant="outline" onClick={resetLayout} loading={upsert.isPending}>

@@ -225,7 +225,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
       </div>
 
       {/* Search */}
-      <div class="px-3 py-2 border-b border-v2-border-border-base">
+      <div class="px-4 py-3 border-b border-v2-border-border-base">
         <TextInputV2
           fluid
           type="text"
@@ -256,7 +256,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
                         props.onSelectChapter(hit.chapterId)
                         setSearchQuery("")
                       }}
-                      class="w-full text-left px-4 py-2 hover:bg-v2-overlay-simple-overlay-hover transition-colors"
+                      class="w-full text-left px-4 py-2.5 hover:bg-v2-overlay-simple-overlay-hover transition-colors"
                       type="button"
                     >
                       <p class="text-sm text-v2-text-text-base truncate">{hit.title}</p>
@@ -276,7 +276,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
                   return (
                     <div>
                       {/* Volume header */}
-                      <div class="group relative flex items-center gap-1 px-4 py-2 text-xs font-medium text-v2-text-text-muted">
+                      <div class="group relative flex items-center gap-1 px-4 pt-3 pb-1.5 text-xs font-medium text-v2-text-text-muted">
                         <Show
                           when={ui.renamingId === volume.id}
                           fallback={
@@ -373,7 +373,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
 
               {/* Ungrouped chapters (no volumeId) */}
               <Show when={chaptersByVolume().ungrouped.length > 0}>
-                <div class="px-4 py-2 text-xs font-medium text-v2-text-text-muted">
+                <div class="px-4 pt-3 pb-1.5 text-xs font-medium text-v2-text-text-muted">
                   {language.t("novel.chapter.title")}
                 </div>
                 <For each={chaptersByVolume().ungrouped}>
@@ -404,7 +404,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
       </div>
 
       <Show when={pendingCount() > 0}>
-        <div class="px-4 py-2 text-xs text-v2-text-text-muted border-t border-v2-border-border-base">
+        <div class="px-4 py-2.5 text-xs text-v2-text-text-muted border-t border-v2-border-border-base">
           {language.t("novel.approval.pending")}: {pendingCount()}
         </div>
       </Show>
@@ -484,7 +484,7 @@ function ChapterRow(props: {
       }`}
     >
       <div
-        class="flex items-center gap-2 px-4 py-2 cursor-pointer"
+        class="flex items-center gap-2 px-4 py-2.5 cursor-pointer"
         onClick={props.onSelect}
         role="button"
         tabIndex={0}

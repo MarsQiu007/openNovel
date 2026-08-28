@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createSignal, createMemo, Show } from "solid-js"
+import { createEffect, createSignal, createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useNovel } from "@/context/novel"
@@ -45,9 +45,9 @@ export default function NovelWorkspaceFrame() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabValue = () => searchParams.tab
-  const activeTab = (): "reading" | "writing" | "relations" | "map" => {
+  const activeTab = (): "reading" | "writing" | "characters" | "relations" | "map" | "canvas" => {
     const v = tabValue()
-    if (v === "writing" || v === "relations" || v === "map") return v
+    if (v === "writing" || v === "characters" || v === "relations" || v === "map" || v === "canvas") return v
     return "reading"
   }
 
@@ -228,7 +228,7 @@ export default function NovelWorkspaceFrame() {
       >
         <div class="flex flex-col h-full w-full">
           {/* Header */}
-          <header class="flex items-center justify-between px-6 py-4 border-b border-v2-border-border-base">
+          <header class="flex items-center justify-between px-5 py-3 border-b border-v2-border-border-base">
             <div class="flex items-center gap-4">
               <ButtonV2
                 variant="ghost-muted"
@@ -395,8 +395,15 @@ export default function NovelWorkspaceFrame() {
 
             <Show when={!isSessionMode()}>
               {/* Relations / Map views: full-width (no left/right sidebars) */}
-              <Show when={(activeTab() === "relations" || activeTab() === "map") && leftMode() !== "world"}>
+              <Show when={(activeTab() === "characters" || activeTab() === "relations" || activeTab() === "map" || activeTab() === "canvas") && leftMode() !== "world"}>
                 <div class="flex-1 flex flex-col min-w-0">
+                  <Show when={activeTab() === "characters"}>
+                    <PanelCharacters
+                      novelID={novelID}
+                      selectedChapterId={selectedChapterId}
+                      chapters={data.chapters}
+                    />
+                  </Show>
                   <Show when={activeTab() === "relations"}>
                     <RelationsView
                       novelID={novelID}
@@ -407,12 +414,15 @@ export default function NovelWorkspaceFrame() {
                   <Show when={activeTab() === "map"}>
                     <MapView />
                   </Show>
+                  <Show when={activeTab() === "canvas"}>
+                    <CanvasPanel novelID={novelID} />
+                  </Show>
                 </div>
               </Show>
 
               {/* Reading / Writing / World views: classic three-column layout */}
               <Show when={activeTab() === "reading" || activeTab() === "writing" || leftMode() === "world"}>
-                <aside class="w-64 border-r border-v2-border-border-base flex flex-col min-h-0">
+                <aside class="w-72 border-r border-v2-border-border-base flex flex-col min-h-0">
                   {/* Left mode switcher */}
                   <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
                     <SegmentedControlV2
@@ -464,7 +474,7 @@ export default function NovelWorkspaceFrame() {
                 <div class="flex-1 flex flex-col min-w-0">
                   <Show when={leftMode() === "chapters"}>
                     {/* Tabs */}
-                    <div class="flex border-b border-v2-border-border-base px-6 py-2">
+                    <div class="flex border-b border-v2-border-border-base px-8 py-2">
                       <SegmentedControlV2
                         value={activeTab()}
                         onChange={(value) => value && setSearchParams({ tab: value })}
@@ -483,7 +493,7 @@ export default function NovelWorkspaceFrame() {
                     </div>
 
                     {/* Tab content */}
-                    <div class="flex flex-col flex-1 min-h-0 p-6">
+                    <div class="flex flex-col flex-1 min-h-0 px-8 py-6">
                       {activeTab() === "reading" ? (
                         <div class="flex flex-col h-full">
                           <ChapterReader
@@ -540,34 +550,34 @@ export default function NovelWorkspaceFrame() {
                 </div>
 
                 {/* Right panel slot */}
-                <aside class="w-72 border-l border-v2-border-border-base overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <aside class="w-80 border-l border-v2-border-border-base flex flex-col min-h-0">
                   <div class="flex flex-col flex-1 min-h-0">
-                    {/* Tab buttons */}
-                    <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
-                      <SegmentedControlV2
-                        class="segmented-control-v2--full-width"
-                        value={panelTab()}
-                        onChange={(value) => value && setPanelTab(value as "characters" | "foreshadow" | "tension" | "structure" | "annotations" | "canvas")}
-                      >
-                        <SegmentedControlItemV2 value="characters">
-                          {language.t("novel.panel.characters")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="foreshadow">
-                          {language.t("novel.panel.foreshadow")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="tension">
-                          {language.t("novel.panel.tension")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="structure">
-                          {language.t("novel.panel.structure")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="annotations">
-                          {language.t("novel.panel.annotations")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="canvas">
-                          {language.t("novel.panel.canvas")}
-                        </SegmentedControlItemV2>
-                      </SegmentedControlV2>
+                    {/* Tab buttons — scrollable tab bar for 6+ items */}
+                    <div class="flex border-b border-v2-border-border-base shrink-0 px-2">
+                      <div class="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mb-px">
+                        <For each={([
+                          { key: "characters", label: () => language.t("novel.panel.characters") },
+                          { key: "foreshadow", label: () => language.t("novel.panel.foreshadow") },
+                          { key: "tension", label: () => language.t("novel.panel.tension") },
+                          { key: "structure", label: () => language.t("novel.panel.structure") },
+                          { key: "annotations", label: () => language.t("novel.panel.annotations") },
+                          { key: "canvas", label: () => language.t("novel.panel.canvas") },
+                        ] as const)}>
+                          {(tab) => (
+                            <button
+                              type="button"
+                              onClick={() => setPanelTab(tab.key as Parameters<typeof setPanelTab>[0])}
+                              classList={{
+                                "px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors shrink-0": true,
+                                "border-v2-border-border-accent text-v2-text-text-base": panelTab() === tab.key,
+                                "border-transparent text-v2-text-text-muted hover:text-v2-text-text-base hover:border-v2-border-border-weak": panelTab() !== tab.key,
+                              }}
+                            >
+                              {tab.label()}
+                            </button>
+                          )}
+                        </For>
+                      </div>
                     </div>
                     {/* Tab content */}
                     <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

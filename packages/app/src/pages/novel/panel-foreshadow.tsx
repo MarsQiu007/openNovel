@@ -83,11 +83,11 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
       </Show>
 
       <Show when={query.error}>
-        <p class="text-sm text-v2-state-fg-danger px-3 py-2">{String(query.error)}</p>
+        <p class="text-sm text-v2-state-fg-danger px-4 py-3">{String(query.error)}</p>
       </Show>
 
       <Show when={currentChapterEntries().length > 0}>
-        <div class="px-3 py-2 rounded bg-v2-background-bg-layer-02 space-y-1.5">
+        <div class="px-4 py-3 rounded bg-v2-background-bg-layer-02 space-y-2">
           <h4 class="text-[11px] font-medium text-v2-text-text-muted uppercase tracking-wider">
             {language.t("novel.panel.currentChapter", { chapter: chapterOrder(props.selectedChapterId()) })}
           </h4>
@@ -117,7 +117,7 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
         </div>
       </Show>
 
-      <div class="px-3">
+      <div class="px-4">
         <Show
           when={isAdding()}
           fallback={
@@ -161,7 +161,7 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
       </div>
 
       <Show when={query.data && query.data.length === 0 && !isAdding()}>
-        <p class="text-sm text-v2-text-text-muted px-3 py-8 text-center">
+        <p class="text-sm text-v2-text-text-muted px-4 py-8 text-center">
           {language.t("novel.panel.foreshadow.empty")}
         </p>
       </Show>
@@ -169,7 +169,7 @@ export function PanelForeshadow(props: PanelForeshadowProps) {
       <Show when={sorted().length > 0}>
         <For each={sorted()}>
           {(entry) => (
-            <div class="flex flex-col gap-1 px-3 py-2 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
+            <div class="flex flex-col gap-1 px-4 py-3 rounded hover:bg-v2-background-bg-layer-02 transition-colors">
               <div class="flex items-center justify-between gap-2">
                 <SelectV2
                   options={states}

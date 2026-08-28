@@ -64,7 +64,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   }
 
   return (
-    <div class="flex flex-col gap-2 p-3 overflow-y-auto h-full">
+    <div class="flex flex-col gap-2 p-4 overflow-y-auto h-full">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
         <div class="flex gap-1">

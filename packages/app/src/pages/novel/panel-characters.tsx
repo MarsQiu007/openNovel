@@ -68,7 +68,7 @@ export default function PanelCharacters(props: PanelCharactersProps) {
   return (
     <div class="flex flex-col flex-1 min-h-0">
       <Show when={chapterStates().length > 0}>
-        <div class="px-3 py-2 border-b border-v2-border-border-base bg-v2-background-bg-layer-02 space-y-1.5">
+        <div class="px-4 py-3 border-b border-v2-border-border-base bg-v2-background-bg-layer-02 space-y-2">
           <h4 class="text-[11px] font-medium text-v2-text-text-muted uppercase tracking-wider">
             {language.t("novel.panel.currentChapter", { chapter: chapterOrder(props.selectedChapterId()) })}
           </h4>
@@ -174,7 +174,7 @@ function CharacterList(props: {
   return (
     <div class="flex flex-col flex-1 min-h-0">
       {/* Search */}
-      <div class="px-3 py-2 border-b border-v2-border-border-base">
+      <div class="px-4 py-3 border-b border-v2-border-border-base">
         <TextInputV2
           fluid
           type="text"
@@ -202,7 +202,7 @@ function CharacterList(props: {
             {(character) => (
               <button
                 onClick={() => props.onSelect(character.id)}
-                class="w-full text-left px-3 py-2.5 border-b border-v2-border-border-base hover:bg-v2-background-bg-layer-01 transition-colors"
+                class="w-full text-left px-4 py-3 hover:bg-v2-overlay-simple-overlay-hover transition-colors"
                 classList={{ "opacity-50": character.status === "departed" }}
               >
                 <div class="flex items-center gap-2">
@@ -222,7 +222,7 @@ function CharacterList(props: {
       </Show>
 
       {/* Count and Add Button */}
-      <div class="px-3 py-1.5 border-t border-v2-border-border-base flex items-center justify-between">
+      <div class="px-4 py-2 border-t border-v2-border-border-base flex items-center justify-between">
         <p class="text-xs text-v2-text-text-muted">
           {props.language.t("novel.panel.characters.count", {
             count: String(filtered().length),
@@ -237,7 +237,7 @@ function CharacterList(props: {
 
       {/* Add Character Form */}
       <Show when={isAdding()}>
-        <div class="px-3 py-2 border-t border-v2-border-border-base bg-v2-background-bg-layer-01">
+        <div class="px-4 py-3 border-t border-v2-border-border-base bg-v2-background-bg-layer-01">
           <div class="space-y-2">
             <div>
               <label class="block text-xs text-v2-text-text-muted mb-1">
@@ -383,7 +383,7 @@ export function CharacterDetail(props: {
   return (
     <div class="flex flex-col flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {/* Back button and Edit */}
-      <div class="px-3 py-2 border-b border-v2-border-border-base flex items-center justify-between">
+      <div class="px-4 py-2 border-b border-v2-border-border-base flex items-center justify-between">
         <ButtonV2 variant="ghost" size="small" onClick={props.onBack}>
           {props.language.t("novel.panel.characters.back")}
         </ButtonV2>
@@ -406,7 +406,7 @@ export function CharacterDetail(props: {
         fallback={
           <>
             {/* Header */}
-            <div class="px-3 py-3 border-b border-v2-border-border-base">
+            <div class="px-4 py-4 border-b border-v2-border-border-base">
               <h3 class="text-base font-semibold text-v2-text-text-base">{props.character.name}</h3>
               <div class="flex items-center gap-1.5 mt-1">
                 <Tag>{props.character.role}</Tag>
@@ -417,7 +417,7 @@ export function CharacterDetail(props: {
             </div>
 
             {/* Description */}
-            <div class="px-3 py-3 border-b border-v2-border-border-base">
+            <div class="px-4 py-4 border-b border-v2-border-border-base">
               <h4 class="text-xs font-medium text-v2-text-text-muted uppercase tracking-wider mb-1.5">
                 {props.language.t("novel.panel.characters.description")}
               </h4>
@@ -439,7 +439,7 @@ export function CharacterDetail(props: {
             />
 
             {/* Status-based actions: writeOut / delete / restore */}
-            <div class="px-3 py-3 border-t border-v2-border-border-base mt-auto space-y-2">
+            <div class="px-4 py-4 border-t border-v2-border-border-base mt-auto space-y-2">
               <Show when={deleteChar.error}>
                 <p class="text-xs text-v2-state-fg-danger">
                   {props.language.t("novel.panel.characters.deleteRefusedAppeared")}
@@ -476,7 +476,7 @@ export function CharacterDetail(props: {
         }
       >
         {/* Edit Mode */}
-        <div class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0">
+        <div class="px-4 py-4 flex flex-1 flex-col gap-3 min-h-0">
           <div class="shrink-0">
             <label class="block text-xs text-v2-text-text-muted mb-1">
               {props.language.t("novel.panel.characters.name")} *
@@ -696,7 +696,7 @@ export function RelationshipsSection(props: {
   }
 
   return (
-    <div class="px-3 py-3">
+    <div class="px-4 py-4">
       <div class="flex items-center justify-between mb-1.5">
         <h4 class="text-xs font-medium text-v2-text-text-muted uppercase tracking-wider">
           {props.language.t("novel.panel.characters.relationships")}

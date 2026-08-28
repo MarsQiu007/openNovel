@@ -108,7 +108,7 @@ export default function StructurePanel(props: StructurePanelProps) {
   }
 
   return (
-    <div class="flex flex-col gap-3 p-3 overflow-y-auto h-full">
+    <div class="flex flex-col gap-3 p-4 overflow-y-auto h-full">
       <Show when={structure.isLoading}>
         <Spinner />
       </Show>
