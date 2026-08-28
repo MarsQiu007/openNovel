@@ -537,6 +537,7 @@ export function useCreateChapter() {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.chapters(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.volumes(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -559,6 +560,7 @@ export function useDeleteChapter() {
       queryClient.invalidateQueries({ queryKey: novelKeys.chapters(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.volumes(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.detail(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -593,6 +595,7 @@ export function useCreateVolume() {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.volumes(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.outline(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -616,6 +619,7 @@ export function useUpdateVolume() {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.volumes(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.outline(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -638,6 +642,7 @@ export function useDeleteVolume() {
       queryClient.invalidateQueries({ queryKey: novelKeys.volumes(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.chapters(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.outline(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -690,6 +695,7 @@ export function useMoveChapter() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.chapters(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -713,6 +719,7 @@ export function useUpdateChapter() {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.chapters(dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys.chapter(dir, variables.novelID, variables.chapterID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -981,6 +988,7 @@ export function useCreateCharacter() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.characters(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1012,6 +1020,7 @@ export function useUpdateCharacter() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.characters(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1032,6 +1041,7 @@ export function useDeleteCharacter() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.characters(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1116,6 +1126,7 @@ export function useCreatePlotThread() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["plot-threads"](dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1147,6 +1158,7 @@ export function useUpdatePlotThread() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["plot-threads"](dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1167,6 +1179,7 @@ export function useDeletePlotThread() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["plot-threads"](dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1188,6 +1201,7 @@ export function useCreateForeshadowing() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.foreshadowing(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1217,6 +1231,7 @@ export function useUpdateForeshadowing() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.foreshadowing(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
@@ -1237,6 +1252,7 @@ export function useDeleteForeshadowing() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.foreshadowing(dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.structure(dir, variables.novelID) })
     },
   }))
 }
