@@ -18,6 +18,8 @@ const COLUMN_GAP = 16
 const CARD_HEIGHT = 72
 const CARD_GAP = 8
 const CARD_WIDTH = COLUMN_WIDTH
+const CANVAS_PADDING = 16
+const COLUMN_HEADER_HEIGHT = 28
 
 type VolumeLike = { id: string; order: number; title: string }
 type ChapterLike = { id: string; order: number; title: string; volumeId?: string | null; status?: string }
@@ -33,7 +35,12 @@ function buildDefaultLayout(volumes: readonly VolumeLike[], chapters: readonly C
   for (const col of columns) {
     const colChapters = chapters.filter((c) => c.volumeId === col.id).sort((a, b) => a.order - b.order)
     colChapters.forEach((ch, i) => {
-      cards.push({ id: ch.id, x: col.x, y: i * (CARD_HEIGHT + CARD_GAP), columnId: col.id })
+      cards.push({
+        id: ch.id,
+        x: col.x,
+        y: COLUMN_HEADER_HEIGHT + i * (CARD_HEIGHT + CARD_GAP),
+        columnId: col.id,
+      })
     })
   }
   const unassigned = chapters.filter((c) => c.volumeId == null).sort((a, b) => a.order - b.order)
@@ -68,7 +75,7 @@ function mergeLayout(saved: LocalLayout | null | undefined, volumes: readonly Vo
     const colId = ch.volumeId && knownColumnIds.has(ch.volumeId) ? ch.volumeId : null
     const column = colId ? columns.find((c) => c.id === colId) : null
     const x = column ? column.x : columns.length * (COLUMN_WIDTH + COLUMN_GAP)
-    const y = colId ? (bottomY.get(colId) ?? 0) : freeY
+    const y = colId ? (bottomY.get(colId) ?? COLUMN_HEADER_HEIGHT) : freeY
     cards.push({ id: ch.id, x, y, columnId: colId })
     if (colId) bottomY.set(colId, y + CARD_HEIGHT + CARD_GAP)
     else freeY += CARD_HEIGHT + CARD_GAP
@@ -113,12 +120,12 @@ export default function CanvasPanel(props: CanvasPanelProps) {
       ...layout.columns.map((c) => c.x + c.width),
       ...layout.cards.map((c) => c.x + CARD_WIDTH),
     )
-    return maxX + 24
+    return maxX + 2 * CANVAS_PADDING
   })
 
   const surfaceHeight = createMemo(() => {
     const maxY = Math.max(0, ...layout.cards.map((c) => c.y + CARD_HEIGHT))
-    return Math.max(maxY + 24, 320)
+    return Math.max(maxY + 2 * CANVAS_PADDING, 320)
   })
 
   function persist() {
@@ -181,8 +188,8 @@ export default function CanvasPanel(props: CanvasPanelProps) {
             <For each={layout.columns}>
               {(col) => (
                 <div
-                  class="absolute top-0 bottom-0 rounded border border-v2-border-border-base bg-v2-background-bg-base/40"
-                  style={{ left: `${col.x}px`, width: `${col.width}px` }}
+                  class="absolute rounded border border-v2-border-border-base bg-v2-background-bg-base/40"
+                  style={{ left: `${col.x + CANVAS_PADDING}px`, top: `${CANVAS_PADDING}px`, bottom: `${CANVAS_PADDING}px`, width: `${col.width}px` }}
                 >
                   <div class="px-2 py-1 text-xs font-medium text-v2-text-text-faint border-b border-v2-border-border-base truncate">
                     {volumeTitle().get(col.id) ?? col.id}
@@ -197,8 +204,8 @@ export default function CanvasPanel(props: CanvasPanelProps) {
                   <div
                     class="absolute rounded border border-v2-border-border-base bg-v2-background-bg-base px-2 py-1.5 shadow-sm select-none"
                     style={{
-                      left: `${card.x}px`,
-                      top: `${card.y}px`,
+                      left: `${card.x + CANVAS_PADDING}px`,
+                      top: `${card.y + CANVAS_PADDING}px`,
                       width: `${CARD_WIDTH}px`,
                       height: `${CARD_HEIGHT}px`,
                       cursor: dragging() === card.id ? "grabbing" : "grab",
@@ -210,7 +217,7 @@ export default function CanvasPanel(props: CanvasPanelProps) {
                       {(ch) => (
                         <>
                           <div class="flex items-center gap-1 text-[10px] text-v2-text-text-faint">
-                            <span>{language.t("novel.chapter.label", { order: ch().order + 1 })}</span>
+                            <span>{language.t("novel.chapter.label", { order: ch().order })}</span>
                             <Show when={ch().status === "published"}>
                               <span class="text-v2-state-fg-success">{language.t("novel.common.completed")}</span>
                             </Show>
