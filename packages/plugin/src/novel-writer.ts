@@ -4985,6 +4985,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         plan: { disable: true },
         // director: 主 agent，用户直接交互的入口
         director: {
+          ...(input.agent?.director ?? {}),
           description: directorAgentConfig.description,
           mode: directorAgentConfig.mode,
           prompt: directorAgentConfig.systemPrompt,
@@ -5030,6 +5031,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // architect: subagent，由 director 调度，生成并持久化小说设定（世界观/角色/伏笔/剧情线索/风格指南/卷/关系）
         architect: {
+          ...(input.agent?.architect ?? {}),
           description: architectAgent.description,
           mode: architectAgent.mode,
           prompt: architectAgent.systemPrompt,
@@ -5051,6 +5053,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // pipeline: subagent，由 director 调度，执行8步写作流水线
         pipeline: {
+          ...(input.agent?.pipeline ?? {}),
           description: pipelineAgentConfig.description,
           mode: pipelineAgentConfig.mode,
           prompt: pipelineAgentConfig.systemPrompt,
@@ -5081,6 +5084,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // writer: subagent，由 pipeline 调度，生成章节正文
         writer: {
+          ...(input.agent?.writer ?? {}),
           description: writerAgentConfig.description,
           mode: writerAgentConfig.mode,
           prompt: writerAgentConfig.systemPrompt,
@@ -5098,6 +5102,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // observer: subagent，由 pipeline 调度，从章节正文提取状态变更
         observer: {
+          ...(input.agent?.observer ?? {}),
           description: observerAgent.description,
           mode: observerAgent.mode,
           prompt: observerAgent.prompt,
@@ -5113,6 +5118,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // reflector: subagent，由 pipeline 调度，校验 observer 输出的 delta
         reflector: {
+          ...(input.agent?.reflector ?? {}),
           description: reflectorAgent.description,
           mode: reflectorAgent.mode,
           prompt: reflectorAgent.prompt,
@@ -5122,6 +5128,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // auditor: subagent，由 pipeline 调度，37 维 LLM 深度审计
         auditor: {
+          ...(input.agent?.auditor ?? {}),
           description: auditorAgent.description,
           mode: auditorAgent.mode,
           prompt: auditorAgent.prompt,
@@ -5139,6 +5146,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // reviser: subagent，由 pipeline 调度，修正 auditor 发现的章节问题
         reviser: {
+          ...(input.agent?.reviser ?? {}),
           description: reviserAgent.description,
           mode: reviserAgent.mode,
           prompt: reviserAgent.prompt,
@@ -5153,6 +5161,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // outliner: subagent，由 pipeline/director 调度，生成章节创作意图与章节大纲
         outliner: {
+          ...(input.agent?.outliner ?? {}),
           description: outlinerAgent.description,
           mode: outlinerAgent.mode,
           prompt: outlinerAgent.prompt,
@@ -5170,6 +5179,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         // librarian: subagent，由 director 调度，查询休眠角色/已关闭线索/历史卷摘要
         librarian: {
+          ...(input.agent?.librarian ?? {}),
           description: librarianAgent.description,
           mode: librarianAgent.mode,
           prompt: librarianAgent.prompt,
