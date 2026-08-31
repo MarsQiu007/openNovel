@@ -35,6 +35,30 @@ export function resolveModelVariant(input: VariantInput) {
   return undefined
 }
 
+/**
+ * 检测子代理是否因为指定的模型不可用而回退到了其他模型。
+ * 当 agent 配置了 model，但当前 session 使用的是不同的模型时，说明发生了回退。
+ */
+export function getModelFallback(input: {
+  agent: Agent | undefined
+  model: Model | undefined
+}) {
+  if (!input.agent?.model) return undefined
+  if (!input.model) return undefined
+  if (input.agent.model.providerID === input.model.providerID && input.agent.model.modelID === input.model.modelID)
+    return undefined
+  return {
+    from: {
+      providerID: input.agent.model.providerID,
+      modelID: input.agent.model.modelID,
+    },
+    to: {
+      providerID: input.model.providerID,
+      modelID: input.model.modelID,
+    },
+  }
+}
+
 export function cycleModelVariant(input: VariantInput) {
   if (input.variants.length === 0) return undefined
   if (input.selected === null) return input.variants[0]

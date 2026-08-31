@@ -1025,7 +1025,11 @@ export const dict = {
   "settings.models.title": "模型",
   "settings.models.description": "模型設定將在此處可設定。",
   "settings.agents.title": "代理程式",
-  "settings.agents.description": "代理程式設定將在此處可設定。",
+  "settings.agents.search.placeholder": "搜尋智慧體",
+  "settings.agents.model.follow": "跟隨主會話",
+  "settings.agents.mode.subagent": "子代理",
+  "settings.agents.mode.primary": "主代理",
+  "settings.agents.noDescription": "無描述",
   "settings.commands.title": "命令",
   "settings.commands.description": "命令設定將在此處可設定。",
   "settings.mcp.title": "MCP",
@@ -1073,6 +1077,9 @@ export const dict = {
   "session.delete.title": "刪除工作階段",
   "session.delete.confirm": '刪除工作階段 "{{name}}"?',
   "session.delete.button": "刪除工作階段",
+
+  "session.modelFallback.title": "模型已回退",
+  "session.modelFallback.description": "子代理指定的模型 {{from}} 不可用，已自動切換為 {{to}}",
 
   "workspace.new": "新增工作區",
   "workspace.type.local": "本地",

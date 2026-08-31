@@ -32,6 +32,7 @@ import { FileIcon } from "@opennovel-ai/ui/file-icon"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { IconButton } from "@opennovel-ai/ui/icon-button"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
+import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { DropdownMenu } from "@opennovel-ai/ui/dropdown-menu"
 import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
@@ -70,6 +71,7 @@ import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/sessio
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
+import { getModelFallback } from "@/context/model-variant"
 import { sessionTitle } from "@/utils/session-title"
 import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
@@ -320,6 +322,21 @@ export function MessageTimeline(props: {
     const value = titleLabel()?.replace(/\s+\(@[^)]+ subagent\)$/, "")
     if (value) return value
     return language.t("command.session.new")
+  })
+  const modelFallback = createMemo(() => {
+    if (!parentID()) return
+    const sessionInfo = info()
+    if (!sessionInfo?.model || !sessionInfo?.agent) return
+    const agentInfo = sync().data.agent.find((a) => a.name === sessionInfo.agent)
+    return getModelFallback({
+      agent: agentInfo,
+      model: sessionInfo.model
+        ? {
+            providerID: sessionInfo.model.providerID,
+            modelID: sessionInfo.model.id,
+          }
+        : undefined,
+    })
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const projection = createTimelineProjection({
@@ -1428,18 +1445,47 @@ export function MessageTimeline(props: {
                     <Show
                       when={title.editing}
                       fallback={
-                        <h1
-                          data-slot="session-title-child"
-                          classList={{
-                            "truncate text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
-                            "w-fit rounded-[6px] px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
-                              settings.general.newLayoutDesigns(),
-                            "grow-1 min-w-0": !settings.general.newLayoutDesigns(),
-                          }}
-                          onClick={openTitleEditor}
-                        >
-                          {childTitle()}
-                        </h1>
+                        <>
+                          <h1
+                            data-slot="session-title-child"
+                            classList={{
+                              "truncate text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
+                              "w-fit rounded-[6px] px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
+                                settings.general.newLayoutDesigns(),
+                              "grow-1 min-w-0": !settings.general.newLayoutDesigns(),
+                            }}
+                            onClick={openTitleEditor}
+                          >
+                            {childTitle()}
+                          </h1>
+                          <Show when={modelFallback()}>
+                            <TooltipV2
+                              placement="bottom"
+                              value={
+                                <div class="flex flex-col gap-1">
+                                  <div class="text-[12px] font-medium text-v2-text-text-strong">
+                                    {language.t("session.modelFallback.title")}
+                                  </div>
+                                  <div class="text-[11px] text-v2-text-text-muted">
+                                    {language.t("session.modelFallback.description", {
+                                      from: `${modelFallback()!.from.providerID}/${modelFallback()!.from.modelID}`,
+                                      to: `${modelFallback()!.to.providerID}/${modelFallback()!.to.modelID}`,
+                                    })}
+                                  </div>
+                                </div>
+                              }
+                            >
+                              <button
+                                type="button"
+                                data-slot="session-model-fallback"
+                                class="flex items-center gap-1 rounded px-1 text-v2-text-text-muted hover:text-v2-text-text-base"
+                                aria-label="Model fallback"
+                              >
+                                <IconV2 name="info" size="small" />
+                              </button>
+                            </TooltipV2>
+                          </Show>
+                        </>
                       }
                     >
                       <InlineInput

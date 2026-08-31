@@ -1,4 +1,4 @@
-import { Component, createSignal, startTransition } from "solid-js"
+import { Component, createSignal, startTransition, ErrorBoundary } from "solid-js"
 import { Dialog } from "@opennovel-ai/ui/v2/dialog-v2"
 import { TabsV2 } from "@opennovel-ai/ui/v2/tabs-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
@@ -8,6 +8,7 @@ import { SettingsGeneralV2 } from "./general"
 import { SettingsKeybinds } from "../settings-keybinds"
 import { SettingsProvidersV2 } from "./providers"
 import { SettingsModelsV2 } from "./models"
+import { SettingsAgentsV2 } from "./agents"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
 import { SettingsSync } from "../settings-sync"
@@ -73,6 +74,10 @@ export const DialogSettings: Component<{
                       <Icon name="models" />
                       {language.t("settings.models.title")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="agents">
+                      <Icon name="bubble-5" />
+                      {language.t("settings.agents.title")}
+                    </TabsV2.Trigger>
                     <TabsV2.Trigger value="soul">
                       <Icon name="brain" />
                       {language.t("settings.soul.tab")}
@@ -104,6 +109,17 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="models" class="settings-v2-panel">
           <SettingsModelsV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="agents" class="settings-v2-panel">
+          <ErrorBoundary
+            fallback={(err) => (
+              <div class="settings-v2-models-status">
+                <span>{err instanceof Error ? err.message : String(err)}</span>
+              </div>
+            )}
+          >
+            <SettingsAgentsV2 />
+          </ErrorBoundary>
         </TabsV2.Content>
         <TabsV2.Content value="soul" class="settings-v2-panel">
           <SettingsSoul v2 />

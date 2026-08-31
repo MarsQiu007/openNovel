@@ -1029,7 +1029,11 @@ export const dict = {
   "settings.models.description": "模型设置将在此处可配置。",
 
   "settings.agents.title": "智能体",
-  "settings.agents.description": "智能体设置将在此处可配置。",
+  "settings.agents.search.placeholder": "搜索智能体",
+  "settings.agents.model.follow": "跟随主会话",
+  "settings.agents.mode.subagent": "子代理",
+  "settings.agents.mode.primary": "主代理",
+  "settings.agents.noDescription": "无描述",
 
   "settings.commands.title": "命令",
   "settings.commands.description": "命令设置将在此处可配置。",
@@ -1077,6 +1081,9 @@ export const dict = {
   "session.delete.title": "删除会话",
   "session.delete.confirm": '删除会话 "{{name}}"？',
   "session.delete.button": "删除会话",
+
+  "session.modelFallback.title": "模型已回退",
+  "session.modelFallback.description": "子代理指定的模型 {{from}} 不可用，已自动切换为 {{to}}",
 
   "workspace.new": "新建工作区",
   "workspace.type.local": "本地",

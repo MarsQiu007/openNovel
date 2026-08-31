@@ -1149,7 +1149,11 @@ export const dict = {
   "settings.models.title": "Models",
   "settings.models.description": "Model settings will be configurable here.",
   "settings.agents.title": "Agents",
-  "settings.agents.description": "Agent settings will be configurable here.",
+  "settings.agents.search.placeholder": "Search agents",
+  "settings.agents.model.follow": "Follow main session",
+  "settings.agents.mode.subagent": "Subagent",
+  "settings.agents.mode.primary": "Primary",
+  "settings.agents.noDescription": "No description",
   "settings.commands.title": "Commands",
   "settings.commands.description": "Command settings will be configurable here.",
   "settings.mcp.title": "MCP",
@@ -1197,6 +1201,9 @@ export const dict = {
   "session.delete.title": "Delete session",
   "session.delete.confirm": 'Delete session "{{name}}"?',
   "session.delete.button": "Delete session",
+
+  "session.modelFallback.title": "Model fell back",
+  "session.modelFallback.description": "The subagent’s configured model {{from}} is unavailable. Switched to {{to}}.",
 
   "workspace.new": "New workspace",
   "workspace.type.local": "local",
