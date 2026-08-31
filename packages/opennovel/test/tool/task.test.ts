@@ -23,6 +23,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { disposeAllInstances } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
+import { ProviderTest } from "../fake/provider"
 import { ModelV2 } from "@opennovel-ai/core/model"
 
 afterEach(async () => {
@@ -35,24 +36,27 @@ const ref = {
 }
 
 const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
-  LayerNode.compile(
-    LayerNode.group([
-      Agent.node,
-      BackgroundJob.node,
-      EventV2Bridge.node,
-      Config.node,
-      CrossSpawnSpawner.node,
-      Session.node,
-      SessionProjector.node,
-      SessionRunState.node,
-      SessionStatus.node,
-      Truncate.node,
-      ToolRegistry.node,
-      Database.node,
-      RuntimeFlags.node,
-      Ripgrep.node,
-    ]),
-    [[RuntimeFlags.node, RuntimeFlags.layer(flags)]],
+  Layer.provideMerge(
+    LayerNode.compile(
+      LayerNode.group([
+        Agent.node,
+        BackgroundJob.node,
+        EventV2Bridge.node,
+        Config.node,
+        CrossSpawnSpawner.node,
+        Session.node,
+        SessionProjector.node,
+        SessionRunState.node,
+        SessionStatus.node,
+        Truncate.node,
+        ToolRegistry.node,
+        Database.node,
+        RuntimeFlags.node,
+        Ripgrep.node,
+      ]),
+      [[RuntimeFlags.node, RuntimeFlags.layer(flags)]],
+    ),
+    ProviderTest.fake({ model: ProviderTest.model({ providerID: ref.providerID, id: ref.modelID }) }).layer,
   )
 
 const it = testEffect(layer())

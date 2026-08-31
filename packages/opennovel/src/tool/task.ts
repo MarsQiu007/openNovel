@@ -7,6 +7,7 @@ import { Session } from "@/session/session"
 import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
+import { Provider } from "@/provider/provider"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
@@ -88,6 +89,7 @@ export const TaskTool = Tool.define(
     const scope = yield* Scope.Scope
     const flags = yield* RuntimeFlags.Service
     const database = yield* Database.Service
+    const provider = yield* Provider.Service
 
     const run = Effect.fn("TaskTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
@@ -155,12 +157,54 @@ export const TaskTool = Tool.define(
           action: "deny" as const,
         })) ?? []),
       ]
+      const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
+        Effect.provideService(Database.Service, database),
+        Effect.orDie,
+      )
+      if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
+      const variant = msg.info.variant
+
+      const parentModel = {
+        modelID: msg.info.modelID,
+        providerID: msg.info.providerID,
+      }
+      // 子代理指定的模型优先；不可用时回退到父会话模型
+      const subagentModel = next.model
+      const resolved = yield* (() => {
+        if (!subagentModel) return Effect.succeed({ model: parentModel, fallback: undefined as undefined })
+        return provider.getModel(subagentModel.providerID, subagentModel.modelID).pipe(
+          Effect.map(() => ({ model: subagentModel, fallback: undefined as undefined })),
+          Effect.catchTag("ProviderModelNotFoundError", () =>
+            Effect.succeed({
+              model: parentModel,
+              fallback: {
+                fromProviderID: subagentModel.providerID,
+                fromModelID: subagentModel.modelID,
+                reason: "model_not_available" as const,
+              },
+            }),
+          ),
+        )
+      })()
+      const model = resolved.model
+
       const nextSession =
         session ??
         (yield* sessions.create({
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
           agent: next.name,
+          metadata: resolved.fallback
+            ? ({
+                model_fallback: {
+                  from: {
+                    providerID: String(resolved.fallback.fromProviderID),
+                    modelID: String(resolved.fallback.fromModelID),
+                  },
+                  reason: resolved.fallback.reason,
+                },
+              } as Record<string, unknown>)
+            : undefined,
           permission: [
             ...childPermission,
             ...childToolDenies.filter(
@@ -173,21 +217,11 @@ export const TaskTool = Tool.define(
           ],
         }))
 
-      const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
-        Effect.provideService(Database.Service, database),
-        Effect.orDie,
-      )
-      if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
-      const variant = msg.info.variant
-
-      const model = next.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
       const metadata = {
         parentSessionId: ctx.sessionID,
         sessionId: nextSession.id,
         model,
+        ...(resolved.fallback ? { modelFallback: resolved.fallback } : {}),
         ...(runInBackground ? { background: true } : {}),
       }
 
@@ -208,7 +242,7 @@ export const TaskTool = Tool.define(
             modelID: model.modelID,
             providerID: model.providerID,
           },
-          variant: next.model ? undefined : variant,
+          variant: next.model && !resolved.fallback ? undefined : variant,
           agent: next.name,
           parts,
         })
