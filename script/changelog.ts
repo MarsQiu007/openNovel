@@ -48,7 +48,19 @@ Examples:
 await rm(file, { force: true })
 
 const quiet = values.quiet
-const cmd = ["opennovel", "run"]
+// opennovel 是 private workspace 包，没有发布 npm 平台二进制，bin/opennovel 启动器在 CI 上不可用；
+// 统一从源码以 bun 调用（与 packages/opennovel 的 dev script 一致）。
+const cmd = [
+  "bun",
+  "run",
+  "--cwd",
+  path.join(root, "packages/opennovel"),
+  "--conditions=browser",
+  "src/index.ts",
+  "run",
+]
+// CI 等无头环境没有 TUI 审批权限，不自动放行会导致工具调用被 auto-reject
+cmd.push("--auto")
 cmd.push("--variant", values.variant)
 cmd.push("--command", "changelog", "--", ...args)
 
@@ -63,14 +75,28 @@ const [out, err] = quiet
   ? await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()])
   : ["", ""]
 const code = await proc.exited
-if (code === 0) {
-  if (values.print) process.stdout.write(await Bun.file(file).text())
+
+if (code !== 0) {
+  // AI 生成失败（如缺少模型 key）不应阻断发版流程：降级为 raw-changelog 的机械输出
+  console.error(`[changelog] opennovel changelog command failed (exit ${code}); falling back to raw changelog`)
+  const raw = Bun.spawn(["bun", "run", path.join(root, "script/raw-changelog.ts"), ...args], {
+    cwd: root,
+    stdout: "pipe",
+    stderr: "inherit",
+  })
+  const text = await new Response(raw.stdout).text()
+  const rawCode = await raw.exited
+  if (rawCode !== 0) {
+    if (quiet) {
+      if (out) process.stdout.write(out)
+      if (err) process.stderr.write(err)
+    }
+    process.exit(rawCode)
+  }
+  await Bun.write(file, text)
+  if (values.print) process.stdout.write(text)
   process.exit(0)
 }
 
-if (quiet) {
-  if (out) process.stdout.write(out)
-  if (err) process.stderr.write(err)
-}
-
-process.exit(code)
+if (values.print) process.stdout.write(await Bun.file(file).text())
+process.exit(0)

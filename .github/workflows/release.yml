@@ -68,6 +68,9 @@ jobs:
           echo "Bumping version..."
           bun script/bump-version.ts
 
+      - name: Install .opencode dependencies
+        run: bun install --cwd .opencode
+
       - name: Generate changelog and create draft release
         id: version
         env:
@@ -77,8 +80,9 @@ jobs:
           OPENNOVEL_BUMP: ${{ inputs.bump }}
           OPENNOVEL_CHANNEL: ${{ inputs.channel == 'prod' && 'latest' || inputs.channel }}
           OPENNOVEL_RELEASE: "true"
+          OPENNOVEL_AUTH_CONTENT: ${{ secrets.OPENNOVEL_AUTH_CONTENT }}
         run: |
-          set -e
+          set -eo pipefail
           SUMMARY=$(bun script/version.ts | tail -n 1)
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
           echo "version=$(echo "$SUMMARY" | jq -r '.version')" >> "$GITHUB_OUTPUT"

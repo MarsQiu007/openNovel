@@ -1,5 +1,5 @@
 ---
-model: opencode/gpt-5.4
+model: deepseek/deepseek-v4-flash
 ---
 
 Create `UPCOMING_CHANGELOG.md` from the structured changelog input below.
@@ -18,6 +18,7 @@ Do not use `git log` or author metadata when deciding attribution.
 
 Rules:
 
+- 全文使用简体中文撰写（章节标题 `## Core` 等、条目描述、措辞均用中文）；commit hash、代码标识符、`(@username)` 保持原样
 - Write the final file with release sections in this order:
   `## Core`, `## TUI`, `## Desktop`, `## SDK`, `## Extensions`
 - Only include sections that have at least one notable entry
