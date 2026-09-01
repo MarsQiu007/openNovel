@@ -51,8 +51,7 @@ await rm(file, { force: true })
 
 const quiet = values.quiet
 // opennovel 是 private workspace 包，没有发布 npm 平台二进制，bin/opennovel 启动器在 CI 上不可用；
-// 统一从源码以 bun 调用。注意 cwd 必须保持仓库根：opennovel 以 cwd 为实例目录来发现
-// .opencode/command/ 下的命令，用 --cwd 指向 packages/opennovel 会导致 changelog 命令找不到。
+// 统一从源码以 bun 调用。cwd 保持仓库根：opennovel 以 cwd 为实例目录。
 const cmd = [
   "bun",
   "run",
@@ -69,6 +68,14 @@ cmd.push("--command", "changelog", "--", ...args)
 
 const proc = Bun.spawn(cmd, {
   cwd: root,
+  env: {
+    ...process.env,
+    // opennovel 的配置目录发现只扫 .opennovel/（config/paths.ts 的 targets），而本仓库的
+    // 命令仍放在 .opencode/（opencode 模板遗留目录名）。用 OPENNOVEL_CONFIG_DIR 把
+    // .opencode 追加进本次运行的配置目录列表，changelog 命令才能被发现；
+    // 只作用于这个子进程，不影响桌面端等其它实例。
+    OPENNOVEL_CONFIG_DIR: path.join(root, ".opencode"),
+  },
   stdin: "inherit",
   stdout: quiet ? "pipe" : "inherit",
   stderr: quiet ? "pipe" : "inherit",

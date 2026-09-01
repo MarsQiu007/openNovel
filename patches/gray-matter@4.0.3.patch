@@ -1,14 +1,17 @@
 diff --git a/lib/engines.js b/lib/engines.js
 --- a/lib/engines.js
 +++ b/lib/engines.js
-@@ -13,8 +13,8 @@ const engines = exports = module.exports;
+@@ -13,8 +13,11 @@ const engines = exports = module.exports;
   */
  
  engines.yaml = {
 -  parse: yaml.safeLoad.bind(yaml),
 -  stringify: yaml.safeDump.bind(yaml)
-+  parse: (yaml.safeLoad || yaml.load).bind(yaml),
-+  stringify: (yaml.safeDump || yaml.dump).bind(yaml)
++  // js-yaml 4 exports safeLoad/safeDump as throw-on-call stubs, so a truthiness
++  // check cannot be used for the fallback; prefer v4 load/dump and only fall
++  // back to the v3 names when they do not exist.
++  parse: (yaml.load || yaml.safeLoad).bind(yaml),
++  stringify: (yaml.dump || yaml.safeDump).bind(yaml)
  };
  
  /**
