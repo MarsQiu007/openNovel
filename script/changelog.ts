@@ -4,6 +4,8 @@ import { rm } from "fs/promises"
 import path from "path"
 import { parseArgs } from "util"
 
+import { $ } from "bun"
+
 const root = path.resolve(import.meta.dir, "..")
 const file = path.join(root, "UPCOMING_CHANGELOG.md")
 const { values, positionals } = parseArgs({
@@ -49,18 +51,19 @@ await rm(file, { force: true })
 
 const quiet = values.quiet
 // opennovel 是 private workspace 包，没有发布 npm 平台二进制，bin/opennovel 启动器在 CI 上不可用；
-// 统一从源码以 bun 调用（与 packages/opennovel 的 dev script 一致）。
+// 统一从源码以 bun 调用。注意 cwd 必须保持仓库根：opennovel 以 cwd 为实例目录来发现
+// .opencode/command/ 下的命令，用 --cwd 指向 packages/opennovel 会导致 changelog 命令找不到。
 const cmd = [
   "bun",
   "run",
-  "--cwd",
-  path.join(root, "packages/opennovel"),
   "--conditions=browser",
-  "src/index.ts",
+  path.join(root, "packages/opennovel/src/index.ts"),
   "run",
 ]
 // CI 等无头环境没有 TUI 审批权限，不自动放行会导致工具调用被 auto-reject
 cmd.push("--auto")
+// 服务端 500 只返回错误引用号，把日志直接打到 stderr 才能在 CI 上看到真实原因
+cmd.push("--print-logs")
 cmd.push("--variant", values.variant)
 cmd.push("--command", "changelog", "--", ...args)
 
@@ -79,6 +82,8 @@ const code = await proc.exited
 if (code !== 0) {
   // AI 生成失败（如缺少模型 key）不应阻断发版流程：降级为 raw-changelog 的机械输出
   console.error(`[changelog] opennovel changelog command failed (exit ${code}); falling back to raw changelog`)
+  // raw-changelog 用 git log 按路径过滤 commit，本地 tag 过期会导致 bad revision，先同步
+  await $`git fetch --tags --force --quiet`.nothrow().cwd(root)
   const raw = Bun.spawn(["bun", "run", path.join(root, "script/raw-changelog.ts"), ...args], {
     cwd: root,
     stdout: "pipe",
