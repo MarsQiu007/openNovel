@@ -178,8 +178,10 @@ export const TaskTool = Tool.define(
             Effect.succeed({
               model: parentModel,
               fallback: {
-                fromProviderID: subagentModel.providerID,
-                fromModelID: subagentModel.modelID,
+                from: {
+                  providerID: subagentModel.providerID,
+                  modelID: subagentModel.modelID,
+                },
                 reason: "model_not_available" as const,
               },
             }),
@@ -198,8 +200,8 @@ export const TaskTool = Tool.define(
             ? ({
                 model_fallback: {
                   from: {
-                    providerID: String(resolved.fallback.fromProviderID),
-                    modelID: String(resolved.fallback.fromModelID),
+                    providerID: String(resolved.fallback.from.providerID),
+                    modelID: String(resolved.fallback.from.modelID),
                   },
                   reason: resolved.fallback.reason,
                 },
