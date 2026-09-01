@@ -1481,6 +1481,7 @@ export const dict = {
   "novel.panel.outline.master": "Master Outline",
   "novel.panel.outline.volumeOutline": "Volume Outline",
   "novel.panel.outline.chapterOutline": "Chapter Outline",
+  "novel.panel.outline.empty": "No outlines yet",
   "novel.panel.tension": "Tension",
   "novel.panel.tension.add": "Add Point",
   "novel.panel.tension.chapterNumber": "Chapter #",

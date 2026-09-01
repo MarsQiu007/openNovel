@@ -1451,6 +1451,7 @@ export const dict = {
   "novel.panel.outline.master": "总纲",
   "novel.panel.outline.volumeOutline": "分卷大纲",
   "novel.panel.outline.chapterOutline": "章节大纲",
+  "novel.panel.outline.empty": "暂无大纲",
   "novel.panel.tension": "节奏",
   "novel.panel.tension.add": "添加张力点",
   "novel.panel.tension.chapterNumber": "章节号",

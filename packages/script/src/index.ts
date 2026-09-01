@@ -2,6 +2,8 @@ import { $ } from "bun"
 import semver from "semver"
 import path from "path"
 
+import { bumpVersion, previewVersion, resolveBaseVersion } from "./version"
+
 const rootPkgPath = path.resolve(import.meta.dir, "../../../package.json")
 const rootPkg = await Bun.file(rootPkgPath).json()
 const expectedBunVersion = rootPkg.packageManager?.split("@")[1]
@@ -33,18 +35,13 @@ const IS_PREVIEW = CHANNEL !== "latest"
 
 const VERSION = await (async () => {
   if (env.OPENNOVEL_VERSION) return env.OPENNOVEL_VERSION
-  if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
-  const version = await fetch("https://registry.npmjs.org/opennovel-ai/latest")
-    .then((res) => {
-      if (!res.ok) throw new Error(res.statusText)
-      return res.json()
-    })
-    .then((data: any) => data.version)
-  const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
-  const t = env.OPENNOVEL_BUMP?.toLowerCase()
-  if (t === "major") return `${major + 1}.0.0`
-  if (t === "minor") return `${major}.${minor + 1}.0`
-  return `${major}.${minor}.${patch + 1}`
+  const tags = (await $`git tag --list "v*"`.text())
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  const base = resolveBaseVersion(tags)
+  if (IS_PREVIEW) return previewVersion(base, CHANNEL, new Date())
+  return bumpVersion(base, env.OPENNOVEL_BUMP)
 })()
 
 const bot = ["actions-user", "opennovel", "opennovel-agent[bot]"]

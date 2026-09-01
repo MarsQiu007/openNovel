@@ -349,4 +349,23 @@ describe("novel handler - outline", () => {
     expect(bundle.chapters.length).toBe(1)
     expect(bundle.chapters[0]!.chapterId).toBe("1")
   })
+
+  test("outline falls back to plugin-written master-outline.md when master.md missing", async () => {
+    const outlinesDir = join(tempDir, ".novel", "outlines")
+    mkdirSync(outlinesDir, { recursive: true })
+    writeFileSync(join(outlinesDir, "master-outline.md"), "# 总纲（插件生成）")
+
+    const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
+    expect(bundle.master).toBe("# 总纲（插件生成）")
+  })
+
+  test("outline prefers master.md over master-outline.md when both exist", async () => {
+    const outlinesDir = join(tempDir, ".novel", "outlines")
+    mkdirSync(outlinesDir, { recursive: true })
+    writeFileSync(join(outlinesDir, "master.md"), "# UI 编辑版")
+    writeFileSync(join(outlinesDir, "master-outline.md"), "# 插件生成版")
+
+    const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
+    expect(bundle.master).toBe("# UI 编辑版")
+  })
 })

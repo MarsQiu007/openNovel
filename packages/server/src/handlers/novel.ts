@@ -737,8 +737,14 @@ export function getOutlineBundle(novelID: string, directory: string) {
     if (!existsSync(outlinesDir)) {
       return { master: "", volumes: [], chapters: [] }
     }
+    // master.md 由 WebUI 编辑写入；master-outline.md 由插件 generate_master_outline 写入，两者兼容读取
     const masterPath = join(outlinesDir, "master.md")
-    const master = existsSync(masterPath) ? readFileSync(masterPath, "utf-8") : ""
+    const pluginMasterPath = join(outlinesDir, "master-outline.md")
+    const master = existsSync(masterPath)
+      ? readFileSync(masterPath, "utf-8")
+      : existsSync(pluginMasterPath)
+        ? readFileSync(pluginMasterPath, "utf-8")
+        : ""
     const files = readdirSync(outlinesDir)
     const volumes = files
       .filter((f) => f.startsWith("volume-") && f.endsWith(".md"))

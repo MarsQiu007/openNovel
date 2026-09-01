@@ -1459,6 +1459,7 @@ export const dict = {
   "novel.panel.outline.master": "總綱",
   "novel.panel.outline.volumeOutline": "分卷大綱",
   "novel.panel.outline.chapterOutline": "章節大綱",
+  "novel.panel.outline.empty": "暫無大綱",
   "novel.panel.tension": "節奏",
   "novel.panel.tension.add": "添加張力點",
   "novel.panel.tension.chapterNumber": "章節號",

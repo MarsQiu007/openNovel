@@ -138,6 +138,7 @@ export const dict = {
   "ui.tool.questions": "问题",
   "ui.tool.agent": "{{type}} 智能体",
   "ui.tool.agent.default": "智能体",
+  "ui.tool.agent.modelFallback": "请求的 {{from}} 不可用，已回退到 {{to}}",
 
   "ui.common.file.one": "个文件",
   "ui.common.file.other": "个文件",

@@ -91,8 +91,10 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
             {/* Volume outlines */}
             <For each={volumesSorted()}>
               {(volume) => {
+                // 卷纲文件按卷号命名（volume-N.md），服务端解析出的 volumeId 即卷号字符串
+                const volumeOrderKey = () => String(volume.order)
                 const hasVolumeOutline = createMemo(
-                  () => outline.data?.volumes.some((v) => v.volumeId === volume.id) ?? false,
+                  () => outline.data?.volumes.some((v) => v.volumeId === volumeOrderKey()) ?? false,
                 )
                 const volumeChapters = chaptersByVolume().grouped.get(volume.id) ?? []
                 return (
@@ -100,9 +102,9 @@ export function OutlineSidebar(props: OutlineSidebarProps) {
                     <div class="px-4 pt-3 pb-1.5 text-xs font-medium text-v2-text-text-muted">{volume.title}</div>
                     <Show when={hasVolumeOutline()}>
                       <button
-                        onClick={() => props.onSelectOutline({ section: "volume", id: volume.id })}
+                        onClick={() => props.onSelectOutline({ section: "volume", id: volumeOrderKey() })}
                         class={
-                          isSelected(props.selectedOutline(), "volume", volume.id)
+                          isSelected(props.selectedOutline(), "volume", volumeOrderKey())
                             ? "w-full text-left px-4 py-2 bg-v2-overlay-simple-overlay-hover text-v2-text-text-base"
                             : "w-full text-left px-4 py-2.5 hover:bg-v2-overlay-simple-overlay-hover text-v2-text-text-base transition-colors"
                         }

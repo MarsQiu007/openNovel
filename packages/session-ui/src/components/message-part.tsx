@@ -2002,6 +2002,24 @@ ToolRegistry.register({
     const title = createMemo(() => agent().name ?? i18n.t("ui.tool.agent.default"))
     const tone = createMemo(() => agent().color)
     const v2Tone = createMemo(() => agent().v2Color)
+    const model = createMemo(() => {
+      const value = props.metadata.model
+      if (!value || typeof value !== "object") return
+      const providerID = (value as Record<string, unknown>).providerID
+      const modelID = (value as Record<string, unknown>).modelID
+      if (typeof providerID !== "string" || typeof modelID !== "string") return
+      return `${providerID}/${modelID}`
+    })
+    const modelFallback = createMemo(() => {
+      const value = props.metadata.modelFallback
+      if (!value || typeof value !== "object") return
+      const from = (value as Record<string, unknown>).from
+      if (!from || typeof from !== "object") return
+      const providerID = (from as Record<string, unknown>).providerID
+      const modelID = (from as Record<string, unknown>).modelID
+      if (typeof providerID !== "string" || typeof modelID !== "string") return
+      return `${providerID}/${modelID}`
+    })
     const subtitle = createMemo(() => {
       const value =
         typeof props.input.description === "string" && props.input.description
@@ -2072,6 +2090,22 @@ ToolRegistry.register({
               <span data-component="task-tool-title">{title()}</span>
               <Show when={subtitle()}>
                 <span data-slot="basic-tool-tool-subtitle">{subtitle()}</span>
+              </Show>
+              <Show when={model()}>
+                {(value) => (
+                  <TooltipV2
+                    inactive={!modelFallback()}
+                    value={i18n.t("ui.tool.agent.modelFallback", {
+                      from: modelFallback() ?? "",
+                      to: value(),
+                    })}
+                    placement="top"
+                  >
+                    <span data-component="task-tool-model" data-fallback={modelFallback() ? "" : undefined}>
+                      {value()}
+                    </span>
+                  </TooltipV2>
+                )}
               </Show>
             </div>
           </div>

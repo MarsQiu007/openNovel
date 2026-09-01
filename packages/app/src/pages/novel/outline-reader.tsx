@@ -49,7 +49,8 @@ export function OutlineReader(props: OutlineReaderProps) {
     if (!t) return ""
     if (t.section === "master") return language.t("novel.panel.outline.master")
     if (t.section === "volume") {
-      const volume = props.volumes.find((v) => v.id === t.id)
+      // selectedOutline 的 id 是卷号字符串（与卷纲文件 volume-N.md 的 N 对应）
+      const volume = props.volumes.find((v) => String(v.order) === t.id)
       return volume
         ? `${volume.title} · ${language.t("novel.panel.outline.volumeOutline")}`
         : language.t("novel.panel.outline.volumeOutline")

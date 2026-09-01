@@ -245,6 +245,23 @@
     color: var(--v2-text-text-base);
   }
 
+  [data-component="task-tool-model"] {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono, monospace);
+    font-size: 11px;
+    line-height: var(--line-height-large);
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    color: var(--v2-text-text-faint);
+    background: color-mix(in srgb, var(--v2-text-text-faint) 8%, transparent);
+
+    &[data-fallback] {
+      color: var(--v2-state-fg-warning);
+      background: var(--v2-state-bg-warning);
+    }
+  }
+
   &:hover,
   &:focus-visible {
     border-color: var(--border-weak-base, rgba(255, 255, 255, 0.08));
