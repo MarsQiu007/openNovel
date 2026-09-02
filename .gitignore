@@ -36,3 +36,10 @@ tsconfig.tsbuildinfo
 # Novel project data (project-level databases, configs with API keys)
 .novel/
 .opennovel/
+
+# Nitro/wrangler local build output & deploy state
+.output
+.wrangler
+
+# Local AI-tool session data (Qoder better-harness runs)
+.qoder/better-harness/
