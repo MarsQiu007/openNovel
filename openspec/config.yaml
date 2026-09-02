@@ -1,32 +1,65 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# 项目上下文 — 创建各 artifact（proposal/design/tasks/specs）时作为约束注入给 AI，不写入产物本身
+context: |
+  ## 项目
+  openNovel — AI 驱动的长篇小说创作工作台（openCode 的 fork，将编程 agent 框架改造为写作工作台）。
+  核心是 8 步写作流水线（大纲 → 上下文组装 → 起草 → 37 维连续性审计 → 修订 → 状态提取 → 提交 → 章节推进），
+  桌面端优先、数据全部本地存储。
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  ## 技术栈
+  - Bun 1.3 monorepo（workspaces + turbo），TypeScript 5.8，Effect 4（beta）函数式风格
+  - 界面：SolidJS / SolidStart + Tailwind CSS 4 + Vite；桌面壳 Electron；TUI 用 OpenTUI
+  - 后端：Hono + Effect；数据层 Drizzle ORM + SQLite（含 FTS5 全文检索），本地优先
+  - AI 编排：Vercel AI SDK（ai 6.x）；云端（console / stats / enterprise）SST + Cloudflare Workers
+  - 质量工具：oxlint、prettier（semi: false, printWidth: 120）
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  ## 关键包
+  - packages/novel-store — 小说数据层（书、卷章、角色、关系、世界观、伏笔、评审、FTS5）
+  - packages/plugin — 写作流水线与写作工具集（大纲、起草、连续性审计、修订、审批闸门、状态提交）
+  - packages/opennovel — 后端服务与 CLI
+  - packages/desktop — Electron 桌面应用（自动拉起并托管后端）
+  - packages/app — SolidJS Web/桌面共用界面（书架、工作台、审批流）
+  - packages/schema + packages/protocol — 客户端/服务端共享 API 契约
+  - packages/core — 会话运行时、上下文代数与工具框架（继承自 openCode）
+
+  ## 架构规则
+  - 运行时依赖方向：Schema ← Core/Protocol ← Server；Client 只能依赖 Schema/Protocol，不得依赖 Core/Server
+  - 修改公开 Protocol 或 Server HttpApi 后，必须在 packages/client 运行 `bun run generate`；禁止手改 src/generated 与 src/generated-effect
+  - 仓库默认分支是 dev（不是 main）；分支名 ≤3 个单词、连字符分隔、不带 type 前缀
+  - 提交信息用 Conventional Commits：type(scope): summary，type ∈ feat|fix|docs|chore|refactor|test
+
+  ## 领域词汇与业务约束
+  - 节拍（beat）、卷、章、伏笔、灵魂设定（soul）；37 维审计分 9 大类：角色/关系/时间线/地点/剧情/世界观/文风/逻辑/细节
+  - 已出场角色只能"退场"不能删除；主角受硬保护；退场角色从活跃快照中排除
+  - 生成式文字（注释、文档、提交信息、界面文案）用简体中文；代码、路径、标识符保持 ASCII 英文
+
+rules:
+  proposal:
+    - 用简体中文撰写
+    - 必须明确"非目标"：本变更不做什么
+    - Impact 需指出受影响的包（novel-store / plugin / opennovel / app / desktop 等）
+    - 涉及角色生命周期、审计维度或数据模型的改动，需说明与现有本地数据的兼容性
+  design:
+    - 用简体中文撰写
+    - 方案遵循 AGENTS.md 风格：避免 try/catch 与 any、优先 Effect 惯用法、不预先提取单次使用的 helper
+    - 涉及 API 契约变更时，写明 SDK 再生成步骤
+  tasks:
+    - 用简体中文撰写；每条任务以动词开头、可独立验证
+    - 涉及契约变更时包含"在 packages/client 重新生成 SDK"任务项
+    - 完成标准包含：在对应包目录通过 `bun typecheck` 与 oxlint
+  specs:
+    - 用简体中文撰写
+    - 只描述可验证行为，不写实现细节（文件路径、函数名留给 design）
+
+operations:
+  apply:
+    guidance:
+      - 每完成一组任务立即更新 tasks.md 勾选，不要最后一次性补
+      - 测试只能从具体包目录运行（如 packages/opennovel），不要从仓库根运行
+      - 类型检查用 `bun typecheck`，不要直接调 tsc
+  archive:
+    guidance:
+      - 归档前确认 openspec/specs/ 已同步变更后的最新行为
+      - 归档目录名保持 ISO 日期前缀格式（如 2026-09-02-xxx），与现有 archive 一致
+      - 收尾用一句话总结落地的能力与遗留事项
