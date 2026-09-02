@@ -23,6 +23,9 @@ export default defineConfig({
     solidStart() as PluginOption,
     nitro({
       ...nitroConfig,
+      // shiki/wasm 的 unwasm 条件会解析到裸 onig.wasm，vite SSR 无法加载（vite:wasm-fallback）；
+      // 关闭后回落到 base64 内联版，SSR 与 cloudflare workerd 均可直接实例化
+      wasm: false,
       baseURL: process.env.OPENNOVEL_BASE_URL,
     }),
   ],
