@@ -23,9 +23,12 @@
 ## 3. 提交与告警闭环
 
 - [ ] 3.1 提交推送（pre-commit `turbo typecheck` 通过），commit message 说明修复的 CVE/GHSA 清单（验证：`git push` 成功）
-- [ ] 3.2 推送后在 GitHub Dependabot 页面确认告警 #3、#4、#6、#7、#8、#9、#32、#33、#53 全部关闭；如个别仍开放，核对 Dependabot 报告的修复底版与实际安装版本（验证：https://github.com/MarsQiu007/openNovel/security/dependabot 无相关开放告警）
+- [x] 3.2 推送后在 GitHub Dependabot 页面确认告警 #3、#4、#6、#7、#8、#9、#32、#33、#53 全部关闭；如个别仍开放，核对 Dependabot 报告的修复底版与实际安装版本（验证：https://github.com/MarsQiu007/openNovel/security/dependabot 无相关开放告警）
+  - 实施记录（2026-09-02）：gh API 实证——`state=open` 查询返回 0 条；9 条告警全部 `state=fixed`，`fixed_at=2026-09-02T12:56:08-09Z`（推送 `e3fe9ec18e` 后约 1 分钟 Dependabot 重扫自动关闭），无遗留（本条勾选此前漏记，随收尾提交补录）
 
 ## 4. 应急预案（仅在前置任务失败时执行）
 
 - [ ] 4.1 若 nitro `3.0.260610-beta` 构建/运行不可修复地破坏：降级为最低修复版 `3.0.260429-beta` 重跑第 2 节矩阵（design D2 备选；验证：矩阵全绿且告警仍可关闭）
+  - （未触发：主线 260610-beta 矩阵全绿；且 2.2 探测已证 260429-beta 同样复现 wasm 回归，此路径无意义）
 - [ ] 4.2 若降级后仍不可用且确认由 `@solidjs/start` 集成引起：在变更中记录证据，与用户确认后再评估是否同步小升 `@solidjs/start` catalog 版本（超出本变更默认范围，需单独确认）
+  - （未触发：降级路径未启用，@solidjs/start 与新 nitro 集成无异常）
