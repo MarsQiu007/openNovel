@@ -1,0 +1,60 @@
+diff --git a/dist/config/fs-routes/index.js b/dist/config/fs-routes/index.js
+index 222152f6af..0bc14088d3 100644
+--- a/dist/config/fs-routes/index.js
++++ b/dist/config/fs-routes/index.js
+@@ -24,7 +24,7 @@ export function fsRoutes({ routers }) {
+                     if (v === undefined)
+                         return undefined;
+                     if (k.startsWith("$$")) {
+-                        const buildId = `${v.src}?${v.pick.map((p) => `pick=${p}`).join("&")}`;
++                        const buildId = `${v.src}?${v.pick.map((p) => `pick=${p}`).join("&")}`.replace(/\\/g, "/");
+                         /**
+                          * @type {{ [key: string]: string }}
+                          */
+@@ -40,7 +40,7 @@ export function fsRoutes({ routers }) {
+                         };
+                     }
+                     else if (k.startsWith("$")) {
+-                        const buildId = `${v.src}?${v.pick.map((p) => `pick=${p}`).join("&")}`;
++                        const buildId = `${v.src}?${v.pick.map((p) => `pick=${p}`).join("&")}`.replace(/\\/g, "/");
+                         return {
+                             src: relative(root, buildId),
+                             build: isBuild
+diff --git a/dist/config/index.js b/dist/config/index.js
+index 69e8f807cf..6295bdbb2f 100644
+--- a/dist/config/index.js
++++ b/dist/config/index.js
+@@ -115,8 +115,8 @@ export function solidStart(options) {
+                     define: {
+                         "import.meta.env.MANIFEST": `globalThis.MANIFEST`,
+                         "import.meta.env.START_SSR": JSON.stringify(start.ssr),
+-                        "import.meta.env.START_APP_ENTRY": `"${appEntryPath}"`,
+-                        "import.meta.env.START_CLIENT_ENTRY": `"${handlers.client}"`,
++                        "import.meta.env.START_APP_ENTRY": `"${appEntryPath.replace(/\\/g, "/")}"`,
++                        "import.meta.env.START_CLIENT_ENTRY": `"${handlers.client.replace(/\\/g, "/")}"`,
+                         "import.meta.env.START_DEV_OVERLAY": JSON.stringify(start.devOverlay)
+                     },
+                     builder: {
+@@ -163,19 +163,19 @@ export function solidStart(options) {
+                 {
+                     envConsumer: "client",
+                     envName: VITE_ENVIRONMENTS.client,
+-                    getRuntimeCode: () => `import { createServerReference } from "${normalize(fileURLToPath(new URL("../server/server-runtime", import.meta.url)))}"`,
++                    getRuntimeCode: () => `import { createServerReference } from "${normalize(fileURLToPath(new URL("../server/server-runtime", import.meta.url))).replace(/\\/g, "/")}"`,
+                     replacer: opts => `createServerReference('${opts.functionId}')`
+                 },
+                 {
+                     envConsumer: "server",
+                     envName: VITE_ENVIRONMENTS.server,
+-                    getRuntimeCode: () => `import { createServerReference } from '${normalize(fileURLToPath(new URL("../server/server-fns-runtime", import.meta.url)))}'`,
++                    getRuntimeCode: () => `import { createServerReference } from '${normalize(fileURLToPath(new URL("../server/server-fns-runtime", import.meta.url))).replace(/\\/g, "/")}'`,
+                     replacer: opts => `createServerReference(${opts.fn}, '${opts.functionId}')`
+                 }
+             ],
+             provider: {
+                 envName: VITE_ENVIRONMENTS.server,
+-                getRuntimeCode: () => `import { createServerReference } from '${normalize(fileURLToPath(new URL("../server/server-fns-runtime", import.meta.url)))}'`,
++                getRuntimeCode: () => `import { createServerReference } from '${normalize(fileURLToPath(new URL("../server/server-fns-runtime", import.meta.url))).replace(/\\/g, "/")}'`,
+                 replacer: opts => `createServerReference(${opts.fn}, '${opts.functionId}')`
+             }
+         }),
