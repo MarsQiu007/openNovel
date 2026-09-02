@@ -4,7 +4,7 @@ import { generateText } from "ai"
 import { effectCmd, fail, CliError } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opennovel-ai/core/flag/flag"
-import { GENRES, runTechniqueExtraction, importSeedTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
+import { GENRES, runTechniqueExtraction, importSeedTechniques, importExtractedTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
 import { Provider } from "@/provider/provider"
 
 /**
@@ -126,7 +126,13 @@ const ExtractTechniquesCommand = effectCmd({
       .option("input", { type: "string", describe: "输入文件路径", demandOption: true })
       .option("output", { type: "string", describe: "输出 JSON 路径", demandOption: true })
       .option("chunk-size", { type: "number", describe: "分段大小", default: 3000 })
-      .option("overlap", { type: "number", describe: "分段重叠", default: 500 }),
+      .option("overlap", { type: "number", describe: "分段重叠", default: 500 })
+      .option("import", {
+        type: "boolean",
+        describe: "提取完成后直接入库（unverified，走反馈闭环验证）",
+        default: false,
+      })
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
   handler: Effect.fn("Cli.novel.extract-techniques")(function* (args) {
     const provider = yield* Provider.Service
     const modelError = (msg: string) => (e: { _tag?: string }) =>
@@ -154,6 +160,10 @@ const ExtractTechniquesCommand = effectCmd({
       console.log(
         `分段 ${result.segments}，高亮 ${result.highlights}，提取 ${result.techniques} 条技法 -> ${args.output}`,
       )
+      if (args.import && result.techniques > 0) {
+        const imported = yield* Effect.promise(() => importExtractedTechniques(args.output, args.dir ?? null))
+        console.log(`已入库 ${imported} 条技法（unverified，等待 auditor 反馈验证）`)
+      }
     } catch (error) {
       yield* fail(error instanceof Error ? error.message : String(error))
     }

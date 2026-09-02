@@ -966,133 +966,24 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (!snapshot) {
             return { title: "assemble_context_snapshot", output: `无法组装上下文快照，小说 ${novelId} 不存在` }
           }
-          const lines: string[] = [`小说：${snapshot.novelTitle}（${snapshot.genre}）`, `梗概：${snapshot.synopsis}`]
-          if (snapshot.chapterOutline) {
-            lines.push("")
-            lines.push("═══ 本章大纲 ═══")
-            lines.push(snapshot.chapterOutline)
-          }
-          if (snapshot.activeCharacters.length > 0) {
-            lines.push("活跃角色：")
-            for (const c of snapshot.activeCharacters) {
-              lines.push(`- ${c.name}（${c.role}）：${c.description}`)
-              if (c.location || c.mood) lines.push(`  位置：${c.location} | 情绪：${c.mood}`)
-            }
-          }
-          if (snapshot.recentChapterSummaries.length > 0) {
-            lines.push("最近章节摘要：")
-            for (const ch of snapshot.recentChapterSummaries) {
-              lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
-            }
-          }
-          if (snapshot.segmentSummaries.length > 0) {
-            lines.push("")
-            lines.push("═══ 早期章节段摘要（每 20 章的压缩记忆，细节可调用 recall_history 深挖）═══")
-            for (const s of snapshot.segmentSummaries) {
-              lines.push(`- 第${s.startChapter}-${s.endChapter}章`)
-              lines.push(s.summary)
-            }
-          }
-          if (snapshot.recalledHistory.length > 0) {
-            lines.push("")
-            lines.push("═══ 召回历史（与本章相关的前文摘要）═══")
-            for (const r of snapshot.recalledHistory) {
-              const tag = r.matchedBy === "foreshadow" ? "伏笔" : r.matchedBy === "fts" ? "检索" : "实体"
-              lines.push(`- [第${r.chapterOrder}章·${tag}] ${r.chapterTitle}：${r.summary}`)
-              if (r.keyEvents.length > 0) lines.push(`  事件：${r.keyEvents.join("、")}`)
-            }
-          }
-          if (snapshot.plotThreads.length > 0) {
-            lines.push("剧情线索：")
-            for (const t of snapshot.plotThreads) lines.push(`- ${t.title}（${t.status}）`)
-          }
-          if (snapshot.foreshadowing.length > 0) {
-            lines.push("伏笔：")
-            for (const f of snapshot.foreshadowing) lines.push(`- [${f.id}] ${f.content}（${f.state}）`)
-          }
-          if (snapshot.activeArcs.length > 0) {
-            lines.push("")
-            lines.push("═══ 结构线/弧光（本章需推进）═══")
-            const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
-            const beatLabel: Record<string, string> = {
-              setup: "开场", rising: "升温", turn: "转折", midpoint: "中点",
-              crisis: "危机", climax: "高潮", resolution: "结局", note: "备注",
-            }
-            for (const arc of snapshot.activeArcs) {
-              const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
-              lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}：${arc.summary || "（无摘要）"}`)
-              for (const b of arc.beats) {
-                const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
-                lines.push(`    · [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
-              }
-            }
-          }
-          if (snapshot.styleGuide) {
-            lines.push(
-              `风格：基调=${snapshot.styleGuide.tone ?? "无"} 视角=${snapshot.styleGuide.pov ?? "无"} 时态=${snapshot.styleGuide.tense ?? "无"}`,
-            )
-          }
-          // ── P5: 世界观硬约束（writer 必须严格遵守的权威来源） ──
-          if (snapshot.worldEntries.length > 0) {
-            lines.push("")
-            lines.push("═══ 世界观硬约束（P5 权威来源）═══")
-            lines.push("⚠️ 以下设定是本章创作的硬约束：等级称谓、力量体系、制度名称、势力名等必须逐字遵循；")
-            lines.push("   已列出的概念不得自创变体；未列出的概念如需新增须在 observer 提取时显式 propose 为新 world_entry。")
-            for (const w of snapshot.worldEntries) {
-              lines.push(`- [${w.category}] ${w.title}`)
-              if (w.content) lines.push(`  ${w.content}`)
-            }
-          }
-          if (snapshot.worldEntryIndex.length > 0) {
-            const byCategory = new Map<string, string[]>()
-            for (const item of snapshot.worldEntryIndex) {
-              byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item.title])
-            }
-            lines.push("")
-            lines.push("═══ 世界观导览（仅标题，需要全文时调用 recall_history 或 check_novel_settings）═══")
-            for (const [cat, titles] of byCategory) {
-              lines.push(`${cat}：${titles.join("、")}`)
-            }
-          }
-          if (snapshot.volumeList.length > 0) {
-            lines.push("")
-            lines.push("═══ 卷纲（章节归属参考）═══")
-            for (const v of snapshot.volumeList) {
-              lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
-            }
-          }
-          if (snapshot.relationships.length > 0) {
-            lines.push("")
-            lines.push("═══ 角色关系 ═══")
-            for (const r of snapshot.relationships) {
-              lines.push(`- ${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}）：${r.description || "—"}`)
-            }
-          }
-          if (snapshot.targetWordCount) {
-            lines.push(`目标字数：每章至少 ${snapshot.targetWordCount} 字（write_chapter 会拒绝低于此字数的章节）`)
-          }
-          if (snapshot.prevChapterTail) {
-            lines.push(
-              `上一章结尾原文（本章必须从该时间点之后展开，严禁重复或重演前文已发生的内容）：\n${snapshot.prevChapterTail}`,
-            )
-          }
           const hookStats = await getHookStats(novelId, 10, ctx.directory)
-          if (hookStats.hooks.length > 0) {
-            const recent = hookStats.hooks
-              .slice(0, 5)
-              .map((h) => h.hookType)
-              .join(" → ")
-            lines.push(`最近钩子使用：${recent}`)
+          const { formatSnapshotToolOutput } = await import("./novel-writer/context.js")
+          const techniqueInjectionEnabled = readTechniqueInjection(ctx.directory)
+          const { output, metadata, injectedTechniqueIds } = formatSnapshotToolOutput(snapshot, hookStats, {
+            techniqueInjectionEnabled,
+          })
+          // 注入发生的技法计数（尽力而为，失败不阻断写作）
+          if (injectedTechniqueIds.length > 0) {
+            try {
+              const { incrementTechniqueUsage } = await import("./novel-writer/technique-store.js")
+              for (const id of injectedTechniqueIds) {
+                await incrementTechniqueUsage(id, ctx.directory)
+              }
+            } catch {
+              // 统计失败静默
+            }
           }
-          if (hookStats.warning) lines.push(`⚠️ 钩子轮换警告：${hookStats.warning}`)
-          return {
-            title: "assemble_context_snapshot",
-            output: lines.join("\n"),
-            metadata: {
-              character_count: snapshot.activeCharacters.length,
-              plot_thread_count: snapshot.plotThreads.length,
-            },
-          }
+          return { title: "assemble_context_snapshot", output, metadata }
         },
       }),
       check_continuity: tool({
@@ -5471,6 +5362,7 @@ const NOVEL_CONFIG_FIELDS: Array<{ key: string; label: string }> = [
   { key: "version", label: "版本" },
   { key: "writing_mode", label: "写作模式" },
   { key: "setup_mode", label: "初始化模式" },
+  { key: "technique_injection", label: "技法注入" },
 ]
 
 type FieldSpec = {
@@ -5540,6 +5432,10 @@ const NOVEL_CONFIG_FIELD_SPECS: Record<string, FieldSpec> = {
     parseJson: true,
     validate: (v) =>
       v === "interactive" || v === "auto" ? null : "必须是 interactive（确认）/ auto（自动）之一",
+  },
+  technique_injection: {
+    parseJson: true,
+    validate: (v) => (typeof v === "boolean" ? null : "必须是 boolean（true 开启注入 / false 保持 shadow mode）"),
   },
 }
 
@@ -5676,6 +5572,21 @@ export function readProjectConfig(projectDir: string): {
       novel_config_path: novelConfigPath,
       novel_config_exists: existsSync(novelConfigPath),
     },
+  }
+}
+
+/**
+ * 读取技法注入开关（.novel/config.json 的 technique_injection 字段）。
+ * 仅 `=== true` 视为开启：缺失、非 boolean、JSON 损坏一律 false（默认 shadow mode）。
+ */
+export function readTechniqueInjection(projectDir: string): boolean {
+  const configPath = join(projectDir, ".novel", "config.json")
+  if (!existsSync(configPath)) return false
+  try {
+    const data = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>
+    return data.technique_injection === true
+  } catch {
+    return false
   }
 }
 

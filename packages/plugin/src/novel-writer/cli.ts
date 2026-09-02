@@ -257,13 +257,32 @@ export async function importSeedTechniques(
   inputPath: string,
   directory?: string | null,
 ): Promise<number> {
+  return importTechniquesFromJson(inputPath, directory, { seed: true })
+}
+
+/**
+ * 导入 LLM 提取的技法（JSON 数组），保持 unverified/0.5 初始状态，
+ * 走"反馈闭环 → verified"的正常生命周期，不误标为人工精选。
+ */
+export async function importExtractedTechniques(
+  inputPath: string,
+  directory?: string | null,
+): Promise<number> {
+  return importTechniquesFromJson(inputPath, directory, { seed: false })
+}
+
+async function importTechniquesFromJson(
+  inputPath: string,
+  directory: string | null | undefined,
+  opts: { seed: boolean },
+): Promise<number> {
   const { normalizeTechnique } = await import("./technique-normalize.js")
   const { upsertTechnique } = await import("./technique-store.js")
 
   const content = JSON.parse(await readFile(inputPath, "utf-8"))
   const items = Array.isArray(content) ? content : [content]
   for (const item of items) {
-    await upsertTechnique(normalizeTechnique(item, { seed: true }), directory)
+    await upsertTechnique(normalizeTechnique(item, { seed: opts.seed }), directory)
   }
   return items.length
 }

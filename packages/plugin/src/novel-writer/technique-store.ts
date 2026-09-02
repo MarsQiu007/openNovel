@@ -81,6 +81,24 @@ export async function updateTechniqueStatus(
   await db.update(TechniqueTable).set({ status, updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
 }
 
+/** 注入发生时递增使用次数并记录最近使用时间（异步尽力而为，失败由调用方吞掉） */
+export async function incrementTechniqueUsage(
+  id: string,
+  directory?: string | null,
+): Promise<void> {
+  const db = getDb(directory)
+  const [row] = await db
+    .select({ usage_count: TechniqueTable.usage_count })
+    .from(TechniqueTable)
+    .where(eq(TechniqueTable.id, id))
+    .all()
+  if (!row) return
+  await db
+    .update(TechniqueTable)
+    .set({ usage_count: row.usage_count + 1, last_used_at: Date.now() })
+    .where(eq(TechniqueTable.id, id))
+}
+
 export async function recordFeedback(
   feedback: TechniqueFeedback,
   directory?: string | null,

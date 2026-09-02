@@ -10,6 +10,7 @@ import {
   recordFeedback,
   recordShadowLog,
   updateConfidenceFromFeedback,
+  incrementTechniqueUsage,
 } from "../../src/novel-writer/technique-store.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-test-"))
@@ -156,5 +157,21 @@ describe("technique store", () => {
     const results = await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)
     const found = results.find((r) => r.entry.id === entry.id)
     expect(found?.entry.confidence).toBe(0.5)
+  })
+})
+
+describe("incrementTechniqueUsage", () => {
+  test("递增 usage_count 并更新 last_used_at", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    await incrementTechniqueUsage(entry.id, testDir)
+    const results = await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)
+    const found = results.find((r) => r.entry.id === entry.id)
+    expect(found?.entry.usageCount).toBe(1)
+    expect(found?.entry.lastUsedAt).not.toBeNull()
+  })
+
+  test("技法不存在时不抛异常", async () => {
+    await expect(incrementTechniqueUsage("tech_nonexistent", testDir)).resolves.toBeUndefined()
   })
 })

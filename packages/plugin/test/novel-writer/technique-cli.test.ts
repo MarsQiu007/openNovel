@@ -2,7 +2,7 @@ import { describe, test, expect, afterAll } from "bun:test"
 import { mkdtempSync, rmSync, existsSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
-import { runTechniqueExtraction, importSeedTechniques } from "../../src/novel-writer/cli.js"
+import { runTechniqueExtraction, importSeedTechniques, importExtractedTechniques } from "../../src/novel-writer/cli.js"
 
 const workDir = mkdtempSync(join(tmpdir(), "technique-cli-"))
 const inputPath = join(workDir, "input.txt")
@@ -81,5 +81,47 @@ describe("importSeedTechniques", () => {
     expect(results.length).toBe(1)
     expect(results[0].entry.status).toBe("verified")
     expect(results[0].entry.confidence).toBe(0.8)
+  })
+})
+
+describe("importExtractedTechniques", () => {
+  test("导入 LLM 提取结果为 unverified/0.5，不误标 verified", async () => {
+    const extractedPath = join(workDir, "extracted.json")
+    await Bun.write(
+      extractedPath,
+      JSON.stringify([
+        {
+          name: "提取技法A",
+          principle: "原则A",
+          instruction: "具体的操作指令内容足够长",
+          sceneTypes: ["dialogue"],
+          level: "paragraph",
+          evidence: [{ sourceTitle: "小说", sourceLocation: "第一章", excerpt: "x", annotation: "y" }],
+          commonMisuse: "",
+        },
+      ]),
+    )
+
+    const count = await importExtractedTechniques(extractedPath, workDir)
+    expect(count).toBe(1)
+
+    const { queryTechniques } = await import("../../src/novel-writer/technique-store.js")
+    const results = await queryTechniques({ sceneType: "dialogue", contextText: "" }, workDir)
+    const imported = results.find((r) => r.entry.name === "提取技法A")
+    expect(imported).toBeDefined()
+    expect(imported!.entry.status).toBe("unverified")
+    expect(imported!.entry.confidence).toBe(0.5)
+  })
+
+  test("提取导入与种子导入落在同一项目库（目录解析一致）", async () => {
+    const { getDbPath } = await import("@opennovel-ai/novel-store")
+    expect(getDbPath(workDir)).toBe(join(workDir, ".novel", "novel.db"))
+
+    // 两个导入路径都显式传同一目录，检索时应能同时看到两条
+    const { queryTechniques } = await import("../../src/novel-writer/technique-store.js")
+    const results = await queryTechniques({ sceneType: "dialogue", contextText: "" }, workDir)
+    const names = results.map((r) => r.entry.name)
+    expect(names).toContain("种子技法")
+    expect(names).toContain("提取技法A")
   })
 })

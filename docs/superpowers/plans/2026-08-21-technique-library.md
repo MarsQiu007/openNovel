@@ -1630,6 +1630,24 @@ git commit -m "feat(core): add auditor technique feedback trigger"
 4. **场景推断从大纲文本**: `inferSceneType` 用正则匹配大纲，准确率有限。V2 可以用 LLM 做更准确的场景分类。
 5. **结构级技法不提取**: V1 限定在段落和句子级。
 
+### 场景推断审计结论（2026-09-02，change: technique-pipeline-integration 任务 1.3）
+
+`inferSceneType`（context.ts）的正则规则为：action（战斗/冲突/对决/打斗/交战）> dialogue（对话/谈判/交谈/质问）> description（描写/环境/风景/氛围）> suspense（悬念/谜团/线索/伏笔）> emotion_shift（情感/回忆/内心/情绪）> transition（过渡/转场/时间流逝），按序短路命中，未命中返回 `general`。静态审计结论：
+
+1. **规则的优先级是硬编码的**：标题同时含"战斗"和"对话"时永远归 action，无法表达多场景混合章节。
+2. **general 兜底与技法覆盖不匹配**：提取管线的 sceneType 来自 LLM 自由标注（HIGHLIGHTER_PROMPT），可能产出 `general` 之外的任意标签；标签体系没有约束，会出现技法标注了某场景但推断永不命中该标签的错位。短期建议在 DISTILLER/HIGHLIGHTER prompt 中显式列出允许的六种标签 + general。
+3. **本地尚无生产 shadow log 数据**（技法库在真实项目中还未运行过），故无法做"推断结果 vs shadow log 实际分布"的抽样对照；此对照应待技法库运行若干章后补做。该局限与本文件第 4 条已知局限同源，算法改动仍留 V2。
+
+## 注入开关已实现（2026-09-02，change: technique-pipeline-integration）
+
+原 V1 设计中"Prompt injection into writer (requires shadow-mode validation first)"的开启机制已落地：
+
+- **字段**：`.novel/config.json` 的 `technique_injection`（boolean，默认 false = 纯 shadow）
+- **开启方式**：项目 `.novel/config.json` 写入 `"technique_injection": true`（可用 update_project_config 工具或手工编辑）
+- **行为**：开启后 `assemble_context_snapshot` 输出末尾的"技法候选(shadow)"段替换为"写作技法指导"段——候选过滤 confidence ≥ 0.6（`INJECTION_MIN_CONFIDENCE`），按置信度降序取 top-5，经 `applyP7Budget`（1000 token）裁剪，语义标注"必须原样传递给 writer"；pipeline 步骤 2.5 按段落名区分两种模式；实际注入的技法递增 `usage_count`/`last_used_at`
+- **回退**：开关置 false 即回到纯 shadow，下一次组装快照生效
+- **低置信度技法仍走 shadow 候选段**（过滤只作用于注入段），反馈闭环不受开关影响
+
 ## Verification Checklist
 
 ```bash

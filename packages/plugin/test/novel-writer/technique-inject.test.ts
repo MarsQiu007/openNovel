@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { applyP7Budget, formatTechniquesForPrompt } from "../../src/novel-writer/technique-inject.js"
+import { applyP7Budget, formatTechniquesForPrompt, formatTechniquesForShadow } from "../../src/novel-writer/technique-inject.js"
 import type { RetrievedTechnique } from "../../src/novel-writer/technique.js"
 
 function makeTechnique(name: string, instructionLen: number, score = 0.9): RetrievedTechnique {
@@ -53,5 +53,20 @@ describe("formatTechniquesForPrompt", () => {
 
   test("empty returns empty string", () => {
     expect(formatTechniquesForPrompt([])).toBe("")
+  })
+})
+
+describe("formatTechniquesForShadow", () => {
+  test("每行包含 id、name、instruction，供 pipeline 报告与 auditor 反馈", () => {
+    const t = makeTechnique("停顿暗示拒绝", 50)
+    const lines = formatTechniquesForShadow([t])
+    expect(lines.length).toBe(1)
+    expect(lines[0]).toContain(t.entry.id)
+    expect(lines[0]).toContain("停顿暗示拒绝")
+    expect(lines[0]).toContain(t.entry.instruction)
+  })
+
+  test("空数组返回空数组", () => {
+    expect(formatTechniquesForShadow([])).toEqual([])
   })
 })

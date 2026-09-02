@@ -72,10 +72,12 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 失败 -> 停止，报告"无法组装上下文快照"
 - 成功 -> 进入步骤 3
 
-### 步骤 2.5：技法检索报告（shadow mode）
-如果步骤 2 返回的快照中 \`techniques\` 字段非空，在 dispatch writer 之前输出一行报告：
+### 步骤 2.5：技法检索报告（shadow mode / 注入模式）
+- 如果步骤 2 返回的快照输出末尾包含"═══ 技法候选"段落（shadow mode：每行格式为 \`- [技法ID] 名称（置信度:x.xx）：指令\`），在 dispatch writer 之前输出一行报告：
 "技法检索(shadow): N 条技法候选 - [名称1, 名称2, ...]"
-但**不要**将这些技法内容注入 writer prompt。这是 shadow mode 阶段，仅用于验证检索质量。如果 \`techniques\` 为空，静默进入步骤 3。
+但**不要**将这些技法内容注入 writer prompt。这是 shadow mode 阶段，仅用于验证检索质量。
+- 如果快照输出末尾包含"═══ 写作技法指导"段落（P7 注入已开启：项目配置 technique_injection=true），**必须将该段落原样传递给 writer**（包含在 dispatch prompt 中）。
+- 两个段落都没有，静默进入步骤 3。
 
 ### 步骤 3：write - 调用 writer agent 生成正文
 通过 task 工具 dispatch @writer 子 agent：
@@ -91,7 +93,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 ### 步骤 4：audit - 连续性检查
 调用 \`check_continuity\` 工具，传入 novel_id 和 chapter_number。
 
-分派任意 auditor 前，必须把步骤 2 快照中的 \`techniques\` 字段映射为 \`retrieved_techniques\` 传入 prompt；每项只包含 \`id\`、\`name\`、\`instruction\`。若该字段为空，传空数组并明确告知 auditor 跳过技法使用评估。
+分派任意 auditor 前，必须把步骤 2 快照输出中"技法候选"段落里的每条候选（从 \`- [技法ID] 名称（置信度:x.xx）：指令\` 行中提取）映射为 \`retrieved_techniques\` 传入 prompt；每项只包含 \`id\`、\`name\`、\`instruction\`。若快照中没有"技法候选"段落，传空数组并明确告知 auditor 跳过技法使用评估。
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"

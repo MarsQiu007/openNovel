@@ -13,6 +13,12 @@
 
 import { eq, and, lte, desc, sql } from "drizzle-orm"
 import type { RetrievedTechnique } from "./technique.js"
+import {
+  applyP7Budget,
+  formatTechniquesForShadow,
+  formatTechniqueGuidanceLines,
+  INJECTION_MIN_CONFIDENCE,
+} from "./technique-inject.js"
 import { ensureSegmentSummaries, listSegmentSummaries } from "./segment-rollup.js"
 import {
   getDb,
@@ -638,6 +644,175 @@ function inferSceneType(chapterTitle: string, synopsis: string): string {
   if (/情感|回忆|内心|情绪/.test(text)) return "emotion_shift"
   if (/过渡|转场|时间流逝/.test(text)) return "transition"
   return "general"
+}
+
+// ── 快照工具输出序列化 ──
+
+export interface SnapshotToolOutput {
+  output: string
+  metadata: {
+    character_count: number
+    plot_thread_count: number
+    technique_count: number
+  }
+  /** 注入开关开启时实际进入"写作技法指导"段落的技法 id（shadow 模式下恒为空） */
+  injectedTechniqueIds: string[]
+}
+
+/**
+ * 将 assembleSnapshot 产出的快照序列化为 assemble_context_snapshot 工具的文本输出。
+ * 纯函数：技法的 shadow 候选段/注入段在此分流，使用统计由调用方按 injectedTechniqueIds 落库。
+ */
+export function formatSnapshotToolOutput(
+  snapshot: NonNullable<Awaited<ReturnType<typeof assembleSnapshot>>>,
+  hookStats: { hooks: Array<{ hookType: string }>; warning?: string | null },
+  options?: { techniqueInjectionEnabled?: boolean },
+): SnapshotToolOutput {
+  const lines: string[] = [`小说：${snapshot.novelTitle}（${snapshot.genre}）`, `梗概：${snapshot.synopsis}`]
+  if (snapshot.chapterOutline) {
+    lines.push("")
+    lines.push("═══ 本章大纲 ═══")
+    lines.push(snapshot.chapterOutline)
+  }
+  if (snapshot.activeCharacters.length > 0) {
+    lines.push("活跃角色：")
+    for (const c of snapshot.activeCharacters) {
+      lines.push(`- ${c.name}（${c.role}）：${c.description}`)
+      if (c.location || c.mood) lines.push(`  位置：${c.location} | 情绪：${c.mood}`)
+    }
+  }
+  if (snapshot.recentChapterSummaries.length > 0) {
+    lines.push("最近章节摘要：")
+    for (const ch of snapshot.recentChapterSummaries) {
+      lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+    }
+  }
+  if (snapshot.segmentSummaries.length > 0) {
+    lines.push("")
+    lines.push("═══ 早期章节段摘要（每 20 章的压缩记忆，细节可调用 recall_history 深挖）═══")
+    for (const s of snapshot.segmentSummaries) {
+      lines.push(`- 第${s.startChapter}-${s.endChapter}章`)
+      lines.push(s.summary)
+    }
+  }
+  if (snapshot.recalledHistory.length > 0) {
+    lines.push("")
+    lines.push("═══ 召回历史（与本章相关的前文摘要）═══")
+    for (const r of snapshot.recalledHistory) {
+      const tag = r.matchedBy === "foreshadow" ? "伏笔" : r.matchedBy === "fts" ? "检索" : "实体"
+      lines.push(`- [第${r.chapterOrder}章·${tag}] ${r.chapterTitle}：${r.summary}`)
+      if (r.keyEvents.length > 0) lines.push(`  事件：${r.keyEvents.join("、")}`)
+    }
+  }
+  if (snapshot.plotThreads.length > 0) {
+    lines.push("剧情线索：")
+    for (const t of snapshot.plotThreads) lines.push(`- ${t.title}（${t.status}）`)
+  }
+  if (snapshot.foreshadowing.length > 0) {
+    lines.push("伏笔：")
+    for (const f of snapshot.foreshadowing) lines.push(`- [${f.id}] ${f.content}（${f.state}）`)
+  }
+  if (snapshot.activeArcs.length > 0) {
+    lines.push("")
+    lines.push("═══ 结构线/弧光（本章需推进）═══")
+    const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
+    const beatLabel: Record<string, string> = {
+      setup: "开场", rising: "升温", turn: "转折", midpoint: "中点",
+      crisis: "危机", climax: "高潮", resolution: "结局", note: "备注",
+    }
+    for (const arc of snapshot.activeArcs) {
+      const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
+      lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}：${arc.summary || "（无摘要）"}`)
+      for (const b of arc.beats) {
+        const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
+        lines.push(`    · [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
+      }
+    }
+  }
+  if (snapshot.styleGuide) {
+    lines.push(
+      `风格：基调=${snapshot.styleGuide.tone ?? "无"} 视角=${snapshot.styleGuide.pov ?? "无"} 时态=${snapshot.styleGuide.tense ?? "无"}`,
+    )
+  }
+  // ── P5: 世界观硬约束（writer 必须严格遵守的权威来源） ──
+  if (snapshot.worldEntries.length > 0) {
+    lines.push("")
+    lines.push("═══ 世界观硬约束（P5 权威来源）═══")
+    lines.push("⚠️ 以下设定是本章创作的硬约束：等级称谓、力量体系、制度名称、势力名等必须逐字遵循；")
+    lines.push("   已列出的概念不得自创变体；未列出的概念如需新增须在 observer 提取时显式 propose 为新 world_entry。")
+    for (const w of snapshot.worldEntries) {
+      lines.push(`- [${w.category}] ${w.title}`)
+      if (w.content) lines.push(`  ${w.content}`)
+    }
+  }
+  if (snapshot.worldEntryIndex.length > 0) {
+    const byCategory = new Map<string, string[]>()
+    for (const item of snapshot.worldEntryIndex) {
+      byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item.title])
+    }
+    lines.push("")
+    lines.push("═══ 世界观导览（仅标题，需要全文时调用 recall_history 或 check_novel_settings）═══")
+    for (const [cat, titles] of byCategory) {
+      lines.push(`${cat}：${titles.join("、")}`)
+    }
+  }
+  if (snapshot.volumeList.length > 0) {
+    lines.push("")
+    lines.push("═══ 卷纲（章节归属参考）═══")
+    for (const v of snapshot.volumeList) {
+      lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
+    }
+  }
+  if (snapshot.relationships.length > 0) {
+    lines.push("")
+    lines.push("═══ 角色关系 ═══")
+    for (const r of snapshot.relationships) {
+      lines.push(`- ${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}）：${r.description || "—"}`)
+    }
+  }
+  if (snapshot.targetWordCount) {
+    lines.push(`目标字数：每章至少 ${snapshot.targetWordCount} 字（write_chapter 会拒绝低于此字数的章节）`)
+  }
+  if (snapshot.prevChapterTail) {
+    lines.push(
+      `上一章结尾原文（本章必须从该时间点之后展开，严禁重复或重演前文已发生的内容）：\n${snapshot.prevChapterTail}`,
+    )
+  }
+  if (hookStats.hooks.length > 0) {
+    const recent = hookStats.hooks
+      .slice(0, 5)
+      .map((h) => h.hookType)
+      .join(" → ")
+    lines.push(`最近钩子使用：${recent}`)
+  }
+  if (hookStats.warning) lines.push(`⚠️ 钩子轮换警告：${hookStats.warning}`)
+  // ── P7: 技法候选（shadow 候选段 / 注入段按开关分流） ──
+  let injectedTechniqueIds: string[] = []
+  if (options?.techniqueInjectionEnabled && snapshot.techniques.length > 0) {
+    // 注入：置信度 ≥ 门槛的候选取 top-5，按 1000 token 预算裁剪
+    const eligible = snapshot.techniques.filter((t) => t.entry.confidence >= INJECTION_MIN_CONFIDENCE)
+    const injected = applyP7Budget(eligible)
+    if (injected.length > 0) {
+      lines.push("")
+      lines.push("═══ 写作技法指导（P7 注入已开启：本段必须原样传递给 writer）═══")
+      lines.push(...formatTechniqueGuidanceLines(injected))
+      injectedTechniqueIds = injected.map((t) => t.entry.id)
+    }
+  } else if (snapshot.techniques.length > 0) {
+    // shadow mode：仅报告与反馈，不进 writer prompt
+    lines.push("")
+    lines.push("═══ 技法候选（shadow mode：仅用于步骤 2.5 报告和传给 auditor 评估，严禁注入 writer prompt）═══")
+    lines.push(...formatTechniquesForShadow(snapshot.techniques))
+  }
+  return {
+    output: lines.join("\n"),
+    metadata: {
+      character_count: snapshot.activeCharacters.length,
+      plot_thread_count: snapshot.plotThreads.length,
+      technique_count: snapshot.techniques.length,
+    },
+    injectedTechniqueIds,
+  }
 }
 
 /**
