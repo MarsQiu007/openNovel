@@ -11,6 +11,7 @@ Release 流程对 git push 的瞬时失败零容错，已经造成两次真实�
 
 - `script/bump-version.ts`：push bump commit 到默认分支时增加带退避的重试，瞬时网络/服务端错误不再直接中止 release。
 - `script/version.ts`：移除 tag 推送的 `.nothrow()`，改为显式校验——tag 推送失败必须让 prepare 阶段立即失败（fail fast），错误现场保留在 prepare 日志中。
+- `script/version.ts`：preview channel（dev/beta）创建的 draft release 显式标记为 prerelease，发布后不再占用 Latest（2026-09-03 验证发布时观察到的实际事故）。
 - `.github/workflows/release.yml` 无结构性改动，仅受益于上述两个脚本的行为变化。
 
 ## Capabilities

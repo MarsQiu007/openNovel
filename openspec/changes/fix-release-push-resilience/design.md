@@ -53,6 +53,14 @@ release 流程两个 push 点的现状：
 
 与 AGENTS.md "避免 try/catch"一致：Bun shell 的惯用失败处理就是 nothrow 返回码检查（需要继续执行时）或默认 throw（需要立即终止时）。重试循环用 `exitCode === 0` 判断，最后一次失败直接以非零码退出并透出日志。
 
+### D5：preview channel 的 release 在创建时就带 `--prerelease`，靠源头标记而非事后补救
+
+**选择**：`version.ts` preview 分支的 `gh release create -d` 追加 `--prerelease`，draft 从创建起就带 prerelease 标记，publish（`gh release edit --draft=false`）后保持。
+
+**理由**：标记在源头一次落定，publish 流程无需感知 channel 类型；prerelease 天然不参与 GitHub 的 Latest 判定，与 release 语义一致。2026-09-03 的 dev 验证发布实际抢走了 v0.0.2 的 Latest、需要人工补救，根因即 preview 分支缺少此标记。
+
+**备选**：publish 阶段按 channel 条件追加 `--latest=false`——channel 判断扩散到 workflow 层，脚本与 workflow 两处维护同一规则，否决。
+
 ## Risks / Trade-offs
 
 - [重试可能推迟持久错误的暴露（如 branch protection 真实拦截）] → 代价上限约 6 秒退避，且终止时完整保留原始错误；不做 stderr 分类（见 D2）。

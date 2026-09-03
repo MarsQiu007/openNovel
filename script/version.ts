@@ -26,7 +26,8 @@ if (!Script.preview) {
   await $`git push origin ${release.tagName} --no-verify`
 } else {
   // dev / beta 等 preview channel 也创建 draft release，方便测试包分发
-  await $`gh release create v${Script.version} -d --title "v${Script.version}" --repo ${process.env.GH_REPO} --notes "OpenNovel ${Script.channel} test build."`
+  // 必须标记 prerelease，否则发布后会占用 Latest
+  await $`gh release create v${Script.version} -d --prerelease --title "v${Script.version}" --repo ${process.env.GH_REPO} --notes "OpenNovel ${Script.channel} test build."`
   const release =
     await $`gh release view v${Script.version} --json tagName,databaseId --repo ${process.env.GH_REPO}`.json()
   output.push(`release=${release.databaseId}`)
