@@ -1,7 +1,7 @@
 {
   "name": "@opennovel-ai/desktop",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.2-dev.20260903",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/MarsQiu007/openNovel",
