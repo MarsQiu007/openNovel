@@ -22,7 +22,8 @@ if (!Script.preview) {
   // draft release 的 tag 要等 publish 才会真正创建，而 build job 需要立刻 checkout 该 tag，
   // 因此这里显式在 target commit 上创建并推送
   await $`git tag -f ${release.tagName} ${sha}`.nothrow()
-  await $`git push origin ${release.tagName} --no-verify`.nothrow()
+  // 推送失败必须立即终止脚本（fail fast），否则 build 阶段无法 checkout 该 tag
+  await $`git push origin ${release.tagName} --no-verify`
 } else {
   // dev / beta 等 preview channel 也创建 draft release，方便测试包分发
   await $`gh release create v${Script.version} -d --title "v${Script.version}" --repo ${process.env.GH_REPO} --notes "OpenNovel ${Script.channel} test build."`
@@ -33,7 +34,8 @@ if (!Script.preview) {
 
   // preview channel 也要创建对应的 git tag，否则 build-desktop 无法 checkout
   await $`git tag -f ${release.tagName}`.nothrow()
-  await $`git push origin ${release.tagName} --no-verify`.nothrow()
+  // 推送失败必须立即终止脚本（fail fast），否则 build 阶段无法 checkout 该 tag
+  await $`git push origin ${release.tagName} --no-verify`
 }
 
 output.push(`repo=${process.env.GH_REPO}`)

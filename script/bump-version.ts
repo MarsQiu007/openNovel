@@ -29,7 +29,19 @@ await $`bun install`
 if (process.env.OPENNOVEL_DRY_RUN !== "true") {
   await $`git add -A`
   await $`git commit -m "chore(release): bump version to ${version}" --allow-empty`
-  await $`git push origin HEAD:${process.env.GITHUB_REF_NAME ?? "main"} --no-verify`
+  // push 到目标分支：对瞬时错误（服务端 5xx、网络抖动）退避重试，耗尽后以最后一次的原始错误终止
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await $`git push origin HEAD:${process.env.GITHUB_REF_NAME ?? "main"} --no-verify`.nothrow()
+    if (result.exitCode === 0) break
+    if (attempt === maxAttempts) {
+      console.error(`git push 在 ${maxAttempts} 次尝试后仍失败，终止 release 准备（原始错误见上方 stderr）`)
+      process.exit(result.exitCode ?? 1)
+    }
+    const backoffMs = 2 ** attempt * 1000 // 2s, 4s
+    console.warn(`git push 失败（第 ${attempt}/${maxAttempts} 次），${backoffMs}ms 后重试`)
+    await Bun.sleep(backoffMs)
+  }
 }
 
 console.log(JSON.stringify({ version, tag }))
