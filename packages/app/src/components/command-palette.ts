@@ -2,6 +2,7 @@ import { getFilename } from "@opennovel-ai/core/util/path"
 import type { GlobalSession, Project } from "@opennovel-ai/sdk/v2/client"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { createMemo, onCleanup } from "solid-js"
+import { useNavigate } from "@solidjs/router"
 import { commandPaletteOptions, useCommand, type CommandOption } from "@/context/command"
 import { useFile } from "@/context/file"
 import { useGlobal } from "@/context/global"
@@ -10,6 +11,7 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useTabs } from "@/context/tabs"
+import { openSessionRouted } from "@/pages/novel-sessions"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -82,6 +84,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
   const language = useLanguage()
   const file = useFile()
   const dialog = useDialog()
+  const navigate = useNavigate()
   const serverSDK = useServerSDK()()
   const serverCtx = global.ensureServerCtx(serverSDK.server)
   const appTabs = useTabs()
@@ -169,15 +172,15 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     if (item.type === "session") {
       if (!item.sessionID || !item.server) return
       const directory = item.project?.worktree ?? item.directory
-      if (directory) {
-        serverCtx.projects.open(directory)
-        serverCtx.projects.touch(directory)
-      }
-      const tab = appTabs.addSessionTab({
-        server: item.server,
-        sessionId: item.sessionID,
+      if (!directory) return
+      void openSessionRouted({
+        conn: serverSDK.server,
+        directory,
+        sessionID: item.sessionID,
+        navigate,
+        tabs: appTabs,
+        global,
       })
-      appTabs.select(tab)
       return
     }
     if (!item.path) return

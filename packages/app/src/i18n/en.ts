@@ -172,7 +172,8 @@ export const dict = {
     "OpenAI-compatible endpoint of your local server. Ollama defaults to http://localhost:11434/v1.",
   "provider.connect.field.modelName.label": "Model name",
   "provider.connect.field.modelName.placeholder": "e.g. llama3.1:8b",
-  "provider.connect.field.modelName.description": "A model you have already pulled (or any name your local server accepts).",
+  "provider.connect.field.modelName.description":
+    "A model you have already pulled (or any name your local server accepts).",
   "provider.connect.field.refreshModels": "Refresh",
   "provider.connect.error.baseURL.required": "Base URL is required",
   "provider.connect.error.baseURL.format": "Base URL must start with http:// or https://",
@@ -673,7 +674,8 @@ export const dict = {
   "home.sessions.sidebar.inSidebar": "Novel chats are grouped in the left sidebar.",
   "home.sessions.sidebar.collapse": "Collapse",
   "home.sessions.sidebar.archiveTitle": "Archive session",
-  "home.sessions.sidebar.archiveWithChildren": "This session has {{count}} sub-agent session(s). They will be archived together. Continue?",
+  "home.sessions.sidebar.archiveWithChildren":
+    "This session has {{count}} sub-agent session(s). They will be archived together. Continue?",
   "home.sessions.sidebar.subagent": "Sub-agent session",
   "home.sessions.sidebar.unbound": "Global chats",
   "home.sessions.title": "Sessions",
@@ -901,7 +903,8 @@ export const dict = {
   "settings.sync.connection.section": "Cloud drive connection",
   "settings.sync.field.url": "Server URL",
   "settings.sync.field.url.placeholder": "https://dav.jianguoyun.com/dav/",
-  "settings.sync.field.url.description": "WebDAV address of your cloud drive. For Nutstore use https://dav.jianguoyun.com/dav/",
+  "settings.sync.field.url.description":
+    "WebDAV address of your cloud drive. For Nutstore use https://dav.jianguoyun.com/dav/",
   "settings.sync.field.username": "Username",
   "settings.sync.field.username.placeholder": "WebDAV account (email)",
   "settings.sync.field.password": "App password",
@@ -1244,7 +1247,8 @@ export const dict = {
   "novel.bookshelf.stats": "{{count}} novels, {{chapters}} chapters",
   "novel.bookshelf.total": "Total",
   "novel.bookshelf.progress": "Progress",
-  "novel.bookshelf.confirmDelete": "Delete this novel? Its content and linked chats will be removed. This cannot be undone.",
+  "novel.bookshelf.confirmDelete":
+    "Delete this novel? Its content and linked chats will be removed. This cannot be undone.",
 
   "novel.wizard.title": "Create Novel",
   "novel.wizard.step.basic": "Basic Info",
@@ -1284,7 +1288,6 @@ export const dict = {
   "novel.workspace.writingInProgress": "Writing...",
   "novel.workspace.auditingInProgress": "Auditing...",
   "novel.workspace.waitingApproval": "Waiting for Approval",
-  "novel.workspace.backToNovel": "Back to Novel",
   "novel.workspace.pendingApproval": "Pending Approval",
   "novel.workspace.export": "Export",
   "novel.workspace.exporting": "Exporting...",
@@ -1295,6 +1298,10 @@ export const dict = {
   "novel.style.pov": "POV, e.g. first person, third person",
   "novel.style.tense": "Tense, e.g. past, present",
   "novel.style.rulesHint": "Style rules, one per line as key: value",
+  "novel.workspace.chat": "Chat",
+  "novel.workspace.toggleNav": "Toggle nav",
+  "novel.workspace.toggleRail": "Toggle rail",
+  "novel.workspace.chatEmpty": "Start with a writing instruction",
   "novel.workspace.reading": "Reading",
   "novel.workspace.writingSession": "Writing",
   "novel.workspace.modeChapters": "Chapters",
@@ -1521,15 +1528,21 @@ export const dict = {
   "novel.panel.world.category": "Category",
   "novel.panel.world.title": "Title",
   "novel.panel.world.content": "Content",
-  "novel.panel.characters.deleteConfirm": "Are you sure you want to delete character \"{{name}}\"? This cannot be undone.",
+  "novel.panel.characters.deleteConfirm":
+    'Are you sure you want to delete character "{{name}}"? This cannot be undone.',
   "novel.panel.characters.writeOut": "Write Out",
-  "novel.panel.characters.writeOutConfirm": "Write out character \"{{name}}\"? They will no longer appear in future chapters, but mentions in existing chapters remain valid.",
+  "novel.panel.characters.writeOutConfirm":
+    'Write out character "{{name}}"? They will no longer appear in future chapters, but mentions in existing chapters remain valid.',
   "novel.panel.characters.restore": "Restore",
   "novel.panel.characters.departed": "Departed",
-  "novel.panel.characters.protagonistProtect": "The protagonist cannot be written out or deleted. To change protagonist, create a new one and switch roles first.",
-  "novel.panel.characters.deleteRefusedAppeared": "This character has appeared in chapters and cannot be deleted. Use \"Write Out\" instead.",
-  "novel.panel.characters.state.deleteConfirm": "Are you sure you want to delete this character state? This cannot be undone.",
-  "novel.panel.characters.rel.deleteConfirm": "Are you sure you want to delete this relationship? This cannot be undone.",
+  "novel.panel.characters.protagonistProtect":
+    "The protagonist cannot be written out or deleted. To change protagonist, create a new one and switch roles first.",
+  "novel.panel.characters.deleteRefusedAppeared":
+    'This character has appeared in chapters and cannot be deleted. Use "Write Out" instead.',
+  "novel.panel.characters.state.deleteConfirm":
+    "Are you sure you want to delete this character state? This cannot be undone.",
+  "novel.panel.characters.rel.deleteConfirm":
+    "Are you sure you want to delete this relationship? This cannot be undone.",
   "novel.panel.foreshadow.deleteConfirm": "Are you sure you want to delete this foreshadowing? This cannot be undone.",
   "novel.panel.threads.deleteConfirm": "Are you sure you want to delete this plot thread? This cannot be undone.",
   "novel.panel.world.deleteConfirm": "Are you sure you want to delete this world entry? This cannot be undone.",
@@ -1599,25 +1612,30 @@ export const dict = {
   "novel.settings.entry.saving": "Saving...",
   "novel.settings.entry.cancel": "Cancel",
   "novel.settings.entry.delete": "Delete",
-  "novel.settings.entry.deleteConfirm": "Are you sure you want to delete \"{{title}}\"? This cannot be undone.",
+  "novel.settings.entry.deleteConfirm": 'Are you sure you want to delete "{{title}}"? This cannot be undone.',
   "novel.settings.style.saved": "Style saved.",
-"settings.soul.tab": "Soul",
-  "settings.soul.description": "Write a persona injected into every AI session as a system prompt. A novel with its own soul overrides this global one. Set a per-novel soul in the novel workspace → left “Settings” → “Soul” tab.",
+  "settings.soul.tab": "Soul",
+  "settings.soul.description":
+    "Write a persona injected into every AI session as a system prompt. A novel with its own soul overrides this global one. Set a per-novel soul in the novel workspace → left “Settings” → “Soul” tab.",
   "settings.soul.placeholder": "e.g. You are a sharp-tongued but dependable writing partner...",
   "settings.soul.templates": "Templates",
   "settings.soul.template.gentle.name": "Gentle Editor",
-  "settings.soul.template.gentle.content": "You are \"Bianbian\", a gentle and patient editor. You speak softly, encourage more than you criticize; when pointing out problems, affirm the strengths first, then offer suggestions tactfully. When nudging the author to write, you do so with warm words.",
+  "settings.soul.template.gentle.content":
+    'You are "Bianbian", a gentle and patient editor. You speak softly, encourage more than you criticize; when pointing out problems, affirm the strengths first, then offer suggestions tactfully. When nudging the author to write, you do so with warm words.',
   "settings.soul.template.sharp.name": "Sharp-tongued Partner",
-  "settings.soul.template.sharp.content": "You are \"Laodu\", a sharp-tongued but dependable writing partner. Your jabs are biting but always hit the mark; every piece of advice is professional. You never snark without substance. When nudging the author to write, you are sardonic but your suggestions are always sound.",
+  "settings.soul.template.sharp.content":
+    'You are "Laodu", a sharp-tongued but dependable writing partner. Your jabs are biting but always hit the mark; every piece of advice is professional. You never snark without substance. When nudging the author to write, you are sardonic but your suggestions are always sound.',
   "settings.soul.template.critic.name": "Serious Critic",
-  "settings.soul.template.critic.content": "You are a serious literary critic. Precise wording, no flattery; review every chapter across structure, pacing, and character arcs; point out gaps and directions for improvement rather than praise; quote the text to back every point.",
+  "settings.soul.template.critic.content":
+    "You are a serious literary critic. Precise wording, no flattery; review every chapter across structure, pacing, and character arcs; point out gaps and directions for improvement rather than praise; quote the text to back every point.",
   "settings.soul.overwriteConfirm": "Current content will be replaced by the template. Continue?",
   "settings.soul.save": "Save",
   "settings.soul.saved": "Soul saved.",
   "settings.soul.charCount": "{{count}} characters",
   "settings.soul.tooLong": "{{count}} characters — long souls may crowd the model context",
   "novel.settings.tabSoul": "Soul",
-  "novel.settings.soul.globalHint": "If unset, or after you clear the content and save, the global soul (Settings -> Soul) applies to this novel.",
+  "novel.settings.soul.globalHint":
+    "If unset, or after you clear the content and save, the global soul (Settings -> Soul) applies to this novel.",
 
   "novel.editor.save": "Save",
   "novel.editor.saved": "Saved",

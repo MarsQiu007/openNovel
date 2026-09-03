@@ -27,7 +27,7 @@ export async function findBoundNovelSession(
   return session?.id ?? null
 }
 
-export default function WritingFlowButton(props: { novelID: string; novelTitle: string }) {
+export default function WritingFlowButton(props: { novelID: string; novelTitle: string; layout?: "row" | "stack" }) {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
@@ -92,9 +92,11 @@ export default function WritingFlowButton(props: { novelID: string; novelTitle: 
     }
   }
 
+  // stack：窄容器（右栏面板区）竖排——输入框与按钮各占整行，避免横向挤压断行
+  const stack = () => props.layout === "stack"
   return (
-    <div class="flex items-center gap-2">
-      <div class="w-56">
+    <div class={stack() ? "flex w-full flex-col items-stretch gap-2" : "flex items-center gap-2"}>
+      <div class={stack() ? "min-w-0" : "w-56"}>
         <TextInputV2
           fluid
           appearance="large"

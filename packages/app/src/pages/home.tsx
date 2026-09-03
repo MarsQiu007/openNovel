@@ -6,7 +6,6 @@ import {
   For,
   Match,
   Show,
-  startTransition,
   Switch,
 } from "solid-js"
 import { createStore, produce } from "solid-js/store"
@@ -58,7 +57,7 @@ import { fileManagerApp } from "@/utils/file-manager"
 import { useNovels, useDeleteNovel, useNovelClient } from "@/context/novel-queries"
 import { useQueryClient } from "@tanstack/solid-query"
 import { Binary } from "@opennovel-ai/core/util/binary"
-import { archiveSessionCascade, type NovelSessionBinding } from "./novel-sessions"
+import { archiveSessionCascade, openSessionRouted, type NovelSessionBinding } from "./novel-sessions"
 
 const HOME_ROW_LAYOUT =
   "flex min-w-0 w-full shrink-0 cursor-default items-center rounded-[6px] bg-transparent text-left transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out focus-visible:outline-none"
@@ -220,21 +219,21 @@ export function NewHome() {
       onSelect: async () => {
         const conn = focusedServer()
         if (!conn) return
-        const ctx = global.ensureServerCtx(conn)
         const { DialogHomeCommandPaletteV2 } = await import("@/components/dialog-command-palette-v2")
         void dialog.show(() => (
           <DialogHomeCommandPaletteV2
             server={conn}
             onSelectSession={(entry) => {
               if (!entry.sessionID || !entry.directory || !entry.server) return
-              const sessionID = entry.sessionID
-              const server = entry.server
-              const directory = entry.project?.worktree ?? entry.directory
-              ctx.projects.open(directory)
-              ctx.projects.touch(directory)
-              void startTransition(() => {
-                const tab = tabs.addSessionTab({ server, sessionId: sessionID })
-                tabs.select(tab)
+              const conn = global.servers.list().find((item) => ServerConnection.key(item) === entry.server)
+              if (!conn) return
+              void openSessionRouted({
+                conn,
+                directory: entry.project?.worktree ?? entry.directory,
+                sessionID: entry.sessionID,
+                navigate,
+                tabs,
+                global,
               })
             }}
           />

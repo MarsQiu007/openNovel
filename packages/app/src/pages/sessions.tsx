@@ -10,7 +10,6 @@ import {
   onCleanup,
   onMount,
   Show,
-  startTransition,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createStore } from "solid-js/store"
@@ -41,7 +40,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { useGlobal } from "@/context/global"
 import { useCommand } from "@/context/command"
-import { useNovelSessions } from "./novel-sessions"
+import { openSessionRouted, useNovelSessions } from "./novel-sessions"
 import { SessionsNovelSidebar } from "./sessions-novel-sidebar"
 import { useMarked } from "@opennovel-ai/ui/context/marked"
 import { preloadMarkdown } from "@opennovel-ai/session-ui/markdown-cache"
@@ -908,16 +907,14 @@ export function SessionsPage() {
     const conn = focusedServer()
     if (!conn) return
     const directory = project?.worktree ?? session.directory
-    const ctx = global.ensureServerCtx(conn)
-    ctx.projects.open(directory)
-    if (options?.background) {
-      tabs.addSessionTab({ server: ServerConnection.key(conn), sessionId: session.id })
-      return
-    }
-    ctx.projects.touch(directory)
-    startTransition(() => {
-      const tab = tabs.addSessionTab({ server: ServerConnection.key(conn), sessionId: session.id })
-      tabs.select(tab)
+    void openSessionRouted({
+      conn,
+      directory,
+      sessionID: session.id,
+      navigate,
+      tabs,
+      global,
+      background: options?.background,
     })
   }
 

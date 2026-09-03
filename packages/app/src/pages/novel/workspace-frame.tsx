@@ -1,13 +1,18 @@
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createSignal, createMemo, For, Show } from "solid-js"
+import { createEffect, createSignal, createMemo, For, Show, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
+import { useTabs } from "@/context/tabs"
 import { Persist, persisted } from "@/utils/persist"
+import { ResizeHandle } from "@opennovel-ai/ui/resize-handle"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
+import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
+import { Icon } from "@opennovel-ai/ui/icon"
 import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
@@ -27,6 +32,7 @@ import ModeBadge from "./mode-badge"
 import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
 import WritingFlowButton, { findBoundNovelSession } from "./writing-flow"
+import { purgeBoundSessionTabs } from "../novel-sessions"
 import PanelCharacters from "./panel-characters"
 import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
@@ -37,6 +43,41 @@ import { WorldReader } from "./world-reader"
 import StructurePanel from "./structure-panel"
 import { AnnotationPanel } from "./annotation-panel"
 import CanvasPanel from "./canvas-panel"
+import {
+  collapseThresholds,
+  LEFT_PANE_DEFAULT_WIDTH,
+  LEFT_PANE_MAX_WIDTH,
+  LEFT_PANE_MIN_WIDTH,
+  RAIL_PANE_DEFAULT_WIDTH,
+  RAIL_PANE_MAX_WIDTH,
+  RAIL_PANE_MIN_WIDTH,
+  resolvePaneWidth,
+} from "./workspace-pane-width"
+
+// 右栏随行面板图标列（key 对应面板组件，labelKey 对应 i18n 文案；对话为默认面板）
+const RAIL_PANELS = [
+  { key: "chat", icon: "speech-bubble", labelKey: "novel.workspace.chat" },
+  { key: "characters", icon: "dot-grid", labelKey: "novel.panel.characters" },
+  { key: "foreshadow", icon: "bullet-list", labelKey: "novel.panel.foreshadow" },
+  { key: "tension", icon: "align-right", labelKey: "novel.panel.tension" },
+  { key: "structure", icon: "file-tree", labelKey: "novel.panel.structure" },
+  { key: "annotations", icon: "pencil-line", labelKey: "novel.panel.annotations" },
+] as const
+
+type RailPanel = (typeof RAIL_PANELS)[number]["key"]
+
+// 布局持久化结构（novel.workspace.layout.v1）——leftManual / railManual 为左右栏手动收起覆盖
+// （null = 跟随宽度规则）；
+// leftWidth / railWidth 为分栏设定宽度（null = 未拖过 = 默认宽度，D5 加字段不升版本零迁移）；
+// expanded 为展开态面板（expand 形态由 ?tab=panel:<id> URL 承载，持久值仅用于重启后恢复）
+type WorkspaceLayout = {
+  railPanel: RailPanel
+  leftManual: boolean | null
+  railManual: boolean | null
+  leftWidth: number | null
+  railWidth: number | null
+  expanded: RailPanel | null
+}
 
 export default function NovelWorkspaceFrame() {
   const params = useParams()
@@ -45,10 +86,12 @@ export default function NovelWorkspaceFrame() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabValue = () => searchParams.tab
-  const activeTab = (): "reading" | "writing" | "characters" | "relations" | "map" | "canvas" => {
+  const activeTab = (): "reading" | "writing" | "relations" | "map" | "canvas" => {
     const v = tabValue()
-    if (v === "writing" || v === "characters" || v === "relations" || v === "map" || v === "canvas") return v
-    return "reading"
+    if (v === "writing" || v === "relations" || v === "map" || v === "canvas") return v
+    if (v === "reading") return "reading"
+    // 无 tab 参数时：会话模式落在写作视图（对话在右栏随行），否则默认阅读
+    return isSessionMode() ? "writing" : "reading"
   }
 
   // Session embed mode: when session/:id param is present
@@ -66,20 +109,170 @@ export default function NovelWorkspaceFrame() {
     Persist.global("novel.reading-progress"),
     createStore<Record<string, string>>({}),
   )
+  // 恢复上次阅读进度：等章节列表就绪后校验 ID 有效性，失效的进度回落到第一章（走查修复：僵尸进度 ID 导致单章 404）
   createEffect(() => {
     const id = novelID()
-    if (!readingProgressReady()) return
-    setSelectedChapterId(readingProgress[id] ?? null)
+    if (!readingProgressReady() || data.loading) return
+    const saved = readingProgress[id] ?? null
+    if (saved && data.chapters.some((c) => c.id === saved)) {
+      setSelectedChapterId(saved)
+      return
+    }
+    const fallback = data.chapters[0]?.id ?? null
+    setSelectedChapterId(fallback)
+    if (fallback && saved) setReadingProgress(id, fallback)
   })
   const selectChapter = (chapterID: string) => {
     setSelectedChapterId(chapterID)
     setReadingProgress(novelID(), chapterID)
   }
+  // 当前选中的章节对象（含存在性校验）；ID 不在章节列表中时为 null
+  const selectedChapter = createMemo(() => {
+    const id = selectedChapterId()
+    return id ? (data.chapters.find((c) => c.id === id) ?? null) : null
+  })
   const [selectedRelationCharacterId, setSelectedRelationCharacterId] = createSignal<string | null>(null)
   const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines" | "world">("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
   const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
-  const [panelTab, setPanelTab] = createSignal<"characters" | "foreshadow" | "tension" | "structure" | "annotations" | "canvas">("characters")
+  // —— 布局状态（D6）：带版本号持久化键，承载右栏面板与左栏手动收起覆盖 ——
+  const [layout, setLayout, , layoutReady] = persisted(
+    Persist.global("novel.workspace.layout.v1"),
+    createStore<WorkspaceLayout>({
+      railPanel: "chat",
+      leftManual: null,
+      railManual: null,
+      leftWidth: null,
+      railWidth: null,
+      expanded: null,
+    }),
+  )
+  // 右栏随行面板：对话默认激活；旧数据/非法枚举安全降级为对话（D6 降级规则）
+  const railPanel = createMemo<RailPanel>(() =>
+    RAIL_PANELS.some((item) => item.key === layout.railPanel) ? layout.railPanel : "chat",
+  )
+  const tabs = useTabs()
+  // 遗留绑定会话 tab 清洗：工作台就绪即触发，覆盖不经过 sessions 页的启动路径（走查修复）
+  createEffect(() => {
+    if (data.loading) return
+    void novel.listSessionBindings().then((bindings) => {
+      if (bindings) purgeBoundSessionTabs({ tabs, bindings })
+    })
+  })
+  const setRailPanel = (key: RailPanel) => setLayout("railPanel", key)
+  // 进入会话模式时自动切回对话（等待持久化就绪，避免被恢复值覆盖）
+  createEffect(() => {
+    if (!layoutReady()) return
+    if (isSessionMode()) setRailPanel("chat")
+  })
+
+  // —— 面板双态（D2/D3）：expand 由 ?tab=panel:<id> 承载，peek 在右栏 ——
+  const expandedPanel = createMemo<RailPanel | null>(() => {
+    const v = tabValue()
+    if (typeof v !== "string" || !v.startsWith("panel:")) return null
+    const match = RAIL_PANELS.find((item) => item.key === v.slice("panel:".length))
+    return match && match.key !== "chat" ? match.key : null
+  })
+  // expand 前的右栏面板恢复点（仅内存，不跨会话）
+  const [peekMemo, setPeekMemo] = createSignal<RailPanel>("chat")
+  createEffect(() => {
+    if (!expandedPanel()) setPeekMemo(railPanel())
+  })
+  // 展开态同步进持久化（URL 为准），重启/重进工作台后一次性恢复
+  createEffect(() => {
+    setLayout("expanded", expandedPanel())
+  })
+  let expandRestored = false
+  createEffect(() => {
+    if (!layoutReady()) return
+    if (expandRestored) return
+    expandRestored = true
+    if (expandedPanel()) return
+    const match = RAIL_PANELS.find((item) => item.key === layout.expanded)
+    if (match && match.key !== "chat") setSearchParams({ tab: `panel:${match.key}` })
+  })
+  const exitExpand = (target?: RailPanel) => {
+    if (!expandedPanel()) return
+    setSearchParams({ tab: undefined })
+    setRailPanel(target ?? peekMemo())
+    // 退出展开态清除右栏手动收起——"展开态返回恢复右栏"的承诺优先于收起态（D2）
+    setLayout("railManual", false)
+  }
+  const openRailPanel = (key: RailPanel) => {
+    if (expandedPanel()) return
+    if (railPanel() === key) {
+      // 已激活面板再点：进入 expand 态
+      if (key !== "chat") setSearchParams({ tab: `panel:${key}` })
+      return
+    }
+    setRailPanel(key)
+    // 默认深度：结构面板 expand，其余 peek（3.1）
+    if (key === "structure") setSearchParams({ tab: "panel:structure" })
+  }
+  createEffect(() => {
+    if (!expandedPanel()) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitExpand()
+    }
+    window.addEventListener("keydown", handler)
+    onCleanup(() => window.removeEventListener("keydown", handler))
+  })
+
+  // —— 宽度规则（D5）：主区保底 720px，两档自动收边（随行右栏先让位，导航左栏后让位），手动操作优先 ——
+  const [widthCollapsed, setWidthCollapsed] = createSignal(false)
+  const [railWidthCollapsed, setRailWidthCollapsed] = createSignal(false)
+  const leftManual = () => (typeof layout.leftManual === "boolean" ? layout.leftManual : null)
+  const leftCollapsed = () => !!expandedPanel() || (leftManual() ?? widthCollapsed())
+  const railManual = () => (typeof layout.railManual === "boolean" ? layout.railManual : null)
+  const railCollapsed = () => !!expandedPanel() || (railManual() ?? railWidthCollapsed())
+  // —— 分栏宽度（D1/D4）：生效宽度 = 拖拽内存态 ?? 设定宽度 ?? 默认值。
+  // onResize 高频回调只写内存态，松手（onCollapseChange(false)）才提交持久化，避免每帧写 localStorage；
+  // 未发生拖拽（内存态为 null，普通点击/双击的第一段按下）不提交，防止覆盖设定值。
+  const [dragLeftWidth, setDragLeftWidth] = createSignal<number | null>(null)
+  const [dragRailWidth, setDragRailWidth] = createSignal<number | null>(null)
+  const leftPaneWidth = () => dragLeftWidth() ?? resolvePaneWidth(layout.leftWidth, LEFT_PANE_DEFAULT_WIDTH)
+  const railPaneWidth = () => dragRailWidth() ?? resolvePaneWidth(layout.railWidth, RAIL_PANE_DEFAULT_WIDTH)
+  const commitLeftWidth = () => {
+    const width = dragLeftWidth()
+    if (width === null) return
+    setDragLeftWidth(null)
+    setLayout("leftWidth", width)
+  }
+  const commitRailWidth = () => {
+    const width = dragRailWidth()
+    if (width === null) return
+    setDragRailWidth(null)
+    setLayout("railWidth", width)
+  }
+  let bodyRef: HTMLDivElement | undefined
+  let widthObserver: ResizeObserver | undefined
+  // Body 容器在数据就绪后才挂载（Show when={!data.loading}）：onMount 时 bodyRef 尚未赋值，
+  // observer 必须等就绪后建立，否则自动收边永久失效（走查修复）
+  createEffect(() => {
+    if (data.loading) return
+    if (!bodyRef || widthObserver) return
+    let leftWasBelow = false
+    let railWasBelow = false
+    // 观察三区布局的外层容器而非主区：侧栏显隐会改变主区宽度，观察主区会形成自激励反馈环
+    // （收起→主区变宽→恢复→主区变窄→再收起，每帧翻转，走查时表现为 UI 高频闪烁）
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0
+      // 阈值从设定宽度实时读取（非响应式：仅 Body 宽变化时判定，拖宽后的悬置态由下次窗口变化收编）
+      const thresholds = collapseThresholds(leftPaneWidth(), railPaneWidth())
+      const leftBelow = width < thresholds.left // 左档 = 左栏宽 + 主区保底
+      const railBelow = width < thresholds.rail // 右档 = max(右栏宽 + 主区保底, 左档 + 1)
+      // 宽度回到阈值以上时结束手动覆盖会话，回归自动规则
+      if (leftWasBelow && !leftBelow) setLayout("leftManual", null)
+      if (railWasBelow && !railBelow) setLayout("railManual", null)
+      leftWasBelow = leftBelow
+      railWasBelow = railBelow
+      setWidthCollapsed(leftBelow)
+      setRailWidthCollapsed(railBelow)
+    })
+    observer.observe(bodyRef)
+    widthObserver = observer
+    onCleanup(() => observer.disconnect())
+  })
   const [isEditing, setIsEditing] = createSignal(false)
   const [editTitle, setEditTitle] = createSignal("")
   const [editSynopsis, setEditSynopsis] = createSignal("")
@@ -187,19 +380,6 @@ export default function NovelWorkspaceFrame() {
     return language.t("novel.workspace.writingInProgress")
   })
 
-  const sessionStatusType = createMemo(() => {
-    if (!novelActivity()) return null
-    const ctx = sync()
-    const sessions = ctx.data.session
-    if (!sessions || sessions.length === 0) return "writing"
-    const activeSession = sessions.find((s) => ctx.data.session_working(s.id))
-    if (!activeSession) return "writing"
-    const status = ctx.data.session_status[activeSession.id]
-    if (!status) return "writing"
-    if (status.type === "retry") return "auditing"
-    return "writing"
-  })
-
   return (
     <Show
       when={!data.loading}
@@ -234,15 +414,24 @@ export default function NovelWorkspaceFrame() {
                 variant="ghost-muted"
                 size="small"
                 onClick={() => {
-                  if (activeTab() === "relations" || activeTab() === "map") {
-                    navigate(`/${params.dir}/novel/${params.novelID}`)
-                  } else {
-                    navigate("/")
+                  // 展开态下返回按钮先回到 peek（D3），再按返回回到书架
+                  if (expandedPanel()) {
+                    exitExpand()
+                    return
                   }
+                  navigate("/")
                 }}
               >
                 ← {language.t("novel.workspace.back")}
               </ButtonV2>
+              <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleNav")}>
+                <IconButtonV2
+                  variant="ghost-muted"
+                  size="small"
+                  icon={<Icon name={leftCollapsed() ? "chevron-double-right" : "chevron-left"} size="small" />}
+                  onClick={() => setLayout("leftManual", !(leftManual() ?? widthCollapsed()))}
+                />
+              </TooltipV2>
               <Show
                 when={isEditing()}
                 fallback={
@@ -288,7 +477,6 @@ export default function NovelWorkspaceFrame() {
                     ? language.t("novel.workspace.exporting")
                     : language.t("novel.workspace.export")}
                 </ButtonV2>
-                <WritingFlowButton novelID={novelID()} novelTitle={data.novel!.title} />
               </Show>
               <Show when={pendingCount() > 0}>
                 <Tag variant="accent">
@@ -296,6 +484,14 @@ export default function NovelWorkspaceFrame() {
                 </Tag>
               </Show>
               <ModeBadge />
+              <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleRail")}>
+                <IconButtonV2
+                  variant="ghost-muted"
+                  size="small"
+                  icon={<Icon name={railCollapsed() ? "chevron-double-left" : "chevron-right"} size="small" />}
+                  onClick={() => setLayout("railManual", !(railManual() ?? railWidthCollapsed()))}
+                />
+              </TooltipV2>
             </div>
           </header>
 
@@ -358,270 +554,328 @@ export default function NovelWorkspaceFrame() {
             </div>
           </Show>
 
-          {/* Body */}
-          <div class="flex flex-1 min-h-0">
-            {/* Session embed: full-width when session/:id param is present */}
-            <Show when={isSessionMode()}>
-              <div class="flex-1 flex flex-col min-h-0">
-                <div class="flex items-center justify-between px-4 py-2 border-b border-v2-border-border-base shrink-0">
-                  <div class="flex items-center gap-4">
-                    <ButtonV2
-                      variant="ghost-muted"
-                      size="small"
-                      onClick={() => navigate(`/${params.dir}/novel/${params.novelID}`)}
-                    >
-                      ← {language.t("novel.workspace.backToNovel")}
-                    </ButtonV2>
-                    <h1 class="text-xl font-bold text-v2-text-text-base">{data.novel!.title}</h1>
-                    <Tag>{language.t(`novel.genre.${data.novel!.genre}`)}</Tag>
-                    <Tag>{language.t("novel.workspace.writingSession")}</Tag>
-                  </div>
-                  <Show when={novelActivity()}>
-                    <div class="flex items-center gap-2">
-                      <span
-                        class={`w-2 h-2 rounded-full animate-pulse ${sessionStatusType() === "auditing" ? "bg-v2-state-fg-warning" : "bg-v2-state-fg-success"}`}
-                      />
-                      <span class="text-xs text-v2-text-text-muted">{sessionStatusText()}</span>
-                    </div>
-                  </Show>
-                </div>
-                <div class="flex-1 overflow-y-auto">
-                  <SessionRouteErrorBoundary sessionID={params.id}>
-                    <SessionPage />
-                  </SessionRouteErrorBoundary>
-                </div>
+          {/* Body — 三区布局：左栏导航 / 主区焦点 / 右栏随行 */}
+          <div ref={bodyRef} class="flex flex-1 min-h-0">
+            {/* 左栏：导航区（章节/大纲/设定），常驻可用；宽度 = 设定值（D1），右缘拖拽手柄可调（D3） */}
+            <aside
+              classList={{ hidden: leftCollapsed() }}
+              class="relative border-r border-v2-border-border-base flex flex-col min-h-0 shrink-0"
+              style={{ width: `${leftPaneWidth()}px` }}
+            >
+              <ResizeHandle
+                direction="horizontal"
+                edge="end"
+                size={leftPaneWidth()}
+                min={LEFT_PANE_MIN_WIDTH}
+                max={LEFT_PANE_MAX_WIDTH}
+                collapseThreshold={LEFT_PANE_MIN_WIDTH}
+                onResize={setDragLeftWidth}
+                onCollapseChange={(dragging) => {
+                  if (!dragging) commitLeftWidth()
+                }}
+                onCollapse={() => {
+                  // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 220px 显示
+                  setDragLeftWidth(null)
+                  setLayout("leftWidth", LEFT_PANE_MIN_WIDTH)
+                  setLayout("leftManual", true)
+                }}
+                onDblClick={() => {
+                  // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
+                  setDragLeftWidth(null)
+                  setLayout("leftWidth", null)
+                }}
+              />
+              <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
+                <SegmentedControlV2
+                  class="segmented-control-v2--full-width"
+                  value={leftMode()}
+                  onChange={(value) => value && setLeftMode(value as "chapters" | "outlines" | "world")}
+                >
+                  <SegmentedControlItemV2 value="world">
+                    {language.t("novel.workspace.modeSettings")}
+                  </SegmentedControlItemV2>
+                  <SegmentedControlItemV2 value="outlines">
+                    {language.t("novel.workspace.modeOutlines")}
+                  </SegmentedControlItemV2>
+                  <SegmentedControlItemV2 value="chapters">
+                    {language.t("novel.workspace.modeChapters")}
+                  </SegmentedControlItemV2>
+                </SegmentedControlV2>
               </div>
-            </Show>
+              <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <Show when={leftMode() === "chapters"}>
+                  <ChapterSidebar
+                    novelID={novelID()}
+                    volumes={data.volumes}
+                    chapters={data.chapters}
+                    selectedChapterId={selectedChapterId()}
+                    onSelectChapter={selectChapter}
+                  />
+                </Show>
+                <Show when={leftMode() === "outlines"}>
+                  <OutlineSidebar
+                    novelID={novelID()}
+                    volumes={data.volumes}
+                    chapters={data.chapters}
+                    selectedOutline={selectedOutline}
+                    onSelectOutline={setSelectedOutline}
+                  />
+                </Show>
+                <Show when={leftMode() === "world"}>
+                  <WorldSidebar
+                    novelID={novelID}
+                    selectedEntryId={selectedWorldEntryId}
+                    onSelect={setSelectedWorldEntryId}
+                  />
+                </Show>
+              </div>
+            </aside>
 
-            <Show when={!isSessionMode()}>
-              {/* Relations / Map views: full-width (no left/right sidebars) */}
-              <Show when={(activeTab() === "characters" || activeTab() === "relations" || activeTab() === "map" || activeTab() === "canvas") && leftMode() !== "world"}>
-                <div class="flex-1 flex flex-col min-w-0">
-                  <Show when={activeTab() === "characters"}>
-                    <PanelCharacters
-                      novelID={novelID}
-                      selectedChapterId={selectedChapterId}
-                      chapters={data.chapters}
-                    />
-                  </Show>
-                  <Show when={activeTab() === "relations"}>
-                    <RelationsView
-                      novelID={novelID}
-                      selectedCharacterId={selectedRelationCharacterId}
-                      onSelectCharacter={setSelectedRelationCharacterId}
-                    />
-                  </Show>
-                  <Show when={activeTab() === "map"}>
-                    <MapView />
-                  </Show>
-                  <Show when={activeTab() === "canvas"}>
-                    <CanvasPanel novelID={novelID} />
-                  </Show>
-                </div>
-              </Show>
-
-              {/* Reading / Writing / World views: classic three-column layout */}
-              <Show when={activeTab() === "reading" || activeTab() === "writing" || leftMode() === "world"}>
-                <aside class="w-72 border-r border-v2-border-border-base flex flex-col min-h-0">
-                  {/* Left mode switcher */}
-                  <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
+            {/* 主区：焦点区 */}
+            <div class="relative flex-1 flex flex-col min-w-0">
+              {/* expand 态下原视图保持挂载（display 切换），退出展开后状态不丢 */}
+              <div class="flex flex-col flex-1 min-h-0" style={{ display: expandedPanel() ? "none" : "flex" }}>
+                <Show when={leftMode() === "chapters"}>
+                  {/* 视图切换：阅读/写作/关系/地图/画布 */}
+                  <div class="flex border-b border-v2-border-border-base px-8 py-2 shrink-0">
                     <SegmentedControlV2
-                      class="segmented-control-v2--full-width"
-                      value={leftMode()}
-                      onChange={(value) => value && setLeftMode(value as "chapters" | "outlines" | "world")}
+                      value={activeTab()}
+                      onChange={(value) => value && setSearchParams({ tab: value })}
                     >
-                      <SegmentedControlItemV2 value="world">
-                        {language.t("novel.workspace.modeSettings")}
+                      <SegmentedControlItemV2 value="reading">
+                        {language.t("novel.workspace.reading")}
                       </SegmentedControlItemV2>
-                      <SegmentedControlItemV2 value="outlines">
-                        {language.t("novel.workspace.modeOutlines")}
+                      <SegmentedControlItemV2 value="writing">
+                        {language.t("novel.workspace.writingSession")}
                       </SegmentedControlItemV2>
-                      <SegmentedControlItemV2 value="chapters">
-                        {language.t("novel.workspace.modeChapters")}
+                      <SegmentedControlItemV2 value="relations">
+                        {language.t("novel.relations.tab")}
                       </SegmentedControlItemV2>
+                      <SegmentedControlItemV2 value="map">{language.t("novel.map.tab")}</SegmentedControlItemV2>
+                      <SegmentedControlItemV2 value="canvas">{language.t("novel.panel.canvas")}</SegmentedControlItemV2>
                     </SegmentedControlV2>
                   </div>
-                  <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <Show when={leftMode() === "chapters"}>
-                      <ChapterSidebar
-                        novelID={novelID()}
-                        volumes={data.volumes}
-                        chapters={data.chapters}
-                        selectedChapterId={selectedChapterId()}
-                        onSelectChapter={selectChapter}
-                      />
-                    </Show>
-                    <Show when={leftMode() === "outlines"}>
-                      <OutlineSidebar
-                        novelID={novelID()}
-                        volumes={data.volumes}
-                        chapters={data.chapters}
-                        selectedOutline={selectedOutline}
-                        onSelectOutline={setSelectedOutline}
-                      />
-                    </Show>
-                    <Show when={leftMode() === "world"}>
-                      <WorldSidebar
-                        novelID={novelID}
-                        selectedEntryId={selectedWorldEntryId}
-                        onSelect={setSelectedWorldEntryId}
-                      />
-                    </Show>
-                  </div>
-                </aside>
 
-                {/* Center content */}
-                <div class="flex-1 flex flex-col min-w-0">
-                  <Show when={leftMode() === "chapters"}>
-                    {/* Tabs */}
-                    <div class="flex border-b border-v2-border-border-base px-8 py-2">
-                      <SegmentedControlV2
-                        value={activeTab()}
-                        onChange={(value) => value && setSearchParams({ tab: value })}
-                      >
-                        <SegmentedControlItemV2 value="reading">
-                          {language.t("novel.workspace.reading")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="writing">
-                          {language.t("novel.workspace.writingSession")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="relations">
-                          {language.t("novel.relations.tab")}
-                        </SegmentedControlItemV2>
-                        <SegmentedControlItemV2 value="map">{language.t("novel.map.tab")}</SegmentedControlItemV2>
-                      </SegmentedControlV2>
-                    </div>
-
-                    {/* Tab content */}
-                    <div class="flex flex-col flex-1 min-h-0 px-8 py-6">
-                      {activeTab() === "reading" ? (
-                        <div class="flex flex-col h-full">
-                          <ChapterReader
+                  {/* 视图内容 */}
+                  <div class="flex flex-col flex-1 min-h-0 px-8 py-6">
+                    <Show when={activeTab() === "reading"}>
+                      <div class="flex flex-col h-full">
+                        <ChapterReader
+                          novelID={novelID()}
+                          chapters={data.chapters}
+                          selectedChapterId={selectedChapterId()}
+                          onSelectChapter={selectChapter}
+                        />
+                        {/* 仅在选中章节存在于列表时挂载，避免僵尸进度 ID 发出必然 404 的单章请求 */}
+                        <Show when={selectedChapter()}>
+                          <ApprovalBar
                             novelID={novelID()}
-                            chapters={data.chapters}
-                            selectedChapterId={selectedChapterId()}
-                            onSelectChapter={selectChapter}
-                          />
-                          <Show when={selectedChapterId()}>
-                            <ApprovalBar
-                              novelID={novelID()}
-                              chapterID={selectedChapterId()!}
-                              status={data.chapters.find((c) => c.id === selectedChapterId())?.status ?? ""}
-                            />
-                          </Show>
-                        </div>
-                      ) : (
-                        <Show
-                          when={selectedChapterId()}
-                          fallback={
-                            <div class="flex items-center justify-center flex-1 min-h-0 text-sm text-v2-text-text-faint">
-                              {language.t("novel.reader.empty")}
-                            </div>
-                          }
-                        >
-                          <ChapterEditor
-                            novelID={novelID()}
-                            chapterID={selectedChapterId()!}
-                            onExit={() => setSearchParams({ tab: "reading" })}
+                            chapterID={selectedChapter()!.id}
+                            status={selectedChapter()!.status}
                           />
                         </Show>
-                      )}
-                    </div>
-                  </Show>
-
-                  <Show when={leftMode() === "outlines"}>
-                    <div class="flex flex-col flex-1 min-h-0">
-                      <OutlineReader
-                        novelID={novelID()}
-                        volumes={data.volumes}
-                        chapters={data.chapters}
-                        selectedOutline={selectedOutline}
+                      </div>
+                    </Show>
+                    <Show when={activeTab() === "writing"}>
+                      <Show
+                        when={selectedChapterId()}
+                        fallback={
+                          <div class="flex items-center justify-center flex-1 min-h-0 text-sm text-v2-text-text-faint">
+                            {language.t("novel.reader.empty")}
+                          </div>
+                        }
+                      >
+                        <ChapterEditor
+                          novelID={novelID()}
+                          chapterID={selectedChapterId()!}
+                          onExit={() => setSearchParams({ tab: "reading" })}
+                        />
+                      </Show>
+                    </Show>
+                    <Show when={activeTab() === "relations"}>
+                      <RelationsView
+                        novelID={novelID}
+                        selectedCharacterId={selectedRelationCharacterId}
+                        onSelectCharacter={setSelectedRelationCharacterId}
                       />
-                    </div>
-                  </Show>
+                    </Show>
+                    <Show when={activeTab() === "map"}>
+                      <MapView />
+                    </Show>
+                    <Show when={activeTab() === "canvas"}>
+                      <CanvasPanel novelID={novelID} />
+                    </Show>
+                  </div>
+                </Show>
 
-                  <Show when={leftMode() === "world"}>
-                    <WorldReader
-                      novelID={novelID}
-                      selectedEntryId={selectedWorldEntryId}
-                      onEntryDeleted={() => setSelectedWorldEntryId(null)}
+                <Show when={leftMode() === "outlines"}>
+                  <div class="flex flex-col flex-1 min-h-0">
+                    <OutlineReader
+                      novelID={novelID()}
+                      volumes={data.volumes}
+                      chapters={data.chapters}
+                      selectedOutline={selectedOutline}
                     />
+                  </div>
+                </Show>
+
+                <Show when={leftMode() === "world"}>
+                  <WorldReader
+                    novelID={novelID}
+                    selectedEntryId={selectedWorldEntryId}
+                    onEntryDeleted={() => setSelectedWorldEntryId(null)}
+                  />
+                </Show>
+              </div>
+
+              {/* expand 态：面板占主区（D3 面板单实现、容器自适应） */}
+              <Show when={expandedPanel()} keyed>
+                {(key) => (
+                  <div class="flex flex-col flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <Show when={key === "characters"}>
+                      <PanelCharacters
+                        novelID={novelID}
+                        selectedChapterId={selectedChapterId}
+                        chapters={data.chapters}
+                      />
+                    </Show>
+                    <Show when={key === "foreshadow"}>
+                      <PanelForeshadow
+                        novelID={novelID}
+                        selectedChapterId={selectedChapterId}
+                        chapters={data.chapters}
+                      />
+                    </Show>
+                    <Show when={key === "tension"}>
+                      <TensionChart novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
+                    </Show>
+                    <Show when={key === "structure"}>
+                      <StructurePanel
+                        novelID={novelID}
+                        selectedVolumeId={() => {
+                          const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
+                          return ch?.volumeId ?? null
+                        }}
+                      />
+                    </Show>
+                    <Show when={key === "annotations"}>
+                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
+                    </Show>
+                  </div>
+                )}
+              </Show>
+
+              {/* expand 态窄条：生成中呼吸灯，点击恢复对话（3.2） */}
+              <Show when={expandedPanel() && novelActivity()}>
+                <button
+                  type="button"
+                  title={language.t("novel.workspace.chat")}
+                  onClick={() => exitExpand("chat")}
+                  class="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 py-4 px-1.5 border border-r-0 border-v2-border-border-base rounded-l-lg bg-v2-background-bg-layer-01 shadow-sm hover:bg-v2-background-bg-layer-02"
+                >
+                  <Icon name="speech-bubble" size="small" />
+                  <span class="w-2 h-2 rounded-full bg-v2-state-fg-success animate-pulse" />
+                </button>
+              </Show>
+            </div>
+
+            {/* 右栏：随行区 — 图标列 + 面板区；宽度 = 设定值（D1），左缘拖拽手柄可调（D3） */}
+            <aside
+              classList={{ hidden: railCollapsed() }}
+              class="relative border-l border-v2-border-border-base flex min-h-0 shrink-0"
+              style={{ width: `${railPaneWidth()}px` }}
+            >
+              <ResizeHandle
+                direction="horizontal"
+                edge="start"
+                size={railPaneWidth()}
+                min={RAIL_PANE_MIN_WIDTH}
+                max={RAIL_PANE_MAX_WIDTH}
+                collapseThreshold={RAIL_PANE_MIN_WIDTH}
+                onResize={setDragRailWidth}
+                onCollapseChange={(dragging) => {
+                  if (!dragging) commitRailWidth()
+                }}
+                onCollapse={() => {
+                  // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 320px 显示
+                  setDragRailWidth(null)
+                  setLayout("railWidth", RAIL_PANE_MIN_WIDTH)
+                  setLayout("railManual", true)
+                }}
+                onDblClick={() => {
+                  // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
+                  setDragRailWidth(null)
+                  setLayout("railWidth", null)
+                }}
+              />
+              {/* 图标列 */}
+              <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-r border-v2-border-border-base shrink-0">
+                <For each={RAIL_PANELS}>
+                  {(item) => (
+                    <TooltipV2 placement="left" value={language.t(item.labelKey)}>
+                      <IconButtonV2
+                        variant="ghost-muted"
+                        size="normal"
+                        state={railPanel() === item.key ? "pressed" : "rest"}
+                        icon={<Icon name={item.icon} size="small" />}
+                        onClick={() => openRailPanel(item.key)}
+                      />
+                    </TooltipV2>
+                  )}
+                </For>
+              </div>
+
+              {/* 面板区 */}
+              <div class="flex-1 min-w-0 flex flex-col min-h-0">
+                {/* 对话面板：常驻挂载（display 切换保持会话状态不重置） */}
+                <div class="flex flex-col flex-1 min-h-0" style={{ display: railPanel() === "chat" ? "flex" : "none" }}>
+                  <Show
+                    when={params.id}
+                    fallback={
+                      <div class="flex flex-col flex-1 items-center justify-center gap-4 px-6 text-center">
+                        <p class="text-sm text-v2-text-text-muted">{language.t("novel.workspace.chatEmpty")}</p>
+                        <WritingFlowButton novelID={novelID()} novelTitle={data.novel!.title} layout="stack" />
+                      </div>
+                    }
+                  >
+                    <div class="flex-1 min-h-0 overflow-y-auto">
+                      <SessionRouteErrorBoundary sessionID={params.id}>
+                        <SessionPage />
+                      </SessionRouteErrorBoundary>
+                    </div>
                   </Show>
                 </div>
 
-                {/* Right panel slot */}
-                <aside class="w-80 border-l border-v2-border-border-base flex flex-col min-h-0">
-                  <div class="flex flex-col flex-1 min-h-0">
-                    {/* Tab buttons — scrollable tab bar for 6+ items */}
-                    <div class="flex border-b border-v2-border-border-base shrink-0 px-2">
-                      <div class="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mb-px">
-                        <For each={([
-                          { key: "characters", label: () => language.t("novel.panel.characters") },
-                          { key: "foreshadow", label: () => language.t("novel.panel.foreshadow") },
-                          { key: "tension", label: () => language.t("novel.panel.tension") },
-                          { key: "structure", label: () => language.t("novel.panel.structure") },
-                          { key: "annotations", label: () => language.t("novel.panel.annotations") },
-                          { key: "canvas", label: () => language.t("novel.panel.canvas") },
-                        ] as const)}>
-                          {(tab) => (
-                            <button
-                              type="button"
-                              onClick={() => setPanelTab(tab.key as Parameters<typeof setPanelTab>[0])}
-                              classList={{
-                                "px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors shrink-0": true,
-                                "border-v2-border-border-accent text-v2-text-text-base": panelTab() === tab.key,
-                                "border-transparent text-v2-text-text-muted hover:text-v2-text-text-base hover:border-v2-border-border-weak": panelTab() !== tab.key,
-                              }}
-                            >
-                              {tab.label()}
-                            </button>
-                          )}
-                        </For>
-                      </div>
-                    </div>
-                    {/* Tab content */}
-                    <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <Show when={panelTab() === "characters"}>
-                        <PanelCharacters
-                          novelID={novelID}
-                          selectedChapterId={selectedChapterId}
-                          chapters={data.chapters}
-                        />
-                      </Show>
-                      <Show when={panelTab() === "foreshadow"}>
-                        <PanelForeshadow
-                          novelID={novelID}
-                          selectedChapterId={selectedChapterId}
-                          chapters={data.chapters}
-                        />
-                      </Show>
-                      <Show when={panelTab() === "tension"}>
-                        <TensionChart
-                          novelID={novelID}
-                          selectedChapterId={selectedChapterId}
-                          chapters={data.chapters}
-                        />
-                      </Show>
-                      <Show when={panelTab() === "structure"}>
-                        <StructurePanel
-                          novelID={novelID}
-                          selectedVolumeId={() => {
-                            const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
-                            return ch?.volumeId ?? null
-                          }}
-                        />
-                      </Show>
-                      <Show when={panelTab() === "annotations"}>
-                        <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
-                      </Show>
-                      <Show when={panelTab() === "canvas"}>
-                        <CanvasPanel novelID={novelID} />
-                      </Show>
-                    </div>
-                  </div>
-                </aside>
-              </Show>
-            </Show>
+                {/* 检视面板：按需挂载（solid-query 缓存兜底）；chat 激活时必须隐藏——
+                    两个 flex-1 兄弟会平分栏高，常驻包裹层会把对话面板挤到半格 */}
+                <div
+                  classList={{ hidden: railPanel() === "chat" }}
+                  class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <Show when={railPanel() === "characters"}>
+                    <PanelCharacters novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
+                  </Show>
+                  <Show when={railPanel() === "foreshadow"}>
+                    <PanelForeshadow novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
+                  </Show>
+                  <Show when={railPanel() === "tension"}>
+                    <TensionChart novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
+                  </Show>
+                  <Show when={railPanel() === "structure"}>
+                    <StructurePanel
+                      novelID={novelID}
+                      selectedVolumeId={() => {
+                        const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
+                        return ch?.volumeId ?? null
+                      }}
+                    />
+                  </Show>
+                  <Show when={railPanel() === "annotations"}>
+                    <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
+                  </Show>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
       </Show>
