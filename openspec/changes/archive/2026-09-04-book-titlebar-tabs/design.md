@@ -32,7 +32,9 @@ tab 体系现状（openCode 原生）：`Tab = SessionTab | DraftTab`，persiste
 
 ### D3：路由解析升级——novel 成为一等路由
 
-`LayoutRoute` 追加 `{ type: "novel"; dir: string; dirBase64: string; novelID: string }`；`currentRoute` 识别 `/:dir/novel/:novelID` 与 `/:dir/novel/:novelID/session/:id`（后者同属 novel 路由，仅参数不同）。修复降格为 home 的现状简化；`matchRoute` 按 novelID 匹配活跃标签，`tabs.remember` 随之对书籍路由生效（最近标签记忆补全）。
+`LayoutRoute` 追加 `{ type: "novel"; dir: string; dirBase64: string; novelID: string }`；`currentRoute` 识别 `/:dir/novel/:novelID` 与 `/:dir/novel/:novelID/session/:id`（后者同属 novel 路由，仅参数不同——现有路由即合并可选段单路由，`app.tsx` 单 Route 承载两种形态）。修复降格为 home 的现状简化；`matchRoute` 按 novelID 匹配活跃标签，`tabs.remember` 随之对书籍路由生效（最近标签记忆补全）。
+
+特例排除：`/:dir/novel/wizard`（建书向导路由，先于工作台路由注册）会被 `:novelID` 段通配吃掉——解析时 `parts[2] === "wizard"` 不产出 novel 路由（按 home 处理），否则打开建书向导会注册出 novelID 为 "wizard" 的幽灵书籍标签。
 
 ### D4：注册副作用与既有机制同构
 
@@ -48,7 +50,7 @@ NovelTabSlot 经 novel-queries 异步取书名；取到后写回 `tabs.info`（�
 
 ### D7：遗留数据清洗——启动迁移一次性过滤
 
-persist 迁移时把数组中非 novel 类型的条目过滤清除（`tabs.recent`/`tabs.info`/`tabs.closed` 的孤儿键沿用现有"server 消失即清理"effect 的模式）。一期旧数据原样保留（共存），二期清洗。unify 引入的绑定会话标签清洗（purge）在二期随会话标签退役。
+persist 迁移时把数组中非 novel 类型的条目过滤清除（`tabs.recent`/`tabs.info`/`tabs.closed` 的孤儿键沿用现有"server 消失即清理"effect 的模式；书籍删除/归档后其标签与孤儿键同理——novel 消失沿用 server 消失的清理模式）。一期旧数据原样保留（共存），二期清洗。unify 引入的绑定会话标签清洗（purge，现挂在 `novel-sessions.ts` 的绑定驱动清洗 effect）在二期随会话标签退役。
 
 ### D8：草稿流程页面态化（二期）
 
