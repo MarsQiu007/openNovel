@@ -900,7 +900,7 @@ export const dict = {
   "settings.general.row.showStatus.title": "伺服器狀態",
   "settings.general.row.showStatus.description": "在標題列中顯示伺服器狀態按鈕",
   "settings.general.row.mobileTitlebarBottom.title": "底部導覽",
-  "settings.general.row.mobileTitlebarBottom.description": "在行動裝置上將標題列和工作階段分頁置於畫面底部",
+  "settings.general.row.mobileTitlebarBottom.description": "在行動裝置上將標題列和書籍分頁置於畫面底部",
   "settings.general.row.showCustomAgents.title": "自訂代理程式",
   "settings.general.row.showCustomAgents.description": "在輸入區顯示代理程式選擇器",
   "settings.general.row.reasoningSummaries.title": "顯示推理摘要",
@@ -1199,6 +1199,7 @@ export const dict = {
   "terminal.connectionLost.abnormalClose": "WebSocket 異常關閉：{{code}}",
 
   "novel.bookshelf.title": "書架",
+  "novel.tab.loading": "載入中…",
   "novel.bookshelf.subTitle": "我的小說",
   "novel.bookshelf.empty": "還沒有小說",
   "novel.bookshelf.open": "返回書架",

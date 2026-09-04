@@ -1,24 +1,27 @@
-import { createEffect, createMemo, createResource, createRoot, For, onCleanup, onMount } from "solid-js"
+import { createEffect, createMemo, For, onCleanup, onMount } from "solid-js"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
+import { createQuery } from "@tanstack/solid-query"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
 import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { arrayMove } from "@dnd-kit/helpers"
-import { tabHref, tabKey, type SessionTab, type Tab } from "@/context/tabs"
+import { tabHref, tabKey, type NovelTab, type Tab } from "@/context/tabs"
 import { ServerConnection } from "@/context/server"
-import { DraftTabItem, TabNavItem } from "@/components/titlebar-tab-nav"
+import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
+import { TabNavItem } from "@/components/titlebar-tab-nav"
 import { useGlobal, type ServerCtx } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { useCommand } from "@/context/command"
 import { useTabs } from "@/context/tabs"
-import { createTabPromptState } from "@/context/prompt"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
+import { novelClientFor, novelKeys } from "@/context/novel-queries"
+import { novelTabTitle } from "@/context/tab-route"
+import { decode64 } from "@/utils/base64"
 import { canStartTabDrag, isTabCloseTarget } from "./titlebar-tab-gesture"
 
-function SessionTabSlot(props: {
-  tab: SessionTab
+function NovelTabSlot(props: {
+  tab: NovelTab
   id: string
   index: () => number
   active: () => boolean
@@ -38,49 +41,37 @@ function SessionTabSlot(props: {
     },
   })
   let ref!: HTMLDivElement
-  const sdk = createMemo(() => props.serverCtx()?.sdk ?? null)
-  const cachedSession = createMemo(() => props.serverCtx()?.sync.session.peek(props.tab.sessionId))
-  const persisted = createMemo(() => tabs.info[props.id])
-  const [loadedSession] = createResource(
-    () => {
-      const ctx = props.serverCtx()
-      return ctx ? { id: props.tab.sessionId, ctx } : null
+  const serverCtx = createMemo(() => props.serverCtx())
+  const directory = createMemo(() => decode64(props.tab.dir))
+
+  // Same query key as the workspace detail query, so a rename from inside the
+  // workspace (which invalidates that key) refetches here and the tab title
+  // follows. Runs through the server ctx — the strip renders outside the
+  // workspace scope, so useSDK()/useNovelClient() are not available.
+  const novel = createQuery(() => ({
+    queryKey: novelKeys.detail(directory() ?? "", props.tab.novelID),
+    queryFn: async () => {
+      const ctx = serverCtx()
+      const dir = directory()
+      if (!ctx || !dir) throw new Error("Missing novel context")
+      return novelClientFor(ctx.sdk)["server.novel"].detail({
+        novelID: props.tab.novelID,
+        location: { directory: dir },
+      })
     },
-    ({ id, ctx }) => ctx.sync.session.resolve(id).catch(() => undefined),
-  )
-  const session = createMemo(() => cachedSession() ?? loadedSession())
-  const missingSession = createMemo(() => !!props.serverCtx() && !loadedSession.loading && !session())
-  let prefetched = false
+    enabled: !!serverCtx() && !!directory(),
+    staleTime: 30_000,
+  }))
 
   createEffect(() => {
-    const ctx = props.serverCtx()
-    const value = session()
-    if (!ctx || !value || prefetched) return
-    prefetched = true
-    createRoot((dispose) => {
-      try {
-        void ctx.sync
-          .ensureDirSyncContext(value.directory)
-          .session.sync(value.id)
-          .catch(() => {})
-          .finally(dispose)
-      } catch {
-        dispose()
-      }
-    })
+    const title = novel.data?.title
+    if (!title) return
+    tabs.rememberNovelInfo(props.tab, { title })
   })
 
-  createEffect(() => {
-    const value = session()
-    if (!value) return
-    tabs.rememberSessionInfo(props.tab, value)
-    const current = sdk()
-    if (!current) return
-    createTabPromptState(tabs, props.tab, current.scope, {
-      dir: base64Encode(value.directory),
-      id: value.id,
-    })
-  })
+  // Persisted cache wins so a restart shows the title immediately, before the
+  // query resolves; the effect above syncs the cache once fresh data lands.
+  const title = createMemo(() => novelTabTitle(tabs.info[props.id], novel.data, language.t("novel.tab.loading")))
 
   return (
     <div
@@ -89,7 +80,6 @@ function SessionTabSlot(props: {
       data-tab-key={props.id}
       data-active={props.active()}
       class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
-      classList={{ hidden: !session() && !missingSession() && !persisted()?.title }}
     >
       <TabNavItem
         ref={(el) => {
@@ -97,64 +87,13 @@ function SessionTabSlot(props: {
         }}
         href={tabHref(props.tab)}
         server={props.tab.server}
-        session={session}
-        fallbackTitle={persisted()?.title ?? (missingSession() ? language.t("session.tab.unknown") : undefined)}
-        onTitleChange={(title) => {
-          const value = session()
-          const ctx = props.serverCtx()
-          if (value && ctx) ctx.sync.session.remember({ ...value, title })
-        }}
-        onTitleChangeFailed={(title) => {
-          const value = session()
-          const ctx = props.serverCtx()
-          if (value && ctx) ctx.sync.session.remember({ ...value, title })
-        }}
+        session={() => undefined}
+        icon={<IconV2 name="book" />}
+        fallbackTitle={title()}
         onNavigate={() => props.onNavigate(ref)}
         onClose={props.onClose}
         active={props.active()}
         forceTruncate={props.forceTruncate}
-        dragging={sortable.isDragSource()}
-      />
-    </div>
-  )
-}
-
-function DraftTabSlot(props: {
-  tab: Extract<Tab, { type: "draft" }>
-  id: string
-  index: () => number
-  active: () => boolean
-  title: string
-  onNavigate: (element: HTMLDivElement) => void
-  onClose: () => void
-}) {
-  const sortable = useSortable({
-    get id() {
-      return props.id
-    },
-    get index() {
-      return props.index()
-    },
-  })
-  let ref!: HTMLDivElement
-
-  return (
-    <div
-      ref={sortable.ref}
-      data-titlebar-tab-slot
-      data-tab-key={props.id}
-      data-active={props.active()}
-      class="relative flex w-56 min-w-7 max-w-56 flex-shrink"
-    >
-      <DraftTabItem
-        ref={(el) => {
-          ref = el
-        }}
-        href={tabHref(props.tab)}
-        title={props.title}
-        onNavigate={() => props.onNavigate(ref)}
-        onClose={props.onClose}
-        active={props.active()}
         dragging={sortable.isDragSource()}
       />
     </div>
@@ -171,7 +110,6 @@ export function TitlebarTabStrip(props: {
   onOverflowChange: (overflowing: boolean) => void
 }) {
   const global = useGlobal()
-  const language = useLanguage()
   let scrollRef!: HTMLDivElement
   let listRef!: HTMLDivElement
   let resizeFrame: number | undefined
@@ -257,36 +195,18 @@ export function TitlebarTabStrip(props: {
                 let ref!: HTMLDivElement
                 useTabShortcut(index, () => props.onNavigate(tab, ref))
                 const serverCtx = createMemo(() => {
-                  if (tab.type !== "session") return
                   const conn = global.servers.list().find((item) => ServerConnection.key(item) === tab.server)
                   if (conn) return global.ensureServerCtx(conn)
                 })
 
-                if (tab.type === "session") {
-                  return (
-                    <SessionTabSlot
-                      tab={tab}
-                      id={id}
-                      index={index}
-                      active={() => props.currentTab() === tab}
-                      forceTruncate={props.forceTruncate}
-                      serverCtx={serverCtx}
-                      onNavigate={(element) => {
-                        ref = element
-                        props.onNavigate(tab, element)
-                      }}
-                      onClose={() => props.onClose(tab)}
-                    />
-                  )
-                }
-
                 return (
-                  <DraftTabSlot
+                  <NovelTabSlot
                     tab={tab}
                     id={id}
                     index={index}
                     active={() => props.currentTab() === tab}
-                    title={language.t("command.session.new")}
+                    forceTruncate={props.forceTruncate}
+                    serverCtx={serverCtx}
                     onNavigate={(element) => {
                       ref = element
                       props.onNavigate(tab, element)

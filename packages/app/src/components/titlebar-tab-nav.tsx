@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, Show, type Ref } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show, type JSX, type Ref } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
@@ -22,6 +22,7 @@ export function TabNavItem(props: {
   href: string
   server: ServerConnection.Key
   session: () => Session | undefined
+  icon?: JSX.Element
   fallbackTitle?: string
   onTitleChange?: (title: string) => void
   onTitleChangeFailed?: (title: string) => void
@@ -250,7 +251,9 @@ export function TabNavItem(props: {
             <Show
               when={props.session()}
               fallback={
-                <span class="block size-4 rounded-[3px] border border-v2-border-border-muted" aria-hidden="true" />
+                props.icon ?? (
+                  <span class="block size-4 rounded-[3px] border border-v2-border-border-muted" aria-hidden="true" />
+                )
               }
             >
               {(session) => (
@@ -333,98 +336,5 @@ export function TabNavItem(props: {
         serverName: serverLabel(),
       }}
     />
-  )
-}
-
-export function DraftTabItem(props: {
-  ref?: Ref<HTMLDivElement>
-  href: string
-  title: string
-  active?: boolean
-  onNavigate: () => void
-  onClose: () => void
-  suppressNavigation?: () => boolean
-  dragging?: boolean
-  pressed?: boolean
-  hidden?: boolean
-}) {
-  const closeTab = (event: MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    props.onClose()
-  }
-  return (
-    <div
-      ref={(el) => forwardTabRef(props.ref, el)}
-      data-titlebar-tab
-      data-slot="titlebar-tab-item"
-      data-active={props.active}
-      data-dragging={props.dragging}
-      data-pressed={props.pressed}
-      class="group relative flex h-7 w-full min-w-0 flex-row items-center gap-1.5 overflow-hidden rounded-[6px] bg-[var(--tab-bg)] px-1.5 [container-type:inline-size] whitespace-nowrap [--tab-bg:var(--v2-background-bg-deep)] hover:[--tab-bg:var(--v2-background-bg-layer-02)] has-[>a:focus-visible]:[--tab-bg:var(--v2-background-bg-layer-02)] data-[active='true']:[--tab-bg:var(--v2-background-bg-layer-02)] data-[dragging='true']:[--tab-bg:var(--v2-background-bg-layer-02)] data-[pressed='true']:[--tab-bg:var(--v2-background-bg-layer-02)] data-[editing='true']:[--tab-bg:var(--v2-background-bg-layer-02)]"
-      classList={{ invisible: props.hidden }}
-      onMouseDown={(event) => {
-        if (event.button !== MIDDLE_MOUSE_BUTTON) return
-        event.preventDefault()
-        event.stopPropagation()
-      }}
-      onAuxClick={(event) => {
-        if (event.button !== MIDDLE_MOUSE_BUTTON) return
-        closeTab(event)
-      }}
-    >
-      <a
-        data-slot="tab-link"
-        data-titlebar-tab-link
-        href={props.href}
-        draggable={false}
-        onDragStart={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-        }}
-        onMouseDown={(event) => {
-          // Navigate on mousedown to shave the press-release delay off tab switches.
-          if (event.button !== 0) return
-          if (props.suppressNavigation?.()) return
-          props.onNavigate()
-        }}
-        onClick={(event) => {
-          event.preventDefault()
-          // Mouse navigation already happened on mousedown; detail 0 means keyboard activation.
-          if (event.detail > 0) return
-          if (props.suppressNavigation?.()) return
-          props.onNavigate()
-        }}
-        class="flex h-full min-w-0 flex-1 flex-row items-center gap-1.5 text-[13px] font-medium text-v2-text-text-faint group-data-[active='true']:text-v2-text-text-base [-webkit-user-drag:none]"
-      >
-        <span class="flex size-4 shrink-0 items-center justify-center">
-          <IconV2 name="edit" />
-        </span>
-        <span
-          data-titlebar-tab-title
-          class="min-w-0 flex-1 overflow-hidden text-clip whitespace-nowrap outline-none leading-4"
-        >
-          {props.title}
-        </span>
-      </a>
-      <div data-slot="tab-close" class="group-hover:bg-[var(--tab-bg)] group-data-[active=true]:bg-[var(--tab-bg)]">
-        <IconButtonV2
-          size="small"
-          variant="ghost-muted"
-          onPointerDown={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          onMouseDown={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          class="hover-reveal relative z-10 group-hover:opacity-100 group-data-[active=true]:opacity-100 group-data-[editing=true]:opacity-100"
-          onClick={closeTab}
-          icon={<IconV2 name="xmark-small" />}
-          aria-label="Close tab"
-        />
-      </div>
-    </div>
   )
 }

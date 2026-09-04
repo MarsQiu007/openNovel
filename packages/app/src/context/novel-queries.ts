@@ -3,28 +3,31 @@ import { type Accessor, createMemo } from "solid-js"
 import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
-import { useServerSDK } from "./server-sdk"
+import { useServerSDK, type ServerSDK } from "./server-sdk"
 import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
 
+/** Shared client factory so out-of-workspace consumers (titlebar novel tabs)
+ * can reach the novel API through a ServerCtx instead of the workspace scope. */
+export function novelClientFor(sdk: ServerSDK) {
+  const auth = sdk.server.http.password
+    ? {
+        Authorization: `Basic ${authTokenFromCredentials({
+          username: sdk.server.http.username,
+          password: sdk.server.http.password,
+        })}`,
+      }
+    : undefined
+  return OpenNovel.make({
+    baseUrl: sdk.url,
+    headers: auth,
+  })
+}
+
 export function useNovelClient() {
   const serverSDK = useServerSDK()
-  return createMemo(() => {
-    const s = serverSDK()
-    const auth = s.server.http.password
-      ? {
-          Authorization: `Basic ${authTokenFromCredentials({
-            username: s.server.http.username,
-            password: s.server.http.password,
-          })}`,
-        }
-      : undefined
-    return OpenNovel.make({
-      baseUrl: s.url,
-      headers: auth,
-    })
-  })
+  return createMemo(() => novelClientFor(serverSDK()))
 }
 
 // ---- Session binding types & helpers ----

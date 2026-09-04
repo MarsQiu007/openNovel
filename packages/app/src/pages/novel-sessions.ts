@@ -4,7 +4,7 @@
  * 负责：novel API client 构建、书籍列表 / 绑定关系 / 目录完整会话列表的查询、
  * 按会话 ID 打开会话（tab）、为书籍创建并绑定新会话、归档会话。
  */
-import { type Accessor, createEffect, createMemo, startTransition, untrack } from "solid-js"
+import { type Accessor, createMemo } from "solid-js"
 import { produce } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { useQuery, useQueryClient } from "@tanstack/solid-query"
@@ -12,9 +12,9 @@ import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { OpenNovel } from "@opennovel-ai/client"
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { resolveSessionRoute } from "./session-route"
+import { sessionHref } from "@/utils/session-route"
 import { ServerConnection } from "@/context/server"
 import { useGlobal } from "@/context/global"
-import { useTabs } from "@/context/tabs"
 import { authTokenFromCredentials } from "@/utils/server"
 import { archiveHomeSession } from "./home-session-archive"
 import { errorMessage } from "@/pages/layout/helpers"
@@ -52,8 +52,8 @@ function makeNovelClient(conn: ServerConnection.Any) {
 /**
  * 统一的会话打开动作。所有"打开会话"入口（工作台写作按钮、sessions 页最近列表、
  * 小说分组侧栏、会话内小说面板、命令面板）都必须经过这里：绑定会话路由到
- * `/:dir/novel/:novelID/session/:sessionID`（工作台写作视图，不注册会话标签），
- * 未绑定会话保持既有独立会话 tab 行为。
+ * `/:dir/novel/:novelID/session/:sessionID`（工作台写作视图）；未绑定会话直接进入
+ * 会话路由——自由会话不注册标签，切换经由会话页面完成（spec「会话退出标签体系」）。
  */
 export async function openSessionRouted(input: {
   conn: ServerConnection.Any
@@ -61,10 +61,7 @@ export async function openSessionRouted(input: {
   directory: string
   sessionID: string
   navigate: (path: string) => void
-  tabs: ReturnType<typeof useTabs>
   global: ReturnType<typeof useGlobal>
-  /** 后台打开：仅对未绑定的自由会话生效（注册标签但不切换） */
-  background?: boolean
 }): Promise<void> {
   const ctx = input.global.ensureServerCtx(input.conn)
   ctx.projects.open(input.directory)
@@ -84,38 +81,14 @@ export async function openSessionRouted(input: {
     input.navigate(`/${route.dir}/novel/${route.novelID}/session/${input.sessionID}`)
     return
   }
-  if (input.background) {
-    input.tabs.addSessionTab({ server: ServerConnection.key(input.conn), sessionId: input.sessionID })
-    return
-  }
   ctx.projects.touch(input.directory)
-  void startTransition(() => {
-    const tab = input.tabs.addSessionTab({
-      server: ServerConnection.key(input.conn),
-      sessionId: input.sessionID,
-    })
-    input.tabs.select(tab)
-  })
-}
-
-/** 将绑定会话 tab 从标签栏移除——入口收敛前的持久化存量清洗；幂等，可多处调用 */
-export function purgeBoundSessionTabs(input: {
-  tabs: ReturnType<typeof useTabs>
-  bindings: readonly NovelSessionBinding[]
-}) {
-  const boundIds = new Set(input.bindings.map((binding) => binding.sessionID))
-  for (const tab of input.tabs.store) {
-    if (tab.type === "session" && boundIds.has(tab.sessionId)) {
-      input.tabs.removeSessionTab({ server: tab.server, sessionId: tab.sessionId })
-    }
-  }
+  input.navigate(sessionHref(ServerConnection.key(input.conn), input.sessionID))
 }
 
 /**
  * 级联归档主会话及其全部子代理会话（侧边栏归档、删除书籍共用）。
  */
 export async function archiveSessionCascade(input: {
-  server: ServerConnection.Key
   session: Session
   /** 当前目录完整会话列表，用于收集子代理后代 */
   sessions: readonly Session[]
@@ -126,7 +99,6 @@ export async function archiveSessionCascade(input: {
   const descendants = collectDescendants(input.session.id, input.sessions).filter((s) => !s.time.archived)
   for (const target of [input.session, ...descendants]) {
     await archiveHomeSession({
-      server: input.server,
       session: target,
       update: input.update,
       remove: () => input.remove(target),
@@ -142,7 +114,6 @@ export function useNovelSessions(input: {
   server: Accessor<string>
 }) {
   const global = useGlobal()
-  const tabs = useTabs()
   const navigate = useNavigate()
   const language = useLanguage()
   const queryClient = useQueryClient()
@@ -192,17 +163,6 @@ export function useNovelSessions(input: {
 
   const boundSessionIds = createMemo(() => new Set((bindingsQuery.data ?? []).map((binding) => binding.sessionID)))
 
-  // 清洗遗留 tab：入口收敛前注册的绑定会话 tab 跨重启持久化残留，绑定关系就绪后从标签栏移除
-  // （spec「绑定会话不进入会话标签栏」的存量数据收尾；清洗逻辑与工作台共用，见 purgeBoundSessionTabs）。
-  // 清洗只由绑定数据驱动：untrack 掉 purge 内部的 tabs.store 遍历——若追踪 store，会与 titlebar 的
-  // 会话标签兜底注册互相触发（add ↔ remove 循环），归档绑定会话时曾把整个 UI 卡死
-  createEffect(() => {
-    if (!tabs.ready()) return
-    const bindings = bindingsQuery.data
-    if (!bindings) return
-    untrack(() => purgeBoundSessionTabs({ tabs, bindings }))
-  })
-
   const loading = createMemo(() => novelsQuery.isLoading || bindingsQuery.isLoading)
 
   function refresh() {
@@ -213,12 +173,12 @@ export function useNovelSessions(input: {
     void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
   }
 
-  // 统一打开动作：绑定会话进书的工作台，未绑定会话走独立 tab（见 openSessionRouted）
+  // 统一打开动作：绑定会话进书的工作台，未绑定会话直接进会话路由（见 openSessionRouted）
   function openSessionById(sessionID: string) {
     const conn = input.conn()
     const directory = input.directory()
     if (!conn || !directory) return
-    void openSessionRouted({ conn, directory, sessionID, navigate, tabs, global })
+    void openSessionRouted({ conn, directory, sessionID, navigate, global })
   }
 
   // 为指定书籍创建新会话并绑定，创建后直接打开
@@ -270,7 +230,6 @@ export function useNovelSessions(input: {
     const ctx = global.ensureServerCtx(conn)
     const [, setStore] = ctx.sync.child(session.directory)
     await archiveSessionCascade({
-      server: ServerConnection.key(conn),
       session,
       sessions: sessionsQuery.data ?? [],
       update: (value) => ctx.sdk.client.session.update(value),

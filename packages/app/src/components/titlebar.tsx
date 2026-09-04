@@ -32,17 +32,12 @@ import { useSettings } from "@/context/settings"
 import { WindowsAppMenu } from "./windows-app-menu"
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 import { TitlebarTabStrip } from "@/components/titlebar-tab-strip"
-import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
-import { readSessionTabsRemovedDetail, SESSION_TABS_REMOVED_EVENT } from "@/components/titlebar-session-events"
 import { useGlobal } from "@/context/global"
 import { ServerConnection, useServer } from "@/context/server"
 import { tabKey, useTabs } from "@/context/tabs"
 import { useNovels } from "@/context/novel-queries"
-import type { PromptSession } from "@/context/prompt"
 import "./titlebar.css"
-import { newTabTooltipKeybind } from "./command-tooltip-keybind"
-
 type TauriDesktopWindow = {
   startDragging?: () => Promise<void>
   toggleMaximize?: () => Promise<void>
@@ -288,25 +283,10 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
             )
 
             const matchRoute = (route: LayoutRoute) => {
-              if (route.type === "home") return
-              if (route.type === "draft") {
-                return tabsStore.find((item) => item.type === "draft" && item.draftID === route.draftID)
-              }
-              if (route.type === "session") {
-                const main = tabsStore.find(
-                  (item) =>
-                    item.type === "session" && item.server === route.server && item.sessionId === route.sessionId,
-                )
-                if (main) return main
-                const s = session()
-                if (s?.parentID) {
-                  const parentID = s.parentID
-                  const parent = tabsStore.find(
-                    (item) => item.type === "session" && item.server === route.server && item.sessionId === parentID,
-                  )
-                  if (parent) return parent
-                }
-              }
+              if (route.type !== "novel") return
+              return tabsStore.find(
+                (item) => item.server === route.server && item.dir === route.dirBase64 && item.novelID === route.novelID,
+              )
             }
 
             const currentTab = () => matchRoute(layout.route())
@@ -320,39 +300,20 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                 return
               }
 
-              if (route.type === "session") {
-                const s = session()
-                if (!s) return
-                const sessionId = s.parentID ?? s.id
-                const next = { server: route.server ?? server.key, sessionId }
-                tabsStoreActions.addSessionTab(next)
+              if (route.type === "novel") {
+                tabsStoreActions.addNovelTab({
+                  server: route.server ?? server.key,
+                  dir: route.dirBase64,
+                  novelID: route.novelID,
+                })
               }
-            })
-
-            makeEventListener(window, SESSION_TABS_REMOVED_EVENT, (event) => {
-              const detail = readSessionTabsRemovedDetail(event)
-              if (!detail) return
-              tabsStoreActions.removeSessions(detail)
             })
 
             const openNewTab = () => {
               const route = layout.route()
               const activeSession = session()
               if (route.type === "session" && activeSession) {
-                const sessionTab = {
-                  type: "session" as const,
-                  server: route.server ?? server.key,
-                  sessionId: activeSession.id,
-                }
-                const model = tabs.stateValue<PromptSession>(sessionTab, "prompt")?.model.current()
-                tabs.newDraft({ server: sessionTab.server, directory: activeSession.directory }, "", model)
-                return
-              }
-
-              const activeTab = currentTab()
-              if (activeTab?.type === "draft") {
-                const model = tabs.stateValue<PromptSession>(activeTab, "prompt")?.model.current()
-                tabs.newDraft({ server: activeTab.server, directory: activeTab.directory }, "", model)
+                tabs.newDraft({ server: route.server ?? server.key, directory: activeSession.directory }, "")
                 return
               }
 
@@ -590,27 +551,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                   }}
                   onReorder={(keys) => tabsStoreActions.reorder(keys)}
                 />
-                <Show when={!creating()}>
-                  <TooltipV2
-                    placement="bottom"
-                    value={
-                      <>
-                        {language.t("command.session.new")}
-                        <KeybindV2 keys={newTabTooltipKeybind(command)} variant="neutral" />
-                      </>
-                    }
-                  >
-                    <IconButtonV2
-                      type="button"
-                      variant="ghost-muted"
-                      size="large"
-                      class="shrink-0"
-                      icon={<IconV2 name="plus" />}
-                      onClick={openNewTab}
-                      aria-label={language.t("command.session.new")}
-                    />
-                  </TooltipV2>
-                </Show>
                 <div class="flex-1" />
                 <TitlebarV2Right state={v2RightState()} />
                 <Show when={windows() && !electronWindows()}>

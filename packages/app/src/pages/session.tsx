@@ -56,7 +56,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import { ServerConnection, serverName, useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
-import { useTabs } from "@/context/tabs"
 import { TerminalProvider, useTerminal } from "@/context/terminal"
 import { PromptInput } from "@/components/prompt-input"
 import { PromptInputV2Composer, usePromptInputV2Controller } from "@/components/prompt-input-v2"
@@ -203,15 +202,14 @@ export function SessionRouteErrorBoundary(
 function SessionErrorFallback(props: { error: unknown; sessionID?: string; serverKey?: ServerConnection.Key }) {
   const language = useLanguage()
   const server = useServer()
-  const tabs = useTabs()
+  const navigate = useNavigate()
   const displayServer = createMemo(() => {
     const key = props.serverKey ?? server.key
     const conn = server.list.find((item) => ServerConnection.key(item) === key)
     return conn ? serverName(conn) : key
   })
   const closeTab = () => {
-    if (!props.sessionID) return
-    tabs.removeSessionTab({ server: props.serverKey ?? server.key, sessionId: props.sessionID })
+    navigate("/")
   }
   if (isCurrentSessionNotFoundError(props.error, props.sessionID)) {
     return (
@@ -245,7 +243,6 @@ function SessionErrorFallback(props: { error: unknown; sessionID?: string; serve
 
 function ResolvedTargetSessionRoute() {
   const params = useParams<{ serverKey: string; id: string }>()
-  const tabs = useTabs()
   const sync = useServerSync()
   const serverKey = createMemo(() => requireServerKey(params.serverKey))
   const current = createSessionLineage(
@@ -254,15 +251,6 @@ function ResolvedTargetSessionRoute() {
   )
   const directory = createMemo(() => current()?.session.directory)
   const targetDirectory = () => directory()!
-
-  createEffect(() => {
-    const session = current()
-    if (!session) return
-    tabs.addSessionTab({
-      server: serverKey(),
-      sessionId: session.root.id,
-    })
-  })
 
   return (
     // Non-keyed: closes only while the target's directory is unknown (uncached

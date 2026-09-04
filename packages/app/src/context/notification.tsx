@@ -14,7 +14,7 @@ import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
-import { type DraftTab, useTabs } from "./tabs"
+import { useTabs } from "./tabs"
 import { requireServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
 
@@ -127,7 +127,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const activeServer = createMemo(() => {
       if (params.serverKey) return requireServerKey(params.serverKey)
       if (search.draftId) {
-        const draft = tabs.store.find((tab): tab is DraftTab => tab.type === "draft" && tab.draftID === search.draftId)
+        const draft = tabs.draftPage(search.draftId)
         if (draft) return draft.server
       }
       return server.key

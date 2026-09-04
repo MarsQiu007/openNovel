@@ -4,7 +4,6 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
-import { useTabs } from "@/context/tabs"
 import { Persist, persisted } from "@/utils/persist"
 import { ResizeHandle } from "@opennovel-ai/ui/resize-handle"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -32,7 +31,6 @@ import ModeBadge from "./mode-badge"
 import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
 import WritingFlowButton, { findBoundNovelSession } from "./writing-flow"
-import { purgeBoundSessionTabs } from "../novel-sessions"
 import { NovelSessionSwitcher } from "./session-switcher"
 import PanelCharacters from "./panel-characters"
 import { PanelForeshadow } from "./panel-foreshadow"
@@ -152,14 +150,6 @@ export default function NovelWorkspaceFrame() {
   const railPanel = createMemo<RailPanel>(() =>
     RAIL_PANELS.some((item) => item.key === layout.railPanel) ? layout.railPanel : "chat",
   )
-  const tabs = useTabs()
-  // 遗留绑定会话 tab 清洗：工作台就绪即触发，覆盖不经过 sessions 页的启动路径（走查修复）
-  createEffect(() => {
-    if (data.loading) return
-    void novel.listSessionBindings().then((bindings) => {
-      if (bindings) purgeBoundSessionTabs({ tabs, bindings })
-    })
-  })
   const setRailPanel = (key: RailPanel) => setLayout("railPanel", key)
   // 进入会话模式时自动切回对话（等待持久化就绪，避免被恢复值覆盖）。
   // 仅在模式边界（非会话 → 会话）触发：effect 追踪的是 params.id 属性，会话内切换/新建

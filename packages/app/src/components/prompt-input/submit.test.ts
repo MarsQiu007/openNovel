@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
 import { createStore } from "solid-js/store"
+import { base64Encode } from "@opennovel-ai/core/util/encode"
 import type { Prompt, PromptStore } from "@/context/prompt"
 import type { ModelSelection } from "@/context/local"
 
@@ -22,7 +23,7 @@ const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
 const sentShell: string[] = []
 const syncedDirectories: string[] = []
-const promotedDrafts: Array<{ draftID: string; server: string; sessionId: string }> = []
+const navigations: string[] = []
 
 let params: { id?: string } = {}
 let search: { draftId?: string } = {}
@@ -93,7 +94,9 @@ beforeAll(async () => {
   const rootClient = clientFor("/repo/main")
 
   mock.module("@solidjs/router", () => ({
-    useNavigate: () => () => undefined,
+    useNavigate: () => (to: string) => {
+      navigations.push(to)
+    },
     useParams: () => params,
     useLocation: () => ({}),
     useSearchParams: () => [search, () => undefined],
@@ -147,10 +150,7 @@ beforeAll(async () => {
 
   mock.module("@/context/tabs", () => ({
     useTabs: () => ({
-      draft: () => ({ server: "project-server" }),
-      promoteDraft: (draftID: string, session: { server: string; sessionId: string }) => {
-        promotedDrafts.push({ draftID, ...session })
-      },
+      draftPage: (draftID: string) => ({ server: "project-server", directory: "/repo/main", draftID }),
     }),
   }))
 
@@ -255,7 +255,7 @@ beforeEach(() => {
   optimistic.length = 0
   optimisticSeeded.length = 0
   promoted.length = 0
-  promotedDrafts.length = 0
+  navigations.length = 0
   params = {}
   search = {}
   sentShell.length = 0
@@ -367,7 +367,7 @@ describe("prompt submit worktree selection", () => {
     expect(enabledAutoAccept).toEqual([{ server: "server-a", sessionID: "session-1", directory: "/repo/worktree-a" }])
   })
 
-  test("promotes drafts using the selected project's server", async () => {
+  test("navigates to the draft server's session route after submitting", async () => {
     search = { draftId: "draft-1" }
     const submit = createPromptSubmit({
       prompt,
@@ -391,7 +391,7 @@ describe("prompt submit worktree selection", () => {
 
     await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
 
-    expect(promotedDrafts).toEqual([{ draftID: "draft-1", server: "project-server", sessionId: "session-1" }])
+    expect(navigations).toEqual([`/server/${base64Encode("project-server")}/session/session-1`])
   })
 
   test("includes the selected variant on optimistic prompts", async () => {

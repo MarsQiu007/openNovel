@@ -1,52 +1,40 @@
-import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
 import { createStore, produce } from "solid-js/store"
 import { Persist, persisted, removePersisted, draftPersistedKeys } from "@/utils/persist"
 import { ServerConnection, useServer } from "./server"
-import { createEffect, getOwner, onCleanup, startTransition } from "solid-js"
-import { useLocation, useNavigate, useParams } from "@solidjs/router"
+import { createEffect, createRoot, onCleanup, startTransition } from "solid-js"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { usePlatform } from "./platform"
 import { uuid } from "@/utils/uuid"
-import { SessionTabsRemovedDetail } from "@/components/titlebar-session-events"
-import { sessionHref } from "@/utils/session-route"
-import { createTabMemory } from "./tab-memory"
-import { nextTabAfterClose, pushClosedTab, removeClosedTabs, takeClosedTab, type ClosedTab } from "./closed-tabs"
-import { createDraftPromptSession, type PromptModel } from "./prompt-state"
+import { nextTabAfterClose, pushClosedTab, takeClosedTab, type ClosedTab } from "./closed-tabs"
+import { createDraftPromptSession, type PromptModel, type PromptSession } from "./prompt-state"
+import {
+  draftHref,
+  migrateTabs,
+  tabHref,
+  tabKey,
+  type NovelTab,
+  type Tab,
+} from "./tab-route"
 
-export type SessionTab = {
-  type: "session"
-  server: ServerConnection.Key
-  sessionId: string
-}
-
-export type DraftTab = {
-  type: "draft"
-  draftID: string
-  server: ServerConnection.Key
-  directory: string
-  worktree?: string
-}
-
-export type Tab = SessionTab | DraftTab
+export type { NovelTab, Tab } from "./tab-route"
+export { draftHref, migrateTabs, novelHref, tabHref, tabKey } from "./tab-route"
 
 export type TabInfo = {
   title?: string
   directory?: string
 }
 
-type RecentTab = {
-  key?: string
+// 草稿页面态：/new-session 页面的草稿不再注册标签，状态挂在内存注册表上。
+// 提交后导航会话路由；离开 /new-session 草稿即失去入口，注册表整体清理。
+export type DraftPageState = {
+  server: ServerConnection.Key
+  directory: string
+  draftID: string
 }
 
-export const draftHref = (draftID: string) => `/new-session?draftId=${encodeURIComponent(draftID)}`
-
-export const tabHref = (tab: Tab) =>
-  tab.type === "draft" ? draftHref(tab.draftID) : sessionHref(tab.server, tab.sessionId)
-
-export const tabKey = (tab: Tab) => (tab.type === "draft" ? `draft:${tab.draftID}` : `${tab.server}\n${tabHref(tab)}`)
-
-export function sessionHasOpenTab(tabs: Tab[], server: ServerConnection.Key, session: Session) {
-  return tabs.some((tab) => tab.type === "session" && tab.server === server && tab.sessionId === session.id)
+type RecentTab = {
+  key?: string
 }
 
 export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
@@ -55,17 +43,10 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
   init: () => {
     const server = useServer()
     const platform = usePlatform()
-    const fallback = server.key
     const [store, setStore, _, ready] = persisted(
       {
         ...Persist.window("tabs"),
-        migrate: (value: unknown) => {
-          if (!Array.isArray(value)) return value
-          return value.map((tab) => {
-            if (!tab || typeof tab !== "object" || "server" in tab) return tab
-            return { ...tab, server: fallback }
-          })
-        },
+        migrate: (value: unknown) => migrateTabs(value),
       },
       createStore<Tab[]>([]),
     )
@@ -73,10 +54,8 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
     const [info, setInfo] = persisted(Persist.window("tabs.info"), createStore<Record<string, TabInfo>>({}))
     const [closed, setClosed, , closedReady] = persisted(Persist.window("tabs.closed"), createStore<ClosedTab[]>([]))
 
-    const params = useParams()
     const navigate = useNavigate()
     const location = useLocation()
-    const memory = createTabMemory(getOwner())
 
     const closing = new Set<string>()
     let recentWrite = 0
@@ -118,7 +97,32 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       )
     }
 
-    onCleanup(memory.dispose)
+    // 草稿页面态注册表（内存态）：draftID → 页面参数 + prompt session。
+    // prompt 实例单独放 Map，避免被 store 代理化破坏其内部响应式。
+    const [draftPages, setDraftPages] = createStore<Record<string, DraftPageState>>({})
+    const draftPrompts = new Map<string, PromptSession>()
+    const draftDisposers = new Map<string, VoidFunction>()
+
+    const disposeDraftPage = (draftID: string) => {
+      if (!draftDisposers.has(draftID)) return
+      setDraftPages(
+        produce((draft) => {
+          delete draft[draftID]
+        }),
+      )
+      draftPrompts.delete(draftID)
+      const dispose = draftDisposers.get(draftID)
+      draftDisposers.delete(draftID)
+      dispose?.()
+      removeDraftPersisted(draftID)
+    }
+
+    // 提交成功后的导航与手动离开都会切换路由，草稿此刻失去入口，就地清理。
+    // 切换项目只更新注册表条目（URL 不变），不会触发。
+    createEffect(() => {
+      if (location.pathname === "/new-session") return
+      for (const draftID of [...draftDisposers.keys()]) disposeDraftPage(draftID)
+    })
 
     createEffect(() => {
       if (!ready() || !recentReady()) return
@@ -128,7 +132,6 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         for (const tab of store) {
           if (!servers.has(tab.server)) {
             const key = tabKey(tab)
-            memory.remove(key)
             removeInfo(key)
           }
         }
@@ -143,8 +146,9 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
 
     createEffect(() => {
       if (!closedReady()) return
+      // 遗留会话/草稿的最近关闭条目在终态一并清除（迁移只清洗标签栈本身）。
       const servers = new Set(server.list.map(ServerConnection.key))
-      const next = closed.filter((entry) => servers.has(entry.tab.server))
+      const next = closed.filter((entry) => entry.tab.type === "novel" && servers.has(entry.tab.server))
       if (next.length !== closed.length) setClosed(() => next)
     })
 
@@ -158,7 +162,6 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       const tab = store[index]
       if (!tab) return
       const key = tabKey(tab)
-      const draftID = tab.type === "draft" ? tab.draftID : undefined
       const nextTab = nextTabAfterClose(store, index, recentKey() === key && location.pathname !== "/")
       closing.add(key)
       void startTransition(() => {
@@ -173,14 +176,12 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         }
         if (nextTab) navigateTab(nextTab)
       }).finally(() => closing.delete(key))
-      memory.remove(key)
       removeInfo(key)
-      if (draftID) removeDraftPersisted(draftID)
     }
 
     const actions = {
-      addSessionTab: (tab: Omit<SessionTab, "type">) => {
-        const next = { type: "session" as const, ...tab }
+      addNovelTab: (tab: Omit<NovelTab, "type">) => {
+        const next = { type: "novel" as const, ...tab }
         const existing = store.find((item) => tabKey(item) === tabKey(next))
         if (existing) return existing
         void startTransition(() => {
@@ -203,50 +204,23 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
           }),
         )
       },
-      draft(draftID: string) {
-        const tab = store.find((item) => item.type === "draft" && item.draftID === draftID)
-        if (!tab || tab.type !== "draft") throw new Error(`Draft not found: ${draftID}`)
-        return tab
-      },
-      async newDraft(draft: Omit<DraftTab, "type" | "draftID">, prompt?: string, model?: PromptModel) {
+      draftPage: (draftID: string | undefined) => (draftID ? draftPages[draftID] : undefined),
+      draftPrompt: (draftID: string) => draftPrompts.get(draftID),
+      async newDraft(draft: { server: ServerConnection.Key; directory: string }, prompt?: string, model?: PromptModel) {
+        // 同一时刻只有一个可达草稿（没有标签入口），新草稿注册时清理旧的。
+        for (const draftID of [...draftDisposers.keys()]) disposeDraftPage(draftID)
         const draftID = uuid()
-        const tab = { type: "draft" as const, draftID, ...draft }
-        memory.ensure(tabKey(tab), "prompt", () => createDraftPromptSession(draftID, { prompt, model }))
+        const owned = createRoot((dispose) => ({ dispose, prompt: createDraftPromptSession(draftID, { prompt, model }) }))
+        draftDisposers.set(draftID, owned.dispose)
+        draftPrompts.set(draftID, owned.prompt)
+        setDraftPages(draftID, { server: draft.server, directory: draft.directory, draftID })
         await startTransition(() => {
-          setStore(
-            produce((tabs) => {
-              tabs.push(tab)
-            }),
-          )
           navigate(draftHref(draftID))
         })
-        return tab
       },
-      updateDraft(draftID: string, draft: Partial<Omit<DraftTab, "type" | "draftID">>) {
-        void startTransition(() => {
-          setStore(
-            (tab) => tab.type === "draft" && tab.draftID === draftID,
-            produce((tab) => Object.assign(tab, draft)),
-          )
-        })
-      },
-      promoteDraft(draftID: string, session: Omit<SessionTab, "type">) {
-        // Keep the replacement and navigation atomic so /new-session never renders
-        // after its backing draft tab has been removed from the store.
-        const active = location.pathname === "/new-session" && location.query.draftId === draftID
-        const next = { type: "session" as const, ...session }
-        void startTransition(() => {
-          setStore(
-            produce((tabs) => {
-              const index = tabs.findIndex((tab) => tab.type === "draft" && tab.draftID === draftID)
-              if (index !== -1) tabs[index] = next
-            }),
-          )
-          if (recent.key === `draft:${draftID}`) setRecentKey(tabKey(next))
-          if (active) navigateTab(next)
-        })
-        memory.remove(`draft:${draftID}`)
-        removeDraftPersisted(draftID)
+      updateDraft(draftID: string, draft: Partial<Pick<DraftPageState, "server" | "directory">>) {
+        if (!draftPages[draftID]) return
+        setDraftPages(draftID, draft)
       },
       removeTab,
       // User-initiated close: records the tab so it can be reopened.
@@ -255,7 +229,7 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       closeTab(index: number) {
         const tab = store[index]
         if (!tab) return
-        if (tab.type === "session") updateClosed((stack) => pushClosedTab(stack, tab, index))
+        updateClosed((stack) => pushClosedTab(stack, tab, index))
         removeTab(index)
       },
       reopenClosedTab() {
@@ -279,81 +253,22 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
           navigateTab(entry.tab)
         })
       },
-      removeSessionTab(input: Omit<SessionTab, "type">) {
-        updateClosed((stack) => removeClosedTabs(stack, input.server, [input.sessionId]))
-        const index = store.findIndex(
-          (tab) => tab.type === "session" && tab.server === input.server && tab.sessionId === input.sessionId,
-        )
-        if (index !== -1) removeTab(index)
-      },
       removeServer(key: ServerConnection.Key) {
         updateClosed((stack) => stack.filter((entry) => entry.tab.server !== key))
-        const drafts = store.flatMap((tab) => (tab.type === "draft" && tab.server === key ? [tab.draftID] : []))
+        for (const page of Object.values(draftPages)) {
+          if (page.server === key) disposeDraftPage(page.draftID)
+        }
         const removed = store.filter((tab) => tab.server === key).map(tabKey)
         setStore((tabs) => tabs.filter((tab) => tab.server !== key))
-        for (const key of removed) memory.remove(key)
         for (const key of removed) removeInfo(key)
         if (recent.key && removed.includes(recent.key)) setRecentKey(undefined)
-        for (const draftID of drafts) removeDraftPersisted(draftID)
         if (server.key === key) navigate("/")
       },
-      removeSessions: (input: SessionTabsRemovedDetail) => {
-        const targetServer = input.server ?? server.key
-        updateClosed((stack) => removeClosedTabs(stack, targetServer, input.sessionIDs))
-        const removed = store
-          .filter(
-            (tab) => tab.type === "session" && tab.server === targetServer && input.sessionIDs.includes(tab.sessionId),
-          )
-          .map(tabKey)
-        void startTransition(() => {
-          setStore(
-            produce((tabs) => {
-              const sessionIDs = new Set(input.sessionIDs)
-              const currentHref =
-                targetServer === server.key && params.dir && params.id
-                  ? tabHref({
-                      type: "session",
-                      server: targetServer,
-                      sessionId: params.id,
-                    })
-                  : undefined
-              const currentIndex = currentHref
-                ? tabs.findIndex(
-                    (tab) => tab.type === "session" && tab.server === targetServer && tabHref(tab) === currentHref,
-                  )
-                : -1
-              const currentTab = tabs[currentIndex]
-              const removedCurrent =
-                currentTab?.type === "session" &&
-                currentTab.server === targetServer &&
-                sessionIDs.has(currentTab.sessionId)
-
-              for (let i = tabs.length - 1; i >= 0; i--) {
-                const tab = tabs[i]
-                if (!tab || tab.type !== "session") continue
-                if (tab.server !== targetServer) continue
-                if (!sessionIDs.has(tab.sessionId)) continue
-                tabs.splice(i, 1)
-              }
-
-              if (!removedCurrent) return
-              const nextTab =
-                tabs.slice(currentIndex).find((tab) => tab.type === "session") ??
-                tabs.slice(0, currentIndex).findLast((tab) => tab.type === "session")
-              if (nextTab) navigateTab(nextTab)
-              else navigate("/")
-            }),
-          )
-          if (recent.key && removed.includes(recent.key)) setRecentKey(undefined)
-        })
-        for (const key of removed) memory.remove(key)
-        for (const key of removed) removeInfo(key)
-      },
-      rememberSessionInfo(tab: SessionTab, session: Session) {
+      rememberNovelInfo(tab: NovelTab, novel: { title?: string }) {
         const key = tabKey(tab)
-        const next = { title: session.title, directory: session.directory }
+        const next = { title: novel.title }
         const current = info[key]
-        if (current?.title === next.title && current.directory === next.directory) return
+        if (current?.title === next.title) return
         setInfo(key, next)
       },
       select: navigateTab,
@@ -374,14 +289,7 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         }
         navigate("/")
       },
-      state<T>(tab: Tab, name: string, init: () => T) {
-        return memory.ensure(tabKey(tab), name, init)
-      },
-      stateValue<T>(tab: Tab, name: string) {
-        return memory.get<T>(tabKey(tab), name)
-      },
     }
-
     return { ...actions, store, info, ready, recentReady }
   },
 })

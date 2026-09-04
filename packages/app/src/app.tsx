@@ -55,7 +55,7 @@ import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider, useSettings } from "@/context/settings"
-import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
+import { TabsProvider, useTabs, type DraftPageState } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
 import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
@@ -63,7 +63,7 @@ import LegacyLayout from "@/pages/layout"
 import NewLayout from "@/pages/layout-new"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
-import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref } from "./utils/session-route"
+import { legacySessionHref, requireServerKey, sessionHref } from "./utils/session-route"
 import { createSessionLineage } from "@/pages/session/session-lineage"
 
 import { SessionPage, SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
@@ -82,15 +82,7 @@ const SessionRoute = () => {
   const tabs = useTabs()
 
   if (params.id && settings.general.newLayoutDesigns()) {
-    const sessionID = params.id
-    return (
-      <Show when={tabs.ready()}>
-        {(_) => {
-          const persisted = tabs.store.filter((item) => item.type === "session")
-          return <Navigate href={sessionHref(legacySessionServer(persisted, sessionID, server.key), sessionID)} />
-        }}
-      </Show>
-    )
+    return <Navigate href={sessionHref(server.key, params.id)} />
   }
 
   // When the new layout is enabled, the legacy new-session route (/:dir/session with no id)
@@ -206,26 +198,24 @@ function DraftRoute() {
   const settings = useSettings()
   const tabs = useTabs()
   return (
-    <Show when={tabs.ready()}>
-      <Show
-        when={tabs.store.find((tab): tab is DraftTab => tab.type === "draft" && tab.draftID === search.draftId)}
-        keyed
-        fallback={<Navigate href="/" />}
-      >
-        {(draft) => (
-          <Show
-            when={settings.general.newLayoutDesigns()}
-            fallback={<Navigate href={`/${base64Encode(draft.directory)}/session`} />}
-          >
-            <ResolvedDraftRoute draft={draft} />
-          </Show>
-        )}
-      </Show>
+    <Show
+      when={tabs.draftPage(search.draftId)}
+      keyed
+      fallback={<Navigate href="/" />}
+    >
+      {(draft) => (
+        <Show
+          when={settings.general.newLayoutDesigns()}
+          fallback={<Navigate href={`/${base64Encode(draft.directory)}/session`} />}
+        >
+          <ResolvedDraftRoute draft={draft} />
+        </Show>
+      )}
     </Show>
   )
 }
 
-function ResolvedDraftRoute(props: { draft: DraftTab }) {
+function ResolvedDraftRoute(props: { draft: DraftPageState }) {
   const global = useGlobal()
   const conn = createMemo(() => global.servers.list().find((item) => ServerConnection.key(item) === props.draft.server))
   const directory = () => props.draft.directory
@@ -640,21 +630,7 @@ function Routes(props: { serverScoped?: JSX.Element }) {
 
 function NewLayoutLegacySessionRedirect() {
   const server = useServer()
-  const tabs = useTabs()
   const params = useParams<{ id: string }>()
 
-  return (
-    <Show when={tabs.ready()}>
-      <Navigate
-        href={sessionHref(
-          legacySessionServer(
-            tabs.store.filter((item) => item.type === "session"),
-            params.id,
-            server.key,
-          ),
-          params.id,
-        )}
-      />
-    </Show>
-  )
+  return <Navigate href={sessionHref(server.key, params.id)} />
 }

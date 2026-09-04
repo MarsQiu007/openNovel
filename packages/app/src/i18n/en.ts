@@ -1018,7 +1018,7 @@ export const dict = {
   "settings.general.row.showStatus.description": "Show the server status button in the title bar",
   "settings.general.row.mobileTitlebarBottom.title": "Bottom navigation",
   "settings.general.row.mobileTitlebarBottom.description":
-    "Place the title bar and session tabs at the bottom of the screen on mobile",
+    "Place the title bar and book tabs at the bottom of the screen on mobile",
   "settings.general.row.showCustomAgents.title": "Show agent",
   "settings.general.row.showCustomAgents.description":
     "Switch between agents in the composer. When hidden, defaults to Build agent.",
@@ -1235,6 +1235,7 @@ export const dict = {
   "workspace.reset.note": "This will reset the workspace to match the default branch.",
 
   "novel.bookshelf.title": "Bookshelf",
+  "novel.tab.loading": "Loading…",
   "novel.bookshelf.subTitle": "My Novels",
   "novel.bookshelf.empty": "No novels yet",
   "novel.bookshelf.open": "Back to bookshelf",

@@ -9,7 +9,7 @@ import { useParams, useSearchParams } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
-import { type DraftTab, useTabs } from "./tabs"
+import { useTabs } from "./tabs"
 import { useSettings } from "./settings"
 import { requireServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
@@ -64,10 +64,7 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     const owner = getOwner()
     const states = new Map<ServerScope, { key: ServerConnection.Key; dispose: () => void; state: PermissionState }>()
 
-    const activeDraft = createMemo(() => {
-      if (!search.draftId) return
-      return tabs.store.find((tab): tab is DraftTab => tab.type === "draft" && tab.draftID === search.draftId)
-    })
+    const activeDraft = createMemo(() => tabs.draftPage(search.draftId))
 
     const activeServer = createMemo(() => {
       if (params.serverKey && settings.general.newLayoutDesigns()) return requireServerKey(params.serverKey)

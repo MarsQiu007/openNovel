@@ -151,7 +151,6 @@ export function NewHome() {
       const session = sessions.find((s) => s.id === sessionID)
       if (!session || session.time.archived) continue
       await archiveSessionCascade({
-        server: ServerConnection.key(conn),
         session,
         sessions,
         update: (value) => ctx.sdk.client.session.update(value),
@@ -232,7 +231,6 @@ export function NewHome() {
                 directory: entry.project?.worktree ?? entry.directory,
                 sessionID: entry.sessionID,
                 navigate,
-                tabs,
                 global,
               })
             }}

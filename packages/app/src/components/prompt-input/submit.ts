@@ -13,6 +13,7 @@ import { usePermission } from "@/context/permission"
 import { type ContextItem, type ImageAttachmentPart, type Prompt, type usePrompt } from "@/context/prompt"
 import { useSDK, type DirectorySDK } from "@/context/sdk"
 import { useSync, type DirectorySync } from "@/context/sync"
+import { sessionHref } from "@/utils/session-route"
 import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
@@ -386,9 +387,14 @@ export function createPromptSubmit(input: PromptSubmitInput) {
             variant: variant ?? null,
           })
           layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
-          const draftID = search.draftId
-          if (draftID) tabs.promoteDraft(draftID, { server: tabs.draft(draftID).server, sessionId: session.id })
-          else navigate(`/${base64Encode(sessionDirectory)}/session/${session.id}`)
+          // 草稿页面态：不再把草稿标签替换为会话标签，直接导航会话路由；
+          // 离开 /new-session 时草稿状态由 tabs 的路由 effect 就地清理。
+          const draftPage = search.draftId ? tabs.draftPage(search.draftId) : undefined
+          navigate(
+            draftPage
+              ? sessionHref(draftPage.server, session.id)
+              : `/${base64Encode(sessionDirectory)}/session/${session.id}`,
+          )
           submission.retarget(prompt.capture({ dir: base64Encode(sessionDirectory), id: session.id }))
         })
       }

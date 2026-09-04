@@ -30,7 +30,7 @@ import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { useDirectoryPicker } from "@/components/directory-picker"
 import { useSettingsCommand } from "@/components/settings-dialog"
 import { ServerConnection, serverName, useServer } from "@/context/server"
-import { sessionHasOpenTab, useTabs } from "@/context/tabs"
+import { useTabs } from "@/context/tabs"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useNotification } from "@/context/notification"
@@ -44,7 +44,6 @@ import { openSessionRouted, useNovelSessions } from "./novel-sessions"
 import { SessionsNovelSidebar } from "./sessions-novel-sidebar"
 import { useMarked } from "@opennovel-ai/ui/context/marked"
 import { preloadMarkdown } from "@opennovel-ai/session-ui/markdown-cache"
-import { shouldOpenSessionInBackground } from "./home-session-open"
 import {
   loadHomeSessionIndex,
   retainHomeSessions,
@@ -97,8 +96,6 @@ export type HomeSessionGroup = {
   title: string
   sessions: HomeSessionRecord[]
 }
-
-export type OpenSessionOptions = { background?: boolean }
 
 export function buildHomeSessionRecords(input: {
   sessions: () => Session[]
@@ -245,36 +242,14 @@ export function useHomeSessionHeaderOpacity(groups: () => HomeSessionGroup[]) {
   return { setViewport, setContentRef, setHeaderRef, update, titleOpacity }
 }
 
-// Middle-click or Cmd+click on macOS (Ctrl+click elsewhere) opens a session
-// tab in the background without navigating, matching browser conventions.
-export function isBackgroundOpen(event: MouseEvent) {
-  return shouldOpenSessionInBackground({
-    button: event.button,
-    mac: typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform),
-    meta: event.metaKey,
-    ctrl: event.ctrlKey,
-    shift: event.shiftKey,
-    alt: event.altKey,
-  })
-}
-
 export function HomeSessionLeading(props: {
   project: LocalProject
   session: Session
   server: ServerConnection.Key
   revealProjectOnHover: boolean
 }) {
-  const tabs = useTabs()
-  const hasOpenTab = createMemo(() => sessionHasOpenTab(tabs.store, props.server, props.session))
   return (
     <div class="relative shrink-0">
-      <Show when={hasOpenTab()}>
-        <span
-          aria-hidden="true"
-          class="pointer-events-none absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-[2px] bg-v2-background-bg-layer-04"
-          style={{ right: "calc(100% + 4px)" }}
-        />
-      </Show>
       <SessionTabAvatar
         project={props.project}
         directory={props.session.directory}
@@ -299,7 +274,7 @@ export function HomeSessionSearch(props: {
   onInput: (value: string) => void
   onFocus: () => void
   onClose: () => void
-  onSelect: (session: Session, options?: OpenSessionOptions) => void
+  onSelect: (session: Session) => void
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({ active: "" })
@@ -413,7 +388,7 @@ export function HomeSessionSearch(props: {
                                 server={props.server}
                                 selected={store.active === homeSessionSearchKey(record)}
                                 onHighlight={() => setStore("active", homeSessionSearchKey(record))}
-                                onSelect={(session, options) => props.onSelect(session, options)}
+                                onSelect={(session) => props.onSelect(session)}
                               />
                             )}
                           </For>
@@ -493,7 +468,7 @@ export function HomeSessionSearchResultRow(props: {
   server: ServerConnection.Key
   selected: boolean
   onHighlight: () => void
-  onSelect: (session: Session, options?: OpenSessionOptions) => void
+  onSelect: (session: Session) => void
 }) {
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName && props.record.projectName
@@ -517,12 +492,7 @@ export function HomeSessionSearchResultRow(props: {
       onMouseDown={(event) => {
         if (event.button === 1) event.preventDefault()
       }}
-      onClick={(event) => props.onSelect(props.record.session, { background: isBackgroundOpen(event) })}
-      onAuxClick={(event) => {
-        if (!isBackgroundOpen(event)) return
-        event.preventDefault()
-        props.onSelect(props.record.session, { background: true })
-      }}
+      onClick={() => props.onSelect(props.record.session)}
     >
       <HomeSessionLeading
         project={props.record.project}
@@ -566,7 +536,7 @@ export function HomeSessionRow(props: {
   record: HomeSessionRecord
   showProjectName: boolean
   server: ServerConnection.Key
-  openSession: (session: Session, options?: OpenSessionOptions) => void
+  openSession: (session: Session) => void
   archiveSession: (session: Session) => Promise<void>
 }) {
   const language = useLanguage()
@@ -585,12 +555,7 @@ export function HomeSessionRow(props: {
         onMouseDown={(event) => {
           if (event.button === 1) event.preventDefault()
         }}
-        onClick={(event) => props.openSession(props.record.session, { background: isBackgroundOpen(event) })}
-        onAuxClick={(event) => {
-          if (!isBackgroundOpen(event)) return
-          event.preventDefault()
-          props.openSession(props.record.session, { background: true })
-        }}
+        onClick={() => props.openSession(props.record.session)}
       >
         <HomeSessionLeading
           project={props.record.project}
@@ -868,11 +833,9 @@ export function SessionsPage() {
     setState("searchFocused", false)
   }
 
-  function selectSearchSession(session: Session, options?: OpenSessionOptions) {
-    openSession(session, options)
-    // Background opens keep the search visible so several results can be
-    // opened in a row.
-    if (!options?.background) closeSearch()
+  function selectSearchSession(session: Session) {
+    openSession(session)
+    closeSearch()
   }
 
   createEffect(() => {
@@ -896,7 +859,7 @@ export function SessionsPage() {
     tabs.newDraft({ server: ServerConnection.key(conn), directory })
   }
 
-  function openSession(session: Session, options?: OpenSessionOptions) {
+  function openSession(session: Session) {
     const directoryKey = pathKey(session.directory)
     const project =
       projects().find(
@@ -912,9 +875,7 @@ export function SessionsPage() {
       directory,
       sessionID: session.id,
       navigate,
-      tabs,
       global,
-      background: options?.background,
     })
   }
 
@@ -980,7 +941,7 @@ export function SessionsPage() {
                 onClose={closeSearch}
                 onSelect={selectSearchSession}
               />
-              <Show when={groups().length > 0 && newSessionProject()}>
+              <Show when={newSessionProject()}>
                 <div class="pointer-events-none absolute right-0 top-[84px] z-20 flex lg:top-[108px]">
                   <ButtonV2
                     data-action="home-new-session"

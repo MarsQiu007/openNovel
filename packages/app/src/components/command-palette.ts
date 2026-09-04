@@ -10,7 +10,6 @@ import { useLanguage } from "@/context/language"
 import { useLayout, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
-import { useTabs } from "@/context/tabs"
 import { openSessionRouted } from "@/pages/novel-sessions"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
@@ -87,7 +86,6 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
   const navigate = useNavigate()
   const serverSDK = useServerSDK()()
   const serverCtx = global.ensureServerCtx(serverSDK.server)
-  const appTabs = useTabs()
   const { tabs: sessionTabs } = useSessionLayout()
   const openFile = createCommandPaletteFileOpener(props.onOpenFile)
   const state = { cleanup: undefined as (() => void) | void, committed: false }
@@ -178,7 +176,6 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
         directory,
         sessionID: item.sessionID,
         navigate,
-        tabs: appTabs,
         global,
       })
       return

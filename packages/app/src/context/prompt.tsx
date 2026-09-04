@@ -2,12 +2,9 @@ import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
 import { useParams, useSearchParams } from "@solidjs/router"
 import { createMemo, createResource, createRoot, getOwner, onCleanup } from "solid-js"
-import { requireServerKey } from "@/utils/session-route"
-import { ServerConnection } from "./server"
 import { useServerSDK } from "./server-sdk"
-import { useSettings } from "./settings"
 import { useSDK } from "./sdk"
-import { useTabs, type Tab } from "./tabs"
+import { useTabs } from "./tabs"
 import {
   createPromptReady,
   createPromptSession,
@@ -45,15 +42,6 @@ export type {
 const WORKSPACE_KEY = "__workspace__"
 const MAX_PROMPT_SESSIONS = 20
 
-export function selectPromptTab(tabs: Tab[], scope: PromptScope, server: ServerConnection.Key) {
-  if ("draftID" in scope) return tabs.find((tab) => tab.type === "draft" && tab.draftID === scope.draftID)
-  if (!scope.id) return
-  return (
-    tabs.find((tab) => tab.type === "session" && tab.server === server && tab.sessionId === scope.id) ??
-    ({ type: "session", server, sessionId: scope.id } satisfies Tab)
-  )
-}
-
 function scopeKey(scope: PromptScope) {
   if ("draftID" in scope) return `draft:${scope.draftID}`
   return `${scope.dir}:${scope.id ?? WORKSPACE_KEY}`
@@ -64,12 +52,6 @@ type PromptCacheEntry = {
   dispose: VoidFunction
 }
 
-export const createTabPromptState = (
-  tabs: ReturnType<typeof useTabs>,
-  tab: Tab,
-  ...args: Parameters<typeof createPromptSession>
-) => tabs.state(tab, "prompt", () => createPromptSession(...args))
-
 export const { use: usePrompt, provider: PromptProvider } = createSimpleContext({
   name: "Prompt",
   gate: false,
@@ -79,7 +61,6 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
     const [search] = useSearchParams<{ draftId?: string }>()
     const serverSDK = useServerSDK()
     const tabs = useTabs()
-    const settings = useSettings()
     const cache = new Map<string, PromptCacheEntry>()
 
     const disposeAll = () => {
@@ -100,13 +81,13 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
     }
 
     const owner = getOwner()
-    const serverKey = () =>
-      params.serverKey ? requireServerKey(params.serverKey) : ServerConnection.key(serverSDK().server)
     const scope = (): PromptScope =>
       search.draftId ? { draftID: search.draftId } : { dir: base64Encode(sdk().directory), id: params.id }
     const load = (scope: PromptScope) => {
-      const current = settings.general.newLayoutDesigns() ? selectPromptTab(tabs.store, scope, serverKey()) : undefined
-      if (current) return createTabPromptState(tabs, current, serverSDK().scope, scope)
+      if ("draftID" in scope) {
+        const draft = tabs.draftPrompt(scope.draftID)
+        if (draft) return draft
+      }
 
       const key = scopeKey(scope)
       const existing = cache.get(key)

@@ -70,7 +70,6 @@ import { useTabs } from "@/context/tabs"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
-import { notifySessionTabsRemoved } from "@/components/titlebar-session-events"
 import { getModelFallback } from "@/context/model-variant"
 import { sessionTitle } from "@/utils/session-title"
 import { scheduleConnectedMeasure } from "./measure"
@@ -848,7 +847,6 @@ export function MessageTimeline(props: {
         )
         sync().session.evict(sessionID)
         navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
-        notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [sessionID] })
         // 会话内归档也要刷新书内会话切换器（侧栏入口走 novelSessions.refresh，这里不经过它）
         void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
       })
@@ -920,7 +918,6 @@ export function MessageTimeline(props: {
     for (const id of removed) {
       sync().session.evict(id)
     }
-    notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [...removed] })
     // 同归档：刷新书内会话切换器，移除已删除的绑定会话
     void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
     return true

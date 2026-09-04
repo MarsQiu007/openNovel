@@ -11,7 +11,6 @@ import { commandPaletteOptions, formatKeybindParts, useCommand } from "@/context
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
-import { useTabs } from "@/context/tabs"
 import { SessionTabAvatar } from "@/pages/layout/session-tab-avatar"
 import { getRelativeTime } from "@/utils/time"
 import {
@@ -132,7 +131,6 @@ function CommandPaletteView(props: {
   close: () => void
 }) {
   const language = useLanguage()
-  const tabs = useTabs()
   const [query, setQuery] = createSignal("")
   const [active, setActive] = createSignal(0)
 
@@ -141,9 +139,6 @@ function CommandPaletteView(props: {
   const visibleEntries = createMemo(() => uniqueCommandPaletteEntries(entries.latest ?? []))
   const groupedEntries = createMemo(() => groups(visibleEntries()))
   const activeEntry = createMemo(() => visibleEntries()[active()])
-  const openSessions = createMemo(
-    () => new Set(tabs.store.flatMap((tab) => (tab.type === "session" ? [`${tab.server}\0${tab.sessionId}`] : []))),
-  )
 
   createEffect(() => {
     query()
@@ -226,11 +221,6 @@ function CommandPaletteView(props: {
                           item={item}
                           active={activeEntry()?.id === item.id}
                           language={language}
-                          sessionOpen={
-                            item.server && item.sessionID
-                              ? openSessions().has(`${item.server}\0${item.sessionID}`)
-                              : false
-                          }
                           onActive={() => setActive(visibleEntries().findIndex((entry) => entry.id === item.id))}
                           onSelect={() => props.select(item)}
                         />
@@ -251,7 +241,6 @@ function PaletteRow(props: {
   item: CommandPaletteEntry
   active: boolean
   language: ReturnType<typeof useLanguage>
-  sessionOpen: boolean
   onActive: () => void
   onSelect: () => void
 }) {
@@ -302,13 +291,6 @@ function PaletteRow(props: {
         <Match when={props.item.type === "session"}>
           <div class="command-palette-v2-row-main">
             <div class="relative shrink-0">
-              <Show when={props.sessionOpen}>
-                <span
-                  aria-hidden="true"
-                  class="pointer-events-none absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-[2px] bg-v2-background-bg-layer-04"
-                  style={{ right: "calc(100% + 4px)" }}
-                />
-              </Show>
               <Show when={session()}>
                 {(session) => (
                   <SessionTabAvatar
