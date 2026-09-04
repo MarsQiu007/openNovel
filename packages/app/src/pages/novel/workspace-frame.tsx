@@ -22,7 +22,7 @@ import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
-import { useUpdateNovel, useExportNovel, useStyleGuide, useUpdateStyleGuide } from "@/context/novel-queries"
+import { useUpdateNovel, useExportNovel, useStyleGuide, useUpdateStyleGuide, useOutline, useWorldEntries, useCharacters } from "@/context/novel-queries"
 import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
 import ApprovalBar from "./approval-bar"
@@ -78,6 +78,16 @@ type WorkspaceLayout = {
   expanded: RailPanel | null
 }
 
+// 按书记忆的工作台内容选择存档（novel.workspace.state.v1）：全 optional 增量写入，缺省即默认态。
+// 与 novel.reading-progress 同模式（全局持久化键 + 按 novelID 分桶）；布局类状态不在此（走
+// novel.workspace.layout.v1 保持全局单份）。大纲项整体存 OutlineTarget（id 语义见 outline-sidebar）。
+type PerBookState = {
+  leftMode?: "chapters" | "outlines" | "world"
+  outline?: OutlineTarget
+  worldEntryId?: string
+  relationCharacterId?: string
+}
+
 export default function NovelWorkspaceFrame() {
   const params = useParams()
   const language = useLanguage()
@@ -108,6 +118,11 @@ export default function NovelWorkspaceFrame() {
     Persist.global("novel.reading-progress"),
     createStore<Record<string, string>>({}),
   )
+  // 写入通道即 setPerBookState：solid store 对象 set 天然浅合并，`setPerBookState(novelID, patch)` 就是增量写入
+  const [perBookState, setPerBookState, , perBookStateReady] = persisted(
+    Persist.global("novel.workspace.state.v1"),
+    createStore<Record<string, PerBookState>>({}),
+  )
   // 恢复上次阅读进度：等章节列表就绪后校验 ID 有效性，失效的进度回落到第一章（走查修复：僵尸进度 ID 导致单章 404）
   createEffect(() => {
     const id = novelID()
@@ -134,6 +149,58 @@ export default function NovelWorkspaceFrame() {
   const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines" | "world">("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
   const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
+  // 选择联动：写 signal 的同时更新该书存档——恢复 effect 随数据 refetch 重跑时读到的存档值
+  // 就是用户最新选择，恢复幂等（每个选择入口都必须走这里的联动，见下方恢复 effect）
+  const changeLeftMode = (value: "chapters" | "outlines" | "world") => {
+    setLeftMode(value)
+    setPerBookState(novelID(), { leftMode: value })
+  }
+  const selectOutline = (target: OutlineTarget) => {
+    setSelectedOutline(target)
+    setPerBookState(novelID(), { outline: target })
+  }
+  const selectWorldEntry = (entryID: string) => {
+    setSelectedWorldEntryId(entryID)
+    setPerBookState(novelID(), { worldEntryId: entryID })
+  }
+  const selectRelationCharacter = (characterID: string | null) => {
+    setSelectedRelationCharacterId(characterID)
+    // RelationsView 会传 null（取消选中）——null 也同步清存档，否则 refetch 重跑会按旧存档把选择恢复回来
+    setPerBookState(novelID(), { relationCharacterId: characterID ?? undefined })
+  }
+  // 恢复校验的数据源：与各子组件同 queryKey，tanstack query 缓存共享，无重复请求
+  const outlineQuery = useOutline(novelID)
+  const worldQuery = useWorldEntries(novelID)
+  const charactersQuery = useCharacters(novelID)
+  // 恢复该书的内容选择现场：等持久化与全部数据源就绪后按存档校验，失效项回落默认空态（不报错）。
+  // 大纲项绑定卷号/章节序号（见 outline-sidebar）：master 校验非空，volume/chapter 匹配序号；
+  // 世界观条目与关系角色按 ID 匹配列表。重跑幂等：上方每个选择联动都同步写存档，任一数据源
+  // refetch 触发重跑时读到的存档值就是用户最新选择，恢复等于无操作。
+  createEffect(() => {
+    if (!perBookStateReady() || data.loading) return
+    const outline = outlineQuery.data
+    const world = worldQuery.data
+    const characters = charactersQuery.data
+    if (!outline || !world || !characters) return
+    const saved = perBookState[novelID()]
+    if (!saved) return
+    const mode = saved.leftMode
+    if (mode === "chapters" || mode === "outlines" || mode === "world") setLeftMode(mode)
+    const target = saved.outline
+    if (target) {
+      const valid =
+        (target.section === "master" && outline.master.length > 0) ||
+        (target.section === "volume" && outline.volumes.some((v) => v.volumeId === target.id)) ||
+        (target.section === "chapter" && outline.chapters.some((c) => c.chapterId === target.id))
+      setSelectedOutline(valid ? target : null)
+    }
+    if (saved.worldEntryId !== undefined)
+      setSelectedWorldEntryId(world.some((e) => e.id === saved.worldEntryId) ? saved.worldEntryId : null)
+    if (saved.relationCharacterId !== undefined)
+      setSelectedRelationCharacterId(
+        characters.some((c) => c.id === saved.relationCharacterId) ? saved.relationCharacterId : null,
+      )
+  })
   // —— 布局状态（D6）：带版本号持久化键，承载右栏面板与左栏手动收起覆盖 ——
   const [layout, setLayout, , layoutReady] = persisted(
     Persist.global("novel.workspace.layout.v1"),
@@ -589,7 +656,7 @@ export default function NovelWorkspaceFrame() {
                 <SegmentedControlV2
                   class="segmented-control-v2--full-width"
                   value={leftMode()}
-                  onChange={(value) => value && setLeftMode(value as "chapters" | "outlines" | "world")}
+                  onChange={(value) => value && changeLeftMode(value as "chapters" | "outlines" | "world")}
                 >
                   <SegmentedControlItemV2 value="world">
                     {language.t("novel.workspace.modeSettings")}
@@ -618,14 +685,14 @@ export default function NovelWorkspaceFrame() {
                     volumes={data.volumes}
                     chapters={data.chapters}
                     selectedOutline={selectedOutline}
-                    onSelectOutline={setSelectedOutline}
+                    onSelectOutline={selectOutline}
                   />
                 </Show>
                 <Show when={leftMode() === "world"}>
                   <WorldSidebar
                     novelID={novelID}
                     selectedEntryId={selectedWorldEntryId}
-                    onSelect={setSelectedWorldEntryId}
+                    onSelect={selectWorldEntry}
                   />
                 </Show>
               </div>
@@ -696,7 +763,7 @@ export default function NovelWorkspaceFrame() {
                       <RelationsView
                         novelID={novelID}
                         selectedCharacterId={selectedRelationCharacterId}
-                        onSelectCharacter={setSelectedRelationCharacterId}
+                        onSelectCharacter={selectRelationCharacter}
                       />
                     </Show>
                     <Show when={activeTab() === "map"}>
