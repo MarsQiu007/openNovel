@@ -4,7 +4,7 @@
  * 负责：novel API client 构建、书籍列表 / 绑定关系 / 目录完整会话列表的查询、
  * 按会话 ID 打开会话（tab）、为书籍创建并绑定新会话、归档会话。
  */
-import { type Accessor, createEffect, createMemo, startTransition } from "solid-js"
+import { type Accessor, createEffect, createMemo, startTransition, untrack } from "solid-js"
 import { produce } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { useQuery, useQueryClient } from "@tanstack/solid-query"
@@ -21,12 +21,9 @@ import { errorMessage } from "@/pages/layout/helpers"
 import { showToast } from "@/utils/toast"
 import { useLanguage } from "@/context/language"
 import { collectDescendants } from "@/utils/session-descendants"
+import type { NovelSessionBinding } from "@/context/novel-queries"
 
-export type NovelSessionBinding = {
-  sessionID: string
-  novelID: string
-  novelTitle: string
-}
+export type { NovelSessionBinding, NovelSessionOption } from "@/context/novel-queries"
 
 export type NovelSessionNovel = {
   id: string
@@ -196,12 +193,14 @@ export function useNovelSessions(input: {
   const boundSessionIds = createMemo(() => new Set((bindingsQuery.data ?? []).map((binding) => binding.sessionID)))
 
   // 清洗遗留 tab：入口收敛前注册的绑定会话 tab 跨重启持久化残留，绑定关系就绪后从标签栏移除
-  // （spec「绑定会话不进入会话标签栏」的存量数据收尾；清洗逻辑与工作台共用，见 purgeBoundSessionTabs）
+  // （spec「绑定会话不进入会话标签栏」的存量数据收尾；清洗逻辑与工作台共用，见 purgeBoundSessionTabs）。
+  // 清洗只由绑定数据驱动：untrack 掉 purge 内部的 tabs.store 遍历——若追踪 store，会与 titlebar 的
+  // 会话标签兜底注册互相触发（add ↔ remove 循环），归档绑定会话时曾把整个 UI 卡死
   createEffect(() => {
     if (!tabs.ready()) return
     const bindings = bindingsQuery.data
     if (!bindings) return
-    purgeBoundSessionTabs({ tabs, bindings })
+    untrack(() => purgeBoundSessionTabs({ tabs, bindings }))
   })
 
   const loading = createMemo(() => novelsQuery.isLoading || bindingsQuery.isLoading)
@@ -210,6 +209,8 @@ export function useNovelSessions(input: {
     const directory = input.directory()
     void queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings", input.server(), directory] })
     void queryClient.invalidateQueries({ queryKey: ["sessions-novel-sessions", input.server(), directory] })
+    // 归档/解绑后刷新书内会话切换器列表（前缀匹配全部书籍）
+    void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
   }
 
   // 统一打开动作：绑定会话进书的工作台，未绑定会话走独立 tab（见 openSessionRouted）

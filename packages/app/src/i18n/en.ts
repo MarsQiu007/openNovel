@@ -1302,6 +1302,8 @@ export const dict = {
   "novel.workspace.toggleNav": "Toggle nav",
   "novel.workspace.toggleRail": "Toggle rail",
   "novel.workspace.chatEmpty": "Start with a writing instruction",
+  "novel.workspace.sessionSwitcher": "Novel sessions",
+  "novel.workspace.sessionNew": "New session",
   "novel.workspace.reading": "Reading",
   "novel.workspace.writingSession": "Writing",
   "novel.workspace.modeChapters": "Chapters",

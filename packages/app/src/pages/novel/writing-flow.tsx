@@ -23,7 +23,8 @@ export async function findBoundNovelSession(
   if (!sessionList || !bindings) return null
   const boundIds = new Set(bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID))
   if (boundIds.size === 0) return null
-  const session = sessionList.find((s) => boundIds.has(s.id) && !s.time.archived)
+  // 子代理会话（parentID 非空）会被上下文注入的懒绑定连带标记，不属于用户的对话线
+  const session = sessionList.find((s) => boundIds.has(s.id) && !s.time.archived && !s.parentID)
   return session?.id ?? null
 }
 

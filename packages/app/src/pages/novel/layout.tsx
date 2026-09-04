@@ -19,6 +19,14 @@ export default function NovelWorkspaceLayout() {
     return decodeDirectory(params.dir) ?? ""
   })
 
+  // 第三段只允许 "session"（/:dir/novel/:novelID/session/:id）；其余段位组合视为无效 URL，
+  // 静默回书架（合并可选段路由前的 404 语义）
+  createEffect(() => {
+    const seg = params.seg
+    if (seg === undefined || seg === "session") return
+    navigate("/", { replace: true })
+  })
+
   createEffect(() => {
     const dir = params.dir
     if (!dir) return

@@ -1268,6 +1268,8 @@ export const dict = {
   "novel.workspace.toggleNav": "切換導航欄",
   "novel.workspace.toggleRail": "切換面板欄",
   "novel.workspace.chatEmpty": "從一段指令開始你的寫作",
+  "novel.workspace.sessionSwitcher": "書內會話",
+  "novel.workspace.sessionNew": "新建會話",
   "novel.workspace.reading": "閱讀",
   "novel.workspace.writingInProgress": "寫作中...",
   "novel.workspace.writingSession": "寫作",

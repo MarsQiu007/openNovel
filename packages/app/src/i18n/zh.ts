@@ -1269,6 +1269,8 @@ export const dict = {
   "novel.workspace.toggleNav": "切换导航栏",
   "novel.workspace.toggleRail": "切换面板栏",
   "novel.workspace.chatEmpty": "从一段指令开始你的写作",
+  "novel.workspace.sessionSwitcher": "书内会话",
+  "novel.workspace.sessionNew": "新建会话",
   "novel.workspace.reading": "阅读",
   "novel.workspace.writingSession": "写作",
   "novel.workspace.modeChapters": "章节管理",

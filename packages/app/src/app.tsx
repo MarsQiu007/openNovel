@@ -627,8 +627,9 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/" component={NewHome} />
         <Route path="/sessions" component={SessionsPage} />
         <Route path="/:dir/novel/wizard" component={NovelWizardLayout} />
-        <Route path="/:dir/novel/:novelID" component={NovelWorkspaceLayout} />
-        <Route path="/:dir/novel/:novelID/session/:id" component={NovelWorkspaceLayout} />
+        {/* 单 Route 承载工作台主页与会话两种形态（:seg?/:id? 相邻可选段）：
+            切换器切换会话时仅 params 变化、路由分支不变，工作台不 remount */}
+        <Route path="/:dir/novel/:novelID/:seg?/:id?" component={NovelWorkspaceLayout} />
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>

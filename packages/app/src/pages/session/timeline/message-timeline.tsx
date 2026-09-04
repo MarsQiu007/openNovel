@@ -14,7 +14,7 @@ import {
 import { createStore, produce } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { useNavigate } from "@solidjs/router"
-import { useMutation } from "@tanstack/solid-query"
+import { useMutation, useQueryClient } from "@tanstack/solid-query"
 import { createVirtualizer, defaultRangeExtractor, elementScroll, type VirtualItem } from "@tanstack/solid-virtual"
 import { Accordion } from "@opennovel-ai/ui/accordion"
 import { Button } from "@opennovel-ai/ui/button"
@@ -270,6 +270,7 @@ export function MessageTimeline(props: {
   const tabs = useTabs()
   const dialog = useDialog()
   const language = useLanguage()
+  const queryClient = useQueryClient()
   const { params, sessionKey } = useSessionKey()
   const ownerSessionKey = sessionKey()
   const cached = timelineCache.get(ownerSessionKey)
@@ -800,6 +801,17 @@ export function MessageTimeline(props: {
 
   const navigateAfterSessionRemoval = (sessionID: string, parentID?: string, nextSessionID?: string) => {
     if (params.id !== sessionID) return
+    // 工作台宿主（/:dir/novel/:novelID/session/:id）内归档/删除当前会话：留在书籍工作台。
+    // 落到独立会话路由会让 titlebar 兜底注册会话标签、随即被绑定清洗移除——两端互相触发
+    // （add ↔ remove 循环）曾把整个 UI 卡死；相邻会话也不跳转（无法确认与当前书同源）
+    if (params.novelID) {
+      if (parentID) {
+        navigate(`/${params.dir}/novel/${params.novelID}/session/${parentID}`)
+        return
+      }
+      navigate(`/${params.dir}/novel/${params.novelID}`)
+      return
+    }
     const href = (id: string) =>
       params.serverKey ? sessionHref(requireServerKey(params.serverKey), id) : legacySessionHref(sdk().directory, id)
     if (parentID) {
@@ -837,6 +849,8 @@ export function MessageTimeline(props: {
         sync().session.evict(sessionID)
         navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
         notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [sessionID] })
+        // 会话内归档也要刷新书内会话切换器（侧栏入口走 novelSessions.refresh，这里不经过它）
+        void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
       })
       .catch((err) => {
         showToast({
@@ -907,6 +921,8 @@ export function MessageTimeline(props: {
       sync().session.evict(id)
     }
     notifySessionTabsRemoved({ directory: sdk().directory, sessionIDs: [...removed] })
+    // 同归档：刷新书内会话切换器，移除已删除的绑定会话
+    void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
     return true
   }
 

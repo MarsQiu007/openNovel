@@ -33,6 +33,7 @@ import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
 import WritingFlowButton, { findBoundNovelSession } from "./writing-flow"
 import { purgeBoundSessionTabs } from "../novel-sessions"
+import { NovelSessionSwitcher } from "./session-switcher"
 import PanelCharacters from "./panel-characters"
 import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
@@ -160,10 +161,15 @@ export default function NovelWorkspaceFrame() {
     })
   })
   const setRailPanel = (key: RailPanel) => setLayout("railPanel", key)
-  // 进入会话模式时自动切回对话（等待持久化就绪，避免被恢复值覆盖）
+  // 进入会话模式时自动切回对话（等待持久化就绪，避免被恢复值覆盖）。
+  // 仅在模式边界（非会话 → 会话）触发：effect 追踪的是 params.id 属性，会话内切换/新建
+  // 会话同样会重跑本 effect——不加边界判定会把用户刚选中的右栏面板强行打回对话。
+  let wasSessionMode = false
   createEffect(() => {
     if (!layoutReady()) return
-    if (isSessionMode()) setRailPanel("chat")
+    const sessionMode = isSessionMode()
+    if (sessionMode && !wasSessionMode) setRailPanel("chat")
+    wasSessionMode = sessionMode
   })
 
   // —— 面板双态（D2/D3）：expand 由 ?tab=panel:<id> 承载，peek 在右栏 ——
@@ -199,7 +205,11 @@ export default function NovelWorkspaceFrame() {
     setLayout("railManual", false)
   }
   const openRailPanel = (key: RailPanel) => {
-    if (expandedPanel()) return
+    if (expandedPanel()) {
+      // 展开态下点图标 = 退出展开并切换到目标面板（此前直接 return，图标列看起来全部失灵）
+      exitExpand(key)
+      return
+    }
     if (railPanel() === key) {
       // 已激活面板再点：进入 expand 态
       if (key !== "chat") setSearchParams({ tab: `panel:${key}` })
@@ -728,10 +738,22 @@ export default function NovelWorkspaceFrame() {
                 </Show>
               </div>
 
-              {/* expand 态：面板占主区（D3 面板单实现、容器自适应） */}
+              {/* expand 态：面板占主区（D3 面板单实现、容器自适应）；右上角常驻返回——
+                  误触展开（再点已激活图标）后右栏随左右栏一起收起，Esc 不可发现，返回是可见的自救入口 */}
               <Show when={expandedPanel()} keyed>
                 {(key) => (
-                  <div class="flex flex-col flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div class="relative flex flex-col flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div class="absolute right-3 top-3 z-10">
+                      <TooltipV2 placement="bottom" value={language.t("novel.workspace.back")}>
+                        <IconButtonV2
+                          variant="ghost-muted"
+                          size="small"
+                          icon={<Icon name="chevron-left" size="small" />}
+                          aria-label={language.t("novel.workspace.back")}
+                          onClick={() => exitExpand()}
+                        />
+                      </TooltipV2>
+                    </div>
                     <Show when={key === "characters"}>
                       <PanelCharacters
                         novelID={novelID}
@@ -808,27 +830,11 @@ export default function NovelWorkspaceFrame() {
                   setLayout("railWidth", null)
                 }}
               />
-              {/* 图标列 */}
-              <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-r border-v2-border-border-base shrink-0">
-                <For each={RAIL_PANELS}>
-                  {(item) => (
-                    <TooltipV2 placement="left" value={language.t(item.labelKey)}>
-                      <IconButtonV2
-                        variant="ghost-muted"
-                        size="normal"
-                        state={railPanel() === item.key ? "pressed" : "rest"}
-                        icon={<Icon name={item.icon} size="small" />}
-                        onClick={() => openRailPanel(item.key)}
-                      />
-                    </TooltipV2>
-                  )}
-                </For>
-              </div>
-
               {/* 面板区 */}
               <div class="flex-1 min-w-0 flex flex-col min-h-0">
                 {/* 对话面板：常驻挂载（display 切换保持会话状态不重置） */}
                 <div class="flex flex-col flex-1 min-h-0" style={{ display: railPanel() === "chat" ? "flex" : "none" }}>
+                  <NovelSessionSwitcher dir={params.dir!} novelID={novelID()} />
                   <Show
                     when={params.id}
                     fallback={
@@ -874,6 +880,23 @@ export default function NovelWorkspaceFrame() {
                     <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
                   </Show>
                 </div>
+              </div>
+
+              {/* 图标列（右栏最右缘）：面板区在前、切换列在后 */}
+              <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-l border-v2-border-border-base shrink-0">
+                <For each={RAIL_PANELS}>
+                  {(item) => (
+                    <TooltipV2 placement="left" value={language.t(item.labelKey)}>
+                      <IconButtonV2
+                        variant="ghost-muted"
+                        size="normal"
+                        state={railPanel() === item.key ? "pressed" : "rest"}
+                        icon={<Icon name={item.icon} size="small" />}
+                        onClick={() => openRailPanel(item.key)}
+                      />
+                    </TooltipV2>
+                  )}
+                </For>
               </div>
             </aside>
           </div>

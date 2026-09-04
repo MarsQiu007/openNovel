@@ -1,6 +1,7 @@
 import { createQuery, useMutation, useQueryClient } from "@tanstack/solid-query"
 import { type Accessor, createMemo } from "solid-js"
 import { OpenNovel } from "@opennovel-ai/client"
+import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK } from "./server-sdk"
 import { authTokenFromCredentials } from "@/utils/server"
@@ -24,6 +25,47 @@ export function useNovelClient() {
       headers: auth,
     })
   })
+}
+
+// ---- Session binding types & helpers ----
+
+/** 书籍与会话的绑定关系（server.novel/session-bindings 返回项） */
+export type NovelSessionBinding = {
+  sessionID: string
+  novelID: string
+  novelTitle: string
+}
+
+/** 书内会话切换器的列表项（标题取自会话本身，用户可在会话内改名） */
+export type NovelSessionOption = {
+  sessionID: string
+  title: string
+}
+
+/**
+ * 书内会话列表组合：某本书的绑定关系 × 会话列表取交集，剔除已归档、未知会话与
+ * 子代理会话（subagent 会被上下文注入的懒绑定连带标记，但它们不是用户的对话线），
+ * 按绑定顺序排列（首个即主线写作流 findBoundNovelSession 指向的会话）。
+ * 与 findBoundNovelSession 相同的查询模式，差异仅在返回列表而非第一个。
+ */
+export function boundNovelSessions(input: {
+  novelID: string
+  bindings: readonly NovelSessionBinding[]
+  sessions: readonly Session[]
+}): NovelSessionOption[] {
+  const byId = new Map(input.sessions.map((session) => [session.id, session]))
+  const seen = new Set<string>()
+  const options: NovelSessionOption[] = []
+  for (const binding of input.bindings) {
+    if (binding.novelID !== input.novelID) continue
+    if (seen.has(binding.sessionID)) continue
+    const session = byId.get(binding.sessionID)
+    if (!session || session.time.archived) continue
+    if (session.parentID) continue
+    seen.add(binding.sessionID)
+    options.push({ sessionID: session.id, title: session.title })
+  }
+  return options
 }
 
 // ---- Query keys ----
@@ -68,6 +110,8 @@ export const novelKeys = {
     ["novel", "annotations", directory, novelID, chapterID] as const,
   "canvas-layout": (directory: string, novelID: string) =>
     ["novel", "canvas-layout", directory, novelID] as const,
+  "bound-sessions": (directory: string, novelID: string) =>
+    ["novel", "bound-sessions", directory, novelID] as const,
 }
 
 // ---- createQuery hooks (13) ----
@@ -264,6 +308,30 @@ export function useNovelForSession(sessionID: Accessor<string>) {
         location: { directory: sdk().directory },
       }),
     enabled: !!sessionID(),
+  }))
+}
+
+/** 书内会话列表：绑定关系 × 会话列表取交集并过滤已归档（组合逻辑见 boundNovelSessions，供切换器使用） */
+export function useBoundNovelSessions(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["bound-sessions"](sdk().directory, novelID()),
+    enabled: !!novelID(),
+    queryFn: async () => {
+      const dir = sdk().directory
+      const [bindings, { data: sessionList }] = await Promise.all([
+        client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
+        sdk().client.session.list({ directory: dir }),
+      ])
+      return boundNovelSessions({
+        novelID: novelID(),
+        bindings: (bindings ?? []) as readonly NovelSessionBinding[],
+        sessions: sessionList ?? [],
+      })
+    },
+    staleTime: 10_000,
+    refetchOnMount: true,
   }))
 }
 
@@ -512,8 +580,9 @@ export function useBindSession() {
       queryClient.invalidateQueries({
         queryKey: novelKeys["for-session"](dir, variables.sessionID),
       })
-      // 同步刷新会话页侧边栏的书籍分组数据
+      // 同步刷新会话页侧边栏的书籍分组数据与书内会话切换器列表
       queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings"] })
+      queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
     },
   }))
 }
