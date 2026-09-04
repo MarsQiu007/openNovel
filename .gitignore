@@ -41,5 +41,8 @@ tsconfig.tsbuildinfo
 .output
 .wrangler
 
+# openspec archive 并发锁（openspec archive 运行时残留）
+openspec/changes/archive/.openspec-archive.lock
+
 # Local AI-tool session data (Qoder better-harness runs)
 .qoder/better-harness/
