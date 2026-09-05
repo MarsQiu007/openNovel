@@ -291,6 +291,12 @@ test.describe("novel journey", () => {
         })
       }
 
+      // GET /api/novel/session-bindings — 必须返回数组（fallback 的 {} 会让
+      // novel-live 的 refreshBindings 对非可迭代对象 for...of 抛错）
+      if (path === "/api/novel/session-bindings") {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+      }
+
       // for-session: /api/novel/for-session/:sessionID
       if (path.includes("/for-session/")) {
         return route.fulfill({
@@ -303,6 +309,11 @@ test.describe("novel journey", () => {
       // Default fallback — return empty JSON for unmatched novel API paths
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
     })
+
+    // POST /api/sync/run — cloud-sync autopilot 期望 results 数组（{} 会触发 auto sync failed）
+    await page.route(/\/api\/sync\/run/, async (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) }),
+    )
 
     // ════════════════════════════════════════════════
     // Step 1: Bookshelf — navigate to home page
@@ -357,8 +368,8 @@ test.describe("novel journey", () => {
     await expect(page.getByText("星辰之旅")).toBeVisible({ timeout: APP_READY_TIMEOUT })
     // Verify genre badge
     await expect(page.getByText("Xuanhuan")).toBeVisible()
-    // Verify status badge
-    await expect(page.getByText("draft")).toBeVisible()
+    // Verify status badge（exact：避免子串匹配到章节状态 "Drafting"）
+    await expect(page.getByText("Draft", { exact: true })).toBeVisible()
 
     // Screenshot: workspace
     await page.screenshot({ path: "../.omo/evidence/task-35-workspace.png", fullPage: true })
@@ -435,10 +446,120 @@ test.describe("novel journey", () => {
     const tensionTab = page.getByRole("button", { name: "Tension" })
     await tensionTab.click()
     await page.waitForTimeout(300)
-    // Verify tension chart renders (it has an SVG with viewBox)
-    await expect(page.locator('svg[viewBox="0 0 320 180"]')).toBeVisible()
+    // Verify tension panel renders: heading + add-point form（viewBox 宽度随容器自适应，
+    // 图表 svg 的 title/tooltip 均为隐藏元素，不适合可见性断言）
+    await expect(page.getByRole("heading", { name: "Tension" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Add Point" })).toBeVisible()
 
     // Verify no page errors
+    expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
+  })
+
+  test("chat panel: lazy create from empty state and auto-adopt on reopen", async ({ page }) => {
+    const errors = trackPageErrors(page)
+    const workspaceURL = `/${base64Encode(directory)}/novel/${novelID}`
+
+    // 会话与绑定关系的可变 mock 状态（数组引用传入 mock server，创建后 push 即生效）
+    const sessions: Array<{ id: string } & Record<string, unknown>> = []
+    const bindings: Array<{ sessionID: string; novelID: string }> = []
+    const prompts: Array<{ sessionID: string; text: string }> = []
+
+    await mockOpenNovelServer(page, {
+      sessions,
+      provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
+      directory,
+      project: { id: "proj-novel-e2e", directory },
+      pageMessages: () => ({ items: [] }),
+    })
+
+    await page.route(/\/api\/novel/, async (route) => {
+      const url = new URL(route.request().url())
+      const path = url.pathname
+      const method = route.request().method()
+
+      // GET /api/novel/session-bindings — 绑定关系列表（可变闭包）
+      if (path === "/api/novel/session-bindings") {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bindings) })
+      }
+
+      // POST /api/novel/:novelID/bind — 绑定会话
+      if (method === "POST" && path === `/api/novel/${novelID}/bind`) {
+        const body = route.request().postDataJSON() as { sessionID?: string }
+        if (body.sessionID) bindings.push({ sessionID: body.sessionID, novelID })
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
+      }
+
+      // GET /api/novel — list / detail
+      if (method === "GET" && (path === "/api/novel" || path === `/api/novel/${novelID}`)) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockNovels) })
+      }
+
+      // GET /api/novel/:novelID/{volumes,chapters,characters}
+      if (method === "GET" && path === `/api/novel/${novelID}/volumes`)
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockVolumes) })
+      if (method === "GET" && path === `/api/novel/${novelID}/chapters`)
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockChapters) })
+      if (method === "GET" && path === `/api/novel/${novelID}/characters`)
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockCharacters) })
+      if (method === "GET" && path === `/api/novel/${novelID}/outline`)
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockOutline) })
+      if (method === "GET" && path === `/api/novel/${novelID}/tension`)
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockTension) })
+      if (
+        method === "GET" &&
+        (path === `/api/novel/${novelID}/plot-threads` || path === `/api/novel/${novelID}/foreshadowing` ||
+          path === `/api/novel/${novelID}/world-entries` || path === `/api/novel/${novelID}/character-states`)
+      )
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+
+      // 其余 novel API 返回空 JSON
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
+    })
+
+    // POST /api/sync/run — cloud-sync autopilot 期望 results 数组
+    await page.route(/\/api\/sync\/run/, async (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) }),
+    )
+
+    // POST /session — 懒创建会话（SDK v2 路径，directory 为查询参数；GET 列表让位给
+    // mock server 处理）。注意正则匹配完整 URL（含查询串），不能 $ 锚定 pathname；
+    // 客户端会把响应体包装成 { data }，这里必须返回裸 session 对象
+    await page.route(/\/session(\?|$)/, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const session = { id: "sess-001", title: "New session", time: { created: now, updated: now } }
+      sessions.push(session)
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(session) })
+    })
+
+    // POST /session/:id/message — session.prompt 的实际端点；记录首条消息文本
+    await page.route(/\/session\/[^/]+\/message(\?|$)/, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const body = route.request().postDataJSON() as { parts?: Array<{ type: string; text?: string }> }
+      const sessionID = new URL(route.request().url()).pathname.match(/\/session\/([^/]+)\/message/)?.[1]
+      prompts.push({ sessionID: sessionID ?? "", text: body.parts?.[0]?.text ?? "" })
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
+    })
+
+    // ── 新书空态：切换器常驻（占位禁用）+ 懒创建 composer + 建议 chip ──
+    await page.goto(workspaceURL, { waitUntil: "load" })
+    await expect(page.getByText("No sessions")).toBeVisible()
+    await expect(page.getByRole("button", { name: "New session" })).toBeVisible()
+    await expect(page.getByText("Start Writing")).toHaveCount(0)
+
+    const chip = page.getByRole("button", { name: /Try: Write Next Chapter/ })
+    await expect(chip).toBeVisible()
+
+    // ── 点击 chip：懒创建三步（create → bind → prompt 首条文本为"写下一章"）后进入会话 ──
+    await chip.click()
+    await page.waitForURL(/\/session\/sess-001$/)
+    expect(prompts).toEqual([{ sessionID: "sess-001", text: "Write Next Chapter" }])
+    expect(bindings).toEqual([{ sessionID: "sess-001", novelID }])
+
+    // ── 老书自动回跳：重开工作台（无会话段路由）直达记忆的绑定会话，不再出现懒创建空态 ──
+    await page.goto(workspaceURL, { waitUntil: "load" })
+    await page.waitForURL(/\/session\/sess-001$/)
+    await expect(page.getByText("No sessions")).toHaveCount(0)
+
     expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
   })
 })
