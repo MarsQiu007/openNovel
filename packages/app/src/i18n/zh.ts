@@ -1251,7 +1251,6 @@ export const dict = {
 
   "novel.workspace.title": "创作空间",
   "novel.workspace.back": "返回",
-  "novel.workspace.startWriting": "开始写作",
   "novel.workspace.continueWriting": "继续写作",
   "novel.workspace.writingInProgress": "写作中...",
   "novel.workspace.auditingInProgress": "审计中...",
@@ -1269,9 +1268,12 @@ export const dict = {
   "novel.workspace.chat": "对话",
   "novel.workspace.toggleNav": "切换导航栏",
   "novel.workspace.toggleRail": "切换面板栏",
-  "novel.workspace.chatEmpty": "从一段指令开始你的写作",
+  "novel.workspace.chatEmpty": "与 AI 讨论你的写作——写下一章、查设定、调整情节都可以",
+  "novel.workspace.chatInputPlaceholder": "输入消息，发送后自动创建会话",
+  "novel.workspace.chatSuggestionPrefix": "试试：",
   "novel.workspace.sessionSwitcher": "书内会话",
   "novel.workspace.sessionNew": "新建会话",
+  "novel.workspace.sessionEmpty": "暂无会话",
   "novel.workspace.reading": "阅读",
   "novel.workspace.writingSession": "写作",
   "novel.workspace.modeChapters": "章节管理",
@@ -1288,9 +1290,6 @@ export const dict = {
   "novel.workspace.loading": "加载中...",
   "novel.workspace.notFound": "作品不存在",
 
-  "novel.writing.writeNextChapterPrompt": "请根据当前大纲写下一章",
-  "novel.writing.customPromptPlaceholder": "写作指令（可选），如：本章让主角突破境界",
-  "novel.writing.instructionPrefix": "作者指令：",
   "novel.writing.writeNextChapter": "写下一章",
 
   "novel.chapter.title": "章节管理",

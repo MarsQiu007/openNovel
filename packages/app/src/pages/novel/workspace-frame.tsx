@@ -16,13 +16,13 @@ import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
-import { useWorkspaceData } from "./workspace-data"
+import { useWorkspaceData, findBoundNovelSession } from "./workspace-data"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
 import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
-import { useUpdateNovel, useExportNovel, useStyleGuide, useUpdateStyleGuide, useOutline, useWorldEntries, useCharacters } from "@/context/novel-queries"
+import { useUpdateNovel, useExportNovel, useStyleGuide, useUpdateStyleGuide, useOutline, useWorldEntries, useCharacters, useBoundNovelSessions, resolveAutoAdoptTarget } from "@/context/novel-queries"
 import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
 import ApprovalBar from "./approval-bar"
@@ -30,8 +30,8 @@ import ChapterEditor from "./chapter-editor"
 import ModeBadge from "./mode-badge"
 import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
-import WritingFlowButton, { findBoundNovelSession } from "./writing-flow"
 import { NovelSessionSwitcher } from "./session-switcher"
+import { NovelChatEmptyState, ChatSuggestionChip } from "./chat-empty-state"
 import PanelCharacters from "./panel-characters"
 import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
@@ -86,6 +86,8 @@ type PerBookState = {
   outline?: OutlineTarget
   worldEntryId?: string
   relationCharacterId?: string
+  /** 该书最近所在的会话（会话段路由变化时写入，打开书籍时供自动回跳恢复） */
+  sessionId?: string
 }
 
 export default function NovelWorkspaceFrame() {
@@ -200,6 +202,28 @@ export default function NovelWorkspaceFrame() {
       setSelectedRelationCharacterId(
         characters.some((c) => c.id === saved.relationCharacterId) ? saved.relationCharacterId : null,
       )
+  })
+
+  // —— 会话自动回跳（design D5）：路由会话段可选，打开任何书都处于"未选中"初始态 ——
+  const boundSessions = useBoundNovelSessions(novelID)
+  // 会话记忆写入：会话段变化即视为用户显式切换/新建，写入该书存档（与左栏选择同机制）
+  createEffect(() => {
+    if (!perBookStateReady()) return
+    const sessionID = params.id
+    if (!sessionID || !novelID()) return
+    setPerBookState(novelID(), { sessionId: sessionID })
+  })
+  // 未选中会话时自动回到该书记忆的（无记忆则最近活跃的）绑定会话；零绑定保持懒创建空态
+  createEffect(() => {
+    if (!perBookStateReady()) return
+    if (params.id || !novelID()) return
+    const list = boundSessions.data
+    if (!list) return
+    const target = resolveAutoAdoptTarget({
+      sessions: list,
+      rememberedSessionID: perBookState[novelID()]?.sessionId,
+    })
+    if (target) navigate(`/${params.dir}/novel/${novelID()}/session/${target}`)
   })
   // —— 布局状态（D6）：带版本号持久化键，承载右栏面板与左栏手动收起覆盖 ——
   const [layout, setLayout, , layoutReady] = persisted(
@@ -446,6 +470,27 @@ export default function NovelWorkspaceFrame() {
     if (status.type === "retry") return language.t("novel.workspace.auditingInProgress")
     return language.t("novel.workspace.writingInProgress")
   })
+
+  // 已绑定空会话判定：消息已加载且无任何用户消息、历史不在加载中（与 timeline ready 同判定）
+  const emptySessionChipVisible = () => {
+    const id = params.id
+    if (!id) return false
+    const messages = sync().data.message[id]
+    return (
+      messages !== undefined && !messages.some((m) => m.role === "user") && !sync().session.history.loading(id)
+    )
+  }
+
+  // 建议 chip 在已存在会话中的动作：以建议文本原文发入当前会话（无包装、不新建）
+  async function sendToCurrentSession(text: string) {
+    const sessionID = params.id
+    if (!sessionID) return
+    await sdk().client.session.prompt({
+      sessionID,
+      directory: sdk().directory,
+      parts: [{ type: "text", text }],
+    })
+  }
 
   return (
     <Show
@@ -890,22 +935,27 @@ export default function NovelWorkspaceFrame() {
               {/* 面板区 */}
               <div class="flex-1 min-w-0 flex flex-col min-h-0">
                 {/* 对话面板：常驻挂载（display 切换保持会话状态不重置） */}
-                <div class="flex flex-col flex-1 min-h-0" style={{ display: railPanel() === "chat" ? "flex" : "none" }}>
+                <div class="relative flex flex-col flex-1 min-h-0" style={{ display: railPanel() === "chat" ? "flex" : "none" }}>
                   <NovelSessionSwitcher dir={params.dir!} novelID={novelID()} />
                   <Show
                     when={params.id}
-                    fallback={
-                      <div class="flex flex-col flex-1 items-center justify-center gap-4 px-6 text-center">
-                        <p class="text-sm text-v2-text-text-muted">{language.t("novel.workspace.chatEmpty")}</p>
-                        <WritingFlowButton novelID={novelID()} novelTitle={data.novel!.title} layout="stack" />
-                      </div>
-                    }
+                    fallback={<NovelChatEmptyState dir={params.dir!} novelID={novelID()} />}
                   >
                     <div class="flex-1 min-h-0 overflow-y-auto">
                       <SessionRouteErrorBoundary sessionID={params.id}>
                         <SessionPage />
                       </SessionRouteErrorBoundary>
                     </div>
+                    {/* 已绑定空会话（如新建轻会话后未发消息）：时间线就绪且无用户消息时
+                        提供与空态一致的建议 chip，点击直接发入当前会话 */}
+                    <Show when={emptySessionChipVisible()}>
+                      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+                        <ChatSuggestionChip
+                          suggestion={language.t("novel.writing.writeNextChapter")}
+                          onPick={(text) => void sendToCurrentSession(text)}
+                        />
+                      </div>
+                    </Show>
                   </Show>
                 </div>
 
@@ -949,6 +999,7 @@ export default function NovelWorkspaceFrame() {
                         size="normal"
                         state={railPanel() === item.key ? "pressed" : "rest"}
                         icon={<Icon name={item.icon} size="small" />}
+                        aria-label={language.t(item.labelKey)}
                         onClick={() => openRailPanel(item.key)}
                       />
                     </TooltipV2>

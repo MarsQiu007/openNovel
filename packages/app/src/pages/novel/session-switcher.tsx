@@ -2,7 +2,8 @@
  * 书内会话切换器（对话面板顶部常驻一条）：
  * 当前会话标题 + 下拉列出该书全部未归档绑定会话 + 新建轻会话入口。
  * 切换即更新工作台路由 session/:id 段——params.id 是当前会话的唯一事实来源，
- * 切换器自身不持有任何会话状态；仅存在绑定会话时渲染（空态引导见 workspace-frame）。
+ * 切换器自身不持有任何会话状态；无论是否存在绑定会话都渲染（0 会话时下拉
+ * 触发器显示占位并禁用，"+"号新建入口始终可用，空态引导见 workspace-frame）。
  */
 import { For, Show, createSignal } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
@@ -13,6 +14,7 @@ import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useBindSession, useBoundNovelSessions } from "@/context/novel-queries"
+import { sessionSwitcherTrigger } from "./workspace-data"
 import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
 
@@ -25,11 +27,13 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const sessions = useBoundNovelSessions(() => props.novelID)
   const [creating, setCreating] = createSignal(false)
 
-  // 当前会话标题：路由 params.id 在列表中的对应项；数据未就绪时回退为面板名。
-  // sessionTitle 清洗服务端默认标题（New session - {时间戳} → New session），AI 命名后展示生成名
-  const currentTitle = () =>
-    sessionTitle(sessions.data?.find((item) => item.sessionID === params.id)?.title) ??
-    language.t("novel.workspace.chat")
+  const trigger = () =>
+    sessionSwitcherTrigger({
+      sessions: sessions.data ?? [],
+      paramsID: params.id,
+      fallbackLabel: language.t("novel.workspace.chat"),
+      emptyLabel: language.t("novel.workspace.sessionEmpty"),
+    })
 
   function switchTo(sessionID: string) {
     navigate(`/${props.dir}/novel/${props.novelID}/session/${sessionID}`)
@@ -58,16 +62,17 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   }
 
   return (
-    <Show when={(sessions.data?.length ?? 0) > 0}>
-      <div class="flex items-center gap-0.5 px-2 py-1 border-b border-v2-border-border-base shrink-0">
-        <MenuV2 gutter={4} placement="bottom-start" modal={false}>
-          <MenuV2.Trigger
-            class="flex min-w-0 max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-v2-text-text-secondary hover:bg-v2-background-bg-layer-02 hover:text-v2-text-text-primary"
-            aria-label={language.t("novel.workspace.sessionSwitcher")}
-          >
-            <span class="truncate">{currentTitle()}</span>
-            <Icon name="chevron-down" size="small" class="shrink-0 text-icon-weak" />
-          </MenuV2.Trigger>
+    <div class="flex items-center gap-0.5 px-2 py-1 border-b border-v2-border-border-base shrink-0">
+      <MenuV2 gutter={4} placement="bottom-start" modal={false}>
+        <MenuV2.Trigger
+          class="flex min-w-0 max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-v2-text-text-secondary hover:bg-v2-background-bg-layer-02 hover:text-v2-text-text-primary disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent"
+          aria-label={language.t("novel.workspace.sessionSwitcher")}
+          disabled={trigger().disabled}
+        >
+          <span class="truncate">{trigger().label}</span>
+          <Icon name="chevron-down" size="small" class="shrink-0 text-icon-weak" />
+        </MenuV2.Trigger>
+        <Show when={(sessions.data?.length ?? 0) > 0}>
           <MenuV2.Portal>
             <MenuV2.Content class="min-w-48 max-w-72">
               <MenuV2.Group>
@@ -84,18 +89,18 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
               </MenuV2.Group>
             </MenuV2.Content>
           </MenuV2.Portal>
-        </MenuV2>
-        <TooltipV2 placement="bottom" value={language.t("novel.workspace.sessionNew")}>
-          <IconButtonV2
-            variant="ghost-muted"
-            size="small"
-            icon={<Icon name="plus" />}
-            disabled={creating()}
-            aria-label={language.t("novel.workspace.sessionNew")}
-            onClick={() => void createLightSession()}
-          />
-        </TooltipV2>
-      </div>
-    </Show>
+        </Show>
+      </MenuV2>
+      <TooltipV2 placement="bottom" value={language.t("novel.workspace.sessionNew")}>
+        <IconButtonV2
+          variant="ghost-muted"
+          size="small"
+          icon={<Icon name="plus" />}
+          disabled={creating()}
+          aria-label={language.t("novel.workspace.sessionNew")}
+          onClick={() => void createLightSession()}
+        />
+      </TooltipV2>
+    </div>
   )
 }

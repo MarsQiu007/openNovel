@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
-import { boundNovelSessions, type NovelSessionBinding } from "./novel-queries"
+import { boundNovelSessions, resolveAutoAdoptTarget, type NovelSessionBinding } from "./novel-queries"
 
 function session(id: string, title?: string, archived?: boolean, parentID?: string): Session {
   return {
@@ -102,5 +102,29 @@ describe("boundNovelSessions", () => {
       sessions: [session("s1"), session("sub1", "审查第二章连续性（@auditor subagent）", false, "s1"), session("s2")],
     })
     expect(result.map((item) => item.sessionID)).toEqual(["s1", "s2"])
+  })
+})
+
+describe("resolveAutoAdoptTarget", () => {
+  const sessions = [
+    { sessionID: "s1", updatedAt: 100 },
+    { sessionID: "s2", updatedAt: 300 },
+    { sessionID: "s3", updatedAt: 200 },
+  ]
+
+  test("记忆会话仍有效：优先恢复记忆而非最近活跃", () => {
+    expect(resolveAutoAdoptTarget({ sessions, rememberedSessionID: "s1" })).toBe("s1")
+  })
+
+  test("无记忆：回落到最近活跃的绑定会话", () => {
+    expect(resolveAutoAdoptTarget({ sessions, rememberedSessionID: undefined })).toBe("s2")
+  })
+
+  test("记忆会话已被归档/删除（不在绑定列表）：回落最近活跃", () => {
+    expect(resolveAutoAdoptTarget({ sessions, rememberedSessionID: "s-gone" })).toBe("s2")
+  })
+
+  test("零绑定会话：返回 null（保持懒创建空态）", () => {
+    expect(resolveAutoAdoptTarget({ sessions: [], rememberedSessionID: "s1" })).toBeNull()
   })
 })

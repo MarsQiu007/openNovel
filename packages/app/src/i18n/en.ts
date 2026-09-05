@@ -1284,7 +1284,6 @@ export const dict = {
 
   "novel.workspace.title": "Workspace",
   "novel.workspace.back": "Back",
-  "novel.workspace.startWriting": "Start Writing",
   "novel.workspace.continueWriting": "Continue Writing",
   "novel.workspace.writingInProgress": "Writing...",
   "novel.workspace.auditingInProgress": "Auditing...",
@@ -1302,9 +1301,12 @@ export const dict = {
   "novel.workspace.chat": "Chat",
   "novel.workspace.toggleNav": "Toggle nav",
   "novel.workspace.toggleRail": "Toggle rail",
-  "novel.workspace.chatEmpty": "Start with a writing instruction",
+  "novel.workspace.chatEmpty": "Discuss your writing with AI — write the next chapter, check settings, adjust the plot",
+  "novel.workspace.chatInputPlaceholder": "Type a message — sending creates a session",
+  "novel.workspace.chatSuggestionPrefix": "Try: ",
   "novel.workspace.sessionSwitcher": "Novel sessions",
   "novel.workspace.sessionNew": "New session",
+  "novel.workspace.sessionEmpty": "No sessions",
   "novel.workspace.reading": "Reading",
   "novel.workspace.writingSession": "Writing",
   "novel.workspace.modeChapters": "Chapters",
@@ -1321,9 +1323,6 @@ export const dict = {
   "novel.workspace.loading": "Loading...",
   "novel.workspace.notFound": "Novel not found",
 
-  "novel.writing.writeNextChapterPrompt": "Please write the next chapter based on the current outline",
-  "novel.writing.customPromptPlaceholder": "Writing instruction (optional)",
-  "novel.writing.instructionPrefix": "Author instruction: ",
   "novel.writing.writeNextChapter": "Write Next Chapter",
 
   "novel.chapter.title": "Chapters",

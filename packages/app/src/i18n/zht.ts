@@ -1247,7 +1247,6 @@ export const dict = {
 
   "novel.workspace.title": "創作空間",
   "novel.workspace.back": "返回",
-  "novel.workspace.startWriting": "開始寫作",
   "novel.workspace.continueWriting": "繼續寫作",
   "novel.workspace.tabs.outline": "大綱",
   "novel.workspace.tabs.chapters": "章節",
@@ -1268,9 +1267,12 @@ export const dict = {
   "novel.workspace.chat": "對話",
   "novel.workspace.toggleNav": "切換導航欄",
   "novel.workspace.toggleRail": "切換面板欄",
-  "novel.workspace.chatEmpty": "從一段指令開始你的寫作",
+  "novel.workspace.chatEmpty": "與 AI 討論你的寫作——寫下一章、查設定、調整情節都可以",
+  "novel.workspace.chatInputPlaceholder": "輸入訊息，傳送後自動建立會話",
+  "novel.workspace.chatSuggestionPrefix": "試試：",
   "novel.workspace.sessionSwitcher": "書內會話",
   "novel.workspace.sessionNew": "新建會話",
+  "novel.workspace.sessionEmpty": "暫無會話",
   "novel.workspace.reading": "閱讀",
   "novel.workspace.writingInProgress": "寫作中...",
   "novel.workspace.writingSession": "寫作",
@@ -1284,9 +1286,6 @@ export const dict = {
   "novel.workspace.edit": "編輯",
   "novel.workspace.editNovel": "編輯小說",
 
-  "novel.writing.writeNextChapterPrompt": "請根據當前大綱寫下一章",
-  "novel.writing.customPromptPlaceholder": "寫作指令（可選），如：本章讓主角突破境界",
-  "novel.writing.instructionPrefix": "作者指令：",
   "novel.writing.writeNextChapter": "寫下一章",
 
   "novel.chapter.title": "章節管理",

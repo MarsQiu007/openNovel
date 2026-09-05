@@ -43,6 +43,22 @@ export type NovelSessionBinding = {
 export type NovelSessionOption = {
   sessionID: string
   title: string
+  /** 会话最近活跃时间（session.time.updated），供自动回跳选"最近会话"用 */
+  updatedAt: number
+}
+
+/**
+ * 未选中会话时的自动回跳目标（design D5）：记忆会话仍在该书绑定列表中则恢复记忆，
+ * 否则回落到最近活跃（time.updated 最大）的绑定会话；零绑定会话返回 null（保持懒创建空态）。
+ */
+export function resolveAutoAdoptTarget(input: {
+  sessions: readonly { sessionID: string; updatedAt: number }[]
+  rememberedSessionID: string | undefined
+}): string | null {
+  if (input.sessions.length === 0) return null
+  const remembered = input.rememberedSessionID
+  if (remembered && input.sessions.some((item) => item.sessionID === remembered)) return remembered
+  return input.sessions.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)).sessionID
 }
 
 /**
@@ -66,7 +82,7 @@ export function boundNovelSessions(input: {
     if (!session || session.time.archived) continue
     if (session.parentID) continue
     seen.add(binding.sessionID)
-    options.push({ sessionID: session.id, title: session.title })
+    options.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated })
   }
   return options
 }

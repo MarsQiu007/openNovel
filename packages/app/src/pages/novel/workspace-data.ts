@@ -1,5 +1,8 @@
 import { type Accessor, createMemo } from "solid-js"
-import { useNovelDetail, useVolumes, useChapters, useTension } from "@/context/novel-queries"
+import { useNovelDetail, useVolumes, useChapters, useTension, useBindSession } from "@/context/novel-queries"
+import type { useNovel } from "@/context/novel"
+import type { useSDK } from "@/context/sdk"
+import { sessionTitle } from "@/utils/session-title"
 import type {
   ServerNovelDetailOutput,
   ServerNovelVolumesOutput,
@@ -62,4 +65,61 @@ export function useWorkspaceData(novelID: Accessor<string>) {
       return tensionData()
     },
   }
+}
+
+// ---- 会话操作（对话面板懒创建 / 生成中止共用） ----
+
+/** 切换器触发器的展示态：0 会话时占位禁用，其余显示当前会话标题（无法定位时回退面板名） */
+export function sessionSwitcherTrigger(input: {
+  sessions: readonly { sessionID: string; title: string }[]
+  paramsID: string | undefined
+  fallbackLabel: string
+  emptyLabel: string
+}): { label: string; disabled: boolean } {
+  if (input.sessions.length === 0) return { label: input.emptyLabel, disabled: true }
+  const current = input.sessions.find((item) => item.sessionID === input.paramsID)
+  return { label: sessionTitle(current?.title) ?? input.fallbackLabel, disabled: false }
+}
+
+/**
+ * 用批量绑定接口拿到该书的第一个未归档绑定会话（避免逐会话 N+1 查询）。
+ * 写作流兜底与 cancelGeneration 使用；对话面板的常规切换走 useBoundNovelSessions。
+ */
+export async function findBoundNovelSession(
+  sdk: ReturnType<typeof useSDK>,
+  novel: ReturnType<typeof useNovel>,
+  novelID: string,
+): Promise<string | null> {
+  const [{ data: sessionList }, bindings] = await Promise.all([
+    sdk().client.session.list(),
+    novel.listSessionBindings(),
+  ])
+  if (!sessionList || !bindings) return null
+  const boundIds = new Set(bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID))
+  if (boundIds.size === 0) return null
+  // 子代理会话（parentID 非空）会被上下文注入的懒绑定连带标记，不属于用户的对话线
+  const session = sessionList.find((s) => boundIds.has(s.id) && !s.time.archived && !s.parentID)
+  return session?.id ?? null
+}
+
+/**
+ * 懒创建三步：创建会话 → 绑定书籍 → 以首条消息原文发送 prompt。
+ * prompt 内容由调用方给定（用户输入或建议 chip 文本），本函数不做任何包装；
+ * 任一步失败即抛出，由调用方负责 toast 与输入保留。
+ */
+export async function createAndBindSession(input: {
+  sdk: ReturnType<typeof useSDK>
+  bindSession: ReturnType<typeof useBindSession>
+  novelID: string
+  prompt: string
+}): Promise<string> {
+  const result = await input.sdk().client.session.create({ directory: input.sdk().directory })
+  if (!result.data) throw new Error("No session data returned")
+  await input.bindSession.mutateAsync({ novelID: input.novelID, sessionID: result.data.id })
+  await input.sdk().client.session.prompt({
+    sessionID: result.data.id,
+    directory: input.sdk().directory,
+    parts: [{ type: "text", text: input.prompt }],
+  })
+  return result.data.id
 }

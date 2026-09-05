@@ -6,7 +6,7 @@ import { useChapterDetail, useChapterReviews, useSubmitApproval } from "@/contex
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useNovel } from "@/context/novel"
-import { findBoundNovelSession } from "./writing-flow"
+import { findBoundNovelSession } from "./workspace-data"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
