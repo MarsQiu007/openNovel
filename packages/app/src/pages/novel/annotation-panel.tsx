@@ -266,15 +266,18 @@ function CurrentTab(props: {
             ? language.t("novel.annotations.execute.hint")
             : language.t("novel.annotations.execute.pending")}
         </p>
-        <ButtonV2
-          size="normal"
-          variant="contrast"
+        <button
+          type="button"
           disabled={!props.canExecute()}
           onClick={props.execute}
-          class="w-full"
+          class="w-full rounded-md px-4 py-2 text-sm font-medium transition-colors"
+          classList={{
+            "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer": props.canExecute(),
+            "bg-neutral-700 text-neutral-500 cursor-not-allowed": !props.canExecute(),
+          }}
         >
           {language.t("novel.annotations.execute")}
-        </ButtonV2>
+        </button>
       </div>
     </>
   )
