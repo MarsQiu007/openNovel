@@ -1766,7 +1766,7 @@ export async function updateChapterAnnotation(
     status?: string
     suggestedReplacement?: string | null
     quote?: string
-    executionRoundId?: string
+    executionRoundId?: string | null
   },
   directory?: string | null,
 ): Promise<typeof ChapterAnnotationTable.$inferSelect> {

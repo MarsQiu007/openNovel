@@ -1606,7 +1606,7 @@ function createAnnotation(chapterId: string, novelId: string, input: {
 }
 
 function updateAnnotation(annotationId: string, input: {
-  comment?: string; status?: string; suggestedReplacement?: string; quote?: string; executionRoundId?: string
+  comment?: string; status?: string; suggestedReplacement?: string; quote?: string; executionRoundId?: string | null
 }, directory: string) {
   return Effect.gen(function* () {
     const ann = yield* Effect.promise(() => storeUpdateChapterAnnotation(annotationId, {

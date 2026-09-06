@@ -1001,7 +1001,7 @@ export default function NovelWorkspaceFrame() {
                       />
                     </Show>
                     <Show when={key === "annotations"}>
-                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => void handleAnnotationExecute(prompt)} />
+                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => handleAnnotationExecute(prompt)} />
                     </Show>
                   </div>
                 )}
@@ -1099,7 +1099,7 @@ export default function NovelWorkspaceFrame() {
                       />
                     </Show>
                     <Show when={railPanel() === "annotations"}>
-                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => void handleAnnotationExecute(prompt)} />
+                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => handleAnnotationExecute(prompt)} />
                     </Show>
                   </div>
                 </div>

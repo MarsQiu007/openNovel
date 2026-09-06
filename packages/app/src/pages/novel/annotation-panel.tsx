@@ -13,7 +13,7 @@ import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 type AnnotationPanelProps = {
   novelID: Accessor<string>
   chapterID: Accessor<string | null>
-  onExecute?: (prompt: string) => void
+  onExecute?: (prompt: string) => void | Promise<void>
 }
 
 type Translator = { t: (key: string, params?: Record<string, string | number>) => string }
@@ -40,6 +40,7 @@ type Annotation = {
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
+  readonly executionRoundId?: string | null | undefined
 }
 
 export function AnnotationPanel(props: AnnotationPanelProps) {
@@ -55,22 +56,15 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   const updateAnnotation = useUpdateAnnotation()
   const deleteAnnotation = useDeleteAnnotation()
   const createExecutionRound = useCreateExecutionRound()
-  const [filter, setFilter] = createSignal<"all" | "open" | "resolved">("all")
   const [tab, setTab] = createSignal<"current" | "history">("current")
+  const [isExecuting, setIsExecuting] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | null>(null)
   const [editComment, setEditComment] = createSignal("")
   const [editReplacement, setEditReplacement] = createSignal("")
 
-  const filtered = createMemo(() => {
-    const list = annotations.data ?? []
-    if (filter() === "open") return list.filter((a) => a.status === "open")
-    if (filter() === "resolved") return list.filter((a) => a.status !== "open")
-    return list
-  })
-
-  const openCount = createMemo(() => (annotations.data ?? []).filter((a) => a.status === "open").length)
-  const totalCount = createMemo(() => (annotations.data ?? []).length)
-  const canExecute = createMemo(() => totalCount() > 0 && openCount() === 0)
+  const activeAnnotations = createMemo(() => (annotations.data ?? []).filter((ann) => !ann.executionRoundId))
+  const openCount = createMemo(() => activeAnnotations().filter((a) => a.status === "open").length)
+  const canExecute = createMemo(() => !isExecuting() && activeAnnotations().length > 0 && openCount() === 0)
 
   function setStatus(id: string, status: "open" | "resolved" | "wontfix" | "applied") {
     const chapterID = props.chapterID()
@@ -89,17 +83,38 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     deleteAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID })
   }
 
-  function execute() {
+  async function execute() {
     const chapterID = props.chapterID()
     if (!chapterID || !canExecute()) return
-    const list = annotations.data ?? []
-    const prompt = formatPrompt(list, chapterID)
-    createExecutionRound.mutate({
-      novelID: props.novelID(),
-      chapterID,
-      promptSnapshot: prompt,
-    })
-    props.onExecute?.(prompt)
+    setIsExecuting(true)
+    try {
+      const list = activeAnnotations()
+      const prompt = formatPrompt(list, chapterID)
+      const round = await createExecutionRound.mutateAsync({
+        novelID: props.novelID(),
+        chapterID,
+        promptSnapshot: prompt,
+      })
+      await props.onExecute?.(prompt)
+      await Promise.all(
+        list.map((ann) =>
+          updateAnnotation.mutateAsync({
+            novelID: props.novelID(),
+            annotationID: ann.id,
+            chapterID,
+            executionRoundId: round.id,
+          }),
+        ),
+      )
+    } finally {
+      setIsExecuting(false)
+    }
+  }
+
+  function reactivate(id: string) {
+    const chapterID = props.chapterID()
+    if (!chapterID) return
+    updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID, status: "open", executionRoundId: null })
   }
 
   function startEdit(ann: Annotation) {
@@ -126,8 +141,8 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   }
 
   return (
-    <div class="flex flex-col gap-2 p-4 overflow-y-auto h-full">
-      <div class="flex items-center justify-between">
+    <div class="flex min-h-0 flex-col h-full">
+      <div class="flex items-center justify-between p-4 pb-2 shrink-0">
         <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
         <div class="flex gap-1">
           <TabButton active={tab() === "current"} onClick={() => setTab("current")}>
@@ -143,9 +158,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
         <CurrentTab
           props={props}
           annotations={annotations}
-          filtered={filtered}
-          filter={filter}
-          setFilter={setFilter}
+          activeAnnotations={activeAnnotations}
           setStatus={setStatus}
           remove={remove}
           canExecute={canExecute}
@@ -162,7 +175,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
       </Show>
 
       <Show when={tab() === "history"}>
-        <HistoryTab rounds={rounds} annotations={annotations} setStatus={setStatus} />
+        <HistoryTab rounds={rounds} annotations={annotations} reactivate={reactivate} />
       </Show>
     </div>
   )
@@ -202,13 +215,11 @@ function formatPrompt(list: readonly Annotation[], chapterTitle: string): string
 function CurrentTab(props: {
   props: AnnotationPanelProps
   annotations: { data: readonly Annotation[] | undefined; isLoading: boolean }
-  filtered: Accessor<readonly Annotation[]>
-  filter: Accessor<"all" | "open" | "resolved">
-  setFilter: (f: "all" | "open" | "resolved") => void
+  activeAnnotations: Accessor<readonly Annotation[]>
   setStatus: (id: string, status: "open" | "resolved" | "wontfix" | "applied") => void
   remove: (id: string) => void
   canExecute: Accessor<boolean>
-  execute: () => void
+  execute: () => Promise<void>
   editingId: Accessor<string | null>
   editComment: Accessor<string>
   editReplacement: Accessor<string>
@@ -221,47 +232,37 @@ function CurrentTab(props: {
   const language = useLanguage()
 
   return (
-    <>
-      <div class="flex gap-1">
-        <FilterButton active={props.filter() === "all"} onClick={() => props.setFilter("all")}>
-          {language.t("novel.annotations.filter.all")}
-        </FilterButton>
-        <FilterButton active={props.filter() === "open"} onClick={() => props.setFilter("open")}>
-          {language.t("novel.annotations.status.open")}
-        </FilterButton>
-        <FilterButton active={props.filter() === "resolved"} onClick={() => props.setFilter("resolved")}>
-          {language.t("novel.annotations.status.resolved")}
-        </FilterButton>
+    <div class="flex min-h-0 flex-1 flex-col">
+      <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pt-2 pb-4">
+        <Show when={props.annotations.isLoading}>
+          <Spinner />
+        </Show>
+
+        <Show when={!props.annotations.isLoading && props.activeAnnotations().length === 0}>
+          <p class="text-v2-text-text-faint py-4 text-center text-xs">{language.t("novel.annotations.empty")}</p>
+        </Show>
+
+        <For each={props.activeAnnotations()}>
+          {(ann) => (
+            <AnnotationCard
+              ann={ann}
+              setStatus={props.setStatus}
+              remove={props.remove}
+              editingId={props.editingId}
+              editComment={props.editComment}
+              editReplacement={props.editReplacement}
+              setEditComment={props.setEditComment}
+              setEditReplacement={props.setEditReplacement}
+              startEdit={props.startEdit}
+              saveEdit={props.saveEdit}
+              cancelEdit={props.cancelEdit}
+            />
+          )}
+        </For>
       </div>
 
-      <Show when={props.annotations.isLoading}>
-        <Spinner />
-      </Show>
-
-      <Show when={!props.annotations.isLoading && props.filtered().length === 0}>
-        <p class="text-xs text-v2-text-text-faint py-4 text-center">{language.t("novel.annotations.empty")}</p>
-      </Show>
-
-      <For each={props.filtered()}>
-        {(ann) => (
-          <AnnotationCard
-            ann={ann}
-            setStatus={props.setStatus}
-            remove={props.remove}
-            editingId={props.editingId}
-            editComment={props.editComment}
-            editReplacement={props.editReplacement}
-            setEditComment={props.setEditComment}
-            setEditReplacement={props.setEditReplacement}
-            startEdit={props.startEdit}
-            saveEdit={props.saveEdit}
-            cancelEdit={props.cancelEdit}
-          />
-        )}
-      </For>
-
-      <div class="sticky bottom-0 z-10 -mx-4 mt-4 border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
-        <p class="text-xs text-v2-text-text-faint">
+      <div class="shrink-0 border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
+        <p class="text-v2-text-text-faint text-center text-xs">
           {props.canExecute()
             ? language.t("novel.annotations.execute.hint")
             : language.t("novel.annotations.execute.pending")}
@@ -270,7 +271,7 @@ function CurrentTab(props: {
           <button
             type="button"
             disabled={!props.canExecute()}
-            onClick={props.execute}
+            onClick={() => void props.execute()}
             class="flex items-center justify-center font-medium transition-opacity"
             style={{
               height: "32px",
@@ -289,7 +290,7 @@ function CurrentTab(props: {
           </button>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -402,65 +403,63 @@ function AnnotationCard(props: {
 function HistoryTab(props: {
   rounds: { data: ReadonlyArray<{ readonly id: string; readonly promptSnapshot: string; readonly createdAt: number }> | undefined; isLoading: boolean }
   annotations: { data: readonly Annotation[] | undefined }
-  setStatus: (id: string, status: "open" | "resolved" | "wontfix" | "applied") => void
+  reactivate: (id: string) => void
 }) {
   const language = useLanguage()
   const roundList = createMemo(() => props.rounds.data ?? [])
-  const processedAnnotations = createMemo(() => (props.annotations.data ?? []).filter((a) => a.status !== "open"))
+  const executedAnnotations = createMemo(() => (props.annotations.data ?? []).filter((ann) => ann.executionRoundId))
+  const historyGroups = createMemo(() =>
+    roundList()
+      .map((round) => ({
+        ...round,
+        annotations: executedAnnotations().filter((ann) => ann.executionRoundId === round.id),
+      }))
+      .filter((group) => group.annotations.length > 0),
+  )
 
   return (
-    <>
+    <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 pt-2">
       <Show when={props.rounds.isLoading}>
         <Spinner />
       </Show>
-      <Show when={!props.rounds.isLoading && roundList().length === 0 && processedAnnotations().length === 0}>
-        <p class="text-xs text-v2-text-text-faint py-4 text-center">{language.t("novel.annotations.history.empty")}</p>
-      </Show>
-      <For each={roundList()}>
-        {(round) => (
-          <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-v2-text-text-base">{language.t("novel.annotations.history.round")}</span>
-              <span class="text-xs text-v2-text-text-faint">{new Date(round.createdAt).toLocaleString()}</span>
-            </div>
-            <p class="text-xs text-v2-text-text-faint line-clamp-2 whitespace-pre-wrap">{round.promptSnapshot}</p>
-          </div>
-        )}
-      </For>
-      <For each={processedAnnotations()}>
-        {(ann) => (
-          <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>
-                {enumLabel(language, "novel.annotations.status", ann.status)}
-              </span>
-              <Show when={ann.paragraphIndex != null}>
-                <span class="text-xs text-v2-text-text-faint">P{ann.paragraphIndex! + 1}</span>
-              </Show>
-            </div>
-            <p class="text-xs text-v2-text-text-base">{ann.comment}</p>
-            <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(ann.id, "open")}>
-              {language.t("novel.annotations.reactivate")}
-            </ButtonV2>
-          </div>
-        )}
-      </For>
-    </>
-  )
-}
 
-function FilterButton(props: { active: boolean; onClick: () => void; children: any }) {
-  return (
-    <button
-      class={`text-xs px-2 py-0.5 rounded transition-colors ${
-        props.active
-          ? "bg-v2-background-bg-layer-01 text-v2-text-text-base"
-          : "text-v2-text-text-faint hover:text-v2-text-text-base"
-      }`}
-      onClick={props.onClick}
-    >
-      {props.children}
-    </button>
+      <Show when={!props.rounds.isLoading && historyGroups().length === 0}>
+        <p class="text-v2-text-text-faint py-4 text-center text-xs">{language.t("novel.annotations.history.empty")}</p>
+      </Show>
+
+      <For each={historyGroups()}>
+        {(group) => (
+          <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <span class="text-v2-text-text-base text-xs font-semibold">{language.t("novel.annotations.history.round")}</span>
+              <span class="text-v2-text-text-faint text-xs">{new Date(group.createdAt).toLocaleString()}</span>
+            </div>
+            <p class="text-v2-text-text-faint line-clamp-2 text-xs whitespace-pre-wrap">{group.promptSnapshot}</p>
+
+            <For each={group.annotations}>
+              {(ann) => (
+                <div class="rounded bg-v2-background-bg-layer-01 p-2 flex flex-col gap-1">
+                  <div class="flex items-center justify-between">
+                    <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>
+                      {enumLabel(language, "novel.annotations.status", ann.status)}
+                    </span>
+                    <Show when={ann.paragraphIndex != null}>
+                      <span class="text-v2-text-text-faint text-xs">P{ann.paragraphIndex! + 1}</span>
+                    </Show>
+                  </div>
+                  <p class="text-v2-text-text-base text-xs">{ann.comment}</p>
+                  <div class="flex justify-end">
+                    <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate(ann.id)}>
+                      {language.t("novel.annotations.reactivate")}
+                    </ButtonV2>
+                  </div>
+                </div>
+              )}
+            </For>
+          </div>
+        )}
+      </For>
+    </div>
   )
 }
 

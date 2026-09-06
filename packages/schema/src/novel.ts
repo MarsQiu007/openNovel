@@ -667,7 +667,7 @@ export const UpdateAnnotationInput = Schema.Struct({
   status: optional(Schema.Literals(["open", "resolved", "wontfix", "applied"])),
   suggestedReplacement: optional(Schema.String),
   quote: optional(Schema.String),
-  executionRoundId: optional(Schema.String),
+  executionRoundId: optional(Schema.NullOr(Schema.String)),
 }).annotate({ identifier: "Novel.UpdateAnnotationInput" })
 export interface UpdateAnnotationInput extends Schema.Schema.Type<typeof UpdateAnnotationInput> {}
 

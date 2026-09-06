@@ -4914,35 +4914,35 @@ export type ServerNovelUpdateAnnotationInput = {
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
-    readonly executionRoundId?: string
+    readonly executionRoundId?: string | null
   }["comment"]
   readonly status?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
-    readonly executionRoundId?: string
+    readonly executionRoundId?: string | null
   }["status"]
   readonly suggestedReplacement?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
-    readonly executionRoundId?: string
+    readonly executionRoundId?: string | null
   }["suggestedReplacement"]
   readonly quote?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
-    readonly executionRoundId?: string
+    readonly executionRoundId?: string | null
   }["quote"]
   readonly executionRoundId?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
-    readonly executionRoundId?: string
+    readonly executionRoundId?: string | null
   }["executionRoundId"]
 }
 
