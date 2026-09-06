@@ -1611,7 +1611,7 @@ export function useCreateAnnotation() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; chapterID: string; source?: "user" | "ai"; anchorType?: "paragraph" | "range" | "chapter"; paragraphIndex?: number; quote?: string; comment: string; suggestedReplacement?: string }) => {
+    mutationFn: (input: { novelID: string; chapterID: string; source?: "user" | "ai"; anchorType?: "paragraph" | "range" | "chapter"; paragraphIndex?: number; startOffset?: number; endOffset?: number; quote?: string; comment: string; suggestedReplacement?: string }) => {
       const dir = sdk().directory
       const { novelID, chapterID, ...rest } = input
       return client()["server.novel"]["create-annotation"]({ novelID, chapterID, location: { directory: dir }, ...rest })
