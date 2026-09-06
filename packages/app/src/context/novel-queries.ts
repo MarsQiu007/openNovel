@@ -131,6 +131,8 @@ export const novelKeys = {
     ["novel", "canvas-layout", directory, novelID] as const,
   "bound-sessions": (directory: string, novelID: string) =>
     ["novel", "bound-sessions", directory, novelID] as const,
+  "execution-rounds": (directory: string, novelID: string, chapterID: string) =>
+    ["novel", "execution-rounds", directory, novelID, chapterID] as const,
 }
 
 // ---- createQuery hooks (13) ----
@@ -1651,6 +1653,48 @@ export function useDeleteAnnotation() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys.annotations(dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useExecutionRounds(novelID: Accessor<string>, chapterID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["execution-rounds"](sdk().directory, novelID(), chapterID()),
+    queryFn: async () => {
+      const dir = sdk().directory
+      const result = await client()["server.novel"]["execution-rounds"]({
+        novelID: novelID(),
+        chapterID: chapterID(),
+        location: { directory: dir },
+      })
+      return result
+    },
+    enabled: !!chapterID(),
+  }))
+}
+
+export function useCreateExecutionRound() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; chapterID: string; promptSnapshot: string; resultSummary?: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["create-execution-round"]({
+        novelID: input.novelID,
+        chapterID: input.chapterID,
+        location: { directory: dir },
+        novelId: input.novelID,
+        chapterId: input.chapterID,
+        promptSnapshot: input.promptSnapshot,
+        resultSummary: input.resultSummary,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["execution-rounds"](dir, variables.novelID, variables.chapterID) })
     },
   }))
 }
