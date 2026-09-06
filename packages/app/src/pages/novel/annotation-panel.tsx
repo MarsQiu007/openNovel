@@ -2,6 +2,7 @@ import { Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import {
   useAnnotations,
   useBoundNovelSessions,
+  useChapterDetail,
   useUpdateAnnotation,
   useDeleteAnnotation,
   useExecutionRounds,
@@ -52,6 +53,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     createMemo(() => props.chapterID() ?? ""),
   )
   const boundSessions = useBoundNovelSessions(props.novelID)
+  const chapter = useChapterDetail(props.novelID, createMemo(() => props.chapterID() ?? ""))
   const sync = useSync()
   const rounds = useExecutionRounds(
     props.novelID,
@@ -98,7 +100,13 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     setIsExecuting(true)
     try {
       const list = activeAnnotations()
-      const prompt = formatPrompt(list, chapterID)
+      const paragraphs = (chapter.data?.content ?? "").split(/\n\n+/).filter(Boolean)
+      const prompt = formatPrompt({
+        chapterID,
+        chapterTitle: chapter.data?.title,
+        paragraphs,
+        annotations: list,
+      })
       const round = await createExecutionRound.mutateAsync({
         novelID: props.novelID(),
         chapterID,
@@ -193,34 +201,46 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   )
 }
 
-function formatPrompt(list: readonly Annotation[], chapterTitle: string): string {
-  const applied: string[] = []
-  const resolved: string[] = []
-  const wontfix: string[] = []
-
-  for (const ann of list) {
-    const p = ann.paragraphIndex != null ? `段落 ${ann.paragraphIndex + 1}` : "全章"
-    if (ann.status === "applied" && ann.suggestedReplacement) {
-      const quote = ann.quote ? `「${ann.quote}」` : ""
-      applied.push(`- ${p}：将${quote}替换为「${ann.suggestedReplacement}」`)
-    } else if (ann.status === "resolved") {
-      resolved.push(`- ${p}：「${ann.comment}」`)
-    } else if (ann.status === "wontfix") {
-      wontfix.push(`- ${p}`)
-    }
-  }
-
-  const sections: string[] = [`请按以下批注修改${chapterTitle}正文：`]
-  if (applied.length > 0) {
-    sections.push("\n## 需要应用替换的段落（采纳）\n" + applied.join("\n"))
-  }
-  if (resolved.length > 0) {
-    sections.push("\n## 需要根据意见改写的段落（解决）\n" + resolved.join("\n"))
-  }
-  if (wontfix.length > 0) {
-    sections.push("\n## 需要跳过的段落（不修）\n" + wontfix.join("\n"))
-  }
-  sections.push("\n修改完成后请检查替换段落与前后文的衔接是否连贯。")
+function formatPrompt(input: {
+  chapterID: string
+  chapterTitle?: string | null | undefined
+  paragraphs: readonly string[]
+  annotations: readonly Annotation[]
+}): string {
+  const sections = [
+    "请根据以下批注修改章节正文。",
+    "\n## 目标章节\n"
+    + `- chapter_id: ${input.chapterID}\n`
+    + `- chapter_title: ${JSON.stringify(input.chapterTitle ?? "")}`,
+    "\n## 批注列表\n"
+    + input.annotations
+      .map((ann, index) => {
+        const paragraph = ann.paragraphIndex != null ? input.paragraphs[ann.paragraphIndex] : undefined
+        const action =
+          ann.status === "applied" && ann.suggestedReplacement
+            ? "replace"
+            : ann.status === "resolved"
+              ? "rewrite"
+              : "skip"
+        const lines = [
+          `### ${index + 1}`,
+          `- paragraph_index: ${ann.paragraphIndex == null ? "whole_chapter" : ann.paragraphIndex + 1}`,
+          `- action: ${action}`,
+          `- paragraph_text: ${paragraph == null ? "not_found" : JSON.stringify(paragraph)}`,
+          `- selected_quote: ${JSON.stringify(ann.quote)}`,
+          `- comment: ${JSON.stringify(ann.comment)}`,
+        ]
+        if (ann.suggestedReplacement) lines.push(`- suggested_replacement: ${JSON.stringify(ann.suggestedReplacement)}`)
+        return lines.join("\n")
+      })
+      .join("\n\n"),
+    "\n## 定位与修改规则\n"
+      + "1. 优先在 paragraph_index 指向的段落中精确匹配 selected_quote。\n"
+      + "2. 如果正文已更新导致该段落匹配失败，再在章节全文中查找 selected_quote。\n"
+      + "3. 如果 selected_quote 无法唯一匹配，不要凭偏移量猜测；保留该段并在回复中说明未定位。\n"
+      + "4. action 为 replace 时使用 suggested_replacement；rewrite 时按 comment 改写；skip 时不要修改正文。\n"
+      + "5. 修改完成后检查前后文衔接。",
+  ]
   return sections.join("\n")
 }
 
