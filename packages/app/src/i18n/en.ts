@@ -1615,6 +1615,7 @@ export const dict = {
   "novel.annotations.tab.history": "History",
   "novel.annotations.execute": "Execute",
   "novel.annotations.execute.hint": "All processed. Click to have AI batch-apply annotation intents",
+  "novel.annotations.execute.pending": "There are unresolved annotations. Execute after all are processed.",
   "novel.annotations.adopt.hint": "Adopted suggestions will be written by AI during execution",
   "novel.annotations.history.empty": "No execution history",
   "novel.annotations.history.round": "Round",

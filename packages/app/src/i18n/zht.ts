@@ -1573,6 +1573,7 @@ export const dict = {
   "novel.annotations.tab.history": "歷史",
   "novel.annotations.execute": "執行",
   "novel.annotations.execute.hint": "已全部處理，點擊讓 AI 按批注意圖批量改稿",
+  "novel.annotations.execute.pending": "還有未處理的批註，處理完成後可執行",
   "novel.annotations.adopt.hint": "採納後將在執行階段由 AI 寫入正文",
   "novel.annotations.history.empty": "暫無執行記錄",
   "novel.annotations.history.round": "執行",

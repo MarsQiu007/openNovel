@@ -260,14 +260,22 @@ function CurrentTab(props: {
         )}
       </For>
 
-      <Show when={props.canExecute()}>
-        <div class="mt-2 flex flex-col gap-1">
-          <p class="text-xs text-v2-text-text-faint">{language.t("novel.annotations.execute.hint")}</p>
-          <ButtonV2 size="small" variant="contrast" onClick={props.execute}>
-            {language.t("novel.annotations.execute")}
-          </ButtonV2>
-        </div>
-      </Show>
+      <div class="mt-auto pt-4 flex flex-col gap-1.5">
+        <p class="text-xs text-v2-text-text-faint">
+          {props.canExecute()
+            ? language.t("novel.annotations.execute.hint")
+            : language.t("novel.annotations.execute.pending")}
+        </p>
+        <ButtonV2
+          size="normal"
+          variant="contrast"
+          disabled={!props.canExecute()}
+          onClick={props.execute}
+          class="w-full"
+        >
+          {language.t("novel.annotations.execute")}
+        </ButtonV2>
+      </div>
     </>
   )
 }

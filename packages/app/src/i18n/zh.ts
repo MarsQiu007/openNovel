@@ -1577,6 +1577,7 @@ export const dict = {
   "novel.annotations.tab.history": "历史",
   "novel.annotations.execute": "执行",
   "novel.annotations.execute.hint": "已全部处理，点击让 AI 按批注意图批量改稿",
+  "novel.annotations.execute.pending": "还有未处理的批注，处理完成后可执行",
   "novel.annotations.adopt.hint": "采纳后将在执行阶段由 AI 写入正文",
   "novel.annotations.history.empty": "暂无执行记录",
   "novel.annotations.history.round": "执行",
