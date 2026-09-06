@@ -266,25 +266,28 @@ function CurrentTab(props: {
             ? language.t("novel.annotations.execute.hint")
             : language.t("novel.annotations.execute.pending")}
         </p>
-        <button
-          type="button"
-          disabled={!props.canExecute()}
-          onClick={props.execute}
-          class="mt-1.5 flex w-full items-center justify-center px-3 font-medium transition-opacity"
-          style={{
-            height: "32px",
-            width: "100%",
-            borderRadius: "6px",
-            fontSize: "13px",
-            lineHeight: "20px",
-            backgroundColor: props.canExecute() ? "#2563eb" : "#3f3f46",
-            color: props.canExecute() ? "#ffffff" : "#a1a1aa",
-            opacity: props.canExecute() ? "1" : "0.6",
-            cursor: props.canExecute() ? "pointer" : "not-allowed",
-          }}
-        >
-          {language.t("novel.annotations.execute")}
-        </button>
+        <div class="mt-2 flex justify-center">
+          <button
+            type="button"
+            disabled={!props.canExecute()}
+            onClick={props.execute}
+            class="flex items-center justify-center font-medium transition-opacity"
+            style={{
+              height: "32px",
+              "min-width": "96px",
+              padding: "0 16px",
+              "border-radius": "6px",
+              "font-size": "13px",
+              "line-height": "20px",
+              "background-color": props.canExecute() ? "#2563eb" : "#3f3f46",
+              color: props.canExecute() ? "#ffffff" : "#a1a1aa",
+              opacity: props.canExecute() ? "1" : "0.6",
+              cursor: props.canExecute() ? "pointer" : "not-allowed",
+            }}
+          >
+            {language.t("novel.annotations.execute") || "执行"}
+          </button>
+        </div>
       </div>
     </>
   )
