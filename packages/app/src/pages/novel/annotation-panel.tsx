@@ -57,6 +57,9 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   const createExecutionRound = useCreateExecutionRound()
   const [filter, setFilter] = createSignal<"all" | "open" | "resolved">("all")
   const [tab, setTab] = createSignal<"current" | "history">("current")
+  const [editingId, setEditingId] = createSignal<string | null>(null)
+  const [editComment, setEditComment] = createSignal("")
+  const [editReplacement, setEditReplacement] = createSignal("")
 
   const filtered = createMemo(() => {
     const list = annotations.data ?? []
@@ -99,6 +102,29 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     props.onExecute?.(prompt)
   }
 
+  function startEdit(ann: Annotation) {
+    setEditingId(ann.id)
+    setEditComment(ann.comment)
+    setEditReplacement(ann.suggestedReplacement ?? "")
+  }
+
+  function saveEdit() {
+    const id = editingId()
+    if (!id || !editComment().trim()) return
+    updateAnnotation.mutate({
+      novelID: props.novelID(),
+      annotationID: id,
+      chapterID: props.chapterID() ?? "",
+      comment: editComment().trim(),
+      suggestedReplacement: editReplacement().trim() || undefined,
+    })
+    setEditingId(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
   return (
     <div class="flex flex-col gap-2 p-4 overflow-y-auto h-full">
       <div class="flex items-center justify-between">
@@ -124,6 +150,14 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           remove={remove}
           canExecute={canExecute}
           execute={execute}
+          editingId={editingId}
+          editComment={editComment}
+          editReplacement={editReplacement}
+          setEditComment={setEditComment}
+          setEditReplacement={setEditReplacement}
+          startEdit={startEdit}
+          saveEdit={saveEdit}
+          cancelEdit={cancelEdit}
         />
       </Show>
 
@@ -175,6 +209,14 @@ function CurrentTab(props: {
   remove: (id: string) => void
   canExecute: Accessor<boolean>
   execute: () => void
+  editingId: Accessor<string | null>
+  editComment: Accessor<string>
+  editReplacement: Accessor<string>
+  setEditComment: (v: string) => void
+  setEditReplacement: (v: string) => void
+  startEdit: (ann: Annotation) => void
+  saveEdit: () => void
+  cancelEdit: () => void
 }) {
   const language = useLanguage()
 
@@ -202,7 +244,19 @@ function CurrentTab(props: {
 
       <For each={props.filtered()}>
         {(ann) => (
-          <AnnotationCard ann={ann} setStatus={props.setStatus} remove={props.remove} />
+          <AnnotationCard
+            ann={ann}
+            setStatus={props.setStatus}
+            remove={props.remove}
+            editingId={props.editingId}
+            editComment={props.editComment}
+            editReplacement={props.editReplacement}
+            setEditComment={props.setEditComment}
+            setEditReplacement={props.setEditReplacement}
+            startEdit={props.startEdit}
+            saveEdit={props.saveEdit}
+            cancelEdit={props.cancelEdit}
+          />
         )}
       </For>
 
@@ -222,9 +276,18 @@ function AnnotationCard(props: {
   ann: Annotation
   setStatus: (id: string, status: "open" | "resolved" | "wontfix" | "applied") => void
   remove: (id: string) => void
+  editingId: Accessor<string | null>
+  editComment: Accessor<string>
+  editReplacement: Accessor<string>
+  setEditComment: (v: string) => void
+  setEditReplacement: (v: string) => void
+  startEdit: (ann: Annotation) => void
+  saveEdit: () => void
+  cancelEdit: () => void
 }) {
   const language = useLanguage()
   const ann = props.ann
+  const isEditing = createMemo(() => props.editingId() === ann.id)
 
   return (
     <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-1.5">
@@ -251,16 +314,40 @@ function AnnotationCard(props: {
         </blockquote>
       </Show>
 
-      <p class="text-xs text-v2-text-text-base">{ann.comment}</p>
-
-      <Show when={ann.suggestedReplacement}>
-        <div class="rounded bg-v2-background-bg-layer-01 p-1.5 text-xs text-v2-text-text-muted">
-          <span class="text-v2-text-text-faint">{language.t("novel.annotations.suggestion")} </span>
-          {ann.suggestedReplacement}
+<Show when={!isEditing()} fallback={
+        <div class="flex flex-col gap-1.5">
+          <textarea
+            class="w-full rounded border border-v2-border-border-base bg-v2-background-bg-base p-2 text-xs text-v2-text-text-base resize-none"
+            rows={3}
+            value={props.editComment()}
+            onInput={(e) => props.setEditComment(e.currentTarget.value)}
+          />
+          <input
+            class="w-full rounded border border-v2-border-border-base bg-v2-background-bg-base p-2 text-xs text-v2-text-text-base"
+            placeholder={language.t("novel.annotations.editSuggestion")}
+            value={props.editReplacement()}
+            onInput={(e) => props.setEditReplacement(e.currentTarget.value)}
+          />
+          <div class="flex gap-1 justify-end">
+            <ButtonV2 size="small" variant="ghost" onClick={props.cancelEdit}>
+              {language.t("common.cancel")}
+            </ButtonV2>
+            <ButtonV2 size="small" variant="contrast" disabled={!props.editComment().trim()} onClick={props.saveEdit}>
+              {language.t("novel.annotations.save")}
+            </ButtonV2>
+          </div>
         </div>
+      }>
+        <p class="text-xs text-v2-text-text-base">{ann.comment}</p>
+        <Show when={ann.suggestedReplacement}>
+          <div class="rounded bg-v2-background-bg-layer-01 p-1.5 text-xs text-v2-text-text-muted">
+            <span class="text-v2-text-text-faint">{language.t("novel.annotations.suggestion")} </span>
+            {ann.suggestedReplacement}
+          </div>
+        </Show>
       </Show>
 
-      <Show when={ann.status === "open"}>
+      <Show when={ann.status === "open" && !isEditing()}>
         <div class="flex gap-1 mt-1">
           <Show when={ann.suggestedReplacement}>
             <ButtonV2 size="small" variant="contrast" title={language.t("novel.annotations.adopt.hint")} onClick={() => props.setStatus(ann.id, "applied")}>
@@ -269,6 +356,9 @@ function AnnotationCard(props: {
           </Show>
           <ButtonV2 size="small" variant="outline" onClick={() => props.setStatus(ann.id, "resolved")}>
             {language.t("novel.annotations.resolve")}
+          </ButtonV2>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.startEdit(ann)}>
+            {language.t("novel.annotations.edit")}
           </ButtonV2>
           <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(ann.id, "wontfix")}>
             {language.t("novel.annotations.dismiss")}
@@ -279,7 +369,7 @@ function AnnotationCard(props: {
         </div>
       </Show>
 
-      <Show when={ann.status !== "open"}>
+      <Show when={ann.status !== "open" && !isEditing()}>
         <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(ann.id, "open")}>
           {language.t("novel.annotations.reopen")}
         </ButtonV2>

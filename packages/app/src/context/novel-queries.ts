@@ -1628,7 +1628,7 @@ export function useUpdateAnnotation() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; annotationID: string; chapterID: string; status?: "open" | "resolved" | "wontfix" | "applied"; comment?: string }) => {
+    mutationFn: (input: { novelID: string; annotationID: string; chapterID: string; status?: "open" | "resolved" | "wontfix" | "applied"; comment?: string; suggestedReplacement?: string; executionRoundId?: string }) => {
       const dir = sdk().directory
       const { novelID, annotationID, chapterID: _chapterID, ...rest } = input
       return client()["server.novel"]["update-annotation"]({ novelID, annotationID, location: { directory: dir }, ...rest })
