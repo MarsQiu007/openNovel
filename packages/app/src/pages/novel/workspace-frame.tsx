@@ -262,6 +262,10 @@ export default function NovelWorkspaceFrame() {
     RAIL_PANELS.some((item) => item.key === layout.railPanel) ? layout.railPanel : "chat",
   )
   const setRailPanel = (key: RailPanel) => setLayout("railPanel", key)
+  // 展开态保留右侧图标栏：面板主区占据中间，右侧随行区固定切到会话，避免同一面板重复显示。
+  createEffect(() => {
+    if (expandedPanel()) setRailPanel("chat")
+  })
   // 进入会话模式时自动切回对话（等待持久化就绪，避免被恢复值覆盖）。
   // 仅在模式边界（非会话 → 会话）触发：effect 追踪的是 params.id 属性，会话内切换/新建
   // 会话同样会重跑本 effect——不加边界判定会把用户刚选中的右栏面板强行打回对话。
@@ -342,7 +346,7 @@ export default function NovelWorkspaceFrame() {
   const leftManual = () => (typeof layout.leftManual === "boolean" ? layout.leftManual : null)
   const leftCollapsed = () => !!expandedPanel() || (leftManual() ?? widthCollapsed())
   const railManual = () => (typeof layout.railManual === "boolean" ? layout.railManual : null)
-  const railCollapsed = () => !!expandedPanel() || (railManual() ?? railWidthCollapsed())
+  const railCollapsed = () => railManual() ?? railWidthCollapsed()
   // —— 分栏宽度（D1/D4）：生效宽度 = 拖拽内存态 ?? 设定宽度 ?? 默认值。
   // onResize 高频回调只写内存态，松手（onCollapseChange(false)）才提交持久化，避免每帧写 localStorage；
   // 未发生拖拽（内存态为 null，普通点击/双击的第一段按下）不提交，防止覆盖设定值。

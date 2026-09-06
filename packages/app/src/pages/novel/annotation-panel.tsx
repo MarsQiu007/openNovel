@@ -141,7 +141,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   }
 
   return (
-    <div class="flex min-h-0 flex-col h-full">
+    <div class="flex h-full min-h-0 flex-col overflow-hidden">
       <div class="flex items-center justify-between p-4 pb-2 shrink-0">
         <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
         <div class="flex gap-1">
@@ -232,8 +232,8 @@ function CurrentTab(props: {
   const language = useLanguage()
 
   return (
-    <div class="flex min-h-0 flex-1 flex-col">
-      <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pt-2 pb-4">
+    <div class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
+      <div class="flex min-h-0 flex-col gap-2 overflow-y-auto px-4 pt-2 pb-4">
         <Show when={props.annotations.isLoading}>
           <Spinner />
         </Show>
@@ -261,7 +261,7 @@ function CurrentTab(props: {
         </For>
       </div>
 
-      <div class="shrink-0 border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
+      <div class="border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
         <p class="text-v2-text-text-faint text-center text-xs">
           {props.canExecute()
             ? language.t("novel.annotations.execute.hint")
