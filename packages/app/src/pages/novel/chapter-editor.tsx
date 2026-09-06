@@ -228,7 +228,9 @@ export default function ChapterEditor(props: ChapterEditorProps) {
 
           {/* Textarea editor + history panel */}
           <div class="flex-1 flex overflow-hidden">
-            <div class="flex-1 min-h-0 overflow-y-auto">
+            {/* textarea（h-full）自身是唯一滚动容器；这里不能加 overflow-y-auto——
+                textarea 默认 inline-block 会在行盒基线下留出几像素缝隙，导致本层溢出、出现第二条滚动条 */}
+            <div class="flex-1 min-h-0">
               <textarea
                 class="w-full h-full p-6 bg-transparent text-v2-text-text-base font-serif text-base leading-relaxed resize-none outline-none"
                 value={content()}
