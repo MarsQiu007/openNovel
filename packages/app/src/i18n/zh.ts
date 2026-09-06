@@ -280,6 +280,7 @@ export const dict = {
   "common.loading": "加载中",
   "common.loading.ellipsis": "...",
   "common.cancel": "取消",
+  "common.confirm": "确认",
   "common.clear": "清除",
   "common.connect": "连接",
   "common.disconnect": "断开连接",
