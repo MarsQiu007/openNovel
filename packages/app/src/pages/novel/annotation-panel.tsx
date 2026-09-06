@@ -260,7 +260,7 @@ function CurrentTab(props: {
         )}
       </For>
 
-      <div class="mt-auto pt-4 flex flex-col gap-1.5">
+      <div class="sticky bottom-0 z-10 -mx-4 mt-4 border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
         <p class="text-xs text-v2-text-text-faint">
           {props.canExecute()
             ? language.t("novel.annotations.execute.hint")
@@ -270,11 +270,20 @@ function CurrentTab(props: {
           type="button"
           disabled={!props.canExecute()}
           onClick={props.execute}
-          class={`h-9 w-full rounded-md px-4 text-sm font-medium transition-colors ${
-            props.canExecute()
-              ? "bg-v2-background-bg-accent text-v2-text-text-contrast cursor-pointer"
-              : "bg-v2-background-bg-layer-02 text-v2-text-text-faint cursor-not-allowed"
-          }`}
+          class="mt-1.5 flex w-full items-center justify-center px-3 font-medium transition-opacity"
+          style={{
+            height: "32px",
+            width: "100%",
+            "border-radius": "6px",
+            "font-size": "13px",
+            "line-height": "20px",
+            "background-color": props.canExecute()
+              ? "var(--v2-background-bg-accent, #2563eb)"
+              : "var(--v2-background-bg-layer-02, #3f3f46)",
+            color: props.canExecute() ? "#ffffff" : "var(--v2-text-text-faint, #71717a)",
+            opacity: props.canExecute() ? "1" : "0.6",
+            cursor: props.canExecute() ? "pointer" : "not-allowed",
+          }}
         >
           {language.t("novel.annotations.execute")}
         </button>
