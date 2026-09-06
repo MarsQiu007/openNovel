@@ -274,13 +274,11 @@ function CurrentTab(props: {
           style={{
             height: "32px",
             width: "100%",
-            "border-radius": "6px",
-            "font-size": "13px",
-            "line-height": "20px",
-            "background-color": props.canExecute()
-              ? "var(--v2-background-bg-accent, #2563eb)"
-              : "var(--v2-background-bg-layer-02, #3f3f46)",
-            color: props.canExecute() ? "#ffffff" : "var(--v2-text-text-faint, #71717a)",
+            borderRadius: "6px",
+            fontSize: "13px",
+            lineHeight: "20px",
+            backgroundColor: props.canExecute() ? "#2563eb" : "#3f3f46",
+            color: props.canExecute() ? "#ffffff" : "#a1a1aa",
             opacity: props.canExecute() ? "1" : "0.6",
             cursor: props.canExecute() ? "pointer" : "not-allowed",
           }}
