@@ -60,7 +60,6 @@ import {
   RAIL_PANE_DEFAULT_WIDTH,
   RAIL_PANE_MAX_WIDTH,
   RAIL_PANE_MIN_WIDTH,
-  WORKSPACE_DOCK_WIDTH,
   resolvePaneWidth,
 } from "./workspace-pane-width"
 
@@ -380,8 +379,9 @@ export default function NovelWorkspaceFrame() {
       const leftBelow = width < thresholds.left // 左档 = 左栏宽 + 主区保底
       const railBelow = width < thresholds.rail // 右档 = max(右栏宽 + 主区保底, 左档 + 1)
       // 宽度回到阈值以上时结束手动覆盖会话，回归自动规则
-      if (leftWasBelow && !leftBelow) setLayout("leftManual", null)
-      if (railWasBelow && !railBelow) setLayout("railManual", null)
+      // 只清除“手动展开”的临时覆盖；手动收起必须跨重启保留，不能因窗口变宽被自动规则清空。
+      if (leftWasBelow && !leftBelow && leftManual() === false) setLayout("leftManual", null)
+      if (railWasBelow && !railBelow && railManual() === false) setLayout("railManual", null)
       leftWasBelow = leftBelow
       railWasBelow = railBelow
       setWidthCollapsed(leftBelow)
@@ -391,6 +391,100 @@ export default function NovelWorkspaceFrame() {
     widthObserver = observer
     onCleanup(() => observer.disconnect())
   })
+  const panelEdgeRail = (side: "left" | "right") => {
+    const isLeft = side === "left"
+    const collapsed = isLeft ? leftCollapsed() : railCollapsed()
+    const dragging = isLeft ? dragLeftWidth() : dragRailWidth()
+    return (
+      <Show when={!collapsed && !dragging}>
+        <TooltipV2
+          placement={isLeft ? "left" : "right"}
+          value={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
+          class={`absolute top-1/2 z-20 -translate-y-1/2 ${isLeft ? "right-1.5" : "left-1.5"}`}
+        >
+          <button
+            type="button"
+            data-edge-rail={`${side}-expanded`}
+            class={`flex h-24 w-6 items-center justify-center rounded-xl border border-v2-border-border-base/60 shadow-lg shadow-black/10 backdrop-blur-md transition-opacity duration-200 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 ${
+              isLeft ? "bg-gradient-to-r" : "bg-gradient-to-l"
+            } from-transparent to-v2-background-bg-layer-02/90`}
+            aria-label={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
+            aria-expanded={!collapsed}
+            onClick={() => {
+              if (isLeft) {
+                if (expandedPanel()) {
+                  exitExpand()
+                  return
+                }
+                setLayout("leftManual", true)
+                return
+              }
+              setLayout("railManual", true)
+            }}
+          >
+            <Icon name={isLeft ? "chevron-left" : "chevron-right"} size="small" />
+          </button>
+        </TooltipV2>
+      </Show>
+    )
+  }
+
+  const collapsedEdgeRail = (side: "left" | "right") => {
+    const isLeft = side === "left"
+    const collapsed = isLeft ? leftCollapsed() : railCollapsed()
+    const dragging = isLeft ? dragLeftWidth() : dragRailWidth()
+    return (
+      <Show when={collapsed && !dragging}>
+        <TooltipV2
+          placement={isLeft ? "right" : "left"}
+          value={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
+          class={`absolute top-1/2 z-30 -translate-y-1/2 ${isLeft ? "left-0" : "right-0"}`}
+        >
+          <button
+            type="button"
+            data-edge-rail={`${side}-collapsed`}
+            class="group relative h-32 w-4 transition-opacity duration-200"
+            aria-label={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
+            aria-expanded={!collapsed}
+            onClick={() => {
+              if (isLeft) {
+                if (expandedPanel()) {
+                  exitExpand()
+                  return
+                }
+                setLayout("leftManual", false)
+                return
+              }
+              if (expandedPanel()) {
+                exitExpand()
+                return
+              }
+              restoreRailPanel(railPanel())
+            }}
+          >
+            <span
+              class={`absolute inset-y-0 ${isLeft ? "left-0" : "right-0"} w-0.5 bg-gradient-to-b from-transparent via-v2-border-border-base to-transparent opacity-70`}
+              aria-hidden="true"
+            />
+            <span
+              class={`absolute top-1/2 flex h-12 w-8 -translate-y-1/2 items-center justify-center rounded-xl border border-v2-border-border-base/60 bg-v2-background-bg-layer-01/90 shadow-lg shadow-black/10 backdrop-blur-md transition-opacity duration-200 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 ${
+                isLeft ? "-left-2" : "-right-2"
+              }`}
+              aria-hidden="true"
+            >
+              <span class="relative inline-flex">
+                <Icon name={isLeft ? "chevron-double-right" : "chevron-double-left"} size="small" />
+                <Show when={!isLeft && novelActivity()}>
+                  <span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-v2-state-fg-success animate-pulse" />
+                </Show>
+              </span>
+            </span>
+          </button>
+        </TooltipV2>
+      </Show>
+    )
+  }
+
   const [isEditing, setIsEditing] = createSignal(false)
   const [editTitle, setEditTitle] = createSignal("")
   const [editSynopsis, setEditSynopsis] = createSignal("")
@@ -676,53 +770,15 @@ export default function NovelWorkspaceFrame() {
           </Show>
 
           {/* Body — 三区布局：左栏导航 / 主区焦点 / 右栏随行 */}
-          <div ref={bodyRef} class="flex flex-1 min-h-0">
+          <div ref={bodyRef} class="relative flex flex-1 min-h-0">
+            {collapsedEdgeRail("left")}
             {/* 左栏：导航区（章节/大纲/设定），常驻可用；宽度 = 设定值（D1），右缘拖拽手柄可调（D3） */}
             <aside
-              classList={{ "bg-v2-background-bg-layer-01": leftCollapsed() }}
-              class="relative border-r border-v2-border-border-base flex flex-col min-h-0 shrink-0"
-              style={{ width: leftCollapsed() ? `${WORKSPACE_DOCK_WIDTH}px` : `${leftPaneWidth()}px` }}
+              classList={{ hidden: leftCollapsed() }}
+              class="group relative border-r border-v2-border-border-base flex flex-col min-h-0 shrink-0"
+              style={{ width: `${leftPaneWidth()}px` }}
             >
-              <Show when={leftCollapsed()}>
-                <nav class="flex min-h-0 flex-1 flex-col items-center gap-1 py-2">
-                  <TooltipV2 placement="right" value={language.t("novel.workspace.toggleNav")}>
-                    <IconButtonV2
-                      type="button"
-                      variant="ghost-muted"
-                      size="normal"
-                      icon={<Icon name="chevron-double-right" size="small" />}
-                      aria-label={language.t("novel.workspace.toggleNav")}
-                      aria-expanded={!leftCollapsed()}
-                      onClick={() => {
-                        if (expandedPanel()) {
-                          exitExpand()
-                          return
-                        }
-                        setLayout("leftManual", false)
-                      }}
-                    />
-                  </TooltipV2>
-                  <For each={LEFT_MODES}>
-                    {(item) => (
-                      <TooltipV2 placement="right" value={language.t(item.labelKey)}>
-                        <IconButtonV2
-                          type="button"
-                          variant="ghost-muted"
-                          size="normal"
-                          state={leftMode() === item.key ? "pressed" : "rest"}
-                          icon={<Icon name={item.icon} size="small" />}
-                          aria-label={language.t(item.labelKey)}
-                          aria-pressed={leftMode() === item.key}
-                          onClick={() => {
-                            if (expandedPanel()) exitExpand()
-                            changeLeftMode(item.key)
-                          }}
-                        />
-                      </TooltipV2>
-                    )}
-                  </For>
-                </nav>
-              </Show>
+              {panelEdgeRail("left")}
               <div classList={{ hidden: leftCollapsed() }} class="flex min-h-0 flex-1 flex-col">
                 <ResizeHandle
                   direction="horizontal"
@@ -759,17 +815,6 @@ export default function NovelWorkspaceFrame() {
                       )}
                     </For>
                   </SegmentedControlV2>
-                  <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleNav")}>
-                    <IconButtonV2
-                      type="button"
-                      variant="ghost-muted"
-                      size="small"
-                      icon={<Icon name="chevron-left" size="small" />}
-                      aria-label={language.t("novel.workspace.toggleNav")}
-                      aria-expanded={!leftCollapsed()}
-                      onClick={() => setLayout("leftManual", true)}
-                    />
-                  </TooltipV2>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <Show when={leftMode() === "chapters"}>
@@ -946,27 +991,15 @@ export default function NovelWorkspaceFrame() {
                   </div>
                 )}
               </Show>
-
-              {/* expand 态窄条：生成中呼吸灯，点击恢复对话（3.2） */}
-              <Show when={expandedPanel() && novelActivity()}>
-                <button
-                  type="button"
-                  title={language.t("novel.workspace.chat")}
-                  onClick={() => exitExpand("chat")}
-                  class="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 py-4 px-1.5 border border-r-0 border-v2-border-border-base rounded-l-lg bg-v2-background-bg-layer-01 shadow-sm hover:bg-v2-background-bg-layer-02"
-                >
-                  <Icon name="speech-bubble" size="small" />
-                  <span class="w-2 h-2 rounded-full bg-v2-state-fg-success animate-pulse" />
-                </button>
-              </Show>
             </div>
 
             {/* 右栏：随行区 — 图标列 + 面板区；宽度 = 设定值（D1），左缘拖拽手柄可调（D3） */}
             <aside
-              classList={{ "bg-v2-background-bg-layer-01": railCollapsed() }}
-              class="relative border-l border-v2-border-border-base flex min-h-0 shrink-0"
-              style={{ width: railCollapsed() ? `${WORKSPACE_DOCK_WIDTH}px` : `${railPaneWidth()}px` }}
+              classList={{ hidden: railCollapsed() }}
+              class="group relative border-l border-v2-border-border-base flex min-h-0 shrink-0"
+              style={{ width: `${railPaneWidth()}px` }}
             >
+              {panelEdgeRail("right")}
               <div classList={{ hidden: railCollapsed() }} class="flex min-h-0 flex-1">
                 <ResizeHandle
                   direction="horizontal"
@@ -1057,62 +1090,8 @@ export default function NovelWorkspaceFrame() {
                 </div>
               </div>
 
-              <Show
-                when={!railCollapsed()}
-                fallback={
-                  <nav class="flex h-full min-h-0 flex-col items-center gap-1 py-2">
-                    <TooltipV2 placement="left" value={language.t("novel.workspace.toggleRail")}>
-                      <IconButtonV2
-                        type="button"
-                        variant="ghost-muted"
-                        size="normal"
-                        icon={<Icon name="chevron-double-left" size="small" />}
-                        aria-label={language.t("novel.workspace.toggleRail")}
-                        aria-expanded={!railCollapsed()}
-                        onClick={() => restoreRailPanel(railPanel())}
-                      />
-                    </TooltipV2>
-                    <For each={RAIL_PANELS}>
-                      {(item) =>
-                        railPanel() === item.key && (
-                          <TooltipV2 placement="left" value={language.t(item.labelKey)}>
-                            <IconButtonV2
-                              type="button"
-                              variant="ghost-muted"
-                              size="normal"
-                              state="pressed"
-                              icon={
-                                <span class="relative inline-flex">
-                                  <Icon name={item.icon} size="small" />
-                                  <Show when={novelActivity()}>
-                                    <span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-v2-state-fg-success animate-pulse" />
-                                  </Show>
-                                </span>
-                              }
-                              aria-label={language.t(item.labelKey)}
-                              aria-pressed
-                              onClick={() => restoreRailPanel(item.key)}
-                            />
-                          </TooltipV2>
-                        )
-                      }
-                    </For>
-                  </nav>
-                }
-              >
-                {/* 图标列（右栏最右缘）：面板区在前、切换列在后 */}
+              <Show when={!railCollapsed() && !dragRailWidth()}>
                 <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-l border-v2-border-border-base shrink-0">
-                  <TooltipV2 placement="left" value={language.t("novel.workspace.toggleRail")}>
-                    <IconButtonV2
-                      type="button"
-                      variant="ghost-muted"
-                      size="normal"
-                      icon={<Icon name="chevron-right" size="small" />}
-                      aria-label={language.t("novel.workspace.toggleRail")}
-                      aria-expanded={!railCollapsed()}
-                      onClick={() => setLayout("railManual", true)}
-                    />
-                  </TooltipV2>
                   <For each={RAIL_PANELS}>
                     {(item) => (
                       <TooltipV2 placement="left" value={language.t(item.labelKey)}>
@@ -1131,6 +1110,7 @@ export default function NovelWorkspaceFrame() {
                 </div>
               </Show>
             </aside>
+            {collapsedEdgeRail("right")}
           </div>
         </div>
       </Show>
