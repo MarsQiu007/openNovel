@@ -1,12 +1,14 @@
 import { Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import {
   useAnnotations,
+  useBoundNovelSessions,
   useUpdateAnnotation,
   useDeleteAnnotation,
   useExecutionRounds,
   useCreateExecutionRound,
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
+import { useSync } from "@/context/sync"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
@@ -49,6 +51,8 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     props.novelID,
     createMemo(() => props.chapterID() ?? ""),
   )
+  const boundSessions = useBoundNovelSessions(props.novelID)
+  const sync = useSync()
   const rounds = useExecutionRounds(
     props.novelID,
     createMemo(() => props.chapterID() ?? ""),
@@ -64,7 +68,12 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
 
   const activeAnnotations = createMemo(() => (annotations.data ?? []).filter((ann) => !ann.executionRoundId))
   const openCount = createMemo(() => activeAnnotations().filter((a) => a.status === "open").length)
-  const canExecute = createMemo(() => !isExecuting() && activeAnnotations().length > 0 && openCount() === 0)
+  const sessionBusy = createMemo(() =>
+    (boundSessions.data ?? []).some((session) => sync().data.session_working(session.sessionID)),
+  )
+  const canExecute = createMemo(
+    () => !isExecuting() && !sessionBusy() && activeAnnotations().length > 0 && openCount() === 0,
+  )
 
   function setStatus(id: string, status: "open" | "resolved" | "wontfix" | "applied") {
     const chapterID = props.chapterID()
@@ -111,10 +120,12 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     }
   }
 
-  function reactivate(id: string) {
+  function reactivate(ids: readonly string[]) {
     const chapterID = props.chapterID()
-    if (!chapterID) return
-    updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID, status: "open", executionRoundId: null })
+    if (!chapterID || ids.length === 0) return
+    for (const id of ids) {
+      updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID, status: "open", executionRoundId: null })
+    }
   }
 
   function startEdit(ann: Annotation) {
@@ -159,6 +170,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           props={props}
           annotations={annotations}
           activeAnnotations={activeAnnotations}
+          executing={isExecuting() || sessionBusy()}
           setStatus={setStatus}
           remove={remove}
           canExecute={canExecute}
@@ -216,6 +228,7 @@ function CurrentTab(props: {
   props: AnnotationPanelProps
   annotations: { data: readonly Annotation[] | undefined; isLoading: boolean }
   activeAnnotations: Accessor<readonly Annotation[]>
+  executing: boolean
   setStatus: (id: string, status: "open" | "resolved" | "wontfix" | "applied") => void
   remove: (id: string) => void
   canExecute: Accessor<boolean>
@@ -263,9 +276,11 @@ function CurrentTab(props: {
 
       <div class="border-t border-v2-border-border-muted bg-v2-background-bg-base px-4 pt-3 pb-4">
         <p class="text-v2-text-text-faint text-center text-xs">
-          {props.canExecute()
-            ? language.t("novel.annotations.execute.hint")
-            : language.t("novel.annotations.execute.pending")}
+          {props.executing
+            ? language.t("novel.workspace.writingInProgress")
+            : props.canExecute()
+              ? language.t("novel.annotations.execute.hint")
+              : language.t("novel.annotations.execute.pending")}
         </p>
         <div class="mt-2 flex justify-center">
           <button
@@ -280,13 +295,13 @@ function CurrentTab(props: {
               "border-radius": "6px",
               "font-size": "13px",
               "line-height": "20px",
-              "background-color": props.canExecute() ? "#2563eb" : "#3f3f46",
-              color: props.canExecute() ? "#ffffff" : "#a1a1aa",
-              opacity: props.canExecute() ? "1" : "0.6",
-              cursor: props.canExecute() ? "pointer" : "not-allowed",
+              "background-color": props.executing || props.canExecute() ? "#2563eb" : "#3f3f46",
+              color: props.executing || props.canExecute() ? "#ffffff" : "#a1a1aa",
+              opacity: props.executing ? "0.7" : props.canExecute() ? "1" : "0.6",
+              cursor: props.executing ? "progress" : props.canExecute() ? "pointer" : "not-allowed",
             }}
           >
-            {language.t("novel.annotations.execute") || "执行"}
+            {props.executing ? language.t("novel.workspace.writingInProgress") : language.t("novel.annotations.execute") || "执行"}
           </button>
         </div>
       </div>
@@ -403,7 +418,7 @@ function AnnotationCard(props: {
 function HistoryTab(props: {
   rounds: { data: ReadonlyArray<{ readonly id: string; readonly promptSnapshot: string; readonly createdAt: number }> | undefined; isLoading: boolean }
   annotations: { data: readonly Annotation[] | undefined }
-  reactivate: (id: string) => void
+  reactivate: (ids: readonly string[]) => void
 }) {
   const language = useLanguage()
   const roundList = createMemo(() => props.rounds.data ?? [])
@@ -435,6 +450,11 @@ function HistoryTab(props: {
               <span class="text-v2-text-text-faint text-xs">{new Date(group.createdAt).toLocaleString()}</span>
             </div>
             <p class="text-v2-text-text-faint line-clamp-2 text-xs whitespace-pre-wrap">{group.promptSnapshot}</p>
+            <div class="flex justify-end">
+              <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate(group.annotations.map((ann) => ann.id))}>
+                {language.t("novel.annotations.reactivate")}
+              </ButtonV2>
+            </div>
 
             <For each={group.annotations}>
               {(ann) => (
@@ -449,7 +469,7 @@ function HistoryTab(props: {
                   </div>
                   <p class="text-v2-text-text-base text-xs">{ann.comment}</p>
                   <div class="flex justify-end">
-                    <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate(ann.id)}>
+                    <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate([ann.id])}>
                       {language.t("novel.annotations.reactivate")}
                     </ButtonV2>
                   </div>
