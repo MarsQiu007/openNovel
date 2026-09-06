@@ -248,7 +248,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
 
             {/* Reading content */}
             <div class="flex-1 min-h-0 overflow-y-auto">
-              <div class="novel-reading px-6 py-8" onContextMenu={handleContextMenu}>
+              <div class="novel-reading px-6 py-8 select-text" onContextMenu={handleContextMenu}>
                 <For each={visibleParagraphs()}>
                   {(paragraph, idx) => (
                     <p data-paragraph-index={idx()}>
