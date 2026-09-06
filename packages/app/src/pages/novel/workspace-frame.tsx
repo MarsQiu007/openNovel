@@ -398,16 +398,16 @@ export default function NovelWorkspaceFrame() {
     return (
       <Show when={!collapsed && !dragging}>
         <TooltipV2
-          placement={isLeft ? "left" : "right"}
+          placement={isLeft ? "right" : "left"}
           value={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
-          class={`absolute top-1/2 z-20 -translate-y-1/2 ${isLeft ? "right-1.5" : "left-1.5"}`}
+          class={`absolute top-1/2 z-20 -translate-y-1/2 ${isLeft ? "-right-6" : "-left-6"}`}
         >
           <button
             type="button"
             data-edge-rail={`${side}-expanded`}
             class={`flex h-24 w-6 items-center justify-center rounded-xl border border-v2-border-border-base/60 shadow-lg shadow-black/10 backdrop-blur-md transition-opacity duration-200 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 ${
-              isLeft ? "bg-gradient-to-r" : "bg-gradient-to-l"
-            } from-transparent to-v2-background-bg-layer-02/90`}
+              isLeft ? "bg-gradient-to-l" : "bg-gradient-to-r"
+            } from-v2-background-bg-layer-02/90 to-transparent`}
             aria-label={language.t(isLeft ? "novel.workspace.toggleNav" : "novel.workspace.toggleRail")}
             aria-expanded={!collapsed}
             onClick={() => {
@@ -463,12 +463,12 @@ export default function NovelWorkspaceFrame() {
             }}
           >
             <span
-              class={`absolute inset-y-0 ${isLeft ? "left-0" : "right-0"} w-0.5 bg-gradient-to-b from-transparent via-v2-border-border-base to-transparent opacity-70`}
+              class={`absolute inset-y-8 ${isLeft ? "left-0.5" : "right-0.5"} w-1.5 rounded-full bg-gradient-to-b from-transparent via-v2-border-border-strong to-transparent opacity-60 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0`}
               aria-hidden="true"
             />
             <span
               class={`absolute top-1/2 flex h-12 w-8 -translate-y-1/2 items-center justify-center rounded-xl border border-v2-border-border-base/60 bg-v2-background-bg-layer-01/90 shadow-lg shadow-black/10 backdrop-blur-md transition-opacity duration-200 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 ${
-                isLeft ? "-left-2" : "-right-2"
+                isLeft ? "left-0" : "right-0"
               }`}
               aria-hidden="true"
             >
