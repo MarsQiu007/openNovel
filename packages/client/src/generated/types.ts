@@ -4790,6 +4790,7 @@ export type ServerNovelAnnotationsOutput = ReadonlyArray<{
   readonly suggestedReplacement?: string | null
   readonly status: "open" | "resolved" | "wontfix" | "applied"
   readonly authorSessionId?: string | null
+  readonly executionRoundId?: string | null
   readonly createdAt: number
   readonly updatedAt: number
 }>
@@ -4897,6 +4898,7 @@ export type ServerNovelCreateAnnotationOutput = {
   readonly suggestedReplacement?: string | null
   readonly status: "open" | "resolved" | "wontfix" | "applied"
   readonly authorSessionId?: string | null
+  readonly executionRoundId?: string | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -4912,25 +4914,36 @@ export type ServerNovelUpdateAnnotationInput = {
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
+    readonly executionRoundId?: string
   }["comment"]
   readonly status?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
+    readonly executionRoundId?: string
   }["status"]
   readonly suggestedReplacement?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
+    readonly executionRoundId?: string
   }["suggestedReplacement"]
   readonly quote?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
     readonly suggestedReplacement?: string
     readonly quote?: string
+    readonly executionRoundId?: string
   }["quote"]
+  readonly executionRoundId?: {
+    readonly comment?: string
+    readonly status?: "open" | "resolved" | "wontfix" | "applied"
+    readonly suggestedReplacement?: string
+    readonly quote?: string
+    readonly executionRoundId?: string
+  }["executionRoundId"]
 }
 
 export type ServerNovelUpdateAnnotationOutput = {
@@ -4948,6 +4961,7 @@ export type ServerNovelUpdateAnnotationOutput = {
   readonly suggestedReplacement?: string | null
   readonly status: "open" | "resolved" | "wontfix" | "applied"
   readonly authorSessionId?: string | null
+  readonly executionRoundId?: string | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -4961,6 +4975,64 @@ export type ServerNovelDeleteAnnotationInput = {
 }
 
 export type ServerNovelDeleteAnnotationOutput = { readonly deleted: boolean }
+
+export type ServerNovelCreateExecutionRoundInput = {
+  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
+  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly novelId: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly resultSummary?: string
+  }["novelId"]
+  readonly chapterId: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly resultSummary?: string
+  }["chapterId"]
+  readonly promptSnapshot?: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly resultSummary?: string
+  }["promptSnapshot"]
+  readonly resultSummary?: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly resultSummary?: string
+  }["resultSummary"]
+}
+
+export type ServerNovelCreateExecutionRoundOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly promptSnapshot: string
+  readonly resultSummary: string
+  readonly createdAt: number
+}
+
+export type ServerNovelExecutionRoundsInput = {
+  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
+  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly promptSnapshot: string
+  readonly resultSummary: string
+  readonly createdAt: number
+}>
 
 export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]

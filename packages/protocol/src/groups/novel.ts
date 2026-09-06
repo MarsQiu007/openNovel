@@ -63,6 +63,8 @@ import {
   CreateAnnotationInput,
   UpdateAnnotationInput,
   UpsertCanvasLayoutInput,
+  ExecutionRound,
+  CreateExecutionRoundInput,
 } from "@opennovel-ai/schema/novel"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -1101,6 +1103,27 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-annotation", summary: "Delete annotation" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-execution-round", `${root}/:novelID/chapters/:chapterID/execution-rounds`, {
+      params: { novelID: Schema.String, chapterID: Schema.String },
+      query: LocationQuery,
+      payload: CreateExecutionRoundInput,
+      success: ExecutionRound,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-execution-round", summary: "Create execution round" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.execution-rounds", `${root}/:novelID/chapters/:chapterID/execution-rounds`, {
+      params: { novelID: Schema.String, chapterID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(ExecutionRound),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.execution-rounds", summary: "List execution rounds" })),
   )
   .add(
     HttpApiEndpoint.get("novel.canvas-layout", `${root}/:novelID/canvas-layout`, {
