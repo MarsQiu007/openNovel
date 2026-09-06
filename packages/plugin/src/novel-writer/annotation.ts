@@ -59,7 +59,7 @@ const VALID_TRANSITIONS: Record<AnnotationStatus, AnnotationStatus[]> = {
   open: ["resolved", "wontfix", "applied"],
   resolved: ["open"],
   wontfix: ["open"],
-  applied: [],
+  applied: ["open"],
 }
 
 /**
@@ -102,4 +102,60 @@ export function applySuggestion(
     paragraphs[idx] = replacement
   }
   return paragraphs.join("\n\n")
+}
+
+
+/**
+ * 批注执行指令格式化结果。
+ */
+export type FormattedInstruction = {
+  applied: { annotationId: string; paragraphIndex: number | null; quote: string; replacement: string }
+  resolved: { annotationId: string; paragraphIndex: number | null; quote: string; comment: string }
+  wontfix: { annotationId: string; paragraphIndex: number | null }
+  stale: { annotationId: string; status: string; reason: string }
+}
+
+/**
+ * 将批注列表格式化为结构化自然语言执行指令。
+ * 章节号从 1 开始展示（内部段落索引从 0 开始）。
+ */
+export function formatExecutionPrompt(
+  annotations: Array<{
+    id: string
+    status: string
+    paragraph_index: number | null
+    quote: string
+    comment: string
+    suggested_replacement: string | null
+  }>,
+  chapterTitle: string,
+): string {
+  const applied: string[] = []
+  const resolved: string[] = []
+  const wontfix: string[] = []
+
+  for (const ann of annotations) {
+    const p = ann.paragraph_index != null ? `段落 ${ann.paragraph_index + 1}` : "全章"
+    if (ann.status === "applied" && ann.suggested_replacement) {
+      const quote = ann.quote ? `「${ann.quote}」` : ""
+      applied.push(`- ${p}：将${quote}替换为「${ann.suggested_replacement}」`)
+    } else if (ann.status === "resolved") {
+      resolved.push(`- ${p}：「${ann.comment}」`)
+    } else if (ann.status === "wontfix") {
+      wontfix.push(`- ${p}`)
+    }
+  }
+
+  const sections: string[] = [`请按以下批注修改${chapterTitle}正文：`]
+  if (applied.length > 0) {
+    sections.push("\n## 需要应用替换的段落（采纳）\n" + applied.join("\n"))
+  }
+  if (resolved.length > 0) {
+    sections.push("\n## 需要根据意见改写的段落（解决）\n" + resolved.join("\n"))
+  }
+  if (wontfix.length > 0) {
+    sections.push("\n## 需要跳过的段落（不修）\n" + wontfix.join("\n"))
+  }
+  sections.push("\n修改完成后请检查替换段落与前后文的衔接是否连贯。")
+  return sections.join("\n")
 }

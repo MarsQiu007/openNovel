@@ -8,6 +8,7 @@ import {
   canTransition,
   canApplyAnnotation,
   applySuggestion,
+  formatExecutionPrompt,
 } from "../../src/novel-writer/annotation.js"
 
 describe("splitParagraphs", () => {
@@ -63,9 +64,10 @@ describe("canTransition", () => {
     expect(canTransition("open", "applied")).toBe(true)
   })
 
-  test("applied 是终态", () => {
-    expect(canTransition("applied", "open")).toBe(false)
+  test("applied 可以回退到 open（重新激活），但不能再转 resolved/wontfix", () => {
+    expect(canTransition("applied", "open")).toBe(true)
     expect(canTransition("applied", "resolved")).toBe(false)
+    expect(canTransition("applied", "wontfix")).toBe(false)
   })
 
   test("resolved 可以重新打开", () => {
@@ -125,5 +127,41 @@ describe("applySuggestion", () => {
       "全新第三段",
     )
     expect(result).toBe("段落一原文\n\n段落二原文\n\n全新第三段")
+  })
+})
+
+
+describe("formatExecutionPrompt", () => {
+  const chapterTitle = "第一章"
+
+  test("包含采纳/解决/不修三个分组", () => {
+    const prompt = formatExecutionPrompt(
+      [
+        { id: "a1", status: "applied", paragraph_index: 2, quote: "原文", comment: "", suggested_replacement: "改写后" },
+        { id: "a2", status: "resolved", paragraph_index: 4, quote: "", comment: "加强冲突", suggested_replacement: null },
+        { id: "a3", status: "wontfix", paragraph_index: 6, quote: "", comment: "", suggested_replacement: null },
+      ],
+      chapterTitle,
+    )
+    expect(prompt).toContain("需要应用替换的段落")
+    expect(prompt).toContain("段落 3")
+    expect(prompt).toContain("改写后")
+    expect(prompt).toContain("需要根据意见改写的段落")
+    expect(prompt).toContain("加强冲突")
+    expect(prompt).toContain("需要跳过的段落")
+    expect(prompt).toContain("段落 7")
+  })
+
+  test("段落索引从 1 开始展示", () => {
+    const prompt = formatExecutionPrompt(
+      [{ id: "a1", status: "applied", paragraph_index: 0, quote: "", comment: "", suggested_replacement: "新文本" }],
+      chapterTitle,
+    )
+    expect(prompt).toContain("段落 1")
+  })
+
+  test("无批注时返回空指令", () => {
+    const prompt = formatExecutionPrompt([], chapterTitle)
+    expect(prompt).toContain("请按以下批注修改")
   })
 })
