@@ -8,28 +8,40 @@ import {
   RAIL_PANE_MAX_WIDTH,
   RAIL_PANE_MIN_WIDTH,
   resolvePaneWidth,
+  WORKSPACE_DOCK_WIDTH,
+  WORKSPACE_DOCK_TOTAL_WIDTH,
   WORKSPACE_MAIN_MIN_WIDTH,
 } from "./workspace-pane-width"
 
 describe("collapseThresholds", () => {
-  test("degenerates to the archived fixed thresholds at default widths (zero regression)", () => {
+  test("reserves dock width before auto collapsing either pane", () => {
     const thresholds = collapseThresholds(LEFT_PANE_DEFAULT_WIDTH, RAIL_PANE_DEFAULT_WIDTH)
-    expect(thresholds.left).toBe(1008) // 288 + 720
-    expect(thresholds.rail).toBe(1100) // 380 + 720
+    expect(thresholds.left).toBe(LEFT_PANE_DEFAULT_WIDTH + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
+    expect(thresholds.rail).toBe(
+      LEFT_PANE_DEFAULT_WIDTH + RAIL_PANE_DEFAULT_WIDTH + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH,
+    )
+    expect(thresholds.rail).toBeGreaterThan(thresholds.left)
   })
 
   test("keeps the rail threshold strictly above the left threshold when the rail is dragged narrower", () => {
     // 角色语义：随行右栏先让位——即使右栏 320 < 左栏 350，右档也必须更大
     const thresholds = collapseThresholds(350, RAIL_PANE_MIN_WIDTH)
-    expect(thresholds.left).toBe(350 + WORKSPACE_MAIN_MIN_WIDTH)
-    expect(thresholds.rail).toBe(350 + WORKSPACE_MAIN_MIN_WIDTH + 1)
+    expect(thresholds.left).toBe(350 + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
+    expect(thresholds.rail).toBe(350 + RAIL_PANE_MIN_WIDTH + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
     expect(thresholds.rail).toBeGreaterThan(thresholds.left)
   })
 
   test("derives the rail threshold from the rail width when it is the wider pane", () => {
     const thresholds = collapseThresholds(LEFT_PANE_MIN_WIDTH, RAIL_PANE_MAX_WIDTH)
-    expect(thresholds.left).toBe(LEFT_PANE_MIN_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
-    expect(thresholds.rail).toBe(RAIL_PANE_MAX_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
+    expect(thresholds.left).toBe(LEFT_PANE_MIN_WIDTH + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH)
+    expect(thresholds.rail).toBe(
+      LEFT_PANE_MIN_WIDTH + RAIL_PANE_MAX_WIDTH + WORKSPACE_DOCK_TOTAL_WIDTH + WORKSPACE_MAIN_MIN_WIDTH,
+    )
+  })
+
+  test("keeps the promised 36px dock width", () => {
+    expect(WORKSPACE_DOCK_WIDTH).toBe(36)
+    expect(WORKSPACE_DOCK_TOTAL_WIDTH).toBe(72)
   })
 })
 

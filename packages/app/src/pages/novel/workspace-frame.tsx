@@ -22,7 +22,17 @@ import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
-import { useUpdateNovel, useExportNovel, useStyleGuide, useUpdateStyleGuide, useOutline, useWorldEntries, useCharacters, useBoundNovelSessions, resolveAutoAdoptTarget } from "@/context/novel-queries"
+import {
+  useUpdateNovel,
+  useExportNovel,
+  useStyleGuide,
+  useUpdateStyleGuide,
+  useOutline,
+  useWorldEntries,
+  useCharacters,
+  useBoundNovelSessions,
+  resolveAutoAdoptTarget,
+} from "@/context/novel-queries"
 import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
 import ApprovalBar from "./approval-bar"
@@ -50,6 +60,7 @@ import {
   RAIL_PANE_DEFAULT_WIDTH,
   RAIL_PANE_MAX_WIDTH,
   RAIL_PANE_MIN_WIDTH,
+  WORKSPACE_DOCK_WIDTH,
   resolvePaneWidth,
 } from "./workspace-pane-width"
 
@@ -64,6 +75,15 @@ const RAIL_PANELS = [
 ] as const
 
 type RailPanel = (typeof RAIL_PANELS)[number]["key"]
+
+// 左坞复用完整左栏的分段语义；展开态的分段控件与收起态紧凑入口共用同一状态
+const LEFT_MODES = [
+  { key: "world", icon: "settings-gear", labelKey: "novel.workspace.modeSettings" },
+  { key: "outlines", icon: "bullet-list", labelKey: "novel.workspace.modeOutlines" },
+  { key: "chapters", icon: "open-file", labelKey: "novel.workspace.modeChapters" },
+] as const
+
+type LeftMode = (typeof LEFT_MODES)[number]["key"]
 
 // 布局持久化结构（novel.workspace.layout.v1）——leftManual / railManual 为左右栏手动收起覆盖
 // （null = 跟随宽度规则）；
@@ -148,12 +168,12 @@ export default function NovelWorkspaceFrame() {
     return id ? (data.chapters.find((c) => c.id === id) ?? null) : null
   })
   const [selectedRelationCharacterId, setSelectedRelationCharacterId] = createSignal<string | null>(null)
-  const [leftMode, setLeftMode] = createSignal<"chapters" | "outlines" | "world">("chapters")
+  const [leftMode, setLeftMode] = createSignal<LeftMode>("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
   const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
   // 选择联动：写 signal 的同时更新该书存档——恢复 effect 随数据 refetch 重跑时读到的存档值
   // 就是用户最新选择，恢复幂等（每个选择入口都必须走这里的联动，见下方恢复 effect）
-  const changeLeftMode = (value: "chapters" | "outlines" | "world") => {
+  const changeLeftMode = (value: LeftMode) => {
     setLeftMode(value)
     setPerBookState(novelID(), { leftMode: value })
   }
@@ -299,6 +319,13 @@ export default function NovelWorkspaceFrame() {
     setRailPanel(key)
     // 默认深度：结构面板 expand，其余 peek（3.1）
     if (key === "structure") setSearchParams({ tab: "panel:structure" })
+  }
+  const restoreRailPanel = (key: RailPanel) => {
+    if (expandedPanel()) {
+      exitExpand(key)
+      return
+    }
+    setLayout("railManual", false)
   }
   createEffect(() => {
     if (!expandedPanel()) return
@@ -476,9 +503,7 @@ export default function NovelWorkspaceFrame() {
     const id = params.id
     if (!id) return false
     const messages = sync().data.message[id]
-    return (
-      messages !== undefined && !messages.some((m) => m.role === "user") && !sync().session.history.loading(id)
-    )
+    return messages !== undefined && !messages.some((m) => m.role === "user") && !sync().session.history.loading(id)
   }
 
   // 建议 chip 在已存在会话中的动作：以建议文本原文发入当前会话（无包装、不新建）
@@ -536,14 +561,6 @@ export default function NovelWorkspaceFrame() {
               >
                 ← {language.t("novel.workspace.back")}
               </ButtonV2>
-              <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleNav")}>
-                <IconButtonV2
-                  variant="ghost-muted"
-                  size="small"
-                  icon={<Icon name={leftCollapsed() ? "chevron-double-right" : "chevron-left"} size="small" />}
-                  onClick={() => setLayout("leftManual", !(leftManual() ?? widthCollapsed()))}
-                />
-              </TooltipV2>
               <Show
                 when={isEditing()}
                 fallback={
@@ -596,14 +613,6 @@ export default function NovelWorkspaceFrame() {
                 </Tag>
               </Show>
               <ModeBadge />
-              <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleRail")}>
-                <IconButtonV2
-                  variant="ghost-muted"
-                  size="small"
-                  icon={<Icon name={railCollapsed() ? "chevron-double-left" : "chevron-right"} size="small" />}
-                  onClick={() => setLayout("railManual", !(railManual() ?? railWidthCollapsed()))}
-                />
-              </TooltipV2>
             </div>
           </header>
 
@@ -670,76 +679,125 @@ export default function NovelWorkspaceFrame() {
           <div ref={bodyRef} class="flex flex-1 min-h-0">
             {/* 左栏：导航区（章节/大纲/设定），常驻可用；宽度 = 设定值（D1），右缘拖拽手柄可调（D3） */}
             <aside
-              classList={{ hidden: leftCollapsed() }}
+              classList={{ "bg-v2-background-bg-layer-01": leftCollapsed() }}
               class="relative border-r border-v2-border-border-base flex flex-col min-h-0 shrink-0"
-              style={{ width: `${leftPaneWidth()}px` }}
+              style={{ width: leftCollapsed() ? `${WORKSPACE_DOCK_WIDTH}px` : `${leftPaneWidth()}px` }}
             >
-              <ResizeHandle
-                direction="horizontal"
-                edge="end"
-                size={leftPaneWidth()}
-                min={LEFT_PANE_MIN_WIDTH}
-                max={LEFT_PANE_MAX_WIDTH}
-                collapseThreshold={LEFT_PANE_MIN_WIDTH}
-                onResize={setDragLeftWidth}
-                onCollapseChange={(dragging) => {
-                  if (!dragging) commitLeftWidth()
-                }}
-                onCollapse={() => {
-                  // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 220px 显示
-                  setDragLeftWidth(null)
-                  setLayout("leftWidth", LEFT_PANE_MIN_WIDTH)
-                  setLayout("leftManual", true)
-                }}
-                onDblClick={() => {
-                  // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
-                  setDragLeftWidth(null)
-                  setLayout("leftWidth", null)
-                }}
-              />
-              <div class="flex border-b border-v2-border-border-base shrink-0 px-3 py-2">
-                <SegmentedControlV2
-                  class="segmented-control-v2--full-width"
-                  value={leftMode()}
-                  onChange={(value) => value && changeLeftMode(value as "chapters" | "outlines" | "world")}
-                >
-                  <SegmentedControlItemV2 value="world">
-                    {language.t("novel.workspace.modeSettings")}
-                  </SegmentedControlItemV2>
-                  <SegmentedControlItemV2 value="outlines">
-                    {language.t("novel.workspace.modeOutlines")}
-                  </SegmentedControlItemV2>
-                  <SegmentedControlItemV2 value="chapters">
-                    {language.t("novel.workspace.modeChapters")}
-                  </SegmentedControlItemV2>
-                </SegmentedControlV2>
-              </div>
-              <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <Show when={leftMode() === "chapters"}>
-                  <ChapterSidebar
-                    novelID={novelID()}
-                    volumes={data.volumes}
-                    chapters={data.chapters}
-                    selectedChapterId={selectedChapterId()}
-                    onSelectChapter={selectChapter}
-                  />
-                </Show>
-                <Show when={leftMode() === "outlines"}>
-                  <OutlineSidebar
-                    novelID={novelID()}
-                    volumes={data.volumes}
-                    chapters={data.chapters}
-                    selectedOutline={selectedOutline}
-                    onSelectOutline={selectOutline}
-                  />
-                </Show>
-                <Show when={leftMode() === "world"}>
-                  <WorldSidebar
-                    novelID={novelID}
-                    selectedEntryId={selectedWorldEntryId}
-                    onSelect={selectWorldEntry}
-                  />
-                </Show>
+              <Show when={leftCollapsed()}>
+                <nav class="flex min-h-0 flex-1 flex-col items-center gap-1 py-2">
+                  <TooltipV2 placement="right" value={language.t("novel.workspace.toggleNav")}>
+                    <IconButtonV2
+                      type="button"
+                      variant="ghost-muted"
+                      size="normal"
+                      icon={<Icon name="chevron-double-right" size="small" />}
+                      aria-label={language.t("novel.workspace.toggleNav")}
+                      aria-expanded={!leftCollapsed()}
+                      onClick={() => {
+                        if (expandedPanel()) {
+                          exitExpand()
+                          return
+                        }
+                        setLayout("leftManual", false)
+                      }}
+                    />
+                  </TooltipV2>
+                  <For each={LEFT_MODES}>
+                    {(item) => (
+                      <TooltipV2 placement="right" value={language.t(item.labelKey)}>
+                        <IconButtonV2
+                          type="button"
+                          variant="ghost-muted"
+                          size="normal"
+                          state={leftMode() === item.key ? "pressed" : "rest"}
+                          icon={<Icon name={item.icon} size="small" />}
+                          aria-label={language.t(item.labelKey)}
+                          aria-pressed={leftMode() === item.key}
+                          onClick={() => {
+                            if (expandedPanel()) exitExpand()
+                            changeLeftMode(item.key)
+                          }}
+                        />
+                      </TooltipV2>
+                    )}
+                  </For>
+                </nav>
+              </Show>
+              <div classList={{ hidden: leftCollapsed() }} class="flex min-h-0 flex-1 flex-col">
+                <ResizeHandle
+                  direction="horizontal"
+                  edge="end"
+                  size={leftPaneWidth()}
+                  min={LEFT_PANE_MIN_WIDTH}
+                  max={LEFT_PANE_MAX_WIDTH}
+                  collapseThreshold={LEFT_PANE_MIN_WIDTH}
+                  onResize={setDragLeftWidth}
+                  onCollapseChange={(dragging) => {
+                    if (!dragging) commitLeftWidth()
+                  }}
+                  onCollapse={() => {
+                    // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 220px 显示
+                    setDragLeftWidth(null)
+                    setLayout("leftWidth", LEFT_PANE_MIN_WIDTH)
+                    setLayout("leftManual", true)
+                  }}
+                  onDblClick={() => {
+                    // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
+                    setDragLeftWidth(null)
+                    setLayout("leftWidth", null)
+                  }}
+                />
+                <div class="flex items-center gap-1 border-b border-v2-border-border-base shrink-0 pl-3 pr-1.5 py-2">
+                  <SegmentedControlV2
+                    class="min-w-0 flex-1"
+                    value={leftMode()}
+                    onChange={(value) => value && changeLeftMode(value as LeftMode)}
+                  >
+                    <For each={LEFT_MODES}>
+                      {(item) => (
+                        <SegmentedControlItemV2 value={item.key}>{language.t(item.labelKey)}</SegmentedControlItemV2>
+                      )}
+                    </For>
+                  </SegmentedControlV2>
+                  <TooltipV2 placement="bottom" value={language.t("novel.workspace.toggleNav")}>
+                    <IconButtonV2
+                      type="button"
+                      variant="ghost-muted"
+                      size="small"
+                      icon={<Icon name="chevron-left" size="small" />}
+                      aria-label={language.t("novel.workspace.toggleNav")}
+                      aria-expanded={!leftCollapsed()}
+                      onClick={() => setLayout("leftManual", true)}
+                    />
+                  </TooltipV2>
+                </div>
+                <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <Show when={leftMode() === "chapters"}>
+                    <ChapterSidebar
+                      novelID={novelID()}
+                      volumes={data.volumes}
+                      chapters={data.chapters}
+                      selectedChapterId={selectedChapterId()}
+                      onSelectChapter={selectChapter}
+                    />
+                  </Show>
+                  <Show when={leftMode() === "outlines"}>
+                    <OutlineSidebar
+                      novelID={novelID()}
+                      volumes={data.volumes}
+                      chapters={data.chapters}
+                      selectedOutline={selectedOutline}
+                      onSelectOutline={selectOutline}
+                    />
+                  </Show>
+                  <Show when={leftMode() === "world"}>
+                    <WorldSidebar
+                      novelID={novelID}
+                      selectedEntryId={selectedWorldEntryId}
+                      onSelect={selectWorldEntry}
+                    />
+                  </Show>
+                </div>
               </div>
             </aside>
 
@@ -905,107 +963,173 @@ export default function NovelWorkspaceFrame() {
 
             {/* 右栏：随行区 — 图标列 + 面板区；宽度 = 设定值（D1），左缘拖拽手柄可调（D3） */}
             <aside
-              classList={{ hidden: railCollapsed() }}
+              classList={{ "bg-v2-background-bg-layer-01": railCollapsed() }}
               class="relative border-l border-v2-border-border-base flex min-h-0 shrink-0"
-              style={{ width: `${railPaneWidth()}px` }}
+              style={{ width: railCollapsed() ? `${WORKSPACE_DOCK_WIDTH}px` : `${railPaneWidth()}px` }}
             >
-              <ResizeHandle
-                direction="horizontal"
-                edge="start"
-                size={railPaneWidth()}
-                min={RAIL_PANE_MIN_WIDTH}
-                max={RAIL_PANE_MAX_WIDTH}
-                collapseThreshold={RAIL_PANE_MIN_WIDTH}
-                onResize={setDragRailWidth}
-                onCollapseChange={(dragging) => {
-                  if (!dragging) commitRailWidth()
-                }}
-                onCollapse={() => {
-                  // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 320px 显示
-                  setDragRailWidth(null)
-                  setLayout("railWidth", RAIL_PANE_MIN_WIDTH)
-                  setLayout("railManual", true)
-                }}
-                onDblClick={() => {
-                  // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
-                  setDragRailWidth(null)
-                  setLayout("railWidth", null)
-                }}
-              />
-              {/* 面板区 */}
-              <div class="flex-1 min-w-0 flex flex-col min-h-0">
-                {/* 对话面板：常驻挂载（display 切换保持会话状态不重置） */}
-                <div class="relative flex flex-col flex-1 min-h-0" style={{ display: railPanel() === "chat" ? "flex" : "none" }}>
-                  <NovelSessionSwitcher dir={params.dir!} novelID={novelID()} />
-                  <Show
-                    when={params.id}
-                    fallback={<NovelChatEmptyState dir={params.dir!} novelID={novelID()} />}
+              <div classList={{ hidden: railCollapsed() }} class="flex min-h-0 flex-1">
+                <ResizeHandle
+                  direction="horizontal"
+                  edge="start"
+                  size={railPaneWidth()}
+                  min={RAIL_PANE_MIN_WIDTH}
+                  max={RAIL_PANE_MAX_WIDTH}
+                  collapseThreshold={RAIL_PANE_MIN_WIDTH}
+                  onResize={setDragRailWidth}
+                  onCollapseChange={(dragging) => {
+                    if (!dragging) commitRailWidth()
+                  }}
+                  onCollapse={() => {
+                    // 拖到最小宽度再向外拽 = 手动收起（D3）：提交 min 为设定宽度，再展开按 320px 显示
+                    setDragRailWidth(null)
+                    setLayout("railWidth", RAIL_PANE_MIN_WIDTH)
+                    setLayout("railManual", true)
+                  }}
+                  onDblClick={() => {
+                    // 双击重置默认宽度（D3）：mousedown 对 e.detail > 1 早退，不与拖拽冲突
+                    setDragRailWidth(null)
+                    setLayout("railWidth", null)
+                  }}
+                />
+                {/* 面板区 */}
+                <div class="flex-1 min-w-0 flex flex-col min-h-0">
+                  {/* 对话面板：常驻挂载（display 切换保持会话状态不重置） */}
+                  <div
+                    class="relative flex flex-col flex-1 min-h-0"
+                    style={{ display: railPanel() === "chat" ? "flex" : "none" }}
                   >
-                    <div class="flex-1 min-h-0 overflow-y-auto">
-                      <SessionRouteErrorBoundary sessionID={params.id}>
-                        <SessionPage />
-                      </SessionRouteErrorBoundary>
-                    </div>
-                    {/* 已绑定空会话（如新建轻会话后未发消息）：时间线就绪且无用户消息时
-                        提供与空态一致的建议 chip，点击直接发入当前会话 */}
-                    <Show when={emptySessionChipVisible()}>
-                      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
-                        <ChatSuggestionChip
-                          suggestion={language.t("novel.writing.writeNextChapter")}
-                          onPick={(text) => void sendToCurrentSession(text)}
-                        />
+                    <NovelSessionSwitcher dir={params.dir!} novelID={novelID()} />
+                    <Show when={params.id} fallback={<NovelChatEmptyState dir={params.dir!} novelID={novelID()} />}>
+                      <div class="flex-1 min-h-0 overflow-y-auto">
+                        <SessionRouteErrorBoundary sessionID={params.id}>
+                          <SessionPage />
+                        </SessionRouteErrorBoundary>
                       </div>
+                      {/* 已绑定空会话（如新建轻会话后未发消息）：时间线就绪且无用户消息时
+                          提供与空态一致的建议 chip，点击直接发入当前会话 */}
+                      <Show when={emptySessionChipVisible()}>
+                        <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+                          <ChatSuggestionChip
+                            suggestion={language.t("novel.writing.writeNextChapter")}
+                            onPick={(text) => void sendToCurrentSession(text)}
+                          />
+                        </div>
+                      </Show>
                     </Show>
-                  </Show>
-                </div>
+                  </div>
 
-                {/* 检视面板：按需挂载（solid-query 缓存兜底）；chat 激活时必须隐藏——
-                    两个 flex-1 兄弟会平分栏高，常驻包裹层会把对话面板挤到半格 */}
-                <div
-                  classList={{ hidden: railPanel() === "chat" }}
-                  class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                  <Show when={railPanel() === "characters"}>
-                    <PanelCharacters novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
-                  </Show>
-                  <Show when={railPanel() === "foreshadow"}>
-                    <PanelForeshadow novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
-                  </Show>
-                  <Show when={railPanel() === "tension"}>
-                    <TensionChart novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
-                  </Show>
-                  <Show when={railPanel() === "structure"}>
-                    <StructurePanel
-                      novelID={novelID}
-                      selectedVolumeId={() => {
-                        const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
-                        return ch?.volumeId ?? null
-                      }}
-                    />
-                  </Show>
-                  <Show when={railPanel() === "annotations"}>
-                    <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
-                  </Show>
+                  {/* 检视面板：按需挂载（solid-query 缓存兜底）；chat 激活时必须隐藏——
+                      两个 flex-1 兄弟会平分栏高，常驻包裹层会把对话面板挤到半格 */}
+                  <div
+                    classList={{ hidden: railPanel() === "chat" }}
+                    class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    <Show when={railPanel() === "characters"}>
+                      <PanelCharacters
+                        novelID={novelID}
+                        selectedChapterId={selectedChapterId}
+                        chapters={data.chapters}
+                      />
+                    </Show>
+                    <Show when={railPanel() === "foreshadow"}>
+                      <PanelForeshadow
+                        novelID={novelID}
+                        selectedChapterId={selectedChapterId}
+                        chapters={data.chapters}
+                      />
+                    </Show>
+                    <Show when={railPanel() === "tension"}>
+                      <TensionChart novelID={novelID} selectedChapterId={selectedChapterId} chapters={data.chapters} />
+                    </Show>
+                    <Show when={railPanel() === "structure"}>
+                      <StructurePanel
+                        novelID={novelID}
+                        selectedVolumeId={() => {
+                          const ch = data.chapters.find((c: { id: string }) => c.id === selectedChapterId())
+                          return ch?.volumeId ?? null
+                        }}
+                      />
+                    </Show>
+                    <Show when={railPanel() === "annotations"}>
+                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} />
+                    </Show>
+                  </div>
                 </div>
               </div>
 
-              {/* 图标列（右栏最右缘）：面板区在前、切换列在后 */}
-              <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-l border-v2-border-border-base shrink-0">
-                <For each={RAIL_PANELS}>
-                  {(item) => (
-                    <TooltipV2 placement="left" value={language.t(item.labelKey)}>
+              <Show
+                when={!railCollapsed()}
+                fallback={
+                  <nav class="flex h-full min-h-0 flex-col items-center gap-1 py-2">
+                    <TooltipV2 placement="left" value={language.t("novel.workspace.toggleRail")}>
                       <IconButtonV2
+                        type="button"
                         variant="ghost-muted"
                         size="normal"
-                        state={railPanel() === item.key ? "pressed" : "rest"}
-                        icon={<Icon name={item.icon} size="small" />}
-                        aria-label={language.t(item.labelKey)}
-                        onClick={() => openRailPanel(item.key)}
+                        icon={<Icon name="chevron-double-left" size="small" />}
+                        aria-label={language.t("novel.workspace.toggleRail")}
+                        aria-expanded={!railCollapsed()}
+                        onClick={() => restoreRailPanel(railPanel())}
                       />
                     </TooltipV2>
-                  )}
-                </For>
-              </div>
+                    <For each={RAIL_PANELS}>
+                      {(item) =>
+                        railPanel() === item.key && (
+                          <TooltipV2 placement="left" value={language.t(item.labelKey)}>
+                            <IconButtonV2
+                              type="button"
+                              variant="ghost-muted"
+                              size="normal"
+                              state="pressed"
+                              icon={
+                                <span class="relative inline-flex">
+                                  <Icon name={item.icon} size="small" />
+                                  <Show when={novelActivity()}>
+                                    <span class="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-v2-state-fg-success animate-pulse" />
+                                  </Show>
+                                </span>
+                              }
+                              aria-label={language.t(item.labelKey)}
+                              aria-pressed
+                              onClick={() => restoreRailPanel(item.key)}
+                            />
+                          </TooltipV2>
+                        )
+                      }
+                    </For>
+                  </nav>
+                }
+              >
+                {/* 图标列（右栏最右缘）：面板区在前、切换列在后 */}
+                <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-l border-v2-border-border-base shrink-0">
+                  <TooltipV2 placement="left" value={language.t("novel.workspace.toggleRail")}>
+                    <IconButtonV2
+                      type="button"
+                      variant="ghost-muted"
+                      size="normal"
+                      icon={<Icon name="chevron-right" size="small" />}
+                      aria-label={language.t("novel.workspace.toggleRail")}
+                      aria-expanded={!railCollapsed()}
+                      onClick={() => setLayout("railManual", true)}
+                    />
+                  </TooltipV2>
+                  <For each={RAIL_PANELS}>
+                    {(item) => (
+                      <TooltipV2 placement="left" value={language.t(item.labelKey)}>
+                        <IconButtonV2
+                          type="button"
+                          variant="ghost-muted"
+                          size="normal"
+                          state={railPanel() === item.key ? "pressed" : "rest"}
+                          icon={<Icon name={item.icon} size="small" />}
+                          aria-label={language.t(item.labelKey)}
+                          onClick={() => openRailPanel(item.key)}
+                        />
+                      </TooltipV2>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </aside>
           </div>
         </div>
