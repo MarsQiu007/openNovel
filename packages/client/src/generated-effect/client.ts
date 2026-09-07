@@ -1790,6 +1790,8 @@ type Endpoint18_78Input = {
   readonly novelId: Endpoint18_78Request["payload"]["novelId"]
   readonly chapterId: Endpoint18_78Request["payload"]["chapterId"]
   readonly promptSnapshot?: Endpoint18_78Request["payload"]["promptSnapshot"]
+  readonly status?: Endpoint18_78Request["payload"]["status"]
+  readonly annotationsSnapshot: Endpoint18_78Request["payload"]["annotationsSnapshot"]
   readonly resultSummary?: Endpoint18_78Request["payload"]["resultSummary"]
 }
 const Endpoint18_78 = (raw: RawClient["server.novel"]) => (input: Endpoint18_78Input) =>
@@ -1800,6 +1802,8 @@ const Endpoint18_78 = (raw: RawClient["server.novel"]) => (input: Endpoint18_78I
       novelId: input["novelId"],
       chapterId: input["chapterId"],
       promptSnapshot: input["promptSnapshot"],
+      status: input["status"],
+      annotationsSnapshot: input["annotationsSnapshot"],
       resultSummary: input["resultSummary"],
     },
   }).pipe(Effect.mapError(mapClientError))
@@ -1816,23 +1820,39 @@ const Endpoint18_79 = (raw: RawClient["server.novel"]) => (input: Endpoint18_79I
     query: { location: input["location"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_80Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_80Request = Parameters<RawClient["server.novel"]["novel.update-execution-round"]>[0]
 type Endpoint18_80Input = {
   readonly novelID: Endpoint18_80Request["params"]["novelID"]
+  readonly chapterID: Endpoint18_80Request["params"]["chapterID"]
+  readonly roundID: Endpoint18_80Request["params"]["roundID"]
   readonly location?: Endpoint18_80Request["query"]["location"]
+  readonly status?: Endpoint18_80Request["payload"]["status"]
+  readonly resultSummary?: Endpoint18_80Request["payload"]["resultSummary"]
 }
 const Endpoint18_80 = (raw: RawClient["server.novel"]) => (input: Endpoint18_80Input) =>
+  raw["novel.update-execution-round"]({
+    params: { novelID: input["novelID"], chapterID: input["chapterID"], roundID: input["roundID"] },
+    query: { location: input["location"] },
+    payload: { status: input["status"], resultSummary: input["resultSummary"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_81Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_81Input = {
+  readonly novelID: Endpoint18_81Request["params"]["novelID"]
+  readonly location?: Endpoint18_81Request["query"]["location"]
+}
+const Endpoint18_81 = (raw: RawClient["server.novel"]) => (input: Endpoint18_81Input) =>
   raw["novel.canvas-layout"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
     Effect.mapError(mapClientError),
   )
 
-type Endpoint18_81Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
-type Endpoint18_81Input = {
-  readonly novelID: Endpoint18_81Request["params"]["novelID"]
-  readonly location?: Endpoint18_81Request["query"]["location"]
-  readonly layout: Endpoint18_81Request["payload"]["layout"]
+type Endpoint18_82Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
+type Endpoint18_82Input = {
+  readonly novelID: Endpoint18_82Request["params"]["novelID"]
+  readonly location?: Endpoint18_82Request["query"]["location"]
+  readonly layout: Endpoint18_82Request["payload"]["layout"]
 }
-const Endpoint18_81 = (raw: RawClient["server.novel"]) => (input: Endpoint18_81Input) =>
+const Endpoint18_82 = (raw: RawClient["server.novel"]) => (input: Endpoint18_82Input) =>
   raw["novel.upsert-canvas-layout"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"] },
@@ -1920,8 +1940,9 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "delete-annotation": Endpoint18_77(raw),
   "create-execution-round": Endpoint18_78(raw),
   "execution-rounds": Endpoint18_79(raw),
-  "canvas-layout": Endpoint18_80(raw),
-  "upsert-canvas-layout": Endpoint18_81(raw),
+  "update-execution-round": Endpoint18_80(raw),
+  "canvas-layout": Endpoint18_81(raw),
+  "upsert-canvas-layout": Endpoint18_82(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

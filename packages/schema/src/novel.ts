@@ -671,11 +671,28 @@ export const UpdateAnnotationInput = Schema.Struct({
 }).annotate({ identifier: "Novel.UpdateAnnotationInput" })
 export interface UpdateAnnotationInput extends Schema.Schema.Type<typeof UpdateAnnotationInput> {}
 
+export const ExecutionRoundStatus = Schema.Literals(["running", "completed", "failed", "interrupted"])
+export type ExecutionRoundStatus = typeof ExecutionRoundStatus.Type
+
+export const AnnotationExecutionSnapshot = Schema.Struct({
+  id: Schema.String,
+  paragraphIndex: optional(Schema.NullOr(Schema.Int)),
+  startOffset: optional(Schema.NullOr(Schema.Int)),
+  endOffset: optional(Schema.NullOr(Schema.Int)),
+  quote: Schema.String,
+  status: Schema.Literals(["open", "resolved", "wontfix", "applied"]),
+  comment: Schema.String,
+  suggestedReplacement: optional(Schema.NullOr(Schema.String)),
+}).annotate({ identifier: "Novel.AnnotationExecutionSnapshot" })
+export interface AnnotationExecutionSnapshot extends Schema.Schema.Type<typeof AnnotationExecutionSnapshot> {}
+
 export const ExecutionRound = Schema.Struct({
   id: Schema.String,
   novelId: Schema.String,
   chapterId: Schema.String,
   promptSnapshot: Schema.String,
+  status: ExecutionRoundStatus,
+  annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
   resultSummary: Schema.String,
   createdAt: Schema.Int,
 }).annotate({ identifier: "Novel.ExecutionRound" })
@@ -685,9 +702,17 @@ export const CreateExecutionRoundInput = Schema.Struct({
   novelId: Schema.String,
   chapterId: Schema.String,
   promptSnapshot: optional(Schema.String),
+  status: optional(ExecutionRoundStatus),
+  annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
   resultSummary: optional(Schema.String),
 }).annotate({ identifier: "Novel.CreateExecutionRoundInput" })
 export interface CreateExecutionRoundInput extends Schema.Schema.Type<typeof CreateExecutionRoundInput> {}
+
+export const UpdateExecutionRoundInput = Schema.Struct({
+  status: optional(ExecutionRoundStatus),
+  resultSummary: optional(Schema.String),
+}).annotate({ identifier: "Novel.UpdateExecutionRoundInput" })
+export interface UpdateExecutionRoundInput extends Schema.Schema.Type<typeof UpdateExecutionRoundInput> {}
 
 export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,

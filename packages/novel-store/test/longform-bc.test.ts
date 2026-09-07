@@ -38,6 +38,7 @@ import {
   listChapterAnnotations,
   createExecutionRound,
   getExecutionRounds,
+  updateExecutionRound,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -312,7 +313,7 @@ describe("execution rounds", () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
     const round = await createExecutionRound(
-      { novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "测试指令", result_summary: "改写 2 段" },
+      { novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "测试指令", annotations_snapshot: "[]", result_summary: "改写 2 段" },
       projectDir,
     )
     expect(round.prompt_snapshot).toBe("测试指令")
@@ -326,13 +327,73 @@ describe("execution rounds", () => {
   test("按时间倒序返回多轮", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第一轮", result_summary: "" }, projectDir)
-    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第二轮", result_summary: "" }, projectDir)
+    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第一轮", annotations_snapshot: "[]", result_summary: "" }, projectDir)
+    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第二轮", annotations_snapshot: "[]", result_summary: "" }, projectDir)
 
     const rounds = await getExecutionRounds("ch-1", projectDir)
     expect(rounds).toHaveLength(2)
     expect(rounds[0].prompt_snapshot).toBe("第二轮")
     expect(rounds[1].prompt_snapshot).toBe("第一轮")
+  })
+
+  test("轮次保存状态与批注快照，并支持完成更新", async () => {
+    const novelId = await seedNovel()
+    await seedVolumeChapter(novelId)
+    const snapshot = [{
+      id: "ann-1",
+      paragraphIndex: 0,
+      startOffset: 0,
+      endOffset: 2,
+      quote: "old",
+      status: "applied",
+      comment: "polish this",
+      suggestedReplacement: "new",
+    }]
+    const round = await createExecutionRound({
+      novel_id: novelId,
+      chapter_id: "ch-1",
+      prompt_snapshot: "prompt",
+      annotations_snapshot: JSON.stringify(snapshot),
+      result_summary: "",
+    }, projectDir)
+    expect(round.status).toBe("running")
+    expect(JSON.parse(round.annotations_snapshot)).toEqual(snapshot)
+
+    const completed = await updateExecutionRound(round.id, {
+      status: "completed",
+      result_summary: "prompt sent",
+    }, projectDir)
+    expect(completed.status).toBe("completed")
+    expect(completed.result_summary).toBe("prompt sent")
+    expect(JSON.parse(completed.annotations_snapshot)).toEqual(snapshot)
+  })
+
+  test("批注关联执行轮次并可重新激活", async () => {
+    const novelId = await seedNovel()
+    await seedVolumeChapter(novelId)
+    const round = await createExecutionRound({
+      novel_id: novelId,
+      chapter_id: "ch-1",
+      prompt_snapshot: "prompt",
+      annotations_snapshot: "[]",
+      result_summary: "",
+    }, projectDir)
+    const ann = await createChapterAnnotation("ch-1", novelId, {
+      source: "user",
+      anchorType: "paragraph",
+      paragraphIndex: 0,
+      quote: "old",
+      comment: "polish this",
+    }, projectDir)
+
+    await updateChapterAnnotation(ann.id, { status: "applied", executionRoundId: round.id }, projectDir)
+    const executed = await listChapterAnnotations("ch-1", projectDir)
+    expect(executed[0].execution_round_id).toBe(round.id)
+
+    await updateChapterAnnotation(ann.id, { status: "open", executionRoundId: null }, projectDir)
+    const reopened = await listChapterAnnotations("ch-1", projectDir, { status: "open" })
+    expect(reopened).toHaveLength(1)
+    expect(reopened[0].execution_round_id).toBeNull()
   })
 })
 

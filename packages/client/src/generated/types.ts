@@ -4986,24 +4986,102 @@ export type ServerNovelCreateExecutionRoundInput = {
     readonly novelId: string
     readonly chapterId: string
     readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
     readonly resultSummary?: string
   }["novelId"]
   readonly chapterId: {
     readonly novelId: string
     readonly chapterId: string
     readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
     readonly resultSummary?: string
   }["chapterId"]
   readonly promptSnapshot?: {
     readonly novelId: string
     readonly chapterId: string
     readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
     readonly resultSummary?: string
   }["promptSnapshot"]
+  readonly status?: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
+    readonly resultSummary?: string
+  }["status"]
+  readonly annotationsSnapshot: {
+    readonly novelId: string
+    readonly chapterId: string
+    readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
+    readonly resultSummary?: string
+  }["annotationsSnapshot"]
   readonly resultSummary?: {
     readonly novelId: string
     readonly chapterId: string
     readonly promptSnapshot?: string
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly annotationsSnapshot: ReadonlyArray<{
+      readonly id: string
+      readonly paragraphIndex?: number | null
+      readonly startOffset?: number | null
+      readonly endOffset?: number | null
+      readonly quote: string
+      readonly status: "open" | "resolved" | "wontfix" | "applied"
+      readonly comment: string
+      readonly suggestedReplacement?: string | null
+    }>
     readonly resultSummary?: string
   }["resultSummary"]
 }
@@ -5013,6 +5091,17 @@ export type ServerNovelCreateExecutionRoundOutput = {
   readonly novelId: string
   readonly chapterId: string
   readonly promptSnapshot: string
+  readonly status: "running" | "completed" | "failed" | "interrupted"
+  readonly annotationsSnapshot: ReadonlyArray<{
+    readonly id: string
+    readonly paragraphIndex?: number | null
+    readonly startOffset?: number | null
+    readonly endOffset?: number | null
+    readonly quote: string
+    readonly status: "open" | "resolved" | "wontfix" | "applied"
+    readonly comment: string
+    readonly suggestedReplacement?: string | null
+  }>
   readonly resultSummary: string
   readonly createdAt: number
 }
@@ -5030,9 +5119,57 @@ export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
   readonly novelId: string
   readonly chapterId: string
   readonly promptSnapshot: string
+  readonly status: "running" | "completed" | "failed" | "interrupted"
+  readonly annotationsSnapshot: ReadonlyArray<{
+    readonly id: string
+    readonly paragraphIndex?: number | null
+    readonly startOffset?: number | null
+    readonly endOffset?: number | null
+    readonly quote: string
+    readonly status: "open" | "resolved" | "wontfix" | "applied"
+    readonly comment: string
+    readonly suggestedReplacement?: string | null
+  }>
   readonly resultSummary: string
   readonly createdAt: number
 }>
+
+export type ServerNovelUpdateExecutionRoundInput = {
+  readonly novelID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["novelID"]
+  readonly chapterID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["chapterID"]
+  readonly roundID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["roundID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly status?: {
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly resultSummary?: string
+  }["status"]
+  readonly resultSummary?: {
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly resultSummary?: string
+  }["resultSummary"]
+}
+
+export type ServerNovelUpdateExecutionRoundOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly chapterId: string
+  readonly promptSnapshot: string
+  readonly status: "running" | "completed" | "failed" | "interrupted"
+  readonly annotationsSnapshot: ReadonlyArray<{
+    readonly id: string
+    readonly paragraphIndex?: number | null
+    readonly startOffset?: number | null
+    readonly endOffset?: number | null
+    readonly quote: string
+    readonly status: "open" | "resolved" | "wontfix" | "applied"
+    readonly comment: string
+    readonly suggestedReplacement?: string | null
+  }>
+  readonly resultSummary: string
+  readonly createdAt: number
+}
 
 export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]

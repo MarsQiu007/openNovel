@@ -65,6 +65,7 @@ import {
   UpsertCanvasLayoutInput,
   ExecutionRound,
   CreateExecutionRoundInput,
+  UpdateExecutionRoundInput,
 } from "@opennovel-ai/schema/novel"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -1124,6 +1125,23 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.execution-rounds", summary: "List execution rounds" })),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "novel.update-execution-round",
+      `${root}/:novelID/chapters/:chapterID/execution-rounds/:roundID`,
+      {
+        params: { novelID: Schema.String, chapterID: Schema.String, roundID: Schema.String },
+        query: LocationQuery,
+        payload: UpdateExecutionRoundInput,
+        success: ExecutionRound,
+        error: NovelNotFoundError,
+      },
+    )
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({ identifier: "v2.novel.update-execution-round", summary: "Update execution round" }),
+      ),
   )
   .add(
     HttpApiEndpoint.get("novel.canvas-layout", `${root}/:novelID/canvas-layout`, {

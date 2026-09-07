@@ -81,6 +81,7 @@ import {
   listChapterAnnotations as storeListChapterAnnotations,
   createExecutionRound as storeCreateExecutionRound,
   getExecutionRounds as storeGetExecutionRounds,
+  updateExecutionRound as storeUpdateExecutionRound,
   AnnotationExecutionRoundTable,
   getOutlineCanvasLayout as storeGetOutlineCanvasLayout,
   upsertOutlineCanvasLayout as storeUpsertOutlineCanvasLayout,
@@ -1631,19 +1632,39 @@ function toExecutionRound(row: typeof AnnotationExecutionRoundTable.$inferSelect
     novelId: row.novel_id,
     chapterId: row.chapter_id,
     promptSnapshot: row.prompt_snapshot,
+    status: executionRoundStatus(row.status),
+    annotationsSnapshot: parseAnnotationsSnapshot(row.annotations_snapshot),
     resultSummary: row.result_summary,
     createdAt: row.created_at,
   }
 }
 
+function executionRoundStatus(value: string): "running" | "completed" | "failed" | "interrupted" {
+  if (value === "failed" || value === "interrupted") return value
+  if (value === "completed") return "completed"
+  return "running"
+}
+
+function parseAnnotationsSnapshot(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function createExecutionRoundHandler(chapterId: string, novelId: string, input: {
-  novelId?: string; chapterId?: string; promptSnapshot?: string; resultSummary?: string
+  novelId?: string; chapterId?: string; promptSnapshot?: string; status?: string;
+  annotationsSnapshot?: unknown; resultSummary?: string
 }, directory: string) {
   return Effect.gen(function* () {
     const round = yield* Effect.promise(() => storeCreateExecutionRound({
       novel_id: novelId,
       chapter_id: chapterId,
       prompt_snapshot: input.promptSnapshot ?? "",
+      status: input.status ?? "running",
+      annotations_snapshot: JSON.stringify(Array.isArray(input.annotationsSnapshot) ? input.annotationsSnapshot : []),
       result_summary: input.resultSummary ?? "",
     }, directory))
     return toExecutionRound(round)
@@ -1654,6 +1675,16 @@ function listExecutionRounds(chapterId: string, directory: string) {
   return Effect.gen(function* () {
     const rounds = yield* Effect.promise(() => storeGetExecutionRounds(chapterId, directory))
     return rounds.map(toExecutionRound)
+  })
+}
+
+function updateExecutionRoundHandler(roundId: string, input: { status?: string; resultSummary?: string }, directory: string) {
+  return Effect.gen(function* () {
+    const round = yield* Effect.promise(() => storeUpdateExecutionRound(roundId, {
+      status: input.status,
+      result_summary: input.resultSummary,
+    }, directory))
+    return toExecutionRound(round)
   })
 }
 
@@ -2168,6 +2199,12 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* listExecutionRounds(ctx.params.chapterID, location.directory)
+        }),
+      )
+      .handle("novel.update-execution-round", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* updateExecutionRoundHandler(ctx.params.roundID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.canvas-layout", (ctx) =>
