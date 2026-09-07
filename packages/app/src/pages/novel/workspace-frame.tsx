@@ -194,6 +194,13 @@ export default function NovelWorkspaceFrame() {
   const outlineQuery = useOutline(novelID)
   const worldQuery = useWorldEntries(novelID)
   const charactersQuery = useCharacters(novelID)
+  const zeroSettings = createMemo(
+    () =>
+      charactersQuery.isSuccess &&
+      worldQuery.isSuccess &&
+      (charactersQuery.data?.length ?? 0) === 0 &&
+      (worldQuery.data?.length ?? 0) === 0,
+  )
   // 恢复该书的内容选择现场：等持久化与全部数据源就绪后按存档校验，失效项回落默认空态（不报错）。
   // 大纲项绑定卷号/章节序号（见 outline-sidebar）：master 校验非空，volume/chapter 匹配序号；
   // 世界观条目与关系角色按 ID 匹配列表。重跑幂等：上方每个选择联动都同步写存档，任一数据源
@@ -1060,7 +1067,17 @@ export default function NovelWorkspaceFrame() {
                     style={{ display: railPanel() === "chat" ? "flex" : "none" }}
                   >
                     <NovelSessionSwitcher dir={params.dir!} novelID={novelID()} />
-                    <Show when={params.id} fallback={<NovelChatEmptyState dir={params.dir!} novelID={novelID()} />}>
+                    <Show
+                      when={params.id}
+                      fallback={
+                        <NovelChatEmptyState
+                          dir={params.dir!}
+                          novelID={novelID()}
+                          novel={data.novel}
+                          zeroSettings={zeroSettings()}
+                        />
+                      }
+                    >
                       <div class="flex-1 min-h-0 overflow-y-auto">
                         <SessionRouteErrorBoundary sessionID={params.id}>
                           <SessionPage />

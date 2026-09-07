@@ -4,7 +4,7 @@
  * 失败时 toast 报错并保留已输入文本。不复用通用重型 composer——面板场景
  * 只有"首条消息"一个职责，模型与 agent 走项目默认。
  */
-import { createSignal } from "solid-js"
+import { Show, createSignal } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
@@ -14,6 +14,8 @@ import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useBindSession } from "@/context/novel-queries"
 import { createAndBindSession } from "./workspace-data"
+import { buildBootstrapPrompt } from "./book-bootstrap"
+import type { ServerNovelDetailOutput } from "@opennovel-ai/client"
 import { showToast } from "@/utils/toast"
 
 /** 建议 chip：点击即以该建议文本作为首条消息（懒创建或发入当前空会话） */
@@ -27,13 +29,19 @@ export function ChatSuggestionChip(props: { suggestion: string; onPick: (text: s
   )
 }
 
-export function NovelChatEmptyState(props: { dir: string; novelID: string }) {
+export function NovelChatEmptyState(props: {
+  dir: string
+  novelID: string
+  novel: ServerNovelDetailOutput | null
+  zeroSettings: boolean
+}) {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
   const bindSession = useBindSession()
   const [text, setText] = createSignal("")
   const [sending, setSending] = createSignal(false)
+  const bootstrapBook = () => (props.zeroSettings ? props.novel : null)
 
   const navigateToSession = (sessionID: string) =>
     navigate(`/${props.dir}/novel/${props.novelID}/session/${sessionID}`)
@@ -61,10 +69,23 @@ export function NovelChatEmptyState(props: { dir: string; novelID: string }) {
   return (
     <div class="flex flex-col flex-1 items-center justify-center gap-4 px-6 text-center">
       <p class="text-sm text-v2-text-text-muted">{language.t("novel.workspace.chatEmpty")}</p>
-      <ChatSuggestionChip
-        suggestion={language.t("novel.writing.writeNextChapter")}
-        onPick={(text) => void submit(text)}
-      />
+      <Show
+        when={bootstrapBook()}
+        keyed
+        fallback={
+          <ChatSuggestionChip
+            suggestion={language.t("novel.writing.writeNextChapter")}
+            onPick={(text) => void submit(text)}
+          />
+        }
+      >
+        {(book) => (
+          <ChatSuggestionChip
+            suggestion="初始化小说设定"
+            onPick={() => void submit(buildBootstrapPrompt(book))}
+          />
+        )}
+      </Show>
       <div class="flex w-full items-center gap-2">
         <div class="flex-1 min-w-0">
           <TextInputV2
