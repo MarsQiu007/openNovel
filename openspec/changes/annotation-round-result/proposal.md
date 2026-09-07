@@ -4,32 +4,35 @@
 
 ## Why
 
-annotation-execute-flow 引入的 `annotation_execution_rounds` 只有两个 API：create 与 GET（`packages/protocol/src/groups/novel.ts:1108,1119`），**没有结果回填端点**——前端执行批注时只写 prompt 快照（`annotation-panel.tsx:110-114`），AI 改稿完成后结果永远不写回，`result_summary` 恒为空串（`handlers/novel.ts:1647`），历史面板只能展示发送时的指令快照（`annotation-panel.tsx:472`），用户无法追溯"这一轮 AI 实际做了什么、结果如何"。
+`annotation-execute-flow` 已经有执行轮次的创建、查询与更新接口，但当前前端在“指令发送成功”后就把轮次标记为 `completed`，且写入的是“等待 AI 改稿结果”的占位摘要。真实改稿结束后没有任何机制把 AI 的结果摘要和章节版本回填到该轮次，历史面板无法区分“已发送”“执行中”和“AI 已汇报完成”。
 
-同时批注执行指令存在**格式双轨**：运行时真正发送的是前端本地 `formatPrompt`（`annotation-panel.tsx:204`），而任务 3.2 交付的 plugin 版 `formatExecutionPrompt`（`plugin/src/novel-writer/annotation.ts:122`）仅被测试引用，是死代码——两套格式必然漂移。
+同时，执行指令没有携带轮次 ID，AI 无法可靠地把后续结果与创建的轮次关联。plugin 内还有一份未被运行时使用的批注指令格式化副本，会随前端格式漂移。
 
 ## What Changes
 
-- 新增执行轮次结果回填端点（轮次 UPDATE 或专用 report 端点，design 决策），AI 侧在批注执行完成后写回结果摘要与关联章节版本。
-- 批注历史面板展示回填结果（状态、涉及批注数、成功/失败）。
-- 统一指令格式化：单一事实来源（plugin 侧或前端，design 决策），删除死代码副本。
+- 执行指令携带 `execution_round_id`，并明确要求 AI 完成或失败后回填结果。
+- 新增 plugin 级 `report_annotation_execution` 工具，校验轮次存在后写入状态、结果摘要和最新章节版本 ID。
+- 扩展现有轮次更新契约与返回结构，支持 `chapterVersionId`；不新增重复端点。
+- 前端在指令发送成功后保持 `running`，只有在 AI 回填后才变为 `completed` 或 `failed`；历史面板显示结果摘要、章节版本和等待回填状态。
+- 移除 plugin 内重复的批注指令格式化实现，保留前端纯逻辑作为单一事实来源。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `annotation-execution-report`: 执行轮次的结果回填与历史展示要求——回填时机、内容、失败处理。
+- `annotation-execution-report`: AI 批注执行结果的回填、章节版本关联与历史展示要求。
 
 ### Modified Capabilities
 
-（无——annotation-execute-flow 的 spec 尚在 change 内未归档至主 specs，主 specs 无此能力。）
+（无——本次只新增执行结果回填能力，不改变批注状态机。）
 
 ## Impact
 
-- `packages/schema` + `packages/protocol` + `packages/server`：新增端点与消息契约。
-- `packages/client`：**契约变更后需在 packages/client 运行 `bun run generate` 重新生成 SDK**。
-- `packages/app`：批注历史面板。
-- `packages/plugin`：批注执行完成后的回填调用；格式化函数归一。
-- **本地数据兼容性**：`result_summary` 列已存在（恒空），无迁移需求；历史空轮次展示需降级处理（只显示 prompt 快照）。
+- `packages/novel-store`：`annotation_execution_rounds` 新增 `chapter_version_id` 可空列，并补充迁移。
+- `packages/schema` + `packages/protocol` + `packages/server`：扩展执行轮次更新输入与返回结构。
+- `packages/client`：契约变更后需在 packages/client 运行 `bun run generate` 重新生成 SDK。
+- `packages/plugin`：新增结果回填工具；指令格式携带轮次 ID；删除重复格式化副本。
+- `packages/app`：调整轮次完成时机与历史结果展示。
+- **本地数据兼容性**：旧执行轮次没有 `chapter_version_id`，历史展示必须降级；`result_summary` 已存在，无需迁移旧值。
 
-**非目标**：本变更不改批注状态机（applied/resolved/wontfix）；不做轮次统计报表；不做跨章节批量执行。
+**非目标**：本变更不改批注状态机；不实现正文 diff 视图；不做轮次统计报表；不做跨章节批量执行。
