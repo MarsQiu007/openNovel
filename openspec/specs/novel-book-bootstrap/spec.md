@@ -4,7 +4,7 @@
 
 在新书创建与 AI 写作之间提供明确的设定初始化入口，并在完全零核心设定时阻止用户静默裸写第一章，保证开篇生成有基本上下文。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Empty-chat bootstrap suggestion
 
