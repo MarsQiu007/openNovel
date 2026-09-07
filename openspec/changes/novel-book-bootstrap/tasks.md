@@ -15,3 +15,8 @@
 - [x] 3.1 在 `packages/app` 和 `packages/plugin` 运行 typecheck 和相关测试
 - [x] 3.2 运行全仓 typecheck 和根目录 oxlint
 - [x] 3.3 运行 `openspec validate novel-book-bootstrap`
+## Implementation Commits
+
+- `773f3d27c` docs(openspec): 细化新书初始化衔接
+- `14dcde251` feat(app): 优先建议初始化小说设定
+- `938b8d8fe` feat(plugin): 阻止零设定裸写首章
