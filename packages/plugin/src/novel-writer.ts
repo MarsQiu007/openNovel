@@ -100,6 +100,7 @@ import {
   type WritingMode,
   type SetupMode,
 } from "./novel-writer/session-store.js"
+export { readTechniqueInjection }
 import { chooseSoul, fetchGlobalSoul } from "./novel-writer/soul.js"
 import {
   StoryArcTable,
