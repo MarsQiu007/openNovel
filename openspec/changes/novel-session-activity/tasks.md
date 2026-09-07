@@ -13,3 +13,10 @@
 - [x] 3.1 在 packages/app 通过相关测试、bun typecheck
 - [x] 3.2 在仓库根目录通过 bun run typecheck 和 bun run lint
 - [x] 3.3 通过 openspec validate novel-session-activity --type change
+
+## Implementation Commits
+
+- `fd5ebc8aa` docs(openspec): 细化书籍会话活动规格
+- `65455dc00` docs(openspec): 细化书籍会话活动设计
+- `40f634f8e` docs(openspec): 细化书籍会话活动任务
+- `241b02109` fix(app): 修正书籍会话活动判定
