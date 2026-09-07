@@ -190,6 +190,29 @@ test("evaluate - matches expanded $HOME pattern", () => {
   expect(result.action).toBe("allow")
 })
 
+test("requiresPluginToolAsk - exact allow skips approval", () => {
+  const ruleset = Permission.fromConfig({ "*": "ask", delete_chapter: "allow" })
+  expect(Permission.requiresPluginToolAsk(ruleset, "delete_chapter")).toBe(false)
+})
+
+test("requiresPluginToolAsk - exact ask or deny requests approval", () => {
+  const askRuleset = Permission.fromConfig({ "*": "allow", delete_chapter: "ask" })
+  expect(Permission.requiresPluginToolAsk(askRuleset, "delete_chapter")).toBe(true)
+
+  const denyRuleset = Permission.fromConfig({ "*": "allow", delete_chapter: "deny" })
+  expect(Permission.requiresPluginToolAsk(denyRuleset, "delete_chapter")).toBe(true)
+})
+
+test("requiresPluginToolAsk - wildcard allow does not authorize undeclared tools", () => {
+  const ruleset = Permission.fromConfig({ "*": "allow" })
+  expect(Permission.requiresPluginToolAsk(ruleset, "unknown_plugin_tool")).toBe(true)
+})
+
+test("requiresPluginToolAsk - final deny wins even with an exact allow", () => {
+  const ruleset = Permission.fromConfig({ delete_chapter: "allow", "*": "deny" })
+  expect(Permission.requiresPluginToolAsk(ruleset, "delete_chapter")).toBe(true)
+})
+
 // merge tests
 
 test("merge - simple concatenation", () => {

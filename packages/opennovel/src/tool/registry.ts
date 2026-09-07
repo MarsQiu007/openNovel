@@ -18,6 +18,7 @@ import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
+import { requiresPluginToolAsk } from "@/permission"
 import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opennovel-ai/plugin"
 import type { JSONSchema7, JSONSchema7Definition } from "@ai-sdk/provider"
 import { Schema } from "effect"
@@ -135,6 +136,7 @@ const layer = Layer.effect(
           const parameters = zodParams
             ? Schema.declare<unknown>((u): u is unknown => zodParams.safeParse(u).success)
             : Schema.Unknown
+          const permission = def.permission ?? id
           return {
             id,
             parameters,
@@ -142,6 +144,21 @@ const layer = Layer.effect(
             description: def.description,
             execute: (args, toolCtx) =>
               Effect.gen(function* () {
+                const agentInfo = yield* agent.get(toolCtx.agent)
+                const ruleset = toolCtx.permission ?? agentInfo.permission
+                if (requiresPluginToolAsk(ruleset, permission)) {
+                  yield* toolCtx.ask({
+                    permission,
+                    patterns: ["*"],
+                    always: [permission],
+                    metadata: {
+                      toolId: id,
+                      title: def.description,
+                      source: "plugin",
+                    },
+                  })
+                }
+
                 // Bridge the host's Effect-based `ask` into a Promise-returning
                 // function for the plugin to make sure context persists
                 const bridge = yield* EffectBridge.make()

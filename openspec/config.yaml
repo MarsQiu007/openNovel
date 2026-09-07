@@ -64,7 +64,7 @@ operations:
     guidance:
       - 归档前先提交与本 change 相关的实现改动，并在 tasks.md 的 `Implementation Commits` 中记录相关提交的短 hash 与标题；记录更新单独提交，验证通过后再归档
       - '归档前用 `git log --grep "OpenSpec-Change: <change-id>" --format="%h %s"` 收集相关提交；完成后顺序为 validate → sync specs → archive → merge/push main → 清理本地/远端分支并 prune'
-      - `Implementation Commits` 不包含记录更新自身和归档目录移动的提交，避免自引用
+      - '`Implementation Commits` 不包含记录更新自身和归档目录移动的提交，避免自引用'
       - 归档前确认 openspec/specs/ 已同步变更后的最新行为
       - 归档目录名保持 ISO 日期前缀格式（如 2026-09-02-xxx），与现有 archive 一致
       - 收尾用一句话总结落地的能力与遗留事项

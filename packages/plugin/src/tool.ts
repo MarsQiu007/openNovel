@@ -45,6 +45,7 @@ export type ToolResult =
 export function tool<Args extends z.ZodRawShape>(input: {
   description: string
   args: Args
+  permission?: string
   execute(args: z.infer<z.ZodObject<Args>>, context: ToolContext): Promise<ToolResult>
 }) {
   return input

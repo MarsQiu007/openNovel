@@ -2,7 +2,8 @@ import { afterEach, describe, expect } from "bun:test"
 import path from "path"
 import fs from "fs/promises"
 import { fileURLToPath, pathToFileURL } from "url"
-import { Effect, Layer, Result, Schema } from "effect"
+import { Effect, Exit, Layer, Result, Schema } from "effect"
+import { PermissionV1 } from "@opennovel-ai/core/v1/permission"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { ToolRegistry } from "@/tool/registry"
 import { Tool } from "@/tool/tool"
@@ -94,6 +95,41 @@ const withEmptyCodeMode = testEffect(
   ]),
 )
 const withBrokenPlugin = testEffect(LayerNode.compile(root, [...replacements, [Plugin.node, brokenPluginLayer]]))
+
+function makeGatePluginLayer() {
+  const state = {
+    asks: [] as Array<Omit<PermissionV1.Request, "id" | "sessionID" | "tool">>,
+    executed: false,
+  }
+  const layer = Layer.succeed(
+    Plugin.Service,
+    Plugin.Service.of({
+      init: () => Effect.void,
+      trigger: ((_name: unknown, _input: unknown, output: unknown) =>
+        Effect.succeed(output)) as Plugin.Interface["trigger"],
+      list: () =>
+        Effect.succeed([
+          {
+            tool: {
+              gate_tool: {
+                description: "gate tool for permission tests",
+                args: {},
+                execute: async () => {
+                  state.executed = true
+                  return "ok"
+                },
+              },
+            },
+          },
+        ]),
+    }),
+  )
+  return { layer, state }
+}
+
+const gate = makeGatePluginLayer()
+const itGate = testEffect(LayerNode.compile(root, [...replacements, [Plugin.node, gate.layer]]))
+const gateState = gate.state
 
 afterEach(async () => {
   await disposeAllInstances()
@@ -567,6 +603,97 @@ describe("tool.registry", () => {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
       expect(ids).toContain("cowsay")
+    }),
+  )
+
+  itGate.instance("asks before executing a plugin tool when only wildcard allow exists", () =>
+    Effect.gen(function* () {
+      gateState.asks = []
+      gateState.executed = false
+      const registry = yield* ToolRegistry.Service
+      const agents = yield* Agent.Service
+      const tool = (yield* registry.all()).find((item) => item.id === "gate_tool")
+      if (!tool) throw new Error("gate tool was not loaded")
+
+      const result = yield* tool.execute({}, {
+        sessionID: SessionID.make("ses_test"),
+        messageID: MessageID.make("msg_test"),
+        agent: (yield* agents.defaultInfo()).name,
+        abort: new AbortController().signal,
+        messages: [],
+        permission: [{ permission: "*", pattern: "*", action: "allow" }],
+        metadata: () => Effect.void,
+        ask: (request) => Effect.sync(() => gateState.asks.push(request)),
+      } satisfies Tool.Context)
+
+      expect(result.output).toBe("ok")
+      expect(gateState.executed).toBe(true)
+      expect(gateState.asks).toHaveLength(1)
+      expect(gateState.asks[0]).toMatchObject({
+        permission: "gate_tool",
+        patterns: ["*"],
+        always: ["gate_tool"],
+        metadata: {
+          toolId: "gate_tool",
+          title: "gate tool for permission tests",
+          source: "plugin",
+        },
+      })
+    }),
+  )
+
+  itGate.instance("allows an exact plugin tool allow rule without asking", () =>
+    Effect.gen(function* () {
+      gateState.asks = []
+      gateState.executed = false
+      const registry = yield* ToolRegistry.Service
+      const agents = yield* Agent.Service
+      const tool = (yield* registry.all()).find((item) => item.id === "gate_tool")
+      if (!tool) throw new Error("gate tool was not loaded")
+
+      const result = yield* tool.execute({}, {
+        sessionID: SessionID.make("ses_test"),
+        messageID: MessageID.make("msg_test"),
+        agent: (yield* agents.defaultInfo()).name,
+        abort: new AbortController().signal,
+        messages: [],
+        permission: [
+          { permission: "*", pattern: "*", action: "ask" },
+          { permission: "gate_tool", pattern: "*", action: "allow" },
+        ],
+        metadata: () => Effect.void,
+        ask: (request) => Effect.sync(() => gateState.asks.push(request)),
+      } satisfies Tool.Context)
+
+      expect(result.output).toBe("ok")
+      expect(gateState.executed).toBe(true)
+      expect(gateState.asks).toHaveLength(0)
+    }),
+  )
+
+  itGate.instance("does not execute a plugin tool when approval is rejected", () =>
+    Effect.gen(function* () {
+      gateState.asks = []
+      gateState.executed = false
+      const registry = yield* ToolRegistry.Service
+      const agents = yield* Agent.Service
+      const tool = (yield* registry.all()).find((item) => item.id === "gate_tool")
+      if (!tool) throw new Error("gate tool was not loaded")
+
+      const exit = yield* tool.execute({}, {
+        sessionID: SessionID.make("ses_test"),
+        messageID: MessageID.make("msg_test"),
+        agent: (yield* agents.defaultInfo()).name,
+        abort: new AbortController().signal,
+        messages: [],
+        permission: [],
+        metadata: () => Effect.void,
+        ask: () => Effect.die(new PermissionV1.RejectedError()),
+      } satisfies Tool.Context).pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(gateState.executed).toBe(false)
+      expect(gateState.asks).toHaveLength(0)
     }),
   )
 })

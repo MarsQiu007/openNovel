@@ -37,6 +37,18 @@ export function evaluate(permission: string, pattern: string, ...rulesets: Permi
   )
 }
 
+/**
+ * 插件工具不能由通配 allow 隐式授权：只有精确的插件工具 allow 才能跳过审批。
+ * 精确 ask / deny 仍交给 Permission.Service，让审批 UI 和拒绝错误保持统一。
+ */
+export function requiresPluginToolAsk(ruleset: PermissionV1.Ruleset, permission: string): boolean {
+  const finalRule = evaluate(permission, "*", ruleset)
+  const exactRule = ruleset
+    .flat()
+    .findLast((rule) => rule.permission === permission && Wildcard.match("*", rule.pattern))
+  return finalRule.action !== "allow" || exactRule?.action !== "allow"
+}
+
 export class Service extends Context.Service<Service, Interface>()("@opennovel/Permission") {}
 
 const layer = Layer.effect(

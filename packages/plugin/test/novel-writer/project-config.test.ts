@@ -14,14 +14,23 @@ import { tmpdir } from "os"
 import { readProjectConfig, writeProjectConfig } from "../../src/novel-writer.js"
 
 let projectDir: string
+let originalHome: string | undefined
+let originalUserProfile: string | undefined
 
 beforeEach(() => {
   projectDir = join(tmpdir(), `novel-project-config-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   mkdirSync(projectDir, { recursive: true })
+  // 隔离全局 opennovel 配置，避免开发者机器上的配置影响测试结果
+  originalHome = process.env.HOME
+  originalUserProfile = process.env.USERPROFILE
+  process.env.HOME = projectDir
+  process.env.USERPROFILE = projectDir
 })
 
 afterEach(() => {
   rmSync(projectDir, { recursive: true, force: true })
+  if (originalHome !== undefined) process.env.HOME = originalHome
+  if (originalUserProfile !== undefined) process.env.USERPROFILE = originalUserProfile
 })
 
 // ─── readProjectConfig ───
