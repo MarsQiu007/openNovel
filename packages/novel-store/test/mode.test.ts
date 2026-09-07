@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe("getNovelConfigPath", () => {
   test("拼接 .novel/config.json 路径", () => {
-    expect(getNovelConfigPath("/tmp/foo")).toBe("/tmp/foo/.novel/config.json")
+    expect(getNovelConfigPath("/tmp/foo")).toBe(join("/tmp/foo", ".novel", "config.json"))
   })
 })
 
@@ -63,7 +63,7 @@ describe("readNovelConfig — 默认值降级", () => {
 
   test("setup_mode 非法值降级默认", () => {
     writeFileSync(configPath(), JSON.stringify({ writing_mode: "review", setup_mode: "manual" }), "utf-8")
-    expect(readNovelConfig(projectDir)).toEqual({ writing_mode: "review", setup_mode: "interactive" })
+    expect(readNovelConfig(projectDir)).toEqual({ writing_mode: "review", setup_mode: "auto" })
   })
 
   test("字段缺失时逐字段降级", () => {
@@ -72,16 +72,16 @@ describe("readNovelConfig — 默认值降级", () => {
   })
 
   test("默认值常量符合用户拍板决策", () => {
-    // 用户拍板：writing 默认 auto（说"审核"时才审），setup 默认 interactive（必确认）
+    // 用户拍板：writing 与 setup 均默认 auto，初始化不再要求确认
     expect(DEFAULT_NOVEL_MODE_CONFIG.writing_mode).toBe("auto")
-    expect(DEFAULT_NOVEL_MODE_CONFIG.setup_mode).toBe("interactive")
+    expect(DEFAULT_NOVEL_MODE_CONFIG.setup_mode).toBe("auto")
   })
 })
 
 describe("writeNovelConfig — 写入与备份", () => {
   test("首次写入创建文件并落盘", () => {
     const result = writeNovelConfig(projectDir, { writing_mode: "review" })
-    expect(result).toEqual({ writing_mode: "review", setup_mode: "interactive" })
+    expect(result).toEqual({ writing_mode: "review", setup_mode: "auto" })
     expect(existsSync(configPath())).toBe(true)
     const onDisk = JSON.parse(readFileSync(configPath(), "utf-8"))
     expect(onDisk).toEqual(result)
@@ -208,7 +208,7 @@ describe("appendModeAudit", () => {
     expect(lines.length).toBe(2)
     const e1 = JSON.parse(lines[0])
     expect(e1).toMatchObject({
-      before: { writing_mode: "auto", setup_mode: "interactive" },
+      before: { writing_mode: "auto", setup_mode: "auto" },
       after: { writing_mode: "review", setup_mode: "interactive" },
       patch: { writing_mode: "review" },
     })
