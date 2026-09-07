@@ -23,6 +23,7 @@ import { CredentialGroup } from "./groups/credential"
 import { ProjectCopyGroup } from "./groups/project-copy"
 import { NovelGroup } from "./groups/novel"
 import { NovelModeGroup } from "./groups/novel-mode"
+import { TechniqueGroup } from "./groups/technique"
 import { SyncGroup } from "./groups/sync"
 import { SoulGroup } from "./groups/soul"
 
@@ -59,6 +60,7 @@ const makeApiFromGroup = <
     .add(ProjectCopyGroup.middleware(locationMiddleware))
     .add(NovelGroup.middleware(locationMiddleware))
     .add(NovelModeGroup.middleware(locationMiddleware))
+    .add(TechniqueGroup.middleware(locationMiddleware))
     .add(SyncGroup.middleware(locationMiddleware))
     .add(SoulGroup.middleware(locationMiddleware))
     .annotateMerge(

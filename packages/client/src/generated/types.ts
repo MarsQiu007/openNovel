@@ -130,6 +130,20 @@ export type NovelModeError = { readonly name: "NovelModeError"; readonly data: {
 export const isNovelModeError = (value: unknown): value is NovelModeError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelModeError"
 
+export type TechniqueValidationError = {
+  readonly name: "TechniqueValidationError"
+  readonly data: { readonly message: string; readonly techniqueId?: string | undefined }
+}
+export const isTechniqueValidationError = (value: unknown): value is TechniqueValidationError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "TechniqueValidationError"
+
+export type TechniqueNotFoundError = {
+  readonly name: "TechniqueNotFoundError"
+  readonly data: { readonly message: string; readonly techniqueId?: string | undefined }
+}
+export const isTechniqueNotFoundError = (value: unknown): value is TechniqueNotFoundError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "TechniqueNotFoundError"
+
 export type SyncErrorResponse = {
   readonly name: "SyncErrorResponse"
   readonly data: { readonly message: string; readonly code?: string | undefined }
@@ -5343,6 +5357,429 @@ export type NovelModesSetOutput = {
   readonly writing_mode: "auto" | "review"
   readonly setup_mode: "interactive" | "auto"
 }
+
+export type ServerTechniqueListInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerTechniqueListOutput = ReadonlyArray<{
+  readonly id: string
+  readonly name: string
+  readonly principle: string
+  readonly instruction: string
+  readonly sceneTypes: ReadonlyArray<string>
+  readonly level: "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+  readonly evidence: ReadonlyArray<{
+    readonly sourceTitle: string
+    readonly sourceLocation: string
+    readonly excerpt: string
+    readonly annotation: string
+  }>
+  readonly commonMisuse: string
+  readonly confidence: number
+  readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly usageCount: number
+  readonly lastUsedAt?: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}>
+
+export type ServerTechniqueCreateInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly name: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["name"]
+  readonly instruction: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["instruction"]
+  readonly principle?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["principle"]
+  readonly sceneTypes?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["sceneTypes"]
+  readonly level?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["level"]
+  readonly evidence?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["evidence"]
+  readonly commonMisuse?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["commonMisuse"]
+  readonly status?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["status"]
+}
+
+export type ServerTechniqueCreateOutput = {
+  readonly id: string
+  readonly name: string
+  readonly principle: string
+  readonly instruction: string
+  readonly sceneTypes: ReadonlyArray<string>
+  readonly level: "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+  readonly evidence: ReadonlyArray<{
+    readonly sourceTitle: string
+    readonly sourceLocation: string
+    readonly excerpt: string
+    readonly annotation: string
+  }>
+  readonly commonMisuse: string
+  readonly confidence: number
+  readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly usageCount: number
+  readonly lastUsedAt?: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerTechniqueConfigInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerTechniqueConfigOutput = { readonly enabled: boolean }
+
+export type ServerTechniqueSetConfigInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly enabled: { readonly enabled: boolean }["enabled"]
+}
+
+export type ServerTechniqueSetConfigOutput = { readonly enabled: boolean }
+
+export type ServerTechniqueDetailInput = {
+  readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerTechniqueDetailOutput = {
+  readonly technique: {
+    readonly id: string
+    readonly name: string
+    readonly principle: string
+    readonly instruction: string
+    readonly sceneTypes: ReadonlyArray<string>
+    readonly level: "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+    readonly evidence: ReadonlyArray<{
+      readonly sourceTitle: string
+      readonly sourceLocation: string
+      readonly excerpt: string
+      readonly annotation: string
+    }>
+    readonly commonMisuse: string
+    readonly confidence: number
+    readonly status: "unverified" | "verified" | "shadow" | "archived"
+    readonly usageCount: number
+    readonly lastUsedAt?: number
+    readonly createdAt: number
+    readonly updatedAt: number
+  }
+  readonly feedbacks: ReadonlyArray<{
+    readonly id: string
+    readonly techniqueId: string
+    readonly chapterId: string
+    readonly score: number
+    readonly wasUsed: boolean
+    readonly comment: string
+    readonly createdAt: number
+  }>
+}
+
+export type ServerTechniqueUpdateInput = {
+  readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly name?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["name"]
+  readonly principle?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["principle"]
+  readonly instruction?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["instruction"]
+  readonly sceneTypes?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["sceneTypes"]
+  readonly level?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["level"]
+  readonly evidence?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["evidence"]
+  readonly commonMisuse?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["commonMisuse"]
+  readonly status?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+  }["status"]
+}
+
+export type ServerTechniqueUpdateOutput = {
+  readonly id: string
+  readonly name: string
+  readonly principle: string
+  readonly instruction: string
+  readonly sceneTypes: ReadonlyArray<string>
+  readonly level: "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+  readonly evidence: ReadonlyArray<{
+    readonly sourceTitle: string
+    readonly sourceLocation: string
+    readonly excerpt: string
+    readonly annotation: string
+  }>
+  readonly commonMisuse: string
+  readonly confidence: number
+  readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly usageCount: number
+  readonly lastUsedAt?: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerTechniqueDeleteInput = {
+  readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerTechniqueDeleteOutput = { readonly deleted: boolean }
 
 export type ServerSyncStatusOutput = {
   readonly connection?: { readonly url: string; readonly username: string; readonly remoteRoot: string }

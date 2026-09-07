@@ -11,7 +11,7 @@ import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { join } from "path"
-import { existsSync, mkdirSync, readFileSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, copyFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 
 // ─── DDL 表定义 ───
 
@@ -875,6 +875,231 @@ export async function resolveChapterOutline(
   return { outline: fileOutline, available: isUsableChapterOutline(fileOutline), source: "file" }
 }
 
+
+// ─── 技法库管理 API ───
+type TechniqueLevel = "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+type TechniqueStatus = "unverified" | "verified" | "shadow" | "archived"
+
+type TechniqueRecord = typeof TechniqueTable.$inferSelect
+type TechniqueFeedbackRecord = typeof TechniqueFeedbackTable.$inferSelect
+
+export type CreateTechniqueData = {
+  name: string
+  instruction: string
+  principle?: string
+  sceneTypes?: ReadonlyArray<string>
+  level?: TechniqueLevel
+  evidence?: ReadonlyArray<{
+    sourceTitle: string
+    sourceLocation: string
+    excerpt: string
+    annotation: string
+  }>
+  commonMisuse?: string
+  status?: TechniqueStatus
+}
+
+export type UpdateTechniqueData = Partial<CreateTechniqueData>
+
+function toTechnique(row: TechniqueRecord) {
+  return {
+    id: row.id,
+    name: row.name,
+    principle: row.principle,
+    instruction: row.instruction,
+    sceneTypes: JSON.parse(row.scene_types) as string[],
+    level: row.level as TechniqueLevel,
+    evidence: JSON.parse(row.evidence) as Array<{
+      sourceTitle: string
+      sourceLocation: string
+      excerpt: string
+      annotation: string
+    }>,
+    commonMisuse: row.common_misuse,
+    confidence: row.confidence,
+    status: row.status as TechniqueStatus,
+    usageCount: row.usage_count,
+    lastUsedAt: row.last_used_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function toTechniqueFeedback(row: TechniqueFeedbackRecord) {
+  return {
+    id: row.id,
+    techniqueId: row.technique_id,
+    chapterId: row.chapter_id,
+    score: row.score,
+    wasUsed: row.was_used === 1,
+    comment: row.comment,
+    createdAt: row.created_at,
+  }
+}
+
+/** 列出技法库，按置信度和更新时间排序；embedding 向量不进入管理接口。 */
+export async function listTechniques(directory?: string | null) {
+  const db = getDb(directory)
+  const rows = await db
+    .select({
+      id: TechniqueTable.id,
+      name: TechniqueTable.name,
+      principle: TechniqueTable.principle,
+      instruction: TechniqueTable.instruction,
+      scene_types: TechniqueTable.scene_types,
+      level: TechniqueTable.level,
+      evidence: TechniqueTable.evidence,
+      common_misuse: TechniqueTable.common_misuse,
+      confidence: TechniqueTable.confidence,
+      status: TechniqueTable.status,
+      usage_count: TechniqueTable.usage_count,
+      last_used_at: TechniqueTable.last_used_at,
+      created_at: TechniqueTable.created_at,
+      updated_at: TechniqueTable.updated_at,
+    })
+    .from(TechniqueTable)
+    .orderBy(desc(TechniqueTable.confidence), desc(TechniqueTable.updated_at))
+    .all()
+  return rows.map((row) => toTechnique(row as TechniqueRecord))
+}
+
+/** 读取单条技法及其反馈记录。 */
+export async function getTechnique(id: string, directory?: string | null) {
+  const db = getDb(directory)
+  const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
+  if (!row) return null
+  const feedbackRows = await db
+    .select()
+    .from(TechniqueFeedbackTable)
+    .where(eq(TechniqueFeedbackTable.technique_id, id))
+    .orderBy(desc(TechniqueFeedbackTable.created_at))
+    .all()
+  return { technique: toTechnique(row), feedbacks: feedbackRows.map(toTechniqueFeedback) }
+}
+
+/** 人工创建技法；初始 confidence 与写作管线新技法保持一致。 */
+export async function createTechnique(input: CreateTechniqueData, directory?: string | null) {
+  const db = getDb(directory)
+  const now = Date.now()
+  const values = {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    principle: input.principle?.trim() ?? "",
+    instruction: input.instruction.trim(),
+    scene_types: JSON.stringify(input.sceneTypes ?? ["general"]),
+    level: input.level ?? "paragraph",
+    evidence: JSON.stringify(input.evidence ?? []),
+    common_misuse: input.commonMisuse?.trim() ?? "",
+    confidence: 0.5,
+    status: input.status ?? "unverified",
+    embedding: null,
+    usage_count: 0,
+    last_used_at: null,
+    created_at: now,
+    updated_at: now,
+  }
+  await db.insert(TechniqueTable).values(values).run()
+  return toTechnique(values as TechniqueRecord)
+}
+
+/** PATCH 语义更新技法；不修改 confidence、embedding 和使用统计。 */
+export async function updateTechnique(id: string, patch: UpdateTechniqueData, directory?: string | null) {
+  const db = getDb(directory)
+  const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
+  if (!row) return null
+  const next = {
+    name: patch.name?.trim() ?? row.name,
+    principle: patch.principle?.trim() ?? row.principle,
+    instruction: patch.instruction?.trim() ?? row.instruction,
+    scene_types: patch.sceneTypes ? JSON.stringify(patch.sceneTypes) : row.scene_types,
+    level: patch.level ?? row.level,
+    evidence: patch.evidence ? JSON.stringify(patch.evidence) : row.evidence,
+    common_misuse: patch.commonMisuse?.trim() ?? row.common_misuse,
+    status: patch.status ?? row.status,
+    updated_at: Date.now(),
+  }
+  await db.update(TechniqueTable).set(next).where(eq(TechniqueTable.id, id)).run()
+  return toTechnique({ ...row, ...next })
+}
+
+/** 删除技法及其反馈记录，避免孤儿反馈在 UI 中残留。 */
+export async function deleteTechnique(id: string, directory?: string | null) {
+  const db = getDb(directory)
+  const [row] = await db
+    .select({ id: TechniqueTable.id })
+    .from(TechniqueTable)
+    .where(eq(TechniqueTable.id, id))
+    .limit(1)
+    .all()
+  if (!row) return false
+  await db.delete(TechniqueFeedbackTable).where(eq(TechniqueFeedbackTable.technique_id, id)).run()
+  await db.delete(TechniqueTable).where(eq(TechniqueTable.id, id)).run()
+  return true
+}
+
+function techniqueConfigPath(directory?: string | null) {
+  return join(join(getDbPath(directory), ".."), "config.json")
+}
+
+/** 技法注入开关仅把 true 视为开启；缺失、非法值或文件损坏都保持 shadow 模式。 */
+export function readTechniqueInjection(directory?: string | null): boolean {
+  const path = techniqueConfigPath(directory)
+  if (!existsSync(path)) return false
+  let raw: string
+  try {
+    raw = readFileSync(path, "utf-8")
+  } catch {
+    return false
+  }
+  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1)
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>
+    return data.technique_injection === true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 只写入 technique_injection，保留其他配置字段。
+ * 文件损坏或写入失败返回 null，调用方转成 400 而不是静默覆盖配置。
+ */
+export function writeTechniqueInjection(
+  directory: string | null | undefined,
+  enabled: boolean,
+): { enabled: boolean } | null {
+  const path = techniqueConfigPath(directory)
+  let data: Record<string, unknown> = {}
+  if (existsSync(path)) {
+    try {
+      data = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>
+    } catch {
+      return null
+    }
+    try {
+      copyFileSync(path, `${path}.bak`)
+    } catch {
+      return null
+    }
+  }
+  data.technique_injection = enabled
+  try {
+    mkdirSync(join(path, ".."), { recursive: true })
+  } catch {
+    return null
+  }
+  let fd: number | null = null
+  try {
+    fd = openSync(path, "w")
+    writeSync(fd, JSON.stringify(data, null, 2) + "\n", 0, "utf-8")
+    fsyncSync(fd)
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) closeSync(fd)
+  }
+  return { enabled }
+}
 // ─── Approval gate (re-export) ───
 
 export * from "./approval.js"

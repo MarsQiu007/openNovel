@@ -95,6 +95,7 @@ import {
   updateWorldEntry,
   createForeshadowing,
   readNovelConfig,
+  readTechniqueInjection,
   getSoul,
   type WritingMode,
   type SetupMode,
@@ -5685,20 +5686,6 @@ export function readProjectConfig(projectDir: string): {
   }
 }
 
-/**
- * 读取技法注入开关（.novel/config.json 的 technique_injection 字段）。
- * 仅 `=== true` 视为开启：缺失、非 boolean、JSON 损坏一律 false（默认 shadow mode）。
- */
-export function readTechniqueInjection(projectDir: string): boolean {
-  const configPath = join(projectDir, ".novel", "config.json")
-  if (!existsSync(configPath)) return false
-  try {
-    const data = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>
-    return data.technique_injection === true
-  } catch {
-    return false
-  }
-}
 
 /**
  * 更新项目配置白名单字段，写入前自动备份原文件。由 update_project_config 工具调用。

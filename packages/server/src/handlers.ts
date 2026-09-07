@@ -19,6 +19,7 @@ import { CredentialHandler } from "./handlers/credential"
 import { ProjectCopyHandler } from "./handlers/project-copy"
 import { NovelHandler } from "./handlers/novel"
 import { NovelModeHandler } from "./handlers/novel-mode"
+import { TechniqueHandler } from "./handlers/technique"
 import { SyncHandler } from "./handlers/sync"
 import { SoulHandler } from "./handlers/soul"
 
@@ -43,6 +44,7 @@ export const handlers = Layer.mergeAll(
   ProjectCopyHandler,
   NovelHandler,
   NovelModeHandler,
+  TechniqueHandler,
   SyncHandler,
   SoulHandler,
 )

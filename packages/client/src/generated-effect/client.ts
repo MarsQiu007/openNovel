@@ -1984,17 +1984,125 @@ const Endpoint19_1 = (raw: RawClient["server.novelMode"]) => (input?: Endpoint19
 
 const adaptGroup19 = (raw: RawClient["server.novelMode"]) => ({ get: Endpoint19_0(raw), set: Endpoint19_1(raw) })
 
-const Endpoint20_0 = (raw: RawClient["server.sync"]) => () =>
+type Endpoint20_0Request = Parameters<RawClient["server.technique"]["technique.list"]>[0]
+type Endpoint20_0Input = { readonly location?: Endpoint20_0Request["query"]["location"] }
+const Endpoint20_0 = (raw: RawClient["server.technique"]) => (input?: Endpoint20_0Input) =>
+  raw["technique.list"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_1Request = Parameters<RawClient["server.technique"]["technique.create"]>[0]
+type Endpoint20_1Input = {
+  readonly location?: Endpoint20_1Request["query"]["location"]
+  readonly name: Endpoint20_1Request["payload"]["name"]
+  readonly instruction: Endpoint20_1Request["payload"]["instruction"]
+  readonly principle?: Endpoint20_1Request["payload"]["principle"]
+  readonly sceneTypes?: Endpoint20_1Request["payload"]["sceneTypes"]
+  readonly level?: Endpoint20_1Request["payload"]["level"]
+  readonly evidence?: Endpoint20_1Request["payload"]["evidence"]
+  readonly commonMisuse?: Endpoint20_1Request["payload"]["commonMisuse"]
+  readonly status?: Endpoint20_1Request["payload"]["status"]
+}
+const Endpoint20_1 = (raw: RawClient["server.technique"]) => (input: Endpoint20_1Input) =>
+  raw["technique.create"]({
+    query: { location: input["location"] },
+    payload: {
+      name: input["name"],
+      instruction: input["instruction"],
+      principle: input["principle"],
+      sceneTypes: input["sceneTypes"],
+      level: input["level"],
+      evidence: input["evidence"],
+      commonMisuse: input["commonMisuse"],
+      status: input["status"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_2Request = Parameters<RawClient["server.technique"]["technique.config"]>[0]
+type Endpoint20_2Input = { readonly location?: Endpoint20_2Request["query"]["location"] }
+const Endpoint20_2 = (raw: RawClient["server.technique"]) => (input?: Endpoint20_2Input) =>
+  raw["technique.config"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_3Request = Parameters<RawClient["server.technique"]["technique.set-config"]>[0]
+type Endpoint20_3Input = {
+  readonly location?: Endpoint20_3Request["query"]["location"]
+  readonly enabled: Endpoint20_3Request["payload"]["enabled"]
+}
+const Endpoint20_3 = (raw: RawClient["server.technique"]) => (input: Endpoint20_3Input) =>
+  raw["technique.set-config"]({ query: { location: input["location"] }, payload: { enabled: input["enabled"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+type Endpoint20_4Request = Parameters<RawClient["server.technique"]["technique.detail"]>[0]
+type Endpoint20_4Input = {
+  readonly techniqueID: Endpoint20_4Request["params"]["techniqueID"]
+  readonly location?: Endpoint20_4Request["query"]["location"]
+}
+const Endpoint20_4 = (raw: RawClient["server.technique"]) => (input: Endpoint20_4Input) =>
+  raw["technique.detail"]({
+    params: { techniqueID: input["techniqueID"] },
+    query: { location: input["location"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_5Request = Parameters<RawClient["server.technique"]["technique.update"]>[0]
+type Endpoint20_5Input = {
+  readonly techniqueID: Endpoint20_5Request["params"]["techniqueID"]
+  readonly location?: Endpoint20_5Request["query"]["location"]
+  readonly name?: Endpoint20_5Request["payload"]["name"]
+  readonly principle?: Endpoint20_5Request["payload"]["principle"]
+  readonly instruction?: Endpoint20_5Request["payload"]["instruction"]
+  readonly sceneTypes?: Endpoint20_5Request["payload"]["sceneTypes"]
+  readonly level?: Endpoint20_5Request["payload"]["level"]
+  readonly evidence?: Endpoint20_5Request["payload"]["evidence"]
+  readonly commonMisuse?: Endpoint20_5Request["payload"]["commonMisuse"]
+  readonly status?: Endpoint20_5Request["payload"]["status"]
+}
+const Endpoint20_5 = (raw: RawClient["server.technique"]) => (input: Endpoint20_5Input) =>
+  raw["technique.update"]({
+    params: { techniqueID: input["techniqueID"] },
+    query: { location: input["location"] },
+    payload: {
+      name: input["name"],
+      principle: input["principle"],
+      instruction: input["instruction"],
+      sceneTypes: input["sceneTypes"],
+      level: input["level"],
+      evidence: input["evidence"],
+      commonMisuse: input["commonMisuse"],
+      status: input["status"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint20_6Request = Parameters<RawClient["server.technique"]["technique.delete"]>[0]
+type Endpoint20_6Input = {
+  readonly techniqueID: Endpoint20_6Request["params"]["techniqueID"]
+  readonly location?: Endpoint20_6Request["query"]["location"]
+}
+const Endpoint20_6 = (raw: RawClient["server.technique"]) => (input: Endpoint20_6Input) =>
+  raw["technique.delete"]({
+    params: { techniqueID: input["techniqueID"] },
+    query: { location: input["location"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+const adaptGroup20 = (raw: RawClient["server.technique"]) => ({
+  list: Endpoint20_0(raw),
+  create: Endpoint20_1(raw),
+  config: Endpoint20_2(raw),
+  "set-config": Endpoint20_3(raw),
+  detail: Endpoint20_4(raw),
+  update: Endpoint20_5(raw),
+  delete: Endpoint20_6(raw),
+})
+
+const Endpoint21_0 = (raw: RawClient["server.sync"]) => () =>
   raw["sync.status"]({}).pipe(Effect.mapError(mapClientError))
 
-type Endpoint20_1Request = Parameters<RawClient["server.sync"]["sync.connection.test"]>[0]
-type Endpoint20_1Input = {
-  readonly url: Endpoint20_1Request["payload"]["url"]
-  readonly username: Endpoint20_1Request["payload"]["username"]
-  readonly password: Endpoint20_1Request["payload"]["password"]
-  readonly remoteRoot?: Endpoint20_1Request["payload"]["remoteRoot"]
+type Endpoint21_1Request = Parameters<RawClient["server.sync"]["sync.connection.test"]>[0]
+type Endpoint21_1Input = {
+  readonly url: Endpoint21_1Request["payload"]["url"]
+  readonly username: Endpoint21_1Request["payload"]["username"]
+  readonly password: Endpoint21_1Request["payload"]["password"]
+  readonly remoteRoot?: Endpoint21_1Request["payload"]["remoteRoot"]
 }
-const Endpoint20_1 = (raw: RawClient["server.sync"]) => (input: Endpoint20_1Input) =>
+const Endpoint21_1 = (raw: RawClient["server.sync"]) => (input: Endpoint21_1Input) =>
   raw["sync.connection.test"]({
     payload: {
       url: input["url"],
@@ -2004,14 +2112,14 @@ const Endpoint20_1 = (raw: RawClient["server.sync"]) => (input: Endpoint20_1Inpu
     },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint20_2Request = Parameters<RawClient["server.sync"]["sync.connection.save"]>[0]
-type Endpoint20_2Input = {
-  readonly url: Endpoint20_2Request["payload"]["url"]
-  readonly username: Endpoint20_2Request["payload"]["username"]
-  readonly password: Endpoint20_2Request["payload"]["password"]
-  readonly remoteRoot?: Endpoint20_2Request["payload"]["remoteRoot"]
+type Endpoint21_2Request = Parameters<RawClient["server.sync"]["sync.connection.save"]>[0]
+type Endpoint21_2Input = {
+  readonly url: Endpoint21_2Request["payload"]["url"]
+  readonly username: Endpoint21_2Request["payload"]["username"]
+  readonly password: Endpoint21_2Request["payload"]["password"]
+  readonly remoteRoot?: Endpoint21_2Request["payload"]["remoteRoot"]
 }
-const Endpoint20_2 = (raw: RawClient["server.sync"]) => (input: Endpoint20_2Input) =>
+const Endpoint21_2 = (raw: RawClient["server.sync"]) => (input: Endpoint21_2Input) =>
   raw["sync.connection.save"]({
     payload: {
       url: input["url"],
@@ -2021,48 +2129,48 @@ const Endpoint20_2 = (raw: RawClient["server.sync"]) => (input: Endpoint20_2Inpu
     },
   }).pipe(Effect.mapError(mapClientError))
 
-const Endpoint20_3 = (raw: RawClient["server.sync"]) => () =>
+const Endpoint21_3 = (raw: RawClient["server.sync"]) => () =>
   raw["sync.connection.remove"]({}).pipe(Effect.mapError(mapClientError))
 
-type Endpoint20_4Request = Parameters<RawClient["server.sync"]["sync.root.set"]>[0]
-type Endpoint20_4Input = { readonly rootDir: Endpoint20_4Request["payload"]["rootDir"] }
-const Endpoint20_4 = (raw: RawClient["server.sync"]) => (input: Endpoint20_4Input) =>
+type Endpoint21_4Request = Parameters<RawClient["server.sync"]["sync.root.set"]>[0]
+type Endpoint21_4Input = { readonly rootDir: Endpoint21_4Request["payload"]["rootDir"] }
+const Endpoint21_4 = (raw: RawClient["server.sync"]) => (input: Endpoint21_4Input) =>
   raw["sync.root.set"]({ payload: { rootDir: input["rootDir"] } }).pipe(Effect.mapError(mapClientError))
 
-const Endpoint20_5 = (raw: RawClient["server.sync"]) => () => raw["sync.run"]({}).pipe(Effect.mapError(mapClientError))
+const Endpoint21_5 = (raw: RawClient["server.sync"]) => () => raw["sync.run"]({}).pipe(Effect.mapError(mapClientError))
 
-type Endpoint20_6Request = Parameters<RawClient["server.sync"]["sync.resolve"]>[0]
-type Endpoint20_6Input = {
-  readonly name?: Endpoint20_6Request["payload"]["name"]
-  readonly action: Endpoint20_6Request["payload"]["action"]
-  readonly names?: Endpoint20_6Request["payload"]["names"]
+type Endpoint21_6Request = Parameters<RawClient["server.sync"]["sync.resolve"]>[0]
+type Endpoint21_6Input = {
+  readonly name?: Endpoint21_6Request["payload"]["name"]
+  readonly action: Endpoint21_6Request["payload"]["action"]
+  readonly names?: Endpoint21_6Request["payload"]["names"]
 }
-const Endpoint20_6 = (raw: RawClient["server.sync"]) => (input: Endpoint20_6Input) =>
+const Endpoint21_6 = (raw: RawClient["server.sync"]) => (input: Endpoint21_6Input) =>
   raw["sync.resolve"]({ payload: { name: input["name"], action: input["action"], names: input["names"] } }).pipe(
     Effect.mapError(mapClientError),
   )
 
-const adaptGroup20 = (raw: RawClient["server.sync"]) => ({
-  status: Endpoint20_0(raw),
-  test: Endpoint20_1(raw),
-  save: Endpoint20_2(raw),
-  remove: Endpoint20_3(raw),
-  set: Endpoint20_4(raw),
-  run: Endpoint20_5(raw),
-  resolve: Endpoint20_6(raw),
+const adaptGroup21 = (raw: RawClient["server.sync"]) => ({
+  status: Endpoint21_0(raw),
+  test: Endpoint21_1(raw),
+  save: Endpoint21_2(raw),
+  remove: Endpoint21_3(raw),
+  set: Endpoint21_4(raw),
+  run: Endpoint21_5(raw),
+  resolve: Endpoint21_6(raw),
 })
 
-const Endpoint21_0 = (raw: RawClient["server.soul"]) => () =>
+const Endpoint22_0 = (raw: RawClient["server.soul"]) => () =>
   raw["soul.global"]({}).pipe(Effect.mapError(mapClientError))
 
-type Endpoint21_1Request = Parameters<RawClient["server.soul"]["soul.update-global"]>[0]
-type Endpoint21_1Input = { readonly content: Endpoint21_1Request["payload"]["content"] }
-const Endpoint21_1 = (raw: RawClient["server.soul"]) => (input: Endpoint21_1Input) =>
+type Endpoint22_1Request = Parameters<RawClient["server.soul"]["soul.update-global"]>[0]
+type Endpoint22_1Input = { readonly content: Endpoint22_1Request["payload"]["content"] }
+const Endpoint22_1 = (raw: RawClient["server.soul"]) => (input: Endpoint22_1Input) =>
   raw["soul.update-global"]({ payload: { content: input["content"] } }).pipe(Effect.mapError(mapClientError))
 
-const adaptGroup21 = (raw: RawClient["server.soul"]) => ({
-  global: Endpoint21_0(raw),
-  "update-global": Endpoint21_1(raw),
+const adaptGroup22 = (raw: RawClient["server.soul"]) => ({
+  global: Endpoint22_0(raw),
+  "update-global": Endpoint22_1(raw),
 })
 
 const adaptClient = (raw: RawClient) => ({
@@ -2086,8 +2194,9 @@ const adaptClient = (raw: RawClient) => ({
   projectCopies: adaptGroup17(raw["server.projectCopy"]),
   "server.novel": adaptGroup18(raw["server.novel"]),
   novelModes: adaptGroup19(raw["server.novelMode"]),
-  "server.sync": adaptGroup20(raw["server.sync"]),
-  "server.soul": adaptGroup21(raw["server.soul"]),
+  "server.technique": adaptGroup20(raw["server.technique"]),
+  "server.sync": adaptGroup21(raw["server.sync"]),
+  "server.soul": adaptGroup22(raw["server.soul"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>
