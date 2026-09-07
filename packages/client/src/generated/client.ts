@@ -268,6 +268,10 @@ import type {
   ServerNovelUpdateAnnotationOutput,
   ServerNovelDeleteAnnotationInput,
   ServerNovelDeleteAnnotationOutput,
+  ServerNovelCreateExecutionRoundInput,
+  ServerNovelCreateExecutionRoundOutput,
+  ServerNovelExecutionRoundsInput,
+  ServerNovelExecutionRoundsOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2200,6 +2204,7 @@ export function make(options: ClientOptions) {
               status: input["status"],
               suggestedReplacement: input["suggestedReplacement"],
               quote: input["quote"],
+              executionRoundId: input["executionRoundId"],
             },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -2212,6 +2217,36 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations/${encodeURIComponent(input.annotationID)}`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "create-execution-round": (input: ServerNovelCreateExecutionRoundInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCreateExecutionRoundOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds`,
+            query: { location: input["location"] },
+            body: {
+              novelId: input["novelId"],
+              chapterId: input["chapterId"],
+              promptSnapshot: input["promptSnapshot"],
+              resultSummary: input["resultSummary"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "execution-rounds": (input: ServerNovelExecutionRoundsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelExecutionRoundsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds`,
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],

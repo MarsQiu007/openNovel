@@ -537,12 +537,28 @@ export const ChapterAnnotationTable = sqliteTable(
     suggested_replacement: text(),
     status: text().notNull().default("open"),
     author_session_id: text(),
+    execution_round_id: text(),
     created_at: integer().notNull().$default(() => Date.now()),
     updated_at: integer().notNull().$default(() => Date.now()),
   },
   (table) => [
     index("chapter_annotations_chapter_id_idx").on(table.chapter_id, table.status),
     index("chapter_annotations_novel_id_idx").on(table.novel_id),
+  ],
+)
+
+export const AnnotationExecutionRoundTable = sqliteTable(
+  "annotation_execution_rounds",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    chapter_id: text().notNull(),
+    prompt_snapshot: text().notNull().default(""),
+    result_summary: text().notNull().default(""),
+    created_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("annotation_execution_rounds_chapter_id_idx").on(table.chapter_id, table.created_at),
   ],
 )
 
@@ -655,10 +671,12 @@ CREATE INDEX IF NOT EXISTS volume_reviews_volume_id_idx ON volume_reviews(volume
 CREATE INDEX IF NOT EXISTS volume_reviews_novel_id_idx ON volume_reviews(novel_id);
 CREATE TABLE IF NOT EXISTS editorial_reports (id text PRIMARY KEY, novel_id text NOT NULL, scope_type text DEFAULT 'book' NOT NULL, scope_id text, summary text DEFAULT '' NOT NULL, risks_json text DEFAULT '[]' NOT NULL, recommendations_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS editorial_reports_novel_id_idx ON editorial_reports(novel_id, created_at);
-CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_annotations_chapter_id_idx ON chapter_annotations(chapter_id, status);
 CREATE INDEX IF NOT EXISTS chapter_annotations_novel_id_idx ON chapter_annotations(novel_id);
 CREATE TABLE IF NOT EXISTS outline_canvas_layout (novel_id text PRIMARY KEY, layout_json text DEFAULT '{}' NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS annotation_execution_rounds (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, prompt_snapshot text DEFAULT '' NOT NULL, result_summary text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS annotation_execution_rounds_chapter_id_idx ON annotation_execution_rounds(chapter_id, created_at);
 
 CREATE TABLE IF NOT EXISTS hook_rotation (id text PRIMARY KEY, novel_id text NOT NULL, hook_type text NOT NULL, chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS hook_rotation_novel_id_idx ON hook_rotation(novel_id);
@@ -1748,6 +1766,7 @@ export async function updateChapterAnnotation(
     status?: string
     suggestedReplacement?: string | null
     quote?: string
+    executionRoundId?: string | null
   },
   directory?: string | null,
 ): Promise<typeof ChapterAnnotationTable.$inferSelect> {
@@ -1757,6 +1776,7 @@ export async function updateChapterAnnotation(
   if (fields.status !== undefined) updates.status = fields.status
   if (fields.suggestedReplacement !== undefined) updates.suggested_replacement = fields.suggestedReplacement
   if (fields.quote !== undefined) updates.quote = fields.quote
+  if (fields.executionRoundId !== undefined) updates.execution_round_id = fields.executionRoundId
   await db.update(ChapterAnnotationTable).set(updates).where(eq(ChapterAnnotationTable.id, annotationId)).run()
   return db.select().from(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, annotationId)).get()!
 }
@@ -1782,6 +1802,44 @@ export async function listChapterAnnotations(
     )
     .orderBy(asc(ChapterAnnotationTable.paragraph_index), desc(ChapterAnnotationTable.created_at))
   return query.all()
+}
+
+export async function createExecutionRound(
+  input: {
+    novel_id: string
+    chapter_id: string
+    prompt_snapshot: string
+    result_summary: string
+  },
+  directory?: string | null,
+): Promise<typeof AnnotationExecutionRoundTable.$inferSelect> {
+  const db = getDb(directory)
+  const id = `aer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const now = Date.now()
+  db.insert(AnnotationExecutionRoundTable)
+    .values({
+      id,
+      novel_id: input.novel_id,
+      chapter_id: input.chapter_id,
+      prompt_snapshot: input.prompt_snapshot,
+      result_summary: input.result_summary,
+      created_at: now,
+    })
+    .run()
+  return db.select().from(AnnotationExecutionRoundTable).where(eq(AnnotationExecutionRoundTable.id, id)).get()!
+}
+
+export async function getExecutionRounds(
+  chapterId: string,
+  directory?: string | null,
+): Promise<(typeof AnnotationExecutionRoundTable.$inferSelect)[]> {
+  const db = getDb(directory)
+  return db
+    .select()
+    .from(AnnotationExecutionRoundTable)
+    .where(eq(AnnotationExecutionRoundTable.chapter_id, chapterId))
+    .orderBy(desc(AnnotationExecutionRoundTable.created_at))
+    .all()
 }
 
 export async function getOutlineCanvasLayout(

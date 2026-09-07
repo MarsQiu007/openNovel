@@ -540,6 +540,7 @@ export const ChapterAnnotation = Schema.Struct({
   suggestedReplacement: optional(Schema.NullOr(Schema.String)),
   status: Schema.Literals(["open", "resolved", "wontfix", "applied"]),
   authorSessionId: optional(Schema.NullOr(Schema.String)),
+  executionRoundId: optional(Schema.NullOr(Schema.String)),
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
 }).annotate({ identifier: "Novel.ChapterAnnotation" })
@@ -666,8 +667,27 @@ export const UpdateAnnotationInput = Schema.Struct({
   status: optional(Schema.Literals(["open", "resolved", "wontfix", "applied"])),
   suggestedReplacement: optional(Schema.String),
   quote: optional(Schema.String),
+  executionRoundId: optional(Schema.NullOr(Schema.String)),
 }).annotate({ identifier: "Novel.UpdateAnnotationInput" })
 export interface UpdateAnnotationInput extends Schema.Schema.Type<typeof UpdateAnnotationInput> {}
+
+export const ExecutionRound = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  chapterId: Schema.String,
+  promptSnapshot: Schema.String,
+  resultSummary: Schema.String,
+  createdAt: Schema.Int,
+}).annotate({ identifier: "Novel.ExecutionRound" })
+export interface ExecutionRound extends Schema.Schema.Type<typeof ExecutionRound> {}
+
+export const CreateExecutionRoundInput = Schema.Struct({
+  novelId: Schema.String,
+  chapterId: Schema.String,
+  promptSnapshot: optional(Schema.String),
+  resultSummary: optional(Schema.String),
+}).annotate({ identifier: "Novel.CreateExecutionRoundInput" })
+export interface CreateExecutionRoundInput extends Schema.Schema.Type<typeof CreateExecutionRoundInput> {}
 
 export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,

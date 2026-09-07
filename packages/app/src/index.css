@@ -348,6 +348,16 @@
   text-indent: 2em;
 }
 
+.novel-reading .annotation-open {
+  border-bottom: 1px dashed #e6a817;
+  cursor: help;
+}
+
+.novel-reading .annotation-done {
+  border-bottom: 1px solid var(--v2-text-text-faint);
+  cursor: default;
+}
+
 .novel-indent {
   text-indent: 2em;
 }

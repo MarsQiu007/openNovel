@@ -4,6 +4,7 @@ import {
   useUpdateChapterContent,
   useChapterVersions,
   useRestoreChapterVersion,
+  useAnnotations,
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
@@ -38,6 +39,8 @@ export default function ChapterEditor(props: ChapterEditorProps) {
     () => props.chapterID,
   )
   const restoreMutation = useRestoreChapterVersion()
+  const annotationsQuery = useAnnotations(() => props.novelID, () => props.chapterID)
+  const openAnnotationCount = createMemo(() => (annotationsQuery.data ?? []).filter((a) => a.status === "open").length)
 
   const [content, setContent] = createSignal("")
   const [hasChanged, setHasChanged] = createSignal(false)
@@ -156,6 +159,11 @@ export default function ChapterEditor(props: ChapterEditorProps) {
         }
       >
         <div class="flex flex-col h-full">
+          <Show when={openAnnotationCount() > 0}>
+            <div class="flex items-center gap-2 border-b border-v2-state-border-warning bg-v2-state-bg-warning px-6 py-2 text-sm text-v2-state-fg-warning shrink-0">
+              <span>{language.t("novel.reader.annotationWarning", { count: openAnnotationCount() })}</span>
+            </div>
+          </Show>
           {/* Header bar */}
           <div class="flex items-center justify-between px-6 py-3 border-b border-v2-border-border-base shrink-0">
             <h2 class="text-lg font-semibold text-v2-text-text-base truncate min-w-0">{chapterQuery.data?.title}</h2>

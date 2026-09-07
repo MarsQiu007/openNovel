@@ -58,6 +58,9 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
 
   // 3. 给 characters 表添加 status 列（始终执行，幂等）
   migrateCharacterStatus(exec, query)
+
+  // 4. 给 chapter_annotations 表添加 execution_round_id 列
+  migrateAnnotationExecutionRound(exec, query)
 }
 
 /**
@@ -131,5 +134,22 @@ function migrateCharacterStatus(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // characters 表不存在时无需迁移，CREATE_TABLES_SQL 会带 status 列创建
+  }
+}
+
+/**
+ * 给 chapter_annotations 表添加 execution_round_id 列（可空外键，指向 annotation_execution_rounds）。
+ * SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查 PRAGMA table_info 判断。
+ */
+function migrateAnnotationExecutionRound(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(chapter_annotations)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    const hasCol = cols.some((c) => c.name === "execution_round_id")
+    if (!hasCol) {
+      exec("ALTER TABLE chapter_annotations ADD COLUMN execution_round_id text")
+    }
+  } catch {
+    // chapter_annotations 表不存在时无需迁移，CREATE_TABLES_SQL 会带该列创建
   }
 }

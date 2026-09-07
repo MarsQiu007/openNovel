@@ -79,6 +79,9 @@ import {
   updateChapterAnnotation as storeUpdateChapterAnnotation,
   deleteChapterAnnotation as storeDeleteChapterAnnotation,
   listChapterAnnotations as storeListChapterAnnotations,
+  createExecutionRound as storeCreateExecutionRound,
+  getExecutionRounds as storeGetExecutionRounds,
+  AnnotationExecutionRoundTable,
   getOutlineCanvasLayout as storeGetOutlineCanvasLayout,
   upsertOutlineCanvasLayout as storeUpsertOutlineCanvasLayout,
   listStructureForEditor as storeListStructureForEditor,
@@ -1417,6 +1420,7 @@ function toChapterAnnotation(row: ChapterAnnotationRow) {
     suggestedReplacement: row.suggested_replacement ?? undefined,
     status: row.status as "open" | "resolved" | "wontfix" | "applied",
     authorSessionId: row.author_session_id ?? undefined,
+    executionRoundId: row.execution_round_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -1602,12 +1606,13 @@ function createAnnotation(chapterId: string, novelId: string, input: {
 }
 
 function updateAnnotation(annotationId: string, input: {
-  comment?: string; status?: string; suggestedReplacement?: string; quote?: string
+  comment?: string; status?: string; suggestedReplacement?: string; quote?: string; executionRoundId?: string | null
 }, directory: string) {
   return Effect.gen(function* () {
     const ann = yield* Effect.promise(() => storeUpdateChapterAnnotation(annotationId, {
       comment: input.comment, status: input.status,
       suggestedReplacement: input.suggestedReplacement, quote: input.quote,
+      executionRoundId: input.executionRoundId,
     }, directory))
     return toChapterAnnotation(ann)
   })
@@ -1617,6 +1622,38 @@ function deleteAnnotation(annotationId: string, directory: string) {
   return Effect.gen(function* () {
     yield* Effect.promise(() => storeDeleteChapterAnnotation(annotationId, directory))
     return { deleted: true as const }
+  })
+}
+
+function toExecutionRound(row: typeof AnnotationExecutionRoundTable.$inferSelect) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    chapterId: row.chapter_id,
+    promptSnapshot: row.prompt_snapshot,
+    resultSummary: row.result_summary,
+    createdAt: row.created_at,
+  }
+}
+
+function createExecutionRoundHandler(chapterId: string, novelId: string, input: {
+  novelId?: string; chapterId?: string; promptSnapshot?: string; resultSummary?: string
+}, directory: string) {
+  return Effect.gen(function* () {
+    const round = yield* Effect.promise(() => storeCreateExecutionRound({
+      novel_id: novelId,
+      chapter_id: chapterId,
+      prompt_snapshot: input.promptSnapshot ?? "",
+      result_summary: input.resultSummary ?? "",
+    }, directory))
+    return toExecutionRound(round)
+  })
+}
+
+function listExecutionRounds(chapterId: string, directory: string) {
+  return Effect.gen(function* () {
+    const rounds = yield* Effect.promise(() => storeGetExecutionRounds(chapterId, directory))
+    return rounds.map(toExecutionRound)
   })
 }
 
@@ -2119,6 +2156,18 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* deleteAnnotation(ctx.params.annotationID, location.directory)
+        }),
+      )
+      .handle("novel.create-execution-round", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createExecutionRoundHandler(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.execution-rounds", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listExecutionRounds(ctx.params.chapterID, location.directory)
         }),
       )
       .handle("novel.canvas-layout", (ctx) =>
