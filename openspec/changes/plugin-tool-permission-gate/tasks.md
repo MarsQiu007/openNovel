@@ -22,3 +22,7 @@
 - [x] 4.1 在 `packages/opennovel` 和 `packages/plugin` 运行相关测试
 - [x] 4.2 运行全仓 typecheck 和根目录 oxlint
 - [x] 4.3 运行 `openspec validate plugin-tool-permission-gate`
+## Implementation Commits
+
+- `37c6d1da2` docs(openspec): 完善插件工具权限闸门
+- `58e599825` feat(opennovel): 新增插件工具权限闸门
