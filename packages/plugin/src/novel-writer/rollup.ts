@@ -391,7 +391,8 @@ export async function getEffectiveContext(
     .from(ChapterTable)
     .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber - 1)))
     .all()
-  const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-600) : null
+  // 与 assembleSnapshot 口径一致：1500 字结尾窗口，不参与 P2 预算裁剪
+  const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-1500) : null
 
   const rawTarget = parseStyleRules(styleGuideRow?.rules).chapter_length
   const parsedTarget = Number(rawTarget)

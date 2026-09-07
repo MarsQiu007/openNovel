@@ -202,6 +202,17 @@ export type StoryArcSummary = {
   beats: ArcBeatSummary[]
 }
 
+/** key_events 中情绪转移结构化条目的前缀（完整格式：`情绪转移:角色名:从X因Y变成Z`） */
+export const MOOD_SHIFT_PREFIX = "情绪转移:"
+
+/**
+ * 提取 key_events 中的情绪转移条目（去掉前缀后的 `角色名:从X因Y变成Z` 部分）。
+ * 供快照渲染与连续性检查的情绪一致性检测共用；非该前缀的条目被忽略。
+ */
+export function extractMoodShifts(keyEvents: string[]): string[] {
+  return keyEvents.filter((e) => e.startsWith(MOOD_SHIFT_PREFIX)).map((e) => e.slice(MOOD_SHIFT_PREFIX.length))
+}
+
 /** 风格指南信息 */
 export type StyleGuideInfo = {
   /** 写作风格规则（JSON 对象） */
@@ -542,7 +553,8 @@ export async function assembleSnapshot(
     .from(ChapterTable)
     .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber - 1)))
     .all()
-  const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-600) : null
+  // 1500 字约覆盖一章的完整结尾场景；不参与 P2 预算裁剪（见 budget.ts）
+  const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-1500) : null
 
   // ── 目标字数下限：style_guide.rules.chapter_length ──
   const rawTarget = parseStyleRules(styleGuideRow?.rules).chapter_length
@@ -685,6 +697,11 @@ export function formatSnapshotToolOutput(
     lines.push("最近章节摘要：")
     for (const ch of snapshot.recentChapterSummaries) {
       lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+      // 结构化情绪转移条目（observer 摘要三要素之一；旧摘要无该条目时降级为纯摘要行）
+      const moodShifts = extractMoodShifts(ch.keyEvents)
+      if (moodShifts.length > 0) {
+        lines.push(`  情绪转移：${moodShifts.join("；")}`)
+      }
     }
   }
   if (snapshot.segmentSummaries.length > 0) {

@@ -84,6 +84,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - subagent_type: "writer"
 - description: "写第X章正文"
 - prompt: 包含 novel_id、chapter_id、章节标题、完整的上下文快照（**必须原样传递快照中的"上一章结尾原文"和"目标字数"字段**），指示 writer：① 本章必须承接上一章结尾之后继续展开，严禁重复前文已发生的事件/场景/对话；② 正文字数必须达到目标字数（不足会被 write_chapter 拒绝）；③ 生成后调用 write_chapter 工具写入数据库
+- **章纲保障（dispatch 前必查）**：检查步骤 2 快照输出是否包含"═══ 本章大纲 ═══"段。若不包含，必须先调用 \`read_outline\` 工具（type="chapter"、number=本章序号）读取章纲全文，将其并入 dispatch prompt（与快照内章纲同等地位传给 writer）后再 dispatch；若 \`read_outline\` 返回"大纲文件不存在"，**停止流水线**并报告"第X章大纲缺失，需人工介入"——禁止无大纲 dispatch @writer 裸写。（驳回重写场景 dispatch 的是 @reviser，不依赖章纲，不受本兜底约束。）
 - writer 返回后，检查 write_chapter 是否被拒绝：
   - 若返回"字数不达标/正文含提纲标签/与前文重复"等拒绝结果（metadata.rejected 为 true），将拒绝提示原样传回 @writer，要求其补足字数或重写重复部分后重新调用 write_chapter，最多循环 3 次（注意：超出目标字数不会被拒绝，不要要求 writer 精简本来扎实的内容）
   - 3 次后仍被拒绝 -> 停止，报告"字数/重复校验未通过，需人工介入"

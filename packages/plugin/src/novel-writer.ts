@@ -886,7 +886,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
       }),
       read_chapter_outline: tool({
-        description: "读取章节大纲。从数据库读取指定章节的标题、内容、字数等信息。流水线步骤1（plan）。",
+        description:
+          "读取章节大纲。返回章节元信息与章纲正文（.novel/outlines/chapter-{n}.md）。流水线步骤1（plan）。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("章节序号"),
@@ -901,14 +902,26 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               output: `第${args.chapter_number}章不存在，请先调用 generate_chapter_outline 生成大纲`,
             }
           }
+          // 章纲正文只存在于 .novel/outlines/chapter-{n}.md（ChapterTable 无 outline 列），补读给流水线步骤 1
+          const outlinePath = join(
+            projectDirFromCtx(ctx.directory),
+            ".novel",
+            "outlines",
+            `chapter-${args.chapter_number}.md`,
+          )
+          const outlineBody = existsSync(outlinePath) ? readFileSync(outlinePath, "utf-8") : null
+          const outlineSection = outlineBody
+            ? `章纲正文（chapter-${args.chapter_number}.md）：\n${outlineBody}`
+            : `章纲正文：缺失（chapter-${args.chapter_number}.md 不存在，可调用 generate_chapter_outline 重新生成）`
           return {
             title: "read_chapter_outline",
-            output: `章节ID：${chapter.id}\n标题：${chapter.title}\n序号：${chapter.order}\n现有字数：${chapter.word_count}\n状态：${chapter.status}`,
+            output: `章节ID：${chapter.id}\n标题：${chapter.title}\n序号：${chapter.order}\n现有字数：${chapter.word_count}\n状态：${chapter.status}\n${outlineSection}`,
             metadata: {
               chapter_id: chapter.id,
               title: chapter.title,
               order: chapter.order,
               word_count: chapter.word_count,
+              outline_available: outlineBody !== null,
             },
           }
         },

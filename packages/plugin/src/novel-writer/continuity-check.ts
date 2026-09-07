@@ -1441,8 +1441,8 @@ function scanDriftTerms(
 
 
 
-/** 分析角色情绪变化的一致性 */
-function analyzeMoodConsistency(ctx: CheckContext): { totalChars: number; rapidChanges: number } {
+/** 分析角色情绪变化的一致性（导出供单元测试；优先消费情绪转移条目，无条目回落点状态比对） */
+export function analyzeMoodConsistency(ctx: CheckContext): { totalChars: number; rapidChanges: number } {
   const charStatesMap = new Map<string, (typeof CharacterStateTable.$inferSelect)[]>()
   for (const state of ctx.characterStates) {
     const existing = charStatesMap.get(state.character_id) || []
@@ -1460,7 +1460,39 @@ function analyzeMoodConsistency(ctx: CheckContext): { totalChars: number; rapidC
     ["兴奋", "沮丧"],
   ]
 
-  for (const [, states] of charStatesMap) {
+  // 优先消费章节摘要 key_events 的结构化情绪转移条目（`情绪转移:角色名:从X因Y变成Z`）：
+  // 有条目的角色按条目内的状态转移比对（条目携带触发原因，比点状态直接比对更精确）；
+  // 无条目的角色（旧数据/角色名未匹配）回落到现有点状态比对，双向兼容。
+  const moodShiftPattern = /^情绪转移:(.+?):从(.+?)因(.+?)变成(.+)$/
+  const charIdToName = new Map(ctx.characters.map((c) => [c.id, c.name]))
+  const shiftEntries = new Map<string, { from: string; to: string }[]>()
+  for (const summary of ctx.chapterSummaries) {
+    const keyEvents = Array.isArray(summary.key_events) ? summary.key_events.map(String) : []
+    for (const event of keyEvents) {
+      const m = moodShiftPattern.exec(event)
+      if (!m) continue
+      const name = m[1]!.trim()
+      const list = shiftEntries.get(name) ?? []
+      list.push({ from: m[2]!, to: m[4]! })
+      shiftEntries.set(name, list)
+    }
+  }
+
+  for (const [charId, states] of charStatesMap) {
+    const shifts = shiftEntries.get(charIdToName.get(charId) ?? "")
+    if (shifts && shifts.length > 0) {
+      // 新路径：条目内从X直接到对立的Z → 章内情绪突变（一个转移条目只计一次）
+      for (const { from, to } of shifts) {
+        for (const [neg, pos] of moodOpposites) {
+          if ((from.includes(neg) && to.includes(pos)) || (from.includes(pos) && to.includes(neg))) {
+            rapidChanges++
+            break
+          }
+        }
+      }
+      continue
+    }
+    // 回落：现有点状态比对（与旧版行为一致）
     if (states.length < 2) continue
     for (const [neg, pos] of moodOpposites) {
       for (let i = 1; i < states.length; i++) {
