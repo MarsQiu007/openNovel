@@ -1,8 +1,10 @@
+# approval-reject-handoff Specification
+
 ## Purpose
 
 在用户明确确认后，把审批驳回结果、章节标识和驳回意见衔接到既有 AI 重写流程，避免用户重复整理指令，同时保持普通驳回的静默控制权。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: AI 接手必须显式确认
 审批驳回面板 SHALL 提供独立的“同时让 AI 按驳回意见重写”确认选项。该选项 MUST 默认关闭；仅勾选并确认驳回后，系统才向会话发送重写指令。
