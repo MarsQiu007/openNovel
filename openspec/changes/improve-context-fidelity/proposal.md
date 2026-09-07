@@ -49,9 +49,12 @@ writer 就在无大纲状态下裸写，流水线无兜底。
 
 ## Impact
 
-- `packages/plugin`：`novel-writer/context.ts`（prevChapterTail）、`agents/observer.ts`
-  （chapter_summary 结构化）、`agents/pipeline.ts`（步骤 3 兜底指令）、`state-commit.ts`
-  （chapter_summary delta 的 data 字段透传）。
+- `packages/plugin`：`novel-writer/context.ts`（prevChapterTail + P2 渲染）、
+  `novel-writer/rollup.ts`（getEffectiveContext 结尾窗口口径同步）、`agents/observer.ts`
+  （chapter_summary 结构化）、`agents/pipeline.ts`（步骤 3 兜底指令）、
+  `novel-writer/continuity-check.ts`（情绪一致性检测消费情绪转移条目）、
+  `novel-writer.ts`（read_chapter_outline 输出补章纲正文）；`state-commit.ts` 的
+  chapter_summary delta 透传已核实无需改动。
 - `packages/novel-store`：`ChapterSummaryTable` 若增加结构化列（如 time_marker / location /
   mood_shift）需要兼容迁移；亦可先复用现有 JSON 字段（key_events / summary）承载，避免建列。
   **本地数据兼容性**：旧摘要无结构化字段时，快照渲染按"缺字段降级为旧格式"处理，不要求回填。

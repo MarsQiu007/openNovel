@@ -50,8 +50,13 @@
 - 理由：零迁移成本、旧数据天然兼容（旧摘要无该格式条目时按现状处理）。若后续证明结构化
   查询需求强，再迁列为时未晚。
 - 改动点：`agents/observer.ts`（chapter_summary 段提取要求 + 输出示例）、
-  `context.ts` 的 P2 渲染（`formatSnapshotToolOutput` 最近章节摘要段）、
-  `state-commit.ts` 的 chapter_summary 应用逻辑确认透传（预计无需改动，需任务期核实）。
+  `context.ts` 的 P2 渲染（`formatSnapshotToolOutput` 最近章节摘要段 + 导出
+  `extractMoodShifts` 共用提取）、`continuity-check.ts` 的情绪一致性检测
+  （`analyzeMoodConsistency` 消费侧：优先读情绪转移条目做转移比对，无条目回落点状态
+  比对，双向兼容约定见 Risks）、`rollup.ts` 的 `getEffectiveContext`（结尾窗口口径
+  同步，该函数自注"与 assembleSnapshot 口径一致"）。
+- `state-commit.ts` 的 chapter_summary delta 透传逻辑已核实（2026-09-07 审查）对
+  key_events 无格式假设，无需改动。
 
 ### D3：pipeline 大纲兜底 — prompt 指令，而非代码硬门禁
 
