@@ -1,24 +1,25 @@
 # 插件工具权限闸门（plugin-tool-permission-gate）
 
-> 状态：草稿 — 优先级 P0（2026-09-07 探索会话产出，待深入研究后细化 specs/design/tasks）
-
 ## Why
 
-插件的 76 个领域工具在 `ToolRegistry.fromPlugin`（`packages/opennovel/src/tool/registry.ts:143-180`）包装执行时**不调用 `ctx.ask`**——尽管桥接已把 `ask` 注入插件工具 context（`registry.ts:150`），`novel-writer.ts` 中没有任何工具调用它。同时 agent permission 里的逐项 `"allow"` 声明形同虚设：`Permission.disabled()`（`opennovel/src/permission/index.ts:204-214`）只认 `pattern="*" && deny`，所有 agent 实际可见并**无条件执行**全部工具。
+插件工具目前由 `ToolRegistry.fromPlugin` 直接执行，虽然插件 context 已注入 `ask`，但 bundled 写作工具没有调用它；同时 agent 权限中的通配 `allow` 会让所有插件工具静默通过。这样 `delete_chapter`、`restore_chapter_version`、`cascade_execute`、`accept_pending_setting` 等高影响操作缺少统一审批点，只能依赖工具内部业务校验。
 
-后果：`delete_chapter`、`restore_chapter_version`、`cascade_execute`、`accept_pending_setting` 等破坏性/高影响操作对用户没有审批点，唯一防线是工具内部业务校验（字数、review 门禁、主角保护）。对比之下，内置工具（shell/edit/read）与 MCP 工具都有权限闸门。
+内置工具和 MCP 工具已有权限链路；插件工具应当复用同一套 Permission UI、规则评估和 always-allow 记忆。
 
 ## What Changes
 
-- 在 `fromPlugin` 包装层或插件工具声明协议中接入权限询问（`ctx.ask`），使插件工具与内置/MCP 工具享有同等的审批机制。
-- 识别破坏性/高影响工具清单（删除章节、恢复版本、级联执行、设定合并等），强制走用户审批；只读/低风险工具可声明为免审批（具体分级在 design 阶段决策）。
-- 复用现有 Permission 请求 UI（desktop/app 已有 permission dock）。
+- 在 `ToolRegistry.fromPlugin` 包装层执行统一的前置权限闸门，插件工具无需各自重复调用 `ctx.ask`。
+- 插件工具默认以自身工具 ID 作为 permission key；`ToolDefinition` 支持可选 `permission` key 供插件显式覆盖。
+- agent 权限中的**精确插件工具规则**继续生效：精确 `allow` 自动放行，精确 `ask` 产生审批，精确 `deny` 拒绝。
+- 通配权限（例如 `"*": "allow"`）不再隐式放行插件工具；未显式声明的插件工具默认请求审批。
+- bundled 写作 agent 中删除章节/设定、恢复版本、执行级联、接受或合并候选设定、修改项目配置等高影响工具改为显式 `ask`；低风险和流水线必需工具继续显式 `allow`。
+- 复用现有 Permission 请求 UI、审批回复和 always-allow 机制，不新增独立审批界面。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `plugin-tool-permission`: 插件工具的权限声明与审批行为——哪些操作需要用户确认、审批如何呈现与记忆。
+- `plugin-tool-permission`: 插件工具的权限声明、集中审批、精确授权与高影响操作确认行为。
 
 ### Modified Capabilities
 
@@ -26,9 +27,10 @@
 
 ## Impact
 
-- `packages/opennovel`：`tool/registry.ts` 的 `fromPlugin` 包装、permission 语义。
-- `packages/plugin`：`novel-writer.ts` 76 个工具的权限声明方式。
-- `packages/app` / `packages/desktop`：预计复用现有审批 UI，无需新增界面。
-- **行为兼容性**：默认策略若为"未声明的插件工具一律 ask"，会改变现有自动化体验（auto 模式流水线会被审批打断）——分级策略必须在 design 中权衡"安全"与"流水线不打断"，例如对流水线内部工具默认 allow、仅对破坏性工具 ask。
+- `packages/plugin`：`ToolDefinition` 增加可选权限 key；写作 agent 的插件工具权限映射调整。
+- `packages/opennovel`：`ToolRegistry.fromPlugin` 接入集中审批；`Permission` 增加插件工具授权判定 helper。
+- `packages/app` / `packages/desktop`：复用现有审批 UI，预计无新界面。
+- **行为兼容性**：普通流水线工具因 agent 配置中的精确 `allow` 继续自动执行；未声明的插件工具和高影响工具会出现审批。用户可在审批 UI 中选择 always allow 以恢复自动化。
+- **数据兼容性**：无数据迁移。
 
-**非目标**：本变更不改内置工具的权限语义；不做 agent 级工具可见性隔离（88 个工具全量暴露给每个 agent 的 context 负担问题另行立项）；不改 permission 规则的通配语义。
+**非目标**：本变更不改内置工具权限语义；不做 agent 级工具可见性隔离；不改 Permission 通配匹配算法；不实现远端/集群审批状态同步。
