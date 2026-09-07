@@ -9,3 +9,8 @@
 - [x] 2.1 在 `packages/plugin` 通过 `bun typecheck` 和 `bun test`
 - [x] 2.2 在仓库根目录通过 `bun run typecheck` 和 `bun run lint`
 - [x] 2.3 通过 `openspec validate orphan-modules-cleanup --type change`
+
+## Implementation Commits
+
+- `7f09910e3` docs(openspec): 细化孤儿模块清理
+- `5022012c7` refactor(plugin): 清理孤儿写作模块
