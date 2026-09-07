@@ -8,7 +8,7 @@
  * - ContextPacket 类型 — 快照数据结构
  * - assembleSnapshot(novelId, chapterNumber) — 组装快照的主函数
  *
- * 遵循 novel-writer.ts 和 governance.ts 中的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
+ * 遵循 novel-writer.ts 中的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
  */
 
 import { eq, and, lte, desc, sql } from "drizzle-orm"

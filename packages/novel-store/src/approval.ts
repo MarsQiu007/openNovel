@@ -5,7 +5,7 @@
  * - requestApproval: 保存写手内容，返回章节详情供人工审核
  * - handleApproval: 根据审批结果路由到不同处理分支
  *
- * 遵循 chapter-tools.ts 的数据库访问模式。
+ * 遵循 novel-writer.ts 的数据库访问模式。
  */
 import { eq } from "drizzle-orm"
 import { getDb, ChapterTable } from "./index.js"

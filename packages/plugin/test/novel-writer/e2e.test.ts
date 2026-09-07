@@ -18,6 +18,7 @@ const testDir = join(tmpdir(), `novel-writer-e2e-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
 const projectDir = join(testDir, "novel-project")
 const originalOpenNovelDb = process.env.OPENNOVEL_DB
+const novelWriterHooks = await NovelWriterPlugin(createPluginInput(projectDir))
 process.env.OPENNOVEL_DB = dbPath
 mkdirSync(testDir, { recursive: true })
 
@@ -29,11 +30,13 @@ import { assembleSnapshot } from "../../src/novel-writer/context.js"
 import { requestApproval, handleApproval } from "../../src/novel-writer/approval-gate.js"
 import { checkContinuity } from "../../src/novel-writer/continuity-check.js"
 import { commitState } from "../../src/novel-writer/state-commit.js"
-import { chapterWrite } from "../../src/novel-writer/chapter-tools.js"
-import { closeDb } from "@opennovel-ai/novel-store"
+import { NovelWriterPlugin } from "../../src/novel-writer.js"
+import { createPluginInput } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/tool.js"
+import { closeDb, getDb, WorldEntryTable } from "@opennovel-ai/novel-store"
 
-// 合成章节内容（2000+ 中文字符，满足 chapterWrite 的字数验证）
-const CHAPTER_1_CONTENT = `第1章 陨落的天才
+// 合成章节内容（2000+ 中文字符，满足 write_chapter 的字数验证）
+const CHAPTER_1_CONTENT_BASE = `第1章 陨落的天才
 
 清晨的第一缕阳光透过破旧的窗棂洒进小屋，照在林天那苍白而坚毅的脸庞上。
 
@@ -106,7 +109,7 @@ const CHAPTER_1_CONTENT = `第1章 陨落的天才
 窗外，苏婉清已经走远，她的背影在晨光中显得格外纤细而坚定。林天知道，在这个冷漠的宗门里，只有她是真正关心自己的人。为了她，为了自己，他必须重新站起来，必须让那些曾经嘲笑他、轻视他的人看到，什么才是真正的天才。`
 
 // 第二章合成内容
-const CHAPTER_2_CONTENT = `第2章 封印碎裂
+const CHAPTER_2_CONTENT_BASE = `第2章 封印碎裂
 
 三个月的时间转瞬即逝。
 
@@ -228,6 +231,9 @@ const CHAPTER_2_CONTENT = `第2章 封印碎裂
 
 "很好。"混沌天尊说道，"现在，让我告诉你关于那个雨夜的真相，以及为何有人要废掉你的灵脉。"`
 
+const CHAPTER_1_CONTENT = CHAPTER_1_CONTENT_BASE + "\n\n" + `他明白，真正的修行不只是恢复灵力，还要重塑心境；每一次跌倒后的坚持，都会成为未来突破的基石。`.repeat(17)
+const CHAPTER_2_CONTENT = CHAPTER_2_CONTENT_BASE + "\n\n" + `他明白，真正的修行不只是恢复灵力，还要重塑心境；每一次跌倒后的坚持，都会成为未来突破的基石。`.repeat(6)
+
 describe("小说写作完整流水线 E2E 测试", () => {
   let novelId: string
   let chapter1Id: string
@@ -321,7 +327,7 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(row.volume_id).toBe(volIds[0])
   })
 
-  test("步骤4：撰写第1章（writer agent + chapter-tools + context 组装）", async () => {
+  test("步骤4：撰写第1章（writer agent + write_chapter + context 组装）", async () => {
     // 查找第1章的真实 ID
     const { drizzle } = await import("drizzle-orm/bun-sqlite")
     const { eq, and } = await import("drizzle-orm")
@@ -366,16 +372,29 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(snapshot!.genre).toBe("玄幻")
     expect(snapshot!.synopsis).toBeTruthy()
 
-    // 使用 chapterWrite 工具写入第1章内容
-    const writeResult = await chapterWrite.execute({
-      chapterId: chapter1Id,
-      content: CHAPTER_1_CONTENT,
-    }, { directory: projectDir } as any)
+    // 使用 write_chapter 工具写入第1章内容
+    // 现行 write_chapter 会拦截零核心设定的新书首章，先补一条最小世界观设定
+    const coreDb = getDb(projectDir)
+    coreDb
+      .insert(WorldEntryTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        category: "location",
+        title: "Qingyun Sect",
+        content: "The sect where the protagonist cultivates.",
+        created_at: Date.now(),
+      })
+      .run()
+
+    expect(coreDb.select({ id: WorldEntryTable.id }).from(WorldEntryTable).all().length).toBeGreaterThan(0)
+
+    const writeResult = await writeChapterTool(chapter1Id, CHAPTER_1_CONTENT)
 
     expect(writeResult).toBeTruthy()
     expect(typeof writeResult).toBe("object")
     const output = typeof writeResult === "string" ? writeResult : (writeResult as any).output
-    expect(output).toContain("写入成功")
+    expect(output).toContain("已写入")
   })
 
   test("步骤5：审计第1章（continuity-check 37维）", async () => {
@@ -525,17 +544,31 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(ch1Summary).toBeTruthy()
     expect(ch1Summary!.summary).toBeTruthy()
 
-    // 使用 chapterWrite 写入第2章（合成内容）
-    const writeResult = await chapterWrite.execute({
-      chapterId: chapter2Id,
-      content: CHAPTER_2_CONTENT,
-    }, { directory: projectDir } as any)
+    // 使用 write_chapter 写入第2章（合成内容）
+    const writeResult = await writeChapterTool(chapter2Id, CHAPTER_2_CONTENT)
 
     expect(writeResult).toBeTruthy()
     const output = typeof writeResult === "string" ? writeResult : (writeResult as any).output
-    expect(output).toContain("写入成功")
+    expect(output).toContain("已写入")
 
     // runPipeline 已迁移为 pipeline agent（agents/pipeline.ts），
     // 不再可作为直接函数调用。
   })
 })
+
+async function writeChapterTool(chapterId: string, content: string) {
+  return novelWriterHooks.tool!.write_chapter.execute({ chapter_id: chapterId, content }, toolCtx())
+}
+
+function toolCtx(): ToolContext {
+  return {
+    sessionID: "ses-e2e",
+    messageID: "msg-e2e",
+    agent: "writer",
+    directory: projectDir,
+    worktree: projectDir,
+    abort: new AbortController().signal,
+    metadata() {},
+    async ask() {},
+  }
+}

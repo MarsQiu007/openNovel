@@ -6,7 +6,7 @@
 
 流水线沉淀了多类 AI 产出数据，前端零入口：`chapter_summaries`（observer 提取的章节摘要/关键事件/角色变化，仅 AI 注入消费，`novel-writer.ts:291-300`）、`hook_rotation`（钩子记录与统计，`novel-writer.ts:3812,3833`）、卷/段汇总等。这些数据是"AI 理解了什么"的窗口，用户看不到就无法校验状态提取质量，也无法享受钩子统计、摘要速览等阅读价值。
 
-（注：孤儿模块 `tension-graph.ts` 若在 orphan-modules-cleanup 中决策接线，张力图 UI 亦归此提案评估。）
+（注：张力数据已由现行张力记录链路承载，独立 tension-graph.ts 已在 orphan-modules-cleanup 中删除。）
 
 ## What Changes
 

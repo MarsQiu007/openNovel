@@ -10,7 +10,7 @@
  * - ContinuityResult — 单个维度检查结果类型
  * - checkContinuity(novelId, chapterNumber) — 执行全维度检查的主函数
  *
- * 遵循 novel-writer.ts 和 governance.ts 中的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
+ * 遵循 novel-writer.ts 中的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
  */
 
 import { eq, and, lte, lt, desc, ne, or, sql, inArray } from "drizzle-orm"

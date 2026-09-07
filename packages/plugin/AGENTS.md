@@ -33,9 +33,7 @@ and never import host packages (`@opennovel-ai/core`, `@opennovel-ai/server`).
 - `src/novel-writer/approval-gate.ts` — approval state transitions re-exported for
   the server/UI.
 - `src/novel-writer/` — pipeline mechanics: `outline`, `context`, `continuity-check`,
-  `multi-round-review`, `quality-cycle`, `state-commit`, `chapter-status`,
-  `chapter-tools`, `tension-graph`, `hook-rotation`, `length-enforcement`,
-  `governance`, `budget`, `genres/`.
+  `state-commit`, `chapter-status`, `hook-rotation`, `budget`, `genres/`.
 
 ## Conventions
 
