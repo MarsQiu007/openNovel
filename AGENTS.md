@@ -1,8 +1,8 @@
 - To regenerate the legacy JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit `src/generated` or `src/generated-effect` directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk-next` composes Client, Core, and Server.
-- The default branch in this repo is `dev`.
-- Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
+- The default branch in this repo is `main`.
+- Refresh local `main` from `origin/main` before using it as the diff base.
 
 ## Branch Names
 
@@ -26,10 +26,14 @@ Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributi
 - Prefer Simplified Chinese for generated prose: code comments, documentation, commit messages, PR titles, and user-facing chat. Keep code, file paths, identifiers, CLI arguments, and API names in ASCII English. Leave i18n locale files (e.g. `packages/app/src/i18n/*.ts`) untouched.
 - 归档前用 `OpenSpec-Change` trailer 收集相关实现提交，并写入 change 的 `tasks.md`。
 
-## OpenSpec Archive
+## OpenSpec Completion
 
-- 完成一个 OpenSpec change 后，先提交全部相关实现改动，再在 `openspec/changes/<change>/tasks.md` 末尾添加 `## Implementation Commits`，逐条记录与本 change 相关的实现提交（短 hash + commit 标题）。
-- 记录完成后单独提交该更新，运行 `openspec validate <change>`，验证通过后再归档。
+- 一次功能分支只承载一个 OpenSpec change，避免多个提案的实现提交交错。
+- 完成实现后，先提交全部相关实现改动；每个提交都带 `OpenSpec-Change: <change-id>` trailer。
+- 用 `git log --grep "OpenSpec-Change: <change-id>" --format="%h %s"` 收集实现提交，并写入 `openspec/changes/<change>/tasks.md` 的 `## Implementation Commits`。
+- 单独提交记录更新，运行 `openspec validate <change>`；有 delta specs 时先同步主 specs，再归档并提交归档移动。
+- 合并前检查工作树干净，切换并更新 `main`，优先用 `git merge --ff-only <feature-branch>`；无法 fast-forward 时先把功能分支更新到最新 `main`，重新验证后再合并。
+- 推送 `main` 后，确认分支已合并，再删除本地和远端功能分支，并运行 `git fetch --prune`。
 - 不要把记录更新自身或归档目录移动的提交写入 `Implementation Commits`，避免自引用。
 
 ## Style Guide

@@ -8,7 +8,7 @@
   <a href="README.en.md">English</a>
 </p>
 
-![Tests](https://img.shields.io/github/actions/workflow/status/MarsQiu007/openNovel/test.yml?style=flat-square&branch=dev)
+![Tests](https://img.shields.io/github/actions/workflow/status/MarsQiu007/openNovel/test.yml?style=flat-square&branch=main)
 ![License](https://img.shields.io/github/license/MarsQiu007/openNovel?style=flat-square)
 ![Platform](https://img.shields.io/badge/Windows-macOS-Linux-5b8def?style=flat-square)
 

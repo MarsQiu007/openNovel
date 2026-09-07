@@ -230,11 +230,11 @@ async function main() {
     return
   }
 
-  console.log("Fetching latest dev branch...")
-  await $`git fetch origin dev`
+  console.log("Fetching latest main branch...")
+  await $`git fetch origin main`
 
   console.log("Checking out beta branch...")
-  await $`git checkout -B beta origin/dev`
+  await $`git checkout -B beta origin/main`
 
   const applied: number[] = []
   const failed: FailedPR[] = []
@@ -262,7 +262,7 @@ async function main() {
         if (!(await fix(pr, files, prs, applied, idx))) {
           await cleanup()
           failed.push({ number: pr.number, title: pr.title, reason: "Merge conflicts" })
-          await commentOnPR(pr.number, "Merge conflicts with dev branch")
+          await commentOnPR(pr.number, "Merge conflicts with main branch")
           continue
         }
       } else {
@@ -318,7 +318,7 @@ async function main() {
   await $`git fetch origin beta`
 
   const localTree = (await $`git rev-parse beta^{tree}`.text()).trim()
-  const remoteTrees = (await $`git log origin/dev..origin/beta --format=%T`.text()).split("\n")
+  const remoteTrees = (await $`git log origin/main..origin/beta --format=%T`.text()).split("\n")
 
   const matchIdx = remoteTrees.indexOf(localTree)
   if (matchIdx !== -1) {
@@ -335,7 +335,7 @@ async function main() {
   await $`git fetch origin beta`
 
   const validatedTree = (await $`git rev-parse beta^{tree}`.text()).trim()
-  const remoteTreesAfterSmoke = (await $`git log origin/dev..origin/beta --format=%T`.text()).split("\n")
+  const remoteTreesAfterSmoke = (await $`git log origin/main..origin/beta --format=%T`.text()).split("\n")
   const matchIdxAfterSmoke = remoteTreesAfterSmoke.indexOf(validatedTree)
   if (matchIdxAfterSmoke !== -1) {
     if (matchIdxAfterSmoke !== 0) {

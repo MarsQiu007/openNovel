@@ -33,7 +33,7 @@ Use the **Layout** button to toggle \`newLayoutDesigns\` and preview both the v2
 }
 
 const messages = [
-  "update current branch with latest changes from dev and fix conflicts if any",
+  "update current branch with latest changes from main and fix conflicts if any",
   "investigate why the chat input loses focus after sending a message",
   "Debug why streaming responses sometimes duplicate the last token",
   "suggest a better title for this PR based on the diff",

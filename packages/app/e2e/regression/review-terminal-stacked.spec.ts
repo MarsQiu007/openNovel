@@ -64,7 +64,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ branch: "review-pane-performance", default_branch: "dev" }),
+      body: JSON.stringify({ branch: "review-pane-performance", default_branch: "main" }),
     }),
   )
   await page.route("**/vcs/diff**", (route) => {

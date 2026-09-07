@@ -26,7 +26,7 @@ context: |
   ## 架构规则
   - 运行时依赖方向：Schema ← Core/Protocol ← Server；Client 只能依赖 Schema/Protocol，不得依赖 Core/Server
   - 修改公开 Protocol 或 Server HttpApi 后，必须在 packages/client 运行 `bun run generate`；禁止手改 src/generated 与 src/generated-effect
-  - 仓库默认分支是 dev（不是 main）；分支名 ≤3 个单词、连字符分隔、不带 type 前缀
+  - 仓库默认分支是 main；分支名 ≤3 个单词、连字符分隔、不带 type 前缀
   - 提交信息用 Conventional Commits：type(scope): summary，type ∈ feat|fix|docs|chore|refactor|test
   - 非 merge commit 必须带 `OpenSpec-Change` footer：提案工作用 `OpenSpec-Change: <change-id>`，非提案工作用 `OpenSpec-Change: none`；一个 commit 只写一个 change-id
 
@@ -63,7 +63,7 @@ operations:
   archive:
     guidance:
       - 归档前先提交与本 change 相关的实现改动，并在 tasks.md 的 `Implementation Commits` 中记录相关提交的短 hash 与标题；记录更新单独提交，验证通过后再归档
-      - 归档前用 `git log --grep "OpenSpec-Change: <change-id>" --format="%h %s"` 收集相关提交
+      - 归档前用 `git log --grep "OpenSpec-Change: <change-id>" --format="%h %s"` 收集相关提交；完成后顺序为 validate → sync specs → archive → merge/push main → 清理本地/远端分支并 prune
       - `Implementation Commits` 不包含记录更新自身和归档目录移动的提交，避免自引用
       - 归档前确认 openspec/specs/ 已同步变更后的最新行为
       - 归档目录名保持 ISO 日期前缀格式（如 2026-09-02-xxx），与现有 archive 一致

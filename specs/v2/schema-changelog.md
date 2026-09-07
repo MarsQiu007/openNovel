@@ -38,7 +38,7 @@
 
 Record V2 database, durable-event, projected-message, HTTP, and generated SDK schema changes here. Each entry states why the contract changed and whether consumers or stored data need compatibility handling. Commit messages for schema-affecting changes should include the same summary.
 
-This document covers meaningful contract changes introduced on the `feat/opennovel-embedded-api` branch since its divergence from `origin/dev`. Mechanical file moves and internal refactors are omitted unless they changed stored data, replay behavior, public HTTP or SDK shapes, or model-facing tool contracts.
+This document covers meaningful contract changes introduced on the `feat/opennovel-embedded-api` branch since its divergence from `origin/main`. Mechanical file moves and internal refactors are omitted unless they changed stored data, replay behavior, public HTTP or SDK shapes, or model-facing tool contracts.
 
 ## 2026-06-04 Event-Sourced Session Input Cutover
 

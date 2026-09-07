@@ -3,7 +3,7 @@
 Thanks for your interest in contributing to openNovel!
 
 **Repo:** <https://github.com/MarsQiu007/openNovel>
-**Default branch:** `dev`
+**Default branch:** `main`
 
 ## Getting Started
 
