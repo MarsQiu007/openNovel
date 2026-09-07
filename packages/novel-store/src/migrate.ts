@@ -156,7 +156,7 @@ function migrateAnnotationExecutionRound(exec: ExecFn, query: QueryFn): void {
 }
 
 /**
- * 给旧版 annotation_execution_rounds 表补 status / annotations_snapshot 列。
+ * 给旧版 annotation_execution_rounds 表补 status / annotations_snapshot / chapter_version_id 列。
  * SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查 PRAGMA table_info 判断。
  */
 function migrateAnnotationExecutionRoundColumns(exec: ExecFn, query: QueryFn): void {
@@ -169,6 +169,9 @@ function migrateAnnotationExecutionRoundColumns(exec: ExecFn, query: QueryFn): v
     }
     if (!columns.has("annotations_snapshot")) {
       exec("ALTER TABLE annotation_execution_rounds ADD COLUMN annotations_snapshot text NOT NULL DEFAULT '[]'")
+    }
+    if (!columns.has("chapter_version_id")) {
+      exec("ALTER TABLE annotation_execution_rounds ADD COLUMN chapter_version_id text")
     }
   } catch {
     // annotation_execution_rounds 表不存在时无需迁移，CREATE_TABLES_SQL 会带新列创建

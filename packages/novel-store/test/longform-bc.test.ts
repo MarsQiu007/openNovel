@@ -362,9 +362,11 @@ describe("execution rounds", () => {
     const completed = await updateExecutionRound(round.id, {
       status: "completed",
       result_summary: "prompt sent",
+      chapter_version_id: "cv-1",
     }, projectDir)
     expect(completed.status).toBe("completed")
     expect(completed.result_summary).toBe("prompt sent")
+    expect(completed.chapter_version_id).toBe("cv-1")
     expect(JSON.parse(completed.annotations_snapshot)).toEqual(snapshot)
   })
 
