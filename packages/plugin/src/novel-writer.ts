@@ -467,6 +467,28 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).all()
           if (!chapter) return { title: "write_chapter", output: `章节不存在：${args.chapter_id}` }
 
+          // 新书兜底：完全无核心设定时禁止静默裸写第一章，但保留旧书和已有设定项目的写作路径。
+          if (chapter.order === 1 && chapter.content.length === 0) {
+            const characters = await db
+              .select({ id: CharacterTable.id })
+              .from(CharacterTable)
+              .where(eq(CharacterTable.novel_id, chapter.novel_id))
+              .all()
+            const worldEntries = await db
+              .select({ id: WorldEntryTable.id })
+              .from(WorldEntryTable)
+              .where(eq(WorldEntryTable.novel_id, chapter.novel_id))
+              .all()
+            if (characters.length === 0 && worldEntries.length === 0) {
+              return {
+                title: "write_chapter（需要初始化设定）",
+                output:
+                  "当前小说还没有角色或世界观设定。请先初始化小说设定（生成故事圣经、题材规则和核心设定），再写第一章。",
+                metadata: { blocked: true, reason: "uninitialized" },
+              }
+            }
+          }
+
           const pendingCount = await db
             .select({ id: PendingUpdateTable.id })
             .from(PendingUpdateTable)
