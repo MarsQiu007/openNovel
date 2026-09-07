@@ -16,7 +16,7 @@ import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
-import { useWorkspaceData, findBoundNovelSession, sendAnnotationExecution } from "./workspace-data"
+import { useWorkspaceData, findBoundNovelSession, sendNovelSessionInstruction } from "./workspace-data"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
 import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
@@ -533,7 +533,7 @@ export default function NovelWorkspaceFrame() {
   }
 
   async function handleAnnotationExecute(args: { prompt: string; roundID: string }) {
-    return await sendAnnotationExecution({
+    return await sendNovelSessionInstruction({
       sdk,
       novel,
       bindSession: bindSessionMutation,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createAndBindSession, sendAnnotationExecution } from "./workspace-data"
+import { createAndBindSession, formatRejectionRewritePrompt, sendNovelSessionInstruction } from "./workspace-data"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import type { useBindSession } from "@/context/novel-queries"
@@ -76,10 +76,41 @@ describe("createAndBindSession", () => {
   })
 })
 
-describe("sendAnnotationExecution", () => {
+describe("formatRejectionRewritePrompt", () => {
+  test("包含章节字段、驳回意见和驳回后重写动作", () => {
+    const prompt = formatRejectionRewritePrompt({
+      novelID: "novel-1",
+      chapterID: "ch-1",
+      chapterTitle: "第一章",
+      chapterOrder: 1,
+      comment: "对话节奏太慢",
+    })
+
+    expect(prompt).toContain("novel_id: novel-1")
+    expect(prompt).toContain("chapter_id: ch-1")
+    expect(prompt).toContain("chapter_title: \"第一章\"")
+    expect(prompt).toContain("chapter_order: 1")
+    expect(prompt).toContain("action: rewrite_after_reject")
+    expect(prompt).toContain("rejection_comment: \"对话节奏太慢\"")
+  })
+
+  test("驳回意见为空时明确说明", () => {
+    const prompt = formatRejectionRewritePrompt({
+      novelID: "novel-1",
+      chapterID: "ch-1",
+      chapterTitle: "第一章",
+      chapterOrder: 1,
+    })
+
+    expect(prompt).toContain("action: rewrite_after_reject")
+    expect(prompt).toContain("rejection_comment: 未填写驳回意见")
+  })
+})
+
+describe("sendNovelSessionInstruction", () => {
   test("优先发送到最近绑定会话并返回该会话 ID", async () => {
     const deps = createDeps({ boundSessionID: "s-existing" })
-    const sessionID = await sendAnnotationExecution({
+    const sessionID = await sendNovelSessionInstruction({
       sdk: deps.sdk,
       novel: deps.novel,
       bindSession: deps.bindSession,
@@ -93,7 +124,7 @@ describe("sendAnnotationExecution", () => {
 
   test("无绑定会话时创建并绑定会话", async () => {
     const deps = createDeps()
-    const sessionID = await sendAnnotationExecution({
+    const sessionID = await sendNovelSessionInstruction({
       sdk: deps.sdk,
       novel: deps.novel,
       bindSession: deps.bindSession,

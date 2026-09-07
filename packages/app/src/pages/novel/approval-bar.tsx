@@ -2,11 +2,11 @@ import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { useQueryClient } from "@tanstack/solid-query"
 import { useNavigate } from "@solidjs/router"
 import { useChapterApprovalState } from "@/context/novel-approval"
-import { useChapterDetail, useChapterReviews, useSubmitApproval } from "@/context/novel-queries"
+import { useBindSession, useChapterDetail, useChapterReviews, useSubmitApproval } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useNovel } from "@/context/novel"
-import { findBoundNovelSession } from "./workspace-data"
+import { findBoundNovelSession, formatRejectionRewritePrompt, sendNovelSessionInstruction } from "./workspace-data"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
@@ -250,9 +250,12 @@ export default function ApprovalBar(props: ApprovalBarProps) {
   const sdk = useSDK()
   const novel = useNovel()
   const navigate = useNavigate()
+  const bindSession = useBindSession()
+  const chapter = useChapterDetail(() => props.novelID, () => props.chapterID)
   const [showReview, setShowReview] = createSignal(false)
   const [rejecting, setRejecting] = createSignal(false)
   const [rejectComment, setRejectComment] = createSignal("")
+  const [sendRewrite, setSendRewrite] = createSignal(false)
 
   const viewReview = async () => {
     const boundID = await findBoundNovelSession(sdk, novel, props.novelID)
@@ -261,7 +264,34 @@ export default function ApprovalBar(props: ApprovalBarProps) {
     }
   }
 
+  const dispatchRewriteInstruction = async (comment?: string) => {
+    try {
+      const prompt = formatRejectionRewritePrompt({
+        novelID: props.novelID,
+        chapterID: props.chapterID,
+        chapterTitle: chapter.data?.title,
+        chapterOrder: chapter.data?.order,
+        comment,
+      })
+      const sessionID = await sendNovelSessionInstruction({
+        sdk,
+        novel,
+        bindSession,
+        novelID: props.novelID,
+        prompt,
+      })
+      navigate(`/${base64Encode(sdk().directory)}/novel/${props.novelID}/session/${sessionID}`)
+      showToast({ variant: "success", title: "已发送 AI 重写指令" })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: `驳回已保存，但 AI 重写指令发送失败：${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+  }
+
   const handleAction = (action: "approve" | "reject", comment?: string) => {
+    const shouldSendRewrite = action === "reject" && sendRewrite()
     approval.mutate(
       { novelID: props.novelID, chapterID: props.chapterID, action, comment },
       {
@@ -271,9 +301,11 @@ export default function ApprovalBar(props: ApprovalBarProps) {
           })
           setRejecting(false)
           setRejectComment("")
+          setSendRewrite(false)
           const title =
             action === "approve" ? language.t("novel.approval.confirmed") : language.t("novel.chapter.status.rejected")
           showToast({ variant: "success", title })
+          if (shouldSendRewrite) void dispatchRewriteInstruction(comment)
         },
         onError: (error) => {
           showToast({
@@ -328,6 +360,14 @@ export default function ApprovalBar(props: ApprovalBarProps) {
                 value={rejectComment()}
                 onInput={(e) => setRejectComment(e.currentTarget.value)}
               />
+              <label class="flex cursor-pointer items-center gap-2 text-xs text-v2-text-text-base">
+                <input
+                  type="checkbox"
+                  checked={sendRewrite()}
+                  onInput={(e) => setSendRewrite(e.currentTarget.checked)}
+                />
+                <span>同时让 AI 按驳回意见重写</span>
+              </label>
               <div class="flex items-center justify-end gap-2">
                 <ButtonV2
                   variant="ghost-muted"
@@ -335,6 +375,7 @@ export default function ApprovalBar(props: ApprovalBarProps) {
                   onClick={() => {
                     setRejecting(false)
                     setRejectComment("")
+                    setSendRewrite(false)
                   }}
                 >
                   {language.t("novel.approval.commentCancel")}

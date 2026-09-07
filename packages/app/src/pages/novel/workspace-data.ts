@@ -125,10 +125,32 @@ export async function createAndBindSession(input: {
 }
 
 /**
- * 将批注执行指令发送到该小说最近绑定的会话；没有绑定会话时创建并绑定新会话。
+ * 将小说相关的会话指令发送到最近绑定会话；没有绑定会话时创建并绑定新会话。
  * 返回实际接收指令的会话 ID，供调用方跳转 / 聚焦。
  */
-export async function sendAnnotationExecution(input: {
+export function formatRejectionRewritePrompt(input: {
+  readonly novelID: string
+  readonly chapterID: string
+  readonly chapterTitle?: string | null | undefined
+  readonly chapterOrder?: number | null | undefined
+  readonly comment?: string | null | undefined
+}): string {
+  const sections = [
+    "请处理章节审批驳回。",
+    "\n## 驳回章节\n"
+      + `- novel_id: ${input.novelID}\n`
+      + `- chapter_id: ${input.chapterID}\n`
+      + `- chapter_title: ${JSON.stringify(input.chapterTitle ?? "")}\n`
+      + `- chapter_order: ${input.chapterOrder ?? "unknown"}` ,
+    "\n## 驳回处理\n"
+      + "- action: rewrite_after_reject\n"
+      + `- rejection_comment: ${input.comment ? JSON.stringify(input.comment) : "未填写驳回意见"}`,
+    "\n请走既有“驳回后重写指定章节”分支，结合驳回意见修订正文；完成后按当前写作模式进入待审批或推进。",
+  ]
+  return sections.join("\n")
+}
+
+export async function sendNovelSessionInstruction(input: {
   sdk: ReturnType<typeof useSDK>
   novel: ReturnType<typeof useNovel>
   bindSession: ReturnType<typeof useBindSession>
