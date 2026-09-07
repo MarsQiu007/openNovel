@@ -21,3 +21,12 @@
 - [x] 4.1 在 `packages/novel-store`、`packages/plugin`、`packages/server`、`packages/schema`、`packages/protocol`、`packages/app` 分别通过 `bun typecheck`，并运行受影响包测试
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 与 `bun run lint`
 - [x] 4.3 通过 `openspec validate annotation-round-result --type change`
+
+## Implementation Commits
+
+- `dc074d52c` docs(openspec): 细化批注执行结果回填
+- `5ec75d9df` feat(novel-store): 记录批注执行章节版本
+- `c0f41dae1` feat(server): 扩展批注执行结果回填契约
+- `b8c753250` feat(plugin): 回填批注执行结果
+- `c2b6d942d` feat(app): 保持批注轮次等待 AI 回填
+- `53587223c` docs(openspec): 勾选批注执行结果回填任务
