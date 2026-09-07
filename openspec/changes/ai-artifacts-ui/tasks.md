@@ -19,3 +19,9 @@
 - [x] 4.1 在 `packages/opennovel` 和 `packages/app` 分别通过 `bun typecheck`、相关测试与 oxlint
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 和 `bun run lint`
 - [x] 4.3 通过 `openspec validate ai-artifacts-ui --type change`
+## Implementation Commits
+
+- `7cc345b19` docs(openspec): 细化 AI 产出呈现规格
+- `a8eafb6a0` docs(openspec): 细化 AI 产出呈现设计
+- `832cb1d89` docs(openspec): 细化 AI 产出呈现任务
+- `563c12197` feat(app): 新增 AI 产出检视面板
