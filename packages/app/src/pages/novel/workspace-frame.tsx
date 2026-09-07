@@ -520,7 +520,9 @@ export default function NovelWorkspaceFrame() {
 
   // Session activity & approval state
   const sync = useSync()
-  const novelActivity = useNovelActivity()
+  const novelActivity = useNovelActivity(() =>
+    (boundSessions.data ?? []).map((session) => session.sessionID),
+  )
   const pendingCount = createMemo(() => usePendingApprovalCount(data.chapters))
   const updateNovel = useUpdateNovel()
   const styleGuideQuery = useStyleGuide(novelID)

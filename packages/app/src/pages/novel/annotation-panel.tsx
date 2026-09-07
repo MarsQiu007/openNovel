@@ -12,6 +12,7 @@ import {
 import { executeAnnotationExecution, groupHistoryRounds, type AnnotationExecutionSnapshot } from "./annotation-execution"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
+import { isAnySessionWorking } from "@/context/novel-approval"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
@@ -77,7 +78,10 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   const activeAnnotations = createMemo(() => (annotations.data ?? []).filter((ann) => !ann.executionRoundId))
   const openCount = createMemo(() => activeAnnotations().filter((a) => a.status === "open").length)
   const sessionBusy = createMemo(() =>
-    (boundSessions.data ?? []).some((session) => sync().data.session_working(session.sessionID)),
+    isAnySessionWorking(
+      (boundSessions.data ?? []).map((session) => session.sessionID),
+      (sessionID) => sync().data.session_working(sessionID),
+    ),
   )
   const canExecute = createMemo(
     () => !isExecuting() && !sessionBusy() && activeAnnotations().length > 0 && openCount() === 0,

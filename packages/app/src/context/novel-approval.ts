@@ -1,5 +1,5 @@
 import { useSync } from "@/context/sync"
-import { createMemo } from "solid-js"
+import { createMemo, type Accessor } from "solid-js"
 
 // ─── Types ───
 
@@ -46,21 +46,27 @@ export function useChapterApprovalState(chapter: ChapterLike): ApprovalState {
 // ─── Novel activity ───
 
 /**
- * Check if any session in the current directory is currently running.
+ * 判断任一绑定会话是否正在运行。
  *
- * Uses the `useSync` context to check if any session in the directory
- * is active (session_working returns true). Directory-scoped, not
- * novel-scoped — there is no reverse novel→session lookup endpoint yet.
+ * 书籍活动必须是“绑定会话 × 运行状态”的交集；目录内其他书的会话不应污染当前书。
  */
-export function useNovelActivity() {
+export function isAnySessionWorking(
+  sessionIDs: readonly string[],
+  isWorking: (sessionID: string) => boolean,
+) {
+  return sessionIDs.some((sessionID) => isWorking(sessionID))
+}
+
+/**
+ * Check whether any session bound to the current novel is running.
+ *
+ * Uses the `useSync` context for live status and expects the caller to pass
+ * IDs from the novel-scoped session binding query.
+ */
+export function useNovelActivity(sessionIDs: Accessor<readonly string[]>) {
   const sync = useSync()
 
-  return createMemo(() => {
-    const ctx = sync()
-    const sessions = ctx.data.session
-    if (!sessions || sessions.length === 0) return false
-    return sessions.some((s) => ctx.data.session_working(s.id))
-  })
+  return createMemo(() => isAnySessionWorking(sessionIDs(), (sessionID) => sync().data.session_working(sessionID)))
 }
 
 // ─── Pending approval count ───
