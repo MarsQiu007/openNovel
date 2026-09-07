@@ -2264,7 +2264,12 @@ export function make(options: ClientOptions) {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds/${encodeURIComponent(input.roundID)}`,
             query: { location: input["location"] },
-            body: { status: input["status"], resultSummary: input["resultSummary"] },
+            body: {
+              status: input["status"],
+              resultSummary: input["resultSummary"],
+              chapterVersionId: input["chapterVersionId"],
+              promptSnapshot: input["promptSnapshot"],
+            },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,

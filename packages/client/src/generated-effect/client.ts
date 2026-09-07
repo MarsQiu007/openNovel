@@ -1828,12 +1828,19 @@ type Endpoint18_80Input = {
   readonly location?: Endpoint18_80Request["query"]["location"]
   readonly status?: Endpoint18_80Request["payload"]["status"]
   readonly resultSummary?: Endpoint18_80Request["payload"]["resultSummary"]
+  readonly chapterVersionId?: Endpoint18_80Request["payload"]["chapterVersionId"]
+  readonly promptSnapshot?: Endpoint18_80Request["payload"]["promptSnapshot"]
 }
 const Endpoint18_80 = (raw: RawClient["server.novel"]) => (input: Endpoint18_80Input) =>
   raw["novel.update-execution-round"]({
     params: { novelID: input["novelID"], chapterID: input["chapterID"], roundID: input["roundID"] },
     query: { location: input["location"] },
-    payload: { status: input["status"], resultSummary: input["resultSummary"] },
+    payload: {
+      status: input["status"],
+      resultSummary: input["resultSummary"],
+      chapterVersionId: input["chapterVersionId"],
+      promptSnapshot: input["promptSnapshot"],
+    },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_81Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]

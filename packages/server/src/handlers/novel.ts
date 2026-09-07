@@ -1635,6 +1635,7 @@ function toExecutionRound(row: typeof AnnotationExecutionRoundTable.$inferSelect
     status: executionRoundStatus(row.status),
     annotationsSnapshot: parseAnnotationsSnapshot(row.annotations_snapshot),
     resultSummary: row.result_summary,
+    chapterVersionId: row.chapter_version_id,
     createdAt: row.created_at,
   }
 }
@@ -1678,11 +1679,15 @@ function listExecutionRounds(chapterId: string, directory: string) {
   })
 }
 
-function updateExecutionRoundHandler(roundId: string, input: { status?: string; resultSummary?: string }, directory: string) {
+function updateExecutionRoundHandler(roundId: string, input: {
+  status?: string; resultSummary?: string; chapterVersionId?: string | null; promptSnapshot?: string
+}, directory: string) {
   return Effect.gen(function* () {
     const round = yield* Effect.promise(() => storeUpdateExecutionRound(roundId, {
       status: input.status,
       result_summary: input.resultSummary,
+      chapter_version_id: input.chapterVersionId,
+      prompt_snapshot: input.promptSnapshot,
     }, directory))
     return toExecutionRound(round)
   })

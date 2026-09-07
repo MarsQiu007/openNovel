@@ -694,6 +694,7 @@ export const ExecutionRound = Schema.Struct({
   status: ExecutionRoundStatus,
   annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
   resultSummary: Schema.String,
+  chapterVersionId: optional(Schema.NullOr(Schema.String)),
   createdAt: Schema.Int,
 }).annotate({ identifier: "Novel.ExecutionRound" })
 export interface ExecutionRound extends Schema.Schema.Type<typeof ExecutionRound> {}
@@ -711,6 +712,8 @@ export interface CreateExecutionRoundInput extends Schema.Schema.Type<typeof Cre
 export const UpdateExecutionRoundInput = Schema.Struct({
   status: optional(ExecutionRoundStatus),
   resultSummary: optional(Schema.String),
+  chapterVersionId: optional(Schema.NullOr(Schema.String)),
+  promptSnapshot: optional(Schema.String),
 }).annotate({ identifier: "Novel.UpdateExecutionRoundInput" })
 export interface UpdateExecutionRoundInput extends Schema.Schema.Type<typeof UpdateExecutionRoundInput> {}
 

@@ -5103,6 +5103,7 @@ export type ServerNovelCreateExecutionRoundOutput = {
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
+  readonly chapterVersionId?: string | null
   readonly createdAt: number
 }
 
@@ -5131,6 +5132,7 @@ export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
+  readonly chapterVersionId?: string | null
   readonly createdAt: number
 }>
 
@@ -5144,11 +5146,27 @@ export type ServerNovelUpdateExecutionRoundInput = {
   readonly status?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
+    readonly chapterVersionId?: string | null
+    readonly promptSnapshot?: string
   }["status"]
   readonly resultSummary?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
+    readonly chapterVersionId?: string | null
+    readonly promptSnapshot?: string
   }["resultSummary"]
+  readonly chapterVersionId?: {
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly resultSummary?: string
+    readonly chapterVersionId?: string | null
+    readonly promptSnapshot?: string
+  }["chapterVersionId"]
+  readonly promptSnapshot?: {
+    readonly status?: "running" | "completed" | "failed" | "interrupted"
+    readonly resultSummary?: string
+    readonly chapterVersionId?: string | null
+    readonly promptSnapshot?: string
+  }["promptSnapshot"]
 }
 
 export type ServerNovelUpdateExecutionRoundOutput = {
@@ -5168,6 +5186,7 @@ export type ServerNovelUpdateExecutionRoundOutput = {
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
+  readonly chapterVersionId?: string | null
   readonly createdAt: number
 }
 
