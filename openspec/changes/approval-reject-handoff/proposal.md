@@ -4,29 +4,33 @@
 
 ## Why
 
-review 模式的审批闭环断在"驳回"侧：`submitApproval`（`packages/server/src/handlers/novel.ts:656-676`）处理 REJECT 时只更新章节状态为 `rejected` 并补写 human review 记录，**不向绑定会话发送任何消息/事件**。流水线 agent 虽有"驳回后重写指定章节"分支（`plugin/src/novel-writer/agents/pipeline.ts:149-156`），但触发完全依赖用户手动去 director 会话输入指令——用户审批驳回后必须自己记住并重新组织重写请求，链路断裂。
+review 模式的审批闭环断在“驳回”侧：服务端驳回后只把章节状态置为 `rejected` 并补写 human review 记录，不向绑定会话发送任何消息或事件。流水线 agent 虽然已有“驳回后重写指定章节”分支，但触发完全依赖用户手动去 director 会话输入指令；用户驳回后必须自己记住并重新组织重写请求，链路断裂。
+
+不过驳回并不总是“要求 AI 重写”，也可能是作者想自己改或先记录问题。因此不能把驳回默认变成自动派工。
 
 ## What Changes
 
-- 审批驳回时，向该书的绑定写作会话传递结构化重写指令（携带章节 ID、驳回原因/评审反馈），由 director 调度 pipeline 执行"驳回后重写"分支。
-- 触发方式在 design 阶段决策：自动直发（利用 `sessions.prompt`）vs 前端提示用户确认后发送。
-- 处理边界情况：无绑定会话、会话正在运行（sessionBusy）、驳回原因缺失。
+- 在驳回确认面板增加显式的“同时让 AI 按驳回意见重写”选项，默认关闭。
+- 用户确认驳回且勾选该选项后，前端向该小说最近的绑定会话发送结构化重写指令；没有绑定会话时创建并绑定新会话。
+- 指令携带章节 ID、章节标题、章节序号、驳回意见和“驳回后重写”动作说明，供 director 调度 pipeline 的驳回重写分支。
+- 驳回状态先落库并刷新界面；AI 指令发送失败只提示发送失败，不回滚驳回。
+- 会话忙碌时仍可发送，指令按现有 SessionV2 排队/继续语义处理。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `approval-reject-handoff`: 审批驳回到 AI 重写的衔接行为——指令内容、触发方式、边界情况处理。
+- `approval-reject-handoff`: 审批驳回到 AI 重写的确认、结构化指令和边界情况处理。
 
 ### Modified Capabilities
 
-（无——审批流现有 spec 未覆盖驳回后的 AI 衔接。）
+（无——不改审批 APPROVE / REJECT / EDIT 的语义。）
 
 ## Impact
 
-- `packages/server`：`submitApproval` 驳回分支增加会话衔接。
-- `packages/app`：若采用"确认后发送"，审批条 UI 增加引导。
-- `packages/plugin`：pipeline 驳回重写分支的指令消费（分支已存在，可能需对齐指令格式）。
-- **行为兼容性**：自动直发会改变"驳回后静默"的现有行为，需在 design 中权衡（用户驳回可能是想自己改而非让 AI 重写——这正是倾向"提示确认"的理由之一）。
+- `packages/app`：驳回确认面板增加显式交接选项，并在确认后发送会话指令。
+- `packages/plugin`：仅依赖既有 director/pipeline “驳回后重写”分支；如需，补充指令关键词对齐。
+- `packages/server`：不新增审批端点，不改变审批状态机。
+- **行为兼容性**：默认行为仍是“驳回后静默”；只有用户显式确认 AI 接手时才发送重写指令。
 
-**非目标**：本变更不改审批三分支（APPROVE/REJECT/EDIT）语义；不做驳回原因结构化表单；不处理 EDIT 分支（人工编辑已是终态）。
+**非目标**：不自动在所有驳回时派发 AI；不处理 EDIT 分支；不做驳回原因结构化表单；不等待重写完成后再更新审批状态。
