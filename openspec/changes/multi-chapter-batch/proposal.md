@@ -1,4 +1,4 @@
-﻿# 连续多章写作（multi-chapter-batch）
+# 连续多章写作（multi-chapter-batch）
 
 > 状态：已细化 — 优先级 P2，2026-09-08 确认采用 director 顺序调度单章流水线
 

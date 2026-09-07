@@ -1,8 +1,10 @@
+# multi-chapter-batch Specification
+
 ## Purpose
 
 支持一次请求连续完成多章写作，同时保持逐章完整流水线、上下文更新和失败/审核中断可控。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 批量写作请求识别
 用户 SHALL 能通过自然语言请求“连写 N 章”“一次写 N 章”等批量写作；系统 SHALL 识别明确数量并按章顺序执行。

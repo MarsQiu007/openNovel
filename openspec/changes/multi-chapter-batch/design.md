@@ -1,4 +1,4 @@
-﻿## Context
+## Context
 
 当前 director 将“写下一章/继续写”路由给 @pipeline，@pipeline 只承诺执行一个章节的 8 步闭环。写作使用 LLM 调度子 agent，批量能力不能放在确定性工具中硬编码模型调用。
 
