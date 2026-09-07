@@ -52,6 +52,7 @@ import {
   ArcBeat,
   VolumeReview,
   EditorialReport,
+  ExportFormat,
   ChapterAnnotation,
   CanvasLayout,
   StructureEditorData,
@@ -413,7 +414,15 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
   .add(
     HttpApiEndpoint.get("novel.export", `${root}/:novelID/export`, {
       params: { novelID: Schema.String },
-      query: LocationQuery,
+      query: Schema.Struct({
+        format: Schema.optional(ExportFormat),
+        location: Schema.optional(
+          Schema.Struct({
+            directory: Schema.optional(Schema.String),
+            workspace: Schema.optional(Schema.String),
+          }),
+        ),
+      }),
       success: NovelExport,
       error: NovelNotFoundError,
     })

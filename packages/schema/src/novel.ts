@@ -314,9 +314,20 @@ export const OutlineUpdateInput = Schema.Struct({
 }).annotate({ identifier: "Novel.OutlineUpdateInput" })
 export interface OutlineUpdateInput extends Schema.Schema.Type<typeof OutlineUpdateInput> {}
 
+export const ExportFormat = Schema.Literals(["markdown", "epub", "txt"]).annotate({
+  identifier: "Novel.ExportFormat",
+})
+export type ExportFormat = typeof ExportFormat.Type
+
+export const ExportEncoding = Schema.Literals(["utf8", "base64"]).annotate({
+  identifier: "Novel.ExportEncoding",
+})
+export type ExportEncoding = typeof ExportEncoding.Type
+
 export const NovelExport = Schema.Struct({
   filename: Schema.String,
   content: Schema.String,
+  encoding: optional(ExportEncoding),
 }).annotate({ identifier: "Novel.NovelExport" })
 export interface NovelExport extends Schema.Schema.Type<typeof NovelExport> {}
 

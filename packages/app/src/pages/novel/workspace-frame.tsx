@@ -2,6 +2,7 @@ import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
 import { createEffect, createSignal, createMemo, For, Show, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
 import { Persist, persisted } from "@/utils/persist"
@@ -17,6 +18,7 @@ import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { useWorkspaceData, findBoundNovelSession, sendNovelSessionInstruction } from "./workspace-data"
+import { createExportBlob } from "@/utils/export-download"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
 import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
@@ -64,6 +66,12 @@ import {
   RAIL_PANE_MIN_WIDTH,
   resolvePaneWidth,
 } from "./workspace-pane-width"
+
+const exportFormatItems = [
+  { value: "markdown", label: "Markdown" },
+  { value: "epub", label: "EPUB" },
+  { value: "txt", label: "TXT" },
+] as const
 
 // 右栏随行面板图标列（key 对应面板组件，labelKey 对应 i18n 文案；对话为默认面板）
 const RAIL_PANELS = [
@@ -551,10 +559,11 @@ export default function NovelWorkspaceFrame() {
     else setRailPanel("chat")
   }
   const exportNovel = useExportNovel()
+  const [exportFormat, setExportFormat] = createSignal<ExportFormat>("markdown")
 
   async function downloadExport() {
-    const result = await exportNovel.mutateAsync({ novelID: novelID() })
-    const url = URL.createObjectURL(new Blob([result.content], { type: "text/markdown;charset=utf-8" }))
+    const result = await exportNovel.mutateAsync({ novelID: novelID(), format: exportFormat() })
+    const url = URL.createObjectURL(createExportBlob(result.content, exportFormat()))
     const a = document.createElement("a")
     a.href = url
     a.download = result.filename
@@ -721,6 +730,18 @@ export default function NovelWorkspaceFrame() {
                 </ButtonV2>
               </Show>
               <Show when={!isEditing()}>
+                <SegmentedControlV2
+                  aria-label="导出格式"
+                  value={exportFormat()}
+                  onChange={(value) => {
+                    const item = exportFormatItems.find((format) => format.value === value)
+                    if (item) setExportFormat(item.value)
+                  }}
+                >
+                  <For each={exportFormatItems}>
+                    {(format) => <SegmentedControlItemV2 value={format.value}>{format.label}</SegmentedControlItemV2>}
+                  </For>
+                </SegmentedControlV2>
                 <ButtonV2
                   variant="outline"
                   size="small"

@@ -3225,12 +3225,21 @@ export type ServerNovelUpdateOutlineOutput = {
 
 export type ServerNovelExportInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
+  readonly format?: {
+    readonly format?: ("markdown" | "epub" | "txt") | undefined
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["format"]
   readonly location?: {
+    readonly format?: ("markdown" | "epub" | "txt") | undefined
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
 }
 
-export type ServerNovelExportOutput = { readonly filename: string; readonly content: string }
+export type ServerNovelExportOutput = {
+  readonly filename: string
+  readonly content: string
+  readonly encoding?: "utf8" | "base64"
+}
 
 export type ServerNovelDeleteChapterInput = {
   readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]

@@ -4,7 +4,7 @@ import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
-import type { AnnotationExecutionSnapshot } from "@opennovel-ai/schema/novel"
+import type { AnnotationExecutionSnapshot, ExportFormat } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
@@ -671,10 +671,11 @@ export function useExportNovel() {
   const client = useNovelClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string }) =>
+    mutationFn: (input: { novelID: string; format: ExportFormat }) =>
       client()["server.novel"].export({
         novelID: input.novelID,
         location: { directory: sdk().directory },
+        format: input.format,
       }),
   }))
 }

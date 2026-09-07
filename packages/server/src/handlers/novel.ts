@@ -1,5 +1,7 @@
 import { Location } from "@opennovel-ai/core/location"
 import { Effect } from "effect"
+import type { ExportFormat } from "@opennovel-ai/schema/novel"
+import { buildNovelExport } from "./novel-export"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError } from "@opennovel-ai/protocol/groups/novel"
@@ -499,7 +501,7 @@ export function listChapters(novelID: string, directory: string) {
   })
 }
 
-export function exportNovel(novelID: string, directory: string) {
+export function exportNovel(novelID: string, directory: string, format: ExportFormat = "markdown") {
   return Effect.gen(function* () {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
@@ -516,20 +518,8 @@ export function exportNovel(novelID: string, directory: string) {
       .where(eq(ChapterTable.novel_id, novelID))
       .orderBy(asc(ChapterTable.order))
       .all()
-    const withContent = chapters.filter((c) => c.content.trim().length > 0)
-    const orphan = withContent.filter((c) => !c.volume_id || !volumes.some((v) => v.id === c.volume_id))
-    const chapterMd = (c: (typeof chapters)[number]) => `### ${c.title}\n\n${c.content.trim()}`
-    const sections = [
-      `# ${novel!.title}`,
-      novel!.synopsis.trim() ? novel!.synopsis.trim() : "",
-      ...volumes.map((v) => {
-        const own = withContent.filter((c) => c.volume_id === v.id)
-        return [`## ${v.title}`, ...own.map(chapterMd)].join("\n\n")
-      }),
-      ...(orphan.length > 0 ? orphan.map(chapterMd) : []),
-    ]
-    const content = sections.filter((s) => s.length > 0).join("\n\n") + "\n"
-    return { filename: `${novel!.title}.md`, content }
+
+    return yield* Effect.promise(() => buildNovelExport({ novel: novel!, volumes, chapters }, format))
   })
 }
 
@@ -2008,7 +1998,7 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
       .handle("novel.export", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* exportNovel(ctx.params.novelID, location.directory)
+          return yield* exportNovel(ctx.params.novelID, location.directory, ctx.query.format)
         }),
       )
       .handle("novel.delete-chapter", (ctx) =>

@@ -1411,7 +1411,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/export`,
-            query: { location: input["location"] },
+            query: { format: input["format"], location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,

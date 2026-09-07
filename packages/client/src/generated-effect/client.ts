@@ -889,12 +889,14 @@ const Endpoint18_18 = (raw: RawClient["server.novel"]) => (input: Endpoint18_18I
 type Endpoint18_19Request = Parameters<RawClient["server.novel"]["novel.export"]>[0]
 type Endpoint18_19Input = {
   readonly novelID: Endpoint18_19Request["params"]["novelID"]
+  readonly format?: Endpoint18_19Request["query"]["format"]
   readonly location?: Endpoint18_19Request["query"]["location"]
 }
 const Endpoint18_19 = (raw: RawClient["server.novel"]) => (input: Endpoint18_19Input) =>
-  raw["novel.export"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
-    Effect.mapError(mapClientError),
-  )
+  raw["novel.export"]({
+    params: { novelID: input["novelID"] },
+    query: { format: input["format"], location: input["location"] },
+  }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_20Request = Parameters<RawClient["server.novel"]["novel.delete-chapter"]>[0]
 type Endpoint18_20Input = {

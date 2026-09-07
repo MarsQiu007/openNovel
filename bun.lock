@@ -798,6 +798,8 @@
         "@opennovel-ai/core": "workspace:*",
         "@opennovel-ai/novel-store": "workspace:*",
         "@opennovel-ai/protocol": "workspace:*",
+        "@opennovel-ai/schema": "workspace:*",
+        "@zip.js/zip.js": "2.7.62",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
       },
