@@ -16,7 +16,7 @@ import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
-import { useWorkspaceData, findBoundNovelSession, createAndBindSession } from "./workspace-data"
+import { useWorkspaceData, findBoundNovelSession, sendAnnotationExecution } from "./workspace-data"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
 import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
@@ -525,17 +525,21 @@ export default function NovelWorkspaceFrame() {
     }
   }
 
-  async function handleAnnotationExecute(prompt: string) {
-    const boundID = await findBoundNovelSession(sdk, novel, novelID())
-    if (boundID) {
-      await sdk().client.session.prompt({
-        sessionID: boundID,
-        directory: sdk().directory,
-        parts: [{ type: "text", text: prompt }],
-      })
-      return
-    }
-    await createAndBindSession({ sdk, bindSession: bindSessionMutation, novelID: novelID(), prompt })
+  async function handleAnnotationExecute(args: { prompt: string; roundID: string }) {
+    return await sendAnnotationExecution({
+      sdk,
+      novel,
+      bindSession: bindSessionMutation,
+      novelID: novelID(),
+      prompt: args.prompt,
+    })
+  }
+
+  function focusAnnotationSession(sessionID: string | null | undefined) {
+    if (!sessionID) return
+    navigate(`/${params.dir}/novel/${novelID()}/session/${sessionID}`)
+    if (expandedPanel()) exitExpand("chat")
+    else setRailPanel("chat")
   }
   const exportNovel = useExportNovel()
 
@@ -1005,7 +1009,12 @@ export default function NovelWorkspaceFrame() {
                       />
                     </Show>
                     <Show when={key === "annotations"}>
-                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => handleAnnotationExecute(prompt)} />
+                      <AnnotationPanel
+                        novelID={novelID}
+                        chapterID={selectedChapterId}
+                        onExecute={(args) => handleAnnotationExecute(args)}
+                        onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
+                      />
                     </Show>
                   </div>
                 )}
@@ -1103,7 +1112,12 @@ export default function NovelWorkspaceFrame() {
                       />
                     </Show>
                     <Show when={railPanel() === "annotations"}>
-                      <AnnotationPanel novelID={novelID} chapterID={selectedChapterId} onExecute={(prompt) => handleAnnotationExecute(prompt)} />
+                      <AnnotationPanel
+                        novelID={novelID}
+                        chapterID={selectedChapterId}
+                        onExecute={(args) => handleAnnotationExecute(args)}
+                        onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
+                      />
                     </Show>
                   </div>
                 </div>

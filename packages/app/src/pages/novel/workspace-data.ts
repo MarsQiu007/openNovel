@@ -123,3 +123,26 @@ export async function createAndBindSession(input: {
   })
   return result.data.id
 }
+
+/**
+ * 将批注执行指令发送到该小说最近绑定的会话；没有绑定会话时创建并绑定新会话。
+ * 返回实际接收指令的会话 ID，供调用方跳转 / 聚焦。
+ */
+export async function sendAnnotationExecution(input: {
+  sdk: ReturnType<typeof useSDK>
+  novel: ReturnType<typeof useNovel>
+  bindSession: ReturnType<typeof useBindSession>
+  novelID: string
+  prompt: string
+}): Promise<string> {
+  const boundID = await findBoundNovelSession(input.sdk, input.novel, input.novelID)
+  if (boundID) {
+    await input.sdk().client.session.prompt({
+      sessionID: boundID,
+      directory: input.sdk().directory,
+      parts: [{ type: "text", text: input.prompt }],
+    })
+    return boundID
+  }
+  return createAndBindSession(input)
+}

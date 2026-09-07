@@ -4,6 +4,7 @@ import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
+import type { AnnotationExecutionSnapshot } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
@@ -1680,7 +1681,7 @@ export function useCreateExecutionRound() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; chapterID: string; promptSnapshot: string; resultSummary?: string }) => {
+    mutationFn: (input: { novelID: string; chapterID: string; promptSnapshot: string; annotationsSnapshot: ReadonlyArray<AnnotationExecutionSnapshot>; resultSummary?: string }) => {
       const dir = sdk().directory
       return client()["server.novel"]["create-execution-round"]({
         novelID: input.novelID,
@@ -1689,6 +1690,30 @@ export function useCreateExecutionRound() {
         novelId: input.novelID,
         chapterId: input.chapterID,
         promptSnapshot: input.promptSnapshot,
+        resultSummary: input.resultSummary,
+        annotationsSnapshot: input.annotationsSnapshot,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["execution-rounds"](dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useUpdateExecutionRound() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; chapterID: string; roundID: string; status?: "running" | "completed" | "failed" | "interrupted"; resultSummary?: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["update-execution-round"]({
+        novelID: input.novelID,
+        chapterID: input.chapterID,
+        roundID: input.roundID,
+        location: { directory: dir },
+        status: input.status,
         resultSummary: input.resultSummary,
       })
     },

@@ -7,7 +7,9 @@ import {
   useDeleteAnnotation,
   useExecutionRounds,
   useCreateExecutionRound,
+  useUpdateExecutionRound,
 } from "@/context/novel-queries"
+import { executeAnnotationExecution, groupHistoryRounds, type AnnotationExecutionSnapshot } from "./annotation-execution"
 import { useLanguage } from "@/context/language"
 import { useSync } from "@/context/sync"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -16,7 +18,8 @@ import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 type AnnotationPanelProps = {
   novelID: Accessor<string>
   chapterID: Accessor<string | null>
-  onExecute?: (prompt: string) => void | Promise<void>
+  onExecute?: (args: { prompt: string; roundID: string }) => Promise<string | null | undefined> | string | null | undefined
+  onSessionFocused?: (sessionID: string | null | undefined) => void
 }
 
 type Translator = { t: (key: string, params?: Record<string, string | number>) => string }
@@ -40,6 +43,8 @@ type Annotation = {
   readonly status: string
   readonly source: "user" | "ai"
   readonly paragraphIndex?: number | null | undefined
+  readonly startOffset?: number | null | undefined
+  readonly endOffset?: number | null | undefined
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
@@ -62,6 +67,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   const updateAnnotation = useUpdateAnnotation()
   const deleteAnnotation = useDeleteAnnotation()
   const createExecutionRound = useCreateExecutionRound()
+  const updateExecutionRound = useUpdateExecutionRound()
   const [tab, setTab] = createSignal<"current" | "history">("current")
   const [isExecuting, setIsExecuting] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | null>(null)
@@ -99,30 +105,55 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     if (!chapterID || !canExecute()) return
     setIsExecuting(true)
     try {
-      const list = activeAnnotations()
       const paragraphs = (chapter.data?.content ?? "").split(/\n\n+/).filter(Boolean)
-      const prompt = formatPrompt({
-        chapterID,
-        chapterTitle: chapter.data?.title,
-        paragraphs,
-        annotations: list,
-      })
-      const round = await createExecutionRound.mutateAsync({
-        novelID: props.novelID(),
-        chapterID,
-        promptSnapshot: prompt,
-      })
-      await props.onExecute?.(prompt)
-      await Promise.all(
-        list.map((ann) =>
-          updateAnnotation.mutateAsync({
-            novelID: props.novelID(),
-            annotationID: ann.id,
-            chapterID,
-            executionRoundId: round.id,
-          }),
-        ),
+      const sessionID = await executeAnnotationExecution(
+        {
+          chapterID,
+          chapterTitle: chapter.data?.title,
+          paragraphs,
+          annotations: activeAnnotations(),
+        },
+        {
+          createRound: ({ promptSnapshot, annotationsSnapshot }) =>
+            createExecutionRound.mutateAsync({
+              novelID: props.novelID(),
+              chapterID,
+              promptSnapshot,
+              annotationsSnapshot,
+            }),
+          sendPrompt: async ({ prompt, roundID }) => await props.onExecute?.({ prompt, roundID }),
+          associateAnnotations: ({ roundID, annotations }) =>
+            Promise.all(
+              annotations.map((ann) =>
+                updateAnnotation.mutateAsync({
+                  novelID: props.novelID(),
+                  annotationID: ann.id,
+                  chapterID,
+                  executionRoundId: roundID,
+                }),
+              ),
+            ).then(() => undefined),
+          completeRound: ({ roundID, resultSummary }) =>
+            updateExecutionRound.mutateAsync({
+              novelID: props.novelID(),
+              chapterID,
+              roundID,
+              status: "completed",
+              resultSummary,
+            }).then(() => undefined),
+          failRound: ({ roundID, resultSummary }) =>
+            updateExecutionRound.mutateAsync({
+              novelID: props.novelID(),
+              chapterID,
+              roundID,
+              status: "failed",
+              resultSummary,
+            }).then(() => undefined),
+        },
       )
+      props.onSessionFocused?.(sessionID)
+    } catch (error) {
+      console.error("annotation execution failed", error)
     } finally {
       setIsExecuting(false)
     }
@@ -195,53 +226,10 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
       </Show>
 
       <Show when={tab() === "history"}>
-        <HistoryTab rounds={rounds} annotations={annotations} reactivate={reactivate} />
+        <HistoryTab rounds={rounds} reactivate={reactivate} />
       </Show>
     </div>
   )
-}
-
-function formatPrompt(input: {
-  chapterID: string
-  chapterTitle?: string | null | undefined
-  paragraphs: readonly string[]
-  annotations: readonly Annotation[]
-}): string {
-  const sections = [
-    "请根据以下批注修改章节正文。",
-    "\n## 目标章节\n"
-    + `- chapter_id: ${input.chapterID}\n`
-    + `- chapter_title: ${JSON.stringify(input.chapterTitle ?? "")}`,
-    "\n## 批注列表\n"
-    + input.annotations
-      .map((ann, index) => {
-        const paragraph = ann.paragraphIndex != null ? input.paragraphs[ann.paragraphIndex] : undefined
-        const action =
-          ann.status === "applied" && ann.suggestedReplacement
-            ? "replace"
-            : ann.status === "resolved"
-              ? "rewrite"
-              : "skip"
-        const lines = [
-          `### ${index + 1}`,
-          `- paragraph_index: ${ann.paragraphIndex == null ? "whole_chapter" : ann.paragraphIndex + 1}`,
-          `- action: ${action}`,
-          `- paragraph_text: ${paragraph == null ? "not_found" : JSON.stringify(paragraph)}`,
-          `- selected_quote: ${JSON.stringify(ann.quote)}`,
-          `- comment: ${JSON.stringify(ann.comment)}`,
-        ]
-        if (ann.suggestedReplacement) lines.push(`- suggested_replacement: ${JSON.stringify(ann.suggestedReplacement)}`)
-        return lines.join("\n")
-      })
-      .join("\n\n"),
-    "\n## 定位与修改规则\n"
-      + "1. 优先在 paragraph_index 指向的段落中精确匹配 selected_quote。\n"
-      + "2. 如果正文已更新导致该段落匹配失败，再在章节全文中查找 selected_quote。\n"
-      + "3. 如果 selected_quote 无法唯一匹配，不要凭偏移量猜测；保留该段并在回复中说明未定位。\n"
-      + "4. action 为 replace 时使用 suggested_replacement；rewrite 时按 comment 改写；skip 时不要修改正文。\n"
-      + "5. 修改完成后检查前后文衔接。",
-  ]
-  return sections.join("\n")
 }
 
 function CurrentTab(props: {
@@ -436,21 +424,24 @@ function AnnotationCard(props: {
 }
 
 function HistoryTab(props: {
-  rounds: { data: ReadonlyArray<{ readonly id: string; readonly promptSnapshot: string; readonly createdAt: number }> | undefined; isLoading: boolean }
-  annotations: { data: readonly Annotation[] | undefined }
+  rounds: {
+    data:
+      | ReadonlyArray<{
+          readonly id: string
+          readonly promptSnapshot: string
+          readonly status: string
+          readonly annotationsSnapshot: readonly AnnotationExecutionSnapshot[]
+          readonly resultSummary: string
+          readonly createdAt: number
+        }>
+      | undefined
+    isLoading: boolean
+  }
   reactivate: (ids: readonly string[]) => void
 }) {
   const language = useLanguage()
   const roundList = createMemo(() => props.rounds.data ?? [])
-  const executedAnnotations = createMemo(() => (props.annotations.data ?? []).filter((ann) => ann.executionRoundId))
-  const historyGroups = createMemo(() =>
-    roundList()
-      .map((round) => ({
-        ...round,
-        annotations: executedAnnotations().filter((ann) => ann.executionRoundId === round.id),
-      }))
-      .filter((group) => group.annotations.length > 0),
-  )
+  const historyGroups = createMemo(() => groupHistoryRounds(roundList()))
 
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 pt-2">
@@ -469,6 +460,11 @@ function HistoryTab(props: {
               <span class="text-v2-text-text-base text-xs font-semibold">{language.t("novel.annotations.history.round")}</span>
               <span class="text-v2-text-text-faint text-xs">{new Date(group.createdAt).toLocaleString()}</span>
             </div>
+            <Show when={group.resultSummary}>
+              <div class="flex items-center gap-2">
+                <span class="text-v2-text-text-faint text-xs">{group.resultSummary}</span>
+              </div>
+            </Show>
             <p class="text-v2-text-text-faint line-clamp-2 text-xs whitespace-pre-wrap">{group.promptSnapshot}</p>
             <div class="flex justify-end">
               <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate(group.annotations.map((ann) => ann.id))}>
@@ -488,6 +484,9 @@ function HistoryTab(props: {
                     </Show>
                   </div>
                   <p class="text-v2-text-text-base text-xs">{ann.comment}</p>
+                  <Show when={ann.quote}>
+                    <p class="text-v2-text-text-faint line-clamp-2 text-xs">{ann.quote}</p>
+                  </Show>
                   <div class="flex justify-end">
                     <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate([ann.id])}>
                       {language.t("novel.annotations.reactivate")}
