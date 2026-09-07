@@ -12,3 +12,10 @@
 - [x] 3.1 在 packages/plugin 和 packages/app 通过相关测试与 bun typecheck
 - [x] 3.2 在仓库根目录通过 bun run typecheck 和 bun run lint
 - [x] 3.3 通过 openspec validate multi-chapter-batch --type change
+
+## Implementation Commits
+
+- `b02c6e8dc` docs(openspec): 细化多章连写规格
+- `f51cafac7` docs(openspec): 细化多章连写设计
+- `162899fac` docs(openspec): 细化多章连写任务
+- `ed5944a3a` feat(plugin): 支持多章批量写作
