@@ -46,6 +46,7 @@ import { OutlineReader } from "./outline-reader"
 import { NovelSessionSwitcher } from "./session-switcher"
 import { NovelChatEmptyState, ChatSuggestionChip } from "./chat-empty-state"
 import PanelCharacters from "./panel-characters"
+import PanelTechniques from "./panel-techniques"
 import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
 import RelationsView from "./relations-view"
@@ -77,6 +78,7 @@ const exportFormatItems = [
 const RAIL_PANELS = [
   { key: "chat", icon: "speech-bubble", labelKey: "novel.workspace.chat" },
   { key: "characters", icon: "dot-grid", labelKey: "novel.panel.characters" },
+  { key: "techniques", icon: "prompt", label: "技法库" },
   { key: "foreshadow", icon: "bullet-list", labelKey: "novel.panel.foreshadow" },
   { key: "tension", icon: "align-right", labelKey: "novel.panel.tension" },
   { key: "structure", icon: "file-tree", labelKey: "novel.panel.structure" },
@@ -1130,6 +1132,9 @@ export default function NovelWorkspaceFrame() {
                     classList={{ hidden: railPanel() === "chat" }}
                     class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   >
+                    <Show when={railPanel() === "techniques"}>
+                      <PanelTechniques />
+                    </Show>
                     <Show when={railPanel() === "characters"}>
                       <PanelCharacters
                         novelID={novelID}

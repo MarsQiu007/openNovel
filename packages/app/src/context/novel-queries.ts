@@ -135,6 +135,9 @@ export const novelKeys = {
     ["novel", "bound-sessions", directory, novelID] as const,
   "execution-rounds": (directory: string, novelID: string, chapterID: string) =>
     ["novel", "execution-rounds", directory, novelID, chapterID] as const,
+  techniques: (directory: string) => ["novel", "techniques", directory] as const,
+  technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
+  "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
 }
 
 // ---- createQuery hooks (13) ----
@@ -1790,6 +1793,151 @@ export function useCreateEditorialReport() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["editorial-reports"](dir, variables.novelID) })
+    },
+  }))
+}
+
+// ---- Techniques（技法库，项目级） ----
+
+export type TechniqueEvidenceInput = {
+  sourceTitle: string
+  sourceLocation: string
+  excerpt: string
+  annotation: string
+}
+
+export type TechniqueInput = {
+  name: string
+  instruction: string
+  principle?: string
+  sceneTypes?: string[]
+  level?: "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+  evidence?: TechniqueEvidenceInput[]
+  commonMisuse?: string
+  status?: "unverified" | "verified" | "shadow" | "archived"
+}
+
+export function useTechniques() {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.techniques(sdk().directory),
+    queryFn: () => client()["server.technique"].list({ location: { directory: sdk().directory } }),
+    enabled: !!sdk().directory,
+    staleTime: 30_000,
+  }))
+}
+
+export function useTechniqueDetail(techniqueID: Accessor<string | null>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.technique(sdk().directory, techniqueID() ?? ""),
+    queryFn: () =>
+      client()["server.technique"].detail({
+        techniqueID: techniqueID()!,
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!techniqueID(),
+  }))
+}
+
+export function useTechniqueInjection() {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["technique-injection"](sdk().directory),
+    queryFn: () => client()["server.technique"].config({ location: { directory: sdk().directory } }),
+    enabled: !!sdk().directory,
+    staleTime: 30_000,
+  }))
+}
+
+export function useCreateTechnique() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: TechniqueInput) => {
+      const dir = sdk().directory
+      return client()["server.technique"].create({
+        location: { directory: dir },
+        name: input.name,
+        instruction: input.instruction,
+        principle: input.principle,
+        sceneTypes: input.sceneTypes,
+        level: input.level,
+        evidence: input.evidence,
+        commonMisuse: input.commonMisuse,
+        status: input.status,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.techniques(sdk().directory) })
+    },
+  }))
+}
+
+export function useUpdateTechnique() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: TechniqueInput & { techniqueID: string }) => {
+      const dir = sdk().directory
+      return client()["server.technique"].update({
+        techniqueID: input.techniqueID,
+        location: { directory: dir },
+        name: input.name,
+        instruction: input.instruction,
+        principle: input.principle,
+        sceneTypes: input.sceneTypes,
+        level: input.level,
+        evidence: input.evidence,
+        commonMisuse: input.commonMisuse,
+        status: input.status,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.techniques(sdk().directory) })
+      queryClient.invalidateQueries({ queryKey: novelKeys.technique(sdk().directory, variables.techniqueID) })
+    },
+  }))
+}
+
+export function useDeleteTechnique() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { techniqueID: string }) => {
+      const dir = sdk().directory
+      return client()["server.technique"].delete({
+        techniqueID: input.techniqueID,
+        location: { directory: dir },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.techniques(sdk().directory) })
+      queryClient.removeQueries({ queryKey: novelKeys.technique(sdk().directory, variables.techniqueID) })
+    },
+  }))
+}
+
+export function useSetTechniqueInjection() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { enabled: boolean }) => {
+      const dir = sdk().directory
+      return client()["server.technique"]["set-config"]({
+        location: { directory: dir },
+        enabled: input.enabled,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: novelKeys["technique-injection"](sdk().directory) })
     },
   }))
 }
