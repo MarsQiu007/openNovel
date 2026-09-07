@@ -20,4 +20,11 @@
 
 - [x] 4.1 通过 `openspec validate technique-ui --type change`
 - [x] 4.2 在相关包运行 `bun typecheck` 与测试，再通过根目录 `bun run typecheck` 与 `bun run lint`
-- [ ] 4.3 记录实现提交并更新提案 artifacts，准备同步规格、归档、合并 main 和清理分支
+- [x] 4.3 记录实现提交并更新提案 artifacts，准备同步规格、归档、合并 main 和清理分支
+
+## Implementation Commits
+
+- 227fbae17 docs(openspec): 细化技法界面方案
+- 6924e02d7 feat(technique): 增加技法库管理接口
+- 9cf07019e test(technique): 覆盖技法服务端接口
+- 35d22163e feat(app): 接入技法库面板
