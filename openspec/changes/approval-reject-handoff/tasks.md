@@ -19,3 +19,8 @@
 - [x] 4.1 在 `packages/app` 和受影响的 `packages/plugin` 包目录通过 `bun typecheck` 与相关测试
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 与 `bun run lint`
 - [x] 4.3 通过 `openspec validate approval-reject-handoff --type change`
+
+## Implementation Commits
+
+- `a7497fb30` docs(openspec): 细化审批驳回 AI 接手
+- `0b0170c9d` feat(app): 驳回后可选交接 AI 重写
