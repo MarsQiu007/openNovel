@@ -20,3 +20,10 @@
 - [x] 4.1 在 `packages/server`、`packages/client` 和 `packages/app` 通过相关测试与 `bun typecheck`
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 和 `bun run lint`
 - [x] 4.3 通过 `openspec validate export-formats --type change`
+
+## Implementation Commits
+
+- `232387181` docs(openspec): 细化导出格式规格
+- `f63840479` docs(openspec): 细化导出格式设计
+- `60ec0b8f1` docs(openspec): 细化导出格式任务
+- `6dec41415` feat(app): 支持多格式小说导出
