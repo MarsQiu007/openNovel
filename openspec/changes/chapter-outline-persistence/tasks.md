@@ -20,3 +20,8 @@
 - [x] 4.1 在 `packages/novel-store`、`packages/plugin`、`packages/server`、`packages/app` 分别通过 `bun typecheck`，并运行相关包测试
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 与 `bun run lint`
 - [x] 4.3 通过 `openspec validate chapter-outline-persistence --type change`
+
+## Implementation Commits
+
+- `a3ccbde83` docs(openspec): 细化章纲持久化入库
+- `e3c20667b` feat(novel-store): 持久化章节大纲
