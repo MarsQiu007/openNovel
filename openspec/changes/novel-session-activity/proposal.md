@@ -1,30 +1,31 @@
-# 书级会话活动指示（novel-session-activity）
+# 书籍级会话活动指示（novel-session-activity）
 
-> 状态：草稿 — 优先级 P2（2026-09-07 探索会话产出，方案待研究；长期保留在规划池）
+> 状态：已细化 — 优先级 P2，2026-09-08 确认复用绑定查询，不新增服务端接口
 
 ## Why
 
-书内活动指示是**目录级而非书级**：`useNovelActivity`（`packages/app/src/context/novel-approval.ts:53`）注释自认 "no reverse novel→session lookup endpoint yet"——同目录下其它项目/书的会话运行会被误显示为本书"写作中"。而反向查询的批量端点 `session-bindings` 已存在并在用（`workspace-data.ts:93`），只是活动指示未接入。
+当前 `useNovelActivity` 只判断当前目录内是否有任意会话在运行。多本书共享一个项目/目录时，其他书的会话运行会让当前书被错误标记为“写作中”。
 
 ## What Changes
 
-- 书级活动指示：绑定会话列表 × 会话运行状态求交（数据已具备），替代目录级判断。
-- 顺带核对批注执行入口的 `sessionBusy` 判定是否同受此问题影响。
+- 书籍活动改为“当前书绑定会话列表 × 会话运行状态”求交集。
+- 工作台活动指示使用同一书籍级判定。
+- 批注执行面板的会话占用判断复用同一判定函数。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `novel-session-activity`: 书级活动状态的判定与呈现要求。
+- `novel-session-activity`: 书籍级会话活动判定与实时更新要求。
 
 ### Modified Capabilities
 
-（无。）
+（无。不修改绑定数据结构和公开 API。）
 
 ## Impact
 
-- `packages/app`：`useNovelActivity` 及消费组件（mode-badge、approval-bar 等）。
-- `packages/server`：预计无变更（bindings 端点已存在；若需批量会话状态查询则补端点 + `bun run generate`）。
-- 无数据模型变更。
+- `packages/app`：活动钩子、工作台和批注执行面板。
+- 不修改 `packages/server`；不需要重新生成 SDK。
+- 不引入数据模型变更。
 
-**非目标**：本变更不做跨书聚合仪表盘；不改 bindings 数据结构。
+**非目标**：不聚合跨目录会话；不新增反向查询端点；不改变会话生命周期。
