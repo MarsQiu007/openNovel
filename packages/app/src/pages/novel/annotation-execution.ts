@@ -40,6 +40,7 @@ export function buildAnnotationsSnapshot(
 }
 
 export function formatExecutionPrompt(input: {
+  readonly roundID: string
   readonly chapterID: string
   readonly chapterTitle?: string | null | undefined
   readonly paragraphs: readonly string[]
@@ -48,6 +49,7 @@ export function formatExecutionPrompt(input: {
   const sections = [
     "请根据以下批注修改章节正文。",
     "\n## 目标章节\n"
+      + `- execution_round_id: ${input.roundID}\n`
       + `- chapter_id: ${input.chapterID}\n`
       + `- chapter_title: ${JSON.stringify(input.chapterTitle ?? "")}`,
     "\n## 批注列表\n"
@@ -82,7 +84,8 @@ export function formatExecutionPrompt(input: {
       + "2. 如果正文已更新导致该段落匹配失败，再在章节全文中查找 selected_quote。\n"
       + "3. 如果 selected_quote 无法唯一匹配，不要凭偏移量猜测；保留该段并在回复中说明未定位。\n"
       + "4. action 为 replace 时使用 suggested_replacement；rewrite 时按 comment 改写；skip 时不要修改正文。\n"
-      + "5. 修改完成后检查前后文衔接。",
+      + "5. 修改完成后检查前后文衔接。\n"
+      + "6. 完成后调用 report_annotation_execution 回填 execution_round_id、状态和结果摘要；无法完成时也必须回填失败原因。",
   ]
   return sections.join("\n")
 }
@@ -94,6 +97,7 @@ export function groupHistoryRounds(
     readonly status: string
     readonly annotationsSnapshot: readonly AnnotationExecutionSnapshot[]
     readonly resultSummary: string
+    readonly chapterVersionId?: string | null | undefined
     readonly createdAt: number
   }[],
 ) {
@@ -111,21 +115,21 @@ export async function executeAnnotationExecution(
   },
   deps: {
     readonly createRound: (args: { promptSnapshot: string; annotationsSnapshot: AnnotationExecutionSnapshot[] }) => Promise<{ id: string }>
+    readonly updateRoundPrompt: (args: { roundID: string; promptSnapshot: string }) => Promise<void>
     readonly sendPrompt: (args: { roundID: string; prompt: string }) => Promise<string | null | undefined>
     readonly associateAnnotations: (args: { roundID: string; annotations: readonly AnnotationExecutionInput[] }) => Promise<void>
-    readonly completeRound: (args: { roundID: string; resultSummary: string }) => Promise<void>
     readonly failRound: (args: { roundID: string; resultSummary: string }) => Promise<void>
   },
 ): Promise<string | null | undefined> {
-  const prompt = formatExecutionPrompt(input)
   const round = await deps.createRound({
-    promptSnapshot: prompt,
+    promptSnapshot: "",
     annotationsSnapshot: buildAnnotationsSnapshot(input.annotations),
   })
   try {
+    const prompt = formatExecutionPrompt({ ...input, roundID: round.id })
+    await deps.updateRoundPrompt({ roundID: round.id, promptSnapshot: prompt })
     const sessionID = await deps.sendPrompt({ roundID: round.id, prompt })
     await deps.associateAnnotations({ roundID: round.id, annotations: input.annotations })
-    await deps.completeRound({ roundID: round.id, resultSummary: "执行指令已发送，等待 AI 改稿结果。" })
     return sessionID
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

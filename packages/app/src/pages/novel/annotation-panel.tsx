@@ -121,6 +121,13 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
               promptSnapshot,
               annotationsSnapshot,
             }),
+          updateRoundPrompt: ({ roundID, promptSnapshot }) =>
+            updateExecutionRound.mutateAsync({
+              novelID: props.novelID(),
+              chapterID,
+              roundID,
+              promptSnapshot,
+            }).then(() => undefined),
           sendPrompt: async ({ prompt, roundID }) => await props.onExecute?.({ prompt, roundID }),
           associateAnnotations: ({ roundID, annotations }) =>
             Promise.all(
@@ -133,14 +140,6 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
                 }),
               ),
             ).then(() => undefined),
-          completeRound: ({ roundID, resultSummary }) =>
-            updateExecutionRound.mutateAsync({
-              novelID: props.novelID(),
-              chapterID,
-              roundID,
-              status: "completed",
-              resultSummary,
-            }).then(() => undefined),
           failRound: ({ roundID, resultSummary }) =>
             updateExecutionRound.mutateAsync({
               novelID: props.novelID(),
@@ -432,6 +431,7 @@ function HistoryTab(props: {
           readonly status: string
           readonly annotationsSnapshot: readonly AnnotationExecutionSnapshot[]
           readonly resultSummary: string
+          readonly chapterVersionId?: string | null | undefined
           readonly createdAt: number
         }>
       | undefined
@@ -460,11 +460,27 @@ function HistoryTab(props: {
               <span class="text-v2-text-text-base text-xs font-semibold">{language.t("novel.annotations.history.round")}</span>
               <span class="text-v2-text-text-faint text-xs">{new Date(group.createdAt).toLocaleString()}</span>
             </div>
-            <Show when={group.resultSummary}>
-              <div class="flex items-center gap-2">
-                <span class="text-v2-text-text-faint text-xs">{group.resultSummary}</span>
-              </div>
-            </Show>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class={`text-xs font-medium ${
+                group.status === "completed"
+                  ? "text-v2-state-fg-success"
+                  : group.status === "failed" || group.status === "interrupted"
+                    ? "text-v2-state-fg-warning"
+                    : "text-v2-state-fg-info"
+              }`}>
+                {group.status === "completed"
+                  ? "已完成"
+                  : group.status === "failed"
+                    ? "执行失败"
+                    : group.status === "interrupted"
+                      ? "已中断"
+                      : "执行中"}
+              </span>
+              <Show when={group.chapterVersionId}>
+                <span class="text-v2-text-text-faint text-xs">章节版本 {group.chapterVersionId}</span>
+              </Show>
+            </div>
+            <p class="text-v2-text-text-base text-xs">{group.resultSummary || "等待 AI 回填结果。"}</p>
             <p class="text-v2-text-text-faint line-clamp-2 text-xs whitespace-pre-wrap">{group.promptSnapshot}</p>
             <div class="flex justify-end">
               <ButtonV2 size="small" variant="ghost" onClick={() => props.reactivate(group.annotations.map((ann) => ann.id))}>

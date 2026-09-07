@@ -1706,7 +1706,14 @@ export function useUpdateExecutionRound() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; chapterID: string; roundID: string; status?: "running" | "completed" | "failed" | "interrupted"; resultSummary?: string }) => {
+    mutationFn: (input: {
+      novelID: string
+      chapterID: string
+      roundID: string
+      status?: "running" | "completed" | "failed" | "interrupted"
+      resultSummary?: string
+      promptSnapshot?: string
+    }) => {
       const dir = sdk().directory
       return client()["server.novel"]["update-execution-round"]({
         novelID: input.novelID,
@@ -1715,6 +1722,7 @@ export function useUpdateExecutionRound() {
         location: { directory: dir },
         status: input.status,
         resultSummary: input.resultSummary,
+        promptSnapshot: input.promptSnapshot,
       })
     },
     onSuccess: (_data, variables) => {
