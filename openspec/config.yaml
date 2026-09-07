@@ -28,6 +28,7 @@ context: |
   - 修改公开 Protocol 或 Server HttpApi 后，必须在 packages/client 运行 `bun run generate`；禁止手改 src/generated 与 src/generated-effect
   - 仓库默认分支是 dev（不是 main）；分支名 ≤3 个单词、连字符分隔、不带 type 前缀
   - 提交信息用 Conventional Commits：type(scope): summary，type ∈ feat|fix|docs|chore|refactor|test
+  - 非 merge commit 必须带 `OpenSpec-Change` footer：提案工作用 `OpenSpec-Change: <change-id>`，非提案工作用 `OpenSpec-Change: none`；一个 commit 只写一个 change-id
 
   ## 领域词汇与业务约束
   - 节拍（beat）、卷、章、伏笔、灵魂设定（soul）；37 维审计分 9 大类：角色/关系/时间线/地点/剧情/世界观/文风/逻辑/细节
@@ -56,11 +57,13 @@ operations:
   apply:
     guidance:
       - 每完成一组任务立即更新 tasks.md 勾选，不要最后一次性补
+      - 提交时在 footer 中写入 `OpenSpec-Change: <change-id>`，非提案工作写 `OpenSpec-Change: none`
       - 测试只能从具体包目录运行（如 packages/opennovel），不要从仓库根运行
       - 类型检查用 `bun typecheck`，不要直接调 tsc
   archive:
     guidance:
       - 归档前先提交与本 change 相关的实现改动，并在 tasks.md 的 `Implementation Commits` 中记录相关提交的短 hash 与标题；记录更新单独提交，验证通过后再归档
+      - 归档前用 `git log --grep "OpenSpec-Change: <change-id>" --format="%h %s"` 收集相关提交
       - `Implementation Commits` 不包含记录更新自身和归档目录移动的提交，避免自引用
       - 归档前确认 openspec/specs/ 已同步变更后的最新行为
       - 归档目录名保持 ISO 日期前缀格式（如 2026-09-02-xxx），与现有 archive 一致

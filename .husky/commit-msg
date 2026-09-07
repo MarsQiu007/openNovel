@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+message_file="$1"
+subject=$(sed -n '1p' "$message_file")
+
+case "$subject" in
+  "Merge "*|"fixup!"*|"squash!"*)
+    exit 0
+    ;;
+esac
+
+trailers=$(git interpret-trailers --parse "$message_file")
+change_count=$(printf '%s\n' "$trailers" | grep -Ec '^OpenSpec-Change: ' || true)
+
+if [ "$change_count" -ne 1 ]; then
+  echo "提交信息必须包含且只包含一个 OpenSpec-Change footer（提案 ID 或 none）。" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$trailers" | grep -Eq '^OpenSpec-Change: (none|[a-z0-9][a-z0-9-]+)$'; then
+  echo "OpenSpec-Change footer 只能是 <change-id> 或 none。" >&2
+  exit 1
+fi

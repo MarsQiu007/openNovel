@@ -16,12 +16,15 @@ Use conventional commit-style messages and PR titles: `type(scope): summary`.
 
 Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes are optional; use the affected package or area when helpful, e.g. `core`, `opennovel`, `tui`, `app`, `desktop`, `sdk`, or `plugin`.
 
+Every non-merge commit MUST include a `OpenSpec-Change` trailer in its footer. Use `OpenSpec-Change: <change-id>` for proposal work and `OpenSpec-Change: none` for repository work outside a proposal. Keep one proposal ID per commit; split commits that span multiple proposals.
+
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
 
 ## Workflow
 
 - Do not create git worktrees. Switch to or create a new branch in the current working tree instead.
 - Prefer Simplified Chinese for generated prose: code comments, documentation, commit messages, PR titles, and user-facing chat. Keep code, file paths, identifiers, CLI arguments, and API names in ASCII English. Leave i18n locale files (e.g. `packages/app/src/i18n/*.ts`) untouched.
+- 归档前用 `OpenSpec-Change` trailer 收集相关实现提交，并写入 change 的 `tasks.md`。
 
 ## OpenSpec Archive
 
