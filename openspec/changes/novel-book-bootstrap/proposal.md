@@ -1,33 +1,31 @@
 # 新书 AI 初始化衔接（novel-book-bootstrap）
 
-> 状态：草稿 — 优先级 P0（2026-09-07 探索会话产出，待深入研究后细化 specs/design/tasks）
-
 ## Why
 
-建书向导只通过 REST 创建书籍壳记录（`packages/app/src/pages/novel/wizard.tsx` → `client()["server.novel"].create`），AI 侧的 `init_novel` 工具与 `@architect` 初始化完全依赖用户在会话里主动说"初始化"。而书内空会话的建议 chip 只有"写下一章"（`chat-empty-state.tsx:65`），`setup_mode` 默认 auto（`novel-store/src/mode.ts:44`）——新用户点"写下一章"会在**零设定状态直接裸写第一章**，产出质量差且第一印象受损。
-
-这是新用户旅程的第一断点：建书成功 ≠ 可以开始写作，中间缺"设定初始化"的衔接。
+建书向导只创建书籍壳记录，随后用户进入书内工作台。当前空会话只有“写下一章”建议，而 `setup_mode` 默认 auto，新用户很容易在零角色、零世界观状态下直接生成第一章，产出质量差且第一印象受损。建书成功不等于可以开始写作，中间缺少“设定初始化”的显式衔接。
 
 ## What Changes
 
-- 建书向导完成后，提供进入 AI 初始化的显式入口（自动 dispatch `@architect` 生成故事圣经与题材规则书，或引导性建议 chip，方案在 design 阶段决策）。
-- 书内空会话的建议 chip 增加"初始化小说设定"选项（零设定状态下优先于"写下一章"展示）。
-- 研究可选的兜底防护：零设定状态下 `write_chapter` 是否应拒绝或警告（避免静默裸写）。
+- 书内空会话在零核心设定状态下优先展示“初始化小说设定”建议；用户点击后才创建/绑定会话并请求 AI 初始化，不自动派发模型任务。
+- 初始化建议发送的提示词必须携带书名、类型和简介，让 director 能路由到设定生成流程，而不是把请求误判为普通写作。
+- 对真正裸写的首章增加硬防护：当第一章尚无正文，且小说既没有角色也没有世界观条目时，`write_chapter` 拒绝写入并提示先初始化设定。
+- 已有任一核心设定、已有正文、或章节序号大于 1 的书写路径不受防护影响，避免旧书或用户主动维护的最小设定项目被误伤。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `novel-book-bootstrap`: 建书完成后 AI 初始化的衔接行为——初始化入口的呈现、零设定状态的写作防护。
+- `novel-book-bootstrap`: 建书完成后 AI 初始化的衔接行为——初始化入口的呈现和零设定首章防护。
 
 ### Modified Capabilities
 
-（无——`openspec/specs/` 下暂无建书/初始化相关 spec。）
+（无）
 
 ## Impact
 
-- `packages/app`：建书向导完成页、书内空会话建议 chip。
-- `packages/plugin`：`init_novel` 工具调用方式、`write_chapter` 防护逻辑（若纳入兜底）。
-- `packages/novel-store`：预计无表结构变更（初始化产物落现有设定表）。
+- `packages/app`：书内空会话建议 chips 的展示条件、初始化提示词组装与跳转。
+- `packages/plugin`：`write_chapter` 的首章零设定防护与返回信息。
+- `packages/novel-store`：预计无表结构变更；核心设定状态通过现有角色与世界观条目查询判断。
 
-**非目标**：本变更不改建书向导的表单结构；不做灵感收集/选题库（另立提案）；不改 `setup_mode` 配置语义。
+**非目标**：本变更不改建书向导表单；不自动静默派发初始化任务；不做灵感收集或选题库；不改 `setup_mode` 配置语义；不阻止已有内容或非首章的写作。
+
