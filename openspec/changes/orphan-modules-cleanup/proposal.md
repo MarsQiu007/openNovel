@@ -1,29 +1,33 @@
-# 孤儿模块清理（orphan-modules-cleanup）
+﻿# 孤儿模块清理（orphan-modules-cleanup）
 
-> 状态：草稿 — 优先级 P1（2026-09-07 探索会话产出，待深入研究后细化 specs/design/tasks）
+> 状态：已细化 — 优先级 P1（2026-09-08 复查后确认决策）
 
 ## Why
 
-`packages/plugin/src/novel-writer/` 下存在 **8 个零运行时引用的能力模块**（全仓 grep 无 import、无动态 import、无测试引用）：`golden-finger.ts`（金手指设计器）、`multi-round-review.ts`（多轮评审循环）、`quality-cycle.ts`、`governance.ts`、`length-enforcement.ts`、`tension-graph.ts`（张力图）、`resume-chapters.ts`（中断章节恢复）、`runtime-artifacts.ts`。另有 `chapter-tools.ts` 三个工具（chapterPlan/chapterWrite/chapterRevise）生产代码零引用、仅 e2e 测试使用，且其硬性字数上限 3000 与现行规则（下限硬、上限不限，`novel-writer.ts:483-485`）**相互矛盾**——测试在验证已废弃的行为。
+`packages/plugin/src/novel-writer/` 下有 8 个能力模块只保存了实现，没有被运行时或测试引用：`golden-finger.ts`、`multi-round-review.ts`、`quality-cycle.ts`、`governance.ts`、`length-enforcement.ts`、`tension-graph.ts`、`resume-chapters.ts`、`runtime-artifacts.ts`。另有 `chapter-tools.ts` 三个旧工具（`chapterPlan` / `chapterWrite` / `chapterRevise`）只被 e2e 测试使用；其 3000 字硬上限和现行 `write_chapter` / `revise_chapter` 的“下限硬校验、上限由目标和内容质量控制”规则冲突，继续保留会误导开发。
 
-`packages/plugin/AGENTS.md:36-38` 仍在宣传其中若干模块，文档与代码脱节。这些"写了没接线"的代码误导后续开发（探索中被误判为已实现能力）。
+这些模块同时造成两类问题：一是被误认为已有能力，二是旧测试持续验证已废弃行为。`packages/plugin/AGENTS.md` 也在宣传其中多个文件，需要一并修正。
 
 ## What Changes
 
-- 逐模块决策"接线 or 删除"：评估每个模块的产品价值（如 multi-round-review 与张力图与既有愿景相关，resume-chapters 解决真实中断问题），有价值的制定接线方案，无价值的删除。
-- `chapter-tools.ts`：删除或修正 e2e 测试使其对齐现行 `write_chapter` 规则。
-- `AGENTS.md`（plugin）与相关文档同步，消除宣传脱节。
+- 删除上述 8 个零引用模块。
+- 删除 `chapter-tools.ts`，并让 e2e 测试改走现行 `write_chapter` 工具，不再验证旧 3000 字上限。
+- 更新 `packages/plugin/AGENTS.md`，移除对已删模块的宣传，只保留真实接线文件。
+- 更新相关规划文档中的“张力图模块待接线”提示，避免继续引用已删除实现。
+
+## Decisions
+
+- 全部删除，不在本提案内接线。现有写作规则、37 维连续性检查、状态提交、张力记录、上下文组装和版本/审批链路已覆盖这些模块的大部分意图。
+- 后续若确实需要独立能力（如章节恢复 UI、多轮审查编排、运行时产物面板），应从 Git 历史恢复设计思路并新建能力提案。
 
 ## Capabilities
 
-（纯代码清理与文档修正，不改变系统行为。）
+（纯代码清理与文档修正，不改变系统行为。`.openspec.yaml` 已设置 `skip_specs: true`。）
 
 ## Impact
 
-- `packages/plugin`：删除或接线孤儿模块。
-- `packages/plugin/test`：e2e 测试修正。
-- `docs` / `packages/plugin/AGENTS.md`：同步。
+- `packages/plugin/src/novel-writer`：删除 9 个无运行时引用文件。
+- `packages/plugin/test/novel-writer/e2e.test.ts`：改用现行 `write_chapter` 工具。
+- `packages/plugin/AGENTS.md` 与相关规划文档：同步真实模块清单。
 
-**非目标**：本变更不做任何新功能开发；接线方案若成立，其实施归各自能力提案（如张力图 UI 归 `ai-artifacts-ui` 评估），本变更只做"决策 + 清理 + 文档对齐"。
-
-（此变更无 spec 级行为变化，`.openspec.yaml` 设 `skip_specs: true`。）
+**非目标**：不实现章节恢复、多轮审查、金手指结构化数据、张力图 UI 或运行时产物 UI；不调整现行写作字数策略。
