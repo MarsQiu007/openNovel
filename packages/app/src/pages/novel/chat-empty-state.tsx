@@ -15,6 +15,7 @@ import { useSDK } from "@/context/sdk"
 import { useBindSession } from "@/context/novel-queries"
 import { createAndBindSession } from "./workspace-data"
 import { buildBootstrapPrompt } from "./book-bootstrap"
+import { buildBatchWritingPrompt } from "./batch-writing"
 import type { ServerNovelDetailOutput } from "@opennovel-ai/client"
 import { showToast } from "@/utils/toast"
 
@@ -73,10 +74,16 @@ export function NovelChatEmptyState(props: {
         when={bootstrapBook()}
         keyed
         fallback={
-          <ChatSuggestionChip
-            suggestion={language.t("novel.writing.writeNextChapter")}
-            onPick={(text) => void submit(text)}
-          />
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <ChatSuggestionChip
+              suggestion={language.t("novel.writing.writeNextChapter")}
+              onPick={(text) => void submit(text)}
+            />
+            <ChatSuggestionChip
+              suggestion={buildBatchWritingPrompt()}
+              onPick={(text) => void submit(text)}
+            />
+          </div>
         }
       >
         {(book) => (
