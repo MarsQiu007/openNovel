@@ -11,7 +11,16 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { getDb, NovelTable, VolumeTable, ChapterTable, CharacterTable } from "../../src/novel-writer/session-store.js"
+import {
+  getDb,
+  NovelTable,
+  VolumeTable,
+  ChapterTable,
+  ChapterVersionTable,
+  CharacterTable,
+  createExecutionRound,
+  getExecutionRounds,
+} from "../../src/novel-writer/session-store.js"
 import type { ToolContext } from "../../src/tool.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
 
@@ -185,6 +194,60 @@ describe("B/C tools", () => {
     expect(resolveResult).toMatchObject({ title: "resolve_annotation" })
     const resolved = await hooks.tool!.list_annotations!.execute({ chapter_id: "ch-1", status: "resolved" }, toolCtx())
     expect(("metadata" in resolved ? resolved.metadata : {})?.total).toBe(1)
+  })
+
+  test("report_annotation_execution 回填成功结果和章节版本", async () => {
+    await setupNovel()
+    const db = getDb(projectDir)
+    await db
+      .insert(ChapterVersionTable)
+      .values({
+        id: "cv-1",
+        chapter_id: "ch-1",
+        version: 1,
+        content: "按批注修改后的正文",
+        word_count: 10,
+        created_by: "ai",
+        created_at: 2,
+      })
+      .run()
+    const round = await createExecutionRound(
+      { novel_id: "novel-bc", chapter_id: "ch-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+      projectDir,
+    )
+    const hooks = await getHooks()
+    const result = await hooks.tool!.report_annotation_execution!.execute(
+      { execution_round_id: round.id, status: "completed", result_summary: "已按 2 条批注重写" },
+      toolCtx(),
+    )
+    expect(result).toMatchObject({ title: "report_annotation_execution" })
+    const rounds = await getExecutionRounds("ch-1", projectDir)
+    expect(rounds[0]?.status).toBe("completed")
+    expect(rounds[0]?.result_summary).toBe("已按 2 条批注重写")
+    expect(rounds[0]?.chapter_version_id).toBe("cv-1")
+
+    const failedRound = await createExecutionRound(
+      { novel_id: "novel-bc", chapter_id: "ch-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+      projectDir,
+    )
+    await hooks.tool!.report_annotation_execution!.execute(
+      { execution_round_id: failedRound.id, status: "failed", result_summary: "2 条批注无法定位" },
+      toolCtx(),
+    )
+    const failedRounds = await getExecutionRounds("ch-1", projectDir)
+    expect(failedRounds[0]?.status).toBe("failed")
+    expect(failedRounds[0]?.result_summary).toBe("2 条批注无法定位")
+    expect(failedRounds[0]?.chapter_version_id).toBeNull()
+  })
+
+  test("report_annotation_execution 拒绝不存在的轮次", async () => {
+    await setupNovel()
+    const hooks = await getHooks()
+    const result = await hooks.tool!.report_annotation_execution!.execute(
+      { execution_round_id: "missing", status: "completed", result_summary: "不该写入" },
+      toolCtx(),
+    )
+    expect(result.output).toContain("执行轮次不存在")
   })
 
   test("polish_paragraph 生成润色建议", async () => {

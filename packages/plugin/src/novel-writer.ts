@@ -104,6 +104,7 @@ import {
   ArcBeatTable,
   VolumeReviewTable,
   EditorialReportTable,
+  AnnotationExecutionRoundTable,
   ChapterAnnotationTable,
   OutlineCanvasLayoutTable,
   createStoryArc,
@@ -122,6 +123,7 @@ import {
   updateChapterAnnotation,
   deleteChapterAnnotation,
   listChapterAnnotations,
+  updateExecutionRound,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -4777,6 +4779,47 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             title: "resolve_annotation",
             output: `批注状态已更新为 ${updated.status}`,
             metadata: { annotation_id: updated.id, status: updated.status },
+          }
+        },
+      }),
+      report_annotation_execution: tool({
+        description: "回填批注执行轮次结果。AI 完成批注改稿或确认失败后必须调用。",
+        args: {
+          execution_round_id: tool.schema.string().describe("执行轮次 ID"),
+          status: tool.schema.enum(["completed", "failed"]).describe("执行结果状态"),
+          result_summary: tool.schema.string().describe("本轮修改内容、涉及批注数、未定位项或失败原因摘要"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const round = await db
+            .select()
+            .from(AnnotationExecutionRoundTable)
+            .where(eq(AnnotationExecutionRoundTable.id, args.execution_round_id))
+            .get()
+          if (!round) return { title: "report_annotation_execution", output: "执行轮次不存在" }
+          const version = await db
+            .select({ id: ChapterVersionTable.id, version: ChapterVersionTable.version })
+            .from(ChapterVersionTable)
+            .where(eq(ChapterVersionTable.chapter_id, round.chapter_id))
+            .orderBy(desc(ChapterVersionTable.version))
+            .get()
+          const updated = await updateExecutionRound(
+            args.execution_round_id,
+            {
+              status: args.status,
+              result_summary: args.result_summary,
+              chapter_version_id: args.status === "completed" ? version?.id ?? null : null,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "report_annotation_execution",
+            output: `批注执行结果已记录：${updated.status}`,
+            metadata: {
+              execution_round_id: updated.id,
+              status: updated.status,
+              chapter_version_id: updated.chapter_version_id,
+            },
           }
         },
       }),

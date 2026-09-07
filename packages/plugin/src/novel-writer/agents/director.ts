@@ -93,6 +93,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 | annotate_chapter | 给章节段落加批注或润色建议（可带引用锚点和替换文本） |
 | list_annotations | 列出章节批注（可按状态筛选） |
 | resolve_annotation | 把批注标记为已解决/采纳/不修，采纳时可应用润色替换 |
+| report_annotation_execution | 批注执行完成后回填轮次结果、失败原因和章节版本 |
 | polish_paragraph | 对单段生成润色建议并以批注形式落库 |
 | read_outline_canvas | 读取可视化大纲画布布局 |
 | write_outline_canvas | 保存画布布局（节点位置、结构线排布） |
