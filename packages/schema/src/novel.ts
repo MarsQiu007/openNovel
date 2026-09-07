@@ -221,6 +221,58 @@ export const HookRotation = Schema.Struct({
 }).annotate({ identifier: "Novel.HookRotation" })
 export interface HookRotation extends Schema.Schema.Type<typeof HookRotation> {}
 
+export const AiChapterSummary = Schema.Struct({
+  chapterId: Schema.String,
+  chapterOrder: NonNegativeInt,
+  title: Schema.String,
+  summary: Schema.String,
+  keyEvents: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.AiChapterSummary" })
+export interface AiChapterSummary extends Schema.Schema.Type<typeof AiChapterSummary> {}
+
+export const AiHookRecord = Schema.Struct({
+  id: Schema.String,
+  hookType: Schema.String,
+  chapterId: Schema.NullOr(Schema.String),
+  chapterOrder: Schema.NullOr(NonNegativeInt),
+  createdAt: Schema.Int,
+}).annotate({ identifier: "Novel.AiHookRecord" })
+export interface AiHookRecord extends Schema.Schema.Type<typeof AiHookRecord> {}
+
+export const AiHookRotation = Schema.Struct({
+  records: Schema.Array(AiHookRecord),
+  counts: Schema.Record(Schema.String, NonNegativeInt),
+  warning: Schema.String,
+}).annotate({ identifier: "Novel.AiHookRotation" })
+export interface AiHookRotation extends Schema.Schema.Type<typeof AiHookRotation> {}
+
+export const AiVolumeSummary = Schema.Struct({
+  volumeId: Schema.String,
+  volumeOrder: NonNegativeInt,
+  volumeTitle: Schema.String,
+  summary: Schema.String,
+  charActive: Schema.Array(Schema.String),
+  charDormant: Schema.Array(Schema.String),
+  threadsOpen: Schema.Array(Schema.String),
+  threadsClosed: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.AiVolumeSummary" })
+export interface AiVolumeSummary extends Schema.Schema.Type<typeof AiVolumeSummary> {}
+
+export const AiSegmentSummary = Schema.Struct({
+  startChapter: NonNegativeInt,
+  endChapter: NonNegativeInt,
+  summary: Schema.String,
+}).annotate({ identifier: "Novel.AiSegmentSummary" })
+export interface AiSegmentSummary extends Schema.Schema.Type<typeof AiSegmentSummary> {}
+
+export const AiArtifacts = Schema.Struct({
+  chapterSummaries: Schema.Array(AiChapterSummary),
+  hookRotation: AiHookRotation,
+  volumeSummaries: Schema.Array(AiVolumeSummary),
+  segmentSummaries: Schema.Array(AiSegmentSummary),
+}).annotate({ identifier: "Novel.AiArtifacts" })
+export interface AiArtifacts extends Schema.Schema.Type<typeof AiArtifacts> {}
+
 export interface _OutlineNode {
   readonly id: string
   readonly type: "master" | "volume" | "chapter"

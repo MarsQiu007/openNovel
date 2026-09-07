@@ -3688,6 +3688,49 @@ export type ServerNovelTensionOutput = ReadonlyArray<{
   readonly createdAt: number
 }>
 
+export type ServerNovelAiArtifactsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelAiArtifactsOutput = {
+  readonly chapterSummaries: ReadonlyArray<{
+    readonly chapterId: string
+    readonly chapterOrder: number
+    readonly title: string
+    readonly summary: string
+    readonly keyEvents: ReadonlyArray<string>
+  }>
+  readonly hookRotation: {
+    readonly records: ReadonlyArray<{
+      readonly id: string
+      readonly hookType: string
+      readonly chapterId: string | null
+      readonly chapterOrder: number | null
+      readonly createdAt: number
+    }>
+    readonly counts: { readonly [x: string]: number }
+    readonly warning: string
+  }
+  readonly volumeSummaries: ReadonlyArray<{
+    readonly volumeId: string
+    readonly volumeOrder: number
+    readonly volumeTitle: string
+    readonly summary: string
+    readonly charActive: ReadonlyArray<string>
+    readonly charDormant: ReadonlyArray<string>
+    readonly threadsOpen: ReadonlyArray<string>
+    readonly threadsClosed: ReadonlyArray<string>
+  }>
+  readonly segmentSummaries: ReadonlyArray<{
+    readonly startChapter: number
+    readonly endChapter: number
+    readonly summary: string
+  }>
+}
+
 export type ServerNovelBindInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {

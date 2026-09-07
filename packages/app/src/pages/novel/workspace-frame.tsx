@@ -52,6 +52,7 @@ import { WorldSidebar } from "./world-sidebar"
 import { WorldReader } from "./world-reader"
 import StructurePanel from "./structure-panel"
 import { AnnotationPanel } from "./annotation-panel"
+import { AiArtifactsPanel } from "./panel-ai-artifacts"
 import CanvasPanel from "./canvas-panel"
 import {
   collapseThresholds,
@@ -72,6 +73,7 @@ const RAIL_PANELS = [
   { key: "tension", icon: "align-right", labelKey: "novel.panel.tension" },
   { key: "structure", icon: "file-tree", labelKey: "novel.panel.structure" },
   { key: "annotations", icon: "pencil-line", labelKey: "novel.panel.annotations" },
+  { key: "ai-artifacts", icon: "brain", label: "AI 产出" },
 ] as const
 
 type RailPanel = (typeof RAIL_PANELS)[number]["key"]
@@ -1023,6 +1025,9 @@ export default function NovelWorkspaceFrame() {
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />
                     </Show>
+                    <Show when={key === "ai-artifacts"}>
+                      <AiArtifactsPanel novelID={novelID} selectedChapterId={selectedChapterId} />
+                    </Show>
                   </div>
                 )}
               </Show>
@@ -1136,6 +1141,9 @@ export default function NovelWorkspaceFrame() {
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />
                     </Show>
+                    <Show when={railPanel() === "ai-artifacts"}>
+                      <AiArtifactsPanel novelID={novelID} selectedChapterId={selectedChapterId} />
+                    </Show>
                   </div>
                 </div>
               </div>
@@ -1143,19 +1151,22 @@ export default function NovelWorkspaceFrame() {
               <Show when={!railCollapsed() && !dragRailWidth()}>
                 <div class="flex flex-col items-center gap-1 py-3 px-1.5 border-l border-v2-border-border-base shrink-0">
                   <For each={RAIL_PANELS}>
-                    {(item) => (
-                      <TooltipV2 placement="left" value={language.t(item.labelKey)}>
-                        <IconButtonV2
-                          type="button"
-                          variant="ghost-muted"
-                          size="normal"
-                          state={railPanel() === item.key ? "pressed" : "rest"}
-                          icon={<Icon name={item.icon} size="small" />}
-                          aria-label={language.t(item.labelKey)}
-                          onClick={() => openRailPanel(item.key)}
-                        />
-                      </TooltipV2>
-                    )}
+                    {(item) => {
+                      const label = "label" in item ? item.label : language.t(item.labelKey)
+                      return (
+                        <TooltipV2 placement="left" value={label}>
+                          <IconButtonV2
+                            type="button"
+                            variant="ghost-muted"
+                            size="normal"
+                            state={railPanel() === item.key ? "pressed" : "rest"}
+                            icon={<Icon name={item.icon} size="small" />}
+                            aria-label={label}
+                            onClick={() => openRailPanel(item.key)}
+                          />
+                        </TooltipV2>
+                      )
+                    }}
                   </For>
                 </div>
               </Show>

@@ -196,6 +196,8 @@ import type {
   ServerNovelSearchOutput,
   ServerNovelTensionInput,
   ServerNovelTensionOutput,
+  ServerNovelAiArtifactsInput,
+  ServerNovelAiArtifactsOutput,
   ServerNovelBindInput,
   ServerNovelBindOutput,
   ServerNovelCreateChapterInput,
@@ -1694,6 +1696,18 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/tension`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "ai-artifacts": (input: ServerNovelAiArtifactsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelAiArtifactsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/ai-artifacts`,
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],

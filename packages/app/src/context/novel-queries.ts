@@ -108,6 +108,7 @@ export const novelKeys = {
   "world-entries": (directory: string, novelID: string) => ["novel", "world-entries", directory, novelID] as const,
   outline: (directory: string, novelID: string) => ["novel", "outline", directory, novelID] as const,
   tension: (directory: string, novelID: string) => ["novel", "tension", directory, novelID] as const,
+  "ai-artifacts": (directory: string, novelID: string) => ["novel", "ai-artifacts", directory, novelID] as const,
   relationships: (directory: string, novelID: string) => ["novel", "relationships", directory, novelID] as const,
   "character-states": (directory: string, novelID: string, characterID: string) =>
     ["novel", "character-states", directory, novelID, characterID] as const,
@@ -319,6 +320,16 @@ export function useTension(novelID: Accessor<string>) {
   }))
 }
 
+export function useAiArtifacts(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["ai-artifacts"](sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"]["ai-artifacts"]({ novelID: novelID(), location: { directory: sdk().directory } }),
+    enabled: !!novelID(),
+  }))
+}
 export function useNovelForSession(sessionID: Accessor<string>) {
   const client = useNovelClient()
   const sdk = useSDK()

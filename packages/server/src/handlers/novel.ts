@@ -24,6 +24,10 @@ import {
   StyleGuideTable,
   SoulTable,
   TensionLogTable,
+  ChapterSummaryTable,
+  HookRotationTable,
+  VolumeSummaryTable,
+  SegmentSummaryTable,
   createChapter as storeCreateChapter,
   updateNovel as storeUpdateNovel,
   deleteNovel as storeDeleteNovel,
@@ -730,6 +734,133 @@ export function listTensionPoints(novelID: string, directory: string) {
       .orderBy(asc(TensionLogTable.chapter_number))
       .all()
       .map(toTensionPoint)
+  })
+}
+
+function toAiStringArray(value: unknown) {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
+  if (typeof value !== "string") return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function toAiHookWarning(records: { hookType: string }[]) {
+  const labels: Record<string, string> = {
+    foreshadow_plant: "埋设伏笔",
+    face_slap: "打脸反转",
+    power_up: "能力升级",
+    emotional_peak: "情感高潮",
+  }
+  let consecutiveType: string | null = null
+  let consecutiveCount = 0
+  for (const record of records) {
+    if (consecutiveType === null) {
+      consecutiveType = record.hookType
+      consecutiveCount = 1
+      continue
+    }
+    if (record.hookType !== consecutiveType) break
+    consecutiveCount += 1
+    if (consecutiveCount > 3) {
+      const label = labels[record.hookType] ?? record.hookType
+      return `钩子类型过于单一：已连续使用 ${consecutiveCount} 次「${label}」，建议轮换其他类型以保持节奏变化`
+    }
+  }
+  return ""
+}
+
+export function listAiArtifacts(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+
+    const chapterSummaries = db
+      .select({
+        chapterId: ChapterSummaryTable.chapter_id,
+        chapterOrder: ChapterTable.order,
+        title: ChapterTable.title,
+        summary: ChapterSummaryTable.summary,
+        keyEvents: ChapterSummaryTable.key_events,
+      })
+      .from(ChapterSummaryTable)
+      .innerJoin(ChapterTable, eq(ChapterTable.id, ChapterSummaryTable.chapter_id))
+      .where(eq(ChapterTable.novel_id, novelID))
+      .orderBy(asc(ChapterTable.order))
+      .all()
+      .map((row) => ({ ...row, keyEvents: toAiStringArray(row.keyEvents) }))
+
+    const hookRecords = db
+      .select({
+        id: HookRotationTable.id,
+        hookType: HookRotationTable.hook_type,
+        chapterId: HookRotationTable.chapter_id,
+        chapterOrder: ChapterTable.order,
+        createdAt: HookRotationTable.created_at,
+      })
+      .from(HookRotationTable)
+      .leftJoin(ChapterTable, eq(ChapterTable.id, HookRotationTable.chapter_id))
+      .where(eq(HookRotationTable.novel_id, novelID))
+      .orderBy(desc(HookRotationTable.created_at))
+      .all()
+
+    const hookTypes = [...new Set(hookRecords.map((record) => record.hookType))]
+    const hookCounts = Object.fromEntries(
+      hookTypes.map((hookType) => [hookType, hookRecords.filter((record) => record.hookType === hookType).length]),
+    )
+
+    const volumeSummaries = db
+      .select({
+        volumeId: VolumeSummaryTable.volume_id,
+        volumeOrder: VolumeTable.order,
+        volumeTitle: VolumeTable.title,
+        summary: VolumeSummaryTable.summary,
+        charActive: VolumeSummaryTable.char_active,
+        charDormant: VolumeSummaryTable.char_dormant,
+        threadsOpen: VolumeSummaryTable.threads_open,
+        threadsClosed: VolumeSummaryTable.threads_closed,
+      })
+      .from(VolumeSummaryTable)
+      .innerJoin(VolumeTable, eq(VolumeTable.id, VolumeSummaryTable.volume_id))
+      .where(eq(VolumeTable.novel_id, novelID))
+      .orderBy(asc(VolumeTable.order))
+      .all()
+      .map((row) => ({
+        volumeId: row.volumeId,
+        volumeOrder: row.volumeOrder,
+        volumeTitle: row.volumeTitle,
+        summary: row.summary,
+        charActive: toAiStringArray(row.charActive),
+        charDormant: toAiStringArray(row.charDormant),
+        threadsOpen: toAiStringArray(row.threadsOpen),
+        threadsClosed: toAiStringArray(row.threadsClosed),
+      }))
+
+    const segmentSummaries = db
+      .select({
+        startChapter: SegmentSummaryTable.start_chapter,
+        endChapter: SegmentSummaryTable.end_chapter,
+        summary: SegmentSummaryTable.summary,
+      })
+      .from(SegmentSummaryTable)
+      .where(eq(SegmentSummaryTable.novel_id, novelID))
+      .orderBy(asc(SegmentSummaryTable.start_chapter))
+      .all()
+
+    return {
+      chapterSummaries,
+      hookRotation: {
+        records: hookRecords,
+        counts: hookCounts,
+        warning: toAiHookWarning(hookRecords),
+      },
+      volumeSummaries,
+      segmentSummaries,
+    }
   })
 }
 
@@ -2025,6 +2156,12 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* listTensionPoints(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.ai-artifacts", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listAiArtifacts(ctx.params.novelID, location.directory)
         }),
       )
       .handle("novel.bind", (ctx) =>

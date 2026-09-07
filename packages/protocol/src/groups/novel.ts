@@ -1,4 +1,5 @@
 import {
+  AiArtifacts,
   ApprovalInput,
   BindSessionInput,
   Chapter,
@@ -709,6 +710,22 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.tension",
           summary: "Tension curve",
           description: "List tension points tracking the novel's pacing curve.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.ai-artifacts", `${root}/:novelID/ai-artifacts`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: AiArtifacts,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.ai-artifacts",
+          summary: "Get AI artifacts",
+          description: "List read-only chapter summaries, hook rotation, volume summaries, and segment summaries.",
         }),
       ),
   )

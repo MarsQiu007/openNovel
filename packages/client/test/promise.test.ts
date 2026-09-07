@@ -23,6 +23,10 @@ test("exposes every standard HTTP API group", () => {
     "questions",
     "references",
     "projectCopies",
+    "server.novel",
+    "novelModes",
+    "server.sync",
+    "server.soul",
   ])
   expect(Object.keys(client.messages)).toEqual(["list"])
   expect(Object.keys(client.integrations)).toEqual([

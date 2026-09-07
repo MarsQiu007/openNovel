@@ -2071,6 +2071,14 @@ function novelScenarios(): Scenario[] {
       }))
       .json(200, isObject),
     http.protected
+      .get("/api/novel/{novelID}/ai-artifacts", "novel.ai-artifacts")
+      .seeded((ctx) => seedNovel(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/ai-artifacts", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isObject),
+    http.protected
       .get("/api/novel/{novelID}/tension", "novel.tension")
       .seeded((ctx) => seedTension(ctx))
       .at((ctx) => ({
