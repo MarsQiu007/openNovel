@@ -23,6 +23,12 @@ Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributi
 - Do not create git worktrees. Switch to or create a new branch in the current working tree instead.
 - Prefer Simplified Chinese for generated prose: code comments, documentation, commit messages, PR titles, and user-facing chat. Keep code, file paths, identifiers, CLI arguments, and API names in ASCII English. Leave i18n locale files (e.g. `packages/app/src/i18n/*.ts`) untouched.
 
+## OpenSpec Archive
+
+- 完成一个 OpenSpec change 后，先提交全部相关实现改动，再在 `openspec/changes/<change>/tasks.md` 末尾添加 `## Implementation Commits`，逐条记录与本 change 相关的实现提交（短 hash + commit 标题）。
+- 记录完成后单独提交该更新，运行 `openspec validate <change>`，验证通过后再归档。
+- 不要把记录更新自身或归档目录移动的提交写入 `Implementation Commits`，避免自引用。
+
 ## Style Guide
 
 ### General Principles
