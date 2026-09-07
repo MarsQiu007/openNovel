@@ -20,9 +20,8 @@ import {
   WorldEntryTable,
   PlotThreadTable,
   ForeshadowingTable,
+  resolveChapterOutline,
 } from "./session-store.js"
-import { existsSync, readFileSync } from "fs"
-import { join } from "path"
 import type { RecalledHistoryItem, WorldEntrySummary, WorldEntryIndexItem, ContextPacket } from "./context.js"
 import { assembleSnapshot } from "./context.js"
 import { applyBudget } from "./budget.js"
@@ -542,24 +541,6 @@ function extractSnippet(content: string, query: string): string {
 // ─── 写作快照组装（assembleSnapshot + 召回 + 预算） ───
 
 /**
- * 读章节大纲 Markdown 文件。
- * directory 是项目根，DB 在 directory/.novel/novel.db，大纲在 directory/.novel/outlines/。
- */
-function readChapterOutlineFile(directory: string | null | undefined, chapterNumber: number): string | null {
-  const base = directory ?? process.cwd()
-  const filePath = join(base, ".novel", "outlines", `chapter-${chapterNumber}.md`)
-  if (!existsSync(filePath)) return null
-  try {
-    const raw = readFileSync(filePath, "utf-8")
-    // 空模板（含"待填写"占位符）视为无有效大纲
-    if (raw.includes("（待填写）") && raw.length < 2000) return null
-    return raw
-  } catch {
-    return null
-  }
-}
-
-/**
  * 组装写作专用快照：assembleSnapshot 原始数据 → 章纲读取 → 实体提取 →
  * 三路召回 → P5 相关性筛选 → 预算裁剪。
  *
@@ -575,8 +556,10 @@ export async function assembleWriterSnapshot(
   const raw = await assembleSnapshot(novelId, chapterNumber, directory)
   if (!raw) return null
 
-  // 读章纲文件
-  const chapterOutline = readChapterOutlineFile(directory ?? null, chapterNumber)
+  // 数据库优先读取章纲；旧项目为空时懒导入存量 Markdown 文件
+  const resolvedOutline = await resolveChapterOutline(novelId, chapterNumber, directory)
+  const chapterOutline = resolvedOutline.outline
+
 
   // 召回查询文本：有章纲用章纲，否则用 synopsis + open 线索标题 + 角色名
   const queryText =

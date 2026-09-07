@@ -463,7 +463,18 @@ export async function generateChapterOutline(
   lines.push("")
 
   const finalContent = content ?? lines.join("\n")
+  await db
+    .update(ChapterTable)
+    .set({ outline: finalContent, updated_at: Date.now() })
+    .where(eq(ChapterTable.id, chapterId))
+    .run()
+
   const dir = ensureOutlineDir(projectDir)
-  writeFileSync(join(dir, `chapter-${chapterNumber}.md`), finalContent)
+  try {
+    writeFileSync(join(dir, `chapter-${chapterNumber}.md`), finalContent)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(`章纲已保存到数据库，但同步 Markdown 文件失败：${reason}`)
+  }
   return finalContent
 }

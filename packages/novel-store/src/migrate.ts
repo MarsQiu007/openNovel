@@ -61,6 +61,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
+  migrateChapterOutline(exec, query)
   migrateAnnotationExecutionRoundColumns(exec, query)
 }
 
@@ -135,6 +136,22 @@ function migrateCharacterStatus(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // characters 表不存在时无需迁移，CREATE_TABLES_SQL 会带 status 列创建
+  }
+}
+
+/**
+ * 给 chapters 表添加 outline 列。旧项目的章纲正文存放在 Markdown 文件中；
+ * 读取层负责懒导入，迁移只保证数据库有字段。
+ */
+function migrateChapterOutline(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(chapters)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (!cols.some((c) => c.name === "outline")) {
+      exec("ALTER TABLE chapters ADD COLUMN outline text DEFAULT '' NOT NULL")
+    }
+  } catch {
+    // chapters 表不存在时无需迁移，CREATE_TABLES_SQL 会带 outline 列创建
   }
 }
 

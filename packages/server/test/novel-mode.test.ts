@@ -31,7 +31,7 @@ describe("getMode", () => {
     const configPath = join(tempDir, ".novel", "config.json")
     if (existsSync(configPath)) rmSync(configPath)
     const result = await Effect.runPromise(getMode(tempDir))
-    expect(result).toEqual({ writing_mode: "auto", setup_mode: "interactive" })
+    expect(result).toEqual({ writing_mode: "auto", setup_mode: "auto" })
   })
 
   test("配置文件存在时返回正确字段", async () => {
@@ -46,7 +46,7 @@ describe("getMode", () => {
     const configPath = join(tempDir, ".novel", "config.json")
     require("fs").writeFileSync(configPath, "{ not json")
     const result = await Effect.runPromise(getMode(tempDir))
-    expect(result).toEqual({ writing_mode: "auto", setup_mode: "interactive" })
+    expect(result).toEqual({ writing_mode: "auto", setup_mode: "auto" })
   })
 })
 
@@ -55,7 +55,7 @@ describe("setMode", () => {
     const result = await Effect.runPromise(
       setMode(tempDir, { writing_mode: "review" }),
     )
-    expect(result).toEqual({ writing_mode: "review", setup_mode: "interactive" })
+    expect(result).toEqual({ writing_mode: "review", setup_mode: "auto" })
     // 落盘验证
     const configPath = join(tempDir, ".novel", "config.json")
     expect(existsSync(configPath)).toBe(true)
@@ -64,9 +64,9 @@ describe("setMode", () => {
   })
 
   test("部分 PATCH 不破坏未指定字段", async () => {
-    await Effect.runPromise(setMode(tempDir, { writing_mode: "review", setup_mode: "auto" }))
-    const result = await Effect.runPromise(setMode(tempDir, { setup_mode: "interactive" }))
-    expect(result).toEqual({ writing_mode: "review", setup_mode: "interactive" })
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review", setup_mode: "interactive" }))
+    const result = await Effect.runPromise(setMode(tempDir, { setup_mode: "auto" }))
+    expect(result).toEqual({ writing_mode: "review", setup_mode: "auto" })
   })
 
   test("覆盖前备份 .bak", async () => {
@@ -75,7 +75,7 @@ describe("setMode", () => {
     const bakPath = join(tempDir, ".novel", "config.json.bak")
     expect(existsSync(bakPath)).toBe(true)
     const bak = JSON.parse(readFileSync(bakPath, "utf-8"))
-    expect(bak).toEqual({ writing_mode: "review", setup_mode: "interactive" })
+    expect(bak).toEqual({ writing_mode: "review", setup_mode: "auto" })
   })
 
   test("非法 writing_mode 被 store 降级（保持当前值）", async () => {
@@ -106,7 +106,7 @@ describe("setMode", () => {
     try {
       // getMode(undefined) 应不抛错，回退到 cwd
       const result = await Effect.runPromise(getMode(undefined))
-      expect(result).toEqual({ writing_mode: "auto", setup_mode: "interactive" })
+      expect(result).toEqual({ writing_mode: "auto", setup_mode: "auto" })
     } finally {
       process.chdir(originalCwd)
       rmSync(sandboxDir, { recursive: true, force: true })
@@ -148,8 +148,8 @@ describe("setMode audit log", () => {
 
     const entry = JSON.parse(lines[0])
     expect(entry).toMatchObject({
-      before: { writing_mode: "auto", setup_mode: "interactive" },
-      after: { writing_mode: "review", setup_mode: "interactive" },
+      before: { writing_mode: "auto", setup_mode: "auto" },
+      after: { writing_mode: "review", setup_mode: "auto" },
       patch: { writing_mode: "review" },
     })
     expect(typeof entry.ts).toBe("number")
@@ -171,16 +171,17 @@ describe("setMode audit log", () => {
   test("patch 只包含实际变更的字段", async () => {
     // 起始：writing=auto, setup=interactive
     // 用户只改 setup_mode=auto → audit.patch 应只有 setup_mode
+    await Effect.runPromise(setMode(tempDir, { setup_mode: "interactive" }))
     await Effect.runPromise(setMode(tempDir, { setup_mode: "auto" }))
 
     const auditPath = join(tempDir, ".novel", "audit", "mode.jsonl")
-    const entry = JSON.parse(readFileSync(auditPath, "utf-8").trim())
+    const entry = JSON.parse(readFileSync(auditPath, "utf-8").trim().split("\n").at(-1)!)
     expect(entry.patch).toEqual({ setup_mode: "auto" })
     expect(entry.patch.writing_mode).toBeUndefined()
   })
 
   test("多次变更累加为多行 JSONL", async () => {
-    await Effect.runPromise(setMode(tempDir, { writing_mode: "review" }))
+    await Effect.runPromise(setMode(tempDir, { writing_mode: "review", setup_mode: "interactive" }))
     await Effect.runPromise(setMode(tempDir, { setup_mode: "auto" }))
     await Effect.runPromise(setMode(tempDir, { writing_mode: "auto" }))
 

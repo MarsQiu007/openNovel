@@ -11,7 +11,7 @@ import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { join } from "path"
-import { existsSync, mkdirSync } from "fs"
+import { existsSync, mkdirSync, readFileSync } from "fs"
 
 // ─── DDL 表定义 ───
 
@@ -76,6 +76,7 @@ export const ChapterTable = sqliteTable("chapters", {
   content: text().notNull().default(""),
   word_count: integer().notNull().default(0),
   status: text().notNull().default("draft"),
+  outline: text().notNull().default(""),
   order: integer().notNull(),
   created_at: integer()
     .notNull()
@@ -638,7 +639,7 @@ export function getDbPath(directory?: string | null): string {
 const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
 CREATE TABLE IF NOT EXISTS volumes (id text PRIMARY KEY, novel_id text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
@@ -826,6 +827,54 @@ export async function resolveNovelForSession(
   return novelId
 }
 
+// ─── Chapter outline persistence ───
+
+/** 判断章纲是否足以驱动写作；旧空模板占位符视为不可用。 */
+export function isUsableChapterOutline(outline: string | null | undefined): boolean {
+  if (!outline) return false
+  if (!outline.includes("（待填写）")) return outline.trim().length > 0
+  return outline.length >= 2000
+}
+
+export type ResolvedChapterOutline = {
+  readonly outline: string | null
+  readonly available: boolean
+  readonly source: "database" | "file" | "missing"
+}
+
+/**
+ * 按小说 ID 和章节序号解析章纲：数据库优先；旧数据库为空时读取并导入 Markdown 文件。
+ * 文件读取失败不抛出，调用方可按章纲缺失继续处理。
+ */
+export async function resolveChapterOutline(
+  novelId: string,
+  chapterNumber: number,
+  directory?: string | null,
+): Promise<ResolvedChapterOutline> {
+  const db = getDb(directory)
+  const [chapter] = await db
+    .select()
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber)))
+    .all()
+  if (chapter?.outline) {
+    return { outline: chapter.outline, available: isUsableChapterOutline(chapter.outline), source: "database" }
+  }
+
+  const filePath = join(join(getDbPath(directory), ".."), "outlines", `chapter-${chapterNumber}.md`)
+  if (!existsSync(filePath)) return { outline: null, available: false, source: "missing" }
+  let fileOutline: string
+  try {
+    fileOutline = readFileSync(filePath, "utf-8")
+  } catch {
+    return { outline: null, available: false, source: "missing" }
+  }
+  if (chapter && isUsableChapterOutline(fileOutline)) {
+    await updateChapter(chapter.id, { outline: fileOutline }, directory)
+  }
+  return { outline: fileOutline, available: isUsableChapterOutline(fileOutline), source: "file" }
+}
+
 // ─── Approval gate (re-export) ───
 
 export * from "./approval.js"
@@ -906,13 +955,14 @@ export async function deleteVolume(volumeId: string, directory?: string | null):
 
 export async function updateChapter(
   chapterId: string,
-  fields: { title?: string; status?: string },
+  fields: { title?: string; status?: string; outline?: string },
   directory?: string | null,
 ): Promise<typeof ChapterTable.$inferSelect> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = { updated_at: Date.now() }
   if (fields.title !== undefined) updates.title = fields.title
   if (fields.status !== undefined) updates.status = fields.status
+  if (fields.outline !== undefined) updates.outline = fields.outline
   await db.update(ChapterTable).set(updates).where(eq(ChapterTable.id, chapterId)).run()
   return db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
 }

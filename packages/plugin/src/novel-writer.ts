@@ -74,6 +74,7 @@ import {
   PendingSettingTable,
   WorldEntryConflictTable,
   resolveNovelForSession,
+  resolveChapterOutline,
   tagNovelSession,
   getNovelForSession,
   isNovelSession,
@@ -911,7 +912,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       read_chapter_outline: tool({
         description:
-          "读取章节大纲。返回章节元信息与章纲正文（.novel/outlines/chapter-{n}.md）。流水线步骤1（plan）。",
+          "读取章节大纲。返回章节元信息与章纲正文（数据库优先，旧文件兜底）。流水线步骤1（plan）。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("章节序号"),
@@ -926,17 +927,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               output: `第${args.chapter_number}章不存在，请先调用 generate_chapter_outline 生成大纲`,
             }
           }
-          // 章纲正文只存在于 .novel/outlines/chapter-{n}.md（ChapterTable 无 outline 列），补读给流水线步骤 1
-          const outlinePath = join(
-            projectDirFromCtx(ctx.directory),
-            ".novel",
-            "outlines",
-            `chapter-${args.chapter_number}.md`,
-          )
-          const outlineBody = existsSync(outlinePath) ? readFileSync(outlinePath, "utf-8") : null
-          const outlineSection = outlineBody
-            ? `章纲正文（chapter-${args.chapter_number}.md）：\n${outlineBody}`
-            : `章纲正文：缺失（chapter-${args.chapter_number}.md 不存在，可调用 generate_chapter_outline 重新生成）`
+          const resolvedOutline = await resolveChapterOutline(novelId, args.chapter_number, ctx.directory)
+          const outlineSection = resolvedOutline.available
+            ? `章纲正文：\n${resolvedOutline.outline}`
+            : resolvedOutline.outline
+              ? `章纲正文：现有内容不是可用章纲（空模板或未完成），请补全后重新调用 generate_chapter_outline 并传入完整章纲`
+              : `章纲正文：缺失，可调用 generate_chapter_outline 重新生成`
           return {
             title: "read_chapter_outline",
             output: `章节ID：${chapter.id}\n标题：${chapter.title}\n序号：${chapter.order}\n现有字数：${chapter.word_count}\n状态：${chapter.status}\n${outlineSection}`,
@@ -945,14 +941,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               title: chapter.title,
               order: chapter.order,
               word_count: chapter.word_count,
-              outline_available: outlineBody !== null,
+              outline_available: resolvedOutline.available,
+              outline_source: resolvedOutline.source,
             },
           }
         },
       }),
       read_outline: tool({
         description:
-          "读取大纲 Markdown 文件原文。可读取总纲（master-outline.md）、卷纲（volume-{n}.md）或章节大纲文件（chapter-{n}.md）。用于在写作前回顾已生成的大纲细节。注意：这是读取 .novel/outlines/ 下的 markdown 文件，与 read_chapter_outline（读数据库元信息）互补。",
+          "读取大纲 Markdown 文件原文。可读取总纲（master-outline.md）、卷纲（volume-{n}.md）或章节大纲（chapter-{n}.md）。章节大纲数据库优先，旧文件兜底。",
         args: {
           type: tool.schema
             .enum(["master", "volume", "chapter"])
@@ -960,11 +957,42 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           number: tool.schema
             .number()
             .optional()
-            .describe("卷号（type=volume 时必填）或章节序号（type=chapter 时必填，对应 chapter-{n}.md）"),
+            .describe("卷号（type=volume 时必填）或章节序号（type=chapter 时必填）"),
+          novel_id: tool.schema
+            .string()
+            .optional()
+            .describe("小说 ID（type=chapter 时用于数据库优先读取；省略且项目只有一本小说时可自动解析）"),
         },
         async execute(args, ctx) {
           if ((args.type === "volume" || args.type === "chapter") && typeof args.number !== "number") {
             return { title: "read_outline", output: `type=${args.type} 时必须提供 number 参数` }
+          }
+          if (args.type === "chapter") {
+            if (typeof args.number !== "number") {
+              return { title: "read_outline", output: `type=chapter 时必须提供 number 参数` }
+            }
+            const db = getDb(ctx.directory)
+            let novelId: string | null = null
+            if (args.novel_id) {
+              novelId = await resolveNovelId(db, args.novel_id)
+            } else {
+              const novels = db.select({ id: NovelTable.id }).from(NovelTable).all()
+              if (novels.length === 1) novelId = novels[0]!.id
+            }
+            if (novelId) {
+              const resolvedOutline = await resolveChapterOutline(novelId, args.number, ctx.directory)
+              if (resolvedOutline.outline) {
+                return {
+                  title: "read_outline",
+                  output: resolvedOutline.outline,
+                  metadata: {
+                    source: resolvedOutline.source,
+                    chapter_number: args.number,
+                    length: resolvedOutline.outline.length,
+                  },
+                }
+              }
+            }
           }
           const projectDir = projectDirFromCtx(ctx.directory)
           const outlinesDir = join(projectDir, ".novel", "outlines")

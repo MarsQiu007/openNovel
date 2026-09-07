@@ -4,7 +4,7 @@ import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
-import { getDb, NovelTable, ChapterTable, CharacterTable } from "@opennovel-ai/novel-store"
+import { closeDb, getDb, NovelTable, ChapterTable, CharacterTable } from "@opennovel-ai/novel-store"
 import { createEmbeddedRoutes } from "../src/routes"
 
 let tempDir: string
@@ -90,7 +90,12 @@ beforeAll(() => {
 
 afterAll(() => {
   handler.dispose().catch(() => {})
-  rmSync(tempDir, { recursive: true, force: true })
+  closeDb(tempDir)
+  try {
+    rmSync(tempDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+  } catch {
+    // Windows ? SQLite ??????????????????????
+  }
 })
 
 describe("novel API e2e - happy path", () => {

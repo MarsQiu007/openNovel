@@ -1,9 +1,11 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test"
+import { eq } from "drizzle-orm"
 import { Effect } from "effect"
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import {
+  closeDb,
   getDb,
   NovelTable,
   ChapterTable,
@@ -25,6 +27,7 @@ import {
   rollbackChapter,
   listCharacters,
   getOutlineBundle,
+  updateOutline,
   listChapterReviews,
 } from "../src/handlers/novel"
 import { NovelNotFoundError, NovelValidationError, ChapterNotFoundError } from "@opennovel-ai/protocol/groups/novel"
@@ -93,7 +96,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  rmSync(tempDir, { recursive: true, force: true })
+  closeDb(tempDir)
+  try {
+    rmSync(tempDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+  } catch {
+    // Windows ? SQLite ??????????????????????
+  }
 })
 
 describe("novel handler - happy path", () => {
@@ -357,6 +365,41 @@ describe("novel handler - outline", () => {
 
     const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
     expect(bundle.master).toBe("# 总纲（插件生成）")
+  })
+
+  test("outline prefers database chapters and still returns them without files", async () => {
+    const db = getDb(tempDir)
+    const outline = "# Database Chapter"
+    db.update(ChapterTable).set({ outline }).where(eq(ChapterTable.id, chapterId1)).run()
+
+    const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
+    expect(bundle.chapters).toEqual([{ chapterId: "1", markdown: outline }])
+  })
+
+  test("outline imports legacy chapter files when database is empty", async () => {
+    const outlinesDir = join(tempDir, ".novel", "outlines")
+    mkdirSync(outlinesDir, { recursive: true })
+    writeFileSync(join(outlinesDir, "chapter-2.md"), "# Legacy Chapter 2")
+
+    const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
+    expect(bundle.chapters).toEqual([{ chapterId: "2", markdown: "# Legacy Chapter 2" }])
+
+    const db = getDb(tempDir)
+    const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId2)).get()
+    expect(chapter?.outline).toBe("# Legacy Chapter 2")
+  })
+
+  test("updating a chapter outline writes database and syncs markdown", async () => {
+    const markdown = "# UI Edited Chapter"
+    const bundle = await Effect.runPromise(
+      updateOutline(novelId, { section: "chapter", id: "1", markdown }, tempDir),
+    )
+    expect(bundle.chapters).toEqual([{ chapterId: "1", markdown }])
+    expect(readFileSync(join(tempDir, ".novel", "outlines", "chapter-1.md"), "utf-8")).toBe(markdown)
+
+    const db = getDb(tempDir)
+    const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId1)).get()
+    expect(chapter?.outline).toBe(markdown)
   })
 
   test("outline prefers master.md over master-outline.md when both exist", async () => {
