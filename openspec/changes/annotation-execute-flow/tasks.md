@@ -1,14 +1,14 @@
 ﻿## 1. 数据层（novel-store）
 
-- [x] 1.1 在 `CREATE_TABLES_SQL` 中新增 `annotation_execution_rounds` 表 DDL（id / novel_id / chapter_id / prompt_snapshot / result_summary / created_at），并在 Drizzle schema 定义 `AnnotationExecutionRoundTable`，验证 Drizzle 类型检查通过
-- [x] 1.2 在 `migrate.ts` 中添加迁移逻辑：`PRAGMA table_info(chapter_annotations)` 检查 `execution_round_id` 列不存在则 `ALTER TABLE ADD COLUMN`；同步在 Drizzle `ChapterAnnotationTable` 中声明该可空列
-- [x] 1.3 实现 `createExecutionRound` / `getExecutionRounds` / `updateAnnotationRound` 数据层函数并编写单元测试，在 `packages/novel-store` 运行 `bun test` 验证
+- [x] 1.1 在 `CREATE_TABLES_SQL` 中新增 `annotation_execution_rounds` 表 DDL（id / novel_id / chapter_id / prompt_snapshot / status / annotations_snapshot / result_summary / created_at），并在 Drizzle schema 定义 `AnnotationExecutionRoundTable`，验证 Drizzle 类型检查通过
+- [x] 1.2 在 `migrate.ts` 中添加迁移逻辑：`PRAGMA table_info(chapter_annotations)` 检查 `execution_round_id` 列不存在则 `ALTER TABLE ADD COLUMN`；`PRAGMA table_info(annotation_execution_rounds)` 检查并补 `status` / `annotations_snapshot`；同步在 Drizzle 中声明对应列
+- [x] 1.3 实现 `createExecutionRound` / `getExecutionRounds` / `updateExecutionRound` 数据层函数并编写单元测试，在 `packages/novel-store` 运行 `bun test` 验证
 
 ## 2. Schema 与协议（schema / protocol）
 
-- [x] 2.1 在 `packages/schema/src/novel.ts` 中新增 `ExecutionRound` schema（id / novelId / chapterId / promptSnapshot / resultSummary / createdAt）和 `CreateExecutionRoundInput` schema；在 `ChapterAnnotation` 中增加 `executionRoundId` 可选字段；在 `UpdateAnnotationInput` 中增加 `executionRoundId` 可选字段
-- [x] 2.2 在 `packages/protocol/src/groups/novel.ts` 中新增 `novel.create-execution-round`（POST）和 `novel.execution-rounds`（GET）端点定义
-- [x] 2.3 在 `packages/server/src/handlers/novel.ts` 中实现轮次 CRUD handler，并在 `update-annotation` handler 中支持传入 `executionRoundId`
+- [x] 2.1 在 `packages/schema/src/novel.ts` 中新增 `ExecutionRound`（含状态与批注快照）、`AnnotationExecutionSnapshot`、`CreateExecutionRoundInput` / `UpdateExecutionRoundInput` schema；在 `ChapterAnnotation` 中增加 `executionRoundId` 可选字段；在 `UpdateAnnotationInput` 中增加 `executionRoundId` 可选字段
+- [x] 2.2 在 `packages/protocol/src/groups/novel.ts` 中新增 `novel.create-execution-round`（POST）、`novel.update-execution-round`（PUT）和 `novel.execution-rounds`（GET）端点定义
+- [x] 2.3 在 `packages/server/src/handlers/novel.ts` 中实现轮次创建 / 查询 / 更新 handler，并在 `update-annotation` handler 中支持传入 `executionRoundId`
 - [x] 2.4 在 `packages/client` 运行 `bun run generate` 重新生成 SDK，在 `packages/schema` 运行 `bun typecheck` 验证
 
 ## 3. 纯逻辑与状态机（plugin）
@@ -29,9 +29,9 @@
 ## 5. 前端——执行与会话路由（app）
 
 - [x] 5.1 复用 `findBoundNovelSession` 查找该小说最近的绑定会话，不存在则通过 `createAndBindSession` 创建新会话，跳转并聚焦
-- [x] 5.2 点击"执行"后调用指令格式化函数生成 prompt，通过 `client.session.prompt()` 发送到目标会话
-- [x] 5.3 执行完成后调用服务端 API 创建轮次记录并通过 `updateAnnotation` 关联批注的 `executionRoundId`
-- [ ] 5.4 验证端到端流程：创建批注 → 标记全部 → 点击执行 → 跳转会话 → AI 收到结构化指令 → 批注出现在历史面板
+- [x] 5.2 点击"执行"后构造不可变批注快照、生成包含 `annotation_id` 的 prompt，通过 `client.session.prompt()` 发送到目标会话
+- [x] 5.3 执行前创建 `running` 轮次；指令发送并关联 `executionRoundId` 后更新为 `completed`，失败时更新为 `failed`
+- [x] 5.4 验证端到端流程：创建批注 → 标记全部 → 点击执行 → 跳转会话 → AI 收到结构化指令 → 批注出现在历史面板
 
 ## 6. 质量收尾
 

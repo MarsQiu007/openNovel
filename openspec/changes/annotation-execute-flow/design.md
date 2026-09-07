@@ -33,6 +33,7 @@
 
 - `POST novel.create-execution-round` — 创建轮次记录
 - `GET novel.execution-rounds` — 按章节查询轮次列表
+- `PUT novel.update-execution-round` — 更新轮次状态与结果摘要
 - `PUT novel.update-annotation` — 已有端点，`UpdateAnnotationInput` 增加 `executionRoundId` 可选字段用于关联批注到轮次
 
 **理由**：执行触发是 UI 概念（选择哪个会话、发什么 prompt），服务端不应介入。轮次数据是持久化实体，需要后端存储和查询，走 HttpApi。
@@ -41,7 +42,9 @@
 
 ### D2: 执行轮次使用新表而非批注表加字段
 
-新增 `annotation_execution_rounds` 表记录每轮执行（id / novel_id / chapter_id / prompt_snapshot / result_summary / created_at），批注表新增 `execution_round_id` 可空外键。
+新增 `annotation_execution_rounds` 表记录每轮执行（id / novel_id / chapter_id / prompt_snapshot / status / annotations_snapshot / result_summary / created_at），批注表新增 `execution_round_id` 可空外键。
+
+`annotations_snapshot` 存 JSON 数组，在创建轮次时固定；`status` 使用 `running` / `completed` / `failed` / `interrupted`。
 
 **理由**：轮次和批注是一对多关系。独立表支持后续扩展（如记录 AI 改稿前后的正文版本 hash）。
 
@@ -60,14 +63,17 @@
 ```
 请按以下批注修改第 X 章正文：
 
-## 需要应用替换的段落（采纳）
-- 段落 3：将「原文引用」替换为「建议替换文本」
+### 1
+- annotation_id: ann-1
+- paragraph_index: 3
+- paragraph_text: "完整段落原文"
+- selected_quote: "原文引用"
+- comment: "批注意见"
+- suggested_replacement: "建议替换文本"
 
-## 需要根据意见改写的段落（解决）
-- 段落 5：「批注意见」
-
-## 需要跳过的段落（不修）
-- 段落 7
+## 定位与修改规则
+1. 优先在 paragraph_index 指向的段落中精确匹配 selected_quote。
+2. 匹配失败时再在全文查找，仍不唯一则不猜测并说明未定位。
 ```
 
 **理由**：director prompt 已有"按批注重写"场景，结构化列表让 director 能精确分发到 reviser。比 JSON 可读，比纯自然语言不易歧义。
@@ -80,7 +86,7 @@
 
 ### D6: 数据库加列走 migrate.ts 模式
 
-`execution_round_id` 列的添加通过 `migrate.ts` 中的 `PRAGMA table_info(chapter_annotations)` 检查列是否存在，不存在则 `ALTER TABLE ... ADD COLUMN`。新表 `annotation_execution_rounds` 加入 `CREATE_TABLES_SQL`（使用 `CREATE TABLE IF NOT EXISTS`，对旧库自动跳过）。
+`execution_round_id` 列的添加通过 `migrate.ts` 中的 `PRAGMA table_info(chapter_annotations)` 检查列是否存在，不存在则 `ALTER TABLE ... ADD COLUMN`。旧 `annotation_execution_rounds` 表通过 `PRAGMA table_info` 补 `status` / `annotations_snapshot` 列；新表加入 `CREATE_TABLES_SQL`（使用 `CREATE TABLE IF NOT EXISTS`，对旧库自动跳过）。
 
 **理由**：`CREATE TABLE IF NOT EXISTS` 不会给已有表加列，必须走显式迁移。
 
@@ -95,7 +101,7 @@
 ## Migration Plan
 
 1. `novel-store` `CREATE_TABLES_SQL` 新增 `annotation_execution_rounds` 表（新库自动创建，旧库 `CREATE TABLE IF NOT EXISTS` 跳过）
-2. `migrate.ts` 新增迁移逻辑：`PRAGMA table_info(chapter_annotations)` 检查 `execution_round_id` 列，不存在则 `ALTER TABLE ... ADD COLUMN execution_round_id text`
+2. `migrate.ts` 新增迁移逻辑：`PRAGMA table_info` 分别为 `chapter_annotations` 补 `execution_round_id`，为旧 `annotation_execution_rounds` 补 `status` / `annotations_snapshot`
 3. 现有批注数据无需迁移——`execution_round_id` 为 NULL 表示"未关联轮次"（手动处理或迁移前数据）
 4. 前端逐步上线：先加执行按钮和历史面板 tab，再接会话跳转
 5. 回滚：新表和列不影响已有功能，前端隐藏执行按钮即可回退
