@@ -1,6 +1,15 @@
 import type { Page, Route } from "@playwright/test"
 
-const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff"])
+const emptyList = new Set([
+  "/skill",
+  "/command",
+  "/lsp",
+  "/formatter",
+  "/vcs/status",
+  "/vcs/diff",
+  "/api/novel",
+  "/api/novel/session-bindings",
+])
 const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
 
 export interface MockServerConfig {
@@ -95,6 +104,10 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
         },
         data: [],
       })
+    if (path === "/api/novel/session-bindings" || path === "/api/technique" || path.endsWith("/annotations")) {
+      return json(route, [])
+    }
+    if (path === "/api/sync/run") return json(route, { results: [] })
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
     if (path in staticRoutes) return json(route, staticRoutes[path])

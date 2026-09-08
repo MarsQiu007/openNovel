@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test"
 import { assistantMessage, setupTimeline, toolPart, userMessage } from "../performance/timeline-stability/fixture"
 
 for (const profile of [
-  { locale: "de", label: "Erkundet" },
-  { locale: "ar", label: "تم الاستكشاف" },
+  { locale: "zh", label: "已探索" },
+  { locale: "zht", label: "已探索" },
 ] as const) {
   test(`projects translated context status in ${profile.locale}`, async ({ page }) => {
     const ids = [`prt_locale_${profile.locale}_01_read`, `prt_locale_${profile.locale}_02_glob`]

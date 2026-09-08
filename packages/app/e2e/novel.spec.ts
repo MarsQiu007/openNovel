@@ -149,6 +149,7 @@ test.describe("novel journey", () => {
   test("completes full novel writing journey: bookshelf → wizard → workspace → reader → approval → editor → panels", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
     const errors = trackPageErrors(page)
 
     // Mock the standard OpenNovel server API
@@ -306,6 +307,10 @@ test.describe("novel journey", () => {
         })
       }
 
+      if (path === "/api/novel/session-bindings" || path.endsWith("/annotations")) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+      }
+
       // Default fallback — return empty JSON for unmatched novel API paths
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
     })
@@ -377,6 +382,9 @@ test.describe("novel journey", () => {
     // ════════════════════════════════════════════════
     // Step 4: Sidebar — verify chapter sidebar
     // ════════════════════════════════════════════════
+    // 当前宽度规则可能自动收起侧栏；先展开导航，再验证卷章列表。
+    await page.getByRole("button", { name: "Toggle nav" }).click()
+    await expect(page.getByRole("button", { name: "Toggle nav" })).toHaveAttribute("aria-expanded", "true")
     // Verify volume header
     await expect(page.getByText("第一卷")).toBeVisible()
     // Verify chapter titles in sidebar
@@ -433,6 +441,8 @@ test.describe("novel journey", () => {
     const readingTab = page.getByRole("button", { name: "Reading" })
     await readingTab.click()
     await page.waitForTimeout(500)
+    await page.getByRole("button", { name: "Toggle rail" }).click()
+    await expect(page.getByRole("button", { name: "Toggle rail" })).toHaveAttribute("aria-expanded", "true")
 
     // Panel: Characters tab (default)
     const charactersTab = page.getByRole("button", { name: "Characters" })
@@ -456,6 +466,7 @@ test.describe("novel journey", () => {
   })
 
   test("chat panel: lazy create from empty state and auto-adopt on reopen", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 })
     const errors = trackPageErrors(page)
     const workspaceURL = `/${base64Encode(directory)}/novel/${novelID}`
 
@@ -511,6 +522,10 @@ test.describe("novel journey", () => {
           path === `/api/novel/${novelID}/world-entries` || path === `/api/novel/${novelID}/character-states`)
       )
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+
+      if (path === "/api/novel/session-bindings" || path.endsWith("/annotations")) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+      }
 
       // 其余 novel API 返回空 JSON
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })

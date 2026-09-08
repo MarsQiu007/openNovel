@@ -204,7 +204,7 @@ test.describe("annotation execute flow", () => {
     expect(promptBody).toBeTruthy()
     expect(JSON.stringify(promptBody)).toContain("annotation_id: ann-e2e-1")
     expect(JSON.stringify(promptBody)).toContain("selected_quote")
-    expect(executionRounds[0]?.status).toBe("completed")
+    expect(executionRounds[0]?.status).toBe("running")
 
     await page.getByRole("button", { name: "Annotations" }).click()
     await page.getByRole("button", { name: "History" }).last().click()

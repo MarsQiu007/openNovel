@@ -145,6 +145,9 @@ async function setupMocks(page: Page) {
         body: JSON.stringify(ch ?? mockChapters[0]),
       })
     }
+    if (path === "/api/novel/session-bindings" || path.endsWith("/annotations")) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+    }
     if (path === `/api/novel/${novelID}/volumes`) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mockVolumes) })
     }

@@ -55,6 +55,7 @@ async function setupNovelMocks(page: import("@playwright/test").Page) {
     const method = route.request().method()
     const json = (body: unknown) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) })
+    if (path === "/api/novel/session-bindings" || path.endsWith("/annotations")) return json([])
 
     if (method === "GET" && path === "/api/novel") return json([mockNovel])
     if (path === `/api/novel/${novelID}`) return json(mockNovel)

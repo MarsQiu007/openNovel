@@ -160,6 +160,10 @@ test.describe("novel-live", () => {
         })
       }
 
+      if (path === "/api/novel/session-bindings" || path.endsWith("/annotations")) {
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
+      }
+
       // for-session: /api/novel/:novelID/for-session/:sessionID
       if (path.includes("/for-session/")) {
         return route.fulfill({
@@ -176,7 +180,7 @@ test.describe("novel-live", () => {
     await page.goto(`/${base64Encode(directory)}/novel/${novelID}`)
 
     // Wait for the novel title to appear — confirms the page and data hooks loaded
-    await expect(page.getByText("实时刷新测试小说")).toBeVisible({ timeout: APP_READY_TIMEOUT })
+    await expect(page.getByRole("heading", { name: "实时刷新测试小说" })).toBeVisible({ timeout: APP_READY_TIMEOUT })
 
     // Verify chapter sidebar renders with both chapters
     await expect(page.getByText("第一章")).toBeVisible({ timeout: 10_000 })
@@ -209,7 +213,7 @@ test.describe("novel-live", () => {
     await page.goto(`/${base64Encode(directory)}/novel/${novelID}`)
 
     // Should show error state, not crash
-    await expect(page.getByText(/Back to Bookshelf/)).toBeVisible({ timeout: APP_READY_TIMEOUT })
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible({ timeout: APP_READY_TIMEOUT })
     expect(
       errors.filter((e) => !e.includes("ExperimentalWarning") && !e.includes("Failed to load resource")),
     ).toHaveLength(0)

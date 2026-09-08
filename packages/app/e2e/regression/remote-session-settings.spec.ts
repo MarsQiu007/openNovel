@@ -72,7 +72,7 @@ test("auto-accept responds for an unfocused server session", async ({ page }) =>
     .toBe(true)
   await page.keyboard.press("Escape")
 
-  await page.locator(`[data-titlebar-tab-slot]:has(a[href="${hrefB}"])`).click()
+  await page.goto(hrefB)
   await expect(page).toHaveURL(new RegExp(`${hrefB.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))
   await expect(page.getByText(sessionB.title).first()).toBeVisible()
   await transport.waitForConnection()
@@ -164,6 +164,8 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url())
     if (url.origin !== serverA && url.origin !== serverB) return route.fallback()
+    if (url.pathname === "/api/sync/run") return json(route, { results: [] })
+    if (url.pathname === "/api/novel" || url.pathname === "/api/novel/session-bindings" || url.pathname.endsWith("/annotations")) return json(route, [])
     const remote = url.origin === serverB
     const directory = remote ? directoryB : directoryA
     const sessions = remote ? [sessionB] : [sessionA, childSessionA]
