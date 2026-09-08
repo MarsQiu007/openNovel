@@ -1,11 +1,12 @@
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Effect } from "effect"
+import os from "os"
 import path from "path"
 
 const preserveExerciseGlobalRoot = !!process.env.OPENNOVEL_HTTPAPI_EXERCISE_GLOBAL
 export const exerciseGlobalRoot =
   process.env.OPENNOVEL_HTTPAPI_EXERCISE_GLOBAL ??
-  path.join(process.env.TMPDIR ?? "/tmp", `opennovel-httpapi-global-${process.pid}`)
+  path.join(process.env.TMPDIR ?? os.tmpdir(), `opennovel-httpapi-global-${process.pid}-${crypto.randomUUID()}`)
 process.env.XDG_DATA_HOME = path.join(exerciseGlobalRoot, "data")
 process.env.XDG_CONFIG_HOME = path.join(exerciseGlobalRoot, "config")
 process.env.XDG_STATE_HOME = path.join(exerciseGlobalRoot, "state")
@@ -17,7 +18,7 @@ export const exerciseDataDirectory = path.join(exerciseGlobalRoot, "data", "open
 const preserveExerciseDatabase = !!process.env.OPENNOVEL_HTTPAPI_EXERCISE_DB
 export const exerciseDatabasePath =
   process.env.OPENNOVEL_HTTPAPI_EXERCISE_DB ??
-  path.join(process.env.TMPDIR ?? "/tmp", `opennovel-httpapi-exercise-${process.pid}.db`)
+  path.join(process.env.TMPDIR ?? os.tmpdir(), `opennovel-httpapi-exercise-${process.pid}-${crypto.randomUUID()}.db`)
 process.env.OPENNOVEL_DB = exerciseDatabasePath
 Flag.OPENNOVEL_DB = exerciseDatabasePath
 

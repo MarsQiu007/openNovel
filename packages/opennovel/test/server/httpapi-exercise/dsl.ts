@@ -203,8 +203,8 @@ export function route(template: string, params: Record<string, string>) {
 
 export function controlledPtyInput(title: string | undefined) {
   return {
-    command: "/bin/sh",
-    args: ["-c", "sleep 30"],
+    command: process.execPath,
+    args: ["-e", "setTimeout(() => {}, 30000)"],
     ...(title ? { title } : {}),
   }
 }

@@ -157,7 +157,20 @@ const scenarios: Scenario[] = [
     .at((ctx) => ({ path: "/vcs/apply", headers: ctx.headers(), body: { patch: "" } }))
     .status(400, undefined, "status"),
   http.protected.get("/command", "command.list").json(200, array, "status"),
-  http.protected.get("/agent", "app.agents").json(200, array, "status"),
+  http.protected.get("/agent", "app.agents").json(
+    200,
+    (body) => {
+      array(body)
+      const agents = body
+        .map((item) => (isRecord(item) ? item.name : undefined))
+        .filter((name): name is string => typeof name === "string")
+      check(agents[0] === "director", "novel-writer plugin should make director the default agent")
+      check(agents.includes("director"), "novel-writer plugin should register director")
+      check(!agents.includes("build"), "novel-writer plugin should disable the build agent")
+      check(!agents.includes("plan"), "novel-writer plugin should disable the plan agent")
+    },
+    "status",
+  ),
   http.protected.get("/skill", "app.skills").json(200, array, "status"),
   http.protected.get("/lsp", "lsp.status").json(200, array),
   http.protected.get("/formatter", "formatter.status").json(200, array),
@@ -459,7 +472,7 @@ const scenarios: Scenario[] = [
       (body, ctx) => {
         object(body)
         check(body.title === "HTTP API PTY", "PTY create should return requested title")
-        check(body.command === "/bin/sh", "PTY create should use controlled shell command")
+        check(body.command === process.execPath, "PTY create should use controlled shell command")
         check(body.cwd === ctx.directory, "PTY create should default cwd to scenario directory")
       },
       "status",
@@ -1470,7 +1483,7 @@ const scenarios: Scenario[] = [
       path: route("/session/{sessionID}/message", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
       body: {
-        agent: "build",
+        agent: "director",
         model: { providerID: "test", modelID: "test-model" },
         parts: [{ type: "text", text: "hello llm" }],
       },
@@ -1481,6 +1494,7 @@ const scenarios: Scenario[] = [
         Effect.gen(function* () {
           object(body)
           check(isRecord(body.info) && body.info.role === "assistant", "prompt should return assistant message")
+          check(isRecord(body.info) && body.info.agent === "director", "prompt should honor the requested plugin agent")
           check(
             Array.isArray(body.parts) && body.parts.some((part) => isRecord(part) && part.text === "fake assistant"),
             "assistant message should use fake LLM text",
@@ -1505,7 +1519,7 @@ const scenarios: Scenario[] = [
       path: route("/session/{sessionID}/prompt_async", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
       body: {
-        agent: "build",
+        agent: "director",
         model: { providerID: "test", modelID: "test-model" },
         parts: [{ type: "text", text: "hello async" }],
       },
@@ -1538,6 +1552,7 @@ const scenarios: Scenario[] = [
         Effect.gen(function* () {
           object(body)
           check(isRecord(body.info) && body.info.role === "assistant", "command should return assistant message")
+          check(isRecord(body.info) && body.info.agent === "director", "command should use the plugin default agent")
           yield* ctx.llmWait(1)
         }),
       "status",
@@ -1550,13 +1565,14 @@ const scenarios: Scenario[] = [
     .at((ctx) => ({
       path: route("/session/{sessionID}/shell", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
-      body: { agent: "build", model: { providerID: "test", modelID: "test-model" }, command: "printf shell-ok" },
+      body: { agent: "director", model: { providerID: "test", modelID: "test-model" }, command: "printf shell-ok" },
     }))
     .json(
       200,
       (body) => {
         object(body)
         check(isRecord(body.info) && body.info.role === "assistant", "shell should return assistant message")
+        check(isRecord(body.info) && body.info.agent === "director", "shell should honor the requested plugin agent")
         check(
           Array.isArray(body.parts) && body.parts.some((part) => isRecord(part) && part.type === "tool"),
           "shell should return a tool part",
@@ -1817,13 +1833,14 @@ function seedCharacterState(ctx: ScenarioContext) {
   return Effect.orDie(
     Effect.gen(function* () {
       const state = yield* seedCharacter(ctx)
+      const chapter = yield* createChapterEndpoint(state.novelID, { title: "角色状态章节" }, novelDirectory(ctx))
       const entry = yield* createCharacterStateEndpoint(
         state.novelID,
         state.characterID,
-        { place: "青云门" },
+        { chapterId: chapter.id, place: "青云门" },
         novelDirectory(ctx),
       )
-      return { ...state, stateID: entry.id }
+      return { ...state, chapterID: chapter.id, stateID: entry.id }
     }),
   )
 }
@@ -2171,16 +2188,27 @@ function novelScenarios(): Scenario[] {
       .json(200, isObject),
     http.protected
       .post("/api/novel/{novelID}/characters/{characterID}/states", "novel.create-character-state")
-      .seeded((ctx) => seedCharacter(ctx))
+      .seeded((ctx) =>
+        Effect.orDie(
+          Effect.gen(function* () {
+            const state = yield* seedCharacter(ctx)
+            const chapter = yield* createChapterEndpoint(state.novelID, { title: "状态章节" }, novelDirectory(ctx))
+            return { ...state, chapterID: chapter.id }
+          }),
+        ),
+      )
       .at((ctx) => ({
         path: route("/api/novel/{novelID}/characters/{characterID}/states", {
           novelID: ctx.state.novelID,
           characterID: ctx.state.characterID,
         }),
         headers: jsonHeaders(ctx),
-        body: { place: "青云门" },
+        body: { chapterId: ctx.state.chapterID, place: "青云门" },
       }))
-      .json(200, isObject),
+      .json(200, (body, ctx) => {
+        object(body)
+        check(body.chapterId === ctx.state.chapterID, "character state should bind to its chapter")
+      }),
     http.protected
       .post("/api/novel/{novelID}/foreshadowing", "novel.create-foreshadowing")
       .seeded((ctx) => seedNovel(ctx))

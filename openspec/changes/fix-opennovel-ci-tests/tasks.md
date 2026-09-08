@@ -26,3 +26,10 @@
 - [x] 5.1 在 `packages/opennovel` 运行完整 `bun run test`，确认 0 失败。
 - [x] 5.2 在 `packages/opennovel` 运行 `bun typecheck`。
 - [x] 5.3 运行 `openspec validate fix-opennovel-ci-tests`。
+
+## 6. HttpApi 运行时契约补齐
+
+- [x] 6.1 HttpApi exerciser 保持默认插件启用，session 场景改用 director 并断言插件 agent 契约。
+- [x] 6.2 将 `character_states.chapter_id` 公共契约与存储层改为必填，重新生成客户端。
+- [x] 6.3 修复 HttpApi exerciser 的 Windows 临时目录与 PTY 跨平台问题。
+- [x] 6.4 运行 HttpApi 目标场景、coverage/auth/effect 全门禁、typecheck 与 OpenSpec 校验。

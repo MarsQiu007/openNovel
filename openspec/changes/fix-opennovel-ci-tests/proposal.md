@@ -9,7 +9,9 @@
 - **prompt 测试隔离**：内置 novel-writer 插件会注册写作 agent 并禁用 build/plan，导致通用 session prompt 测试找不到 build agent。测试 RuntimeFlags 显式禁用默认插件，使这些测试回到自己的最小环境。
 - **MCP instruction timeout**：`loop includes MCP instructions in model system context` 在 10s 内未收到 MCP instruction 请求即超时。延长等待或 mock MCP instruction 流程。
 - **其他测试更新**：同步 agent 权限、模型回退、CLI 错误文案、brew tap 名称、压缩/监听测试、Windows 路径变体和 ACP/serve 子进程启动行为；内置旧插件包名也要加入 deprecated 过滤。
-- 除将重命名后的内置旧插件包名纳入 deprecated 过滤外，不修改其他产品运行时代码行为。
+- **HttpApi 运行时契约**：HttpApi exerciser 保持默认插件启用，按 novel-writer 实际注册的 director agent 演练 session 路由，并断言 build/plan 被禁用；`character_states.chapter_id` 与数据库语义统一为必填公共契约。
+- **演练跨平台路径**：临时目录统一使用 `os.tmpdir()`，避免 Windows 上 `/tmp` 因当前盘符被 git 子进程解析到不同驱动器；PTY 场景改用运行时可执行文件，不再硬编码 `/bin/sh`。
+- 除将重命名后的内置旧插件包名纳入 deprecated 过滤外，运行时代码只同步 character state 的既有数据库约束，不引入新的业务行为。
 
 ## Capabilities
 
@@ -24,6 +26,6 @@
 ## Impact
 
 - 影响 `packages/opennovel` 的测试文件、fixture 录制文件、以及可能的少量测试辅助代码。
-- 不影响 `packages/core`、`packages/novel-store`、`packages/plugin` 等其他包。
-- 不修改数据库 schema、HTTP API 契约或用户数据格式。
+- 会同步 `packages/schema`、`packages/server`、`packages/novel-store`、`packages/client` 生成物和角色状态面板中与必填章节绑定相关的最小改动。
+- `character_states` 数据库表本来就要求 `chapter_id NOT NULL`，本次只把公共 API 契约与存储层对齐；旧 novel-store 表通过数据迁移对齐。
 - 不新增、不升级依赖。
