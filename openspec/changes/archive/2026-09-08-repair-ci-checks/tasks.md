@@ -34,9 +34,9 @@
 
 - [x] 6.1 按影响范围拆分 Conventional Commits，每个非 merge commit 绑定 `OpenSpec-Change: repair-ci-checks`，并通过 `git log --format=%B` 检查 footer。
 - [x] 6.2 在 OpenSpec 中记录实现提交，运行完成度审查并确认所有任务完成。
-- [ ] 6.3 归档 `repair-ci-checks`，同步规格状态为 skipped/无规格变更的事实，并通过 `openspec validate` 验证归档产物。
-- [ ] 6.4 将提案分支合并到 `main`，删除本地提案分支，并推送 `main`。
-- [ ] 6.5 推送后观察 `generate`、`typecheck`、`test` 三条 GitHub Actions；若有失败，区分本提案回归与新问题并先修复本提案回归。
+- [x] 6.3 归档 `repair-ci-checks`，同步规格状态为 skipped/无规格变更的事实，并通过 `openspec validate` 验证归档产物。
+- [x] 6.4 将提案分支合并到 `main`，删除本地提案分支，并推送 `main`。
+- [x] 6.5 推送后观察 `generate`、`typecheck`、`test` 三条 GitHub Actions；若有失败，区分本提案回归与新问题并先修复本提案回归。
 
 ## Implementation Commits
 
