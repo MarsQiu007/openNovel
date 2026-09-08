@@ -52,6 +52,17 @@ it.instance("subagent permissions take precedence over parent agent restrictions
     expect(Permission.evaluate("edit", "/some/file.ts", effective).action).not.toBe("deny")
     expect(Permission.disabled(["edit", "write", "apply_patch"], effective)).toEqual(new Set())
   }),
+  {
+    config: {
+      agent: {
+        general: {
+          permission: {
+            edit: "allow",
+          },
+        },
+      },
+    },
+  },
 )
 
 it.instance("subagent's own read-only restriction remains effective", () =>

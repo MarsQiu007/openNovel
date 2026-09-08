@@ -95,14 +95,13 @@ describe("HttpApi compression", () => {
     })
 
     test("when the response body is below the 1024-byte threshold", async () => {
-      // A bare config produces a tiny response (~few hundred bytes).
-      await using tmp = await tmpdir({ config: { formatter: false, lsp: false } })
-      const response = await app().request("/config", {
-        headers: { "x-opennovel-directory": tmp.path, "accept-encoding": "gzip" },
+      // /global/health is a small JSON response, so it stays below the threshold.
+      const response = await app().request("/global/health", {
+        headers: { "accept-encoding": "gzip" },
       })
       expect(response.status).toBe(200)
-      const body = new Uint8Array(await response.arrayBuffer())
-      expect(body.byteLength).toBeLessThan(1024)
+      const body = await response.text()
+      expect(new TextEncoder().encode(body).byteLength).toBeLessThan(1024)
       expect(response.headers.get("content-encoding")).toBeNull()
     })
 

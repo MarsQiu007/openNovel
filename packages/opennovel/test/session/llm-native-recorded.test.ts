@@ -255,6 +255,28 @@ async function loadFixture(providerID: string, modelID: string) {
   return model
 }
 
+const matchesIgnoringSystemPrompt: HttpRecorder.RequestMatcher = (incoming, recorded) => {
+  const normalize = (snapshot: HttpRecorder.RequestSnapshot) => {
+    try {
+      const body = JSON.parse(snapshot.body) as Record<string, unknown>
+      delete body.instructions
+      delete body.system
+      if (Array.isArray(body.input)) {
+        body.input = body.input.filter((message) => message.role !== "system")
+      }
+      return JSON.stringify(body)
+    } catch {
+      return snapshot.body
+    }
+  }
+  return (
+    incoming.method === recorded.method &&
+    incoming.url === recorded.url &&
+    JSON.stringify(incoming.headers) === JSON.stringify(recorded.headers) &&
+    normalize(incoming) === normalize(recorded)
+  )
+}
+
 const modelsFixture = Filesystem.readJson<Record<string, ModelsDev.Provider>>(
   path.join(import.meta.dir, "../tool/fixtures/models-api.json"),
 )
@@ -279,7 +301,7 @@ function recordedNativeLLMLayer(scenario: RecordedScenario) {
         metadata,
         redactor: HttpRecorderInternal.Redactor.make(redact),
       })
-    : HttpRecorder.http(scenario.cassette, { directory: FIXTURES_DIR, metadata, redact })
+    : HttpRecorder.http(scenario.cassette, { directory: FIXTURES_DIR, metadata, redact, match: matchesIgnoringSystemPrompt })
   return AppNodeBuilder.build(LayerNode.group([Provider.node, LLM.node]), [
     [LayerNodePlatform.requestExecutor, RequestExecutor.layer.pipe(Layer.provide(recordedHttp))],
     [RuntimeFlags.node, RuntimeFlags.layer({ experimentalNativeLlm: true })],

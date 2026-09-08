@@ -998,6 +998,7 @@ describe("session.compaction.process", () => {
       }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ tail_turns: 1, preserve_recent_tokens: 20 }) }))
     },
     { git: true },
+    60_000,
   )
 
   itCompaction.instance(

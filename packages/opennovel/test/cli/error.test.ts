@@ -73,8 +73,8 @@ describe("cli.error", () => {
     const expected = [
       "Model not found: anthropic/claude-sonet-4",
       "Did you mean: claude-sonnet-4",
-      "Try: `opennovel models` to list available models",
-      "Or check your config (opennovel.json) provider/model names",
+      "尝试: `opennovel models` 列出可用模型",
+      "或检查配置文件中 provider/model 名称 (opennovel.json)",
     ].join("\n")
 
     expect(FormatError({ name: "ProviderModelNotFoundError", data })).toBe(expected)

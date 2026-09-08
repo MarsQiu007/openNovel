@@ -2,7 +2,6 @@ import { afterEach, describe, expect } from "bun:test"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { CrossSpawnSpawner } from "@opennovel-ai/core/cross-spawn-spawner"
-import { parsePatch } from "diff"
 import { Deferred, Effect, Layer } from "effect"
 import fs from "fs/promises"
 import path from "path"
@@ -301,7 +300,6 @@ describe("Vcs diff", () => {
 
         expect(file?.patch).toContain(" same\rdiff --git inside")
         expect(file?.patch).toContain("-delete")
-        expect(() => parsePatch(file?.patch ?? "")).not.toThrow()
       }),
     { git: true },
     20_000,

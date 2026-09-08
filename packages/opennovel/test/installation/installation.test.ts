@@ -149,7 +149,7 @@ describe("installation", () => {
         () => jsonResponse({ versions: { stable: "2.0.0" } }),
         (cmd, args) => {
           // getBrewFormula: return core formula (no tap)
-          if (cmd === "brew" && args.includes("--formula") && args.includes("anomalyco/tap/opennovel")) return ""
+          if (cmd === "brew" && args.includes("--formula") && args.includes("MarsQiu007/homebrew-tap/opennovel")) return ""
           if (cmd === "brew" && args.includes("--formula") && args.includes("opennovel")) return "opennovel"
           return ""
         },
@@ -168,7 +168,7 @@ describe("installation", () => {
       testLayer(
         () => jsonResponse({}), // HTTP not used for tap formula
         (cmd, args) => {
-          if (cmd === "brew" && args.includes("anomalyco/tap/opennovel") && args.includes("--formula"))
+          if (cmd === "brew" && args.includes("MarsQiu007/homebrew-tap/opennovel") && args.includes("--formula"))
             return "opennovel"
           if (cmd === "brew" && args.includes("--json=v2")) return brewInfoJson
           return ""

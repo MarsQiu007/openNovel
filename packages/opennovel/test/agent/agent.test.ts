@@ -64,8 +64,8 @@ it.instance("build agent has correct default properties", () =>
     expect(build).toBeDefined()
     expect(build?.mode).toBe("primary")
     expect(build?.native).toBe(true)
-    expect(evalPerm(build, "edit")).toBe("allow")
-    expect(evalPerm(build, "bash")).toBe("allow")
+    expect(evalPerm(build, "edit")).toBe("deny")
+    expect(evalPerm(build, "bash")).toBe("deny")
   }),
 )
 
@@ -263,8 +263,8 @@ it.instance(
       expect(build).toBeDefined()
       // Specific pattern is denied
       expect(Permission.evaluate("bash", "rm -rf *", build!.permission).action).toBe("deny")
-      // Edit still allowed
-      expect(evalPerm(build, "edit")).toBe("allow")
+      // 其他编辑权限保持默认拒绝
+      expect(evalPerm(build, "edit")).toBe("deny")
     }),
   {
     config: {
@@ -474,10 +474,10 @@ it.instance("default permission includes doom_loop and external_directory as ask
   }),
 )
 
-it.instance("webfetch is allowed by default", () =>
+it.instance("webfetch is denied by default", () =>
   Effect.gen(function* () {
     const build = yield* load((svc) => svc.get("build"))
-    expect(evalPerm(build, "webfetch")).toBe("allow")
+    expect(evalPerm(build, "webfetch")).toBe("deny")
   }),
 )
 
