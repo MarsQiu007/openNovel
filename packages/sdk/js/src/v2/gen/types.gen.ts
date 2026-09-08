@@ -2985,6 +2985,22 @@ export type NovelModeError = {
   }
 }
 
+export type TechniqueValidationError = {
+  name: "TechniqueValidationError"
+  data: {
+    message: string
+    techniqueId?: string
+  }
+}
+
+export type TechniqueNotFoundError = {
+  name: "TechniqueNotFoundError"
+  data: {
+    message: string
+    techniqueId?: string
+  }
+}
+
 export type SyncErrorResponse = {
   name: "SyncErrorResponse"
   data: {
@@ -6372,9 +6388,14 @@ export type NovelOutlineUpdateInput = {
   markdown: string
 }
 
+export type NovelExportFormat = "markdown" | "epub" | "txt"
+
+export type NovelExportEncoding = "utf8" | "base64"
+
 export type NovelNovelExport = {
   filename: string
   content: string
+  encoding?: NovelExportEncoding
 }
 
 export type NovelCreateVolumeInput = {
@@ -6482,6 +6503,54 @@ export type NovelTensionPoint = {
   createdAt: number
 }
 
+export type NovelAiChapterSummary = {
+  chapterId: string
+  chapterOrder: number
+  title: string
+  summary: string
+  keyEvents: Array<string>
+}
+
+export type NovelAiHookRecord = {
+  id: string
+  hookType: string
+  chapterId: string
+  chapterOrder: number
+  createdAt: number
+}
+
+export type NovelAiHookRotation = {
+  records: Array<NovelAiHookRecord>
+  counts: {
+    [key: string]: number
+  }
+  warning: string
+}
+
+export type NovelAiVolumeSummary = {
+  volumeId: string
+  volumeOrder: number
+  volumeTitle: string
+  summary: string
+  charActive: Array<string>
+  charDormant: Array<string>
+  threadsOpen: Array<string>
+  threadsClosed: Array<string>
+}
+
+export type NovelAiSegmentSummary = {
+  startChapter: number
+  endChapter: number
+  summary: string
+}
+
+export type NovelAiArtifacts = {
+  chapterSummaries: Array<NovelAiChapterSummary>
+  hookRotation: NovelAiHookRotation
+  volumeSummaries: Array<NovelAiVolumeSummary>
+  segmentSummaries: Array<NovelAiSegmentSummary>
+}
+
 export type NovelBindSessionInput = {
   sessionID: string
 }
@@ -6556,6 +6625,233 @@ export type NovelUpdateWorldEntryInput = {
   content?: string
 }
 
+export type NovelStoryArc = {
+  id: string
+  novelId: string
+  arcType: "narrative" | "character" | "subplot"
+  title: string
+  summary: string
+  status: "planned" | "active" | "completed" | "abandoned"
+  targetCharacterId?: string
+  plannedStartChapter?: number
+  plannedEndChapter?: number
+  actualStartChapter?: number
+  actualEndChapter?: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelArcBeat = {
+  id: string
+  novelId: string
+  arcId: string
+  chapterId?: string
+  chapterOrder?: number
+  label: string
+  kind: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  summary: string
+  status: "planned" | "drafted" | "reviewed"
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelStructureEditorData = {
+  volumes: Array<NovelVolume>
+  chapters: Array<NovelChapter>
+  arcs: Array<NovelStoryArc>
+  beats: Array<NovelArcBeat>
+  threads: Array<NovelPlotThread>
+  foreshadowing: Array<NovelForeshadowing>
+  characters: Array<NovelCharacter>
+}
+
+export type NovelCreateStoryArcInput = {
+  arcType: "narrative" | "character" | "subplot"
+  title: string
+  summary?: string
+  status?: "planned" | "active" | "completed" | "abandoned"
+  targetCharacterId?: string
+  plannedStartChapter?: number
+  plannedEndChapter?: number
+}
+
+export type NovelUpdateStoryArcInput = {
+  title?: string
+  summary?: string
+  status?: "planned" | "active" | "completed" | "abandoned"
+  arcType?: "narrative" | "character" | "subplot"
+  targetCharacterId?: string
+  plannedStartChapter?: number
+  plannedEndChapter?: number
+  actualStartChapter?: number
+  actualEndChapter?: number
+}
+
+export type NovelCreateArcBeatInput = {
+  arcId: string
+  chapterId?: string
+  chapterOrder?: number
+  label: string
+  kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  summary?: string
+}
+
+export type NovelUpdateArcBeatInput = {
+  label?: string
+  kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
+  summary?: string
+  status?: "planned" | "drafted" | "reviewed"
+  chapterId?: string
+  chapterOrder?: number
+}
+
+export type NovelVolumeReview = {
+  id: string
+  novelId: string
+  volumeId: string
+  round: number
+  overall: string
+  score?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  strengths: Array<string>
+  weaknesses: Array<string>
+  structure: unknown
+  characterArcs: Array<unknown>
+  openThreads: Array<string>
+  recommendations: Array<string>
+  createdAt: number
+}
+
+export type NovelCreateVolumeReviewInput = {
+  overall: string
+  score?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  strengths?: Array<string>
+  weaknesses?: Array<string>
+  structure?: unknown
+  characterArcs?: Array<unknown>
+  openThreads?: Array<string>
+  recommendations?: Array<string>
+}
+
+export type NovelEditorialReport = {
+  id: string
+  novelId: string
+  scopeType: string
+  scopeId?: string
+  summary: string
+  risks: Array<unknown>
+  recommendations: Array<string>
+  createdAt: number
+}
+
+export type NovelCreateEditorialReportInput = {
+  scopeType?: string
+  scopeId?: string
+  summary?: string
+  risks?: Array<unknown>
+  recommendations?: Array<string>
+}
+
+export type NovelChapterAnnotation = {
+  id: string
+  novelId: string
+  chapterId: string
+  parentId?: string
+  source: "user" | "ai"
+  anchorType: "paragraph" | "range" | "chapter"
+  paragraphIndex?: number
+  startOffset?: number
+  endOffset?: number
+  quote: string
+  comment: string
+  suggestedReplacement?: string
+  status: "open" | "resolved" | "wontfix" | "applied"
+  authorSessionId?: string
+  executionRoundId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelCreateAnnotationInput = {
+  source?: "user" | "ai"
+  anchorType?: "paragraph" | "range" | "chapter"
+  paragraphIndex?: number
+  startOffset?: number
+  endOffset?: number
+  quote?: string
+  comment: string
+  suggestedReplacement?: string
+}
+
+export type NovelUpdateAnnotationInput = {
+  comment?: string
+  status?: "open" | "resolved" | "wontfix" | "applied"
+  suggestedReplacement?: string
+  quote?: string
+  executionRoundId?: string
+}
+
+export type NovelAnnotationExecutionSnapshot = {
+  id: string
+  paragraphIndex?: number
+  startOffset?: number
+  endOffset?: number
+  quote: string
+  status: "open" | "resolved" | "wontfix" | "applied"
+  comment: string
+  suggestedReplacement?: string
+}
+
+export type NovelCreateExecutionRoundInput = {
+  novelId: string
+  chapterId: string
+  promptSnapshot?: string
+  status?: "running" | "completed" | "failed" | "interrupted"
+  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
+  resultSummary?: string
+}
+
+export type NovelExecutionRound = {
+  id: string
+  novelId: string
+  chapterId: string
+  promptSnapshot: string
+  status: "running" | "completed" | "failed" | "interrupted"
+  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
+  resultSummary: string
+  chapterVersionId?: string
+  createdAt: number
+}
+
+export type NovelUpdateExecutionRoundInput = {
+  status?: "running" | "completed" | "failed" | "interrupted"
+  resultSummary?: string
+  chapterVersionId?: string
+  promptSnapshot?: string
+}
+
+export type NovelCanvasLayout = {
+  columns: Array<{
+    id: string
+    x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    width: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }>
+  cards: Array<{
+    id: string
+    x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    columnId?: string
+  }>
+  viewport?: {
+    x: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    y: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    zoom: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type NovelUpsertCanvasLayoutInput = {
+  layout: NovelCanvasLayout
+}
+
 export type NovelWritingMode = "auto" | "review"
 
 export type NovelSetupMode = "interactive" | "auto"
@@ -6568,6 +6864,75 @@ export type NovelNovelMode = {
 export type NovelNovelModePatch = {
   writing_mode?: NovelWritingMode
   setup_mode?: NovelSetupMode
+}
+
+export type NovelTechniqueLevel = "paragraph" | "sentence" | "dialogue" | "description" | "transition"
+
+export type NovelTechniqueEvidence = {
+  sourceTitle: string
+  sourceLocation: string
+  excerpt: string
+  annotation: string
+}
+
+export type NovelTechniqueStatus = "unverified" | "verified" | "shadow" | "archived"
+
+export type NovelTechnique = {
+  id: string
+  name: string
+  principle: string
+  instruction: string
+  sceneTypes: Array<string>
+  level: NovelTechniqueLevel
+  evidence: Array<NovelTechniqueEvidence>
+  commonMisuse: string
+  confidence: number
+  status: NovelTechniqueStatus
+  usageCount: number
+  lastUsedAt?: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelCreateTechniqueInput = {
+  name: string
+  instruction: string
+  principle?: string
+  sceneTypes?: Array<string>
+  level?: NovelTechniqueLevel
+  evidence?: Array<NovelTechniqueEvidence>
+  commonMisuse?: string
+  status?: NovelTechniqueStatus
+}
+
+export type NovelTechniqueInjection = {
+  enabled: boolean
+}
+
+export type NovelTechniqueFeedback = {
+  id: string
+  techniqueId: string
+  chapterId: string
+  score: number
+  wasUsed: boolean
+  comment: string
+  createdAt: number
+}
+
+export type NovelTechniqueDetail = {
+  technique: NovelTechnique
+  feedbacks: Array<NovelTechniqueFeedback>
+}
+
+export type NovelUpdateTechniqueInput = {
+  name?: string
+  principle?: string
+  instruction?: string
+  sceneTypes?: Array<string>
+  level?: NovelTechniqueLevel
+  evidence?: Array<NovelTechniqueEvidence>
+  commonMisuse?: string
+  status?: NovelTechniqueStatus
 }
 
 export type SyncConnection = {
@@ -15246,6 +15611,7 @@ export type V2NovelExportData = {
     novelID: string
   }
   query?: {
+    format?: NovelExportFormat
     location?: {
       directory?: string
       workspace?: string
@@ -16107,6 +16473,46 @@ export type V2NovelCreateTensionResponses = {
 
 export type V2NovelCreateTensionResponse = V2NovelCreateTensionResponses[keyof V2NovelCreateTensionResponses]
 
+export type V2NovelAiArtifactsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/ai-artifacts"
+}
+
+export type V2NovelAiArtifactsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelAiArtifactsError = V2NovelAiArtifactsErrors[keyof V2NovelAiArtifactsErrors]
+
+export type V2NovelAiArtifactsResponses = {
+  /**
+   * Novel.AiArtifacts
+   */
+  200: NovelAiArtifacts
+}
+
+export type V2NovelAiArtifactsResponse = V2NovelAiArtifactsResponses[keyof V2NovelAiArtifactsResponses]
+
 export type V2NovelBindData = {
   body: NovelBindSessionInput
   path: {
@@ -16569,6 +16975,915 @@ export type V2NovelUpdateWorldEntryResponses = {
 
 export type V2NovelUpdateWorldEntryResponse = V2NovelUpdateWorldEntryResponses[keyof V2NovelUpdateWorldEntryResponses]
 
+export type V2NovelStructureData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/structure"
+}
+
+export type V2NovelStructureErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelStructureError = V2NovelStructureErrors[keyof V2NovelStructureErrors]
+
+export type V2NovelStructureResponses = {
+  /**
+   * Novel.StructureEditorData
+   */
+  200: NovelStructureEditorData
+}
+
+export type V2NovelStructureResponse = V2NovelStructureResponses[keyof V2NovelStructureResponses]
+
+export type V2NovelArcsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/arcs"
+}
+
+export type V2NovelArcsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelArcsError = V2NovelArcsErrors[keyof V2NovelArcsErrors]
+
+export type V2NovelArcsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelStoryArc>
+}
+
+export type V2NovelArcsResponse = V2NovelArcsResponses[keyof V2NovelArcsResponses]
+
+export type V2NovelCreateArcData = {
+  body: NovelCreateStoryArcInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/arcs"
+}
+
+export type V2NovelCreateArcErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateArcError = V2NovelCreateArcErrors[keyof V2NovelCreateArcErrors]
+
+export type V2NovelCreateArcResponses = {
+  /**
+   * Novel.StoryArc
+   */
+  200: NovelStoryArc
+}
+
+export type V2NovelCreateArcResponse = V2NovelCreateArcResponses[keyof V2NovelCreateArcResponses]
+
+export type V2NovelDeleteArcData = {
+  body?: never
+  path: {
+    novelID: string
+    arcID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/arcs/{arcID}"
+}
+
+export type V2NovelDeleteArcErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelDeleteArcError = V2NovelDeleteArcErrors[keyof V2NovelDeleteArcErrors]
+
+export type V2NovelDeleteArcResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteArcResponse = V2NovelDeleteArcResponses[keyof V2NovelDeleteArcResponses]
+
+export type V2NovelUpdateArcData = {
+  body: NovelUpdateStoryArcInput
+  path: {
+    novelID: string
+    arcID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/arcs/{arcID}"
+}
+
+export type V2NovelUpdateArcErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateArcError = V2NovelUpdateArcErrors[keyof V2NovelUpdateArcErrors]
+
+export type V2NovelUpdateArcResponses = {
+  /**
+   * Novel.StoryArc
+   */
+  200: NovelStoryArc
+}
+
+export type V2NovelUpdateArcResponse = V2NovelUpdateArcResponses[keyof V2NovelUpdateArcResponses]
+
+export type V2NovelArcBeatsData = {
+  body?: never
+  path: {
+    novelID: string
+    arcID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/arcs/{arcID}/beats"
+}
+
+export type V2NovelArcBeatsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelArcBeatsError = V2NovelArcBeatsErrors[keyof V2NovelArcBeatsErrors]
+
+export type V2NovelArcBeatsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelArcBeat>
+}
+
+export type V2NovelArcBeatsResponse = V2NovelArcBeatsResponses[keyof V2NovelArcBeatsResponses]
+
+export type V2NovelCreateBeatData = {
+  body: NovelCreateArcBeatInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/beats"
+}
+
+export type V2NovelCreateBeatErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateBeatError = V2NovelCreateBeatErrors[keyof V2NovelCreateBeatErrors]
+
+export type V2NovelCreateBeatResponses = {
+  /**
+   * Novel.ArcBeat
+   */
+  200: NovelArcBeat
+}
+
+export type V2NovelCreateBeatResponse = V2NovelCreateBeatResponses[keyof V2NovelCreateBeatResponses]
+
+export type V2NovelDeleteBeatData = {
+  body?: never
+  path: {
+    novelID: string
+    beatID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/beats/{beatID}"
+}
+
+export type V2NovelDeleteBeatErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelDeleteBeatError = V2NovelDeleteBeatErrors[keyof V2NovelDeleteBeatErrors]
+
+export type V2NovelDeleteBeatResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteBeatResponse = V2NovelDeleteBeatResponses[keyof V2NovelDeleteBeatResponses]
+
+export type V2NovelUpdateBeatData = {
+  body: NovelUpdateArcBeatInput
+  path: {
+    novelID: string
+    beatID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/beats/{beatID}"
+}
+
+export type V2NovelUpdateBeatErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateBeatError = V2NovelUpdateBeatErrors[keyof V2NovelUpdateBeatErrors]
+
+export type V2NovelUpdateBeatResponses = {
+  /**
+   * Novel.ArcBeat
+   */
+  200: NovelArcBeat
+}
+
+export type V2NovelUpdateBeatResponse = V2NovelUpdateBeatResponses[keyof V2NovelUpdateBeatResponses]
+
+export type V2NovelVolumeReviewsData = {
+  body?: never
+  path: {
+    novelID: string
+    volumeID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/volumes/{volumeID}/reviews"
+}
+
+export type V2NovelVolumeReviewsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelVolumeReviewsError = V2NovelVolumeReviewsErrors[keyof V2NovelVolumeReviewsErrors]
+
+export type V2NovelVolumeReviewsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelVolumeReview>
+}
+
+export type V2NovelVolumeReviewsResponse = V2NovelVolumeReviewsResponses[keyof V2NovelVolumeReviewsResponses]
+
+export type V2NovelCreateVolumeReviewData = {
+  body: NovelCreateVolumeReviewInput
+  path: {
+    novelID: string
+    volumeID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/volumes/{volumeID}/reviews"
+}
+
+export type V2NovelCreateVolumeReviewErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateVolumeReviewError = V2NovelCreateVolumeReviewErrors[keyof V2NovelCreateVolumeReviewErrors]
+
+export type V2NovelCreateVolumeReviewResponses = {
+  /**
+   * Novel.VolumeReview
+   */
+  200: NovelVolumeReview
+}
+
+export type V2NovelCreateVolumeReviewResponse =
+  V2NovelCreateVolumeReviewResponses[keyof V2NovelCreateVolumeReviewResponses]
+
+export type V2NovelEditorialReportsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/editorial-reports"
+}
+
+export type V2NovelEditorialReportsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelEditorialReportsError = V2NovelEditorialReportsErrors[keyof V2NovelEditorialReportsErrors]
+
+export type V2NovelEditorialReportsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelEditorialReport>
+}
+
+export type V2NovelEditorialReportsResponse = V2NovelEditorialReportsResponses[keyof V2NovelEditorialReportsResponses]
+
+export type V2NovelCreateEditorialReportData = {
+  body: NovelCreateEditorialReportInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/editorial-reports"
+}
+
+export type V2NovelCreateEditorialReportErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateEditorialReportError =
+  V2NovelCreateEditorialReportErrors[keyof V2NovelCreateEditorialReportErrors]
+
+export type V2NovelCreateEditorialReportResponses = {
+  /**
+   * Novel.EditorialReport
+   */
+  200: NovelEditorialReport
+}
+
+export type V2NovelCreateEditorialReportResponse =
+  V2NovelCreateEditorialReportResponses[keyof V2NovelCreateEditorialReportResponses]
+
+export type V2NovelAnnotationsData = {
+  body?: never
+  path: {
+    novelID: string
+    chapterID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/chapters/{chapterID}/annotations"
+}
+
+export type V2NovelAnnotationsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelAnnotationsError = V2NovelAnnotationsErrors[keyof V2NovelAnnotationsErrors]
+
+export type V2NovelAnnotationsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelChapterAnnotation>
+}
+
+export type V2NovelAnnotationsResponse = V2NovelAnnotationsResponses[keyof V2NovelAnnotationsResponses]
+
+export type V2NovelCreateAnnotationData = {
+  body: NovelCreateAnnotationInput
+  path: {
+    novelID: string
+    chapterID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/chapters/{chapterID}/annotations"
+}
+
+export type V2NovelCreateAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateAnnotationError = V2NovelCreateAnnotationErrors[keyof V2NovelCreateAnnotationErrors]
+
+export type V2NovelCreateAnnotationResponses = {
+  /**
+   * Novel.ChapterAnnotation
+   */
+  200: NovelChapterAnnotation
+}
+
+export type V2NovelCreateAnnotationResponse = V2NovelCreateAnnotationResponses[keyof V2NovelCreateAnnotationResponses]
+
+export type V2NovelDeleteAnnotationData = {
+  body?: never
+  path: {
+    novelID: string
+    annotationID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/annotations/{annotationID}"
+}
+
+export type V2NovelDeleteAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelDeleteAnnotationError = V2NovelDeleteAnnotationErrors[keyof V2NovelDeleteAnnotationErrors]
+
+export type V2NovelDeleteAnnotationResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteAnnotationResponse = V2NovelDeleteAnnotationResponses[keyof V2NovelDeleteAnnotationResponses]
+
+export type V2NovelUpdateAnnotationData = {
+  body: NovelUpdateAnnotationInput
+  path: {
+    novelID: string
+    annotationID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/annotations/{annotationID}"
+}
+
+export type V2NovelUpdateAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateAnnotationError = V2NovelUpdateAnnotationErrors[keyof V2NovelUpdateAnnotationErrors]
+
+export type V2NovelUpdateAnnotationResponses = {
+  /**
+   * Novel.ChapterAnnotation
+   */
+  200: NovelChapterAnnotation
+}
+
+export type V2NovelUpdateAnnotationResponse = V2NovelUpdateAnnotationResponses[keyof V2NovelUpdateAnnotationResponses]
+
+export type V2NovelExecutionRoundsData = {
+  body?: never
+  path: {
+    novelID: string
+    chapterID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds"
+}
+
+export type V2NovelExecutionRoundsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelExecutionRoundsError = V2NovelExecutionRoundsErrors[keyof V2NovelExecutionRoundsErrors]
+
+export type V2NovelExecutionRoundsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelExecutionRound>
+}
+
+export type V2NovelExecutionRoundsResponse = V2NovelExecutionRoundsResponses[keyof V2NovelExecutionRoundsResponses]
+
+export type V2NovelCreateExecutionRoundData = {
+  body: NovelCreateExecutionRoundInput
+  path: {
+    novelID: string
+    chapterID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds"
+}
+
+export type V2NovelCreateExecutionRoundErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateExecutionRoundError =
+  V2NovelCreateExecutionRoundErrors[keyof V2NovelCreateExecutionRoundErrors]
+
+export type V2NovelCreateExecutionRoundResponses = {
+  /**
+   * Novel.ExecutionRound
+   */
+  200: NovelExecutionRound
+}
+
+export type V2NovelCreateExecutionRoundResponse =
+  V2NovelCreateExecutionRoundResponses[keyof V2NovelCreateExecutionRoundResponses]
+
+export type V2NovelUpdateExecutionRoundData = {
+  body: NovelUpdateExecutionRoundInput
+  path: {
+    novelID: string
+    chapterID: string
+    roundID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}"
+}
+
+export type V2NovelUpdateExecutionRoundErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateExecutionRoundError =
+  V2NovelUpdateExecutionRoundErrors[keyof V2NovelUpdateExecutionRoundErrors]
+
+export type V2NovelUpdateExecutionRoundResponses = {
+  /**
+   * Novel.ExecutionRound
+   */
+  200: NovelExecutionRound
+}
+
+export type V2NovelUpdateExecutionRoundResponse =
+  V2NovelUpdateExecutionRoundResponses[keyof V2NovelUpdateExecutionRoundResponses]
+
+export type V2NovelCanvasLayoutData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/canvas-layout"
+}
+
+export type V2NovelCanvasLayoutErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCanvasLayoutError = V2NovelCanvasLayoutErrors[keyof V2NovelCanvasLayoutErrors]
+
+export type V2NovelCanvasLayoutResponses = {
+  /**
+   * Success
+   */
+  200: NovelCanvasLayout
+}
+
+export type V2NovelCanvasLayoutResponse = V2NovelCanvasLayoutResponses[keyof V2NovelCanvasLayoutResponses]
+
+export type V2NovelUpsertCanvasLayoutData = {
+  body: NovelUpsertCanvasLayoutInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/canvas-layout"
+}
+
+export type V2NovelUpsertCanvasLayoutErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpsertCanvasLayoutError = V2NovelUpsertCanvasLayoutErrors[keyof V2NovelUpsertCanvasLayoutErrors]
+
+export type V2NovelUpsertCanvasLayoutResponses = {
+  /**
+   * Novel.CanvasLayout
+   */
+  200: NovelCanvasLayout
+}
+
+export type V2NovelUpsertCanvasLayoutResponse =
+  V2NovelUpsertCanvasLayoutResponses[keyof V2NovelUpsertCanvasLayoutResponses]
+
 export type V2NovelModeGetData = {
   body?: never
   path?: never
@@ -16636,6 +17951,264 @@ export type V2NovelModeSetResponses = {
 }
 
 export type V2NovelModeSetResponse = V2NovelModeSetResponses[keyof V2NovelModeSetResponses]
+
+export type V2TechniqueListData = {
+  body?: never
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques"
+}
+
+export type V2TechniqueListErrors = {
+  /**
+   * TechniqueValidationError | InvalidRequestError
+   */
+  400: TechniqueValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2TechniqueListError = V2TechniqueListErrors[keyof V2TechniqueListErrors]
+
+export type V2TechniqueListResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelTechnique>
+}
+
+export type V2TechniqueListResponse = V2TechniqueListResponses[keyof V2TechniqueListResponses]
+
+export type V2TechniqueCreateData = {
+  body: NovelCreateTechniqueInput
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques"
+}
+
+export type V2TechniqueCreateErrors = {
+  /**
+   * TechniqueValidationError | InvalidRequestError
+   */
+  400: TechniqueValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2TechniqueCreateError = V2TechniqueCreateErrors[keyof V2TechniqueCreateErrors]
+
+export type V2TechniqueCreateResponses = {
+  /**
+   * Novel.Technique
+   */
+  200: NovelTechnique
+}
+
+export type V2TechniqueCreateResponse = V2TechniqueCreateResponses[keyof V2TechniqueCreateResponses]
+
+export type V2TechniqueConfigGetData = {
+  body?: never
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques/config"
+}
+
+export type V2TechniqueConfigGetErrors = {
+  /**
+   * TechniqueValidationError | InvalidRequestError
+   */
+  400: TechniqueValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2TechniqueConfigGetError = V2TechniqueConfigGetErrors[keyof V2TechniqueConfigGetErrors]
+
+export type V2TechniqueConfigGetResponses = {
+  /**
+   * 项目级技法注入开关；false 表示保持 shadow 模式
+   */
+  200: NovelTechniqueInjection
+}
+
+export type V2TechniqueConfigGetResponse = V2TechniqueConfigGetResponses[keyof V2TechniqueConfigGetResponses]
+
+export type V2TechniqueConfigSetData = {
+  body: NovelTechniqueInjection
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques/config"
+}
+
+export type V2TechniqueConfigSetErrors = {
+  /**
+   * TechniqueValidationError | InvalidRequestError
+   */
+  400: TechniqueValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2TechniqueConfigSetError = V2TechniqueConfigSetErrors[keyof V2TechniqueConfigSetErrors]
+
+export type V2TechniqueConfigSetResponses = {
+  /**
+   * 项目级技法注入开关；false 表示保持 shadow 模式
+   */
+  200: NovelTechniqueInjection
+}
+
+export type V2TechniqueConfigSetResponse = V2TechniqueConfigSetResponses[keyof V2TechniqueConfigSetResponses]
+
+export type V2TechniqueDeleteData = {
+  body?: never
+  path: {
+    techniqueID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques/{techniqueID}"
+}
+
+export type V2TechniqueDeleteErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * TechniqueNotFoundError
+   */
+  404: TechniqueNotFoundError
+}
+
+export type V2TechniqueDeleteError = V2TechniqueDeleteErrors[keyof V2TechniqueDeleteErrors]
+
+export type V2TechniqueDeleteResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2TechniqueDeleteResponse = V2TechniqueDeleteResponses[keyof V2TechniqueDeleteResponses]
+
+export type V2TechniqueDetailData = {
+  body?: never
+  path: {
+    techniqueID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques/{techniqueID}"
+}
+
+export type V2TechniqueDetailErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * TechniqueNotFoundError
+   */
+  404: TechniqueNotFoundError
+}
+
+export type V2TechniqueDetailError = V2TechniqueDetailErrors[keyof V2TechniqueDetailErrors]
+
+export type V2TechniqueDetailResponses = {
+  /**
+   * Novel.TechniqueDetail
+   */
+  200: NovelTechniqueDetail
+}
+
+export type V2TechniqueDetailResponse = V2TechniqueDetailResponses[keyof V2TechniqueDetailResponses]
+
+export type V2TechniqueUpdateData = {
+  body: NovelUpdateTechniqueInput
+  path: {
+    techniqueID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/techniques/{techniqueID}"
+}
+
+export type V2TechniqueUpdateErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * TechniqueNotFoundError
+   */
+  404: TechniqueNotFoundError
+}
+
+export type V2TechniqueUpdateError = V2TechniqueUpdateErrors[keyof V2TechniqueUpdateErrors]
+
+export type V2TechniqueUpdateResponses = {
+  /**
+   * Novel.Technique
+   */
+  200: NovelTechnique
+}
+
+export type V2TechniqueUpdateResponse = V2TechniqueUpdateResponses[keyof V2TechniqueUpdateResponses]
 
 export type V2SyncStatusData = {
   body?: never

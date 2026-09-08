@@ -15415,6 +15415,84 @@
         ]
       }
     },
+    "/api/novel/session-bindings": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.session-bindings",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelSessionBinding"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List all session-to-novel bindings in a directory. Declared before /:novelID to avoid route swallowing.",
+        "summary": "List session-novel bindings",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.session-bindings({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}": {
       "get": {
         "tags": ["novel"],
@@ -17759,6 +17837,14 @@
             "required": true
           },
           {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NovelExportFormat"
+            },
+            "required": false
+          },
+          {
             "name": "location",
             "in": "query",
             "schema": {
@@ -19284,6 +19370,184 @@
         ]
       }
     },
+    "/api/novel/{novelID}/soul": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.soul",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.Soul",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelSoul"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get novel soul",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.soul({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-soul",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.Soul",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelSoul"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update novel soul",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateSoulInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-soul({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}/search": {
       "get": {
         "tags": ["novel"],
@@ -19558,6 +19822,92 @@
           {
             "lang": "js",
             "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-tension({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/ai-artifacts": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.ai-artifacts",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.AiArtifacts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelAiArtifacts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List read-only chapter summaries, hook rotation, volume summaries, and segment summaries.",
+        "summary": "Get AI artifacts",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.ai-artifacts({\n  ...\n})"
           }
         ]
       }
@@ -20659,6 +21009,3393 @@
           {
             "lang": "js",
             "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.delete-world-entry({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/structure": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.structure",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.StructureEditorData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelStructureEditorData"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get structure editor data",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.structure({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/arcs": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.arcs",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelStoryArc"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List story arcs",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.arcs({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-arc",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.StoryArc",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelStoryArc"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create story arc",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateStoryArcInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-arc({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/arcs/{arcID}": {
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-arc",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "arcID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.StoryArc",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelStoryArc"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update story arc",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateStoryArcInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-arc({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.delete-arc",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "arcID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete story arc",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.delete-arc({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/arcs/{arcID}/beats": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.arc-beats",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "arcID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelArcBeat"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List arc beats",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.arc-beats({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/beats": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-beat",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ArcBeat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelArcBeat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create arc beat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateArcBeatInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-beat({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/beats/{beatID}": {
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-beat",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "beatID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ArcBeat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelArcBeat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update arc beat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateArcBeatInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-beat({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.delete-beat",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "beatID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete arc beat",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.delete-beat({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/volumes/{volumeID}/reviews": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.volume-reviews",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "volumeID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelVolumeReview"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List volume reviews",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.volume-reviews({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-volume-review",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "volumeID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.VolumeReview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelVolumeReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create volume review",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateVolumeReviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-volume-review({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/editorial-reports": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.editorial-reports",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelEditorialReport"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List editorial reports",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.editorial-reports({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-editorial-report",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.EditorialReport",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelEditorialReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create editorial report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateEditorialReportInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-editorial-report({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/chapters/{chapterID}/annotations": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.annotations",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "chapterID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelChapterAnnotation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List chapter annotations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.annotations({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "chapterID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ChapterAnnotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelChapterAnnotation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create annotation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateAnnotationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-annotation({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/annotations/{annotationID}": {
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "annotationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ChapterAnnotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelChapterAnnotation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update annotation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateAnnotationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-annotation({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.delete-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "annotationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete annotation",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.delete-annotation({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-execution-round",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "chapterID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ExecutionRound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelExecutionRound"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create execution round",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateExecutionRoundInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-execution-round({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.execution-rounds",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "chapterID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelExecutionRound"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List execution rounds",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.execution-rounds({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}": {
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-execution-round",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "chapterID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "roundID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ExecutionRound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelExecutionRound"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update execution round",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateExecutionRoundInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-execution-round({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/canvas-layout": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.canvas-layout",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelCanvasLayout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get canvas layout",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.canvas-layout({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.upsert-canvas-layout",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.CanvasLayout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelCanvasLayout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Upsert canvas layout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpsertCanvasLayoutInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upsert-canvas-layout({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/mode": {
+      "get": {
+        "tags": ["novelMode"],
+        "operationId": "v2.novelMode.get",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "项目级写作模式与初始化模式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNovelMode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelModeError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelModeError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "读取 .novel/config.json 中的 writing_mode / setup_mode；文件不存在时返回默认值。",
+        "summary": "读取项目写作模式",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novelMode.get({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["novelMode"],
+        "operationId": "v2.novelMode.set",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "项目级写作模式与初始化模式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNovelMode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelModeError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelModeError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "PATCH 语义：仅修改入参中显式给出的字段，其余字段保持原值。",
+        "summary": "更新项目写作模式",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelNovelModePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novelMode.set({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/techniques": {
+      "get": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.list",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelTechnique"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TechniqueValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TechniqueValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "列出项目技法库中的全部技法，返回顺序按置信度和更新时间排序。",
+        "summary": "列出技法",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.list({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.create",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.Technique",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelTechnique"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TechniqueValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TechniqueValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "人工创建技法；未显式给出的字段使用默认值。",
+        "summary": "创建技法",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateTechniqueInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.create({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/techniques/config": {
+      "get": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.config.get",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "项目级技法注入开关；false 表示保持 shadow 模式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelTechniqueInjection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TechniqueValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TechniqueValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "读取项目级 technique_injection；缺失或非法值视为关闭。",
+        "summary": "读取技法注入开关",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.config.get({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.config.set",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "项目级技法注入开关；false 表示保持 shadow 模式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelTechniqueInjection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TechniqueValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TechniqueValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "只更新 .novel/config.json 中的 technique_injection 字段。",
+        "summary": "更新技法注入开关",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelTechniqueInjection"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.config.set({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/techniques/{techniqueID}": {
+      "get": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.detail",
+        "parameters": [
+          {
+            "name": "techniqueID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.TechniqueDetail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelTechniqueDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "TechniqueNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechniqueNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "获取单条技法内容和反馈记录。",
+        "summary": "技法详情",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.detail({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.update",
+        "parameters": [
+          {
+            "name": "techniqueID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.Technique",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelTechnique"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "TechniqueNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechniqueNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "PATCH 语义更新技法；confidence 和使用统计由既有闭环维护。",
+        "summary": "更新技法",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateTechniqueInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.update({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["technique"],
+        "operationId": "v2.technique.delete",
+        "parameters": [
+          {
+            "name": "techniqueID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "TechniqueNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechniqueNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "删除技法及其反馈记录。",
+        "summary": "删除技法",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.technique.delete({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/status": {
+      "get": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.status",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.LibraryStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLibraryStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Get the library-level cloud sync status for the configured root directory.",
+        "summary": "Get sync status",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.status({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/connection/test": {
+      "post": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.connection.test",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.TestResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Test a WebDAV connection without saving it.",
+        "summary": "Test connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncConnectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.connection.test({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/connection": {
+      "put": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.connection.save",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.LibraryStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLibraryStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Test, then persist the cloud drive connection. The password goes to the credential store.",
+        "summary": "Save connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncConnectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.connection.save({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.connection.remove",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.LibraryStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLibraryStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove the cloud drive connection and credential.",
+        "summary": "Remove connection",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.connection.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/root": {
+      "put": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.root.set",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.LibraryStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLibraryStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Set the local working root directory. Every non-hidden subdirectory containing .novel/ is a synced project.",
+        "summary": "Set root directory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRootInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.root.set({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/run": {
+      "post": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.run",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.RunOutput",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRunOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Sync the whole library: newer content wins on both directions; ambiguous cases come back as decisions.",
+        "summary": "Sync now",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.run({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/sync/resolve": {
+      "post": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.sync.resolve",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Sync.LibraryStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncLibraryStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "SyncErrorResponse | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Execute a single decision item (keep local/remote/both, confirm deletions, or skip).",
+        "summary": "Resolve decision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncResolveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.sync.resolve({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/soul/global": {
+      "get": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.soul.global",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Soul.Global",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulGlobal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get global soul",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.soul.global({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["opennovel HttpApi"],
+        "operationId": "v2.soul.update-global",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Soul.Global",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulGlobal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update global soul",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoulUpdateGlobalInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.soul.update-global({\n  ...\n})"
           }
         ]
       }
@@ -26055,6 +29792,30 @@
         "additionalProperties": false,
         "description": "Server configuration for opennovel serve and web commands"
       },
+      "OutputLanguage": {
+        "type": "string",
+        "enum": [
+          "off",
+          "en",
+          "zh",
+          "zht",
+          "ko",
+          "de",
+          "es",
+          "fr",
+          "da",
+          "ja",
+          "pl",
+          "ru",
+          "uk",
+          "ar",
+          "no",
+          "br",
+          "th",
+          "bs",
+          "tr"
+        ]
+      },
       "PermissionActionConfig": {
         "type": "string",
         "enum": ["ask", "allow", "deny"]
@@ -26764,6 +30525,15 @@
           },
           "username": {
             "type": "string"
+          },
+          "general": {
+            "type": "object",
+            "properties": {
+              "outputLanguage": {
+                "$ref": "#/components/schemas/OutputLanguage"
+              }
+            },
+            "additionalProperties": false
           },
           "mode": {
             "type": "object",
@@ -29853,6 +33623,99 @@
                 "type": "string"
               },
               "chapterId": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "NovelModeError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["NovelModeError"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "TechniqueValidationError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["TechniqueValidationError"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "techniqueId": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "TechniqueNotFoundError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["TechniqueNotFoundError"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "techniqueId": {
+                "type": "string"
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
+        "additionalProperties": false
+      },
+      "SyncErrorResponse": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["SyncErrorResponse"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "code": {
                 "type": "string"
               }
             },
@@ -39420,6 +43283,22 @@
         "required": ["title", "genre", "synopsis"],
         "additionalProperties": false
       },
+      "NovelSessionBinding": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string"
+          },
+          "novelID": {
+            "type": "string"
+          },
+          "novelTitle": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionID", "novelID", "novelTitle"],
+        "additionalProperties": false
+      },
       "NovelStyleGuide": {
         "type": "object",
         "properties": {
@@ -39763,11 +43642,14 @@
           "description": {
             "type": "string"
           },
+          "status": {
+            "type": "string"
+          },
           "createdAt": {
             "type": "integer"
           }
         },
-        "required": ["id", "novelId", "name", "role", "description", "createdAt"],
+        "required": ["id", "novelId", "name", "role", "description", "status", "createdAt"],
         "additionalProperties": false
       },
       "NovelPlotThread": {
@@ -39913,6 +43795,14 @@
         "required": ["section", "markdown"],
         "additionalProperties": false
       },
+      "NovelExportFormat": {
+        "type": "string",
+        "enum": ["markdown", "epub", "txt"]
+      },
+      "NovelExportEncoding": {
+        "type": "string",
+        "enum": ["utf8", "base64"]
+      },
       "NovelNovelExport": {
         "type": "object",
         "properties": {
@@ -39921,6 +43811,9 @@
           },
           "content": {
             "type": "string"
+          },
+          "encoding": {
+            "$ref": "#/components/schemas/NovelExportEncoding"
           }
         },
         "required": ["filename", "content"],
@@ -40129,6 +44022,35 @@
         },
         "additionalProperties": false
       },
+      "NovelSoul": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "novelId", "content", "updatedAt"],
+        "additionalProperties": false
+      },
+      "NovelUpdateSoulInput": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": ["content"],
+        "additionalProperties": false
+      },
       "NovelNovelSearchResult": {
         "type": "object",
         "properties": {
@@ -40192,6 +44114,177 @@
           }
         },
         "required": ["id", "novelId", "chapterNumber", "level", "createdAt"],
+        "additionalProperties": false
+      },
+      "NovelAiChapterSummary": {
+        "type": "object",
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "keyEvents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["chapterId", "chapterOrder", "title", "summary", "keyEvents"],
+        "additionalProperties": false
+      },
+      "NovelAiHookRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "hookType": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "hookType", "chapterId", "chapterOrder", "createdAt"],
+        "additionalProperties": false
+      },
+      "NovelAiHookRotation": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAiHookRecord"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "warning": {
+            "type": "string"
+          }
+        },
+        "required": ["records", "counts", "warning"],
+        "additionalProperties": false
+      },
+      "NovelAiVolumeSummary": {
+        "type": "object",
+        "properties": {
+          "volumeId": {
+            "type": "string"
+          },
+          "volumeOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "volumeTitle": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "charActive": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "charDormant": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "threadsOpen": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "threadsClosed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "volumeId",
+          "volumeOrder",
+          "volumeTitle",
+          "summary",
+          "charActive",
+          "charDormant",
+          "threadsOpen",
+          "threadsClosed"
+        ],
+        "additionalProperties": false
+      },
+      "NovelAiSegmentSummary": {
+        "type": "object",
+        "properties": {
+          "startChapter": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endChapter": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["startChapter", "endChapter", "summary"],
+        "additionalProperties": false
+      },
+      "NovelAiArtifacts": {
+        "type": "object",
+        "properties": {
+          "chapterSummaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAiChapterSummary"
+            }
+          },
+          "hookRotation": {
+            "$ref": "#/components/schemas/NovelAiHookRotation"
+          },
+          "volumeSummaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAiVolumeSummary"
+            }
+          },
+          "segmentSummaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAiSegmentSummary"
+            }
+          }
+        },
+        "required": ["chapterSummaries", "hookRotation", "volumeSummaries", "segmentSummaries"],
         "additionalProperties": false
       },
       "NovelBindSessionInput": {
@@ -40263,6 +44356,9 @@
             "type": "string"
           },
           "description": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -40422,6 +44518,1541 @@
             "type": "string"
           }
         },
+        "additionalProperties": false
+      },
+      "NovelStoryArc": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "arcType": {
+            "type": "string",
+            "enum": ["narrative", "character", "subplot"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "active", "completed", "abandoned"]
+          },
+          "targetCharacterId": {
+            "type": "string"
+          },
+          "plannedStartChapter": {
+            "type": "integer"
+          },
+          "plannedEndChapter": {
+            "type": "integer"
+          },
+          "actualStartChapter": {
+            "type": "integer"
+          },
+          "actualEndChapter": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "novelId", "arcType", "title", "summary", "status", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      },
+      "NovelArcBeat": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "arcId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "drafted", "reviewed"]
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "novelId", "arcId", "label", "kind", "summary", "status", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      },
+      "NovelStructureEditorData": {
+        "type": "object",
+        "properties": {
+          "volumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelVolume"
+            }
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelChapter"
+            }
+          },
+          "arcs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelStoryArc"
+            }
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelArcBeat"
+            }
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelPlotThread"
+            }
+          },
+          "foreshadowing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelForeshadowing"
+            }
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelCharacter"
+            }
+          }
+        },
+        "required": ["volumes", "chapters", "arcs", "beats", "threads", "foreshadowing", "characters"],
+        "additionalProperties": false
+      },
+      "NovelCreateStoryArcInput": {
+        "type": "object",
+        "properties": {
+          "arcType": {
+            "type": "string",
+            "enum": ["narrative", "character", "subplot"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "active", "completed", "abandoned"]
+          },
+          "targetCharacterId": {
+            "type": "string"
+          },
+          "plannedStartChapter": {
+            "type": "integer"
+          },
+          "plannedEndChapter": {
+            "type": "integer"
+          }
+        },
+        "required": ["arcType", "title"],
+        "additionalProperties": false
+      },
+      "NovelUpdateStoryArcInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "active", "completed", "abandoned"]
+          },
+          "arcType": {
+            "type": "string",
+            "enum": ["narrative", "character", "subplot"]
+          },
+          "targetCharacterId": {
+            "type": "string"
+          },
+          "plannedStartChapter": {
+            "type": "integer"
+          },
+          "plannedEndChapter": {
+            "type": "integer"
+          },
+          "actualStartChapter": {
+            "type": "integer"
+          },
+          "actualEndChapter": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelCreateArcBeatInput": {
+        "type": "object",
+        "properties": {
+          "arcId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"]
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["arcId", "label"],
+        "additionalProperties": false
+      },
+      "NovelUpdateArcBeatInput": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["setup", "rising", "turn", "midpoint", "crisis", "climax", "resolution", "note"]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "drafted", "reviewed"]
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterOrder": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelVolumeReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "volumeId": {
+            "type": "string"
+          },
+          "round": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "overall": {
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "strengths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weaknesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "structure": {},
+          "characterArcs": {
+            "type": "array"
+          },
+          "openThreads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "novelId",
+          "volumeId",
+          "round",
+          "overall",
+          "strengths",
+          "weaknesses",
+          "structure",
+          "characterArcs",
+          "openThreads",
+          "recommendations",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelCreateVolumeReviewInput": {
+        "type": "object",
+        "properties": {
+          "overall": {
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "strengths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weaknesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "structure": {},
+          "characterArcs": {
+            "type": "array"
+          },
+          "openThreads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["overall"],
+        "additionalProperties": false
+      },
+      "NovelEditorialReport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "risks": {
+            "type": "array"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "novelId", "scopeType", "summary", "risks", "recommendations", "createdAt"],
+        "additionalProperties": false
+      },
+      "NovelCreateEditorialReportInput": {
+        "type": "object",
+        "properties": {
+          "scopeType": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "risks": {
+            "type": "array"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelChapterAnnotation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["user", "ai"]
+          },
+          "anchorType": {
+            "type": "string",
+            "enum": ["paragraph", "range", "chapter"]
+          },
+          "paragraphIndex": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "resolved", "wontfix", "applied"]
+          },
+          "authorSessionId": {
+            "type": "string"
+          },
+          "executionRoundId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "novelId",
+          "chapterId",
+          "source",
+          "anchorType",
+          "quote",
+          "comment",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelCreateAnnotationInput": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["user", "ai"]
+          },
+          "anchorType": {
+            "type": "string",
+            "enum": ["paragraph", "range", "chapter"]
+          },
+          "paragraphIndex": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          }
+        },
+        "required": ["comment"],
+        "additionalProperties": false
+      },
+      "NovelUpdateAnnotationInput": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "resolved", "wontfix", "applied"]
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "executionRoundId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelAnnotationExecutionSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "paragraphIndex": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "resolved", "wontfix", "applied"]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "quote", "status", "comment"],
+        "additionalProperties": false
+      },
+      "NovelCreateExecutionRoundInput": {
+        "type": "object",
+        "properties": {
+          "novelId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "promptSnapshot": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "annotationsSnapshot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAnnotationExecutionSnapshot"
+            }
+          },
+          "resultSummary": {
+            "type": "string"
+          }
+        },
+        "required": ["novelId", "chapterId", "annotationsSnapshot"],
+        "additionalProperties": false
+      },
+      "NovelExecutionRound": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "promptSnapshot": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "annotationsSnapshot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAnnotationExecutionSnapshot"
+            }
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "chapterVersionId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "novelId",
+          "chapterId",
+          "promptSnapshot",
+          "status",
+          "annotationsSnapshot",
+          "resultSummary",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpdateExecutionRoundInput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "chapterVersionId": {
+            "type": "string"
+          },
+          "promptSnapshot": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelCanvasLayout": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "x": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "width": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                }
+              },
+              "required": ["id", "x", "width"],
+              "additionalProperties": false
+            }
+          },
+          "cards": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "x": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "y": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "columnId": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "x", "y"],
+              "additionalProperties": false
+            }
+          },
+          "viewport": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "y": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "zoom": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              }
+            },
+            "required": ["x", "y", "zoom"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["columns", "cards"],
+        "additionalProperties": false
+      },
+      "NovelUpsertCanvasLayoutInput": {
+        "type": "object",
+        "properties": {
+          "layout": {
+            "$ref": "#/components/schemas/NovelCanvasLayout"
+          }
+        },
+        "required": ["layout"],
+        "additionalProperties": false
+      },
+      "NovelWritingMode": {
+        "type": "string",
+        "enum": ["auto", "review"]
+      },
+      "NovelSetupMode": {
+        "type": "string",
+        "enum": ["interactive", "auto"]
+      },
+      "NovelNovelMode": {
+        "type": "object",
+        "properties": {
+          "writing_mode": {
+            "$ref": "#/components/schemas/NovelWritingMode"
+          },
+          "setup_mode": {
+            "$ref": "#/components/schemas/NovelSetupMode"
+          }
+        },
+        "required": ["writing_mode", "setup_mode"],
+        "additionalProperties": false
+      },
+      "NovelNovelModePatch": {
+        "type": "object",
+        "properties": {
+          "writing_mode": {
+            "$ref": "#/components/schemas/NovelWritingMode"
+          },
+          "setup_mode": {
+            "$ref": "#/components/schemas/NovelSetupMode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelTechniqueLevel": {
+        "type": "string",
+        "enum": ["paragraph", "sentence", "dialogue", "description", "transition"]
+      },
+      "NovelTechniqueEvidence": {
+        "type": "object",
+        "properties": {
+          "sourceTitle": {
+            "type": "string"
+          },
+          "sourceLocation": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "annotation": {
+            "type": "string"
+          }
+        },
+        "required": ["sourceTitle", "sourceLocation", "excerpt", "annotation"],
+        "additionalProperties": false
+      },
+      "NovelTechniqueStatus": {
+        "type": "string",
+        "enum": ["unverified", "verified", "shadow", "archived"]
+      },
+      "NovelTechnique": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "principle": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "sceneTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "$ref": "#/components/schemas/NovelTechniqueLevel"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelTechniqueEvidence"
+            }
+          },
+          "commonMisuse": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/NovelTechniqueStatus"
+          },
+          "usageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastUsedAt": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "principle",
+          "instruction",
+          "sceneTypes",
+          "level",
+          "evidence",
+          "commonMisuse",
+          "confidence",
+          "status",
+          "usageCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelCreateTechniqueInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "principle": {
+            "type": "string"
+          },
+          "sceneTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "$ref": "#/components/schemas/NovelTechniqueLevel"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelTechniqueEvidence"
+            }
+          },
+          "commonMisuse": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NovelTechniqueStatus"
+          }
+        },
+        "required": ["name", "instruction"],
+        "additionalProperties": false
+      },
+      "NovelTechniqueInjection": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled"],
+        "additionalProperties": false
+      },
+      "NovelTechniqueFeedback": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "techniqueId": {
+            "type": "string"
+          },
+          "chapterId": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "wasUsed": {
+            "type": "boolean"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "techniqueId", "chapterId", "score", "wasUsed", "comment", "createdAt"],
+        "additionalProperties": false
+      },
+      "NovelTechniqueDetail": {
+        "type": "object",
+        "properties": {
+          "technique": {
+            "$ref": "#/components/schemas/NovelTechnique"
+          },
+          "feedbacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelTechniqueFeedback"
+            }
+          }
+        },
+        "required": ["technique", "feedbacks"],
+        "additionalProperties": false
+      },
+      "NovelUpdateTechniqueInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "principle": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "sceneTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "$ref": "#/components/schemas/NovelTechniqueLevel"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelTechniqueEvidence"
+            }
+          },
+          "commonMisuse": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NovelTechniqueStatus"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SyncConnection": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "remoteRoot": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "username", "remoteRoot"],
+        "additionalProperties": false
+      },
+      "SyncProjectStatus": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["in_sync", "local_ahead", "remote_ahead", "new_local", "new_remote", "conflict", "pending_delete"]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "novels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["name", "state"],
+        "additionalProperties": false
+      },
+      "SyncLibraryStatus": {
+        "type": "object",
+        "properties": {
+          "connection": {
+            "$ref": "#/components/schemas/SyncConnection"
+          },
+          "rootDir": {
+            "type": "string"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncProjectStatus"
+            }
+          }
+        },
+        "required": ["projects"],
+        "additionalProperties": false
+      },
+      "SyncConnectionInput": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "remoteRoot": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "username", "password"],
+        "additionalProperties": false
+      },
+      "SyncTestResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "SyncRootInput": {
+        "type": "object",
+        "properties": {
+          "rootDir": {
+            "type": "string"
+          }
+        },
+        "required": ["rootDir"],
+        "additionalProperties": false
+      },
+      "SyncRunResult": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["uploaded", "downloaded", "deleted_remote"]
+          }
+        },
+        "required": ["name", "action"],
+        "additionalProperties": false
+      },
+      "SyncPairConflict": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["pair_conflict"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "remote": {
+            "type": "object",
+            "properties": {
+              "device": {
+                "type": "string"
+              },
+              "at": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "novels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["device", "at", "novels"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["kind", "name", "remote"],
+        "additionalProperties": false
+      },
+      "SyncTieConflict": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["tie_conflict"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "localTime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "remoteTime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          }
+        },
+        "required": ["kind", "name", "localTime", "remoteTime"],
+        "additionalProperties": false
+      },
+      "SyncDeleteConfirm": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["delete_confirm"]
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["kind", "names"],
+        "additionalProperties": false
+      },
+      "SyncRunOutput": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncRunResult"
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SyncPairConflict"
+                },
+                {
+                  "$ref": "#/components/schemas/SyncTieConflict"
+                },
+                {
+                  "$ref": "#/components/schemas/SyncDeleteConfirm"
+                }
+              ]
+            }
+          }
+        },
+        "required": ["results", "decisions"],
+        "additionalProperties": false
+      },
+      "SyncResolveInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["keep_local", "keep_remote", "keep_both", "confirm_delete", "skip"]
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "SoulGlobal": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": ["content"],
+        "additionalProperties": false
+      },
+      "SoulUpdateGlobalInput": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": ["content"],
         "additionalProperties": false
       },
       "EventModels-devRefreshed": {
@@ -43544,6 +49175,22 @@
     {
       "name": "novel",
       "description": "Novel writing and review routes."
+    },
+    {
+      "name": "novelMode",
+      "description": "Project-level writing mode and setup mode management."
+    },
+    {
+      "name": "technique",
+      "description": "Project-level technique library management and injection switch."
+    },
+    {
+      "name": "opennovel HttpApi",
+      "description": "Experimental HttpApi surface for selected instance routes."
+    },
+    {
+      "name": "opennovel HttpApi",
+      "description": "Experimental HttpApi surface for selected instance routes."
     },
     {
       "name": "pty",

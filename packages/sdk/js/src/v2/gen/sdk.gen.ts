@@ -17,7 +17,7 @@ import type {
   AuthSetResponses,
   CommandListErrors,
   CommandListResponses,
-  Config as Config3,
+  Config as Config4,
   ConfigGetErrors,
   ConfigGetResponses,
   ConfigProvidersErrors,
@@ -117,33 +117,48 @@ import type {
   MoveSessionDestination,
   NovelApprovalInput,
   NovelBindSessionInput,
+  NovelCreateAnnotationInput,
+  NovelCreateArcBeatInput,
   NovelCreateChapterInput,
   NovelCreateCharacterInput,
   NovelCreateCharacterStateInput,
+  NovelCreateEditorialReportInput,
+  NovelCreateExecutionRoundInput,
   NovelCreateForeshadowingInput,
   NovelCreateNovelInput,
   NovelCreatePlotThreadInput,
   NovelCreateRelationshipInput,
+  NovelCreateStoryArcInput,
+  NovelCreateTechniqueInput,
   NovelCreateTensionPointInput,
   NovelCreateVolumeInput,
+  NovelCreateVolumeReviewInput,
   NovelCreateWorldEntryInput,
+  NovelExportFormat,
   NovelMoveChapterInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
+  NovelTechniqueInjection,
+  NovelUpdateAnnotationInput,
+  NovelUpdateArcBeatInput,
   NovelUpdateChapterContentInput,
   NovelUpdateChapterInput,
   NovelUpdateCharacterInput,
   NovelUpdateCharacterStateInput,
+  NovelUpdateExecutionRoundInput,
   NovelUpdateForeshadowingInput,
   NovelUpdateNovelInput,
   NovelUpdatePlotThreadInput,
   NovelUpdateRelationshipInput,
   NovelUpdateSoulInput,
+  NovelUpdateStoryArcInput,
   NovelUpdateStyleGuideInput,
+  NovelUpdateTechniqueInput,
   NovelUpdateTensionPointInput,
   NovelUpdateVolumeInput,
   NovelUpdateWorldEntryInput,
+  NovelUpsertCanvasLayoutInput,
   OutputFormat,
   Part as Part2,
   PartDeleteErrors,
@@ -335,12 +350,22 @@ import type {
   V2LocationGetResponses,
   V2ModelListErrors,
   V2ModelListResponses,
+  V2NovelAiArtifactsErrors,
+  V2NovelAiArtifactsResponses,
   V2NovelAllCharacterStatesErrors,
   V2NovelAllCharacterStatesResponses,
+  V2NovelAnnotationsErrors,
+  V2NovelAnnotationsResponses,
   V2NovelApprovalErrors,
   V2NovelApprovalResponses,
+  V2NovelArcBeatsErrors,
+  V2NovelArcBeatsResponses,
+  V2NovelArcsErrors,
+  V2NovelArcsResponses,
   V2NovelBindErrors,
   V2NovelBindResponses,
+  V2NovelCanvasLayoutErrors,
+  V2NovelCanvasLayoutResponses,
   V2NovelChapterErrors,
   V2NovelChapterResponses,
   V2NovelChapterReviewsErrors,
@@ -353,13 +378,23 @@ import type {
   V2NovelCharactersResponses,
   V2NovelCharacterStatesErrors,
   V2NovelCharacterStatesResponses,
+  V2NovelCreateAnnotationErrors,
+  V2NovelCreateAnnotationResponses,
+  V2NovelCreateArcErrors,
+  V2NovelCreateArcResponses,
+  V2NovelCreateBeatErrors,
+  V2NovelCreateBeatResponses,
   V2NovelCreateChapterErrors,
   V2NovelCreateChapterResponses,
   V2NovelCreateCharacterErrors,
   V2NovelCreateCharacterResponses,
   V2NovelCreateCharacterStateErrors,
   V2NovelCreateCharacterStateResponses,
+  V2NovelCreateEditorialReportErrors,
+  V2NovelCreateEditorialReportResponses,
   V2NovelCreateErrors,
+  V2NovelCreateExecutionRoundErrors,
+  V2NovelCreateExecutionRoundResponses,
   V2NovelCreateForeshadowingErrors,
   V2NovelCreateForeshadowingResponses,
   V2NovelCreatePlotThreadErrors,
@@ -371,8 +406,16 @@ import type {
   V2NovelCreateTensionResponses,
   V2NovelCreateVolumeErrors,
   V2NovelCreateVolumeResponses,
+  V2NovelCreateVolumeReviewErrors,
+  V2NovelCreateVolumeReviewResponses,
   V2NovelCreateWorldEntryErrors,
   V2NovelCreateWorldEntryResponses,
+  V2NovelDeleteAnnotationErrors,
+  V2NovelDeleteAnnotationResponses,
+  V2NovelDeleteArcErrors,
+  V2NovelDeleteArcResponses,
+  V2NovelDeleteBeatErrors,
+  V2NovelDeleteBeatResponses,
   V2NovelDeleteChapterErrors,
   V2NovelDeleteChapterResponses,
   V2NovelDeleteCharacterErrors,
@@ -395,6 +438,10 @@ import type {
   V2NovelDeleteWorldEntryResponses,
   V2NovelDetailErrors,
   V2NovelDetailResponses,
+  V2NovelEditorialReportsErrors,
+  V2NovelEditorialReportsResponses,
+  V2NovelExecutionRoundsErrors,
+  V2NovelExecutionRoundsResponses,
   V2NovelExportErrors,
   V2NovelExportResponses,
   V2NovelForeshadowingErrors,
@@ -425,10 +472,18 @@ import type {
   V2NovelSessionBindingsResponses,
   V2NovelSoulErrors,
   V2NovelSoulResponses,
+  V2NovelStructureErrors,
+  V2NovelStructureResponses,
   V2NovelStyleGuideErrors,
   V2NovelStyleGuideResponses,
   V2NovelTensionErrors,
   V2NovelTensionResponses,
+  V2NovelUpdateAnnotationErrors,
+  V2NovelUpdateAnnotationResponses,
+  V2NovelUpdateArcErrors,
+  V2NovelUpdateArcResponses,
+  V2NovelUpdateBeatErrors,
+  V2NovelUpdateBeatResponses,
   V2NovelUpdateChapterErrors,
   V2NovelUpdateChapterResponses,
   V2NovelUpdateCharacterErrors,
@@ -438,6 +493,8 @@ import type {
   V2NovelUpdateContentErrors,
   V2NovelUpdateContentResponses,
   V2NovelUpdateErrors,
+  V2NovelUpdateExecutionRoundErrors,
+  V2NovelUpdateExecutionRoundResponses,
   V2NovelUpdateForeshadowingErrors,
   V2NovelUpdateForeshadowingResponses,
   V2NovelUpdateOutlineErrors,
@@ -457,6 +514,10 @@ import type {
   V2NovelUpdateVolumeResponses,
   V2NovelUpdateWorldEntryErrors,
   V2NovelUpdateWorldEntryResponses,
+  V2NovelUpsertCanvasLayoutErrors,
+  V2NovelUpsertCanvasLayoutResponses,
+  V2NovelVolumeReviewsErrors,
+  V2NovelVolumeReviewsResponses,
   V2NovelVolumesErrors,
   V2NovelVolumesResponses,
   V2NovelWorldEntriesErrors,
@@ -566,6 +627,20 @@ import type {
   V2SyncRunResponses,
   V2SyncStatusErrors,
   V2SyncStatusResponses,
+  V2TechniqueConfigGetErrors,
+  V2TechniqueConfigGetResponses,
+  V2TechniqueConfigSetErrors,
+  V2TechniqueConfigSetResponses,
+  V2TechniqueCreateErrors,
+  V2TechniqueCreateResponses,
+  V2TechniqueDeleteErrors,
+  V2TechniqueDeleteResponses,
+  V2TechniqueDetailErrors,
+  V2TechniqueDetailResponses,
+  V2TechniqueListErrors,
+  V2TechniqueListResponses,
+  V2TechniqueUpdateErrors,
+  V2TechniqueUpdateResponses,
   VcsApplyErrors,
   VcsApplyResponses,
   VcsDiffErrors,
@@ -1479,7 +1554,7 @@ export class Config extends HeyApiClient {
    */
   public update<ThrowOnError extends boolean = false>(
     parameters?: {
-      config?: Config3
+      config?: Config4
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1636,7 +1711,7 @@ export class Config2 extends HeyApiClient {
     parameters?: {
       directory?: string
       workspace?: string
-      config?: Config3
+      config?: Config4
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8247,6 +8322,7 @@ export class Novel extends HeyApiClient {
   public export<ThrowOnError extends boolean = false>(
     parameters: {
       novelID: string
+      format?: NovelExportFormat
       location?: {
         directory?: string
         workspace?: string
@@ -8260,6 +8336,7 @@ export class Novel extends HeyApiClient {
         {
           args: [
             { in: "path", key: "novelID" },
+            { in: "query", key: "format" },
             { in: "query", key: "location" },
           ],
         },
@@ -9039,6 +9116,39 @@ export class Novel extends HeyApiClient {
   }
 
   /**
+   * Get AI artifacts
+   *
+   * List read-only chapter summaries, hook rotation, volume summaries, and segment summaries.
+   */
+  public aiArtifacts<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelAiArtifactsResponses, V2NovelAiArtifactsErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/ai-artifacts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Bind session
    *
    * Bind a session to a novel.
@@ -9482,6 +9592,839 @@ export class Novel extends HeyApiClient {
       },
     })
   }
+
+  /**
+   * Get structure editor data
+   */
+  public structure<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelStructureResponses, V2NovelStructureErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/structure",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List story arcs
+   */
+  public arcs<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelArcsResponses, V2NovelArcsErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/arcs",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create story arc
+   */
+  public createArc<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateStoryArcInput: NovelCreateStoryArcInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateStoryArcInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelCreateArcResponses, V2NovelCreateArcErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/arcs",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete story arc
+   */
+  public deleteArc<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      arcID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "arcID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<V2NovelDeleteArcResponses, V2NovelDeleteArcErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/arcs/{arcID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update story arc
+   */
+  public updateArc<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      arcID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateStoryArcInput: NovelUpdateStoryArcInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "arcID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateStoryArcInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<V2NovelUpdateArcResponses, V2NovelUpdateArcErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/arcs/{arcID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List arc beats
+   */
+  public arcBeats<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      arcID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "arcID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelArcBeatsResponses, V2NovelArcBeatsErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/arcs/{arcID}/beats",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create arc beat
+   */
+  public createBeat<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateArcBeatInput: NovelCreateArcBeatInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateArcBeatInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelCreateBeatResponses, V2NovelCreateBeatErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/beats",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete arc beat
+   */
+  public deleteBeat<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      beatID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "beatID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<V2NovelDeleteBeatResponses, V2NovelDeleteBeatErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/beats/{beatID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update arc beat
+   */
+  public updateBeat<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      beatID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateArcBeatInput: NovelUpdateArcBeatInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "beatID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateArcBeatInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<V2NovelUpdateBeatResponses, V2NovelUpdateBeatErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/beats/{beatID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List volume reviews
+   */
+  public volumeReviews<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      volumeID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "volumeID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelVolumeReviewsResponses,
+      V2NovelVolumeReviewsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/volumes/{volumeID}/reviews",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create volume review
+   */
+  public createVolumeReview<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      volumeID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateVolumeReviewInput: NovelCreateVolumeReviewInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "volumeID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateVolumeReviewInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateVolumeReviewResponses,
+      V2NovelCreateVolumeReviewErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/volumes/{volumeID}/reviews",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List editorial reports
+   */
+  public editorialReports<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelEditorialReportsResponses,
+      V2NovelEditorialReportsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/editorial-reports",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create editorial report
+   */
+  public createEditorialReport<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateEditorialReportInput: NovelCreateEditorialReportInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateEditorialReportInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateEditorialReportResponses,
+      V2NovelCreateEditorialReportErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/editorial-reports",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List chapter annotations
+   */
+  public annotations<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      chapterID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "chapterID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelAnnotationsResponses, V2NovelAnnotationsErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/chapters/{chapterID}/annotations",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create annotation
+   */
+  public createAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      chapterID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateAnnotationInput: NovelCreateAnnotationInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "chapterID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateAnnotationInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateAnnotationResponses,
+      V2NovelCreateAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/chapters/{chapterID}/annotations",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete annotation
+   */
+  public deleteAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      annotationID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "annotationID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelDeleteAnnotationResponses,
+      V2NovelDeleteAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/annotations/{annotationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update annotation
+   */
+  public updateAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      annotationID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateAnnotationInput: NovelUpdateAnnotationInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "annotationID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateAnnotationInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      V2NovelUpdateAnnotationResponses,
+      V2NovelUpdateAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/annotations/{annotationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List execution rounds
+   */
+  public executionRounds<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      chapterID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "chapterID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelExecutionRoundsResponses,
+      V2NovelExecutionRoundsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create execution round
+   */
+  public createExecutionRound<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      chapterID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateExecutionRoundInput: NovelCreateExecutionRoundInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "chapterID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateExecutionRoundInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateExecutionRoundResponses,
+      V2NovelCreateExecutionRoundErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Update execution round
+   */
+  public updateExecutionRound<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      chapterID: string
+      roundID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateExecutionRoundInput: NovelUpdateExecutionRoundInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "chapterID" },
+            { in: "path", key: "roundID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateExecutionRoundInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      V2NovelUpdateExecutionRoundResponses,
+      V2NovelUpdateExecutionRoundErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get canvas layout
+   */
+  public canvasLayout<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelCanvasLayoutResponses, V2NovelCanvasLayoutErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/canvas-layout",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Upsert canvas layout
+   */
+  public upsertCanvasLayout<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpsertCanvasLayoutInput: NovelUpsertCanvasLayoutInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelUpsertCanvasLayoutInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      V2NovelUpsertCanvasLayoutResponses,
+      V2NovelUpsertCanvasLayoutErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/canvas-layout",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
 }
 
 export class NovelMode extends HeyApiClient {
@@ -9543,6 +10486,249 @@ export class NovelMode extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+}
+
+export class Config3 extends HeyApiClient {
+  /**
+   * 读取技法注入开关
+   *
+   * 读取项目级 technique_injection；缺失或非法值视为关闭。
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    return (options?.client ?? this.client).get<
+      V2TechniqueConfigGetResponses,
+      V2TechniqueConfigGetErrors,
+      ThrowOnError
+    >({
+      url: "/api/techniques/config",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * 更新技法注入开关
+   *
+   * 只更新 .novel/config.json 中的 technique_injection 字段。
+   */
+  public set<ThrowOnError extends boolean = false>(
+    parameters: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelTechniqueInjection: NovelTechniqueInjection
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { key: "novelTechniqueInjection", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      V2TechniqueConfigSetResponses,
+      V2TechniqueConfigSetErrors,
+      ThrowOnError
+    >({
+      url: "/api/techniques/config",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Technique extends HeyApiClient {
+  /**
+   * 列出技法
+   *
+   * 列出项目技法库中的全部技法，返回顺序按置信度和更新时间排序。
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    return (options?.client ?? this.client).get<V2TechniqueListResponses, V2TechniqueListErrors, ThrowOnError>({
+      url: "/api/techniques",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * 创建技法
+   *
+   * 人工创建技法；未显式给出的字段使用默认值。
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateTechniqueInput: NovelCreateTechniqueInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { key: "novelCreateTechniqueInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2TechniqueCreateResponses, V2TechniqueCreateErrors, ThrowOnError>({
+      url: "/api/techniques",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * 删除技法
+   *
+   * 删除技法及其反馈记录。
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      techniqueID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "techniqueID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<V2TechniqueDeleteResponses, V2TechniqueDeleteErrors, ThrowOnError>({
+      url: "/api/techniques/{techniqueID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * 技法详情
+   *
+   * 获取单条技法内容和反馈记录。
+   */
+  public detail<ThrowOnError extends boolean = false>(
+    parameters: {
+      techniqueID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "techniqueID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2TechniqueDetailResponses, V2TechniqueDetailErrors, ThrowOnError>({
+      url: "/api/techniques/{techniqueID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * 更新技法
+   *
+   * PATCH 语义更新技法；confidence 和使用统计由既有闭环维护。
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      techniqueID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateTechniqueInput: NovelUpdateTechniqueInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "techniqueID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateTechniqueInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<V2TechniqueUpdateResponses, V2TechniqueUpdateErrors, ThrowOnError>({
+      url: "/api/techniques/{techniqueID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _config?: Config3
+  get config(): Config3 {
+    return (this._config ??= new Config3({ client: this.client }))
   }
 }
 
@@ -9831,6 +11017,11 @@ export class V2 extends HeyApiClient {
   private _novelMode?: NovelMode
   get novelMode(): NovelMode {
     return (this._novelMode ??= new NovelMode({ client: this.client }))
+  }
+
+  private _technique?: Technique
+  get technique(): Technique {
+    return (this._technique ??= new Technique({ client: this.client }))
   }
 
   private _sync?: Sync2
