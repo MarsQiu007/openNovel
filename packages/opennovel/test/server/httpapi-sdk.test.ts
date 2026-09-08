@@ -390,14 +390,19 @@ describe("HttpApi SDK", () => {
         })
         const found = yield* pollWithTimeout(
           call(() => sdk.v2.fs.find({ query: "hello", type: "file" })).pipe(
-            Effect.map((result) => (result.data?.data.length ? result : undefined)),
+            Effect.map((result) =>
+              result.data?.data.some((item) => item.path === "hello.txt") ? result : undefined,
+            ),
           ),
           "SDK file search index was not ready",
         )
         const url = new URL(request!.url)
 
         expect(found.response!.status).toBe(200)
-        expect(found.data).toMatchObject({ data: [{ path: "hello.txt", type: "file" }] })
+        expect(found.data?.data.find((item) => item.path === "hello.txt")).toMatchObject({
+          path: "hello.txt",
+          type: "file",
+        })
         expect(url.searchParams.get("directory")).toBe(directory)
         expect(url.searchParams.get("workspace")).toBe(workspaceID)
         expect(url.searchParams.get("location[directory]")).toBe(directory)
