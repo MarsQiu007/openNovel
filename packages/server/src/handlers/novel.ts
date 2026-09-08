@@ -277,7 +277,7 @@ function toCharacterState(row: CharacterStateRow) {
   return {
     id: row.id,
     characterId: row.character_id,
-    chapterId: row.chapter_id ?? undefined,
+    chapterId: row.chapter_id,
     active: row.active,
     location: row.location || undefined,
     mood: row.mood || undefined,
@@ -378,7 +378,7 @@ type MoveChapterInput = { action: "up" | "down" | "to-volume"; volumeId?: string
 type UpdateChapterInput = { title?: string; status?: string }
 type CreateRelationshipInput = { charAId: string; charBId: string; type: string; description?: string }
 type UpdateRelationshipInput = { type?: string; description?: string }
-type CreateCharacterStateInput = { chapterId?: string; place?: string; mood?: string; summary?: string }
+type CreateCharacterStateInput = { chapterId: string; place?: string; mood?: string; summary?: string }
 type UpdateCharacterStateInput = { active?: number; place?: string; mood?: string; summary?: string }
 type UpdateStyleGuideInput = { tone?: string; pov?: string; tense?: string; rules?: Record<string, string> }
 type UpdateSoulInput = { content: string }

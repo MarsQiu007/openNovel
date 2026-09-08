@@ -858,6 +858,7 @@ function CharacterEditDrawer(props: {
                 onClose={props.onClose}
                 language={language}
                 novelID={props.novelID}
+                selectedChapterId={() => null}
               />
             </div>
           )}

@@ -58,6 +58,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
 
   // 3. 给 characters 表添加 status 列（始终执行，幂等）
   migrateCharacterStatus(exec, query)
+  migrateCharacterStates(exec, query)
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
@@ -136,6 +137,41 @@ function migrateCharacterStatus(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // characters 表不存在时无需迁移，CREATE_TABLES_SQL 会带 status 列创建
+  }
+}
+
+/**
+ * 把角色状态重建为章节强绑定快照。状态记录脱离章节没有业务含义，
+ * 旧表中缺少 chapter_id 的记录无法安全推断归属，迁移时按无效数据清理。
+ */
+function migrateCharacterStates(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(character_states)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    const chapterColumn = cols.find((c) => c.name === "chapter_id")
+    if (!chapterColumn || Number(chapterColumn.notnull) === 1) return
+    exec("BEGIN")
+    try {
+      exec("DELETE FROM character_states WHERE chapter_id IS NULL OR chapter_id NOT IN (SELECT id FROM chapters)")
+      exec("ALTER TABLE character_states RENAME TO character_states_legacy")
+      exec(
+        "CREATE TABLE character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text NOT NULL, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE)",
+      )
+      exec(
+        "INSERT INTO character_states (id, character_id, chapter_id, active, location, mood, summary) SELECT id, character_id, chapter_id, active, location, mood, summary FROM character_states_legacy",
+      )
+      exec("DROP TABLE character_states_legacy")
+      exec("COMMIT")
+    } catch (error) {
+      try {
+        exec("ROLLBACK")
+      } catch {
+        // 回滚失败时保留现场便于排查
+      }
+      console.warn("[novel-store] character_states migration failed:", error instanceof Error ? error.message : error)
+    }
+  } catch {
+    // character_states 表不存在时无需迁移，CREATE_TABLES_SQL 会按新契约创建
   }
 }
 

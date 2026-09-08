@@ -134,7 +134,7 @@ export interface Character extends Schema.Schema.Type<typeof Character> {}
 export const CharacterState = Schema.Struct({
   id: Schema.String,
   characterId: Schema.String,
-  chapterId: optional(Schema.String),
+  chapterId: Schema.String,
   active: Schema.Int,
   location: optional(Schema.String),
   mood: optional(Schema.String),
@@ -375,7 +375,7 @@ export const UpdateRelationshipInput = Schema.Struct({
 export interface UpdateRelationshipInput extends Schema.Schema.Type<typeof UpdateRelationshipInput> {}
 
 export const CreateCharacterStateInput = Schema.Struct({
-  chapterId: optional(Schema.String),
+  chapterId: Schema.String,
   place: optional(Schema.String),
   mood: optional(Schema.String),
   summary: optional(Schema.String),
@@ -523,7 +523,6 @@ export const UpdateWorldEntryInput = Schema.Struct({
   content: optional(Schema.String),
 }).annotate({ identifier: "Novel.UpdateWorldEntryInput" })
 export interface UpdateWorldEntryInput extends Schema.Schema.Type<typeof UpdateWorldEntryInput> {}
-
 
 // ─── B/C 阶段：结构质量与协作体验 ───
 

@@ -6446,7 +6446,7 @@ export type NovelUpdateRelationshipInput = {
 export type NovelCharacterState = {
   id: string
   characterId: string
-  chapterId?: string
+  chapterId: string
   active: number
   location?: string
   mood?: string
@@ -6454,7 +6454,7 @@ export type NovelCharacterState = {
 }
 
 export type NovelCreateCharacterStateInput = {
-  chapterId?: string
+  chapterId: string
   place?: string
   mood?: string
   summary?: string

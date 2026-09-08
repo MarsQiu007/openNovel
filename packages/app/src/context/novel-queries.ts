@@ -903,7 +903,7 @@ export function useCreateCharacterState() {
     mutationFn: (input: {
       novelID: string
       characterID: string
-      chapterId?: string
+      chapterId: string
       place?: string
       mood?: string
       summary?: string

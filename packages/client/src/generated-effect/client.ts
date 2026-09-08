@@ -1081,7 +1081,7 @@ type Endpoint18_33Input = {
   readonly novelID: Endpoint18_33Request["params"]["novelID"]
   readonly characterID: Endpoint18_33Request["params"]["characterID"]
   readonly location?: Endpoint18_33Request["query"]["location"]
-  readonly chapterId?: Endpoint18_33Request["payload"]["chapterId"]
+  readonly chapterId: Endpoint18_33Request["payload"]["chapterId"]
   readonly place?: Endpoint18_33Request["payload"]["place"]
   readonly mood?: Endpoint18_33Request["payload"]["mood"]
   readonly summary?: Endpoint18_33Request["payload"]["summary"]

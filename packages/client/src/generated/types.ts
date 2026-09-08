@@ -3473,7 +3473,7 @@ export type ServerNovelCharacterStatesInput = {
 export type ServerNovelCharacterStatesOutput = ReadonlyArray<{
   readonly id: string
   readonly characterId: string
-  readonly chapterId?: string
+  readonly chapterId: string
   readonly active: number
   readonly location?: string
   readonly mood?: string
@@ -3490,7 +3490,7 @@ export type ServerNovelAllCharacterStatesInput = {
 export type ServerNovelAllCharacterStatesOutput = ReadonlyArray<{
   readonly id: string
   readonly characterId: string
-  readonly chapterId?: string
+  readonly chapterId: string
   readonly active: number
   readonly location?: string
   readonly mood?: string
@@ -3503,26 +3503,26 @@ export type ServerNovelCreateCharacterStateInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
-  readonly chapterId?: {
-    readonly chapterId?: string
+  readonly chapterId: {
+    readonly chapterId: string
     readonly place?: string
     readonly mood?: string
     readonly summary?: string
   }["chapterId"]
   readonly place?: {
-    readonly chapterId?: string
+    readonly chapterId: string
     readonly place?: string
     readonly mood?: string
     readonly summary?: string
   }["place"]
   readonly mood?: {
-    readonly chapterId?: string
+    readonly chapterId: string
     readonly place?: string
     readonly mood?: string
     readonly summary?: string
   }["mood"]
   readonly summary?: {
-    readonly chapterId?: string
+    readonly chapterId: string
     readonly place?: string
     readonly mood?: string
     readonly summary?: string
@@ -3532,7 +3532,7 @@ export type ServerNovelCreateCharacterStateInput = {
 export type ServerNovelCreateCharacterStateOutput = {
   readonly id: string
   readonly characterId: string
-  readonly chapterId?: string
+  readonly chapterId: string
   readonly active: number
   readonly location?: string
   readonly mood?: string
@@ -3574,7 +3574,7 @@ export type ServerNovelUpdateCharacterStateInput = {
 export type ServerNovelUpdateCharacterStateOutput = {
   readonly id: string
   readonly characterId: string
-  readonly chapterId?: string
+  readonly chapterId: string
   readonly active: number
   readonly location?: string
   readonly mood?: string

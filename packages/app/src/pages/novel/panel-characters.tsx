@@ -109,6 +109,7 @@ export default function PanelCharacters(props: PanelCharactersProps) {
               onBack={handleBack}
               language={language}
               novelID={props.novelID}
+              selectedChapterId={props.selectedChapterId}
             />
           }
         >
@@ -304,6 +305,7 @@ export function CharacterDetail(props: {
   onClose?: () => void
   language: ReturnType<typeof useLanguage>
   novelID: Accessor<string>
+  selectedChapterId: Accessor<string | null>
 }) {
   const [isEditing, setIsEditing] = createSignal(false)
   const [name, setName] = createSignal(props.character.name)
@@ -428,7 +430,12 @@ export function CharacterDetail(props: {
             </div>
 
             {/* Character states */}
-            <StatesSection novelID={props.novelID} characterID={props.character.id} language={props.language} />
+            <StatesSection
+              novelID={props.novelID}
+              characterID={props.character.id}
+              selectedChapterId={props.selectedChapterId}
+              language={props.language}
+            />
 
             {/* Relationships */}
             <RelationshipsSection
@@ -522,6 +529,7 @@ export function CharacterDetail(props: {
 export function StatesSection(props: {
   novelID: Accessor<string>
   characterID: string
+  selectedChapterId: Accessor<string | null>
   language: ReturnType<typeof useLanguage>
 }) {
   const statesQuery = useCharacterStates(props.novelID, () => props.characterID)
@@ -537,10 +545,13 @@ export function StatesSection(props: {
   const states = createMemo(() => statesQuery.data ?? [])
 
   const handleAdd = async () => {
+    const chapterID = props.selectedChapterId()
+    if (!chapterID) return
     if (!place().trim() && !mood().trim() && !summary().trim()) return
     await createState.mutateAsync({
       novelID: props.novelID(),
       characterID: props.characterID,
+      chapterId: chapterID,
       place: place().trim() || undefined,
       mood: mood().trim() || undefined,
       summary: summary().trim() || undefined,
@@ -557,7 +568,12 @@ export function StatesSection(props: {
         <h4 class="text-xs font-medium text-v2-text-text-muted uppercase tracking-wider">
           {props.language.t("novel.panel.characters.states")}
         </h4>
-        <ButtonV2 variant="ghost" size="small" onClick={() => setIsAdding(!isAdding())}>
+        <ButtonV2
+          variant="ghost"
+          size="small"
+          disabled={!props.selectedChapterId() && !isAdding()}
+          onClick={() => setIsAdding(!isAdding())}
+        >
           {isAdding() ? props.language.t("novel.panel.characters.cancel") : "+"}
         </ButtonV2>
       </div>
@@ -645,7 +661,12 @@ export function StatesSection(props: {
             onInput={(e) => setSummary(e.currentTarget.value)}
             placeholder={props.language.t("novel.panel.characters.state.summary")}
           />
-          <ButtonV2 variant="contrast" size="small" onClick={() => void handleAdd()} disabled={createState.isPending}>
+          <ButtonV2
+            variant="contrast"
+            size="small"
+            onClick={() => void handleAdd()}
+            disabled={!props.selectedChapterId() || createState.isPending}
+          >
             {props.language.t("novel.panel.characters.save")}
           </ButtonV2>
         </div>

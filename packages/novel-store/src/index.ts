@@ -118,7 +118,7 @@ export const ChapterReviewTable = sqliteTable("chapter_reviews", {
 export const CharacterStateTable = sqliteTable("character_states", {
   id: text().primaryKey(),
   character_id: text().notNull(),
-  chapter_id: text(),
+  chapter_id: text().notNull(),
   active: integer().notNull().default(1),
   location: text().notNull().default(""),
   mood: text().notNull().default(""),
@@ -644,7 +644,7 @@ CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id tex
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
 CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text NOT NULL, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_summaries (id text PRIMARY KEY, chapter_id text NOT NULL, summary text DEFAULT '' NOT NULL, key_events text DEFAULT '[]' NOT NULL, char_changes text DEFAULT '[]' NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS foreshadowing (id text PRIMARY KEY, novel_id text NOT NULL, planted_chapter_id text, resolved_chapter_id text, content text NOT NULL, state text DEFAULT 'planted' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (planted_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL, FOREIGN KEY (resolved_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE TABLE IF NOT EXISTS novel_state_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, fact_type text NOT NULL, fact_data text NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
@@ -1287,7 +1287,7 @@ export async function deleteRelationship(relationshipId: string, directory?: str
 
 export async function createCharacterState(
   characterId: string,
-  input: { chapterId?: string; location?: string; mood?: string; summary?: string },
+  input: { chapterId: string; location?: string; mood?: string; summary?: string },
   directory?: string | null,
 ): Promise<typeof CharacterStateTable.$inferSelect> {
   const db = getDb(directory)
@@ -1297,7 +1297,7 @@ export async function createCharacterState(
     .values({
       id,
       character_id: characterId,
-      chapter_id: input.chapterId ?? null,
+      chapter_id: input.chapterId,
       active: 1,
       location: input.location ?? "",
       mood: input.mood ?? "",
