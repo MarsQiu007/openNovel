@@ -18,4 +18,5 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Run typecheck
-        run: bun typecheck
+        # GitHub hosted runners run out of memory when all package checks run in parallel.
+        run: bun turbo typecheck --concurrency=1
