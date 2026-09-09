@@ -72,6 +72,11 @@ build/plan 默认权限、子代理模型回退、CLI 错误文案、brew tap �
    - `packages/novel-store` 已有多组数据层测试，但缺少 `test` script，Turbo 不会执行它们。
    - 增加 novel-store 专属 test 任务，并补 `character_states.chapter_id` 迁移测试，避免本次公共契约修复缺少存储层回归保护。
 
+8. **不保留无理由跳过的测试**
+
+   - `session-message-updater` 中的三个用例曾被直接 `test.skip`，其中两个断言已落后当前事件行为。
+   - 重新启用并用当前 assistant 创建、provider metadata/result metadata 契约更新断言。
+
 ## Risks / Trade-offs
 
 - [重新录制 fixture 可能引入新的不匹配] → 录制后立即运行测试验证。

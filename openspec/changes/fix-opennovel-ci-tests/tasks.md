@@ -40,3 +40,4 @@
 - [x] 7.2 补充 `character_states.chapter_id` 旧表迁移测试，覆盖无效数据清理、幂等和新写入。
 - [x] 7.3 在 `packages/novel-store` 运行完整 `bun test` 并确认 0 失败。
 - [x] 7.4 取消 HttpApi exerciser 门禁的 Linux 限制，让 Windows 也执行完整演练。
+- [x] 7.5 启用 session message updater 被跳过的测试，并按当前事件契约更新断言。
