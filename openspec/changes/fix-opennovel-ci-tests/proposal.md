@@ -10,6 +10,7 @@
 - **MCP instruction timeout**：`loop includes MCP instructions in model system context` 在 10s 内未收到 MCP instruction 请求即超时。延长等待或 mock MCP instruction 流程。
 - **其他测试更新**：同步 agent 权限、模型回退、CLI 错误文案、brew tap 名称、压缩/监听测试、Windows 路径变体和 ACP/serve 子进程启动行为；内置旧插件包名也要加入 deprecated 过滤。
 - **HttpApi 运行时契约**：HttpApi exerciser 保持默认插件启用，按 novel-writer 实际注册的 director agent 演练 session 路由，并断言 build/plan 被禁用；`character_states.chapter_id` 与数据库语义统一为必填公共契约。
+- **Novel-store 测试门禁**：把 `packages/novel-store` 的既有测试纳入 Turbo `test`，并为 `character_states.chapter_id` 旧表迁移补充数据层测试。
 - **演练跨平台路径**：临时目录统一使用 `os.tmpdir()`，避免 Windows 上 `/tmp` 因当前盘符被 git 子进程解析到不同驱动器；PTY 场景改用运行时可执行文件，不再硬编码 `/bin/sh`。
 - 除将重命名后的内置旧插件包名纳入 deprecated 过滤外，运行时代码只同步 character state 的既有数据库约束，不引入新的业务行为。
 

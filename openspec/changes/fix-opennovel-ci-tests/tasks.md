@@ -33,3 +33,9 @@
 - [x] 6.2 将 `character_states.chapter_id` 公共契约与存储层改为必填，重新生成客户端。
 - [x] 6.3 修复 HttpApi exerciser 的 Windows 临时目录与 PTY 跨平台问题。
 - [x] 6.4 运行 HttpApi 目标场景、coverage/auth/effect 全门禁、typecheck 与 OpenSpec 校验。
+
+## 7. Novel-store 测试门禁
+
+- [x] 7.1 将 `novel-store` 的既有测试纳入 Turbo `test` 门禁。
+- [x] 7.2 补充 `character_states.chapter_id` 旧表迁移测试，覆盖无效数据清理、幂等和新写入。
+- [x] 7.3 在 `packages/novel-store` 运行完整 `bun test` 并确认 0 失败。

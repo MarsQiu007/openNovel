@@ -25,6 +25,10 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "@opennovel-ai/novel-store#test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "@opennovel-ai/session-ui#test": {
       "dependsOn": ["^build"],
       "outputs": []
