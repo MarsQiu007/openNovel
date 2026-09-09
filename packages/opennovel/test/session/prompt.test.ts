@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
+import { rm } from "fs/promises"
 import path from "path"
 import { fileURLToPath } from "url"
 import { NamedError } from "@opennovel-ai/core/util/error"
@@ -1954,12 +1955,23 @@ unixNoLLMServer(
   () =>
     withSh(() =>
       Effect.gen(function* () {
+        const { directory } = yield* TestInstance
+        const afs = yield* FSUtil.Service
+        const ready = path.join(directory, ".shell-ready")
+        const guard = path.join(directory, ".shell-running")
         const { prompt, chat } = yield* boot()
 
         const a = yield* prompt
-          .shell({ sessionID: chat.id, agent: "build", command: "sleep 30" })
+          .shell({
+            sessionID: chat.id,
+            agent: "build",
+            command: `: > '${ready}'; : > '${guard}'; while [ -f '${guard}' ]; do sleep 0.05; done`,
+          })
           .pipe(Effect.forkChild)
-        yield* waitForBusy(chat.id)
+        yield* pollWithTimeout(
+          afs.existsSafe(ready).pipe(Effect.map((exists) => (exists ? (true as const) : undefined))),
+          "shell never created readiness marker",
+        )
 
         const exit = yield* prompt.shell({ sessionID: chat.id, agent: "build", command: "echo hi" }).pipe(Effect.exit)
         expect(Exit.isFailure(exit)).toBe(true)
@@ -1967,12 +1979,12 @@ unixNoLLMServer(
           expect(Cause.squash(exit.cause)).toBeInstanceOf(Session.BusyError)
         }
 
-        yield* prompt.cancel(chat.id)
+        yield* Effect.promise(() => rm(guard, { force: true }))
         yield* Fiber.await(a)
       }),
     ),
   { git: true, config: cfg },
-  30_000,
+  10_000,
 )
 
 // Abort signal propagation tests for inline tool execution

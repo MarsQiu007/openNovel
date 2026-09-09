@@ -77,6 +77,11 @@ build/plan 默认权限、子代理模型回退、CLI 错误文案、brew tap �
    - `session-message-updater` 中的三个用例曾被直接 `test.skip`，其中两个断言已落后当前事件行为。
    - 重新启用并用当前 assistant 创建、provider metadata/result metadata 契约更新断言。
 
+9. **用文件契约同步 shell 冲突测试**
+
+   - 原测试启动 `sleep 30` 后等待 busy，再用 30 秒测试超时；CI 一旦 cancel/清理抖动就会耗尽预算。
+   - 改为 shell 创建 ready 文件后才能进入断言，guard 文件存在期间保持 busy；断言后删除 guard 让进程确定性退出。
+
 ## Risks / Trade-offs
 
 - [重新录制 fixture 可能引入新的不匹配] → 录制后立即运行测试验证。
