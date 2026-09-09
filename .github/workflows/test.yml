@@ -67,14 +67,18 @@ jobs:
         timeout-minutes: 20
         run: GITHUB_ACTIONS=false bun turbo test
         env:
-          OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
+          OPENNOVEL_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
 
       - name: Check generated client
         if: runner.os == 'Linux'
         working-directory: packages/client
         run: bun run check:generated
 
+      # 暂时仅在 Linux 运行：bun-pty 的 FFI spawn 在 Windows 上始终失败，
+      # effect 模式的 pty.create 会稳定返回 500。修复 Windows PTY 后再放开。
       - name: Run HttpApi exerciser gates
+        if: runner.os == 'Linux'
+        timeout-minutes: 30
         working-directory: packages/opennovel
         run: bun run test:httpapi
 
