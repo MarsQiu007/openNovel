@@ -75,7 +75,6 @@ jobs:
         run: bun run check:generated
 
       - name: Run HttpApi exerciser gates
-        if: runner.os == 'Linux'
         working-directory: packages/opennovel
         run: bun run test:httpapi
 

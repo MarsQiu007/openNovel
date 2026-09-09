@@ -55,6 +55,7 @@ build/plan 默认权限、子代理模型回退、CLI 错误文案、brew tap �
    - `TMPDIR ?? "/tmp"` 在 Windows 会产生盘符相关路径，且 git 子进程可能解析到不同驱动器，导致 worktree reset 定位失败。
    - 临时目录优先使用 `TMPDIR`，否则使用 `os.tmpdir()`，保证创建、校验和子进程使用同一绝对路径。
    - PTY 场景用 `process.execPath` 执行受控脚本，避免在 Windows 上硬编码 `/bin/sh`。
+   - HttpApi exerciser 门禁移除 Linux-only 条件，防止 Windows 契约回归只靠本地验证。
 
 5. **对齐角色状态章节绑定契约**
    - `character_states.chapter_id` 在数据库中已是每章快照的 NOT NULL 外键，但公共 schema 仍允许缺省，导致 API 层绕过校验后在数据库层 500。
