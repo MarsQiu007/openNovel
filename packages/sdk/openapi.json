@@ -43962,7 +43962,7 @@
             "type": "string"
           }
         },
-        "required": ["id", "characterId", "active"],
+        "required": ["id", "characterId", "chapterId", "active"],
         "additionalProperties": false
       },
       "NovelCreateCharacterStateInput": {
@@ -43981,6 +43981,7 @@
             "type": "string"
           }
         },
+        "required": ["chapterId"],
         "additionalProperties": false
       },
       "NovelUpdateCharacterStateInput": {
