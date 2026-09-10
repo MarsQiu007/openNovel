@@ -13,10 +13,10 @@
 
 ## 3. Plugin 工具与提示词
 
-- [ ] 3.1 新增 `annotate_setting` 与 `list_setting_annotations` 工具，校验真实条目并返回结构化 metadata
-- [ ] 3.2 新增 `resolve_setting_annotation` 与 `report_setting_annotation_execution` 工具，处理不存在 ID、非法状态，并在成功后关联最近描述历史
-- [ ] 3.3 更新 director 工具表和整理流程提示词，约束先读取设定、使用真实锚点、纯文本分段、通过 update_setting 修改和显式回填
-- [ ] 3.4 为四个工具的创建、查询、状态变更、回填和错误路径添加定向测试；在 `packages/plugin` 运行 `bun test`
+- [x] 3.1 新增 `annotate_setting` 与 `list_setting_annotations` 工具，校验真实条目并返回结构化 metadata
+- [x] 3.2 新增 `resolve_setting_annotation` 与 `report_setting_annotation_execution` 工具，处理不存在 ID、非法状态，并在成功后关联最近描述历史
+- [x] 3.3 更新 director 工具表和整理流程提示词，约束先读取设定、使用真实锚点、纯文本分段、通过 update_setting 修改和显式回填
+- [x] 3.4 为四个工具的创建、查询、状态变更、回填和错误路径添加定向测试；在 `packages/plugin` 运行 `bun test`
 
 ## 4. UI 工作流
 

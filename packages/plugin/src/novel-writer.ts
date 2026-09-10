@@ -110,6 +110,9 @@ import {
   EditorialReportTable,
   AnnotationExecutionRoundTable,
   ChapterAnnotationTable,
+  DescriptionHistoryTable,
+  WorldEntryAnnotationTable,
+  WorldEntryAnnotationRoundTable,
   OutlineCanvasLayoutTable,
   createStoryArc,
   updateStoryArc,
@@ -128,6 +131,11 @@ import {
   deleteChapterAnnotation,
   listChapterAnnotations,
   updateExecutionRound,
+  createWorldEntryAnnotation,
+  listWorldEntryAnnotations,
+  updateWorldEntryAnnotation,
+  createWorldEntryAnnotationRound,
+  updateWorldEntryAnnotationRound,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -5301,6 +5309,165 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               execution_round_id: updated.id,
               status: updated.status,
               chapter_version_id: updated.chapter_version_id,
+            },
+          }
+        },
+      }),
+      annotate_setting: tool({
+        description:
+          "为一条真实 world_entry 创建设定批注。必须先 read_setting 获取全文，并只使用当前原文中真实存在的段落和引用；source 固定为 ai。禁止虚构 ID、锚点或设定事实，禁止写入 Markdown。",
+        args: {
+          entry_id: tool.schema.string().describe("世界观条目 ID"),
+          anchor_type: tool.schema.enum(["paragraph", "range"]).optional(),
+          paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
+          start_offset: tool.schema.number().optional(),
+          end_offset: tool.schema.number().optional(),
+          quote: tool.schema.string().describe("当前原文中的精确引用"),
+          comment: tool.schema.string().describe("批注意见"),
+          suggested_replacement: tool.schema.string().optional().describe("纯文本替换建议"),
+        },
+        async execute(args, ctx) {
+          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!novelId) return { title: "annotate_setting", output: "未找到当前小说项目" }
+          const db = getDb(ctx.directory)
+          const entry = await db
+            .select()
+            .from(WorldEntryTable)
+            .where(and(eq(WorldEntryTable.id, args.entry_id), eq(WorldEntryTable.novel_id, novelId)))
+            .get()
+          if (!entry) return { title: "annotate_setting", output: `world_entry 不存在：${args.entry_id}` }
+          const quote = entry.content.includes(args.quote) ? args.quote : ""
+          if (!quote.trim()) return { title: "annotate_setting", output: "quote 不是当前 world_entry 原文中的精确片段" }
+          const annotation = await createWorldEntryAnnotation(
+            args.entry_id,
+            novelId,
+            {
+              source: "ai",
+              anchorType: args.anchor_type ?? "paragraph",
+              paragraphIndex: args.paragraph_index ?? null,
+              startOffset: args.start_offset ?? null,
+              endOffset: args.end_offset ?? null,
+              quote,
+              comment: args.comment,
+              suggestedReplacement: args.suggested_replacement ?? null,
+              authorSessionId: ctx.sessionID,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "annotate_setting",
+            output: "已创建设定批注",
+            metadata: {
+              annotation_id: annotation.id,
+              world_entry_id: annotation.world_entry_id,
+              paragraph_index: annotation.paragraph_index,
+              quote: annotation.quote,
+              status: annotation.status,
+              has_suggestion: annotation.suggested_replacement != null,
+            },
+          }
+        },
+      }),
+      list_setting_annotations: tool({
+        description: "列出一条真实 world_entry 的设定批注，可按状态筛选。只返回数据库中的真实 ID 和锚点。",
+        args: {
+          entry_id: tool.schema.string().describe("世界观条目 ID"),
+          status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).optional(),
+        },
+        async execute(args, ctx) {
+          const annotations = await listWorldEntryAnnotations(args.entry_id, ctx.directory, { status: args.status })
+          return {
+            title: "list_setting_annotations",
+            output: `共 ${annotations.length} 条设定批注`,
+            metadata: {
+              total: annotations.length,
+              annotations: annotations.map((annotation) => ({
+                id: annotation.id,
+                world_entry_id: annotation.world_entry_id,
+                source: annotation.source,
+                paragraph_index: annotation.paragraph_index,
+                start_offset: annotation.start_offset,
+                end_offset: annotation.end_offset,
+                quote: annotation.quote,
+                comment: annotation.comment,
+                suggested_replacement: annotation.suggested_replacement,
+                status: annotation.status,
+                execution_round_id: annotation.execution_round_id,
+                created_at: annotation.created_at,
+              })),
+            },
+          }
+        },
+      }),
+      resolve_setting_annotation: tool({
+        description:
+          "更新设定批注状态或评论。只能使用 list_setting_annotations 返回的真实批注 ID；目标状态限定为 open/resolved/wontfix/applied。",
+        args: {
+          annotation_id: tool.schema.string().describe("设定批注 ID"),
+          status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).describe("目标状态"),
+          comment: tool.schema.string().optional().describe("更新后的批注内容"),
+        },
+        async execute(args, ctx) {
+          const updated = await updateWorldEntryAnnotation(
+            args.annotation_id,
+            { status: args.status, comment: args.comment },
+            ctx.directory,
+          )
+          if (!updated) return { title: "resolve_setting_annotation", output: `设定批注不存在：${args.annotation_id}` }
+          return {
+            title: "resolve_setting_annotation",
+            output: `设定批注状态已更新为 ${updated.status}`,
+            metadata: { annotation_id: updated.id, status: updated.status },
+          }
+        },
+      }),
+      report_setting_annotation_execution: tool({
+        description:
+          "回填设定批注执行轮次结果。AI 完成 world_entry content 修改或确认失败后必须调用；成功时自动关联最近一条 content 描述历史。禁止绕过本工具或虚构轮次 ID。",
+        args: {
+          execution_round_id: tool.schema.string().describe("执行轮次 ID"),
+          status: tool.schema.enum(["completed", "failed"]).describe("执行结果状态"),
+          result_summary: tool.schema.string().describe("本轮修改内容、涉及批注数、未定位项或失败原因摘要"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const round = await db
+            .select()
+            .from(WorldEntryAnnotationRoundTable)
+            .where(eq(WorldEntryAnnotationRoundTable.id, args.execution_round_id))
+            .get()
+          if (!round) return { title: "report_setting_annotation_execution", output: "设定批注执行轮次不存在" }
+          const history = args.status === "completed"
+            ? await db
+                .select({ id: DescriptionHistoryTable.id })
+                .from(DescriptionHistoryTable)
+                .where(
+                  and(
+                    eq(DescriptionHistoryTable.entity_type, "world_entry"),
+                    eq(DescriptionHistoryTable.entity_id, round.world_entry_id),
+                    eq(DescriptionHistoryTable.field, "content"),
+                  ),
+                )
+                .orderBy(desc(sql`rowid`))
+                .get()
+            : undefined
+          const updated = await updateWorldEntryAnnotationRound(
+            args.execution_round_id,
+            {
+              status: args.status,
+              result_summary: args.result_summary,
+              content_history_id: history?.id ?? null,
+            },
+            ctx.directory,
+          )
+          if (!updated) return { title: "report_setting_annotation_execution", output: "设定批注执行轮次不存在" }
+          return {
+            title: "report_setting_annotation_execution",
+            output: `设定批注执行结果已记录：${updated.status}`,
+            metadata: {
+              execution_round_id: updated.id,
+              status: updated.status,
+              content_history_id: updated.content_history_id,
             },
           }
         },
