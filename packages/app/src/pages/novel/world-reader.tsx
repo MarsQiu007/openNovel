@@ -5,8 +5,7 @@
  * - 世界观: 选中条目的详情 / 编辑 / 删除；未选中显示提示
  * - 写作风格: style guide 表单（tone / pov / tense / rules）
  */
-import { type Accessor, createEffect, createMemo, createSignal, Show } from "solid-js"
-import { Marked } from "marked"
+import { type Accessor, createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
 import { showToast } from "@/utils/toast"
@@ -25,16 +24,6 @@ import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
-
-const marked = new Marked()
-
-function sanitize(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript:/gi, "")
-}
 
 type WorldSubTab = "entries" | "style" | "soul"
 
@@ -102,11 +91,6 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
     return query.data?.find((e) => e.id === id) ?? null
   })
 
-  const renderedContent = createMemo(() => {
-    const md = entry()?.content
-    if (!md) return ""
-    return sanitize(marked.parse(md, { async: false }) as string)
-  })
 
   const [isEditing, setIsEditing] = createSignal(false)
   const [draftCategory, setDraftCategory] = createSignal("")
@@ -181,7 +165,7 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
           }
         >
           {(current) => (
-            <div class="flex flex-col gap-4 p-6 max-w-3xl">
+            <div class="mx-auto flex max-w-3xl flex-col gap-4 p-6">
               <Show
                 when={!isEditing()}
                 fallback={
@@ -235,10 +219,11 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
                     when={current().content}
                     fallback={<p class="text-sm text-v2-text-text-muted mt-2">—</p>}
                   >
-                    <div
-                      class="prose prose-sm max-w-none text-v2-text-text-base [&_h1]:text-xl [&_h2]:text-lg [&_h3]:text-base mt-2"
-                      innerHTML={renderedContent()}
-                    />
+                    <div class="mt-2 max-w-none space-y-3 text-sm leading-relaxed text-v2-text-text-base select-text">
+                      <For each={current().content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)}>
+                        {(paragraph, idx) => <p data-paragraph-index={idx()}>{paragraph}</p>}
+                      </For>
+                    </div>
                   </Show>
                 </div>
                 <div class="flex items-center gap-2 mt-4">
@@ -323,7 +308,7 @@ function StyleGuideEditor(props: StyleGuideEditorProps) {
   }
 
   return (
-    <div class="flex flex-col gap-4 p-6 max-w-3xl">
+    <div class="mx-auto flex max-w-3xl flex-col gap-4 p-6">
       <Show
         when={!query.isLoading}
         fallback={

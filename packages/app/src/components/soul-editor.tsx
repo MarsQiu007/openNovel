@@ -94,7 +94,7 @@ export const SoulEditor: Component<SoulEditorProps> = (props) => {
         </div>
       }
     >
-      <div class="flex flex-col gap-4 p-6 max-w-3xl">
+      <div class="mx-auto flex max-w-3xl flex-col gap-4 p-6">
         <Show when={props.hint}>
           <p class="text-sm text-v2-text-text-muted">{props.hint}</p>
         </Show>
