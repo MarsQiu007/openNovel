@@ -117,7 +117,7 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 
 ## 5. world_entry（世界观条目）
 提取世界观设定的变化：
-- 新揭示的世界观设定 → action: "create"，data 包含 category（必须从标准列表选择：核心设定/世界背景/力量体系/社会制度/势力/地理/历史/文化/生物/物品/功法/科技/地点，支持"主分类/子分类"）、title（条目标题）、content（详细内容）、importance（0-3）、conflict_note（可选，字符串，详见下文）。不在标准列表的分类会被降级到候选区等待人工归类
+- 新揭示的世界观设定 → action: "create"，data 包含 category（必须从标准列表选择：核心设定/世界背景/力量体系/社会制度/势力/地理/历史/文化/生物/物品/功法/科技/地点，支持"主分类/子分类"）、title（条目标题）、content（详细内容；必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行）、importance（0-3）、conflict_note（可选，字符串，详见下文）。不在标准列表的分类会被降级到候选区等待人工归类
 - 设定补充或修正 → action: "update"，data 中**不输出 importance**（已有条目不需要重评）；若新内容与旧内容冲突，在 data.conflict_note 标注
 - entity_id 建议格式：world_<简短标识>
 
@@ -277,17 +277,18 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 # 提取原则
 
 1. 每条 delta 条目必须基于章节中的具体内容，不得凭空捏造
-2. entity_id 必须唯一且有意义，便于后续引用
-3. data 字段必须是对象（键值对），不能是 null、数组或基本类型
-4. 同一实体在同一章节中多次出现时，只输出最终状态（合并为一条 update 或 create）
-5. 必须先识别已有的实体（通过上下文快照判断），再区分 create 和 update
-6. 无法确认实体是否已存在时，先在快照中查找同名/同标题实体；确实找不到再 create，且 name/title 必须与原文逐字一致（系统会按名称去重）
-7. 所有字段名和值使用中文描述，但 fact_type、action、entity_id 使用英文标识符
-8. 输出必须是合法的 JSON 数组，不包含任何其他文字、注释或 Markdown 标记
-9. **character / world_entry / location 的 create 必须带 importance 字段**；update/delete 不需要
-10. **relationship 的 create/update 必须带 type_strength 字段**；delete 不需要
-11. **冲突标注必须用 conflict_note 字段**，不要把 ⚠️ 写在 content 里污染设定
-12. 不确定 importance/strength 时**保守评 1/weak**（入候选区更安全，不污染 P5）`
+2. 所有 content / description 长文本必须是纯文本：禁止 Markdown 标题、加粗、斜体、列表、链接、引用和代码块（如 ##、**、-、1.、[文本](链接)、>、三个反引号）；超过 200 字的内容必须用 \n\n 分段，每段一个主题
+3. entity_id 必须唯一且有意义，便于后续引用
+4. data 字段必须是对象（键值对），不能是 null、数组或基本类型
+5. 同一实体在同一章节中多次出现时，只输出最终状态（合并为一条 update 或 create）
+6. 必须先识别已有的实体（通过上下文快照判断），再区分 create 和 update
+7. 无法确认实体是否已存在时，先在快照中查找同名/同标题实体；确实找不到再 create，且 name/title 必须与原文逐字一致（系统会按名称去重）
+8. 所有字段名和值使用中文描述，但 fact_type、action、entity_id 使用英文标识符
+9. 输出必须是合法的 JSON 数组，不包含任何其他文字、注释或 Markdown 标记
+10. **character / world_entry / location 的 create 必须带 importance 字段**；update/delete 不需要
+11. **relationship 的 create/update 必须带 type_strength 字段**；delete 不需要
+12. **冲突标注必须用 conflict_note 字段**，不要把 ⚠️ 写在 content 里污染设定
+13. 不确定 importance/strength 时**保守评 1/weak**（入候选区更安全，不污染 P5）`
 
 export const observerAgent = {
   name: "observer" as const,

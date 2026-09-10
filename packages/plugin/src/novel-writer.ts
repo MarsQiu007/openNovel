@@ -9,7 +9,7 @@
 import type { Plugin } from "./index.js"
 import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
-import { eq, desc, and, asc, lt, sql, inArray } from "drizzle-orm"
+import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
@@ -50,6 +50,7 @@ import {
 } from "./novel-writer/state-commit.js"
 import { syncArcProgress } from "./novel-writer/arc-progress.js"
 import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "./novel-writer/world-category.js"
+import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "./novel-writer/setting-text.js"
 import { backfillStoryArcs } from "./novel-writer/arc-backfill.js"
 import {
   getDb,
@@ -136,6 +137,25 @@ import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } 
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
+
+const SETTING_ENTITY_TYPES = [
+  "character",
+  "world_entry",
+  "plot_thread",
+  "foreshadowing",
+  "volume",
+  "relationship",
+]
+
+const SETTING_TEXT_FIELDS: Record<string, string[]> = {
+  character: ["description"],
+  world_entry: ["title", "content"],
+  plot_thread: ["title", "description"],
+  foreshadowing: ["content"],
+  volume: ["title", "summary"],
+  relationship: ["description"],
+  location: ["description"],
+}
 
 function projectDirFromCtx(directory?: string | null): string {
   const dbPath = getDbPath(directory)
@@ -670,7 +690,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       manage_characters: tool({
         description:
-          "管理小说角色信息。可新增或更新角色（name/role/description/status）。character_id 为空时新增。status 可设为 'active'（活跃）或 'departed'（退场）；退场后后续章节不再安排出场，但历史章节提及仍然有效。主角不能设为 departed。",
+          "管理小说角色信息。可新增或更新角色（name/role/description/status）。character_id 为空时新增。status 可设为 'active'（活跃）或 'departed'（退场）；退场后后续章节不再安排出场，但历史章节提及仍然有效。主角不能设为 departed。\n\n" + SETTING_TEXT_FORMAT_RULE,
         args: {
           character_id: tool.schema.string().describe("角色 ID；传空字符串表示新增角色"),
           update: tool.schema.string().describe("角色更新内容 JSON：{name?,role?,description?,status?,novel_id?}"),
@@ -684,6 +704,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             return { title: "manage_characters", output: `update 不是合法 JSON：${args.update}` }
           }
           if (patch.novel_id) patch.novel_id = await resolveNovelId(db, patch.novel_id)
+          if (typeof patch.description === "string") patch.description = normalizeSettingText(patch.description)
+          const textError = settingTextFormatError(patch.description, "character", "description")
+          if (textError) return { title: "manage_characters", output: `设定文本格式校验失败：${textError}` }
 
           // 新增角色
           if (args.character_id.length === 0) {
@@ -1999,7 +2022,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       accept_pending_setting: tool({
         description:
-          "把候选区的一条 pending 设定正式入库到对应正式表（CharacterTable / WorldEntryTable / RelationshipTable），并把 status 标为 accepted。\n\n**跨 category 同义检测**：accept world_entry 前自动查同 title 的已有 world_entry（任意 category），有则提示合并（仍会执行入库，但 output 会警告「同标题已存在 X 条」）。",
+          "把候选区的一条 pending 设定正式入库到对应正式表（CharacterTable / WorldEntryTable / RelationshipTable），并把 status 标为 accepted。\n\n**跨 category 同义检测**：accept world_entry 前自动查同 title 的已有 world_entry（任意 category），有则提示合并（仍会执行入库，但 output 会警告「同标题已存在 X 条」）。\n\n" + SETTING_TEXT_FORMAT_RULE,
         args: {
           pending_id: tool.schema.string().describe("候选 ID（list_pending_settings 拿）"),
           allow_new_category: tool.schema
@@ -2021,6 +2044,20 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             payload = JSON.parse(row.payload_json) as Record<string, unknown>
           } catch {
             return { title: "accept_pending_setting", output: `payload_json 解析失败：${row.payload_json}` }
+          }
+          for (const field of SETTING_TEXT_FIELDS[row.candidate_type] ?? []) {
+            if (typeof payload[field] === "string") payload[field] = normalizeSettingText(payload[field] as string)
+          }
+          const textErrors = (SETTING_TEXT_FIELDS[row.candidate_type] ?? []).flatMap((field) => {
+            const error = settingTextFormatError(payload[field], row.candidate_type, field)
+            return error ? [`${row.candidate_type}.${field}：${error}`] : []
+          })
+          if (textErrors.length > 0) {
+            return {
+              title: "accept_pending_setting",
+              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
+              metadata: { pending_id: args.pending_id, candidate_type: row.candidate_type, errors: textErrors },
+            }
           }
           const newId = row.suggested_entity_id || crypto.randomUUID()
           let createdId = ""
@@ -2161,7 +2198,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       merge_pending_settings: tool({
         description:
-          "合并 N 条候选（≥2）到一条新正式条目。常用于：同一章节 observer 提了多个相似候选项，或 accept 时提示同标题已存在。把所有候选的 payload 按字段合并（取最长 content/description 优先），创建新正式条目后把源候选 status 标为 merged, merged_into=新条目 ID。",
+          "合并 N 条候选（≥2）到一条新正式条目。常用于：同一章节 observer 提了多个相似候选项，或 accept 时提示同标题已存在。把所有候选的 payload 按字段合并（取最长 content/description 优先），创建新正式条目后把源候选 status 标为 merged, merged_into=新条目 ID。\n\n" + SETTING_TEXT_FORMAT_RULE,
         args: {
           pending_ids: tool.schema
             .array(tool.schema.string())
@@ -2216,6 +2253,20 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               } else if (merged[k] === undefined) {
                 merged[k] = v
               }
+            }
+          }
+          for (const field of SETTING_TEXT_FIELDS[ct] ?? []) {
+            if (typeof merged[field] === "string") merged[field] = normalizeSettingText(merged[field] as string)
+          }
+          const textErrors = (SETTING_TEXT_FIELDS[ct] ?? []).flatMap((field) => {
+            const error = settingTextFormatError(merged[field], ct, field)
+            return error ? [`${ct}.${field}：${error}`] : []
+          })
+          if (textErrors.length > 0) {
+            return {
+              title: "merge_pending_settings",
+              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
+              metadata: { candidate_type: ct, source_pending_ids: args.pending_ids, errors: textErrors },
             }
           }
           const createdId = args.new_id || crypto.randomUUID()
@@ -2383,7 +2434,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
       save_novel_settings: tool({
         description:
-          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。',
+          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           settings_json: tool.schema
@@ -2404,6 +2455,26 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             settings = JSON.parse(args.settings_json)
           } catch {
             return { title: "save_novel_settings", output: "settings_json 不是合法 JSON" }
+          }
+          for (const setting of settings) {
+            for (const field of SETTING_TEXT_FIELDS[setting.type] ?? []) {
+              if (typeof setting.data?.[field] === "string") {
+                setting.data[field] = normalizeSettingText(setting.data[field] as string)
+              }
+            }
+          }
+          const textErrors = settings.flatMap((setting, index) =>
+            (SETTING_TEXT_FIELDS[setting.type] ?? []).flatMap((field) => {
+              const error = settingTextFormatError(setting.data?.[field], setting.type, field)
+              return error ? [`第${index}条（${setting.type}.${field}）：${error}`] : []
+            }),
+          )
+          if (textErrors.length > 0) {
+            return {
+              title: "save_novel_settings",
+              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
+              metadata: { count: 0, errors: textErrors },
+            }
           }
           // Phase 1: 先插入所有 character，构建 ref->id 和 name->id[] 映射。
           // relationship 依赖这些映射来解析角色引用，所以 character 必须先落库。
@@ -2624,7 +2695,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       create_relationship: tool({
         description:
-          "建立两个角色之间的单条关系。char_a 和 char_b 都可以是角色名（需在本小说内唯一）或角色 UUID；type 必填，描述关系类型（如 friend/enemy/mentor/亲人/师徒/宿敌）。这是单条创建入口，比 save_novel_settings 批量模式更直接；如需批量创建或多条设定一起落库，请用 save_novel_settings。",
+          "建立两个角色之间的单条关系。char_a 和 char_b 都可以是角色名（需在本小说内唯一）或角色 UUID；type 必填，描述关系类型（如 friend/enemy/mentor/亲人/师徒/宿敌）。这是单条创建入口，比 save_novel_settings 批量模式更直接；如需批量创建或多条设定一起落库，请用 save_novel_settings。\n\n" + SETTING_TEXT_FORMAT_RULE,
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           char_a: tool.schema.string().describe("角色 A 的名称或 UUID"),
@@ -2635,6 +2706,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
+          if (typeof args.description === "string") args.description = normalizeSettingText(args.description)
+          const textError = settingTextFormatError(args.description ?? "", "relationship", "description")
+          if (textError) return { title: "create_relationship", output: `设定文本格式校验失败：${textError}` }
 
           const resolveChar = async (
             input: string,
@@ -3202,6 +3276,238 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      read_setting: tool({
+        description:
+          "读取单条小说设定的完整字段内容（不截断 content/description）。先用 list_settings 定位 entity_id；支持 character/world_entry/plot_thread/foreshadowing/volume/relationship。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          entity_type: tool.schema
+            .string()
+            .describe("实体类型：character/world_entry/plot_thread/foreshadowing/volume/relationship"),
+          entity_id: tool.schema.string().describe("设定记录 ID"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const type = args.entity_type
+          const id = args.entity_id
+          const unsupported = `不支持的实体类型：${type}。支持：${SETTING_ENTITY_TYPES.join("/")}`
+          if (type === "character") {
+            const [row] = await db
+              .select()
+              .from(CharacterTable)
+              .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `character 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          if (type === "world_entry") {
+            const [row] = await db
+              .select()
+              .from(WorldEntryTable)
+              .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `world_entry 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          if (type === "plot_thread") {
+            const [row] = await db
+              .select()
+              .from(PlotThreadTable)
+              .where(and(eq(PlotThreadTable.novel_id, novelId), eq(PlotThreadTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `plot_thread 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          if (type === "foreshadowing") {
+            const [row] = await db
+              .select()
+              .from(ForeshadowingTable)
+              .where(and(eq(ForeshadowingTable.novel_id, novelId), eq(ForeshadowingTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `foreshadowing 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          if (type === "volume") {
+            const [row] = await db
+              .select()
+              .from(VolumeTable)
+              .where(and(eq(VolumeTable.novel_id, novelId), eq(VolumeTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `volume 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          if (type === "relationship") {
+            const [row] = await db
+              .select()
+              .from(RelationshipTable)
+              .where(and(eq(RelationshipTable.novel_id, novelId), eq(RelationshipTable.id, id)))
+              .all()
+            if (!row) return { title: "read_setting", output: `relationship 记录不存在：${id.slice(0, 8)}` }
+            return {
+              title: "read_setting",
+              output: JSON.stringify(row, null, 2),
+              metadata: { entity_type: type, entity_id: id, row },
+            }
+          }
+          return { title: "read_setting", output: unsupported }
+        },
+      }),
+      search_settings: tool({
+        description:
+          "按关键词搜索小说设定的标题或内容。支持 character/world_entry/plot_thread/foreshadowing/volume/relationship；不传 entity_type 时搜索全部类型，返回记录 ID、类型、标题和关键词上下文片段。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          query: tool.schema.string().describe("搜索关键词（不能为空）"),
+          entity_type: tool.schema
+            .string()
+            .optional()
+            .describe("可选实体类型：character/world_entry/plot_thread/foreshadowing/volume/relationship"),
+        },
+        async execute(args, ctx) {
+          const query = args.query.trim()
+          if (!query) return { title: "search_settings", output: "query 不能为空" }
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const type = args.entity_type
+          if (type && !SETTING_ENTITY_TYPES.includes(type)) {
+            return { title: "search_settings", output: `不支持的实体类型：${type}。支持：${SETTING_ENTITY_TYPES.join("/")}` }
+          }
+          const types = type ? [type] : SETTING_ENTITY_TYPES
+          const results: Array<{ id: string; entity_type: string; title: string; matched_field: string; snippet: string }> = []
+          const addResult = (entityType: string, id: string, title: string, fields: Record<string, string>) => {
+            const matched = Object.entries(fields).find(([, value]) => value.toLowerCase().includes(query.toLowerCase()))
+            if (!matched) return
+            results.push({
+              id,
+              entity_type: entityType,
+              title,
+              matched_field: matched[0],
+              snippet: searchSnippet(matched[1], query),
+            })
+          }
+
+          if (types.includes("character")) {
+            const rows = await db
+              .select()
+              .from(CharacterTable)
+              .where(
+                and(
+                  eq(CharacterTable.novel_id, novelId),
+                  or(
+                    like(CharacterTable.name, `%${query}%`),
+                    like(CharacterTable.role, `%${query}%`),
+                    like(CharacterTable.description, `%${query}%`),
+                  ),
+                ),
+              )
+              .orderBy(CharacterTable.name)
+              .all()
+            rows.forEach((row) =>
+              addResult("character", row.id, row.name, { name: row.name, role: row.role, description: row.description }),
+            )
+          }
+          if (types.includes("world_entry")) {
+            const rows = await db
+              .select()
+              .from(WorldEntryTable)
+              .where(
+                and(
+                  eq(WorldEntryTable.novel_id, novelId),
+                  or(
+                    like(WorldEntryTable.category, `%${query}%`),
+                    like(WorldEntryTable.title, `%${query}%`),
+                    like(WorldEntryTable.content, `%${query}%`),
+                  ),
+                ),
+              )
+              .orderBy(WorldEntryTable.category, WorldEntryTable.title)
+              .all()
+            rows.forEach((row) =>
+              addResult("world_entry", row.id, row.title, { category: row.category, title: row.title, content: row.content }),
+            )
+          }
+          if (types.includes("plot_thread")) {
+            const rows = await db
+              .select()
+              .from(PlotThreadTable)
+              .where(
+                and(
+                  eq(PlotThreadTable.novel_id, novelId),
+                  or(
+                    like(PlotThreadTable.title, `%${query}%`),
+                    like(PlotThreadTable.description, `%${query}%`),
+                  ),
+                ),
+              )
+              .orderBy(PlotThreadTable.title)
+              .all()
+            rows.forEach((row) => addResult("plot_thread", row.id, row.title, { title: row.title, description: row.description }))
+          }
+          if (types.includes("foreshadowing")) {
+            const rows = await db
+              .select()
+              .from(ForeshadowingTable)
+              .where(and(eq(ForeshadowingTable.novel_id, novelId), like(ForeshadowingTable.content, `%${query}%`)))
+              .orderBy(ForeshadowingTable.created_at)
+              .all()
+            rows.forEach((row) => {
+              const title = row.content.length > 40 ? `${row.content.slice(0, 40)}...` : row.content
+              addResult("foreshadowing", row.id, title, { content: row.content })
+            })
+          }
+          if (types.includes("volume")) {
+            const rows = await db
+              .select()
+              .from(VolumeTable)
+              .where(and(eq(VolumeTable.novel_id, novelId), or(like(VolumeTable.title, `%${query}%`), like(VolumeTable.summary, `%${query}%`))))
+              .orderBy(VolumeTable.order)
+              .all()
+            rows.forEach((row) => addResult("volume", row.id, row.title, { title: row.title, summary: row.summary }))
+          }
+          if (types.includes("relationship")) {
+            const rows = await db
+              .select()
+              .from(RelationshipTable)
+              .where(
+                and(
+                  eq(RelationshipTable.novel_id, novelId),
+                  or(like(RelationshipTable.type, `%${query}%`), like(RelationshipTable.description, `%${query}%`)),
+                ),
+              )
+              .orderBy(RelationshipTable.type)
+              .all()
+            rows.forEach((row) => addResult("relationship", row.id, row.type, { type: row.type, description: row.description }))
+          }
+
+          if (results.length === 0) return { title: "search_settings", output: `未找到与「${query}」匹配的设定。` }
+          return {
+            title: "search_settings",
+            output: JSON.stringify(results, null, 2),
+            metadata: { query, entity_type: type, count: results.length, items: results },
+          }
+        },
+      }),
       check_settings_consistency: tool({
         description:
           "扫描小说设定内部的自相矛盾（intra-setting consistency）。检查 worldEntries / characters / relationships 内部和跨条目的冲突，输出 WARN/FAIL 级别问题列表，供 director 在 save_novel_settings 后或人工审查设定时使用。**不是**审计章节与设定的对照（那个由 37 维审计/auditor 负责）。检查项：(1) 同 category 下标题完全重复的条目；(2) 同 category 下数字冲突（如一条说『12 神主』另一条说『10 神主』）；(3) 跨 category 引用但关键词冲突（如社会制度定义神主数量与势力定义神主数量不一致）。语义级矛盾需 LLM 审计最终判断。",
@@ -3559,7 +3865,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       update_setting: tool({
         description:
-          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。\n\n副作用（设定修改会级联到已写章节）：\n- world_entry.title 改名：自动重建 EntityRef 引用追踪；旧标题若已被章节正文引用，会在 PendingUpdate 表创建级联任务，提示 director/用户是否要统改这些章节的对应称谓。\n- world_entry.content 大改（如改爵位体系/境界名等关键定义）：同样会触发引用了该条目的章节的级联任务。\n- 其他类型修改不触发级联（仅引用关系可能变化，scanReferences 在下次 commit 时重建）。",
+          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content；content 必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。\n\n" + SETTING_TEXT_FORMAT_RULE + "\n\n副作用（设定修改会级联到已写章节）：\n- world_entry.title 改名：自动重建 EntityRef 引用追踪；旧标题若已被章节正文引用，会在 PendingUpdate 表创建级联任务，提示 director/用户是否要统改这些章节的对应称谓。\n- world_entry.content 大改（如改爵位体系/境界名等关键定义）：同样会触发引用了该条目的章节的级联任务。\n- 其他类型修改不触发级联（仅引用关系可能变化，scanReferences 在下次 commit 时重建）。",
         args: {
           entity_type: tool.schema
             .string()
@@ -3586,6 +3892,20 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
           if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
             return { title: "update_setting", output: "fields_json 必须是非空对象" }
+          }
+          for (const field of SETTING_TEXT_FIELDS[type] ?? []) {
+            if (typeof fields[field] === "string") fields[field] = normalizeSettingText(fields[field] as string)
+          }
+          const textErrors = (SETTING_TEXT_FIELDS[type] ?? []).flatMap((field) => {
+            const error = settingTextFormatError(fields[field], type, field)
+            return error ? [`${type}.${field}：${error}`] : []
+          })
+          if (textErrors.length > 0) {
+            return {
+              title: "update_setting",
+              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
+              metadata: { entity_type: type, entity_id: id, errors: textErrors },
+            }
           }
           const db = getDb(ctx.directory)
           // 引用追踪 + 级联副作用
@@ -3778,7 +4098,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       foreshadow_plant: tool({
         description:
-          "埋设一条新伏笔。伏笔必须具体可查（人物/物品/事件/信息），记录内容和埋设所在章节。重复内容（同 novel 内 content 完全相同）不会重复创建，而是返回已有伏笔。",
+          "埋设一条新伏笔。伏笔必须具体可查（人物/物品/事件/信息），记录内容和埋设所在章节。重复内容（同 novel 内 content 完全相同）不会重复创建，而是返回已有伏笔。\n\n" + SETTING_TEXT_FORMAT_RULE,
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           content: tool.schema.string().describe("伏笔内容（具体、可在未来回收的线索）"),
@@ -3787,6 +4107,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
+          args.content = normalizeSettingText(args.content)
+          const textError = settingTextFormatError(args.content, "foreshadowing", "content")
+          if (textError) return { title: "foreshadow_plant", output: `设定文本格式校验失败：${textError}` }
           // 同 novel 内按 content 去重
           const [existing] = await db
             .select()
@@ -5814,4 +6137,12 @@ export function writeProjectConfig(
       had_original: hadOriginal,
     },
   }
+}
+
+function searchSnippet(text: string, query: string): string {
+  const index = text.toLowerCase().indexOf(query.toLowerCase())
+  if (index < 0) return text.slice(0, 100)
+  const start = Math.max(0, index - 50)
+  const end = Math.min(text.length, index + query.length + 50)
+  return `${start > 0 ? "..." : ""}${text.slice(start, end)}${end < text.length ? "..." : ""}`
 }

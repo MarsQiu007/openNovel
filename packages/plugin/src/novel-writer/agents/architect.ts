@@ -24,10 +24,12 @@ export const architectAgent = {
 
 settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的类型和字段如下：
 
+所有 content / description / summary 长文本必须是纯文本：禁止 Markdown 标题、加粗、斜体、列表、链接、引用和代码块（如 ##、**、-、1.、[文本](链接)、>、三个反引号）；超过 200 字的内容必须用 \n\n 分段，每段一个主题。
+
 ### type: "world_entry"（世界观条目）
 - category：分类，必须从标准列表选择：核心设定/世界背景/力量体系/社会制度/势力/地理/历史/文化/生物/物品/功法/科技/地点；支持"主分类/子分类"（如"地点/城市"）。不在列表的分类会被 save_novel_settings 拒绝
 - title：标题
-- content：详细描述
+- content：详细描述；必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行
 
 ### type: "character"（角色）
 - ref：本地引用键（必填，如 "protagonist"、"antagonist"、"mentor"），供 relationship 通过 char_a_ref/char_b_ref 引用。同名角色必须用不同 ref 区分。
