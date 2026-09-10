@@ -135,6 +135,7 @@ import {
 import { checkStructure } from "./novel-writer/structure.js"
 import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } from "./novel-writer/annotation.js"
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
+import { analyzeWorldEntries, executeOrganizePlan, parseOrganizePlan, referencedWorldEntryIds, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 
@@ -3783,6 +3784,126 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
+      organize_settings: tool({
+        description:
+          "整理世界观设定。action=analyze 只读扫描 world_entry 的非标准分类、重复/相似标题、空字段、长单段和 Markdown 残留；action=dry_run 只校验 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前会重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除相似条目，不跳过确认，不写入 Markdown 或未分段长文本。",
+        args: {
+          action: tool.schema.enum(["analyze", "dry_run", "apply"]).describe("整理动作：analyze / dry_run / apply"),
+          novel_id: tool.schema.string().describe("小说 ID"),
+          plan_json: tool.schema.string().optional().describe('版本 1 的整理计划 JSON，dry_run 和 apply 必填'),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.novel_id, novelId)).all()
+
+          if (args.action === "analyze") {
+            const issues = analyzeWorldEntries(rows)
+            const header = issues.length === 0 ? "✅ 未发现需要整理的 world_entry 问题" : `发现 ${issues.length} 个可整理问题`
+            const lines = [header]
+            for (const issue of issues) {
+              lines.push("", `- [${issue.type}] ${issue.issue_id}`, `  证据：${issue.evidence}`, `  建议：${issue.suggestion}`)
+            }
+            if (issues.length === 0) lines.push("当前无需整理")
+            return {
+              title: "organize_settings",
+              output: lines.join("\n"),
+              metadata: { action: "analyze", novel_id: novelId, issues, count: issues.length },
+            }
+          }
+
+          if (!args.plan_json) {
+            return { title: "organize_settings", output: `action=${args.action} 时必须提供 plan_json` }
+          }
+          const parsed = parseOrganizePlan(args.plan_json)
+          if (parsed.errors.length > 0 || !parsed.plan) {
+            return {
+              title: "organize_settings",
+              output: `整理计划解析失败：\n${parsed.errors.map((error) => `- ${error}`).join("\n")}`,
+              metadata: { action: args.action, novel_id: novelId, valid: false, errors: parsed.errors },
+            }
+          }
+          const referencedIds = await referencedWorldEntryIds(ctx.directory, rows.map((row) => row.id))
+          const validation = validateOrganizePlan({ plan: parsed.plan, entries: rows, referencedIds })
+          if (!validation.ok) {
+            return {
+              title: "organize_settings",
+              output: `整理计划校验失败，未修改数据：\n${validation.errors.map((error) => `- ${error}`).join("\n")}`,
+              metadata: { action: args.action, novel_id: novelId, valid: false, errors: validation.errors, previews: validation.previews },
+            }
+          }
+
+          if (args.action === "dry_run") {
+            const lines = [`✅ 整理计划校验通过，未修改数据（${validation.previews.length} 个操作）`]
+            for (const preview of validation.previews) {
+              lines.push(`- [${preview.index}] ${preview.summary}`)
+            }
+            return {
+              title: "organize_settings",
+              output: lines.join("\n"),
+              metadata: { action: "dry_run", novel_id: novelId, valid: true, previews: validation.previews, operations: parsed.plan.operations },
+            }
+          }
+
+          try {
+            await ctx.ask({
+              permission: "organize_settings.apply",
+              patterns: ["*"],
+              always: [],
+              metadata: {
+                novel_id: novelId,
+                operation_count: parsed.plan.operations.length,
+                previews: validation.previews,
+              },
+            })
+          } catch (error) {
+            return {
+              title: "organize_settings",
+              output: "用户拒绝执行整理计划，未修改任何数据。",
+              metadata: {
+                action: "apply",
+                novel_id: novelId,
+                confirmed: false,
+                executed: false,
+                reason: error instanceof Error ? error.message : String(error),
+              },
+            }
+          }
+
+          const execution = await executeOrganizePlan(parsed.plan, { directory: ctx.directory, novelId })
+          const successCount = execution.results.filter((result) => result.status === "success").length
+          const lines = [`${execution.ok ? "✅ 整理计划执行完成" : "⚠️ 整理计划部分失败"}：成功 ${successCount} / ${parsed.plan.operations.length}`]
+          for (const result of execution.results) {
+            if (result.status === "failed") {
+              lines.push(`- [${result.index}] ${result.action} 失败：${result.error}`)
+              continue
+            }
+            if (result.action === "update") {
+              lines.push(`- [${result.index}] 更新 ${result.entry_id}：${result.changed_fields.join("、") || "无字段变化"}；历史 ${result.history_count}，级联 ${result.cascade_tasks}`)
+            } else if (result.action === "merge") {
+              lines.push(`- [${result.index}] 合并到 ${result.target_id}：源 ${result.source_ids.join("、")}；历史 ${result.history_count}，级联 ${result.cascade_tasks}`)
+            } else {
+              lines.push(`- [${result.index}] 删除 ${result.entry_id}`)
+            }
+          }
+          for (const item of execution.remaining) {
+            lines.push(`- [${item.index}] 未执行：${item.action} ${item.entry_ids.join("、")}`)
+          }
+          lines.push("请再次运行 action=analyze 复查剩余问题")
+          return {
+            title: "organize_settings",
+            output: lines.join("\n"),
+            metadata: {
+              action: "apply",
+              novel_id: novelId,
+              confirmed: true,
+              ok: execution.ok,
+              results: execution.results,
+              remaining: execution.remaining,
+            },
+          }
+        },
+      }),
       delete_setting: tool({
         description:
           "删除小说设定。支持删除 character/world_entry/plot_thread/foreshadowing/volume/relationship 类型的记录。删除前建议先用 list_settings 获取 entity_id，再用 cascade_check 检查影响范围。注意：角色（character）删除有保护--主角不能删除；已在章节正文中出场的角色不能硬删除（会破坏叙事连续性），应改用 update_setting 将 status 设为 'departed' 让角色退场。",
@@ -5353,6 +5474,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             volume_rollup: "allow",
             lint_settings: "allow",
             rename_world_category: "allow",
+            organize_settings: "allow",
           },
         },
         // architect: subagent，由 director 调度，生成并持久化小说设定（世界观/角色/伏笔/剧情线索/风格指南/卷/关系）

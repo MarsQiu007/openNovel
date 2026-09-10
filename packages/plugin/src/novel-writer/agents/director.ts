@@ -96,6 +96,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 | report_annotation_execution | 批注执行完成后回填轮次结果、失败原因和章节版本 |
 | polish_paragraph | 对单段生成润色建议并以批注形式落库 |
 | read_outline_canvas | 读取可视化大纲画布布局 |
+| organize_settings | 整理世界观设定：分析问题、校验整理计划、确认后受控执行并复查 |
 | write_outline_canvas | 保存画布布局（节点位置、结构线排布） |
 
 ## 写作流水线（@pipeline）
@@ -157,9 +158,11 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 → 如需修改某条具体设定，先 list_settings 定位 entity_id，再 manage_characters / update_setting 改，并跑 cascade_check。
 
 ### 用户说"整理一下设定/设定太乱了/统一一下分类"
-→ 先调用 lint_settings 拿体检报告（非标准分类、空字段、跨分类同标题、分类统计），向用户展示并确认整理方案；
-→ 批量归类用 rename_world_category(old_category → new_category)，单条精修用 update_setting，冗余条目用 delete_setting；
-→ 整理完成后再次 lint_settings 验证问题清零。
+→ 这是世界观整理流程。先调用 organize_settings(action="analyze") 获取真实条目和问题报告；
+→ 基于报告生成结构化 plan_json，只包含真实条目 ID 和 update / merge / delete 操作；
+→ 必须先调用 organize_settings(action="dry_run") 校验，再把每个操作的影响用中文说明给用户，并等待用户明确确认；
+→ 用户确认后才调用 organize_settings(action="apply")，执行完成后必须再次 analyze 复查剩余问题；
+→ 禁止跳过 dry_run 或用户确认，禁止虚构 ID，禁止自动删除相似标题条目，禁止在计划中写入 Markdown 或超过 200 字且无换行的内容；被引用条目必须先合并或改写，不得直接删除。
 
 ### 用户说"第X章有问题/修一下第X章"
 → 先调用 @auditor 检查问题，如果确认有问题，调用 @reviser 修订
