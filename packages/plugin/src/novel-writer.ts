@@ -51,7 +51,7 @@ import {
 import { syncArcProgress } from "./novel-writer/arc-progress.js"
 import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "./novel-writer/world-category.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "./novel-writer/setting-text.js"
-import { backfillStoryArcs } from "./novel-writer/arc-backfill.js"
+import { backfillStoryArcs, resolveArcsToDelete } from "./novel-writer/arc-backfill.js"
 import {
   getDb,
   NovelTable,
@@ -4909,12 +4909,48 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         async execute(args, ctx) {
           const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "backfill_story_arcs", output: "未找到当前小说项目" }
+          const mode = args.mode ?? "create_only"
+          if (mode === "replace_matching" && !args.replace_match?.arc_type && !args.replace_match?.target_character_name) {
+            return { title: "backfill_story_arcs", output: "replace_matching 模式需要提供 replace_match（arc_type 和/或 target_character_name）" }
+          }
+          // replace 模式删除前请求确认：独立权限键 arc_rebuild 避开 agent 规则表对
+          // 工具 ID 的通配 allow，审批记忆按模式粒度生效（openspec/changes/safe-delete-gates）
+          if (mode !== "create_only") {
+            const db = getDb(ctx.directory)
+            const existingArcs = await db
+              .select()
+              .from(StoryArcTable)
+              .where(eq(StoryArcTable.novel_id, novelId))
+              .all()
+            const characters = await db
+              .select({ id: CharacterTable.id, name: CharacterTable.name })
+              .from(CharacterTable)
+              .where(eq(CharacterTable.novel_id, novelId))
+              .all()
+            const arcsToDelete = resolveArcsToDelete(
+              existingArcs,
+              mode,
+              args.replace_match,
+              new Map(characters.map((c) => [c.name, c.id])),
+            )
+            await ctx.ask({
+              permission: "arc_rebuild",
+              patterns: [mode],
+              always: [mode],
+              metadata: {
+                toolId: "backfill_story_arcs",
+                mode,
+                arcs_to_delete: arcsToDelete.length,
+                replace_match: args.replace_match ?? null,
+              },
+            })
+          }
           try {
             const result = await backfillStoryArcs(
               ctx.directory,
               novelId,
               args.arcs,
-              args.mode ?? "create_only",
+              mode,
               args.replace_match,
             )
             if (result.skipped) {
@@ -5344,7 +5380,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             list_chapter_versions: "allow",
             read_chapter_version: "allow",
             diff_chapter_version: "allow",
-            restore_chapter_version: "ask",
+            restore_chapter_version: "allow",
             generate_master_outline: "allow",
             generate_volume_outline: "allow",
             generate_chapter_outline: "allow",

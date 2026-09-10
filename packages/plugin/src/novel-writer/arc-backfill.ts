@@ -45,6 +45,36 @@ export type ReplaceMatch = {
 
 export type BackfillMode = "create_only" | "replace_all" | "replace_matching"
 
+export type StoryArcRow = typeof StoryArcTable.$inferSelect
+
+/**
+ * 按 mode 与 replace_match 从既有弧光中筛出将被删除的集合。
+ * replace_matching 引用不存在的角色名时抛错（与 backfillStoryArcs 内部行为一致）。
+ */
+export function resolveArcsToDelete(
+  existingArcs: StoryArcRow[],
+  mode: BackfillMode,
+  replaceMatch: ReplaceMatch | undefined,
+  nameToId: Map<string, string>,
+): StoryArcRow[] {
+  if (mode === "replace_all") return existingArcs
+  if (mode !== "replace_matching" || !replaceMatch) return []
+  const targetCharId = replaceMatch.target_character_name
+    ? (nameToId.get(replaceMatch.target_character_name) ?? null)
+    : null
+  if (replaceMatch.target_character_name && !targetCharId) {
+    throw new Error(`角色「${replaceMatch.target_character_name}」不存在`)
+  }
+  return existingArcs.filter((a) => {
+    if (replaceMatch.arc_type && a.arc_type !== replaceMatch.arc_type) return false
+    if (replaceMatch.target_character_name) {
+      if (a.arc_type !== "character") return false
+      if (a.target_character_id !== targetCharId) return false
+    }
+    return true
+  })
+}
+
 export type BackfillArcReport = {
   id: string
   title: string
@@ -150,25 +180,7 @@ export async function backfillStoryArcs(
   )
 
   // 确定要删除的弧光
-  let arcsToDelete: typeof existingArcs = []
-  if (mode === "replace_all") {
-    arcsToDelete = existingArcs
-  } else if (mode === "replace_matching" && replaceMatch) {
-    const targetCharId = replaceMatch.target_character_name
-      ? (nameToId.get(replaceMatch.target_character_name) ?? null)
-      : null
-    if (replaceMatch.target_character_name && !targetCharId) {
-      throw new Error(`角色「${replaceMatch.target_character_name}」不存在`)
-    }
-    arcsToDelete = existingArcs.filter((a) => {
-      if (replaceMatch.arc_type && a.arc_type !== replaceMatch.arc_type) return false
-      if (replaceMatch.target_character_name) {
-        if (a.arc_type !== "character") return false
-        if (a.target_character_id !== targetCharId) return false
-      }
-      return true
-    })
-  }
+  const arcsToDelete = resolveArcsToDelete(existingArcs, mode, replaceMatch, nameToId)
 
   const deleteIds = new Set(arcsToDelete.map((a) => a.id))
   result.arcs_deleted = arcsToDelete.length

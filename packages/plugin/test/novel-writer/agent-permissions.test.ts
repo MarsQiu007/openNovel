@@ -8,7 +8,6 @@ import { createPluginInput } from "./runtime-assembly-helpers.js"
 const highImpactTools = [
   "delete_chapter",
   "delete_setting",
-  "restore_chapter_version",
   "cascade_execute",
   "accept_pending_setting",
   "merge_pending_settings",
@@ -37,6 +36,9 @@ describe("novel-writer agent permissions", () => {
     for (const tool of highImpactTools) {
       expect(permission[tool]).toBe("ask")
     }
+
+    // restore_chapter_version 追加新版本而不删除历史，纯可逆操作，直接放行
+    expect(permission.restore_chapter_version).toBe("allow")
 
     expect(pipelinePermission.read_chapter_content).toBe("allow")
     expect(pipelinePermission.commit_state_delta).toBe("allow")
