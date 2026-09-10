@@ -2,6 +2,12 @@ import { Location } from "@opennovel-ai/core/location"
 import { Effect } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { buildNovelExport } from "./novel-export"
+import { SettingOrganization } from "../setting-organization"
+import type {
+  SettingOrganizationAnalyzeInput,
+  SettingOrganizationApplyInput,
+  SettingOrganizationDryRunInput,
+} from "@opennovel-ai/schema/novel"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError } from "@opennovel-ai/protocol/groups/novel"
@@ -354,6 +360,35 @@ function invalidGenre(genre: string): NovelValidationError {
 }
 
 // ─── Per-endpoint Effect logic (directory-scoped, testable) ───
+function requireSettingOrganizationNovel(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const novel = getDb(directory).select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    return yield* SettingOrganization
+  })
+}
+
+export function settingOrganizationAnalyze(novelID: string, directory: string, input: SettingOrganizationAnalyzeInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingOrganizationNovel(novelID, directory)
+    return yield* Effect.promise(() => service.analyze(novelID, directory, input))
+  })
+}
+
+export function settingOrganizationDryRun(novelID: string, directory: string, input: SettingOrganizationDryRunInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingOrganizationNovel(novelID, directory)
+    return yield* Effect.promise(() => service.dryRun(novelID, directory, input))
+  })
+}
+
+export function settingOrganizationApply(novelID: string, directory: string, input: SettingOrganizationApplyInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingOrganizationNovel(novelID, directory)
+    return yield* Effect.promise(() => service.apply(novelID, directory, input))
+  })
+}
+
 
 type CreateNovelInput = { title: string; genre: string; synopsis: string }
 type UpdateChapterContentInput = { content: string }
@@ -2398,6 +2433,24 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* upsertCanvasLayout(ctx.params.novelID, ctx.payload.layout, location.directory)
+        }),
+      )
+      .handle("novel.settings-organization.analyze", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingOrganizationAnalyze(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.settings-organization.dry-run", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingOrganizationDryRun(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.settings-organization.apply", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingOrganizationApply(ctx.params.novelID, location.directory, ctx.payload)
         }),
       ),
   ),

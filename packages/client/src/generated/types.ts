@@ -5328,6 +5328,7 @@ export type ServerNovelApplyInput = {
 
 export type ServerNovelApplyOutput = {
   readonly ok: boolean
+  readonly errors: ReadonlyArray<string>
   readonly results: ReadonlyArray<{
     readonly index: number
     readonly action: "update" | "merge" | "delete"

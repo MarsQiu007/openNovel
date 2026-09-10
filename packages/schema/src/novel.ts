@@ -866,6 +866,7 @@ export interface SettingOrganizationRemainingOperation extends Schema.Schema.Typ
 
 export const SettingOrganizationApplyResult = Schema.Struct({
   ok: Schema.Boolean,
+  errors: Schema.Array(Schema.String),
   results: Schema.Array(SettingOrganizationOperationResult),
   remaining: Schema.Array(SettingOrganizationRemainingOperation),
 }).annotate({ identifier: "Novel.SettingOrganizationApplyResult" })

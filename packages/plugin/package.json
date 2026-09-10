@@ -19,6 +19,7 @@
     "./novel-writer": "./src/novel-writer.ts",
     "./novel-writer/cli": "./src/novel-writer/cli.ts",
     "./novel-writer/session-store": "./src/novel-writer/session-store.ts",
+    "./novel-writer/setting-reorganization": "./src/novel-writer/setting-reorganization.ts",
     "./novel-writer/tui": "./src/novel-writer/tui.tsx"
   },
   "files": [
