@@ -24,8 +24,9 @@ import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
+import { SettingOrganizationPanel } from "./setting-organization"
 
-type WorldSubTab = "entries" | "style" | "soul"
+type WorldSubTab = "entries" | "style" | "soul" | "organization"
 
 type WorldReaderProps = {
   novelID: Accessor<string>
@@ -43,7 +44,7 @@ export function WorldReader(props: WorldReaderProps) {
           class="segmented-control-v2--full-width"
           value={subTab()}
           onChange={(value) => {
-            if (value === "entries" || value === "style" || value === "soul") setSubTab(value)
+            if (value === "entries" || value === "style" || value === "soul" || value === "organization") setSubTab(value)
           }}
         >
           <SegmentedControlItemV2 value="entries">
@@ -51,6 +52,7 @@ export function WorldReader(props: WorldReaderProps) {
           </SegmentedControlItemV2>
           <SegmentedControlItemV2 value="style">{language.t("novel.settings.tabStyle")}</SegmentedControlItemV2>
           <SegmentedControlItemV2 value="soul">{language.t("novel.settings.tabSoul")}</SegmentedControlItemV2>
+          <SegmentedControlItemV2 value="organization">整理</SegmentedControlItemV2>
         </SegmentedControlV2>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -66,6 +68,9 @@ export function WorldReader(props: WorldReaderProps) {
         </Show>
         <Show when={subTab() === "soul"}>
           <NovelSoulEditor novelID={props.novelID} />
+        </Show>
+        <Show when={subTab() === "organization"}>
+          <SettingOrganizationPanel novelID={props.novelID} />
         </Show>
       </div>
     </div>
