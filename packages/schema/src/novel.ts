@@ -779,6 +779,117 @@ export const UpdateExecutionRoundInput = Schema.Struct({
 }).annotate({ identifier: "Novel.UpdateExecutionRoundInput" })
 export interface UpdateExecutionRoundInput extends Schema.Schema.Type<typeof UpdateExecutionRoundInput> {}
 
+export const SettingOrganizationEntityType = Schema.Literals([
+  "world_entry",
+  "character",
+  "relationship",
+  "plot_thread",
+  "foreshadowing",
+])
+export type SettingOrganizationEntityType = typeof SettingOrganizationEntityType.Type
+
+export const SettingOrganizationIssueType = Schema.Literals([
+  "nonstandard_category",
+  "duplicate_title",
+  "similar_title",
+  "duplicate_identity",
+  "empty_field",
+  "long_single_paragraph",
+  "markdown_syntax",
+])
+export type SettingOrganizationIssueType = typeof SettingOrganizationIssueType.Type
+
+export const SettingOrganizationPlanFields = Schema.Struct({
+  category: optional(Schema.String),
+  title: optional(Schema.String),
+  content: optional(Schema.String),
+  name: optional(Schema.String),
+  description: optional(Schema.String),
+}).annotate({ identifier: "Novel.SettingOrganizationPlanFields" })
+export interface SettingOrganizationPlanFields extends Schema.Schema.Type<typeof SettingOrganizationPlanFields> {}
+
+export const SettingOrganizationIssue = Schema.Struct({
+  issueId: Schema.String,
+  type: SettingOrganizationIssueType,
+  entityType: SettingOrganizationEntityType,
+  entryIds: Schema.Array(Schema.String),
+  evidence: Schema.String,
+  suggestion: Schema.String,
+}).annotate({ identifier: "Novel.SettingOrganizationIssue" })
+export interface SettingOrganizationIssue extends Schema.Schema.Type<typeof SettingOrganizationIssue> {}
+
+export const SettingOrganizationAnalyzeResult = Schema.Struct({
+  scope: Schema.String,
+  issues: Schema.Array(SettingOrganizationIssue),
+  count: Schema.Int,
+}).annotate({ identifier: "Novel.SettingOrganizationAnalyzeResult" })
+export interface SettingOrganizationAnalyzeResult extends Schema.Schema.Type<typeof SettingOrganizationAnalyzeResult> {}
+
+export const SettingOrganizationPreview = Schema.Struct({
+  index: Schema.Int,
+  action: Schema.Literals(["update", "merge", "delete"]),
+  entityType: SettingOrganizationEntityType,
+  entryIds: Schema.Array(Schema.String),
+  summary: Schema.String,
+  fields: optional(Schema.Array(Schema.String)),
+}).annotate({ identifier: "Novel.SettingOrganizationPreview" })
+export interface SettingOrganizationPreview extends Schema.Schema.Type<typeof SettingOrganizationPreview> {}
+
+export const SettingOrganizationDryRunResult = Schema.Struct({
+  valid: Schema.Boolean,
+  planDigest: Schema.String,
+  previews: Schema.Array(SettingOrganizationPreview),
+  errors: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.SettingOrganizationDryRunResult" })
+export interface SettingOrganizationDryRunResult extends Schema.Schema.Type<typeof SettingOrganizationDryRunResult> {}
+
+export const SettingOrganizationOperationResult = Schema.Struct({
+  index: Schema.Int,
+  action: Schema.Literals(["update", "merge", "delete"]),
+  entityType: SettingOrganizationEntityType,
+  status: Schema.Literals(["success", "failed"]),
+  entryIds: Schema.Array(Schema.String),
+  changedFields: optional(Schema.Array(Schema.String)),
+  historyCount: optional(Schema.Int),
+  cascadeTasks: optional(Schema.Int),
+  error: optional(Schema.String),
+}).annotate({ identifier: "Novel.SettingOrganizationOperationResult" })
+export interface SettingOrganizationOperationResult extends Schema.Schema.Type<typeof SettingOrganizationOperationResult> {}
+
+export const SettingOrganizationRemainingOperation = Schema.Struct({
+  index: Schema.Int,
+  action: Schema.Literals(["update", "merge", "delete"]),
+  entityType: SettingOrganizationEntityType,
+  entryIds: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.SettingOrganizationRemainingOperation" })
+export interface SettingOrganizationRemainingOperation extends Schema.Schema.Type<typeof SettingOrganizationRemainingOperation> {}
+
+export const SettingOrganizationApplyResult = Schema.Struct({
+  ok: Schema.Boolean,
+  results: Schema.Array(SettingOrganizationOperationResult),
+  remaining: Schema.Array(SettingOrganizationRemainingOperation),
+}).annotate({ identifier: "Novel.SettingOrganizationApplyResult" })
+export interface SettingOrganizationApplyResult extends Schema.Schema.Type<typeof SettingOrganizationApplyResult> {}
+
+export const SettingOrganizationAnalyzeInput = Schema.Struct({
+  scope: optional(
+    Schema.Literals(["all", "world_entry", "character", "relationship", "plot_thread", "foreshadowing"]),
+  ),
+}).annotate({ identifier: "Novel.SettingOrganizationAnalyzeInput" })
+export interface SettingOrganizationAnalyzeInput extends Schema.Schema.Type<typeof SettingOrganizationAnalyzeInput> {}
+
+export const SettingOrganizationDryRunInput = Schema.Struct({
+  planJson: Schema.String,
+}).annotate({ identifier: "Novel.SettingOrganizationDryRunInput" })
+export interface SettingOrganizationDryRunInput extends Schema.Schema.Type<typeof SettingOrganizationDryRunInput> {}
+
+export const SettingOrganizationApplyInput = Schema.Struct({
+  planJson: Schema.String,
+  planDigest: Schema.String,
+  confirmed: Schema.Boolean,
+}).annotate({ identifier: "Novel.SettingOrganizationApplyInput" })
+export interface SettingOrganizationApplyInput extends Schema.Schema.Type<typeof SettingOrganizationApplyInput> {}
+
 export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,
 }).annotate({ identifier: "Novel.UpsertCanvasLayoutInput" })

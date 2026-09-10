@@ -1855,23 +1855,64 @@ const Endpoint18_81 = (raw: RawClient["server.novel"]) => (input: Endpoint18_81I
     },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_82Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_82Request = Parameters<RawClient["server.novel"]["novel.settings-organization.analyze"]>[0]
 type Endpoint18_82Input = {
   readonly novelID: Endpoint18_82Request["params"]["novelID"]
   readonly location?: Endpoint18_82Request["query"]["location"]
+  readonly scope?: Endpoint18_82Request["payload"]["scope"]
 }
 const Endpoint18_82 = (raw: RawClient["server.novel"]) => (input: Endpoint18_82Input) =>
+  raw["novel.settings-organization.analyze"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"] },
+    payload: { scope: input["scope"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_83Request = Parameters<RawClient["server.novel"]["novel.settings-organization.dry-run"]>[0]
+type Endpoint18_83Input = {
+  readonly novelID: Endpoint18_83Request["params"]["novelID"]
+  readonly location?: Endpoint18_83Request["query"]["location"]
+  readonly planJson: Endpoint18_83Request["payload"]["planJson"]
+}
+const Endpoint18_83 = (raw: RawClient["server.novel"]) => (input: Endpoint18_83Input) =>
+  raw["novel.settings-organization.dry-run"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"] },
+    payload: { planJson: input["planJson"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_84Request = Parameters<RawClient["server.novel"]["novel.settings-organization.apply"]>[0]
+type Endpoint18_84Input = {
+  readonly novelID: Endpoint18_84Request["params"]["novelID"]
+  readonly location?: Endpoint18_84Request["query"]["location"]
+  readonly planJson: Endpoint18_84Request["payload"]["planJson"]
+  readonly planDigest: Endpoint18_84Request["payload"]["planDigest"]
+  readonly confirmed: Endpoint18_84Request["payload"]["confirmed"]
+}
+const Endpoint18_84 = (raw: RawClient["server.novel"]) => (input: Endpoint18_84Input) =>
+  raw["novel.settings-organization.apply"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"] },
+    payload: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_85Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_85Input = {
+  readonly novelID: Endpoint18_85Request["params"]["novelID"]
+  readonly location?: Endpoint18_85Request["query"]["location"]
+}
+const Endpoint18_85 = (raw: RawClient["server.novel"]) => (input: Endpoint18_85Input) =>
   raw["novel.canvas-layout"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
     Effect.mapError(mapClientError),
   )
 
-type Endpoint18_83Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
-type Endpoint18_83Input = {
-  readonly novelID: Endpoint18_83Request["params"]["novelID"]
-  readonly location?: Endpoint18_83Request["query"]["location"]
-  readonly layout: Endpoint18_83Request["payload"]["layout"]
+type Endpoint18_86Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
+type Endpoint18_86Input = {
+  readonly novelID: Endpoint18_86Request["params"]["novelID"]
+  readonly location?: Endpoint18_86Request["query"]["location"]
+  readonly layout: Endpoint18_86Request["payload"]["layout"]
 }
-const Endpoint18_83 = (raw: RawClient["server.novel"]) => (input: Endpoint18_83Input) =>
+const Endpoint18_86 = (raw: RawClient["server.novel"]) => (input: Endpoint18_86Input) =>
   raw["novel.upsert-canvas-layout"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"] },
@@ -1961,8 +2002,11 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "create-execution-round": Endpoint18_79(raw),
   "execution-rounds": Endpoint18_80(raw),
   "update-execution-round": Endpoint18_81(raw),
-  "canvas-layout": Endpoint18_82(raw),
-  "upsert-canvas-layout": Endpoint18_83(raw),
+  analyze: Endpoint18_82(raw),
+  "dry-run": Endpoint18_83(raw),
+  apply: Endpoint18_84(raw),
+  "canvas-layout": Endpoint18_85(raw),
+  "upsert-canvas-layout": Endpoint18_86(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

@@ -5256,6 +5256,97 @@ export type ServerNovelUpdateExecutionRoundOutput = {
   readonly createdAt: number
 }
 
+export type ServerNovelAnalyzeInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly scope?: {
+    readonly scope?: "all" | "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+  }["scope"]
+}
+
+export type ServerNovelAnalyzeOutput = {
+  readonly scope: string
+  readonly issues: ReadonlyArray<{
+    readonly issueId: string
+    readonly type:
+      | "nonstandard_category"
+      | "duplicate_title"
+      | "similar_title"
+      | "duplicate_identity"
+      | "empty_field"
+      | "long_single_paragraph"
+      | "markdown_syntax"
+    readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+    readonly entryIds: ReadonlyArray<string>
+    readonly evidence: string
+    readonly suggestion: string
+  }>
+  readonly count: number
+}
+
+export type ServerNovelDryRunInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly planJson: { readonly planJson: string }["planJson"]
+}
+
+export type ServerNovelDryRunOutput = {
+  readonly valid: boolean
+  readonly planDigest: string
+  readonly previews: ReadonlyArray<{
+    readonly index: number
+    readonly action: "update" | "merge" | "delete"
+    readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+    readonly entryIds: ReadonlyArray<string>
+    readonly summary: string
+    readonly fields?: ReadonlyArray<string>
+  }>
+  readonly errors: ReadonlyArray<string>
+}
+
+export type ServerNovelApplyInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly planJson: { readonly planJson: string; readonly planDigest: string; readonly confirmed: boolean }["planJson"]
+  readonly planDigest: {
+    readonly planJson: string
+    readonly planDigest: string
+    readonly confirmed: boolean
+  }["planDigest"]
+  readonly confirmed: {
+    readonly planJson: string
+    readonly planDigest: string
+    readonly confirmed: boolean
+  }["confirmed"]
+}
+
+export type ServerNovelApplyOutput = {
+  readonly ok: boolean
+  readonly results: ReadonlyArray<{
+    readonly index: number
+    readonly action: "update" | "merge" | "delete"
+    readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+    readonly status: "success" | "failed"
+    readonly entryIds: ReadonlyArray<string>
+    readonly changedFields?: ReadonlyArray<string>
+    readonly historyCount?: number
+    readonly cascadeTasks?: number
+    readonly error?: string
+  }>
+  readonly remaining: ReadonlyArray<{
+    readonly index: number
+    readonly action: "update" | "merge" | "delete"
+    readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+    readonly entryIds: ReadonlyArray<string>
+  }>
+}
+
 export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {

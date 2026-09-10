@@ -1,8 +1,8 @@
 ## 1. API 契约
 
-- [ ] 1.1 在 schema 中新增设置整理 analyze、dry-run、apply 的输入和响应结构，并确认实体、动作、scope 和错误字段能表达既有整理结果
-- [ ] 1.2 在 protocol NovelGroup 中新增三个整理端点并接上 schema 错误契约；运行 `openspec validate settings-organization-ui --json`
-- [ ] 1.3 在 `packages/client` 运行 `bun run generate`，确认生成客户端包含设置整理端点且不手工编辑 generated 文件
+- [x] 1.1 在 schema 中新增设置整理 analyze、dry-run、apply 的输入和响应结构，并确认实体、动作、scope 和错误字段能表达既有整理结果
+- [x] 1.2 在 protocol NovelGroup 中新增三个整理端点并接上 schema 错误契约；运行 `openspec validate settings-organization-ui --json`
+- [x] 1.3 在 `packages/client` 运行 `bun run generate`，确认生成客户端包含设置整理端点且不手工编辑 generated 文件
 
 ## 2. Server 与适配器
 

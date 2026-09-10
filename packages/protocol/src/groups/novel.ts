@@ -65,6 +65,12 @@ import {
   CreateAnnotationInput,
   UpdateAnnotationInput,
   UpsertCanvasLayoutInput,
+  SettingOrganizationAnalyzeInput,
+  SettingOrganizationDryRunInput,
+  SettingOrganizationApplyInput,
+  SettingOrganizationAnalyzeResult,
+  SettingOrganizationDryRunResult,
+  SettingOrganizationApplyResult,
   ExecutionRound,
   CreateExecutionRoundInput,
   UpdateExecutionRoundInput,
@@ -1167,6 +1173,57 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
         OpenApi.annotations({ identifier: "v2.novel.update-execution-round", summary: "Update execution round" }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.settings-organization.analyze", `${root}/:novelID/settings-organization/analyze`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SettingOrganizationAnalyzeInput,
+      success: SettingOrganizationAnalyzeResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.settings-organization.analyze",
+          summary: "Analyze setting organization issues",
+          description: "Analyze world entries, characters, relationships, plot threads, and foreshadowing for cleanup.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.settings-organization.dry-run", `${root}/:novelID/settings-organization/dry-run`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SettingOrganizationDryRunInput,
+      success: SettingOrganizationDryRunResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.settings-organization.dry-run",
+          summary: "Dry run setting organization plan",
+          description: "Validate a versioned organization plan and return an operation preview without writing.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.settings-organization.apply", `${root}/:novelID/settings-organization/apply`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SettingOrganizationApplyInput,
+      success: SettingOrganizationApplyResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.settings-organization.apply",
+          summary: "Apply setting organization plan",
+          description: "Apply an explicitly confirmed organization plan after server-side revalidation.",
+        }),
       ),
   )
   .add(

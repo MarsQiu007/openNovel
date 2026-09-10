@@ -276,6 +276,12 @@ import type {
   ServerNovelExecutionRoundsOutput,
   ServerNovelUpdateExecutionRoundInput,
   ServerNovelUpdateExecutionRoundOutput,
+  ServerNovelAnalyzeInput,
+  ServerNovelAnalyzeOutput,
+  ServerNovelDryRunInput,
+  ServerNovelDryRunOutput,
+  ServerNovelApplyInput,
+  ServerNovelApplyOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2298,6 +2304,45 @@ export function make(options: ClientOptions) {
               chapterVersionId: input["chapterVersionId"],
               promptSnapshot: input["promptSnapshot"],
             },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      analyze: (input: ServerNovelAnalyzeInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelAnalyzeOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/analyze`,
+            query: { location: input["location"] },
+            body: { scope: input["scope"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "dry-run": (input: ServerNovelDryRunInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelDryRunOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/dry-run`,
+            query: { location: input["location"] },
+            body: { planJson: input["planJson"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      apply: (input: ServerNovelApplyInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelApplyOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/apply`,
+            query: { location: input["location"] },
+            body: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
