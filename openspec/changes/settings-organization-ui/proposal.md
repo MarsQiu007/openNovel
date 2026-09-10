@@ -33,5 +33,6 @@ agent 工具已经能分析设定、校验整理计划并在确认后执行，�
 - `packages/app`: 设定中心 UI、查询 mutation、确认弹层、结果展示与数据刷新。
 - `packages/schema` / `packages/protocol`: 新增整理 API 请求、响应和错误契约。
 - `packages/server`: 新增 HTTP handler，并通过整理服务端口调用整理能力。
+- `packages/plugin`: 仅公开既有设置整理模块导出，不改变整理域逻辑。
 - `packages/opennovel`: 提供基于现有 plugin 整理逻辑的服务适配器，保持 `server` 不直接依赖 `plugin`。
 - `packages/client`: 公开 Protocol 变更后重新生成 SDK。
