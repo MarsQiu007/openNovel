@@ -32,3 +32,10 @@
 - [x] 5.1 启动应用后在设定中心创建一条新设定（通过 AI），确认内容有分段；在阅读器中确认段落渲染正确
 - [x] 5.2 通过 AI 调用 read_setting 读取已有设定，确认返回完整 content；通过 AI 调用 search_settings 搜索关键词，确认返回结果含上下文片段
 - [x] 5.3 在 packages/plugin 和 packages/app 目录分别通过 bun typecheck 与 oxlint
+
+## Implementation Commits
+
+- `52dad5193` docs(openspec): 完善 setting-readability 方案
+- `5ba5a2e1a` feat(plugin): 增加设定纯文本与检索工具
+- `b7d7b7500` test(plugin): 覆盖设定文本与检索工具
+- `aeba2bc7c` feat(app): 统一设定详情分段排版
