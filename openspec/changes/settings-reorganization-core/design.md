@@ -56,6 +56,7 @@
 ```json
 {
   "version": 1,
+  "entity_type": "world_entry",
   "operations": [
     { "action": "update", "id": "...", "fields": { "category": "力量体系", "title": "境界体系", "content": "第一段\n\n第二段" }, "reason": "修复分类和格式" },
     { "action": "merge", "target_id": "...", "source_ids": ["..."], "fields": { "content": "合并后的分段内容" }, "reason": "合并重复标题" },
