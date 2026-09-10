@@ -74,6 +74,12 @@ import {
   ExecutionRound,
   CreateExecutionRoundInput,
   UpdateExecutionRoundInput,
+  WorldEntryAnnotation,
+  CreateWorldEntryAnnotationInput,
+  UpdateWorldEntryAnnotationInput,
+  WorldEntryAnnotationExecutionRound,
+  CreateWorldEntryAnnotationRoundInput,
+  UpdateWorldEntryAnnotationRoundInput,
 } from "@opennovel-ai/schema/novel"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -1223,6 +1229,115 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.settings-organization.apply",
           summary: "Apply setting organization plan",
           description: "Apply an explicitly confirmed organization plan after server-side revalidation.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.setting-annotations", `${root}/:novelID/world-entries/:entryID/annotations`, {
+      params: { novelID: Schema.String, entryID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(WorldEntryAnnotation),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-annotations",
+          summary: "List world entry annotations",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-setting-annotation", `${root}/:novelID/world-entries/:entryID/annotations`, {
+      params: { novelID: Schema.String, entryID: Schema.String },
+      query: LocationQuery,
+      payload: CreateWorldEntryAnnotationInput,
+      success: WorldEntryAnnotation,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.create-setting-annotation",
+          summary: "Create world entry annotation",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.update-setting-annotation", `${root}/:novelID/setting-annotations/:annotationID`, {
+      params: { novelID: Schema.String, annotationID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateWorldEntryAnnotationInput,
+      success: WorldEntryAnnotation,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.update-setting-annotation",
+          summary: "Update world entry annotation",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-setting-annotation", `${root}/:novelID/setting-annotations/:annotationID`, {
+      params: { novelID: Schema.String, annotationID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.delete-setting-annotation",
+          summary: "Delete world entry annotation",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-setting-annotation-round", `${root}/:novelID/world-entries/:entryID/annotation-rounds`, {
+      params: { novelID: Schema.String, entryID: Schema.String },
+      query: LocationQuery,
+      payload: CreateWorldEntryAnnotationRoundInput,
+      success: WorldEntryAnnotationExecutionRound,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.create-setting-annotation-round",
+          summary: "Create world entry annotation execution round",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.setting-annotation-rounds", `${root}/:novelID/world-entries/:entryID/annotation-rounds`, {
+      params: { novelID: Schema.String, entryID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Array(WorldEntryAnnotationExecutionRound),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-annotation-rounds",
+          summary: "List world entry annotation execution rounds",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.update-setting-annotation-round", `${root}/:novelID/setting-annotation-rounds/:roundID`, {
+      params: { novelID: Schema.String, roundID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateWorldEntryAnnotationRoundInput,
+      success: WorldEntryAnnotationExecutionRound,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.update-setting-annotation-round",
+          summary: "Update world entry annotation execution round",
         }),
       ),
   )

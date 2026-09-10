@@ -6,10 +6,10 @@
 
 ## 2. API 契约
 
-- [ ] 2.1 新增批注和执行轮次的 schema 结构，覆盖锚点、状态、来源、快照和结果摘要
-- [ ] 2.2 在 NovelGroup 新增批注 CRUD 和轮次端点，并运行 `openspec validate setting-annotations --json`
-- [ ] 2.3 在 `packages/client` 运行 `bun run generate`，确认不手工编辑 generated 文件
-- [ ] 2.4 新增 server handler 并校验 novel 与 world_entry 归属；在 `packages/server` 运行 `bun typecheck`
+- [x] 2.1 新增批注和执行轮次的 schema 结构，覆盖锚点、状态、来源、快照和结果摘要
+- [x] 2.2 在 NovelGroup 新增批注 CRUD 和轮次端点，并运行 `openspec validate setting-annotations --json`
+- [x] 2.3 在 `packages/client` 运行 `bun run generate`，确认不手工编辑 generated 文件
+- [x] 2.4 新增 server handler 并校验 novel 与 world_entry 归属；在 `packages/server` 运行 `bun typecheck`
 
 ## 3. Plugin 工具与提示词
 

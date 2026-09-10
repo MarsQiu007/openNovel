@@ -282,6 +282,20 @@ import type {
   ServerNovelDryRunOutput,
   ServerNovelApplyInput,
   ServerNovelApplyOutput,
+  ServerNovelSettingAnnotationsInput,
+  ServerNovelSettingAnnotationsOutput,
+  ServerNovelCreateSettingAnnotationInput,
+  ServerNovelCreateSettingAnnotationOutput,
+  ServerNovelUpdateSettingAnnotationInput,
+  ServerNovelUpdateSettingAnnotationOutput,
+  ServerNovelDeleteSettingAnnotationInput,
+  ServerNovelDeleteSettingAnnotationOutput,
+  ServerNovelCreateSettingAnnotationRoundInput,
+  ServerNovelCreateSettingAnnotationRoundOutput,
+  ServerNovelSettingAnnotationRoundsInput,
+  ServerNovelSettingAnnotationRoundsOutput,
+  ServerNovelUpdateSettingAnnotationRoundInput,
+  ServerNovelUpdateSettingAnnotationRoundOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2343,6 +2357,127 @@ export function make(options: ClientOptions) {
             path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/apply`,
             query: { location: input["location"] },
             body: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "setting-annotations": (input: ServerNovelSettingAnnotationsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSettingAnnotationsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotations`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "create-setting-annotation": (input: ServerNovelCreateSettingAnnotationInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCreateSettingAnnotationOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotations`,
+            query: { location: input["location"] },
+            body: {
+              parentId: input["parentId"],
+              source: input["source"],
+              anchorType: input["anchorType"],
+              paragraphIndex: input["paragraphIndex"],
+              startOffset: input["startOffset"],
+              endOffset: input["endOffset"],
+              quote: input["quote"],
+              comment: input["comment"],
+              suggestedReplacement: input["suggestedReplacement"],
+              authorSessionId: input["authorSessionId"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "update-setting-annotation": (input: ServerNovelUpdateSettingAnnotationInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpdateSettingAnnotationOutput>(
+          {
+            method: "PATCH",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotations/${encodeURIComponent(input.annotationID)}`,
+            query: { location: input["location"] },
+            body: {
+              comment: input["comment"],
+              status: input["status"],
+              suggestedReplacement: input["suggestedReplacement"],
+              quote: input["quote"],
+              executionRoundId: input["executionRoundId"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "delete-setting-annotation": (input: ServerNovelDeleteSettingAnnotationInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelDeleteSettingAnnotationOutput>(
+          {
+            method: "DELETE",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotations/${encodeURIComponent(input.annotationID)}`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "create-setting-annotation-round": (
+        input: ServerNovelCreateSettingAnnotationRoundInput,
+        requestOptions?: RequestOptions,
+      ) =>
+        request<ServerNovelCreateSettingAnnotationRoundOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotation-rounds`,
+            query: { location: input["location"] },
+            body: {
+              promptSnapshot: input["promptSnapshot"],
+              status: input["status"],
+              annotationsSnapshot: input["annotationsSnapshot"],
+              resultSummary: input["resultSummary"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "setting-annotation-rounds": (input: ServerNovelSettingAnnotationRoundsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSettingAnnotationRoundsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotation-rounds`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "update-setting-annotation-round": (
+        input: ServerNovelUpdateSettingAnnotationRoundInput,
+        requestOptions?: RequestOptions,
+      ) =>
+        request<ServerNovelUpdateSettingAnnotationRoundOutput>(
+          {
+            method: "PATCH",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotation-rounds/${encodeURIComponent(input.roundID)}`,
+            query: { location: input["location"] },
+            body: {
+              status: input["status"],
+              resultSummary: input["resultSummary"],
+              contentHistoryId: input["contentHistoryId"],
+              promptSnapshot: input["promptSnapshot"],
+            },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
