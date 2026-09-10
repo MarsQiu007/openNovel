@@ -2,7 +2,7 @@
 
 定义批注的批量执行流程：用户标记完所有批注意图后触发执行，AI 按意图批量改稿，结果按轮次归档到历史面板，支持重新激活已归档的批注。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 采纳按钮仅标记意图
 当批注状态为 `open` 且带有替换建议文本时，系统 SHALL 显示"采纳"按钮。点击"采纳"SHALL 仅将批注状态更新为 `applied`，MUST NOT 直接修改章节正文。
