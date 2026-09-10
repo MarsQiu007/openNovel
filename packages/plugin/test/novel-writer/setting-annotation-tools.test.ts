@@ -178,6 +178,25 @@ describe("setting annotation tools", () => {
     expect(rounds[0].content_history_id).toBe("history-new")
   })
 
+  test("completed 回填缺少描述历史时被拒绝", async () => {
+    const { hooks } = await seed()
+    const round = await createWorldEntryAnnotationRound(
+      {
+        novel_id: "novel-annotation",
+        world_entry_id: "world-old-city",
+        prompt_snapshot: "prompt",
+        annotations_snapshot: "[]",
+        result_summary: "",
+      },
+      projectDir,
+    )
+    const result = await hooks.report_setting_annotation_execution!.execute(
+      { execution_round_id: round.id, status: "completed", result_summary: "声称完成" },
+      toolCtx(),
+    )
+    expect(result.output).toContain("completed 需要存在")
+  })
+
   test("report_setting_annotation_execution 拒绝不存在的轮次", async () => {
     const { hooks } = await seed()
     const result = await hooks.report_setting_annotation_execution!.execute(

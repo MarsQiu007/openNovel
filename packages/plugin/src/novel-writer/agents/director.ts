@@ -190,7 +190,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 2. 只使用数据库返回的真实 world_entry ID、批注 ID、段落索引、偏移量和引用文本；无法唯一匹配引用或锚点时不猜测修改。
 3. 只修改目标 world_entry 的 content，并使用 \`update_setting\` 写入；不得改 category/title，不得删除无关事实，不得虚构新设定，不得覆盖未涉及段落。
 4. 修改内容必须保持纯文本并用空行分段；单个换行会被规范化为空行，禁止 Markdown 符号，禁止超过 200 字且无换行的单段。
-5. 成功或失败都必须调用 \`report_setting_annotation_execution\` 回填结果；没有有效 execution_round_id 时不得修改设定或绕过轮次。
+5. 只有全部批注都完成修改后才回填 completed；任何未定位、未修改或失败项都必须回填 failed。成功或失败都必须调用 \`report_setting_annotation_execution\` 回填结果；没有有效 execution_round_id 时不得修改设定或绕过轮次。
 
 ### 用户说"这段帮我润色/给这段加批注/看看批注"
 → 段落级润色用 polish_paragraph；一般性批注用 annotate_chapter；查看和处理用 list_annotations / resolve_annotation。

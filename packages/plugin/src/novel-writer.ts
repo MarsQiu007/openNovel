@@ -5338,6 +5338,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (!entry) return { title: "annotate_setting", output: `world_entry 不存在：${args.entry_id}` }
           const quote = entry.content.includes(args.quote) ? args.quote : ""
           if (!quote.trim()) return { title: "annotate_setting", output: "quote 不是当前 world_entry 原文中的精确片段" }
+          if (args.paragraph_index != null) {
+            const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
+            const paragraph = paragraphs[args.paragraph_index]
+            const start = args.start_offset ?? 0
+            const end = args.end_offset ?? args.quote.length
+            if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== args.quote) {
+              return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
+            }
+          }
           const annotation = await createWorldEntryAnnotation(
             args.entry_id,
             novelId,
@@ -5375,6 +5384,13 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).optional(),
         },
         async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const entry = await db
+            .select({ id: WorldEntryTable.id })
+            .from(WorldEntryTable)
+            .where(eq(WorldEntryTable.id, args.entry_id))
+            .get()
+          if (!entry) return { title: "list_setting_annotations", output: `world_entry 不存在：${args.entry_id}` }
           const annotations = await listWorldEntryAnnotations(args.entry_id, ctx.directory, { status: args.status })
           return {
             title: "list_setting_annotations",
@@ -5423,7 +5439,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       report_setting_annotation_execution: tool({
         description:
-          "回填设定批注执行轮次结果。AI 完成 world_entry content 修改或确认失败后必须调用；成功时自动关联最近一条 content 描述历史。禁止绕过本工具或虚构轮次 ID。",
+          "回填设定批注执行轮次结果。AI 完成 world_entry content 修改或确认失败后必须调用；completed 必须有 content 描述历史，部分失败必须报 failed。禁止绕过本工具或虚构轮次 ID。",
         args: {
           execution_round_id: tool.schema.string().describe("执行轮次 ID"),
           status: tool.schema.enum(["completed", "failed"]).describe("执行结果状态"),
@@ -5451,6 +5467,9 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 .orderBy(desc(sql`rowid`))
                 .get()
             : undefined
+          if (args.status === "completed" && !history) {
+            return { title: "report_setting_annotation_execution", output: "completed 需要存在本次 world_entry 的 content 描述历史" }
+          }
           const updated = await updateWorldEntryAnnotationRound(
             args.execution_round_id,
             {
