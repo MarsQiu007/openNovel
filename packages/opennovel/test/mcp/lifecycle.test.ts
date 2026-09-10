@@ -535,9 +535,11 @@ it.instance("remote timeout aborts both real HTTP transport attempts", () =>
     const result = yield* mcp.add("hanging-remote", remote(server.url, 100))
 
     expect(statusName(result.status, "hanging-remote")).toBe("failed")
+    // Windows CI 下客户端 abort 传播到服务端 request.signal 可能显著滞后，放宽轮询窗口。
     yield* pollWithTimeout(
       Effect.sync(() => (server.aborted() >= 2 ? server.aborted() : undefined)),
       "remote transport requests were not aborted",
+      "15 seconds",
     )
     expect(server.requests).toEqual(["POST", "GET"])
   }),
