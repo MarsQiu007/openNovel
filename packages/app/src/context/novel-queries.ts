@@ -135,6 +135,10 @@ export const novelKeys = {
     ["novel", "bound-sessions", directory, novelID] as const,
   "execution-rounds": (directory: string, novelID: string, chapterID: string) =>
     ["novel", "execution-rounds", directory, novelID, chapterID] as const,
+  "setting-annotations": (directory: string, novelID: string, entryID: string) =>
+    ["novel", "setting-annotations", directory, novelID, entryID] as const,
+  "setting-annotation-rounds": (directory: string, novelID: string, entryID: string) =>
+    ["novel", "setting-annotation-rounds", directory, novelID, entryID] as const,
   techniques: (directory: string) => ["novel", "techniques", directory] as const,
   technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
@@ -1743,6 +1747,187 @@ export function useUpdateExecutionRound() {
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
       queryClient.invalidateQueries({ queryKey: novelKeys["execution-rounds"](dir, variables.novelID, variables.chapterID) })
+    },
+  }))
+}
+
+export function useSettingAnnotations(novelID: Accessor<string>, entryID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["setting-annotations"](sdk().directory, novelID(), entryID()),
+    queryFn: () =>
+      client()["server.novel"]["setting-annotations"]({
+        novelID: novelID(),
+        entryID: entryID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID() && !!entryID(),
+  }))
+}
+
+export function useSettingAnnotationRounds(novelID: Accessor<string>, entryID: Accessor<string>) {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["setting-annotation-rounds"](sdk().directory, novelID(), entryID()),
+    queryFn: async () => {
+      const dir = sdk().directory
+      const result = await client()["server.novel"]["setting-annotation-rounds"]({
+        novelID: novelID(),
+        entryID: entryID(),
+        location: { directory: dir },
+      })
+      if (result.some((round) => round.status === "completed")) {
+        queryClient.invalidateQueries({ queryKey: novelKeys["world-entries"](dir, novelID()) })
+      }
+      return result
+    },
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((round) => round.status === "running") ? 5000 : false,
+    enabled: !!novelID() && !!entryID(),
+  }))
+}
+
+export function useCreateSettingAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      novelID: string
+      entryID: string
+      source?: "user" | "ai"
+      anchorType?: "paragraph" | "range"
+      paragraphIndex?: number
+      startOffset?: number
+      endOffset?: number
+      quote: string
+      comment: string
+      suggestedReplacement?: string
+    }) => {
+      const dir = sdk().directory
+      const { novelID, entryID, ...rest } = input
+      return client()["server.novel"]["create-setting-annotation"]({
+        novelID,
+        entryID,
+        location: { directory: dir },
+        ...rest,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["setting-annotations"](dir, variables.novelID, variables.entryID) })
+    },
+  }))
+}
+
+export function useUpdateSettingAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      novelID: string
+      entryID: string
+      annotationID: string
+      status?: "open" | "resolved" | "wontfix" | "applied"
+      comment?: string
+      suggestedReplacement?: string
+      executionRoundId?: string | null
+    }) => {
+      const dir = sdk().directory
+      const { novelID, annotationID, entryID: _entryID, ...rest } = input
+      return client()["server.novel"]["update-setting-annotation"]({
+        novelID,
+        annotationID,
+        location: { directory: dir },
+        ...rest,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["setting-annotations"](dir, variables.novelID, variables.entryID) })
+    },
+  }))
+}
+
+export function useDeleteSettingAnnotation() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; entryID: string; annotationID: string }) => {
+      const dir = sdk().directory
+      const { novelID, annotationID } = input
+      return client()["server.novel"]["delete-setting-annotation"]({
+        novelID,
+        annotationID,
+        location: { directory: dir },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["setting-annotations"](dir, variables.novelID, variables.entryID) })
+    },
+  }))
+}
+
+export function useCreateSettingAnnotationRound() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      novelID: string
+      entryID: string
+      promptSnapshot: string
+      annotationsSnapshot: ReadonlyArray<AnnotationExecutionSnapshot>
+      resultSummary?: string
+    }) => {
+      const dir = sdk().directory
+      const { novelID, entryID, ...rest } = input
+      return client()["server.novel"]["create-setting-annotation-round"]({
+        novelID,
+        entryID,
+        location: { directory: dir },
+        ...rest,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["setting-annotation-rounds"](dir, variables.novelID, variables.entryID) })
+    },
+  }))
+}
+
+export function useUpdateSettingAnnotationRound() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      novelID: string
+      entryID: string
+      roundID: string
+      status?: "running" | "completed" | "failed" | "interrupted"
+      resultSummary?: string
+      promptSnapshot?: string
+    }) => {
+      const dir = sdk().directory
+      const { novelID, roundID, entryID: _entryID, ...rest } = input
+      return client()["server.novel"]["update-setting-annotation-round"]({
+        novelID,
+        roundID,
+        location: { directory: dir },
+        ...rest,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["setting-annotation-rounds"](dir, variables.novelID, variables.entryID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys["world-entries"](dir, variables.novelID) })
     },
   }))
 }

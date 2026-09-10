@@ -996,6 +996,8 @@ export default function NovelWorkspaceFrame() {
                     novelID={novelID}
                     selectedEntryId={selectedWorldEntryId}
                     onEntryDeleted={() => setSelectedWorldEntryId(null)}
+                    onExecute={(args) => handleAnnotationExecute(args)}
+                    onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                   />
                 </Show>
               </div>

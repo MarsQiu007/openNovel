@@ -10,7 +10,9 @@ import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
 import { showToast } from "@/utils/toast"
 import {
+  useCreateSettingAnnotation,
   useDeleteWorldEntry,
+  useSettingAnnotations,
   useSoul,
   useStyleGuide,
   useUpdateSoul,
@@ -25,6 +27,8 @@ import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
 import { SettingOrganizationPanel } from "./setting-organization"
+import { getSelectionAnchor, hasOverlap, segmentParagraph } from "./annotation-utils"
+import { SettingAnnotationCreateForm, SettingAnnotationPanel } from "./setting-annotation-panel"
 
 type WorldSubTab = "entries" | "style" | "soul" | "organization"
 
@@ -32,6 +36,8 @@ type WorldReaderProps = {
   novelID: Accessor<string>
   selectedEntryId: Accessor<string | null>
   onEntryDeleted: () => void
+  onExecute?: (args: { prompt: string; roundID: string }) => Promise<string | null | undefined> | string | null | undefined
+  onSessionFocused?: (sessionID: string | null | undefined) => void
 }
 
 export function WorldReader(props: WorldReaderProps) {
@@ -61,6 +67,8 @@ export function WorldReader(props: WorldReaderProps) {
             novelID={props.novelID}
             selectedEntryId={props.selectedEntryId}
             onEntryDeleted={props.onEntryDeleted}
+            onExecute={props.onExecute}
+            onSessionFocused={props.onSessionFocused}
           />
         </Show>
         <Show when={subTab() === "style"}>
@@ -81,6 +89,8 @@ type WorldEntryDetailProps = {
   novelID: Accessor<string>
   selectedEntryId: Accessor<string | null>
   onEntryDeleted: () => void
+  onExecute?: (args: { prompt: string; roundID: string }) => Promise<string | null | undefined> | string | null | undefined
+  onSessionFocused?: (sessionID: string | null | undefined) => void
 }
 
 function WorldEntryDetail(props: WorldEntryDetailProps) {
@@ -88,6 +98,11 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   const query = useWorldEntries(props.novelID)
   const updateEntry = useUpdateWorldEntry()
   const deleteEntry = useDeleteWorldEntry()
+  const createAnnotation = useCreateSettingAnnotation()
+  const annotations = useSettingAnnotations(
+    props.novelID,
+    createMemo(() => props.selectedEntryId() ?? ""),
+  )
   const confirmDelete = useConfirmDelete()
 
   const entry = createMemo(() => {
@@ -101,6 +116,14 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   const [draftCategory, setDraftCategory] = createSignal("")
   const [draftTitle, setDraftTitle] = createSignal("")
   const [draftContent, setDraftContent] = createSignal("")
+  const [selectedAnchor, setSelectedAnchor] = createSignal<{
+    paragraphIndex: number
+    startOffset: number
+    endOffset: number
+    quote: string
+  } | null>(null)
+  const [annotationComment, setAnnotationComment] = createSignal("")
+  const [annotationReplacement, setAnnotationReplacement] = createSignal("")
 
   // 切换条目 / 数据变更时重置草稿与编辑态
   createEffect(() => {
@@ -110,6 +133,64 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
     setDraftTitle(current?.title ?? "")
     setDraftContent(current?.content ?? "")
   })
+
+  function handleSelection() {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      if (selection?.isCollapsed) setSelectedAnchor(null)
+      return
+    }
+    const range = selection.getRangeAt(0)
+    const startElement = range.startContainer.parentElement?.closest<HTMLElement>("[data-paragraph-index]")
+    const endElement = range.endContainer.parentElement?.closest<HTMLElement>("[data-paragraph-index]")
+    if (!startElement || !endElement || startElement !== endElement) {
+      showToast({ variant: "error", title: "请在同一段落内选择文字" })
+      return
+    }
+    const paragraphIndex = Number(startElement.dataset.paragraphIndex)
+    if (!Number.isInteger(paragraphIndex) || paragraphIndex < 0) return
+    const anchor = getSelectionAnchor(startElement, paragraphIndex, selection)
+    const openAnnotations = (annotations.data ?? []).filter(
+      (item) => item.paragraphIndex === paragraphIndex && item.status === "open",
+    )
+    if (openAnnotations.some((item) => hasOverlap(
+      { start: anchor.startOffset, end: anchor.endOffset },
+      { start: item.startOffset ?? 0, end: item.endOffset ?? 0 },
+    ))) {
+      showToast({ variant: "error", title: "该区域已有待处理批注，请编辑现有批注" })
+      return
+    }
+    setAnnotationComment("")
+    setAnnotationReplacement("")
+    setSelectedAnchor(anchor)
+  }
+
+  async function saveAnnotation() {
+    const current = entry()
+    const anchor = selectedAnchor()
+    if (!current || !anchor) return
+    try {
+      await createAnnotation.mutateAsync({
+        novelID: props.novelID(),
+        entryID: current.id,
+        source: "user",
+        anchorType: "paragraph",
+        paragraphIndex: anchor.paragraphIndex,
+        startOffset: anchor.startOffset,
+        endOffset: anchor.endOffset,
+        quote: anchor.quote,
+        comment: annotationComment().trim(),
+        suggestedReplacement: annotationReplacement().trim() || undefined,
+      })
+      setSelectedAnchor(null)
+      showToast({ variant: "success", title: "批注已保存" })
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: error instanceof Error ? error.message : "批注保存失败",
+      })
+    }
+  }
 
   function startEdit() {
     const current = entry()
@@ -226,11 +307,54 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
                   >
                     <div class="mt-2 max-w-none space-y-3 text-sm leading-relaxed text-v2-text-text-base select-text">
                       <For each={current().content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)}>
-                        {(paragraph, idx) => <p data-paragraph-index={idx()}>{paragraph}</p>}
+                        {(paragraph, idx) => (
+                          <p data-paragraph-index={idx()} onMouseUp={handleSelection}>
+                            <For each={segmentParagraph(
+                              paragraph,
+                              (annotations.data ?? []).filter((item) => item.paragraphIndex === idx()),
+                            )}>
+                              {(segment) => (
+                                <Show
+                                  when={segment.annotation}
+                                  fallback={segment.text}
+                                >
+                                  {(annotation) => (
+                                    <mark
+                                      class="rounded-sm bg-v2-state-bg-info text-v2-text-text-base"
+                                      title={annotation().comment}
+                                    >
+                                      {segment.text}
+                                    </mark>
+                                  )}
+                                </Show>
+                              )}
+                            </For>
+                          </p>
+                        )}
                       </For>
                     </div>
                   </Show>
                 </div>
+                <Show when={selectedAnchor()}>
+                  <SettingAnnotationCreateForm
+                    quote={() => selectedAnchor()?.quote ?? ""}
+                    comment={annotationComment}
+                    replacement={annotationReplacement}
+                    pending={createAnnotation.isPending}
+                    onComment={setAnnotationComment}
+                    onReplacement={setAnnotationReplacement}
+                    onSubmit={() => void saveAnnotation()}
+                    onCancel={() => setSelectedAnchor(null)}
+                  />
+                </Show>
+                <SettingAnnotationPanel
+                  novelID={props.novelID}
+                  entryID={() => current().id}
+                  entryTitle={() => current().title}
+                  content={() => current().content}
+                  onExecute={props.onExecute}
+                  onSessionFocused={props.onSessionFocused}
+                />
                 <div class="flex items-center gap-2 mt-4">
                   <ButtonV2 variant="neutral" size="small" onClick={startEdit}>
                     {language.t("novel.settings.entry.edit")}

@@ -20,16 +20,16 @@
 
 ## 4. UI 工作流
 
-- [ ] 4.1 添加设定批注、轮次的 query 和 mutation，并处理加载、错误和刷新
-- [ ] 4.2 在设定详情接入选区锚点、重叠拦截和批注创建表单
-- [ ] 4.3 按锚点渲染批注装饰、悬浮提示和当前批注列表，支持状态变更与删除
-- [ ] 4.4 新增设定批注执行 prompt 构造与轮次编排逻辑，确保快照、关联、失败回填完整
-- [ ] 4.5 新增批注面板和历史轮次展示，提供受会话状态控制的执行入口，并在执行后刷新设定内容
-- [ ] 4.6 为偏移锚点、重叠拦截、prompt 约束和轮次编排添加定向测试；在 `packages/app` 运行定向测试
+- [x] 4.1 添加设定批注、轮次的 query 和 mutation，并处理加载、错误和刷新
+- [x] 4.2 在设定详情接入选区锚点、重叠拦截和批注创建表单
+- [x] 4.3 按锚点渲染批注装饰、悬浮提示和当前批注列表，支持状态变更与删除
+- [x] 4.4 新增设定批注执行 prompt 构造与轮次编排逻辑，确保快照、关联、失败回填完整
+- [x] 4.5 新增批注面板和历史轮次展示，提供受会话状态控制的执行入口，并在执行后刷新设定内容
+- [x] 4.6 为偏移锚点、重叠拦截、prompt 约束和轮次编排添加定向测试；在 `packages/app` 运行定向测试
 
 ## 5. 质量验证
 
-- [ ] 5.1 在 `packages/novel-store`、`packages/schema`、`packages/protocol`、`packages/client`、`packages/server`、`packages/plugin`、`packages/app` 运行 `bun typecheck`
-- [ ] 5.2 对新增或修改源文件运行 oxlint，确认 0 errors
-- [ ] 5.3 运行 `openspec validate setting-annotations --json`，并核对 spec、设计、任务与实现一致
+- [x] 5.1 在 `packages/novel-store`、`packages/schema`、`packages/protocol`、`packages/client`、`packages/server`、`packages/plugin`、`packages/app` 运行 `bun typecheck`
+- [x] 5.2 对新增或修改源文件运行 oxlint，确认 0 errors
+- [x] 5.3 运行 `openspec validate setting-annotations --json`，并核对 spec、设计、任务与实现一致
 - [ ] 5.4 人工验收：在真实 world_entry 上选中文字创建批注、查看高亮、执行 AI 批注、确认纯文本分段和历史轮次，再验证章节批注流程不受影响
