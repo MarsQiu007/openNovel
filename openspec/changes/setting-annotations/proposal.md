@@ -1,38 +1,38 @@
 ## Why
 
-设定中心的世界观条目不支持批注：用户无法选中设定文字添加意见、无法让 AI 按批注自动修改设定内容。章节正文已有完整的批注系统（锚定、展示、AI 执行），设定侧完全缺失。本提案复用章节批注的架构模式，为设定条目补齐批注能力。
-
-依赖 setting-readability 提案完成：前端分段渲染（批注需要段落结构）和 read_setting（AI 执行时需要读取设定全文）。
+设定中心的世界观条目还没有批注能力：用户无法选中设定文字记录意见，也无法让 AI 按批注受控修改设定内容。章节正文已有完整的批注、高亮和 AI 执行流程，设定侧需要补齐同等工作流。本提案复用既有批注架构，并针对设定文本增加更强的纯文本与内容保护约束。
 
 ## What Changes
 
-- **新增数据表**：world_entry_annotations（批注记录，复制 chapter_annotations 结构，chapter_id 改为 world_entry_id）+ world_entry_annotation_rounds（执行轮次，同模式）
-- **新增 Schema + Protocol API**：WorldEntryAnnotation / CreateSettingAnnotationInput / SettingAnnotationExecutionRound 等 schema；批注 CRUD + 执行轮次的 HttpApi 端点
-- **新增 plugin tools**（4 个）：
-  - annotate_setting — AI 主动给设定条目添加批注（仿照 annotate_chapter）
-  - list_setting_annotations — 列出指定条目的批注
-  - resolve_setting_annotation — 手动/AI 标记批注为 resolved/wontfix
-  - report_setting_annotation_execution — AI 执行完批注后回填轮次状态
-- **前端 world-reader 增加批注交互**：选中文字 → 弹出批注对话框 → 存储锚点（段落索引 + 偏移量 + 引用文本）；批注高亮展示；批量执行按钮触发 AI 修改设定内容
-- **前端批注执行流程**：复用 annotation-execution.ts 的 round + prompt 模式，生成设定修改 prompt 发送给 AI session
+- 新增世界观条目批注表和执行轮次表，记录段落索引、字符偏移、引用文本、评论、替换建议、状态和执行关联。
+- 新增批注 CRUD 与执行轮次的 Schema、Protocol API、server handler 和 novel-store 读写函数。
+- 新增 4 个 plugin 工具：`annotate_setting`、`list_setting_annotations`、`resolve_setting_annotation`、`report_setting_annotation_execution`。
+- 设定详情支持选中文字创建批注、按锚点高亮、悬浮查看评论、查看批注列表和执行历史。
+- 用户触发批注执行后，UI 创建执行轮次、生成设定修改 prompt，并发送给绑定写作会话。
+- AI 执行 prompt SHALL 约束其先读取设定全文，只修改目标 world_entry 的 content，保持纯文本和空行分段，禁止写入 Markdown、虚构设定或绕过 `report_setting_annotation_execution` 回填。
+
+### 非目标
+
+- 第一版只支持 world_entry 批注，不扩展到 character、relationship、plot_thread 或 foreshadowing。
+- 不提供设定内容的多版本树或复杂 diff 编辑器。
+- 不让 UI 或 AI 绕过执行轮次直接批量修改设定。
+- 不删除或替换章节批注系统。
 
 ## Capabilities
 
 ### New Capabilities
 
-- setting-annotation-system: 设定批注的完整生命周期（用户创建批注 → 展示高亮 → AI 执行修改 → 回填状态），包含数据模型、API、plugin tools 和前端交互
+- `setting-annotation-system`: 世界观批注的选区创建、高亮展示、执行轮次、受控 AI 修改和状态回填。
 
 ### Modified Capabilities
 
-- setting-agent-tools: 新增 annotate_setting / list_setting_annotations / resolve_setting_annotation / report_setting_annotation_execution 四个工具（setting-readability 提案引入该 capability，本提案扩展其工具列表）
+- `setting-agent-tools`: 新增设定批注相关工具，并约束 AI 只能基于真实锚点和设定全文执行修改。
 
 ## Impact
 
-- **packages/novel-store** — 新增 WorldEntryAnnotationTable + SettingAnnotationRoundTable 两个表（含迁移 SQL）；新增 CRUD + 执行轮次的 store 函数
-- **packages/schema** — 新增批注相关 schema 定义
-- **packages/protocol** — 新增批注相关 HttpApi 端点定义
-- **packages/client** — 运行 bun run generate 重新生成客户端代码
-- **packages/plugin** — 新增 4 个批注相关 tool；novel-writer.ts 注册
-- **packages/app** — world-reader.tsx 增加批注选区 + 高亮 + 执行按钮；复用 annotation-utils / annotation-panel 的逻辑
-- **packages/opennovel** — server handlers 新增批注 API 处理
-- **兼容性** — 新表为增量迁移，不影响现有数据；world_entries 表不变
+- `packages/novel-store`: 新增批注表、执行轮次表和读写函数；增量迁移。
+- `packages/schema` / `packages/protocol`: 新增批注与执行轮次契约。
+- `packages/server`: 新增批注 API handler。
+- `packages/client`: 公开 Protocol 变更后重新生成 SDK。
+- `packages/plugin`: 注册设定批注工具并更新 director 提示词约束。
+- `packages/app`: 设定详情增加选区、高亮、批注面板、执行按钮和结果刷新。
