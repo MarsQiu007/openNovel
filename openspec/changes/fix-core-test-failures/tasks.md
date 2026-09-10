@@ -13,3 +13,7 @@
 - [x] 4.1 在 `packages/core` 运行完整 `bun test`，确认 0 失败。
 - [x] 4.2 在 `packages/core` 运行 `bun typecheck`。
 - [x] 4.3 运行 `openspec validate fix-core-test-failures`。
+
+## Implementation Commits
+
+- `74eb4fe09` fix(core): 修复会话迁移 epoch 清理与跨平台测试失败

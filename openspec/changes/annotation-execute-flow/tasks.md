@@ -37,3 +37,11 @@
 
 - [x] 6.1 在 `packages/novel-store`、`packages/plugin`、`packages/server`、`packages/schema`、`packages/app` 分别运行 `bun typecheck` 确认无错误
 - [x] 6.2 在 `packages/plugin` 和 `packages/novel-store` 运行 oxlint 确认无 lint 错误
+
+## Implementation Commits
+
+- `02486ba91` feat(novel-store): 新增批注执行轮次表与数据层函数
+- `63c0d029a` feat(schema,protocol,server): 新增执行轮次 HttpApi 端点与 SDK
+- `e37a6cf1c` feat(plugin): 批注状态机支持 applied 回退与执行指令格式化
+- `7119f45b2` feat(app): 简化批注当前列表并固定执行区
+- `6942538ce` feat(novel): 保存批注执行轮次快照
