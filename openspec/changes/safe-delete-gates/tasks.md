@@ -17,5 +17,6 @@
 
 ## Implementation Commits
 
-（待实现提交后回填）
+- `0f850b2` docs(openspec): 创建 safe-delete-gates 变更规划产物
+- `cd1cc66` feat(plugin): 弧光重建删除前确认门与版本恢复放行
 
