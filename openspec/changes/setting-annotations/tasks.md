@@ -1,8 +1,8 @@
 ## 1. 数据层
 
-- [ ] 1.1 新增 world_entry_annotations 和 world_entry_annotation_rounds 表定义、外键索引与初始建表 SQL，并运行 `packages/novel-store` 的 `bun typecheck`
-- [ ] 1.2 实现批注 CRUD 与执行轮次读写函数，覆盖状态过滤、排序和字段更新
-- [ ] 1.3 为 store CRUD 和外键级联删除添加定向测试；在 `packages/novel-store` 运行 `bun test`
+- [x] 1.1 新增 world_entry_annotations 和 world_entry_annotation_rounds 表定义、外键索引与初始建表 SQL，并运行 `packages/novel-store` 的 `bun typecheck`
+- [x] 1.2 实现批注 CRUD 与执行轮次读写函数，覆盖状态过滤、排序和字段更新
+- [x] 1.3 为 store CRUD 和外键级联删除添加定向测试；在 `packages/novel-store` 运行 `bun test`
 
 ## 2. API 契约
 

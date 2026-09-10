@@ -16,6 +16,7 @@ import {
   VolumeTable,
   ChapterTable,
   CharacterTable,
+  WorldEntryTable,
   PlotThreadTable,
   ForeshadowingTable,
   StoryArcTable,
@@ -39,6 +40,13 @@ import {
   createExecutionRound,
   getExecutionRounds,
   updateExecutionRound,
+  createWorldEntryAnnotation,
+  updateWorldEntryAnnotation,
+  deleteWorldEntryAnnotation,
+  listWorldEntryAnnotations,
+  createWorldEntryAnnotationRound,
+  getWorldEntryAnnotationRounds,
+  updateWorldEntryAnnotationRound,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -396,6 +404,88 @@ describe("execution rounds", () => {
     const reopened = await listChapterAnnotations("ch-1", projectDir, { status: "open" })
     expect(reopened).toHaveLength(1)
     expect(reopened[0].execution_round_id).toBeNull()
+  })
+})
+
+describe("world entry annotations", () => {
+  test("创建段落批注、更新状态并查询过滤", async () => {
+    const novelId = await seedNovel()
+    const db = getDb(projectDir)
+    await db
+      .insert(WorldEntryTable)
+      .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
+      .run()
+
+    const ann = await createWorldEntryAnnotation(
+      "we-1",
+      novelId,
+      { source: "ai", anchorType: "paragraph", paragraphIndex: 0, startOffset: 0, endOffset: 4, quote: "城墙很高", comment: "改为更有画面感" },
+      projectDir,
+    )
+    expect(ann.status).toBe("open")
+    expect(ann.world_entry_id).toBe("we-1")
+    expect(ann.source).toBe("ai")
+    expect(ann.paragraph_index).toBe(0)
+
+    const updated = await updateWorldEntryAnnotation(ann.id, { status: "resolved", comment: "已手工处理" }, projectDir)
+    expect(updated?.status).toBe("resolved")
+    expect(updated?.comment).toBe("已手工处理")
+
+    const resolved = await listWorldEntryAnnotations("we-1", projectDir, { status: "resolved" })
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0].id).toBe(ann.id)
+    expect(await listWorldEntryAnnotations("we-1", projectDir, { status: "open" })).toHaveLength(0)
+
+    await deleteWorldEntryAnnotation(ann.id, projectDir)
+    expect(await listWorldEntryAnnotations("we-1", projectDir)).toHaveLength(0)
+  })
+
+  test("创建执行轮次、更新结果并按时间倒序返回", async () => {
+    const novelId = await seedNovel()
+    const db = getDb(projectDir)
+    await db
+      .insert(WorldEntryTable)
+      .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
+      .run()
+
+    await createWorldEntryAnnotationRound(
+      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "第一轮", annotations_snapshot: "[]", result_summary: "" },
+      projectDir,
+    )
+    await createWorldEntryAnnotationRound(
+      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "第二轮", annotations_snapshot: "[{\"id\":\"ann-1\"}]", result_summary: "" },
+      projectDir,
+    )
+    const rounds = await getWorldEntryAnnotationRounds("we-1", projectDir)
+    expect(rounds).toHaveLength(2)
+    expect(rounds[0].prompt_snapshot).toBe("第二轮")
+    expect(rounds[1].prompt_snapshot).toBe("第一轮")
+
+    const completed = await updateWorldEntryAnnotationRound(rounds[0].id, {
+      status: "completed",
+      result_summary: "已按建议修改",
+      content_history_id: "history-1",
+    }, projectDir)
+    expect(completed?.status).toBe("completed")
+    expect(completed?.content_history_id).toBe("history-1")
+  })
+
+  test("删除 world_entry 级联删除批注和轮次", async () => {
+    const novelId = await seedNovel()
+    const db = getDb(projectDir)
+    await db
+      .insert(WorldEntryTable)
+      .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
+      .run()
+    await createWorldEntryAnnotation("we-1", novelId, { quote: "城墙", comment: "强化描写" }, projectDir)
+    await createWorldEntryAnnotationRound(
+      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+      projectDir,
+    )
+
+    await db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, "we-1")).run()
+    expect(await listWorldEntryAnnotations("we-1", projectDir)).toHaveLength(0)
+    expect(await getWorldEntryAnnotationRounds("we-1", projectDir)).toHaveLength(0)
   })
 })
 
