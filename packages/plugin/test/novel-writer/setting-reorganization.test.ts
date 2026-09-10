@@ -5,10 +5,14 @@ import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
+  CharacterTable,
   DescriptionHistoryTable,
   EntityRefTable,
+  ForeshadowingTable,
   getDb,
   NovelTable,
+  PlotThreadTable,
+  RelationshipTable,
   WorldEntryTable,
 } from "../../src/novel-writer/session-store.js"
 import type { ToolContext } from "../../src/tool.js"
@@ -18,6 +22,7 @@ import {
   executeOrganizePlan,
   parseOrganizePlan,
   titleSimilarity,
+  toOrganizeEntity,
   validateOrganizePlan,
   type WorldEntryRecord,
 } from "../../src/novel-writer/setting-reorganization.js"
@@ -148,8 +153,8 @@ describe("organize plan validation", () => {
     expect(parsed.errors).toEqual([])
     const validation = validateOrganizePlan({
       plan: parsed.plan!,
-      entries: [entry({ id: "entry-1" }), entry({ id: "entry-2", content: "" })],
-      referencedIds: new Set(),
+      entries: [entry({ id: "entry-1" }), entry({ id: "entry-2", content: "" })].map((row) => toOrganizeEntity("world_entry", row)),
+      referencedKeys: new Set(),
     })
     expect(validation.ok).toBe(true)
     expect(parsed.plan!.operations[0]!.action === "update" && parsed.plan!.operations[0]!.fields.content).toBe("第一段。\n\n第二段。")
@@ -168,8 +173,8 @@ describe("organize plan validation", () => {
     expect(parsed.errors.join("\n")).toContain("仅支持 world_entry")
     const validation = validateOrganizePlan({
       plan: parsed.plan!,
-      entries: [entry({ id: "entry-1" })],
-      referencedIds: new Set(),
+      entries: [entry({ id: "entry-1" })].map((row) => toOrganizeEntity("world_entry", row)),
+      referencedKeys: new Set(),
     })
     expect(validation.ok).toBe(false)
     expect(validation.errors.join("\n")).toContain("非标准")
@@ -182,7 +187,7 @@ describe("organize plan validation", () => {
     const validation = validateOrganizePlan({
       plan: parsed.plan!,
       entries: [entry({ id: "entry-1" })],
-      referencedIds: new Set(["entry-1"]),
+      referencedKeys: new Set(["world_entry:entry-1"]),
     })
     expect(validation.ok).toBe(false)
     expect(validation.errors.join("\n")).toContain("仍被活跃引用")
@@ -301,6 +306,137 @@ describe("organize_settings tool", () => {
   })
 })
 
+
+describe("cross-entity organization", () => {
+  async function seedEntities() {
+    const db = await seed()
+    await db.insert(CharacterTable).values([
+      { id: "char-a", novel_id: "novel-reorg", name: "林川", role: "support", description: "第一段。\n\n第二段。", status: "active" },
+      { id: "char-b", novel_id: "novel-reorg", name: "林川", role: "support", description: "第三段。", status: "active" },
+    ]).run()
+    await db.insert(RelationshipTable).values([
+      { id: "rel-a", novel_id: "novel-reorg", char_a_id: "char-a", char_b_id: "char-b", type: "师徒", description: "旧关系。" },
+      { id: "rel-b", novel_id: "novel-reorg", char_a_id: "char-a", char_b_id: "char-b", type: "师徒", description: "补充关系。" },
+    ]).run()
+    await db.insert(PlotThreadTable).values({
+      id: "thread-empty", novel_id: "novel-reorg", title: "空线索", description: "", status: "open", priority: "medium",
+    }).run()
+    await db.insert(ForeshadowingTable).values({
+      id: "foreshadow-empty", novel_id: "novel-reorg", content: "", state: "planted",
+    }).run()
+    const plugin = await NovelWriterPlugin(createPluginInput(projectDir))
+    return { db, tool: plugin.tool! }
+  }
+
+  test("analyze 支持跨实体扫描和 scope 过滤", async () => {
+    const { tool } = await seedEntities()
+    const all = await tool.organize_settings!.execute({ action: "analyze", novel_id: "novel-reorg" }, toolCtx())
+    expect(all.output).toContain("character/duplicate_identity")
+    expect(all.output).toContain("relationship/duplicate_identity")
+    expect(all.output).toContain("plot_thread/empty_field")
+    expect(all.output).toContain("foreshadowing/empty_field")
+    const scoped = await tool.organize_settings!.execute(
+      { action: "analyze", novel_id: "novel-reorg", scope: "character" },
+      toolCtx(),
+    )
+    expect(scoped.output).toContain("character/duplicate_identity")
+    expect(scoped.output).not.toContain("relationship/duplicate_identity")
+  })
+
+  test("版本 2 角色描述更新会写入历史并重建引用", async () => {
+    const { db, tool } = await seedEntities()
+    const plan = JSON.stringify({
+      version: 2,
+      operations: [
+        { entity_type: "character", action: "update", id: "char-a", fields: { description: "新的第一段。\n新的第二段。" }, reason: "修复格式" },
+      ],
+    })
+    const result = await tool.organize_settings!.execute({ action: "dry_run", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("校验通过")
+    const before = await db.select().from(CharacterTable).where(eq(CharacterTable.id, "char-a")).all()
+    expect(before[0].description).toContain("第一段。")
+    const applied = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(applied.output).toContain("执行完成")
+    const [row] = await db.select().from(CharacterTable).where(eq(CharacterTable.id, "char-a")).all()
+    expect(row.description).toBe("新的第一段。\n\n新的第二段。")
+    const history = await db.select().from(DescriptionHistoryTable).where(eq(DescriptionHistoryTable.entity_id, "char-a")).all()
+    expect(history.length).toBeGreaterThan(0)
+  })
+
+  test("版本 2 plot_thread / foreshadowing 更新只修改白名单字段", async () => {
+    const { db, tool } = await seedEntities()
+    const plan = JSON.stringify({
+      version: 2,
+      operations: [
+        { entity_type: "plot_thread", action: "update", id: "thread-empty", fields: { title: "寻剑", description: "线索描述。" }, reason: "补齐" },
+        { entity_type: "foreshadowing", action: "update", id: "foreshadow-empty", fields: { content: "剑鸣伏笔。" }, reason: "补齐" },
+      ],
+    })
+    const result = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("执行完成")
+    const [thread] = await db.select().from(PlotThreadTable).where(eq(PlotThreadTable.id, "thread-empty")).all()
+    const [foreshadow] = await db.select().from(ForeshadowingTable).where(eq(ForeshadowingTable.id, "foreshadow-empty")).all()
+    expect(thread.title).toBe("寻剑")
+    expect(thread.description).toBe("线索描述。")
+    expect(foreshadow.content).toBe("剑鸣伏笔。")
+  })
+
+  test("版本 2 角色合并会合并描述、重定向关系并删除源", async () => {
+    const { db, tool } = await seedEntities()
+    const plan = JSON.stringify({
+      version: 2,
+      operations: [
+        { entity_type: "character", action: "merge", target_id: "char-a", source_ids: ["char-b"], fields: {}, reason: "合并同名角色" },
+      ],
+    })
+    const result = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("执行完成")
+    const rows = await db.select().from(CharacterTable).where(eq(CharacterTable.name, "林川")).all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].description).toContain("第一段。")
+    expect(rows[0].description).toContain("第三段。")
+    const relationships = await db.select().from(RelationshipTable).all()
+    expect(relationships.every((row) => row.char_a_id !== "char-b" && row.char_b_id !== "char-b")).toBe(true)
+  })
+
+  test("版本 2 关系合并要求身份一致并删除源", async () => {
+    const { db, tool } = await seedEntities()
+    const plan = JSON.stringify({
+      version: 2,
+      operations: [
+        { entity_type: "relationship", action: "merge", target_id: "rel-a", source_ids: ["rel-b"], fields: {}, reason: "合并重复关系" },
+      ],
+    })
+    const result = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("执行完成")
+    const rows = await db.select().from(RelationshipTable).all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].description).toContain("旧关系。")
+    expect(rows[0].description).toContain("补充关系。")
+  })
+
+  test("版本 2 无引用剧情线可以删除，主角删除被拒绝", async () => {
+    const { db, tool } = await seedEntities()
+    await db.insert(CharacterTable).values({
+      id: "protagonist", novel_id: "novel-reorg", name: "主角", role: "protagonist", description: "主角描述。", status: "active",
+    }).run()
+    const deletePlan = JSON.stringify({
+      version: 2,
+      operations: [{ entity_type: "plot_thread", action: "delete", id: "thread-empty", reason: "清理空线索" }],
+    })
+    const deleteResult = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: deletePlan }, toolCtx())
+    expect(deleteResult.output).toContain("执行完成")
+    expect(await db.select().from(PlotThreadTable).where(eq(PlotThreadTable.id, "thread-empty")).all()).toHaveLength(0)
+    const protectedPlan = JSON.stringify({
+      version: 2,
+      operations: [{ entity_type: "character", action: "delete", id: "protagonist", reason: "不应执行" }],
+    })
+    const protectedResult = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: protectedPlan }, toolCtx())
+    expect(protectedResult.output).toContain("主角不能删除")
+    expect(await db.select().from(CharacterTable).where(eq(CharacterTable.id, "protagonist")).all()).toHaveLength(1)
+  })
+})
+
 describe("director organization prompt", () => {
   test("tool description 约束整理流程与确认", async () => {
     const { tool } = await hooks()
@@ -314,10 +450,10 @@ describe("director organization prompt", () => {
 
   test("约束完整流程、确认和禁止自动删除", () => {
     const prompt = directorAgentConfig.systemPrompt
-    expect(prompt).toContain('organize_settings(action="analyze")')
+    expect(prompt).toContain('organize_settings(action="analyze", scope=?)')
     expect(prompt).toContain('organize_settings(action="dry_run")')
     expect(prompt).toContain("等待用户明确确认")
     expect(prompt).toContain("禁止虚构 ID")
-    expect(prompt).toContain("禁止自动删除相似标题条目")
+    expect(prompt).toContain("禁止自动删除或合并重复/相似候选")
   })
 })

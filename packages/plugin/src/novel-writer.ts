@@ -135,7 +135,7 @@ import {
 import { checkStructure } from "./novel-writer/structure.js"
 import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } from "./novel-writer/annotation.js"
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
-import { analyzeWorldEntries, executeOrganizePlan, parseOrganizePlan, referencedWorldEntryIds, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
+import { analyzeEntities, executeOrganizePlan, loadOrganizeContext, parseOrganizePlan, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 
@@ -3786,29 +3786,33 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       organize_settings: tool({
         description:
-          "整理世界观设定。action=analyze 只读扫描 world_entry 的非标准分类、重复/相似标题、空字段、长单段和 Markdown 残留；action=dry_run 只校验 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前会重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除相似条目，不跳过确认，不写入 Markdown 或未分段长文本。",
+          "整理小说设定。action=analyze 跨实体扫描并支持 scope 过滤；action=dry_run 校验版本 1 或版本 2 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除重复或相似条目，不跳过确认，不写入 Markdown 或未分段长文本。",
         args: {
           action: tool.schema.enum(["analyze", "dry_run", "apply"]).describe("整理动作：analyze / dry_run / apply"),
           novel_id: tool.schema.string().describe("小说 ID"),
-          plan_json: tool.schema.string().optional().describe('版本 1 的整理计划 JSON，dry_run 和 apply 必填'),
+          scope: tool.schema
+            .enum(["all", "world_entry", "character", "relationship", "plot_thread", "foreshadowing"])
+            .optional()
+            .describe("analyze 扫描范围，默认 all"),
+          plan_json: tool.schema.string().optional().describe("版本 1 或版本 2 的整理计划 JSON，dry_run 和 apply 必填"),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
-          const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.novel_id, novelId)).all()
+          const context = await loadOrganizeContext(ctx.directory, novelId, args.scope ?? "all")
 
           if (args.action === "analyze") {
-            const issues = analyzeWorldEntries(rows)
-            const header = issues.length === 0 ? "✅ 未发现需要整理的 world_entry 问题" : `发现 ${issues.length} 个可整理问题`
+            const issues = analyzeEntities(context.entities)
+            const header = issues.length === 0 ? "✅ 未发现需要整理的设定问题" : `发现 ${issues.length} 个可整理问题`
             const lines = [header]
             for (const issue of issues) {
-              lines.push("", `- [${issue.type}] ${issue.issue_id}`, `  证据：${issue.evidence}`, `  建议：${issue.suggestion}`)
+              lines.push("", `- [${issue.entity_type}/${issue.type}] ${issue.issue_id}`, `  证据：${issue.evidence}`, `  建议：${issue.suggestion}`)
             }
             if (issues.length === 0) lines.push("当前无需整理")
             return {
               title: "organize_settings",
               output: lines.join("\n"),
-              metadata: { action: "analyze", novel_id: novelId, issues, count: issues.length },
+              metadata: { action: "analyze", novel_id: novelId, scope: args.scope ?? "all", issues, count: issues.length },
             }
           }
 
@@ -3823,8 +3827,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               metadata: { action: args.action, novel_id: novelId, valid: false, errors: parsed.errors },
             }
           }
-          const referencedIds = await referencedWorldEntryIds(ctx.directory, rows.map((row) => row.id))
-          const validation = validateOrganizePlan({ plan: parsed.plan, entries: rows, referencedIds })
+          const validation = validateOrganizePlan({
+            plan: parsed.plan,
+            entries: context.entities,
+            referencedKeys: context.referencedKeys,
+            relatedCharacterIds: context.relatedCharacterIds,
+          })
           if (!validation.ok) {
             return {
               title: "organize_settings",
@@ -3875,19 +3883,19 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const lines = [`${execution.ok ? "✅ 整理计划执行完成" : "⚠️ 整理计划部分失败"}：成功 ${successCount} / ${parsed.plan.operations.length}`]
           for (const result of execution.results) {
             if (result.status === "failed") {
-              lines.push(`- [${result.index}] ${result.action} 失败：${result.error}`)
+              lines.push(`- [${result.index}] ${result.entity_type} ${result.action} 失败：${result.error}`)
               continue
             }
-            if (result.action === "update") {
-              lines.push(`- [${result.index}] 更新 ${result.entry_id}：${result.changed_fields.join("、") || "无字段变化"}；历史 ${result.history_count}，级联 ${result.cascade_tasks}`)
-            } else if (result.action === "merge") {
-              lines.push(`- [${result.index}] 合并到 ${result.target_id}：源 ${result.source_ids.join("、")}；历史 ${result.history_count}，级联 ${result.cascade_tasks}`)
+            if (result.action === "update" || result.action === "merge") {
+              const effect = `字段 ${result.changed_fields?.join("、") || "无变化"}；历史 ${result.history_count ?? 0}，级联 ${result.cascade_tasks ?? 0}`
+              if (result.action === "update") lines.push(`- [${result.index}] 更新 ${result.entity_type} ${result.entry_ids[0]}：${effect}`)
+              else lines.push(`- [${result.index}] 合并到 ${result.entity_type} ${result.entry_ids[0]}：${effect}`)
             } else {
-              lines.push(`- [${result.index}] 删除 ${result.entry_id}`)
+              lines.push(`- [${result.index}] 删除 ${result.entity_type} ${result.entry_ids[0]}`)
             }
           }
           for (const item of execution.remaining) {
-            lines.push(`- [${item.index}] 未执行：${item.action} ${item.entry_ids.join("、")}`)
+            lines.push(`- [${item.index}] 未执行：${item.entity_type} ${item.action} ${item.entry_ids.join("、")}`)
           }
           lines.push("请再次运行 action=analyze 复查剩余问题")
           return {
