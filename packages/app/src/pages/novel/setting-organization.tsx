@@ -155,23 +155,6 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
     enabled: !!props.novelID(),
   }))
 
-  createEffect(() => {
-    const result = analysis.data
-    if (result?.suggestedPlanJson) {
-      setPlanJson(result.suggestedPlanJson)
-      setDryRun(null)
-      setSubmittedPlanJson("")
-      void dryRunMutation.mutateAsync(result.suggestedPlanJson)
-      return
-    }
-    if (result && !result.suggestedPlanJson && result.count > 0) {
-      // 分析有结果但没有可自动生成的安全计划，清空旧计划
-      setPlanJson("")
-      setDryRun(null)
-      setSubmittedPlanJson("")
-    }
-  })
-
   const dryRunMutation = useMutation(() => ({
     mutationFn: async (plan: string): Promise<SettingOrganizationDryRunResult> =>
       client()["server.novel"]["dry-run"]({
@@ -184,6 +167,22 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       setSubmittedPlanJson(planJson())
     },
   }))
+
+  createEffect(() => {
+    const result = analysis.data
+    if (result?.suggestedPlanJson) {
+      setPlanJson(result.suggestedPlanJson)
+      setDryRun(null)
+      setSubmittedPlanJson("")
+      void dryRunMutation.mutateAsync(result.suggestedPlanJson)
+      return
+    }
+    if (result && !result.suggestedPlanJson && result.count > 0) {
+      setPlanJson("")
+      setDryRun(null)
+      setSubmittedPlanJson("")
+    }
+  })
 
   const applyMutation = useMutation(() => ({
     mutationFn: async (input: {
