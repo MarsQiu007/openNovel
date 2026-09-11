@@ -243,7 +243,7 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-lg font-bold">设定整理</h2>
-          <ButtonV2 variant="ghost-muted" size="small" onClick={() => void analysis.refetch()} disabled={analysis.isFetching}>
+          <ButtonV2 variant="neutral" size="small" onClick={() => void analysis.refetch()} disabled={analysis.isFetching}>
             重新分析
           </ButtonV2>
         </div>
