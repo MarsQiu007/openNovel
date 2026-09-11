@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { Layer } from "effect"
 import {
   analyzeEntities,
@@ -67,9 +68,7 @@ function mapRemaining(remaining: Awaited<ReturnType<typeof executeOrganizePlan>>
 }
 
 function planDigest(plan: OrganizePlan): string {
-  const hasher = new Bun.CryptoHasher("sha256")
-  hasher.update(JSON.stringify(plan))
-  return hasher.digest("hex")
+  return createHash("sha256").update(JSON.stringify(plan)).digest("hex")
 }
 
 function rejectedApply(errors: string[]): SettingOrganizationApplyResult {
