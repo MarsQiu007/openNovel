@@ -94,31 +94,41 @@ export function createSettingOrganizationService(): SettingOrganizationService {
     },
 
     async dryRun(novelID, directory, input) {
-      const parsed = parseOrganizePlan(input.planJson)
-      if (parsed.errors.length > 0 || !parsed.plan) {
+      try {
+        const parsed = parseOrganizePlan(input.planJson)
+        if (parsed.errors.length > 0 || !parsed.plan) {
+          const result: SettingOrganizationDryRunResult = {
+            valid: false,
+            planDigest: "",
+            previews: [],
+            errors: parsed.errors,
+          }
+          return result
+        }
+
+        const context = await loadOrganizeContext(directory, novelID, "all")
+        const validation = validateOrganizePlan({
+          plan: parsed.plan,
+          entries: context.entities,
+          referencedKeys: context.referencedKeys,
+          relatedCharacterIds: context.relatedCharacterIds,
+        })
         const result: SettingOrganizationDryRunResult = {
+          valid: validation.ok,
+          planDigest: planDigest(parsed.plan),
+          previews: validation.previews.map(mapPreview),
+          errors: validation.errors,
+        }
+        return result
+      } catch (error) {
+        console.error("[setting-organization dryRun] 服务端异常:", error)
+        return {
           valid: false,
           planDigest: "",
           previews: [],
-          errors: parsed.errors,
+          errors: [`服务端 dry run 异常: ${error instanceof Error ? error.message : String(error)}`],
         }
-        return result
       }
-
-      const context = await loadOrganizeContext(directory, novelID, "all")
-      const validation = validateOrganizePlan({
-        plan: parsed.plan,
-        entries: context.entities,
-        referencedKeys: context.referencedKeys,
-        relatedCharacterIds: context.relatedCharacterIds,
-      })
-      const result: SettingOrganizationDryRunResult = {
-        valid: validation.ok,
-        planDigest: planDigest(parsed.plan),
-        previews: validation.previews.map(mapPreview),
-        errors: validation.errors,
-      }
-      return result
     },
 
     async apply(novelID, directory, input) {
