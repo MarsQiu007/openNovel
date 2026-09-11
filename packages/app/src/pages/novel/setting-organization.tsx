@@ -157,10 +157,19 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
 
   createEffect(() => {
     const result = analysis.data
-    if (!result?.suggestedPlanJson) return
-    if (planJson()) return // user already edited or has a plan
-    setPlanJson(result.suggestedPlanJson)
-    void dryRunMutation.mutateAsync(result.suggestedPlanJson)
+    if (result?.suggestedPlanJson) {
+      setPlanJson(result.suggestedPlanJson)
+      setDryRun(null)
+      setSubmittedPlanJson("")
+      void dryRunMutation.mutateAsync(result.suggestedPlanJson)
+      return
+    }
+    if (result && !result.suggestedPlanJson && result.count > 0) {
+      // 分析有结果但没有可自动生成的安全计划，清空旧计划
+      setPlanJson("")
+      setDryRun(null)
+      setSubmittedPlanJson("")
+    }
   })
 
   const dryRunMutation = useMutation(() => ({
@@ -251,7 +260,11 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-lg font-bold">设定整理</h2>
-          <ButtonV2 variant="neutral" size="small" onClick={() => void analysis.refetch()} disabled={analysis.isFetching}>
+          <ButtonV2 variant="neutral" size="small" onClick={() => {
+              setDryRun(null)
+              setSubmittedPlanJson("")
+              void analysis.refetch()
+            }} disabled={analysis.isFetching}>
             重新分析
           </ButtonV2>
         </div>
