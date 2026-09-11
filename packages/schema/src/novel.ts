@@ -895,6 +895,7 @@ export const SettingOrganizationAnalyzeResult = Schema.Struct({
   scope: Schema.String,
   issues: Schema.Array(SettingOrganizationIssue),
   count: Schema.Int,
+  suggestedPlanJson: optional(Schema.String),
 }).annotate({ identifier: "Novel.SettingOrganizationAnalyzeResult" })
 export interface SettingOrganizationAnalyzeResult extends Schema.Schema.Type<typeof SettingOrganizationAnalyzeResult> {}
 

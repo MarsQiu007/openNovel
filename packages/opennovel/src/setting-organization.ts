@@ -8,6 +8,7 @@ import {
   type OrganizePlan,
   type OrganizeValidationResult,
   type SettingIssue,
+  generatePlanFromIssues,
 } from "@opennovel-ai/plugin/novel-writer/setting-reorganization"
 import { SettingOrganization, type SettingOrganizationService } from "@opennovel-ai/server/setting-organization"
 import type {
@@ -80,8 +81,15 @@ export function createSettingOrganizationService(): SettingOrganizationService {
     async analyze(novelID, directory, input) {
       const scope = input.scope ?? "all"
       const context = await loadOrganizeContext(directory, novelID, scope)
-      const issues = analyzeEntities(context.entities).map(mapIssue)
-      const result: SettingOrganizationAnalyzeResult = { scope, issues, count: issues.length }
+      const rawIssues = analyzeEntities(context.entities)
+      const issues = rawIssues.map(mapIssue)
+      const suggested = generatePlanFromIssues(context.entities, rawIssues)
+      const result: SettingOrganizationAnalyzeResult = {
+        scope,
+        issues,
+        count: issues.length,
+        suggestedPlanJson: suggested.operations.length > 0 ? JSON.stringify(suggested) : undefined,
+      }
       return result
     },
 

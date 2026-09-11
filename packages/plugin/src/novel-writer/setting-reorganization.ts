@@ -1095,3 +1095,70 @@ export async function executeOrganizePlan(
 
   return { ok: results.every((result) => result.status === "success"), results, remaining }
 }
+
+/** 从 analyze 结果自动生成安全可执行的整理计划（仅覆盖确定性修复） */
+export function generatePlanFromIssues(entities: OrganizeEntity[], issues: SettingIssue[]): OrganizePlan {
+  const operations: OrganizeOperation[] = []
+  const consumed = new Set<string>()
+
+  for (const issue of issues) {
+    // 同标题重复 → 保留 content 最长的一条，其余合并
+    if (issue.type === "duplicate_title" && issue.entry_ids.length >= 2 && issue.entity_type === "world_entry") {
+      const group = entities.filter((e) => issue.entry_ids.includes(e.id) && !consumed.has(e.id))
+      if (group.length < 2) continue
+      const sorted = [...group].sort((a, b) => b.content.length - a.content.length)
+      const target = sorted[0]!
+      const sources = sorted.slice(1).map((e) => e.id)
+      if (sources.length === 0) continue
+      for (const id of sources) consumed.add(id)
+      operations.push({
+        action: "merge",
+        entity_type: "world_entry",
+        target_id: target.id,
+        source_ids: sources,
+        fields: {},
+        reason: `同标题重复（${group.length} 条），保留内容最长的「${target.title}」`,
+      })
+    }
+
+    // 非标准分类 → 通过关键词匹配映射到标准分类
+    if (issue.type === "nonstandard_category" && issue.entry_ids.length === 1 && issue.entity_type === "world_entry") {
+      const entity = entities.find((e) => e.id === issue.entry_ids[0] && !consumed.has(e.id))
+      if (!entity) continue
+      const suggested = suggestStandardCategory(entity.category)
+      if (!suggested) continue
+      operations.push({
+        action: "update",
+        entity_type: "world_entry",
+        id: entity.id,
+        fields: { category: suggested },
+        reason: `非标准分类「${entity.category}」→「${suggested}」`,
+      })
+    }
+  }
+
+  return { version: 2, operations }
+}
+
+function suggestStandardCategory(current: string): string | null {
+  const lower = current.toLowerCase()
+  const keywordMap: Array<[string[], string]> = [
+    [["地点", "城市", "区域", "位置", "场所"], "地点"],
+    [["势力", "组织", "门派", "公会", "帮派"], "势力"],
+    [["人物", "角色", "角色设定"], "核心设定"],
+    [["体系", "力量", "修炼", "等级", "境界"], "力量体系"],
+    [["制度", "政治", "规则", "法律", "律法"], "社会制度"],
+    [["历史", "编年", "纪元", "往事"], "历史"],
+    [["文化", "习俗", "节日", "信仰", "宗教"], "文化"],
+    [["生物", "种族", "怪物", "魔兽", "异兽"], "生物"],
+    [["物品", "道具", "宝物", "神器", "装备"], "物品"],
+    [["功法", "武学", "技能", "法术"], "功法"],
+    [["科技", "机械", "发明", "技术"], "科技"],
+    [["背景", "世界", "大陆", "星球", "宇宙"], "世界背景"],
+    [["核心", "重要", "主线", "关键"], "核心设定"],
+  ]
+  for (const [keywords, category] of keywordMap) {
+    if (keywords.some((k) => lower.includes(k))) return category
+  }
+  return null
+}

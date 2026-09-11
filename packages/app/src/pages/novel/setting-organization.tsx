@@ -4,7 +4,7 @@
  * UI 只提供分析报告、计划导入、dry run 预览和显式确认执行；
  * 不自动生成整理计划，也不渲染 Markdown。
  */
-import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { createQuery, useMutation, useQueryClient } from "@tanstack/solid-query"
 import type {
   SettingOrganizationAnalyzeResult,
@@ -155,6 +155,14 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
     enabled: !!props.novelID(),
   }))
 
+  createEffect(() => {
+    const result = analysis.data
+    if (!result?.suggestedPlanJson) return
+    if (planJson()) return // user already edited or has a plan
+    setPlanJson(result.suggestedPlanJson)
+    void dryRunMutation.mutateAsync(result.suggestedPlanJson)
+  })
+
   const dryRunMutation = useMutation(() => ({
     mutationFn: async (plan: string): Promise<SettingOrganizationDryRunResult> =>
       client()["server.novel"]["dry-run"]({
@@ -278,7 +286,7 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       <section class="flex flex-col gap-3">
         <h3 class="font-semibold">整理计划</h3>
         <p class="text-sm text-v2-text-text-muted">
-          粘贴版本化 plan_json。可先在会话中让 AI 生成计划，导入后必须经过 dry run 和确认才会执行。
+          分析完成后已自动生成安全修复计划（同标题合并 + 分类修正）。如需处理其他类型问题（空字段、长段落等），可在会话中让 AI 生成补充计划后粘贴。
         </p>
         <TextareaV2
           rows={8}

@@ -5284,6 +5284,7 @@ export type ServerNovelAnalyzeOutput = {
     readonly suggestion: string
   }>
   readonly count: number
+  readonly suggestedPlanJson?: string
 }
 
 export type ServerNovelDryRunInput = {
