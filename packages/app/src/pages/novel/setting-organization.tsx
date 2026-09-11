@@ -18,7 +18,8 @@ import type {
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { Spinner } from "@opennovel-ai/ui/spinner"
-import { useNovelClient, novelKeys } from "@/context/novel-queries"
+import { useNovelClient, novelKeys, useBindSession } from "@/context/novel-queries"
+import { sendNovelSessionInstruction } from "./workspace-data"
 import { useSDK } from "@/context/sdk"
 import { useConfirmDelete } from "./confirm-dialog"
 import {
@@ -198,6 +199,34 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       }),
   }))
 
+  const bindSession = useBindSession()
+  const [aiFixSent, setAiFixSent] = createSignal(false)
+
+  const aiFixMutation = useMutation(() => ({
+    mutationFn: async (prompt: string): Promise<string> =>
+      sendNovelSessionInstruction({
+        sdk,
+        novel: { data: () => ({ id: props.novelID() }) } as never,
+        bindSession,
+        novelID: props.novelID(),
+        prompt,
+      }),
+    onSuccess: () => setAiFixSent(true),
+  }))
+
+  function buildAiFixPrompt(issues: readonly SettingOrganizationIssue[]): string {
+    const lines = issues.map((issue, i) =>
+      `${i + 1}. [${issue.entityType}/${issue.type}] ${issue.evidence}（条目：${issue.entryIds.join(", ")}）`,
+    )
+    return [
+      "请整理以下小说设定问题，使用 lint_settings / rename_world_category / update_setting / delete_setting 工具直接修复：",
+      "",
+      ...lines,
+      "",
+      "修复完成后调用 lint_settings 复查，确认问题已清零。对于需要补充内容的空字段，根据已有上下文合理补写。",
+    ].join("\n")
+  }
+
   const planState = createMemo<SettingOrganizationPlanState>(() => ({
     planJson: planJson(),
     submittedPlanJson: submittedPlanJson(),
@@ -259,13 +288,26 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-lg font-bold">设定整理</h2>
-          <ButtonV2 variant="neutral" size="small" onClick={() => {
+          <div class="flex items-center gap-2">
+            <ButtonV2
+              variant="neutral"
+              size="small"
+              onClick={() => {
+                const issues = analysis.data?.issues ?? []
+                if (issues.length > 0) void aiFixMutation.mutateAsync(buildAiFixPrompt(issues))
+              }}
+              disabled={analysis.isFetching || aiFixMutation.isPending || (analysis.data?.count ?? 0) === 0}
+            >
+              {aiFixMutation.isPending ? "发送中…" : "AI 一键整理"}
+            </ButtonV2>
+            <ButtonV2 variant="neutral" size="small" onClick={() => {
               setDryRun(null)
               setSubmittedPlanJson("")
               void analysis.refetch()
             }} disabled={analysis.isFetching}>
-            {analysis.isFetching ? "分析中…" : "重新分析"}
-          </ButtonV2>
+              {analysis.isFetching ? "分析中…" : "重新分析"}
+            </ButtonV2>
+          </div>
         </div>
         <Show when={analysis.isLoading}>
           <div class="flex items-center justify-center py-8">
