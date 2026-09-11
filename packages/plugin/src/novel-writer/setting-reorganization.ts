@@ -1121,6 +1121,26 @@ export function generatePlanFromIssues(entities: OrganizeEntity[], issues: Setti
       })
     }
 
+    // 长单段内容 → 在句号/感叹号/问号后插入段落分隔
+    if (issue.type === "long_single_paragraph" && issue.entry_ids.length === 1) {
+      const entity = entities.find((e) => e.id === issue.entry_ids[0] && !consumed.has(e.id))
+      if (!entity) continue
+      const field = issue.entity_type === "character" ? "description" : "content"
+      const text = field === "content" ? entity.content : entity.description
+      if (!text || !text.includes("。")) continue
+      const paragraphs = splitIntoParagraphs(text)
+      if (paragraphs.length < 2) continue
+      const formatted = paragraphs.join("\n\n")
+      if (formatted === text) continue
+      operations.push({
+        action: "update",
+        entity_type: issue.entity_type,
+        id: entity.id,
+        fields: { [field]: formatted },
+        reason: `长单段（${text.length} 字）自动按句号分段为 ${paragraphs.length} 段`,
+      })
+    }
+
     // 非标准分类 → 通过关键词匹配映射到标准分类
     if (issue.type === "nonstandard_category" && issue.entry_ids.length === 1 && issue.entity_type === "world_entry") {
       const entity = entities.find((e) => e.id === issue.entry_ids[0] && !consumed.has(e.id))
@@ -1138,6 +1158,21 @@ export function generatePlanFromIssues(entities: OrganizeEntity[], issues: Setti
   }
 
   return { version: 2, operations }
+}
+
+function splitIntoParagraphs(text: string): string[] {
+  const sentences = text.split(/(?<=[。！？])/)
+  const paragraphs: string[] = []
+  let current = ""
+  for (const sentence of sentences) {
+    current += sentence
+    if (current.length >= 80) {
+      paragraphs.push(current.trim())
+      current = ""
+    }
+  }
+  if (current.trim()) paragraphs.push(current.trim())
+  return paragraphs
 }
 
 function suggestStandardCategory(current: string): string | null {
