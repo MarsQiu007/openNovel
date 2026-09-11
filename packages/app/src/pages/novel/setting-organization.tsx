@@ -264,7 +264,7 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
               setSubmittedPlanJson("")
               void analysis.refetch()
             }} disabled={analysis.isFetching}>
-            重新分析
+            {analysis.isFetching ? "分析中…" : "重新分析"}
           </ButtonV2>
         </div>
         <Show when={analysis.isLoading}>
