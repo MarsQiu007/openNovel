@@ -32,4 +32,14 @@
 - [x] 5.1 在 `packages/novel-store`、`packages/schema`、`packages/protocol`、`packages/client`、`packages/server`、`packages/plugin`、`packages/app` 运行 `bun typecheck`
 - [x] 5.2 对新增或修改源文件运行 oxlint，确认 0 errors
 - [x] 5.3 运行 `openspec validate setting-annotations --json`，并核对 spec、设计、任务与实现一致
-- [ ] 5.4 人工验收：在真实 world_entry 上选中文字创建批注、查看高亮、执行 AI 批注、确认纯文本分段和历史轮次，再验证章节批注流程不受影响
+- [x] 5.4 人工验收：在真实 world_entry 上选中文字创建批注、查看高亮、执行 AI 批注、确认纯文本分段和历史轮次，再验证章节批注流程不受影响
+
+## Implementation Commits
+
+- 1d376c797 feat(novel-store): add setting annotations
+- d08f47640 feat(protocol): add setting annotation api
+- b9a56f268 feat(plugin): add setting annotation tools
+- 244f856ed feat(app): add setting annotation workflow
+- 04b611ed5 feat(plugin): enforce setting annotation constraints
+- 5f22297e6 fix(app): 设定整理面板传真实 novel context 修复一键整理失败
+- c2a78ac5b fix(app): 修正设定批注执行段落索引与即时高亮
