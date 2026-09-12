@@ -81,11 +81,11 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       (issue, i) => `${i + 1}. [${ENTITY_LABELS[issue.entityType]}/${ISSUE_TYPE_LABELS[issue.type]}] ${issue.evidence}（条目：${issue.entryIds.join(", ")}）`,
     )
     return [
-      "请整理以下小说设定问题，使用 lint_settings / rename_world_category / update_setting / delete_setting 工具直接修复：",
+      `小说 ID：${props.novelID()}\n\n请整理以上小说的设定问题。必须使用 organize_settings 工具完成完整受控流程：先 analyze，再基于报告生成 version 2 plan_json 并 dry_run 校验；把每个操作的影响用中文说明，等待我明确确认；确认后才能 apply，执行完成后再 analyze 复查。不要猜测或改写 novel_id，不要使用 update_setting / delete_setting 等旁路工具直接修改。`,
       "",
       ...lines,
       "",
-      "修复完成后调用 lint_settings 复查，确认问题已清零。对于需要补充内容的空字段，根据已有上下文合理补写。",
+      "对于需要补充内容的空字段，在 plan_json 的 update 操作中根据已有上下文合理补写。",
     ].join("\n")
   }
 

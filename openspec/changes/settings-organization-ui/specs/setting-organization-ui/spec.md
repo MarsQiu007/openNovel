@@ -23,71 +23,38 @@
 - **WHEN** 分析请求失败
 - **THEN** UI 保持现有设定数据不变，展示错误信息并提供重试入口
 
-### Requirement: 用户可导入并审阅整理计划
+### Requirement: AI 一键整理委托受控会话
 
-UI SHALL 允许用户导入或粘贴版本化 `plan_json`，并在 dry run 后按操作展示影响预览。每条操作 SHALL 展示动作类型、实体类型、目标条目、原因和受影响字段；dry run 失败时 SHALL 展示逐条校验错误。第一版 SHALL 不要求复杂 diff 编辑器，但 SHALL 不将未审阅的计划直接标记为可执行。
+UI SHALL 提供在有整理问题时可见的 AI 一键整理入口。用户激活后，UI SHALL 将真实 `novel_id`、当前 analyze 返回的问题和条目 ID 发送到该小说的未归档绑定会话；没有绑定会话时 SHALL 创建并绑定新会话。指令 SHALL 明确要求 agent 使用 `organize_settings` 完成 analyze → dry_run → 用户确认 → apply → analyze 复查，SHALL 禁止猜测 `novel_id` 或使用旁路工具直接修改，且 SHALL NOT 代替 agent 的运行时确认。
 
-#### Scenario: 预览合法计划
+#### Scenario: 一键整理发送受控指令
 
-- **WHEN** 用户提交一个通过 dry run 的 update、merge 或 delete 计划
-- **THEN** UI 展示操作数量、每个操作的影响预览，并使执行入口可见
+- **WHEN** 用户在存在整理问题的小说上点击 AI 一键整理
+- **THEN** UI 使用真实 `novel_id` 和 analyze 条目 ID 构造指令，发送到绑定会话，并进入该会话
 
-#### Scenario: 展示非法计划
+#### Scenario: 没有绑定会话时创建会话
 
-- **WHEN** `plan_json` 无法解析，或包含未知实体、危险引用、Markdown、未分段长文本或保护冲突
-- **THEN** UI 展示 dry run 返回的逐条错误，且不提供确认执行入口
+- **WHEN** 当前小说还没有未归档的绑定会话
+- **THEN** UI 创建新会话、绑定当前小说，再发送受控整理指令
 
-#### Scenario: 用户没有计划
+#### Scenario: 指令不得绕过受控流程
 
-- **WHEN** 用户只打开分析报告但没有导入整理计划
-- **THEN** UI 保持分析结果可见，并说明需要版本化整理计划才能继续执行
+- **WHEN** AI 接收 UI 一键整理指令
+- **THEN** AI 只使用指令中的真实 `novel_id` 和 analyze 返回的条目 ID，先 dry run 并等待用户确认后才 apply
 
-### Requirement: dry run 是 UI 执行路径的前置条件
+### Requirement: UI 不提供直接执行路径
 
-UI 执行路径 SHALL 先请求 dry run 并且 dry run 通过后才允许用户进入 apply 确认弹层。dry run SHALL 不修改数据。计划内容发生变化后，UI SHALL 失效上一次的执行许可并要求重新 dry run。服务端 SHALL 拒绝没有对应 dry run 摘要、摘要不匹配、或未显式确认的 UI apply 请求。
+UI SHALL NOT 提供 plan_json 导入、dry run 预览、确认弹层或直接 apply 按钮。UI SHALL NOT 调用 dry-run 或 apply 端点修改数据；服务端 dry-run / apply 契约保留时，不得因 UI 简化而移除其计划校验和显式确认约束。
 
-#### Scenario: 计划变更后重新校验
+#### Scenario: 用户查看整理面板
 
-- **WHEN** 用户在 dry run 通过后修改 `plan_json`
-- **THEN** UI 清除可执行状态，apply 入口不可用，要求重新 dry run
+- **WHEN** 用户打开设定整理面板
+- **THEN** UI 只展示 analyze 报告、AI 一键整理和重新分析入口，不出现计划导入或直接执行控件
 
-#### Scenario: 服务端拒绝绕过 dry run
+#### Scenario: 受控流程失败或等待确认
 
-- **WHEN** UI apply 请求缺少 dry run 摘要、摘要与当前计划不一致，或没有显式确认标记
-- **THEN** 服务端返回校验错误且不执行任何操作
-
-### Requirement: 用户确认后才通过 UI 执行计划
-
-UI SHALL 在 apply 前显示确认弹层，内容包括操作数量、update / merge / delete 分布、主要受影响实体和不可自动恢复风险提示。用户取消时 SHALL 不发送 apply 请求；用户确认后 SHALL 发送显式确认和当前 dry run 摘要。服务端 SHALL 在执行前重新校验计划；任一操作失败时 SHALL 停止后续操作并返回已执行、失败和未执行结果。
-
-#### Scenario: 确认后执行
-
-- **WHEN** 用户在确认弹层中明确确认执行
-- **THEN** UI 请求 apply，服务端重新校验通过后按计划顺序执行，并返回执行结果
-
-#### Scenario: 取消确认
-
-- **WHEN** 用户在确认弹层中取消
-- **THEN** UI 不发送 apply 请求，数据库保持 dry run 后的状态
-
-#### Scenario: 执行中部分失败
-
-- **WHEN** 某个操作校验或写入失败
-- **THEN** UI 展示失败原因、已成功操作、未执行操作，并提供重试分析入口
-
-### Requirement: 执行后刷新数据和剩余问题
-
-apply 返回后 UI SHALL 展示执行摘要，并在有真实写入后刷新角色、世界观、关系、剧情线、伏笔和相关引用数据。UI SHALL 在执行后请求新的整理分析并展示剩余问题，不得只显示成功计数而隐藏失败或未执行项。
-
-#### Scenario: 成功执行后复查
-
-- **WHEN** apply 返回全部操作成功
-- **THEN** UI 展示执行摘要、级联和历史数量提示，刷新相关设定数据，并展示复查后的剩余问题报告
-
-#### Scenario: 部分失败后复查
-
-- **WHEN** apply 返回部分成功
-- **THEN** UI 保留完整执行结果，刷新仍然有效的查询，并展示复查报告中仍然存在的问题
+- **WHEN** agent 的 dry run 或 apply 失败，或流程等待运行时确认
+- **THEN** UI 不在整理面板中伪造成功结果，由绑定会话展示流程状态、错误和确认请求
 
 ### Requirement: Agent 整理流程保持独立受控
 

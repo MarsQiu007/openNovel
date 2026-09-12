@@ -14,10 +14,10 @@
 ## 3. UI 工作流
 
 - [x] 3.1 在设定中心新增“整理”入口和整理面板骨架，展示加载、空态、无需整理、错误和重试状态
-- [x] 3.2 添加 analyze、dry-run、apply 的 novel query 或 mutation，并按面板状态管理报告、计划、dry run 结果、摘要和执行结果
-- [x] 3.3 实现计划导入和 dry run 预览展示；非法 JSON、校验错误、计划变更后的摘要失效都有可读反馈且禁用确认入口
-- [x] 3.4 实现 apply 确认弹层，展示操作数量、动作分布、受影响实体和风险提示；取消不发送请求，确认后携带当前摘要与显式确认调用 apply
-- [x] 3.5 实现执行结果展示和数据刷新，包括成功、部分失败、未执行、级联和历史摘要，并在有写入后重新分析
+- [x] 3.2 添加 analyze query 和 AI 一键整理 mutation，按面板状态管理报告与发送状态
+- [x] 3.3 实现受控一键整理 prompt：携带真实 `novel_id`、analyze 问题和条目 ID，并要求 agent 使用 `organize_settings` 安全流程
+- [x] 3.4 移除 UI 的 plan 导入、dry run、确认弹层和直接 apply 路径，改为绑定会话发送一键整理指令
+- [x] 3.5 保留分析报告刷新入口；受控执行过程和结果由绑定会话展示，UI 不做直接执行反馈
 - [x] 3.6 使用纯文本段落展示设定文本，保留换行并确认 Markdown 语法不会渲染成富文本
 
 ## 4. 质量验证
@@ -26,4 +26,4 @@
 - [x] 4.2 在 `packages/app`、`packages/server`、`packages/opennovel`、`packages/schema`、`packages/protocol`、`packages/client` 运行 `bun typecheck`
 - [x] 4.3 对新增或修改的源文件运行 oxlint，确认 0 errors
 - [x] 4.4 运行 `openspec validate settings-organization-ui --json`，并核对任务、spec、设计和实际行为一致
-- [ ] 4.5 人工验收：在真实小说数据上走 analyze → 导入 plan_json → dry run → 确认弹层 → apply → 复查，并检查 agent 路径仍需要运行时确认
+- [x] 4.5 人工验收：在真实小说数据的 UI 中点击 AI 一键整理，确认绑定会话使用 organize_settings 走 analyze → dry_run → 用户确认 → apply → analyze 复查
