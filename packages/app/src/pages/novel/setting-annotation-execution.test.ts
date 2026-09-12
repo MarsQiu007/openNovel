@@ -33,6 +33,7 @@ describe("setting annotation prompt", () => {
     expect(prompt).toContain("read_setting")
     expect(prompt).toContain("update_setting")
     expect(prompt).toContain("report_setting_annotation_execution")
+    expect(prompt).toContain("- paragraph_index: 0")
     expect(prompt).toContain("禁止 Markdown")
     expect(prompt).toContain("青灰城墙压向街巷")
   })

@@ -27,7 +27,7 @@ import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
 import { SettingOrganizationPanel } from "./setting-organization"
-import { getSelectionAnchor, hasOverlap, segmentParagraph } from "./annotation-utils"
+import { getSelectionAnchor, hasOverlap, segmentParagraph, type AnnotationLike } from "./annotation-utils"
 import { SettingAnnotationCreateForm, SettingAnnotationPanel } from "./setting-annotation-panel"
 
 type WorldSubTab = "entries" | "style" | "soul" | "organization"
@@ -124,6 +124,18 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   } | null>(null)
   const [annotationComment, setAnnotationComment] = createSignal("")
   const [annotationReplacement, setAnnotationReplacement] = createSignal("")
+  const paragraphSegments = createMemo(() => {
+    const content = entry()?.content ?? ""
+    const byIndex = new Map<number, AnnotationLike[]>()
+    for (const annotation of annotations.data ?? []) {
+      if (annotation.paragraphIndex == null) continue
+      const list = byIndex.get(annotation.paragraphIndex) ?? []
+      list.push(annotation)
+      byIndex.set(annotation.paragraphIndex, list)
+    }
+    return content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
+      .map((paragraph, idx) => segmentParagraph(paragraph, byIndex.get(idx) ?? []))
+  })
 
   // 切换条目 / 数据变更时重置草稿与编辑态
   createEffect(() => {
@@ -306,13 +318,10 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
                     fallback={<p class="text-sm text-v2-text-text-muted mt-2">—</p>}
                   >
                     <div class="mt-2 max-w-none space-y-3 text-sm leading-relaxed text-v2-text-text-base select-text">
-                      <For each={current().content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)}>
-                        {(paragraph, idx) => (
+                      <For each={paragraphSegments()}>
+                        {(segments, idx) => (
                           <p data-paragraph-index={idx()} onMouseUp={handleSelection}>
-                            <For each={segmentParagraph(
-                              paragraph,
-                              (annotations.data ?? []).filter((item) => item.paragraphIndex === idx()),
-                            )}>
+                            <For each={segments}>
                               {(segment) => (
                                 <Show
                                   when={segment.annotation}

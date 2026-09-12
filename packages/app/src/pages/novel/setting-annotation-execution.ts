@@ -31,7 +31,7 @@ export function formatSettingExecutionPrompt(input: {
           const lines = [
             `### ${index + 1}`,
             `- annotation_id: ${ann.id}`,
-            `- paragraph_index: ${ann.paragraphIndex == null ? "whole_entry" : ann.paragraphIndex + 1}`,
+            `- paragraph_index: ${ann.paragraphIndex == null ? "whole_entry" : ann.paragraphIndex}`,
           ]
           if (ann.startOffset != null) lines.push(`- start_offset: ${ann.startOffset}`)
           if (ann.endOffset != null) lines.push(`- end_offset: ${ann.endOffset}`)
