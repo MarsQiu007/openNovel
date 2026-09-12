@@ -12,6 +12,7 @@ import { Spinner } from "@opennovel-ai/ui/spinner"
 import { useNovelClient, useBindSession } from "@/context/novel-queries"
 import { sendNovelSessionInstruction } from "./workspace-data"
 import { useSDK } from "@/context/sdk"
+import { useNovel } from "@/context/novel"
 
 type SettingOrganizationPanelProps = {
   novelID: Accessor<string>
@@ -51,6 +52,7 @@ function IssueItem(props: { issue: SettingOrganizationIssue }) {
 export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
   const client = useNovelClient()
   const sdk = useSDK()
+  const novel = useNovel()
   const bindSession = useBindSession()
 
   const analysis = createQuery(() => ({
@@ -67,7 +69,7 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
     mutationFn: async (prompt: string): Promise<string> =>
       sendNovelSessionInstruction({
         sdk,
-        novel: { data: () => ({ id: props.novelID() }) } as never,
+        novel,
         bindSession,
         novelID: props.novelID(),
         prompt,
