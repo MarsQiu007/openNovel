@@ -26,6 +26,7 @@ import { reflectorAgent } from "./novel-writer/agents/reflector.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
 import { reviserAgent } from "./novel-writer/agents/reviser.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
+import { ideatorAgentConfig } from "./novel-writer/agents/ideator.js"
 import { outlinerAgent } from "./novel-writer/agents/outliner.js"
 import { librarianAgent } from "./novel-writer/agents/librarian.js"
 import { lookupDormantCharacters, lookupClosedThreads, lookupPastVolumes } from "./novel-writer/archive.js"
@@ -5871,6 +5872,43 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             lookup_dormant_characters: "allow",
             lookup_closed_threads: "allow",
             lookup_past_volumes: "allow",
+          },
+        },
+        // ideator: subagent，由 director 调度，只读生成开书与临时创作灵感
+        ideator: {
+          ...(input.agent?.ideator ?? {}),
+          description: ideatorAgentConfig.description,
+          mode: ideatorAgentConfig.mode,
+          prompt: ideatorAgentConfig.systemPrompt,
+          permission: {
+            "*": "deny",
+            read: "allow",
+            list: "allow",
+            glob: "allow",
+            grep: "allow",
+            check_novel_settings: "allow",
+            list_settings: "allow",
+            read_setting: "allow",
+            search_settings: "allow",
+            list_story_arcs: "allow",
+            recall_history: "allow",
+            read_chapter_content: "allow",
+            save_novel_settings: "deny",
+            update_setting: "deny",
+            delete_setting: "deny",
+            manage_characters: "deny",
+            create_relationship: "deny",
+            generate_master_outline: "deny",
+            generate_volume_outline: "deny",
+            generate_chapter_outline: "deny",
+            plan_story_arc: "deny",
+            record_arc_beat: "deny",
+            backfill_story_arcs: "deny",
+            write_chapter: "deny",
+            revise_chapter: "deny",
+            commit_state_delta: "deny",
+            commit_observer_delta: "deny",
+            update_project_config: "deny",
           },
         },
       }
