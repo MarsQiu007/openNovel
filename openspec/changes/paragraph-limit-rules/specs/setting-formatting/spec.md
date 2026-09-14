@@ -1,0 +1,87 @@
+## MODIFIED Requirements
+
+### Requirement: AI 写入设定内容必须分段
+
+save_novel_settings 工具的描述和 observer / architect 的系统提示 SHALL 明确要求长文本字段使用 `
+
+` 作为段落分隔符，并引导 AI 把单个段落控制在约 80–220 字。提示词 SHALL NOT 把字段总字数当作硬性上限；单个规范化段落超过 600 字时 SHALL 视为未完成分段。
+
+#### Scenario: AI 创建超过 600 字的单段内容
+
+- **WHEN** AI 通过 save_novel_settings 创建一条包含 600 字以上且没有换行的 world_entry content
+- **THEN** tool description 和系统提示要求 AI 先按主题用 `
+
+` 分段，写入校验拒绝这段内容
+
+#### Scenario: AI 创建 300 字连贯段落
+
+- **WHEN** AI 通过 save_novel_settings 创建一条包含 300 字且语义连贯的单段 world_entry content
+- **THEN** 工具接受该内容，不因为低于 600 字的单段长度要求而要求继续拆分
+
+#### Scenario: AI 创建世界观条目时分段
+
+- **WHEN** AI 通过 save_novel_settings 创建一条超过 600 字的 world_entry content
+- **THEN** tool description 和系统提示要求 AI 用 `
+
+` 分段，AI 返回的 content 没有超过 600 字的单段
+
+#### Scenario: AI 更新世界观条目时分段
+
+- **WHEN** AI 通过 update_setting 修改一条 world_entry 的 content
+- **THEN** tool description 要求 AI 保持段落边界，并避免新增超过 600 字的单段
+
+### Requirement: AI 写入设定内容必须使用纯文本并分段
+
+save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本字段为纯文本，SHALL 拒绝包含常见 Markdown 语法的内容；显式换行 SHALL 在写入时规范化为 `
+
+` 段落分隔符。任一规范化段落超过 600 字时 SHALL 被拒绝；字段总字数 SHALL NOT 受限。工具描述和系统提示 SHALL 引导单个段落约 80–220 字，但不把该目标作为硬性拒绝条件。observer / architect 系统提示 SHALL 同步禁止 Markdown 标题、加粗、列表、链接和代码块，并要求长内容按主题分段。
+
+#### Scenario: AI 写入包含 Markdown 的内容
+
+- **WHEN** AI 通过 save_novel_settings 或 update_setting 写入包含 `##`、`**`、`- 列表项` 或链接语法的内容
+- **THEN** 工具返回纯文本格式错误，不写入该内容
+
+#### Scenario: AI 写入纯文本长内容
+
+- **WHEN** AI 写入不含 Markdown 语法、由多个 600 字以下段落组成的长文本
+- **THEN** 工具正常保存该内容
+
+#### Scenario: AI 写入纯文本多段内容
+
+- **WHEN** AI 写入不含 Markdown 语法且由 `
+
+` 分段的内容
+- **THEN** 工具正常保存该内容
+
+#### Scenario: AI 写入超过 200 字的单段内容
+
+- **WHEN** AI 写入一个 300 字且语义连贯的单段长文本
+- **THEN** 工具接受该内容；只有同一规范化段落超过 600 字时才拒绝
+
+#### Scenario: AI 写入超过 600 字的单段内容
+
+- **WHEN** AI 写入一个规范化后超过 600 字且没有换行的长文本字段
+- **THEN** 工具返回分段格式错误，不写入该内容
+
+#### Scenario: AI 写入 300 字的单段内容
+
+- **WHEN** AI 写入一个规范化后为 300 字且语义连贯的长文本段落
+- **THEN** 工具正常保存该内容
+
+#### Scenario: 多段内容包含超长段落
+
+- **WHEN** AI 写入的内容已有多个段落，但其中一段超过 600 字
+- **THEN** 工具返回该段落的分段格式错误，不写入该内容
+
+#### Scenario: AI 写入包含单个换行的长内容
+
+- **WHEN** AI 写入使用单个 `
+` 分段的长文本
+- **THEN** 工具将其规范化为 `
+
+` 后保存
+
+#### Scenario: 设定详情排版适配面板
+
+- **WHEN** 用户在设定中心查看世界观条目详情
+- **THEN** 内容位于与大纲阅读器一致的 `max-w-3xl` 居中栏位中，不出现章节阅读器的背景块或两字首行缩进
