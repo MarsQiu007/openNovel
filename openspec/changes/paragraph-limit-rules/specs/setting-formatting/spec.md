@@ -2,16 +2,12 @@
 
 ### Requirement: AI 写入设定内容必须分段
 
-save_novel_settings 工具的描述和 observer / architect 的系统提示 SHALL 明确要求长文本字段使用 `
-
-` 作为段落分隔符，并引导 AI 把单个段落控制在约 80–220 字。提示词 SHALL NOT 把字段总字数当作硬性上限；单个规范化段落超过 600 字时 SHALL 视为未完成分段。
+save_novel_settings 工具的描述和 observer / architect 的系统提示 SHALL 明确要求长文本字段使用 `\n\n` 作为段落分隔符，并引导 AI 把单个段落控制在约 80–220 字。提示词 SHALL NOT 把字段总字数当作硬性上限；单个规范化段落超过 600 字时 SHALL 视为未完成分段。
 
 #### Scenario: AI 创建超过 600 字的单段内容
 
 - **WHEN** AI 通过 save_novel_settings 创建一条包含 600 字以上且没有换行的 world_entry content
-- **THEN** tool description 和系统提示要求 AI 先按主题用 `
-
-` 分段，写入校验拒绝这段内容
+- **THEN** tool description 和系统提示要求 AI 先按主题用 `\n\n` 分段，写入校验拒绝这段内容
 
 #### Scenario: AI 创建 300 字连贯段落
 
@@ -21,9 +17,7 @@ save_novel_settings 工具的描述和 observer / architect 的系统提示 SHAL
 #### Scenario: AI 创建世界观条目时分段
 
 - **WHEN** AI 通过 save_novel_settings 创建一条超过 600 字的 world_entry content
-- **THEN** tool description 和系统提示要求 AI 用 `
-
-` 分段，AI 返回的 content 没有超过 600 字的单段
+- **THEN** tool description 和系统提示要求 AI 用 `\n\n` 分段，AI 返回的 content 没有超过 600 字的单段
 
 #### Scenario: AI 更新世界观条目时分段
 
@@ -32,9 +26,7 @@ save_novel_settings 工具的描述和 observer / architect 的系统提示 SHAL
 
 ### Requirement: AI 写入设定内容必须使用纯文本并分段
 
-save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本字段为纯文本，SHALL 拒绝包含常见 Markdown 语法的内容；显式换行 SHALL 在写入时规范化为 `
-
-` 段落分隔符。任一规范化段落超过 600 字时 SHALL 被拒绝；字段总字数 SHALL NOT 受限。工具描述和系统提示 SHALL 引导单个段落约 80–220 字，但不把该目标作为硬性拒绝条件。observer / architect 系统提示 SHALL 同步禁止 Markdown 标题、加粗、列表、链接和代码块，并要求长内容按主题分段。
+save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本字段为纯文本，SHALL 拒绝包含常见 Markdown 语法的内容；显式换行 SHALL 在写入时规范化为 `\n\n` 段落分隔符。任一规范化段落超过 600 字时 SHALL 被拒绝；字段总字数 SHALL NOT 受限。工具描述和系统提示 SHALL 引导单个段落约 80–220 字，但不把该目标作为硬性拒绝条件。observer / architect 系统提示 SHALL 同步禁止 Markdown 标题、加粗、列表、链接和代码块，并要求长内容按主题分段。
 
 #### Scenario: AI 写入包含 Markdown 的内容
 
@@ -48,9 +40,7 @@ save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本
 
 #### Scenario: AI 写入纯文本多段内容
 
-- **WHEN** AI 写入不含 Markdown 语法且由 `
-
-` 分段的内容
+- **WHEN** AI 写入不含 Markdown 语法且由 `\n\n` 分段的内容
 - **THEN** 工具正常保存该内容
 
 #### Scenario: AI 写入超过 200 字的单段内容
@@ -75,11 +65,8 @@ save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本
 
 #### Scenario: AI 写入包含单个换行的长内容
 
-- **WHEN** AI 写入使用单个 `
-` 分段的长文本
-- **THEN** 工具将其规范化为 `
-
-` 后保存
+- **WHEN** AI 写入使用单个 `\n` 分段的长文本
+- **THEN** 工具将其规范化为 `\n\n` 后保存
 
 #### Scenario: 设定详情排版适配面板
 
