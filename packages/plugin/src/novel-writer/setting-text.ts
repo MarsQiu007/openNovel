@@ -6,7 +6,7 @@
  */
 
 export const SETTING_TEXT_FORMAT_RULE =
-  "长文本必须使用纯文本：禁止 Markdown 标题、加粗、斜体、列表、链接、引用和代码块（如 ##、**、-、1.、[文本](链接)、>、三个反引号）；用自然句子表达层级；换行表示段落边界，超过 200 字必须分段，写入时会统一规范化为 \\n\\n。"
+  "长文本必须使用纯文本：禁止 Markdown 标题、加粗、斜体、列表、链接、引用和代码块（如 ##、**、-、1.、[文本](链接)、>、三个反引号）；用自然句子表达层级；换行表示段落边界，每段约 80–220 字，任一规范化段落超过 600 字必须分段，写入时会统一规范化为 \\n\\n。"
 
 const MARKDOWN_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: "Markdown 标题", pattern: /(^|\n)[ \t]{0,3}#{1,6}[ \t]+\S/ },
@@ -40,9 +40,12 @@ export function normalizeSettingText(value: string): string {
 }
 
 export function paragraphFormatError(value: string): string | null {
-  const text = value.trim()
-  if (text.length <= 200 || /\n/.test(text)) return null
-  return `长内容（${text.length} 字）没有换行分段；超过 200 字必须分段，写入时会规范化为 \\n\\n。`
+  const normalizedParagraphs = normalizeSettingText(value).split("\n\n").filter(Boolean)
+  for (const [index, paragraph] of normalizedParagraphs.entries()) {
+    if (paragraph.length <= 600) continue
+    return `第 ${index + 1} 段（${paragraph.length} 字）超过 600 字；请按主题分段，单个段落约 80–220 字。`
+  }
+  return null
 }
 
 export function settingTextFormatError(

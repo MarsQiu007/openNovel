@@ -256,14 +256,17 @@ function textIssue(entity: OrganizeEntity, field: string, value: string): Settin
       suggestion: "改写为自然句段落，去除 Markdown 语法",
     })
   }
-  if (value.trim().length > 200 && !/\n/.test(value)) {
+  const longParagraph = paragraphs(value)
+    .map((paragraph, index) => ({ index, length: paragraph.length }))
+    .find((paragraph) => paragraph.length > 600)
+  if (longParagraph) {
     issues.push({
       issue_id: issueId(entity.entity_type, "long_single_paragraph", [entity.id]),
       type: "long_single_paragraph",
       entity_type: entity.entity_type,
       entry_ids: [entity.id],
-      evidence: `${field}：内容 ${value.trim().length} 字且没有换行`,
-      suggestion: "按主题拆分为 \\n\\n 分段的纯文本段落",
+      evidence: `${field}：第 ${longParagraph.index + 1} 段（${longParagraph.length} 字）`,
+      suggestion: "按主题拆分为 \\n\\n 分段的纯文本段落，单个段落约 80–220 字",
     })
   }
   return issues
@@ -1121,23 +1124,38 @@ export function generatePlanFromIssues(entities: OrganizeEntity[], issues: Setti
       })
     }
 
-    // 长单段内容 → 在句号/感叹号/问号后插入段落分隔
+    // 长单段内容 → 只拆分超长段落，在句号/感叹号/问号后插入段落分隔
     if (issue.type === "long_single_paragraph" && issue.entry_ids.length === 1) {
       const entity = entities.find((e) => e.id === issue.entry_ids[0] && !consumed.has(e.id))
       if (!entity) continue
-      const field = issue.entity_type === "character" ? "description" : "content"
+      const field = ["character", "relationship", "plot_thread"].includes(issue.entity_type) ? "description" : "content"
       const text = field === "content" ? entity.content : entity.description
-      if (!text || !text.includes("。")) continue
-      const paragraphs = splitIntoParagraphs(text)
-      if (paragraphs.length < 2) continue
-      const formatted = paragraphs.join("\n\n")
+      const sourceParagraphs = paragraphs(text)
+      if (!sourceParagraphs.some((paragraph) => paragraph.length > 600)) continue
+      const outputParagraphs: string[] = []
+      let changed = false
+      for (const paragraph of sourceParagraphs) {
+        if (paragraph.length <= 600) {
+          outputParagraphs.push(paragraph)
+          continue
+        }
+        const split = splitIntoParagraphs(paragraph)
+        if (split.length < 2 || split.some((item) => item.length > 600)) {
+          outputParagraphs.push(paragraph)
+          continue
+        }
+        changed = true
+        outputParagraphs.push(...split)
+      }
+      if (!changed) continue
+      const formatted = outputParagraphs.join("\n\n")
       if (formatted === text) continue
       operations.push({
         action: "update",
         entity_type: issue.entity_type,
         id: entity.id,
         fields: { [field]: formatted },
-        reason: `长单段（${text.length} 字）自动按句号分段为 ${paragraphs.length} 段`,
+        reason: `长段落（${sourceParagraphs.find((paragraph) => paragraph.length > 600)!.length} 字，超过 600 字）自动按句末分段`,
       })
     }
 
@@ -1164,9 +1182,10 @@ function splitIntoParagraphs(text: string): string[] {
   const sentences = text.split(/(?<=[。！？])/)
   const paragraphs: string[] = []
   let current = ""
-  for (const sentence of sentences) {
+  for (const [index, sentence] of sentences.entries()) {
     current += sentence
-    if (current.length >= 80) {
+    const next = sentences[index + 1]
+    if (current.length >= 80 && (!next || current.length + next.length > 220)) {
       paragraphs.push(current.trim())
       current = ""
     }

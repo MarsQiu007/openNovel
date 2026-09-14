@@ -19,6 +19,7 @@ import type { ToolContext } from "../../src/tool.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
 import {
   analyzeWorldEntries,
+  generatePlanFromIssues,
   executeOrganizePlan,
   parseOrganizePlan,
   titleSimilarity,
@@ -102,7 +103,7 @@ describe("world entry analyzer", () => {
     const rows = [
       entry({ id: "bad-category", category: "重要设定" }),
       entry({ id: "markdown", content: "- 第一项\n- 第二项" }),
-      entry({ id: "long", content: "这是一段很长的设定内容。".repeat(25) }),
+      entry({ id: "long", content: "字".repeat(650) }),
       entry({ id: "empty", title: "", content: "" }),
     ]
     const issues = analyzeWorldEntries(rows)
@@ -136,6 +137,17 @@ describe("world entry analyzer", () => {
 
   test("无问题数据返回空列表", () => {
     expect(analyzeWorldEntries([entry({ id: "clean" })])).toEqual([])
+  })
+
+  test("不把 300 字连贯段落标记为长单段", () => {
+    const issues = analyzeWorldEntries([entry({ id: "medium", content: "这是一段完整的人物描述。".repeat(24) })])
+    expect(issues).toEqual([])
+  })
+
+  test("长段落问题标明字段、段落序号和建议长度", () => {
+    const issue = analyzeWorldEntries([entry({ id: "long", content: "字".repeat(650) })]).find((item) => item.type === "long_single_paragraph")
+    expect(issue?.evidence).toContain("content：第 1 段（650 字）")
+    expect(issue?.suggestion).toContain("80–220")
   })
 })
 
@@ -180,6 +192,31 @@ describe("organize plan validation", () => {
     expect(validation.errors.join("\n")).toContain("非标准")
     expect(validation.errors.join("\n")).toContain("纯文本")
     expect(validation.errors.join("\n")).toContain("被多个操作使用")
+  })
+
+  test("计划文本按单段长度校验", () => {
+    const mediumPlan = parseOrganizePlan(JSON.stringify({
+      version: 2,
+      operations: [{ entity_type: "character", action: "update", id: "char-medium", fields: { description: "字".repeat(300) }, reason: "补充描述" }],
+    }))
+    const medium = validateOrganizePlan({
+      plan: mediumPlan.plan!,
+      entries: [toOrganizeEntity("character", { id: "char-medium", name: "角色" })],
+      referencedKeys: new Set(),
+    })
+    expect(medium.ok).toBe(true)
+
+    const longPlan = parseOrganizePlan(JSON.stringify({
+      version: 2,
+      operations: [{ entity_type: "character", action: "update", id: "char-long", fields: { description: "字".repeat(650) }, reason: "补充描述" }],
+    }))
+    const long = validateOrganizePlan({
+      plan: longPlan.plan!,
+      entries: [toOrganizeEntity("character", { id: "char-long", name: "角色" })],
+      referencedKeys: new Set(),
+    })
+    expect(long.ok).toBe(false)
+    expect(long.errors.join("\n")).toContain("超过 600 字")
   })
 
   test("删除被引用条目时返回引用冲突", () => {
@@ -328,6 +365,17 @@ describe("cross-entity organization", () => {
     return { db, tool: plugin.tool! }
   }
 
+  test("analyze 按单段长度检查角色描述", async () => {
+    const { db, tool } = await seedEntities()
+    await db.update(CharacterTable).set({ description: "这是一段完整的人物描述。".repeat(24) }).where(eq(CharacterTable.id, "char-a")).run()
+    const medium = await tool.organize_settings!.execute({ action: "analyze", novel_id: "novel-reorg", scope: "character" }, toolCtx())
+    expect(medium.output).not.toContain("long_single_paragraph")
+    await db.update(CharacterTable).set({ description: "字".repeat(650) }).where(eq(CharacterTable.id, "char-a")).run()
+    const long = await tool.organize_settings!.execute({ action: "analyze", novel_id: "novel-reorg", scope: "character" }, toolCtx())
+    expect(long.output).toContain("long_single_paragraph")
+    expect(long.output).toContain("第 1 段（650 字）")
+  })
+
   test("analyze 支持跨实体扫描和 scope 过滤", async () => {
     const { tool } = await seedEntities()
     const all = await tool.organize_settings!.execute({ action: "analyze", novel_id: "novel-reorg" }, toolCtx())
@@ -434,6 +482,33 @@ describe("cross-entity organization", () => {
     const protectedResult = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: protectedPlan }, toolCtx())
     expect(protectedResult.output).toContain("主角不能删除")
     expect(await db.select().from(CharacterTable).where(eq(CharacterTable.id, "protagonist")).all()).toHaveLength(1)
+  })
+})
+
+describe("automatic paragraph plan", () => {
+  test("只拆分超长段落并保留既有段落", () => {
+    const longParagraph = "这句话描述一个具体设定。".repeat(55)
+    expect(longParagraph.length).toBeGreaterThan(600)
+    const text = `短段落。\n\n${longParagraph}`
+    const entity = toOrganizeEntity("world_entry", entry({ id: "paragraph-target", content: text }))
+    const issue = analyzeWorldEntries([entry({ id: "paragraph-target", content: text })]).find((item) => item.type === "long_single_paragraph")!
+    const plan = generatePlanFromIssues([entity], [issue])
+    expect(plan.operations).toHaveLength(1)
+    const operation = plan.operations[0]!
+    if (operation.action !== "update") throw new Error("expected update")
+    const formatted = operation.fields.content!
+    const paragraphs = formatted.split("\n\n")
+    expect(paragraphs[0]).toBe("短段落。")
+    expect(paragraphs.length).toBeGreaterThan(2)
+    expect(paragraphs.every((paragraph) => paragraph.length <= 220)).toBe(true)
+    expect(operation.reason).toContain("600 字")
+  })
+
+  test("没有句末标点的超长段落不生成自动操作", () => {
+    const text = "字".repeat(650)
+    const entity = toOrganizeEntity("world_entry", entry({ id: "no-boundary", content: text }))
+    const issue = analyzeWorldEntries([entry({ id: "no-boundary", content: text })]).find((item) => item.type === "long_single_paragraph")!
+    expect(generatePlanFromIssues([entity], [issue]).operations).toEqual([])
   })
 })
 

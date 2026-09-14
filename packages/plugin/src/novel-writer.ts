@@ -2443,7 +2443,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
       save_novel_settings: tool({
         description:
-          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
+          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           settings_json: tool.schema
@@ -3794,7 +3794,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       organize_settings: tool({
         description:
-          "整理小说设定。action=analyze 跨实体扫描并支持 scope 过滤；action=dry_run 校验版本 1 或版本 2 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除重复或相似条目，不跳过确认，不写入 Markdown 或未分段长文本。",
+          "整理小说设定。action=analyze 跨实体扫描并支持 scope 过滤；action=dry_run 校验版本 1 或版本 2 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除重复或相似条目，不跳过确认，不写入 Markdown 或单个段落超过 600 字的长文本。",
         args: {
           action: tool.schema.enum(["analyze", "dry_run", "apply"]).describe("整理动作：analyze / dry_run / apply"),
           novel_id: tool.schema.string().describe("小说 ID"),
@@ -4002,7 +4002,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       update_setting: tool({
         description:
-          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content；content 必须用 \\n\\n 分段，每段一个主题，禁止全部写在同一行）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。\n\n" + SETTING_TEXT_FORMAT_RULE + "\n\n副作用（设定修改会级联到已写章节）：\n- world_entry.title 改名：自动重建 EntityRef 引用追踪；旧标题若已被章节正文引用，会在 PendingUpdate 表创建级联任务，提示 director/用户是否要统改这些章节的对应称谓。\n- world_entry.content 大改（如改爵位体系/境界名等关键定义）：同样会触发引用了该条目的章节的级联任务。\n- 其他类型修改不触发级联（仅引用关系可能变化，scanReferences 在下次 commit 时重建）。",
+          "更新已有的小说设定记录。支持 world_entry（修改 category/title/content；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段）、plot_thread（修改 title/status/priority/description，status 设为 closed 会自动记录关闭时间）、foreshadowing（修改 content/state/resolved_chapter_id，state 可为 planted/hinted/resolved/abandoned）、relationship（修改 type/description）。用 list_settings 获取 entity_id 后再更新。\n\n" + SETTING_TEXT_FORMAT_RULE + "\n\n副作用（设定修改会级联到已写章节）：\n- world_entry.title 改名：自动重建 EntityRef 引用追踪；旧标题若已被章节正文引用，会在 PendingUpdate 表创建级联任务，提示 director/用户是否要统改这些章节的对应称谓。\n- world_entry.content 大改（如改爵位体系/境界名等关键定义）：同样会触发引用了该条目的章节的级联任务。\n- 其他类型修改不触发级联（仅引用关系可能变化，scanReferences 在下次 commit 时重建）。",
         args: {
           entity_type: tool.schema
             .string()

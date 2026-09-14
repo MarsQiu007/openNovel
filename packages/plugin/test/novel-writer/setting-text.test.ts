@@ -10,6 +10,9 @@ import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, WorldEntryTable } from "../../src/novel-writer/session-store.js"
+import { architectAgent } from "../../src/novel-writer/agents/architect.js"
+import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { observerAgent } from "../../src/novel-writer/agents/observer.js"
 import { paragraphFormatError, plainTextFormatError } from "../../src/novel-writer/setting-text.js"
 import type { ToolContext } from "../../src/tool.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
@@ -71,16 +74,46 @@ describe("plainTextFormatError", () => {
 })
 
 describe("paragraphFormatError", () => {
-  test("超过 200 字的单段内容必须分段", () => {
-    const text = "这是一段很长的设定内容。".repeat(25)
-    expect(text.length).toBeGreaterThan(200)
+  test("接受 300 字的连贯单段", () => {
+    const text = "这是一段完整的人物描述。".repeat(25)
+    expect(text.length).toBe(300)
     expect(plainTextFormatError(text)).toBeNull()
-    expect(paragraphFormatError(text)).toContain("没有换行分段")
+    expect(paragraphFormatError(text)).toBeNull()
+  })
+
+  test("接受恰好 600 字的单段", () => {
+    expect(paragraphFormatError("字".repeat(600))).toBeNull()
+  })
+
+  test("拒绝超过 600 字的单段", () => {
+    expect(paragraphFormatError("字".repeat(650))).toContain("第 1 段（650 字）")
+    expect(paragraphFormatError("字".repeat(650))).toContain("600 字")
+  })
+
+  test("只拒绝多段内容中的超长段落", () => {
+    const text = `第一段。\n\n${"字".repeat(650)}`
+    expect(paragraphFormatError(text)).toContain("第 2 段（650 字）")
+  })
+
+  test("不限制多个合格段落的总字数", () => {
+    const text = Array.from({ length: 3 }, () => "字".repeat(250)).join("\n\n")
+    expect(text.length).toBeGreaterThan(600)
+    expect(paragraphFormatError(text)).toBeNull()
   })
 
   test("短内容或已有空行分段的内容通过", () => {
     expect(paragraphFormatError("短内容。")).toBeNull()
     expect(paragraphFormatError("第一段。\n\n第二段。")).toBeNull()
+  })
+})
+
+describe("setting paragraph prompts", () => {
+  test("架构师、观察者和编排者提示使用相同阈值", () => {
+    expect(architectAgent.systemPrompt).toContain("约 80–220 字")
+    expect(architectAgent.systemPrompt).toContain("600 字")
+    expect(observerAgent.prompt).toContain("约 80–220 字")
+    expect(observerAgent.prompt).toContain("600 字")
+    expect(directorAgentConfig.systemPrompt).toContain("600 字")
   })
 })
 
@@ -117,8 +150,42 @@ describe("setting write tools", () => {
     expect(row.content).toBe("锻体期是第一境界。\n\n主要强化肉身。")
   })
 
-  test("save_novel_settings 拒绝超过 200 字的单段内容", async () => {
-    const content = "这是一段很长的设定内容。".repeat(25)
+  test("save_novel_settings 接受 300 字的单段内容", async () => {
+    const content = "这是一段完整的人物描述。".repeat(24)
+    const { db, hooks } = await seed()
+    const result = await hooks.save_novel_settings!.execute(
+      {
+        novel_id: "novel-text",
+        settings_json: JSON.stringify([
+          { type: "world_entry", data: { category: "力量体系", title: "连贯段落", content } },
+        ]),
+      },
+      toolCtx(),
+    )
+    expect(result.output).toContain("已保存")
+    expect(result.metadata.count).toBe(1)
+    expect((await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.title, "连贯段落")).all()).length).toBe(1)
+  })
+
+  test("save_novel_settings 接受总长超过 600 字的多段内容", async () => {
+    const content = ["字".repeat(250), "字".repeat(250), "字".repeat(250)].join("\n\n")
+    const { db, hooks } = await seed()
+    const result = await hooks.save_novel_settings!.execute(
+      {
+        novel_id: "novel-text",
+        settings_json: JSON.stringify([
+          { type: "world_entry", data: { category: "力量体系", title: "多段长文", content } },
+        ]),
+      },
+      toolCtx(),
+    )
+    expect(result.output).toContain("已保存")
+    expect(result.metadata.count).toBe(1)
+    expect((await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.title, "多段长文")).all()).length).toBe(1)
+  })
+
+  test("save_novel_settings 拒绝超过 600 字的单段内容", async () => {
+    const content = "字".repeat(650)
     const { hooks } = await seed()
     const result = await hooks.save_novel_settings!.execute(
       {
@@ -129,12 +196,12 @@ describe("setting write tools", () => {
       },
       toolCtx(),
     )
-    expect(result.output).toContain("没有换行分段")
+    expect(result.output).toContain("超过 600 字")
     expect(result.metadata.count).toBe(0)
   })
 
-  test("update_setting 拒绝超过 200 字的单段内容", async () => {
-    const content = "这是另一段很长的设定内容。".repeat(25)
+  test("update_setting 拒绝超过 600 字的单段内容", async () => {
+    const content = "字".repeat(650)
     const { hooks } = await seed()
     const result = await hooks.update_setting!.execute(
       {
@@ -144,7 +211,7 @@ describe("setting write tools", () => {
       },
       toolCtx(),
     )
-    expect(result.output).toContain("没有换行分段")
+    expect(result.output).toContain("超过 600 字")
   })
 
   test("update_setting 将单个换行规范化为空行分段", async () => {
