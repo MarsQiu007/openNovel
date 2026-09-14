@@ -19,4 +19,4 @@
 
 ## Implementation Commits
 
-- `af40e1221` fix(plugin): 长段落校验改为单段 600 字上限
+- `5a07717be` fix(plugin): 长段落校验改为单段 600 字上限
