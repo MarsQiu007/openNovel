@@ -1,5 +1,5 @@
 import { Location } from "@opennovel-ai/core/location"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
@@ -14,7 +14,7 @@ import type {
 } from "@opennovel-ai/schema/novel"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
-import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError } from "@opennovel-ai/protocol/groups/novel"
+import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, ServiceUnavailableError } from "@opennovel-ai/protocol/groups/novel"
 import {
   getDb,
   getDbPath,
@@ -377,7 +377,16 @@ function requireSettingOrganizationNovel(novelID: string, directory: string) {
   return Effect.gen(function* () {
     const novel = getDb(directory).select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    return yield* SettingOrganization
+    const service = yield* Effect.serviceOption(SettingOrganization)
+    if (Option.isNone(service)) {
+      return yield* Effect.fail(
+        new ServiceUnavailableError({
+          message: "设定整理服务未在当前 Server 组合中安装",
+          service: "setting-organization",
+        }),
+      )
+    }
+    return service.value
   })
 }
 

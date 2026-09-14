@@ -81,6 +81,9 @@ import {
   CreateWorldEntryAnnotationRoundInput,
   UpdateWorldEntryAnnotationRoundInput,
 } from "@opennovel-ai/schema/novel"
+import { ServiceUnavailableError } from "../errors"
+
+export { ServiceUnavailableError }
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { LocationQuery, locationQueryOpenApi } from "./location"
@@ -1187,7 +1190,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       query: LocationQuery,
       payload: SettingOrganizationAnalyzeInput,
       success: SettingOrganizationAnalyzeResult,
-      error: NovelNotFoundError,
+      error: [NovelNotFoundError, ServiceUnavailableError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -1204,7 +1207,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       query: LocationQuery,
       payload: SettingOrganizationDryRunInput,
       success: SettingOrganizationDryRunResult,
-      error: NovelNotFoundError,
+      error: [NovelNotFoundError, ServiceUnavailableError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -1221,7 +1224,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       query: LocationQuery,
       payload: SettingOrganizationApplyInput,
       success: SettingOrganizationApplyResult,
-      error: NovelNotFoundError,
+      error: [NovelNotFoundError, ServiceUnavailableError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
