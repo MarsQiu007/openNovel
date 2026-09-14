@@ -17,4 +17,8 @@
 - [x] 3.1 确认 schema、Protocol、生成客户端和 server 契约无需变更；在 `packages/plugin` 和 `packages/app` 运行 `bun typecheck`
 - [x] 3.2 运行仓库根目录 `bun run typecheck` 和 `bun run lint`，确认 0 errors
 - [x] 3.3 运行 `openspec validate paragraph-limit-rules --json`，核对 proposal、specs、design 和 tasks 一致
-- [ ] 3.4 人工验收：打开设定整理面板，确认截图中的 214–439 字角色描述不再误报；构造一个超过 600 字的单段并确认仍会收到分段建议
+- [x] 3.4 人工验收：打开设定整理面板，确认截图中的 214–439 字角色描述不再误报；构造一个超过 600 字的单段并确认仍会收到分段建议
+
+## Implementation Commits
+
+- `af40e1221` fix(plugin): 长段落校验改为单段 600 字上限
