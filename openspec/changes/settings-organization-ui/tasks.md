@@ -22,8 +22,26 @@
 
 ## 4. 质量验证
 
-- [x] 4.1 为 UI 状态机添加定向测试，覆盖 dry run 前置、计划变更失效、确认取消和执行反馈；在 `packages/app` 运行 `bun test`
+- [x] 4.1 移除手动 plan 执行状态机及其测试，避免保留未接入的死代码；在 `packages/app` 运行 `bun test`
 - [x] 4.2 在 `packages/app`、`packages/server`、`packages/opennovel`、`packages/schema`、`packages/protocol`、`packages/client` 运行 `bun typecheck`
 - [x] 4.3 对新增或修改的源文件运行 oxlint，确认 0 errors
 - [x] 4.4 运行 `openspec validate settings-organization-ui --json`，并核对任务、spec、设计和实际行为一致
 - [x] 4.5 人工验收：在真实小说数据的 UI 中点击 AI 一键整理，确认绑定会话使用 organize_settings 走 analyze → dry_run → 用户确认 → apply → analyze 复查
+
+## Implementation Commits
+
+- `fa96a3649` fix(server): 通用 Server 缺省整理服务返回 503
+- `55755dc57` fix(app): 一键整理携带真实小说 ID 并清理手动执行状态机
+- `f743d7f986` refactor(app): 设定整理面板简化为分析报告 + AI 一键整理，移除 plan_json 手动流程
+- `0dbb74ce1a` feat(app): 设定整理面板增加 AI 一键整理按钮发送 issues 到绑定会话修复
+- `362d6208da` fix(app): 重新分析按钮增加加载状态文案反馈
+- `ac329019fc` fix(opennovel): planDigest 改用 node:crypto createHash 替换 Bun.CryptoHasher
+- `7bd69c7402` fix(opennovel): dryRun 服务端异常捕获返回校验错误而非 500
+- `7f5b70113c` fix(app): 将 createEffect 移到 dryRunMutation 声明后消除执行顺序风险
+- `67a64e1fc` feat(plugin): 整理计划自动生成覆盖长单段内容按句号分段
+- `1238703ba` fix(app): 重新分析时清除旧计划状态并始终用新 suggestedPlanJson 更新
+- `90219bfee` feat(app,opennovel,plugin): 设定整理分析后自动生成安全修复计划并自动 dry run
+- `1660554f8` fix(app): 设定整理面板重新分析按钮改用 neutral 实心样式
+- `9ece010e6` feat(app): add setting organization panel
+- `5487750c7` feat(server): expose setting organization service
+- `2e515d975` feat(protocol): add setting organization api
