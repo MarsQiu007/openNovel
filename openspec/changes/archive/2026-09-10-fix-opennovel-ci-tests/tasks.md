@@ -42,3 +42,18 @@
 - [x] 7.4 取消 HttpApi exerciser 门禁的 Linux 限制，让 Windows 也执行完整演练。
 - [x] 7.5 启用 session message updater 被跳过的测试，并按当前事件契约更新断言。
 - [x] 7.6 用 ready/guard 文件替换 shell 冲突测试中的长 sleep，消除 Linux CI 30 秒超时竞态。
+
+## Implementation Commits
+
+- `5a0b41c37` fix(opennovel): 稳定跨平台测试与插件过滤
+- `5309ee215` test(opennovel): 兼容模糊文件搜索的额外结果
+- `9dcf8fa41` ci(test): 修正 HttpApi exerciser 目录
+- `e74d431b1` test(opennovel): 补齐 HttpApi 路由演练场景
+- `efdf6ce61` fix(schema): 要求角色状态绑定章节
+- `456cb600e` test(opennovel): 覆盖插件与跨平台演练契约
+- `2aae9a298` test(novel-store): 纳入测试门禁并补角色状态迁移
+- `ebca29040` ci(test): 让演练门禁覆盖 Windows
+- `cbbb2647b` test(opennovel): 稳定 shell 冲突测试
+- `8f05e60ea` fix(ci): 门禁恢复仅 Linux 并修复文件监视器环境变量
+- `d6a302100` fix(sdk): 同步 openapi.json 的角色状态 chapterId 要求
+- `741e86df1` fix(opennovel): 稳定 Windows CI 超时用例

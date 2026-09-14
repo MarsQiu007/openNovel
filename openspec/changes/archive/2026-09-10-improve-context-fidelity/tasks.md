@@ -21,3 +21,7 @@
 
 - [x] 5.1 在 `packages/plugin` 运行 `bun test` 确认新旧测试全部通过（新增 10 个测试通过；全量 429/431——2 个失败为 project-config.test.ts 存量隔离缺陷：未隔离全局配置查找，本机存在 `~/.config/opennovel/opennovel.jsonc` 时暴露，与本次改动无关，另行修复）
 - [x] 5.2 在 `packages/plugin` 运行 `bun typecheck` 与 oxlint，确认无错误（tsgo --noEmit 通过；oxlint 0 errors，仓库存量 warnings 不在本变更范围）
+
+## Implementation Commits
+
+- `276f98936` feat(plugin): 提升上下文保真度（结尾窗口/摘要结构化/章纲兜底）

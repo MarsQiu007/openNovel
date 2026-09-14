@@ -1747,7 +1747,8 @@ it.instance(
       expect(yield* llm.calls).toBe(1)
     }),
   { git: true },
-  10_000,
+  // Windows CI 下 shell 进程 spawn 偏慢，10s 会偶发超时。
+  30_000,
 )
 
 unix(
