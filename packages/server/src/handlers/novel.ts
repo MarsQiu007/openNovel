@@ -1730,7 +1730,7 @@ function validateSettingAnnotationAnchor(entry: WorldEntryRow, input: CreateWorl
   return null
 }
 
-function createWorldEntryAnnotation(novelId: string, entryId: string, input: CreateWorldEntryAnnotationInput, directory: string) {
+export function createWorldEntryAnnotation(novelId: string, entryId: string, input: CreateWorldEntryAnnotationInput, directory: string) {
   return Effect.gen(function* () {
     const entry = yield* requireWorldEntry(novelId, entryId, directory)
     const anchorError = validateSettingAnnotationAnchor(entry, input)
@@ -1791,7 +1791,7 @@ function deleteWorldEntryAnnotation(novelId: string, annotationId: string, direc
   })
 }
 
-function createWorldEntryAnnotationRound(novelId: string, entryId: string, input: CreateWorldEntryAnnotationRoundInput, directory: string) {
+export function createWorldEntryAnnotationRound(novelId: string, entryId: string, input: CreateWorldEntryAnnotationRoundInput, directory: string) {
   return Effect.gen(function* () {
     yield* requireWorldEntry(novelId, entryId, directory)
     const round = yield* Effect.promise(() =>

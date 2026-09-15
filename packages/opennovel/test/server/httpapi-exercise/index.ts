@@ -50,6 +50,8 @@ import {
   createPlotThread,
   createForeshadowing,
   createWorldEntry,
+  createWorldEntryAnnotation,
+  createWorldEntryAnnotationRound,
   updateOutline,
   updateStyleGuideEndpoint,
 } from "@opennovel-ai/server/handlers/novel"
@@ -1911,6 +1913,63 @@ function seedWorldEntry(ctx: ScenarioContext) {
   )
 }
 
+// 段落批注要求 quote 与设定内容精确匹配，这里固定一段内容并据此计算偏移量。
+const SETTING_ANNOTATION_CONTENT = "青云门立于青云山脉九峰之巅，三千弟子分驻各峰。"
+const SETTING_ANNOTATION_QUOTE = "三千弟子"
+const SETTING_ANNOTATION_SPAN = {
+  paragraphIndex: 0,
+  startOffset: SETTING_ANNOTATION_CONTENT.indexOf(SETTING_ANNOTATION_QUOTE),
+  endOffset: SETTING_ANNOTATION_CONTENT.indexOf(SETTING_ANNOTATION_QUOTE) + SETTING_ANNOTATION_QUOTE.length,
+}
+
+function seedSettingAnnotationsEntry(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx)
+      const entry = yield* createWorldEntry(
+        novelID,
+        { category: "势力", title: "青云门", content: SETTING_ANNOTATION_CONTENT },
+        novelDirectory(ctx),
+      )
+      return { novelID, entryID: entry.id }
+    }),
+  )
+}
+
+function seedWorldEntryAnnotation(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedSettingAnnotationsEntry(ctx)
+      const annotation = yield* createWorldEntryAnnotation(
+        state.novelID,
+        state.entryID,
+        {
+          ...SETTING_ANNOTATION_SPAN,
+          quote: SETTING_ANNOTATION_QUOTE,
+          comment: "三千弟子与后文人数描述不一致",
+        },
+        novelDirectory(ctx),
+      )
+      return { ...state, annotationID: annotation.id }
+    }),
+  )
+}
+
+function seedWorldEntryAnnotationRound(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedSettingAnnotationsEntry(ctx)
+      const round = yield* createWorldEntryAnnotationRound(
+        state.novelID,
+        state.entryID,
+        { annotationsSnapshot: [], status: "completed", resultSummary: "首轮整理完成，无遗留批注" },
+        novelDirectory(ctx),
+      )
+      return { ...state, roundID: round.id }
+    }),
+  )
+}
+
 function novelScenarios(): Scenario[] {
   const jsonHeaders = (ctx: ScenarioContext) => ({ ...ctx.headers(), "content-type": "application/json" })
   const isObject = (body: unknown) => object(body)
@@ -2566,6 +2625,136 @@ function novelScenarios(): Scenario[] {
         headers: ctx.headers(),
       }))
       .json(200, isDeleted),
+    http.protected
+      .get("/api/novel/{novelID}/world-entries/{entryID}/annotations", "novel.setting-annotations")
+      .seeded((ctx) => seedWorldEntryAnnotation(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotations", {
+          novelID: ctx.state.novelID,
+          entryID: ctx.state.entryID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isArray),
+    http.protected
+      .post("/api/novel/{novelID}/world-entries/{entryID}/annotations", "novel.create-setting-annotation")
+      .seeded((ctx) => seedSettingAnnotationsEntry(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotations", {
+          novelID: ctx.state.novelID,
+          entryID: ctx.state.entryID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: {
+          ...SETTING_ANNOTATION_SPAN,
+          quote: SETTING_ANNOTATION_QUOTE,
+          comment: "门中弟子数与后文描述矛盾",
+        },
+      }))
+      .json(200, isObject),
+    http.protected
+      .patch("/api/novel/{novelID}/setting-annotations/{annotationID}", "novel.update-setting-annotation")
+      .seeded((ctx) => seedWorldEntryAnnotation(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-annotations/{annotationID}", {
+          novelID: ctx.state.novelID,
+          annotationID: ctx.state.annotationID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { status: "resolved" },
+      }))
+      .json(200, isObject),
+    http.protected
+      .delete("/api/novel/{novelID}/setting-annotations/{annotationID}", "novel.delete-setting-annotation")
+      .seeded((ctx) => seedWorldEntryAnnotation(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-annotations/{annotationID}", {
+          novelID: ctx.state.novelID,
+          annotationID: ctx.state.annotationID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isDeleted),
+    http.protected
+      .post("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", "novel.create-setting-annotation-round")
+      .seeded((ctx) => seedSettingAnnotationsEntry(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", {
+          novelID: ctx.state.novelID,
+          entryID: ctx.state.entryID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { annotationsSnapshot: [], status: "completed", resultSummary: "首轮整理完成，无遗留批注" },
+      }))
+      .json(200, isObject),
+    http.protected
+      .get("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", "novel.setting-annotation-rounds")
+      .seeded((ctx) => seedWorldEntryAnnotationRound(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", {
+          novelID: ctx.state.novelID,
+          entryID: ctx.state.entryID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isArray),
+    http.protected
+      .patch("/api/novel/{novelID}/setting-annotation-rounds/{roundID}", "novel.update-setting-annotation-round")
+      .seeded((ctx) => seedWorldEntryAnnotationRound(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-annotation-rounds/{roundID}", {
+          novelID: ctx.state.novelID,
+          roundID: ctx.state.roundID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { status: "interrupted", resultSummary: "人工中断后的收尾" },
+      }))
+      .json(200, isObject),
+    http.protected
+      .post("/api/novel/{novelID}/settings-organization/analyze", "novel.settings-organization.analyze")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/settings-organization/analyze", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { scope: "all" },
+      }))
+      .json(200, isObject),
+    http.protected
+      .post("/api/novel/{novelID}/settings-organization/dry-run", "novel.settings-organization.dry-run")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/settings-organization/dry-run", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { planJson: JSON.stringify({ version: 2, operations: [] }) },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check((body as Record<string, unknown>).valid === true, "空整理计划的 dry-run 应通过校验")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/settings-organization/apply", "novel.settings-organization.apply")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/settings-organization/apply", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: {
+          planJson: JSON.stringify({ version: 2, operations: [] }),
+          planDigest: "digest-mismatch",
+          confirmed: true,
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check((body as Record<string, unknown>).ok === false, "摘要不匹配的 apply 应被拒绝")
+      }),
   // 覆盖新增的结构评审、技法、云盘同步与全局灵魂路由。
   http.protected.get("/api/novel/mode", "v2.novelMode.get").json(200, (body) => object(body)),
   http.protected
