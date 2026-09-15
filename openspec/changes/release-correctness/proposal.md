@@ -6,7 +6,8 @@ Release workflow 虽然可以跑绿，但产物语义存在三处正确性问题
 
 - 明确拆分 **Release Stage** 与 **Product Channel** 两个概念：release 脚本可继续使用 `latest` 表示正式发布，desktop 构建必须收到 `dev`、`beta` 或 `prod`。
 - Release prepare 必须以 version bump commit 的实际 SHA 创建 changelog target、draft release 和 tag，禁止继续使用 bump 前的 `GITHUB_SHA`。
-- beta 与 prod 的 desktop 发布必须生成并上传完整自动更新产物：安装包、blockmap 和对应 `latest.yml` / `latest-beta.yml`。
+- beta 与 prod 的 desktop 发布必须复用预创建 draft release，并生成完整自动更新产物：安装包、blockmap 和对应 `latest.yml` / `latest-beta.yml`。
+- 在 prod release notes 中加入旧错误 `v0.0.3` 的一次性迁移提示。
 - beta 与 prod 更新源统一指向 `MarsQiu007/openNovel`；beta release 保持 prerelease 标记，prod release 使用 Latest。
 - dev channel 继续定位为手动测试构建，不提供自动更新元数据。
 - 在项目领域词汇中记录 Release Stage、Product Channel 和 Update Feed，避免后续实现再次混淆。
@@ -20,11 +21,11 @@ Release workflow 虽然可以跑绿，但产物语义存在三处正确性问题
 
 ### Modified Capabilities
 
-- `release-push-resilience`: 增加“tag 和 release 必须指向真实 version bump commit”的要求，并约束 build 阶段接收的 Product Channel 必须与用户选择一致。
+- `release-push-resilience`: 增加“tag 和 release 必须指向真实 version bump commit”的要求。
 
 ## Impact
 
-- 影响 `.github/workflows/release.yml`、`script/version.ts`、`script/bump-version.ts`。
+- 影响 `.github/workflows/release.yml` 和 `script/version.ts`。
 - 影响 `packages/desktop` 的 channel 解析、electron-vite define、electron-builder 配置和发布产物上传。
 - 影响 GitHub Release 资产矩阵与 `electron-updater` 的实际更新来源。
 - 更新根目录 `CONTEXT.md` 中的 Release 领域词汇。

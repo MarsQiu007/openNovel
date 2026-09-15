@@ -64,6 +64,23 @@ beta 与 prod release MUST 包含 Windows 安装包、对应 blockmap 和与本 
 - **THEN** build 阶段以明确错误失败
 - **AND** publish 阶段不会将该 release 发布为最终 release
 
+
+### Requirement: beta 与 prod 发布到预创建的 draft release
+
+beta 与 prod 构建发布产物时 MUST 复用 prepare 阶段按 release tag 创建的 draft release；系统 MUST NOT 为同一次 release 创建第二个 GitHub release。上传完成后，build 阶段 MUST 校验该 draft release 已包含本通道必需的全部产物。
+
+#### Scenario: 复用同 tag 的 draft release
+
+- **WHEN** beta 或 prod build 阶段以 `--publish=always` 上传产物
+- **THEN** 产物进入 prepare 阶段创建的同 tag draft release
+- **AND** GitHub 仓库不会出现同 tag 的第二个 release
+
+#### Scenario: 找不到可复用的 draft release 时失败
+
+- **WHEN** beta 或 prod build 阶段找不到同 tag 的 draft release
+- **THEN** build 阶段以明确错误失败
+- **AND** 系统不会新建用于承接本次产物的 release
+
 ### Requirement: dev release 不提供自动更新
 
 dev release MUST 定位为手动测试构建，不得生成或上传会被 updater 消费的更新元数据。dev 客户端 MUST NOT 通过 GitHub release 自动更新。
@@ -71,5 +88,5 @@ dev release MUST 定位为手动测试构建，不得生成或上传会被 updat
 #### Scenario: dev 只有手动安装包
 
 - **WHEN** dev release 的 Windows 构建完成
-- **THEN** release 上传手动安装包
-- **AND** release 不包含 `latest.yml`、`latest-beta.yml` 或会被 updater 消费的等效元数据
+- **THEN** release 只上传手动安装包
+- **AND** release 不包含 blockmap、`latest.yml`、`latest-beta.yml` 或会被 updater 消费的等效元数据

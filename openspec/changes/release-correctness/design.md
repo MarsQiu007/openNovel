@@ -59,7 +59,7 @@ beta desktop 客户端使用 `beta` update channel 并允许 prerelease；prod �
 2. 触发一次 beta release，确认当前仓库中的 `latest-beta.yml`、安装包和 blockmap 齐全。
 3. 触发一次 prod release，确认其使用 prod 身份且 `latest.yml` 指向正式版本。
 4. 在 prod release notes 中说明：旧错误 v0.0.3 需手动安装新 prod 包。
-5. 如发布失败，保持 draft release 不发布，并回滚 workflow 到上一个 commit 后重新走 release。
+5. 如发布失败，保持 draft release 不发布；失败重试与清理边界留给 `release-retry` 提案，本变更不做自动删除。
 
 ## Open Questions
 
