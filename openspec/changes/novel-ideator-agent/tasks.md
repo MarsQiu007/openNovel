@@ -22,4 +22,9 @@
 - [x] 4.2 在 `packages/plugin` 与 `packages/opennovel` 分别运行 `bun typecheck`，确认 agent 注册无类型错误
 - [x] 4.3 从仓库根目录运行 `bun run typecheck` 与 `bun run lint`，确认无错误
 - [x] 4.4 运行 `openspec validate novel-ideator-agent --json`，确认 proposal、specs、design 和 tasks 一致
-- [ ] 4.5 人工验收：用模糊新书请求生成 3 个开书方案，用已有项目请求剧情、角色和素材灵感，确认创意家不写入任何数据且采纳流程出现二次确认
+- [x] 4.5 人工验收：用模糊新书请求生成 3 个开书方案，用已有项目请求剧情、角色和素材灵感，确认创意家不写入任何数据且采纳流程出现二次确认
+
+## Implementation Commits
+
+- 756e7444d feat(plugin): 新增只读创意家 agent
+- 61425ea47 fix(plugin): 收紧创意家候选输出约束
