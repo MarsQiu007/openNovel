@@ -927,6 +927,62 @@ export async function resolveChapterOutline(
   return { outline: fileOutline, available: isUsableChapterOutline(fileOutline), source: "file" }
 }
 
+export async function resolveMasterOutline(
+  novelId: string,
+  directory?: string | null,
+): Promise<{ outline: string | null; available: boolean; source: "database" | "file" | "missing" }> {
+  const db = getDb(directory)
+  const [novel] = await db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).all()
+  if (novel?.master_outline) {
+    return { outline: novel.master_outline, available: true, source: "database" }
+  }
+
+  const outlinesDir = join(getDbPath(directory), "..", "outlines")
+  const filePath = join(outlinesDir, "master-outline.md")
+  const legacyPath = join(outlinesDir, "master.md")
+  const readPath = existsSync(filePath) ? filePath : existsSync(legacyPath) ? legacyPath : null
+  if (!readPath) return { outline: null, available: false, source: "missing" }
+  let fileOutline: string
+  try {
+    fileOutline = readFileSync(readPath, "utf-8")
+  } catch {
+    return { outline: null, available: false, source: "missing" }
+  }
+  if (novel && fileOutline) {
+    await db.update(NovelTable).set({ master_outline: fileOutline, updated_at: Date.now() }).where(eq(NovelTable.id, novelId)).run()
+  }
+  return { outline: fileOutline, available: Boolean(fileOutline), source: "file" }
+}
+
+export async function resolveVolumeOutline(
+  novelId: string,
+  volumeNumber: number,
+  directory?: string | null,
+): Promise<{ outline: string | null; available: boolean; source: "database" | "file" | "missing" }> {
+  const db = getDb(directory)
+  const [volume] = await db
+    .select()
+    .from(VolumeTable)
+    .where(and(eq(VolumeTable.novel_id, novelId), eq(VolumeTable.order, volumeNumber)))
+    .all()
+  if (volume?.outline) {
+    return { outline: volume.outline, available: true, source: "database" }
+  }
+
+  const filePath = join(getDbPath(directory), "..", "outlines", "volume-" + volumeNumber + ".md")
+  if (!existsSync(filePath)) return { outline: null, available: false, source: "missing" }
+  let fileOutline: string
+  try {
+    fileOutline = readFileSync(filePath, "utf-8")
+  } catch {
+    return { outline: null, available: false, source: "missing" }
+  }
+  if (volume && fileOutline) {
+    await db.update(VolumeTable).set({ outline: fileOutline }).where(eq(VolumeTable.id, volume.id)).run()
+  }
+  return { outline: fileOutline, available: Boolean(fileOutline), source: "file" }
+}
+
 
 // ─── 技法库管理 API ───
 type TechniqueLevel = "paragraph" | "sentence" | "dialogue" | "description" | "transition"
