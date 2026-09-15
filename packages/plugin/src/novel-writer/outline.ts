@@ -6,25 +6,16 @@
  * - generateVolumeOutline — 卷大纲（本卷主题、章节列表、关键事件）
  * - generateChapterOutline — 章节大纲（章节目标、关键场景、角色出场）
  *
- * 大纲内容同时写入 DB 记录（volumes / chapters 表）和 Markdown 文件（.novel/outlines/）。
+ * 大纲内容全部写入数据库（novels.master_outline / volumes.outline / chapters.outline）。
  * 遵循 novel-writer.ts 的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
  */
 
 import { eq, and } from "drizzle-orm"
-import { join } from "path"
+
 import { getDb, NovelTable, VolumeTable, ChapterTable } from "./session-store.js"
-import { existsSync, mkdirSync, writeFileSync } from "fs"
+
 
 // ─── 辅助函数 ───
-
-/** 确保 outlines 目录存在 */
-function ensureOutlineDir(projectDir: string): string {
-  const dir = join(projectDir, ".novel", "outlines")
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
-  return dir
-}
 
 /** 查询上一章所属卷号（卷长度由剧情决定，不做固定章数映射）；无法推断时返回 null */
 async function previousVolumeOrder(
@@ -97,9 +88,9 @@ async function ensureVolume(
 /**
  * 生成整体大纲
  *
- * 从小说元数据生成 master-outline.md 模板，包含：
- * 故事梗概、主线剧情、角色列表、世界观概要。
- * 不写入 DB（整体大纲是小说层面的元信息，不新增表记录）。
+ * 从小说元数据生成总纲模板，包含：
+
+
  *
  * @param novelId 小说 ID
  * @param projectDir 小说项目目录（包含 .novel/ 的目录）
@@ -111,8 +102,11 @@ export async function generateMasterOutline(novelId: string, projectDir: string,
   if (!novel) throw new Error(`小说不存在：${novelId}`)
 
   const finalContent = content ?? buildMasterOutlineTemplate(novel)
-  const dir = ensureOutlineDir(projectDir)
-  writeFileSync(join(dir, "master-outline.md"), finalContent)
+  await db
+    .update(NovelTable)
+    .set({ master_outline: finalContent, updated_at: Date.now() })
+    .where(eq(NovelTable.id, novelId))
+    .run()
   return finalContent
 }
 
@@ -200,7 +194,7 @@ function buildMasterOutlineTemplate(novel: { title: string; genre: string; statu
 /**
  * 生成卷大纲
  *
- * 创建 volumes 表记录，并生成 volume-{n}.md 模板，包含：
+ * 创建 volumes 表记录并生成卷纲模板，包含：
  * 本卷主题、章节列表、关键事件。
  *
  * @param novelId 小说 ID
@@ -290,15 +284,18 @@ export async function generateVolumeOutline(
   lines.push("")
 
   const finalContent = content ?? lines.join("\n")
-  const dir = ensureOutlineDir(projectDir)
-  writeFileSync(join(dir, `volume-${volumeNumber}.md`), finalContent)
+  await db
+    .update(VolumeTable)
+    .set({ outline: finalContent })
+    .where(eq(VolumeTable.id, volumeId))
+    .run()
   return finalContent
 }
 
 /**
  * 生成章节大纲
  *
- * 创建 chapters 表记录（如不存在），并生成 chapter-{n}.md 模板，包含：
+ * 创建 chapters 表记录（如不存在）并生成章纲模板，包含：
  * 章节目标、关键场景、角色出场。
  * 自动创建所属卷记录（如不存在）。
  *
@@ -469,12 +466,5 @@ export async function generateChapterOutline(
     .where(eq(ChapterTable.id, chapterId))
     .run()
 
-  const dir = ensureOutlineDir(projectDir)
-  try {
-    writeFileSync(join(dir, `chapter-${chapterNumber}.md`), finalContent)
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    console.warn(`章纲已保存到数据库，但同步 Markdown 文件失败：${reason}`)
-  }
   return finalContent
 }

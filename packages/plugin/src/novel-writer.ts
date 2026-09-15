@@ -77,6 +77,8 @@ import {
   WorldEntryConflictTable,
   resolveNovelForSession,
   resolveChapterOutline,
+  resolveMasterOutline,
+  resolveVolumeOutline,
   tagNovelSession,
   getNovelForSession,
   isNovelSession,
@@ -837,7 +839,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       generate_master_outline: tool({
         description:
-          "生成整体大纲，写入 .novel/outlines/master-outline.md。传入 content 参数时使用实际内容；不传时生成空模板。director 应先根据小说设定生成实际大纲内容再传入。",
+          "生成整体大纲，写入数据库。传入 content 参数时使用实际内容；不传时生成空模板。director 应先根据小说设定生成实际大纲内容再传入。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           content: tool.schema
@@ -853,14 +855,14 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const result = await generateMasterOutline(novelId, projectDir, args.content || undefined)
           return {
             title: "generate_master_outline",
-            output: `已生成整体大纲（master-outline.md，${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}`,
+            output: `已生成整体大纲（${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}`,
             metadata: { novel_id: novelId, length: result.length },
           }
         },
       }),
       generate_volume_outline: tool({
         description:
-          "生成卷大纲，创建 volumes 表记录并写入 .novel/outlines/volume-{n}.md。传入 content 参数时使用实际内容；不传时生成空模板。director 应先根据小说设定生成实际卷大纲内容再传入。",
+          "生成卷大纲，创建 volumes 表记录并写入数据库。传入 content 参数时使用实际内容；不传时生成空模板。director 应先根据小说设定生成实际卷大纲内容再传入。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           volume_number: tool.schema.number().describe("卷号（从 1 开始）"),
@@ -884,14 +886,14 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           )
           return {
             title: "generate_volume_outline",
-            output: `已生成第${args.volume_number}卷大纲（volume-${args.volume_number}.md，${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}`,
+            output: `已生成第${args.volume_number}卷大纲（${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}`,
             metadata: { novel_id: novelId, volume_number: args.volume_number, length: result.length },
           }
         },
       }),
       generate_chapter_outline: tool({
         description:
-          "生成章节大纲，创建 chapters 表记录并写入 .novel/outlines/chapter-{n}.md。自动创建所属卷记录。传入 content 参数时使用实际内容（director 根据小说设定生成的完整章纲）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。卷长度由剧情决定：省略 volume_number 时沿用上一章所属卷；仅当本章在剧情上开启新卷时才传入新卷号（通常先调用 generate_volume_outline 生成该卷大纲），此时会自动对上一卷执行卷级汇总。",
+          "生成章节大纲，创建 chapters 表记录并写入数据库。自动创建所属卷记录。传入 content 参数时使用实际内容（director 根据小说设定生成的完整章纲）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。卷长度由剧情决定：省略 volume_number 时沿用上一章所属卷；仅当本章在剧情上开启新卷时才传入新卷号（通常先调用 generate_volume_outline 生成该卷大纲），此时会自动对上一卷执行卷级汇总。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("章节序号（从 1 开始）"),
@@ -940,7 +942,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           )
           return {
             title: "generate_chapter_outline",
-            output: `已生成第${args.chapter_number}章大纲（chapter-${args.chapter_number}.md，${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}${rollupNote}`,
+            output: `已生成第${args.chapter_number}章大纲（${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}${rollupNote}`,
             metadata: { novel_id: novelId, chapter_number: args.chapter_number, length: result.length },
           }
         },
@@ -984,7 +986,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       read_outline: tool({
         description:
-          "读取大纲 Markdown 文件原文。可读取总纲（master-outline.md）、卷纲（volume-{n}.md）或章节大纲（chapter-{n}.md）。章节大纲数据库优先，旧文件兜底。",
+          "读取大纲 Markdown 文件原文。可读取总纲、卷纲或章节大纲，全部从数据库读取；旧项目首次读取时会从存量文件懒导入。",
         args: {
           type: tool.schema
             .enum(["master", "volume", "chapter"])
@@ -1029,27 +1031,41 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               }
             }
           }
-          const projectDir = projectDirFromCtx(ctx.directory)
-          const outlinesDir = join(projectDir, ".novel", "outlines")
-          const filename =
-            args.type === "master"
-              ? "master-outline.md"
-              : args.type === "volume"
-                ? `volume-${args.number}.md`
-                : `chapter-${args.number}.md`
-          const filePath = join(outlinesDir, filename)
-          if (!existsSync(filePath)) {
-            return {
-              title: "read_outline",
-              output: `大纲文件不存在：${filePath}。请先调用对应的 generate_*_outline 工具生成。`,
+          if (args.type === "master") {
+            const db = getDb(ctx.directory)
+            let novelId: string | null = null
+            if (args.novel_id) {
+              novelId = await resolveNovelId(db, args.novel_id)
+            } else {
+              const novels = db.select({ id: NovelTable.id }).from(NovelTable).all()
+              if (novels.length === 1) novelId = novels[0]!.id
             }
+            if (novelId) {
+              const resolved = await resolveMasterOutline(novelId, ctx.directory)
+              if (resolved.outline) {
+                return { title: "read_outline", output: resolved.outline, metadata: { source: resolved.source, length: resolved.outline.length } }
+              }
+            }
+            return { title: "read_outline", output: "总纲不存在。请先调用 generate_master_outline 工具生成。" }
           }
-          const content = readFileSync(filePath, "utf-8")
-          return {
-            title: "read_outline",
-            output: content,
-            metadata: { file: filename, path: filePath, length: content.length },
+          if (args.type === "volume") {
+            const db = getDb(ctx.directory)
+            let novelId: string | null = null
+            if (args.novel_id) {
+              novelId = await resolveNovelId(db, args.novel_id)
+            } else {
+              const novels = db.select({ id: NovelTable.id }).from(NovelTable).all()
+              if (novels.length === 1) novelId = novels[0]!.id
+            }
+            if (novelId) {
+              const resolved = await resolveVolumeOutline(novelId, args.number!, ctx.directory)
+              if (resolved.outline) {
+                return { title: "read_outline", output: resolved.outline, metadata: { source: resolved.source, volume_number: args.number, length: resolved.outline.length } }
+              }
+            }
+            return { title: "read_outline", output: `第${args.number}卷大纲不存在。请先调用 generate_volume_outline 工具生成。` }
           }
+          return { title: "read_outline", output: "未找到大纲。请先调用对应的 generate_*_outline 工具生成。" }
         },
       }),
       assemble_context_snapshot: tool({
