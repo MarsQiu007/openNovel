@@ -22,3 +22,13 @@
 - [x] 4.1 在 `packages/novel-store`、`packages/plugin`、`packages/server`、`packages/app` 分别通过 `bun typecheck`，并运行相关包测试
 - [x] 4.2 在仓库根目录通过 `bun run typecheck` 与 `bun run lint`
 - [x] 4.3 通过 `openspec validate outline-db-persistence --type change`
+
+## Implementation Commits
+
+- `c17732929` docs(openspec): 提案大纲全量入库并移除文件依赖
+- `d6c524175` feat(novel-store): 新增大纲数据库列并迁移旧库
+- `e61497cd6` feat(novel-store): 实现总纲/卷纲懒导入解析函数
+- `e5b9b10fc` feat(plugin): 大纲生成与读取工具切换为数据库读写
+- `250e57b0e` feat(server): 大纲面板读写切换为数据库
+- `1c6c5dc0f` test(server,plugin): 更新大纲测试以匹配数据库唯一来源
+- `c9e79b779` docs(openspec): 标记大纲数据库持久化任务全部完成
