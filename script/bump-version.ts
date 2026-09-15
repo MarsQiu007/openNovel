@@ -28,7 +28,7 @@ await $`bun install`
 // 只有在不是 dry-run 时才提交推送（preview channel 也需要 commit）
 if (process.env.OPENNOVEL_DRY_RUN !== "true") {
   await $`git add -A`
-  await $`git commit -m "chore(release): bump version to ${version}" --allow-empty`
+  await $`git commit -m "chore(release): bump version to ${version}" -m "OpenSpec-Change: none" --allow-empty`
   // push 到目标分支：对瞬时错误（服务端 5xx、网络抖动）退避重试，耗尽后以最后一次的原始错误终止
   const maxAttempts = 3
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
