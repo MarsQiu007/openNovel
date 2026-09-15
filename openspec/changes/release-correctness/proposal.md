@@ -6,7 +6,7 @@ Release workflow 虽然可以跑绿，但产物语义存在三处正确性问题
 
 - 明确拆分 **Release Stage** 与 **Product Channel** 两个概念：release 脚本可继续使用 `latest` 表示正式发布，desktop 构建必须收到 `dev`、`beta` 或 `prod`。
 - Release prepare 必须以 version bump commit 的实际 SHA 创建 changelog target、draft release 和 tag，禁止继续使用 bump 前的 `GITHUB_SHA`。
-- beta 与 prod 的 desktop 发布必须复用预创建 draft release，并生成完整自动更新产物：安装包、blockmap 和对应 `latest.yml` / `latest-beta.yml`。
+- beta 与 prod 的 desktop 发布必须复用预创建 draft release，并生成完整自动更新产物：安装包、blockmap 和对应 `latest.yml` / `beta.yml`。
 - 在 prod release notes 中加入旧错误 `v0.0.3` 的一次性迁移提示。
 - beta 与 prod 更新源统一指向 `MarsQiu007/openNovel`；beta release 保持 prerelease 标记，prod release 使用 Latest。
 - dev channel 继续定位为手动测试构建，不提供自动更新元数据。

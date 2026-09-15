@@ -5,6 +5,8 @@ import { promisify } from "node:util"
 
 import type { Configuration } from "electron-builder"
 
+import { resolveProductChannel } from "./scripts/channel"
+
 const execFileAsync = promisify(execFile)
 const packageDir = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(packageDir, "../..")
@@ -25,11 +27,7 @@ async function signWindows(configuration: { path: string }) {
   )
 }
 
-const channel = (() => {
-  const raw = process.env.OPENNOVEL_CHANNEL
-  if (raw === "dev" || raw === "beta" || raw === "prod") return raw
-  return "dev"
-})()
+const channel = resolveProductChannel(process.env.OPENNOVEL_CHANNEL)
 
 const APP_IDS = {
   dev: "ai.opennovel.desktop.dev",
@@ -124,7 +122,7 @@ function getConfig() {
         appId,
         productName: "OpenNovel Beta",
         protocols: { name: "OpenNovel Beta", schemes: ["opennovel"] },
-        publish: { provider: "github", owner: "MarsQiu007", repo: "openNovel-beta", channel: "latest" },
+        publish: { provider: "github", owner: "MarsQiu007", repo: "openNovel", channel: "beta" },
         rpm: { packageName: "opennovel-beta" },
       }
     }

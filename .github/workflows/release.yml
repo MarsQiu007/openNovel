@@ -38,9 +38,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
       tag: ${{ steps.version.outputs.tag }}
       release_id: ${{ steps.version.outputs.release_id }}
       channel: ${{ steps.version.outputs.channel }}
+      product_channel: ${{ inputs.channel }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -86,6 +88,7 @@ jobs:
           SUMMARY=$(bun script/version.ts | tail -n 1)
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
           echo "version=$(echo "$SUMMARY" | jq -r '.version')" >> "$GITHUB_OUTPUT"
+          echo "commit=$(echo "$SUMMARY" | jq -r '.commit')" >> "$GITHUB_OUTPUT"
           echo "tag=$(echo "$SUMMARY" | jq -r '.tag')" >> "$GITHUB_OUTPUT"
           echo "release_id=$(echo "$SUMMARY" | jq -r '.release')" >> "$GITHUB_OUTPUT"
           echo "channel=$(echo "$SUMMARY" | jq -r '.channel')" >> "$GITHUB_OUTPUT"
@@ -108,7 +111,11 @@ jobs:
       run:
         shell: bash
     env:
-      OPENNOVEL_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      OPENNOVEL_CHANNEL: ${{ needs.prepare.outputs.product_channel }}
+      EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
+      EXPECTED_COMMIT: ${{ needs.prepare.outputs.commit }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
       WIN_CSC_LINK: ""
       WIN_CSC_KEY_PASSWORD: ""
     steps:
@@ -120,6 +127,34 @@ jobs:
           fetch-tags: true
           ref: ${{ needs.prepare.outputs.tag }}
 
+      - name: Verify checked-out release commit and version
+        run: |
+          set -euo pipefail
+          ACTUAL_COMMIT=$(git rev-parse HEAD)
+          if [ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]; then
+            echo "Release commit mismatch: expected $EXPECTED_COMMIT, got $ACTUAL_COMMIT"
+            exit 1
+          fi
+
+          ACTUAL_VERSION=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' packages/desktop/package.json | head -n 1)
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "Desktop version mismatch: expected $EXPECTED_VERSION, got $ACTUAL_VERSION"
+            exit 1
+          fi
+
+      - name: Verify reusable draft release
+        if: needs.prepare.outputs.product_channel != 'dev'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG=$(gh release view "$TAG" --json tagName --jq '.tagName')
+          IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+          if [ "$RELEASE_TAG" != "$TAG" ] || [ "$IS_DRAFT" != "true" ]; then
+            echo "Expected draft release $TAG, got tag=$RELEASE_TAG draft=$IS_DRAFT"
+            exit 1
+          fi
+
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
@@ -128,32 +163,126 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build and package
+      - name: Build and publish package
         working-directory: packages/desktop
-        run: |
-          bun run build
-          bun run package:win
-
-      - name: List dist contents
-        working-directory: packages/desktop
-        run: ls -la dist/
-
-      - name: Upload artifacts to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            PUBLISH_MODE=never
+          else
+            PUBLISH_MODE=always
+          fi
+          echo "Building $OPENNOVEL_CHANNEL with --publish=$PUBLISH_MODE"
+          bun run build
+          bun run package:win -- "--publish=$PUBLISH_MODE"
+
+      - name: Validate built artifacts
         working-directory: packages/desktop
         run: |
+          set -euo pipefail
           shopt -s nullglob
-          files=( dist/opennovel-desktop-win-*.exe dist/latest*.yml )
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No artifacts found"
+          installers=(dist/opennovel-desktop-win-*.exe)
+          if [ ${#installers[@]} -eq 0 ]; then
+            echo "Missing Windows installer"
             exit 1
           fi
-          for f in "${files[@]}"; do
-            echo "Uploading $f to release $TAG"
-            gh release upload "$TAG" "$f" --clobber --repo ${{ github.repository }}
+
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            blockmaps=(dist/*.blockmap)
+            metadata=(dist/latest*.yml dist/beta.yml dist/alpha.yml)
+            if [ ${#blockmaps[@]} -ne 0 ] || [ ${#metadata[@]} -ne 0 ]; then
+              echo "Dev release must not contain blockmap or updater metadata"
+              exit 1
+            fi
+          else
+            metadata=latest.yml
+            if [ "$OPENNOVEL_CHANNEL" = "beta" ]; then
+              metadata=beta.yml
+            fi
+
+            for installer in "${installers[@]}"; do
+              if [ ! -f "$installer.blockmap" ]; then
+                echo "Missing blockmap for $installer"
+                exit 1
+              fi
+            done
+
+            if [ ! -f "dist/$metadata" ]; then
+              echo "Missing updater metadata: $metadata"
+              exit 1
+            fi
+          fi
+
+      - name: Upload dev artifacts
+        if: needs.prepare.outputs.product_channel == 'dev'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: packages/desktop
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/opennovel-desktop-win-*.exe)
+          for file in "${files[@]}"; do
+            gh release upload "$TAG" "$file" --clobber --repo "$GITHUB_REPOSITORY"
           done
+
+      - name: Validate uploaded release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE_RELEASE_ID=$(gh release view "$TAG" --json databaseId --jq '.databaseId')
+          if [ "$REMOTE_RELEASE_ID" != "$RELEASE_ID" ]; then
+            echo "Unexpected release $REMOTE_RELEASE_ID; expected prepared release $RELEASE_ID"
+            exit 1
+          fi
+
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          asset_exists() {
+            grep -Fxq -- "$1" <<<"$assets"
+          }
+
+          mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
+          if [ ${#installers[@]} -eq 0 ]; then
+            echo "Release $TAG is missing a Windows installer"
+            exit 1
+          fi
+
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            while IFS= read -r asset; do
+              if [[ "$asset" != *.exe ]]; then
+                echo "Dev release contains unexpected asset: $asset"
+                exit 1
+              fi
+            done <<<"$assets"
+          else
+            metadata=latest.yml
+            if [ "$OPENNOVEL_CHANNEL" = "beta" ]; then
+              metadata=beta.yml
+            fi
+
+            for installer in "${installers[@]}"; do
+              if ! asset_exists "$installer.blockmap"; then
+                echo "Release $TAG is missing blockmap: $installer.blockmap"
+                exit 1
+              fi
+            done
+
+            if ! asset_exists "$metadata"; then
+              echo "Release $TAG is missing updater metadata: $metadata"
+              exit 1
+            fi
+
+            validation_dir=$(mktemp -d)
+            gh release download "$TAG" --pattern "$metadata" --dir "$validation_dir" --clobber
+            metadata_version=$(sed -n 's/^version:[[:space:]]*//p' "$validation_dir/$metadata" | head -n 1)
+            if [ "$metadata_version" != "$EXPECTED_VERSION" ]; then
+              echo "Updater version mismatch: expected $EXPECTED_VERSION, got $metadata_version"
+              exit 1
+            fi
+          fi
 
   # TODO: 未来扩展 macOS
   # build-macos:
@@ -190,5 +319,6 @@ jobs:
           echo "## Release Published" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: ${{ needs.prepare.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Channel: ${{ needs.prepare.outputs.product_channel }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tag: ${{ needs.prepare.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"

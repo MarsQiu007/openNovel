@@ -4,6 +4,18 @@ OpenNovel sessions preserve durable conversational history while assembling the 
 
 ## Language
 
+**Release Stage**:
+The release lifecycle channel used to decide whether a build is a preview or a formal release.
+_Avoid_: build channel
+
+**Product Channel**:
+The user-facing desktop variant identity that determines installation and update behavior.
+_Avoid_: release mode
+
+**Update Feed**:
+The published channel metadata that a desktop client consults to discover its next installable version.
+_Avoid_: release notes
+
 **System Context**:
 The structured collection of contextual facts presented to the model as initial instructions and chronological updates.
 _Avoid_: System prompt

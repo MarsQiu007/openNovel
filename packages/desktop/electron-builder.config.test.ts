@@ -1,12 +1,17 @@
 import { expect, test } from "bun:test"
+import path from "node:path"
+
 import type { Configuration } from "electron-builder"
 
-const legacyDesktopEntry = "resources/linux/opennovel-desktop.desktop"
+import { resolveProductChannel } from "./scripts/channel"
+
+const legacyDesktopEntry = path.resolve("resources/linux/opennovel-desktop.desktop")
 
 const channels = [
   { channel: "dev", appId: "ai.opennovel.desktop.dev" },
   { channel: "beta", appId: "ai.opennovel.desktop.beta" },
   { channel: "prod", appId: "ai.opennovel.desktop" },
+  { channel: "latest", appId: "ai.opennovel.desktop" },
 ] as const
 
 for (const channel of channels) {
@@ -27,6 +32,53 @@ for (const channel of channels) {
   })
 }
 
+test("maps release stages to product channels", () => {
+  expect(resolveProductChannel("dev")).toBe("dev")
+  expect(resolveProductChannel("beta")).toBe("beta")
+  expect(resolveProductChannel("prod")).toBe("prod")
+  expect(resolveProductChannel("latest")).toBe("prod")
+  expect(resolveProductChannel("local")).toBe("dev")
+  expect(resolveProductChannel(undefined)).toBe("dev")
+})
+
+test("publishes beta and prod update feeds from the release repository", async () => {
+  const expected = [
+    { channel: "beta", updateChannel: "beta" },
+    { channel: "prod", updateChannel: "latest" },
+  ] as const
+
+  for (const item of expected) {
+    const previous = process.env.OPENNOVEL_CHANNEL
+    process.env.OPENNOVEL_CHANNEL = item.channel
+
+    const module = await import(`./electron-builder.config.ts?publish=${item.channel}`)
+    const config = module.default as Configuration
+
+    if (previous === undefined) delete process.env.OPENNOVEL_CHANNEL
+    else process.env.OPENNOVEL_CHANNEL = previous
+
+    expect(config.publish).toEqual({
+      provider: "github",
+      owner: "MarsQiu007",
+      repo: "openNovel",
+      channel: item.updateChannel,
+    })
+  }
+})
+
+test("does not publish dev builds to an update feed", async () => {
+  const previous = process.env.OPENNOVEL_CHANNEL
+  process.env.OPENNOVEL_CHANNEL = "dev"
+
+  const module = await import("./electron-builder.config.ts?publish=dev")
+  const config = module.default as Configuration
+
+  if (previous === undefined) delete process.env.OPENNOVEL_CHANNEL
+  else process.env.OPENNOVEL_CHANNEL = previous
+
+  expect(config.publish).toBeUndefined()
+})
+
 test("keeps a hidden prod launcher for legacy Linux pins", async () => {
   const previous = process.env.OPENNOVEL_CHANNEL
   process.env.OPENNOVEL_CHANNEL = "prod"
@@ -37,8 +89,8 @@ test("keeps a hidden prod launcher for legacy Linux pins", async () => {
   if (previous === undefined) delete process.env.OPENNOVEL_CHANNEL
   else process.env.OPENNOVEL_CHANNEL = previous
 
-  expect(config.deb?.fpm?.[0]).toEndWith(`${legacyDesktopEntry}=/usr/share/applications/opennovel-desktop.desktop`)
-  expect(config.rpm?.fpm?.[0]).toEndWith(`${legacyDesktopEntry}=/usr/share/applications/opennovel-desktop.desktop`)
+  expect(config.deb?.fpm?.[0]).toBe(`${legacyDesktopEntry}=/usr/share/applications/opennovel-desktop.desktop`)
+  expect(config.rpm?.fpm?.[0]).toBe(`${legacyDesktopEntry}=/usr/share/applications/opennovel-desktop.desktop`)
 
   const desktop = await Bun.file(legacyDesktopEntry).text()
   expect(desktop).toContain("Exec=/opt/OpenNovel/ai.opennovel.desktop %U")

@@ -49,7 +49,7 @@ beta 与 prod release MUST 包含 Windows 安装包、对应 blockmap 和与本 
 #### Scenario: beta 更新产物完整上传
 
 - **WHEN** beta release 的 Windows 构建完成
-- **THEN** release 包含 beta Windows 安装包、对应 blockmap 和 `latest-beta.yml`
+- **THEN** release 包含 beta Windows 安装包、对应 blockmap 和 `beta.yml`
 - **AND** 元数据中的版本与 release 版本一致
 
 #### Scenario: prod 更新产物完整上传
@@ -89,4 +89,4 @@ dev release MUST 定位为手动测试构建，不得生成或上传会被 updat
 
 - **WHEN** dev release 的 Windows 构建完成
 - **THEN** release 只上传手动安装包
-- **AND** release 不包含 blockmap、`latest.yml`、`latest-beta.yml` 或会被 updater 消费的等效元数据
+- **AND** release 不包含 blockmap、`latest.yml`、`beta.yml` 或会被 updater 消费的等效元数据

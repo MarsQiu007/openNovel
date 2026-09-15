@@ -34,7 +34,7 @@ prepare 阶段在提交并推送 version bump commit 后，`version.ts` 必须�
 
 ### 3. beta/prod 由 electron-builder 直接发布到预创建的 draft release
 
-prepare 已创建 draft release 并推送 tag；build 阶段为 beta/prod 传入 `GH_TOKEN` 并使用 `--publish=always`，让 electron-builder 把安装包、blockmap 和 `latest.yml` / `latest-beta.yml` 上传到同一个 draft release。publish job 最后只负责把该 draft 发布为最终 release。
+prepare 已创建 draft release 并推送 tag；build 阶段为 beta/prod 传入 `GH_TOKEN` 并使用 `--publish=always`，让 electron-builder 把安装包、blockmap 和 `latest.yml` / `beta.yml` 上传到同一个 draft release。publish job 最后只负责把该 draft 发布为最终 release。electron-updater 6.8 在 GitHub prerelease 版本上会按 semver prerelease 请求 `beta.yml`，因此不能沿用 `latest-beta.yml` 的假设。
 
 选择直接发布而非手写 updater 元数据，是因为 electron-builder 的 update metadata 在发布阶段生成，手写文件容易和 blockmap、版本、签名信息漂移。dev 继续使用 `--publish=never`，并显式校验其 release 不含 updater 元数据。
 
@@ -56,7 +56,7 @@ beta desktop 客户端使用 `beta` update channel 并允许 prerelease；prod �
 ## Migration Plan
 
 1. 合并后先触发一次 dev release，验证旧手动路径和“无 updater 元数据”约束。
-2. 触发一次 beta release，确认当前仓库中的 `latest-beta.yml`、安装包和 blockmap 齐全。
+2. 触发一次 beta release，确认当前仓库中的 `beta.yml`、安装包和 blockmap 齐全。
 3. 触发一次 prod release，确认其使用 prod 身份且 `latest.yml` 指向正式版本。
 4. 在 prod release notes 中说明：旧错误 v0.0.3 需手动安装新 prod 包。
 5. 如发布失败，保持 draft release 不发布；失败重试与清理边界留给 `release-retry` 提案，本变更不做自动删除。

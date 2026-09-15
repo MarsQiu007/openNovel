@@ -1,17 +1,19 @@
 #!/usr/bin/env bun
 
-import { Script } from "@opennovel-ai/script"
+import { Script, buildProdReleaseNotes } from "@opennovel-ai/script"
 import { $ } from "bun"
 
-const output = [`version=${Script.version}`]
-const sha = process.env.GITHUB_SHA ?? (await $`git rev-parse HEAD`.text()).trim()
+// version bump 已在当前 HEAD 提交并推送，release 必须指向这个真实 bump commit
+const sha = (await $`git rev-parse HEAD`.text()).trim()
+const output = [`version=${Script.version}`, `commit=${sha}`]
 
 if (!Script.preview) {
   await $`bun script/changelog.ts --to ${sha}`.cwd(process.cwd())
   const file = `${process.cwd()}/UPCOMING_CHANGELOG.md`
-  const body = await Bun.file(file)
+  const generatedBody = await Bun.file(file)
     .text()
     .catch(() => "No notable changes")
+  const body = buildProdReleaseNotes({ version: Script.version, body: generatedBody })
   const dir = process.env.RUNNER_TEMP ?? "/tmp"
   const notesFile = `${dir}/opennovel-release-notes.txt`
   await Bun.write(notesFile, body)
@@ -27,14 +29,14 @@ if (!Script.preview) {
 } else {
   // dev / beta 等 preview channel 也创建 draft release，方便测试包分发
   // 必须标记 prerelease，否则发布后会占用 Latest
-  await $`gh release create v${Script.version} -d --prerelease --title "v${Script.version}" --repo ${process.env.GH_REPO} --notes "OpenNovel ${Script.channel} test build."`
+  await $`gh release create v${Script.version} -d --prerelease --target ${sha} --title "v${Script.version}" --repo ${process.env.GH_REPO} --notes "OpenNovel ${Script.channel} test build."`
   const release =
     await $`gh release view v${Script.version} --json tagName,databaseId --repo ${process.env.GH_REPO}`.json()
   output.push(`release=${release.databaseId}`)
   output.push(`tag=${release.tagName}`)
 
   // preview channel 也要创建对应的 git tag，否则 build-desktop 无法 checkout
-  await $`git tag -f ${release.tagName}`.nothrow()
+  await $`git tag -f ${release.tagName} ${sha}`.nothrow()
   // 推送失败必须立即终止脚本（fail fast），否则 build 阶段无法 checkout 该 tag
   await $`git push origin ${release.tagName} --no-verify`
 }
@@ -51,6 +53,7 @@ if (process.env.GITHUB_OUTPUT) {
 const summary = {
   version: Script.version,
   tag: `v${Script.version}`,
+  commit: sha,
   release: output.find((line) => line.startsWith("release="))?.split("=")[1] ?? null,
   channel: Script.channel,
   preview: Script.preview,

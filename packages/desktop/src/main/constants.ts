@@ -1,7 +1,9 @@
 import { app } from "electron"
 
-type Channel = "dev" | "beta" | "prod"
-const raw = import.meta.env.OPENNOVEL_CHANNEL
-export const CHANNEL: Channel = raw === "dev" || raw === "beta" || raw === "prod" ? raw : "dev"
+import { resolveProductChannel } from "../../scripts/channel"
+import { resolveUpdaterSettings } from "./updater-settings"
 
-export const UPDATER_ENABLED = app.isPackaged && CHANNEL !== "dev"
+const raw = import.meta.env.OPENNOVEL_CHANNEL
+export const CHANNEL = resolveProductChannel(raw)
+export const UPDATER_SETTINGS = resolveUpdaterSettings(CHANNEL)
+export const UPDATER_ENABLED = app.isPackaged && UPDATER_SETTINGS.enabled

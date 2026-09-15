@@ -1,16 +1,12 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "electron-vite"
 import appPlugin from "@opennovel-ai/app/vite"
+import { resolveProductChannel } from "./scripts/channel"
 import * as fs from "node:fs/promises"
 
 const OPENNOVEL_SERVER_DIST = "../opennovel/dist/node"
 
-const channel = (() => {
-  const raw = process.env.OPENNOVEL_CHANNEL
-  if (raw === "dev" || raw === "beta" || raw === "prod") return raw
-  if (process.env.OPENNOVEL_CHANNEL === "latest") return "prod"
-  return "dev"
-})()
+const channel = resolveProductChannel(process.env.OPENNOVEL_CHANNEL)
 
 const nodePtyPkg = `@lydell/node-pty-${process.platform}-${process.arch}`
 

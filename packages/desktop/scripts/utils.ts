@@ -1,11 +1,11 @@
 import { $ } from "bun"
 
-export type Channel = "dev" | "beta" | "prod"
+import { resolveProductChannel, type ProductChannel } from "./channel"
+
+export type Channel = ProductChannel
 
 export function resolveChannel(): Channel {
-  const raw = Bun.env.OPENNOVEL_CHANNEL
-  if (raw === "dev" || raw === "beta" || raw === "prod") return raw
-  return "dev"
+  return resolveProductChannel(Bun.env.OPENNOVEL_CHANNEL)
 }
 
 export const SIDECAR_BINARIES: Array<{ rustTarget: string; ocBinary: string; assetExt: string }> = [

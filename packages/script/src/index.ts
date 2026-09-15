@@ -2,6 +2,7 @@ import { $ } from "bun"
 import semver from "semver"
 import path from "path"
 
+import { buildProdReleaseNotes } from "./release-notes"
 import { bumpVersion, previewVersion, resolveBaseVersion } from "./version"
 
 const rootPkgPath = path.resolve(import.meta.dir, "../../../package.json")
@@ -53,6 +54,8 @@ const team = [
     .then((x) => x.filter((x) => x && !x.startsWith("#")))),
   ...bot,
 ]
+
+export { buildProdReleaseNotes }
 
 export const Script = {
   get channel() {
