@@ -177,3 +177,17 @@ const table = sqliteTable("session", {
 - Keep delivery vocabulary explicit. Prompts steer by default and promote at the next safe provider-turn boundary while the current drain requires continuation. An explicit `queue` input remains pending until the Session would otherwise become idle; promote one queued input at that boundary, then reevaluate continuation before promoting another. Promoting any new user input resets the selected agent's provider-turn allowance; a batch of steers resets it once.
 - Keep EventV2 replay owner claims separate from clustered Session execution ownership.
 - Keep the System Context algebra, registry, and built-ins in `src/system-context`; keep Context Source producers with their observed domains, and keep Session History selection plus Context Epoch persistence Session-owned.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues 是本仓库的 issue tracker。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用默认 triage 标签词汇表，见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+single-context：先读根目录 `CONTEXT.md`，再读相关的 `docs/adr/`。见 `docs/agents/domain.md`。
