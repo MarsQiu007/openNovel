@@ -33,18 +33,21 @@ test("opens the comment editor for a line number range", async ({ page }) => {
   const review = page.locator('[data-component="session-review"]')
   const start = review.locator('[data-column-number="1"]').last()
   const end = review.locator('[data-column-number="3"]').last()
-  await expectAppVisible(start)
-  await expectAppVisible(end)
 
-  const from = await start.boundingBox()
-  const to = await end.boundingBox()
-  if (!from || !to) throw new Error("Missing line number bounds")
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2)
-  await page.mouse.up()
-
-  await expect(review.getByRole("textbox")).toBeVisible()
+  // 拖拽期间行号节点可能因重渲染脱靶导致 boundingBox 为 null，整体重试。
+  await expect(async () => {
+    await page.mouse.up()
+    await expectAppVisible(start)
+    await expectAppVisible(end)
+    const from = await start.boundingBox()
+    const to = await end.boundingBox()
+    if (!from || !to) throw new Error("Missing line number bounds")
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2)
+    await page.mouse.up()
+    await expect(review.getByRole("textbox")).toBeVisible({ timeout: 500 })
+  }).toPass()
 })
 
 test("shows a comment button when a line number is hovered", async ({ page }) => {
