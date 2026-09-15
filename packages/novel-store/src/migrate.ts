@@ -64,6 +64,8 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateAnnotationExecutionRound(exec, query)
   migrateChapterOutline(exec, query)
   migrateAnnotationExecutionRoundColumns(exec, query)
+  migrateNovelMasterOutline(exec, query)
+  migrateVolumeOutline(exec, query)
 }
 
 /**
@@ -228,5 +230,37 @@ function migrateAnnotationExecutionRoundColumns(exec: ExecFn, query: QueryFn): v
     }
   } catch {
     // annotation_execution_rounds 表不存在时无需迁移，CREATE_TABLES_SQL 会带新列创建
+  }
+}
+
+/**
+ * 给 novels 表添加 master_outline 列。旧项目的总纲正文存放在 Markdown 文件中；
+ * 读取层负责懒导入，迁移只保证数据库有字段。
+ */
+function migrateNovelMasterOutline(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(novels)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (!cols.some((c) => c.name === "master_outline")) {
+      exec("ALTER TABLE novels ADD COLUMN master_outline text DEFAULT '' NOT NULL")
+    }
+  } catch {
+    // novels 表不存在时无需迁移，CREATE_TABLES_SQL 会带 master_outline 列创建
+  }
+}
+
+/**
+ * 给 volumes 表添加 outline 列。旧项目的卷纲正文存放在 Markdown 文件中；
+ * 读取层负责懒导入，迁移只保证数据库有字段。
+ */
+function migrateVolumeOutline(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(volumes)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (!cols.some((c) => c.name === "outline")) {
+      exec("ALTER TABLE volumes ADD COLUMN outline text DEFAULT '' NOT NULL")
+    }
+  } catch {
+    // volumes 表不存在时无需迁移，CREATE_TABLES_SQL 会带 outline 列创建
   }
 }

@@ -36,6 +36,7 @@ export const NovelTable = sqliteTable("novels", {
   title: text().notNull(),
   genre: text().notNull(),
   synopsis: text().notNull().default(""),
+  master_outline: text().notNull().default(""),
   created_at: integer()
     .notNull()
     .$default(() => Date.now()),
@@ -62,6 +63,7 @@ export const VolumeTable = sqliteTable("volumes", {
   novel_id: text().notNull(),
   title: text().notNull(),
   summary: text().notNull().default(""),
+  outline: text().notNull().default(""),
   order: integer().notNull(),
   created_at: integer()
     .notNull()
@@ -682,8 +684,8 @@ export function getDbPath(directory?: string | null): string {
 // ─── Schema 初始化 ───
 
 const CREATE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
-CREATE TABLE IF NOT EXISTS volumes (id text PRIMARY KEY, novel_id text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, master_outline text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
+CREATE TABLE IF NOT EXISTS volumes (id text PRIMARY KEY, novel_id text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
