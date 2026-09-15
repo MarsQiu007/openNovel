@@ -112,6 +112,8 @@ import {
   upsertOutlineCanvasLayout as storeUpsertOutlineCanvasLayout,
   listStructureForEditor as storeListStructureForEditor,
   resolveChapterOutline,
+  resolveMasterOutline,
+  resolveVolumeOutline,
 } from "@opennovel-ai/novel-store"
 import { and, eq, asc, desc, like, or, inArray } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
@@ -916,25 +918,23 @@ export function getOutlineBundle(novelID: string, directory: string) {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    const outlinesDir = join(dirname(getDbPath(directory)), "outlines")
-    const hasOutlinesDir = existsSync(outlinesDir)
-    // master.md 由 WebUI 编辑写入；master-outline.md 由插件 generate_master_outline 写入，两者兼容读取
-    const masterPath = join(outlinesDir, "master.md")
-    const pluginMasterPath = join(outlinesDir, "master-outline.md")
-    const master = hasOutlinesDir
-      ? existsSync(masterPath)
-        ? readFileSync(masterPath, "utf-8")
-        : existsSync(pluginMasterPath)
-          ? readFileSync(pluginMasterPath, "utf-8")
-          : ""
-      : ""
-    const files = hasOutlinesDir ? readdirSync(outlinesDir) : []
-    const volumes = files
-      .filter((f) => f.startsWith("volume-") && f.endsWith(".md"))
-      .map((f) => {
-        const volumeId = f.slice("volume-".length, -".md".length)
-        return { volumeId, markdown: readFileSync(join(outlinesDir, f), "utf-8") }
-      })
+
+    const masterResolved = yield* Effect.promise(() => resolveMasterOutline(novelID, directory))
+    const master = masterResolved.outline ?? ""
+
+    const volumeRows = db
+      .select({ id: VolumeTable.id, order: VolumeTable.order, outline: VolumeTable.outline })
+      .from(VolumeTable)
+      .where(eq(VolumeTable.novel_id, novelID))
+      .orderBy(asc(VolumeTable.order))
+      .all()
+    const volumes: Array<{ volumeId: string; markdown: string }> = []
+    for (const row of volumeRows) {
+      const resolved = yield* Effect.promise(() => resolveVolumeOutline(novelID, row.order, directory))
+      if (resolved.outline) {
+        volumes.push({ volumeId: String(row.order), markdown: resolved.outline })
+      }
+    }
 
     const chapterRows = db
       .select({ "order": ChapterTable.order, outline: ChapterTable.outline })
@@ -942,10 +942,8 @@ export function getOutlineBundle(novelID: string, directory: string) {
       .where(eq(ChapterTable.novel_id, novelID))
       .orderBy(asc(ChapterTable.order))
       .all()
-    const seenChapterNumbers = new Set<number>()
     const chapters: Array<{ chapterId: string; markdown: string }> = []
     for (const row of chapterRows) {
-      seenChapterNumbers.add(row.order)
       if (row.outline) {
         chapters.push({ chapterId: String(row.order), markdown: row.outline })
         continue
@@ -954,18 +952,6 @@ export function getOutlineBundle(novelID: string, directory: string) {
       if (resolved.outline) {
         chapters.push({ chapterId: String(row.order), markdown: resolved.outline })
       }
-    }
-
-    const fileChapterNumbers = files
-      .filter((f) => f.startsWith("chapter-") && f.endsWith(".md"))
-      .flatMap((f) => {
-        const number = Number(f.slice("chapter-".length, -".md".length))
-        return Number.isInteger(number) && number > 0 ? [number] : []
-      })
-      .sort((a, b) => a - b)
-    for (const number of fileChapterNumbers) {
-      if (seenChapterNumbers.has(number)) continue
-      chapters.push({ chapterId: String(number), markdown: readFileSync(join(outlinesDir, `chapter-${number}.md`), "utf-8") })
     }
 
     return { master, volumes, chapters }
@@ -982,7 +968,22 @@ export function updateOutline(
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
 
-    if (input.section === "chapter" && input.id) {
+    if (input.section === "master") {
+      db
+        .update(NovelTable)
+        .set({ master_outline: input.markdown, updated_at: Date.now() })
+        .where(eq(NovelTable.id, novelID))
+        .run()
+    } else if (input.section === "volume" && input.id) {
+      const volumeOrder = Number(input.id)
+      const volume =
+        Number.isInteger(volumeOrder) && volumeOrder > 0
+          ? db.select().from(VolumeTable).where(and(eq(VolumeTable.novel_id, novelID), eq(VolumeTable.order, volumeOrder))).get()
+          : undefined
+      if (volume) {
+        db.update(VolumeTable).set({ outline: input.markdown }).where(eq(VolumeTable.id, volume.id)).run()
+      }
+    } else if (input.section === "chapter" && input.id) {
       const chapterNumber = Number(input.id)
       const chapter =
         Number.isInteger(chapterNumber) && chapterNumber > 0
@@ -996,20 +997,9 @@ export function updateOutline(
           .run()
       }
     }
-
-    const outlinesDir = join(dirname(getDbPath(directory)), "outlines")
-    if (!existsSync(outlinesDir)) mkdirSync(outlinesDir, { recursive: true })
-    const filename = input.section === "master" ? "master.md" : `${input.section}-${input.id}.md`
-    try {
-      writeFileSync(join(outlinesDir, filename), input.markdown, "utf-8")
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      console.warn(`章纲数据库更新成功，但同步 Markdown 文件失败：${reason}`)
-    }
     return yield* getOutlineBundle(novelID, directory)
   })
 }
-
 export function bindSession(novelID: string, input: BindSessionInput, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
