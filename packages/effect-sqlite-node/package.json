@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "version": "0.0.3-dev.20260915",
+  "version": "0.0.4",
   "name": "@opennovel-ai/effect-sqlite-node",
   "type": "module",
   "license": "MIT",
