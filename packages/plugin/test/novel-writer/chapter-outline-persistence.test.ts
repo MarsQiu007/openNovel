@@ -1,5 +1,5 @@
-﻿import { afterEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdirSync, readFileSync, rmSync } from "fs"
+import { afterEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
@@ -45,7 +45,7 @@ function toolCtx(): ToolContext {
 }
 
 describe("chapter outline persistence plugin tools", () => {
-  test("generate saves outline to database and syncs markdown", async () => {
+  test("generate saves outline to database without writing markdown", async () => {
     await seedProject()
     const outline = "# 第一章大纲\n\n本章完成星舰起航与记忆异常。"
     await hooks.tool!.generate_chapter_outline.execute(
@@ -61,19 +61,16 @@ describe("chapter outline persistence plugin tools", () => {
       .find((row) => row.order === 1)
     expect(chapter?.outline).toBe(outline)
     const filePath = join(projectDir, ".novel", "outlines", "chapter-1.md")
-    expect(existsSync(filePath)).toBe(true)
-    expect(readFileSync(filePath, "utf-8")).toBe(outline)
+    expect(existsSync(filePath)).toBe(false)
   })
 
-  test("read tools stay usable from database when markdown is missing", async () => {
+  test("read tools read from database only", async () => {
     await seedProject()
-    const outline = "# 数据库章纲\n\n数据库有内容，文件缺失。"
+    const outline = "# 数据库章纲\n\n数据库有内容，无文件。"
     await hooks.tool!.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 2, title: "信号", content: outline },
       toolCtx(),
     )
-    const filePath = join(projectDir, ".novel", "outlines", "chapter-2.md")
-    rmSync(filePath)
 
     const chapterResult = await hooks.tool!.read_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 2 },
@@ -91,14 +88,13 @@ describe("chapter outline persistence plugin tools", () => {
     expect(outlineResult?.metadata?.source).toBe("database")
   })
 
-  test("writer snapshot resolves database outline without markdown file", async () => {
+  test("writer snapshot resolves database outline", async () => {
     await seedProject()
     const outline = "# 写作快照章纲\n\n包含主角冲突、地点和关键悬念。"
     await hooks.tool!.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 3, title: "异常", content: outline },
       toolCtx(),
     )
-    rmSync(join(projectDir, ".novel", "outlines", "chapter-3.md"))
 
     const resolved = await resolveChapterOutline(novelId, 3, projectDir)
     expect(resolved.source).toBe("database")

@@ -9,6 +9,7 @@ import {
   getDb,
   NovelTable,
   ChapterTable,
+  VolumeTable,
   CharacterTable,
   tagNovelSession,
   createChapterReview,
@@ -342,20 +343,24 @@ describe("novel handler - outline", () => {
     expect(bundle.chapters.length).toBe(0)
   })
 
-  test("outline reads markdown files", async () => {
+  test("outline imports legacy master and volume files into database", async () => {
     const outlinesDir = join(tempDir, ".novel", "outlines")
     mkdirSync(outlinesDir, { recursive: true })
-    writeFileSync(join(outlinesDir, "master.md"), "# Master Outline")
+    writeFileSync(join(outlinesDir, "master-outline.md"), "# Master Outline")
     writeFileSync(join(outlinesDir, "volume-1.md"), "# Volume 1")
-    writeFileSync(join(outlinesDir, "chapter-1.md"), "# Chapter 1")
+
+
+
+    const db = getDb(tempDir)
+    db.insert(VolumeTable).values({ id: crypto.randomUUID(), novel_id: novelId, title: "第一卷", summary: "", order: 1, created_at: 1 }).run()
 
     const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
     expect(bundle.master).toBe("# Master Outline")
     expect(bundle.volumes.length).toBe(1)
     expect(bundle.volumes[0]!.volumeId).toBe("1")
     expect(bundle.volumes[0]!.markdown).toBe("# Volume 1")
-    expect(bundle.chapters.length).toBe(1)
-    expect(bundle.chapters[0]!.chapterId).toBe("1")
+
+
   })
 
   test("outline falls back to plugin-written master-outline.md when master.md missing", async () => {
@@ -389,26 +394,27 @@ describe("novel handler - outline", () => {
     expect(chapter?.outline).toBe("# Legacy Chapter 2")
   })
 
-  test("updating a chapter outline writes database and syncs markdown", async () => {
+  test("updating a chapter outline writes database only", async () => {
     const markdown = "# UI Edited Chapter"
     const bundle = await Effect.runPromise(
       updateOutline(novelId, { section: "chapter", id: "1", markdown }, tempDir),
     )
     expect(bundle.chapters).toEqual([{ chapterId: "1", markdown }])
-    expect(readFileSync(join(tempDir, ".novel", "outlines", "chapter-1.md"), "utf-8")).toBe(markdown)
 
     const db = getDb(tempDir)
     const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId1)).get()
     expect(chapter?.outline).toBe(markdown)
   })
 
-  test("outline prefers master.md over master-outline.md when both exist", async () => {
+  test("outline prefers database master_outline over legacy files", async () => {
     const outlinesDir = join(tempDir, ".novel", "outlines")
     mkdirSync(outlinesDir, { recursive: true })
-    writeFileSync(join(outlinesDir, "master.md"), "# UI 编辑版")
     writeFileSync(join(outlinesDir, "master-outline.md"), "# 插件生成版")
 
+    const db = getDb(tempDir)
+    db.update(NovelTable).set({ master_outline: "# 数据库版" }).where(eq(NovelTable.id, novelId)).run()
+
     const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
-    expect(bundle.master).toBe("# UI 编辑版")
+    expect(bundle.master).toBe("# 数据库版")
   })
 })
