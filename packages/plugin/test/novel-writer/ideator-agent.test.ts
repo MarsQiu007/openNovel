@@ -49,6 +49,7 @@ describe("novel ideator agent", () => {
     expect(ideatorAgentConfig.systemPrompt).toContain("对既有故事的影响")
     expect(ideatorAgentConfig.systemPrompt).toContain("风险或代价")
     expect(ideatorAgentConfig.systemPrompt).toContain("下一步落地建议")
+    expect(ideatorAgentConfig.systemPrompt).toContain("总共只生成 3 个候选")
   })
 
   test("registers ideator as a read-only subagent", async () => {
@@ -86,6 +87,8 @@ describe("novel ideator agent", () => {
     expect(prompt).toContain("mode: material_spark")
     expect(prompt).toContain("普通剧情问答、设定查询和章节执行不要自动调用它")
     expect(prompt).toContain("以下仅为灵感候选，尚未落库")
+    expect(prompt).toContain("完整保留创意家的候选结构")
+    expect(prompt).toContain("原样保留为最终回复第一行")
     expect(prompt).toContain("临时灵感采纳（必须二次确认）")
     expect(prompt).toContain("只影响下一章 → 走章节大纲生成 / 更新流程")
     expect(prompt).toContain("影响支线或角色弧 → 走现有弧光维护流程")
