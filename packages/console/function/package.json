@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/console-function",
-  "version": "0.0.3",
+  "version": "0.0.3-dev.20260915",
   "$schema": "https://json.schemastore.org/package.json",
   "private": true,
   "type": "module",
