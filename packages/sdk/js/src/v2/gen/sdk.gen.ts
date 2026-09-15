@@ -133,12 +133,17 @@ import type {
   NovelCreateTensionPointInput,
   NovelCreateVolumeInput,
   NovelCreateVolumeReviewInput,
+  NovelCreateWorldEntryAnnotationInput,
+  NovelCreateWorldEntryAnnotationRoundInput,
   NovelCreateWorldEntryInput,
   NovelExportFormat,
   NovelMoveChapterInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
+  NovelSettingOrganizationAnalyzeInput,
+  NovelSettingOrganizationApplyInput,
+  NovelSettingOrganizationDryRunInput,
   NovelTechniqueInjection,
   NovelUpdateAnnotationInput,
   NovelUpdateArcBeatInput,
@@ -157,6 +162,8 @@ import type {
   NovelUpdateTechniqueInput,
   NovelUpdateTensionPointInput,
   NovelUpdateVolumeInput,
+  NovelUpdateWorldEntryAnnotationInput,
+  NovelUpdateWorldEntryAnnotationRoundInput,
   NovelUpdateWorldEntryInput,
   NovelUpsertCanvasLayoutInput,
   OutputFormat,
@@ -402,6 +409,10 @@ import type {
   V2NovelCreateRelationshipErrors,
   V2NovelCreateRelationshipResponses,
   V2NovelCreateResponses,
+  V2NovelCreateSettingAnnotationErrors,
+  V2NovelCreateSettingAnnotationResponses,
+  V2NovelCreateSettingAnnotationRoundErrors,
+  V2NovelCreateSettingAnnotationRoundResponses,
   V2NovelCreateTensionErrors,
   V2NovelCreateTensionResponses,
   V2NovelCreateVolumeErrors,
@@ -430,6 +441,8 @@ import type {
   V2NovelDeleteRelationshipErrors,
   V2NovelDeleteRelationshipResponses,
   V2NovelDeleteResponses,
+  V2NovelDeleteSettingAnnotationErrors,
+  V2NovelDeleteSettingAnnotationResponses,
   V2NovelDeleteTensionErrors,
   V2NovelDeleteTensionResponses,
   V2NovelDeleteVolumeErrors,
@@ -470,6 +483,16 @@ import type {
   V2NovelSearchResponses,
   V2NovelSessionBindingsErrors,
   V2NovelSessionBindingsResponses,
+  V2NovelSettingAnnotationRoundsErrors,
+  V2NovelSettingAnnotationRoundsResponses,
+  V2NovelSettingAnnotationsErrors,
+  V2NovelSettingAnnotationsResponses,
+  V2NovelSettingsOrganizationAnalyzeErrors,
+  V2NovelSettingsOrganizationAnalyzeResponses,
+  V2NovelSettingsOrganizationApplyErrors,
+  V2NovelSettingsOrganizationApplyResponses,
+  V2NovelSettingsOrganizationDryRunErrors,
+  V2NovelSettingsOrganizationDryRunResponses,
   V2NovelSoulErrors,
   V2NovelSoulResponses,
   V2NovelStructureErrors,
@@ -504,6 +527,10 @@ import type {
   V2NovelUpdateRelationshipErrors,
   V2NovelUpdateRelationshipResponses,
   V2NovelUpdateResponses,
+  V2NovelUpdateSettingAnnotationErrors,
+  V2NovelUpdateSettingAnnotationResponses,
+  V2NovelUpdateSettingAnnotationRoundErrors,
+  V2NovelUpdateSettingAnnotationRoundResponses,
   V2NovelUpdateSoulErrors,
   V2NovelUpdateSoulResponses,
   V2NovelUpdateStyleGuideErrors,
@@ -7246,6 +7273,140 @@ export class ProjectCopy2 extends HeyApiClient {
   }
 }
 
+export class SettingsOrganization extends HeyApiClient {
+  /**
+   * Analyze setting organization issues
+   *
+   * Analyze world entries, characters, relationships, plot threads, and foreshadowing for cleanup.
+   */
+  public analyze<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelSettingOrganizationAnalyzeInput: NovelSettingOrganizationAnalyzeInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelSettingOrganizationAnalyzeInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelSettingsOrganizationAnalyzeResponses,
+      V2NovelSettingsOrganizationAnalyzeErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/settings-organization/analyze",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Dry run setting organization plan
+   *
+   * Validate a versioned organization plan and return an operation preview without writing.
+   */
+  public dryRun<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelSettingOrganizationDryRunInput: NovelSettingOrganizationDryRunInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelSettingOrganizationDryRunInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelSettingsOrganizationDryRunResponses,
+      V2NovelSettingsOrganizationDryRunErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/settings-organization/dry-run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Apply setting organization plan
+   *
+   * Apply an explicitly confirmed organization plan after server-side revalidation.
+   */
+  public apply<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelSettingOrganizationApplyInput: NovelSettingOrganizationApplyInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelSettingOrganizationApplyInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelSettingsOrganizationApplyResponses,
+      V2NovelSettingsOrganizationApplyErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/settings-organization/apply",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Novel extends HeyApiClient {
   /**
    * List novels
@@ -10354,6 +10515,293 @@ export class Novel extends HeyApiClient {
   }
 
   /**
+   * List world entry annotations
+   */
+  public settingAnnotations<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      entryID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "entryID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelSettingAnnotationsResponses,
+      V2NovelSettingAnnotationsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/world-entries/{entryID}/annotations",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create world entry annotation
+   */
+  public createSettingAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      entryID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateWorldEntryAnnotationInput: NovelCreateWorldEntryAnnotationInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "entryID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateWorldEntryAnnotationInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateSettingAnnotationResponses,
+      V2NovelCreateSettingAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/world-entries/{entryID}/annotations",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete world entry annotation
+   */
+  public deleteSettingAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      annotationID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "annotationID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelDeleteSettingAnnotationResponses,
+      V2NovelDeleteSettingAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-annotations/{annotationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update world entry annotation
+   */
+  public updateSettingAnnotation<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      annotationID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateWorldEntryAnnotationInput: NovelUpdateWorldEntryAnnotationInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "annotationID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateWorldEntryAnnotationInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelUpdateSettingAnnotationResponses,
+      V2NovelUpdateSettingAnnotationErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-annotations/{annotationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List world entry annotation execution rounds
+   */
+  public settingAnnotationRounds<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      entryID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "entryID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelSettingAnnotationRoundsResponses,
+      V2NovelSettingAnnotationRoundsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create world entry annotation execution round
+   */
+  public createSettingAnnotationRound<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      entryID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateWorldEntryAnnotationRoundInput: NovelCreateWorldEntryAnnotationRoundInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "entryID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateWorldEntryAnnotationRoundInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateSettingAnnotationRoundResponses,
+      V2NovelCreateSettingAnnotationRoundErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Update world entry annotation execution round
+   */
+  public updateSettingAnnotationRound<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      roundID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateWorldEntryAnnotationRoundInput: NovelUpdateWorldEntryAnnotationRoundInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "roundID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateWorldEntryAnnotationRoundInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelUpdateSettingAnnotationRoundResponses,
+      V2NovelUpdateSettingAnnotationRoundErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-annotation-rounds/{roundID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
    * Get canvas layout
    */
   public canvasLayout<ThrowOnError extends boolean = false>(
@@ -10424,6 +10872,11 @@ export class Novel extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+
+  private _settingsOrganization?: SettingsOrganization
+  get settingsOrganization(): SettingsOrganization {
+    return (this._settingsOrganization ??= new SettingsOrganization({ client: this.client }))
   }
 }
 

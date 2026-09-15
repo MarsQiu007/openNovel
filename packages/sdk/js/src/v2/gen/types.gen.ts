@@ -6829,6 +6829,152 @@ export type NovelUpdateExecutionRoundInput = {
   promptSnapshot?: string
 }
 
+export type NovelSettingOrganizationAnalyzeInput = {
+  scope?: "all" | "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+}
+
+export type NovelSettingOrganizationIssue = {
+  issueId: string
+  type:
+    | "nonstandard_category"
+    | "duplicate_title"
+    | "similar_title"
+    | "duplicate_identity"
+    | "empty_field"
+    | "long_single_paragraph"
+    | "markdown_syntax"
+  entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+  entryIds: Array<string>
+  evidence: string
+  suggestion: string
+}
+
+export type NovelSettingOrganizationAnalyzeResult = {
+  scope: string
+  issues: Array<NovelSettingOrganizationIssue>
+  count: number
+  suggestedPlanJson?: string
+}
+
+export type NovelSettingOrganizationDryRunInput = {
+  planJson: string
+}
+
+export type NovelSettingOrganizationPreview = {
+  index: number
+  action: "update" | "merge" | "delete"
+  entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+  entryIds: Array<string>
+  summary: string
+  fields?: Array<string>
+}
+
+export type NovelSettingOrganizationDryRunResult = {
+  valid: boolean
+  planDigest: string
+  previews: Array<NovelSettingOrganizationPreview>
+  errors: Array<string>
+}
+
+export type NovelSettingOrganizationApplyInput = {
+  planJson: string
+  planDigest: string
+  confirmed: boolean
+}
+
+export type NovelSettingOrganizationOperationResult = {
+  index: number
+  action: "update" | "merge" | "delete"
+  entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+  status: "success" | "failed"
+  entryIds: Array<string>
+  changedFields?: Array<string>
+  historyCount?: number
+  cascadeTasks?: number
+  error?: string
+}
+
+export type NovelSettingOrganizationRemainingOperation = {
+  index: number
+  action: "update" | "merge" | "delete"
+  entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+  entryIds: Array<string>
+}
+
+export type NovelSettingOrganizationApplyResult = {
+  ok: boolean
+  errors: Array<string>
+  results: Array<NovelSettingOrganizationOperationResult>
+  remaining: Array<NovelSettingOrganizationRemainingOperation>
+}
+
+export type NovelWorldEntryAnnotation = {
+  id: string
+  novelId: string
+  worldEntryId: string
+  parentId?: string
+  source: "user" | "ai"
+  anchorType: "paragraph" | "range"
+  paragraphIndex?: number
+  startOffset?: number
+  endOffset?: number
+  quote: string
+  comment: string
+  suggestedReplacement?: string
+  status: "open" | "resolved" | "wontfix" | "applied"
+  authorSessionId?: string
+  executionRoundId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelCreateWorldEntryAnnotationInput = {
+  parentId?: string
+  source?: "user" | "ai"
+  anchorType?: "paragraph" | "range"
+  paragraphIndex?: number
+  startOffset?: number
+  endOffset?: number
+  quote: string
+  comment: string
+  suggestedReplacement?: string
+  authorSessionId?: string
+}
+
+export type NovelUpdateWorldEntryAnnotationInput = {
+  comment?: string
+  status?: "open" | "resolved" | "wontfix" | "applied"
+  suggestedReplacement?: string
+  quote?: string
+  executionRoundId?: string
+}
+
+export type NovelCreateWorldEntryAnnotationRoundInput = {
+  promptSnapshot?: string
+  status?: "running" | "completed" | "failed" | "interrupted"
+  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
+  resultSummary?: string
+}
+
+export type NovelWorldEntryAnnotationExecutionRound = {
+  id: string
+  novelId: string
+  worldEntryId: string
+  promptSnapshot: string
+  status: "running" | "completed" | "failed" | "interrupted"
+  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
+  resultSummary: string
+  contentHistoryId?: string
+  createdAt: number
+}
+
+export type NovelUpdateWorldEntryAnnotationRoundInput = {
+  status?: "running" | "completed" | "failed" | "interrupted"
+  resultSummary?: string
+  contentHistoryId?: string
+  promptSnapshot?: string
+}
+
 export type NovelCanvasLayout = {
   columns: Array<{
     id: string
@@ -17802,6 +17948,446 @@ export type V2NovelUpdateExecutionRoundResponses = {
 
 export type V2NovelUpdateExecutionRoundResponse =
   V2NovelUpdateExecutionRoundResponses[keyof V2NovelUpdateExecutionRoundResponses]
+
+export type V2NovelSettingsOrganizationAnalyzeData = {
+  body: NovelSettingOrganizationAnalyzeInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/settings-organization/analyze"
+}
+
+export type V2NovelSettingsOrganizationAnalyzeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelSettingsOrganizationAnalyzeError =
+  V2NovelSettingsOrganizationAnalyzeErrors[keyof V2NovelSettingsOrganizationAnalyzeErrors]
+
+export type V2NovelSettingsOrganizationAnalyzeResponses = {
+  /**
+   * Novel.SettingOrganizationAnalyzeResult
+   */
+  200: NovelSettingOrganizationAnalyzeResult
+}
+
+export type V2NovelSettingsOrganizationAnalyzeResponse =
+  V2NovelSettingsOrganizationAnalyzeResponses[keyof V2NovelSettingsOrganizationAnalyzeResponses]
+
+export type V2NovelSettingsOrganizationDryRunData = {
+  body: NovelSettingOrganizationDryRunInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/settings-organization/dry-run"
+}
+
+export type V2NovelSettingsOrganizationDryRunErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelSettingsOrganizationDryRunError =
+  V2NovelSettingsOrganizationDryRunErrors[keyof V2NovelSettingsOrganizationDryRunErrors]
+
+export type V2NovelSettingsOrganizationDryRunResponses = {
+  /**
+   * Novel.SettingOrganizationDryRunResult
+   */
+  200: NovelSettingOrganizationDryRunResult
+}
+
+export type V2NovelSettingsOrganizationDryRunResponse =
+  V2NovelSettingsOrganizationDryRunResponses[keyof V2NovelSettingsOrganizationDryRunResponses]
+
+export type V2NovelSettingsOrganizationApplyData = {
+  body: NovelSettingOrganizationApplyInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/settings-organization/apply"
+}
+
+export type V2NovelSettingsOrganizationApplyErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelSettingsOrganizationApplyError =
+  V2NovelSettingsOrganizationApplyErrors[keyof V2NovelSettingsOrganizationApplyErrors]
+
+export type V2NovelSettingsOrganizationApplyResponses = {
+  /**
+   * Novel.SettingOrganizationApplyResult
+   */
+  200: NovelSettingOrganizationApplyResult
+}
+
+export type V2NovelSettingsOrganizationApplyResponse =
+  V2NovelSettingsOrganizationApplyResponses[keyof V2NovelSettingsOrganizationApplyResponses]
+
+export type V2NovelSettingAnnotationsData = {
+  body?: never
+  path: {
+    novelID: string
+    entryID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/world-entries/{entryID}/annotations"
+}
+
+export type V2NovelSettingAnnotationsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSettingAnnotationsError = V2NovelSettingAnnotationsErrors[keyof V2NovelSettingAnnotationsErrors]
+
+export type V2NovelSettingAnnotationsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelWorldEntryAnnotation>
+}
+
+export type V2NovelSettingAnnotationsResponse =
+  V2NovelSettingAnnotationsResponses[keyof V2NovelSettingAnnotationsResponses]
+
+export type V2NovelCreateSettingAnnotationData = {
+  body: NovelCreateWorldEntryAnnotationInput
+  path: {
+    novelID: string
+    entryID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/world-entries/{entryID}/annotations"
+}
+
+export type V2NovelCreateSettingAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateSettingAnnotationError =
+  V2NovelCreateSettingAnnotationErrors[keyof V2NovelCreateSettingAnnotationErrors]
+
+export type V2NovelCreateSettingAnnotationResponses = {
+  /**
+   * Novel.WorldEntryAnnotation
+   */
+  200: NovelWorldEntryAnnotation
+}
+
+export type V2NovelCreateSettingAnnotationResponse =
+  V2NovelCreateSettingAnnotationResponses[keyof V2NovelCreateSettingAnnotationResponses]
+
+export type V2NovelDeleteSettingAnnotationData = {
+  body?: never
+  path: {
+    novelID: string
+    annotationID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/setting-annotations/{annotationID}"
+}
+
+export type V2NovelDeleteSettingAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelDeleteSettingAnnotationError =
+  V2NovelDeleteSettingAnnotationErrors[keyof V2NovelDeleteSettingAnnotationErrors]
+
+export type V2NovelDeleteSettingAnnotationResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteSettingAnnotationResponse =
+  V2NovelDeleteSettingAnnotationResponses[keyof V2NovelDeleteSettingAnnotationResponses]
+
+export type V2NovelUpdateSettingAnnotationData = {
+  body: NovelUpdateWorldEntryAnnotationInput
+  path: {
+    novelID: string
+    annotationID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/setting-annotations/{annotationID}"
+}
+
+export type V2NovelUpdateSettingAnnotationErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateSettingAnnotationError =
+  V2NovelUpdateSettingAnnotationErrors[keyof V2NovelUpdateSettingAnnotationErrors]
+
+export type V2NovelUpdateSettingAnnotationResponses = {
+  /**
+   * Novel.WorldEntryAnnotation
+   */
+  200: NovelWorldEntryAnnotation
+}
+
+export type V2NovelUpdateSettingAnnotationResponse =
+  V2NovelUpdateSettingAnnotationResponses[keyof V2NovelUpdateSettingAnnotationResponses]
+
+export type V2NovelSettingAnnotationRoundsData = {
+  body?: never
+  path: {
+    novelID: string
+    entryID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds"
+}
+
+export type V2NovelSettingAnnotationRoundsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSettingAnnotationRoundsError =
+  V2NovelSettingAnnotationRoundsErrors[keyof V2NovelSettingAnnotationRoundsErrors]
+
+export type V2NovelSettingAnnotationRoundsResponses = {
+  /**
+   * Success
+   */
+  200: Array<NovelWorldEntryAnnotationExecutionRound>
+}
+
+export type V2NovelSettingAnnotationRoundsResponse =
+  V2NovelSettingAnnotationRoundsResponses[keyof V2NovelSettingAnnotationRoundsResponses]
+
+export type V2NovelCreateSettingAnnotationRoundData = {
+  body: NovelCreateWorldEntryAnnotationRoundInput
+  path: {
+    novelID: string
+    entryID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds"
+}
+
+export type V2NovelCreateSettingAnnotationRoundErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelCreateSettingAnnotationRoundError =
+  V2NovelCreateSettingAnnotationRoundErrors[keyof V2NovelCreateSettingAnnotationRoundErrors]
+
+export type V2NovelCreateSettingAnnotationRoundResponses = {
+  /**
+   * Novel.WorldEntryAnnotationExecutionRound
+   */
+  200: NovelWorldEntryAnnotationExecutionRound
+}
+
+export type V2NovelCreateSettingAnnotationRoundResponse =
+  V2NovelCreateSettingAnnotationRoundResponses[keyof V2NovelCreateSettingAnnotationRoundResponses]
+
+export type V2NovelUpdateSettingAnnotationRoundData = {
+  body: NovelUpdateWorldEntryAnnotationRoundInput
+  path: {
+    novelID: string
+    roundID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/setting-annotation-rounds/{roundID}"
+}
+
+export type V2NovelUpdateSettingAnnotationRoundErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpdateSettingAnnotationRoundError =
+  V2NovelUpdateSettingAnnotationRoundErrors[keyof V2NovelUpdateSettingAnnotationRoundErrors]
+
+export type V2NovelUpdateSettingAnnotationRoundResponses = {
+  /**
+   * Novel.WorldEntryAnnotationExecutionRound
+   */
+  200: NovelWorldEntryAnnotationExecutionRound
+}
+
+export type V2NovelUpdateSettingAnnotationRoundResponse =
+  V2NovelUpdateSettingAnnotationRoundResponses[keyof V2NovelUpdateSettingAnnotationRoundResponses]
 
 export type V2NovelCanvasLayoutData = {
   body?: never

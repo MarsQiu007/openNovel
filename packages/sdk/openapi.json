@@ -22956,6 +22956,1022 @@
         ]
       }
     },
+    "/api/novel/{novelID}/settings-organization/analyze": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.settings-organization.analyze",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.SettingOrganizationAnalyzeResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelSettingOrganizationAnalyzeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Analyze world entries, characters, relationships, plot threads, and foreshadowing for cleanup.",
+        "summary": "Analyze setting organization issues",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelSettingOrganizationAnalyzeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.settings-organization.analyze({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/settings-organization/dry-run": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.settings-organization.dry-run",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.SettingOrganizationDryRunResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelSettingOrganizationDryRunResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Validate a versioned organization plan and return an operation preview without writing.",
+        "summary": "Dry run setting organization plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelSettingOrganizationDryRunInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.settings-organization.dry-run({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/settings-organization/apply": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.settings-organization.apply",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.SettingOrganizationApplyResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelSettingOrganizationApplyResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Apply an explicitly confirmed organization plan after server-side revalidation.",
+        "summary": "Apply setting organization plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelSettingOrganizationApplyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.settings-organization.apply({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/world-entries/{entryID}/annotations": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.setting-annotations",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "entryID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelWorldEntryAnnotation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List world entry annotations",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.setting-annotations({\n  ...\n})"
+          }
+        ]
+      },
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-setting-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "entryID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.WorldEntryAnnotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelWorldEntryAnnotation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create world entry annotation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateWorldEntryAnnotationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-setting-annotation({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/setting-annotations/{annotationID}": {
+      "patch": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-setting-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "annotationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.WorldEntryAnnotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelWorldEntryAnnotation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update world entry annotation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateWorldEntryAnnotationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-setting-annotation({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.delete-setting-annotation",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "annotationID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete world entry annotation",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.delete-setting-annotation({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.create-setting-annotation-round",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "entryID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.WorldEntryAnnotationExecutionRound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelWorldEntryAnnotationExecutionRound"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create world entry annotation execution round",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelCreateWorldEntryAnnotationRoundInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.create-setting-annotation-round({\n  ...\n})"
+          }
+        ]
+      },
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.setting-annotation-rounds",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "entryID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NovelWorldEntryAnnotationExecutionRound"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List world entry annotation execution rounds",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.setting-annotation-rounds({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/setting-annotation-rounds/{roundID}": {
+      "patch": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.update-setting-annotation-round",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "roundID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.WorldEntryAnnotationExecutionRound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelWorldEntryAnnotationExecutionRound"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update world entry annotation execution round",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelUpdateWorldEntryAnnotationRoundInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.update-setting-annotation-round({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}/canvas-layout": {
       "get": {
         "tags": ["novel"],
@@ -45232,6 +46248,477 @@
             "type": "string"
           },
           "chapterVersionId": {
+            "type": "string"
+          },
+          "promptSnapshot": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationAnalyzeInput": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["all", "world_entry", "character", "relationship", "plot_thread", "foreshadowing"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationIssue": {
+        "type": "object",
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "nonstandard_category",
+              "duplicate_title",
+              "similar_title",
+              "duplicate_identity",
+              "empty_field",
+              "long_single_paragraph",
+              "markdown_syntax"
+            ]
+          },
+          "entityType": {
+            "type": "string",
+            "enum": ["world_entry", "character", "relationship", "plot_thread", "foreshadowing"]
+          },
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "suggestion": {
+            "type": "string"
+          }
+        },
+        "required": ["issueId", "type", "entityType", "entryIds", "evidence", "suggestion"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationAnalyzeResult": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelSettingOrganizationIssue"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "suggestedPlanJson": {
+            "type": "string"
+          }
+        },
+        "required": ["scope", "issues", "count"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationDryRunInput": {
+        "type": "object",
+        "properties": {
+          "planJson": {
+            "type": "string"
+          }
+        },
+        "required": ["planJson"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationPreview": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["update", "merge", "delete"]
+          },
+          "entityType": {
+            "type": "string",
+            "enum": ["world_entry", "character", "relationship", "plot_thread", "foreshadowing"]
+          },
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["index", "action", "entityType", "entryIds", "summary"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationDryRunResult": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "planDigest": {
+            "type": "string"
+          },
+          "previews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelSettingOrganizationPreview"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["valid", "planDigest", "previews", "errors"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationApplyInput": {
+        "type": "object",
+        "properties": {
+          "planJson": {
+            "type": "string"
+          },
+          "planDigest": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["planJson", "planDigest", "confirmed"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationOperationResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["update", "merge", "delete"]
+          },
+          "entityType": {
+            "type": "string",
+            "enum": ["world_entry", "character", "relationship", "plot_thread", "foreshadowing"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["success", "failed"]
+          },
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "changedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "historyCount": {
+            "type": "integer"
+          },
+          "cascadeTasks": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["index", "action", "entityType", "status", "entryIds"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationRemainingOperation": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["update", "merge", "delete"]
+          },
+          "entityType": {
+            "type": "string",
+            "enum": ["world_entry", "character", "relationship", "plot_thread", "foreshadowing"]
+          },
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["index", "action", "entityType", "entryIds"],
+        "additionalProperties": false
+      },
+      "NovelSettingOrganizationApplyResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelSettingOrganizationOperationResult"
+            }
+          },
+          "remaining": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelSettingOrganizationRemainingOperation"
+            }
+          }
+        },
+        "required": ["ok", "errors", "results", "remaining"],
+        "additionalProperties": false
+      },
+      "NovelWorldEntryAnnotation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "worldEntryId": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["user", "ai"]
+          },
+          "anchorType": {
+            "type": "string",
+            "enum": ["paragraph", "range"]
+          },
+          "paragraphIndex": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "resolved", "wontfix", "applied"]
+          },
+          "authorSessionId": {
+            "type": "string"
+          },
+          "executionRoundId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "novelId",
+          "worldEntryId",
+          "source",
+          "anchorType",
+          "quote",
+          "comment",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelCreateWorldEntryAnnotationInput": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["user", "ai"]
+          },
+          "anchorType": {
+            "type": "string",
+            "enum": ["paragraph", "range"]
+          },
+          "paragraphIndex": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          },
+          "authorSessionId": {
+            "type": "string"
+          }
+        },
+        "required": ["quote", "comment"],
+        "additionalProperties": false
+      },
+      "NovelUpdateWorldEntryAnnotationInput": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "resolved", "wontfix", "applied"]
+          },
+          "suggestedReplacement": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "executionRoundId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelCreateWorldEntryAnnotationRoundInput": {
+        "type": "object",
+        "properties": {
+          "promptSnapshot": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "annotationsSnapshot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAnnotationExecutionSnapshot"
+            }
+          },
+          "resultSummary": {
+            "type": "string"
+          }
+        },
+        "required": ["annotationsSnapshot"],
+        "additionalProperties": false
+      },
+      "NovelWorldEntryAnnotationExecutionRound": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "novelId": {
+            "type": "string"
+          },
+          "worldEntryId": {
+            "type": "string"
+          },
+          "promptSnapshot": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "annotationsSnapshot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelAnnotationExecutionSnapshot"
+            }
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "contentHistoryId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "novelId",
+          "worldEntryId",
+          "promptSnapshot",
+          "status",
+          "annotationsSnapshot",
+          "resultSummary",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpdateWorldEntryAnnotationRoundInput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["running", "completed", "failed", "interrupted"]
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "contentHistoryId": {
             "type": "string"
           },
           "promptSnapshot": {
