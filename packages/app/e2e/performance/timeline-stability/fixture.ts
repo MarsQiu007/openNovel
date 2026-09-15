@@ -157,6 +157,10 @@ export async function setupTimeline(
       mobile: false,
     })
   }
+  // 旧界面布局场景把时钟冻结在日落日之前，避免 SettingsProvider 因过期强制开启 newLayoutDesigns。
+  if (input.settings?.newLayoutDesigns === false) {
+    await page.clock.install({ time: new Date("2026-09-01T00:00:00") })
+  }
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
