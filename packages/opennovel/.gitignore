@@ -7,3 +7,4 @@ script/build-*.ts
 !script/build-node.ts
 temporary-*.md
 .artifacts
+config.json
