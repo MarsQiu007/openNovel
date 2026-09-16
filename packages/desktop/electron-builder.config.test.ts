@@ -76,7 +76,9 @@ test("does not publish dev builds to an update feed", async () => {
   if (previous === undefined) delete process.env.OPENNOVEL_CHANNEL
   else process.env.OPENNOVEL_CHANNEL = previous
 
-  expect(config.publish).toBeUndefined()
+  // publish 必须显式为 null，防止 CI 环境隐式推断出 GitHub 发布目标并生成更新元数据。
+  expect(config.publish).toBeNull()
+  expect(config.nsis?.differentialPackage).toBe(false)
 })
 
 test("keeps a hidden prod launcher for legacy Linux pins", async () => {

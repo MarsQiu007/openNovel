@@ -113,6 +113,9 @@ function getConfig() {
         ...base,
         appId,
         productName: "OpenNovel Dev",
+        // dev 是手动测试构建：不生成 updater 元数据，也不生成增量更新 blockmap。
+        publish: null,
+        nsis: { ...base.nsis, differentialPackage: false },
         rpm: { packageName: "opennovel-dev" },
       }
     }
