@@ -83,7 +83,7 @@ beta 与 prod 构建发布产物时 MUST 复用 prepare 阶段按 release tag �
 
 ### Requirement: dev release 不提供自动更新
 
-dev release MUST 定位为手动测试构建，不得生成或上传会被 updater 消费的更新元数据。dev 客户端 MUST NOT 通过 GitHub release 自动更新。
+dev release MUST 定位为手动测试构建，MUST NOT 上传会被 updater 消费的更新元数据或 blockmap。electron-builder 的 NSIS target 会在本地构建目录无条件生成此类文件（供手动更新测试使用），因此 dev 构建流程 MUST 在上传前移除这些文件，且 dev 客户端 MUST NOT 通过 GitHub release 自动更新。
 
 #### Scenario: dev 只有手动安装包
 
