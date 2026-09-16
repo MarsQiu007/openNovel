@@ -171,6 +171,8 @@ jobs:
           set -euo pipefail
           if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
             PUBLISH_MODE=never
+            # GH_TOKEN 会让 electron-builder 隐式推断 GitHub publish 配置，dev 必须完全禁用
+            unset GH_TOKEN
           else
             PUBLISH_MODE=always
           fi
