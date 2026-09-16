@@ -183,7 +183,7 @@ jobs:
           if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
             # electron-builder 会无条件为 NSIS 在本地 dist 生成 blockmap 与 updater
             # 元数据（设计如此，供手动更新测试使用），dev 交付前必须移除这些文件。
-            rm -f dist/*.blockmap dist/latest*.yml dist/beta.yml dist/alpha.yml
+            rm -f dist/*.blockmap dist/latest*.yml dist/beta*.yml dist/alpha*.yml
           fi
 
       - name: Validate built artifacts
@@ -199,7 +199,8 @@ jobs:
 
           if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
             blockmaps=(dist/*.blockmap)
-            metadata=(dist/latest*.yml dist/beta.yml dist/alpha.yml)
+            # beta.yml / alpha.yml 必须带通配符，否则无匹配时作为字面字符串留在数组里导致误报
+            metadata=(dist/latest*.yml dist/beta*.yml dist/alpha*.yml)
             if [ ${#blockmaps[@]} -ne 0 ] || [ ${#metadata[@]} -ne 0 ]; then
               echo "Dev release must not contain blockmap or updater metadata"
               echo "blockmaps: ${blockmaps[*]:-none}"
