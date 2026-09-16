@@ -202,6 +202,9 @@ jobs:
             metadata=(dist/latest*.yml dist/beta.yml dist/alpha.yml)
             if [ ${#blockmaps[@]} -ne 0 ] || [ ${#metadata[@]} -ne 0 ]; then
               echo "Dev release must not contain blockmap or updater metadata"
+              echo "blockmaps: ${blockmaps[*]:-none}"
+              echo "metadata: ${metadata[*]:-none}"
+              ls -la dist
               exit 1
             fi
           else
