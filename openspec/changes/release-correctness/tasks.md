@@ -28,6 +28,17 @@
 - [x] 5.1 在 `packages/desktop` 运行 `bun typecheck`，在仓库根目录运行 `bun run typecheck` 和 `bun run lint`，确认无新增问题。
 - [x] 5.2 运行 `openspec validate release-correctness --strict`，确认提案、规格、设计和任务全部通过。
 - [x] 5.3 更新 prod release notes 填充流程，加入旧错误 `v0.0.3` 需手动安装新 prod 包的一次性迁移提示，并通过生成的 draft notes 验证提示存在。
-- [ ] 5.4 合并后触发 dev release，验证安装包可下载且 release 不包含 blockmap、`latest.yml` 或 `beta.yml`。
-- [ ] 5.5 合并后触发 beta release，验证产物复用同 tag draft release、release 位于 `MarsQiu007/openNovel`、保持 prerelease，且安装包、blockmap 和 `beta.yml` 齐全。
-- [ ] 5.6 合并后触发 prod release，验证 tag 指向版本号提交、产物使用 prod 身份、release 成为 Latest，且安装包、blockmap 和 `latest.yml` 齐全。
+- [x] 5.4 合并后触发 dev release，验证安装包可下载且 release 不包含 blockmap、`latest.yml` 或 `beta.yml`。
+- [x] 5.5 合并后触发 beta release，验证产物复用同 tag draft release、release 位于 `MarsQiu007/openNovel`、保持 prerelease，且安装包、blockmap 和 `beta.yml` 齐全。
+- [x] 5.6 合并后触发 prod release，验证 tag 指向版本号提交、产物使用 prod 身份、release 成为 Latest，且安装包、blockmap 和 `latest.yml` 齐全。
+
+## Implementation Commits
+
+- 285410b0a docs(openspec): 新增 release 正确性提案
+- 4ea1bf973 docs(openspec): 完善 release 正确性提案
+- e18b01ce4 fix(release): 修复发布通道与产物校验
+- 06f07000d fix(release): dev 打包禁用发布令牌
+- 09dad710f fix(desktop): dev 打包禁用 blockmap 和更新元数据生成
+- fb36cd5c5 fix(release): dev 构建后移除本地更新元数据文件
+- 7356cf5dc chore(release): dev 产物校验失败时输出文件清单
+- 54c00375c fix(release): 修复 dev 产物校验的 glob 字面量误报
