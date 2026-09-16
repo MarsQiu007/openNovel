@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/console-app",
-  "version": "0.0.4-beta.20260916",
+  "version": "0.0.5",
   "type": "module",
   "license": "MIT",
   "scripts": {
