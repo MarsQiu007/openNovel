@@ -11,10 +11,17 @@ import type {
   UpdateWorldEntryAnnotationInput,
   CreateWorldEntryAnnotationRoundInput,
   UpdateWorldEntryAnnotationRoundInput,
+  WorldMapPoint,
+  CreateWorldMapInput,
+  UpdateWorldMapInput,
+  CreateWorldMapFeatureInput,
+  UpdateWorldMapFeatureInput,
+  CreateCharacterMapPinInput,
+  UpdateCharacterMapPinInput,
 } from "@opennovel-ai/schema/novel"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
-import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, ServiceUnavailableError } from "@opennovel-ai/protocol/groups/novel"
+import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, WorldMapValidationError, ServiceUnavailableError } from "@opennovel-ai/protocol/groups/novel"
 import {
   getDb,
   getDbPath,
@@ -58,6 +65,21 @@ import {
   createWorldEntry as storeCreateWorldEntry,
   updateWorldEntry as storeUpdateWorldEntry,
   deleteWorldEntry as storeDeleteWorldEntry,
+  createWorldMap as storeCreateWorldMap,
+  getWorldMapAggregate as storeGetWorldMapAggregate,
+  updateWorldMap as storeUpdateWorldMap,
+  deleteWorldMap as storeDeleteWorldMap,
+  promoteWorldMapDraft as storePromoteWorldMapDraft,
+  createWorldMapFeature as storeCreateWorldMapFeature,
+  updateWorldMapFeature as storeUpdateWorldMapFeature,
+  deleteWorldMapFeature as storeDeleteWorldMapFeature,
+  createCharacterMapPin as storeCreateCharacterMapPin,
+  updateCharacterMapPin as storeUpdateCharacterMapPin,
+  deleteCharacterMapPin as storeDeleteCharacterMapPin,
+  WorldMapStoreError,
+  WorldMapTable,
+  WorldMapFeatureTable,
+  CharacterMapPinTable,
   deleteChapter as storeDeleteChapter,
   createVolume as storeCreateVolume,
   updateVolume as storeUpdateVolume,
@@ -362,6 +384,74 @@ function chapterNotFound(chapterId: string, novelId?: string): ChapterNotFoundEr
     name: "ChapterNotFoundError",
     data: { message: `Chapter not found: ${chapterId}`, novelId, chapterId },
   })
+}
+
+function toWorldMapPointList(value: unknown): WorldMapPoint[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return []
+    const point = item as Record<string, unknown>
+    if (typeof point.x !== "number" || typeof point.y !== "number") return []
+    return [{ x: point.x, y: point.y }]
+  })
+}
+
+function mapStoreError(error: unknown, _novelId: string) {
+  const message = error instanceof Error ? error.message : String(error)
+  return new WorldMapValidationError({
+    name: "WorldMapValidationError",
+    data: { message },
+  })
+}
+
+function runWorldMap<T>(novelId: string, operation: () => Promise<T>) {
+  return Effect.tryPromise({ try: operation, catch: (error) => mapStoreError(error, novelId) })
+}
+
+function mapWorldMapStatus(value: string): "draft" | "active" {
+  return value === "active" ? "active" : "draft"
+}
+
+function toWorldMap(row: typeof WorldMapTable.$inferSelect) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    title: row.title,
+    description: row.description,
+    status: mapWorldMapStatus(row.status),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function toWorldMapFeature(row: typeof WorldMapFeatureTable.$inferSelect) {
+  return {
+    id: row.id,
+    mapId: row.map_id,
+    novelId: row.novel_id,
+    worldEntryId: row.world_entry_id ?? undefined,
+    kind: row.kind as "region" | "place",
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    x: row.x ?? undefined,
+    y: row.y ?? undefined,
+    polygon: toWorldMapPointList(row.polygon_json),
+  }
+}
+
+function toCharacterMapPin(row: typeof CharacterMapPinTable.$inferSelect) {
+  return {
+    id: row.id,
+    mapId: row.map_id,
+    novelId: row.novel_id,
+    characterId: row.character_id,
+    featureId: row.feature_id ?? undefined,
+    x: row.x,
+    y: row.y,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function invalidGenre(genre: string): NovelValidationError {
@@ -2104,6 +2194,18 @@ function upsertCanvasLayout(novelId: string, layout: unknown, directory: string)
   })
 }
 
+function getWorldMapAggregateEndpoint(novelId: string, status: "draft" | "active", directory: string) {
+  return Effect.gen(function* () {
+    const aggregate = yield* runWorldMap(novelId, () => storeGetWorldMapAggregate(novelId, status, directory))
+    if (!aggregate) return null
+    return {
+      map: toWorldMap(aggregate.map),
+      features: aggregate.features.map(toWorldMapFeature),
+      pins: aggregate.pins.map(toCharacterMapPin),
+    }
+  })
+}
+
 export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers) =>
   Effect.succeed(
     handlers
@@ -2685,6 +2787,117 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           const location = yield* Location.Service
           return yield* settingOrganizationApply(ctx.params.novelID, location.directory, ctx.payload)
         }),
-      ),
+      )
+      .handle("novel.create-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toWorldMap(await storeCreateWorldMap(ctx.params.novelID, ctx.payload, location.directory)),
+          )
+        }),
+      )
+      .handle("novel.active-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* getWorldMapAggregateEndpoint(ctx.params.novelID, "active", location.directory)
+        }),
+      )
+      .handle("novel.draft-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* getWorldMapAggregateEndpoint(ctx.params.novelID, "draft", location.directory)
+        }),
+      )
+      .handle("novel.update-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toWorldMap(await storeUpdateWorldMap(ctx.params.novelID, ctx.params.mapID, ctx.payload, location.directory)),
+          )
+        }),
+      )
+      .handle("novel.delete-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          yield* runWorldMap(ctx.params.novelID, () =>
+            storeDeleteWorldMap(ctx.params.novelID, ctx.params.mapID, location.directory),
+          )
+          return { deleted: true }
+        }),
+      )
+      .handle("novel.promote-world-map", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toWorldMap(await storePromoteWorldMapDraft(ctx.params.novelID, ctx.params.mapID, location.directory)),
+          )
+        }),
+      )
+      .handle("novel.create-world-map-feature", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toWorldMapFeature(await storeCreateWorldMapFeature(ctx.params.novelID, ctx.params.mapID, ctx.payload, location.directory)),
+          )
+        }),
+      )
+      .handle("novel.update-world-map-feature", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toWorldMapFeature(
+              await storeUpdateWorldMapFeature(
+                ctx.params.novelID,
+                ctx.params.mapID,
+                ctx.params.featureID,
+                ctx.payload,
+                location.directory,
+              ),
+            ),
+          )
+        }),
+      )
+      .handle("novel.delete-world-map-feature", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          yield* runWorldMap(ctx.params.novelID, () =>
+            storeDeleteWorldMapFeature(ctx.params.novelID, ctx.params.mapID, ctx.params.featureID, location.directory),
+          )
+          return { deleted: true }
+        }),
+      )
+      .handle("novel.create-character-map-pin", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toCharacterMapPin(await storeCreateCharacterMapPin(ctx.params.novelID, ctx.params.mapID, ctx.payload, location.directory)),
+          )
+        }),
+      )
+      .handle("novel.update-character-map-pin", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* runWorldMap(ctx.params.novelID, async () =>
+            toCharacterMapPin(
+              await storeUpdateCharacterMapPin(
+                ctx.params.novelID,
+                ctx.params.mapID,
+                ctx.params.pinID,
+                ctx.payload,
+                location.directory,
+              ),
+            ),
+          )
+        }),
+      )
+      .handle("novel.delete-character-map-pin", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          yield* runWorldMap(ctx.params.novelID, () =>
+            storeDeleteCharacterMapPin(ctx.params.novelID, ctx.params.mapID, ctx.params.pinID, location.directory),
+          )
+          return { deleted: true }
+        }),
+      )
   ),
 )
