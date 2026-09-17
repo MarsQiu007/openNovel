@@ -1,0 +1,51 @@
+## Context
+
+world-map-data 提供了三表模型与聚合读取 API，客户端 SDK 已生成。前端为 SolidJS，地图入口是 packages/app 中的占位组件 map-view.tsx。项目 UI 使用 v2 设计系统。ADR-0001 要求草稿提升必须强确认。
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- 用 Leaflet CRS.Simple 渲染 0..10000 局部坐标的矢量地图。
+- hover 高亮与详情浮层复用 v2 组件风格。
+- active/draft 切换与强确认提升。
+
+**Non-Goals:**
+
+- 不做编辑交互；不做 AI 生成；不做 LOD；不做主题配置。
+
+## Decisions
+
+### 选择 Leaflet 而非自研渲染或 D3
+
+Leaflet 成熟、体积可控、自带缩放平移与交互层管理，CRS.Simple 支持任意平面坐标。D3 需要自建缩放与图元管理；Canvas 自研维护成本高。用户已确认该选型（评审结论）。不引入 solid-leaflet 包装库（维护不活跃），直接在 SolidJS 生命周期中挂载/销毁地图实例。
+
+### 坐标映射单向进行
+
+世界坐标 (x: 0..10000, y: 0..10000) 映射到 Leaflet 的 (lat, lng) 时做 y 轴翻转（屏幕习惯上方向上为北）。映射只在渲染层，任何交互产生的坐标在编辑提案落地前不持久化。
+
+### 聚合数据一次拉取
+
+地图页加载时调用聚合读取 API 一次获取地图、要素、图钉，避免多请求拼装。切换 active/draft 重新拉取对应聚合。
+
+### 强确认弹窗内容遵循 ADR-0001
+
+确认弹窗列出：将被替换的旧地图标题、要素数量、图钉数量；无旧地图时说明直接生效。取消是默认按钮。
+
+### 角色图钉标识
+
+图钉使用角色名首字或头像（如有）渲染为 divIcon，hover 浮层展示角色详情。角色数据通过既有角色查询 API 获取后本地合并。
+
+## Risks / Trade-offs
+
+- [Leaflet 与 SolidJS 生命周期冲突] → onMount 创建、onCleanup 销毁，地图实例不进入响应式系统。
+- [要素数量大导致渲染卡顿] → 第一版小说地图要素规模小（几十个），不做虚拟化；将来需要时再引入 canvas 渲染器。
+- [确认弹窗仍可能误触] → 接受残余风险；ADR-0001 已明确不做回收站。
+
+## Migration Plan
+
+替换占位组件，新增依赖 leaflet 与 @types/leaflet。无数据迁移。
+
+## Open Questions
+
+_none_
