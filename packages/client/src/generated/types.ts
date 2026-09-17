@@ -126,6 +126,13 @@ export type ChapterNotFoundError = {
 export const isChapterNotFoundError = (value: unknown): value is ChapterNotFoundError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "ChapterNotFoundError"
 
+export type WorldMapValidationError = {
+  readonly name: "WorldMapValidationError"
+  readonly data: { readonly message: string; readonly field?: string | undefined }
+}
+export const isWorldMapValidationError = (value: unknown): value is WorldMapValidationError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "WorldMapValidationError"
+
 export type NovelModeError = { readonly name: "NovelModeError"; readonly data: { readonly message: string } }
 export const isNovelModeError = (value: unknown): value is NovelModeError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelModeError"
@@ -5840,6 +5847,450 @@ export type ServerNovelUpsertCanvasLayoutOutput = {
     readonly zoom: number | "Infinity" | "-Infinity" | "NaN"
   }
 }
+
+export type ServerNovelCreateWorldMapInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly title?: {
+    readonly title?: string
+    readonly description?: string
+    readonly status?: "draft" | "active"
+  }["title"]
+  readonly description?: {
+    readonly title?: string
+    readonly description?: string
+    readonly status?: "draft" | "active"
+  }["description"]
+  readonly status?: {
+    readonly title?: string
+    readonly description?: string
+    readonly status?: "draft" | "active"
+  }["status"]
+}
+
+export type ServerNovelCreateWorldMapOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly title: string
+  readonly description: string
+  readonly status: "draft" | "active"
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelActiveWorldMapInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelActiveWorldMapOutput = {
+  readonly map: {
+    readonly id: string
+    readonly novelId: string
+    readonly title: string
+    readonly description: string
+    readonly status: "draft" | "active"
+    readonly createdAt: number
+    readonly updatedAt: number
+  }
+  readonly features: ReadonlyArray<{
+    readonly id: string
+    readonly mapId: string
+    readonly novelId: string
+    readonly worldEntryId?: string | null
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description: string
+    readonly color: string
+    readonly x?: number | null
+    readonly y?: number | null
+    readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }>
+  readonly pins: ReadonlyArray<{
+    readonly id: string
+    readonly mapId: string
+    readonly novelId: string
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+} | null
+
+export type ServerNovelDraftWorldMapInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDraftWorldMapOutput = {
+  readonly map: {
+    readonly id: string
+    readonly novelId: string
+    readonly title: string
+    readonly description: string
+    readonly status: "draft" | "active"
+    readonly createdAt: number
+    readonly updatedAt: number
+  }
+  readonly features: ReadonlyArray<{
+    readonly id: string
+    readonly mapId: string
+    readonly novelId: string
+    readonly worldEntryId?: string | null
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description: string
+    readonly color: string
+    readonly x?: number | null
+    readonly y?: number | null
+    readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }>
+  readonly pins: ReadonlyArray<{
+    readonly id: string
+    readonly mapId: string
+    readonly novelId: string
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+} | null
+
+export type ServerNovelUpdateWorldMapInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly title?: { readonly title?: string; readonly description?: string }["title"]
+  readonly description?: { readonly title?: string; readonly description?: string }["description"]
+}
+
+export type ServerNovelUpdateWorldMapOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly title: string
+  readonly description: string
+  readonly status: "draft" | "active"
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelDeleteWorldMapInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteWorldMapOutput = { readonly deleted: boolean }
+
+export type ServerNovelPromoteWorldMapInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelPromoteWorldMapOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly title: string
+  readonly description: string
+  readonly status: "draft" | "active"
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelCreateWorldMapFeatureInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly kind: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["kind"]
+  readonly name: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["name"]
+  readonly description?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["description"]
+  readonly color?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["color"]
+  readonly worldEntryId?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["worldEntryId"]
+  readonly x?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["x"]
+  readonly y?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["y"]
+  readonly polygon?: {
+    readonly kind: "region" | "place"
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["polygon"]
+}
+
+export type ServerNovelCreateWorldMapFeatureOutput = {
+  readonly id: string
+  readonly mapId: string
+  readonly novelId: string
+  readonly worldEntryId?: string | null
+  readonly kind: "region" | "place"
+  readonly name: string
+  readonly description: string
+  readonly color: string
+  readonly x?: number | null
+  readonly y?: number | null
+  readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>
+}
+
+export type ServerNovelUpdateWorldMapFeatureInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["mapID"]
+  readonly featureID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["featureID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly name?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["name"]
+  readonly description?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["description"]
+  readonly color?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["color"]
+  readonly worldEntryId?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["worldEntryId"]
+  readonly x?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["x"]
+  readonly y?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["y"]
+  readonly polygon?: {
+    readonly name?: string
+    readonly description?: string
+    readonly color?: string
+    readonly worldEntryId?: string | null
+    readonly x?: number
+    readonly y?: number
+    readonly polygon?: ReadonlyArray<{ readonly x: number; readonly y: number }>
+  }["polygon"]
+}
+
+export type ServerNovelUpdateWorldMapFeatureOutput = {
+  readonly id: string
+  readonly mapId: string
+  readonly novelId: string
+  readonly worldEntryId?: string | null
+  readonly kind: "region" | "place"
+  readonly name: string
+  readonly description: string
+  readonly color: string
+  readonly x?: number | null
+  readonly y?: number | null
+  readonly polygon: ReadonlyArray<{ readonly x: number; readonly y: number }>
+}
+
+export type ServerNovelDeleteWorldMapFeatureInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["mapID"]
+  readonly featureID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["featureID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteWorldMapFeatureOutput = { readonly deleted: boolean }
+
+export type ServerNovelCreateCharacterMapPinInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly characterId: {
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+  }["characterId"]
+  readonly featureId?: {
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+  }["featureId"]
+  readonly x: {
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+  }["x"]
+  readonly y: {
+    readonly characterId: string
+    readonly featureId?: string | null
+    readonly x: number
+    readonly y: number
+  }["y"]
+}
+
+export type ServerNovelCreateCharacterMapPinOutput = {
+  readonly id: string
+  readonly mapId: string
+  readonly novelId: string
+  readonly characterId: string
+  readonly featureId?: string | null
+  readonly x: number
+  readonly y: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelUpdateCharacterMapPinInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["mapID"]
+  readonly pinID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["pinID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly featureId?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["featureId"]
+  readonly x?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["x"]
+  readonly y?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["y"]
+}
+
+export type ServerNovelUpdateCharacterMapPinOutput = {
+  readonly id: string
+  readonly mapId: string
+  readonly novelId: string
+  readonly characterId: string
+  readonly featureId?: string | null
+  readonly x: number
+  readonly y: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelDeleteCharacterMapPinInput = {
+  readonly novelID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["novelID"]
+  readonly mapID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["mapID"]
+  readonly pinID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["pinID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelDeleteCharacterMapPinOutput = { readonly deleted: boolean }
 
 export type NovelModesGetInput = {
   readonly location?: {
