@@ -969,3 +969,115 @@ export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,
 }).annotate({ identifier: "Novel.UpsertCanvasLayoutInput" })
 export interface UpsertCanvasLayoutInput extends Schema.Schema.Type<typeof UpsertCanvasLayoutInput> {}
+
+export const WorldMapStatus = Schema.Literals(["draft", "active"])
+export type WorldMapStatus = typeof WorldMapStatus.Type
+
+export const WorldMapCoordinate = Schema.Finite.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(10000),
+)
+export const WorldMapPoint = Schema.Struct({
+  x: WorldMapCoordinate,
+  y: WorldMapCoordinate,
+}).annotate({ identifier: "Novel.WorldMapPoint" })
+export interface WorldMapPoint extends Schema.Schema.Type<typeof WorldMapPoint> {}
+
+export const WorldMapPolygon = Schema.Array(WorldMapPoint).check(Schema.isMinLength(3))
+
+export const WorldMap = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  title: Schema.String,
+  description: Schema.String,
+  status: WorldMapStatus,
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.WorldMap" })
+export interface WorldMap extends Schema.Schema.Type<typeof WorldMap> {}
+
+export const WorldMapFeature = Schema.Struct({
+  id: Schema.String,
+  mapId: Schema.String,
+  novelId: Schema.String,
+  worldEntryId: optional(Schema.NullOr(Schema.String)),
+  kind: Schema.Literals(["region", "place"]),
+  name: Schema.String,
+  description: Schema.String,
+  color: Schema.String,
+  x: optional(Schema.NullOr(WorldMapCoordinate)),
+  y: optional(Schema.NullOr(WorldMapCoordinate)),
+  polygon: WorldMapPolygon,
+}).annotate({ identifier: "Novel.WorldMapFeature" })
+export interface WorldMapFeature extends Schema.Schema.Type<typeof WorldMapFeature> {}
+
+export const CharacterMapPin = Schema.Struct({
+  id: Schema.String,
+  mapId: Schema.String,
+  novelId: Schema.String,
+  characterId: Schema.String,
+  featureId: optional(Schema.NullOr(Schema.String)),
+  x: WorldMapCoordinate,
+  y: WorldMapCoordinate,
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.CharacterMapPin" })
+export interface CharacterMapPin extends Schema.Schema.Type<typeof CharacterMapPin> {}
+
+export const WorldMapAggregate = Schema.Struct({
+  map: WorldMap,
+  features: Schema.Array(WorldMapFeature),
+  pins: Schema.Array(CharacterMapPin),
+}).annotate({ identifier: "Novel.WorldMapAggregate" })
+export interface WorldMapAggregate extends Schema.Schema.Type<typeof WorldMapAggregate> {}
+
+export const CreateWorldMapInput = Schema.Struct({
+  title: optional(Schema.String),
+  description: optional(Schema.String),
+  status: optional(WorldMapStatus),
+}).annotate({ identifier: "Novel.CreateWorldMapInput" })
+export interface CreateWorldMapInput extends Schema.Schema.Type<typeof CreateWorldMapInput> {}
+
+export const UpdateWorldMapInput = Schema.Struct({
+  title: optional(Schema.String),
+  description: optional(Schema.String),
+}).annotate({ identifier: "Novel.UpdateWorldMapInput" })
+export interface UpdateWorldMapInput extends Schema.Schema.Type<typeof UpdateWorldMapInput> {}
+
+export const CreateWorldMapFeatureInput = Schema.Struct({
+  kind: Schema.Literals(["region", "place"]),
+  name: Schema.NonEmptyString,
+  description: optional(Schema.String),
+  color: optional(Schema.String),
+  worldEntryId: optional(Schema.NullOr(Schema.String)),
+  x: optional(WorldMapCoordinate),
+  y: optional(WorldMapCoordinate),
+  polygon: optional(WorldMapPolygon),
+}).annotate({ identifier: "Novel.CreateWorldMapFeatureInput" })
+export interface CreateWorldMapFeatureInput extends Schema.Schema.Type<typeof CreateWorldMapFeatureInput> {}
+
+export const UpdateWorldMapFeatureInput = Schema.Struct({
+  name: optional(Schema.NonEmptyString),
+  description: optional(Schema.String),
+  color: optional(Schema.String),
+  worldEntryId: optional(Schema.NullOr(Schema.String)),
+  x: optional(WorldMapCoordinate),
+  y: optional(WorldMapCoordinate),
+  polygon: optional(WorldMapPolygon),
+}).annotate({ identifier: "Novel.UpdateWorldMapFeatureInput" })
+export interface UpdateWorldMapFeatureInput extends Schema.Schema.Type<typeof UpdateWorldMapFeatureInput> {}
+
+export const CreateCharacterMapPinInput = Schema.Struct({
+  characterId: Schema.String,
+  featureId: optional(Schema.NullOr(Schema.String)),
+  x: WorldMapCoordinate,
+  y: WorldMapCoordinate,
+}).annotate({ identifier: "Novel.CreateCharacterMapPinInput" })
+export interface CreateCharacterMapPinInput extends Schema.Schema.Type<typeof CreateCharacterMapPinInput> {}
+
+export const UpdateCharacterMapPinInput = Schema.Struct({
+  featureId: optional(Schema.NullOr(Schema.String)),
+  x: optional(WorldMapCoordinate),
+  y: optional(WorldMapCoordinate),
+}).annotate({ identifier: "Novel.UpdateCharacterMapPinInput" })
+export interface UpdateCharacterMapPinInput extends Schema.Schema.Type<typeof UpdateCharacterMapPinInput> {}
