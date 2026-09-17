@@ -22,3 +22,12 @@
 - [x] 从受影响包分别运行 `bun typecheck`。
 - [x] 运行 `openspec validate world-map-schema`。
 - [x] 用临时数据库手动验证旧库迁移、小说删除级联和草稿替换事务。
+## Implementation Commits
+
+- `e245b58a6` docs: define world map schema proposal
+- `be3400ad9` feat(schema): 定义世界地图数据契约
+- `e48d74688` feat(protocol): 新增世界地图 API 端点
+- `56eeb397a` feat(novel-store): 实现世界地图持久层
+- `d11415e78` feat(opennovel): 接入世界地图 Server handler
+- `55053b448` chore(client): 重新生成世界地图客户端 API
+- `0429d521c` docs(openspec): 标记世界地图任务完成
