@@ -619,6 +619,66 @@ export const OutlineCanvasLayoutTable = sqliteTable("outline_canvas_layout", {
   updated_at: integer().notNull().$default(() => Date.now()),
 })
 
+export const WorldMapTable = sqliteTable(
+  "world_maps",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    title: text().notNull().default(""),
+    description: text().notNull().default(""),
+    status: text().notNull().default("draft"),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("world_maps_novel_status_idx").on(table.novel_id, table.status),
+  ],
+)
+
+export const WorldMapFeatureTable = sqliteTable(
+  "world_map_features",
+  {
+    id: text().primaryKey(),
+    map_id: text().notNull(),
+    novel_id: text().notNull(),
+    world_entry_id: text(),
+    kind: text().notNull(),
+    name: text().notNull(),
+    description: text().notNull().default(""),
+    color: text().notNull().default("#64748b"),
+    x: real(),
+    y: real(),
+    polygon_json: text({ mode: "json" }).notNull().default("[]"),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("world_map_features_map_idx").on(table.map_id),
+    index("world_map_features_novel_idx").on(table.novel_id),
+    index("world_map_features_world_entry_idx").on(table.world_entry_id),
+  ],
+)
+
+export const CharacterMapPinTable = sqliteTable(
+  "character_map_pins",
+  {
+    id: text().primaryKey(),
+    map_id: text().notNull(),
+    novel_id: text().notNull(),
+    character_id: text().notNull(),
+    feature_id: text(),
+    x: real().notNull(),
+    y: real().notNull(),
+    created_at: integer().notNull().$default(() => Date.now()),
+    updated_at: integer().notNull().$default(() => Date.now()),
+  },
+  (table) => [
+    index("character_map_pins_map_idx").on(table.map_id),
+    index("character_map_pins_novel_idx").on(table.novel_id),
+    index("character_map_pins_character_idx").on(table.character_id),
+  ],
+)
+
 export const TechniqueTable = sqliteTable("techniques", {
   id: text().primaryKey(),
   name: text().notNull(),
@@ -683,7 +743,7 @@ export function getDbPath(directory?: string | null): string {
 
 // ─── Schema 初始化 ───
 
-const CREATE_TABLES_SQL = `
+let CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, master_outline text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
 CREATE TABLE IF NOT EXISTS volumes (id text PRIMARY KEY, novel_id text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
@@ -764,6 +824,21 @@ CREATE INDEX IF NOT EXISTS technique_feedback_technique_id_idx ON technique_feed
 CREATE INDEX IF NOT EXISTS technique_feedback_chapter_id_idx ON technique_feedback(chapter_id);
 CREATE TABLE IF NOT EXISTS technique_shadow_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, scene_type text NOT NULL, query_text text DEFAULT '' NOT NULL, retrieved_technique_ids text DEFAULT '[]' NOT NULL, retrieved_technique_names text DEFAULT '[]' NOT NULL, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS technique_shadow_log_novel_id_idx ON technique_shadow_log(novel_id);`
+// 世界地图局部平面坐标固定为 0..10000，几何类型由应用层和 SQLite CHECK 共同约束。
+CREATE_TABLES_SQL += `
+CREATE TABLE IF NOT EXISTS world_maps (id text PRIMARY KEY, novel_id text NOT NULL, title text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text NOT NULL CHECK (status IN ('draft', 'active')), created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS world_maps_novel_status_idx ON world_maps(novel_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS world_maps_one_active_per_novel_idx ON world_maps(novel_id) WHERE status = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS world_maps_one_draft_per_novel_idx ON world_maps(novel_id) WHERE status = 'draft';
+CREATE TABLE IF NOT EXISTS world_map_features (id text PRIMARY KEY, map_id text NOT NULL, novel_id text NOT NULL, world_entry_id text, kind text NOT NULL CHECK (kind IN ('region', 'place')), name text NOT NULL, description text DEFAULT '' NOT NULL, color text DEFAULT '#64748b' NOT NULL, x real, y real, polygon_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (map_id) REFERENCES world_maps(id) ON DELETE CASCADE, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE SET NULL, CHECK ((kind = 'place' AND x IS NOT NULL AND y IS NOT NULL AND x >= 0 AND x <= 10000 AND y >= 0 AND y <= 10000) OR (kind = 'region' AND x IS NULL AND y IS NULL)));
+CREATE INDEX IF NOT EXISTS world_map_features_map_idx ON world_map_features(map_id);
+CREATE INDEX IF NOT EXISTS world_map_features_novel_idx ON world_map_features(novel_id);
+CREATE INDEX IF NOT EXISTS world_map_features_world_entry_idx ON world_map_features(world_entry_id);
+CREATE TABLE IF NOT EXISTS character_map_pins (id text PRIMARY KEY, map_id text NOT NULL, novel_id text NOT NULL, character_id text NOT NULL, feature_id text, x real NOT NULL CHECK (x >= 0 AND x <= 10000), y real NOT NULL CHECK (y >= 0 AND y <= 10000), created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (map_id) REFERENCES world_maps(id) ON DELETE CASCADE, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (feature_id) REFERENCES world_map_features(id) ON DELETE SET NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS character_map_pins_map_character_key ON character_map_pins(map_id, character_id);
+CREATE INDEX IF NOT EXISTS character_map_pins_map_idx ON character_map_pins(map_id);
+CREATE INDEX IF NOT EXISTS character_map_pins_novel_idx ON character_map_pins(novel_id);
+CREATE INDEX IF NOT EXISTS character_map_pins_character_idx ON character_map_pins(character_id);`
 
 // ─── DB 连接缓存 ───
 
@@ -1761,6 +1836,332 @@ export async function updateWorldEntry(
 export async function deleteWorldEntry(entryId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
   await db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, entryId)).run()
+}
+
+// ─── 世界地图数据层 ───
+
+export type WorldMapStatus = "draft" | "active"
+export type WorldMapPoint = { x: number; y: number }
+export type WorldMapStoreErrorCode =
+  | "conflict"
+  | "feature_not_found"
+  | "invalid_coordinate"
+  | "invalid_polygon"
+  | "map_not_found"
+  | "novel_not_found"
+  | "parent_not_found"
+
+export class WorldMapStoreError extends Error {
+  constructor(
+    readonly code: WorldMapStoreErrorCode,
+    message: string,
+  ) {
+    super(message)
+    this.name = "WorldMapStoreError"
+  }
+}
+
+function requireCoordinate(value: number): number {
+  if (!Number.isFinite(value) || value < 0 || value > 10000) {
+    throw new WorldMapStoreError("invalid_coordinate", "地图坐标必须在 0..10000 范围内")
+  }
+  return value
+}
+
+function requirePolygon(value: readonly WorldMapPoint[]): WorldMapPoint[] {
+  if (value.length < 3) throw new WorldMapStoreError("invalid_polygon", "区域多边形至少需要三个顶点")
+  return value.map((point) => ({ x: requireCoordinate(point.x), y: requireCoordinate(point.y) }))
+}
+
+function requireOwnedMap(novelId: string, mapId: string, directory?: string | null) {
+  const map = getDb(directory)
+    .select()
+    .from(WorldMapTable)
+    .where(and(eq(WorldMapTable.id, mapId), eq(WorldMapTable.novel_id, novelId)))
+    .get()
+  if (!map) throw new WorldMapStoreError("map_not_found", `世界地图不存在：${mapId}`)
+  return map
+}
+
+export async function createWorldMap(
+  novelId: string,
+  input: { title?: string; description?: string; status?: WorldMapStatus },
+  directory?: string | null,
+): Promise<typeof WorldMapTable.$inferSelect> {
+  const db = getDb(directory)
+  const novel = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).get()
+  if (!novel) throw new WorldMapStoreError("novel_not_found", `小说不存在：${novelId}`)
+  const status = input.status ?? "draft"
+  const existing = await db
+    .select({ id: WorldMapTable.id })
+    .from(WorldMapTable)
+    .where(and(eq(WorldMapTable.novel_id, novelId), eq(WorldMapTable.status, status)))
+    .get()
+  if (existing) throw new WorldMapStoreError("conflict", `小说已存在 ${status} 状态的世界地图`)
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  await db
+    .insert(WorldMapTable)
+    .values({ id, novel_id: novelId, title: input.title ?? "", description: input.description ?? "", status, created_at: now, updated_at: now })
+    .run()
+  return db.select().from(WorldMapTable).where(eq(WorldMapTable.id, id)).get()!
+}
+
+export async function getWorldMap(novelId: string, mapId: string, directory?: string | null) {
+  return getDb(directory)
+    .select()
+    .from(WorldMapTable)
+    .where(and(eq(WorldMapTable.id, mapId), eq(WorldMapTable.novel_id, novelId)))
+    .get()
+}
+
+export async function getWorldMapByStatus(novelId: string, status: WorldMapStatus, directory?: string | null) {
+  return getDb(directory)
+    .select()
+    .from(WorldMapTable)
+    .where(and(eq(WorldMapTable.novel_id, novelId), eq(WorldMapTable.status, status)))
+    .get()
+}
+
+export async function getWorldMapAggregate(novelId: string, status: WorldMapStatus, directory?: string | null) {
+  const db = getDb(directory)
+  const map = await getWorldMapByStatus(novelId, status, directory)
+  if (!map) return undefined
+  const [features, pins] = await Promise.all([
+    db.select().from(WorldMapFeatureTable).where(eq(WorldMapFeatureTable.map_id, map.id)).all(),
+    db.select().from(CharacterMapPinTable).where(eq(CharacterMapPinTable.map_id, map.id)).all(),
+  ])
+  return { map, features, pins }
+}
+
+export async function updateWorldMap(
+  novelId: string,
+  mapId: string,
+  input: { title?: string; description?: string },
+  directory?: string | null,
+): Promise<typeof WorldMapTable.$inferSelect> {
+  const map = requireOwnedMap(novelId, mapId, directory)
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (input.title !== undefined) updates.title = input.title
+  if (input.description !== undefined) updates.description = input.description
+  const db = getDb(directory)
+  await db.update(WorldMapTable).set(updates).where(eq(WorldMapTable.id, map.id)).run()
+  return db.select().from(WorldMapTable).where(eq(WorldMapTable.id, map.id)).get()!
+}
+
+export async function deleteWorldMap(novelId: string, mapId: string, directory?: string | null): Promise<void> {
+  const map = requireOwnedMap(novelId, mapId, directory)
+  await getDb(directory).delete(WorldMapTable).where(eq(WorldMapTable.id, map.id)).run()
+}
+
+export async function promoteWorldMapDraft(novelId: string, mapId: string, directory?: string | null) {
+  const db = getDb(directory)
+  const draft = requireOwnedMap(novelId, mapId, directory)
+  if (draft.status !== "draft") throw new WorldMapStoreError("conflict", "只有地图草稿可以确认为正式地图")
+  db.transaction((tx) => {
+    const active = tx
+      .select({ id: WorldMapTable.id })
+      .from(WorldMapTable)
+      .where(and(eq(WorldMapTable.novel_id, novelId), eq(WorldMapTable.status, "active")))
+      .get()
+    if (active) tx.delete(WorldMapTable).where(eq(WorldMapTable.id, active.id)).run()
+    tx.update(WorldMapTable)
+      .set({ status: "active", updated_at: Date.now() })
+      .where(eq(WorldMapTable.id, draft.id))
+      .run()
+  })
+  return db.select().from(WorldMapTable).where(eq(WorldMapTable.id, draft.id)).get()!
+}
+
+export async function createWorldMapFeature(
+  novelId: string,
+  mapId: string,
+  input: {
+    kind: "region" | "place"
+    name: string
+    description?: string
+    color?: string
+    worldEntryId?: string | null
+    x?: number
+    y?: number
+    polygon?: readonly WorldMapPoint[]
+  },
+  directory?: string | null,
+): Promise<typeof WorldMapFeatureTable.$inferSelect> {
+  const db = getDb(directory)
+  const map = requireOwnedMap(novelId, mapId, directory)
+  if (input.worldEntryId) {
+    const entry = await db
+      .select({ id: WorldEntryTable.id })
+      .from(WorldEntryTable)
+      .where(and(eq(WorldEntryTable.id, input.worldEntryId), eq(WorldEntryTable.novel_id, novelId)))
+      .get()
+    if (!entry) throw new WorldMapStoreError("parent_not_found", `世界观条目不存在：${input.worldEntryId}`)
+  }
+  const x = input.kind === "place" && input.x !== undefined ? requireCoordinate(input.x) : null
+  const y = input.kind === "place" && input.y !== undefined ? requireCoordinate(input.y) : null
+  const polygon = input.kind === "region" ? requirePolygon(input.polygon ?? []) : []
+  if (input.kind === "place" && (x === null || y === null)) {
+    throw new WorldMapStoreError("invalid_coordinate", "命名地点必须提供 x/y 坐标")
+  }
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  await db
+    .insert(WorldMapFeatureTable)
+    .values({
+      id,
+      map_id: map.id,
+      novel_id: novelId,
+      world_entry_id: input.worldEntryId ?? null,
+      kind: input.kind,
+      name: input.name,
+      description: input.description ?? "",
+      color: input.color ?? "#64748b",
+      x,
+      y,
+      polygon_json: polygon,
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(WorldMapFeatureTable).where(eq(WorldMapFeatureTable.id, id)).get()!
+}
+
+export async function updateWorldMapFeature(
+  novelId: string,
+  mapId: string,
+  featureId: string,
+  input: {
+    name?: string
+    description?: string
+    color?: string
+    worldEntryId?: string | null
+    x?: number
+    y?: number
+    polygon?: readonly WorldMapPoint[]
+  },
+  directory?: string | null,
+): Promise<typeof WorldMapFeatureTable.$inferSelect> {
+  const db = getDb(directory)
+  requireOwnedMap(novelId, mapId, directory)
+  const feature = await db
+    .select()
+    .from(WorldMapFeatureTable)
+    .where(and(eq(WorldMapFeatureTable.id, featureId), eq(WorldMapFeatureTable.map_id, mapId)))
+    .get()
+  if (!feature) throw new WorldMapStoreError("feature_not_found", `地图要素不存在：${featureId}`)
+  if (input.worldEntryId) {
+    const entry = await db
+      .select({ id: WorldEntryTable.id })
+      .from(WorldEntryTable)
+      .where(and(eq(WorldEntryTable.id, input.worldEntryId), eq(WorldEntryTable.novel_id, novelId)))
+      .get()
+    if (!entry) throw new WorldMapStoreError("parent_not_found", `世界观条目不存在：${input.worldEntryId}`)
+  }
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (input.name !== undefined) updates.name = input.name
+  if (input.description !== undefined) updates.description = input.description
+  if (input.color !== undefined) updates.color = input.color
+  if (input.worldEntryId !== undefined) updates.world_entry_id = input.worldEntryId
+  if (input.x !== undefined) updates.x = requireCoordinate(input.x)
+  if (input.y !== undefined) updates.y = requireCoordinate(input.y)
+  if (input.polygon !== undefined) updates.polygon_json = requirePolygon(input.polygon)
+  await db.update(WorldMapFeatureTable).set(updates).where(eq(WorldMapFeatureTable.id, feature.id)).run()
+  return db.select().from(WorldMapFeatureTable).where(eq(WorldMapFeatureTable.id, feature.id)).get()!
+}
+
+export async function deleteWorldMapFeature(novelId: string, mapId: string, featureId: string, directory?: string | null) {
+  requireOwnedMap(novelId, mapId, directory)
+  await getDb(directory)
+    .delete(WorldMapFeatureTable)
+    .where(and(eq(WorldMapFeatureTable.id, featureId), eq(WorldMapFeatureTable.map_id, mapId)))
+    .run()
+}
+
+export async function createCharacterMapPin(
+  novelId: string,
+  mapId: string,
+  input: { characterId: string; featureId?: string | null; x: number; y: number },
+  directory?: string | null,
+): Promise<typeof CharacterMapPinTable.$inferSelect> {
+  const db = getDb(directory)
+  const map = requireOwnedMap(novelId, mapId, directory)
+  const character = await db
+    .select({ id: CharacterTable.id })
+    .from(CharacterTable)
+    .where(and(eq(CharacterTable.id, input.characterId), eq(CharacterTable.novel_id, novelId)))
+    .get()
+  if (!character) throw new WorldMapStoreError("parent_not_found", `角色不存在：${input.characterId}`)
+  if (input.featureId) {
+    const feature = await db
+      .select({ id: WorldMapFeatureTable.id })
+      .from(WorldMapFeatureTable)
+      .where(and(eq(WorldMapFeatureTable.id, input.featureId), eq(WorldMapFeatureTable.map_id, map.id)))
+      .get()
+    if (!feature) throw new WorldMapStoreError("feature_not_found", `地图要素不存在：${input.featureId}`)
+  }
+  const duplicate = await db
+    .select({ id: CharacterMapPinTable.id })
+    .from(CharacterMapPinTable)
+    .where(and(eq(CharacterMapPinTable.map_id, map.id), eq(CharacterMapPinTable.character_id, input.characterId)))
+    .get()
+  if (duplicate) throw new WorldMapStoreError("conflict", "同一角色在同一张地图上只能有一个图钉")
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  await db
+    .insert(CharacterMapPinTable)
+    .values({
+      id,
+      map_id: map.id,
+      novel_id: novelId,
+      character_id: input.characterId,
+      feature_id: input.featureId ?? null,
+      x: requireCoordinate(input.x),
+      y: requireCoordinate(input.y),
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(CharacterMapPinTable).where(eq(CharacterMapPinTable.id, id)).get()!
+}
+
+export async function updateCharacterMapPin(
+  novelId: string,
+  mapId: string,
+  pinId: string,
+  input: { featureId?: string | null; x?: number; y?: number },
+  directory?: string | null,
+): Promise<typeof CharacterMapPinTable.$inferSelect> {
+  const db = getDb(directory)
+  const map = requireOwnedMap(novelId, mapId, directory)
+  const pin = await db
+    .select()
+    .from(CharacterMapPinTable)
+    .where(and(eq(CharacterMapPinTable.id, pinId), eq(CharacterMapPinTable.map_id, map.id)))
+    .get()
+  if (!pin) throw new WorldMapStoreError("map_not_found", `角色图钉不存在：${pinId}`)
+  if (input.featureId) {
+    const feature = await db
+      .select({ id: WorldMapFeatureTable.id })
+      .from(WorldMapFeatureTable)
+      .where(and(eq(WorldMapFeatureTable.id, input.featureId), eq(WorldMapFeatureTable.map_id, map.id)))
+      .get()
+    if (!feature) throw new WorldMapStoreError("feature_not_found", `地图要素不存在：${input.featureId}`)
+  }
+  const updates: Record<string, unknown> = { updated_at: Date.now() }
+  if (input.featureId !== undefined) updates.feature_id = input.featureId
+  if (input.x !== undefined) updates.x = requireCoordinate(input.x)
+  if (input.y !== undefined) updates.y = requireCoordinate(input.y)
+  await db.update(CharacterMapPinTable).set(updates).where(eq(CharacterMapPinTable.id, pin.id)).run()
+  return db.select().from(CharacterMapPinTable).where(eq(CharacterMapPinTable.id, pin.id)).get()!
+}
+
+export async function deleteCharacterMapPin(novelId: string, mapId: string, pinId: string, directory?: string | null) {
+  requireOwnedMap(novelId, mapId, directory)
+  await getDb(directory)
+    .delete(CharacterMapPinTable)
+    .where(and(eq(CharacterMapPinTable.id, pinId), eq(CharacterMapPinTable.map_id, mapId)))
+    .run()
 }
 
 // ─── 章节评审（审批详情） ───
