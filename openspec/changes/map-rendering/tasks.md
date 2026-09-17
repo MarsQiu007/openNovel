@@ -5,7 +5,7 @@
 - [ ] 在 packages/app 安装 leaflet 与 @types/leaflet，确认桌面端打包可用。
 - [ ] 实现 LocalPlaneMap 组件：CRS.Simple 初始化、0..10000 坐标映射（含 y 翻转）、onMount/onCleanup 生命周期管理。
 - [ ] 替换地图占位组件为地图视图，接入聚合读取 API（active 优先）。
-- [ ] 实现空状态引导。
+- [ ] 实现空状态引导，文案说明创建能力将在后续版本提供。
 
 ### 要素展示
 
