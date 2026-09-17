@@ -97,6 +97,28 @@ _Avoid_: Local implementation
 A bounded ordered result containing `items` and opaque `previous` and `next` cursor links for navigating the same query in either direction.
 _Avoid_: Response envelope
 
+### World Map
+
+**世界地图**：
+以结构化矢量数据描述小说世界地理的交互地图，地点信息关联世界观条目。
+_Avoid_: 地图图片、地理画布
+
+**地图要素**：
+世界地图中可寻址的结构化元素，例如区域或命名地点。
+_Avoid_: 地图对象、标注
+
+**角色图钉**：
+角色在某一世界地图或故事语境中的位置标记。
+_Avoid_: 头像、pin
+
+**地图草稿**：
+由 AI 生成且尚未确认生效的世界地图候选版本。
+_Avoid_: 临时地图、预览数据
+
+**正式世界地图**：
+小说当前确认生效并默认展示的唯一世界地图。
+_Avoid_: 发布地图、最终地图
+
 ## Relationships
 
 - A **System Context** is an opaque carrier composed from zero or more **Context Sources**.
