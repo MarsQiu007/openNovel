@@ -46,6 +46,16 @@ import {
   UpdateTensionPointInput,
   UpdateVolumeInput,
   UpdateWorldEntryInput,
+  WorldMap,
+  WorldMapAggregate,
+  WorldMapFeature,
+  CharacterMapPin,
+  CreateWorldMapInput,
+  UpdateWorldMapInput,
+  CreateWorldMapFeatureInput,
+  UpdateWorldMapFeatureInput,
+  CreateCharacterMapPinInput,
+  UpdateCharacterMapPinInput,
   Volume,
   WorldEntry,
   StoryArc,
@@ -113,6 +123,22 @@ export class ChapterNotFoundError extends Schema.ErrorClass<ChapterNotFoundError
 export class NovelValidationError extends Schema.ErrorClass<NovelValidationError>("NovelValidationError")(
   {
     name: Schema.Literal("NovelValidationError"),
+    data: Schema.Struct({ message: Schema.String, field: Schema.optional(Schema.String) }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export class WorldMapNotFoundError extends Schema.ErrorClass<WorldMapNotFoundError>("WorldMapNotFoundError")(
+  {
+    name: Schema.Literal("WorldMapNotFoundError"),
+    data: Schema.Struct({ message: Schema.String, mapId: Schema.optional(Schema.String) }),
+  },
+  { httpApiStatus: 404 },
+) {}
+
+export class WorldMapValidationError extends Schema.ErrorClass<WorldMapValidationError>("WorldMapValidationError")(
+  {
+    name: Schema.Literal("WorldMapValidationError"),
     data: Schema.Struct({ message: Schema.String, field: Schema.optional(Schema.String) }),
   },
   { httpApiStatus: 400 },
@@ -1364,5 +1390,131 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upsert-canvas-layout", summary: "Upsert canvas layout" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-world-map", `${root}/:novelID/maps`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: CreateWorldMapInput,
+      success: WorldMap,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-world-map", summary: "Create world map" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.active-world-map", `${root}/:novelID/maps/active`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.NullOr(WorldMapAggregate),
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.active-world-map", summary: "Get active world map aggregate" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.draft-world-map", `${root}/:novelID/maps/draft`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.NullOr(WorldMapAggregate),
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.draft-world-map", summary: "Get draft world map aggregate" })),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.update-world-map", `${root}/:novelID/maps/:mapID`, {
+      params: { novelID: Schema.String, mapID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateWorldMapInput,
+      success: WorldMap,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-world-map", summary: "Update world map" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-world-map", `${root}/:novelID/maps/:mapID`, {
+      params: { novelID: Schema.String, mapID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-world-map", summary: "Delete world map" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.promote-world-map", `${root}/:novelID/maps/:mapID/promote`, {
+      params: { novelID: Schema.String, mapID: Schema.String },
+      query: LocationQuery,
+      success: WorldMap,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.promote-world-map", summary: "Promote draft world map" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-world-map-feature", `${root}/:novelID/maps/:mapID/features`, {
+      params: { novelID: Schema.String, mapID: Schema.String },
+      query: LocationQuery,
+      payload: CreateWorldMapFeatureInput,
+      success: WorldMapFeature,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-world-map-feature", summary: "Create world map feature" })),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.update-world-map-feature", `${root}/:novelID/maps/:mapID/features/:featureID`, {
+      params: { novelID: Schema.String, mapID: Schema.String, featureID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateWorldMapFeatureInput,
+      success: WorldMapFeature,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-world-map-feature", summary: "Update world map feature" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-world-map-feature", `${root}/:novelID/maps/:mapID/features/:featureID`, {
+      params: { novelID: Schema.String, mapID: Schema.String, featureID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-world-map-feature", summary: "Delete world map feature" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.create-character-map-pin", `${root}/:novelID/maps/:mapID/pins`, {
+      params: { novelID: Schema.String, mapID: Schema.String },
+      query: LocationQuery,
+      payload: CreateCharacterMapPinInput,
+      success: CharacterMapPin,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-character-map-pin", summary: "Create character map pin" })),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.update-character-map-pin", `${root}/:novelID/maps/:mapID/pins/:pinID`, {
+      params: { novelID: Schema.String, mapID: Schema.String, pinID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateCharacterMapPinInput,
+      success: CharacterMapPin,
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-character-map-pin", summary: "Update character map pin" })),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.delete-character-map-pin", `${root}/:novelID/maps/:mapID/pins/:pinID`, {
+      params: { novelID: Schema.String, mapID: Schema.String, pinID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: WorldMapValidationError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-character-map-pin", summary: "Delete character map pin" })),
   )
 .annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))
