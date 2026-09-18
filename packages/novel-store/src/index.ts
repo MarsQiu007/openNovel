@@ -1973,6 +1973,90 @@ export async function promoteWorldMapDraft(novelId: string, mapId: string, direc
   return db.select().from(WorldMapTable).where(eq(WorldMapTable.id, draft.id)).get()!
 }
 
+export type WorldMapDraftFeatureInput = {
+  kind: "region" | "place"
+  name: string
+  description?: string
+  color?: string
+  worldEntryId?: string | null
+  x?: number
+  y?: number
+  polygon?: readonly WorldMapPoint[]
+}
+
+function validateWorldMapDraftFeatures(
+  novelId: string,
+  features: readonly WorldMapDraftFeatureInput[],
+  directory?: string | null,
+) {
+  if (features.length === 0) throw new WorldMapStoreError("invalid_polygon", "AI 草稿至少需要一个地图要素")
+  const db = getDb(directory)
+  return features.map((input) => {
+    if (!input.name.trim()) throw new WorldMapStoreError("invalid_polygon", "地图要素名称不能为空")
+    if (input.worldEntryId) {
+      const entry = db
+        .select({ id: WorldEntryTable.id })
+        .from(WorldEntryTable)
+        .where(and(eq(WorldEntryTable.id, input.worldEntryId), eq(WorldEntryTable.novel_id, novelId)))
+        .get()
+      if (!entry) throw new WorldMapStoreError("parent_not_found", `世界观条目不存在：${input.worldEntryId}`)
+    }
+    const x = input.kind === "place" ? requireCoordinate(input.x ?? Number.NaN) : null
+    const y = input.kind === "place" ? requireCoordinate(input.y ?? Number.NaN) : null
+    if (input.kind === "place" && (x === null || y === null)) {
+      throw new WorldMapStoreError("invalid_coordinate", "命名地点必须提供 x/y 坐标")
+    }
+    const polygon = input.kind === "region" ? requirePolygon(input.polygon ?? []) : []
+    const now = Date.now()
+    return {
+      id: crypto.randomUUID(),
+      map_id: "",
+      novel_id: novelId,
+      world_entry_id: input.worldEntryId ?? null,
+      kind: input.kind,
+      name: input.name,
+      description: input.description ?? "",
+      color: input.color ?? "#64748b",
+      x,
+      y,
+      polygon_json: polygon,
+      created_at: now,
+      updated_at: now,
+    }
+  })
+}
+
+export async function replaceWorldMapDraft(
+  novelId: string,
+  input: { title?: string; description?: string; features: readonly WorldMapDraftFeatureInput[] },
+  directory?: string | null,
+): Promise<typeof WorldMapTable.$inferSelect> {
+  const novel = await getDb(directory)
+    .select({ id: NovelTable.id })
+    .from(NovelTable)
+    .where(eq(NovelTable.id, novelId))
+    .get()
+  if (!novel) throw new WorldMapStoreError("novel_not_found", `小说不存在：${novelId}`)
+  const rows = validateWorldMapDraftFeatures(novelId, input.features, directory)
+  const db = getDb(directory)
+  const existing = await getWorldMapByStatus(novelId, "draft", directory)
+  const map = existing ?? await createWorldMap(novelId, { status: "draft" }, directory)
+  const title = input.title ?? (existing?.title || "AI 世界地图")
+  const description = input.description ?? existing?.description ?? ""
+  db.transaction((tx) => {
+    tx.delete(CharacterMapPinTable).where(eq(CharacterMapPinTable.map_id, map.id)).run()
+    tx.delete(WorldMapFeatureTable).where(eq(WorldMapFeatureTable.map_id, map.id)).run()
+    tx.update(WorldMapTable)
+      .set({ title, description, updated_at: Date.now() })
+      .where(eq(WorldMapTable.id, map.id))
+      .run()
+    for (const row of rows) {
+      tx.insert(WorldMapFeatureTable).values({ ...row, map_id: map.id }).run()
+    }
+  })
+  return db.select().from(WorldMapTable).where(eq(WorldMapTable.id, map.id)).get()!
+}
+
 export async function createWorldMapFeature(
   novelId: string,
   mapId: string,
