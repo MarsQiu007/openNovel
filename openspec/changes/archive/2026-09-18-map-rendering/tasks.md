@@ -28,5 +28,5 @@
 
 ## Implementation Commits
 
-- 75fa7a8d1 feat(app): 实现世界地图渲染视图
-- 3ed3d899b test(app): 覆盖世界地图渲染流程
+- 61ccd82de feat(app): 实现世界地图渲染视图
+- a7a72e91c test(app): 覆盖世界地图渲染流程
