@@ -26,3 +26,9 @@
 - [x] packages/app bun typecheck 通过。
 - [x] 手动验证清单：派生/空白创建、绘制、拖拽、关联、唯一图钉拒绝、保存失败重试。
 - [x] openspec validate map-editor --strict 通过。
+
+## Implementation Commits
+
+- e0305b364 feat(app): 实现世界地图草稿编辑器
+- 5b35a3c8b test(app): 覆盖地图编辑与渲染流程
+- f18d412bd test(novel-store): 覆盖地图草稿派生复制
