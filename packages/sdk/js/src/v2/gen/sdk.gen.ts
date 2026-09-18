@@ -121,6 +121,7 @@ import type {
   NovelCreateArcBeatInput,
   NovelCreateChapterInput,
   NovelCreateCharacterInput,
+  NovelCreateCharacterMapPinInput,
   NovelCreateCharacterStateInput,
   NovelCreateEditorialReportInput,
   NovelCreateExecutionRoundInput,
@@ -136,6 +137,8 @@ import type {
   NovelCreateWorldEntryAnnotationInput,
   NovelCreateWorldEntryAnnotationRoundInput,
   NovelCreateWorldEntryInput,
+  NovelCreateWorldMapFeatureInput,
+  NovelCreateWorldMapInput,
   NovelExportFormat,
   NovelMoveChapterInput,
   NovelNovelModePatch,
@@ -150,6 +153,7 @@ import type {
   NovelUpdateChapterContentInput,
   NovelUpdateChapterInput,
   NovelUpdateCharacterInput,
+  NovelUpdateCharacterMapPinInput,
   NovelUpdateCharacterStateInput,
   NovelUpdateExecutionRoundInput,
   NovelUpdateForeshadowingInput,
@@ -165,6 +169,8 @@ import type {
   NovelUpdateWorldEntryAnnotationInput,
   NovelUpdateWorldEntryAnnotationRoundInput,
   NovelUpdateWorldEntryInput,
+  NovelUpdateWorldMapFeatureInput,
+  NovelUpdateWorldMapInput,
   NovelUpsertCanvasLayoutInput,
   OutputFormat,
   Part as Part2,
@@ -357,6 +363,8 @@ import type {
   V2LocationGetResponses,
   V2ModelListErrors,
   V2ModelListResponses,
+  V2NovelActiveWorldMapErrors,
+  V2NovelActiveWorldMapResponses,
   V2NovelAiArtifactsErrors,
   V2NovelAiArtifactsResponses,
   V2NovelAllCharacterStatesErrors,
@@ -394,6 +402,8 @@ import type {
   V2NovelCreateChapterErrors,
   V2NovelCreateChapterResponses,
   V2NovelCreateCharacterErrors,
+  V2NovelCreateCharacterMapPinErrors,
+  V2NovelCreateCharacterMapPinResponses,
   V2NovelCreateCharacterResponses,
   V2NovelCreateCharacterStateErrors,
   V2NovelCreateCharacterStateResponses,
@@ -421,6 +431,10 @@ import type {
   V2NovelCreateVolumeReviewResponses,
   V2NovelCreateWorldEntryErrors,
   V2NovelCreateWorldEntryResponses,
+  V2NovelCreateWorldMapErrors,
+  V2NovelCreateWorldMapFeatureErrors,
+  V2NovelCreateWorldMapFeatureResponses,
+  V2NovelCreateWorldMapResponses,
   V2NovelDeleteAnnotationErrors,
   V2NovelDeleteAnnotationResponses,
   V2NovelDeleteArcErrors,
@@ -430,6 +444,8 @@ import type {
   V2NovelDeleteChapterErrors,
   V2NovelDeleteChapterResponses,
   V2NovelDeleteCharacterErrors,
+  V2NovelDeleteCharacterMapPinErrors,
+  V2NovelDeleteCharacterMapPinResponses,
   V2NovelDeleteCharacterResponses,
   V2NovelDeleteCharacterStateErrors,
   V2NovelDeleteCharacterStateResponses,
@@ -449,8 +465,14 @@ import type {
   V2NovelDeleteVolumeResponses,
   V2NovelDeleteWorldEntryErrors,
   V2NovelDeleteWorldEntryResponses,
+  V2NovelDeleteWorldMapErrors,
+  V2NovelDeleteWorldMapFeatureErrors,
+  V2NovelDeleteWorldMapFeatureResponses,
+  V2NovelDeleteWorldMapResponses,
   V2NovelDetailErrors,
   V2NovelDetailResponses,
+  V2NovelDraftWorldMapErrors,
+  V2NovelDraftWorldMapResponses,
   V2NovelEditorialReportsErrors,
   V2NovelEditorialReportsResponses,
   V2NovelExecutionRoundsErrors,
@@ -473,6 +495,8 @@ import type {
   V2NovelOutlineResponses,
   V2NovelPlotThreadsErrors,
   V2NovelPlotThreadsResponses,
+  V2NovelPromoteWorldMapErrors,
+  V2NovelPromoteWorldMapResponses,
   V2NovelRelationshipsErrors,
   V2NovelRelationshipsResponses,
   V2NovelRestoreVersionErrors,
@@ -510,6 +534,8 @@ import type {
   V2NovelUpdateChapterErrors,
   V2NovelUpdateChapterResponses,
   V2NovelUpdateCharacterErrors,
+  V2NovelUpdateCharacterMapPinErrors,
+  V2NovelUpdateCharacterMapPinResponses,
   V2NovelUpdateCharacterResponses,
   V2NovelUpdateCharacterStateErrors,
   V2NovelUpdateCharacterStateResponses,
@@ -541,6 +567,10 @@ import type {
   V2NovelUpdateVolumeResponses,
   V2NovelUpdateWorldEntryErrors,
   V2NovelUpdateWorldEntryResponses,
+  V2NovelUpdateWorldMapErrors,
+  V2NovelUpdateWorldMapFeatureErrors,
+  V2NovelUpdateWorldMapFeatureResponses,
+  V2NovelUpdateWorldMapResponses,
   V2NovelUpsertCanvasLayoutErrors,
   V2NovelUpsertCanvasLayoutResponses,
   V2NovelVolumeReviewsErrors,
@@ -10864,6 +10894,494 @@ export class Novel extends HeyApiClient {
       ThrowOnError
     >({
       url: "/api/novel/{novelID}/canvas-layout",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Create world map
+   */
+  public createWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateWorldMapInput: NovelCreateWorldMapInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateWorldMapInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateWorldMapResponses,
+      V2NovelCreateWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get active world map aggregate
+   */
+  public activeWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelActiveWorldMapResponses,
+      V2NovelActiveWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/active",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get draft world map aggregate
+   */
+  public draftWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelDraftWorldMapResponses,
+      V2NovelDraftWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/draft",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Delete world map
+   */
+  public deleteWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelDeleteWorldMapResponses,
+      V2NovelDeleteWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update world map
+   */
+  public updateWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateWorldMapInput: NovelUpdateWorldMapInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateWorldMapInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelUpdateWorldMapResponses,
+      V2NovelUpdateWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Promote draft world map
+   */
+  public promoteWorldMap<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelPromoteWorldMapResponses,
+      V2NovelPromoteWorldMapErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/promote",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create world map feature
+   */
+  public createWorldMapFeature<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateWorldMapFeatureInput: NovelCreateWorldMapFeatureInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateWorldMapFeatureInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateWorldMapFeatureResponses,
+      V2NovelCreateWorldMapFeatureErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/features",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete world map feature
+   */
+  public deleteWorldMapFeature<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      featureID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "path", key: "featureID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelDeleteWorldMapFeatureResponses,
+      V2NovelDeleteWorldMapFeatureErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update world map feature
+   */
+  public updateWorldMapFeature<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      featureID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateWorldMapFeatureInput: NovelUpdateWorldMapFeatureInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "path", key: "featureID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateWorldMapFeatureInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelUpdateWorldMapFeatureResponses,
+      V2NovelUpdateWorldMapFeatureErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Create character map pin
+   */
+  public createCharacterMapPin<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelCreateCharacterMapPinInput: NovelCreateCharacterMapPinInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "query", key: "location" },
+            { key: "novelCreateCharacterMapPinInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelCreateCharacterMapPinResponses,
+      V2NovelCreateCharacterMapPinErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/pins",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete character map pin
+   */
+  public deleteCharacterMapPin<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      pinID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "path", key: "pinID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelDeleteCharacterMapPinResponses,
+      V2NovelDeleteCharacterMapPinErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update character map pin
+   */
+  public updateCharacterMapPin<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      mapID: string
+      pinID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelUpdateCharacterMapPinInput: NovelUpdateCharacterMapPinInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "mapID" },
+            { in: "path", key: "pinID" },
+            { in: "query", key: "location" },
+            { key: "novelUpdateCharacterMapPinInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelUpdateCharacterMapPinResponses,
+      V2NovelUpdateCharacterMapPinErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}",
       ...options,
       ...params,
       headers: {
