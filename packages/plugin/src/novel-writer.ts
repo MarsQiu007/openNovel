@@ -142,10 +142,13 @@ import {
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
+  getWorldMapByStatus,
+  replaceWorldMapDraft,
 } from "./novel-writer/session-store.js"
 import { checkStructure } from "./novel-writer/structure.js"
 import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } from "./novel-writer/annotation.js"
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
+import { validateWorldMapAiDraft } from "./novel-writer/map-ai.js"
 import { analyzeEntities, executeOrganizePlan, loadOrganizeContext, parseOrganizePlan, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
@@ -5582,6 +5585,53 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             title: "polish_paragraph",
             output: "已生成润色建议",
             metadata: { annotation_id: ann.id, paragraph_index: ann.paragraph_index, quote },
+          }
+        },
+      }),
+      write_world_map_draft: tool({
+        description:
+          "把 AI 生成的结构化世界地图写入草稿。传入用户指定的 novel_id；已有草稿时必须先获得用户确认再传 allow_replace=true。该工具会替换旧草稿的要素和图钉，不影响正式地图。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          title: tool.schema.string().describe("AI 生成的地图标题"),
+          description: tool.schema.string().describe("一句话地图描述"),
+          features_json: tool.schema.string().describe("结构化要素数组 JSON，遵循世界地图生成提示词"),
+          allow_replace: tool.schema.boolean().describe("已有草稿时是否允许替换；必须先向用户确认"),
+        },
+        async execute(args, ctx) {
+          const boundNovelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          if (!boundNovelId || boundNovelId !== args.novel_id) {
+            return { title: "write_world_map_draft", output: "会话未绑定到目标小说，禁止写入地图草稿" }
+          }
+          const existing = await getWorldMapByStatus(boundNovelId, "draft", ctx.directory)
+          if (existing && !args.allow_replace) {
+            return { title: "write_world_map_draft", output: "已存在地图草稿，必须先获得用户明确确认后才能替换" }
+          }
+          let rawDraft: unknown
+          try {
+            rawDraft = JSON.parse(args.features_json)
+          } catch {
+            return { title: "write_world_map_draft", output: "features_json 不是合法 JSON" }
+          }
+          const validated = validateWorldMapAiDraft({
+            title: args.title,
+            description: args.description,
+            features: rawDraft,
+          })
+          if (!validated.ok) return { title: "write_world_map_draft", output: validated.error }
+          const map = await replaceWorldMapDraft(
+            boundNovelId,
+            {
+              title: validated.draft.title,
+              description: validated.draft.description,
+              features: validated.draft.features,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "write_world_map_draft",
+            output: `已写入 AI 地图草稿「${validated.draft.title}」（${validated.draft.features.length} 个要素）`,
+            metadata: { map_id: map.id, feature_count: validated.draft.features.length },
           }
         },
       }),
