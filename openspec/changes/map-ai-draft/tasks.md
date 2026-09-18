@@ -20,3 +20,12 @@
 - [x] novel-store 测试：生成写入后的草稿状态断言。
 - [x] packages typecheck 通过。
 - [x] openspec validate map-ai-draft --strict 通过。
+
+## Implementation Commits
+
+- `5549819ba` feat(plugin): 支持世界地图 AI 草稿写入
+- `0dfc2b818` feat(novel-store): 支持事务替换世界地图草稿
+- `57bc5e292` feat(app): 增加世界地图 AI 生成入口
+- `4b725dfda` test(plugin): 覆盖地图 AI 生成校验管道
+- `f442266c3` test(novel-store): 覆盖 AI 草稿替换语义
+- `cb966cb85` docs(openspec): 标记地图 AI 草稿任务完成
