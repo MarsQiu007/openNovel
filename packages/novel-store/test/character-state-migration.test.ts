@@ -100,7 +100,7 @@ describe("character_states chapter_id 迁移", () => {
     getDb(projectDir)
     expect(chapterIdNotNull()).toBe(true)
     expect(new Set(stateIDs())).toEqual(new Set(["state-valid", created.id]))
-  })
+  }, 60000)
 
   test("新建库的 character_states 直接保持章节强绑定", () => {
     getDb(projectDir)

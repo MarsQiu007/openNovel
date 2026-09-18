@@ -36,6 +36,7 @@ import { runScenario } from "./runner"
 import { disposeApps } from "./backend"
 import { runtime } from "./runtime"
 import { type Scenario, type ScenarioContext } from "./types"
+import { createCharacterMapPin, createWorldMap, createWorldMapFeature } from "@opennovel-ai/novel-store"
 import {
   createNovel,
   bindSession,
@@ -1903,6 +1904,82 @@ function seedPlotThread(ctx: ScenarioContext) {
   )
 }
 
+function seedActiveWorldMap(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx)
+      const map = yield* Effect.promise(() =>
+        createWorldMap(novelID, { status: "active", title: "演练正式地图" }, novelDirectory(ctx)),
+      )
+      return { novelID, mapID: map.id }
+    }),
+  )
+}
+
+function seedDraftWorldMap(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx)
+      const map = yield* Effect.promise(() =>
+        createWorldMap(novelID, { status: "draft", title: "演练草稿地图" }, novelDirectory(ctx)),
+      )
+      return { novelID, mapID: map.id }
+    }),
+  )
+}
+
+function seedWorldMapFeature(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedDraftWorldMap(ctx)
+      const feature = yield* Effect.promise(() =>
+        createWorldMapFeature(
+          state.novelID,
+          state.mapID,
+          {
+            kind: "region",
+            name: "青云山脉",
+            polygon: [
+              { x: 100, y: 100 },
+              { x: 900, y: 100 },
+              { x: 900, y: 900 },
+            ],
+          },
+          novelDirectory(ctx),
+        ),
+      )
+      return { ...state, featureID: feature.id }
+    }),
+  )
+}
+
+function seedMapCharacter(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedWorldMapFeature(ctx)
+      const character = yield* createCharacter(state.novelID, { name: "林天" }, novelDirectory(ctx))
+      return { ...state, characterID: character.id }
+    }),
+  )
+}
+
+function seedCharacterMapPin(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedMapCharacter(ctx)
+      const pin = yield* Effect.promise(() =>
+        createCharacterMapPin(
+          state.novelID,
+          state.mapID,
+          { characterId: state.characterID, x: 250, y: 350 },
+          novelDirectory(ctx),
+        ),
+      )
+      return { ...state, pinID: pin.id }
+    }),
+  )
+}
+
 function seedWorldEntry(ctx: ScenarioContext) {
   return Effect.orDie(
     Effect.gen(function* () {
@@ -2755,318 +2832,530 @@ function novelScenarios(): Scenario[] {
         object(body)
         check((body as Record<string, unknown>).ok === false, "摘要不匹配的 apply 应被拒绝")
       }),
-  // 覆盖新增的结构评审、技法、云盘同步与全局灵魂路由。
-  http.protected.get("/api/novel/mode", "v2.novelMode.get").json(200, (body) => object(body)),
-  http.protected
-    .put("/api/novel/mode", "v2.novelMode.set")
-    .mutating()
-    .at((ctx) => ({ path: "/api/novel/mode", headers: ctx.headers(), body: { writing_mode: "review" } }))
-    .json(200, (body) => object(body)),
-  http.protected
-    .get("/api/novel/session-bindings", "v2.novel.session-bindings")
-    .json(200, (body) => array(body)),
-  http.protected
-    .get("/api/novel/{novelID}/arcs", "v2.novel.arcs")
-    .at((ctx) => ({ path: route("/api/novel/{novelID}/arcs", { novelID: "nov_missing" }), headers: ctx.headers() }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/arcs", "v2.novel.create-arc")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/arcs", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .put("/api/novel/{novelID}/arcs/{arcID}", "v2.novel.update-arc")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/arcs/{arcID}", { novelID: "nov_missing", arcID: "arc_missing" }),
-      headers: ctx.headers(),
-      body: { status: "invalid" },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .delete("/api/novel/{novelID}/arcs/{arcID}", "v2.novel.delete-arc")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/arcs/{arcID}", { novelID: "nov_missing", arcID: "arc_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => {
-      object(body)
-      check(body.deleted === true, "delete should return deleted: true")
-    }),
-  http.protected
-    .get("/api/novel/{novelID}/arcs/{arcID}/beats", "v2.novel.arc-beats")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/arcs/{arcID}/beats", { novelID: "nov_missing", arcID: "arc_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/beats", "v2.novel.create-beat")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/beats", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .put("/api/novel/{novelID}/beats/{beatID}", "v2.novel.update-beat")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/beats/{beatID}", { novelID: "nov_missing", beatID: "beat_missing" }),
-      headers: ctx.headers(),
-      body: { status: "invalid" },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .delete("/api/novel/{novelID}/beats/{beatID}", "v2.novel.delete-beat")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/beats/{beatID}", { novelID: "nov_missing", beatID: "beat_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => {
-      object(body)
-      check(body.deleted === true, "delete should return deleted: true")
-    }),
-  http.protected
-    .get("/api/novel/{novelID}/volumes/{volumeID}/reviews", "v2.novel.volume-reviews")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/volumes/{volumeID}/reviews", { novelID: "nov_missing", volumeID: "vol_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/volumes/{volumeID}/reviews", "v2.novel.create-volume-review")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/volumes/{volumeID}/reviews", { novelID: "nov_missing", volumeID: "vol_missing" }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .get("/api/novel/{novelID}/editorial-reports", "v2.novel.editorial-reports")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/editorial-reports", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/editorial-reports", "v2.novel.create-editorial-report")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/editorial-reports", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-      body: { scopeType: 1 },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .get("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.annotations")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", { novelID: "nov_missing", chapterID: "cha_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.create-annotation")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", { novelID: "nov_missing", chapterID: "cha_missing" }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .put("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.update-annotation")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/annotations/{annotationID}", { novelID: "nov_missing", annotationID: "ann_missing" }),
-      headers: ctx.headers(),
-      body: { status: "invalid" },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .delete("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.delete-annotation")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/annotations/{annotationID}", { novelID: "nov_missing", annotationID: "ann_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => {
-      object(body)
-      check(body.deleted === true, "delete should return deleted: true")
-    }),
-  http.protected
-    .get("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.execution-rounds")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", { novelID: "nov_missing", chapterID: "cha_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.create-execution-round")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", { novelID: "nov_missing", chapterID: "cha_missing" }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .put("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", "v2.novel.update-execution-round")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", {
-        novelID: "nov_missing",
-        chapterID: "cha_missing",
-        roundID: "exe_missing",
+    // 覆盖新增的结构评审、技法、云盘同步与全局灵魂路由。
+    http.protected.get("/api/novel/mode", "v2.novelMode.get").json(200, (body) => object(body)),
+    http.protected
+      .put("/api/novel/mode", "v2.novelMode.set")
+      .mutating()
+      .at((ctx) => ({ path: "/api/novel/mode", headers: ctx.headers(), body: { writing_mode: "review" } }))
+      .json(200, (body) => object(body)),
+    http.protected.get("/api/novel/session-bindings", "v2.novel.session-bindings").json(200, (body) => array(body)),
+    http.protected
+      .get("/api/novel/{novelID}/arcs", "v2.novel.arcs")
+      .at((ctx) => ({ path: route("/api/novel/{novelID}/arcs", { novelID: "nov_missing" }), headers: ctx.headers() }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/arcs", "v2.novel.create-arc")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/arcs", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/arcs/{arcID}", "v2.novel.update-arc")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/arcs/{arcID}", { novelID: "nov_missing", arcID: "arc_missing" }),
+        headers: ctx.headers(),
+        body: { status: "invalid" },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .delete("/api/novel/{novelID}/arcs/{arcID}", "v2.novel.delete-arc")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/arcs/{arcID}", { novelID: "nov_missing", arcID: "arc_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.deleted === true, "delete should return deleted: true")
       }),
-      headers: ctx.headers(),
-      body: { status: "invalid" },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .get("/api/novel/{novelID}/canvas-layout", "v2.novel.canvas-layout")
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/canvas-layout", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => check(body === null, "missing canvas layout should return null")),
-  http.protected
-    .put("/api/novel/{novelID}/canvas-layout", "v2.novel.upsert-canvas-layout")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/canvas-layout", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-      body: { layout: {} },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .get("/api/novel/{novelID}/structure", "v2.novel.structure")
-    .at((ctx) => ({ path: route("/api/novel/{novelID}/structure", { novelID: "nov_missing" }), headers: ctx.headers() }))
-    .json(200, (body) => {
-      object(body)
-      array(body.volumes)
-      array(body.chapters)
-    }),
-  http.protected
-    .get("/api/novel/{novelID}/soul", "v2.novel.soul")
-    .at((ctx) => ({ path: route("/api/novel/{novelID}/soul", { novelID: "nov_missing" }), headers: ctx.headers() }))
-    .json(404, object, "status"),
-  http.protected
-    .put("/api/novel/{novelID}/soul", "v2.novel.update-soul")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/novel/{novelID}/soul", { novelID: "nov_missing" }),
-      headers: ctx.headers(),
-      body: { content: "缺失小说灵魂" },
-    }))
-    .json(404, object, "status"),
-  http.protected
-    .get("/api/techniques", "v2.technique.list")
-    .json(200, (body) => array(body)),
-  http.protected
-    .post("/api/techniques", "v2.technique.create")
-    .mutating()
-    .at((ctx) => ({
-      path: "/api/techniques",
-      headers: ctx.headers(),
-      body: { name: "httpapi 技法", instruction: "用于路由演练" },
-    }))
-    .json(200, (body) => object(body)),
-  http.protected
-    .get("/api/techniques/config", "v2.technique.config.get")
-    .json(200, (body) => object(body)),
-  http.protected
-    .put("/api/techniques/config", "v2.technique.config.set")
-    .mutating()
-    .at((ctx) => ({ path: "/api/techniques/config", headers: ctx.headers(), body: { enabled: true } }))
-    .json(200, (body) => object(body)),
-  http.protected
-    .get("/api/techniques/{techniqueID}", "v2.technique.detail")
-    .at((ctx) => ({ path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }), headers: ctx.headers() }))
-    .json(404, object, "status"),
-  http.protected
-    .put("/api/techniques/{techniqueID}", "v2.technique.update")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }),
-      headers: ctx.headers(),
-      body: { instruction: "缺失技法" },
-    }))
-    .json(404, object, "status"),
-  http.protected
-    .delete("/api/techniques/{techniqueID}", "v2.technique.delete")
-    .mutating()
-    .at((ctx) => ({ path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }), headers: ctx.headers() }))
-    .json(404, object, "status"),
-  http.protected
-    .get("/api/soul/global", "v2.soul.global")
-    .global()
-    .json(200, (body) => object(body)),
-  http.protected
-    .put("/api/soul/global", "v2.soul.update-global")
-    .global()
-    .mutating()
-    .at((ctx) => ({ path: "/api/soul/global", headers: ctx.headers(), body: { content: "演练全局灵魂" } }))
-    .json(200, (body) => object(body)),
-  http.protected
-    .get("/api/sync/status", "v2.sync.status")
-    .global()
-    .json(200, (body) => object(body)),
-  http.protected
-    .post("/api/sync/connection/test", "v2.sync.connection.test")
-    .global()
-    .at((ctx) => ({
-      path: "/api/sync/connection/test",
-      headers: ctx.headers(),
-      body: { url: "http://127.0.0.1:9/dav", username: "httpapi", password: "httpapi" },
-    }))
-    .json(200, (body) => object(body)),
-  http.protected
-    .put("/api/sync/connection", "v2.sync.connection.save")
-    .global()
-    .mutating()
-    .at((ctx) => ({
-      path: "/api/sync/connection",
-      headers: ctx.headers(),
-      body: { url: "http://127.0.0.1:9/dav", username: "httpapi", password: "httpapi" },
-    }))
-    .json(400, object, "status"),
-  http.protected
-    .delete("/api/sync/connection", "v2.sync.connection.remove")
-    .global()
-    .mutating()
-    .json(200, (body) => object(body)),
-  http.protected
-    .put("/api/sync/root", "v2.sync.root.set")
-    .global()
-    .mutating()
-    .at((ctx) => ({ path: "/api/sync/root", headers: ctx.headers(), body: { rootDir: "Z:/missing-opennovel-sync-root" } }))
-    .json(400, object, "status"),
-  http.protected
-    .post("/api/sync/run", "v2.sync.run")
-    .global()
-    .mutating()
-    .json(400, object, "status"),
-  http.protected
-    .post("/api/sync/resolve", "v2.sync.resolve")
-    .global()
-    .mutating()
-    .at((ctx) => ({
-      path: "/api/sync/resolve",
-      headers: ctx.headers(),
-      body: { name: "missing-project", action: "skip" },
-    }))
-    .json(400, object, "status"),
-
-
+    http.protected
+      .get("/api/novel/{novelID}/arcs/{arcID}/beats", "v2.novel.arc-beats")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/arcs/{arcID}/beats", { novelID: "nov_missing", arcID: "arc_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/beats", "v2.novel.create-beat")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/beats", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/beats/{beatID}", "v2.novel.update-beat")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/beats/{beatID}", { novelID: "nov_missing", beatID: "beat_missing" }),
+        headers: ctx.headers(),
+        body: { status: "invalid" },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .delete("/api/novel/{novelID}/beats/{beatID}", "v2.novel.delete-beat")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/beats/{beatID}", { novelID: "nov_missing", beatID: "beat_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.deleted === true, "delete should return deleted: true")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/volumes/{volumeID}/reviews", "v2.novel.volume-reviews")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/volumes/{volumeID}/reviews", {
+          novelID: "nov_missing",
+          volumeID: "vol_missing",
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/volumes/{volumeID}/reviews", "v2.novel.create-volume-review")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/volumes/{volumeID}/reviews", {
+          novelID: "nov_missing",
+          volumeID: "vol_missing",
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .get("/api/novel/{novelID}/editorial-reports", "v2.novel.editorial-reports")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/editorial-reports", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/editorial-reports", "v2.novel.create-editorial-report")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/editorial-reports", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: { scopeType: 1 },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .get("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.annotations")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", {
+          novelID: "nov_missing",
+          chapterID: "cha_missing",
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.create-annotation")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", {
+          novelID: "nov_missing",
+          chapterID: "cha_missing",
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.update-annotation")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
+          novelID: "nov_missing",
+          annotationID: "ann_missing",
+        }),
+        headers: ctx.headers(),
+        body: { status: "invalid" },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .delete("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.delete-annotation")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
+          novelID: "nov_missing",
+          annotationID: "ann_missing",
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.deleted === true, "delete should return deleted: true")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.execution-rounds")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", {
+          novelID: "nov_missing",
+          chapterID: "cha_missing",
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => array(body)),
+    http.protected
+      .post("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.create-execution-round")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", {
+          novelID: "nov_missing",
+          chapterID: "cha_missing",
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", "v2.novel.update-execution-round")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", {
+          novelID: "nov_missing",
+          chapterID: "cha_missing",
+          roundID: "exe_missing",
+        }),
+        headers: ctx.headers(),
+        body: { status: "invalid" },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .get("/api/novel/{novelID}/canvas-layout", "v2.novel.canvas-layout")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/canvas-layout", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => check(body === null, "missing canvas layout should return null")),
+    http.protected
+      .put("/api/novel/{novelID}/canvas-layout", "v2.novel.upsert-canvas-layout")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/canvas-layout", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: { layout: {} },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .get("/api/novel/{novelID}/structure", "v2.novel.structure")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/structure", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        array(body.volumes)
+        array(body.chapters)
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/soul", "v2.novel.soul")
+      .at((ctx) => ({ path: route("/api/novel/{novelID}/soul", { novelID: "nov_missing" }), headers: ctx.headers() }))
+      .json(404, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/soul", "v2.novel.update-soul")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/soul", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: { content: "缺失小说灵魂" },
+      }))
+      .json(404, object, "status"),
+    http.protected
+      .get("/api/novel/{novelID}/maps/active", "v2.novel.active-world-map")
+      .seeded((ctx) => seedActiveWorldMap(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/active", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        object(body.map)
+        check(body.map.status === "active", "active map should be returned")
+        array(body.features)
+        array(body.pins)
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/maps/draft", "v2.novel.draft-world-map")
+      .seeded((ctx) => seedDraftWorldMap(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/draft", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        object(body.map)
+        check(body.map.status === "draft", "draft map should be returned")
+        array(body.features)
+        array(body.pins)
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/maps", "v2.novel.create-world-map")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { title: "新建地图", description: "路由演练地图", status: "draft" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.title === "新建地图", "created map should return the input title")
+        check(body.status === "draft", "created map should be a draft")
+      }),
+    http.protected
+      .patch("/api/novel/{novelID}/maps/{mapID}", "v2.novel.update-world-map")
+      .seeded((ctx) => seedDraftWorldMap(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}", { novelID: ctx.state.novelID, mapID: ctx.state.mapID }),
+        headers: jsonHeaders(ctx),
+        body: { title: "更新后的地图", description: "路由演练更新" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.title === "更新后的地图", "map update should return the new title")
+      }),
+    http.protected
+      .delete("/api/novel/{novelID}/maps/{mapID}", "v2.novel.delete-world-map")
+      .seeded((ctx) => seedDraftWorldMap(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}", { novelID: ctx.state.novelID, mapID: ctx.state.mapID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isDeleted),
+    http.protected
+      .post("/api/novel/{novelID}/maps/{mapID}/promote", "v2.novel.promote-world-map")
+      .seeded((ctx) => seedDraftWorldMap(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/promote", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.status === "active", "promoted draft should become active")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/maps/{mapID}/features", "v2.novel.create-world-map-feature")
+      .seeded((ctx) => seedDraftWorldMap(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/features", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: {
+          kind: "region",
+          name: "青云山脉",
+          polygon: [
+            { x: 100, y: 100 },
+            { x: 900, y: 100 },
+            { x: 900, y: 900 },
+          ],
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.kind === "region", `created map feature kind got ${JSON.stringify(body)}`)
+        check(body.name === "青云山脉", "created map feature should return its name")
+        array(body.polygon)
+        check(body.polygon.length === 3, "created region should return its polygon")
+      }),
+    http.protected
+      .patch("/api/novel/{novelID}/maps/{mapID}/features/{featureID}", "v2.novel.update-world-map-feature")
+      .seeded((ctx) => seedWorldMapFeature(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/features/{featureID}", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+          featureID: ctx.state.featureID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: {
+          name: "更新后的区域",
+          polygon: [
+            { x: 200, y: 200 },
+            { x: 800, y: 200 },
+            { x: 800, y: 800 },
+          ],
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.name === "更新后的区域", "map feature update should return the new name")
+      }),
+    http.protected
+      .delete("/api/novel/{novelID}/maps/{mapID}/features/{featureID}", "v2.novel.delete-world-map-feature")
+      .seeded((ctx) => seedWorldMapFeature(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/features/{featureID}", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+          featureID: ctx.state.featureID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isDeleted),
+    http.protected
+      .post("/api/novel/{novelID}/maps/{mapID}/pins", "v2.novel.create-character-map-pin")
+      .seeded((ctx) => seedMapCharacter(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/pins", { novelID: ctx.state.novelID, mapID: ctx.state.mapID }),
+        headers: jsonHeaders(ctx),
+        body: { characterId: ctx.state.characterID, featureId: ctx.state.featureID, x: 500, y: 700 },
+      }))
+      .json(200, (body, ctx) => {
+        object(body)
+        check(body.characterId === ctx.state.characterID, "created pin should reference the character")
+        check(body.x === 500 && body.y === 700, "created pin should return its coordinates")
+      }),
+    http.protected
+      .patch("/api/novel/{novelID}/maps/{mapID}/pins/{pinID}", "v2.novel.update-character-map-pin")
+      .seeded((ctx) => seedCharacterMapPin(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/pins/{pinID}", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+          pinID: ctx.state.pinID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { x: 1500, y: 1200 },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.x === 1500 && body.y === 1200, "pin update should return the new coordinates")
+      }),
+    http.protected
+      .delete("/api/novel/{novelID}/maps/{mapID}/pins/{pinID}", "v2.novel.delete-character-map-pin")
+      .seeded((ctx) => seedCharacterMapPin(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/maps/{mapID}/pins/{pinID}", {
+          novelID: ctx.state.novelID,
+          mapID: ctx.state.mapID,
+          pinID: ctx.state.pinID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isDeleted),
+    http.protected.get("/api/techniques", "v2.technique.list").json(200, (body) => array(body)),
+    http.protected
+      .post("/api/techniques", "v2.technique.create")
+      .mutating()
+      .at((ctx) => ({
+        path: "/api/techniques",
+        headers: ctx.headers(),
+        body: { name: "httpapi 技法", instruction: "用于路由演练" },
+      }))
+      .json(200, (body) => object(body)),
+    http.protected.get("/api/techniques/config", "v2.technique.config.get").json(200, (body) => object(body)),
+    http.protected
+      .put("/api/techniques/config", "v2.technique.config.set")
+      .mutating()
+      .at((ctx) => ({ path: "/api/techniques/config", headers: ctx.headers(), body: { enabled: true } }))
+      .json(200, (body) => object(body)),
+    http.protected
+      .get("/api/techniques/{techniqueID}", "v2.technique.detail")
+      .at((ctx) => ({
+        path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(404, object, "status"),
+    http.protected
+      .put("/api/techniques/{techniqueID}", "v2.technique.update")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }),
+        headers: ctx.headers(),
+        body: { instruction: "缺失技法" },
+      }))
+      .json(404, object, "status"),
+    http.protected
+      .delete("/api/techniques/{techniqueID}", "v2.technique.delete")
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/techniques/{techniqueID}", { techniqueID: "tec_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(404, object, "status"),
+    http.protected
+      .get("/api/soul/global", "v2.soul.global")
+      .global()
+      .json(200, (body) => object(body)),
+    http.protected
+      .put("/api/soul/global", "v2.soul.update-global")
+      .global()
+      .mutating()
+      .at((ctx) => ({ path: "/api/soul/global", headers: ctx.headers(), body: { content: "演练全局灵魂" } }))
+      .json(200, (body) => object(body)),
+    http.protected
+      .get("/api/sync/status", "v2.sync.status")
+      .global()
+      .json(200, (body) => object(body)),
+    http.protected
+      .post("/api/sync/connection/test", "v2.sync.connection.test")
+      .global()
+      .at((ctx) => ({
+        path: "/api/sync/connection/test",
+        headers: ctx.headers(),
+        body: { url: "http://127.0.0.1:9/dav", username: "httpapi", password: "httpapi" },
+      }))
+      .json(200, (body) => object(body)),
+    http.protected
+      .put("/api/sync/connection", "v2.sync.connection.save")
+      .global()
+      .mutating()
+      .at((ctx) => ({
+        path: "/api/sync/connection",
+        headers: ctx.headers(),
+        body: { url: "http://127.0.0.1:9/dav", username: "httpapi", password: "httpapi" },
+      }))
+      .json(400, object, "status"),
+    http.protected
+      .delete("/api/sync/connection", "v2.sync.connection.remove")
+      .global()
+      .mutating()
+      .json(200, (body) => object(body)),
+    http.protected
+      .put("/api/sync/root", "v2.sync.root.set")
+      .global()
+      .mutating()
+      .at((ctx) => ({
+        path: "/api/sync/root",
+        headers: ctx.headers(),
+        body: { rootDir: "Z:/missing-opennovel-sync-root" },
+      }))
+      .json(400, object, "status"),
+    http.protected.post("/api/sync/run", "v2.sync.run").global().mutating().json(400, object, "status"),
+    http.protected
+      .post("/api/sync/resolve", "v2.sync.resolve")
+      .global()
+      .mutating()
+      .at((ctx) => ({
+        path: "/api/sync/resolve",
+        headers: ctx.headers(),
+        body: { name: "missing-project", action: "skip" },
+      }))
+      .json(400, object, "status"),
   ]
 }
 

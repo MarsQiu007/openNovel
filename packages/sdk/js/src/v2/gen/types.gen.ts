@@ -2978,6 +2978,14 @@ export type ChapterNotFoundError = {
   }
 }
 
+export type WorldMapValidationError = {
+  name: "WorldMapValidationError"
+  data: {
+    message: string
+    field?: string
+  }
+}
+
 export type NovelModeError = {
   name: "NovelModeError"
   data: {
@@ -6996,6 +7004,98 @@ export type NovelCanvasLayout = {
 
 export type NovelUpsertCanvasLayoutInput = {
   layout: NovelCanvasLayout
+}
+
+export type NovelCreateWorldMapInput = {
+  title?: string
+  description?: string
+  status?: "draft" | "active"
+}
+
+export type NovelWorldMap = {
+  id: string
+  novelId: string
+  title: string
+  description: string
+  status: "draft" | "active"
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelWorldMapPoint = {
+  x: number
+  y: number
+}
+
+export type NovelWorldMapFeature = {
+  id: string
+  mapId: string
+  novelId: string
+  worldEntryId?: string
+  kind: "region" | "place"
+  name: string
+  description: string
+  color: string
+  x?: number
+  y?: number
+  polygon: Array<NovelWorldMapPoint>
+}
+
+export type NovelCharacterMapPin = {
+  id: string
+  mapId: string
+  novelId: string
+  characterId: string
+  featureId?: string
+  x: number
+  y: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelWorldMapAggregate = {
+  map: NovelWorldMap
+  features: Array<NovelWorldMapFeature>
+  pins: Array<NovelCharacterMapPin>
+}
+
+export type NovelUpdateWorldMapInput = {
+  title?: string
+  description?: string
+}
+
+export type NovelCreateWorldMapFeatureInput = {
+  kind: "region" | "place"
+  name: string
+  description?: string
+  color?: string
+  worldEntryId?: string
+  x?: number
+  y?: number
+  polygon?: Array<NovelWorldMapPoint>
+}
+
+export type NovelUpdateWorldMapFeatureInput = {
+  name?: string
+  description?: string
+  color?: string
+  worldEntryId?: string
+  x?: number
+  y?: number
+  polygon?: Array<NovelWorldMapPoint>
+}
+
+export type NovelCreateCharacterMapPinInput = {
+  characterId: string
+  featureId?: string
+  x: number
+  y: number
+}
+
+export type NovelUpdateCharacterMapPinInput = {
+  featureId?: string
+  x?: number
+  y?: number
 }
 
 export type NovelWritingMode = "auto" | "review"
@@ -18469,6 +18569,469 @@ export type V2NovelUpsertCanvasLayoutResponses = {
 
 export type V2NovelUpsertCanvasLayoutResponse =
   V2NovelUpsertCanvasLayoutResponses[keyof V2NovelUpsertCanvasLayoutResponses]
+
+export type V2NovelCreateWorldMapData = {
+  body: NovelCreateWorldMapInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps"
+}
+
+export type V2NovelCreateWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelCreateWorldMapError = V2NovelCreateWorldMapErrors[keyof V2NovelCreateWorldMapErrors]
+
+export type V2NovelCreateWorldMapResponses = {
+  /**
+   * Novel.WorldMap
+   */
+  200: NovelWorldMap
+}
+
+export type V2NovelCreateWorldMapResponse = V2NovelCreateWorldMapResponses[keyof V2NovelCreateWorldMapResponses]
+
+export type V2NovelActiveWorldMapData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/active"
+}
+
+export type V2NovelActiveWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelActiveWorldMapError = V2NovelActiveWorldMapErrors[keyof V2NovelActiveWorldMapErrors]
+
+export type V2NovelActiveWorldMapResponses = {
+  /**
+   * Success
+   */
+  200: NovelWorldMapAggregate
+}
+
+export type V2NovelActiveWorldMapResponse = V2NovelActiveWorldMapResponses[keyof V2NovelActiveWorldMapResponses]
+
+export type V2NovelDraftWorldMapData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/draft"
+}
+
+export type V2NovelDraftWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelDraftWorldMapError = V2NovelDraftWorldMapErrors[keyof V2NovelDraftWorldMapErrors]
+
+export type V2NovelDraftWorldMapResponses = {
+  /**
+   * Success
+   */
+  200: NovelWorldMapAggregate
+}
+
+export type V2NovelDraftWorldMapResponse = V2NovelDraftWorldMapResponses[keyof V2NovelDraftWorldMapResponses]
+
+export type V2NovelDeleteWorldMapData = {
+  body?: never
+  path: {
+    novelID: string
+    mapID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}"
+}
+
+export type V2NovelDeleteWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelDeleteWorldMapError = V2NovelDeleteWorldMapErrors[keyof V2NovelDeleteWorldMapErrors]
+
+export type V2NovelDeleteWorldMapResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteWorldMapResponse = V2NovelDeleteWorldMapResponses[keyof V2NovelDeleteWorldMapResponses]
+
+export type V2NovelUpdateWorldMapData = {
+  body: NovelUpdateWorldMapInput
+  path: {
+    novelID: string
+    mapID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}"
+}
+
+export type V2NovelUpdateWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelUpdateWorldMapError = V2NovelUpdateWorldMapErrors[keyof V2NovelUpdateWorldMapErrors]
+
+export type V2NovelUpdateWorldMapResponses = {
+  /**
+   * Novel.WorldMap
+   */
+  200: NovelWorldMap
+}
+
+export type V2NovelUpdateWorldMapResponse = V2NovelUpdateWorldMapResponses[keyof V2NovelUpdateWorldMapResponses]
+
+export type V2NovelPromoteWorldMapData = {
+  body?: never
+  path: {
+    novelID: string
+    mapID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/promote"
+}
+
+export type V2NovelPromoteWorldMapErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelPromoteWorldMapError = V2NovelPromoteWorldMapErrors[keyof V2NovelPromoteWorldMapErrors]
+
+export type V2NovelPromoteWorldMapResponses = {
+  /**
+   * Novel.WorldMap
+   */
+  200: NovelWorldMap
+}
+
+export type V2NovelPromoteWorldMapResponse = V2NovelPromoteWorldMapResponses[keyof V2NovelPromoteWorldMapResponses]
+
+export type V2NovelCreateWorldMapFeatureData = {
+  body: NovelCreateWorldMapFeatureInput
+  path: {
+    novelID: string
+    mapID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/features"
+}
+
+export type V2NovelCreateWorldMapFeatureErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelCreateWorldMapFeatureError =
+  V2NovelCreateWorldMapFeatureErrors[keyof V2NovelCreateWorldMapFeatureErrors]
+
+export type V2NovelCreateWorldMapFeatureResponses = {
+  /**
+   * Novel.WorldMapFeature
+   */
+  200: NovelWorldMapFeature
+}
+
+export type V2NovelCreateWorldMapFeatureResponse =
+  V2NovelCreateWorldMapFeatureResponses[keyof V2NovelCreateWorldMapFeatureResponses]
+
+export type V2NovelDeleteWorldMapFeatureData = {
+  body?: never
+  path: {
+    novelID: string
+    mapID: string
+    featureID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}"
+}
+
+export type V2NovelDeleteWorldMapFeatureErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelDeleteWorldMapFeatureError =
+  V2NovelDeleteWorldMapFeatureErrors[keyof V2NovelDeleteWorldMapFeatureErrors]
+
+export type V2NovelDeleteWorldMapFeatureResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteWorldMapFeatureResponse =
+  V2NovelDeleteWorldMapFeatureResponses[keyof V2NovelDeleteWorldMapFeatureResponses]
+
+export type V2NovelUpdateWorldMapFeatureData = {
+  body: NovelUpdateWorldMapFeatureInput
+  path: {
+    novelID: string
+    mapID: string
+    featureID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}"
+}
+
+export type V2NovelUpdateWorldMapFeatureErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelUpdateWorldMapFeatureError =
+  V2NovelUpdateWorldMapFeatureErrors[keyof V2NovelUpdateWorldMapFeatureErrors]
+
+export type V2NovelUpdateWorldMapFeatureResponses = {
+  /**
+   * Novel.WorldMapFeature
+   */
+  200: NovelWorldMapFeature
+}
+
+export type V2NovelUpdateWorldMapFeatureResponse =
+  V2NovelUpdateWorldMapFeatureResponses[keyof V2NovelUpdateWorldMapFeatureResponses]
+
+export type V2NovelCreateCharacterMapPinData = {
+  body: NovelCreateCharacterMapPinInput
+  path: {
+    novelID: string
+    mapID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/pins"
+}
+
+export type V2NovelCreateCharacterMapPinErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelCreateCharacterMapPinError =
+  V2NovelCreateCharacterMapPinErrors[keyof V2NovelCreateCharacterMapPinErrors]
+
+export type V2NovelCreateCharacterMapPinResponses = {
+  /**
+   * Novel.CharacterMapPin
+   */
+  200: NovelCharacterMapPin
+}
+
+export type V2NovelCreateCharacterMapPinResponse =
+  V2NovelCreateCharacterMapPinResponses[keyof V2NovelCreateCharacterMapPinResponses]
+
+export type V2NovelDeleteCharacterMapPinData = {
+  body?: never
+  path: {
+    novelID: string
+    mapID: string
+    pinID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}"
+}
+
+export type V2NovelDeleteCharacterMapPinErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelDeleteCharacterMapPinError =
+  V2NovelDeleteCharacterMapPinErrors[keyof V2NovelDeleteCharacterMapPinErrors]
+
+export type V2NovelDeleteCharacterMapPinResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelDeleteCharacterMapPinResponse =
+  V2NovelDeleteCharacterMapPinResponses[keyof V2NovelDeleteCharacterMapPinResponses]
+
+export type V2NovelUpdateCharacterMapPinData = {
+  body: NovelUpdateCharacterMapPinInput
+  path: {
+    novelID: string
+    mapID: string
+    pinID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}"
+}
+
+export type V2NovelUpdateCharacterMapPinErrors = {
+  /**
+   * WorldMapValidationError | InvalidRequestError
+   */
+  400: WorldMapValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelUpdateCharacterMapPinError =
+  V2NovelUpdateCharacterMapPinErrors[keyof V2NovelUpdateCharacterMapPinErrors]
+
+export type V2NovelUpdateCharacterMapPinResponses = {
+  /**
+   * Novel.CharacterMapPin
+   */
+  200: NovelCharacterMapPin
+}
+
+export type V2NovelUpdateCharacterMapPinResponse =
+  V2NovelUpdateCharacterMapPinResponses[keyof V2NovelUpdateCharacterMapPinResponses]
 
 export type V2NovelModeGetData = {
   body?: never

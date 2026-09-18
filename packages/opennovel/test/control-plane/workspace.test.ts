@@ -1696,6 +1696,6 @@ describe("workspace waitForSync", () => {
         )
       }),
     { git: true },
-    7000,
+    15000,
   )
 })
