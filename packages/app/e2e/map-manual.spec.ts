@@ -202,4 +202,7 @@ test("shows empty state when no maps exist", async ({ page }) => {
   await expect(page.getByText("创建一个空白地图草稿")).toBeVisible()
   await expect(page.getByRole("button", { name: "创建地图草稿" })).toBeVisible()
   await expect(page.locator(".leaflet-container")).toHaveCount(0)
+  await page.getByRole("button", { name: "AI 生成" }).click()
+  await expect(page.getByRole("heading", { name: "AI 生成地图" })).toBeVisible()
+  await expect(page.getByPlaceholder("例：西部是沙漠，东部是群岛")).toBeVisible()
 })

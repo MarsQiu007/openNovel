@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor, Show } from "solid-js"
 import { Dialog } from "@opennovel-ai/ui/dialog"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
-import { useNovelClient } from "@/context/novel-queries"
+import { useBindSession, useNovelClient } from "@/context/novel-queries"
 import { useSDK } from "@/context/sdk"
 import { buildMapLayerModel } from "./map/view-model"
 import { LocalPlaneMap, type MapSelection } from "./map/local-plane-map"
 import { MapEditorPanel } from "./map/map-editor-panel"
+import { MapAiGeneratePanel } from "./map/ai-generate-panel"
 import {
   addDrawingPoint,
   clampPoint,
@@ -39,6 +40,12 @@ export default function MapView(props: { novelID: Accessor<string> }) {
   const [notice, setNotice] = createSignal<string | undefined>()
   const [saveTick, setSaveTick] = createSignal(0)
   const saveQueue = createEditorSaveQueue(() => setSaveTick((tick) => tick + 1))
+  const bindSession = useBindSession()
+  const [aiPanelOpen, setAiPanelOpen] = createSignal(false)
+  const [aiInstruction, setAiInstruction] = createSignal("")
+  const [aiSelectedIds, setAiSelectedIds] = createSignal<Set<string> | undefined>()
+  const [aiGenerating, setAiGenerating] = createSignal(false)
+  const [aiError, setAiError] = createSignal<string | undefined>()
 
   const directory = () => sdk().directory
   const location = () => ({ directory: directory() })
@@ -85,6 +92,21 @@ export default function MapView(props: { novelID: Accessor<string> }) {
       }),
     enabled: !!props.novelID(),
   }))
+
+  const mapAiEntries = createMemo(() =>
+    (worldEntriesQuery.data ?? []).map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      category: entry.category,
+      content: entry.content,
+    })),
+  )
+  createEffect(() => {
+    const entries = mapAiEntries()
+    if (worldEntriesQuery.isSuccess && aiSelectedIds() === undefined) {
+      setAiSelectedIds(new Set(entries.map((entry) => entry.id)))
+    }
+  })
 
   const invalidateDraft = async () => {
     await queryClient.invalidateQueries({ queryKey: ["world-map", "draft", directory(), props.novelID()] })
@@ -436,6 +458,100 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     ))
   }
 
+  const selectedAiEntryIds = createMemo(() => aiSelectedIds() ?? new Set(mapAiEntries().map((entry) => entry.id)))
+
+  const toggleAiEntry = (id: string) => {
+    const next = new Set(selectedAiEntryIds())
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setAiSelectedIds(next)
+  }
+
+  const selectAllAiEntries = () => setAiSelectedIds(new Set(mapAiEntries().map((entry) => entry.id)))
+
+  const draftSignature = (aggregate?: { map: { id: string }; features: readonly unknown[]; pins: readonly unknown[] } | null) =>
+    aggregate
+      ? `${aggregate.map.id}:${JSON.stringify(aggregate.features)}:${JSON.stringify(aggregate.pins)}`
+      : ""
+
+  const buildMapAiPrompt = () => {
+    const selectedIds = selectedAiEntryIds()
+    const entries = mapAiEntries().filter((entry) => selectedIds.has(entry.id))
+    const entryLines = entries.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      category: entry.category || "未分类",
+      summary: entry.content.replace(/\s+/g, " ").trim().slice(0, 600),
+    }))
+    const sections = [
+      "请基于小说世界观条目生成一个 0..10000 平面坐标世界地图草稿，并调用 write_world_map_draft 写入。",
+      "\n## 画布约定\n"
+        + "- x 向东增大，y 向南增大，坐标必须是 0..10000。\n"
+        + "- region 必须提供至少 3 个顶点的 polygon；place 必须提供 x/y。\n"
+        + "- 保持区域和地点合理间距，方位关系要符合设定和用户指令。\n"
+        + "- 不要生成角色图钉。\n"
+        + "- worldEntryId 只能使用下列条目 ID；没有对应条目时用 null。",
+      "\n## 世界观条目\n"
+        + (entryLines.length > 0
+          ? entryLines.map((entry, index) => `${index + 1}. ${JSON.stringify(entry)}`).join("\n")
+          : "-（当前小说暂无世界观条目，请基于小说类型生成基础地理轮廓）"),
+      `\n## 用户布局指令\n${aiInstruction().trim() || "无"}`,
+      `\n## 目标小说\nnovel_id: ${props.novelID()}\nallow_replace: true}`,
+      "\n## 写入规则\n"
+        + "- title 和 description 使用简体中文，description 为一句话地图概述。\n"
+        + "- features 是 region/place 数组；name、description、color、worldEntryId 必须明确。\n"
+        + "- 调用 write_world_map_draft 时把完整地图数据放进 features_json。\n"
+        + "- 如果写入工具返回校验失败，根据错误修正后最多自动重试一次；第二次失败必须停止并说明原因。",
+    ]
+    return sections.join("\n")
+  }
+
+  const generateAiDraft = async () => {
+    setAiGenerating(true)
+    setAiError(undefined)
+    const before = draftSignature(draftQuery.data)
+    try {
+      const sessionResponse = await sdk().client.v2.session.create({ location: { directory: directory() } })
+      const session = sessionResponse.data?.data
+      if (!session) throw new Error("创建生成会话失败")
+      await bindSession.mutateAsync({ novelID: props.novelID(), sessionID: session.id })
+      await sdk().client.v2.session.prompt({
+        sessionID: session.id,
+        prompt: { text: buildMapAiPrompt() },
+      })
+      await sdk().client.v2.session.wait({ sessionID: session.id })
+      await invalidateDraft()
+      const after = draftQuery.data
+      if (!after || draftSignature(after) === before) {
+        throw new Error("AI 未写入新的地图草稿，请查看会话输出后重试")
+      }
+      setAiPanelOpen(false)
+      setView("draft")
+      setEditing(true)
+      resetEditorState()
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  const submitAiGeneration = () => {
+    setAiError(undefined)
+    const draft = draftQuery.data
+    if (!draft || (draft.features.length === 0 && draft.pins.length === 0)) {
+      void generateAiDraft()
+      return
+    }
+    showConfirm({
+      title: "覆盖现有地图草稿？",
+      message: `AI 生成将替换当前草稿的 ${draft.features.length} 个要素和 ${draft.pins.length} 个图钉，正式地图不受影响。此操作无法恢复。`,
+      confirmLabel: "确认生成",
+      danger: true,
+      onConfirm: () => void generateAiDraft(),
+    })
+  }
+
   const openPromoteConfirm = () => {
     const draft = draftQuery.data
     if (!draft) return
@@ -468,7 +584,29 @@ export default function MapView(props: { novelID: Accessor<string> }) {
         <Show
           when={activeQuery.data || draftQuery.data}
           fallback={
-            <EmptyMapState creating={createBlankMutation.isPending} onCreate={() => createBlankMutation.mutate()} />
+            <div class="relative flex flex-1 min-h-0">
+              <EmptyMapState
+                creating={createBlankMutation.isPending}
+                generating={aiGenerating()}
+                onCreate={() => createBlankMutation.mutate()}
+                onGenerate={() => setAiPanelOpen(true)}
+              />
+              <Show when={aiPanelOpen()}>
+                <MapAiGeneratePanel
+                  entries={mapAiEntries()}
+                  selectedEntryIds={selectedAiEntryIds}
+                  instruction={aiInstruction}
+                  generating={aiGenerating}
+                  error={aiError}
+                  onClose={() => !aiGenerating() && setAiPanelOpen(false)}
+                  onToggleEntry={toggleAiEntry}
+                  onSelectAll={selectAllAiEntries}
+                  onClear={() => setAiSelectedIds(new Set<string>())}
+                  onInstructionChange={setAiInstruction}
+                  onSubmit={submitAiGeneration}
+                />
+              </Show>
+            </div>
           }
         >
           <div class="flex items-center justify-between shrink-0">
@@ -477,6 +615,14 @@ export default function MapView(props: { novelID: Accessor<string> }) {
               <MapTabButton active={view() === "draft"} onClick={() => switchView("draft")} label="草稿" />
             </div>
             <div class="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={aiGenerating()}
+                class="rounded-md border border-v2-border-border-base px-3 py-1.5 text-sm text-v2-text-text-base hover:bg-v2-background-bg-layer-01 disabled:opacity-50"
+                onClick={() => setAiPanelOpen(true)}
+              >
+                AI 生成
+              </button>
               <Show when={!draftQuery.data && activeQuery.data}>
                 <button
                   type="button"
@@ -538,6 +684,21 @@ export default function MapView(props: { novelID: Accessor<string> }) {
             </div>
           </div>
           <div class="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-v2-border-border-base">
+            <Show when={aiPanelOpen()}>
+              <MapAiGeneratePanel
+                entries={mapAiEntries()}
+                selectedEntryIds={selectedAiEntryIds}
+                instruction={aiInstruction}
+                generating={aiGenerating}
+                error={aiError}
+                onClose={() => !aiGenerating() && setAiPanelOpen(false)}
+                onToggleEntry={toggleAiEntry}
+                onSelectAll={selectAllAiEntries}
+                onClear={() => setAiSelectedIds(new Set<string>())}
+                onInstructionChange={setAiInstruction}
+                onSubmit={submitAiGeneration}
+              />
+            </Show>
             <Show when={layerModel()} fallback={<MapLoading />}>
               {(model) => (
                 <>
@@ -638,7 +799,7 @@ function MapLoading() {
   return <div class="flex h-full items-center justify-center text-sm text-v2-text-text-muted">地图加载中…</div>
 }
 
-function EmptyMapState(props: { creating: boolean; onCreate: () => void }) {
+function EmptyMapState(props: { creating: boolean; generating: boolean; onCreate: () => void; onGenerate: () => void }) {
   return (
     <div class="flex flex-1 items-center justify-center min-h-0">
       <div class="text-center max-w-sm px-6">
@@ -647,14 +808,24 @@ function EmptyMapState(props: { creating: boolean; onCreate: () => void }) {
         </div>
         <h3 class="text-base font-medium text-v2-text-text-base mb-1">还没有世界地图</h3>
         <p class="text-sm text-v2-text-text-muted mb-4">创建一个空白地图草稿，手动绘制区域、放置地点并安放角色图钉。</p>
-        <button
-          type="button"
-          disabled={props.creating}
-          class="rounded-md bg-v2-background-bg-invert px-4 py-2 text-sm text-v2-text-text-invert hover:opacity-90 disabled:opacity-50"
-          onClick={props.onCreate}
-        >
-          创建地图草稿
-        </button>
+        <div class="flex justify-center gap-2">
+          <button
+            type="button"
+            disabled={props.creating || props.generating}
+            class="rounded-md bg-v2-background-bg-invert px-4 py-2 text-sm text-v2-text-text-invert hover:opacity-90 disabled:opacity-50"
+            onClick={props.onCreate}
+          >
+            创建地图草稿
+          </button>
+          <button
+            type="button"
+            disabled={props.generating}
+            class="rounded-md border border-v2-border-border-base px-4 py-2 text-sm text-v2-text-text-base hover:bg-v2-background-bg-layer-01 disabled:opacity-50"
+            onClick={props.onGenerate}
+          >
+            AI 生成
+          </button>
+        </div>
       </div>
     </div>
   )
