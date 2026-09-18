@@ -21,6 +21,7 @@
 
 ### 验证
 
+- [ ] 视图模型映射纯函数测试：聚合响应到 Leaflet 图层模型的坐标映射（含 y 翻转）、要素分组、图钉与角色数据合并。
 - [ ] packages/app bun typecheck 通过。
-- [ ] 手动验证：渲染、hover、切换、强确认、空状态。
+- [ ] 手动验证清单：渲染、hover、切换、强确认弹窗、空状态。
 - [ ] openspec validate map-rendering --strict 通过。
