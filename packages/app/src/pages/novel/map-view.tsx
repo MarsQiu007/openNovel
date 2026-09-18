@@ -1,11 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { createEffect, createMemo, createSignal, type Accessor, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, type Accessor, Show } from "solid-js"
 import { Dialog } from "@opennovel-ai/ui/dialog"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { useNovelClient } from "@/context/novel-queries"
 import { useSDK } from "@/context/sdk"
 import { buildMapLayerModel } from "./map/view-model"
-import { LocalPlaneMap } from "./map/local-plane-map"
+import { LocalPlaneMap, type MapSelection } from "./map/local-plane-map"
+import { MapEditorPanel } from "./map/map-editor-panel"
+import {
+  addDrawingPoint,
+  clampPoint,
+  completeDrawing,
+  createEditorSaveQueue,
+  deriveDraftCommands,
+  pinPlacementError,
+  replaceVertex,
+  type EditorTool,
+} from "./map/editor-model"
+import type {
+  CreateCharacterMapPinInput,
+  CreateWorldMapFeatureInput,
+  UpdateCharacterMapPinInput,
+  UpdateWorldMapFeatureInput,
+  WorldMapPoint,
+} from "@opennovel-ai/schema/novel"
 
 export default function MapView(props: { novelID: Accessor<string> }) {
   const client = useNovelClient()
@@ -13,15 +31,27 @@ export default function MapView(props: { novelID: Accessor<string> }) {
   const queryClient = useQueryClient()
   const dialog = useDialog()
   const [view, setView] = createSignal<"active" | "draft">("active")
+  const [editing, setEditing] = createSignal(false)
+  const [tool, setTool] = createSignal<EditorTool>("select")
+  const [selection, setSelection] = createSignal<MapSelection | undefined>()
+  const [drawing, setDrawing] = createSignal<WorldMapPoint[]>([])
+  const [pinCharacterId, setPinCharacterId] = createSignal("")
+  const [notice, setNotice] = createSignal<string | undefined>()
+  const [saveTick, setSaveTick] = createSignal(0)
+  const saveQueue = createEditorSaveQueue(() => setSaveTick((tick) => tick + 1))
 
   const directory = () => sdk().directory
+  const location = () => ({ directory: directory() })
+  const draftMapID = () => draftQuery.data?.map.id
+  const pendingSaves = createMemo(() => (saveTick(), saveQueue.size))
+  const saveFailures = createMemo(() => (saveTick(), saveQueue.failures()))
 
   const activeQuery = useQuery(() => ({
     queryKey: ["world-map", "active", directory(), props.novelID()],
     queryFn: () =>
       client()["server.novel"]["active-world-map"]({
         novelID: props.novelID(),
-        location: { directory: directory() },
+        location: location(),
       }),
     enabled: !!props.novelID(),
   }))
@@ -31,7 +61,7 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     queryFn: () =>
       client()["server.novel"]["draft-world-map"]({
         novelID: props.novelID(),
-        location: { directory: directory() },
+        location: location(),
       }),
     enabled: !!props.novelID(),
   }))
@@ -41,7 +71,7 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     queryFn: () =>
       client()["server.novel"].characters({
         novelID: props.novelID(),
-        location: { directory: directory() },
+        location: location(),
       }),
     enabled: !!props.novelID(),
   }))
@@ -51,9 +81,180 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     queryFn: () =>
       client()["server.novel"]["world-entries"]({
         novelID: props.novelID(),
-        location: { directory: directory() },
+        location: location(),
       }),
     enabled: !!props.novelID(),
+  }))
+
+  const invalidateDraft = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["world-map", "draft", directory(), props.novelID()] })
+  }
+
+  const requireDraftMapID = () => {
+    const mapID = draftMapID()
+    if (!mapID) throw new Error("草稿尚未就绪")
+    return mapID
+  }
+
+  const randomSaveKey = (prefix: string) => `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`
+
+  const scheduleCreateFeature = (input: CreateWorldMapFeatureInput) => {
+    saveQueue.schedule(randomSaveKey("create-feature"), async () => {
+      await client()["server.novel"]["create-world-map-feature"]({
+        novelID: props.novelID(),
+        mapID: requireDraftMapID(),
+        location: location(),
+        ...input,
+      })
+      await invalidateDraft()
+    })
+  }
+
+  const scheduleCreatePin = (input: CreateCharacterMapPinInput) => {
+    saveQueue.schedule(randomSaveKey("create-pin"), async () => {
+      await client()["server.novel"]["create-character-map-pin"]({
+        novelID: props.novelID(),
+        mapID: requireDraftMapID(),
+        location: location(),
+        ...input,
+      })
+      await invalidateDraft()
+    })
+  }
+
+  const scheduleFeatureUpdate = (featureID: string, patch: UpdateWorldMapFeatureInput) => {
+    const fields = Object.keys(patch).sort().join("+")
+    saveQueue.schedule(`feature:${featureID}:${fields}`, async () => {
+      await client()["server.novel"]["update-world-map-feature"]({
+        novelID: props.novelID(),
+        mapID: requireDraftMapID(),
+        featureID,
+        location: location(),
+        ...patch,
+      })
+      await invalidateDraft()
+    })
+  }
+
+  const schedulePinUpdate = (pinID: string, patch: UpdateCharacterMapPinInput) => {
+    const fields = Object.keys(patch).sort().join("+")
+    saveQueue.schedule(`pin:${pinID}:${fields}`, async () => {
+      await client()["server.novel"]["update-character-map-pin"]({
+        novelID: props.novelID(),
+        mapID: requireDraftMapID(),
+        pinID,
+        location: location(),
+        ...patch,
+      })
+      await invalidateDraft()
+    })
+  }
+
+  const createBlankMutation = useMutation(() => ({
+    mutationFn: async () => {
+      await client()["server.novel"]["create-world-map"]({
+        novelID: props.novelID(),
+        location: location(),
+        title: "未命名地图",
+        description: "",
+        status: "draft",
+      })
+      await invalidateDraft()
+    },
+    onSuccess: () => {
+      setView("draft")
+      setEditing(true)
+      resetEditorState()
+    },
+    onError: (error) => setNotice(error.message),
+  }))
+
+  const deriveMutation = useMutation(() => ({
+    mutationFn: async () => {
+      const active = activeQuery.data
+      if (!active) throw new Error("没有可派生的正式地图")
+      const draft = await client()["server.novel"]["create-world-map"]({
+        novelID: props.novelID(),
+        location: location(),
+        title: active.map.title || "未命名地图",
+        description: active.map.description,
+        status: "draft",
+      })
+      try {
+        for (const command of deriveDraftCommands(active)) {
+          if (command.kind === "feature") {
+            await client()["server.novel"]["create-world-map-feature"]({
+              novelID: props.novelID(),
+              mapID: draft.id,
+              location: location(),
+              ...command.input,
+            })
+          } else {
+            await client()["server.novel"]["create-character-map-pin"]({
+              novelID: props.novelID(),
+              mapID: draft.id,
+              location: location(),
+              ...command.input,
+            })
+          }
+        }
+      } catch (error) {
+        await client()["server.novel"]["delete-world-map"]({
+          novelID: props.novelID(),
+          mapID: draft.id,
+          location: location(),
+        })
+        throw error
+      }
+      await invalidateDraft()
+    },
+    onSuccess: () => {
+      setView("draft")
+      setEditing(true)
+      resetEditorState()
+    },
+    onError: (error) => setNotice(error.message),
+  }))
+
+  const deleteItemMutation = useMutation(() => ({
+    mutationFn: async (input: { kind: "feature" | "pin"; id: string }) => {
+      if (input.kind === "feature") {
+        await client()["server.novel"]["delete-world-map-feature"]({
+          novelID: props.novelID(),
+          mapID: requireDraftMapID(),
+          featureID: input.id,
+          location: location(),
+        })
+      } else {
+        await client()["server.novel"]["delete-character-map-pin"]({
+          novelID: props.novelID(),
+          mapID: requireDraftMapID(),
+          pinID: input.id,
+          location: location(),
+        })
+      }
+      await invalidateDraft()
+    },
+    onSuccess: () => setSelection(undefined),
+    onError: (error) => setNotice(error.message),
+  }))
+
+  const abandonMutation = useMutation(() => ({
+    mutationFn: async (mapID: string) => {
+      saveQueue.clear()
+      await client()["server.novel"]["delete-world-map"]({
+        novelID: props.novelID(),
+        mapID,
+        location: location(),
+      })
+      await invalidateDraft()
+    },
+    onSuccess: () => {
+      setEditing(false)
+      setView("active")
+      resetEditorState()
+    },
+    onError: (error) => setNotice(error.message),
   }))
 
   const promoteMutation = useMutation(() => ({
@@ -61,19 +262,193 @@ export default function MapView(props: { novelID: Accessor<string> }) {
       client()["server.novel"]["promote-world-map"]({
         novelID: props.novelID(),
         mapID,
-        location: { directory: directory() },
+        location: location(),
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["world-map", "active"] })
-      void queryClient.invalidateQueries({ queryKey: ["world-map", "draft"] })
+      saveQueue.clear()
+      void queryClient.invalidateQueries({ queryKey: ["world-map", "active", directory(), props.novelID()] })
+      void invalidateDraft()
+      setEditing(false)
       setView("active")
+      resetEditorState()
     },
+    onError: (error) => setNotice(error.message),
   }))
 
+  let hadDraft = false
   createEffect(() => {
-    if (!activeQuery.isSuccess || !draftQuery.isSuccess) return
-    if (!activeQuery.data && draftQuery.data) setView("draft")
+    if (!draftQuery.isSuccess) return
+    const draft = draftQuery.data
+    if (draft && !hadDraft) {
+      setView("draft")
+      setEditing(true)
+      resetEditorState()
+    }
+    hadDraft = !!draft
   })
+
+  createEffect(() => {
+    saveTick()
+    if (saveQueue.size === 0) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    onCleanup(() => window.removeEventListener("beforeunload", handleBeforeUnload))
+  })
+
+  function resetEditorState() {
+    setSelection(undefined)
+    setDrawing([])
+    setTool("select")
+    setPinCharacterId("")
+    setNotice(undefined)
+  }
+
+  const switchView = (target: "active" | "draft") => {
+    setView(target)
+    setEditing(target === "draft" && !!draftQuery.data)
+    resetEditorState()
+  }
+
+  const handleToolChange = (nextTool: EditorTool) => {
+    setTool(nextTool)
+    setDrawing([])
+    setSelection(undefined)
+    setNotice(undefined)
+  }
+
+  const handleMapClick = (worldPoint: ReturnType<typeof clampPoint>) => {
+    setNotice(undefined)
+    if (tool() === "select") {
+      setSelection(undefined)
+      return
+    }
+    const point = clampPoint(worldPoint)
+    if (tool() === "region") {
+      setDrawing(addDrawingPoint(drawing(), point))
+      return
+    }
+    if (tool() === "place") {
+      scheduleCreateFeature({
+        kind: "place",
+        name: "未命名地点",
+        description: "",
+        color: "#4f46e5",
+        worldEntryId: null,
+        x: point.x,
+        y: point.y,
+      })
+      return
+    }
+    const characterId = pinCharacterId()
+    if (!characterId) {
+      setNotice("请先选择要安放图钉的角色")
+      return
+    }
+    const placementError = pinPlacementError(characterId, draftQuery.data?.pins ?? [])
+    if (placementError) {
+      setNotice(placementError)
+      return
+    }
+    scheduleCreatePin({ characterId, featureId: null, x: point.x, y: point.y })
+  }
+
+  const handleEscape = () => {
+    if (drawing().length > 0) {
+      setDrawing([])
+      return
+    }
+    setTool("select")
+    setSelection(undefined)
+  }
+
+  const handleCompleteDrawing = () => {
+    const result = completeDrawing(drawing())
+    if (!result.ok) {
+      setNotice(result.error)
+      return
+    }
+    scheduleCreateFeature({
+      kind: "region",
+      name: "未命名区域",
+      description: "",
+      color: "#22c55e",
+      worldEntryId: null,
+      polygon: result.polygon,
+    })
+    setDrawing([])
+  }
+
+  const handleFeatureField = (featureID: string, patch: UpdateWorldMapFeatureInput) => {
+    setNotice(undefined)
+    if (patch.name !== undefined && !patch.name.trim()) {
+      setNotice("要素名称不能为空")
+      return
+    }
+    scheduleFeatureUpdate(featureID, patch)
+  }
+
+  const handlePinField = (pinID: string, patch: UpdateCharacterMapPinInput) => {
+    setNotice(undefined)
+    schedulePinUpdate(pinID, patch)
+  }
+
+  const showConfirm = (input: {
+    title: string
+    message: string
+    confirmLabel: string
+    danger?: boolean
+    onConfirm: () => void
+  }) => {
+    dialog.show(() => (
+      <Dialog size="normal" transition>
+        <div class="flex flex-col gap-4 p-6">
+          <div class="flex flex-col gap-2">
+            <h3 class="text-base font-medium text-v2-text-text-base">{input.title}</h3>
+            <p class="text-sm text-v2-text-text-muted">{input.message}</p>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-md border border-v2-border-border-base px-3 py-1.5 text-sm text-v2-text-text-base hover:bg-v2-background-bg-layer-01"
+              onClick={() => dialog.close()}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class={
+                "rounded-md px-3 py-1.5 text-sm text-white hover:opacity-90 " +
+                (input.danger ? "bg-red-600 hover:bg-red-500" : "bg-v2-background-bg-invert")
+              }
+              onClick={() => {
+                dialog.close()
+                input.onConfirm()
+              }}
+            >
+              {input.confirmLabel}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+    ))
+  }
+
+  const openPromoteConfirm = () => {
+    const draft = draftQuery.data
+    if (!draft) return
+    const active = activeQuery.data
+    showConfirm({
+      title: "确认生效地图草稿？",
+      message: active
+        ? `将替换正式地图「${active.map.title || "未命名地图"}」（${active.features.length} 个要素、${active.pins.length} 个角色图钉）。替换后旧正式地图无法恢复，请确认。`
+        : "当前没有正式世界地图，草稿将直接成为正式地图。",
+      confirmLabel: "确认生效",
+      onConfirm: () => promoteMutation.mutate(draft.map.id),
+    })
+  }
 
   const currentAggregate = createMemo(() => (view() === "active" ? activeQuery.data : draftQuery.data))
 
@@ -87,75 +462,153 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     })
   })
 
-  const openPromoteConfirm = () => {
-    const draft = draftQuery.data
-    if (!draft) return
-    const active = activeQuery.data
-    dialog.show(() => (
-      <Dialog size="normal" transition>
-        <div class="flex flex-col gap-4 p-6">
-          <div class="flex flex-col gap-2">
-            <h3 class="text-base font-medium text-v2-text-text-base">确认生效地图草稿？</h3>
-            <Show
-              when={active}
-              fallback={<p class="text-sm text-v2-text-text-muted">当前没有正式世界地图，草稿将直接成为正式地图。</p>}
-            >
-              {(activeAggregate) => (
-                <p class="text-sm text-v2-text-text-muted">
-                  将替换正式地图「{activeAggregate().map.title || "未命名地图"}」（
-                  {activeAggregate().features.length} 个要素、{activeAggregate().pins.length} 个角色图钉）。
-                  替换后旧正式地图无法恢复，请确认。
-                </p>
-              )}
-            </Show>
-          </div>
-          <div class="flex justify-end gap-2">
-            <button
-              type="button"
-              class="rounded-md border border-v2-border-border-base px-3 py-1.5 text-sm text-v2-text-text-base hover:bg-v2-background-bg-layer-01"
-              onClick={() => dialog.close()}
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              disabled={promoteMutation.isPending}
-              class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-50"
-              onClick={() => promoteMutation.mutate(draft.map.id)}
-            >
-              确认生效
-            </button>
-          </div>
-        </div>
-      </Dialog>
-    ))
-  }
-
   return (
     <div class="flex flex-1 flex-col min-h-0 gap-3">
       <Show when={activeQuery.isSuccess || draftQuery.isSuccess} fallback={<MapLoading />}>
-        <Show when={activeQuery.data || draftQuery.data} fallback={<EmptyMapState />}>
+        <Show
+          when={activeQuery.data || draftQuery.data}
+          fallback={
+            <EmptyMapState creating={createBlankMutation.isPending} onCreate={() => createBlankMutation.mutate()} />
+          }
+        >
           <div class="flex items-center justify-between shrink-0">
             <div class="flex items-center gap-1 rounded-lg border border-v2-border-border-base p-0.5">
-              <MapTabButton active={view() === "active"} onClick={() => setView("active")} label="正式地图" />
-              <MapTabButton active={view() === "draft"} onClick={() => setView("draft")} label="草稿" />
+              <MapTabButton active={view() === "active"} onClick={() => switchView("active")} label="正式地图" />
+              <MapTabButton active={view() === "draft"} onClick={() => switchView("draft")} label="草稿" />
             </div>
-            <Show when={view() === "draft" && draftQuery.data}>
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-v2-text-text-muted">当前查看草稿，正式地图不受影响</span>
+            <div class="flex items-center gap-2">
+              <Show when={!draftQuery.data && activeQuery.data}>
                 <button
                   type="button"
-                  class="rounded-md bg-v2-background-bg-invert px-3 py-1.5 text-sm text-v2-text-text-invert hover:opacity-90"
+                  disabled={deriveMutation.isPending}
+                  class="rounded-md bg-v2-background-bg-invert px-3 py-1.5 text-sm text-v2-text-text-invert hover:opacity-90 disabled:opacity-50"
+                  onClick={() => deriveMutation.mutate()}
+                >
+                  从正式地图派生草稿
+                </button>
+              </Show>
+              <Show when={draftQuery.data}>
+                <Show
+                  when={editing()}
+                  fallback={
+                    <button
+                      type="button"
+                      class="rounded-md bg-v2-background-bg-invert px-3 py-1.5 text-sm text-v2-text-text-invert hover:opacity-90"
+                      onClick={() => switchView("draft")}
+                    >
+                      编辑草稿
+                    </button>
+                  }
+                >
+                  <button
+                    type="button"
+                    class="rounded-md border border-v2-border-border-base px-3 py-1.5 text-sm text-v2-text-text-base hover:bg-v2-background-bg-layer-01"
+                    onClick={() => switchView("active")}
+                  >
+                    退出编辑
+                  </button>
+                </Show>
+                <button
+                  type="button"
+                  disabled={promoteMutation.isPending || pendingSaves() > 0}
+                  class="rounded-md bg-v2-background-bg-invert px-3 py-1.5 text-sm text-v2-text-text-invert hover:opacity-90 disabled:opacity-50"
                   onClick={openPromoteConfirm}
                 >
                   确认生效
                 </button>
-              </div>
-            </Show>
+                <button
+                  type="button"
+                  disabled={abandonMutation.isPending}
+                  class="rounded-md border border-red-500/50 px-3 py-1.5 text-sm text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                  onClick={() => {
+                    const draft = draftQuery.data
+                    if (!draft) return
+                    showConfirm({
+                      title: "放弃草稿？",
+                      message: "将删除草稿及其全部要素和图钉，正式地图不受影响。此操作无法恢复。",
+                      confirmLabel: "放弃草稿",
+                      danger: true,
+                      onConfirm: () => abandonMutation.mutate(draft.map.id),
+                    })
+                  }}
+                >
+                  放弃草稿
+                </button>
+              </Show>
+            </div>
           </div>
           <div class="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-v2-border-border-base">
             <Show when={layerModel()} fallback={<MapLoading />}>
-              {(model) => <LocalPlaneMap model={model} />}
+              {(model) => (
+                <>
+                  <LocalPlaneMap
+                    model={model}
+                    editing={editing}
+                    tool={tool}
+                    drawing={drawing}
+                    selection={selection}
+                    onMapClick={handleMapClick}
+                    onEscape={handleEscape}
+                    onFeatureClick={(featureId) => {
+                      setNotice(undefined)
+                      setSelection({ kind: "feature", id: featureId })
+                    }}
+                    onPinClick={(pinId) => {
+                      setNotice(undefined)
+                      setSelection({ kind: "pin", id: pinId })
+                    }}
+                    onPlaceMove={(featureId, point) => scheduleFeatureUpdate(featureId, { x: point.x, y: point.y })}
+                    onPinMove={(pinId, point) => schedulePinUpdate(pinId, { x: point.x, y: point.y })}
+                    onVertexMove={(featureId, index, point) => {
+                      const feature = draftQuery.data?.features.find((item) => item.id === featureId)
+                      if (!feature) return
+                      scheduleFeatureUpdate(featureId, { polygon: replaceVertex(feature.polygon, index, point) })
+                    }}
+                  />
+                  <MapEditorPanel
+                    aggregate={() => draftQuery.data ?? activeQuery.data!}
+                    characters={() => charactersQuery.data ?? []}
+                    worldEntries={() => worldEntriesQuery.data ?? []}
+                    editing={editing}
+                    tool={tool}
+                    selection={selection}
+                    drawing={drawing}
+                    pinCharacterId={pinCharacterId}
+                    notice={notice}
+                    pendingSaves={pendingSaves}
+                    failures={saveFailures}
+                    onToolChange={handleToolChange}
+                    onPinCharacterChange={(characterId) => {
+                      setPinCharacterId(characterId)
+                      setNotice(undefined)
+                    }}
+                    onCompleteDrawing={handleCompleteDrawing}
+                    onCancelDrawing={() => setDrawing([])}
+                    onFeatureField={handleFeatureField}
+                    onPinField={handlePinField}
+                    onDeleteFeature={(feature) => {
+                      showConfirm({
+                        title: `删除${feature.kind === "region" ? "区域" : "地点"}？`,
+                        message: `「${feature.name}」将从草稿中删除，此操作无法恢复。`,
+                        confirmLabel: "删除",
+                        danger: true,
+                        onConfirm: () => deleteItemMutation.mutate({ kind: "feature", id: feature.id }),
+                      })
+                    }}
+                    onDeletePin={(pin) => {
+                      const character = charactersQuery.data?.find((item) => item.id === pin.characterId)
+                      showConfirm({
+                        title: "删除图钉？",
+                        message: `将移除「${character?.name ?? pin.characterId}」的地图图钉，此操作无法恢复。`,
+                        confirmLabel: "删除",
+                        danger: true,
+                        onConfirm: () => deleteItemMutation.mutate({ kind: "pin", id: pin.id }),
+                      })
+                    }}
+                    onRetry={(key) => void saveQueue.retry(key)}
+                  />
+                </>
+              )}
             </Show>
           </div>
         </Show>
@@ -182,12 +635,10 @@ function MapTabButton(props: { active: boolean; onClick: () => void; label: stri
 }
 
 function MapLoading() {
-  return (
-    <div class="flex h-full items-center justify-center text-sm text-v2-text-text-muted">地图加载中…</div>
-  )
+  return <div class="flex h-full items-center justify-center text-sm text-v2-text-text-muted">地图加载中…</div>
 }
 
-function EmptyMapState() {
+function EmptyMapState(props: { creating: boolean; onCreate: () => void }) {
   return (
     <div class="flex flex-1 items-center justify-center min-h-0">
       <div class="text-center max-w-sm px-6">
@@ -195,9 +646,15 @@ function EmptyMapState() {
           ◈
         </div>
         <h3 class="text-base font-medium text-v2-text-text-base mb-1">还没有世界地图</h3>
-        <p class="text-sm text-v2-text-text-muted">
-          地图创建能力将在后续版本提供，届时可手动绘制或由 AI 生成世界地图草稿。
-        </p>
+        <p class="text-sm text-v2-text-text-muted mb-4">创建一个空白地图草稿，手动绘制区域、放置地点并安放角色图钉。</p>
+        <button
+          type="button"
+          disabled={props.creating}
+          class="rounded-md bg-v2-background-bg-invert px-4 py-2 text-sm text-v2-text-text-invert hover:opacity-90 disabled:opacity-50"
+          onClick={props.onCreate}
+        >
+          创建地图草稿
+        </button>
       </div>
     </div>
   )
