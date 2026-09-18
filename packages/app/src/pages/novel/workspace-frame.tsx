@@ -972,7 +972,7 @@ export default function NovelWorkspaceFrame() {
                       />
                     </Show>
                     <Show when={activeTab() === "map"}>
-                      <MapView />
+                      <MapView novelID={novelID} />
                     </Show>
                     <Show when={activeTab() === "canvas"}>
                       <CanvasPanel novelID={novelID} />
