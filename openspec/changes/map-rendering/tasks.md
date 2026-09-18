@@ -25,3 +25,8 @@
 - [x] packages/app bun typecheck 通过。
 - [x] 手动验证清单：渲染、hover、切换、强确认弹窗、空状态。
 - [x] openspec validate map-rendering --strict 通过。
+
+## Implementation Commits
+
+- 75fa7a8d1 feat(app): 实现世界地图渲染视图
+- 3ed3d899b test(app): 覆盖世界地图渲染流程
