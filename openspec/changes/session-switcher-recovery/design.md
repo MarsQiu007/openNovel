@@ -29,11 +29,13 @@
 ## Decisions
 
 1. **三态判定收敛到 sessionSwitcherTrigger 纯函数扩展**
-   为 trigger 输入增加列表状态（pending / error / ready，缺省 ready），输出在
-   `{label, disabled}` 基础上增加 `showRetry`：仅确认空列表才禁用下拉，error 态
-   返回失败占位与重试标记；组件层只消费结果渲染。选择纯函数而非组件内分支，是
-   与仓库 `bun:test` 纯函数测试约定一致，错误分支可被直接验证；备选：组件内
-   直接分支——仓库无组件级测试设施，错误态回归无法落地验证，拒绝。
+   为 trigger 输入增加必填的列表状态（pending / error / ready）与对应占位文案
+   （pendingLabel / errorLabel），输出在 `{label, disabled}` 基础上增加 `showRetry`：
+   仅确认空列表才禁用下拉，error 态返回失败占位与重试标记；组件层只消费结果渲染。
+   现有测试因输出结构变化本就需要更新，status 无需为兼容旧测试而设缺省。
+   选择纯函数而非组件内分支，是与仓库 `bun:test` 纯函数测试约定一致，错误分支
+   可被直接验证；备选：组件内直接分支——仓库无组件级测试设施，错误态回归无法
+   落地验证，拒绝。
 
 2. **重试用查询级 retry 配置，不用轮询、不改全局默认**
    为 `useBoundNovelSessions` 单独配置有限次数重试（`retry: 2`）与指数退避
