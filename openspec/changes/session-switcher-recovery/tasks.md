@@ -15,7 +15,7 @@
 
 ## 4. 收尾
 
-- [ ] 4.1 运行 `openspec validate session-switcher-recovery` 并提交实现（提交信息带 OpenSpec-Change trailer）
+- [x] 4.1 运行 `openspec validate session-switcher-recovery` 并提交实现（提交信息带 OpenSpec-Change trailer）
 
 ## Implementation Commits
 
