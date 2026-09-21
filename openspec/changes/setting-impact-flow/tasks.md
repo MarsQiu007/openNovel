@@ -44,3 +44,7 @@
 - [x] 7.3 在仓库根运行 oxlint 检查新增和修改文件，确认无 lint 错误
 - [x] 7.4 在仓库根运行 `bun run typecheck`，确认全仓类型检查通过
 - [x] 7.5 运行 `openspec validate setting-impact-flow`，确认提案与规格通过校验
+
+## Implementation Commits
+
+- `0e256fe39` feat(plugin): 统一设定影响面服务与工具接入
