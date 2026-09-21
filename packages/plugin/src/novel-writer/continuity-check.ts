@@ -28,6 +28,8 @@ import {
   WorldEntryTable,
   StyleGuideTable,
 } from "./session-store.js"
+import { buildCharacterBindingView, detectKinshipEntityDrift } from "./drift-guards.js"
+import { selectProtectedRelationships } from "./relationship-context.js"
 
 // ─── 类型定义 ───
 
@@ -364,6 +366,55 @@ function checkCharacterContinuity(ctx: CheckContext): ContinuityResult[] {
 
 function checkRelationshipContinuity(ctx: CheckContext): ContinuityResult[] {
   const results: ContinuityResult[] = []
+
+  // 确定性称谓守卫样例：正文把亲属称谓实体化且无法绑定既有角色时，关系维度必须 FAIL
+  if (ctx.currentChapterContent && ctx.relationships.length > 0) {
+    const protectedRelationships = selectProtectedRelationships({
+      relationships: ctx.relationships.map((row) => {
+        const nameById = new Map(ctx.characters.map((character) => [character.id, character.name]))
+        return {
+          id: row.id,
+          charAId: row.char_a_id,
+          charBId: row.char_b_id,
+          type: row.type,
+          description: row.description,
+          charAName: nameById.get(row.char_a_id) ?? "(未知角色)",
+          charBName: nameById.get(row.char_b_id) ?? "(未知角色)",
+        }
+      }),
+      activeCharacterIds: ctx.characterStates.filter((state) => state.active === 1).map((state) => state.character_id),
+      relatedText: ctx.currentChapterContent,
+    })
+    const bindingView = buildCharacterBindingView({
+      characters: ctx.characters.map((character) => ({ id: character.id, name: character.name })),
+      activeCharacterIds: ctx.characterStates.filter((state) => state.active === 1).map((state) => state.character_id),
+      relatedText: ctx.currentChapterContent,
+      relationships: ctx.relationships.map((row) => {
+        const nameById = new Map(ctx.characters.map((character) => [character.id, character.name]))
+        return {
+          id: row.id,
+          charAId: row.char_a_id,
+          charBId: row.char_b_id,
+          type: row.type,
+          description: row.description,
+          charAName: nameById.get(row.char_a_id) ?? "(未知角色)",
+          charBName: nameById.get(row.char_b_id) ?? "(未知角色)",
+        }
+      }),
+      protectedRelationships,
+    })
+    const findings = detectKinshipEntityDrift(ctx.currentChapterContent, bindingView)
+    if (findings.length > 0) {
+      const relationshipEvidence = protectedRelationships
+        .map((relationship) => `${relationship.charAName}/${relationship.charBName}:${relationship.type}`)
+        .join("；")
+      results.push({
+        dimension: "关系类型一致",
+        status: "FAIL",
+        detail: `正文疑似把称谓实体化为未绑定新角色：${findings.map((finding) => `${finding.message}（原文：${finding.evidence}）`).join(" ")}；权威关系证据：${relationshipEvidence}`,
+      })
+    }
+  }
 
   // 关系类型一致：检查关系表是否定义了角色关系
   if (ctx.relationships.length === 0) {

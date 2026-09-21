@@ -23,6 +23,7 @@ import {
   resolveChapterOutline,
 } from "./session-store.js"
 import type { RecalledHistoryItem, WorldEntrySummary, WorldEntryIndexItem, ContextPacket } from "./context.js"
+import { buildCharacterBindingView } from "./drift-guards.js"
 import { selectProtectedRelationships } from "./relationship-context.js"
 import { assembleSnapshot } from "./context.js"
 import { applyBudget } from "./budget.js"
@@ -620,6 +621,13 @@ export async function assembleWriterSnapshot(
   })
   const protectedRelationshipIds = new Set(protectedRelationships.map((r) => r.id))
   raw.protectedRelationships = protectedRelationships
+  raw.characterBindingView = buildCharacterBindingView({
+    characters: allChars,
+    activeCharacterIds,
+    relatedText,
+    relationships: raw.relationships,
+    protectedRelationships,
+  })
 
   // 普通关系仍按出场相关性保留，但不再重复输出受保护关系
   if (activeCharacterIds.length > 0) {

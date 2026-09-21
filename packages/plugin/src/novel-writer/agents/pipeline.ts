@@ -95,6 +95,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 调用 \`check_continuity\` 工具，传入 novel_id 和 chapter_number。
 
 分派任意 auditor 前，必须把步骤 2 快照输出中"技法候选"段落里的每条候选（从 \`- [技法ID] 名称（置信度:x.xx）：指令\` 行中提取）映射为 \`retrieved_techniques\` 传入 prompt；每项只包含 \`id\`、\`name\`、\`instruction\`。若快照中没有"技法候选"段落，传空数组并明确告知 auditor 跳过技法使用评估。
+分派任意 auditor 前，还必须把步骤 2 快照输出中的【命名角色白名单（硬约束）】和【受保护角色关系（硬约束）】段落原样传入 prompt；若快照包含“称谓绑定”“未解析称谓”行，必须一并传递。
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"
@@ -104,7 +105,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - WARN -> **必须 dispatch @auditor 做轻量设定对照审计**，不允许跳过。理由：设定对照维度的 WARN（命中率低 / 疑似漂移词）正是 LLM 才能准确判断的，确定性扫描可能误报。
   - subagent_type: "auditor"
   - description: "设定一致性专项审计（第X章）"
-  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告里的所有 WARN/FAIL 维度和疑似漂移词列表，指示 auditor 重点跑 23/24/25/26/27 + 1-5 + 35-37 共 13 维
+  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告里的所有 WARN/FAIL 维度和疑似漂移词列表，指示 auditor 重点跑 23/24/25/26/27 + 1-5 + 6-9 + 35-37 共 17 维
   - @auditor 返回审计结果后：若结果含 FAIL → 进入步骤 5 revise；若仅 WARN/PASS → 进入步骤 6
 - PASS -> 仍需 dispatch @auditor 做「设定一致性专项审计」，理由：即使关键词命中率达标，也可能有 LLM 自创的同形异义词（如"黄金级"vs"子爵"）。
   - subagent_type: "auditor"

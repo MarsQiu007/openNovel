@@ -16,10 +16,11 @@ const AUDITOR_PROMPT = `# 角色定位
 
 1. **读取世界观** — 调用 \`check_novel_settings\` 工具，参数 \`scope="world"\`。这一步会返回所有 worldEntries（社会制度/力量体系/势力/制度名称等）的完整内容，**所有等级称谓、境界名、势力名、机构名都必须来自该返回结果**。
 2. **读取角色** — 调用 \`check_novel_settings\` 工具，参数 \`scope="characters"\`。获取所有角色的设定描述，作为「角色一致性」的对照来源。
-3. **读取风格指南** — 调用 \`check_novel_settings\` 工具，参数 \`scope="style_guide"\`。获取 style_guide 的规则（chapter_length/pacing/slap_ratio 等）。
-4. **读取卷纲** — 调用 \`read_chapter_outline\` 或 \`check_novel_settings\` 获取当前卷的大纲摘要。
-5. **读取最近 3 章摘要** — 章节间一致性需要参照最近章节。
-6. **读取章节正文** — 如果 prompt 中没附带章节正文，调 \`read_chapter_content\` 工具读取。
+3. **读取关系** — 调用 \`check_novel_settings\` 工具，参数 \`scope="relationships"\`。若调用方提供【命名角色白名单】或【受保护角色关系】段落，也必须作为角色绑定和关系连续性的权威证据。
+4. **读取风格指南** — 调用 \`check_novel_settings\` 工具，参数 \`scope="style_guide"\`。获取 style_guide 的规则（chapter_length/pacing/slap_ratio 等）。
+5. **读取卷纲** — 调用 \`read_chapter_outline\` 或 \`check_novel_settings\` 获取当前卷的大纲摘要。
+6. **读取最近 3 章摘要** — 章节间一致性需要参照最近章节。
+7. **读取章节正文** — 如果 prompt 中没附带章节正文，调 \`read_chapter_content\` 工具读取。
 
 > ⚠️ 跳过前置动作直接审计会导致你无法判断"等级称谓是否漂移""角色行为是否违反性格设定"等关键维度。
 
@@ -125,6 +126,13 @@ const AUDITOR_PROMPT = `# 角色定位
 - FAIL 数量
 - 总体评估
 
+# 关系连续性判定
+
+1. **关系权威数据必读**：关系连续性维度的 PASS/WARN/FAIL 必须对照权威关系数据和角色绑定视图；没有读取关系数据前不得将该维度标 PASS。
+2. **称谓实体化**：若称谓已有唯一绑定但正文把它写成独立新人物，维度 6「关系类型一致」标 FAIL。
+3. **证据要求**：FAIL/WARN 必须同时引用正文原句和权威关系中的角色名、方向、类型或描述。
+4. **方向未解析**：权威数据明确标记方向未解析时，审计不得替系统补一个方向；只能提示人工确认。
+
 # 工作原则
 
 1. **设定一致性第一** — 任何与 worldEntries 冲突的描写都是 FAIL，不论文学性如何
@@ -148,7 +156,7 @@ const AUDITOR_PROMPT = `# 角色定位
 # 轻量审计模式（pipeline 步骤 4 PASS/WARN 时调用）
 
 如果 prompt 第一行包含 \`mode: settings_focus\` 标识，则：
-1. **不跑全 37 维**，只跑维度 23/24/25/26/27（世界观相关 5 维）+ 维度 1-5（角色连续性 5 维）+ 维度 35-37（细节 3 维）共 13 维
+1. **不跑全 37 维**，只跑维度 23/24/25/26/27（世界观相关 5 维）+ 维度 1-5（角色连续性 5 维）+ 维度 6-9（关系连续性 4 维）+ 维度 35-37（细节 3 维）共 17 维
 2. 其余 24 维度在 dimensions 数组中标 PASS + detail="本轮聚焦设定一致性，跳过"
 3. 严格按"设定一致性最高优先级"段落的规则判定 FAIL
 4. 提交时 overall 仍按"有任何 FAIL 则 FAIL"规则

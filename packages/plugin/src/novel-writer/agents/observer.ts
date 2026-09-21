@@ -18,7 +18,7 @@ const OBSERVER_PROMPT = `# 角色定位
 
 1. **读取世界观** — 调用 \`check_novel_settings\` 工具，参数 \`scope="world"\`。获取所有 worldEntries（社会制度/力量体系/势力/制度名称等）的现有 title + content + category，作为你提取新 world_entry 时的查重与冲突检测依据。
 2. **读取角色** — 调用 \`check_novel_settings\` 工具，参数 \`scope="characters"\`。获取所有 character 的 name + description，避免在 chapter 中提取出"已存在但本章才正式登场"的角色时误判为新角色。
-3. **读取关系** — 调用 \`check_novel_settings\` 工具，参数 \`scope="relationships"\`。获取已有关系，作为关系提取的查重与强度判断依据。
+3. **读取关系** — 调用 \`check_novel_settings\` 工具，参数 \`scope="relationships"\`。获取已有关系，作为关系提取的查重与强度判断依据。若上下文提供【命名角色白名单】或【受保护角色关系】段落，必须优先使用其中的“称谓绑定”解析既有角色。
 4. **读取结构线/弧光** — 调用 \`list_story_arcs\` 工具（不带过滤参数）。获取本书已有的主线/角色弧/支线及其节点，作为弧光进度判断和去重的依据。
 
 > ⚠️ 跳过前置动作直接提取会导致：(a) 新 world_entry 与已有条目标题重复或定义冲突（如已有"五等爵位"又新建"三等爵位"）；(b) 把已存在的配角当作新角色重复创建；(c) 把已存在的师徒关系当作新关系再次提取。**这三个问题正是"设定漂移"的主要来源**。
@@ -87,6 +87,8 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 - 路人甲乙（无名字/一笔带过） → importance 0（不入库）
 
 ## 2. relationship（关系）
+**亲属称谓绑定规则（必读）**：提取 character 或 relationship 前，先对照关系派生称谓。称谓能唯一解析时更新既有角色；无法唯一解析或与既有强关系冲突时输出候选（importance=1 或 type_strength=weak），不要直接写成正式角色/正式关系。
+
 提取角色间关系的变化：
 - 新建立的关系 → action: "create"，data 包含 char_a_id、char_b_id、type（关系类型，必须是上文"白名单"中的强关系 type，否则 type_strength="weak"）、description、type_strength（"strong"/"weak"）
 - 关系变化 → action: "update"，data 包含变化的字段
@@ -288,7 +290,9 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 10. **character / world_entry / location 的 create 必须带 importance 字段**；update/delete 不需要
 11. **relationship 的 create/update 必须带 type_strength 字段**；delete 不需要
 12. **冲突标注必须用 conflict_note 字段**，不要把 ⚠️ 写在 content 里污染设定
-13. 不确定 importance/strength 时**保守评 1/weak**（入候选区更安全，不污染 P5）`
+13. 不确定 importance/strength 时**保守评 1/weak**（入候选区更安全，不污染 P5）
+14. **亲属称谓必须先绑定**：唯一绑定到既有角色时更新该角色；多候选/零候选时生成候选区数据，不自动创建正式角色
+15. **强关系冲突必须候选化**：候选关系与既有强关系冲突时，在 payload/conflict_note 中写明冲突原因和原文证据`
 
 export const observerAgent = {
   name: "observer" as const,

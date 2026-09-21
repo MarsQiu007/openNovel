@@ -34,6 +34,13 @@ import {
   WorldEntryConflictTable,
 } from "./session-store.js"
 import { validateWorldCategory } from "./world-category.js"
+import {
+  findRelationshipConflicts,
+  isKinshipTerm,
+  loadFullCharacterBindingView,
+  resolveCharacterReference,
+  type CharacterBindingView,
+} from "./drift-guards.js"
 import { join } from "path"
 import { mkdirSync, appendFileSync } from "fs"
 
@@ -237,7 +244,16 @@ async function resolveCharacterId(
   novelId: string,
   entityId: string,
   data: Record<string, unknown>,
+  bindingView?: CharacterBindingView,
 ): Promise<string> {
+  if (bindingView) {
+    const reference = resolveCharacterReference(bindingView, {
+      entityId,
+      name: typeof data.name === "string" ? data.name : null,
+      kinshipTerm: typeof data.name === "string" ? data.name : null,
+    })
+    if (reference.status === "resolved") return reference.characterId
+  }
   const [byId] = await db
     .select({ id: CharacterTable.id })
     .from(CharacterTable)
@@ -440,6 +456,7 @@ async function applyToMaterializedView(
   chapterId: string,
   entry: StateDeltaEntry,
   report: CommitReport,
+  bindingView?: CharacterBindingView,
 ): Promise<void> {
   const { fact_type, action, entity_id, data } = entry
 
@@ -447,9 +464,35 @@ async function applyToMaterializedView(
     case "character": {
       // observer 可能输出 char_<拼音> 本地引用，先解析到真实角色 ID（按 ID 或姓名匹配），
       // 避免重复创建角色、以及产生 character_id 对不上的孤儿状态记录
-      const resolvedId = await resolveCharacterId(db, novelId, entity_id, data)
+      const resolvedId = await resolveCharacterId(db, novelId, entity_id, data, bindingView)
 
       if (action === "create") {
+        const displayName = String(data.name ?? entity_id)
+        const reference = bindingView
+          ? resolveCharacterReference(bindingView, { entityId: resolvedId, name: displayName, kinshipTerm: displayName })
+          : null
+        if (bindingView && reference?.status === "unresolved" && isKinshipTerm(displayName)) {
+          const pendingData = { ...data, unresolved_reason: reference.reason }
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "character",
+            resolvedId,
+            pendingData,
+            1,
+            "",
+            displayName,
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "character",
+            display_title: displayName,
+            importance: 1,
+            type_strength: "",
+          })
+          break
+        }
         // 重要度分流：importance=0 仅记日志不入库；=1 入候选区；2-3 入正式表
         const importance = getEntryImportance(data)
         if (importance === 0) {
@@ -557,6 +600,42 @@ async function applyToMaterializedView(
             display_title: displayTitle,
             importance: 1,
             type_strength: typeStrength,
+          })
+          break
+        }
+        const candidateRelationship = {
+          id: entity_id,
+          charAId: String(data.char_a_id ?? ""),
+          charBId: String(data.char_b_id ?? ""),
+          type: String(data.type ?? ""),
+          description: String(data.description ?? ""),
+        }
+        const relationshipConflicts = bindingView
+          ? findRelationshipConflicts(bindingView.relationships, candidateRelationship)
+          : []
+        if (relationshipConflicts.length > 0) {
+          const pendingData = {
+            ...data,
+            unresolved_reason: relationshipConflicts.map((conflict) => conflict.reason).join("；"),
+          }
+          const displayTitle = `${candidateRelationship.charAId} ↔ ${candidateRelationship.charBId} [${candidateRelationship.type}]`
+          const pendingId = await enqueueToPending(
+            db,
+            novelId,
+            chapterId,
+            "relationship",
+            entity_id,
+            pendingData,
+            1,
+            "strong",
+            displayTitle,
+          )
+          report.pending.push({
+            id: pendingId,
+            candidate_type: "relationship",
+            display_title: displayTitle,
+            importance: 1,
+            type_strength: "strong",
           })
           break
         }
@@ -1026,11 +1105,12 @@ export async function commitState(
   chapterId: string,
   delta: StateDelta,
   directory?: string | null,
+  bindingView?: CharacterBindingView,
 ): Promise<number> {
   // 验证 delta 格式
   const validated = StateDeltaSchema.parse(delta)
   const db = getDb(directory)
-  const result = await commitStateWithReport(novelId, chapterId, validated, db)
+  const result = await commitStateWithReport(novelId, chapterId, validated, db, bindingView)
   return result.count
 }
 
@@ -1046,9 +1126,15 @@ export async function commitStateWithReport(
   chapterId: string,
   delta: StateDelta,
   dbOrDirectory: ReturnType<typeof getDb> | string | null | undefined,
+  providedBindingView?: CharacterBindingView,
 ): Promise<CommitReport> {
   const validated = StateDeltaSchema.parse(delta)
   const db = typeof dbOrDirectory === "string" || dbOrDirectory == null ? getDb(dbOrDirectory as any) : dbOrDirectory
+  const needsBindingView = validated.some(
+    (entry) => entry.fact_type === "character" || entry.fact_type === "relationship",
+  )
+  const bindingView =
+    providedBindingView ?? (needsBindingView ? await loadFullCharacterBindingView(db, novelId) : undefined)
   const report: CommitReport = { count: 0, pending: [], conflicts: [], discarded: 0 }
 
   // 核心写操作包在事务内：drizzle 的 async transaction 在 bun:sqlite 下不回滚，
@@ -1075,7 +1161,7 @@ export async function commitStateWithReport(
 
     // 3. 更新物化视图
     for (const entry of validated) {
-      await applyToMaterializedView(db, novelId, chapterId, entry, report)
+      await applyToMaterializedView(db, novelId, chapterId, entry, report, bindingView)
     }
 
     // 4. 同步 FTS 索引（本章摘要）

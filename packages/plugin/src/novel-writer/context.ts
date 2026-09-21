@@ -14,6 +14,7 @@
 import { eq, and, lte, desc, sql } from "drizzle-orm"
 import type { RetrievedTechnique } from "./technique.js"
 import type { ProtectedRelationship } from "./relationship-context.js"
+import type { CharacterBindingView } from "./drift-guards.js"
 import {
   applyP7Budget,
   formatTechniquesForShadow,
@@ -282,6 +283,8 @@ export type ContextPacket = {
   protectedRelationships: ProtectedRelationship[]
   /** 受保护关系超出专用预算时置为 true，供流水线观察 */
   relationshipContextTruncated: boolean
+  /** 命名角色、相关关系与亲属称谓的统一绑定视图（writer/audit 共用） */
+  characterBindingView?: CharacterBindingView
 
   /** P5 导览：非核心世界观条目（仅分类+标题），需要全文时调用 recall_history */
   worldEntryIndex: WorldEntryIndexItem[]
@@ -796,6 +799,24 @@ export function formatSnapshotToolOutput(
     lines.push("═══ 卷纲（章节归属参考）═══")
     for (const v of snapshot.volumeList) {
       lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
+    }
+  }
+  if (snapshot.characterBindingView?.characters.length) {
+    lines.push("")
+    lines.push("═══ 命名角色白名单（硬约束）═══")
+    lines.push("⚠️ 叙事主体必须使用以下正式角色名或明确绑定其称谓；章纲明确新增角色时除外。")
+    for (const character of snapshot.characterBindingView.characters) {
+      const tags = [character.active ? "活跃" : null, character.outlineRelevant ? "章纲相关" : null].filter(Boolean)
+      lines.push(`- ${character.name}${tags.length > 0 ? `（${tags.join("；")}）` : ""}`)
+    }
+    if (snapshot.characterBindingView.kinshipBindings.length > 0) {
+      const bindings = snapshot.characterBindingView.kinshipBindings
+        .map((binding) => `${binding.term} → ${binding.characterName}`)
+        .join("；")
+      lines.push(`称谓绑定：${bindings}`)
+    }
+    if (snapshot.characterBindingView.ambiguousKinshipTerms.length > 0) {
+      lines.push(`未解析称谓：${snapshot.characterBindingView.ambiguousKinshipTerms.join("、")}`)
     }
   }
   if ((snapshot.protectedRelationships ?? []).length > 0) {

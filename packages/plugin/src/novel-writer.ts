@@ -19,6 +19,7 @@ import { generateMasterOutline, generateVolumeOutline, generateChapterOutline } 
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "./novel-writer/continuity-check.js"
 import { trackHook, getHookStats, HOOK_TYPES } from "./novel-writer/hook-rotation.js"
 import { writerAgentConfig } from "./novel-writer/agents/writer.js"
+import { detectKinshipEntityDrift, loadCharacterBindingView, loadFullCharacterBindingView } from "./novel-writer/drift-guards.js"
 import { directorAgentConfig } from "./novel-writer/agents/director.js"
 import { pipelineAgentConfig } from "./novel-writer/agents/pipeline.js"
 import { observerAgent } from "./novel-writer/agents/observer.js"
@@ -578,6 +579,10 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
+          // 保守称谓守卫：不阻止写入，但把疑似称谓实体化问题交给后续 auditor 判断
+          const bindingView = await loadCharacterBindingView(db, chapter.novel_id, args.content)
+          const kinshipFindings = detectKinshipEntityDrift(args.content, bindingView)
+
           // 归档当前正文为历史版本（仅当已有正文时）
           if (chapter.content.length > 0) {
             await db
@@ -602,10 +607,22 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
           await scanReferences(db, chapter.novel_id, "chapter", args.chapter_id, "content", args.content)
 
+          const driftWarning =
+            kinshipFindings.length > 0
+              ? `
+⚠️ 称谓守卫审计提示：${kinshipFindings.map((finding) => finding.message).join(" ")} 原文证据：${kinshipFindings.map((finding) => finding.evidence).join(" / ")}。请在 auditor 审计中检查关系连续性。`
+              : ""
           return {
             title: "write_chapter",
-            output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（目标≥${target}字）`,
-            metadata: { chapter_id: args.chapter_id, word_count: wordCount },
+            output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（目标≥${target}字）${driftWarning}`,
+            metadata: {
+              chapter_id: args.chapter_id,
+              word_count: wordCount,
+              audit_prompts:
+                kinshipFindings.length > 0
+                  ? kinshipFindings.map((finding) => `${finding.message} 原文证据：${finding.evidence}`)
+                  : [],
+            },
           }
         },
       }),
@@ -1933,7 +1950,8 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
           try {
-            const report = await commitStateWithReport(novelId, args.chapter_id, delta, db)
+            const bindingView = await loadFullCharacterBindingView(db, novelId)
+            const report = await commitStateWithReport(novelId, args.chapter_id, delta, db, bindingView)
             const lines: string[] = [`状态变更已提交，共 ${report.count} 条日志`]
             if (report.pending.length > 0) {
               lines.push(`\n📋 候选区新增 ${report.pending.length} 条（importance=1 或 type_strength=weak，待用户审阅）：`)
