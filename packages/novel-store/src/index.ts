@@ -846,6 +846,8 @@ const _dbCache = new Map<string, Db>()
 
 export function getDb(directory?: string | null, options?: { fresh?: boolean }): Db {
   const dbPath = getDbPath(directory)
+  // fresh 重建前必须先驱逐旧连接，否则 Windows 下新旧连接可能争用 SQLite 写锁。
+  if (options?.fresh) closeDb(dbPath)
   if (!options?.fresh) {
     const cached = _dbCache.get(dbPath)
     if (cached) return cached
