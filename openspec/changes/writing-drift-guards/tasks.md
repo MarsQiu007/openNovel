@@ -27,3 +27,7 @@
 - [x] 5.1 在 packages/plugin 目录运行 `bun typecheck`，确认无类型错误
 - [x] 5.2 在 packages/plugin 目录运行 oxlint，确认无 lint 错误
 - [x] 5.3 用母子关系测试夹具覆盖 writer 守卫、auditor 输入、observer 解析和状态提交解析，验证四个阶段使用同一角色绑定结果
+
+## Implementation Commits
+
+- `8e896039e` feat(plugin): 加入写作称谓与关系防漂移守卫
