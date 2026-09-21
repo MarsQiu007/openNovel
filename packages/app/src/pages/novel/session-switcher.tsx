@@ -7,6 +7,7 @@
  */
 import { For, Show, createSignal } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
+import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
@@ -29,10 +30,14 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
 
   const trigger = () =>
     sessionSwitcherTrigger({
+      status: sessions.isPending ? "pending" : sessions.isError ? "error" : "ready",
       sessions: sessions.data ?? [],
       paramsID: params.id,
       fallbackLabel: language.t("novel.workspace.chat"),
       emptyLabel: language.t("novel.workspace.sessionEmpty"),
+      pendingLabel: language.t("common.loading"),
+      // 失败占位沿用书内面板内联中文先例（panel-ai-artifacts），不新增 i18n key
+      errorLabel: "会话列表加载失败",
     })
 
   function switchTo(sessionID: string) {
@@ -91,6 +96,11 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
           </MenuV2.Portal>
         </Show>
       </MenuV2>
+      <Show when={trigger().showRetry}>
+        <ButtonV2 size="small" variant="ghost-muted" onClick={() => void sessions.refetch()}>
+          重试
+        </ButtonV2>
+      </Show>
       <TooltipV2 placement="bottom" value={language.t("novel.workspace.sessionNew")}>
         <IconButtonV2
           variant="ghost-muted"

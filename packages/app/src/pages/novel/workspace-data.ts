@@ -69,16 +69,25 @@ export function useWorkspaceData(novelID: Accessor<string>) {
 
 // ---- 会话操作（对话面板懒创建 / 生成中止共用） ----
 
-/** 切换器触发器的展示态：0 会话时占位禁用，其余显示当前会话标题（无法定位时回退面板名） */
+/**
+ * 切换器触发器的展示态：按绑定会话列表的来源状态区分展示——
+ * pending/error 显示加载/失败占位（error 附带重试标记），仅"确认空列表"才禁用下拉；
+ * ready 时显示当前会话标题（无法定位时回退面板名）。
+ */
 export function sessionSwitcherTrigger(input: {
+  status: "pending" | "error" | "ready"
   sessions: readonly { sessionID: string; title: string }[]
   paramsID: string | undefined
   fallbackLabel: string
   emptyLabel: string
-}): { label: string; disabled: boolean } {
-  if (input.sessions.length === 0) return { label: input.emptyLabel, disabled: true }
+  pendingLabel: string
+  errorLabel: string
+}): { label: string; disabled: boolean; showRetry: boolean } {
+  if (input.status === "pending") return { label: input.pendingLabel, disabled: true, showRetry: false }
+  if (input.status === "error") return { label: input.errorLabel, disabled: true, showRetry: true }
+  if (input.sessions.length === 0) return { label: input.emptyLabel, disabled: true, showRetry: false }
   const current = input.sessions.find((item) => item.sessionID === input.paramsID)
-  return { label: sessionTitle(current?.title) ?? input.fallbackLabel, disabled: false }
+  return { label: sessionTitle(current?.title) ?? input.fallbackLabel, disabled: false, showRetry: false }
 }
 
 /**

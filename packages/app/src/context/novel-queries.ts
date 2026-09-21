@@ -372,6 +372,10 @@ export function useBoundNovelSessions(novelID: Accessor<string>) {
     },
     staleTime: 10_000,
     refetchOnMount: true,
+    // 打开书籍时服务端可能仍在启动窗口期，首拉失败以有限退避重试自愈，
+    // 避免错误态滞留到用户发出首条消息才被 invalidate 救回
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   }))
 }
 
