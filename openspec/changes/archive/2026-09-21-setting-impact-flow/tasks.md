@@ -47,4 +47,4 @@
 
 ## Implementation Commits
 
-- `0e256fe39` feat(plugin): 统一设定影响面服务与工具接入
+- `624cba788` feat(plugin): 统一设定影响面服务与工具接入
