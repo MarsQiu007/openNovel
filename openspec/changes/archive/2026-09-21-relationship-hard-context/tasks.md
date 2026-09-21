@@ -24,4 +24,4 @@
 
 ## Implementation Commits
 
-- `a803a59fe` feat(plugin): 注入受保护角色关系硬约束
+- `2d126e422` feat(plugin): 注入受保护角色关系硬约束
