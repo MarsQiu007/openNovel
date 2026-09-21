@@ -292,7 +292,15 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 12. **冲突标注必须用 conflict_note 字段**，不要把 ⚠️ 写在 content 里污染设定
 13. 不确定 importance/strength 时**保守评 1/weak**（入候选区更安全，不污染 P5）
 14. **亲属称谓必须先绑定**：唯一绑定到既有角色时更新该角色；多候选/零候选时生成候选区数据，不自动创建正式角色
-15. **强关系冲突必须候选化**：候选关系与既有强关系冲突时，在 payload/conflict_note 中写明冲突原因和原文证据`
+15. **强关系冲突必须候选化**：候选关系与既有强关系冲突时，在 payload/conflict_note 中写明冲突原因和原文证据
+
+## 设定影响面处理（硬规则）
+
+- 修改任何正式设定（角色、世界观、关系、剧情线、伏笔或风格规则）后，必须查看 \`impact_plan\` 或 \`cascade_list_pending\` 的影响结果，不能只确认保存成功。
+- 存在 \`pending_updates\` 待处理任务时，先用 \`cascade_execute\` 处理；无法执行的任务用 \`cascade_resolve\` 说明原因并标记 skipped，不要静默遗留。
+- 状态为 \`requires_confirmation\` 的语义建议不是可执行任务；必须调用 \`impact_semantic_review\` 等用户确认后才转成 pending，用户拒绝后必须标记 ignored。
+- 写作门禁会因待处理任务阻止 \`write_chapter\` / \`revise_chapter\`；不要绕过门禁，先处理影响面或明确向用户说明。
+- 汇报设定修改时必须包含新增影响任务数、待处理任务数和高优先级影响摘要；没有影响时也要明确说“无影响任务”。`
 
 export const observerAgent = {
   name: "observer" as const,

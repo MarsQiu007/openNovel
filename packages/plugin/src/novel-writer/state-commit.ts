@@ -34,6 +34,7 @@ import {
   WorldEntryConflictTable,
 } from "./session-store.js"
 import { validateWorldCategory } from "./world-category.js"
+import { applyImpact } from "./setting-impact.js"
 import {
   findRelationshipConflicts,
   isKinshipTerm,
@@ -1171,16 +1172,15 @@ export async function commitStateWithReport(
     for (const entry of validated) {
       if (entry.action !== "update") continue
       const changedFields = Object.keys(entry.data).join(", ")
-      await cascadeCreateTasks(
-        db,
+      await applyImpact(db, {
         novelId,
-        entry.fact_type,
-        entry.entity_id,
-        changedFields,
-        "",
-        JSON.stringify(entry.data),
-        `${entry.fact_type} 更新（${changedFields}）`,
-      )
+        entityType: entry.fact_type,
+        entityId: entry.entity_id,
+        field: changedFields,
+        oldValue: "",
+        newValue: JSON.stringify(entry.data),
+        reason: `${entry.fact_type} 更新（${changedFields}）`,
+      })
     }
 
     await db.run(sql`COMMIT`)

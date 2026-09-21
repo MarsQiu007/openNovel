@@ -20,7 +20,8 @@ import {
   updateWorldEntry,
   WorldEntryTable,
 } from "./session-store.js"
-import { archiveDescription, cascadeCreateTasks, scanReferences } from "./state-commit.js"
+import { archiveDescription, scanReferences } from "./state-commit.js"
+import { applyImpact } from "./setting-impact.js"
 import { normalizeSettingText, plainTextFormatError, settingTextFormatError } from "./setting-text.js"
 import { validateWorldCategory } from "./world-category.js"
 
@@ -798,16 +799,15 @@ async function updateWorld(operation: OrganizeUpdateOperation | OrganizeMergeOpe
     await scanReferences(db, oldRow.novel_id, "world_entry", id, "content", newContent)
     const oldVal = titleChanged ? oldRow.title : (oldRow.content ?? "").slice(0, 80)
     const newVal = titleChanged ? fields.title! : (fields.content ?? "").slice(0, 80)
-    cascadeTasks = await cascadeCreateTasks(
-      db,
-      oldRow.novel_id,
-      "world_entry",
-      id,
-      titleChanged ? "title" : "content",
-      oldVal,
-      newVal,
-      titleChanged ? `world_entry 标题由「${oldRow.title}」改为「${fields.title}」` : `world_entry「${oldRow.title}」内容在设定整理中修改`,
-    )
+    cascadeTasks = await applyImpact(db, {
+      novelId: oldRow.novel_id,
+      entityType: "world_entry",
+      entityId: id,
+      field: titleChanged ? "title" : "content",
+      oldValue: oldVal,
+      newValue: newVal,
+      reason: titleChanged ? `world_entry 标题由「${oldRow.title}」改为「${fields.title}」` : `world_entry「${oldRow.title}」内容在设定整理中修改`,
+    })
   }
   return { changed_fields: changedFields, history_count: historyCount, cascade_tasks: cascadeTasks }
 }
@@ -842,16 +842,15 @@ async function updateCharacterFields(
   if (changedFields.length > 0) {
     const newDescription = description ?? oldRow.description ?? ""
     await scanReferences(db, oldRow.novel_id, "character", id, "description", newDescription)
-    cascadeTasks = await cascadeCreateTasks(
-      db,
-      oldRow.novel_id,
-      "character",
-      id,
-      changedFields.join(", "),
-      JSON.stringify({ name: oldRow.name, description: oldRow.description }),
-      JSON.stringify({ name: fields.name ?? oldRow.name, description: newDescription }),
-      `角色「${oldRow.name}」在设定整理中更新（${changedFields.join(", ")}）`,
-    )
+    cascadeTasks = await applyImpact(db, {
+      novelId: oldRow.novel_id,
+      entityType: "character",
+      entityId: id,
+      field: changedFields.join(", "),
+      oldValue: JSON.stringify({ name: oldRow.name, description: oldRow.description }),
+      newValue: JSON.stringify({ name: fields.name ?? oldRow.name, description: newDescription }),
+      reason: `角色「${oldRow.name}」在设定整理中更新（${changedFields.join(", ")}）`,
+    })
   }
   return { changed_fields: changedFields, history_count: historyCount, cascade_tasks: cascadeTasks }
 }

@@ -170,5 +170,13 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 状态提交结果
 - **候选区待审阅** — commit_observer_delta 返回的 pending 列表（display_title + candidate_type + type_strength/importance 标签）。**非空时必须提醒 director 在用户界面引导用户 review**：候选项 ≥ 1 时追加一句"建议在用户界面审阅后 accept / reject / merge"。如果本章节的候选区为空也明确写"无新增候选"
 - **冲突标注** — commit_observer_delta 返回的 conflicts 列表（world_entry_id + conflict_kind + conflict_note）。**非空时必须提醒 director**：这些冲突已分离到 WorldEntryConflictTable，不污染 WorldEntryTable.content，但需要用户决定取舍（合并 / 覆盖 / 忽略）
-- 模式分支结果（review 时注明"待审批"；auto 时注明"已推进"；重写场景注明"按批注重写完成"）`,
+- 模式分支结果（review 时注明"待审批"；auto 时注明"已推进"；重写场景注明"按批注重写完成"）
+
+## 设定影响面处理（硬规则）
+
+- 修改任何正式设定（角色、世界观、关系、剧情线、伏笔或风格规则）后，必须查看 \`impact_plan\` 或 \`cascade_list_pending\` 的影响结果，不能只确认保存成功。
+- 存在 \`pending_updates\` 待处理任务时，先用 \`cascade_execute\` 处理；无法执行的任务用 \`cascade_resolve\` 说明原因并标记 skipped，不要静默遗留。
+- 状态为 \`requires_confirmation\` 的语义建议不是可执行任务；必须调用 \`impact_semantic_review\` 等用户确认后才转成 pending，用户拒绝后必须标记 ignored。
+- 写作门禁会因待处理任务阻止 \`write_chapter\` / \`revise_chapter\`；不要绕过门禁，先处理影响面或明确向用户说明。
+- 汇报设定修改时必须包含新增影响任务数、待处理任务数和高优先级影响摘要；没有影响时也要明确说“无影响任务”。`,
 }

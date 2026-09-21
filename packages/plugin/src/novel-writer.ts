@@ -50,6 +50,15 @@ import {
   listDescriptionHistory,
   restoreDescription,
 } from "./novel-writer/state-commit.js"
+import {
+  applyImpact,
+  planImpact,
+  buildImpactReport,
+  createSemanticSuggestions,
+  confirmSemanticSuggestion,
+  ignoreSemanticSuggestion,
+  type ImpactReport,
+} from "./novel-writer/setting-impact.js"
 import { syncArcProgress } from "./novel-writer/arc-progress.js"
 import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "./novel-writer/world-category.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "./novel-writer/setting-text.js"
@@ -531,15 +540,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
 
           const pendingCount = await db
-            .select({ id: PendingUpdateTable.id })
+            .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })
             .from(PendingUpdateTable)
             .where(and(eq(PendingUpdateTable.novel_id, chapter.novel_id), eq(PendingUpdateTable.status, "pending")))
             .all()
           if (pendingCount.length > 0) {
+            const highCount = pendingCount.filter((t) => t.priority === "high").length
             return {
               title: "write_chapter（被门禁拦截）",
-              output: `当前小说有 ${pendingCount.length} 个待统改任务未处理。请先调用 cascade_execute 或 cascade_list_pending 处理后再写新内容。`,
-              metadata: { blocked: true, pending_count: pendingCount.length },
+              output: `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能写新章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
+              metadata: { blocked: true, pending_count: pendingCount.length, high_priority_count: highCount },
             }
           }
 
@@ -645,15 +655,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
 
           const pendingCount = await db
-            .select({ id: PendingUpdateTable.id })
+            .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })
             .from(PendingUpdateTable)
             .where(and(eq(PendingUpdateTable.novel_id, chapter.novel_id), eq(PendingUpdateTable.status, "pending")))
             .all()
           if (pendingCount.length > 0) {
+            const highCount = pendingCount.filter((t) => t.priority === "high").length
             return {
               title: "revise_chapter（被门禁拦截）",
-              output: `当前小说有 ${pendingCount.length} 个待统改任务未处理。请先调用 cascade_execute 或 cascade_list_pending 处理后再修订内容。`,
-              metadata: { blocked: true, pending_count: pendingCount.length },
+              output: `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能修订章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
+              metadata: { blocked: true, pending_count: pendingCount.length, high_priority_count: highCount },
             }
           }
 
@@ -833,27 +844,29 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (patch.description !== undefined) changedFields.push("description")
           await scanReferences(db, existing.novel_id, "character", args.character_id, "description", newDesc)
 
+          let impact: ImpactReport | undefined
           if (changedFields.length > 0) {
-            await cascadeCreateTasks(
-              db,
-              existing.novel_id,
-              "character",
-              args.character_id,
-              changedFields.join(", "),
-              JSON.stringify({ name: existing.name, role: existing.role, description: existing.description }),
-              JSON.stringify({
+            const intent = {
+              novelId: existing.novel_id,
+              entityType: "character",
+              entityId: args.character_id,
+              field: changedFields.join(", "),
+              oldValue: JSON.stringify({ name: existing.name, role: existing.role, description: existing.description }),
+              newValue: JSON.stringify({
                 name: patch.name ?? existing.name,
                 role: patch.role ?? existing.role,
                 description: newDesc,
               }),
-              `角色「${existing.name}」更新（${changedFields.join(", ")}）`,
-            )
+              reason: `角色「${existing.name}」更新（${changedFields.join(", ")}）`,
+            }
+            const created = await applyImpact(db, intent)
+            impact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
           }
 
           return {
             title: "manage_characters",
-            output: `已更新角色「${patch.name ?? existing.name}」`,
-            metadata: { character_id: args.character_id },
+            output: `已更新角色「${patch.name ?? existing.name}」${impact && impact.task_count > 0 ? `（联动任务 ${impact.task_count} 个，待处理 ${impact.pending_count} 个）` : ""}`,
+            metadata: { character_id: args.character_id, impact },
           }
         },
       }),
@@ -2203,11 +2216,26 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               .set({ status: "accepted", resolved_at: Date.now() })
               .where(eq(PendingSettingTable.id, args.pending_id))
               .run()
+            // 统一影响面：候选入库属正式设定变更——重建描述引用并生成任务
+            const acceptEntityType = row.candidate_type === "location" ? "world_entry" : row.candidate_type
+            await scanReferences(db, row.novel_id, acceptEntityType, createdId, "description", String(payload.description ?? payload.content ?? ""))
+            const acceptIntent = {
+              novelId: row.novel_id,
+              entityType: acceptEntityType,
+              entityId: createdId,
+              field: "create",
+              oldValue: "",
+              newValue: row.display_title,
+              reason: `候选「${row.display_title}」接受入库`,
+            }
+            const acceptCreated = await applyImpact(db, acceptIntent)
+            const impact = await buildImpactReport(db, acceptIntent, await planImpact(db, acceptIntent), acceptCreated)
             const warnLine = sameTitleWarning ? `\n${sameTitleWarning}` : ""
+            const impactLine = impact.task_count > 0 ? `\n⚠ 已生成 ${impact.task_count} 个联动任务（待处理 ${impact.pending_count} 个）` : ""
             return {
               title: "accept_pending_setting",
-              output: `已接受 ${row.candidate_type} 候选「${row.display_title}」，入库到正式表（id=${createdId.slice(0, 8)}）${warnLine}`,
-              metadata: { pending_id: args.pending_id, created_id: createdId, candidate_type: row.candidate_type, same_title_warning: sameTitleWarning },
+              output: `已接受 ${row.candidate_type} 候选「${row.display_title}」，入库到正式表（id=${createdId.slice(0, 8)}）${warnLine}${impactLine}`,
+              metadata: { pending_id: args.pending_id, created_id: createdId, candidate_type: row.candidate_type, same_title_warning: sameTitleWarning, impact },
             }
           } catch (err) {
             return {
@@ -2359,6 +2387,20 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 .where(eq(PendingSettingTable.id, id))
                 .run()
             }
+            // 统一影响面：合并入库属正式设定变更
+            const mergeEntityType = ct === "location" ? "world_entry" : ct
+            await scanReferences(db, rows[0].novel_id, mergeEntityType, createdId, "description", String(merged.description ?? merged.content ?? ""))
+            const mergeIntent = {
+              novelId: rows[0].novel_id,
+              entityType: mergeEntityType,
+              entityId: createdId,
+              field: "create",
+              oldValue: "",
+              newValue: rows[0].display_title,
+              reason: `候选「${rows[0].display_title}」合并入库`,
+            }
+            const mergeCreated = await applyImpact(db, mergeIntent)
+            const mergeImpact = await buildImpactReport(db, mergeIntent, await planImpact(db, mergeIntent), mergeCreated)
             return {
               title: "merge_pending_settings",
               output: `已合并 ${rows.length} 条 ${ct} 候选到新正式条目（id=${createdId.slice(0, 8)}，display_title=${rows[0].display_title}）`,
@@ -2368,6 +2410,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 candidate_type: ct,
                 source_pending_ids: args.pending_ids,
                 merged_payload: merged,
+                impact: mergeImpact,
               },
             }
           } catch (err) {
@@ -2529,6 +2572,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const nameToIds = new Map<string, string[]>()
           let count = 0
           const errors: string[] = []
+          const impactIntents: { entityType: string; entityId: string; field: string; oldValue: string; newValue: string; reason: string }[] = []
 
           for (const [i, s] of settings.entries()) {
             if (s.type !== "character") continue
@@ -2547,6 +2591,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 id = existing.id
                 const newDesc = String(d.description ?? "")
                 const oldDesc = existing.description
+                if (oldDesc !== newDesc) impactIntents.push({ entityType: "character", entityId: id, field: "description", oldValue: oldDesc, newValue: newDesc, reason: `角色「${name}」描述批量更新` })
                 if (oldDesc.length > 0 && newDesc.length < oldDesc.length * 0.5) {
                   errors.push(
                     `角色「${name}」新描述(${newDesc.length}字)比旧描述(${oldDesc.length}字)短超过一半，已跳过更新保留原文`,
@@ -2660,6 +2705,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                     .limit(1)
                     .all()
                   if (existingSg) {
+                    impactIntents.push({ entityType: "style", entityId: novelId, field: "style_guide", oldValue: "", newValue: JSON.stringify(normalized), reason: "文风指南更新" })
                     await db
                       .update(StyleGuideTable)
                       .set({
@@ -2731,12 +2777,22 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               errors.push(`第${i}条：${err instanceof Error ? err.message : String(err)}`)
             }
           }
+          // 统一影响面：批量保存中对既有设定（角色描述/文风）的修改同样生成任务
+          let totalCreated = 0
+          let lastReport: ImpactReport | undefined
+          for (const it of impactIntents) {
+            const intent = { novelId, ...it }
+            const created = await applyImpact(db, intent)
+            totalCreated += created
+            lastReport = await buildImpactReport(db, intent, await planImpact(db, intent), created)
+          }
           return {
             title: "save_novel_settings",
             output:
               `已保存 ${count} 条设定${errors.length > 0 ? "，错误：" + errors.join("; ") : ""}\n` +
+              (totalCreated > 0 ? `⚠ 已生成 ${totalCreated} 个联动任务（待处理 ${lastReport?.pending_count ?? 0} 个），用 cascade_list_pending 查看\n` : "") +
               `💡 建议：保存设定后调用 check_settings_consistency 验证设定内部自洽性（避免不同条目定义同一概念但数字/术语不一致）`,
-            metadata: { count, errors },
+            metadata: { count, errors, impact: lastReport },
           }
         },
       }),
@@ -2808,10 +2864,23 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             })
             .run()
 
+          // 统一影响面：关系描述可能引用角色名/设定名，落库后重建引用并生成任务
+          await scanReferences(db, novelId, "relationship", id, "description", (args.description ?? "").trim())
+          const relIntent = {
+            novelId,
+            entityType: "relationship",
+            entityId: id,
+            field: "create",
+            oldValue: "",
+            newValue: `${args.char_a.trim()} — ${args.type.trim()} → ${args.char_b.trim()}：${(args.description ?? "").trim().slice(0, 80)}`,
+            reason: `新建关系「${args.type.trim()}」`,
+          }
+          const relCreated = await applyImpact(db, relIntent)
+          const impact = await buildImpactReport(db, relIntent, await planImpact(db, relIntent), relCreated)
           return {
             title: "create_relationship",
             output: `已建立关系 [${id.slice(0, 8)}] ${args.char_a.trim()} — ${args.type.trim()} → ${args.char_b.trim()}`,
-            metadata: { relationship_id: id },
+            metadata: { relationship_id: id, impact },
           }
         },
       }),
@@ -4085,6 +4154,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const db = getDb(ctx.directory)
           // 引用追踪 + 级联副作用
           let cascadeSummary: { affected_chapters: number; tasks_created: number; old_title?: string; new_title?: string; old_content_head?: string; new_content_head?: string } | null = null
+          let updateImpact: ImpactReport | undefined
           // 设定修改历史归档：每个真实变化的字段都记一条 description_history
           const historyEntries: Array<{ field: string; old_len: number; new_len: number }> = []
           try {
@@ -4138,17 +4208,16 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 const reason = titleChanged
                   ? `world_entry 标题由「${oldRow.title}」改为「${f.title}」，可能影响已写章节中对该条目的称谓`
                   : `world_entry「${oldRow.title}」内容有大幅修改，已写章节可能与新设定不一致`
-                const tasksCreated = await cascadeCreateTasks(
-                  db,
-                  oldRow.novel_id,
-                  "world_entry",
-                  id,
-                  titleChanged ? "title" : "content",
-                  oldVal,
-                  newVal,
+                const intent = {
+                  novelId: oldRow.novel_id,
+                  entityType: "world_entry",
+                  entityId: id,
+                  field: titleChanged ? "title" : "content",
+                  oldValue: oldVal,
+                  newValue: newVal,
                   reason,
-                )
-                // 实际受影响的章节数（去重）—— cascadeCreateTasks 内部已 dedup，仅作展示
+                }
+                const tasksCreated = await applyImpact(db, intent)
                 const affectedRefs = await cascadeCheck(db, oldRow.novel_id, "world_entry", id)
                 const affectedChapters = new Set(affectedRefs.filter((r) => r.source_type === "chapter").map((r) => r.source_id)).size
                 cascadeSummary = {
@@ -4159,6 +4228,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                   old_content_head: contentChanged ? (oldRow.content ?? "").slice(0, 40) : undefined,
                   new_content_head: contentChanged ? (f.content as string).slice(0, 40) : undefined,
                 }
+                updateImpact = await buildImpactReport(db, intent, await planImpact(db, intent), tasksCreated)
               }
             } else if (type === "plot_thread") {
               const oldRow = await db
@@ -4183,6 +4253,19 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 if (newVal === oldVal) continue
                 await archiveDescription(ctx.directory, oldRow.novel_id, "plot_thread", id, oldVal, newVal, field)
                 historyEntries.push({ field, old_len: oldVal.length, new_len: newVal.length })
+              }
+              if (historyEntries.length > 0) {
+                const intent = {
+                  novelId: oldRow.novel_id,
+                  entityType: "plot_thread",
+                  entityId: id,
+                  field: historyEntries.map((h) => h.field).join(", "),
+                  oldValue: JSON.stringify({ title: oldRow.title, status: oldRow.status, priority: oldRow.priority, description: oldRow.description }),
+                  newValue: JSON.stringify(f),
+                  reason: `剧情线「${oldRow.title}」更新（${historyEntries.map((h) => h.field).join(", ")}）`,
+                }
+                const created = await applyImpact(db, intent)
+                updateImpact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
               }
             } else if (type === "foreshadowing") {
               const oldRow = await db
@@ -4209,6 +4292,19 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
                 await archiveDescription(ctx.directory, oldRow.novel_id, "foreshadowing", id, oldRow.state, f.state, "state")
                 historyEntries.push({ field: "state", old_len: oldRow.state.length, new_len: f.state.length })
               }
+              if (historyEntries.length > 0) {
+                const intent = {
+                  novelId: oldRow.novel_id,
+                  entityType: "foreshadow",
+                  entityId: id,
+                  field: historyEntries.map((h) => h.field).join(", "),
+                  oldValue: JSON.stringify({ content: oldRow.content, state: oldRow.state }),
+                  newValue: JSON.stringify(f),
+                  reason: `伏笔更新（${historyEntries.map((h) => h.field).join(", ")}）`,
+                }
+                const created = await applyImpact(db, intent)
+                updateImpact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
+              }
             } else if (type === "relationship") {
               const oldRow = await db
                 .select()
@@ -4230,6 +4326,19 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               if (f.description !== undefined && f.description !== (oldRow.description ?? "")) {
                 await archiveDescription(ctx.directory, oldRow.novel_id, "relationship", id, oldRow.description ?? "", f.description, "description")
                 historyEntries.push({ field: "description", old_len: (oldRow.description ?? "").length, new_len: f.description.length })
+              }
+              if (historyEntries.length > 0) {
+                const intent = {
+                  novelId: oldRow.novel_id,
+                  entityType: "relationship",
+                  entityId: id,
+                  field: historyEntries.map((h) => h.field).join(", "),
+                  oldValue: JSON.stringify({ type: oldRow.type, description: oldRow.description }),
+                  newValue: JSON.stringify(f),
+                  reason: `关系「${oldRow.type}」更新（${historyEntries.map((h) => h.field).join(", ")}）`,
+                }
+                const created = await applyImpact(db, intent)
+                updateImpact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
               }
             } else {
               return { title: "update_setting", output: `不支持的实体类型：${type}` }
@@ -4261,7 +4370,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             return {
               title: "update_setting",
               output: `已更新 ${type} ${id.slice(0, 8)}：${Object.keys(fields).join(", ")}${cascadeLine}${historyLine}`,
-              metadata: { entity_type: type, entity_id: id, updated: Object.keys(fields), cascade: cascadeSummary, history_archived: historyEntries },
+              metadata: { entity_type: type, entity_id: id, updated: Object.keys(fields), cascade: cascadeSummary, history_archived: historyEntries, impact: updateImpact },
             }
           } catch (err) {
             return {
@@ -4521,6 +4630,71 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             output: ok ? `任务 ${args.task_id} 已标记为 ${args.status}` : `任务 ${args.task_id} 不存在`,
             metadata: { resolved: ok },
           }
+        },
+      }),
+      impact_plan: tool({
+        description:
+          "查询一次设定变更的影响计划（只读，不修改数据库）。修改设定前调用：返回确定性引用影响（章节正文/摘要/设定描述中的名字命中）与结构性依赖（关系端点、伏笔章节、剧情线），每条包含证据与优先级。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          entity_type: tool.schema.string().describe("变更实体类型（character/world_entry/plot_thread/foreshadow/relationship）"),
+          entity_id: tool.schema.string().describe("变更实体 ID"),
+          field: tool.schema.string().describe("要修改的字段（如 name/title/content/description）"),
+          old_value: tool.schema.string().describe("旧值"),
+          new_value: tool.schema.string().describe("新值"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const intent = {
+            novelId,
+            entityType: args.entity_type,
+            entityId: args.entity_id,
+            field: args.field,
+            oldValue: args.old_value,
+            newValue: args.new_value,
+            reason: "影响计划查询",
+          }
+          const findings = await planImpact(db, intent)
+          if (findings.length === 0) {
+            return { title: "impact_plan", output: `没有发现确定性或结构性影响（${args.entity_type}: ${args.entity_id}）`, metadata: { impact_plan: { entity_type: args.entity_type, entity_id: args.entity_id, field: args.field, old_value: args.old_value, new_value: args.new_value }, findings: [], count: 0 } }
+          }
+          const lines = findings.map(
+            (f) => `- [${f.kind}/${f.priority}] ${f.sourceType} ${f.sourceId}（${f.refField}）：${f.refText}`,
+          )
+          return {
+            title: `impact_plan（${findings.length} 项影响）`,
+            output: lines.join("\n"),
+            metadata: { impact_plan: { entity_type: args.entity_type, entity_id: args.entity_id, field: args.field, old_value: args.old_value, new_value: args.new_value }, findings, count: findings.length },
+          }
+        },
+      }),
+      impact_semantic_review: tool({
+        description:
+          "处理语义影响建议（requires_confirmation 状态）。action=confirm 把建议转成正式待处理任务进入执行队列；action=ignore 标记已忽略（系统不会据此自动修改任何内容）。确认或忽略都不会直接改写章节。",
+        args: {
+          task_id: tool.schema.string().describe("语义建议的任务 ID（cascade_list_pending 输出中可见）"),
+          action: tool.schema.string().describe("confirm 或 ignore"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          if (args.action === "confirm") {
+            const ok = await confirmSemanticSuggestion(db, args.task_id)
+            return {
+              title: "impact_semantic_review",
+              output: ok ? `语义建议 ${args.task_id} 已确认，进入待处理队列` : `任务 ${args.task_id} 不是待确认语义建议`,
+              metadata: { confirmed: ok },
+            }
+          }
+          if (args.action === "ignore") {
+            const ok = await ignoreSemanticSuggestion(db, args.task_id)
+            return {
+              title: "impact_semantic_review",
+              output: ok ? `语义建议 ${args.task_id} 已忽略` : `任务 ${args.task_id} 不是待确认语义建议`,
+              metadata: { ignored: ok },
+            }
+          }
+          return { title: "impact_semantic_review", output: "action 必须是 confirm 或 ignore" }
         },
       }),
       cascade_rebuild_refs: tool({
