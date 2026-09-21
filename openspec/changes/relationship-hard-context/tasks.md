@@ -21,3 +21,7 @@
 - [x] 4.1 在 packages/plugin 目录运行 `bun typecheck`，确认无类型错误
 - [x] 4.2 在 packages/plugin 目录运行 oxlint，确认无 lint 错误
 - [x] 4.3 用包含母子关系的测试夹具执行 `assemble_context_snapshot` 序列化验证，确认快照保留双方姓名、方向化关系和“儿子”称谓绑定
+
+## Implementation Commits
+
+- `a803a59fe` feat(plugin): 注入受保护角色关系硬约束
