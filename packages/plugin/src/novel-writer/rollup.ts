@@ -436,6 +436,8 @@ export async function getEffectiveContext(
     worldEntries: [],
     volumeList: [],
     relationships: [],
+    protectedRelationships: [],
+    relationshipContextTruncated: false,
     activeArcs,
 
     prevChapterTail,

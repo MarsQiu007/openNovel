@@ -22,6 +22,7 @@ import type {
   VolumeListItem,
   RecalledHistoryItem,
 } from "./context.js"
+import type { ProtectedRelationship } from "./relationship-context.js"
 
 // ─── Token 估算工具 ───
 
@@ -78,6 +79,13 @@ function worldEntryIndexTokens(item: WorldEntryIndexItem): number {
 /** 估算关系条目的 token 数量 */
 function relationshipTokens(r: RelationshipSummary): number {
   return estimateTokens(r.type + r.description + r.charAName + r.charBName)
+}
+
+/** 估算受保护关系条目的 token 数量，包含方向化文本和称谓绑定 */
+function protectedRelationshipTokens(r: ProtectedRelationship): number {
+  const bindings = r.kinshipBindings.map((b) => b.term + b.characterName).join("")
+  const unresolved = r.unresolvedKinshipTerms.join("")
+  return estimateTokens(r.type + r.description + r.charAName + r.charBName + (r.directionText ?? "") + bindings + unresolved)
 }
 
 /** 估算卷纲条目的 token 数量 */
@@ -204,8 +212,19 @@ function applyP4Budget(packet: ContextPacket): void {
  */
 function applyP5Budget(packet: ContextPacket): void {
   const P5_BUDGET = 2000
-  const SUPPORT_BUDGET = 300
+  const PROTECTED_RELATIONSHIP_BUDGET = 300
   const INDEX_BUDGET = 250
+
+  const allProtectedRelationships = packet.protectedRelationships ?? []
+  packet.protectedRelationships = truncateArray(
+    allProtectedRelationships,
+    protectedRelationshipTokens,
+    PROTECTED_RELATIONSHIP_BUDGET,
+  )
+  packet.relationshipContextTruncated = packet.protectedRelationships.length < allProtectedRelationships.length
+
+  const protectedTokens = packet.protectedRelationships.reduce((sum, r) => sum + protectedRelationshipTokens(r), 0)
+  const remainingP5Budget = Math.max(0, P5_BUDGET - protectedTokens)
 
   packet.volumeList = truncateArray(packet.volumeList, volumeTokens, 100)
   packet.relationships = truncateArray(packet.relationships, relationshipTokens, 200)
@@ -213,8 +232,8 @@ function applyP5Budget(packet: ContextPacket): void {
   const supportTokens =
     packet.volumeList.reduce((sum, v) => sum + volumeTokens(v), 0) +
     packet.relationships.reduce((sum, r) => sum + relationshipTokens(r), 0)
-  const indexBudget = Math.min(INDEX_BUDGET, Math.max(0, P5_BUDGET - supportTokens - 500))
-  const coreBudget = Math.max(0, P5_BUDGET - supportTokens - indexBudget)
+  const indexBudget = Math.min(INDEX_BUDGET, Math.max(0, remainingP5Budget - supportTokens - 500))
+  const coreBudget = Math.max(0, remainingP5Budget - supportTokens - indexBudget)
 
   let total = 0
   const kept: WorldEntrySummary[] = []
@@ -284,6 +303,7 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
     recalledHistory: [...packet.recalledHistory],
     volumeList: [...packet.volumeList],
     relationships: [...packet.relationships],
+    protectedRelationships: [...(packet.protectedRelationships ?? [])],
     styleGuide: packet.styleGuide ? { ...packet.styleGuide } : null,
   }
 

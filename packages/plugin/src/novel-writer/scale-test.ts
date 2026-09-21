@@ -139,10 +139,14 @@ function generateMockData(chapterCount: number): ContextPacket {
   }
 
   const relationships: RelationshipSummary[] = []
+  let relationshipId = 0
   for (let i = 1; i <= relationshipCount; i++) {
     const a = ((i - 1) % charCount) + 1
     const b = (i % charCount) + 1
     relationships.push({
+      id: `relationship-${relationshipId++}`,
+      charAId: "",
+      charBId: "",
       type: i % 3 === 0 ? "盟友" : i % 3 === 1 ? "敌对" : "亲属",
       description: `角色${a}与角色${b}之间存在复杂关系，并在近期剧情中影响彼此决策。`,
       charAName: `角色${a}`,
@@ -211,6 +215,8 @@ function generateMockData(chapterCount: number): ContextPacket {
     recalledHistory,
     volumeList,
     relationships,
+    protectedRelationships: [],
+    relationshipContextTruncated: false,
     chapterOutline: "本章大纲需要明确主角目标、冲突升级、关键设定和结尾钩子。".repeat(120),
     prevChapterTail: null,
     targetWordCount: 2500,

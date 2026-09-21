@@ -23,6 +23,7 @@ import {
   resolveChapterOutline,
 } from "./session-store.js"
 import type { RecalledHistoryItem, WorldEntrySummary, WorldEntryIndexItem, ContextPacket } from "./context.js"
+import { selectProtectedRelationships } from "./relationship-context.js"
 import { assembleSnapshot } from "./context.js"
 import { applyBudget } from "./budget.js"
 
@@ -606,12 +607,29 @@ export async function assembleWriterSnapshot(
   raw.worldEntries = core
   raw.worldEntryIndex = index
 
-  // P5: 关系只保留出场角色相关的
+  // P5: 受保护关系先于普通关系选择，并移入专用硬约束层
+  const activeCharNames = new Set(raw.activeCharacters.map((c) => c.name))
+  const relatedText = [
+    chapterOutline ?? "",
+    ...raw.recentChapterSummaries.map((chapter) => `${chapter.chapterTitle} ${chapter.summary} ${chapter.keyEvents.join("")}`),
+  ].join("\n")
+  const protectedRelationships = selectProtectedRelationships({
+    relationships: raw.relationships,
+    activeCharacterIds,
+    relatedText,
+  })
+  const protectedRelationshipIds = new Set(protectedRelationships.map((r) => r.id))
+  raw.protectedRelationships = protectedRelationships
+
+  // 普通关系仍按出场相关性保留，但不再重复输出受保护关系
   if (activeCharacterIds.length > 0) {
-    const activeCharNames = new Set(raw.activeCharacters.map((c) => c.name))
     raw.relationships = raw.relationships.filter(
-      (r) => activeCharNames.has(r.charAName) || activeCharNames.has(r.charBName),
+      (r) =>
+        !protectedRelationshipIds.has(r.id) &&
+        (activeCharNames.has(r.charAName) || activeCharNames.has(r.charBName)),
     )
+  } else {
+    raw.relationships = raw.relationships.filter((r) => !protectedRelationshipIds.has(r.id))
   }
 
   // P5: volumeList 只保留当前卷 ± 1

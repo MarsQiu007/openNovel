@@ -13,6 +13,7 @@
 
 import { eq, and, lte, desc, sql } from "drizzle-orm"
 import type { RetrievedTechnique } from "./technique.js"
+import type { ProtectedRelationship } from "./relationship-context.js"
 import {
   applyP7Budget,
   formatTechniquesForShadow,
@@ -170,6 +171,12 @@ export type VolumeListItem = {
 
 /** 关系摘要 */
 export type RelationshipSummary = {
+  /** 关系 ID */
+  id: string
+  /** 角色 A ID */
+  charAId: string
+  /** 角色 B ID */
+  charBId: string
   /** 关系类型 */
   type: string
   /** 关系描述 */
@@ -270,6 +277,11 @@ export type ContextPacket = {
   worldEntries: WorldEntrySummary[]
   volumeList: VolumeListItem[]
   relationships: RelationshipSummary[]
+
+  /** P5：本章相关关系的专用硬约束层，先于普通关系参与预算保护 */
+  protectedRelationships: ProtectedRelationship[]
+  /** 受保护关系超出专用预算时置为 true，供流水线观察 */
+  relationshipContextTruncated: boolean
 
   /** P5 导览：非核心世界观条目（仅分类+标题），需要全文时调用 recall_history */
   worldEntryIndex: WorldEntryIndexItem[]
@@ -533,6 +545,9 @@ export async function assembleSnapshot(
     .all()
   const charIdToName = new Map(characters.map((c) => [c.id, c.name]))
   const relationships: RelationshipSummary[] = relationshipRows.map((r) => ({
+    id: r.id,
+    charAId: r.char_a_id,
+    charBId: r.char_b_id,
     type: r.type,
     description: r.description,
     charAName: charIdToName.get(r.char_a_id) ?? "(未知角色)",
@@ -636,6 +651,8 @@ export async function assembleSnapshot(
       summary: v.summary,
     })),
     relationships,
+    protectedRelationships: [],
+    relationshipContextTruncated: false,
     activeArcs,
     worldEntryIndex: [],
     recalledHistory: [],
@@ -666,6 +683,7 @@ export interface SnapshotToolOutput {
     character_count: number
     plot_thread_count: number
     technique_count: number
+    relationship_context_truncated: boolean
   }
   /** 注入开关开启时实际进入"写作技法指导"段落的技法 id（shadow 模式下恒为空） */
   injectedTechniqueIds: string[]
@@ -780,6 +798,25 @@ export function formatSnapshotToolOutput(
       lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
     }
   }
+  if ((snapshot.protectedRelationships ?? []).length > 0) {
+    lines.push("")
+    lines.push("═══ 受保护角色关系（硬约束）═══")
+    lines.push("⚠️ 以下正式关系是本章创作的硬约束；必须使用既有角色名，不得虚构新人物来承载关系。")
+    for (const r of snapshot.protectedRelationships) {
+      const direction = r.directionResolved ? r.directionText : `${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}；方向未解析）`
+      lines.push(`- ${direction}`)
+      lines.push(`  原始类型：${r.type || "未分类"}${r.description ? `；描述：${r.description}` : ""}`)
+      if (r.kinshipBindings.length > 0) {
+        lines.push(`  称谓绑定：${r.kinshipBindings.map((b) => `${b.term} → ${b.characterName}`).join("；")}`)
+      }
+      if (r.unresolvedKinshipTerms.length > 0) {
+        lines.push(`  未解析称谓：${r.unresolvedKinshipTerms.join("、")}`)
+      }
+    }
+    if (snapshot.relationshipContextTruncated) {
+      lines.push("⚠️ relationship_context_truncated：相关关系超出保护容量，仅保留最高优先级关系。")
+    }
+  }
   if (snapshot.relationships.length > 0) {
     lines.push("")
     lines.push("═══ 角色关系 ═══")
@@ -827,6 +864,7 @@ export function formatSnapshotToolOutput(
       character_count: snapshot.activeCharacters.length,
       plot_thread_count: snapshot.plotThreads.length,
       technique_count: snapshot.techniques.length,
+      relationship_context_truncated: snapshot.relationshipContextTruncated ?? false,
     },
     injectedTechniqueIds,
   }
