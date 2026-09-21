@@ -16,3 +16,7 @@
 ## 4. 收尾
 
 - [ ] 4.1 运行 `openspec validate session-switcher-recovery` 并提交实现（提交信息带 OpenSpec-Change trailer）
+
+## Implementation Commits
+
+- `bba357d0c` fix(app): 会话切换器区分加载失败空三态并自愈重试
