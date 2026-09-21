@@ -78,6 +78,11 @@ openNovel 已有一套基于 `entity_refs` 和 `pending_updates` 的级联一致
 
 用户明确跳过任务后，门禁才能因该任务解除。
 
+### 8. 稳定任务键与迁移结论
+
+稳定任务键用既有列即可表达：(novel_id, trigger_type, trigger_id, trigger_field, source_type, source_id) 在任务创建时判重，不需要新增 schema 字段。语义建议复用 pending_updates.status 列，新增 equires_confirmation 与 ignored 两个取值；建议内容写入既有 eason/old_value/
+ew_value 字段。因此任务 6.1 的结论是：本次无需 schema 迁移，兼容性测试只需覆盖旧数据可读。
+
 ### 7. 本地数据兼容
 
 数据库迁移只做增量：
