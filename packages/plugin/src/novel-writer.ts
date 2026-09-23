@@ -307,7 +307,7 @@ async function injectSystemContext(sessionId: string, directory: string | null |
   const chapterNumber = latestChapter?.order ?? 0
 
   // 组装上下文快照
-  const snapshot = await assembleSnapshot(novelId, chapterNumber, directory)
+  const snapshot = await assembleWriterSnapshot(novelId, chapterNumber, directory)
   if (!snapshot) return
 
   // 将快照序列化为文本注入 output.system
@@ -6052,6 +6052,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             write_chapter: "allow",
             revise_chapter: "allow",
             manage_characters: "allow",
+            assemble_context_snapshot: "allow",
             recall_history: "allow",
           },
         },
