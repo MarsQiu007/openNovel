@@ -7,6 +7,8 @@
  * mode: "subagent" — 子 agent，由 director 或 pipeline 调度
  */
 
+import { FEEDBACK_INTENT_EXECUTOR_PROMPT } from "./feedback-intent.js"
+
 export interface WriterAgentConfig {
   name: string
   description: string
@@ -31,6 +33,8 @@ export const writerAgentConfig: WriterAgentConfig = {
 - 任何来自大纲模板或上下文快照的结构说明文字
 
 场景转换应通过空行、时间/地点变化和自然叙述承接，不要加小标题。若剧情确实需要转场，用"与此同时"、"半个时辰后"、"殿外"等正文句式自然过渡。
+
+${FEEDBACK_INTENT_EXECUTOR_PROMPT}
 
 ## 写作规则
 

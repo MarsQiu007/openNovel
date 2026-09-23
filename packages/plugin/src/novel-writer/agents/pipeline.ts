@@ -10,6 +10,8 @@
  * 使得 LLM 步骤（write/revise）可通过 task 工具真正 dispatch 子 agent。
  */
 
+import { FEEDBACK_INTENT_AUDITOR_PROMPT, FEEDBACK_INTENT_DISPATCHER_PROMPT, FEEDBACK_INTENT_EXECUTOR_PROMPT } from "./feedback-intent.js"
+
 export interface PipelineAgentConfig {
   name: string
   description: string
@@ -32,6 +34,8 @@ export const pipelineAgentConfig: PipelineAgentConfig = {
 3. **失败处理** - 任何步骤失败，立即停止流水线，报告失败原因和已完成步骤
 4. **不写正文** - 正文生成是 @writer 的工作，你不直接写正文
 5. **使用中文** - 所有输出使用中文
+
+${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
 ## 模式感知（写作模式分支）
 
@@ -80,10 +84,17 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 两个段落都没有，静默进入步骤 3。
 
 ### 步骤 3：write - 调用 writer agent 生成正文
+
+dispatch 前先执行反馈编译：
+- 从任务中的【用户反馈原文】提取写作反馈或用户生成约束，按上方协议编译为意图块。
+- 没有【用户反馈原文】时按无反馈路径执行，不要从大纲或设定反推出“用户反馈”。
+- 存在 \`unclear\` 项时，把该项保留在澄清结果中，不进入执行块；整体没有可执行意图时停止流水线并返回澄清问题。
+- \`write_chapter\` 拒绝后的每次 writer 重试都必须保留同一意图块。
+
 通过 task 工具 dispatch @writer 子 agent：
 - subagent_type: "writer"
 - description: "写第X章正文"
-- prompt: 包含 novel_id、chapter_id、章节标题、完整的上下文快照（**必须原样传递快照中的"上一章结尾原文"和"目标字数"字段**），指示 writer：① 本章必须承接上一章结尾之后继续展开，严禁重复前文已发生的事件/场景/对话；② 正文字数必须达到目标字数（不足会被 write_chapter 拒绝）；③ 生成后调用 write_chapter 工具写入数据库
+- prompt: 包含 novel_id、chapter_id、章节标题、完整的上下文快照（**必须原样传递快照中的"上一章结尾原文"和"目标字数"字段**）和已编译意图块（若有），指示 writer：① 本章必须承接上一章结尾之后继续展开，严禁重复前文已发生的事件/场景/对话；② 正文字数必须达到目标字数（不足会被 write_chapter 拒绝）；③ 生成后调用 write_chapter 工具写入数据库；④ 只根据意图块处理用户反馈，禁止在正文复述控制层语言
 - **章纲保障（dispatch 前必查）**：检查步骤 2 快照输出是否包含"═══ 本章大纲 ═══"段。若不包含，必须先调用 \`read_outline\` 工具（type="chapter"、number=本章序号）读取章纲全文，将其并入 dispatch prompt（与快照内章纲同等地位传给 writer）后再 dispatch；若 \`read_outline\` 返回"大纲文件不存在"，**停止流水线**并报告"第X章大纲缺失，需人工介入"——禁止无大纲 dispatch @writer 裸写。（驳回重写场景 dispatch 的是 @reviser，不依赖章纲，不受本兜底约束。）
 - writer 返回后，检查 write_chapter 是否被拒绝：
   - 若返回"字数不达标/正文含提纲标签/与前文重复"等拒绝结果（metadata.rejected 为 true），将拒绝提示原样传回 @writer，要求其补足字数或重写重复部分后重新调用 write_chapter，最多循环 3 次（注意：超出目标字数不会被拒绝，不要要求 writer 精简本来扎实的内容）
@@ -96,31 +107,33 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 分派任意 auditor 前，必须把步骤 2 快照输出中"技法候选"段落里的每条候选（从 \`- [技法ID] 名称（置信度:x.xx）：指令\` 行中提取）映射为 \`retrieved_techniques\` 传入 prompt；每项只包含 \`id\`、\`name\`、\`instruction\`。若快照中没有"技法候选"段落，传空数组并明确告知 auditor 跳过技法使用评估。
 分派任意 auditor 前，还必须把步骤 2 快照输出中的【命名角色白名单（硬约束）】和【受保护角色关系（硬约束）】段落原样传入 prompt；若快照包含“称谓绑定”“未解析称谓”行，必须一并传递。
+存在反馈意图时，分派任意 auditor 前还必须附带【写作反馈意图摘要】；摘要应包含意图编号、反馈编号、原始反馈和执行要点。
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"
-  - prompt: **第一行加 "mode: full"** 标识，其余传入 novel_id、chapter_id、章节正文、确定性检查的失败维度，指示 auditor 进行 37 维深度审计
+  - prompt: **第一行加 "mode: full"** 标识，其余传入 novel_id、chapter_id、章节正文、确定性检查的失败维度、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_AUDITOR_PROMPT}，指示 auditor 进行 37 维深度审计
   - @auditor 会通过 submit_chapter_review 工具提交结构化审计结果（持久化供人工审批查阅），随后返回文本审计报告
   - @auditor 返回审计结果后，进入步骤 5
 - WARN -> **必须 dispatch @auditor 做轻量设定对照审计**，不允许跳过。理由：设定对照维度的 WARN（命中率低 / 疑似漂移词）正是 LLM 才能准确判断的，确定性扫描可能误报。
   - subagent_type: "auditor"
   - description: "设定一致性专项审计（第X章）"
-  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告里的所有 WARN/FAIL 维度和疑似漂移词列表，指示 auditor 重点跑 23/24/25/26/27 + 1-5 + 6-9 + 35-37 共 17 维
+  - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告里的所有 WARN/FAIL 维度、疑似漂移词列表、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_AUDITOR_PROMPT}，指示 auditor 重点跑 23/24/25/26/27 + 1-5 + 6-9 + 35-37 共 17 维
   - @auditor 返回审计结果后：若结果含 FAIL → 进入步骤 5 revise；若仅 WARN/PASS → 进入步骤 6
 - PASS -> 仍需 dispatch @auditor 做「设定一致性专项审计」，理由：即使关键词命中率达标，也可能有 LLM 自创的同形异义词（如"黄金级"vs"子爵"）。
   - subagent_type: "auditor"
   - description: "设定一致性专项审计（第X章，快检）"
   - prompt: **第一行加 "mode: settings_focus"** 标识，附 deterministic 报告全文，指示 auditor 仅重点跑 23/24/25 这 3 维（其余维度在 audit 报告中标 PASS + "本轮聚焦设定一致性，跳过"）
-  - @auditor 返回审计结果后：若结果含 FAIL/WARN → 进入步骤 5 revise；若全 PASS → 进入步骤 6
+  - @auditor 返回审计结果后：若结果含 FAIL/WARN → 进入步骤 5 revise；若全 PASS 且存在反馈意图 → 追加 dispatch \`mode: feedback_focus\` 审计（不提交审批轮次）；聚焦结果含 FAIL/WARN 也进入步骤 5，否则进入步骤 6；若无反馈意图且全 PASS → 进入步骤 6
 
 ### 步骤 5：revise - 自动修订（仅步骤4为FAIL时执行）
 通过 task 工具 dispatch @reviser 子 agent：
 - subagent_type: "reviser"
 - description: "修订第X章"
-- prompt: 包含 novel_id、chapter_id、章节当前正文、@auditor 的审计结果（如有），指示 reviser 针对性修正问题，修订后调用 revise_chapter 工具更新数据库。注意：修订后字数不得低于目标字数（不足会被 revise_chapter 拒绝）
+- prompt: 包含 novel_id、chapter_id、章节当前正文、@auditor 的审计结果（如有）、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_EXECUTOR_PROMPT}，指示 reviser 针对性修正问题，修订后调用 revise_chapter 工具更新数据库。注意：修订后字数不得低于目标字数（不足会被 revise_chapter 拒绝）
 - reviser 返回后，重新调用 \`check_continuity\` 验证修订结果
 - 仍 FAIL -> 停止，报告"修订后仍不通过，需人工介入"
-- PASS/WARN -> 进入步骤 6
+- PASS/WARN 且存在反馈意图 -> dispatch \`mode: feedback_focus\` 复核；结果 FAIL/WARN 时停止并报告"反馈意图仍未满足，需人工介入"
+- PASS/WARN 且无反馈意图 -> 进入步骤 6
 - 最多修订1次
 
 ### 步骤 6：reflect - 提取并校验状态变更
@@ -152,8 +165,8 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 若 director 任务中明确写有"重写第X章"且附有批注，说明该章节当前 status 已是 rejected，**不要走步骤 1（读取大纲）与步骤 3（@writer 重写）**，改为：
 - 步骤 2：调用 \`assemble_context_snapshot\` 重组上下文（仍按 chapter_number 读快照）
-- 步骤 3 重写：dispatch @reviser 而非 @writer（prompt 包含原章节正文 + 用户批注 + 上一章结尾原文 + 目标字数，要求针对性修改后调用 revise_chapter 写入）
-- 步骤 4-7：完整跑 audit → [revise] → reflect → sync
+- 步骤 3 重写：先基于原章节正文和【用户反馈原文】编译修订意图；把意图块、原章节正文、上一章结尾原文和目标字数传给 @reviser，要求针对性修改后调用 revise_chapter 写入。不要直接派发原始批注。
+- 步骤 4-7：完整跑 audit（附带同一意图摘要）→ [revise] → reflect → sync
 - 步骤 8：按模式分支收口
 - 注意：observer 在步骤 6 会基于**修订后**的正文重跑事实提取，提交步骤 7 时自然覆盖上次的事实残留（幂等收敛）
 
@@ -170,6 +183,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 - 状态提交结果
 - **候选区待审阅** — commit_observer_delta 返回的 pending 列表（display_title + candidate_type + type_strength/importance 标签）。**非空时必须提醒 director 在用户界面引导用户 review**：候选项 ≥ 1 时追加一句"建议在用户界面审阅后 accept / reject / merge"。如果本章节的候选区为空也明确写"无新增候选"
 - **冲突标注** — commit_observer_delta 返回的 conflicts 列表（world_entry_id + conflict_kind + conflict_note）。**非空时必须提醒 director**：这些冲突已分离到 WorldEntryConflictTable，不污染 WorldEntryTable.content，但需要用户决定取舍（合并 / 覆盖 / 忽略）
+- 反馈处理结果：有反馈时列出意图编号、反馈编号和原始反馈；存在澄清问题时返回问题；无反馈时明确写"无用户反馈"
 - 模式分支结果（review 时注明"待审批"；auto 时注明"已推进"；重写场景注明"按批注重写完成"）
 
 ## 设定影响面处理（硬规则）

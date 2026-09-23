@@ -4,7 +4,8 @@
  * 对小说章节进行 37 维连续性审计，输出 PASS/WARN/FAIL 结果。
  * 遵循 agent.ts:267-294 的 agent 配置结构。
  */
-import { CONTINUITY_DIMENSIONS } from "../continuity-check.js"
+
+import { FEEDBACK_INTENT_AUDITOR_PROMPT } from "./feedback-intent.js"
 
 const AUDITOR_PROMPT = `# 角色定位
 
@@ -162,6 +163,8 @@ const AUDITOR_PROMPT = `# 角色定位
 4. 提交时 overall 仍按"有任何 FAIL 则 FAIL"规则
 
 如果 prompt 第一行包含 \`mode: full\` 标识，则按 37 维全量审计模式执行。
+
+${FEEDBACK_INTENT_AUDITOR_PROMPT}
 `
 
 export const auditorAgent = {
