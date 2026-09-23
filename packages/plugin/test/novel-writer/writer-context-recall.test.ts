@@ -5,6 +5,10 @@ describe("writer-context-recall", () => {
   test("writer 提示词包含 assemble_context_snapshot 调用步骤", () => {
     const prompt = writerAgentConfig.systemPrompt
     expect(prompt).toContain("assemble_context_snapshot")
+    expect(prompt).toContain("0a")
+    expect(prompt).toContain("0b")
+    expect(prompt).toContain("0c")
+    expect(prompt).toContain("focus")
     expect(prompt).toContain("三路召回")
   })
 

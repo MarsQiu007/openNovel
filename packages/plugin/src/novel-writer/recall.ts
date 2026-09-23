@@ -553,7 +553,8 @@ export async function assembleWriterSnapshot(
   novelId: string,
   chapterNumber: number,
   directory?: string | null,
-): Promise<ContextPacket | null> {
+  focus?: string,
+) {
   const db = getDb(directory)
   const raw = await assembleSnapshot(novelId, chapterNumber, directory)
   if (!raw) return null
@@ -563,9 +564,9 @@ export async function assembleWriterSnapshot(
   const chapterOutline = resolvedOutline.outline
 
 
-  // 召回查询文本：有章纲用章纲，否则用 synopsis + open 线索标题 + 角色名
+  // 召回查询文本：focus 优先，其次章纲，否则用 synopsis + 线索标题 + 角色名
   const queryText =
-    chapterOutline ??
+    focus ?? chapterOutline ??
     [raw.synopsis, ...raw.plotThreads.map((t) => t.title), ...raw.activeCharacters.map((c) => c.name)].join(" ")
 
   const mentioned = await extractMentionedEntities(db, novelId, queryText)

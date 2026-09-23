@@ -1125,11 +1125,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("当前章节序号"),
+          focus: tool.schema.string().optional().describe("查询焦点关键词，传入时召回围绕该焦点检索而非使用章纲"),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
-          const snapshot = await assembleWriterSnapshot(novelId, args.chapter_number, ctx.directory)
+          const snapshot = await assembleWriterSnapshot(novelId, args.chapter_number, ctx.directory, args.focus)
           if (!snapshot) {
             return { title: "assemble_context_snapshot", output: `无法组装上下文快照，小说 ${novelId} 不存在` }
           }
