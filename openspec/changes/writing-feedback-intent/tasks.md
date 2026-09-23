@@ -32,3 +32,11 @@
 - [x] 5.3 在仓库根对新增和修改文件运行 oxlint，确认无 lint 错误
 - [x] 5.4 在仓库根运行 `bun run typecheck`，确认全仓类型检查通过
 - [x] 5.5 运行 `openspec validate writing-feedback-intent --strict`，确认提案、规格和任务通过严格校验
+
+## Implementation Commits
+
+- `e3ccfa18f` docs(openspec): 添加写作反馈意图提案
+- `ef55eb64e` docs(openspec): 审查写作反馈意图提案
+- `b023fc652` docs(openspec): 修订写作反馈意图提案
+- `980b3ab53` docs(openspec): 补强写作反馈意图协议
+- `f28fb46fa` feat(plugin): 接入写作反馈意图协议
