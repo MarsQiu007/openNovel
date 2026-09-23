@@ -716,8 +716,9 @@ export function formatSnapshotToolOutput(
   }
   if (snapshot.recentChapterSummaries.length > 0) {
     lines.push("最近章节摘要：")
+    lines.push("⚠️ 以下 [内部参照: 章N] 标注仅供编排参照，不得写入正文；正文中禁止使用「第N章」等控制层坐标作为叙事时间。")
     for (const ch of snapshot.recentChapterSummaries) {
-      lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
+      lines.push(`- [内部参照: 章${ch.chapterOrder}] ${ch.chapterTitle}：${ch.summary}`)
       // 结构化情绪转移条目（observer 摘要三要素之一；旧摘要无该条目时降级为纯摘要行）
       const moodShifts = extractMoodShifts(ch.keyEvents)
       if (moodShifts.length > 0) {
@@ -729,7 +730,7 @@ export function formatSnapshotToolOutput(
     lines.push("")
     lines.push("═══ 早期章节段摘要（每 20 章的压缩记忆，细节可调用 recall_history 深挖）═══")
     for (const s of snapshot.segmentSummaries) {
-      lines.push(`- 第${s.startChapter}-${s.endChapter}章`)
+      lines.push(`- [内部参照: 章${s.startChapter}-${s.endChapter}]`)
       lines.push(s.summary)
     }
   }
@@ -738,8 +739,8 @@ export function formatSnapshotToolOutput(
     lines.push("═══ 召回历史（与本章相关的前文摘要）═══")
     for (const r of snapshot.recalledHistory) {
       const tag = r.matchedBy === "foreshadow" ? "伏笔" : r.matchedBy === "fts" ? "检索" : "实体"
-      lines.push(`- [第${r.chapterOrder}章·${tag}] ${r.chapterTitle}：${r.summary}`)
-      if (r.keyEvents.length > 0) lines.push(`  事件：${r.keyEvents.join("、")}`)
+      lines.push(`- [内部参照: 章${r.chapterOrder}·${tag}] ${r.chapterTitle}：${r.summary}`)
+  if (r.keyEvents.length > 0) { const safeEvents = r.keyEvents.map((e) => e.replace(/第\d+章/g, "").trim()).filter(Boolean); if (safeEvents.length > 0) lines.push(`  事件：${safeEvents.join("、")}`) }
     }
   }
   if (snapshot.plotThreads.length > 0) {
@@ -762,7 +763,7 @@ export function formatSnapshotToolOutput(
       const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
       lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}：${arc.summary || "（无摘要）"}`)
       for (const b of arc.beats) {
-        const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
+        const ch = b.chapterOrder != null ? `[内部参照: 章${b.chapterOrder}]` : "未锚定章节"
         lines.push(`    · [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
       }
     }
@@ -798,7 +799,7 @@ export function formatSnapshotToolOutput(
     lines.push("")
     lines.push("═══ 卷纲（章节归属参考）═══")
     for (const v of snapshot.volumeList) {
-      lines.push(`- 第${v.order}卷 ${v.title}：${v.summary}`)
+      lines.push(`- [内部参照: 卷${v.order}] ${v.title}：${v.summary}`)
     }
   }
   if (snapshot.characterBindingView?.characters.length) {

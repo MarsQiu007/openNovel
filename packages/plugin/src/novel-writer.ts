@@ -573,6 +573,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               output: `正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请将这些提纲转化为连续小说正文，用自然段落和场景转换表达，去掉所有标题、编号和【】标签后重新调用 write_chapter。`,
               metadata: { rejected: true, reason: "outline_label", samples: outlineLeaks },
             }
+
+          const coordLeak = detectCoordinateLeak(args.content)
+          if (coordLeak.length > 0) {
+            return {
+              title: "write_chapter（正文含书籍坐标泄漏）",
+              output: `正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达（如"三日前""当夜""上月""去年""那时"）或因果衔接后重新调用 write_chapter。`,
+              metadata: { rejected: true, reason: "coordinate_leak", samples: coordLeak },
+            }
+          }
           }
 
           // 重复度校验：与前文章节重复（照抄或开头场景重演）拒绝写入，防止重写已写过的内容
@@ -689,6 +698,15 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
+
+          const coordLeak = detectCoordinateLeak(args.revision)
+          if (coordLeak.length > 0) {
+            return {
+              title: "revise_chapter（修订正文含书籍坐标泄漏）",
+              output: `修订正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达后重新调用 revise_chapter。`,
+              metadata: { rejected: true, reason: "coordinate_leak", samples: coordLeak },
+            }
+          }
           const dup = await checkDuplicateRatio(db, chapter.novel_id, args.revision, chapter.order)
           if (dup.duplicate) {
             const why =
@@ -6292,6 +6310,29 @@ function detectOutlineLabels(text: string): string[] {
       continue
     }
     if (beatLabels.includes(line)) samples.push(line)
+  }
+  return [...new Set(samples)].slice(0, 5)
+}
+
+/**
+ * 检测正文中把书籍控制层坐标（第N章/第N卷）当作叙事时间使用的泄漏句式。
+ * 仅拦截「记得在第N章」「在第N章的时候」等明确坐标复述，不拦截合法的书中书/元小说场景。
+ */
+function detectCoordinateLeak(text: string): string[] {
+  const patterns = [
+    /记得在第\\d+章/g,
+    /在第\\d+章的时候/g,
+    /在第\\d+章发生了/g,
+  ]
+  const samples: string[] = []
+  for (const pattern of patterns) {
+    const matches = text.matchAll(pattern)
+    for (const m of matches) {
+      const start = Math.max(0, m.index! - 10)
+      const end = Math.min(text.length, m.index! + m[0].length + 10)
+      samples.push(text.slice(start, end).trim())
+      if (samples.length >= 5) return [...new Set(samples)]
+    }
   }
   return [...new Set(samples)].slice(0, 5)
 }

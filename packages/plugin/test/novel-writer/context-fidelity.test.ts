@@ -74,7 +74,7 @@ describe("formatSnapshotToolOutput 最近章节摘要渲染", () => {
     ])
     const result = formatSnapshotToolOutput(snapshot, { hooks: [] })
     expect(result.output).toContain("最近章节摘要：")
-    expect(result.output).toContain("- 第1章 第一章：紧接上章当夜")
+    expect(result.output).toContain("[内部参照: 章1] 第一章：紧接上章当夜")
     expect(result.output).toContain("  情绪转移：林昭:从平静因师尊遇害变成悲愤")
   })
 
@@ -100,8 +100,8 @@ describe("formatSnapshotToolOutput 最近章节摘要渲染", () => {
       { chapterOrder: 1, chapterTitle: "第一章", summary: "更旧摘要", keyEvents: [] },
     ])
     const result = formatSnapshotToolOutput(snapshot, { hooks: [] })
-    expect(result.output).toContain("- 第1章 第一章：更旧摘要")
-    expect(result.output).toContain("- 第2章 第二章：旧摘要")
+    expect(result.output).toContain("[内部参照: 章1] 第一章：更旧摘要")
+    expect(result.output).toContain("[内部参照: 章2] 第二章：旧摘要")
     expect(result.output).not.toContain("情绪转移")
   })
 })

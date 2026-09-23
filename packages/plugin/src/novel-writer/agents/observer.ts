@@ -173,8 +173,8 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 
 ## 8. timeline（时间线）
 提取时间线事件：
-- 重要时间节点 → action: "create"，data 包含 event（事件描述）、timestamp（时间标记，如"第X章"或具体日期）、relative_order（相对顺序，数字）
-- 时间线修正 → action: "update"
+- 重要时间节点 → action: "create"，data 包含 event（事件描述）、timestamp（故事层时间标记，如"三日后清晨""当夜""上月""三年前"，禁止使用"第X章"等书籍坐标）、relative_order（相对顺序，数字）
+- 章节锚点通过 relative_order 或章节 ID 承载，不得写入 timestamp 字段。timestamp 只保存故事层时间表达。
 - entity_id 建议格式：time_<简短标识>
 
 ## 9. location（地点）
