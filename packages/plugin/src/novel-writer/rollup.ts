@@ -400,6 +400,7 @@ export async function getEffectiveContext(
 
   return {
     novelTitle: novel.title,
+    storySpine: novel.story_spine ?? null,
     genre: novel.genre,
     synopsis: novel.synopsis,
 

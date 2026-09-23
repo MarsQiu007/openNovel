@@ -14,6 +14,7 @@ import { z } from "zod"
 import { eq, and, desc, sql, inArray, ne } from "drizzle-orm"
 import {
   getDb,
+  NovelTable,
   NovelStateLogTable,
   CharacterTable,
   CharacterStateTable,
@@ -1192,6 +1193,9 @@ export async function commitStateWithReport(
   // 6. 同步 Markdown（事务提交后，旁路审计日志）
   appendToMarkdown(novelId, chapterId, validated)
 
+  
+  // 追加故事主轴条目（确定性拼接，不调用 LLM）
+  updateStorySpine(db, novelId, chapterId, validated)
   return report
 }
 
@@ -2166,4 +2170,46 @@ export async function restoreDescription(
     field: entry.field,
     restored_value: oldValue,
   }
+}
+
+/**
+ * 从 observer delta 中确定性拼接故事主轴条目并追加到 novels.story_spine。
+ * 格式：第N章：{摘要}。伏笔：{内容前30字}...
+ * 不调用 LLM；无 chapter_summary 时跳过。
+ */
+function updateStorySpine(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  chapterId: string,
+  delta: StateDelta,
+): void {
+  const summaryEntry = delta.find((e) => e.fact_type === "chapter_summary")
+  if (!summaryEntry) return
+
+  const data = summaryEntry.data as Record<string, unknown>
+  const summary = typeof data.summary === "string" ? data.summary : ""
+  if (!summary) return
+
+  // 确定章节序号
+  const [chapter] = db.select({ order: ChapterTable.order }).from(ChapterTable).where(eq(ChapterTable.id, chapterId)).all()
+  const chapterOrder = chapter?.order ?? 0
+  if (chapterOrder <= 0) return
+
+  // 拼接伏笔悬念部分
+  const plantedForeshadows = delta.filter(
+    (e) => e.fact_type === "foreshadow" && (e.data as Record<string, unknown>).state === "planted",
+  )
+  let spineEntry = `第${chapterOrder}章：${summary.slice(0, 120)}`
+  if (plantedForeshadows.length > 0) {
+    const firstFs = plantedForeshadows[0].data as Record<string, unknown>
+    const fsContent = typeof firstFs.content === "string" ? firstFs.content : ""
+    if (fsContent) spineEntry += `。伏笔：${fsContent.slice(0, 30)}...`
+  }
+  spineEntry += "\n"
+
+  // 追加到 story_spine
+  const [novel] = db.select({ story_spine: NovelTable.story_spine }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
+  const current = novel?.story_spine ?? ""
+  const updated = current + spineEntry
+  db.update(NovelTable).set({ story_spine: updated }).where(eq(NovelTable.id, novelId)).run()
 }

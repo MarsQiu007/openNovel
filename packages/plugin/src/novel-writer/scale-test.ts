@@ -190,6 +190,7 @@ function generateMockData(chapterCount: number): ContextPacket {
 
   return {
     novelTitle: "星辰变",
+    storySpine: null,
     genre: "玄幻",
     synopsis: "这是一个关于修炼与成长的故事。主角从小镇少年开始，历经磨难，最终成为一代强者。".repeat(4),
     activeCharacters,

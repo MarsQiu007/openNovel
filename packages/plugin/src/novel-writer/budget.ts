@@ -116,6 +116,25 @@ function truncateArray<T>(items: T[], tokenFn: (item: T) => number, budget: numb
 // ─── 各层预算裁剪 ───
 
 /**
+ * 故事主轴预算裁剪：不超过 500 token（约 750 字符），超出时从最早条目截断。
+ */
+function applyStorySpineBudget(packet: ContextPacket): void {
+  const SPINE_BUDGET_CHARS = 750 // 500 tokens ≈ 750 字符
+  if (!packet.storySpine) return
+  if (packet.storySpine.length <= SPINE_BUDGET_CHARS) return
+  // 从最早条目开始丢弃：按行分割，保留后面的行
+  const lines = packet.storySpine.split("\n")
+  let kept: string[] = []
+  let total = 0
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (total + lines[i].length > SPINE_BUDGET_CHARS) break
+    total += lines[i].length
+    kept.unshift(lines[i])
+  }
+  packet.storySpine = kept.join("\n")
+}
+
+/**
  * P0 预算裁剪：裁剪 synopsis 确保不超过 1K tokens
  *
  * P0 字段：novelTitle, genre, synopsis
@@ -309,6 +328,9 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
 
   // P0: 蓝图 - 1K tokens
   applyP0Budget(result)
+
+  // P0.5: 故事主轴 - 500 tokens
+  applyStorySpineBudget(result)
 
   // 章纲 - 1.5K
   applyChapterOutlineBudget(result)

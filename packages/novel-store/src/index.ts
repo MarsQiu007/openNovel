@@ -44,6 +44,7 @@ export const NovelTable = sqliteTable("novels", {
     .notNull()
     .$default(() => Date.now()),
   status: text().notNull().default("draft"),
+  story_spine: text(),
 })
 
 export const CharacterTable = sqliteTable("characters", {

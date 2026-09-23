@@ -248,6 +248,7 @@ export type ContextPacket = {
   /** P0: 小说蓝图 */
   novelTitle: string
   genre: string
+  storySpine: string | null
   synopsis: string
 
   /** P1: 活跃角色（已过滤 dormant / departed 角色） */
@@ -607,6 +608,7 @@ export async function assembleSnapshot(
   }
 
   return {
+    storySpine: novel.story_spine ?? null,
     novelTitle: novel.title,
     genre: novel.genre,
     synopsis: novel.synopsis,
@@ -702,6 +704,11 @@ export function formatSnapshotToolOutput(
   options?: { techniqueInjectionEnabled?: boolean },
 ): SnapshotToolOutput {
   const lines: string[] = [`小说：${snapshot.novelTitle}（${snapshot.genre}）`, `梗概：${snapshot.synopsis}`]
+  if (snapshot.storySpine) {
+    lines.push("")
+    lines.push("═══ 故事主轴 ═══")
+    lines.push(snapshot.storySpine.trimEnd())
+  }
   if (snapshot.chapterOutline) {
     lines.push("")
     lines.push("═══ 本章大纲 ═══")

@@ -66,6 +66,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateAnnotationExecutionRoundColumns(exec, query)
   migrateNovelMasterOutline(exec, query)
   migrateVolumeOutline(exec, query)
+  migrateStorySpine(exec, query)
 }
 
 /**
@@ -262,5 +263,20 @@ function migrateVolumeOutline(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // volumes 表不存在时无需迁移，CREATE_TABLES_SQL 会带 outline 列创建
+  }
+}
+
+/**
+ * 给 novels 表添加 story_spine 列。旧数据该字段为 NULL（不渲染主轴段落）。
+ */
+function migrateStorySpine(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(novels)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (!cols.some((c) => c.name === "story_spine")) {
+      exec("ALTER TABLE novels ADD COLUMN story_spine text")
+    }
+  } catch {
+    // novels 表不存在时无需迁移，CREATE_TABLES_SQL 会带 story_spine 列创建
   }
 }
