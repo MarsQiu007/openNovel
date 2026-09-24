@@ -27,7 +27,7 @@ import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
 import { SettingOrganizationPanel } from "./setting-organization"
-import { annotationInterval, closestParagraphElement, getSelectionAnchor, hasOverlap, segmentParagraph, type AnnotationLike } from "./annotation-utils"
+import { annotationInterval, closestParagraphElement, getSelectionAnchor, hasOverlap, paragraphDecorationAnnotations, segmentParagraph } from "./annotation-utils"
 import { SettingAnnotationCreateForm, SettingAnnotationPanel } from "./setting-annotation-panel"
 
 type WorldSubTab = "entries" | "style" | "soul" | "organization"
@@ -121,15 +121,11 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   const [annotationReplacement, setAnnotationReplacement] = createSignal("")
   const paragraphSegments = createMemo(() => {
     const content = entry()?.content ?? ""
-    const byIndex = new Map<number, AnnotationLike[]>()
-    for (const annotation of annotations.data ?? []) {
-      if (annotation.paragraphIndex == null) continue
-      const list = byIndex.get(annotation.paragraphIndex) ?? []
-      list.push(annotation)
-      byIndex.set(annotation.paragraphIndex, list)
-    }
-    return content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
-      .map((paragraph, idx) => segmentParagraph(paragraph, byIndex.get(idx) ?? []))
+    const all = annotations.data ?? []
+    const paragraphs = content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
+    return paragraphs.map((paragraph, idx) =>
+      segmentParagraph(paragraph, paragraphDecorationAnnotations(idx, paragraph.length, paragraphs.length, all)),
+    )
   })
 
   // 切换条目 / 数据变更时重置草稿与编辑态

@@ -78,6 +78,35 @@ export function annotationInterval(a: {
   return { startParagraph: a.paragraphIndex, start: a.startOffset, endParagraph, end: a.endOffset }
 }
 
+/**
+ * 计算单个段落上的有效批注装饰锚点（chapter-reader 与 world-reader 共用）。
+ * 跨段批注按段落区间展开：起始段从 startOffset 到段尾、中间段整段、结束段从段首到 endOffset。
+ * 结束段落索引越界时钳制到末段（失稳语义，不阻塞渲染）；
+ * 段内偏移越界由 segmentParagraph 钳制到段长。
+ */
+export function paragraphDecorationAnnotations(
+  paragraphIndex: number,
+  paragraphLength: number,
+  paragraphCount: number,
+  annotations: readonly AnnotationLike[],
+): AnnotationLike[] {
+  const result: AnnotationLike[] = []
+  for (const ann of annotations) {
+    const interval = annotationInterval(ann)
+    if (!interval) continue
+    // 结束段被钳制时，钳制段装饰到段尾而不是原结束段偏移（原偏移对钳制段无意义）
+    const clampedEnd = interval.endParagraph > paragraphCount - 1
+    const endParagraph = clampedEnd ? paragraphCount - 1 : interval.endParagraph
+    if (paragraphIndex < interval.startParagraph || paragraphIndex > endParagraph) continue
+    result.push({
+      ...ann,
+      startOffset: paragraphIndex === interval.startParagraph ? interval.start : 0,
+      endOffset: paragraphIndex === endParagraph && !clampedEnd ? interval.end : paragraphLength,
+    })
+  }
+  return result
+}
+
 function compareAnchorPoint(aParagraph: number, aOffset: number, bParagraph: number, bOffset: number): number {
   if (aParagraph !== bParagraph) return aParagraph - bParagraph
   return aOffset - bOffset
@@ -92,6 +121,23 @@ export function hasOverlap(a: AnchorInterval, b: AnchorInterval): boolean {
     compareAnchorPoint(b.startParagraph, b.start, a.endParagraph, a.end) < 0
     && compareAnchorPoint(a.startParagraph, a.start, b.endParagraph, b.end) < 0
   )
+}
+
+/**
+ * 批注段落位置标签（从 1 起始的展示值）。
+ * 单段返回 "3"，跨段返回 "1-3"，paragraphIndex 为空时返回 null；
+ * 结束段落小于起始段落（倒挂）时按单段处理。
+ */
+export function annotationParagraphRangeLabel(a: {
+  paragraphIndex?: number | null | undefined
+  endParagraphIndex?: number | null | undefined
+}): string | null {
+  if (a.paragraphIndex == null) return null
+  const start = a.paragraphIndex + 1
+  const endIndex = a.endParagraphIndex ?? a.paragraphIndex
+  const end = Math.max(endIndex, a.paragraphIndex) + 1
+  if (end === start) return `${start}`
+  return `${start}\u2013${end}`
 }
 
 // nodeType 常量：与 DOM Node.TEXT_NODE / Node.ELEMENT_NODE 相同，

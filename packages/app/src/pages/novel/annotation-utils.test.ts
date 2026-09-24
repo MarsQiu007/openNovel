@@ -2,7 +2,7 @@
  * annotation-utils 纯函数测试
  */
 import { describe, test, expect } from "bun:test"
-import { segmentParagraph, hasOverlap, annotationInterval, getSelectionAnchor, type AnnotationLike } from "./annotation-utils"
+import { segmentParagraph, hasOverlap, annotationInterval, getSelectionAnchor, paragraphDecorationAnnotations, annotationParagraphRangeLabel, type AnnotationLike } from "./annotation-utils"
 
 function ann(overrides: Partial<AnnotationLike> & { id: string }): AnnotationLike {
   return {
@@ -250,5 +250,110 @@ describe("getSelectionAnchor", () => {
     const anchor = getSelectionAnchor(p, 2, sel, p, 2)
     expect(anchor.endParagraphIndex).toBeUndefined()
     expect(anchor.endOffset).toBe(2)
+  })
+})
+
+describe("paragraphDecorationAnnotations（跨段装饰展开）", () => {
+  const cross = ann({
+    id: "cross-1",
+    paragraphIndex: 0,
+    startOffset: 2,
+    endOffset: 3,
+    endParagraphIndex: 2,
+    quote: "跨段引用",
+  })
+
+  test("单段批注行为与现状一致", () => {
+    const single = ann({ id: "s1", paragraphIndex: 1, startOffset: 1, endOffset: 4 })
+    const result = paragraphDecorationAnnotations(1, 6, 3, [single])
+    expect(result).toHaveLength(1)
+    expect(result[0].startOffset).toBe(1)
+    expect(result[0].endOffset).toBe(4)
+    // 不影响其他段落
+    expect(paragraphDecorationAnnotations(0, 6, 3, [single])).toHaveLength(0)
+    expect(paragraphDecorationAnnotations(2, 6, 3, [single])).toHaveLength(0)
+  })
+
+  test("跨段批注：起始段装饰到段尾", () => {
+    const result = paragraphDecorationAnnotations(0, 8, 3, [cross])
+    expect(result).toHaveLength(1)
+    expect(result[0].startOffset).toBe(2)
+    expect(result[0].endOffset).toBe(8)
+  })
+
+  test("跨段批注：中间段整段装饰", () => {
+    const result = paragraphDecorationAnnotations(1, 5, 3, [cross])
+    expect(result).toHaveLength(1)
+    expect(result[0].startOffset).toBe(0)
+    expect(result[0].endOffset).toBe(5)
+  })
+
+  test("跨段批注：结束段从段首装饰到 endOffset", () => {
+    const result = paragraphDecorationAnnotations(2, 7, 3, [cross])
+    expect(result).toHaveLength(1)
+    expect(result[0].startOffset).toBe(0)
+    expect(result[0].endOffset).toBe(3)
+  })
+
+  test("跨段批注不装饰区间外的段落", () => {
+    expect(paragraphDecorationAnnotations(3, 5, 5, [cross])).toHaveLength(0)
+  })
+
+  test("结束偏移为 0 时结束段无有效装饰区间", () => {
+    const zeroEnd = ann({ id: "z1", paragraphIndex: 0, startOffset: 2, endOffset: 0, endParagraphIndex: 1 })
+    const segments = segmentParagraph("第二段文字", paragraphDecorationAnnotations(1, 5, 3, [zeroEnd]))
+    expect(segments).toEqual([{ text: "第二段文字", annotation: null }])
+  })
+
+  test("结束段落索引越界时钳制到末段并装饰到段尾", () => {
+    const beyond = ann({ id: "b1", paragraphIndex: 1, startOffset: 1, endOffset: 2, endParagraphIndex: 99 })
+    // 末段（索引 2）整段装饰，而不是用原结束段偏移 2
+    const tail = paragraphDecorationAnnotations(2, 6, 3, [beyond])
+    expect(tail).toHaveLength(1)
+    expect(tail[0].startOffset).toBe(0)
+    expect(tail[0].endOffset).toBe(6)
+    // 起始段从 startOffset 到段尾
+    const start = paragraphDecorationAnnotations(1, 5, 3, [beyond])
+    expect(start[0].endOffset).toBe(5)
+  })
+
+  test("与 segmentParagraph 组合：跨段批注的三段渲染分段", () => {
+    const paragraphs = ["第一段文字内容。", "第二段文字。", "第三段文字内容。"]
+    const rendered = paragraphs.map((text, idx) =>
+      segmentParagraph(text, paragraphDecorationAnnotations(idx, text.length, paragraphs.length, [cross])),
+    )
+    // 起始段：前 2 字纯文本 + 剩余装饰
+    expect(rendered[0]).toEqual([
+      { text: "第一", annotation: null },
+      { text: "段文字内容。", annotation: expect.objectContaining({ id: "cross-1" }) },
+    ])
+    // 中间段：整段装饰
+    expect(rendered[1]).toEqual([
+      { text: "第二段文字。", annotation: expect.objectContaining({ id: "cross-1" }) },
+    ])
+    // 结束段：前 3 字装饰 + 剩余纯文本
+    expect(rendered[2]).toEqual([
+      { text: "第三段", annotation: expect.objectContaining({ id: "cross-1" }) },
+      { text: "文字内容。", annotation: null },
+    ])
+  })
+})
+
+describe("annotationParagraphRangeLabel（位置区间标签）", () => {
+  test("paragraphIndex 为空时返回 null", () => {
+    expect(annotationParagraphRangeLabel({ paragraphIndex: null })).toBeNull()
+  })
+
+  test("单段批注显示单段标签", () => {
+    expect(annotationParagraphRangeLabel({ paragraphIndex: 2 })).toBe("3")
+    expect(annotationParagraphRangeLabel({ paragraphIndex: 2, endParagraphIndex: 2 })).toBe("3")
+  })
+
+  test("跨段批注显示区间标签", () => {
+    expect(annotationParagraphRangeLabel({ paragraphIndex: 0, endParagraphIndex: 2 })).toBe("1\u20133")
+  })
+
+  test("结束段落小于起始段落时按单段处理", () => {
+    expect(annotationParagraphRangeLabel({ paragraphIndex: 3, endParagraphIndex: 1 })).toBe("4")
   })
 })

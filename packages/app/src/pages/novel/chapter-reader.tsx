@@ -5,7 +5,7 @@ import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Tag, type TagProps } from "@opennovel-ai/ui/v2/badge-v2"
 import type { ServerNovelChaptersOutput } from "@opennovel-ai/client"
-import { segmentParagraph, getSelectionAnchor, annotationInterval, closestParagraphElement, hasOverlap, type AnnotationLike } from "./annotation-utils"
+import { segmentParagraph, getSelectionAnchor, annotationInterval, closestParagraphElement, hasOverlap, paragraphDecorationAnnotations } from "./annotation-utils"
 
 // ─── Status badge helpers ───
 
@@ -78,18 +78,6 @@ export default function ChapterReader(props: ChapterReaderProps) {
   const [comment, setComment] = createSignal("")
   const [replacement, setReplacement] = createSignal("")
   const [overlapMsg, setOverlapMsg] = createSignal("")
-
-  const paragraphAnnotations = createMemo(() => {
-    const all = annotationsQuery.data ?? []
-    const byIndex = new Map<number, AnnotationLike[]>()
-    for (const a of all) {
-      if (a.paragraphIndex == null) continue
-      const list = byIndex.get(a.paragraphIndex) ?? []
-      list.push(a)
-      byIndex.set(a.paragraphIndex, list)
-    }
-    return byIndex
-  })
 
   function handleContextMenu(e: MouseEvent) {
     const sel = window.getSelection()
@@ -256,7 +244,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
                 <For each={visibleParagraphs()}>
                   {(paragraph, idx) => (
                     <p data-paragraph-index={idx()}>
-                      <For each={segmentParagraph(paragraph, paragraphAnnotations().get(idx()) ?? [])}>
+                      <For each={segmentParagraph(paragraph, paragraphDecorationAnnotations(idx(), paragraph.length, paragraphs().length, annotationsQuery.data ?? []))}>
                         {(seg) => (
                           <Show when={seg.annotation} fallback={seg.text}>
                             <span
