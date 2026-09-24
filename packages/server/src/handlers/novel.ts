@@ -1740,6 +1740,7 @@ function toChapterAnnotation(row: ChapterAnnotationRow) {
     paragraphIndex: row.paragraph_index ?? undefined,
     startOffset: row.start_offset ?? undefined,
     endOffset: row.end_offset ?? undefined,
+    endParagraphIndex: row.end_paragraph_index ?? undefined,
     quote: row.quote,
     comment: row.comment,
     suggestedReplacement: row.suggested_replacement ?? undefined,
@@ -1762,6 +1763,7 @@ function toWorldEntryAnnotation(row: typeof WorldEntryAnnotationTable.$inferSele
     paragraphIndex: row.paragraph_index ?? undefined,
     startOffset: row.start_offset ?? undefined,
     endOffset: row.end_offset ?? undefined,
+    endParagraphIndex: row.end_paragraph_index ?? undefined,
     quote: row.quote,
     comment: row.comment,
     suggestedReplacement: row.suggested_replacement ?? undefined,
@@ -1802,6 +1804,44 @@ function requireWorldEntry(novelId: string, entryId: string, directory: string) 
   })
 }
 
+/**
+ * 校验"段落索引 + 段内偏移"锚点（含跨段）。
+ * 单段严格比较 quote；跨段只做结构与边界校验，quote 去空白宽松比较
+ * （浏览器 selection.toString() 的段间分隔符不统一，严格 slice 比较不可行）。
+ */
+function validateParagraphRangeAnchor(
+  paragraphs: readonly string[],
+  paragraphIndex: number,
+  startOffset: number,
+  endOffset: number,
+  endParagraphIndex: number | undefined,
+  quote: string,
+  scopeLabel: string,
+): string | null {
+  const paragraph = paragraphs[paragraphIndex]
+  if (!paragraph || paragraphIndex < 0) return `段落索引超出${scopeLabel}内容范围`
+  const endIndex = endParagraphIndex ?? paragraphIndex
+  if (endIndex === paragraphIndex) {
+    if (startOffset < 0 || endOffset <= startOffset || endOffset > paragraph.length) {
+      return "批注偏移量超出段落范围"
+    }
+    if (paragraph.slice(startOffset, endOffset) !== quote) return `批注引用与${scopeLabel}内容不一致`
+    return null
+  }
+  if (endIndex < paragraphIndex) return "结束段落索引不得小于起始段落索引"
+  const endParagraph = paragraphs[endIndex]
+  if (!endParagraph) return `结束段落索引超出${scopeLabel}内容范围`
+  if (startOffset < 0 || startOffset > paragraph.length) return "批注起始偏移量超出段落范围"
+  if (endOffset < 0 || endOffset > endParagraph.length) return "批注结束偏移量超出段落范围"
+  const expected = [
+    paragraph.slice(startOffset),
+    ...paragraphs.slice(paragraphIndex + 1, endIndex),
+    endParagraph.slice(0, endOffset),
+  ].join("\n")
+  if (quote.replace(/\s+/g, "") !== expected.replace(/\s+/g, "")) return `批注引用与${scopeLabel}内容不一致`
+  return null
+}
+
 function validateSettingAnnotationAnchor(entry: WorldEntryRow, input: CreateWorldEntryAnnotationInput) {
   if (!input.comment.trim()) return "批注评论不能为空"
   if (!input.quote.trim()) return "批注引用文本不能为空"
@@ -1818,13 +1858,15 @@ function validateSettingAnnotationAnchor(entry: WorldEntryRow, input: CreateWorl
     return "段落批注必须提供段落索引和偏移量"
   }
   const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
-  const paragraph = paragraphs[input.paragraphIndex]
-  if (!paragraph || input.paragraphIndex < 0) return "段落索引超出设定内容范围"
-  if (input.startOffset < 0 || input.endOffset <= input.startOffset || input.endOffset > paragraph.length) {
-    return "批注偏移量超出段落范围"
-  }
-  if (paragraph.slice(input.startOffset, input.endOffset) !== input.quote) return "批注引用与设定内容不一致"
-  return null
+  return validateParagraphRangeAnchor(
+    paragraphs,
+    input.paragraphIndex,
+    input.startOffset,
+    input.endOffset,
+    input.endParagraphIndex,
+    input.quote,
+    "设定",
+  )
 }
 
 export function createWorldEntryAnnotation(novelId: string, entryId: string, input: CreateWorldEntryAnnotationInput, directory: string) {
@@ -1842,6 +1884,7 @@ export function createWorldEntryAnnotation(novelId: string, entryId: string, inp
         paragraphIndex: input.paragraphIndex ?? null,
         startOffset: input.startOffset ?? null,
         endOffset: input.endOffset ?? null,
+        endParagraphIndex: input.endParagraphIndex ?? null,
         quote: input.quote,
         comment: input.comment,
         suggestedReplacement: input.suggestedReplacement ?? null,
@@ -2093,16 +2136,59 @@ function listAnnotations(chapterId: string, directory: string) {
   })
 }
 
-function createAnnotation(chapterId: string, novelId: string, input: {
+function validateChapterAnnotationAnchor(
+  chapter: typeof ChapterTable.$inferSelect,
+  input: {
+    anchorType?: string
+    paragraphIndex?: number
+    startOffset?: number
+    endOffset?: number
+    endParagraphIndex?: number
+    quote?: string
+    comment: string
+  },
+): string | null {
+  if (!input.comment.trim()) return "批注评论不能为空"
+  const anchorType = input.anchorType ?? "paragraph"
+  if (anchorType === "chapter") return null
+  if (!input.quote?.trim()) return "批注引用文本不能为空"
+  if (input.paragraphIndex === undefined || input.startOffset === undefined || input.endOffset === undefined) {
+    return "段落批注必须提供段落索引和偏移量"
+  }
+  // 与 chapter-reader 的分段规则保持一致
+  const paragraphs = chapter.content.split(/\n\n+/).filter(Boolean)
+  return validateParagraphRangeAnchor(
+    paragraphs,
+    input.paragraphIndex,
+    input.startOffset,
+    input.endOffset,
+    input.endParagraphIndex,
+    input.quote,
+    "章节",
+  )
+}
+
+export function createChapterAnnotationEndpoint(chapterId: string, novelId: string, input: {
   source?: string; anchorType?: string; paragraphIndex?: number
-  startOffset?: number; endOffset?: number; quote?: string
+  startOffset?: number; endOffset?: number; endParagraphIndex?: number; quote?: string
   comment: string; suggestedReplacement?: string
 }, directory: string) {
   return Effect.gen(function* () {
+    const db = getDb(directory)
+    const chapter = db
+      .select()
+      .from(ChapterTable)
+      .where(and(eq(ChapterTable.id, chapterId), eq(ChapterTable.novel_id, novelId)))
+      .get()
+    if (!chapter) return yield* Effect.fail(novelNotFound(chapterId))
+    const anchorError = validateChapterAnnotationAnchor(chapter, input)
+    if (anchorError) {
+      return yield* Effect.fail(new NovelNotFoundError({ name: "NovelNotFoundError", data: { message: anchorError } }))
+    }
     const ann = yield* Effect.promise(() => storeCreateChapterAnnotation(chapterId, novelId, {
       source: input.source ?? "user", anchorType: input.anchorType ?? "paragraph",
       paragraphIndex: input.paragraphIndex ?? null, startOffset: input.startOffset ?? null,
-      endOffset: input.endOffset ?? null, quote: input.quote ?? "",
+      endOffset: input.endOffset ?? null, endParagraphIndex: input.endParagraphIndex ?? null, quote: input.quote ?? "",
       comment: input.comment, suggestedReplacement: input.suggestedReplacement ?? null,
     }, directory))
     return toChapterAnnotation(ann)
@@ -2700,7 +2786,7 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
       .handle("novel.create-annotation", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* createAnnotation(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
+          return yield* createChapterAnnotationEndpoint(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.update-annotation", (ctx) =>
