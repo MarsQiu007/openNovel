@@ -51,3 +51,14 @@
 - [x] 7.5 运行 packages/opennovel 的 HttpApi exercise，确认新增端点、错误契约、SDK 调用和同步状态流程全部覆盖
 - [x] 7.6 使用旧数据库 fixture 验证阅读、导出、基础编辑和新增同步状态标记共存，不因缺少历史指纹或目录元数据失败
 
+
+## Implementation Commits
+
+- 6908b0bdb docs(openspec): 创建 manual-edit-context-fidelity 提案
+- 168c984eb feat(schema,protocol): 定义手动编辑同步契约与联合保存端点
+- 2a92fa5f2 chore(client): 重新生成 SDK
+- 08a7e9fe9 feat(novel-store): 手动编辑同步队列、来源指纹与历史中间状态扫描
+- 08c687c72 feat(server): 手动编辑目录、统一事务辅助层与旧库兼容验证
+- 467122ab0 feat(opennovel): 启动手动编辑同步 worker 并联调 HttpApi 覆盖
+- e010efb83 feat(plugin): 手动正文同步门禁与设定影响面接入
+- 26dd9793c feat(app): 统一保存状态反馈、编辑器自动保存改造与待同步列表
