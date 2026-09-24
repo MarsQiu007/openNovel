@@ -34,8 +34,9 @@ export function formatSettingExecutionPrompt(input: {
             `- paragraph_index: ${ann.paragraphIndex == null ? "whole_entry" : ann.paragraphIndex}`,
           ]
           // 仅跨段批注输出结束段落索引，单段 prompt 与现状一致
+          // 与 annotationInterval 退化语义一致：倒挂（结束段小于起始段）按单段处理
           const isCrossParagraph =
-            ann.paragraphIndex != null && ann.endParagraphIndex != null && ann.endParagraphIndex !== ann.paragraphIndex
+            ann.paragraphIndex != null && ann.endParagraphIndex != null && ann.endParagraphIndex > ann.paragraphIndex
           if (isCrossParagraph) lines.push(`- end_paragraph_index: ${ann.endParagraphIndex}`)
           if (ann.startOffset != null) lines.push(`- start_offset: ${ann.startOffset}`)
           if (ann.endOffset != null) lines.push(`- end_offset: ${ann.endOffset}`)
