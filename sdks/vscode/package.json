@@ -2,7 +2,7 @@
   "name": "opennovel",
   "displayName": "opennovel",
   "description": "opennovel for VS Code",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "sst-dev",
   "repository": {
     "type": "git",
