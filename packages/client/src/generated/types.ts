@@ -4858,6 +4858,7 @@ export type ServerNovelAnnotationsOutput = ReadonlyArray<{
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -4880,6 +4881,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4890,6 +4892,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4900,6 +4903,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4910,6 +4914,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4920,16 +4925,29 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
   }["endOffset"]
+  readonly endParagraphIndex?: {
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["endParagraphIndex"]
   readonly quote?: {
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4940,6 +4958,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4950,6 +4969,7 @@ export type ServerNovelCreateAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote?: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -4966,6 +4986,7 @@ export type ServerNovelCreateAnnotationOutput = {
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -5029,6 +5050,7 @@ export type ServerNovelUpdateAnnotationOutput = {
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -5065,6 +5087,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5082,6 +5105,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5099,6 +5123,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5116,6 +5141,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5133,6 +5159,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5150,6 +5177,7 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5170,6 +5198,7 @@ export type ServerNovelCreateExecutionRoundOutput = {
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
@@ -5199,6 +5228,7 @@ export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
@@ -5253,6 +5283,7 @@ export type ServerNovelUpdateExecutionRoundOutput = {
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
@@ -5374,6 +5405,7 @@ export type ServerNovelSettingAnnotationsOutput = ReadonlyArray<{
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -5397,6 +5429,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5409,6 +5442,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5421,6 +5455,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5433,6 +5468,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5445,6 +5481,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5457,11 +5494,25 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
     readonly authorSessionId?: string
   }["endOffset"]
+  readonly endParagraphIndex?: {
+    readonly parentId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+    readonly authorSessionId?: string
+  }["endParagraphIndex"]
   readonly quote: {
     readonly parentId?: string
     readonly source?: "user" | "ai"
@@ -5469,6 +5520,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5481,6 +5533,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5493,6 +5546,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5505,6 +5559,7 @@ export type ServerNovelCreateSettingAnnotationInput = {
     readonly paragraphIndex?: number
     readonly startOffset?: number
     readonly endOffset?: number
+    readonly endParagraphIndex?: number
     readonly quote: string
     readonly comment: string
     readonly suggestedReplacement?: string
@@ -5522,6 +5577,7 @@ export type ServerNovelCreateSettingAnnotationOutput = {
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -5585,6 +5641,7 @@ export type ServerNovelUpdateSettingAnnotationOutput = {
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -5619,6 +5676,7 @@ export type ServerNovelCreateSettingAnnotationRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5634,6 +5692,7 @@ export type ServerNovelCreateSettingAnnotationRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5649,6 +5708,7 @@ export type ServerNovelCreateSettingAnnotationRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5664,6 +5724,7 @@ export type ServerNovelCreateSettingAnnotationRoundInput = {
       readonly paragraphIndex?: number | null
       readonly startOffset?: number | null
       readonly endOffset?: number | null
+      readonly endParagraphIndex?: number | null
       readonly quote: string
       readonly status: "open" | "resolved" | "wontfix" | "applied"
       readonly comment: string
@@ -5684,6 +5745,7 @@ export type ServerNovelCreateSettingAnnotationRoundOutput = {
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
@@ -5713,6 +5775,7 @@ export type ServerNovelSettingAnnotationRoundsOutput = ReadonlyArray<{
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
@@ -5766,6 +5829,7 @@ export type ServerNovelUpdateSettingAnnotationRoundOutput = {
     readonly paragraphIndex?: number | null
     readonly startOffset?: number | null
     readonly endOffset?: number | null
+    readonly endParagraphIndex?: number | null
     readonly quote: string
     readonly status: "open" | "resolved" | "wontfix" | "applied"
     readonly comment: string
