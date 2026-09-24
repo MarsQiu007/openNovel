@@ -18,6 +18,7 @@ import {
   ChapterTable,
   ChapterVersionTable,
   CharacterTable,
+  ChapterAnnotationTable,
   createExecutionRound,
   getExecutionRounds,
 } from "../../src/novel-writer/session-store.js"
@@ -176,6 +177,35 @@ describe("B/C tools", () => {
     const meta = "metadata" in listResult ? listResult.metadata : undefined
     expect(meta?.total).toBe(1)
     expect(meta?.annotations[0].comment).toBe("需要加强冲突")
+  })
+
+  test("annotate_chapter 支持跨段锚点并落库 end_paragraph_index", async () => {
+    await setupNovel()
+    const hooks = await getHooks()
+    const result = await hooks.tool!.annotate_chapter!.execute(
+      {
+        chapter_id: "ch-1",
+        source: "ai",
+        paragraph_index: 0,
+        start_offset: 2,
+        end_offset: 3,
+        end_paragraph_index: 2,
+        quote: "跨段引用文本",
+        comment: "这三段节奏拖沓",
+      },
+      toolCtx(),
+    )
+    const meta = "metadata" in result ? result.metadata : undefined
+    expect(meta?.end_paragraph_index).toBe(2)
+
+    const db = getDb(projectDir)
+    const row = await db
+      .select()
+      .from(ChapterAnnotationTable)
+      .where(eq(ChapterAnnotationTable.id, meta?.annotation_id as string))
+      .get()
+    expect(row?.end_paragraph_index).toBe(2)
+    expect(row?.end_offset).toBe(3)
   })
 
   test("resolve_annotation 标记批注状态", async () => {

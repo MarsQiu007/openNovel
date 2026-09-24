@@ -33,6 +33,7 @@ describe("buildAnnotationsSnapshot", () => {
         paragraphIndex: 0,
         startOffset: 0,
         endOffset: 2,
+        endParagraphIndex: null,
         quote: "旧句",
         status: "applied",
         comment: "这句话太生硬",
@@ -43,6 +44,7 @@ describe("buildAnnotationsSnapshot", () => {
         paragraphIndex: 1,
         startOffset: null,
         endOffset: null,
+        endParagraphIndex: null,
         quote: "另一段",
         status: "resolved",
         comment: "补充心理描写",
@@ -70,6 +72,67 @@ describe("formatExecutionPrompt", () => {
     expect(prompt).toContain("- suggested_replacement: \"新句\"")
     expect(prompt).toContain("annotation_id: ann-2")
     expect(prompt).toContain("- paragraph_text: \"另一段\"")
+  })
+})
+
+describe("formatExecutionPrompt（跨段锚点与 quote 截断）", () => {
+  const crossAnnotations = [
+    {
+      id: "ann-cross",
+      status: "resolved" as const,
+      paragraphIndex: 0,
+      startOffset: 2,
+      endOffset: 3,
+      endParagraphIndex: 2,
+      quote: "跨段引用内容",
+      comment: "三段需要统一节奏",
+      suggestedReplacement: null,
+    },
+  ]
+
+  test("跨段批注输出结束段落索引（1 起始）", () => {
+    const prompt = formatExecutionPrompt({
+      roundID: "round-1",
+      chapterID: "ch-1",
+      chapterTitle: "第一章",
+      paragraphs: ["第一段文字内容。", "第二段文字内容。", "第三段文字内容。"],
+      annotations: crossAnnotations,
+    })
+    expect(prompt).toContain("- paragraph_index: 1")
+    expect(prompt).toContain("- end_paragraph_index: 3")
+    expect(prompt).toContain("- start_offset: 2")
+    expect(prompt).toContain("- end_offset: 3")
+  })
+
+  test("单段批注 prompt 不输出 end_paragraph_index", () => {
+    const prompt = formatExecutionPrompt({
+      roundID: "round-1",
+      chapterID: "ch-1",
+      chapterTitle: "第一章",
+      paragraphs: ["旧句在开头", "另一段"],
+      annotations,
+    })
+    expect(prompt).not.toContain("end_paragraph_index")
+  })
+
+  test("超长 quote 截断展示并注明原文长度", () => {
+    const longQuote = "长".repeat(600)
+    const prompt = formatExecutionPrompt({
+      roundID: "round-1",
+      chapterID: "ch-1",
+      chapterTitle: "第一章",
+      paragraphs: ["第一段"],
+      annotations: [{ ...crossAnnotations[0], quote: longQuote }],
+    })
+    expect(prompt).toContain("（原文共 600 字，已截断展示）")
+    expect(prompt).not.toContain(longQuote)
+    expect(prompt).toContain("长".repeat(500))
+  })
+
+  test("快照完整记录结束段落索引", () => {
+    const snapshot = buildAnnotationsSnapshot(crossAnnotations)
+    expect(snapshot[0].endParagraphIndex).toBe(2)
+    expect(snapshot[0].endOffset).toBe(3)
   })
 })
 

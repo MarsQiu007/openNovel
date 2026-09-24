@@ -1738,6 +1738,7 @@ type Endpoint18_76Input = {
   readonly paragraphIndex?: Endpoint18_76Request["payload"]["paragraphIndex"]
   readonly startOffset?: Endpoint18_76Request["payload"]["startOffset"]
   readonly endOffset?: Endpoint18_76Request["payload"]["endOffset"]
+  readonly endParagraphIndex?: Endpoint18_76Request["payload"]["endParagraphIndex"]
   readonly quote?: Endpoint18_76Request["payload"]["quote"]
   readonly comment: Endpoint18_76Request["payload"]["comment"]
   readonly suggestedReplacement?: Endpoint18_76Request["payload"]["suggestedReplacement"]
@@ -1752,6 +1753,7 @@ const Endpoint18_76 = (raw: RawClient["server.novel"]) => (input: Endpoint18_76I
       paragraphIndex: input["paragraphIndex"],
       startOffset: input["startOffset"],
       endOffset: input["endOffset"],
+      endParagraphIndex: input["endParagraphIndex"],
       quote: input["quote"],
       comment: input["comment"],
       suggestedReplacement: input["suggestedReplacement"],
@@ -1919,6 +1921,7 @@ type Endpoint18_86Input = {
   readonly paragraphIndex?: Endpoint18_86Request["payload"]["paragraphIndex"]
   readonly startOffset?: Endpoint18_86Request["payload"]["startOffset"]
   readonly endOffset?: Endpoint18_86Request["payload"]["endOffset"]
+  readonly endParagraphIndex?: Endpoint18_86Request["payload"]["endParagraphIndex"]
   readonly quote: Endpoint18_86Request["payload"]["quote"]
   readonly comment: Endpoint18_86Request["payload"]["comment"]
   readonly suggestedReplacement?: Endpoint18_86Request["payload"]["suggestedReplacement"]
@@ -1935,6 +1938,7 @@ const Endpoint18_86 = (raw: RawClient["server.novel"]) => (input: Endpoint18_86I
       paragraphIndex: input["paragraphIndex"],
       startOffset: input["startOffset"],
       endOffset: input["endOffset"],
+      endParagraphIndex: input["endParagraphIndex"],
       quote: input["quote"],
       comment: input["comment"],
       suggestedReplacement: input["suggestedReplacement"],

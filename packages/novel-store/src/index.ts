@@ -539,6 +539,7 @@ export const ChapterAnnotationTable = sqliteTable(
     paragraph_index: integer(),
     start_offset: integer(),
     end_offset: integer(),
+    end_paragraph_index: integer(),
     quote: text().notNull().default(""),
     comment: text().notNull().default(""),
     suggested_replacement: text(),
@@ -584,6 +585,7 @@ export const WorldEntryAnnotationTable = sqliteTable(
     paragraph_index: integer(),
     start_offset: integer(),
     end_offset: integer(),
+    end_paragraph_index: integer(),
     quote: text().notNull().default(""),
     comment: text().notNull().default(""),
     suggested_replacement: text(),
@@ -786,13 +788,13 @@ CREATE INDEX IF NOT EXISTS volume_reviews_volume_id_idx ON volume_reviews(volume
 CREATE INDEX IF NOT EXISTS volume_reviews_novel_id_idx ON volume_reviews(novel_id);
 CREATE TABLE IF NOT EXISTS editorial_reports (id text PRIMARY KEY, novel_id text NOT NULL, scope_type text DEFAULT 'book' NOT NULL, scope_id text, summary text DEFAULT '' NOT NULL, risks_json text DEFAULT '[]' NOT NULL, recommendations_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS editorial_reports_novel_id_idx ON editorial_reports(novel_id, created_at);
-CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, end_paragraph_index integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_annotations_chapter_id_idx ON chapter_annotations(chapter_id, status);
 CREATE INDEX IF NOT EXISTS chapter_annotations_novel_id_idx ON chapter_annotations(novel_id);
 CREATE TABLE IF NOT EXISTS outline_canvas_layout (novel_id text PRIMARY KEY, layout_json text DEFAULT '{}' NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS annotation_execution_rounds (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, prompt_snapshot text DEFAULT '' NOT NULL, status text DEFAULT 'running' NOT NULL, annotations_snapshot text DEFAULT '[]' NOT NULL, result_summary text DEFAULT '' NOT NULL, chapter_version_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS annotation_execution_rounds_chapter_id_idx ON annotation_execution_rounds(chapter_id, created_at);
-CREATE TABLE IF NOT EXISTS world_entry_annotations (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS world_entry_annotations (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, end_paragraph_index integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS world_entry_annotations_entry_id_idx ON world_entry_annotations(world_entry_id, status);
 CREATE INDEX IF NOT EXISTS world_entry_annotations_novel_id_idx ON world_entry_annotations(novel_id);
 CREATE TABLE IF NOT EXISTS world_entry_annotation_rounds (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, prompt_snapshot text DEFAULT '' NOT NULL, status text DEFAULT 'running' NOT NULL, annotations_snapshot text DEFAULT '[]' NOT NULL, result_summary text DEFAULT '' NOT NULL, content_history_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE CASCADE);
@@ -2610,6 +2612,7 @@ export async function createChapterAnnotation(
     paragraphIndex?: number | null
     startOffset?: number | null
     endOffset?: number | null
+    endParagraphIndex?: number | null
     quote?: string
     comment?: string
     suggestedReplacement?: string | null
@@ -2632,6 +2635,7 @@ export async function createChapterAnnotation(
       paragraph_index: input.paragraphIndex ?? null,
       start_offset: input.startOffset ?? null,
       end_offset: input.endOffset ?? null,
+      end_paragraph_index: input.endParagraphIndex ?? null,
       quote: input.quote ?? "",
       comment: input.comment ?? "",
       suggested_replacement: input.suggestedReplacement ?? null,
@@ -2761,6 +2765,7 @@ export async function createWorldEntryAnnotation(
     paragraphIndex?: number | null
     startOffset?: number | null
     endOffset?: number | null
+    endParagraphIndex?: number | null
     quote?: string
     comment?: string
     suggestedReplacement?: string | null
@@ -2783,6 +2788,7 @@ export async function createWorldEntryAnnotation(
       paragraph_index: input.paragraphIndex ?? null,
       start_offset: input.startOffset ?? null,
       end_offset: input.endOffset ?? null,
+      end_paragraph_index: input.endParagraphIndex ?? null,
       quote: input.quote ?? "",
       comment: input.comment ?? "",
       suggested_replacement: input.suggestedReplacement ?? null,

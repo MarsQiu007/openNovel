@@ -1,6 +1,7 @@
 /**
  * 设定批注面板：当前批注管理、历史轮次和受会话状态控制的 AI 执行入口。
  */
+import { annotationParagraphRangeLabel } from "./annotation-utils"
 import { Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import {
   useBoundNovelSessions,
@@ -25,6 +26,7 @@ type SettingAnnotation = {
   readonly paragraphIndex?: number | null
   readonly startOffset?: number | null
   readonly endOffset?: number | null
+  readonly endParagraphIndex?: number | null
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null
@@ -189,7 +191,7 @@ export function SettingAnnotationPanel(props: SettingAnnotationPanelProps) {
                 <div class="flex items-center justify-between">
                   <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>{statusLabel[ann.status] ?? ann.status}</span>
                   <Show when={ann.paragraphIndex != null}>
-                    <span class="text-xs text-v2-text-text-faint">第 {ann.paragraphIndex! + 1} 段</span>
+                    <span class="text-xs text-v2-text-text-faint">第 {annotationParagraphRangeLabel(ann)} 段</span>
                   </Show>
                 </div>
                 <p class="mt-1 text-xs text-v2-text-text-base">{ann.comment}</p>

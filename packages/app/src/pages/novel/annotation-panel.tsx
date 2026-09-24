@@ -1,3 +1,4 @@
+import { annotationParagraphRangeLabel } from "./annotation-utils"
 import { Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import {
   useAnnotations,
@@ -46,6 +47,7 @@ type Annotation = {
   readonly paragraphIndex?: number | null | undefined
   readonly startOffset?: number | null | undefined
   readonly endOffset?: number | null | undefined
+  readonly endParagraphIndex?: number | null | undefined
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
@@ -352,7 +354,7 @@ function AnnotationCard(props: {
           </Show>
         </div>
         <Show when={ann.paragraphIndex != null}>
-          <span class="text-xs text-v2-text-text-faint">P{ann.paragraphIndex! + 1}</span>
+          <span class="text-xs text-v2-text-text-faint">P{annotationParagraphRangeLabel(ann)}</span>
         </Show>
       </div>
 
@@ -500,7 +502,7 @@ function HistoryTab(props: {
                       {enumLabel(language, "novel.annotations.status", ann.status)}
                     </span>
                     <Show when={ann.paragraphIndex != null}>
-                      <span class="text-v2-text-text-faint text-xs">P{ann.paragraphIndex! + 1}</span>
+                      <span class="text-v2-text-text-faint text-xs">P{annotationParagraphRangeLabel(ann)}</span>
                     </Show>
                   </div>
                   <p class="text-v2-text-text-base text-xs">{ann.comment}</p>

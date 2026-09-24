@@ -8,6 +8,7 @@ export type AnnotationExecutionInput = {
   readonly paragraphIndex?: number | null | undefined
   readonly startOffset?: number | null | undefined
   readonly endOffset?: number | null | undefined
+  readonly endParagraphIndex?: number | null | undefined
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
@@ -18,10 +19,23 @@ export type AnnotationExecutionSnapshot = {
   readonly paragraphIndex?: number | null | undefined
   readonly startOffset?: number | null | undefined
   readonly endOffset?: number | null | undefined
+  readonly endParagraphIndex?: number | null | undefined
   readonly quote: string
   readonly status: "open" | "resolved" | "wontfix" | "applied"
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
+}
+
+/** 执行 prompt 中单条 quote 的最大展示长度；数据库始终完整保存 quote */
+export const MAX_PROMPT_QUOTE_LENGTH = 500
+
+/**
+ * prompt 中的 quote 展示：超长时截断并注明原文长度，避免单条批注撑爆上下文；
+ * 不超过阈值时输出与现状完全一致。
+ */
+export function formatPromptQuote(quote: string): string {
+  if (quote.length <= MAX_PROMPT_QUOTE_LENGTH) return JSON.stringify(quote)
+  return `${JSON.stringify(`${quote.slice(0, MAX_PROMPT_QUOTE_LENGTH)}…`)}（原文共 ${quote.length} 字，已截断展示）`
 }
 
 export function buildAnnotationsSnapshot(
@@ -32,6 +46,7 @@ export function buildAnnotationsSnapshot(
     paragraphIndex: ann.paragraphIndex ?? null,
     startOffset: ann.startOffset ?? null,
     endOffset: ann.endOffset ?? null,
+    endParagraphIndex: ann.endParagraphIndex ?? null,
     quote: ann.quote,
     status: ann.status,
     comment: ann.comment,
@@ -67,12 +82,17 @@ export function formatExecutionPrompt(input: {
             `- annotation_id: ${ann.id}`,
             `- paragraph_index: ${ann.paragraphIndex == null ? "whole_chapter" : ann.paragraphIndex + 1}`,
           ]
+          // 仅跨段批注输出结束段落索引，单段 prompt 与现状一致
+          // 与 annotationInterval 退化语义一致：倒挂（结束段小于起始段）按单段处理
+          const isCrossParagraph =
+            ann.paragraphIndex != null && ann.endParagraphIndex != null && ann.endParagraphIndex > ann.paragraphIndex
+          if (isCrossParagraph) lines.push(`- end_paragraph_index: ${ann.endParagraphIndex! + 1}`)
           if (ann.startOffset != null) lines.push(`- start_offset: ${ann.startOffset}`)
           if (ann.endOffset != null) lines.push(`- end_offset: ${ann.endOffset}`)
           lines.push(
             `- action: ${action}`,
             `- paragraph_text: ${paragraph == null ? "not_found" : JSON.stringify(paragraph)}`,
-            `- selected_quote: ${JSON.stringify(ann.quote)}`,
+            `- selected_quote: ${formatPromptQuote(ann.quote)}`,
             `- comment: ${JSON.stringify(ann.comment)}`,
           )
           if (ann.suggestedReplacement) lines.push(`- suggested_replacement: ${JSON.stringify(ann.suggestedReplacement)}`)

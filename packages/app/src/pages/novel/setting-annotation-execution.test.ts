@@ -39,6 +39,59 @@ describe("setting annotation prompt", () => {
   })
 })
 
+describe("setting annotation prompt（跨段锚点与 quote 截断）", () => {
+  const crossAnnotations: AnnotationExecutionInput[] = [
+    {
+      id: "ann-cross",
+      status: "resolved",
+      paragraphIndex: 0,
+      startOffset: 2,
+      endOffset: 2,
+      endParagraphIndex: 1,
+      quote: "很高。\n\n城内",
+      comment: "基调统一",
+      suggestedReplacement: null,
+    },
+  ]
+
+  test("跨段批注输出结束段落索引（0 起始）", () => {
+    const prompt = formatSettingExecutionPrompt({
+      roundID: "wear-round",
+      entryID: "we-1",
+      entryTitle: "旧城",
+      paragraphs: ["城墙很高。", "城内禁卫森严。"],
+      annotations: crossAnnotations,
+    })
+    expect(prompt).toContain("- paragraph_index: 0")
+    expect(prompt).toContain("- end_paragraph_index: 1")
+    expect(prompt).toContain("- end_offset: 2")
+  })
+
+  test("单段批注 prompt 不输出 end_paragraph_index", () => {
+    const prompt = formatSettingExecutionPrompt({
+      roundID: "wear-round",
+      entryID: "we-1",
+      entryTitle: "旧城",
+      paragraphs: ["城墙很高"],
+      annotations,
+    })
+    expect(prompt).not.toContain("end_paragraph_index")
+  })
+
+  test("超长 quote 截断展示并注明原文长度", () => {
+    const longQuote = "长".repeat(600)
+    const prompt = formatSettingExecutionPrompt({
+      roundID: "wear-round",
+      entryID: "we-1",
+      entryTitle: "旧城",
+      paragraphs: ["城墙很高。", "城内禁卫森严。"],
+      annotations: [{ ...crossAnnotations[0], quote: longQuote }],
+    })
+    expect(prompt).toContain("（原文共 600 字，已截断展示）")
+    expect(prompt).not.toContain(`- selected_quote: ${JSON.stringify(longQuote)}`)
+  })
+})
+
 describe("setting annotation orchestration", () => {
   test("创建轮次、写入 prompt、发送并关联批注", async () => {
     const calls: string[] = []
@@ -104,7 +157,7 @@ describe("setting annotation rendering anchors", () => {
   })
 
   test("同段重叠锚点可被拦截", () => {
-    expect(hasOverlap({ start: 0, end: 4 }, { start: 3, end: 6 })).toBe(true)
-    expect(hasOverlap({ start: 0, end: 2 }, { start: 2, end: 5 })).toBe(false)
+    expect(hasOverlap({ startParagraph: 0, start: 0, endParagraph: 0, end: 4 }, { startParagraph: 0, start: 3, endParagraph: 0, end: 6 })).toBe(true)
+    expect(hasOverlap({ startParagraph: 0, start: 0, endParagraph: 0, end: 2 }, { startParagraph: 0, start: 2, endParagraph: 0, end: 5 })).toBe(false)
   })
 })
