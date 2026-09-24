@@ -90,6 +90,9 @@ import {
   WorldEntryAnnotationExecutionRound,
   CreateWorldEntryAnnotationRoundInput,
   UpdateWorldEntryAnnotationRoundInput,
+  ManualEditSyncEntry,
+  ManualEditSyncQueryResult,
+  SaveBookMetaInput,
 } from "@opennovel-ai/schema/novel"
 import { ServiceUnavailableError } from "../errors"
 
@@ -1516,5 +1519,26 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-character-map-pin", summary: "Delete character map pin" })),
+  )
+  .add(
+    HttpApiEndpoint.put("novel.save-book-meta", `${root}/:novelID/book-meta`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SaveBookMetaInput,
+      success: Novel,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.save-book-meta", summary: "Save book metadata and style guide atomically" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.sync-status", `${root}/:novelID/sync-status`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: ManualEditSyncQueryResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.sync-status", summary: "Query manual edit sync status" })),
   )
 .annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))

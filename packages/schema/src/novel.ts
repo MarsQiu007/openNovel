@@ -1081,3 +1081,50 @@ export const UpdateCharacterMapPinInput = Schema.Struct({
   y: optional(WorldMapCoordinate),
 }).annotate({ identifier: "Novel.UpdateCharacterMapPinInput" })
 export interface UpdateCharacterMapPinInput extends Schema.Schema.Type<typeof UpdateCharacterMapPinInput> {}
+
+export const ManualEditCategory = Schema.Literals(["creative_fact", "workflow_fact", "ui_preference"])
+export type ManualEditCategory = typeof ManualEditCategory.Type
+
+export const ManualEditSyncStatus = Schema.Literals(["synced", "pending", "failed", "skipped"])
+export type ManualEditSyncStatus = typeof ManualEditSyncStatus.Type
+
+export const ManualEditSyncEntry = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  entity: Schema.String,
+  entityId: optional(Schema.NullOr(Schema.String)),
+  field: Schema.String,
+  category: ManualEditCategory,
+  status: ManualEditSyncStatus,
+  sourceFingerprint: optional(Schema.NullOr(Schema.String)),
+  failureReason: optional(Schema.NullOr(Schema.String)),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.ManualEditSyncEntry" })
+export interface ManualEditSyncEntry extends Schema.Schema.Type<typeof ManualEditSyncEntry> {}
+
+export const ManualEditSyncQueryResult = Schema.Struct({
+  entries: Schema.Array(ManualEditSyncEntry),
+}).annotate({ identifier: "Novel.ManualEditSyncQueryResult" })
+export interface ManualEditSyncQueryResult extends Schema.Schema.Type<typeof ManualEditSyncQueryResult> {}
+
+export const ManualEditErrorPayload = Schema.Struct({
+  code: Schema.String,
+  message: Schema.String,
+  retryable: Schema.Boolean,
+}).annotate({ identifier: "Novel.ManualEditErrorPayload" })
+export interface ManualEditErrorPayload extends Schema.Schema.Type<typeof ManualEditErrorPayload> {}
+
+export const SaveBookMetaInput = Schema.Struct({
+  title: optional(Schema.String),
+  synopsis: optional(Schema.String),
+  genre: optional(Genre),
+  styleGuide: optional(UpdateStyleGuideInput),
+}).annotate({ identifier: "Novel.SaveBookMetaInput" })
+export interface SaveBookMetaInput extends Schema.Schema.Type<typeof SaveBookMetaInput> {}
+
+export const ManualEditSyncQueryParams = Schema.Struct({
+  status: optional(ManualEditSyncStatus),
+  entity: optional(Schema.String),
+}).annotate({ identifier: "Novel.ManualEditSyncQueryParams" })
+export interface ManualEditSyncQueryParams extends Schema.Schema.Type<typeof ManualEditSyncQueryParams> {}
