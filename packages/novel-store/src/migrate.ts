@@ -70,6 +70,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateSyncQueue(exec, query)
   migrateSourceFingerprints(exec, query)
   migrateStorySpineEntries(exec, query)
+  migrateAnnotationEndParagraphIndex(exec, query)
 }
 
 /**
@@ -328,3 +329,26 @@ function migrateStorySpineEntries(exec: ExecFn, query: QueryFn): void {
   void query
 }
 
+
+/**
+ * 为两张批注表添加 end_paragraph_index 可空列（幂等）。
+ *
+ * 跨段批注锚点的结束段落索引；为空表示单段批注，旧数据行为不变。
+ */
+function migrateAnnotationEndParagraphIndex(exec: ExecFn, query: QueryFn): void {
+  const targets = [
+    { table: "chapter_annotations", column: "end_paragraph_index" },
+    { table: "world_entry_annotations", column: "end_paragraph_index" },
+  ]
+  for (const { table, column } of targets) {
+    try {
+      const result = query(`PRAGMA table_info(${table})`)
+      const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+      if (cols.length > 0 && !cols.some((c) => c.name === column)) {
+        exec(`ALTER TABLE ${table} ADD COLUMN ${column} integer`)
+      }
+    } catch {
+      // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+    }
+  }
+}
