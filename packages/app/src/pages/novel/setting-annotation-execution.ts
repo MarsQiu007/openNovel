@@ -3,7 +3,7 @@
  *
  * 不复用章节执行 prompt，因为目标实体、写入工具和回填工具语义不同。
  */
-import { buildAnnotationsSnapshot, type AnnotationExecutionInput, type AnnotationExecutionSnapshot } from "./annotation-execution"
+import { buildAnnotationsSnapshot, formatPromptQuote, type AnnotationExecutionInput, type AnnotationExecutionSnapshot } from "./annotation-execution"
 
 export function formatSettingExecutionPrompt(input: {
   readonly roundID: string
@@ -33,12 +33,16 @@ export function formatSettingExecutionPrompt(input: {
             `- annotation_id: ${ann.id}`,
             `- paragraph_index: ${ann.paragraphIndex == null ? "whole_entry" : ann.paragraphIndex}`,
           ]
+          // 仅跨段批注输出结束段落索引，单段 prompt 与现状一致
+          const isCrossParagraph =
+            ann.paragraphIndex != null && ann.endParagraphIndex != null && ann.endParagraphIndex !== ann.paragraphIndex
+          if (isCrossParagraph) lines.push(`- end_paragraph_index: ${ann.endParagraphIndex}`)
           if (ann.startOffset != null) lines.push(`- start_offset: ${ann.startOffset}`)
           if (ann.endOffset != null) lines.push(`- end_offset: ${ann.endOffset}`)
           lines.push(
             `- action: ${action}`,
             `- paragraph_text: ${paragraph == null ? "not_found" : JSON.stringify(paragraph)}`,
-            `- selected_quote: ${JSON.stringify(ann.quote)}`,
+            `- selected_quote: ${formatPromptQuote(ann.quote)}`,
             `- comment: ${JSON.stringify(ann.comment)}`,
           )
           if (ann.suggestedReplacement) lines.push(`- suggested_replacement: ${JSON.stringify(ann.suggestedReplacement)}`)
