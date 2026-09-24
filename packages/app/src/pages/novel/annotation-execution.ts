@@ -8,6 +8,7 @@ export type AnnotationExecutionInput = {
   readonly paragraphIndex?: number | null | undefined
   readonly startOffset?: number | null | undefined
   readonly endOffset?: number | null | undefined
+  readonly endParagraphIndex?: number | null | undefined
   readonly quote: string
   readonly comment: string
   readonly suggestedReplacement?: string | null | undefined
@@ -18,6 +19,7 @@ export type AnnotationExecutionSnapshot = {
   readonly paragraphIndex?: number | null | undefined
   readonly startOffset?: number | null | undefined
   readonly endOffset?: number | null | undefined
+  readonly endParagraphIndex?: number | null | undefined
   readonly quote: string
   readonly status: "open" | "resolved" | "wontfix" | "applied"
   readonly comment: string
@@ -32,6 +34,7 @@ export function buildAnnotationsSnapshot(
     paragraphIndex: ann.paragraphIndex ?? null,
     startOffset: ann.startOffset ?? null,
     endOffset: ann.endOffset ?? null,
+    endParagraphIndex: ann.endParagraphIndex ?? null,
     quote: ann.quote,
     status: ann.status,
     comment: ann.comment,
