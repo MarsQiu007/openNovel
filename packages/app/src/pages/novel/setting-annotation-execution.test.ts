@@ -104,7 +104,7 @@ describe("setting annotation rendering anchors", () => {
   })
 
   test("同段重叠锚点可被拦截", () => {
-    expect(hasOverlap({ start: 0, end: 4 }, { start: 3, end: 6 })).toBe(true)
-    expect(hasOverlap({ start: 0, end: 2 }, { start: 2, end: 5 })).toBe(false)
+    expect(hasOverlap({ startParagraph: 0, start: 0, endParagraph: 0, end: 4 }, { startParagraph: 0, start: 3, endParagraph: 0, end: 6 })).toBe(true)
+    expect(hasOverlap({ startParagraph: 0, start: 0, endParagraph: 0, end: 2 }, { startParagraph: 0, start: 2, endParagraph: 0, end: 5 })).toBe(false)
   })
 })

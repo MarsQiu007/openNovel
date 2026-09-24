@@ -27,7 +27,7 @@ import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { SoulEditor } from "@/components/soul-editor"
 import { SettingOrganizationPanel } from "./setting-organization"
-import { getSelectionAnchor, hasOverlap, segmentParagraph, type AnnotationLike } from "./annotation-utils"
+import { annotationInterval, closestParagraphElement, getSelectionAnchor, hasOverlap, segmentParagraph, type AnnotationLike } from "./annotation-utils"
 import { SettingAnnotationCreateForm, SettingAnnotationPanel } from "./setting-annotation-panel"
 
 type WorldSubTab = "entries" | "style" | "soul" | "organization"
@@ -116,12 +116,7 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   const [draftCategory, setDraftCategory] = createSignal("")
   const [draftTitle, setDraftTitle] = createSignal("")
   const [draftContent, setDraftContent] = createSignal("")
-  const [selectedAnchor, setSelectedAnchor] = createSignal<{
-    paragraphIndex: number
-    startOffset: number
-    endOffset: number
-    quote: string
-  } | null>(null)
+  const [selectedAnchor, setSelectedAnchor] = createSignal<ReturnType<typeof getSelectionAnchor> | null>(null)
   const [annotationComment, setAnnotationComment] = createSignal("")
   const [annotationReplacement, setAnnotationReplacement] = createSignal("")
   const paragraphSegments = createMemo(() => {
@@ -153,22 +148,22 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
       return
     }
     const range = selection.getRangeAt(0)
-    const startElement = range.startContainer.parentElement?.closest<HTMLElement>("[data-paragraph-index]")
-    const endElement = range.endContainer.parentElement?.closest<HTMLElement>("[data-paragraph-index]")
-    if (!startElement || !endElement || startElement !== endElement) {
-      showToast({ variant: "error", title: "请在同一段落内选择文字" })
-      return
-    }
+    const startElement = closestParagraphElement(range.startContainer)
+    const endElement = closestParagraphElement(range.endContainer)
+    if (!startElement || !endElement) return
     const paragraphIndex = Number(startElement.dataset.paragraphIndex)
+    const endParagraphIndex = Number(endElement.dataset.paragraphIndex)
     if (!Number.isInteger(paragraphIndex) || paragraphIndex < 0) return
-    const anchor = getSelectionAnchor(startElement, paragraphIndex, selection)
-    const openAnnotations = (annotations.data ?? []).filter(
-      (item) => item.paragraphIndex === paragraphIndex && item.status === "open",
-    )
-    if (openAnnotations.some((item) => hasOverlap(
-      { start: anchor.startOffset, end: anchor.endOffset },
-      { start: item.startOffset ?? 0, end: item.endOffset ?? 0 },
-    ))) {
+    if (!Number.isInteger(endParagraphIndex) || endParagraphIndex < 0) return
+    const anchor = getSelectionAnchor(startElement, paragraphIndex, selection, endElement, endParagraphIndex)
+    const interval = annotationInterval(anchor)
+    if (!interval) return
+    const isOverlap = (annotations.data ?? []).some((item) => {
+      if (item.status !== "open") return false
+      const other = annotationInterval(item)
+      return other != null && hasOverlap(interval, other)
+    })
+    if (isOverlap) {
       showToast({ variant: "error", title: "该区域已有待处理批注，请编辑现有批注" })
       return
     }
@@ -190,6 +185,7 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
         paragraphIndex: anchor.paragraphIndex,
         startOffset: anchor.startOffset,
         endOffset: anchor.endOffset,
+        endParagraphIndex: anchor.endParagraphIndex,
         quote: anchor.quote,
         comment: annotationComment().trim(),
         suggestedReplacement: annotationReplacement().trim() || undefined,

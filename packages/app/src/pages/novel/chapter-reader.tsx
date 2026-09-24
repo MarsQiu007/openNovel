@@ -5,7 +5,7 @@ import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Tag, type TagProps } from "@opennovel-ai/ui/v2/badge-v2"
 import type { ServerNovelChaptersOutput } from "@opennovel-ai/client"
-import { segmentParagraph, getSelectionAnchor, hasOverlap, type AnnotationLike } from "./annotation-utils"
+import { segmentParagraph, getSelectionAnchor, annotationInterval, closestParagraphElement, hasOverlap, type AnnotationLike } from "./annotation-utils"
 
 // ─── Status badge helpers ───
 
@@ -104,18 +104,21 @@ export default function ChapterReader(props: ChapterReaderProps) {
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed) return
     const range = sel.getRangeAt(0)
-    let pNode: HTMLElement | null = range.startContainer as HTMLElement
-    if (pNode?.nodeType === Node.TEXT_NODE) pNode = pNode.parentElement
-    while (pNode && !pNode.hasAttribute("data-paragraph-index")) pNode = pNode.parentElement
-    if (!pNode) return
-    const idx = parseInt(pNode.getAttribute("data-paragraph-index") ?? "-1", 10)
-    if (idx < 0) return
+    const startEl = closestParagraphElement(range.startContainer)
+    const endEl = closestParagraphElement(range.endContainer)
+    if (!startEl || !endEl) return
+    const idx = parseInt(startEl.getAttribute("data-paragraph-index") ?? "-1", 10)
+    const endIdx = parseInt(endEl.getAttribute("data-paragraph-index") ?? "-1", 10)
+    if (idx < 0 || endIdx < 0) return
 
-    const anchor = getSelectionAnchor(pNode, idx, sel)
-    const existing = (paragraphAnnotations().get(idx) ?? []).filter(
-      (a) => a.status === "open" && a.startOffset != null && a.endOffset != null,
-    )
-    const isOverlap = existing.some((a) => hasOverlap({ start: anchor.startOffset, end: anchor.endOffset }, { start: a.startOffset ?? 0, end: a.endOffset ?? 0 }))
+    const anchor = getSelectionAnchor(startEl, idx, sel, endEl, endIdx)
+    const interval = annotationInterval(anchor)
+    if (!interval) return
+    const isOverlap = (annotationsQuery.data ?? []).some((a) => {
+      if (a.status !== "open") return false
+      const other = annotationInterval(a)
+      return other != null && hasOverlap(interval, other)
+    })
     if (isOverlap) {
       setOverlapMsg(language.t("novel.reader.annotationOverlap"))
       setMenuPos(null)
@@ -140,6 +143,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
       paragraphIndex: anchor.paragraphIndex,
       startOffset: anchor.startOffset,
       endOffset: anchor.endOffset,
+      endParagraphIndex: anchor.endParagraphIndex,
       quote: anchor.quote,
       comment: comment().trim(),
       suggestedReplacement: replacement().trim() || undefined,
