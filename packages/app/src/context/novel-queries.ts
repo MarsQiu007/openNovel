@@ -2130,3 +2130,48 @@ export function useSetTechniqueInjection() {
     },
   }))
 }
+
+export function useSaveBookMeta() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: async (input: {
+      novelID: string
+      title?: string
+      synopsis?: string
+      genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+      styleGuide?: { tone?: string; pov?: string; tense?: string; rules?: Record<string, string> }
+    }) => {
+      const dir = sdk().directory
+      const result = await client()["server.novel"]["save-book-meta"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+        title: input.title,
+        synopsis: input.synopsis,
+        genre: input.genre,
+        styleGuide: input.styleGuide,
+      })
+      void queryClient.invalidateQueries({ queryKey: ["novel", "detail", input.novelID] })
+      return result
+    },
+  }))
+}
+
+export function useSyncStatus(novelID: () => string) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: ["novel", "sync-status", novelID()],
+    queryFn: async () => {
+      const dir = sdk().directory
+      return client()["server.novel"]["sync-status"]({
+        novelID: novelID(),
+        location: { directory: dir },
+      })
+    },
+    enabled: !!sdk().directory && !!novelID(),
+    refetchInterval: 10_000,
+  }))
+}
+

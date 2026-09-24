@@ -8,6 +8,8 @@ import {
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
+import { SaveStatusIndicator } from "@/components/novel/save-status-indicator"
+import { createSaveStatusStore, type EditSaveStatus } from "@/utils/save-status"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
@@ -48,6 +50,9 @@ export default function ChapterEditor(props: ChapterEditorProps) {
   const [previewVersion, setPreviewVersion] = createSignal<number | null>(null)
   const [confirmRestore, setConfirmRestore] = createSignal<number | null>(null)
   const [lastAutoSave, setLastAutoSave] = createSignal<number | null>(null)
+  const [saveStatus, setSaveStatus] = createSignal<EditSaveStatus>("idle")
+  const [saveFailure, setSaveFailure] = createSignal<string | null>(null)
+  const [pendingContent, setPendingContent] = createSignal<string | null>(null)
 
   // Load initial content when chapter detail arrives
   createEffect(() => {
@@ -63,13 +68,22 @@ export default function ChapterEditor(props: ChapterEditorProps) {
     const current = content()
     if (!hasChanged() || current === (chapterQuery.data?.content ?? "")) return
     const timer = setTimeout(() => {
+      setSaveStatus("saving")
       void updateMutation
         .mutateAsync({ novelID: props.novelID, chapterID: props.chapterID, content: current })
         .then(() => {
           setHasChanged(false)
           setLastAutoSave(Date.now())
+          setSaveStatus("saved")
+          setSaveFailure(null)
         })
-        .catch(() => {})
+        .catch((error: unknown) => {
+          // 保存失败：保留内容，显示失败状态和重试按钮，不显示虚假的自动保存成功时间
+          setLastAutoSave(null)
+          setSaveStatus("save_failed")
+          setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
+          setPendingContent(current)
+        })
     }, 2000)
     onCleanup(() => clearTimeout(timer))
   })
@@ -88,6 +102,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
   }
 
   const handleSave = async () => {
+    setSaveStatus("saving")
     try {
       await updateMutation.mutateAsync({
         novelID: props.novelID,
@@ -95,10 +110,33 @@ export default function ChapterEditor(props: ChapterEditorProps) {
         content: content(),
       })
       setHasChanged(false)
+      setSaveStatus("saved")
+      setSaveFailure(null)
       showToast(language.t("novel.editor.saveSuccess"))
       props.onExit()
-    } catch {
+    } catch (error) {
+      setSaveStatus("save_failed")
+      setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
       showToast(language.t("novel.error.saveFailed"))
+    }
+  }
+
+  const handleRetrySave = async () => {
+    const retryContent = pendingContent() ?? content()
+    setSaveStatus("saving")
+    try {
+      await updateMutation.mutateAsync({
+        novelID: props.novelID,
+        chapterID: props.chapterID,
+        content: retryContent,
+      })
+      setHasChanged(false)
+      setSaveStatus("saved")
+      setSaveFailure(null)
+      setPendingContent(null)
+    } catch (error) {
+      setSaveStatus("save_failed")
+      setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
     }
   }
 
@@ -178,15 +216,12 @@ export default function ChapterEditor(props: ChapterEditorProps) {
               </span>
 
               {/* Auto-save status */}
-              <Show when={lastAutoSave()}>
-                {(ts) => (
-                  <span class="text-[10px] text-v2-text-text-faint">
-                    {language.t("novel.editor.autoSaved", {
-                      time: new Date(ts()).toLocaleTimeString(),
-                    })}
-                  </span>
-                )}
-              </Show>
+              <SaveStatusIndicator
+                status={saveStatus()}
+                failureMessage={saveFailure()}
+                lastAutoSaveTime={lastAutoSave()}
+                onRetry={() => void handleRetrySave()}
+              />
 
               {/* Target indicator bar */}
               <div class="flex items-center gap-1.5">
