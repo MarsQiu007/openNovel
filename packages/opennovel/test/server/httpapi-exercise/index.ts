@@ -3257,6 +3257,18 @@ function novelScenarios(): Scenario[] {
         headers: ctx.headers(),
       }))
       .json(200, isDeleted),
+    http.protected
+      .get("/api/novel/{novelID}/sync-status", "v2.novel.sync-status")
+      .at((ctx) => ({ path: route("/api/novel/{novelID}/sync-status", { novelID: "nov_missing" }), headers: ctx.headers() }))
+      .json(404, object, "status"),
+    http.protected
+      .put("/api/novel/{novelID}/book-meta", "v2.novel.save-book-meta")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/book-meta", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+        body: { title: "HttpApi 联合保存", synopsis: "覆盖 save-book-meta 端点" },
+      }))
+      .json(404, object, "status"),
     http.protected.get("/api/techniques", "v2.technique.list").json(200, (body) => array(body)),
     http.protected
       .post("/api/techniques", "v2.technique.create")
