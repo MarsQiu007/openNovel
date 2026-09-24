@@ -179,6 +179,7 @@ export const ChapterSummaryTable = sqliteTable("chapter_summaries", {
   summary: text().notNull().default(""),
   key_events: text({ mode: "json" }).notNull().default("[]"),
   char_changes: text({ mode: "json" }).notNull().default("[]"),
+  source_fingerprint: text(),
 })
 
 export const StyleGuideTable = sqliteTable("style_guide", {
@@ -218,6 +219,7 @@ export const SegmentSummaryTable = sqliteTable("segment_summaries", {
   start_chapter: integer().notNull(),
   end_chapter: integer().notNull(),
   summary: text().notNull().default(""),
+  source_fingerprint: text(),
   created_at: integer()
     .notNull()
     .$default(() => Date.now()),
@@ -280,6 +282,7 @@ export const EntityRefTable = sqliteTable(
     target_id: text().notNull(),
     ref_field: text().notNull(),
     ref_text: text().notNull().default(""),
+    source_fingerprint: text(),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
@@ -839,11 +842,19 @@ CREATE TABLE IF NOT EXISTS character_map_pins (id text PRIMARY KEY, map_id text 
 CREATE UNIQUE INDEX IF NOT EXISTS character_map_pins_map_character_key ON character_map_pins(map_id, character_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_map_idx ON character_map_pins(map_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_novel_idx ON character_map_pins(novel_id);
-CREATE INDEX IF NOT EXISTS character_map_pins_character_idx ON character_map_pins(character_id);`
+CREATE INDEX IF NOT EXISTS character_map_pins_character_idx ON character_map_pins(character_id);
+CREATE TABLE IF NOT EXISTS manual_edit_sync_queue (id text PRIMARY KEY, novel_id text NOT NULL, entity text NOT NULL, entity_id text, field text NOT NULL DEFAULT '', category text NOT NULL DEFAULT 'creative_fact', status text NOT NULL DEFAULT 'pending', source_fingerprint text, failure_reason text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_novel_status_idx ON manual_edit_sync_queue(novel_id, status);
+CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_fingerprint_idx ON manual_edit_sync_queue(novel_id, entity, entity_id, source_fingerprint);
+CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, chapter_order integer, content text NOT NULL, kind text NOT NULL DEFAULT 'chapter', source_fingerprint text, status text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
+CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);`
 
 // ─── DB 连接缓存 ───
 
 const _dbCache = new Map<string, Db>()
+
+export type { Db }
 
 export function getDb(directory?: string | null, options?: { fresh?: boolean }): Db {
   const dbPath = getDbPath(directory)
@@ -2959,3 +2970,61 @@ export async function listStructureForEditor(
   ])
   return { volumes, chapters, arcs, beats, threads, foreshadowing, characters }
 }
+
+export const ManualEditSyncQueueTable = sqliteTable(
+  "manual_edit_sync_queue",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    entity: text().notNull(),
+    entity_id: text(),
+    field: text()
+      .notNull()
+      .default(""),
+    category: text()
+      .notNull()
+      .default("creative_fact"),
+    status: text().notNull().default("pending"),
+    source_fingerprint: text(),
+    failure_reason: text(),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index("manual_edit_sync_queue_novel_status_idx").on(table.novel_id, table.status),
+    index("manual_edit_sync_queue_fingerprint_idx").on(table.novel_id, table.entity, table.entity_id, table.source_fingerprint),
+  ],
+)
+
+export const StorySpineEntryTable = sqliteTable(
+  "story_spine_entries",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    chapter_id: text(),
+    chapter_order: integer(),
+    content: text().notNull(),
+    kind: text()
+      .notNull()
+      .default("chapter"),
+    source_fingerprint: text(),
+    status: text()
+      .notNull()
+      .default("pending"),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index("story_spine_entries_novel_idx").on(table.novel_id),
+    index("story_spine_entries_chapter_idx").on(table.novel_id, table.chapter_id),
+  ],
+)
+export * from "./manual-edit-sync.js"

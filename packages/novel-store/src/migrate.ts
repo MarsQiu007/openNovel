@@ -67,6 +67,9 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateNovelMasterOutline(exec, query)
   migrateVolumeOutline(exec, query)
   migrateStorySpine(exec, query)
+  migrateSyncQueue(exec, query)
+  migrateSourceFingerprints(exec, query)
+  migrateStorySpineEntries(exec, query)
 }
 
 /**
@@ -280,3 +283,48 @@ function migrateStorySpine(exec: ExecFn, query: QueryFn): void {
     // novels 表不存在时无需迁移，CREATE_TABLES_SQL 会带 story_spine 列创建
   }
 }
+/**
+ * 新增手动编辑同步队列表（幂等，CREATE TABLE IF NOT EXISTS 已在 DDL 中处理）。
+ * 仅需给 novels 表确认 story_spine 列已存在即可。
+ */
+function migrateSyncQueue(exec: ExecFn, query: QueryFn): void {
+  // CREATE_TABLES_SQL 使用 IF NOT EXISTS，新库自动创建
+  // 旧库迁移时 novel-store 的 createDb 会先执行 DDL，因此这里无需额外操作
+  void exec
+  void query
+}
+
+/**
+ * 为派生数据表添加 source_fingerprint 可空列（幂等）。
+ *
+ * 旧数据缺少指纹列，列为 NULL，查询侧统一按"待校验"处理。
+ */
+function migrateSourceFingerprints(exec: ExecFn, query: QueryFn): void {
+  const targets = [
+    { table: "chapter_summaries", column: "source_fingerprint" },
+    { table: "segment_summaries", column: "source_fingerprint" },
+    { table: "entity_refs", column: "source_fingerprint" },
+  ]
+  for (const { table, column } of targets) {
+    try {
+      const result = query(`PRAGMA table_info(${table})`)
+      const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+      if (cols.length > 0 && !cols.some((c) => c.name === column)) {
+        exec(`ALTER TABLE ${table} ADD COLUMN ${column} text`)
+      }
+    } catch {
+      // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+    }
+  }
+}
+
+/**
+ * 结构化故事主轴条目表在 DDL 中已使用 IF NOT EXISTS 创建。
+ * 旧 novels.story_spine 文本保留为兼容渲染缓存，不自动迁移，
+ * 查询侧在结构化条目为空时回退读取旧文本并标记 status = "legacy"。
+ */
+function migrateStorySpineEntries(exec: ExecFn, query: QueryFn): void {
+  void exec
+  void query
+}
+
