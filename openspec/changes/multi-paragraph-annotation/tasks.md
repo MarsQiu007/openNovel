@@ -32,3 +32,17 @@
 ## 6. 文档卫生
 
 - [x] 6.1 清理 `openspec/specs/setting-annotation-system/spec.md` 中重复的 `## Purpose` 段（保留内容更完整的一段，仅删除重复标题与段落），直接编辑主 spec 并随本 change 提交；该清理不改变任何行为契约
+
+## Implementation Commits
+
+- 78f246009 feat(novel-store): 批注表新增 end_paragraph_index 支持跨段锚点
+- e52fe2848 feat(schema): 批注相关结构新增可选 endParagraphIndex
+- e9f0429f8 feat(app): 执行快照类型透传 endParagraphIndex
+- 153629094 feat(server): 批注锚点跨段校验与字段透传
+- db95e23ac chore(client): 重新生成 SDK 同步 endParagraphIndex 类型
+- c1007f941 feat(app): 选区映射与重叠检测支持跨段批注
+- 2d6ff5404 feat(app): 阅读器跨段批注装饰与面板区间标签
+- 772fcebf6 feat(plugin): 批注工具支持 end_paragraph_index 跨段锚点
+- f88bbe8d3 feat(app): 批注执行 prompt 支持跨段锚点与超长 quote 截断
+- b3d151b28 test(app): 跨段批注端到端集成验收与失稳语义
+- b3e0e11d9 docs(openspec): multi-paragraph-annotation 提案工件与 spec 卫生
