@@ -5455,6 +5455,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
           start_offset: tool.schema.number().optional(),
           end_offset: tool.schema.number().optional(),
+          end_paragraph_index: tool.schema.number().optional().describe("结束段落索引（从 0 开始）；跨段批注时提供，缺省为单段"),
           quote: tool.schema.string().optional().describe("引用的原文片段"),
           comment: tool.schema.string().describe("批注内容"),
           suggested_replacement: tool.schema.string().optional().describe("润色替换文本"),
@@ -5471,6 +5472,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               paragraphIndex: args.paragraph_index ?? null,
               startOffset: args.start_offset ?? null,
               endOffset: args.end_offset ?? null,
+              endParagraphIndex: args.end_paragraph_index ?? null,
               quote: args.quote ?? "",
               comment: args.comment,
               suggestedReplacement: args.suggested_replacement ?? null,
@@ -5484,6 +5486,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               annotation_id: ann.id,
               chapter_id: ann.chapter_id,
               paragraph_index: ann.paragraph_index,
+              end_paragraph_index: ann.end_paragraph_index,
               status: ann.status,
               has_suggestion: ann.suggested_replacement != null,
             },
@@ -5589,6 +5592,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
           start_offset: tool.schema.number().optional(),
           end_offset: tool.schema.number().optional(),
+          end_paragraph_index: tool.schema.number().optional().describe("结束段落索引（从 0 开始）；跨段批注时提供，缺省为单段"),
           quote: tool.schema.string().describe("当前原文中的精确引用"),
           comment: tool.schema.string().describe("批注意见"),
           suggested_replacement: tool.schema.string().optional().describe("纯文本替换建议"),
@@ -5610,8 +5614,26 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             const paragraph = paragraphs[args.paragraph_index]
             const start = args.start_offset ?? 0
             const end = args.end_offset ?? args.quote.length
-            if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== args.quote) {
-              return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
+            const endParagraphIndex = args.end_paragraph_index ?? args.paragraph_index
+            if (endParagraphIndex === args.paragraph_index) {
+              if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== args.quote) {
+                return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
+              }
+            } else {
+              // 跨段锚点：结构与边界校验 + quote 去空白宽松比较（与服务端校验语义一致）
+              const endParagraph = paragraphs[endParagraphIndex]
+              const expected = paragraph && endParagraph
+                ? [paragraph.slice(start), ...paragraphs.slice(args.paragraph_index + 1, endParagraphIndex), endParagraph.slice(0, end)].join("\n")
+                : ""
+              if (
+                !paragraph || args.paragraph_index < 0
+                || endParagraphIndex < args.paragraph_index || !endParagraph
+                || start < 0 || start > paragraph.length
+                || end < 0 || end > endParagraph.length
+                || expected.replace(/\s+/g, "") !== args.quote.replace(/\s+/g, "")
+              ) {
+                return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
+              }
             }
           }
           const annotation = await createWorldEntryAnnotation(
@@ -5623,6 +5645,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               paragraphIndex: args.paragraph_index ?? null,
               startOffset: args.start_offset ?? null,
               endOffset: args.end_offset ?? null,
+              endParagraphIndex: args.end_paragraph_index ?? null,
               quote,
               comment: args.comment,
               suggestedReplacement: args.suggested_replacement ?? null,
@@ -5637,6 +5660,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               annotation_id: annotation.id,
               world_entry_id: annotation.world_entry_id,
               paragraph_index: annotation.paragraph_index,
+              end_paragraph_index: annotation.end_paragraph_index,
               quote: annotation.quote,
               status: annotation.status,
               has_suggestion: annotation.suggested_replacement != null,

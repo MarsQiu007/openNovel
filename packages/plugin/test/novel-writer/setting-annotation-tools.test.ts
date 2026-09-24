@@ -5,6 +5,7 @@
  * resolve_setting_annotation / report_setting_annotation_execution 的真实锚点、
  * 状态筛选、错误路径和描述历史关联。
  */
+import { eq } from "drizzle-orm"
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
@@ -14,6 +15,7 @@ import {
   getDb,
   NovelTable,
   WorldEntryTable,
+  WorldEntryAnnotationTable,
   DescriptionHistoryTable,
   createWorldEntryAnnotationRound,
   getWorldEntryAnnotationRounds,
@@ -107,6 +109,87 @@ describe("setting annotation tools", () => {
       toolCtx(),
     )
     expect(missing.output).toContain("world_entry 不存在")
+  })
+
+  test("annotate_setting 支持跨段锚点并落库 end_paragraph_index", async () => {
+    const { hooks } = await seed()
+    const result = await hooks.annotate_setting!.execute(
+      {
+        entry_id: "world-old-city",
+        anchor_type: "paragraph",
+        paragraph_index: 0,
+        start_offset: 2,
+        end_offset: 2,
+        end_paragraph_index: 1,
+        quote: "很高。\n\n城内",
+        comment: "城墙与禁卫的描写需要统一基调",
+      },
+      toolCtx(),
+    )
+    const meta = "metadata" in result ? result.metadata : undefined
+    expect(result.output).toBe("已创建设定批注")
+    expect(meta?.end_paragraph_index).toBe(1)
+
+    const db = getDb(projectDir)
+    const row = await db
+      .select()
+      .from(WorldEntryAnnotationTable)
+      .where(eq(WorldEntryAnnotationTable.id, meta?.annotation_id as string))
+      .get()
+    expect(row?.end_paragraph_index).toBe(1)
+    expect(row?.end_offset).toBe(2)
+  })
+
+  test("annotate_setting 拒绝结束段落索引小于起始段落索引", async () => {
+    const { hooks } = await seed()
+    const result = await hooks.annotate_setting!.execute(
+      {
+        entry_id: "world-old-city",
+        paragraph_index: 1,
+        start_offset: 0,
+        end_offset: 2,
+        end_paragraph_index: 0,
+        quote: "城内",
+        comment: "倒挂区间",
+      },
+      toolCtx(),
+    )
+    expect(result.output).toBe("段落索引或偏移量与原文不一致")
+  })
+
+  test("annotate_setting 拒绝结束段落索引越界", async () => {
+    const { hooks } = await seed()
+    const result = await hooks.annotate_setting!.execute(
+      {
+        entry_id: "world-old-city",
+        paragraph_index: 0,
+        start_offset: 0,
+        end_offset: 2,
+        end_paragraph_index: 9,
+        quote: "城墙很高。",
+        comment: "越界区间",
+      },
+      toolCtx(),
+    )
+    expect(result.output).toBe("段落索引或偏移量与原文不一致")
+  })
+
+  test("annotate_setting 拒绝跨段引用与原文不一致", async () => {
+    const { hooks } = await seed()
+    const result = await hooks.annotate_setting!.execute(
+      {
+        entry_id: "world-old-city",
+        paragraph_index: 0,
+        start_offset: 2,
+        end_offset: 2,
+        end_paragraph_index: 1,
+        quote: "很高。\n\n皇宫",
+        comment: "引用不匹配",
+      },
+      toolCtx(),
+    )
+    // 严格 includes 检查先拦截（"皇宫"不在原文中）
+    expect(result.output).toBe("quote 不是当前 world_entry 原文中的精确片段")
   })
 
   test("list_setting_annotations 支持状态筛选", async () => {
