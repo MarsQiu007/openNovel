@@ -587,10 +587,15 @@ export const EditorialReport = Schema.Struct({
 }).annotate({ identifier: "Novel.EditorialReport" })
 export interface EditorialReport extends Schema.Schema.Type<typeof EditorialReport> {}
 
-export const ChapterAnnotation = Schema.Struct({
+export const AnnotationTargetType = Schema.Literals(["chapter", "world_entry"])
+export type AnnotationTargetType = typeof AnnotationTargetType.Type
+
+export const Annotation = Schema.Struct({
   id: Schema.String,
   novelId: Schema.String,
-  chapterId: Schema.String,
+  targetType: AnnotationTargetType,
+  targetId: Schema.String,
+  field: Schema.String,
   parentId: optional(Schema.NullOr(Schema.String)),
   source: Schema.Literals(["user", "ai"]),
   anchorType: Schema.Literals(["paragraph", "range", "chapter"]),
@@ -606,54 +611,8 @@ export const ChapterAnnotation = Schema.Struct({
   executionRoundId: optional(Schema.NullOr(Schema.String)),
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
-}).annotate({ identifier: "Novel.ChapterAnnotation" })
-export interface ChapterAnnotation extends Schema.Schema.Type<typeof ChapterAnnotation> {}
-
-export const WorldEntryAnnotation = Schema.Struct({
-  id: Schema.String,
-  novelId: Schema.String,
-  worldEntryId: Schema.String,
-  parentId: optional(Schema.NullOr(Schema.String)),
-  source: Schema.Literals(["user", "ai"]),
-  anchorType: Schema.Literals(["paragraph", "range"]),
-  paragraphIndex: optional(Schema.NullOr(Schema.Int)),
-  startOffset: optional(Schema.NullOr(Schema.Int)),
-  endOffset: optional(Schema.NullOr(Schema.Int)),
-  endParagraphIndex: optional(Schema.NullOr(Schema.Int)),
-  quote: Schema.String,
-  comment: Schema.String,
-  suggestedReplacement: optional(Schema.NullOr(Schema.String)),
-  status: Schema.Literals(["open", "resolved", "wontfix", "applied"]),
-  authorSessionId: optional(Schema.NullOr(Schema.String)),
-  executionRoundId: optional(Schema.NullOr(Schema.String)),
-  createdAt: Schema.Int,
-  updatedAt: Schema.Int,
-}).annotate({ identifier: "Novel.WorldEntryAnnotation" })
-export interface WorldEntryAnnotation extends Schema.Schema.Type<typeof WorldEntryAnnotation> {}
-
-export const CreateWorldEntryAnnotationInput = Schema.Struct({
-  parentId: optional(Schema.String),
-  source: optional(Schema.Literals(["user", "ai"])),
-  anchorType: optional(Schema.Literals(["paragraph", "range"])),
-  paragraphIndex: optional(Schema.Int),
-  startOffset: optional(Schema.Int),
-  endOffset: optional(Schema.Int),
-  endParagraphIndex: optional(Schema.Int),
-  quote: Schema.String,
-  comment: Schema.String,
-  suggestedReplacement: optional(Schema.String),
-  authorSessionId: optional(Schema.String),
-}).annotate({ identifier: "Novel.CreateWorldEntryAnnotationInput" })
-export interface CreateWorldEntryAnnotationInput extends Schema.Schema.Type<typeof CreateWorldEntryAnnotationInput> {}
-
-export const UpdateWorldEntryAnnotationInput = Schema.Struct({
-  comment: optional(Schema.String),
-  status: optional(Schema.Literals(["open", "resolved", "wontfix", "applied"])),
-  suggestedReplacement: optional(Schema.String),
-  quote: optional(Schema.String),
-  executionRoundId: optional(Schema.NullOr(Schema.String)),
-}).annotate({ identifier: "Novel.UpdateWorldEntryAnnotationInput" })
-export interface UpdateWorldEntryAnnotationInput extends Schema.Schema.Type<typeof UpdateWorldEntryAnnotationInput> {}
+}).annotate({ identifier: "Novel.Annotation" })
+export interface Annotation extends Schema.Schema.Type<typeof Annotation> {}
 
 export const CanvasLayout = Schema.Struct({
   columns: Schema.Array(
@@ -760,6 +719,11 @@ export const CreateEditorialReportInput = Schema.Struct({
 export interface CreateEditorialReportInput extends Schema.Schema.Type<typeof CreateEditorialReportInput> {}
 
 export const CreateAnnotationInput = Schema.Struct({
+  targetType: AnnotationTargetType,
+  targetId: Schema.String,
+  field: Schema.String,
+  parentId: optional(Schema.String),
+  authorSessionId: optional(Schema.String),
   source: optional(Schema.Literals(["user", "ai"])),
   anchorType: optional(Schema.Literals(["paragraph", "range", "chapter"])),
   paragraphIndex: optional(Schema.Int),
@@ -797,65 +761,37 @@ export const AnnotationExecutionSnapshot = Schema.Struct({
 }).annotate({ identifier: "Novel.AnnotationExecutionSnapshot" })
 export interface AnnotationExecutionSnapshot extends Schema.Schema.Type<typeof AnnotationExecutionSnapshot> {}
 
-export const ExecutionRound = Schema.Struct({
+export const AnnotationRound = Schema.Struct({
   id: Schema.String,
   novelId: Schema.String,
-  chapterId: Schema.String,
+  targetType: AnnotationTargetType,
+  targetId: Schema.String,
   promptSnapshot: Schema.String,
   status: ExecutionRoundStatus,
   annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
   resultSummary: Schema.String,
-  chapterVersionId: optional(Schema.NullOr(Schema.String)),
+  resultRefId: optional(Schema.NullOr(Schema.String)),
   createdAt: Schema.Int,
-}).annotate({ identifier: "Novel.ExecutionRound" })
-export interface ExecutionRound extends Schema.Schema.Type<typeof ExecutionRound> {}
+}).annotate({ identifier: "Novel.AnnotationRound" })
+export interface AnnotationRound extends Schema.Schema.Type<typeof AnnotationRound> {}
 
-export const CreateExecutionRoundInput = Schema.Struct({
-  novelId: Schema.String,
-  chapterId: Schema.String,
+export const CreateAnnotationRoundInput = Schema.Struct({
+  targetType: AnnotationTargetType,
+  targetId: Schema.String,
   promptSnapshot: optional(Schema.String),
   status: optional(ExecutionRoundStatus),
   annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
   resultSummary: optional(Schema.String),
-}).annotate({ identifier: "Novel.CreateExecutionRoundInput" })
-export interface CreateExecutionRoundInput extends Schema.Schema.Type<typeof CreateExecutionRoundInput> {}
+}).annotate({ identifier: "Novel.CreateAnnotationRoundInput" })
+export interface CreateAnnotationRoundInput extends Schema.Schema.Type<typeof CreateAnnotationRoundInput> {}
 
-export const UpdateExecutionRoundInput = Schema.Struct({
+export const UpdateAnnotationRoundInput = Schema.Struct({
   status: optional(ExecutionRoundStatus),
   resultSummary: optional(Schema.String),
-  chapterVersionId: optional(Schema.NullOr(Schema.String)),
+  resultRefId: optional(Schema.NullOr(Schema.String)),
   promptSnapshot: optional(Schema.String),
-}).annotate({ identifier: "Novel.UpdateExecutionRoundInput" })
-export interface UpdateExecutionRoundInput extends Schema.Schema.Type<typeof UpdateExecutionRoundInput> {}
-
-export const WorldEntryAnnotationExecutionRound = Schema.Struct({
-  id: Schema.String,
-  novelId: Schema.String,
-  worldEntryId: Schema.String,
-  promptSnapshot: Schema.String,
-  status: ExecutionRoundStatus,
-  annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
-  resultSummary: Schema.String,
-  contentHistoryId: optional(Schema.NullOr(Schema.String)),
-  createdAt: Schema.Int,
-}).annotate({ identifier: "Novel.WorldEntryAnnotationExecutionRound" })
-export interface WorldEntryAnnotationExecutionRound extends Schema.Schema.Type<typeof WorldEntryAnnotationExecutionRound> {}
-
-export const CreateWorldEntryAnnotationRoundInput = Schema.Struct({
-  promptSnapshot: optional(Schema.String),
-  status: optional(ExecutionRoundStatus),
-  annotationsSnapshot: Schema.Array(AnnotationExecutionSnapshot),
-  resultSummary: optional(Schema.String),
-}).annotate({ identifier: "Novel.CreateWorldEntryAnnotationRoundInput" })
-export interface CreateWorldEntryAnnotationRoundInput extends Schema.Schema.Type<typeof CreateWorldEntryAnnotationRoundInput> {}
-
-export const UpdateWorldEntryAnnotationRoundInput = Schema.Struct({
-  status: optional(ExecutionRoundStatus),
-  resultSummary: optional(Schema.String),
-  contentHistoryId: optional(Schema.NullOr(Schema.String)),
-  promptSnapshot: optional(Schema.String),
-}).annotate({ identifier: "Novel.UpdateWorldEntryAnnotationRoundInput" })
-export interface UpdateWorldEntryAnnotationRoundInput extends Schema.Schema.Type<typeof UpdateWorldEntryAnnotationRoundInput> {}
+}).annotate({ identifier: "Novel.UpdateAnnotationRoundInput" })
+export interface UpdateAnnotationRoundInput extends Schema.Schema.Type<typeof UpdateAnnotationRoundInput> {}
 
 export const SettingOrganizationEntityType = Schema.Literals([
   "world_entry",
