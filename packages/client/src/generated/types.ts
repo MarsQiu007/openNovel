@@ -6292,6 +6292,90 @@ export type ServerNovelDeleteCharacterMapPinInput = {
 
 export type ServerNovelDeleteCharacterMapPinOutput = { readonly deleted: boolean }
 
+export type ServerNovelSaveBookMetaInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly title?: {
+    readonly title?: string
+    readonly synopsis?: string
+    readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly styleGuide?: {
+      readonly tone?: string
+      readonly pov?: string
+      readonly tense?: string
+      readonly rules?: { readonly [x: string]: string }
+    }
+  }["title"]
+  readonly synopsis?: {
+    readonly title?: string
+    readonly synopsis?: string
+    readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly styleGuide?: {
+      readonly tone?: string
+      readonly pov?: string
+      readonly tense?: string
+      readonly rules?: { readonly [x: string]: string }
+    }
+  }["synopsis"]
+  readonly genre?: {
+    readonly title?: string
+    readonly synopsis?: string
+    readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly styleGuide?: {
+      readonly tone?: string
+      readonly pov?: string
+      readonly tense?: string
+      readonly rules?: { readonly [x: string]: string }
+    }
+  }["genre"]
+  readonly styleGuide?: {
+    readonly title?: string
+    readonly synopsis?: string
+    readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly styleGuide?: {
+      readonly tone?: string
+      readonly pov?: string
+      readonly tense?: string
+      readonly rules?: { readonly [x: string]: string }
+    }
+  }["styleGuide"]
+}
+
+export type ServerNovelSaveBookMetaOutput = {
+  readonly id: string
+  readonly title: string
+  readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+  readonly synopsis: string
+  readonly status: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+export type ServerNovelSyncStatusInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelSyncStatusOutput = {
+  readonly entries: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly entity: string
+    readonly entityId?: string | null
+    readonly field: string
+    readonly category: "creative_fact" | "workflow_fact" | "ui_preference"
+    readonly status: "synced" | "pending" | "failed" | "skipped"
+    readonly sourceFingerprint?: string | null
+    readonly failureReason?: string | null
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+}
+
 export type NovelModesGetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined

@@ -2250,6 +2250,37 @@ const Endpoint18_105 = (raw: RawClient["server.novel"]) => (input: Endpoint18_10
     query: { location: input["location"] },
   }).pipe(Effect.mapError(mapClientError))
 
+type Endpoint18_106Request = Parameters<RawClient["server.novel"]["novel.save-book-meta"]>[0]
+type Endpoint18_106Input = {
+  readonly novelID: Endpoint18_106Request["params"]["novelID"]
+  readonly location?: Endpoint18_106Request["query"]["location"]
+  readonly title?: Endpoint18_106Request["payload"]["title"]
+  readonly synopsis?: Endpoint18_106Request["payload"]["synopsis"]
+  readonly genre?: Endpoint18_106Request["payload"]["genre"]
+  readonly styleGuide?: Endpoint18_106Request["payload"]["styleGuide"]
+}
+const Endpoint18_106 = (raw: RawClient["server.novel"]) => (input: Endpoint18_106Input) =>
+  raw["novel.save-book-meta"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"] },
+    payload: {
+      title: input["title"],
+      synopsis: input["synopsis"],
+      genre: input["genre"],
+      styleGuide: input["styleGuide"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_107Request = Parameters<RawClient["server.novel"]["novel.sync-status"]>[0]
+type Endpoint18_107Input = {
+  readonly novelID: Endpoint18_107Request["params"]["novelID"]
+  readonly location?: Endpoint18_107Request["query"]["location"]
+}
+const Endpoint18_107 = (raw: RawClient["server.novel"]) => (input: Endpoint18_107Input) =>
+  raw["novel.sync-status"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
 const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   list: Endpoint18_0(raw),
   create: Endpoint18_1(raw),
@@ -2357,6 +2388,8 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "create-character-map-pin": Endpoint18_103(raw),
   "update-character-map-pin": Endpoint18_104(raw),
   "delete-character-map-pin": Endpoint18_105(raw),
+  "save-book-meta": Endpoint18_106(raw),
+  "sync-status": Endpoint18_107(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

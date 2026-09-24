@@ -324,6 +324,10 @@ import type {
   ServerNovelUpdateCharacterMapPinOutput,
   ServerNovelDeleteCharacterMapPinInput,
   ServerNovelDeleteCharacterMapPinOutput,
+  ServerNovelSaveBookMetaInput,
+  ServerNovelSaveBookMetaOutput,
+  ServerNovelSyncStatusInput,
+  ServerNovelSyncStatusOutput,
   NovelModesGetInput,
   NovelModesGetOutput,
   NovelModesSetInput,
@@ -2696,6 +2700,36 @@ export function make(options: ClientOptions) {
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "save-book-meta": (input: ServerNovelSaveBookMetaInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSaveBookMetaOutput>(
+          {
+            method: "PUT",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/book-meta`,
+            query: { location: input["location"] },
+            body: {
+              title: input["title"],
+              synopsis: input["synopsis"],
+              genre: input["genre"],
+              styleGuide: input["styleGuide"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "sync-status": (input: ServerNovelSyncStatusInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSyncStatusOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/sync-status`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,
