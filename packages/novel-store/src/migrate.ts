@@ -71,6 +71,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateSourceFingerprints(exec, query)
   migrateStorySpineEntries(exec, query)
   migrateAnnotationEndParagraphIndex(exec, query)
+  migrateUnifiedAnnotations(exec, query)
 }
 
 /**
@@ -112,6 +113,8 @@ function cleanupOrphanRows(exec: ExecFn): void {
     "DELETE FROM volume_reviews WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM editorial_reports WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM chapter_annotations WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM annotations WHERE novel_id NOT IN (SELECT id FROM novels)",
+    "DELETE FROM annotation_rounds WHERE novel_id NOT IN (SELECT id FROM novels)",
     "DELETE FROM outline_canvas_layout WHERE novel_id NOT IN (SELECT id FROM novels)",
   ]
   try {
@@ -349,6 +352,91 @@ function migrateAnnotationEndParagraphIndex(exec: ExecFn, query: QueryFn): void 
       }
     } catch {
       // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+    }
+  }
+}
+
+
+/**
+ * 统一批注模型迁移：把四张旧批注/轮次表的数据一次性搬入 annotations / annotation_rounds。
+ *
+ * 映射规则：chapter_annotations → (chapter, chapter_id, content)；
+ * world_entry_annotations → (world_entry, world_entry_id, content)；
+ * 旧轮次表的 chapter_version_id / content_history_id 统一为 result_ref_id。
+ * 保留原 ID 与 execution_round_id 关联；按目标表已有 ID 跳过实现幂等。
+ * 旧表物理保留一个版本周期供回滚，代码不再读写。
+ */
+function migrateUnifiedAnnotations(exec: ExecFn, query: QueryFn): void {
+  const tableExists = (name: string): boolean => {
+    try {
+      const result = query(`SELECT name FROM sqlite_master WHERE type='table' AND name='${name}'`)
+      return Array.isArray(result) && result.length > 0
+    } catch {
+      return false
+    }
+  }
+
+  const copies: Array<{ from: string; sql: string }> = [
+    {
+      from: "chapter_annotations",
+      sql: `INSERT INTO annotations (id, novel_id, parent_id, target_type, target_id, field, source, anchor_type, paragraph_index, start_offset, end_offset, end_paragraph_index, quote, comment, suggested_replacement, status, author_session_id, execution_round_id, created_at, updated_at)
+        SELECT id, novel_id, parent_id, 'chapter', chapter_id, 'content', source, anchor_type, paragraph_index, start_offset, end_offset, end_paragraph_index, quote, comment, suggested_replacement, status, author_session_id, execution_round_id, created_at, updated_at
+        FROM chapter_annotations WHERE id NOT IN (SELECT id FROM annotations)`,
+    },
+    {
+      from: "world_entry_annotations",
+      sql: `INSERT INTO annotations (id, novel_id, parent_id, target_type, target_id, field, source, anchor_type, paragraph_index, start_offset, end_offset, end_paragraph_index, quote, comment, suggested_replacement, status, author_session_id, execution_round_id, created_at, updated_at)
+        SELECT id, novel_id, parent_id, 'world_entry', world_entry_id, 'content', source, anchor_type, paragraph_index, start_offset, end_offset, end_paragraph_index, quote, comment, suggested_replacement, status, author_session_id, execution_round_id, created_at, updated_at
+        FROM world_entry_annotations WHERE id NOT IN (SELECT id FROM annotations)`,
+    },
+    {
+      from: "annotation_execution_rounds",
+      sql: `INSERT INTO annotation_rounds (id, novel_id, target_type, target_id, prompt_snapshot, status, annotations_snapshot, result_summary, result_ref_id, created_at)
+        SELECT id, novel_id, 'chapter', chapter_id, prompt_snapshot, status, annotations_snapshot, result_summary, chapter_version_id, created_at
+        FROM annotation_execution_rounds WHERE id NOT IN (SELECT id FROM annotation_rounds)`,
+    },
+    {
+      from: "world_entry_annotation_rounds",
+      sql: `INSERT INTO annotation_rounds (id, novel_id, target_type, target_id, prompt_snapshot, status, annotations_snapshot, result_summary, result_ref_id, created_at)
+        SELECT id, novel_id, 'world_entry', world_entry_id, prompt_snapshot, status, annotations_snapshot, result_summary, content_history_id, created_at
+        FROM world_entry_annotation_rounds WHERE id NOT IN (SELECT id FROM annotation_rounds)`,
+    },
+  ]
+
+  // 批注 parent_id 自引用外键按行即时校验，INSERT...SELECT 不保证父行先于子行写入，
+  // 搬移期间临时关闭外键检查，结束后恢复
+  try {
+    exec("PRAGMA foreign_keys = OFF")
+  } catch {
+    // pragma 失败时按原状继续，失败会在下方逐表捕获
+  }
+  for (const { from, sql } of copies) {
+    if (!tableExists(from)) continue
+    try {
+      exec(sql)
+    } catch (error) {
+      // 单表搬移失败不阻塞 DB 打开，下次打开会按幂等规则重试
+      console.warn(`[novel-store] unified annotation migration skipped ${from}:`, error instanceof Error ? error.message : error)
+    }
+  }
+  try {
+    exec("PRAGMA foreign_keys = ON")
+  } catch {
+    // 恢复失败不阻塞 DB 打开
+  }
+
+  // 清理目标实体已不存在的孤儿批注与轮次（旧库可能在外键关闭期删除过章节/条目）
+  const orphanCleanup = [
+    "DELETE FROM annotations WHERE target_type='chapter' AND target_id NOT IN (SELECT id FROM chapters)",
+    "DELETE FROM annotations WHERE target_type='world_entry' AND target_id NOT IN (SELECT id FROM world_entries)",
+    "DELETE FROM annotation_rounds WHERE target_type='chapter' AND target_id NOT IN (SELECT id FROM chapters)",
+    "DELETE FROM annotation_rounds WHERE target_type='world_entry' AND target_id NOT IN (SELECT id FROM world_entries)",
+  ]
+  for (const sql of orphanCleanup) {
+    try {
+      exec(sql)
+    } catch {
+      // 表不存在时跳过（全新库由 CREATE_TABLES_SQL 建表后此处为 0 行操作）
     }
   }
 }

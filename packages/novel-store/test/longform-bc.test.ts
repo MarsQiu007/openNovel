@@ -33,20 +33,15 @@ import {
   listVolumeReviews,
   createEditorialReport,
   listEditorialReports,
-  createChapterAnnotation,
-  updateChapterAnnotation,
-  deleteChapterAnnotation,
-  listChapterAnnotations,
-  createExecutionRound,
-  getExecutionRounds,
-  updateExecutionRound,
-  createWorldEntryAnnotation,
-  updateWorldEntryAnnotation,
-  deleteWorldEntryAnnotation,
-  listWorldEntryAnnotations,
-  createWorldEntryAnnotationRound,
-  getWorldEntryAnnotationRounds,
-  updateWorldEntryAnnotationRound,
+  createAnnotation,
+  updateAnnotation,
+  deleteAnnotation,
+  listAnnotations,
+  createAnnotationRound,
+  listAnnotationRounds,
+  updateAnnotationRound,
+  deleteChapter,
+  deleteWorldEntry,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -251,10 +246,12 @@ describe("chapter annotations", () => {
   test("创建段落批注并查询", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const ann = await createChapterAnnotation(
-      "ch-1",
-      novelId,
+    const ann = await createAnnotation(
       {
+        novelId,
+        targetType: "chapter",
+        targetId: "ch-1",
+        field: "content",
         source: "user",
         anchorType: "paragraph",
         paragraphIndex: 2,
@@ -265,8 +262,11 @@ describe("chapter annotations", () => {
     )
     expect(ann.paragraph_index).toBe(2)
     expect(ann.status).toBe("open")
+    expect(ann.target_type).toBe("chapter")
+    expect(ann.target_id).toBe("ch-1")
+    expect(ann.field).toBe("content")
 
-    const list = await listChapterAnnotations("ch-1", projectDir)
+    const list = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)
     expect(list).toHaveLength(1)
     expect(list[0].comment).toBe("这里需要加强冲突")
   })
@@ -274,10 +274,12 @@ describe("chapter annotations", () => {
   test("润色建议带有 suggested_replacement，可标记 applied", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const ann = await createChapterAnnotation(
-      "ch-1",
-      novelId,
+    const ann = await createAnnotation(
       {
+        novelId,
+        targetType: "chapter",
+        targetId: "ch-1",
+        field: "content",
         source: "ai",
         anchorType: "paragraph",
         paragraphIndex: 0,
@@ -289,30 +291,81 @@ describe("chapter annotations", () => {
     )
     expect(ann.suggested_replacement).toBe("改写后的段落一")
 
-    const updated = await updateChapterAnnotation(ann.id, { status: "applied" }, projectDir)
+    const updated = await updateAnnotation(ann.id, { status: "applied" }, projectDir)
     expect(updated.status).toBe("applied")
   })
 
   test("按状态筛选批注", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const a1 = await createChapterAnnotation("ch-1", novelId, { source: "user", anchorType: "paragraph", paragraphIndex: 0, quote: "a", comment: "1" }, projectDir)
-    await createChapterAnnotation("ch-1", novelId, { source: "ai", anchorType: "paragraph", paragraphIndex: 1, quote: "b", comment: "2" }, projectDir)
-    await updateChapterAnnotation(a1.id, { status: "resolved" }, projectDir)
+    const a1 = await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", source: "user", anchorType: "paragraph", paragraphIndex: 0, quote: "a", comment: "1" },
+      projectDir,
+    )
+    await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", source: "ai", anchorType: "paragraph", paragraphIndex: 1, quote: "b", comment: "2" },
+      projectDir,
+    )
+    await updateAnnotation(a1.id, { status: "resolved" }, projectDir)
 
-    const open = await listChapterAnnotations("ch-1", projectDir, { status: "open" })
+    const open = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir, { status: "open" })
     expect(open).toHaveLength(1)
-    const resolved = await listChapterAnnotations("ch-1", projectDir, { status: "resolved" })
+    const resolved = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir, { status: "resolved" })
     expect(resolved).toHaveLength(1)
+  })
+
+  test("跨目标列表互不可见", async () => {
+    const novelId = await seedNovel()
+    await seedVolumeChapter(novelId)
+    const db = getDb(projectDir)
+    await db
+      .insert(WorldEntryTable)
+      .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
+      .run()
+    await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", quote: "章内", comment: "章节批注" },
+      projectDir,
+    )
+    await createAnnotation(
+      { novelId, targetType: "world_entry", targetId: "we-1", field: "content", quote: "城墙", comment: "设定批注" },
+      projectDir,
+    )
+
+    const chapterList = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)
+    expect(chapterList).toHaveLength(1)
+    expect(chapterList[0].comment).toBe("章节批注")
+    const entryList = await listAnnotations({ targetType: "world_entry", targetId: "we-1" }, projectDir)
+    expect(entryList).toHaveLength(1)
+    expect(entryList[0].comment).toBe("设定批注")
   })
 
   test("删除批注", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const ann = await createChapterAnnotation("ch-1", novelId, { source: "user", anchorType: "chapter", quote: "", comment: "全章" }, projectDir)
-    await deleteChapterAnnotation(ann.id, projectDir)
-    const list = await listChapterAnnotations("ch-1", projectDir)
+    const ann = await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", source: "user", anchorType: "chapter", quote: "", comment: "全章" },
+      projectDir,
+    )
+    await deleteAnnotation(ann.id, projectDir)
+    const list = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)
     expect(list).toHaveLength(0)
+  })
+
+  test("删除章节清理其批注与轮次", async () => {
+    const novelId = await seedNovel()
+    await seedVolumeChapter(novelId)
+    await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", quote: "段", comment: "批注" },
+      projectDir,
+    )
+    await createAnnotationRound(
+      { novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "prompt", annotationsSnapshot: "[]" },
+      projectDir,
+    )
+
+    await deleteChapter("ch-1", projectDir)
+    expect(await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)).toHaveLength(0)
+    expect(await listAnnotationRounds({ targetType: "chapter", targetId: "ch-1" }, projectDir)).toHaveLength(0)
   })
 })
 
@@ -320,14 +373,14 @@ describe("execution rounds", () => {
   test("创建执行轮次并查询", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const round = await createExecutionRound(
-      { novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "测试指令", annotations_snapshot: "[]", result_summary: "改写 2 段" },
+    const round = await createAnnotationRound(
+      { novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "测试指令", annotationsSnapshot: "[]", resultSummary: "改写 2 段" },
       projectDir,
     )
     expect(round.prompt_snapshot).toBe("测试指令")
     expect(round.result_summary).toBe("改写 2 段")
 
-    const rounds = await getExecutionRounds("ch-1", projectDir)
+    const rounds = await listAnnotationRounds({ targetType: "chapter", targetId: "ch-1" }, projectDir)
     expect(rounds).toHaveLength(1)
     expect(rounds[0].id).toBe(round.id)
   })
@@ -335,10 +388,10 @@ describe("execution rounds", () => {
   test("按时间倒序返回多轮", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第一轮", annotations_snapshot: "[]", result_summary: "" }, projectDir)
-    await createExecutionRound({ novel_id: novelId, chapter_id: "ch-1", prompt_snapshot: "第二轮", annotations_snapshot: "[]", result_summary: "" }, projectDir)
+    await createAnnotationRound({ novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "第一轮", annotationsSnapshot: "[]" }, projectDir)
+    await createAnnotationRound({ novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "第二轮", annotationsSnapshot: "[]" }, projectDir)
 
-    const rounds = await getExecutionRounds("ch-1", projectDir)
+    const rounds = await listAnnotationRounds({ targetType: "chapter", targetId: "ch-1" }, projectDir)
     expect(rounds).toHaveLength(2)
     expect(rounds[0].prompt_snapshot).toBe("第二轮")
     expect(rounds[1].prompt_snapshot).toBe("第一轮")
@@ -357,51 +410,42 @@ describe("execution rounds", () => {
       comment: "polish this",
       suggestedReplacement: "new",
     }]
-    const round = await createExecutionRound({
-      novel_id: novelId,
-      chapter_id: "ch-1",
-      prompt_snapshot: "prompt",
-      annotations_snapshot: JSON.stringify(snapshot),
-      result_summary: "",
-    }, projectDir)
+    const round = await createAnnotationRound(
+      { novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "prompt", annotationsSnapshot: JSON.stringify(snapshot) },
+      projectDir,
+    )
     expect(round.status).toBe("running")
     expect(JSON.parse(round.annotations_snapshot)).toEqual(snapshot)
 
-    const completed = await updateExecutionRound(round.id, {
+    const completed = await updateAnnotationRound(round.id, {
       status: "completed",
-      result_summary: "prompt sent",
-      chapter_version_id: "cv-1",
+      resultSummary: "prompt sent",
+      resultRefId: "cv-1",
     }, projectDir)
     expect(completed.status).toBe("completed")
     expect(completed.result_summary).toBe("prompt sent")
-    expect(completed.chapter_version_id).toBe("cv-1")
+    expect(completed.result_ref_id).toBe("cv-1")
     expect(JSON.parse(completed.annotations_snapshot)).toEqual(snapshot)
   })
 
   test("批注关联执行轮次并可重新激活", async () => {
     const novelId = await seedNovel()
     await seedVolumeChapter(novelId)
-    const round = await createExecutionRound({
-      novel_id: novelId,
-      chapter_id: "ch-1",
-      prompt_snapshot: "prompt",
-      annotations_snapshot: "[]",
-      result_summary: "",
-    }, projectDir)
-    const ann = await createChapterAnnotation("ch-1", novelId, {
-      source: "user",
-      anchorType: "paragraph",
-      paragraphIndex: 0,
-      quote: "old",
-      comment: "polish this",
-    }, projectDir)
+    const round = await createAnnotationRound(
+      { novelId, targetType: "chapter", targetId: "ch-1", promptSnapshot: "prompt", annotationsSnapshot: "[]" },
+      projectDir,
+    )
+    const ann = await createAnnotation(
+      { novelId, targetType: "chapter", targetId: "ch-1", field: "content", source: "user", anchorType: "paragraph", paragraphIndex: 0, quote: "old", comment: "polish this" },
+      projectDir,
+    )
 
-    await updateChapterAnnotation(ann.id, { status: "applied", executionRoundId: round.id }, projectDir)
-    const executed = await listChapterAnnotations("ch-1", projectDir)
+    await updateAnnotation(ann.id, { status: "applied", executionRoundId: round.id }, projectDir)
+    const executed = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)
     expect(executed[0].execution_round_id).toBe(round.id)
 
-    await updateChapterAnnotation(ann.id, { status: "open", executionRoundId: null }, projectDir)
-    const reopened = await listChapterAnnotations("ch-1", projectDir, { status: "open" })
+    await updateAnnotation(ann.id, { status: "open", executionRoundId: null }, projectDir)
+    const reopened = await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir, { status: "open" })
     expect(reopened).toHaveLength(1)
     expect(reopened[0].execution_round_id).toBeNull()
   })
@@ -416,28 +460,27 @@ describe("world entry annotations", () => {
       .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
       .run()
 
-    const ann = await createWorldEntryAnnotation(
-      "we-1",
-      novelId,
-      { source: "ai", anchorType: "paragraph", paragraphIndex: 0, startOffset: 0, endOffset: 4, quote: "城墙很高", comment: "改为更有画面感" },
+    const ann = await createAnnotation(
+      { novelId, targetType: "world_entry", targetId: "we-1", field: "content", source: "ai", anchorType: "paragraph", paragraphIndex: 0, startOffset: 0, endOffset: 4, quote: "城墙很高", comment: "改为更有画面感" },
       projectDir,
     )
     expect(ann.status).toBe("open")
-    expect(ann.world_entry_id).toBe("we-1")
+    expect(ann.target_type).toBe("world_entry")
+    expect(ann.target_id).toBe("we-1")
     expect(ann.source).toBe("ai")
     expect(ann.paragraph_index).toBe(0)
 
-    const updated = await updateWorldEntryAnnotation(ann.id, { status: "resolved", comment: "已手工处理" }, projectDir)
-    expect(updated?.status).toBe("resolved")
-    expect(updated?.comment).toBe("已手工处理")
+    const updated = await updateAnnotation(ann.id, { status: "resolved", comment: "已手工处理" }, projectDir)
+    expect(updated.status).toBe("resolved")
+    expect(updated.comment).toBe("已手工处理")
 
-    const resolved = await listWorldEntryAnnotations("we-1", projectDir, { status: "resolved" })
+    const resolved = await listAnnotations({ targetType: "world_entry", targetId: "we-1" }, projectDir, { status: "resolved" })
     expect(resolved).toHaveLength(1)
     expect(resolved[0].id).toBe(ann.id)
-    expect(await listWorldEntryAnnotations("we-1", projectDir, { status: "open" })).toHaveLength(0)
+    expect(await listAnnotations({ targetType: "world_entry", targetId: "we-1" }, projectDir, { status: "open" })).toHaveLength(0)
 
-    await deleteWorldEntryAnnotation(ann.id, projectDir)
-    expect(await listWorldEntryAnnotations("we-1", projectDir)).toHaveLength(0)
+    await deleteAnnotation(ann.id, projectDir)
+    expect(await listAnnotations({ targetType: "world_entry", targetId: "we-1" }, projectDir)).toHaveLength(0)
   })
 
   test("创建执行轮次、更新结果并按时间倒序返回", async () => {
@@ -448,44 +491,47 @@ describe("world entry annotations", () => {
       .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
       .run()
 
-    await createWorldEntryAnnotationRound(
-      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "第一轮", annotations_snapshot: "[]", result_summary: "" },
+    await createAnnotationRound(
+      { novelId, targetType: "world_entry", targetId: "we-1", promptSnapshot: "第一轮", annotationsSnapshot: "[]" },
       projectDir,
     )
-    await createWorldEntryAnnotationRound(
-      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "第二轮", annotations_snapshot: "[{\"id\":\"ann-1\"}]", result_summary: "" },
+    await createAnnotationRound(
+      { novelId, targetType: "world_entry", targetId: "we-1", promptSnapshot: "第二轮", annotationsSnapshot: "[{\"id\":\"ann-1\"}]" },
       projectDir,
     )
-    const rounds = await getWorldEntryAnnotationRounds("we-1", projectDir)
+    const rounds = await listAnnotationRounds({ targetType: "world_entry", targetId: "we-1" }, projectDir)
     expect(rounds).toHaveLength(2)
     expect(rounds[0].prompt_snapshot).toBe("第二轮")
     expect(rounds[1].prompt_snapshot).toBe("第一轮")
 
-    const completed = await updateWorldEntryAnnotationRound(rounds[0].id, {
+    const completed = await updateAnnotationRound(rounds[0].id, {
       status: "completed",
-      result_summary: "已按建议修改",
-      content_history_id: "history-1",
+      resultSummary: "已按建议修改",
+      resultRefId: "history-1",
     }, projectDir)
-    expect(completed?.status).toBe("completed")
-    expect(completed?.content_history_id).toBe("history-1")
+    expect(completed.status).toBe("completed")
+    expect(completed.result_ref_id).toBe("history-1")
   })
 
-  test("删除 world_entry 级联删除批注和轮次", async () => {
+  test("删除 world_entry 清理其批注和轮次", async () => {
     const novelId = await seedNovel()
     const db = getDb(projectDir)
     await db
       .insert(WorldEntryTable)
       .values({ id: "we-1", novel_id: novelId, category: "location", title: "旧城", content: "城墙很高。", created_at: 1 })
       .run()
-    await createWorldEntryAnnotation("we-1", novelId, { quote: "城墙", comment: "强化描写" }, projectDir)
-    await createWorldEntryAnnotationRound(
-      { novel_id: novelId, world_entry_id: "we-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+    await createAnnotation(
+      { novelId, targetType: "world_entry", targetId: "we-1", field: "content", quote: "城墙", comment: "强化描写" },
+      projectDir,
+    )
+    await createAnnotationRound(
+      { novelId, targetType: "world_entry", targetId: "we-1", promptSnapshot: "prompt", annotationsSnapshot: "[]" },
       projectDir,
     )
 
-    await db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, "we-1")).run()
-    expect(await listWorldEntryAnnotations("we-1", projectDir)).toHaveLength(0)
-    expect(await getWorldEntryAnnotationRounds("we-1", projectDir)).toHaveLength(0)
+    await deleteWorldEntry("we-1", projectDir)
+    expect(await listAnnotations({ targetType: "world_entry", targetId: "we-1" }, projectDir)).toHaveLength(0)
+    expect(await listAnnotationRounds({ targetType: "world_entry", targetId: "we-1" }, projectDir)).toHaveLength(0)
   })
 })
 
@@ -548,7 +594,7 @@ describe("cascade delete", () => {
     await createArcBeat(arc.id, { chapterOrder: 1, label: "开场", kind: "setup" }, projectDir)
     await createVolumeReview("vol-1", { overall: "ok", score: 7 }, projectDir)
     await createEditorialReport(novelId, { scopeType: "book", summary: "ok", risks: [], recommendations: [] }, projectDir)
-    await createChapterAnnotation("ch-1", novelId, { source: "user", anchorType: "chapter", quote: "", comment: "全章" }, projectDir)
+    await createAnnotation({ novelId, targetType: "chapter", targetId: "ch-1", field: "content", source: "user", anchorType: "chapter", quote: "", comment: "全章" }, projectDir)
     await upsertOutlineCanvasLayout(novelId, { columns: [] }, projectDir)
 
     const db = getDb(projectDir)
@@ -556,7 +602,7 @@ describe("cascade delete", () => {
 
     expect(await db.select().from(StoryArcTable).where(eq(StoryArcTable.novel_id, novelId)).all()).toHaveLength(0)
     expect(await db.select().from(ArcBeatTable).all()).toHaveLength(0)
-    expect(await listChapterAnnotations("ch-1", projectDir)).toHaveLength(0)
+    expect(await listAnnotations({ targetType: "chapter", targetId: "ch-1" }, projectDir)).toHaveLength(0)
     expect(await getOutlineCanvasLayout(novelId, projectDir)).toBeUndefined()
   })
 })

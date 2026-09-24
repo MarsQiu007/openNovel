@@ -527,13 +527,15 @@ export const EditorialReportTable = sqliteTable(
   (table) => [index("editorial_reports_novel_id_idx").on(table.novel_id, table.created_at)],
 )
 
-export const ChapterAnnotationTable = sqliteTable(
-  "chapter_annotations",
+export const AnnotationTable = sqliteTable(
+  "annotations",
   {
     id: text().primaryKey(),
     novel_id: text().notNull(),
-    chapter_id: text().notNull(),
     parent_id: text(),
+    target_type: text().notNull(),
+    target_id: text(),
+    field: text().notNull(),
     source: text().notNull().default("user"),
     anchor_type: text().notNull().default("paragraph"),
     paragraph_index: integer(),
@@ -550,73 +552,26 @@ export const ChapterAnnotationTable = sqliteTable(
     updated_at: integer().notNull().$default(() => Date.now()),
   },
   (table) => [
-    index("chapter_annotations_chapter_id_idx").on(table.chapter_id, table.status),
-    index("chapter_annotations_novel_id_idx").on(table.novel_id),
+    index("annotations_target_idx").on(table.target_type, table.target_id, table.status),
+    index("annotations_novel_id_idx").on(table.novel_id),
   ],
 )
 
-export const AnnotationExecutionRoundTable = sqliteTable(
-  "annotation_execution_rounds",
+export const AnnotationRoundTable = sqliteTable(
+  "annotation_rounds",
   {
     id: text().primaryKey(),
     novel_id: text().notNull(),
-    chapter_id: text().notNull(),
+    target_type: text().notNull(),
+    target_id: text(),
     prompt_snapshot: text().notNull().default(""),
     status: text().notNull().default("running"),
     annotations_snapshot: text().notNull().default("[]"),
     result_summary: text().notNull().default(""),
-    chapter_version_id: text(),
+    result_ref_id: text(),
     created_at: integer().notNull().$default(() => Date.now()),
   },
-  (table) => [
-    index("annotation_execution_rounds_chapter_id_idx").on(table.chapter_id, table.created_at),
-  ],
-)
-
-export const WorldEntryAnnotationTable = sqliteTable(
-  "world_entry_annotations",
-  {
-    id: text().primaryKey(),
-    novel_id: text().notNull(),
-    world_entry_id: text().notNull(),
-    parent_id: text(),
-    source: text().notNull().default("user"),
-    anchor_type: text().notNull().default("paragraph"),
-    paragraph_index: integer(),
-    start_offset: integer(),
-    end_offset: integer(),
-    end_paragraph_index: integer(),
-    quote: text().notNull().default(""),
-    comment: text().notNull().default(""),
-    suggested_replacement: text(),
-    status: text().notNull().default("open"),
-    author_session_id: text(),
-    execution_round_id: text(),
-    created_at: integer().notNull().$default(() => Date.now()),
-    updated_at: integer().notNull().$default(() => Date.now()),
-  },
-  (table) => [
-    index("world_entry_annotations_entry_id_idx").on(table.world_entry_id, table.status),
-    index("world_entry_annotations_novel_id_idx").on(table.novel_id),
-  ],
-)
-
-export const WorldEntryAnnotationRoundTable = sqliteTable(
-  "world_entry_annotation_rounds",
-  {
-    id: text().primaryKey(),
-    novel_id: text().notNull(),
-    world_entry_id: text().notNull(),
-    prompt_snapshot: text().notNull().default(""),
-    status: text().notNull().default("running"),
-    annotations_snapshot: text().notNull().default("[]"),
-    result_summary: text().notNull().default(""),
-    content_history_id: text(),
-    created_at: integer().notNull().$default(() => Date.now()),
-  },
-  (table) => [
-    index("world_entry_annotation_rounds_entry_id_idx").on(table.world_entry_id, table.created_at),
-  ],
+  (table) => [index("annotation_rounds_target_idx").on(table.target_type, table.target_id, table.created_at)],
 )
 
 export const OutlineCanvasLayoutTable = sqliteTable("outline_canvas_layout", {
@@ -788,17 +743,12 @@ CREATE INDEX IF NOT EXISTS volume_reviews_volume_id_idx ON volume_reviews(volume
 CREATE INDEX IF NOT EXISTS volume_reviews_novel_id_idx ON volume_reviews(novel_id);
 CREATE TABLE IF NOT EXISTS editorial_reports (id text PRIMARY KEY, novel_id text NOT NULL, scope_type text DEFAULT 'book' NOT NULL, scope_id text, summary text DEFAULT '' NOT NULL, risks_json text DEFAULT '[]' NOT NULL, recommendations_json text DEFAULT '[]' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS editorial_reports_novel_id_idx ON editorial_reports(novel_id, created_at);
-CREATE TABLE IF NOT EXISTS chapter_annotations (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, end_paragraph_index integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES chapter_annotations(id) ON DELETE CASCADE);
-CREATE INDEX IF NOT EXISTS chapter_annotations_chapter_id_idx ON chapter_annotations(chapter_id, status);
-CREATE INDEX IF NOT EXISTS chapter_annotations_novel_id_idx ON chapter_annotations(novel_id);
+CREATE TABLE IF NOT EXISTS annotations (id text PRIMARY KEY, novel_id text NOT NULL, parent_id text, target_type text NOT NULL, target_id text, field text NOT NULL, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, end_paragraph_index integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (parent_id) REFERENCES annotations(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS annotations_target_idx ON annotations(target_type, target_id, status);
+CREATE INDEX IF NOT EXISTS annotations_novel_id_idx ON annotations(novel_id);
+CREATE TABLE IF NOT EXISTS annotation_rounds (id text PRIMARY KEY, novel_id text NOT NULL, target_type text NOT NULL, target_id text, prompt_snapshot text DEFAULT '' NOT NULL, status text DEFAULT 'running' NOT NULL, annotations_snapshot text DEFAULT '[]' NOT NULL, result_summary text DEFAULT '' NOT NULL, result_ref_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS annotation_rounds_target_idx ON annotation_rounds(target_type, target_id, created_at);
 CREATE TABLE IF NOT EXISTS outline_canvas_layout (novel_id text PRIMARY KEY, layout_json text DEFAULT '{}' NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS annotation_execution_rounds (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text NOT NULL, prompt_snapshot text DEFAULT '' NOT NULL, status text DEFAULT 'running' NOT NULL, annotations_snapshot text DEFAULT '[]' NOT NULL, result_summary text DEFAULT '' NOT NULL, chapter_version_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
-CREATE INDEX IF NOT EXISTS annotation_execution_rounds_chapter_id_idx ON annotation_execution_rounds(chapter_id, created_at);
-CREATE TABLE IF NOT EXISTS world_entry_annotations (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, parent_id text, source text DEFAULT 'user' NOT NULL, anchor_type text DEFAULT 'paragraph' NOT NULL, paragraph_index integer, start_offset integer, end_offset integer, end_paragraph_index integer, quote text DEFAULT '' NOT NULL, comment text DEFAULT '' NOT NULL, suggested_replacement text, status text DEFAULT 'open' NOT NULL, author_session_id text, execution_round_id text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE CASCADE);
-CREATE INDEX IF NOT EXISTS world_entry_annotations_entry_id_idx ON world_entry_annotations(world_entry_id, status);
-CREATE INDEX IF NOT EXISTS world_entry_annotations_novel_id_idx ON world_entry_annotations(novel_id);
-CREATE TABLE IF NOT EXISTS world_entry_annotation_rounds (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, prompt_snapshot text DEFAULT '' NOT NULL, status text DEFAULT 'running' NOT NULL, annotations_snapshot text DEFAULT '[]' NOT NULL, result_summary text DEFAULT '' NOT NULL, content_history_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (world_entry_id) REFERENCES world_entries(id) ON DELETE CASCADE);
-CREATE INDEX IF NOT EXISTS world_entry_annotation_rounds_entry_id_idx ON world_entry_annotation_rounds(world_entry_id, created_at);
 
 CREATE TABLE IF NOT EXISTS hook_rotation (id text PRIMARY KEY, novel_id text NOT NULL, hook_type text NOT NULL, chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS hook_rotation_novel_id_idx ON hook_rotation(novel_id);
@@ -1338,6 +1288,14 @@ export async function createChapter(
 export async function deleteChapter(chapterId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
   await db.delete(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, chapterId)).run()
+  await db
+    .delete(AnnotationTable)
+    .where(and(eq(AnnotationTable.target_type, "chapter"), eq(AnnotationTable.target_id, chapterId)))
+    .run()
+  await db
+    .delete(AnnotationRoundTable)
+    .where(and(eq(AnnotationRoundTable.target_type, "chapter"), eq(AnnotationRoundTable.target_id, chapterId)))
+    .run()
   await db.delete(ChapterTable).where(eq(ChapterTable.id, chapterId)).run()
 }
 
@@ -1851,6 +1809,14 @@ export async function updateWorldEntry(
 
 export async function deleteWorldEntry(entryId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
+  await db
+    .delete(AnnotationTable)
+    .where(and(eq(AnnotationTable.target_type, "world_entry"), eq(AnnotationTable.target_id, entryId)))
+    .run()
+  await db
+    .delete(AnnotationRoundTable)
+    .where(and(eq(AnnotationRoundTable.target_type, "world_entry"), eq(AnnotationRoundTable.target_id, entryId)))
+    .run()
   await db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, entryId)).run()
 }
 
@@ -2602,10 +2568,12 @@ export async function listEditorialReports(
     .all()
 }
 
-export async function createChapterAnnotation(
-  chapterId: string,
-  novelId: string,
+export async function createAnnotation(
   input: {
+    novelId: string
+    targetType: string
+    targetId: string
+    field: string
     parentId?: string | null
     source?: string
     anchorType?: string
@@ -2619,17 +2587,19 @@ export async function createChapterAnnotation(
     authorSessionId?: string | null
   },
   directory?: string | null,
-): Promise<typeof ChapterAnnotationTable.$inferSelect> {
+): Promise<typeof AnnotationTable.$inferSelect> {
   const db = getDb(directory)
   const id = crypto.randomUUID()
   const now = Date.now()
   await db
-    .insert(ChapterAnnotationTable)
+    .insert(AnnotationTable)
     .values({
       id,
-      novel_id: novelId,
-      chapter_id: chapterId,
+      novel_id: input.novelId,
       parent_id: input.parentId ?? null,
+      target_type: input.targetType,
+      target_id: input.targetId,
+      field: input.field,
       source: input.source ?? "user",
       anchor_type: input.anchorType ?? "paragraph",
       paragraph_index: input.paragraphIndex ?? null,
@@ -2645,10 +2615,18 @@ export async function createChapterAnnotation(
       updated_at: now,
     })
     .run()
-  return db.select().from(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, id)).get()!
+  return db.select().from(AnnotationTable).where(eq(AnnotationTable.id, id)).get()!
 }
 
-export async function updateChapterAnnotation(
+export async function getAnnotation(
+  annotationId: string,
+  directory?: string | null,
+): Promise<typeof AnnotationTable.$inferSelect | undefined> {
+  const db = getDb(directory)
+  return db.select().from(AnnotationTable).where(eq(AnnotationTable.id, annotationId)).get()
+}
+
+export async function updateAnnotation(
   annotationId: string,
   fields: {
     comment?: string
@@ -2658,7 +2636,7 @@ export async function updateChapterAnnotation(
     executionRoundId?: string | null
   },
   directory?: string | null,
-): Promise<typeof ChapterAnnotationTable.$inferSelect> {
+): Promise<typeof AnnotationTable.$inferSelect> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = { updated_at: Date.now() }
   if (fields.comment !== undefined) updates.comment = fields.comment
@@ -2666,246 +2644,101 @@ export async function updateChapterAnnotation(
   if (fields.suggestedReplacement !== undefined) updates.suggested_replacement = fields.suggestedReplacement
   if (fields.quote !== undefined) updates.quote = fields.quote
   if (fields.executionRoundId !== undefined) updates.execution_round_id = fields.executionRoundId
-  await db.update(ChapterAnnotationTable).set(updates).where(eq(ChapterAnnotationTable.id, annotationId)).run()
-  return db.select().from(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, annotationId)).get()!
+  await db.update(AnnotationTable).set(updates).where(eq(AnnotationTable.id, annotationId)).run()
+  return db.select().from(AnnotationTable).where(eq(AnnotationTable.id, annotationId)).get()!
 }
 
-export async function deleteChapterAnnotation(annotationId: string, directory?: string | null): Promise<void> {
+export async function deleteAnnotation(annotationId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
-  await db.delete(ChapterAnnotationTable).where(eq(ChapterAnnotationTable.id, annotationId)).run()
+  await db.delete(AnnotationTable).where(eq(AnnotationTable.id, annotationId)).run()
 }
 
-export async function listChapterAnnotations(
-  chapterId: string,
+export async function listAnnotations(
+  target: { targetType: string; targetId: string },
   directory?: string | null,
   filter?: { status?: string },
-): Promise<(typeof ChapterAnnotationTable.$inferSelect)[]> {
+): Promise<(typeof AnnotationTable.$inferSelect)[]> {
   const db = getDb(directory)
-  const query = db
-    .select()
-    .from(ChapterAnnotationTable)
-    .where(
-      filter?.status
-        ? and(eq(ChapterAnnotationTable.chapter_id, chapterId), eq(ChapterAnnotationTable.status, filter.status))
-        : eq(ChapterAnnotationTable.chapter_id, chapterId),
-    )
-    .orderBy(asc(ChapterAnnotationTable.paragraph_index), desc(ChapterAnnotationTable.created_at))
-  return query.all()
-}
-
-export async function createExecutionRound(
-  input: {
-    novel_id: string
-    chapter_id: string
-    prompt_snapshot: string
-    status?: string
-    annotations_snapshot: string
-    result_summary: string
-  },
-  directory?: string | null,
-): Promise<typeof AnnotationExecutionRoundTable.$inferSelect> {
-  const db = getDb(directory)
-  const id = `aer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  const now = Date.now()
-  db.insert(AnnotationExecutionRoundTable)
-    .values({
-      id,
-      novel_id: input.novel_id,
-      chapter_id: input.chapter_id,
-      prompt_snapshot: input.prompt_snapshot,
-      status: input.status ?? "running",
-      annotations_snapshot: input.annotations_snapshot,
-      result_summary: input.result_summary,
-      created_at: now,
-    })
-    .run()
-  return db.select().from(AnnotationExecutionRoundTable).where(eq(AnnotationExecutionRoundTable.id, id)).get()!
-}
-
-export async function getExecutionRounds(
-  chapterId: string,
-  directory?: string | null,
-): Promise<(typeof AnnotationExecutionRoundTable.$inferSelect)[]> {
-  const db = getDb(directory)
+  const conditions = [eq(AnnotationTable.target_type, target.targetType), eq(AnnotationTable.target_id, target.targetId)]
+  if (filter?.status) conditions.push(eq(AnnotationTable.status, filter.status))
   return db
     .select()
-    .from(AnnotationExecutionRoundTable)
-    .where(eq(AnnotationExecutionRoundTable.chapter_id, chapterId))
-    .orderBy(desc(AnnotationExecutionRoundTable.created_at))
+    .from(AnnotationTable)
+    .where(and(...conditions))
+    .orderBy(asc(AnnotationTable.paragraph_index), desc(AnnotationTable.created_at))
     .all()
 }
 
-export async function updateExecutionRound(
-  roundId: string,
+export async function createAnnotationRound(
   input: {
+    novelId: string
+    targetType: string
+    targetId: string
+    promptSnapshot: string
     status?: string
-    result_summary?: string
-    chapter_version_id?: string | null
-    prompt_snapshot?: string
+    annotationsSnapshot: string
+    resultSummary?: string
   },
   directory?: string | null,
-): Promise<typeof AnnotationExecutionRoundTable.$inferSelect> {
+): Promise<typeof AnnotationRoundTable.$inferSelect> {
   const db = getDb(directory)
-  const updates: Record<string, unknown> = {}
-  if (input.status !== undefined) updates.status = input.status
-  if (input.result_summary !== undefined) updates.result_summary = input.result_summary
-  if (input.chapter_version_id !== undefined) updates.chapter_version_id = input.chapter_version_id
-  if (input.prompt_snapshot !== undefined) updates.prompt_snapshot = input.prompt_snapshot
-  db.update(AnnotationExecutionRoundTable).set(updates).where(eq(AnnotationExecutionRoundTable.id, roundId)).run()
-  return db.select().from(AnnotationExecutionRoundTable).where(eq(AnnotationExecutionRoundTable.id, roundId)).get()!
-}
-
-export async function createWorldEntryAnnotation(
-  worldEntryId: string,
-  novelId: string,
-  input: {
-    parentId?: string | null
-    source?: string
-    anchorType?: string
-    paragraphIndex?: number | null
-    startOffset?: number | null
-    endOffset?: number | null
-    endParagraphIndex?: number | null
-    quote?: string
-    comment?: string
-    suggestedReplacement?: string | null
-    authorSessionId?: string | null
-  },
-  directory?: string | null,
-): Promise<typeof WorldEntryAnnotationTable.$inferSelect> {
-  const db = getDb(directory)
-  const id = crypto.randomUUID()
-  const now = Date.now()
+  const id = `ar_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   await db
-    .insert(WorldEntryAnnotationTable)
+    .insert(AnnotationRoundTable)
     .values({
       id,
-      novel_id: novelId,
-      world_entry_id: worldEntryId,
-      parent_id: input.parentId ?? null,
-      source: input.source ?? "user",
-      anchor_type: input.anchorType ?? "paragraph",
-      paragraph_index: input.paragraphIndex ?? null,
-      start_offset: input.startOffset ?? null,
-      end_offset: input.endOffset ?? null,
-      end_paragraph_index: input.endParagraphIndex ?? null,
-      quote: input.quote ?? "",
-      comment: input.comment ?? "",
-      suggested_replacement: input.suggestedReplacement ?? null,
-      status: "open",
-      author_session_id: input.authorSessionId ?? null,
-      created_at: now,
-      updated_at: now,
-    })
-    .run()
-  return db.select().from(WorldEntryAnnotationTable).where(eq(WorldEntryAnnotationTable.id, id)).get()!
-}
-
-export async function updateWorldEntryAnnotation(
-  annotationId: string,
-  fields: {
-    comment?: string
-    status?: string
-    suggestedReplacement?: string | null
-    quote?: string
-    executionRoundId?: string | null
-  },
-  directory?: string | null,
-): Promise<typeof WorldEntryAnnotationTable.$inferSelect | undefined> {
-  const db = getDb(directory)
-  const updates: Record<string, unknown> = { updated_at: Date.now() }
-  if (fields.comment !== undefined) updates.comment = fields.comment
-  if (fields.status !== undefined) updates.status = fields.status
-  if (fields.suggestedReplacement !== undefined) updates.suggested_replacement = fields.suggestedReplacement
-  if (fields.quote !== undefined) updates.quote = fields.quote
-  if (fields.executionRoundId !== undefined) updates.execution_round_id = fields.executionRoundId
-  await db.update(WorldEntryAnnotationTable).set(updates).where(eq(WorldEntryAnnotationTable.id, annotationId)).run()
-  return db.select().from(WorldEntryAnnotationTable).where(eq(WorldEntryAnnotationTable.id, annotationId)).get()
-}
-
-export async function deleteWorldEntryAnnotation(annotationId: string, directory?: string | null): Promise<void> {
-  const db = getDb(directory)
-  await db.delete(WorldEntryAnnotationTable).where(eq(WorldEntryAnnotationTable.id, annotationId)).run()
-}
-
-export async function listWorldEntryAnnotations(
-  worldEntryId: string,
-  directory?: string | null,
-  filter?: { status?: string },
-): Promise<(typeof WorldEntryAnnotationTable.$inferSelect)[]> {
-  const db = getDb(directory)
-  return db
-    .select()
-    .from(WorldEntryAnnotationTable)
-    .where(
-      filter?.status
-        ? and(eq(WorldEntryAnnotationTable.world_entry_id, worldEntryId), eq(WorldEntryAnnotationTable.status, filter.status))
-        : eq(WorldEntryAnnotationTable.world_entry_id, worldEntryId),
-    )
-    .orderBy(asc(WorldEntryAnnotationTable.paragraph_index), desc(WorldEntryAnnotationTable.created_at))
-    .all()
-}
-
-export async function createWorldEntryAnnotationRound(
-  input: {
-    novel_id: string
-    world_entry_id: string
-    prompt_snapshot: string
-    status?: string
-    annotations_snapshot: string
-    result_summary: string
-  },
-  directory?: string | null,
-): Promise<typeof WorldEntryAnnotationRoundTable.$inferSelect> {
-  const db = getDb(directory)
-  const id = `wear_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  db.insert(WorldEntryAnnotationRoundTable)
-    .values({
-      id,
-      novel_id: input.novel_id,
-      world_entry_id: input.world_entry_id,
-      prompt_snapshot: input.prompt_snapshot,
+      novel_id: input.novelId,
+      target_type: input.targetType,
+      target_id: input.targetId,
+      prompt_snapshot: input.promptSnapshot,
       status: input.status ?? "running",
-      annotations_snapshot: input.annotations_snapshot,
-      result_summary: input.result_summary,
-      content_history_id: null,
+      annotations_snapshot: input.annotationsSnapshot,
+      result_summary: input.resultSummary ?? "",
       created_at: Date.now(),
     })
     .run()
-  return db.select().from(WorldEntryAnnotationRoundTable).where(eq(WorldEntryAnnotationRoundTable.id, id)).get()!
+  return db.select().from(AnnotationRoundTable).where(eq(AnnotationRoundTable.id, id)).get()!
 }
 
-export async function getWorldEntryAnnotationRounds(
-  worldEntryId: string,
+export async function getAnnotationRound(
+  roundId: string,
   directory?: string | null,
-): Promise<(typeof WorldEntryAnnotationRoundTable.$inferSelect)[]> {
+): Promise<typeof AnnotationRoundTable.$inferSelect | undefined> {
+  const db = getDb(directory)
+  return db.select().from(AnnotationRoundTable).where(eq(AnnotationRoundTable.id, roundId)).get()
+}
+
+export async function listAnnotationRounds(
+  target: { targetType: string; targetId: string },
+  directory?: string | null,
+): Promise<(typeof AnnotationRoundTable.$inferSelect)[]> {
   const db = getDb(directory)
   return db
     .select()
-    .from(WorldEntryAnnotationRoundTable)
-    .where(eq(WorldEntryAnnotationRoundTable.world_entry_id, worldEntryId))
-    .orderBy(desc(WorldEntryAnnotationRoundTable.created_at))
+    .from(AnnotationRoundTable)
+    .where(and(eq(AnnotationRoundTable.target_type, target.targetType), eq(AnnotationRoundTable.target_id, target.targetId)))
+    .orderBy(desc(AnnotationRoundTable.created_at))
     .all()
 }
 
-export async function updateWorldEntryAnnotationRound(
+export async function updateAnnotationRound(
   roundId: string,
   input: {
     status?: string
-    result_summary?: string
-    content_history_id?: string | null
-    prompt_snapshot?: string
+    resultSummary?: string
+    resultRefId?: string | null
+    promptSnapshot?: string
   },
   directory?: string | null,
-): Promise<typeof WorldEntryAnnotationRoundTable.$inferSelect | undefined> {
+): Promise<typeof AnnotationRoundTable.$inferSelect> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = {}
   if (input.status !== undefined) updates.status = input.status
-  if (input.result_summary !== undefined) updates.result_summary = input.result_summary
-  if (input.content_history_id !== undefined) updates.content_history_id = input.content_history_id
-  if (input.prompt_snapshot !== undefined) updates.prompt_snapshot = input.prompt_snapshot
-  db.update(WorldEntryAnnotationRoundTable).set(updates).where(eq(WorldEntryAnnotationRoundTable.id, roundId)).run()
-  return db.select().from(WorldEntryAnnotationRoundTable).where(eq(WorldEntryAnnotationRoundTable.id, roundId)).get()
+  if (input.resultSummary !== undefined) updates.result_summary = input.resultSummary
+  if (input.resultRefId !== undefined) updates.result_ref_id = input.resultRefId
+  if (input.promptSnapshot !== undefined) updates.prompt_snapshot = input.promptSnapshot
+  await db.update(AnnotationRoundTable).set(updates).where(eq(AnnotationRoundTable.id, roundId)).run()
+  return db.select().from(AnnotationRoundTable).where(eq(AnnotationRoundTable.id, roundId)).get()!
 }
 
 export async function getOutlineCanvasLayout(
