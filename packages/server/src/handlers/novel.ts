@@ -4,6 +4,7 @@ import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
 import type {
+  SaveBookMetaInput,
   SettingOrganizationAnalyzeInput,
   SettingOrganizationApplyInput,
   SettingOrganizationDryRunInput,
@@ -22,6 +23,14 @@ import type {
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, WorldMapValidationError, ServiceUnavailableError } from "@opennovel-ai/protocol/groups/novel"
+import {
+  saveBookMeta as storeSaveBookMeta,
+  querySyncStatus as storeQuerySyncStatus,
+  computeFingerprint,
+  markDerivedStale,
+  enqueueManualEditSync,
+  ManualEditSyncQueueTable,
+} from "@opennovel-ai/novel-store"
 import {
   getDb,
   getDbPath,
@@ -793,6 +802,10 @@ export function updateChapterContent(
         .where(eq(ChapterTable.id, chapterID))
         .run()
     })
+    // 手动正文修订：标记派生数据过期并入队同步任务
+    yield* Effect.promise(() =>
+      markDerivedStale(novelID, chapterID, computeFingerprint(input.content), directory),
+    )
     const updated = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).get()
     return toChapter(updated!)
   })
@@ -1190,6 +1203,10 @@ export function restoreChapterVersion(
         .where(eq(ChapterTable.id, chapterID))
         .run()
     })
+    // 版本恢复：恢复后正文可能不同，标记派生数据过期
+    yield* Effect.promise(() =>
+      markDerivedStale(novelID, chapterID, computeFingerprint(target!.content), directory),
+    )
     const updated = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).get()
     return toChapter(updated!)
   })
@@ -2899,5 +2916,64 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           return { deleted: true }
         }),
       )
+      .handle("novel.save-book-meta", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* saveBookMetaEndpoint(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
+      .handle("novel.sync-status", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* syncStatusEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
   ),
 )
+export function saveBookMetaEndpoint(novelID: string, input: SaveBookMetaInput, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const result = yield* Effect.promise(() =>
+      storeSaveBookMeta(novelID, {
+        title: input.title,
+        synopsis: input.synopsis,
+        genre: input.genre,
+        styleGuide: input.styleGuide,
+      }, directory),
+    )
+    yield* Effect.promise(() =>
+      enqueueManualEditSync(
+        { novelId: novelID, entity: "novel", entityId: novelID, field: "meta", category: "creative_fact", sourceFingerprint: computeFingerprint(JSON.stringify(input)) },
+        directory,
+      ),
+    )
+    return toNovel(result.novel)
+  })
+}
+
+export function syncStatusEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const entries = yield* Effect.promise(() => storeQuerySyncStatus(novelID, undefined, directory))
+    return {
+      entries: entries.map((row) => ({
+        id: row.id,
+        novelId: row.novel_id,
+        entity: row.entity,
+        entityId: row.entity_id,
+        field: row.field,
+        category: row.category as "creative_fact" | "workflow_fact" | "ui_preference",
+        status: row.status as "synced" | "pending" | "failed" | "skipped",
+        sourceFingerprint: row.source_fingerprint,
+        failureReason: row.failure_reason,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+    }
+  })
+}
+
