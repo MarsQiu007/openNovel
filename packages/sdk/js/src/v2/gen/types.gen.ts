@@ -6759,16 +6759,19 @@ export type NovelCreateEditorialReportInput = {
   recommendations?: Array<string>
 }
 
-export type NovelChapterAnnotation = {
+export type NovelAnnotation = {
   id: string
   novelId: string
-  chapterId: string
+  targetType: "chapter" | "world_entry"
+  targetId: string
+  field: string
   parentId?: string
   source: "user" | "ai"
   anchorType: "paragraph" | "range" | "chapter"
   paragraphIndex?: number
   startOffset?: number
   endOffset?: number
+  endParagraphIndex?: number
   quote: string
   comment: string
   suggestedReplacement?: string
@@ -6780,11 +6783,17 @@ export type NovelChapterAnnotation = {
 }
 
 export type NovelCreateAnnotationInput = {
+  targetType: "chapter" | "world_entry"
+  targetId: string
+  field: string
+  parentId?: string
+  authorSessionId?: string
   source?: "user" | "ai"
   anchorType?: "paragraph" | "range" | "chapter"
   paragraphIndex?: number
   startOffset?: number
   endOffset?: number
+  endParagraphIndex?: number
   quote?: string
   comment: string
   suggestedReplacement?: string
@@ -6803,37 +6812,39 @@ export type NovelAnnotationExecutionSnapshot = {
   paragraphIndex?: number
   startOffset?: number
   endOffset?: number
+  endParagraphIndex?: number
   quote: string
   status: "open" | "resolved" | "wontfix" | "applied"
   comment: string
   suggestedReplacement?: string
 }
 
-export type NovelCreateExecutionRoundInput = {
-  novelId: string
-  chapterId: string
+export type NovelCreateAnnotationRoundInput = {
+  targetType: "chapter" | "world_entry"
+  targetId: string
   promptSnapshot?: string
   status?: "running" | "completed" | "failed" | "interrupted"
   annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
   resultSummary?: string
 }
 
-export type NovelExecutionRound = {
+export type NovelAnnotationRound = {
   id: string
   novelId: string
-  chapterId: string
+  targetType: "chapter" | "world_entry"
+  targetId: string
   promptSnapshot: string
   status: "running" | "completed" | "failed" | "interrupted"
   annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
   resultSummary: string
-  chapterVersionId?: string
+  resultRefId?: string
   createdAt: number
 }
 
-export type NovelUpdateExecutionRoundInput = {
+export type NovelUpdateAnnotationRoundInput = {
   status?: "running" | "completed" | "failed" | "interrupted"
   resultSummary?: string
-  chapterVersionId?: string
+  resultRefId?: string
   promptSnapshot?: string
 }
 
@@ -6914,73 +6925,6 @@ export type NovelSettingOrganizationApplyResult = {
   errors: Array<string>
   results: Array<NovelSettingOrganizationOperationResult>
   remaining: Array<NovelSettingOrganizationRemainingOperation>
-}
-
-export type NovelWorldEntryAnnotation = {
-  id: string
-  novelId: string
-  worldEntryId: string
-  parentId?: string
-  source: "user" | "ai"
-  anchorType: "paragraph" | "range"
-  paragraphIndex?: number
-  startOffset?: number
-  endOffset?: number
-  quote: string
-  comment: string
-  suggestedReplacement?: string
-  status: "open" | "resolved" | "wontfix" | "applied"
-  authorSessionId?: string
-  executionRoundId?: string
-  createdAt: number
-  updatedAt: number
-}
-
-export type NovelCreateWorldEntryAnnotationInput = {
-  parentId?: string
-  source?: "user" | "ai"
-  anchorType?: "paragraph" | "range"
-  paragraphIndex?: number
-  startOffset?: number
-  endOffset?: number
-  quote: string
-  comment: string
-  suggestedReplacement?: string
-  authorSessionId?: string
-}
-
-export type NovelUpdateWorldEntryAnnotationInput = {
-  comment?: string
-  status?: "open" | "resolved" | "wontfix" | "applied"
-  suggestedReplacement?: string
-  quote?: string
-  executionRoundId?: string
-}
-
-export type NovelCreateWorldEntryAnnotationRoundInput = {
-  promptSnapshot?: string
-  status?: "running" | "completed" | "failed" | "interrupted"
-  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
-  resultSummary?: string
-}
-
-export type NovelWorldEntryAnnotationExecutionRound = {
-  id: string
-  novelId: string
-  worldEntryId: string
-  promptSnapshot: string
-  status: "running" | "completed" | "failed" | "interrupted"
-  annotationsSnapshot: Array<NovelAnnotationExecutionSnapshot>
-  resultSummary: string
-  contentHistoryId?: string
-  createdAt: number
-}
-
-export type NovelUpdateWorldEntryAnnotationRoundInput = {
-  status?: "running" | "completed" | "failed" | "interrupted"
-  resultSummary?: string
-  contentHistoryId?: string
-  promptSnapshot?: string
 }
 
 export type NovelCanvasLayout = {
@@ -7096,6 +7040,31 @@ export type NovelUpdateCharacterMapPinInput = {
   featureId?: string
   x?: number
   y?: number
+}
+
+export type NovelSaveBookMetaInput = {
+  title?: string
+  synopsis?: string
+  genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+  styleGuide?: NovelUpdateStyleGuideInput
+}
+
+export type NovelManualEditSyncEntry = {
+  id: string
+  novelId: string
+  entity: string
+  entityId?: string
+  field: string
+  category: "creative_fact" | "workflow_fact" | "ui_preference"
+  status: "synced" | "pending" | "failed" | "skipped"
+  sourceFingerprint?: string
+  failureReason?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelManualEditSyncQueryResult = {
+  entries: Array<NovelManualEditSyncEntry>
 }
 
 export type NovelWritingMode = "auto" | "review"
@@ -17759,15 +17728,16 @@ export type V2NovelAnnotationsData = {
   body?: never
   path: {
     novelID: string
-    chapterID: string
   }
-  query?: {
+  query: {
     location?: {
       directory?: string
       workspace?: string
     }
+    targetType: "chapter" | "world_entry"
+    targetId: string
   }
-  url: "/api/novel/{novelID}/chapters/{chapterID}/annotations"
+  url: "/api/novel/{novelID}/annotations"
 }
 
 export type V2NovelAnnotationsErrors = {
@@ -17791,7 +17761,7 @@ export type V2NovelAnnotationsResponses = {
   /**
    * Success
    */
-  200: Array<NovelChapterAnnotation>
+  200: Array<NovelAnnotation>
 }
 
 export type V2NovelAnnotationsResponse = V2NovelAnnotationsResponses[keyof V2NovelAnnotationsResponses]
@@ -17800,7 +17770,6 @@ export type V2NovelCreateAnnotationData = {
   body: NovelCreateAnnotationInput
   path: {
     novelID: string
-    chapterID: string
   }
   query?: {
     location?: {
@@ -17808,7 +17777,7 @@ export type V2NovelCreateAnnotationData = {
       workspace?: string
     }
   }
-  url: "/api/novel/{novelID}/chapters/{chapterID}/annotations"
+  url: "/api/novel/{novelID}/annotations"
 }
 
 export type V2NovelCreateAnnotationErrors = {
@@ -17830,9 +17799,9 @@ export type V2NovelCreateAnnotationError = V2NovelCreateAnnotationErrors[keyof V
 
 export type V2NovelCreateAnnotationResponses = {
   /**
-   * Novel.ChapterAnnotation
+   * Novel.Annotation
    */
-  200: NovelChapterAnnotation
+  200: NovelAnnotation
 }
 
 export type V2NovelCreateAnnotationResponse = V2NovelCreateAnnotationResponses[keyof V2NovelCreateAnnotationResponses]
@@ -17914,29 +17883,30 @@ export type V2NovelUpdateAnnotationError = V2NovelUpdateAnnotationErrors[keyof V
 
 export type V2NovelUpdateAnnotationResponses = {
   /**
-   * Novel.ChapterAnnotation
+   * Novel.Annotation
    */
-  200: NovelChapterAnnotation
+  200: NovelAnnotation
 }
 
 export type V2NovelUpdateAnnotationResponse = V2NovelUpdateAnnotationResponses[keyof V2NovelUpdateAnnotationResponses]
 
-export type V2NovelExecutionRoundsData = {
+export type V2NovelAnnotationRoundsData = {
   body?: never
   path: {
     novelID: string
-    chapterID: string
   }
-  query?: {
+  query: {
     location?: {
       directory?: string
       workspace?: string
     }
+    targetType: "chapter" | "world_entry"
+    targetId: string
   }
-  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds"
+  url: "/api/novel/{novelID}/annotation-rounds"
 }
 
-export type V2NovelExecutionRoundsErrors = {
+export type V2NovelAnnotationRoundsErrors = {
   /**
    * InvalidRequestError
    */
@@ -17951,22 +17921,21 @@ export type V2NovelExecutionRoundsErrors = {
   404: NovelNotFoundError
 }
 
-export type V2NovelExecutionRoundsError = V2NovelExecutionRoundsErrors[keyof V2NovelExecutionRoundsErrors]
+export type V2NovelAnnotationRoundsError = V2NovelAnnotationRoundsErrors[keyof V2NovelAnnotationRoundsErrors]
 
-export type V2NovelExecutionRoundsResponses = {
+export type V2NovelAnnotationRoundsResponses = {
   /**
    * Success
    */
-  200: Array<NovelExecutionRound>
+  200: Array<NovelAnnotationRound>
 }
 
-export type V2NovelExecutionRoundsResponse = V2NovelExecutionRoundsResponses[keyof V2NovelExecutionRoundsResponses]
+export type V2NovelAnnotationRoundsResponse = V2NovelAnnotationRoundsResponses[keyof V2NovelAnnotationRoundsResponses]
 
-export type V2NovelCreateExecutionRoundData = {
-  body: NovelCreateExecutionRoundInput
+export type V2NovelCreateAnnotationRoundData = {
+  body: NovelCreateAnnotationRoundInput
   path: {
     novelID: string
-    chapterID: string
   }
   query?: {
     location?: {
@@ -17974,10 +17943,10 @@ export type V2NovelCreateExecutionRoundData = {
       workspace?: string
     }
   }
-  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds"
+  url: "/api/novel/{novelID}/annotation-rounds"
 }
 
-export type V2NovelCreateExecutionRoundErrors = {
+export type V2NovelCreateAnnotationRoundErrors = {
   /**
    * InvalidRequestError
    */
@@ -17992,24 +17961,23 @@ export type V2NovelCreateExecutionRoundErrors = {
   404: NovelNotFoundError
 }
 
-export type V2NovelCreateExecutionRoundError =
-  V2NovelCreateExecutionRoundErrors[keyof V2NovelCreateExecutionRoundErrors]
+export type V2NovelCreateAnnotationRoundError =
+  V2NovelCreateAnnotationRoundErrors[keyof V2NovelCreateAnnotationRoundErrors]
 
-export type V2NovelCreateExecutionRoundResponses = {
+export type V2NovelCreateAnnotationRoundResponses = {
   /**
-   * Novel.ExecutionRound
+   * Novel.AnnotationRound
    */
-  200: NovelExecutionRound
+  200: NovelAnnotationRound
 }
 
-export type V2NovelCreateExecutionRoundResponse =
-  V2NovelCreateExecutionRoundResponses[keyof V2NovelCreateExecutionRoundResponses]
+export type V2NovelCreateAnnotationRoundResponse =
+  V2NovelCreateAnnotationRoundResponses[keyof V2NovelCreateAnnotationRoundResponses]
 
-export type V2NovelUpdateExecutionRoundData = {
-  body: NovelUpdateExecutionRoundInput
+export type V2NovelUpdateAnnotationRoundData = {
+  body: NovelUpdateAnnotationRoundInput
   path: {
     novelID: string
-    chapterID: string
     roundID: string
   }
   query?: {
@@ -18018,10 +17986,10 @@ export type V2NovelUpdateExecutionRoundData = {
       workspace?: string
     }
   }
-  url: "/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}"
+  url: "/api/novel/{novelID}/annotation-rounds/{roundID}"
 }
 
-export type V2NovelUpdateExecutionRoundErrors = {
+export type V2NovelUpdateAnnotationRoundErrors = {
   /**
    * InvalidRequestError
    */
@@ -18036,18 +18004,18 @@ export type V2NovelUpdateExecutionRoundErrors = {
   404: NovelNotFoundError
 }
 
-export type V2NovelUpdateExecutionRoundError =
-  V2NovelUpdateExecutionRoundErrors[keyof V2NovelUpdateExecutionRoundErrors]
+export type V2NovelUpdateAnnotationRoundError =
+  V2NovelUpdateAnnotationRoundErrors[keyof V2NovelUpdateAnnotationRoundErrors]
 
-export type V2NovelUpdateExecutionRoundResponses = {
+export type V2NovelUpdateAnnotationRoundResponses = {
   /**
-   * Novel.ExecutionRound
+   * Novel.AnnotationRound
    */
-  200: NovelExecutionRound
+  200: NovelAnnotationRound
 }
 
-export type V2NovelUpdateExecutionRoundResponse =
-  V2NovelUpdateExecutionRoundResponses[keyof V2NovelUpdateExecutionRoundResponses]
+export type V2NovelUpdateAnnotationRoundResponse =
+  V2NovelUpdateAnnotationRoundResponses[keyof V2NovelUpdateAnnotationRoundResponses]
 
 export type V2NovelSettingsOrganizationAnalyzeData = {
   body: NovelSettingOrganizationAnalyzeInput
@@ -18186,308 +18154,6 @@ export type V2NovelSettingsOrganizationApplyResponses = {
 
 export type V2NovelSettingsOrganizationApplyResponse =
   V2NovelSettingsOrganizationApplyResponses[keyof V2NovelSettingsOrganizationApplyResponses]
-
-export type V2NovelSettingAnnotationsData = {
-  body?: never
-  path: {
-    novelID: string
-    entryID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/world-entries/{entryID}/annotations"
-}
-
-export type V2NovelSettingAnnotationsErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelSettingAnnotationsError = V2NovelSettingAnnotationsErrors[keyof V2NovelSettingAnnotationsErrors]
-
-export type V2NovelSettingAnnotationsResponses = {
-  /**
-   * Success
-   */
-  200: Array<NovelWorldEntryAnnotation>
-}
-
-export type V2NovelSettingAnnotationsResponse =
-  V2NovelSettingAnnotationsResponses[keyof V2NovelSettingAnnotationsResponses]
-
-export type V2NovelCreateSettingAnnotationData = {
-  body: NovelCreateWorldEntryAnnotationInput
-  path: {
-    novelID: string
-    entryID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/world-entries/{entryID}/annotations"
-}
-
-export type V2NovelCreateSettingAnnotationErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelCreateSettingAnnotationError =
-  V2NovelCreateSettingAnnotationErrors[keyof V2NovelCreateSettingAnnotationErrors]
-
-export type V2NovelCreateSettingAnnotationResponses = {
-  /**
-   * Novel.WorldEntryAnnotation
-   */
-  200: NovelWorldEntryAnnotation
-}
-
-export type V2NovelCreateSettingAnnotationResponse =
-  V2NovelCreateSettingAnnotationResponses[keyof V2NovelCreateSettingAnnotationResponses]
-
-export type V2NovelDeleteSettingAnnotationData = {
-  body?: never
-  path: {
-    novelID: string
-    annotationID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/setting-annotations/{annotationID}"
-}
-
-export type V2NovelDeleteSettingAnnotationErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelDeleteSettingAnnotationError =
-  V2NovelDeleteSettingAnnotationErrors[keyof V2NovelDeleteSettingAnnotationErrors]
-
-export type V2NovelDeleteSettingAnnotationResponses = {
-  /**
-   * Success
-   */
-  200: {
-    deleted: boolean
-  }
-}
-
-export type V2NovelDeleteSettingAnnotationResponse =
-  V2NovelDeleteSettingAnnotationResponses[keyof V2NovelDeleteSettingAnnotationResponses]
-
-export type V2NovelUpdateSettingAnnotationData = {
-  body: NovelUpdateWorldEntryAnnotationInput
-  path: {
-    novelID: string
-    annotationID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/setting-annotations/{annotationID}"
-}
-
-export type V2NovelUpdateSettingAnnotationErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelUpdateSettingAnnotationError =
-  V2NovelUpdateSettingAnnotationErrors[keyof V2NovelUpdateSettingAnnotationErrors]
-
-export type V2NovelUpdateSettingAnnotationResponses = {
-  /**
-   * Novel.WorldEntryAnnotation
-   */
-  200: NovelWorldEntryAnnotation
-}
-
-export type V2NovelUpdateSettingAnnotationResponse =
-  V2NovelUpdateSettingAnnotationResponses[keyof V2NovelUpdateSettingAnnotationResponses]
-
-export type V2NovelSettingAnnotationRoundsData = {
-  body?: never
-  path: {
-    novelID: string
-    entryID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds"
-}
-
-export type V2NovelSettingAnnotationRoundsErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelSettingAnnotationRoundsError =
-  V2NovelSettingAnnotationRoundsErrors[keyof V2NovelSettingAnnotationRoundsErrors]
-
-export type V2NovelSettingAnnotationRoundsResponses = {
-  /**
-   * Success
-   */
-  200: Array<NovelWorldEntryAnnotationExecutionRound>
-}
-
-export type V2NovelSettingAnnotationRoundsResponse =
-  V2NovelSettingAnnotationRoundsResponses[keyof V2NovelSettingAnnotationRoundsResponses]
-
-export type V2NovelCreateSettingAnnotationRoundData = {
-  body: NovelCreateWorldEntryAnnotationRoundInput
-  path: {
-    novelID: string
-    entryID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds"
-}
-
-export type V2NovelCreateSettingAnnotationRoundErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelCreateSettingAnnotationRoundError =
-  V2NovelCreateSettingAnnotationRoundErrors[keyof V2NovelCreateSettingAnnotationRoundErrors]
-
-export type V2NovelCreateSettingAnnotationRoundResponses = {
-  /**
-   * Novel.WorldEntryAnnotationExecutionRound
-   */
-  200: NovelWorldEntryAnnotationExecutionRound
-}
-
-export type V2NovelCreateSettingAnnotationRoundResponse =
-  V2NovelCreateSettingAnnotationRoundResponses[keyof V2NovelCreateSettingAnnotationRoundResponses]
-
-export type V2NovelUpdateSettingAnnotationRoundData = {
-  body: NovelUpdateWorldEntryAnnotationRoundInput
-  path: {
-    novelID: string
-    roundID: string
-  }
-  query?: {
-    location?: {
-      directory?: string
-      workspace?: string
-    }
-  }
-  url: "/api/novel/{novelID}/setting-annotation-rounds/{roundID}"
-}
-
-export type V2NovelUpdateSettingAnnotationRoundErrors = {
-  /**
-   * InvalidRequestError
-   */
-  400: InvalidRequestError
-  /**
-   * UnauthorizedError
-   */
-  401: UnauthorizedError
-  /**
-   * NovelNotFoundError
-   */
-  404: NovelNotFoundError
-}
-
-export type V2NovelUpdateSettingAnnotationRoundError =
-  V2NovelUpdateSettingAnnotationRoundErrors[keyof V2NovelUpdateSettingAnnotationRoundErrors]
-
-export type V2NovelUpdateSettingAnnotationRoundResponses = {
-  /**
-   * Novel.WorldEntryAnnotationExecutionRound
-   */
-  200: NovelWorldEntryAnnotationExecutionRound
-}
-
-export type V2NovelUpdateSettingAnnotationRoundResponse =
-  V2NovelUpdateSettingAnnotationRoundResponses[keyof V2NovelUpdateSettingAnnotationRoundResponses]
 
 export type V2NovelCanvasLayoutData = {
   body?: never
@@ -19032,6 +18698,86 @@ export type V2NovelUpdateCharacterMapPinResponses = {
 
 export type V2NovelUpdateCharacterMapPinResponse =
   V2NovelUpdateCharacterMapPinResponses[keyof V2NovelUpdateCharacterMapPinResponses]
+
+export type V2NovelSaveBookMetaData = {
+  body: NovelSaveBookMetaInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/book-meta"
+}
+
+export type V2NovelSaveBookMetaErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSaveBookMetaError = V2NovelSaveBookMetaErrors[keyof V2NovelSaveBookMetaErrors]
+
+export type V2NovelSaveBookMetaResponses = {
+  /**
+   * Novel.Novel
+   */
+  200: NovelNovel
+}
+
+export type V2NovelSaveBookMetaResponse = V2NovelSaveBookMetaResponses[keyof V2NovelSaveBookMetaResponses]
+
+export type V2NovelSyncStatusData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/sync-status"
+}
+
+export type V2NovelSyncStatusErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSyncStatusError = V2NovelSyncStatusErrors[keyof V2NovelSyncStatusErrors]
+
+export type V2NovelSyncStatusResponses = {
+  /**
+   * Novel.ManualEditSyncQueryResult
+   */
+  200: NovelManualEditSyncQueryResult
+}
+
+export type V2NovelSyncStatusResponse = V2NovelSyncStatusResponses[keyof V2NovelSyncStatusResponses]
 
 export type V2NovelModeGetData = {
   body?: never
