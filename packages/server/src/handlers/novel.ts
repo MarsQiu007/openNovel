@@ -3,15 +3,16 @@ import { Effect, Option } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
+import { resolveAnnotationTarget, resolveAnnotationTargetType, type AnnotationTargetField } from "../annotation-targets"
 import type {
   SaveBookMetaInput,
   SettingOrganizationAnalyzeInput,
   SettingOrganizationApplyInput,
   SettingOrganizationDryRunInput,
-  CreateWorldEntryAnnotationInput,
-  UpdateWorldEntryAnnotationInput,
-  CreateWorldEntryAnnotationRoundInput,
-  UpdateWorldEntryAnnotationRoundInput,
+  CreateAnnotationInput,
+  UpdateAnnotationInput,
+  CreateAnnotationRoundInput,
+  UpdateAnnotationRoundInput,
   WorldMapPoint,
   CreateWorldMapInput,
   UpdateWorldMapInput,
@@ -109,7 +110,6 @@ import {
   ArcBeatTable,
   VolumeReviewTable,
   EditorialReportTable,
-  ChapterAnnotationTable,
   createStoryArc as storeCreateStoryArc,
   updateStoryArc as storeUpdateStoryArc,
   deleteStoryArc as storeDeleteStoryArc,
@@ -122,23 +122,15 @@ import {
   listVolumeReviews as storeListVolumeReviews,
   createEditorialReport as storeCreateEditorialReport,
   listEditorialReports as storeListEditorialReports,
-  createChapterAnnotation as storeCreateChapterAnnotation,
-  updateChapterAnnotation as storeUpdateChapterAnnotation,
-  deleteChapterAnnotation as storeDeleteChapterAnnotation,
-  listChapterAnnotations as storeListChapterAnnotations,
-  createExecutionRound as storeCreateExecutionRound,
-  getExecutionRounds as storeGetExecutionRounds,
-  updateExecutionRound as storeUpdateExecutionRound,
-  AnnotationExecutionRoundTable,
-  createWorldEntryAnnotation as storeCreateWorldEntryAnnotation,
-  updateWorldEntryAnnotation as storeUpdateWorldEntryAnnotation,
-  deleteWorldEntryAnnotation as storeDeleteWorldEntryAnnotation,
-  listWorldEntryAnnotations as storeListWorldEntryAnnotations,
-  createWorldEntryAnnotationRound as storeCreateWorldEntryAnnotationRound,
-  getWorldEntryAnnotationRounds as storeGetWorldEntryAnnotationRounds,
-  updateWorldEntryAnnotationRound as storeUpdateWorldEntryAnnotationRound,
-  WorldEntryAnnotationTable,
-  WorldEntryAnnotationRoundTable,
+  AnnotationTable,
+  AnnotationRoundTable,
+  createAnnotation as storeCreateAnnotation,
+  updateAnnotation as storeUpdateAnnotation,
+  deleteAnnotation as storeDeleteAnnotation,
+  listAnnotations as storeListAnnotations,
+  createAnnotationRound as storeCreateAnnotationRound,
+  listAnnotationRounds as storeListAnnotationRounds,
+  updateAnnotationRound as storeUpdateAnnotationRound,
   getOutlineCanvasLayout as storeGetOutlineCanvasLayout,
   upsertOutlineCanvasLayout as storeUpsertOutlineCanvasLayout,
   listStructureForEditor as storeListStructureForEditor,
@@ -1662,7 +1654,6 @@ type StoryArcRow = typeof StoryArcTable.$inferSelect
 type ArcBeatRow = typeof ArcBeatTable.$inferSelect
 type VolumeReviewRow = typeof VolumeReviewTable.$inferSelect
 type EditorialReportRow = typeof EditorialReportTable.$inferSelect
-type ChapterAnnotationRow = typeof ChapterAnnotationTable.$inferSelect
 
 function toStoryArc(row: StoryArcRow) {
   return {
@@ -1729,11 +1720,13 @@ function toEditorialReport(row: EditorialReportRow) {
   }
 }
 
-function toChapterAnnotation(row: ChapterAnnotationRow) {
+function toAnnotation(row: typeof AnnotationTable.$inferSelect) {
   return {
     id: row.id,
     novelId: row.novel_id,
-    chapterId: row.chapter_id,
+    targetType: row.target_type as "chapter" | "world_entry",
+    targetId: row.target_id ?? "",
+    field: row.field,
     parentId: row.parent_id ?? undefined,
     source: row.source as "user" | "ai",
     anchorType: row.anchor_type as "paragraph" | "range" | "chapter",
@@ -1752,56 +1745,19 @@ function toChapterAnnotation(row: ChapterAnnotationRow) {
   }
 }
 
-function toWorldEntryAnnotation(row: typeof WorldEntryAnnotationTable.$inferSelect) {
+function toAnnotationRound(row: typeof AnnotationRoundTable.$inferSelect) {
   return {
     id: row.id,
     novelId: row.novel_id,
-    worldEntryId: row.world_entry_id,
-    parentId: row.parent_id ?? undefined,
-    source: row.source as "user" | "ai",
-    anchorType: row.anchor_type as "paragraph" | "range",
-    paragraphIndex: row.paragraph_index ?? undefined,
-    startOffset: row.start_offset ?? undefined,
-    endOffset: row.end_offset ?? undefined,
-    endParagraphIndex: row.end_paragraph_index ?? undefined,
-    quote: row.quote,
-    comment: row.comment,
-    suggestedReplacement: row.suggested_replacement ?? undefined,
-    status: row.status as "open" | "resolved" | "wontfix" | "applied",
-    authorSessionId: row.author_session_id ?? undefined,
-    executionRoundId: row.execution_round_id ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
-}
-
-function toWorldEntryAnnotationRound(row: typeof WorldEntryAnnotationRoundTable.$inferSelect) {
-  return {
-    id: row.id,
-    novelId: row.novel_id,
-    worldEntryId: row.world_entry_id,
+    targetType: row.target_type as "chapter" | "world_entry",
+    targetId: row.target_id ?? "",
     promptSnapshot: row.prompt_snapshot,
     status: executionRoundStatus(row.status),
     annotationsSnapshot: parseAnnotationsSnapshot(row.annotations_snapshot),
     resultSummary: row.result_summary,
-    contentHistoryId: row.content_history_id ?? undefined,
+    resultRefId: row.result_ref_id ?? undefined,
     createdAt: row.created_at,
   }
-}
-
-function requireWorldEntry(novelId: string, entryId: string, directory: string) {
-  return Effect.gen(function* () {
-    const db = getDb(directory)
-    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
-    if (!novel) return yield* Effect.fail(novelNotFound(novelId))
-    const entry = db
-      .select()
-      .from(WorldEntryTable)
-      .where(and(eq(WorldEntryTable.id, entryId), eq(WorldEntryTable.novel_id, novelId)))
-      .get()
-    if (!entry) return yield* Effect.fail(novelNotFound(entryId))
-    return entry
-  })
 }
 
 /**
@@ -1842,134 +1798,183 @@ function validateParagraphRangeAnchor(
   return null
 }
 
-function validateSettingAnnotationAnchor(entry: WorldEntryRow, input: CreateWorldEntryAnnotationInput) {
+/**
+ * 统一锚点校验：整章批注仅 chapter 目标放行且无需锚点；
+ * 其余必须带引用文本与段落区间，按目标注册表的分段规则校验。
+ */
+function validateAnnotationAnchor(
+  target: AnnotationTargetField,
+  targetType: string,
+  content: string,
+  input: {
+    anchorType?: string
+    paragraphIndex?: number
+    startOffset?: number
+    endOffset?: number
+    endParagraphIndex?: number
+    quote?: string
+    comment: string
+  },
+): string | null {
   if (!input.comment.trim()) return "批注评论不能为空"
-  if (!input.quote.trim()) return "批注引用文本不能为空"
   const anchorType = input.anchorType ?? "paragraph"
-  if (anchorType !== "paragraph") {
-    if (input.startOffset === undefined || input.endOffset === undefined) return "range 批注必须提供偏移量"
-    if (input.startOffset < 0 || input.endOffset <= input.startOffset || input.endOffset > entry.content.length) {
-      return "range 批注超出设定内容范围"
-    }
-    if (entry.content.slice(input.startOffset, input.endOffset) !== input.quote) return "批注引用与设定内容不一致"
+  if (anchorType === "chapter") {
+    if (targetType !== "chapter") return "整章批注仅支持章节目标"
     return null
   }
+  if (!input.quote?.trim()) return "批注引用文本不能为空"
   if (input.paragraphIndex === undefined || input.startOffset === undefined || input.endOffset === undefined) {
     return "段落批注必须提供段落索引和偏移量"
   }
-  const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
   return validateParagraphRangeAnchor(
-    paragraphs,
+    target.splitParagraphs(content),
     input.paragraphIndex,
     input.startOffset,
     input.endOffset,
     input.endParagraphIndex,
     input.quote,
-    "设定",
+    target.scopeLabel,
   )
 }
 
-export function createWorldEntryAnnotation(novelId: string, entryId: string, input: CreateWorldEntryAnnotationInput, directory: string) {
+export function createAnnotationEndpoint(novelId: string, input: CreateAnnotationInput, directory: string) {
   return Effect.gen(function* () {
-    const entry = yield* requireWorldEntry(novelId, entryId, directory)
-    const anchorError = validateSettingAnnotationAnchor(entry, input)
+    const target = resolveAnnotationTarget(input.targetType, input.field)
+    if (!target) {
+      return yield* Effect.fail(
+        new NovelNotFoundError({
+          name: "NovelNotFoundError",
+          data: { message: `不支持的批注目标: ${input.targetType}.${input.field}` },
+        }),
+      )
+    }
+    const content = target.loadContent(novelId, input.targetId, directory)
+    if (content === null) return yield* Effect.fail(novelNotFound(input.targetId))
+    const anchorError = validateAnnotationAnchor(target, input.targetType, content, input)
     if (anchorError) {
-      yield* Effect.fail(new NovelNotFoundError({ name: "NovelNotFoundError", data: { message: anchorError } }))
+      return yield* Effect.fail(new NovelNotFoundError({ name: "NovelNotFoundError", data: { message: anchorError } }))
     }
     const annotation = yield* Effect.promise(() =>
-      storeCreateWorldEntryAnnotation(entryId, novelId, {
-        parentId: input.parentId ?? null,
-        source: input.source ?? "user",
-        anchorType: input.anchorType ?? "paragraph",
-        paragraphIndex: input.paragraphIndex ?? null,
-        startOffset: input.startOffset ?? null,
-        endOffset: input.endOffset ?? null,
-        endParagraphIndex: input.endParagraphIndex ?? null,
-        quote: input.quote,
-        comment: input.comment,
-        suggestedReplacement: input.suggestedReplacement ?? null,
-        authorSessionId: input.authorSessionId ?? null,
-      }, directory),
+      storeCreateAnnotation(
+        {
+          novelId,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          field: input.field,
+          parentId: input.parentId ?? null,
+          source: input.source ?? "user",
+          anchorType: input.anchorType ?? "paragraph",
+          paragraphIndex: input.paragraphIndex ?? null,
+          startOffset: input.startOffset ?? null,
+          endOffset: input.endOffset ?? null,
+          endParagraphIndex: input.endParagraphIndex ?? null,
+          quote: input.quote ?? "",
+          comment: input.comment,
+          suggestedReplacement: input.suggestedReplacement ?? null,
+          authorSessionId: input.authorSessionId ?? null,
+        },
+        directory,
+      ),
     )
-    return toWorldEntryAnnotation(annotation)
+    return toAnnotation(annotation)
   })
 }
 
-function listWorldEntryAnnotations(entryId: string, directory: string) {
+function listAnnotationsEndpoint(novelId: string, targetType: string, targetId: string, directory: string) {
   return Effect.gen(function* () {
-    const annotations = yield* Effect.promise(() => storeListWorldEntryAnnotations(entryId, directory))
-    return annotations.map(toWorldEntryAnnotation)
+    const annotations = yield* Effect.promise(() => storeListAnnotations({ targetType, targetId }, directory))
+    return annotations.filter((annotation) => annotation.novel_id === novelId).map(toAnnotation)
   })
 }
 
-function updateWorldEntryAnnotation(novelId: string, annotationId: string, input: UpdateWorldEntryAnnotationInput, directory: string) {
+function updateAnnotationEndpoint(novelId: string, annotationId: string, input: UpdateAnnotationInput, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
-    const annotation = db.select().from(WorldEntryAnnotationTable).where(eq(WorldEntryAnnotationTable.id, annotationId)).get()
+    const annotation = db.select().from(AnnotationTable).where(eq(AnnotationTable.id, annotationId)).get()
     if (!annotation || annotation.novel_id !== novelId) return yield* Effect.fail(novelNotFound(annotationId))
     const updated = yield* Effect.promise(() =>
-      storeUpdateWorldEntryAnnotation(annotationId, {
-        comment: input.comment,
-        status: input.status,
-        suggestedReplacement: input.suggestedReplacement,
-        quote: input.quote,
-        executionRoundId: input.executionRoundId,
-      }, directory),
+      storeUpdateAnnotation(
+        annotationId,
+        {
+          comment: input.comment,
+          status: input.status,
+          suggestedReplacement: input.suggestedReplacement,
+          quote: input.quote,
+          executionRoundId: input.executionRoundId,
+        },
+        directory,
+      ),
     )
-    if (!updated) return yield* Effect.fail(novelNotFound(annotationId))
-    return toWorldEntryAnnotation(updated)
+    return toAnnotation(updated)
   })
 }
 
-function deleteWorldEntryAnnotation(novelId: string, annotationId: string, directory: string) {
+function deleteAnnotationEndpoint(novelId: string, annotationId: string, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
-    const annotation = db.select().from(WorldEntryAnnotationTable).where(eq(WorldEntryAnnotationTable.id, annotationId)).get()
+    const annotation = db.select().from(AnnotationTable).where(eq(AnnotationTable.id, annotationId)).get()
     if (!annotation || annotation.novel_id !== novelId) return yield* Effect.fail(novelNotFound(annotationId))
-    yield* Effect.promise(() => storeDeleteWorldEntryAnnotation(annotationId, directory))
+    yield* Effect.promise(() => storeDeleteAnnotation(annotationId, directory))
     return { deleted: true as const }
   })
 }
 
-export function createWorldEntryAnnotationRound(novelId: string, entryId: string, input: CreateWorldEntryAnnotationRoundInput, directory: string) {
+export function createAnnotationRoundEndpoint(novelId: string, input: CreateAnnotationRoundInput, directory: string) {
   return Effect.gen(function* () {
-    yield* requireWorldEntry(novelId, entryId, directory)
+    const target = resolveAnnotationTargetType(input.targetType)
+    if (!target) {
+      return yield* Effect.fail(
+        new NovelNotFoundError({
+          name: "NovelNotFoundError",
+          data: { message: `不支持的批注目标: ${input.targetType}` },
+        }),
+      )
+    }
+    const content = target.loadContent(novelId, input.targetId, directory)
+    if (content === null) return yield* Effect.fail(novelNotFound(input.targetId))
     const round = yield* Effect.promise(() =>
-      storeCreateWorldEntryAnnotationRound({
-        novel_id: novelId,
-        world_entry_id: entryId,
-        prompt_snapshot: input.promptSnapshot ?? "",
-        status: input.status ?? "running",
-        annotations_snapshot: JSON.stringify(input.annotationsSnapshot),
-        result_summary: input.resultSummary ?? "",
-      }, directory),
+      storeCreateAnnotationRound(
+        {
+          novelId,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          promptSnapshot: input.promptSnapshot ?? "",
+          status: input.status ?? "running",
+          annotationsSnapshot: JSON.stringify(input.annotationsSnapshot),
+          resultSummary: input.resultSummary ?? "",
+        },
+        directory,
+      ),
     )
-    return toWorldEntryAnnotationRound(round)
+    return toAnnotationRound(round)
   })
 }
 
-function listWorldEntryAnnotationRounds(entryId: string, directory: string) {
+function listAnnotationRoundsEndpoint(novelId: string, targetType: string, targetId: string, directory: string) {
   return Effect.gen(function* () {
-    const rounds = yield* Effect.promise(() => storeGetWorldEntryAnnotationRounds(entryId, directory))
-    return rounds.map(toWorldEntryAnnotationRound)
+    const rounds = yield* Effect.promise(() => storeListAnnotationRounds({ targetType, targetId }, directory))
+    return rounds.filter((round) => round.novel_id === novelId).map(toAnnotationRound)
   })
 }
 
-function updateWorldEntryAnnotationRound(novelId: string, roundId: string, input: UpdateWorldEntryAnnotationRoundInput, directory: string) {
+function updateAnnotationRoundEndpoint(novelId: string, roundId: string, input: UpdateAnnotationRoundInput, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
-    const round = db.select().from(WorldEntryAnnotationRoundTable).where(eq(WorldEntryAnnotationRoundTable.id, roundId)).get()
+    const round = db.select().from(AnnotationRoundTable).where(eq(AnnotationRoundTable.id, roundId)).get()
     if (!round || round.novel_id !== novelId) return yield* Effect.fail(novelNotFound(roundId))
     const updated = yield* Effect.promise(() =>
-      storeUpdateWorldEntryAnnotationRound(roundId, {
-        status: input.status,
-        result_summary: input.resultSummary,
-        content_history_id: input.contentHistoryId,
-        prompt_snapshot: input.promptSnapshot,
-      }, directory),
+      storeUpdateAnnotationRound(
+        roundId,
+        {
+          status: input.status,
+          resultSummary: input.resultSummary,
+          resultRefId: input.resultRefId,
+          promptSnapshot: input.promptSnapshot,
+        },
+        directory,
+      ),
     )
-    if (!updated) return yield* Effect.fail(novelNotFound(roundId))
-    return toWorldEntryAnnotationRound(updated)
+    return toAnnotationRound(updated)
   })
 }
 
@@ -2129,106 +2134,6 @@ function createEditorialReport(novelId: string, input: {
   })
 }
 
-function listAnnotations(chapterId: string, directory: string) {
-  return Effect.gen(function* () {
-    const annotations = yield* Effect.promise(() => storeListChapterAnnotations(chapterId, directory))
-    return annotations.map(toChapterAnnotation)
-  })
-}
-
-function validateChapterAnnotationAnchor(
-  chapter: typeof ChapterTable.$inferSelect,
-  input: {
-    anchorType?: string
-    paragraphIndex?: number
-    startOffset?: number
-    endOffset?: number
-    endParagraphIndex?: number
-    quote?: string
-    comment: string
-  },
-): string | null {
-  if (!input.comment.trim()) return "批注评论不能为空"
-  const anchorType = input.anchorType ?? "paragraph"
-  if (anchorType === "chapter") return null
-  if (!input.quote?.trim()) return "批注引用文本不能为空"
-  if (input.paragraphIndex === undefined || input.startOffset === undefined || input.endOffset === undefined) {
-    return "段落批注必须提供段落索引和偏移量"
-  }
-  // 与 chapter-reader 的分段规则保持一致
-  const paragraphs = chapter.content.split(/\n\n+/).filter(Boolean)
-  return validateParagraphRangeAnchor(
-    paragraphs,
-    input.paragraphIndex,
-    input.startOffset,
-    input.endOffset,
-    input.endParagraphIndex,
-    input.quote,
-    "章节",
-  )
-}
-
-export function createChapterAnnotationEndpoint(chapterId: string, novelId: string, input: {
-  source?: string; anchorType?: string; paragraphIndex?: number
-  startOffset?: number; endOffset?: number; endParagraphIndex?: number; quote?: string
-  comment: string; suggestedReplacement?: string
-}, directory: string) {
-  return Effect.gen(function* () {
-    const db = getDb(directory)
-    const chapter = db
-      .select()
-      .from(ChapterTable)
-      .where(and(eq(ChapterTable.id, chapterId), eq(ChapterTable.novel_id, novelId)))
-      .get()
-    if (!chapter) return yield* Effect.fail(novelNotFound(chapterId))
-    const anchorError = validateChapterAnnotationAnchor(chapter, input)
-    if (anchorError) {
-      return yield* Effect.fail(new NovelNotFoundError({ name: "NovelNotFoundError", data: { message: anchorError } }))
-    }
-    const ann = yield* Effect.promise(() => storeCreateChapterAnnotation(chapterId, novelId, {
-      source: input.source ?? "user", anchorType: input.anchorType ?? "paragraph",
-      paragraphIndex: input.paragraphIndex ?? null, startOffset: input.startOffset ?? null,
-      endOffset: input.endOffset ?? null, endParagraphIndex: input.endParagraphIndex ?? null, quote: input.quote ?? "",
-      comment: input.comment, suggestedReplacement: input.suggestedReplacement ?? null,
-    }, directory))
-    return toChapterAnnotation(ann)
-  })
-}
-
-function updateAnnotation(annotationId: string, input: {
-  comment?: string; status?: string; suggestedReplacement?: string; quote?: string; executionRoundId?: string | null
-}, directory: string) {
-  return Effect.gen(function* () {
-    const ann = yield* Effect.promise(() => storeUpdateChapterAnnotation(annotationId, {
-      comment: input.comment, status: input.status,
-      suggestedReplacement: input.suggestedReplacement, quote: input.quote,
-      executionRoundId: input.executionRoundId,
-    }, directory))
-    return toChapterAnnotation(ann)
-  })
-}
-
-function deleteAnnotation(annotationId: string, directory: string) {
-  return Effect.gen(function* () {
-    yield* Effect.promise(() => storeDeleteChapterAnnotation(annotationId, directory))
-    return { deleted: true as const }
-  })
-}
-
-function toExecutionRound(row: typeof AnnotationExecutionRoundTable.$inferSelect) {
-  return {
-    id: row.id,
-    novelId: row.novel_id,
-    chapterId: row.chapter_id,
-    promptSnapshot: row.prompt_snapshot,
-    status: executionRoundStatus(row.status),
-    annotationsSnapshot: parseAnnotationsSnapshot(row.annotations_snapshot),
-    resultSummary: row.result_summary,
-    chapterVersionId: row.chapter_version_id,
-    createdAt: row.created_at,
-  }
-}
-
 function executionRoundStatus(value: string): "running" | "completed" | "failed" | "interrupted" {
   if (value === "failed" || value === "interrupted") return value
   if (value === "completed") return "completed"
@@ -2242,44 +2147,6 @@ function parseAnnotationsSnapshot(value: string) {
   } catch {
     return []
   }
-}
-
-function createExecutionRoundHandler(chapterId: string, novelId: string, input: {
-  novelId?: string; chapterId?: string; promptSnapshot?: string; status?: string;
-  annotationsSnapshot?: unknown; resultSummary?: string
-}, directory: string) {
-  return Effect.gen(function* () {
-    const round = yield* Effect.promise(() => storeCreateExecutionRound({
-      novel_id: novelId,
-      chapter_id: chapterId,
-      prompt_snapshot: input.promptSnapshot ?? "",
-      status: input.status ?? "running",
-      annotations_snapshot: JSON.stringify(Array.isArray(input.annotationsSnapshot) ? input.annotationsSnapshot : []),
-      result_summary: input.resultSummary ?? "",
-    }, directory))
-    return toExecutionRound(round)
-  })
-}
-
-function listExecutionRounds(chapterId: string, directory: string) {
-  return Effect.gen(function* () {
-    const rounds = yield* Effect.promise(() => storeGetExecutionRounds(chapterId, directory))
-    return rounds.map(toExecutionRound)
-  })
-}
-
-function updateExecutionRoundHandler(roundId: string, input: {
-  status?: string; resultSummary?: string; chapterVersionId?: string | null; promptSnapshot?: string
-}, directory: string) {
-  return Effect.gen(function* () {
-    const round = yield* Effect.promise(() => storeUpdateExecutionRound(roundId, {
-      status: input.status,
-      result_summary: input.resultSummary,
-      chapter_version_id: input.chapterVersionId,
-      prompt_snapshot: input.promptSnapshot,
-    }, directory))
-    return toExecutionRound(round)
-  })
 }
 
 function getCanvasLayout(novelId: string, directory: string) {
@@ -2780,43 +2647,43 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
       .handle("novel.annotations", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* listAnnotations(ctx.params.chapterID, location.directory)
+          return yield* listAnnotationsEndpoint(ctx.params.novelID, ctx.query.targetType, ctx.query.targetId, location.directory)
         }),
       )
       .handle("novel.create-annotation", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* createChapterAnnotationEndpoint(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
+          return yield* createAnnotationEndpoint(ctx.params.novelID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.update-annotation", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* updateAnnotation(ctx.params.annotationID, ctx.payload, location.directory)
+          return yield* updateAnnotationEndpoint(ctx.params.novelID, ctx.params.annotationID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.delete-annotation", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* deleteAnnotation(ctx.params.annotationID, location.directory)
+          return yield* deleteAnnotationEndpoint(ctx.params.novelID, ctx.params.annotationID, location.directory)
         }),
       )
-      .handle("novel.create-execution-round", (ctx) =>
+      .handle("novel.create-annotation-round", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* createExecutionRoundHandler(ctx.params.chapterID, ctx.params.novelID, ctx.payload, location.directory)
+          return yield* createAnnotationRoundEndpoint(ctx.params.novelID, ctx.payload, location.directory)
         }),
       )
-      .handle("novel.execution-rounds", (ctx) =>
+      .handle("novel.annotation-rounds", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* listExecutionRounds(ctx.params.chapterID, location.directory)
+          return yield* listAnnotationRoundsEndpoint(ctx.params.novelID, ctx.query.targetType, ctx.query.targetId, location.directory)
         }),
       )
-      .handle("novel.update-execution-round", (ctx) =>
+      .handle("novel.update-annotation-round", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* updateExecutionRoundHandler(ctx.params.roundID, ctx.payload, location.directory)
+          return yield* updateAnnotationRoundEndpoint(ctx.params.novelID, ctx.params.roundID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.canvas-layout", (ctx) =>
@@ -2829,48 +2696,6 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* upsertCanvasLayout(ctx.params.novelID, ctx.payload.layout, location.directory)
-        }),
-      )
-      .handle("novel.setting-annotations", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* listWorldEntryAnnotations(ctx.params.entryID, location.directory)
-        }),
-      )
-      .handle("novel.create-setting-annotation", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* createWorldEntryAnnotation(ctx.params.novelID, ctx.params.entryID, ctx.payload, location.directory)
-        }),
-      )
-      .handle("novel.update-setting-annotation", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* updateWorldEntryAnnotation(ctx.params.novelID, ctx.params.annotationID, ctx.payload, location.directory)
-        }),
-      )
-      .handle("novel.delete-setting-annotation", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* deleteWorldEntryAnnotation(ctx.params.novelID, ctx.params.annotationID, location.directory)
-        }),
-      )
-      .handle("novel.create-setting-annotation-round", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* createWorldEntryAnnotationRound(ctx.params.novelID, ctx.params.entryID, ctx.payload, location.directory)
-        }),
-      )
-      .handle("novel.setting-annotation-rounds", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* listWorldEntryAnnotationRounds(ctx.params.entryID, location.directory)
-        }),
-      )
-      .handle("novel.update-setting-annotation-round", (ctx) =>
-        Effect.gen(function* () {
-          const location = yield* Location.Service
-          return yield* updateWorldEntryAnnotationRound(ctx.params.novelID, ctx.params.roundID, ctx.payload, location.directory)
         }),
       )
       .handle("novel.settings-organization.analyze", (ctx) =>
