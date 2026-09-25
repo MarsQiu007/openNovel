@@ -1056,6 +1056,77 @@ export const ManualEditErrorPayload = Schema.Struct({
 }).annotate({ identifier: "Novel.ManualEditErrorPayload" })
 export interface ManualEditErrorPayload extends Schema.Schema.Type<typeof ManualEditErrorPayload> {}
 
+/** 升级任务种类与回填目标（derived-data-upgrade）。 */
+export const UpgradeTaskKind = Schema.Literals(["deterministic", "ai"])
+
+export const UpgradeTaskTarget = Schema.Literals([
+  "fingerprints",
+  "segment_summaries",
+  "entity_refs",
+  "spine_entries",
+  "chapter_summaries",
+])
+
+export const UpgradeTaskInfo = Schema.Struct({
+  id: Schema.String,
+  version: Schema.String,
+  kind: UpgradeTaskKind,
+  target: UpgradeTaskTarget,
+}).annotate({ identifier: "Novel.UpgradeTaskInfo" })
+export interface UpgradeTaskInfo extends Schema.Schema.Type<typeof UpgradeTaskInfo> {}
+
+export const UpgradeCostEstimate = Schema.Struct({
+  /** 待执行确定性任务数（免费，零 token）。 */
+  deterministicTasks: Schema.Int,
+  /** AI 重建覆盖章节数（每章一次 observer 调用）。 */
+  aiChapters: Schema.Int,
+}).annotate({ identifier: "Novel.UpgradeCostEstimate" })
+export interface UpgradeCostEstimate extends Schema.Schema.Type<typeof UpgradeCostEstimate> {}
+
+export const UpgradeGateState = Schema.Literals(["open", "paused"])
+
+/** GET /novel/:id/upgrade/status —— 待升级任务清单、成本预估与闸门状态。 */
+export const UpgradeStatusResult = Schema.Struct({
+  tasks: Schema.Array(UpgradeTaskInfo),
+  estimate: UpgradeCostEstimate,
+  gate: UpgradeGateState,
+}).annotate({ identifier: "Novel.UpgradeStatusResult" })
+export interface UpgradeStatusResult extends Schema.Schema.Type<typeof UpgradeStatusResult> {}
+
+/** POST /novel/:id/upgrade/start —— Phase 1 结果与 Phase 2 入队章数。 */
+export const UpgradeStartResult = Schema.Struct({
+  phase1: Schema.Struct({
+    fingerprints: Schema.Int,
+    segments: Schema.Int,
+    refs: Schema.Int,
+    spineEntries: Schema.Int,
+  }),
+  queuedChapters: Schema.Int,
+}).annotate({ identifier: "Novel.UpgradeStartResult" })
+export interface UpgradeStartResult extends Schema.Schema.Type<typeof UpgradeStartResult> {}
+
+export const UpgradeFailureItem = Schema.Struct({
+  chapterId: Schema.String,
+  reason: Schema.String,
+}).annotate({ identifier: "Novel.UpgradeFailureItem" })
+export interface UpgradeFailureItem extends Schema.Schema.Type<typeof UpgradeFailureItem> {}
+
+/** GET /novel/:id/upgrade/progress —— upgrade 来源任务聚合进度。 */
+export const UpgradeProgressResult = Schema.Struct({
+  synced: Schema.Int,
+  pending: Schema.Int,
+  failed: Schema.Int,
+  total: Schema.Int,
+  failures: Schema.Array(UpgradeFailureItem),
+}).annotate({ identifier: "Novel.UpgradeProgressResult" })
+export interface UpgradeProgressResult extends Schema.Schema.Type<typeof UpgradeProgressResult> {}
+
+/** POST /novel/:id/upgrade/pause|resume —— 闸门切换结果。 */
+export const UpgradeGateResult = Schema.Struct({
+  gate: UpgradeGateState,
+}).annotate({ identifier: "Novel.UpgradeGateResult" })
+export interface UpgradeGateResult extends Schema.Schema.Type<typeof UpgradeGateResult> {}
+
 export const SaveBookMetaInput = Schema.Struct({
   title: optional(Schema.String),
   synopsis: optional(Schema.String),

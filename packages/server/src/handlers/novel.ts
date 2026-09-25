@@ -31,6 +31,11 @@ import {
   markDerivedStale,
   enqueueManualEditSync,
   ManualEditSyncQueueTable,
+  listPendingUpgradeTasks,
+  estimateUpgradeCost,
+  runDeterministicUpgrade,
+  getUpgradeGate,
+  setUpgradeGate,
 } from "@opennovel-ai/novel-store"
 import {
   getDb,
@@ -54,6 +59,7 @@ import {
   SoulTable,
   TensionLogTable,
   ChapterSummaryTable,
+  StorySpineEntryTable,
   HookRotationTable,
   VolumeSummaryTable,
   SegmentSummaryTable,
@@ -138,7 +144,7 @@ import {
   resolveMasterOutline,
   resolveVolumeOutline,
 } from "@opennovel-ai/novel-store"
-import { and, eq, asc, desc, like, or, inArray } from "drizzle-orm"
+import { and, eq, asc, desc, isNull, like, or, inArray } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
 import { rm } from "fs/promises"
 import { join, dirname } from "path"
@@ -2839,6 +2845,36 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           return yield* syncStatusEndpoint(ctx.params.novelID, location.directory)
         }),
       )
+      .handle("novel.upgrade-status", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upgradeStatusEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.upgrade-start", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upgradeStartEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.upgrade-progress", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upgradeProgressEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.upgrade-pause", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upgradePauseEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.upgrade-resume", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* upgradeResumeEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
   ),
 )
 export function saveBookMetaEndpoint(novelID: string, input: SaveBookMetaInput, directory: string) {
@@ -2888,3 +2924,103 @@ export function syncStatusEndpoint(novelID: string, directory: string) {
   })
 }
 
+
+export function upgradeStatusEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const [tasks, estimate, gate] = yield* Effect.all([
+      Effect.promise(() => Promise.resolve(listPendingUpgradeTasks(db, novelID))),
+      Effect.promise(() => Promise.resolve(estimateUpgradeCost(db, novelID))),
+      Effect.promise(() => Promise.resolve(getUpgradeGate(db, novelID))),
+    ])
+    return { tasks, estimate, gate }
+  })
+}
+
+export function upgradeStartEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    // Phase 1：确定性回填（零 token，同步执行）
+    const phase1 = yield* Effect.promise(() => Promise.resolve(runDeterministicUpgrade(db, novelID)))
+    // Phase 2：缺指纹摘要的章节 + 有归属章的 legacy 主轴条目 → 批量入队 observer 重建
+    const staleSummaries = db
+      .select({ chapter_id: ChapterSummaryTable.chapter_id })
+      .from(ChapterSummaryTable)
+      .where(isNull(ChapterSummaryTable.source_fingerprint))
+      .all()
+    const legacyEntries = db
+      .select({ chapter_id: StorySpineEntryTable.chapter_id })
+      .from(StorySpineEntryTable)
+      .where(and(eq(StorySpineEntryTable.novel_id, novelID), eq(StorySpineEntryTable.status, "legacy")))
+      .all()
+    const chapterIds = new Set<string>()
+    for (const row of staleSummaries) if (row.chapter_id) chapterIds.add(row.chapter_id)
+    for (const row of legacyEntries) if (row.chapter_id) chapterIds.add(row.chapter_id)
+    let queuedChapters = 0
+    for (const chapterId of chapterIds) {
+      const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+      if (!chapter || !chapter.content_fingerprint) continue
+      const result = yield* Effect.promise(() =>
+        Promise.resolve(enqueueManualEditSync(
+          {
+            novelId: novelID,
+            entity: "chapter",
+            entityId: chapterId,
+            field: "content",
+            category: "creative_fact",
+            sourceFingerprint: chapter.content_fingerprint,
+            source: "upgrade",
+          },
+          directory,
+        )),
+      )
+      if (result.queued) queuedChapters++
+    }
+    return { phase1, queuedChapters }
+  })
+}
+
+export function upgradeProgressEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const entries = yield* Effect.promise(() => Promise.resolve(storeQuerySyncStatus(novelID, { source: "upgrade", includeSynced: true }, directory)))
+    let synced = 0
+    let pending = 0
+    let failed = 0
+    const failures: Array<{ chapterId: string; reason: string }> = []
+    for (const row of entries) {
+      if (row.status === "synced") synced++
+      else if (row.status === "failed") {
+        failed++
+        failures.push({ chapterId: row.entity_id ?? "", reason: row.failure_reason ?? "未知原因" })
+      } else if (row.status === "pending") pending++
+    }
+    return { synced, pending, failed, total: entries.length, failures }
+  })
+}
+
+export function upgradePauseEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    yield* Effect.promise(() => setUpgradeGate(db, novelID, "paused"))
+    return { gate: "paused" as const }
+  })
+}
+
+export function upgradeResumeEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    yield* Effect.promise(() => setUpgradeGate(db, novelID, "open"))
+    return { gate: "open" as const }
+  })
+}

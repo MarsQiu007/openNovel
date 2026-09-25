@@ -87,6 +87,10 @@ import {
   SettingOrganizationApplyResult,
   ManualEditSyncEntry,
   ManualEditSyncQueryResult,
+  UpgradeStatusResult,
+  UpgradeStartResult,
+  UpgradeProgressResult,
+  UpgradeGateResult,
   SaveBookMetaInput,
 } from "@opennovel-ai/schema/novel"
 import { ServiceUnavailableError } from "../errors"
@@ -1420,5 +1424,55 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.sync-status", summary: "Query manual edit sync status" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.upgrade-status", `${root}/:novelID/upgrade/status`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: UpgradeStatusResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-status", summary: "List pending derived-data upgrade tasks with cost estimate" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.upgrade-start", `${root}/:novelID/upgrade/start`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: UpgradeStartResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-start", summary: "Run deterministic upgrade and queue AI rebuild chapters" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.upgrade-progress", `${root}/:novelID/upgrade/progress`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: UpgradeProgressResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-progress", summary: "Aggregate upgrade rebuild progress by queue source" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.upgrade-pause", `${root}/:novelID/upgrade/pause`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: UpgradeGateResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-pause", summary: "Pause consuming upgrade rebuild tasks" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.upgrade-resume", `${root}/:novelID/upgrade/resume`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: UpgradeGateResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-resume", summary: "Resume consuming upgrade rebuild tasks" })),
   )
 .annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))

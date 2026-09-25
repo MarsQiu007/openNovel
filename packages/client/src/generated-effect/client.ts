@@ -2154,6 +2154,56 @@ const Endpoint18_100 = (raw: RawClient["server.novel"]) => (input: Endpoint18_10
     Effect.mapError(mapClientError),
   )
 
+type Endpoint18_101Request = Parameters<RawClient["server.novel"]["novel.upgrade-status"]>[0]
+type Endpoint18_101Input = {
+  readonly novelID: Endpoint18_101Request["params"]["novelID"]
+  readonly location?: Endpoint18_101Request["query"]["location"]
+}
+const Endpoint18_101 = (raw: RawClient["server.novel"]) => (input: Endpoint18_101Input) =>
+  raw["novel.upgrade-status"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+type Endpoint18_102Request = Parameters<RawClient["server.novel"]["novel.upgrade-start"]>[0]
+type Endpoint18_102Input = {
+  readonly novelID: Endpoint18_102Request["params"]["novelID"]
+  readonly location?: Endpoint18_102Request["query"]["location"]
+}
+const Endpoint18_102 = (raw: RawClient["server.novel"]) => (input: Endpoint18_102Input) =>
+  raw["novel.upgrade-start"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+type Endpoint18_103Request = Parameters<RawClient["server.novel"]["novel.upgrade-progress"]>[0]
+type Endpoint18_103Input = {
+  readonly novelID: Endpoint18_103Request["params"]["novelID"]
+  readonly location?: Endpoint18_103Request["query"]["location"]
+}
+const Endpoint18_103 = (raw: RawClient["server.novel"]) => (input: Endpoint18_103Input) =>
+  raw["novel.upgrade-progress"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+type Endpoint18_104Request = Parameters<RawClient["server.novel"]["novel.upgrade-pause"]>[0]
+type Endpoint18_104Input = {
+  readonly novelID: Endpoint18_104Request["params"]["novelID"]
+  readonly location?: Endpoint18_104Request["query"]["location"]
+}
+const Endpoint18_104 = (raw: RawClient["server.novel"]) => (input: Endpoint18_104Input) =>
+  raw["novel.upgrade-pause"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+type Endpoint18_105Request = Parameters<RawClient["server.novel"]["novel.upgrade-resume"]>[0]
+type Endpoint18_105Input = {
+  readonly novelID: Endpoint18_105Request["params"]["novelID"]
+  readonly location?: Endpoint18_105Request["query"]["location"]
+}
+const Endpoint18_105 = (raw: RawClient["server.novel"]) => (input: Endpoint18_105Input) =>
+  raw["novel.upgrade-resume"]({ params: { novelID: input["novelID"] }, query: { location: input["location"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
 const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   list: Endpoint18_0(raw),
   create: Endpoint18_1(raw),
@@ -2256,6 +2306,11 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "delete-character-map-pin": Endpoint18_98(raw),
   "save-book-meta": Endpoint18_99(raw),
   "sync-status": Endpoint18_100(raw),
+  "upgrade-status": Endpoint18_101(raw),
+  "upgrade-start": Endpoint18_102(raw),
+  "upgrade-progress": Endpoint18_103(raw),
+  "upgrade-pause": Endpoint18_104(raw),
+  "upgrade-resume": Endpoint18_105(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

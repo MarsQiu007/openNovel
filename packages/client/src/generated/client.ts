@@ -314,6 +314,16 @@ import type {
   ServerNovelSaveBookMetaOutput,
   ServerNovelSyncStatusInput,
   ServerNovelSyncStatusOutput,
+  ServerNovelUpgradeStatusInput,
+  ServerNovelUpgradeStatusOutput,
+  ServerNovelUpgradeStartInput,
+  ServerNovelUpgradeStartOutput,
+  ServerNovelUpgradeProgressInput,
+  ServerNovelUpgradeProgressOutput,
+  ServerNovelUpgradePauseInput,
+  ServerNovelUpgradePauseOutput,
+  ServerNovelUpgradeResumeInput,
+  ServerNovelUpgradeResumeOutput,
   NovelModesGetInput,
   NovelModesGetOutput,
   NovelModesSetInput,
@@ -2598,6 +2608,66 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/sync-status`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "upgrade-status": (input: ServerNovelUpgradeStatusInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpgradeStatusOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/status`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "upgrade-start": (input: ServerNovelUpgradeStartInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpgradeStartOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/start`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "upgrade-progress": (input: ServerNovelUpgradeProgressInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpgradeProgressOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/progress`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "upgrade-pause": (input: ServerNovelUpgradePauseInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpgradePauseOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/pause`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "upgrade-resume": (input: ServerNovelUpgradeResumeInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpgradeResumeOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/resume`,
             query: { location: input["location"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],

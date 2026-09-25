@@ -6140,6 +6140,74 @@ export type ServerNovelSyncStatusOutput = {
   }>
 }
 
+export type ServerNovelUpgradeStatusInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelUpgradeStatusOutput = {
+  readonly tasks: ReadonlyArray<{
+    readonly id: string
+    readonly version: string
+    readonly kind: "deterministic" | "ai"
+    readonly target: "fingerprints" | "segment_summaries" | "entity_refs" | "spine_entries" | "chapter_summaries"
+  }>
+  readonly estimate: { readonly deterministicTasks: number; readonly aiChapters: number }
+  readonly gate: "open" | "paused"
+}
+
+export type ServerNovelUpgradeStartInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelUpgradeStartOutput = {
+  readonly phase1: {
+    readonly fingerprints: number
+    readonly segments: number
+    readonly refs: number
+    readonly spineEntries: number
+  }
+  readonly queuedChapters: number
+}
+
+export type ServerNovelUpgradeProgressInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelUpgradeProgressOutput = {
+  readonly synced: number
+  readonly pending: number
+  readonly failed: number
+  readonly total: number
+  readonly failures: ReadonlyArray<{ readonly chapterId: string; readonly reason: string }>
+}
+
+export type ServerNovelUpgradePauseInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelUpgradePauseOutput = { readonly gate: "open" | "paused" }
+
+export type ServerNovelUpgradeResumeInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelUpgradeResumeOutput = { readonly gate: "open" | "paused" }
+
 export type NovelModesGetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
