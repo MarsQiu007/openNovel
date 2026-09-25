@@ -15,6 +15,7 @@ import {
   NovelTable,
   updateSyncStatus,
   computeFingerprint,
+  getUpgradeGate,
 } from "@opennovel-ai/novel-store"
 
 /** 同步处理器接口，由 opennovel 组合层注册 */
@@ -61,9 +62,16 @@ export async function processSyncQueue(
 
   for (const entry of pending) {
     try {
+      // 升级消费闸门：paused 时跳过 upgrade 任务（保留 pending，下轮重查）
+      if (entry.source === "upgrade" && (await getUpgradeGate(db, entry.novel_id)) === "paused") {
+        continue
+      }
       if (entry.entity === "chapter" && entry.field === "content" && entry.entity_id) {
         if (handler?.handleChapterContent) {
           await handler.handleChapterContent(entry.novel_id, entry.entity_id, entry.source_fingerprint ?? "")
+        } else if (entry.source === "upgrade") {
+          // 诚实性：升级任务禁止无 handler 的确定性 fallback（不得伪造已同步）
+          throw new Error("observer 重建 handler 未注册，升级任务未执行（未重建不得标记已同步）")
         } else {
           // 无 handler 时执行确定性标记（upsert）
           const db2 = getDb(directory)
