@@ -2,7 +2,7 @@
  * B/C 阶段 agent 工具测试
  *
  * 验证 plan_story_arc / record_arc_beat / review_volume / editorial_review /
- * annotate_chapter / list_annotations / resolve_annotation / polish_paragraph /
+ * annotate / list_annotations / resolve_annotation / polish_paragraph /
  * read_outline_canvas / write_outline_canvas 的端到端流程。
  */
 import { eq } from "drizzle-orm"
@@ -18,9 +18,9 @@ import {
   ChapterTable,
   ChapterVersionTable,
   CharacterTable,
-  ChapterAnnotationTable,
-  createExecutionRound,
-  getExecutionRounds,
+  AnnotationTable,
+  createAnnotationRound,
+  listAnnotationRounds,
 } from "../../src/novel-writer/session-store.js"
 import type { ToolContext } from "../../src/tool.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
@@ -169,11 +169,19 @@ describe("B/C tools", () => {
   test("annotate_chapter + list_annotations 批注流程", async () => {
     await setupNovel()
     const hooks = await getHooks()
-    await hooks.tool!.annotate_chapter!.execute(
-      { chapter_id: "ch-1", source: "user", paragraph_index: 0, quote: "段落一原文", comment: "需要加强冲突" },
+    await hooks.tool!.annotate!.execute(
+      {
+        target_type: "chapter",
+        target_id: "ch-1",
+        field: "content",
+        source: "user",
+        paragraph_index: 0,
+        quote: "段落一原文",
+        comment: "需要加强冲突",
+      },
       toolCtx(),
     )
-    const listResult = await hooks.tool!.list_annotations!.execute({ chapter_id: "ch-1" }, toolCtx())
+    const listResult = await hooks.tool!.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
     const meta = "metadata" in listResult ? listResult.metadata : undefined
     expect(meta?.total).toBe(1)
     expect(meta?.annotations[0].comment).toBe("需要加强冲突")
@@ -182,9 +190,11 @@ describe("B/C tools", () => {
   test("annotate_chapter 支持跨段锚点并落库 end_paragraph_index", async () => {
     await setupNovel()
     const hooks = await getHooks()
-    const result = await hooks.tool!.annotate_chapter!.execute(
+    const result = await hooks.tool!.annotate!.execute(
       {
-        chapter_id: "ch-1",
+        target_type: "chapter",
+        target_id: "ch-1",
+        field: "content",
         source: "ai",
         paragraph_index: 0,
         start_offset: 2,
@@ -201,8 +211,8 @@ describe("B/C tools", () => {
     const db = getDb(projectDir)
     const row = await db
       .select()
-      .from(ChapterAnnotationTable)
-      .where(eq(ChapterAnnotationTable.id, meta?.annotation_id as string))
+      .from(AnnotationTable)
+      .where(eq(AnnotationTable.id, meta?.annotation_id as string))
       .get()
     expect(row?.end_paragraph_index).toBe(2)
     expect(row?.end_offset).toBe(3)
@@ -211,18 +221,29 @@ describe("B/C tools", () => {
   test("resolve_annotation 标记批注状态", async () => {
     await setupNovel()
     const hooks = await getHooks()
-    await hooks.tool!.annotate_chapter!.execute(
-      { chapter_id: "ch-1", source: "user", paragraph_index: 1, quote: "段落二", comment: "检查" },
+    await hooks.tool!.annotate!.execute(
+      {
+        target_type: "chapter",
+        target_id: "ch-1",
+        field: "content",
+        source: "user",
+        paragraph_index: 1,
+        quote: "段落二",
+        comment: "检查",
+      },
       toolCtx(),
     )
-    const listResult = await hooks.tool!.list_annotations!.execute({ chapter_id: "ch-1" }, toolCtx())
+    const listResult = await hooks.tool!.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
     const annId = ("metadata" in listResult ? listResult.metadata : {})?.annotations[0].id as string
     const resolveResult = await hooks.tool!.resolve_annotation!.execute(
       { annotation_id: annId, status: "resolved" },
       toolCtx(),
     )
     expect(resolveResult).toMatchObject({ title: "resolve_annotation" })
-    const resolved = await hooks.tool!.list_annotations!.execute({ chapter_id: "ch-1", status: "resolved" }, toolCtx())
+    const resolved = await hooks.tool!.list_annotations!.execute(
+      { target_type: "chapter", target_id: "ch-1", status: "resolved" },
+      toolCtx(),
+    )
     expect(("metadata" in resolved ? resolved.metadata : {})?.total).toBe(1)
   })
 
@@ -241,8 +262,15 @@ describe("B/C tools", () => {
         created_at: 2,
       })
       .run()
-    const round = await createExecutionRound(
-      { novel_id: "novel-bc", chapter_id: "ch-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+    const round = await createAnnotationRound(
+      {
+        novelId: "novel-bc",
+        targetType: "chapter",
+        targetId: "ch-1",
+        promptSnapshot: "prompt",
+        annotationsSnapshot: "[]",
+        resultSummary: "",
+      },
       projectDir,
     )
     const hooks = await getHooks()
@@ -251,23 +279,32 @@ describe("B/C tools", () => {
       toolCtx(),
     )
     expect(result).toMatchObject({ title: "report_annotation_execution" })
-    const rounds = await getExecutionRounds("ch-1", projectDir)
-    expect(rounds[0]?.status).toBe("completed")
-    expect(rounds[0]?.result_summary).toBe("已按 2 条批注重写")
-    expect(rounds[0]?.chapter_version_id).toBe("cv-1")
+    const rounds = await listAnnotationRounds({ targetType: "chapter", targetId: "ch-1" }, projectDir)
+    const completed = rounds.find((r) => r.id === round.id)
+    expect(completed?.status).toBe("completed")
+    expect(completed?.result_summary).toBe("已按 2 条批注重写")
+    expect(completed?.result_ref_id).toBe("cv-1")
 
-    const failedRound = await createExecutionRound(
-      { novel_id: "novel-bc", chapter_id: "ch-1", prompt_snapshot: "prompt", annotations_snapshot: "[]", result_summary: "" },
+    const failedRound = await createAnnotationRound(
+      {
+        novelId: "novel-bc",
+        targetType: "chapter",
+        targetId: "ch-1",
+        promptSnapshot: "prompt",
+        annotationsSnapshot: "[]",
+        resultSummary: "",
+      },
       projectDir,
     )
     await hooks.tool!.report_annotation_execution!.execute(
       { execution_round_id: failedRound.id, status: "failed", result_summary: "2 条批注无法定位" },
       toolCtx(),
     )
-    const failedRounds = await getExecutionRounds("ch-1", projectDir)
-    expect(failedRounds[0]?.status).toBe("failed")
-    expect(failedRounds[0]?.result_summary).toBe("2 条批注无法定位")
-    expect(failedRounds[0]?.chapter_version_id).toBeNull()
+    const failedRounds = await listAnnotationRounds({ targetType: "chapter", targetId: "ch-1" }, projectDir)
+    const failed = failedRounds.find((r) => r.id === failedRound.id)
+    expect(failed?.status).toBe("failed")
+    expect(failed?.result_summary).toBe("2 条批注无法定位")
+    expect(failed?.result_ref_id).toBeNull()
   })
 
   test("report_annotation_execution 拒绝不存在的轮次", async () => {

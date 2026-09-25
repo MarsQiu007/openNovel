@@ -121,11 +121,9 @@ import {
   ArcBeatTable,
   VolumeReviewTable,
   EditorialReportTable,
-  AnnotationExecutionRoundTable,
-  ChapterAnnotationTable,
+  AnnotationTable,
+  AnnotationRoundTable,
   DescriptionHistoryTable,
-  WorldEntryAnnotationTable,
-  WorldEntryAnnotationRoundTable,
   OutlineCanvasLayoutTable,
   createStoryArc,
   updateStoryArc,
@@ -139,16 +137,11 @@ import {
   listVolumeReviews,
   createEditorialReport,
   listEditorialReports,
-  createChapterAnnotation,
-  updateChapterAnnotation,
-  deleteChapterAnnotation,
-  listChapterAnnotations,
-  updateExecutionRound,
-  createWorldEntryAnnotation,
-  listWorldEntryAnnotations,
-  updateWorldEntryAnnotation,
-  createWorldEntryAnnotationRound,
-  updateWorldEntryAnnotationRound,
+  createAnnotation,
+  getAnnotation,
+  updateAnnotation,
+  listAnnotations,
+  updateAnnotationRound,
   getOutlineCanvasLayout,
   upsertOutlineCanvasLayout,
   listStructureForEditor,
@@ -5445,11 +5438,13 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
-      annotate_chapter: tool({
+      annotate: tool({
         description:
-          "对章节段落创建批注或润色建议。source=user 用户批注，source=ai AI 批注；suggested_replacement 非空时即为润色建议。",
+          "为可批注目标创建批注或润色建议。target_type=chapter 面向章节段落，target_type=world_entry 面向世界观条目（必须先 read_setting 获取全文，并只使用当前原文中真实存在的段落和引用）。source=user 用户批注，source=ai AI 批注；suggested_replacement 非空时即为润色建议。禁止虚构 ID、锚点或设定事实。",
         args: {
-          chapter_id: tool.schema.string().describe("章节 ID"),
+          target_type: tool.schema.enum(["chapter", "world_entry"]).describe("批注目标类型"),
+          target_id: tool.schema.string().describe("目标 ID（章节 ID 或世界观条目 ID）"),
+          field: tool.schema.string().optional().describe("目标字段，缺省为 content"),
           source: tool.schema.enum(["user", "ai"]).optional().describe("批注来源"),
           anchor_type: tool.schema.enum(["paragraph", "range", "chapter"]).optional(),
           paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
@@ -5462,185 +5457,58 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
         },
         async execute(args, ctx) {
           const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
-          if (!novelId) return { title: "annotate_chapter", output: "未找到当前小说项目" }
-          const ann = await createChapterAnnotation(
-            args.chapter_id,
-            novelId,
-            {
-              source: args.source ?? "user",
-              anchorType: args.anchor_type ?? "paragraph",
-              paragraphIndex: args.paragraph_index ?? null,
-              startOffset: args.start_offset ?? null,
-              endOffset: args.end_offset ?? null,
-              endParagraphIndex: args.end_paragraph_index ?? null,
-              quote: args.quote ?? "",
-              comment: args.comment,
-              suggestedReplacement: args.suggested_replacement ?? null,
-            },
-            ctx.directory,
-          )
-          return {
-            title: "annotate_chapter",
-            output: ann.suggested_replacement ? "已创建润色建议" : "已创建批注",
-            metadata: {
-              annotation_id: ann.id,
-              chapter_id: ann.chapter_id,
-              paragraph_index: ann.paragraph_index,
-              end_paragraph_index: ann.end_paragraph_index,
-              status: ann.status,
-              has_suggestion: ann.suggested_replacement != null,
-            },
-          }
-        },
-      }),
-      list_annotations: tool({
-        description: "列出章节的批注和润色建议，可按状态筛选。",
-        args: {
-          chapter_id: tool.schema.string().describe("章节 ID"),
-          status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).optional(),
-        },
-        async execute(args, ctx) {
-          const annotations = await listChapterAnnotations(args.chapter_id, ctx.directory, {
-            status: args.status,
-          })
-          return {
-            title: "list_annotations",
-            output: `共 ${annotations.length} 条批注`,
-            metadata: {
-              total: annotations.length,
-              annotations: annotations.map((a) => ({
-                id: a.id,
-                source: a.source,
-                paragraph_index: a.paragraph_index,
-                quote: a.quote,
-                comment: a.comment,
-                status: a.status,
-                has_suggestion: a.suggested_replacement != null,
-                created_at: a.created_at,
-              })),
-            },
-          }
-        },
-      }),
-      resolve_annotation: tool({
-        description: "解决批注：标记为 resolved（已解决）、wontfix（不处理）或 applied（已采纳润色）。",
-        args: {
-          annotation_id: tool.schema.string().describe("批注 ID"),
-          status: tool.schema.enum(["resolved", "wontfix", "applied", "open"]).describe("目标状态"),
-          comment: tool.schema.string().optional().describe("更新批注内容"),
-        },
-        async execute(args, ctx) {
-          const updated = await updateChapterAnnotation(
-            args.annotation_id,
-            { status: args.status, comment: args.comment },
-            ctx.directory,
-          )
-          return {
-            title: "resolve_annotation",
-            output: `批注状态已更新为 ${updated.status}`,
-            metadata: { annotation_id: updated.id, status: updated.status },
-          }
-        },
-      }),
-      report_annotation_execution: tool({
-        description: "回填批注执行轮次结果。AI 完成批注改稿或确认失败后必须调用。",
-        args: {
-          execution_round_id: tool.schema.string().describe("执行轮次 ID"),
-          status: tool.schema.enum(["completed", "failed"]).describe("执行结果状态"),
-          result_summary: tool.schema.string().describe("本轮修改内容、涉及批注数、未定位项或失败原因摘要"),
-        },
-        async execute(args, ctx) {
-          const db = getDb(ctx.directory)
-          const round = await db
-            .select()
-            .from(AnnotationExecutionRoundTable)
-            .where(eq(AnnotationExecutionRoundTable.id, args.execution_round_id))
-            .get()
-          if (!round) return { title: "report_annotation_execution", output: "执行轮次不存在" }
-          const version = await db
-            .select({ id: ChapterVersionTable.id, version: ChapterVersionTable.version })
-            .from(ChapterVersionTable)
-            .where(eq(ChapterVersionTable.chapter_id, round.chapter_id))
-            .orderBy(desc(ChapterVersionTable.version))
-            .get()
-          const updated = await updateExecutionRound(
-            args.execution_round_id,
-            {
-              status: args.status,
-              result_summary: args.result_summary,
-              chapter_version_id: args.status === "completed" ? version?.id ?? null : null,
-            },
-            ctx.directory,
-          )
-          return {
-            title: "report_annotation_execution",
-            output: `批注执行结果已记录：${updated.status}`,
-            metadata: {
-              execution_round_id: updated.id,
-              status: updated.status,
-              chapter_version_id: updated.chapter_version_id,
-            },
-          }
-        },
-      }),
-      annotate_setting: tool({
-        description:
-          "为一条真实 world_entry 创建设定批注。必须先 read_setting 获取全文，并只使用当前原文中真实存在的段落和引用；source 固定为 ai。禁止虚构 ID、锚点或设定事实，禁止写入 Markdown。",
-        args: {
-          entry_id: tool.schema.string().describe("世界观条目 ID"),
-          anchor_type: tool.schema.enum(["paragraph", "range"]).optional(),
-          paragraph_index: tool.schema.number().optional().describe("段落索引（从 0 开始）"),
-          start_offset: tool.schema.number().optional(),
-          end_offset: tool.schema.number().optional(),
-          end_paragraph_index: tool.schema.number().optional().describe("结束段落索引（从 0 开始）；跨段批注时提供，缺省为单段"),
-          quote: tool.schema.string().describe("当前原文中的精确引用"),
-          comment: tool.schema.string().describe("批注意见"),
-          suggested_replacement: tool.schema.string().optional().describe("纯文本替换建议"),
-        },
-        async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
-          if (!novelId) return { title: "annotate_setting", output: "未找到当前小说项目" }
-          const db = getDb(ctx.directory)
-          const entry = await db
-            .select()
-            .from(WorldEntryTable)
-            .where(and(eq(WorldEntryTable.id, args.entry_id), eq(WorldEntryTable.novel_id, novelId)))
-            .get()
-          if (!entry) return { title: "annotate_setting", output: `world_entry 不存在：${args.entry_id}` }
-          const quote = entry.content.includes(args.quote) ? args.quote : ""
-          if (!quote.trim()) return { title: "annotate_setting", output: "quote 不是当前 world_entry 原文中的精确片段" }
-          if (args.paragraph_index != null) {
-            const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
-            const paragraph = paragraphs[args.paragraph_index]
-            const start = args.start_offset ?? 0
-            const end = args.end_offset ?? args.quote.length
-            const endParagraphIndex = args.end_paragraph_index ?? args.paragraph_index
-            if (endParagraphIndex === args.paragraph_index) {
-              if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== args.quote) {
-                return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
-              }
-            } else {
-              // 跨段锚点：结构与边界校验 + quote 去空白宽松比较（与服务端校验语义一致）
-              const endParagraph = paragraphs[endParagraphIndex]
-              const expected = paragraph && endParagraph
-                ? [paragraph.slice(start), ...paragraphs.slice(args.paragraph_index + 1, endParagraphIndex), endParagraph.slice(0, end)].join("\n")
-                : ""
-              if (
-                !paragraph || args.paragraph_index < 0
-                || endParagraphIndex < args.paragraph_index || !endParagraph
-                || start < 0 || start > paragraph.length
-                || end < 0 || end > endParagraph.length
-                || expected.replace(/\s+/g, "") !== args.quote.replace(/\s+/g, "")
-              ) {
-                return { title: "annotate_setting", output: "段落索引或偏移量与原文不一致" }
+          if (!novelId) return { title: "annotate", output: "未找到当前小说项目" }
+          const field = args.field ?? "content"
+          let source = args.source ?? "user"
+          let authorSessionId: string | null = null
+          let quote = args.quote ?? ""
+          if (args.target_type === "world_entry") {
+            source = "ai"
+            authorSessionId = ctx.sessionID
+            const db = getDb(ctx.directory)
+            const entry = await db
+              .select()
+              .from(WorldEntryTable)
+              .where(and(eq(WorldEntryTable.id, args.target_id), eq(WorldEntryTable.novel_id, novelId)))
+              .get()
+            if (!entry) return { title: "annotate", output: `world_entry 不存在：${args.target_id}` }
+            quote = entry.content.includes(quote) ? quote : ""
+            if (!quote.trim()) return { title: "annotate", output: "quote 不是当前 world_entry 原文中的精确片段" }
+            if (args.paragraph_index != null) {
+              const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
+              const paragraph = paragraphs[args.paragraph_index]
+              const start = args.start_offset ?? 0
+              const end = args.end_offset ?? quote.length
+              const endParagraphIndex = args.end_paragraph_index ?? args.paragraph_index
+              if (endParagraphIndex === args.paragraph_index) {
+                if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== quote) {
+                  return { title: "annotate", output: "段落索引或偏移量与原文不一致" }
+                }
+              } else {
+                // 跨段锚点：结构与边界校验 + quote 去空白宽松比较（与服务端校验语义一致）
+                const endParagraph = paragraphs[endParagraphIndex]
+                const expected = paragraph && endParagraph
+                  ? [paragraph.slice(start), ...paragraphs.slice(args.paragraph_index + 1, endParagraphIndex), endParagraph.slice(0, end)].join("\n")
+                  : ""
+                if (
+                  !paragraph || args.paragraph_index < 0
+                  || endParagraphIndex < args.paragraph_index || !endParagraph
+                  || start < 0 || start > paragraph.length
+                  || end < 0 || end > endParagraph.length
+                  || expected.replace(/\s+/g, "") !== quote.replace(/\s+/g, "")
+                ) {
+                  return { title: "annotate", output: "段落索引或偏移量与原文不一致" }
+                }
               }
             }
           }
-          const annotation = await createWorldEntryAnnotation(
-            args.entry_id,
-            novelId,
+          const annotation = await createAnnotation(
             {
-              source: "ai",
+              novelId,
+              targetType: args.target_type,
+              targetId: args.target_id,
+              field,
+              source,
               anchorType: args.anchor_type ?? "paragraph",
               paragraphIndex: args.paragraph_index ?? null,
               startOffset: args.start_offset ?? null,
@@ -5649,16 +5517,17 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               quote,
               comment: args.comment,
               suggestedReplacement: args.suggested_replacement ?? null,
-              authorSessionId: ctx.sessionID,
+              authorSessionId,
             },
             ctx.directory,
           )
           return {
-            title: "annotate_setting",
-            output: "已创建设定批注",
+            title: "annotate",
+            output: annotation.suggested_replacement ? "已创建润色建议" : "已创建批注",
             metadata: {
               annotation_id: annotation.id,
-              world_entry_id: annotation.world_entry_id,
+              target_type: annotation.target_type,
+              target_id: annotation.target_id,
               paragraph_index: annotation.paragraph_index,
               end_paragraph_index: annotation.end_paragraph_index,
               quote: annotation.quote,
@@ -5668,29 +5537,37 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
-      list_setting_annotations: tool({
-        description: "列出一条真实 world_entry 的设定批注，可按状态筛选。只返回数据库中的真实 ID 和锚点。",
+      list_annotations: tool({
+        description: "按目标列出批注和润色建议，可按状态筛选。只返回数据库中的真实 ID 和锚点。",
         args: {
-          entry_id: tool.schema.string().describe("世界观条目 ID"),
+          target_type: tool.schema.enum(["chapter", "world_entry"]).describe("批注目标类型"),
+          target_id: tool.schema.string().describe("目标 ID（章节 ID 或世界观条目 ID）"),
           status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).optional(),
         },
         async execute(args, ctx) {
-          const db = getDb(ctx.directory)
-          const entry = await db
-            .select({ id: WorldEntryTable.id })
-            .from(WorldEntryTable)
-            .where(eq(WorldEntryTable.id, args.entry_id))
-            .get()
-          if (!entry) return { title: "list_setting_annotations", output: `world_entry 不存在：${args.entry_id}` }
-          const annotations = await listWorldEntryAnnotations(args.entry_id, ctx.directory, { status: args.status })
+          if (args.target_type === "world_entry") {
+            const db = getDb(ctx.directory)
+            const entry = await db
+              .select({ id: WorldEntryTable.id })
+              .from(WorldEntryTable)
+              .where(eq(WorldEntryTable.id, args.target_id))
+              .get()
+            if (!entry) return { title: "list_annotations", output: `world_entry 不存在：${args.target_id}` }
+          }
+          const annotations = await listAnnotations(
+            { targetType: args.target_type, targetId: args.target_id },
+            ctx.directory,
+            { status: args.status },
+          )
           return {
-            title: "list_setting_annotations",
-            output: `共 ${annotations.length} 条设定批注`,
+            title: "list_annotations",
+            output: `共 ${annotations.length} 条批注`,
             metadata: {
               total: annotations.length,
               annotations: annotations.map((annotation) => ({
                 id: annotation.id,
-                world_entry_id: annotation.world_entry_id,
+                target_type: annotation.target_type,
+                target_id: annotation.target_id,
                 source: annotation.source,
                 paragraph_index: annotation.paragraph_index,
                 start_offset: annotation.start_offset,
@@ -5706,31 +5583,31 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           }
         },
       }),
-      resolve_setting_annotation: tool({
-        description:
-          "更新设定批注状态或评论。只能使用 list_setting_annotations 返回的真实批注 ID；目标状态限定为 open/resolved/wontfix/applied。",
+      resolve_annotation: tool({
+        description: "解决批注：标记为 resolved（已解决）、wontfix（不处理）或 applied（已采纳润色）。只能使用 list_annotations 返回的真实批注 ID。",
         args: {
-          annotation_id: tool.schema.string().describe("设定批注 ID"),
-          status: tool.schema.enum(["open", "resolved", "wontfix", "applied"]).describe("目标状态"),
-          comment: tool.schema.string().optional().describe("更新后的批注内容"),
+          annotation_id: tool.schema.string().describe("批注 ID"),
+          status: tool.schema.enum(["resolved", "wontfix", "applied", "open"]).describe("目标状态"),
+          comment: tool.schema.string().optional().describe("更新批注内容"),
         },
         async execute(args, ctx) {
-          const updated = await updateWorldEntryAnnotation(
+          const existing = await getAnnotation(args.annotation_id, ctx.directory)
+          if (!existing) return { title: "resolve_annotation", output: `批注不存在：${args.annotation_id}` }
+          const updated = await updateAnnotation(
             args.annotation_id,
             { status: args.status, comment: args.comment },
             ctx.directory,
           )
-          if (!updated) return { title: "resolve_setting_annotation", output: `设定批注不存在：${args.annotation_id}` }
           return {
-            title: "resolve_setting_annotation",
-            output: `设定批注状态已更新为 ${updated.status}`,
+            title: "resolve_annotation",
+            output: `批注状态已更新为 ${updated.status}`,
             metadata: { annotation_id: updated.id, status: updated.status },
           }
         },
       }),
-      report_setting_annotation_execution: tool({
+      report_annotation_execution: tool({
         description:
-          "回填设定批注执行轮次结果。AI 完成 world_entry content 修改或确认失败后必须调用；completed 必须有 content 描述历史，部分失败必须报 failed。禁止绕过本工具或虚构轮次 ID。",
+          "回填批注执行轮次结果。AI 完成批注改稿或确认失败后必须调用；completed 必须有对应结果引用（章节版本或设定描述历史），部分失败必须报 failed。禁止绕过本工具或虚构轮次 ID。",
         args: {
           execution_round_id: tool.schema.string().describe("执行轮次 ID"),
           status: tool.schema.enum(["completed", "failed"]).describe("执行结果状态"),
@@ -5740,44 +5617,57 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           const db = getDb(ctx.directory)
           const round = await db
             .select()
-            .from(WorldEntryAnnotationRoundTable)
-            .where(eq(WorldEntryAnnotationRoundTable.id, args.execution_round_id))
+            .from(AnnotationRoundTable)
+            .where(eq(AnnotationRoundTable.id, args.execution_round_id))
             .get()
-          if (!round) return { title: "report_setting_annotation_execution", output: "设定批注执行轮次不存在" }
-          const history = args.status === "completed"
-            ? await db
+          if (!round) return { title: "report_annotation_execution", output: "执行轮次不存在" }
+          const targetId = round.target_id
+          if (!targetId) return { title: "report_annotation_execution", output: "执行轮次缺少目标 ID" }
+          let resultRefId: string | null = null
+          if (args.status === "completed") {
+            if (round.target_type === "world_entry") {
+              const history = await db
                 .select({ id: DescriptionHistoryTable.id })
                 .from(DescriptionHistoryTable)
                 .where(
                   and(
                     eq(DescriptionHistoryTable.entity_type, "world_entry"),
-                    eq(DescriptionHistoryTable.entity_id, round.world_entry_id),
+                    eq(DescriptionHistoryTable.entity_id, targetId),
                     eq(DescriptionHistoryTable.field, "content"),
                   ),
                 )
                 .orderBy(desc(sql`rowid`))
                 .get()
-            : undefined
-          if (args.status === "completed" && !history) {
-            return { title: "report_setting_annotation_execution", output: "completed 需要存在本次 world_entry 的 content 描述历史" }
+              if (!history) {
+                return { title: "report_annotation_execution", output: "completed 需要存在本次 world_entry 的 content 描述历史" }
+              }
+              resultRefId = history.id
+            } else {
+              const version = await db
+                .select({ id: ChapterVersionTable.id })
+                .from(ChapterVersionTable)
+                .where(eq(ChapterVersionTable.chapter_id, targetId))
+                .orderBy(desc(ChapterVersionTable.version))
+                .get()
+              resultRefId = version?.id ?? null
+            }
           }
-          const updated = await updateWorldEntryAnnotationRound(
+          const updated = await updateAnnotationRound(
             args.execution_round_id,
             {
               status: args.status,
-              result_summary: args.result_summary,
-              content_history_id: history?.id ?? null,
+              resultSummary: args.result_summary,
+              resultRefId,
             },
             ctx.directory,
           )
-          if (!updated) return { title: "report_setting_annotation_execution", output: "设定批注执行轮次不存在" }
           return {
-            title: "report_setting_annotation_execution",
-            output: `设定批注执行结果已记录：${updated.status}`,
+            title: "report_annotation_execution",
+            output: `批注执行结果已记录：${updated.status}`,
             metadata: {
               execution_round_id: updated.id,
               status: updated.status,
-              content_history_id: updated.content_history_id,
+              result_ref_id: updated.result_ref_id,
             },
           }
         },
@@ -5803,10 +5693,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
           if (!chapter) return { title: "polish_paragraph", output: "章节不存在" }
           const paragraphs = splitParagraphs(chapter.content)
           const quote = paragraphs[args.paragraph_index] ?? ""
-          const ann = await createChapterAnnotation(
-            args.chapter_id,
-            novelId,
+          const ann = await createAnnotation(
             {
+              novelId,
+              targetType: "chapter",
+              targetId: args.chapter_id,
+              field: "content",
               source: "ai",
               anchorType: "paragraph",
               paragraphIndex: args.paragraph_index,
