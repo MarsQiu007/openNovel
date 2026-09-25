@@ -72,6 +72,8 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateStorySpineEntries(exec, query)
   migrateAnnotationEndParagraphIndex(exec, query)
   migrateUnifiedAnnotations(exec, query)
+  migrateSyncQueueSource(exec, query)
+  migrateChapterContentFingerprint(exec, query)
 }
 
 /**
@@ -438,5 +440,42 @@ function migrateUnifiedAnnotations(exec: ExecFn, query: QueryFn): void {
     } catch {
       // 表不存在时跳过（全新库由 CREATE_TABLES_SQL 建表后此处为 0 行操作）
     }
+  }
+}
+
+/**
+ * 同步队列表添加 source 可空来源列（幂等，向后兼容）。
+ *
+ * 旧行回填 'manual'；升级任务写入 'upgrade'。列带 NOT NULL DEFAULT，
+ * SQLite 加列时自动填充默认值。
+ */
+function migrateSyncQueueSource(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(manual_edit_sync_queue)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (cols.length > 0 && !cols.some((c) => c.name === "source")) {
+      exec("ALTER TABLE manual_edit_sync_queue ADD COLUMN source text NOT NULL DEFAULT 'manual'")
+    }
+    exec("CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_source_idx ON manual_edit_sync_queue(novel_id, source)")
+  } catch {
+    // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+  }
+}
+
+/**
+ * chapters 表添加 content_fingerprint 可空列（幂等）。
+ *
+ * 正文指纹基准（derived-data-upgrade Phase 1 回填）；列为 NULL 表示
+ * 尚未建立基准，打开旧书不影响任何现有行为。
+ */
+function migrateChapterContentFingerprint(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(chapters)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (cols.length > 0 && !cols.some((c) => c.name === "content_fingerprint")) {
+      exec("ALTER TABLE chapters ADD COLUMN content_fingerprint text")
+    }
+  } catch {
+    // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
   }
 }

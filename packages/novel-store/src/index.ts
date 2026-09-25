@@ -80,6 +80,7 @@ export const ChapterTable = sqliteTable("chapters", {
   word_count: integer().notNull().default(0),
   status: text().notNull().default("draft"),
   outline: text().notNull().default(""),
+  content_fingerprint: text(),
   order: integer().notNull(),
   created_at: integer()
     .notNull()
@@ -707,7 +708,7 @@ export function getDbPath(directory?: string | null): string {
 let CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS novels (id text PRIMARY KEY, title text NOT NULL, genre text NOT NULL, synopsis text DEFAULT '' NOT NULL, master_outline text DEFAULT '' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, status text DEFAULT 'draft' NOT NULL);
 CREATE TABLE IF NOT EXISTS volumes (id text PRIMARY KEY, novel_id text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, outline text DEFAULT '' NOT NULL, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL, volume_id text, title text NOT NULL, content text DEFAULT '' NOT NULL, word_count integer DEFAULT 0 NOT NULL, status text DEFAULT 'draft' NOT NULL, outline text DEFAULT '' NOT NULL, content_fingerprint text, "order" integer NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE SET NULL);
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
@@ -795,9 +796,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS character_map_pins_map_character_key ON charac
 CREATE INDEX IF NOT EXISTS character_map_pins_map_idx ON character_map_pins(map_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_novel_idx ON character_map_pins(novel_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_character_idx ON character_map_pins(character_id);
-CREATE TABLE IF NOT EXISTS manual_edit_sync_queue (id text PRIMARY KEY, novel_id text NOT NULL, entity text NOT NULL, entity_id text, field text NOT NULL DEFAULT '', category text NOT NULL DEFAULT 'creative_fact', status text NOT NULL DEFAULT 'pending', source_fingerprint text, failure_reason text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS manual_edit_sync_queue (id text PRIMARY KEY, novel_id text NOT NULL, entity text NOT NULL, entity_id text, field text NOT NULL DEFAULT '', category text NOT NULL DEFAULT 'creative_fact', status text NOT NULL DEFAULT 'pending', source_fingerprint text, failure_reason text, source text NOT NULL DEFAULT 'manual', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_novel_status_idx ON manual_edit_sync_queue(novel_id, status);
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_fingerprint_idx ON manual_edit_sync_queue(novel_id, entity, entity_id, source_fingerprint);
+CREATE TABLE IF NOT EXISTS upgrade_state (novel_id text PRIMARY KEY, gate text NOT NULL DEFAULT 'open', updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, chapter_order integer, content text NOT NULL, kind text NOT NULL DEFAULT 'chapter', source_fingerprint text, status text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
 CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);`
@@ -2826,6 +2828,9 @@ export const ManualEditSyncQueueTable = sqliteTable(
     status: text().notNull().default("pending"),
     source_fingerprint: text(),
     failure_reason: text(),
+    source: text()
+      .notNull()
+      .default("manual"),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
@@ -2835,9 +2840,23 @@ export const ManualEditSyncQueueTable = sqliteTable(
   },
   (table) => [
     index("manual_edit_sync_queue_novel_status_idx").on(table.novel_id, table.status),
+    index("manual_edit_sync_queue_source_idx").on(table.novel_id, table.source),
     index("manual_edit_sync_queue_fingerprint_idx").on(table.novel_id, table.entity, table.entity_id, table.source_fingerprint),
   ],
 )
+
+/** 升级消费闸门状态（derived-data-upgrade）：open 正常消费 upgrade 任务，paused 暂停。 */
+export const UpgradeStateTable = sqliteTable("upgrade_state", {
+  novel_id: text()
+    .notNull()
+    .primaryKey(),
+  gate: text()
+    .notNull()
+    .default("open"),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+})
 
 export const StorySpineEntryTable = sqliteTable(
   "story_spine_entries",
@@ -2867,3 +2886,6 @@ export const StorySpineEntryTable = sqliteTable(
   ],
 )
 export * from "./manual-edit-sync.js"
+export * from "./segment-rollup.js"
+export * from "./entity-refs.js"
+export * from "./upgrade.js"

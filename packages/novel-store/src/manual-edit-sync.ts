@@ -34,6 +34,8 @@ export interface ManualEditSyncRequest {
   field?: string
   category?: string
   sourceFingerprint?: string | null
+  /** 触发来源：手动编辑 manual / 批量升级 upgrade（默认 manual）。 */
+  source?: "manual" | "upgrade"
 }
 
 /**
@@ -98,6 +100,7 @@ export async function enqueueManualEditSync(
       category: request.category ?? "creative_fact",
       status: "pending",
       source_fingerprint: fingerprint,
+      source: request.source ?? "manual",
       created_at: now,
       updated_at: now,
     })
@@ -113,11 +116,14 @@ export async function enqueueManualEditSync(
  */
 export async function querySyncStatus(
   novelId: string,
-  options?: { includeSynced?: boolean; status?: SyncStatus },
+  options?: { includeSynced?: boolean; status?: SyncStatus; source?: "manual" | "upgrade" },
   directory?: string | null,
 ): Promise<Array<typeof ManualEditSyncQueueTable.$inferSelect>> {
   const db = getDb(directory)
   const conditions = [eq(ManualEditSyncQueueTable.novel_id, novelId)]
+  if (options?.source) {
+    conditions.push(eq(ManualEditSyncQueueTable.source, options.source))
+  }
 
   if (options?.status) {
     conditions.push(eq(ManualEditSyncQueueTable.status, options.status))
