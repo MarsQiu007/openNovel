@@ -10,6 +10,10 @@
  * - FACT_TYPES — 10 种事实类型常量
  */
 
+import { scanEntityReferences } from "@opennovel-ai/novel-store"
+
+export const scanReferences = scanEntityReferences
+
 import { z } from "zod"
 import { eq, and, desc, sql, inArray, ne } from "drizzle-orm"
 import {
@@ -1261,75 +1265,7 @@ async function rebuildChapterSummaryFts(
   }
 }
 
-// ─── 级联一致性：依赖追踪 + 统查统改 ───
 
-export async function scanReferences(
-  db: ReturnType<typeof getDb>,
-  novelId: string,
-  sourceType: string,
-  sourceId: string,
-  field: string,
-  content: string,
-): Promise<number> {
-  await db
-    .delete(EntityRefTable)
-    .where(
-      and(
-        eq(EntityRefTable.source_type, sourceType),
-        eq(EntityRefTable.source_id, sourceId),
-        eq(EntityRefTable.ref_field, field),
-      ),
-    )
-    .run()
-
-  if (!content) return 0
-
-  const characters = await db
-    .select({ id: CharacterTable.id, name: CharacterTable.name })
-    .from(CharacterTable)
-    .where(eq(CharacterTable.novel_id, novelId))
-    .all()
-  const worldEntries = await db
-    .select({ id: WorldEntryTable.id, title: WorldEntryTable.title })
-    .from(WorldEntryTable)
-    .where(eq(WorldEntryTable.novel_id, novelId))
-    .all()
-  const plotThreads = await db
-    .select({ id: PlotThreadTable.id, title: PlotThreadTable.title })
-    .from(PlotThreadTable)
-    .where(eq(PlotThreadTable.novel_id, novelId))
-    .all()
-
-  const entities = [
-    ...characters.map((c) => ({ type: "character", id: c.id, name: c.name })),
-    ...worldEntries.map((w) => ({ type: "world_entry", id: w.id, name: w.title })),
-    ...plotThreads.map((p) => ({ type: "plot_thread", id: p.id, name: p.title })),
-  ]
-
-  let count = 0
-  for (const ent of entities) {
-    if (ent.name.length < 2) continue
-    const idx = content.indexOf(ent.name)
-    if (idx < 0) continue
-    const start = Math.max(0, idx - 25)
-    const end = Math.min(content.length, idx + ent.name.length + 25)
-    await db
-      .insert(EntityRefTable)
-      .values({
-        id: crypto.randomUUID(),
-        novel_id: novelId,
-        source_type: sourceType,
-        source_id: sourceId,
-        target_type: ent.type,
-        target_id: ent.id,
-        ref_field: field,
-        ref_text: content.slice(start, end),
-      } as any)
-      .run()
-    count++
-  }
-  return count
-}
 
 export async function cascadeCheck(
   db: ReturnType<typeof getDb>,
