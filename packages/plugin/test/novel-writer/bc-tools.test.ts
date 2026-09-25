@@ -166,7 +166,7 @@ describe("B/C tools", () => {
     expect(meta?.report_id).toBeDefined()
   })
 
-  test("annotate_chapter + list_annotations 批注流程", async () => {
+  test("annotate + list_annotations 批注流程", async () => {
     await setupNovel()
     const hooks = await getHooks()
     await hooks.tool!.annotate!.execute(
@@ -187,7 +187,7 @@ describe("B/C tools", () => {
     expect(meta?.annotations[0].comment).toBe("需要加强冲突")
   })
 
-  test("annotate_chapter 支持跨段锚点并落库 end_paragraph_index", async () => {
+  test("annotate 支持跨段锚点并落库 end_paragraph_index", async () => {
     await setupNovel()
     const hooks = await getHooks()
     const result = await hooks.tool!.annotate!.execute(
