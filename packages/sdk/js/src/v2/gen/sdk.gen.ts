@@ -558,6 +558,16 @@ import type {
   V2NovelUpdateWorldMapFeatureErrors,
   V2NovelUpdateWorldMapFeatureResponses,
   V2NovelUpdateWorldMapResponses,
+  V2NovelUpgradePauseErrors,
+  V2NovelUpgradePauseResponses,
+  V2NovelUpgradeProgressErrors,
+  V2NovelUpgradeProgressResponses,
+  V2NovelUpgradeResumeErrors,
+  V2NovelUpgradeResumeResponses,
+  V2NovelUpgradeStartErrors,
+  V2NovelUpgradeStartResponses,
+  V2NovelUpgradeStatusErrors,
+  V2NovelUpgradeStatusResponses,
   V2NovelUpsertCanvasLayoutErrors,
   V2NovelUpsertCanvasLayoutResponses,
   V2NovelVolumeReviewsErrors,
@@ -11154,6 +11164,177 @@ export class Novel extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<V2NovelSyncStatusResponses, V2NovelSyncStatusErrors, ThrowOnError>({
       url: "/api/novel/{novelID}/sync-status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List pending derived-data upgrade tasks with cost estimate
+   */
+  public upgradeStatus<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelUpgradeStatusResponses,
+      V2NovelUpgradeStatusErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/upgrade/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run deterministic upgrade and queue AI rebuild chapters
+   */
+  public upgradeStart<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelUpgradeStartResponses, V2NovelUpgradeStartErrors, ThrowOnError>(
+      {
+        url: "/api/novel/{novelID}/upgrade/start",
+        ...options,
+        ...params,
+      },
+    )
+  }
+
+  /**
+   * Aggregate upgrade rebuild progress by queue source
+   */
+  public upgradeProgress<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelUpgradeProgressResponses,
+      V2NovelUpgradeProgressErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/upgrade/progress",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Pause consuming upgrade rebuild tasks
+   */
+  public upgradePause<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelUpgradePauseResponses, V2NovelUpgradePauseErrors, ThrowOnError>(
+      {
+        url: "/api/novel/{novelID}/upgrade/pause",
+        ...options,
+        ...params,
+      },
+    )
+  }
+
+  /**
+   * Resume consuming upgrade rebuild tasks
+   */
+  public upgradeResume<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelUpgradeResumeResponses,
+      V2NovelUpgradeResumeErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/upgrade/resume",
       ...options,
       ...params,
     })

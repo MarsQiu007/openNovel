@@ -25782,6 +25782,441 @@
         ]
       }
     },
+    "/api/novel/{novelID}/upgrade/status": {
+      "get": {
+        "tags": [
+          "novel"
+        ],
+        "operationId": "v2.novel.upgrade-status",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.UpgradeStatusResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelUpgradeStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List pending derived-data upgrade tasks with cost estimate",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upgrade-status({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/upgrade/start": {
+      "post": {
+        "tags": [
+          "novel"
+        ],
+        "operationId": "v2.novel.upgrade-start",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.UpgradeStartResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelUpgradeStartResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Run deterministic upgrade and queue AI rebuild chapters",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upgrade-start({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/upgrade/progress": {
+      "get": {
+        "tags": [
+          "novel"
+        ],
+        "operationId": "v2.novel.upgrade-progress",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.UpgradeProgressResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelUpgradeProgressResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aggregate upgrade rebuild progress by queue source",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upgrade-progress({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/upgrade/pause": {
+      "post": {
+        "tags": [
+          "novel"
+        ],
+        "operationId": "v2.novel.upgrade-pause",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.UpgradeGateResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelUpgradeGateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pause consuming upgrade rebuild tasks",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upgrade-pause({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/upgrade/resume": {
+      "post": {
+        "tags": [
+          "novel"
+        ],
+        "operationId": "v2.novel.upgrade-resume",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.UpgradeGateResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelUpgradeGateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resume consuming upgrade rebuild tasks",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.upgrade-resume({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/mode": {
       "get": {
         "tags": [
@@ -54217,6 +54652,184 @@
         },
         "required": [
           "entries"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeTaskInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deterministic",
+              "ai"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "fingerprints",
+              "segment_summaries",
+              "entity_refs",
+              "spine_entries",
+              "chapter_summaries"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "kind",
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeCostEstimate": {
+        "type": "object",
+        "properties": {
+          "deterministicTasks": {
+            "type": "integer"
+          },
+          "aiChapters": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deterministicTasks",
+          "aiChapters"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeStatusResult": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelUpgradeTaskInfo"
+            }
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/NovelUpgradeCostEstimate"
+          },
+          "gate": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused"
+            ]
+          }
+        },
+        "required": [
+          "tasks",
+          "estimate",
+          "gate"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeStartResult": {
+        "type": "object",
+        "properties": {
+          "phase1": {
+            "type": "object",
+            "properties": {
+              "fingerprints": {
+                "type": "integer"
+              },
+              "segments": {
+                "type": "integer"
+              },
+              "refs": {
+                "type": "integer"
+              },
+              "spineEntries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "fingerprints",
+              "segments",
+              "refs",
+              "spineEntries"
+            ],
+            "additionalProperties": false
+          },
+          "queuedChapters": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "phase1",
+          "queuedChapters"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeFailureItem": {
+        "type": "object",
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chapterId",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeProgressResult": {
+        "type": "object",
+        "properties": {
+          "synced": {
+            "type": "integer"
+          },
+          "pending": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelUpgradeFailureItem"
+            }
+          }
+        },
+        "required": [
+          "synced",
+          "pending",
+          "failed",
+          "total",
+          "failures"
+        ],
+        "additionalProperties": false
+      },
+      "NovelUpgradeGateResult": {
+        "type": "object",
+        "properties": {
+          "gate": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused"
+            ]
+          }
+        },
+        "required": [
+          "gate"
         ],
         "additionalProperties": false
       },

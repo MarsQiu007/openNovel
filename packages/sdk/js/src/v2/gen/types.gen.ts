@@ -7067,6 +7067,51 @@ export type NovelManualEditSyncQueryResult = {
   entries: Array<NovelManualEditSyncEntry>
 }
 
+export type NovelUpgradeTaskInfo = {
+  id: string
+  version: string
+  kind: "deterministic" | "ai"
+  target: "fingerprints" | "segment_summaries" | "entity_refs" | "spine_entries" | "chapter_summaries"
+}
+
+export type NovelUpgradeCostEstimate = {
+  deterministicTasks: number
+  aiChapters: number
+}
+
+export type NovelUpgradeStatusResult = {
+  tasks: Array<NovelUpgradeTaskInfo>
+  estimate: NovelUpgradeCostEstimate
+  gate: "open" | "paused"
+}
+
+export type NovelUpgradeStartResult = {
+  phase1: {
+    fingerprints: number
+    segments: number
+    refs: number
+    spineEntries: number
+  }
+  queuedChapters: number
+}
+
+export type NovelUpgradeFailureItem = {
+  chapterId: string
+  reason: string
+}
+
+export type NovelUpgradeProgressResult = {
+  synced: number
+  pending: number
+  failed: number
+  total: number
+  failures: Array<NovelUpgradeFailureItem>
+}
+
+export type NovelUpgradeGateResult = {
+  gate: "open" | "paused"
+}
+
 export type NovelWritingMode = "auto" | "review"
 
 export type NovelSetupMode = "interactive" | "auto"
@@ -18778,6 +18823,206 @@ export type V2NovelSyncStatusResponses = {
 }
 
 export type V2NovelSyncStatusResponse = V2NovelSyncStatusResponses[keyof V2NovelSyncStatusResponses]
+
+export type V2NovelUpgradeStatusData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/upgrade/status"
+}
+
+export type V2NovelUpgradeStatusErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpgradeStatusError = V2NovelUpgradeStatusErrors[keyof V2NovelUpgradeStatusErrors]
+
+export type V2NovelUpgradeStatusResponses = {
+  /**
+   * Novel.UpgradeStatusResult
+   */
+  200: NovelUpgradeStatusResult
+}
+
+export type V2NovelUpgradeStatusResponse = V2NovelUpgradeStatusResponses[keyof V2NovelUpgradeStatusResponses]
+
+export type V2NovelUpgradeStartData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/upgrade/start"
+}
+
+export type V2NovelUpgradeStartErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpgradeStartError = V2NovelUpgradeStartErrors[keyof V2NovelUpgradeStartErrors]
+
+export type V2NovelUpgradeStartResponses = {
+  /**
+   * Novel.UpgradeStartResult
+   */
+  200: NovelUpgradeStartResult
+}
+
+export type V2NovelUpgradeStartResponse = V2NovelUpgradeStartResponses[keyof V2NovelUpgradeStartResponses]
+
+export type V2NovelUpgradeProgressData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/upgrade/progress"
+}
+
+export type V2NovelUpgradeProgressErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpgradeProgressError = V2NovelUpgradeProgressErrors[keyof V2NovelUpgradeProgressErrors]
+
+export type V2NovelUpgradeProgressResponses = {
+  /**
+   * Novel.UpgradeProgressResult
+   */
+  200: NovelUpgradeProgressResult
+}
+
+export type V2NovelUpgradeProgressResponse = V2NovelUpgradeProgressResponses[keyof V2NovelUpgradeProgressResponses]
+
+export type V2NovelUpgradePauseData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/upgrade/pause"
+}
+
+export type V2NovelUpgradePauseErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpgradePauseError = V2NovelUpgradePauseErrors[keyof V2NovelUpgradePauseErrors]
+
+export type V2NovelUpgradePauseResponses = {
+  /**
+   * Novel.UpgradeGateResult
+   */
+  200: NovelUpgradeGateResult
+}
+
+export type V2NovelUpgradePauseResponse = V2NovelUpgradePauseResponses[keyof V2NovelUpgradePauseResponses]
+
+export type V2NovelUpgradeResumeData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/upgrade/resume"
+}
+
+export type V2NovelUpgradeResumeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelUpgradeResumeError = V2NovelUpgradeResumeErrors[keyof V2NovelUpgradeResumeErrors]
+
+export type V2NovelUpgradeResumeResponses = {
+  /**
+   * Novel.UpgradeGateResult
+   */
+  200: NovelUpgradeGateResult
+}
+
+export type V2NovelUpgradeResumeResponse = V2NovelUpgradeResumeResponses[keyof V2NovelUpgradeResumeResponses]
 
 export type V2NovelModeGetData = {
   body?: never
