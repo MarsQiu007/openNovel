@@ -3219,6 +3219,77 @@ function novelScenarios(): Scenario[] {
       .at((ctx) => ({ path: route("/api/novel/{novelID}/sync-status", { novelID: "nov_missing" }), headers: ctx.headers() }))
       .json(404, object, "status"),
     http.protected
+      .get("/api/novel/{novelID}/upgrade/status", "v2.novel.upgrade-status")
+      .seeded((ctx) => seedNovel(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/status", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(Array.isArray(body.tasks), "upgrade status should return a task list")
+        check(typeof body.estimate?.deterministicTasks === "number", "estimate should count deterministic tasks")
+        check(typeof body.estimate?.aiChapters === "number", "estimate should count AI chapters")
+        check(body.gate === "open" || body.gate === "paused", "gate should be open or paused")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/upgrade/status", "v2.novel.upgrade-status")
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/status", { novelID: "nov_missing" }),
+        headers: ctx.headers(),
+      }))
+      .json(404, object, "status"),
+    http.protected
+      .post("/api/novel/{novelID}/upgrade/start", "v2.novel.upgrade-start")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/start", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        object(body.phase1)
+        check(typeof body.phase1.fingerprints === "number", "phase1 should report fingerprint baselines")
+        check(typeof body.queuedChapters === "number", "start should report queued chapters")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/upgrade/progress", "v2.novel.upgrade-progress")
+      .seeded((ctx) => seedNovel(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/progress", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(typeof body.synced === "number" && typeof body.pending === "number", "progress should aggregate by status")
+        check(Array.isArray(body.failures), "progress should list failures")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/upgrade/pause", "v2.novel.upgrade-pause")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/pause", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.gate === "paused", "pause should set gate to paused")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/upgrade/resume", "v2.novel.upgrade-resume")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/upgrade/resume", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.gate === "open", "resume should set gate to open")
+      }),
+    http.protected
       .put("/api/novel/{novelID}/book-meta", "v2.novel.save-book-meta")
       .at((ctx) => ({
         path: route("/api/novel/{novelID}/book-meta", { novelID: "nov_missing" }),
