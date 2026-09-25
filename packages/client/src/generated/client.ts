@@ -270,32 +270,18 @@ import type {
   ServerNovelUpdateAnnotationOutput,
   ServerNovelDeleteAnnotationInput,
   ServerNovelDeleteAnnotationOutput,
-  ServerNovelCreateExecutionRoundInput,
-  ServerNovelCreateExecutionRoundOutput,
-  ServerNovelExecutionRoundsInput,
-  ServerNovelExecutionRoundsOutput,
-  ServerNovelUpdateExecutionRoundInput,
-  ServerNovelUpdateExecutionRoundOutput,
+  ServerNovelCreateAnnotationRoundInput,
+  ServerNovelCreateAnnotationRoundOutput,
+  ServerNovelAnnotationRoundsInput,
+  ServerNovelAnnotationRoundsOutput,
+  ServerNovelUpdateAnnotationRoundInput,
+  ServerNovelUpdateAnnotationRoundOutput,
   ServerNovelAnalyzeInput,
   ServerNovelAnalyzeOutput,
   ServerNovelDryRunInput,
   ServerNovelDryRunOutput,
   ServerNovelApplyInput,
   ServerNovelApplyOutput,
-  ServerNovelSettingAnnotationsInput,
-  ServerNovelSettingAnnotationsOutput,
-  ServerNovelCreateSettingAnnotationInput,
-  ServerNovelCreateSettingAnnotationOutput,
-  ServerNovelUpdateSettingAnnotationInput,
-  ServerNovelUpdateSettingAnnotationOutput,
-  ServerNovelDeleteSettingAnnotationInput,
-  ServerNovelDeleteSettingAnnotationOutput,
-  ServerNovelCreateSettingAnnotationRoundInput,
-  ServerNovelCreateSettingAnnotationRoundOutput,
-  ServerNovelSettingAnnotationRoundsInput,
-  ServerNovelSettingAnnotationRoundsOutput,
-  ServerNovelUpdateSettingAnnotationRoundInput,
-  ServerNovelUpdateSettingAnnotationRoundOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2241,8 +2227,8 @@ export function make(options: ClientOptions) {
         request<ServerNovelAnnotationsOutput>(
           {
             method: "GET",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/annotations`,
-            query: { location: input["location"] },
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations`,
+            query: { location: input["location"], targetType: input["targetType"], targetId: input["targetId"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2253,9 +2239,14 @@ export function make(options: ClientOptions) {
         request<ServerNovelCreateAnnotationOutput>(
           {
             method: "POST",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/annotations`,
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations`,
             query: { location: input["location"] },
             body: {
+              targetType: input["targetType"],
+              targetId: input["targetId"],
+              field: input["field"],
+              parentId: input["parentId"],
+              authorSessionId: input["authorSessionId"],
               source: input["source"],
               anchorType: input["anchorType"],
               paragraphIndex: input["paragraphIndex"],
@@ -2275,7 +2266,7 @@ export function make(options: ClientOptions) {
       "update-annotation": (input: ServerNovelUpdateAnnotationInput, requestOptions?: RequestOptions) =>
         request<ServerNovelUpdateAnnotationOutput>(
           {
-            method: "PUT",
+            method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations/${encodeURIComponent(input.annotationID)}`,
             query: { location: input["location"] },
             body: {
@@ -2303,15 +2294,15 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      "create-execution-round": (input: ServerNovelCreateExecutionRoundInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelCreateExecutionRoundOutput>(
+      "create-annotation-round": (input: ServerNovelCreateAnnotationRoundInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCreateAnnotationRoundOutput>(
           {
             method: "POST",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds`,
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds`,
             query: { location: input["location"] },
             body: {
-              novelId: input["novelId"],
-              chapterId: input["chapterId"],
+              targetType: input["targetType"],
+              targetId: input["targetId"],
               promptSnapshot: input["promptSnapshot"],
               status: input["status"],
               annotationsSnapshot: input["annotationsSnapshot"],
@@ -2323,28 +2314,28 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      "execution-rounds": (input: ServerNovelExecutionRoundsInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelExecutionRoundsOutput>(
+      "annotation-rounds": (input: ServerNovelAnnotationRoundsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelAnnotationRoundsOutput>(
           {
             method: "GET",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds`,
-            query: { location: input["location"] },
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds`,
+            query: { location: input["location"], targetType: input["targetType"], targetId: input["targetId"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,
         ),
-      "update-execution-round": (input: ServerNovelUpdateExecutionRoundInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelUpdateExecutionRoundOutput>(
+      "update-annotation-round": (input: ServerNovelUpdateAnnotationRoundInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpdateAnnotationRoundOutput>(
           {
-            method: "PUT",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/execution-rounds/${encodeURIComponent(input.roundID)}`,
+            method: "PATCH",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds/${encodeURIComponent(input.roundID)}`,
             query: { location: input["location"] },
             body: {
               status: input["status"],
               resultSummary: input["resultSummary"],
-              chapterVersionId: input["chapterVersionId"],
+              resultRefId: input["resultRefId"],
               promptSnapshot: input["promptSnapshot"],
             },
             successStatus: 200,
@@ -2388,128 +2379,6 @@ export function make(options: ClientOptions) {
             body: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "setting-annotations": (input: ServerNovelSettingAnnotationsInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelSettingAnnotationsOutput>(
-          {
-            method: "GET",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotations`,
-            query: { location: input["location"] },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "create-setting-annotation": (input: ServerNovelCreateSettingAnnotationInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelCreateSettingAnnotationOutput>(
-          {
-            method: "POST",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotations`,
-            query: { location: input["location"] },
-            body: {
-              parentId: input["parentId"],
-              source: input["source"],
-              anchorType: input["anchorType"],
-              paragraphIndex: input["paragraphIndex"],
-              startOffset: input["startOffset"],
-              endOffset: input["endOffset"],
-              endParagraphIndex: input["endParagraphIndex"],
-              quote: input["quote"],
-              comment: input["comment"],
-              suggestedReplacement: input["suggestedReplacement"],
-              authorSessionId: input["authorSessionId"],
-            },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "update-setting-annotation": (input: ServerNovelUpdateSettingAnnotationInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelUpdateSettingAnnotationOutput>(
-          {
-            method: "PATCH",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotations/${encodeURIComponent(input.annotationID)}`,
-            query: { location: input["location"] },
-            body: {
-              comment: input["comment"],
-              status: input["status"],
-              suggestedReplacement: input["suggestedReplacement"],
-              quote: input["quote"],
-              executionRoundId: input["executionRoundId"],
-            },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "delete-setting-annotation": (input: ServerNovelDeleteSettingAnnotationInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelDeleteSettingAnnotationOutput>(
-          {
-            method: "DELETE",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotations/${encodeURIComponent(input.annotationID)}`,
-            query: { location: input["location"] },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "create-setting-annotation-round": (
-        input: ServerNovelCreateSettingAnnotationRoundInput,
-        requestOptions?: RequestOptions,
-      ) =>
-        request<ServerNovelCreateSettingAnnotationRoundOutput>(
-          {
-            method: "POST",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotation-rounds`,
-            query: { location: input["location"] },
-            body: {
-              promptSnapshot: input["promptSnapshot"],
-              status: input["status"],
-              annotationsSnapshot: input["annotationsSnapshot"],
-              resultSummary: input["resultSummary"],
-            },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "setting-annotation-rounds": (input: ServerNovelSettingAnnotationRoundsInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelSettingAnnotationRoundsOutput>(
-          {
-            method: "GET",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}/annotation-rounds`,
-            query: { location: input["location"] },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
-            empty: false,
-          },
-          requestOptions,
-        ),
-      "update-setting-annotation-round": (
-        input: ServerNovelUpdateSettingAnnotationRoundInput,
-        requestOptions?: RequestOptions,
-      ) =>
-        request<ServerNovelUpdateSettingAnnotationRoundOutput>(
-          {
-            method: "PATCH",
-            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-annotation-rounds/${encodeURIComponent(input.roundID)}`,
-            query: { location: input["location"] },
-            body: {
-              status: input["status"],
-              resultSummary: input["resultSummary"],
-              contentHistoryId: input["contentHistoryId"],
-              promptSnapshot: input["promptSnapshot"],
-            },
-            successStatus: 200,
-            declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,

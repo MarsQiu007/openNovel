@@ -4841,17 +4841,30 @@ export type ServerNovelCreateEditorialReportOutput = {
 }
 
 export type ServerNovelAnnotationsInput = {
-  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
-  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
   }["location"]
+  readonly targetType: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["targetType"]
+  readonly targetId: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["targetId"]
 }
 
 export type ServerNovelAnnotationsOutput = ReadonlyArray<{
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
+  readonly field: string
   readonly parentId?: string | null
   readonly source: "user" | "ai"
   readonly anchorType: "paragraph" | "range" | "chapter"
@@ -4870,12 +4883,96 @@ export type ServerNovelAnnotationsOutput = ReadonlyArray<{
 }>
 
 export type ServerNovelCreateAnnotationInput = {
-  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
-  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+  readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
+  readonly targetType: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["targetType"]
+  readonly targetId: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["targetId"]
+  readonly field: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["field"]
+  readonly parentId?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["parentId"]
+  readonly authorSessionId?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
+    readonly source?: "user" | "ai"
+    readonly anchorType?: "paragraph" | "range" | "chapter"
+    readonly paragraphIndex?: number
+    readonly startOffset?: number
+    readonly endOffset?: number
+    readonly endParagraphIndex?: number
+    readonly quote?: string
+    readonly comment: string
+    readonly suggestedReplacement?: string
+  }["authorSessionId"]
   readonly source?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4887,6 +4984,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["source"]
   readonly anchorType?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4898,6 +5000,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["anchorType"]
   readonly paragraphIndex?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4909,6 +5016,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["paragraphIndex"]
   readonly startOffset?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4920,6 +5032,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["startOffset"]
   readonly endOffset?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4931,6 +5048,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["endOffset"]
   readonly endParagraphIndex?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4942,6 +5064,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["endParagraphIndex"]
   readonly quote?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4953,6 +5080,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["quote"]
   readonly comment: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4964,6 +5096,11 @@ export type ServerNovelCreateAnnotationInput = {
     readonly suggestedReplacement?: string
   }["comment"]
   readonly suggestedReplacement?: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+    readonly field: string
+    readonly parentId?: string
+    readonly authorSessionId?: string
     readonly source?: "user" | "ai"
     readonly anchorType?: "paragraph" | "range" | "chapter"
     readonly paragraphIndex?: number
@@ -4979,7 +5116,9 @@ export type ServerNovelCreateAnnotationInput = {
 export type ServerNovelCreateAnnotationOutput = {
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
+  readonly field: string
   readonly parentId?: string | null
   readonly source: "user" | "ai"
   readonly anchorType: "paragraph" | "range" | "chapter"
@@ -5043,7 +5182,9 @@ export type ServerNovelUpdateAnnotationInput = {
 export type ServerNovelUpdateAnnotationOutput = {
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
+  readonly field: string
   readonly parentId?: string | null
   readonly source: "user" | "ai"
   readonly anchorType: "paragraph" | "range" | "chapter"
@@ -5071,15 +5212,14 @@ export type ServerNovelDeleteAnnotationInput = {
 
 export type ServerNovelDeleteAnnotationOutput = { readonly deleted: boolean }
 
-export type ServerNovelCreateExecutionRoundInput = {
-  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
-  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+export type ServerNovelCreateAnnotationRoundInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
-  readonly novelId: {
-    readonly novelId: string
-    readonly chapterId: string
+  readonly targetType: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5094,10 +5234,10 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly suggestedReplacement?: string | null
     }>
     readonly resultSummary?: string
-  }["novelId"]
-  readonly chapterId: {
-    readonly novelId: string
-    readonly chapterId: string
+  }["targetType"]
+  readonly targetId: {
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5112,10 +5252,10 @@ export type ServerNovelCreateExecutionRoundInput = {
       readonly suggestedReplacement?: string | null
     }>
     readonly resultSummary?: string
-  }["chapterId"]
+  }["targetId"]
   readonly promptSnapshot?: {
-    readonly novelId: string
-    readonly chapterId: string
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5132,8 +5272,8 @@ export type ServerNovelCreateExecutionRoundInput = {
     readonly resultSummary?: string
   }["promptSnapshot"]
   readonly status?: {
-    readonly novelId: string
-    readonly chapterId: string
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5150,8 +5290,8 @@ export type ServerNovelCreateExecutionRoundInput = {
     readonly resultSummary?: string
   }["status"]
   readonly annotationsSnapshot: {
-    readonly novelId: string
-    readonly chapterId: string
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5168,8 +5308,8 @@ export type ServerNovelCreateExecutionRoundInput = {
     readonly resultSummary?: string
   }["annotationsSnapshot"]
   readonly resultSummary?: {
-    readonly novelId: string
-    readonly chapterId: string
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
     readonly promptSnapshot?: string
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly annotationsSnapshot: ReadonlyArray<{
@@ -5187,10 +5327,11 @@ export type ServerNovelCreateExecutionRoundInput = {
   }["resultSummary"]
 }
 
-export type ServerNovelCreateExecutionRoundOutput = {
+export type ServerNovelCreateAnnotationRoundOutput = {
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
   readonly promptSnapshot: string
   readonly status: "running" | "completed" | "failed" | "interrupted"
   readonly annotationsSnapshot: ReadonlyArray<{
@@ -5205,22 +5346,34 @@ export type ServerNovelCreateExecutionRoundOutput = {
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
-  readonly chapterVersionId?: string | null
+  readonly resultRefId?: string | null
   readonly createdAt: number
 }
 
-export type ServerNovelExecutionRoundsInput = {
-  readonly novelID: { readonly novelID: string; readonly chapterID: string }["novelID"]
-  readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
+export type ServerNovelAnnotationRoundsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
   }["location"]
+  readonly targetType: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["targetType"]
+  readonly targetId: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["targetId"]
 }
 
-export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
+export type ServerNovelAnnotationRoundsOutput = ReadonlyArray<{
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
   readonly promptSnapshot: string
   readonly status: "running" | "completed" | "failed" | "interrupted"
   readonly annotationsSnapshot: ReadonlyArray<{
@@ -5235,47 +5388,47 @@ export type ServerNovelExecutionRoundsOutput = ReadonlyArray<{
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
-  readonly chapterVersionId?: string | null
+  readonly resultRefId?: string | null
   readonly createdAt: number
 }>
 
-export type ServerNovelUpdateExecutionRoundInput = {
-  readonly novelID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["novelID"]
-  readonly chapterID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["chapterID"]
-  readonly roundID: { readonly novelID: string; readonly chapterID: string; readonly roundID: string }["roundID"]
+export type ServerNovelUpdateAnnotationRoundInput = {
+  readonly novelID: { readonly novelID: string; readonly roundID: string }["novelID"]
+  readonly roundID: { readonly novelID: string; readonly roundID: string }["roundID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
   readonly status?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
-    readonly chapterVersionId?: string | null
+    readonly resultRefId?: string | null
     readonly promptSnapshot?: string
   }["status"]
   readonly resultSummary?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
-    readonly chapterVersionId?: string | null
+    readonly resultRefId?: string | null
     readonly promptSnapshot?: string
   }["resultSummary"]
-  readonly chapterVersionId?: {
+  readonly resultRefId?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
-    readonly chapterVersionId?: string | null
+    readonly resultRefId?: string | null
     readonly promptSnapshot?: string
-  }["chapterVersionId"]
+  }["resultRefId"]
   readonly promptSnapshot?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
-    readonly chapterVersionId?: string | null
+    readonly resultRefId?: string | null
     readonly promptSnapshot?: string
   }["promptSnapshot"]
 }
 
-export type ServerNovelUpdateExecutionRoundOutput = {
+export type ServerNovelUpdateAnnotationRoundOutput = {
   readonly id: string
   readonly novelId: string
-  readonly chapterId: string
+  readonly targetType: "chapter" | "world_entry"
+  readonly targetId: string
   readonly promptSnapshot: string
   readonly status: "running" | "completed" | "failed" | "interrupted"
   readonly annotationsSnapshot: ReadonlyArray<{
@@ -5290,7 +5443,7 @@ export type ServerNovelUpdateExecutionRoundOutput = {
     readonly suggestedReplacement?: string | null
   }>
   readonly resultSummary: string
-  readonly chapterVersionId?: string | null
+  readonly resultRefId?: string | null
   readonly createdAt: number
 }
 
@@ -5385,459 +5538,6 @@ export type ServerNovelApplyOutput = {
     readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
     readonly entryIds: ReadonlyArray<string>
   }>
-}
-
-export type ServerNovelSettingAnnotationsInput = {
-  readonly novelID: { readonly novelID: string; readonly entryID: string }["novelID"]
-  readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-}
-
-export type ServerNovelSettingAnnotationsOutput = ReadonlyArray<{
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly parentId?: string | null
-  readonly source: "user" | "ai"
-  readonly anchorType: "paragraph" | "range"
-  readonly paragraphIndex?: number | null
-  readonly startOffset?: number | null
-  readonly endOffset?: number | null
-  readonly endParagraphIndex?: number | null
-  readonly quote: string
-  readonly comment: string
-  readonly suggestedReplacement?: string | null
-  readonly status: "open" | "resolved" | "wontfix" | "applied"
-  readonly authorSessionId?: string | null
-  readonly executionRoundId?: string | null
-  readonly createdAt: number
-  readonly updatedAt: number
-}>
-
-export type ServerNovelCreateSettingAnnotationInput = {
-  readonly novelID: { readonly novelID: string; readonly entryID: string }["novelID"]
-  readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly parentId?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["parentId"]
-  readonly source?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["source"]
-  readonly anchorType?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["anchorType"]
-  readonly paragraphIndex?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["paragraphIndex"]
-  readonly startOffset?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["startOffset"]
-  readonly endOffset?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["endOffset"]
-  readonly endParagraphIndex?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["endParagraphIndex"]
-  readonly quote: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["quote"]
-  readonly comment: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["comment"]
-  readonly suggestedReplacement?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["suggestedReplacement"]
-  readonly authorSessionId?: {
-    readonly parentId?: string
-    readonly source?: "user" | "ai"
-    readonly anchorType?: "paragraph" | "range"
-    readonly paragraphIndex?: number
-    readonly startOffset?: number
-    readonly endOffset?: number
-    readonly endParagraphIndex?: number
-    readonly quote: string
-    readonly comment: string
-    readonly suggestedReplacement?: string
-    readonly authorSessionId?: string
-  }["authorSessionId"]
-}
-
-export type ServerNovelCreateSettingAnnotationOutput = {
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly parentId?: string | null
-  readonly source: "user" | "ai"
-  readonly anchorType: "paragraph" | "range"
-  readonly paragraphIndex?: number | null
-  readonly startOffset?: number | null
-  readonly endOffset?: number | null
-  readonly endParagraphIndex?: number | null
-  readonly quote: string
-  readonly comment: string
-  readonly suggestedReplacement?: string | null
-  readonly status: "open" | "resolved" | "wontfix" | "applied"
-  readonly authorSessionId?: string | null
-  readonly executionRoundId?: string | null
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-export type ServerNovelUpdateSettingAnnotationInput = {
-  readonly novelID: { readonly novelID: string; readonly annotationID: string }["novelID"]
-  readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly comment?: {
-    readonly comment?: string
-    readonly status?: "open" | "resolved" | "wontfix" | "applied"
-    readonly suggestedReplacement?: string
-    readonly quote?: string
-    readonly executionRoundId?: string | null
-  }["comment"]
-  readonly status?: {
-    readonly comment?: string
-    readonly status?: "open" | "resolved" | "wontfix" | "applied"
-    readonly suggestedReplacement?: string
-    readonly quote?: string
-    readonly executionRoundId?: string | null
-  }["status"]
-  readonly suggestedReplacement?: {
-    readonly comment?: string
-    readonly status?: "open" | "resolved" | "wontfix" | "applied"
-    readonly suggestedReplacement?: string
-    readonly quote?: string
-    readonly executionRoundId?: string | null
-  }["suggestedReplacement"]
-  readonly quote?: {
-    readonly comment?: string
-    readonly status?: "open" | "resolved" | "wontfix" | "applied"
-    readonly suggestedReplacement?: string
-    readonly quote?: string
-    readonly executionRoundId?: string | null
-  }["quote"]
-  readonly executionRoundId?: {
-    readonly comment?: string
-    readonly status?: "open" | "resolved" | "wontfix" | "applied"
-    readonly suggestedReplacement?: string
-    readonly quote?: string
-    readonly executionRoundId?: string | null
-  }["executionRoundId"]
-}
-
-export type ServerNovelUpdateSettingAnnotationOutput = {
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly parentId?: string | null
-  readonly source: "user" | "ai"
-  readonly anchorType: "paragraph" | "range"
-  readonly paragraphIndex?: number | null
-  readonly startOffset?: number | null
-  readonly endOffset?: number | null
-  readonly endParagraphIndex?: number | null
-  readonly quote: string
-  readonly comment: string
-  readonly suggestedReplacement?: string | null
-  readonly status: "open" | "resolved" | "wontfix" | "applied"
-  readonly authorSessionId?: string | null
-  readonly executionRoundId?: string | null
-  readonly createdAt: number
-  readonly updatedAt: number
-}
-
-export type ServerNovelDeleteSettingAnnotationInput = {
-  readonly novelID: { readonly novelID: string; readonly annotationID: string }["novelID"]
-  readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-}
-
-export type ServerNovelDeleteSettingAnnotationOutput = { readonly deleted: boolean }
-
-export type ServerNovelCreateSettingAnnotationRoundInput = {
-  readonly novelID: { readonly novelID: string; readonly entryID: string }["novelID"]
-  readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly promptSnapshot?: {
-    readonly promptSnapshot?: string
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly annotationsSnapshot: ReadonlyArray<{
-      readonly id: string
-      readonly paragraphIndex?: number | null
-      readonly startOffset?: number | null
-      readonly endOffset?: number | null
-      readonly endParagraphIndex?: number | null
-      readonly quote: string
-      readonly status: "open" | "resolved" | "wontfix" | "applied"
-      readonly comment: string
-      readonly suggestedReplacement?: string | null
-    }>
-    readonly resultSummary?: string
-  }["promptSnapshot"]
-  readonly status?: {
-    readonly promptSnapshot?: string
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly annotationsSnapshot: ReadonlyArray<{
-      readonly id: string
-      readonly paragraphIndex?: number | null
-      readonly startOffset?: number | null
-      readonly endOffset?: number | null
-      readonly endParagraphIndex?: number | null
-      readonly quote: string
-      readonly status: "open" | "resolved" | "wontfix" | "applied"
-      readonly comment: string
-      readonly suggestedReplacement?: string | null
-    }>
-    readonly resultSummary?: string
-  }["status"]
-  readonly annotationsSnapshot: {
-    readonly promptSnapshot?: string
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly annotationsSnapshot: ReadonlyArray<{
-      readonly id: string
-      readonly paragraphIndex?: number | null
-      readonly startOffset?: number | null
-      readonly endOffset?: number | null
-      readonly endParagraphIndex?: number | null
-      readonly quote: string
-      readonly status: "open" | "resolved" | "wontfix" | "applied"
-      readonly comment: string
-      readonly suggestedReplacement?: string | null
-    }>
-    readonly resultSummary?: string
-  }["annotationsSnapshot"]
-  readonly resultSummary?: {
-    readonly promptSnapshot?: string
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly annotationsSnapshot: ReadonlyArray<{
-      readonly id: string
-      readonly paragraphIndex?: number | null
-      readonly startOffset?: number | null
-      readonly endOffset?: number | null
-      readonly endParagraphIndex?: number | null
-      readonly quote: string
-      readonly status: "open" | "resolved" | "wontfix" | "applied"
-      readonly comment: string
-      readonly suggestedReplacement?: string | null
-    }>
-    readonly resultSummary?: string
-  }["resultSummary"]
-}
-
-export type ServerNovelCreateSettingAnnotationRoundOutput = {
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly promptSnapshot: string
-  readonly status: "running" | "completed" | "failed" | "interrupted"
-  readonly annotationsSnapshot: ReadonlyArray<{
-    readonly id: string
-    readonly paragraphIndex?: number | null
-    readonly startOffset?: number | null
-    readonly endOffset?: number | null
-    readonly endParagraphIndex?: number | null
-    readonly quote: string
-    readonly status: "open" | "resolved" | "wontfix" | "applied"
-    readonly comment: string
-    readonly suggestedReplacement?: string | null
-  }>
-  readonly resultSummary: string
-  readonly contentHistoryId?: string | null
-  readonly createdAt: number
-}
-
-export type ServerNovelSettingAnnotationRoundsInput = {
-  readonly novelID: { readonly novelID: string; readonly entryID: string }["novelID"]
-  readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-}
-
-export type ServerNovelSettingAnnotationRoundsOutput = ReadonlyArray<{
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly promptSnapshot: string
-  readonly status: "running" | "completed" | "failed" | "interrupted"
-  readonly annotationsSnapshot: ReadonlyArray<{
-    readonly id: string
-    readonly paragraphIndex?: number | null
-    readonly startOffset?: number | null
-    readonly endOffset?: number | null
-    readonly endParagraphIndex?: number | null
-    readonly quote: string
-    readonly status: "open" | "resolved" | "wontfix" | "applied"
-    readonly comment: string
-    readonly suggestedReplacement?: string | null
-  }>
-  readonly resultSummary: string
-  readonly contentHistoryId?: string | null
-  readonly createdAt: number
-}>
-
-export type ServerNovelUpdateSettingAnnotationRoundInput = {
-  readonly novelID: { readonly novelID: string; readonly roundID: string }["novelID"]
-  readonly roundID: { readonly novelID: string; readonly roundID: string }["roundID"]
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly status?: {
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly resultSummary?: string
-    readonly contentHistoryId?: string | null
-    readonly promptSnapshot?: string
-  }["status"]
-  readonly resultSummary?: {
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly resultSummary?: string
-    readonly contentHistoryId?: string | null
-    readonly promptSnapshot?: string
-  }["resultSummary"]
-  readonly contentHistoryId?: {
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly resultSummary?: string
-    readonly contentHistoryId?: string | null
-    readonly promptSnapshot?: string
-  }["contentHistoryId"]
-  readonly promptSnapshot?: {
-    readonly status?: "running" | "completed" | "failed" | "interrupted"
-    readonly resultSummary?: string
-    readonly contentHistoryId?: string | null
-    readonly promptSnapshot?: string
-  }["promptSnapshot"]
-}
-
-export type ServerNovelUpdateSettingAnnotationRoundOutput = {
-  readonly id: string
-  readonly novelId: string
-  readonly worldEntryId: string
-  readonly promptSnapshot: string
-  readonly status: "running" | "completed" | "failed" | "interrupted"
-  readonly annotationsSnapshot: ReadonlyArray<{
-    readonly id: string
-    readonly paragraphIndex?: number | null
-    readonly startOffset?: number | null
-    readonly endOffset?: number | null
-    readonly endParagraphIndex?: number | null
-    readonly quote: string
-    readonly status: "open" | "resolved" | "wontfix" | "applied"
-    readonly comment: string
-    readonly suggestedReplacement?: string | null
-  }>
-  readonly resultSummary: string
-  readonly contentHistoryId?: string | null
-  readonly createdAt: number
 }
 
 export type ServerNovelCanvasLayoutInput = {
