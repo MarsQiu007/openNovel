@@ -11,6 +11,7 @@ import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
+import UpgradeBanner from "./upgrade-banner"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
@@ -766,6 +767,9 @@ export default function NovelWorkspaceFrame() {
               <ModeBadge />
             </div>
           </header>
+
+          {/* 派生数据升级横幅：有待执行任务或执行中时展示，不阻塞现有操作 */}
+          <UpgradeBanner novelID={data.novel!.id} />
 
           <Show when={isEditing()}>
             <div class="px-6 py-3 border-b border-v2-border-border-base bg-v2-background-bg-layer-01 space-y-2">

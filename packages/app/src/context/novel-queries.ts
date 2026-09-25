@@ -134,7 +134,11 @@ export const novelKeys = {
   "bound-sessions": (directory: string, novelID: string) =>
     ["novel", "bound-sessions", directory, novelID] as const,
   "annotation-rounds": (directory: string, novelID: string, targetType: string, targetId: string) =>
-    ["novel", "annotation-rounds", directory, novelID, targetType, targetId] as const,  techniques: (directory: string) => ["novel", "techniques", directory] as const,
+    ["novel", "annotation-rounds", directory, novelID, targetType, targetId] as const,
+  "upgrade-status": (directory: string, novelID: string) =>
+    ["novel", "upgrade-status", directory, novelID] as const,
+  "upgrade-progress": (directory: string, novelID: string) =>
+    ["novel", "upgrade-progress", directory, novelID] as const,  techniques: (directory: string) => ["novel", "techniques", directory] as const,
   technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
 }
@@ -448,6 +452,36 @@ export function useNovelSearch(novelID: Accessor<string>, q: Accessor<string>) {
         location: { directory: sdk().directory },
       }),
     enabled: !!novelID() && q().trim().length > 0,
+  }))
+}
+
+export function useUpgradeStatus(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["upgrade-status"](sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"]["upgrade-status"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useUpgradeProgress(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["upgrade-progress"](sdk().directory, novelID()),
+    queryFn: () =>
+      client()["server.novel"]["upgrade-progress"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+    // 有 pending 任务时每 5 秒轮询，完成后停止
+    refetchInterval: (query) => (query.state.data && query.state.data.pending > 0 ? 5000 : false),
   }))
 }
 
@@ -2042,3 +2076,62 @@ export function useSyncStatus(novelID: () => string) {
   }))
 }
 
+
+export function useUpgradeStart() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["upgrade-start"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-status"](dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useUpgradePause() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["upgrade-pause"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-status"](dir, variables.novelID) })
+    },
+  }))
+}
+
+export function useUpgradeResume() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["upgrade-resume"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-status"](dir, variables.novelID) })
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
+    },
+  }))
+}
