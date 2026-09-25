@@ -6,9 +6,9 @@ import {
   useChapterDetail,
   useUpdateAnnotation,
   useDeleteAnnotation,
-  useExecutionRounds,
-  useCreateExecutionRound,
-  useUpdateExecutionRound,
+  useAnnotationRounds,
+  useCreateAnnotationRound,
+  useUpdateAnnotationRound,
 } from "@/context/novel-queries"
 import { executeAnnotationExecution, groupHistoryRounds, type AnnotationExecutionSnapshot } from "./annotation-execution"
 import { useLanguage } from "@/context/language"
@@ -16,10 +16,15 @@ import { useSync } from "@/context/sync"
 import { isAnySessionWorking } from "@/context/novel-approval"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
+import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
+import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 
 type AnnotationPanelProps = {
   novelID: Accessor<string>
-  chapterID: Accessor<string | null>
+  targetType: "chapter" | "world_entry"
+  targetID: Accessor<string | null>
+  targetTitle?: Accessor<string>
+  content?: Accessor<string>
   onExecute?: (args: { prompt: string; roundID: string }) => Promise<string | null | undefined> | string | null | undefined
   onSessionFocused?: (sessionID: string | null | undefined) => void
 }
@@ -40,6 +45,13 @@ const statusColor: Record<string, string> = {
   applied: "text-v2-state-fg-info",
 }
 
+const statusLabel: Record<string, string> = {
+  open: "待处理",
+  resolved: "已解决",
+  wontfix: "不处理",
+  applied: "已采纳",
+}
+
 type Annotation = {
   readonly id: string
   readonly status: string
@@ -56,21 +68,20 @@ type Annotation = {
 
 export function AnnotationPanel(props: AnnotationPanelProps) {
   const language = useLanguage()
-  const annotations = useAnnotations(
-    props.novelID,
-    createMemo(() => props.chapterID() ?? ""),
-  )
+  const targetId = createMemo(() => props.targetID() ?? "")
+  const targetType = () => props.targetType
+  const annotations = useAnnotations(props.novelID, targetType, targetId)
   const boundSessions = useBoundNovelSessions(props.novelID)
-  const chapter = useChapterDetail(props.novelID, createMemo(() => props.chapterID() ?? ""))
-  const sync = useSync()
-  const rounds = useExecutionRounds(
+  const chapter = useChapterDetail(
     props.novelID,
-    createMemo(() => props.chapterID() ?? ""),
+    createMemo(() => (props.targetType === "chapter" ? targetId() : "")),
   )
+  const sync = useSync()
+  const rounds = useAnnotationRounds(props.novelID, targetType, targetId)
   const updateAnnotation = useUpdateAnnotation()
   const deleteAnnotation = useDeleteAnnotation()
-  const createExecutionRound = useCreateExecutionRound()
-  const updateExecutionRound = useUpdateExecutionRound()
+  const createRound = useCreateAnnotationRound()
+  const updateRound = useUpdateAnnotationRound()
   const [tab, setTab] = createSignal<"current" | "history">("current")
   const [isExecuting, setIsExecuting] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | null>(null)
@@ -89,67 +100,75 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     () => !isExecuting() && !sessionBusy() && activeAnnotations().length > 0 && openCount() === 0,
   )
 
+  function targetRef() {
+    return { targetType: props.targetType, targetId: targetId() }
+  }
+
   function setStatus(id: string, status: "open" | "resolved" | "wontfix" | "applied") {
-    const chapterID = props.chapterID()
-    if (!chapterID) return
-    updateAnnotation.mutate({
-      novelID: props.novelID(),
-      annotationID: id,
-      chapterID,
-      status,
-    })
+    if (!targetId()) return
+    updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, ...targetRef(), status })
   }
 
   function remove(id: string) {
-    const chapterID = props.chapterID()
-    if (!chapterID) return
-    deleteAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID })
+    if (!targetId()) return
+    deleteAnnotation.mutate({ novelID: props.novelID(), annotationID: id, ...targetRef() })
+  }
+
+  function reactivate(ids: readonly string[]) {
+    if (!targetId() || ids.length === 0) return
+    for (const id of ids) {
+      updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, ...targetRef(), status: "open", executionRoundId: null })
+    }
   }
 
   async function execute() {
-    const chapterID = props.chapterID()
-    if (!chapterID || !canExecute()) return
+    if (!targetId() || !canExecute()) return
     setIsExecuting(true)
     try {
-      const paragraphs = (chapter.data?.content ?? "").split(/\n\n+/).filter(Boolean)
+      // 与对应阅读器一致的分段规则：正文按空行、设定按单行
+      const paragraphs =
+        props.targetType === "chapter"
+          ? (chapter.data?.content ?? "").split(/\n\n+/).filter(Boolean)
+          : (props.content?.() ?? "").split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
       const sessionID = await executeAnnotationExecution(
         {
-          chapterID,
-          chapterTitle: chapter.data?.title,
+          targetType: props.targetType,
+          targetID: targetId(),
+          targetTitle: props.targetType === "chapter" ? chapter.data?.title : props.targetTitle?.(),
           paragraphs,
           annotations: activeAnnotations(),
         },
         {
           createRound: ({ promptSnapshot, annotationsSnapshot }) =>
-            createExecutionRound.mutateAsync({
+            createRound.mutateAsync({
               novelID: props.novelID(),
-              chapterID,
+              ...targetRef(),
               promptSnapshot,
               annotationsSnapshot,
             }),
           updateRoundPrompt: ({ roundID, promptSnapshot }) =>
-            updateExecutionRound.mutateAsync({
+            updateRound.mutateAsync({
               novelID: props.novelID(),
-              chapterID,
+              ...targetRef(),
               roundID,
               promptSnapshot,
             }).then(() => undefined),
           sendPrompt: async ({ prompt, roundID }) => await props.onExecute?.({ prompt, roundID }),
-          associateAnnotations: ({ roundID, annotations }) =>
+          associateAnnotations: ({ roundID, annotations: linked }) =>
             Promise.all(
-              annotations.map((ann) =>
+              linked.map((ann) =>
                 updateAnnotation.mutateAsync({
                   novelID: props.novelID(),
                   annotationID: ann.id,
-                  chapterID,
+                  ...targetRef(),
                   executionRoundId: roundID,
                 }),
               ),
             ).then(() => undefined),
           failRound: ({ roundID, resultSummary }) =>
-            updateExecutionRound.mutateAsync({
+            updateRound.mutateAsync({
               novelID: props.novelID(),
-              chapterID,
+              ...targetRef(),
               roundID,
               status: "failed",
               resultSummary,
@@ -161,14 +180,6 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
       console.error("annotation execution failed", error)
     } finally {
       setIsExecuting(false)
-    }
-  }
-
-  function reactivate(ids: readonly string[]) {
-    const chapterID = props.chapterID()
-    if (!chapterID || ids.length === 0) return
-    for (const id of ids) {
-      updateAnnotation.mutate({ novelID: props.novelID(), annotationID: id, chapterID, status: "open", executionRoundId: null })
     }
   }
 
@@ -184,7 +195,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     updateAnnotation.mutate({
       novelID: props.novelID(),
       annotationID: id,
-      chapterID: props.chapterID() ?? "",
+      ...targetRef(),
       comment: editComment().trim(),
       suggestedReplacement: editReplacement().trim() || undefined,
     })
@@ -196,43 +207,186 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   }
 
   return (
-    <div class="flex h-full min-h-0 flex-col overflow-hidden">
-      <div class="flex items-center justify-between p-4 pb-2 shrink-0">
-        <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
-        <div class="flex gap-1">
-          <TabButton active={tab() === "current"} onClick={() => setTab("current")}>
-            {language.t("novel.annotations.tab.current")}
-          </TabButton>
-          <TabButton active={tab() === "history"} onClick={() => setTab("history")}>
-            {language.t("novel.annotations.tab.history")}
-          </TabButton>
+    <Show
+      when={props.targetType === "chapter"}
+      fallback={
+        <div class="flex h-full min-h-0 flex-col border-t border-v2-border-border-base">
+          <div class="flex items-center justify-between px-4 py-2">
+            <h3 class="text-sm font-semibold text-v2-text-text-base">设定批注</h3>
+            <div class="flex gap-1">
+              <button
+                class={`rounded px-2 py-0.5 text-xs ${tab() === "current" ? "bg-v2-background-bg-layer-01 font-semibold" : "text-v2-text-text-muted"}`}
+                onClick={() => setTab("current")}
+              >
+                当前
+              </button>
+              <button
+                class={`rounded px-2 py-0.5 text-xs ${tab() === "history" ? "bg-v2-background-bg-layer-01 font-semibold" : "text-v2-text-text-muted"}`}
+                onClick={() => setTab("history")}
+              >
+                历史
+              </button>
+            </div>
+          </div>
+
+          <Show when={tab() === "current"}>
+            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
+              <Show when={annotations.isLoading}>
+                <Spinner />
+              </Show>
+              <Show when={!annotations.isLoading && activeAnnotations().length === 0}>
+                <p class="py-3 text-center text-xs text-v2-text-text-faint">选中设定文字可创建批注。</p>
+              </Show>
+              <For each={activeAnnotations()}>
+                {(ann) => (
+                  <div class="rounded border border-v2-border-border-base p-2">
+                    <div class="flex items-center justify-between">
+                      <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>{statusLabel[ann.status] ?? ann.status}</span>
+                      <Show when={ann.paragraphIndex != null}>
+                        <span class="text-xs text-v2-text-text-faint">第 {annotationParagraphRangeLabel(ann)} 段</span>
+                      </Show>
+                    </div>
+                    <p class="mt-1 text-xs text-v2-text-text-base">{ann.comment}</p>
+                    <Show when={ann.quote}>
+                      <p class="mt-1 line-clamp-2 text-xs text-v2-text-text-faint">{ann.quote}</p>
+                    </Show>
+                    <Show when={ann.suggestedReplacement}>
+                      <p class="mt-1 line-clamp-2 text-xs text-v2-text-text-muted">建议：{ann.suggestedReplacement}</p>
+                    </Show>
+                    <div class="mt-2 flex flex-wrap justify-end gap-1">
+                      <Show when={ann.status === "open"}>
+                        <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "resolved")}>已解决</ButtonV2>
+                        <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "applied")}>采纳</ButtonV2>
+                        <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "wontfix")}>不处理</ButtonV2>
+                      </Show>
+                      <Show when={ann.status !== "open"}>
+                        <ButtonV2 size="small" variant="ghost" onClick={() => setStatus(ann.id, "open")}>重新打开</ButtonV2>
+                      </Show>
+                      <ButtonV2 size="small" variant="ghost" onClick={() => remove(ann.id)}>删除</ButtonV2>
+                    </div>
+                  </div>
+                )}
+              </For>
+              <ButtonV2 class="mt-2" size="small" variant="contrast" onClick={() => void execute()} disabled={!canExecute()}>
+                {isExecuting() || sessionBusy() ? "执行中..." : "执行批注"}
+              </ButtonV2>
+            </div>
+          </Show>
+
+          <Show when={tab() === "history"}>
+            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
+              <Show when={rounds.isLoading}>
+                <Spinner />
+              </Show>
+              <Show when={!rounds.isLoading && (rounds.data ?? []).length === 0}>
+                <p class="py-3 text-center text-xs text-v2-text-text-faint">还没有执行历史。</p>
+              </Show>
+              <For each={rounds.data ?? []}>
+                {(round) => (
+                  <div class="rounded border border-v2-border-border-base p-2">
+                    <div class="flex items-center justify-between">
+                      <span class={`text-xs font-medium ${
+                        round.status === "completed"
+                          ? "text-v2-state-fg-success"
+                          : round.status === "failed" || round.status === "interrupted"
+                            ? "text-v2-state-fg-warning"
+                            : "text-v2-state-fg-info"
+                      }`}>
+                        {round.status === "completed" ? "已完成" : round.status === "failed" ? "执行失败" : round.status === "interrupted" ? "已中断" : "执行中"}
+                      </span>
+                      <span class="text-xs text-v2-text-text-faint">{new Date(round.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p class="mt-1 text-xs text-v2-text-text-base">{round.resultSummary || "等待 AI 回填结果。"}</p>
+                    <p class="mt-1 line-clamp-2 whitespace-pre-wrap text-xs text-v2-text-text-faint">{round.promptSnapshot}</p>
+                    <div class="mt-2 flex justify-end">
+                      <ButtonV2 size="small" variant="ghost" onClick={() => reactivate(round.annotationsSnapshot.map((ann) => ann.id))}>
+                        重新激活
+                      </ButtonV2>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
+      }
+    >
+      <div class="flex h-full min-h-0 flex-col overflow-hidden">
+        <div class="flex items-center justify-between p-4 pb-2 shrink-0">
+          <h3 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.panel.annotations")}</h3>
+          <div class="flex gap-1">
+            <TabButton active={tab() === "current"} onClick={() => setTab("current")}>
+              {language.t("novel.annotations.tab.current")}
+            </TabButton>
+            <TabButton active={tab() === "history"} onClick={() => setTab("history")}>
+              {language.t("novel.annotations.tab.history")}
+            </TabButton>
+          </div>
+        </div>
+
+        <Show when={tab() === "current"}>
+          <CurrentTab
+            props={props}
+            annotations={annotations}
+            activeAnnotations={activeAnnotations}
+            executing={isExecuting() || sessionBusy()}
+            setStatus={setStatus}
+            remove={remove}
+            canExecute={canExecute}
+            execute={execute}
+            editingId={editingId}
+            editComment={editComment}
+            editReplacement={editReplacement}
+            setEditComment={setEditComment}
+            setEditReplacement={setEditReplacement}
+            startEdit={startEdit}
+            saveEdit={saveEdit}
+            cancelEdit={cancelEdit}
+          />
+        </Show>
+
+        <Show when={tab() === "history"}>
+          <HistoryTab rounds={rounds} targetType={props.targetType} reactivate={reactivate} />
+        </Show>
       </div>
+    </Show>
+  )
+}
 
-      <Show when={tab() === "current"}>
-        <CurrentTab
-          props={props}
-          annotations={annotations}
-          activeAnnotations={activeAnnotations}
-          executing={isExecuting() || sessionBusy()}
-          setStatus={setStatus}
-          remove={remove}
-          canExecute={canExecute}
-          execute={execute}
-          editingId={editingId}
-          editComment={editComment}
-          editReplacement={editReplacement}
-          setEditComment={setEditComment}
-          setEditReplacement={setEditReplacement}
-          startEdit={startEdit}
-          saveEdit={saveEdit}
-          cancelEdit={cancelEdit}
-        />
-      </Show>
-
-      <Show when={tab() === "history"}>
-        <HistoryTab rounds={rounds} reactivate={reactivate} />
-      </Show>
+export function AnnotationCreateForm(props: {
+  quote: Accessor<string>
+  comment: Accessor<string>
+  replacement: Accessor<string>
+  pending: boolean
+  onComment: (value: string) => void
+  onReplacement: (value: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div class="rounded border border-v2-border-border-base p-3">
+      <p class="line-clamp-2 text-xs text-v2-text-text-faint">{props.quote()}</p>
+      <TextareaV2
+        class="mt-2"
+        rows={3}
+        fluid
+        value={props.comment()}
+        onInput={(event) => props.onComment(event.currentTarget.value)}
+        placeholder="批注意见"
+      />
+      <TextInputV2
+        class="mt-2"
+        fluid
+        value={props.replacement()}
+        onInput={(event) => props.onReplacement(event.currentTarget.value)}
+        placeholder="可选替换建议（纯文本）"
+      />
+      <div class="mt-2 flex justify-end gap-2">
+        <ButtonV2 size="small" variant="ghost-muted" onClick={props.onCancel}>取消</ButtonV2>
+        <ButtonV2 size="small" variant="contrast" onClick={props.onSubmit} disabled={props.pending || !props.comment().trim()}>
+          保存批注
+        </ButtonV2>
+      </div>
     </div>
   )
 }
@@ -336,99 +490,86 @@ function AnnotationCard(props: {
   cancelEdit: () => void
 }) {
   const language = useLanguage()
-  const ann = props.ann
-  const isEditing = createMemo(() => props.editingId() === ann.id)
+  const isEditing = () => props.editingId() === props.ann.id
 
   return (
-    <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-1.5">
+    <div class="rounded border border-v2-border-border-base p-2 flex flex-col gap-2">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class={`text-xs font-medium ${statusColor[ann.status] ?? ""}`}>
-            {enumLabel(language, "novel.annotations.status", ann.status)}
-          </span>
-          <Show when={ann.source === "ai"}>
-            <span class="text-xs px-1 py-0.5 rounded bg-v2-background-bg-layer-01 text-v2-text-text-faint">AI</span>
-          </Show>
-          <Show when={ann.suggestedReplacement}>
-            <span class="text-xs px-1 py-0.5 rounded bg-v2-state-bg-info text-v2-state-fg-info">{language.t("novel.annotations.polish")}</span>
-          </Show>
-        </div>
-        <Show when={ann.paragraphIndex != null}>
-          <span class="text-xs text-v2-text-text-faint">P{annotationParagraphRangeLabel(ann)}</span>
+        <span class={`text-xs font-medium ${statusColor[props.ann.status] ?? ""}`}>
+          {enumLabel(language, "novel.annotations.status", props.ann.status)}
+        </span>
+        <Show when={props.ann.paragraphIndex != null}>
+          <span class="text-v2-text-text-faint text-xs">P{annotationParagraphRangeLabel(props.ann)}</span>
         </Show>
       </div>
 
-      <Show when={ann.quote}>
-        <blockquote class="text-xs text-v2-text-text-faint border-l-2 border-v2-border-border-base pl-2 italic truncate">
-          {ann.quote}
-        </blockquote>
+      <Show
+        when={isEditing()}
+        fallback={
+          <>
+            <p class="text-v2-text-text-base text-xs">{props.ann.comment}</p>
+            <Show when={props.ann.quote}>
+              <p class="text-v2-text-text-faint line-clamp-2 text-xs">{props.ann.quote}</p>
+            </Show>
+            <Show when={props.ann.suggestedReplacement}>
+              <p class="text-v2-text-text-muted line-clamp-2 text-xs">
+                {language.t("novel.annotations.suggestion")}: {props.ann.suggestedReplacement}
+              </p>
+            </Show>
+          </>
+        }
+      >
+        <textarea
+          class="bg-v2-background-bg-layer-01 text-v2-text-text-base rounded p-1 text-xs w-full"
+          rows={2}
+          value={props.editComment()}
+          onInput={(event) => props.setEditComment(event.currentTarget.value)}
+        />
+        <input
+          class="bg-v2-background-bg-layer-01 text-v2-text-text-base rounded p-1 text-xs w-full"
+          value={props.editReplacement()}
+          onInput={(event) => props.setEditReplacement(event.currentTarget.value)}
+          placeholder={language.t("novel.annotations.suggestionPlaceholder")}
+        />
       </Show>
 
-<Show when={!isEditing()} fallback={
-        <div class="flex flex-col gap-1.5">
-          <textarea
-            class="w-full rounded border border-v2-border-border-base bg-v2-background-bg-base p-2 text-xs text-v2-text-text-base resize-none"
-            rows={3}
-            value={props.editComment()}
-            onInput={(e) => props.setEditComment(e.currentTarget.value)}
-          />
-          <input
-            class="w-full rounded border border-v2-border-border-base bg-v2-background-bg-base p-2 text-xs text-v2-text-text-base"
-            placeholder={language.t("novel.annotations.editSuggestion")}
-            value={props.editReplacement()}
-            onInput={(e) => props.setEditReplacement(e.currentTarget.value)}
-          />
-          <div class="flex gap-1 justify-end">
-            <ButtonV2 size="small" variant="ghost" onClick={props.cancelEdit}>
-              {language.t("common.cancel")}
-            </ButtonV2>
-            <ButtonV2 size="small" variant="contrast" disabled={!props.editComment().trim()} onClick={props.saveEdit}>
-              {language.t("novel.annotations.save")}
-            </ButtonV2>
-          </div>
-        </div>
-      }>
-        <p class="text-xs text-v2-text-text-base">{ann.comment}</p>
-        <Show when={ann.suggestedReplacement}>
-          <div class="rounded bg-v2-background-bg-layer-01 p-1.5 text-xs text-v2-text-text-muted">
-            <span class="text-v2-text-text-faint">{language.t("novel.annotations.suggestion")} </span>
-            {ann.suggestedReplacement}
-          </div>
-        </Show>
-      </Show>
-
-      <Show when={ann.status === "open" && !isEditing()}>
-        <div class="flex gap-1 mt-1">
-          <Show when={ann.suggestedReplacement}>
-            <ButtonV2 size="small" variant="contrast" title={language.t("novel.annotations.adopt.hint")} onClick={() => props.setStatus(ann.id, "applied")}>
-              {language.t("novel.annotations.apply")}
-            </ButtonV2>
-          </Show>
-          <ButtonV2 size="small" variant="outline" onClick={() => props.setStatus(ann.id, "resolved")}>
-            {language.t("novel.annotations.resolve")}
-          </ButtonV2>
-          <ButtonV2 size="small" variant="ghost" onClick={() => props.startEdit(ann)}>
+      <div class="flex flex-wrap justify-end gap-1">
+        <Show when={!isEditing()}>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.startEdit(props.ann)}>
             {language.t("novel.annotations.edit")}
           </ButtonV2>
-          <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(ann.id, "wontfix")}>
-            {language.t("novel.annotations.dismiss")}
+        </Show>
+        <Show when={isEditing()}>
+          <ButtonV2 size="small" variant="ghost" onClick={props.saveEdit}>
+            {language.t("novel.annotations.save")}
           </ButtonV2>
-          <ButtonV2 size="small" variant="ghost" onClick={() => props.remove(ann.id)}>
-            {language.t("common.delete")}
+          <ButtonV2 size="small" variant="ghost" onClick={props.cancelEdit}>
+            {language.t("novel.annotations.cancel")}
           </ButtonV2>
-        </div>
-      </Show>
-
-      <Show when={ann.status !== "open" && !isEditing()}>
-        <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(ann.id, "open")}>
-          {language.t("novel.annotations.reopen")}
-        </ButtonV2>
-      </Show>
+        </Show>
+        <Show when={props.ann.status === "open"}>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(props.ann.id, "resolved")}>
+            {language.t("novel.annotations.resolve")}
+          </ButtonV2>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(props.ann.id, "applied")}>
+            {language.t("novel.annotations.apply")}
+          </ButtonV2>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(props.ann.id, "wontfix")}>
+            {language.t("novel.annotations.wontfix")}
+          </ButtonV2>
+        </Show>
+        <Show when={props.ann.status !== "open" && !isEditing()}>
+          <ButtonV2 size="small" variant="ghost" onClick={() => props.setStatus(props.ann.id, "open")}>
+            {language.t("novel.annotations.reopen")}
+          </ButtonV2>
+        </Show>
+      </div>
     </div>
   )
 }
 
 function HistoryTab(props: {
+  targetType: "chapter" | "world_entry"
   rounds: {
     data:
       | ReadonlyArray<{
@@ -437,7 +578,7 @@ function HistoryTab(props: {
           readonly status: string
           readonly annotationsSnapshot: readonly AnnotationExecutionSnapshot[]
           readonly resultSummary: string
-          readonly chapterVersionId?: string | null | undefined
+          readonly resultRefId?: string | null | undefined
           readonly createdAt: number
         }>
       | undefined
@@ -482,8 +623,10 @@ function HistoryTab(props: {
                       ? "已中断"
                       : "执行中"}
               </span>
-              <Show when={group.chapterVersionId}>
-                <span class="text-v2-text-text-faint text-xs">章节版本 {group.chapterVersionId}</span>
+              <Show when={group.resultRefId}>
+                <span class="text-v2-text-text-faint text-xs">
+                  {props.targetType === "chapter" ? "章节版本" : "结果引用"} {group.resultRefId}
+                </span>
               </Show>
             </div>
             <p class="text-v2-text-text-base text-xs">{group.resultSummary || "等待 AI 回填结果。"}</p>

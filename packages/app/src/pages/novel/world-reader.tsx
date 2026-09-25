@@ -10,9 +10,9 @@ import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
 import { showToast } from "@/utils/toast"
 import {
-  useCreateSettingAnnotation,
+  useCreateAnnotation,
   useDeleteWorldEntry,
-  useSettingAnnotations,
+  useAnnotations,
   useSoul,
   useStyleGuide,
   useUpdateSoul,
@@ -28,7 +28,7 @@ import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/
 import { SoulEditor } from "@/components/soul-editor"
 import { SettingOrganizationPanel } from "./setting-organization"
 import { annotationInterval, closestParagraphElement, getSelectionAnchor, hasOverlap, paragraphDecorationAnnotations, segmentParagraph } from "./annotation-utils"
-import { SettingAnnotationCreateForm, SettingAnnotationPanel } from "./setting-annotation-panel"
+import { AnnotationCreateForm, AnnotationPanel } from "./annotation-panel"
 
 type WorldSubTab = "entries" | "style" | "soul" | "organization"
 
@@ -98,9 +98,10 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
   const query = useWorldEntries(props.novelID)
   const updateEntry = useUpdateWorldEntry()
   const deleteEntry = useDeleteWorldEntry()
-  const createAnnotation = useCreateSettingAnnotation()
-  const annotations = useSettingAnnotations(
+  const createAnnotation = useCreateAnnotation()
+  const annotations = useAnnotations(
     props.novelID,
+    () => "world_entry",
     createMemo(() => props.selectedEntryId() ?? ""),
   )
   const confirmDelete = useConfirmDelete()
@@ -175,7 +176,9 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
     try {
       await createAnnotation.mutateAsync({
         novelID: props.novelID(),
-        entryID: current.id,
+        targetType: "world_entry",
+        targetId: current.id,
+        field: "content",
         source: "user",
         anchorType: "paragraph",
         paragraphIndex: anchor.paragraphIndex,
@@ -337,7 +340,7 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
                   </Show>
                 </div>
                 <Show when={selectedAnchor()}>
-                  <SettingAnnotationCreateForm
+                  <AnnotationCreateForm
                     quote={() => selectedAnchor()?.quote ?? ""}
                     comment={annotationComment}
                     replacement={annotationReplacement}
@@ -348,10 +351,11 @@ function WorldEntryDetail(props: WorldEntryDetailProps) {
                     onCancel={() => setSelectedAnchor(null)}
                   />
                 </Show>
-                <SettingAnnotationPanel
+                <AnnotationPanel
                   novelID={props.novelID}
-                  entryID={() => current().id}
-                  entryTitle={() => current().title}
+                  targetType="world_entry"
+                  targetID={() => current().id}
+                  targetTitle={() => current().title}
                   content={() => current().content}
                   onExecute={props.onExecute}
                   onSessionFocused={props.onSessionFocused}

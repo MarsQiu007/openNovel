@@ -3,8 +3,7 @@
  */
 import { describe, test, expect } from "bun:test"
 import { hasOverlap, segmentParagraph } from "./annotation-utils"
-import { executeSettingAnnotationExecution, formatSettingExecutionPrompt } from "./setting-annotation-execution"
-import type { AnnotationExecutionInput } from "./annotation-execution"
+import { executeAnnotationExecution, formatSettingExecutionPrompt, type AnnotationExecutionInput } from "./annotation-execution"
 
 const annotations: AnnotationExecutionInput[] = [
   {
@@ -32,7 +31,7 @@ describe("setting annotation prompt", () => {
     expect(prompt).toContain("world_entry_id: we-1")
     expect(prompt).toContain("read_setting")
     expect(prompt).toContain("update_setting")
-    expect(prompt).toContain("report_setting_annotation_execution")
+    expect(prompt).toContain("report_annotation_execution")
     expect(prompt).toContain("- paragraph_index: 0")
     expect(prompt).toContain("禁止 Markdown")
     expect(prompt).toContain("青灰城墙压向街巷")
@@ -95,8 +94,8 @@ describe("setting annotation prompt（跨段锚点与 quote 截断）", () => {
 describe("setting annotation orchestration", () => {
   test("创建轮次、写入 prompt、发送并关联批注", async () => {
     const calls: string[] = []
-    const sessionID = await executeSettingAnnotationExecution(
-      { entryID: "we-1", entryTitle: "旧城", paragraphs: ["城墙很高"], annotations },
+    const sessionID = await executeAnnotationExecution(
+      { targetType: "world_entry", targetID: "we-1", targetTitle: "旧城", paragraphs: ["城墙很高"], annotations },
       {
         createRound: async ({ promptSnapshot, annotationsSnapshot }) => {
           calls.push("create")
@@ -127,8 +126,8 @@ describe("setting annotation orchestration", () => {
 
   test("发送失败时把轮次标记为失败", async () => {
     const calls: string[] = []
-    await expect(executeSettingAnnotationExecution(
-      { entryID: "we-1", paragraphs: ["城墙很高"], annotations },
+    await expect(executeAnnotationExecution(
+      { targetType: "world_entry", targetID: "we-1", paragraphs: ["城墙很高"], annotations },
       {
         createRound: async () => ({ id: "wear-round" }),
         updateRoundPrompt: async () => undefined,

@@ -1047,7 +1047,8 @@ export default function NovelWorkspaceFrame() {
                     <Show when={key === "annotations"}>
                       <AnnotationPanel
                         novelID={novelID}
-                        chapterID={selectedChapterId}
+                        targetType="chapter"
+                        targetID={selectedChapterId}
                         onExecute={(args) => handleAnnotationExecute(args)}
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />
@@ -1166,7 +1167,8 @@ export default function NovelWorkspaceFrame() {
                     <Show when={railPanel() === "annotations"}>
                       <AnnotationPanel
                         novelID={novelID}
-                        chapterID={selectedChapterId}
+                        targetType="chapter"
+                        targetID={selectedChapterId}
                         onExecute={(args) => handleAnnotationExecute(args)}
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />

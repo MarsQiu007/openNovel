@@ -41,7 +41,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
     () => props.chapterID,
   )
   const restoreMutation = useRestoreChapterVersion()
-  const annotationsQuery = useAnnotations(() => props.novelID, () => props.chapterID)
+  const annotationsQuery = useAnnotations(() => props.novelID, () => "chapter", () => props.chapterID)
   const openAnnotationCount = createMemo(() => (annotationsQuery.data ?? []).filter((a) => a.status === "open").length)
 
   const [content, setContent] = createSignal("")

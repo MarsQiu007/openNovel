@@ -140,7 +140,7 @@ describe("executeAnnotationExecution", () => {
   test("按创建轮次 → 保存指令 → 发送 → 关联顺序执行，并保持待回填", async () => {
     const calls: string[] = []
     const sessionID = await executeAnnotationExecution(
-      { chapterID: "ch-1", paragraphs: ["正文"], annotations },
+      { targetType: "chapter", targetID: "ch-1", paragraphs: ["正文"], annotations },
       {
         createRound: async ({ annotationsSnapshot }) => {
           calls.push(`create:${annotationsSnapshot.length}`)
@@ -174,7 +174,7 @@ describe("executeAnnotationExecution", () => {
   test("发送失败时记录失败轮次并向上抛出", async () => {
     const calls: string[] = []
     await executeAnnotationExecution(
-      { chapterID: "ch-1", paragraphs: [], annotations: [] },
+      { targetType: "chapter", targetID: "ch-1", paragraphs: [], annotations: [] },
       {
         createRound: async () => {
           calls.push("create")
@@ -201,7 +201,7 @@ describe("executeAnnotationExecution", () => {
 })
 
 describe("groupHistoryRounds", () => {
-  test("保留章节版本和等待回填状态供历史面板展示", () => {
+  test("保留结果引用和等待回填状态供历史面板展示", () => {
     const groups = groupHistoryRounds([
       {
         id: "round-running",
@@ -211,14 +211,14 @@ describe("groupHistoryRounds", () => {
           { id: "ann-1", paragraphIndex: 0, startOffset: 0, endOffset: 2, quote: "旧句", status: "applied", comment: "改写", suggestedReplacement: "新句" },
         ],
         resultSummary: "",
-        chapterVersionId: null,
+        resultRefId: null,
         createdAt: 1,
       },
     ])
 
     expect(groups[0]?.status).toBe("running")
     expect(groups[0]?.resultSummary).toBe("")
-    expect(groups[0]?.chapterVersionId).toBeNull()
+    expect(groups[0]?.resultRefId).toBeNull()
   })
 
   test("按轮次渲染快照，不依赖当前批注表反查", () => {
@@ -229,7 +229,7 @@ describe("groupHistoryRounds", () => {
         status: "completed",
         annotationsSnapshot: [],
         resultSummary: "empty",
-        chapterVersionId: "cv-2",
+        resultRefId: "cv-2",
         createdAt: 20,
       },
       {

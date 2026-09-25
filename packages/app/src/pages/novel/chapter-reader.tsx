@@ -70,7 +70,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
   const chapterQuery = useChapterDetail(() => props.novelID, chapterID)
 
   // Annotation state
-  const annotationsQuery = useAnnotations(() => props.novelID, chapterID)
+  const annotationsQuery = useAnnotations(() => props.novelID, () => "chapter", chapterID)
   const createAnnotation = useCreateAnnotation()
   const [menuPos, setMenuPos] = createSignal<{ x: number; y: number } | null>(null)
   const [showForm, setShowForm] = createSignal(false)
@@ -125,7 +125,9 @@ export default function ChapterReader(props: ChapterReaderProps) {
     if (!anchor || !comment().trim()) return
     createAnnotation.mutate({
       novelID: props.novelID,
-      chapterID: props.selectedChapterId ?? "",
+      targetType: "chapter",
+      targetId: props.selectedChapterId ?? "",
+      field: "content",
       source: "user",
       anchorType: "range",
       paragraphIndex: anchor.paragraphIndex,
