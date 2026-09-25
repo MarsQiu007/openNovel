@@ -63,7 +63,11 @@ import {
   VolumeReview,
   EditorialReport,
   ExportFormat,
-  ChapterAnnotation,
+  Annotation,
+  AnnotationTargetType,
+  AnnotationRound,
+  CreateAnnotationRoundInput,
+  UpdateAnnotationRoundInput,
   CanvasLayout,
   StructureEditorData,
   CreateStoryArcInput,
@@ -81,15 +85,6 @@ import {
   SettingOrganizationAnalyzeResult,
   SettingOrganizationDryRunResult,
   SettingOrganizationApplyResult,
-  ExecutionRound,
-  CreateExecutionRoundInput,
-  UpdateExecutionRoundInput,
-  WorldEntryAnnotation,
-  CreateWorldEntryAnnotationInput,
-  UpdateWorldEntryAnnotationInput,
-  WorldEntryAnnotationExecutionRound,
-  CreateWorldEntryAnnotationRoundInput,
-  UpdateWorldEntryAnnotationRoundInput,
   ManualEditSyncEntry,
   ManualEditSyncQueryResult,
   SaveBookMetaInput,
@@ -1134,32 +1129,32 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-editorial-report", summary: "Create editorial report" })),
   )
   .add(
-    HttpApiEndpoint.get("novel.annotations", `${root}/:novelID/chapters/:chapterID/annotations`, {
-      params: { novelID: Schema.String, chapterID: Schema.String },
-      query: LocationQuery,
-      success: Schema.Array(ChapterAnnotation),
+    HttpApiEndpoint.get("novel.annotations", `${root}/:novelID/annotations`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({ ...LocationQuery.fields, targetType: AnnotationTargetType, targetId: Schema.String }),
+      success: Schema.Array(Annotation),
       error: NovelNotFoundError,
     })
       .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.annotations", summary: "List chapter annotations" })),
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.annotations", summary: "List annotations by target" })),
   )
   .add(
-    HttpApiEndpoint.post("novel.create-annotation", `${root}/:novelID/chapters/:chapterID/annotations`, {
-      params: { novelID: Schema.String, chapterID: Schema.String },
+    HttpApiEndpoint.post("novel.create-annotation", `${root}/:novelID/annotations`, {
+      params: { novelID: Schema.String },
       query: LocationQuery,
       payload: CreateAnnotationInput,
-      success: ChapterAnnotation,
+      success: Annotation,
       error: NovelNotFoundError,
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-annotation", summary: "Create annotation" })),
   )
   .add(
-    HttpApiEndpoint.put("novel.update-annotation", `${root}/:novelID/annotations/:annotationID`, {
+    HttpApiEndpoint.patch("novel.update-annotation", `${root}/:novelID/annotations/:annotationID`, {
       params: { novelID: Schema.String, annotationID: Schema.String },
       query: LocationQuery,
       payload: UpdateAnnotationInput,
-      success: ChapterAnnotation,
+      success: Annotation,
       error: NovelNotFoundError,
     })
       .annotateMerge(locationQueryOpenApi)
@@ -1176,42 +1171,36 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.delete-annotation", summary: "Delete annotation" })),
   )
   .add(
-    HttpApiEndpoint.post("novel.create-execution-round", `${root}/:novelID/chapters/:chapterID/execution-rounds`, {
-      params: { novelID: Schema.String, chapterID: Schema.String },
+    HttpApiEndpoint.post("novel.create-annotation-round", `${root}/:novelID/annotation-rounds`, {
+      params: { novelID: Schema.String },
       query: LocationQuery,
-      payload: CreateExecutionRoundInput,
-      success: ExecutionRound,
+      payload: CreateAnnotationRoundInput,
+      success: AnnotationRound,
       error: NovelNotFoundError,
     })
       .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-execution-round", summary: "Create execution round" })),
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.create-annotation-round", summary: "Create annotation execution round" })),
   )
   .add(
-    HttpApiEndpoint.get("novel.execution-rounds", `${root}/:novelID/chapters/:chapterID/execution-rounds`, {
-      params: { novelID: Schema.String, chapterID: Schema.String },
-      query: LocationQuery,
-      success: Schema.Array(ExecutionRound),
+    HttpApiEndpoint.get("novel.annotation-rounds", `${root}/:novelID/annotation-rounds`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({ ...LocationQuery.fields, targetType: AnnotationTargetType, targetId: Schema.String }),
+      success: Schema.Array(AnnotationRound),
       error: NovelNotFoundError,
     })
       .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.execution-rounds", summary: "List execution rounds" })),
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.annotation-rounds", summary: "List annotation execution rounds by target" })),
   )
   .add(
-    HttpApiEndpoint.put(
-      "novel.update-execution-round",
-      `${root}/:novelID/chapters/:chapterID/execution-rounds/:roundID`,
-      {
-        params: { novelID: Schema.String, chapterID: Schema.String, roundID: Schema.String },
-        query: LocationQuery,
-        payload: UpdateExecutionRoundInput,
-        success: ExecutionRound,
-        error: NovelNotFoundError,
-      },
-    )
+    HttpApiEndpoint.patch("novel.update-annotation-round", `${root}/:novelID/annotation-rounds/:roundID`, {
+      params: { novelID: Schema.String, roundID: Schema.String },
+      query: LocationQuery,
+      payload: UpdateAnnotationRoundInput,
+      success: AnnotationRound,
+      error: NovelNotFoundError,
+    })
       .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({ identifier: "v2.novel.update-execution-round", summary: "Update execution round" }),
-      ),
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.update-annotation-round", summary: "Update annotation execution round" })),
   )
   .add(
     HttpApiEndpoint.post("novel.settings-organization.analyze", `${root}/:novelID/settings-organization/analyze`, {
@@ -1261,115 +1250,6 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.settings-organization.apply",
           summary: "Apply setting organization plan",
           description: "Apply an explicitly confirmed organization plan after server-side revalidation.",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.get("novel.setting-annotations", `${root}/:novelID/world-entries/:entryID/annotations`, {
-      params: { novelID: Schema.String, entryID: Schema.String },
-      query: LocationQuery,
-      success: Schema.Array(WorldEntryAnnotation),
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.setting-annotations",
-          summary: "List world entry annotations",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.post("novel.create-setting-annotation", `${root}/:novelID/world-entries/:entryID/annotations`, {
-      params: { novelID: Schema.String, entryID: Schema.String },
-      query: LocationQuery,
-      payload: CreateWorldEntryAnnotationInput,
-      success: WorldEntryAnnotation,
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.create-setting-annotation",
-          summary: "Create world entry annotation",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.patch("novel.update-setting-annotation", `${root}/:novelID/setting-annotations/:annotationID`, {
-      params: { novelID: Schema.String, annotationID: Schema.String },
-      query: LocationQuery,
-      payload: UpdateWorldEntryAnnotationInput,
-      success: WorldEntryAnnotation,
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.update-setting-annotation",
-          summary: "Update world entry annotation",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.delete("novel.delete-setting-annotation", `${root}/:novelID/setting-annotations/:annotationID`, {
-      params: { novelID: Schema.String, annotationID: Schema.String },
-      query: LocationQuery,
-      success: Schema.Struct({ deleted: Schema.Boolean }),
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.delete-setting-annotation",
-          summary: "Delete world entry annotation",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.post("novel.create-setting-annotation-round", `${root}/:novelID/world-entries/:entryID/annotation-rounds`, {
-      params: { novelID: Schema.String, entryID: Schema.String },
-      query: LocationQuery,
-      payload: CreateWorldEntryAnnotationRoundInput,
-      success: WorldEntryAnnotationExecutionRound,
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.create-setting-annotation-round",
-          summary: "Create world entry annotation execution round",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.get("novel.setting-annotation-rounds", `${root}/:novelID/world-entries/:entryID/annotation-rounds`, {
-      params: { novelID: Schema.String, entryID: Schema.String },
-      query: LocationQuery,
-      success: Schema.Array(WorldEntryAnnotationExecutionRound),
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.setting-annotation-rounds",
-          summary: "List world entry annotation execution rounds",
-        }),
-      ),
-  )
-  .add(
-    HttpApiEndpoint.patch("novel.update-setting-annotation-round", `${root}/:novelID/setting-annotation-rounds/:roundID`, {
-      params: { novelID: Schema.String, roundID: Schema.String },
-      query: LocationQuery,
-      payload: UpdateWorldEntryAnnotationRoundInput,
-      success: WorldEntryAnnotationExecutionRound,
-      error: NovelNotFoundError,
-    })
-      .annotateMerge(locationQueryOpenApi)
-      .annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.novel.update-setting-annotation-round",
-          summary: "Update world entry annotation execution round",
         }),
       ),
   )
