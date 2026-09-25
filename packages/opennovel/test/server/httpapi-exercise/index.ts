@@ -51,8 +51,8 @@ import {
   createPlotThread,
   createForeshadowing,
   createWorldEntry,
-  createWorldEntryAnnotation,
-  createWorldEntryAnnotationRound,
+  createAnnotationEndpoint,
+  createAnnotationRoundEndpoint,
   updateOutline,
   updateStyleGuideEndpoint,
 } from "@opennovel-ai/server/handlers/novel"
@@ -2017,10 +2017,12 @@ function seedWorldEntryAnnotation(ctx: ScenarioContext) {
   return Effect.orDie(
     Effect.gen(function* () {
       const state = yield* seedSettingAnnotationsEntry(ctx)
-      const annotation = yield* createWorldEntryAnnotation(
+      const annotation = yield* createAnnotationEndpoint(
         state.novelID,
-        state.entryID,
         {
+          targetType: "world_entry",
+          targetId: state.entryID,
+          field: "content",
           ...SETTING_ANNOTATION_SPAN,
           quote: SETTING_ANNOTATION_QUOTE,
           comment: "三千弟子与后文人数描述不一致",
@@ -2036,13 +2038,49 @@ function seedWorldEntryAnnotationRound(ctx: ScenarioContext) {
   return Effect.orDie(
     Effect.gen(function* () {
       const state = yield* seedSettingAnnotationsEntry(ctx)
-      const round = yield* createWorldEntryAnnotationRound(
+      const round = yield* createAnnotationRoundEndpoint(
         state.novelID,
-        state.entryID,
-        { annotationsSnapshot: [], status: "completed", resultSummary: "首轮整理完成，无遗留批注" },
+        {
+          targetType: "world_entry",
+          targetId: state.entryID,
+          annotationsSnapshot: [],
+          status: "completed",
+          resultSummary: "首轮整理完成，无遗留批注",
+        },
         novelDirectory(ctx),
       )
       return { ...state, roundID: round.id }
+    }),
+  )
+}
+
+// 同一小说下同时存在章节与设定批注，用于验证按目标查询的跨目标隔离
+function seedCrossTargetAnnotations(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedWorldEntryAnnotation(ctx)
+      const chapter = yield* createChapterEndpoint(state.novelID, { title: "第一章" }, novelDirectory(ctx))
+      yield* updateChapterContent(
+        state.novelID,
+        chapter.id,
+        { content: "第一段文字。\n\n第二段文字。" },
+        novelDirectory(ctx),
+      )
+      yield* createAnnotationEndpoint(
+        state.novelID,
+        {
+          targetType: "chapter",
+          targetId: chapter.id,
+          field: "content",
+          paragraphIndex: 0,
+          startOffset: 0,
+          endOffset: 3,
+          quote: "第一段",
+          comment: "章节批注不应出现在设定目标查询里",
+        },
+        novelDirectory(ctx),
+      )
+      return state
     }),
   )
 }
@@ -2703,27 +2741,29 @@ function novelScenarios(): Scenario[] {
       }))
       .json(200, isDeleted),
     http.protected
-      .get("/api/novel/{novelID}/world-entries/{entryID}/annotations", "novel.setting-annotations")
-      .seeded((ctx) => seedWorldEntryAnnotation(ctx))
+      .get("/api/novel/{novelID}/annotations", "novel.annotations")
+      .seeded((ctx) => seedCrossTargetAnnotations(ctx))
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotations", {
-          novelID: ctx.state.novelID,
-          entryID: ctx.state.entryID,
-        }),
+        path: `${route("/api/novel/{novelID}/annotations", { novelID: ctx.state.novelID })}?targetType=world_entry&targetId=${ctx.state.entryID}`,
         headers: ctx.headers(),
       }))
-      .json(200, isArray),
+      .json(200, (body) => {
+        array(body)
+        check(body.length === 1, "跨目标隔离：只返回设定目标下的批注")
+        const item = body[0]
+        check(isRecord(item) && item.targetType === "world_entry", "批注 targetType 应为 world_entry")
+      }),
     http.protected
-      .post("/api/novel/{novelID}/world-entries/{entryID}/annotations", "novel.create-setting-annotation")
+      .post("/api/novel/{novelID}/annotations", "novel.create-annotation")
       .seeded((ctx) => seedSettingAnnotationsEntry(ctx))
       .mutating()
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotations", {
-          novelID: ctx.state.novelID,
-          entryID: ctx.state.entryID,
-        }),
+        path: route("/api/novel/{novelID}/annotations", { novelID: ctx.state.novelID }),
         headers: jsonHeaders(ctx),
         body: {
+          targetType: "world_entry",
+          targetId: ctx.state.entryID,
+          field: "content",
           ...SETTING_ANNOTATION_SPAN,
           quote: SETTING_ANNOTATION_QUOTE,
           comment: "门中弟子数与后文描述矛盾",
@@ -2731,11 +2771,11 @@ function novelScenarios(): Scenario[] {
       }))
       .json(200, isObject),
     http.protected
-      .patch("/api/novel/{novelID}/setting-annotations/{annotationID}", "novel.update-setting-annotation")
+      .patch("/api/novel/{novelID}/annotations/{annotationID}", "novel.update-annotation")
       .seeded((ctx) => seedWorldEntryAnnotation(ctx))
       .mutating()
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/setting-annotations/{annotationID}", {
+        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
           novelID: ctx.state.novelID,
           annotationID: ctx.state.annotationID,
         }),
@@ -2744,11 +2784,11 @@ function novelScenarios(): Scenario[] {
       }))
       .json(200, isObject),
     http.protected
-      .delete("/api/novel/{novelID}/setting-annotations/{annotationID}", "novel.delete-setting-annotation")
+      .delete("/api/novel/{novelID}/annotations/{annotationID}", "novel.delete-annotation")
       .seeded((ctx) => seedWorldEntryAnnotation(ctx))
       .mutating()
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/setting-annotations/{annotationID}", {
+        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
           novelID: ctx.state.novelID,
           annotationID: ctx.state.annotationID,
         }),
@@ -2756,35 +2796,35 @@ function novelScenarios(): Scenario[] {
       }))
       .json(200, isDeleted),
     http.protected
-      .post("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", "novel.create-setting-annotation-round")
+      .post("/api/novel/{novelID}/annotation-rounds", "novel.create-annotation-round")
       .seeded((ctx) => seedSettingAnnotationsEntry(ctx))
       .mutating()
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", {
-          novelID: ctx.state.novelID,
-          entryID: ctx.state.entryID,
-        }),
+        path: route("/api/novel/{novelID}/annotation-rounds", { novelID: ctx.state.novelID }),
         headers: jsonHeaders(ctx),
-        body: { annotationsSnapshot: [], status: "completed", resultSummary: "首轮整理完成，无遗留批注" },
+        body: {
+          targetType: "world_entry",
+          targetId: ctx.state.entryID,
+          annotationsSnapshot: [],
+          status: "completed",
+          resultSummary: "首轮整理完成，无遗留批注",
+        },
       }))
       .json(200, isObject),
     http.protected
-      .get("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", "novel.setting-annotation-rounds")
+      .get("/api/novel/{novelID}/annotation-rounds", "novel.annotation-rounds")
       .seeded((ctx) => seedWorldEntryAnnotationRound(ctx))
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/world-entries/{entryID}/annotation-rounds", {
-          novelID: ctx.state.novelID,
-          entryID: ctx.state.entryID,
-        }),
+        path: `${route("/api/novel/{novelID}/annotation-rounds", { novelID: ctx.state.novelID })}?targetType=world_entry&targetId=${ctx.state.entryID}`,
         headers: ctx.headers(),
       }))
       .json(200, isArray),
     http.protected
-      .patch("/api/novel/{novelID}/setting-annotation-rounds/{roundID}", "novel.update-setting-annotation-round")
+      .patch("/api/novel/{novelID}/annotation-rounds/{roundID}", "novel.update-annotation-round")
       .seeded((ctx) => seedWorldEntryAnnotationRound(ctx))
       .mutating()
       .at((ctx) => ({
-        path: route("/api/novel/{novelID}/setting-annotation-rounds/{roundID}", {
+        path: route("/api/novel/{novelID}/annotation-rounds/{roundID}", {
           novelID: ctx.state.novelID,
           roundID: ctx.state.roundID,
         }),
@@ -2945,89 +2985,6 @@ function novelScenarios(): Scenario[] {
         path: route("/api/novel/{novelID}/editorial-reports", { novelID: "nov_missing" }),
         headers: ctx.headers(),
         body: { scopeType: 1 },
-      }))
-      .json(400, object, "status"),
-    http.protected
-      .get("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.annotations")
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", {
-          novelID: "nov_missing",
-          chapterID: "cha_missing",
-        }),
-        headers: ctx.headers(),
-      }))
-      .json(200, (body) => array(body)),
-    http.protected
-      .post("/api/novel/{novelID}/chapters/{chapterID}/annotations", "v2.novel.create-annotation")
-      .mutating()
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/chapters/{chapterID}/annotations", {
-          novelID: "nov_missing",
-          chapterID: "cha_missing",
-        }),
-        headers: ctx.headers(),
-        body: {},
-      }))
-      .json(400, object, "status"),
-    http.protected
-      .put("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.update-annotation")
-      .mutating()
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
-          novelID: "nov_missing",
-          annotationID: "ann_missing",
-        }),
-        headers: ctx.headers(),
-        body: { status: "invalid" },
-      }))
-      .json(400, object, "status"),
-    http.protected
-      .delete("/api/novel/{novelID}/annotations/{annotationID}", "v2.novel.delete-annotation")
-      .mutating()
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/annotations/{annotationID}", {
-          novelID: "nov_missing",
-          annotationID: "ann_missing",
-        }),
-        headers: ctx.headers(),
-      }))
-      .json(200, (body) => {
-        object(body)
-        check(body.deleted === true, "delete should return deleted: true")
-      }),
-    http.protected
-      .get("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.execution-rounds")
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", {
-          novelID: "nov_missing",
-          chapterID: "cha_missing",
-        }),
-        headers: ctx.headers(),
-      }))
-      .json(200, (body) => array(body)),
-    http.protected
-      .post("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", "v2.novel.create-execution-round")
-      .mutating()
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds", {
-          novelID: "nov_missing",
-          chapterID: "cha_missing",
-        }),
-        headers: ctx.headers(),
-        body: {},
-      }))
-      .json(400, object, "status"),
-    http.protected
-      .put("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", "v2.novel.update-execution-round")
-      .mutating()
-      .at((ctx) => ({
-        path: route("/api/novel/{novelID}/chapters/{chapterID}/execution-rounds/{roundID}", {
-          novelID: "nov_missing",
-          chapterID: "cha_missing",
-          roundID: "exe_missing",
-        }),
-        headers: ctx.headers(),
-        body: { status: "invalid" },
       }))
       .json(400, object, "status"),
     http.protected
