@@ -18,6 +18,7 @@ import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
+import { CheckboxV2 } from "@opennovel-ai/ui/v2/checkbox-v2"
 import { useWorkspaceData, findBoundNovelSession, sendNovelSessionInstruction } from "./workspace-data"
 import { createExportBlob } from "@/utils/export-download"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
@@ -518,6 +519,7 @@ export default function NovelWorkspaceFrame() {
   const [editPov, setEditPov] = createSignal("")
   const [editTense, setEditTense] = createSignal("")
   const [editRules, setEditRules] = createSignal("")
+  const [editLengthLimit, setEditLengthLimit] = createSignal(false)
 
   const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"] as const
 
@@ -585,8 +587,10 @@ export default function NovelWorkspaceFrame() {
     setEditTone(sg?.tone ?? "")
     setEditPov(sg?.pov ?? "")
     setEditTense(sg?.tense ?? "")
+    setEditLengthLimit(sg?.rules?.chapter_length_limit === "true")
     setEditRules(
       Object.entries(sg?.rules ?? {})
+        .filter(([k]) => k !== "chapter_length_limit")
         .map(([k, v]) => `${k}: ${v}`)
         .join("\n"),
     )
@@ -605,7 +609,8 @@ export default function NovelWorkspaceFrame() {
       synopsis: editSynopsis().trim() || undefined,
       genre: (editGenre() as (typeof GENRES)[number]) || undefined,
     })
-    const rules = Object.fromEntries(
+    const rules = { chapter_length_limit: editLengthLimit() ? "true" : "false" }
+    Object.assign(rules, Object.fromEntries(
       editRules()
         .split("\n")
         .map((line) => {
@@ -614,7 +619,7 @@ export default function NovelWorkspaceFrame() {
           return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()] as const
         })
         .filter((entry): entry is readonly [string, string] => entry !== null && entry[0].length > 0),
-    )
+    ))
     await updateStyleGuide.mutateAsync({
       novelID: novelID(),
       tone: editTone().trim(),
@@ -813,6 +818,12 @@ export default function NovelWorkspaceFrame() {
                 onInput={(e) => setEditRules(e.currentTarget.value)}
                 placeholder={language.t("novel.style.rulesHint")}
                 rows={3}
+              />
+              <CheckboxV2
+                checked={editLengthLimit()}
+                onChange={(checked) => setEditLengthLimit(checked)}
+                label="篇幅限制（±15%）"
+                description="启用后，每章正文字数必须落在目标字数 ±15% 区间内，超出会被拒绝写入"
               />
             </div>
           </Show>
