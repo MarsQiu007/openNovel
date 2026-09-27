@@ -50,7 +50,7 @@ export default function UpgradeBanner(props: { novelID: string }) {
   return (
     <Show when={bannerState() !== "hidden"}>
       <div class="px-5 pt-3">
-        <div class="flex items-center justify-between gap-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-secondary px-4 py-3">
+        <div class="flex items-center justify-between gap-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01 px-4 py-3">
           <Show
             when={bannerState() !== "prompt"}
             fallback={
@@ -68,7 +68,7 @@ export default function UpgradeBanner(props: { novelID: string }) {
               <span class="text-sm text-v2-text-text-base">
                 升级中：已同步 {synced()} / {total()} 章
                 <Show when={failedCount() > 0}>
-                  <span class="text-v2-text-text-error">（失败 {failedCount()} 章）</span>
+                  <span class="text-v2-state-fg-danger">（失败 {failedCount()} 章）</span>
                 </Show>
               </span>
               <Show when={failures().length > 0}>
@@ -109,7 +109,7 @@ export default function UpgradeBanner(props: { novelID: string }) {
 
         <Show when={confirming()}>
           <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div class="w-[420px] rounded-xl border border-v2-border-border-base bg-v2-background-bg-primary p-5 flex flex-col gap-4">
+            <div class="w-[420px] rounded-xl border border-v2-border-border-base bg-v2-background-bg-base p-5 flex flex-col gap-4">
               <h3 class="text-base font-medium text-v2-text-text-base">升级到当前版本</h3>
               <div class="flex flex-col gap-2 text-sm text-v2-text-text-muted">
                 <p>
