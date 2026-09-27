@@ -66,19 +66,22 @@ async function mockNovelApi(page: Page) {
       return json(route, mockChapterDetail)
     }
 
-    if (method === "GET" && path === `/api/novel/${novelID}/chapters/${chapterID}/annotations`) {
+    if (method === "GET" && path === `/api/novel/${novelID}/annotations`) {
       return json(route, annotations)
     }
 
-    if (method === "POST" && path === `/api/novel/${novelID}/chapters/${chapterID}/annotations`) {
+    if (method === "POST" && path === `/api/novel/${novelID}/annotations`) {
       const input = request.postDataJSON()
       const annotation = {
         id: "ann-e2e-1",
         novelId: novelID,
-        chapterId: chapterID,
+        targetType: input.targetType ?? "chapter",
+        targetId: input.targetId ?? chapterID,
+        field: input.field ?? "content",
         source: input.source ?? "user",
         anchorType: input.anchorType ?? "range",
         paragraphIndex: input.paragraphIndex ?? null,
+        endParagraphIndex: input.endParagraphIndex ?? null,
         startOffset: input.startOffset ?? null,
         endOffset: input.endOffset ?? null,
         quote: input.quote ?? "",
@@ -94,22 +97,23 @@ async function mockNovelApi(page: Page) {
     }
 
     const updateAnnotation = path.match(/^\/api\/novel\/[^/]+\/annotations\/([^/]+)$/)
-    if (method === "PUT" && updateAnnotation) {
+    if (method === "PATCH" && updateAnnotation) {
       const input = request.postDataJSON()
       annotations = annotations.map((ann) => ann.id === updateAnnotation[1] ? { ...ann, ...input } : ann)
       return json(route, annotations.find((ann) => ann.id === updateAnnotation[1]))
     }
 
-    if (method === "GET" && path === `/api/novel/${novelID}/chapters/${chapterID}/execution-rounds`) {
+    if (method === "GET" && path === `/api/novel/${novelID}/annotation-rounds`) {
       return json(route, executionRounds)
     }
 
-    if (method === "POST" && path === `/api/novel/${novelID}/chapters/${chapterID}/execution-rounds`) {
+    if (method === "POST" && path === `/api/novel/${novelID}/annotation-rounds`) {
       const input = request.postDataJSON()
       const round = {
         id: "round-e2e-1",
         novelId: novelID,
-        chapterId: chapterID,
+        targetType: input.targetType ?? "chapter",
+        targetId: input.targetId ?? chapterID,
         promptSnapshot: input.promptSnapshot ?? "",
         status: input.status ?? "running",
         annotationsSnapshot: input.annotationsSnapshot ?? [],
@@ -120,8 +124,8 @@ async function mockNovelApi(page: Page) {
       return json(route, round)
     }
 
-    const updateRound = path.match(/\/execution-rounds\/([^/]+)$/)
-    if (method === "PUT" && updateRound) {
+    const updateRound = path.match(/\/annotation-rounds\/([^/]+)$/)
+    if (method === "PATCH" && updateRound) {
       const input = request.postDataJSON()
       executionRounds = executionRounds.map((round) => round.id === updateRound[1] ? { ...round, ...input } : round)
       return json(route, executionRounds.find((round) => round.id === updateRound[1]))
