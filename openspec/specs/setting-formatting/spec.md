@@ -6,30 +6,6 @@
 
 ## Requirements
 
-### Requirement: AI 写入设定内容必须分段
-
-save_novel_settings 工具的描述和 observer / architect 的系统提示 SHALL 明确要求长文本字段使用 `\n\n` 作为段落分隔符，并引导 AI 把单个段落控制在约 80–220 字。提示词 SHALL NOT 把字段总字数当作硬性上限；单个规范化段落超过 600 字时 SHALL 视为未完成分段。
-
-#### Scenario: AI 创建超过 600 字的单段内容
-
-- **WHEN** AI 通过 save_novel_settings 创建一条包含 600 字以上且没有换行的 world_entry content
-- **THEN** tool description 和系统提示要求 AI 先按主题用 `\n\n` 分段，写入校验拒绝这段内容
-
-#### Scenario: AI 创建 300 字连贯段落
-
-- **WHEN** AI 通过 save_novel_settings 创建一条包含 300 字且语义连贯的单段 world_entry content
-- **THEN** 工具接受该内容，不因为低于 600 字的单段长度要求而要求继续拆分
-
-#### Scenario: AI 创建世界观条目时分段
-
-- **WHEN** AI 通过 save_novel_settings 创建一条超过 600 字的 world_entry content
-- **THEN** tool description 和系统提示要求 AI 用 `\n\n` 分段，AI 返回的 content 没有超过 600 字的单段
-
-#### Scenario: AI 更新世界观条目时分段
-
-- **WHEN** AI 通过 update_setting 修改一条 world_entry 的 content
-- **THEN** tool description 要求 AI 保持段落边界，并避免新增超过 600 字的单段
-
 ### Requirement: 前端设定阅读器按段落渲染
 
 设定中心的条目详情 SHALL 将 content 中的显式换行视为段落边界：先清理空行和行首尾空白，再将每段渲染为独立的 `<p>` 元素并携带 `data-paragraph-index` 属性（从 0 开始递增）。没有任何换行的内容 SHALL 渲染为单段落。设定详情 SHALL 使用与大纲阅读器一致的最大 3xl 居中栏位排版，但不复用章节阅读器的衬线正文样式、背景色块和首行缩进。
@@ -92,6 +68,11 @@ save_novel_settings / update_setting 等设定写入工具 SHALL 要求长文本
 
 - **WHEN** AI 写入的内容已有多个段落，但其中一段超过 600 字
 - **THEN** 工具返回该段落的分段格式错误，不写入该内容
+
+#### Scenario: AI 更新设定条目时分段
+
+- **WHEN** AI 通过 update_setting 修改一条 world_entry 的 content
+- **THEN** tool description 要求 AI 保持段落边界，并避免新增超过 600 字的单段
 
 #### Scenario: AI 写入包含单个换行的长内容
 
