@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { resolveBannerState } from "./upgrade-banner"
+import { resolveBannerState, resolveTaskCount } from "./upgrade-banner"
 
 describe("resolveBannerState 横幅状态机", () => {
   test("无待执行任务且无队列任务 → 隐藏", () => {
@@ -26,5 +26,20 @@ describe("resolveBannerState 横幅状态机", () => {
   test("取消确认不产生任何变更：状态停留在提示", () => {
     // 取消即不触发 start 变更；任务仍在，状态保持 prompt
     expect(resolveBannerState({ taskCount: 2, total: 0, synced: 0, failed: 0 })).toBe("prompt")
+  })
+})
+
+describe("resolveTaskCount 待执行任务数派生", () => {
+  test("状态整体为空按 0 处理", () => {
+    expect(resolveTaskCount(undefined)).toBe(0)
+  })
+
+  test("负载缺 tasks 字段按 0 处理（异常响应不崩溃）", () => {
+    expect(resolveTaskCount({})).toBe(0)
+  })
+
+  test("正常负载返回任务数", () => {
+    expect(resolveTaskCount({ tasks: ["a", "b", "c"] })).toBe(3)
+    expect(resolveTaskCount({ tasks: [] })).toBe(0)
   })
 })

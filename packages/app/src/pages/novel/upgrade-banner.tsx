@@ -24,6 +24,11 @@ export function resolveBannerState(input: {
   return failed > 0 ? "done-with-failures" : "hidden"
 }
 
+/** 从升级状态负载派生待执行任务数；负载缺 tasks 字段（旧服务端/异常响应）时按 0 处理，避免工作台崩溃。 */
+export function resolveTaskCount(status: { tasks?: ReadonlyArray<unknown> } | undefined): number {
+  return status?.tasks?.length ?? 0
+}
+
 export default function UpgradeBanner(props: { novelID: string }) {
   const status = useUpgradeStatus(() => props.novelID)
   const progress = useUpgradeProgress(() => props.novelID)
@@ -32,7 +37,7 @@ export default function UpgradeBanner(props: { novelID: string }) {
   const resume = useUpgradeResume()
   const [confirming, setConfirming] = createSignal(false)
 
-  const taskCount = () => status.data?.tasks.length ?? 0
+  const taskCount = () => resolveTaskCount(status.data)
   const estimate = () => status.data?.estimate
   const gate = () => status.data?.gate ?? "open"
   const total = () => progress.data?.total ?? 0
