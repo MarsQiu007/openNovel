@@ -1063,13 +1063,23 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             if (novelId) {
               const resolvedOutline = await resolveChapterOutline(novelId, args.number, ctx.directory)
               if (resolvedOutline.outline) {
+                // 章纲场景硬约束清单：与写作快照同一份确定性编译输出，兜底路径同样注入硬约束
+                const { compileSceneChecklist } = await import("./novel-writer/scene-constraints.js")
+                const sceneChecklist = compileSceneChecklist(resolvedOutline.outline)
+                const output = sceneChecklist
+                  ? `${resolvedOutline.outline}
+
+═══ 章纲场景硬约束清单 ═══
+本章正文必须逐场景落实以下清单。清单与字数、角色白名单同为硬约束。
+${sceneChecklist}`
+                  : resolvedOutline.outline
                 return {
                   title: "read_outline",
-                  output: resolvedOutline.outline,
+                  output,
                   metadata: {
                     source: resolvedOutline.source,
                     chapter_number: args.number,
-                    length: resolvedOutline.outline.length,
+                    length: output.length,
                   },
                 }
               }

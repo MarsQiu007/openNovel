@@ -296,6 +296,9 @@ export type ContextPacket = {
   /** 本章大纲 Markdown 原文（来自 .novel/outlines/chapter-{n}.md），截断 1.5K */
   chapterOutline: string | null
 
+  /** 章纲场景硬约束清单（组装时从完整章纲原文编译，先于预算裁剪，不参与任何裁剪） */
+  sceneChecklist?: string | null
+
   /** 上一章结尾原文（约600字），writer 必须承接其后展开，严禁重复前文已发生的内容 */
   prevChapterTail: string | null
 
@@ -713,6 +716,12 @@ export function formatSnapshotToolOutput(
     lines.push("")
     lines.push("═══ 本章大纲 ═══")
     lines.push(snapshot.chapterOutline)
+  }
+  if (snapshot.sceneChecklist) {
+    lines.push("")
+    lines.push("═══ 章纲场景硬约束清单 ═══")
+    lines.push("本章正文必须逐场景落实以下清单。清单与字数、角色白名单同为硬约束。")
+    lines.push(snapshot.sceneChecklist)
   }
   if (snapshot.activeCharacters.length > 0) {
     lines.push("活跃角色：")

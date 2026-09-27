@@ -27,6 +27,7 @@ import { buildCharacterBindingView } from "./drift-guards.js"
 import { selectProtectedRelationships } from "./relationship-context.js"
 import { assembleSnapshot } from "./context.js"
 import { applyBudget } from "./budget.js"
+import { compileSceneChecklist } from "./scene-constraints.js"
 
 // ─── 类型定义 ───
 
@@ -650,6 +651,8 @@ export async function assembleWriterSnapshot(
   }
 
   raw.chapterOutline = chapterOutline
+  // 场景硬约束清单在预算裁剪前从完整章纲编译，保证清单完整（不参与裁剪）
+  raw.sceneChecklist = chapterOutline ? compileSceneChecklist(chapterOutline) : null
 
   // 预算裁剪
   return applyBudget(raw)
