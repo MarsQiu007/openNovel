@@ -305,6 +305,9 @@ export type ContextPacket = {
   /** 目标字数下限（style_guide.rules.chapter_length），writer 不得低于此字数 */
   targetWordCount: number | null
 
+  /** 篇幅限制开关（style_guide.rules.chapter_length_limit === "true"）：启用时正文字数必须在目标 ±15% 区间内 */
+  chapterLengthLimit: boolean
+
   /** P7: 技法检索结果（shadow mode 阶段不注入 prompt） */
   techniques: RetrievedTechnique[]
 }
@@ -579,9 +582,11 @@ export async function assembleSnapshot(
   const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-1500) : null
 
   // ── 目标字数下限：style_guide.rules.chapter_length ──
-  const rawTarget = parseStyleRules(styleGuideRow?.rules).chapter_length
+  const styleRules = parseStyleRules(styleGuideRow?.rules)
+  const rawTarget = styleRules.chapter_length
   const parsedTarget = Number(rawTarget)
   const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : null
+  const chapterLengthLimit = styleRules.chapter_length_limit === "true"
 
   // ── P7: 技法检索（shadow mode - 只记录，不注入 writer prompt） ──
   let techniques: RetrievedTechnique[] = []
@@ -668,6 +673,7 @@ export async function assembleSnapshot(
 
     prevChapterTail,
     targetWordCount,
+    chapterLengthLimit,
     techniques,
   }
 }
@@ -862,7 +868,11 @@ export function formatSnapshotToolOutput(
       lines.push(`- ${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}）：${r.description || "—"}`)
     }
   }
-  if (snapshot.targetWordCount) {
+  if (snapshot.targetWordCount && snapshot.chapterLengthLimit) {
+    const lowerBound = Math.floor(snapshot.targetWordCount * 0.85)
+    const upperBound = Math.ceil(snapshot.targetWordCount * 1.15)
+    lines.push(`目标字数：每章 ${snapshot.targetWordCount} 字，篇幅限制已启用——正文必须在 ${lowerBound}–${upperBound} 字（目标 ±15%）区间内，低于或高于此区间都会被 write_chapter 拒绝`)
+  } else if (snapshot.targetWordCount) {
     lines.push(`目标字数：每章至少 ${snapshot.targetWordCount} 字（write_chapter 会拒绝低于此字数的章节）`)
   }
   if (snapshot.prevChapterTail) {

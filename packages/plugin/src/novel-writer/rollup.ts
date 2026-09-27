@@ -443,6 +443,7 @@ export async function getEffectiveContext(
 
     prevChapterTail,
     targetWordCount,
+    chapterLengthLimit: false,
     worldEntryIndex: [],
     recalledHistory: [],
     chapterOutline: null,

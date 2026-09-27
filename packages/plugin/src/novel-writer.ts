@@ -546,17 +546,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
-          // 字数校验：下限为硬性要求（低于目标拒绝写入），上限不做硬性截断——
-          // 场景需要时允许超出目标字数，但内容必须扎实，不得用废话/重复描写凑字数。
+          // 字数校验：不启用篇幅限制时仅保留下限硬约束（现状）；启用时按目标 ±15% 双向拒绝
           const target = await getTargetWordCount(db, chapter.novel_id)
+          const limit = await getChapterLengthLimit(db, chapter.novel_id)
           const wordCount = countWords(args.content)
-          if (wordCount < target) {
-            return {
-              title: "write_chapter（字数不达标）",
-              output: `字数不足：当前 ${wordCount} 字，本章目标至少 ${target} 字，还差 ${target - wordCount} 字。请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容。`,
-              metadata: { rejected: true, reason: "too_short", word_count: wordCount, target },
-            }
-          }
+          const lengthRejection = checkChapterLengthGate("write_chapter", wordCount, target, limit)
+          if (lengthRejection) return lengthRejection
 
           // 大纲标签校验：禁止把章纲模板/节拍标签写进读者正文
           const outlineLeaks = detectOutlineLabels(args.content)
@@ -626,7 +621,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
               : ""
           return {
             title: "write_chapter",
-            output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（目标≥${target}字）${driftWarning}`,
+            output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（${limit ? `目标 ${target}±15%（${Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE))}–${Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE))} 字）` : `目标≥${target}字`}）${driftWarning}`,
             metadata: {
               chapter_id: args.chapter_id,
               word_count: wordCount,
@@ -670,16 +665,12 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
             }
           }
 
-          // 修订后仍需满足字数下限，防止修订把章节字数改少；上限不做硬性截断
+          // 修订后仍需满足字数门槛：不启用时保留下限（防止修订改少）；启用时按目标 ±15% 双向校验
           const target = await getTargetWordCount(db, chapter.novel_id)
+          const limit = await getChapterLengthLimit(db, chapter.novel_id)
           const wordCount = countWords(args.revision)
-          if (wordCount < target) {
-            return {
-              title: "revise_chapter（字数不达标）",
-              output: `修订后字数不足：当前 ${wordCount} 字，本章目标至少 ${target} 字，还差 ${target - wordCount} 字。请在修订内容中补足字数后重新调用 revise_chapter。`,
-              metadata: { rejected: true, reason: "too_short", word_count: wordCount, target },
-            }
-          }
+          const lengthRejection = checkChapterLengthGate("revise_chapter", wordCount, target, limit)
+          if (lengthRejection) return lengthRejection
 
           // 大纲标签校验：修订时同样禁止把章纲模板/节拍标签写进正文
           const outlineLeaks = detectOutlineLabels(args.revision)
@@ -737,7 +728,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
 
           return {
             title: "revise_chapter",
-            output: `已修订第${chapter.order}章「${chapter.title}」：${wordCount}字（目标≥${target}字）`,
+            output: `已修订第${chapter.order}章「${chapter.title}」：${wordCount}字（${limit ? `目标 ${target}±15%（${Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE))}–${Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE))} 字）` : `目标≥${target}字`}）`,
             metadata: { chapter_id: args.chapter_id, word_count: wordCount },
           }
         },
@@ -6269,6 +6260,43 @@ function detectCoordinateLeak(text: string): string[] {
  * 读取目标字数下限：style_guide.rules.chapter_length，缺省 2500。
  * write_chapter/revise_chapter 用它做字数门禁——不达标拒绝写入。
  */
+/** 篇幅限制容差系数：启用时正文字数必须在目标 ±15% 区间内 */
+const CHAPTER_LENGTH_TOLERANCE = 0.15
+
+/** 读取书籍篇幅限制开关（style_guide.rules.chapter_length_limit === "true"） */
+async function getChapterLengthLimit(db: ReturnType<typeof getDb>, novelId: string): Promise<boolean> {
+  const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
+  return parseStyleRules(sg?.rules).chapter_length_limit === "true"
+}
+
+/** 章节字数门槛校验：通过返回 null；拒绝返回带 reason 的结果（too_short/too_long） */
+function checkChapterLengthGate(
+  toolName: string,
+  wordCount: number,
+  target: number,
+  limit: boolean,
+): { title: string; output: string; metadata: { rejected: true; reason: "too_short" | "too_long"; word_count: number; target: number; lower_bound: number; upper_bound: number | null } } | null {
+  const lowerBound = limit ? Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE)) : target
+  const upperBound = limit ? Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE)) : null
+  if (wordCount < lowerBound) {
+    const rangeText = limit ? `本章篇幅限制区间为 ${lowerBound}–${upperBound} 字` : `本章目标至少 ${target} 字，还差 ${target - wordCount} 字`
+    const actionText = toolName === "revise_chapter" ? "请在修订内容中补足字数后重新调用 revise_chapter" : "请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容"
+    return {
+      title: `${toolName}（字数不达标）`,
+      output: `字数不足：当前 ${wordCount} 字，${rangeText}。${actionText}。`,
+      metadata: { rejected: true, reason: "too_short", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
+    }
+  }
+  if (upperBound != null && wordCount > upperBound) {
+    return {
+      title: `${toolName}（字数超标）`,
+      output: `字数超标：当前 ${wordCount} 字，超出本章篇幅限制上限 ${upperBound} 字（目标 ${target} 的 +15%）。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白），不要砍剧情主线。`,
+      metadata: { rejected: true, reason: "too_long", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
+    }
+  }
+  return null
+}
+
 async function getTargetWordCount(db: ReturnType<typeof getDb>, novelId: string): Promise<number> {
   const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
   const raw = parseStyleRules(sg?.rules).chapter_length
