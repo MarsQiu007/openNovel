@@ -7,7 +7,14 @@
  */
 import { Show, createSignal } from "solid-js"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
-import { useUpgradeStatus, useUpgradeProgress, useUpgradeStart, useUpgradePause, useUpgradeResume } from "@/context/novel-queries"
+import {
+  useSyncRetry,
+  useUpgradeStatus,
+  useUpgradeProgress,
+  useUpgradeStart,
+  useUpgradePause,
+  useUpgradeResume,
+} from "@/context/novel-queries"
 
 /** 横幅状态机（纯函数，便于测试）。 */
 export type UpgradeBannerState = "hidden" | "prompt" | "running" | "done-with-failures"
@@ -29,12 +36,19 @@ export function resolveTaskCount(status: { tasks?: ReadonlyArray<unknown> } | un
   return status?.tasks?.length ?? 0
 }
 
+export function resolveRetryEntryIds(
+  failures: ReadonlyArray<{ entryId: string; chapterId?: string; reason?: string }>,
+): string[] {
+  return failures.map((failure) => failure.entryId)
+}
+
 export default function UpgradeBanner(props: { novelID: string }) {
   const status = useUpgradeStatus(() => props.novelID)
   const progress = useUpgradeProgress(() => props.novelID)
   const start = useUpgradeStart()
   const pause = useUpgradePause()
   const resume = useUpgradeResume()
+  const retry = useSyncRetry()
   const [confirming, setConfirming] = createSignal(false)
 
   const taskCount = () => resolveTaskCount(status.data)
@@ -82,6 +96,18 @@ export default function UpgradeBanner(props: { novelID: string }) {
               </Show>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+              <Show when={bannerState() === "done-with-failures"}>
+                <ButtonV2
+                  variant="ghost-muted"
+                  size="small"
+                  disabled={retry.isPending || failures().length === 0}
+                  onClick={() =>
+                    retry.mutate({ novelID: props.novelID, entryIds: resolveRetryEntryIds(failures()) })
+                  }
+                >
+                  重试失败章节
+                </ButtonV2>
+              </Show>
               <Show
                 when={gate() === "open"}
                 fallback={

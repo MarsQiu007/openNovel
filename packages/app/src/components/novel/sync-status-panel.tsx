@@ -4,8 +4,8 @@
  * 展示待同步和同步失败列表，提供重试与显式跳过操作。
  * 操作后刷新状态列表。
  */
-import { For, Show, createSignal, type JSX } from "solid-js"
-import { useSyncStatus } from "@/context/novel-queries"
+import { For, Show, type JSX } from "solid-js"
+import { useSyncRetry, useSyncStatus } from "@/context/novel-queries"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
 const STATUS_LABELS: Record<string, string> = {
@@ -28,22 +28,12 @@ type SyncStatusPanelProps = {
 
 export function SyncStatusPanel(props: SyncStatusPanelProps): JSX.Element {
   const syncQuery = useSyncStatus(() => props.novelID)
-  const [retrying, setRetrying] = createSignal<string | null>(null)
+  const retry = useSyncRetry()
 
   const entries = () => syncQuery.data?.entries ?? []
   const activeEntries = () => entries().filter((e) => e.status === "pending" || e.status === "failed")
 
-  const handleRetry = async (id: string) => {
-    setRetrying(id)
-    try {
-      // 重试通过 SDK 调用同步状态更新端点（由 sync worker 消费）
-      // 此处简单地将 failed 改回 pending 触发重试
-      const { useNovelClient } = await import("@/context/novel-queries")
-      void id
-    } finally {
-      setRetrying(null)
-    }
-  }
+  const handleRetry = (id: string) => retry.mutate({ novelID: props.novelID, entryIds: [id] })
 
   return (
     <div class="flex flex-col gap-2 p-3" data-sync-panel>
@@ -83,8 +73,8 @@ export function SyncStatusPanel(props: SyncStatusPanelProps): JSX.Element {
                   <button
                     type="button"
                     class="text-blue-600 hover:underline disabled:opacity-50"
-                    disabled={retrying() === entry.id}
-                    onClick={() => void handleRetry(entry.id)}
+                    disabled={retry.isPending}
+                    onClick={() => handleRetry(entry.id)}
                   >
                     重试
                   </button>

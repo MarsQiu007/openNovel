@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { resolveBannerState, resolveTaskCount } from "./upgrade-banner"
+import { resolveBannerState, resolveRetryEntryIds, resolveTaskCount } from "./upgrade-banner"
 
 describe("resolveBannerState 横幅状态机", () => {
   test("无待执行任务且无队列任务 → 隐藏", () => {
@@ -41,5 +41,20 @@ describe("resolveTaskCount 待执行任务数派生", () => {
   test("正常负载返回任务数", () => {
     expect(resolveTaskCount({ tasks: ["a", "b", "c"] })).toBe(3)
     expect(resolveTaskCount({ tasks: [] })).toBe(0)
+  })
+})
+
+describe("resolveRetryEntryIds 失败章节重试 ID 派生", () => {
+  test("按失败项顺序返回队列条目 ID", () => {
+    expect(
+      resolveRetryEntryIds([
+        { entryId: "entry-1", chapterId: "chapter-1", reason: "模型超时" },
+        { entryId: "entry-2", chapterId: "chapter-2", reason: "输出解析失败" },
+      ]),
+    ).toEqual(["entry-1", "entry-2"])
+  })
+
+  test("无失败项时返回空数组", () => {
+    expect(resolveRetryEntryIds([])).toEqual([])
   })
 })

@@ -17,8 +17,8 @@
 
 ## 4. 应用 UI
 
-- [ ] 4.1 新增同步重试 mutation，并接入同步状态面板的单条重试操作；在 `packages/app` 运行相关 unit test 验证状态与操作模型通过。
-- [ ] 4.2 在升级横幅的失败完成态提供「重试失败章节」操作，使用失败项队列 ID 调用重试 mutation，并刷新升级进度；在 `packages/app` 运行 `bun run test:unit` 与 `bun typecheck` 验证。
+- [x] 4.1 新增同步重试 mutation，并接入同步状态面板的单条重试操作；在 `packages/app` 运行相关 unit test 验证状态与操作模型通过。
+- [x] 4.2 在升级横幅的失败完成态提供「重试失败章节」操作，使用失败项队列 ID 调用重试 mutation，并刷新升级进度；在 `packages/app` 运行 `bun run test:unit` 与 `bun typecheck` 验证。
 
 ## 5. 集成验收
 

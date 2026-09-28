@@ -2076,6 +2076,27 @@ export function useSyncStatus(novelID: () => string) {
   }))
 }
 
+export function useSyncRetry() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string; entryIds: string[] }) => {
+      const dir = sdk().directory
+      return client()["server.novel"]["sync-retry"]({
+        novelID: input.novelID,
+        location: { directory: dir },
+        entryIds: input.entryIds,
+      })
+    },
+    onSuccess: (_data, variables) => {
+      const dir = sdk().directory
+      queryClient.invalidateQueries({ queryKey: ["novel", "sync-status", variables.novelID] })
+      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
+    },
+  }))
+}
+
 
 export function useUpgradeStart() {
   const client = useNovelClient()
