@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- opennovel serve 进程 SHALL 在启动时拉起后台同步 worker，并注册真正执行 observer 重建的章节处理器（handler）
+- opennovel 生产服务器入口（CLI `serve` 与桌面 sidecar 共用的 `Server.listen` 组合层）SHALL 注册真正执行 observer 重建的章节处理器（handler）
 - worker 从「启动时绑定单一目录」改为「按已知工作区目录集合轮询」：服务端每处理一个本地工作区请求即幂等登记该目录，worker 逐目录消费队列；进程重启后随首个请求自动恢复
 - handler 接口扩展 directory 参数，使多工作区进程能正确定位章节数据
 - 新增章节重建实现：读取正文 → LLM observer 产出摘要三要素（summary / key_events / char_changes）与该章结构化主轴条目 → 落库 chapter_summaries 与 story_spine_entries → 重扫实体引用与段摘要（确定性、幂等）→ 按新指纹标记已同步
@@ -21,12 +21,13 @@
 
 ### Modified Capabilities
 
-- `manual-edit-sync`: 新增「同步 worker 生产消费」需求——serve 进程持续消费队列的启动接线、逐章 observer 重建消费语义、失败诚实与重启恢复
+- `manual-edit-sync`: 新增「同步 worker 生产消费」需求——生产服务器进程持续消费队列的启动接线、逐章 observer 重建消费语义、失败诚实与重启恢复
 - `derived-data-upgrade`: 新增「observer 重建 handler 组合注册与逐章产出」需求——handler 注册点、逐章产出契约（摘要三要素、实体引用、段摘要、主轴条目）与无 handler/无模型时的诚实失败语义
 
 ## Impact
 
-- **packages/opennovel**：worker 生命周期改造（多目录轮询、防重入、目录登记）、serve 启动组合（注册 handler、注入 LLM）、workspace-routing 本地请求分支登记同步目录
+- **packages/opennovel**：worker 生命周期改造（多目录轮询、防重入、目录登记）、`Server.listen` 生产组合（注册 handler、注入 LLM）、workspace-routing 本地请求分支登记同步目录
+- **packages/desktop**：本地 sidecar 启动 `Server.listen` 时启用同步 worker 组合，确保桌面端与 CLI `serve` 使用同一生产接线
 - **packages/plugin**：新增章节派生数据重建实现（observer prompt、结构化输出解析、chapter_summaries / story_spine_entries 落库、实体引用与段摘要确定性重扫）
 - **packages/novel-store**：无 schema 变更；重建复用既有 scanEntityReferences / ensureSegmentSummaries / 指纹工具，历史数据库完全兼容（队列条目、闸门、待校验语义不变）
 - **既有本地数据**：无需迁移；已在队列中的 pending 任务（含 source=upgrade）在 worker 上线后按既有重试语义自动消费，失败任务保留原因可查、可随续跑重试

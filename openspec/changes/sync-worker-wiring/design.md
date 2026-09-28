@@ -2,13 +2,13 @@
 
 ## Context
 
-同步 worker（packages/opennovel/src/novel/manual-edit-sync-worker.ts）已实现调度、闸门与诚实性语义，但 startSyncWorker / registerSyncHandler 在生产零调用。serve 进程通过 x-opennovel-directory / ?directory= 按需加载工作区（启动时无全局目录），一个进程可先后服务多个小说项目目录，因此 worker 不能启动时绑定单一目录。opennovel 已有 provider 无关的一次性 LLM 调用惯例（cli/cmd/novel.ts：Provider.Service 解析默认模型 + ai 包的 generateText）。章节派生数据写入词汇集中在 plugin 的 state-commit，novel-store 提供确定性 scanEntityReferences / ensureSegmentSummaries（幂等）。本设计不改公开 Protocol / Server HttpApi 契约，无需 SDK 再生成。
+同步 worker（packages/opennovel/src/novel/manual-edit-sync-worker.ts）已实现调度、闸门与诚实性语义，但 startSyncWorker / registerSyncHandler 在生产零调用。生产服务器通过 x-opennovel-directory / ?directory= 按需加载工作区（启动时无全局目录），一个进程可先后服务多个小说项目目录，因此 worker 不能启动时绑定单一目录。CLI `serve` 与桌面 sidecar 都最终调用 `Server.listen`，但桌面 sidecar 不经过 CLI command layer；只在 `serve` command 注册 handler 会漏掉桌面端。opennovel 已有 provider 无关的一次性 LLM 调用惯例（cli/cmd/novel.ts：Provider.Service 解析默认模型 + ai 包的 generateText）。章节派生数据写入词汇集中在 plugin 的 state-commit，novel-store 提供确定性 scanEntityReferences / ensureSegmentSummaries（幂等）。本设计不改公开 Protocol / Server HttpApi 契约，无需 SDK 再生成。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- serve 进程内队列消费从「不存在」变为「随工作区请求自动建立、进程存活期间持续运行」
+- 生产服务器进程内队列消费从「不存在」变为「随工作区请求自动建立、进程存活期间持续运行」，CLI 与桌面 sidecar 行为一致
 - 章节正文任务由真实 observer 重建消费，产出落库契约满足 derived-data-upgrade spec
 - 失败语义保持诚实：任何路径不伪造已同步
 
@@ -42,7 +42,7 @@ ManualEditSyncHandler.handleChapterContent 签名扩展为 (directory, novelId, 
 
 plugin 新增章节重建模块：rebuildChapterDerivedData(db, novelId, chapterId, fingerprint, llm)。内部：读章节正文与书籍上下文（体裁、风格指南）→ 构建 observer prompt → llm(prompt) 返回 JSON 文本 → 解析并校验（summary: string, key_events: string[], char_changes: string[], spine: Array<{content, kind}>）→ 事务性落库 chapter_summaries 与 story_spine_entries（先产出新集合，再删除该章既有归属条目、插入新条目，新条目携带 fingerprint 与 status=synced）→ 调用 scanEntityReferences 与 ensureSegmentSummaries 幂等刷新 → 刷新 chapter_summary_fts（复用 state-commit 的既有 FTS 同步逻辑，导出后引用，保证召回检索不读旧摘要）。任一步失败即 throw，由 worker 标 failed。
 
-opennovel 组合层（serve 启动）捕获 Provider.Service 与 InstanceStore.Service，调 registerSyncHandler 注册全局单例 handler。handler 每次执行先按任务 directory 经 InstanceStore 加载对应 InstanceContext，再在该上下文中用 Provider.Service 解析默认模型，注入 llm 闭包（generateText）。Provider 状态是 Instance-scoped，因此不能在 `instance:false` 的 serve 命令里直接解析模型；按任务目录加载上下文可以避免启动时绑定全局目录。
+opennovel 的 `Server.listen` 生产组合捕获 Provider.Service 与 InstanceStore.Service，调 registerSyncHandler 注册全局单例 handler。CLI `serve` 与桌面 sidecar 都显式启用该组合；测试与 `Server.Default` 不默认启用，避免全局 worker 影响无关测试。handler 每次执行先按任务 directory 经 InstanceStore 加载对应 InstanceContext，再在该上下文中用 Provider.Service 解析默认模型，注入 llm 闭包（generateText）。Provider 状态是 Instance-scoped，因此不能在服务器启动时直接解析模型；按任务目录加载上下文可以避免启动时绑定全局目录。
 
 - 备选：generateObject 结构化输出——ai 6.x 可用，但项目现有一次性 LLM 惯例均为 generateText + 显式解析，保持一致
 - 备选：重建整体放 opennovel——plugin 已持有全部表写入词汇与写作领域 prompt 经验，放 plugin 避免 opennovel 反向依赖领域知识
@@ -54,6 +54,10 @@ handler 每次执行在任务目录的 InstanceContext 中经 Provider.Service �
 ### D6: 轮询防重入
 
 worker 模块增加 inFlight 标记：一轮消费未结束则跳过下一轮调度。现状 setInterval 在单轮耗时超过 interval 时会叠加执行，同批 pending 可能被重复拾取；重建任务涉及 LLM 调用（秒级到分钟级），必须防重入。
+
+### D7: 注册点收敛到 `Server.listen` 生产选项
+
+`Server.listen` 增加 `syncWorker` 内部选项。CLI `serve` 与桌面 sidecar 传 `true`；`createRoutes` 在该选项下把 handler 注册作为服务图构建副作用执行。这样两个生产入口共用同一 Provider / InstanceStore 服务图，不再各自复制接线，也不会把 worker 副作用强加给 `Server.Default` 与测试监听器。
 
 ## Risks / Trade-offs
 

@@ -4,15 +4,21 @@
 
 ### Requirement: 同步 worker 生产消费
 
-opennovel serve 进程 SHALL 在运行期间持续消费手动编辑同步队列：worker 生命周期随 serve 进程，对已知工作区目录轮询消费 pending 任务，无需用户手动触发。服务端每处理一个本地工作区请求 SHALL 幂等登记该目录为消费对象；同一进程服务多个工作区目录时，每个目录的队列 SHALL 都被消费。进程重启后 worker SHALL 随首个本地工作区请求自动恢复消费，不丢失既有队列语义。消费过程 SHALL 防重入：一轮消费未结束时后续轮次 SHALL NOT 并发叠加处理同一批任务。
+opennovel 生产服务器进程 SHALL 在运行期间持续消费手动编辑同步队列：CLI `serve` 与桌面 sidecar 共用的 `Server.listen` 生产组合 SHALL 注册章节重建处理器，worker 生命周期随服务器进程，对已知工作区目录轮询消费 pending 任务，无需用户手动触发。服务端每处理一个本地工作区请求 SHALL 幂等登记该目录为消费对象；同一进程服务多个工作区目录时，每个目录的队列 SHALL 都被消费。进程重启后 worker SHALL 随首个本地工作区请求自动恢复消费，不丢失既有队列语义。消费过程 SHALL 防重入：一轮消费未结束时后续轮次 SHALL NOT 并发叠加处理同一批任务。
 
 章节正文（entity=chapter, field=content）任务 SHALL 调用已注册的章节重建处理器执行 observer 重建；处理器产出后该章派生数据按新指纹标记已同步。处理器未注册或无可用语言模型时，任务 SHALL 诚实标记失败并保留可读原因，任何路径 SHALL NOT 在无重建产出的情况下标记已同步。单章失败 SHALL NOT 阻塞其余章节任务的消费。
 
-#### Scenario: serve 进程自动消费升级任务
+#### Scenario: 生产服务器进程自动消费升级任务
 
 - **WHEN** 用户确认书籍升级，Phase 2 向同步队列入队逐章重建任务（source=upgrade）
-- **THEN** 运行中的 serve 进程自动逐章消费任务，无需用户做任何额外操作
+- **THEN** 运行中的 CLI `serve` 进程或桌面 sidecar 服务器自动逐章消费任务，无需用户做任何额外操作
 - **AND** 横幅轮询可见 synced 计数随消费推进
+
+#### Scenario: 桌面 sidecar 与 CLI 使用同一生产接线
+
+- **WHEN** 桌面端启动本地 sidecar 并打开已有升级任务的小说工作区
+- **THEN** sidecar 通过 `Server.listen` 注册章节重建处理器并登记该工作区目录
+- **AND** 升级任务不会因「处理器未注册」而失败
 
 #### Scenario: 多工作区目录都被消费
 

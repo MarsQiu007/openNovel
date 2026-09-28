@@ -27,7 +27,16 @@
 - [x] 4.2 手动 smoke：临时工作区入队一章 upgrade 任务，起 serve 后经带 directory 的请求触发登记，断言该章任务被消费且 chapter_summaries 以新指纹落库
 - [x] 4.3 全仓 bun run typecheck 通过、openapi.json 无漂移（本提案未改公开契约，generate 产物应无变化）
 
+## 5. 桌面 sidecar 生产接线回归修复
+
+- [x] 5.1 将 handler 注册收敛到 `Server.listen` 的 `syncWorker` 生产选项，CLI `serve` 与桌面 sidecar 共用该入口；验证：单测或 smoke 覆盖「启用选项后处理器已注册，未启用选项时不注册」
+- [x] 5.2 重建 opennovel node dist 并确认桌面 sidecar bundle 包含 handler 注册路径；验证：构建产物 grep 到 `registerNovelSyncHandler` / handler 注册组合
+- [x] 5.3 使用 `Server.listen({ syncWorker: true })` 做隔离 smoke：无模型配置时 upgrade 任务失败原因从「处理器未注册」变为「无可用语言模型」，证明桌面 sidecar 同路径不会再落入无 handler 分支
+- [x] 5.4 在 packages/opennovel 与 packages/desktop 跑 bun typecheck，并复跑 sync worker 相关测试
+
 ## Implementation Commits
 
 - ded310f56 feat(plugin): 实现章节派生数据重建
 - 5dcb14904 feat(opennovel): 接线手动编辑同步 worker
+- 9d4445203 fix(opennovel): 收敛同步 worker 生产注册
+- 8b15248ea fix(desktop): 启用 sidecar 同步 worker
