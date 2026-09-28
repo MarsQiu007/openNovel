@@ -7067,6 +7067,15 @@ export type NovelManualEditSyncQueryResult = {
   entries: Array<NovelManualEditSyncEntry>
 }
 
+export type NovelManualEditSyncRetryInput = {
+  entryIds: Array<string>
+}
+
+export type NovelManualEditSyncRetryResult = {
+  retried: number
+  unchanged: number
+}
+
 export type NovelUpgradeTaskInfo = {
   id: string
   version: string
@@ -7096,6 +7105,7 @@ export type NovelUpgradeStartResult = {
 }
 
 export type NovelUpgradeFailureItem = {
+  entryId: string
   chapterId: string
   reason: string
 }
@@ -18823,6 +18833,46 @@ export type V2NovelSyncStatusResponses = {
 }
 
 export type V2NovelSyncStatusResponse = V2NovelSyncStatusResponses[keyof V2NovelSyncStatusResponses]
+
+export type V2NovelSyncRetryData = {
+  body: NovelManualEditSyncRetryInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/sync/retry"
+}
+
+export type V2NovelSyncRetryErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelSyncRetryError = V2NovelSyncRetryErrors[keyof V2NovelSyncRetryErrors]
+
+export type V2NovelSyncRetryResponses = {
+  /**
+   * Novel.ManualEditSyncRetryResult
+   */
+  200: NovelManualEditSyncRetryResult
+}
+
+export type V2NovelSyncRetryResponse = V2NovelSyncRetryResponses[keyof V2NovelSyncRetryResponses]
 
 export type V2NovelUpgradeStatusData = {
   body?: never

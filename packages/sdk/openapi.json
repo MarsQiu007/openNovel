@@ -24789,6 +24789,101 @@
         ]
       }
     },
+    "/api/novel/{novelID}/sync/retry": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.sync-retry",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ManualEditSyncRetryResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelManualEditSyncRetryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Retry failed manual edit sync entries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelManualEditSyncRetryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.sync-retry({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}/upgrade/status": {
       "get": {
         "tags": ["novel"],
@@ -48223,6 +48318,32 @@
         "required": ["entries"],
         "additionalProperties": false
       },
+      "NovelManualEditSyncRetryInput": {
+        "type": "object",
+        "properties": {
+          "entryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["entryIds"],
+        "additionalProperties": false
+      },
+      "NovelManualEditSyncRetryResult": {
+        "type": "object",
+        "properties": {
+          "retried": {
+            "type": "integer"
+          },
+          "unchanged": {
+            "type": "integer"
+          }
+        },
+        "required": ["retried", "unchanged"],
+        "additionalProperties": false
+      },
       "NovelUpgradeTaskInfo": {
         "type": "object",
         "properties": {
@@ -48309,6 +48430,9 @@
       "NovelUpgradeFailureItem": {
         "type": "object",
         "properties": {
+          "entryId": {
+            "type": "string"
+          },
           "chapterId": {
             "type": "string"
           },
@@ -48316,7 +48440,7 @@
             "type": "string"
           }
         },
-        "required": ["chapterId", "reason"],
+        "required": ["entryId", "chapterId", "reason"],
         "additionalProperties": false
       },
       "NovelUpgradeProgressResult": {

@@ -138,6 +138,7 @@ import type {
   NovelCreateWorldMapFeatureInput,
   NovelCreateWorldMapInput,
   NovelExportFormat,
+  NovelManualEditSyncRetryInput,
   NovelMoveChapterInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
@@ -512,6 +513,8 @@ import type {
   V2NovelStructureResponses,
   V2NovelStyleGuideErrors,
   V2NovelStyleGuideResponses,
+  V2NovelSyncRetryErrors,
+  V2NovelSyncRetryResponses,
   V2NovelSyncStatusErrors,
   V2NovelSyncStatusResponses,
   V2NovelTensionErrors,
@@ -11166,6 +11169,44 @@ export class Novel extends HeyApiClient {
       url: "/api/novel/{novelID}/sync-status",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Retry failed manual edit sync entries
+   */
+  public syncRetry<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelManualEditSyncRetryInput: NovelManualEditSyncRetryInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelManualEditSyncRetryInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelSyncRetryResponses, V2NovelSyncRetryErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/sync/retry",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
