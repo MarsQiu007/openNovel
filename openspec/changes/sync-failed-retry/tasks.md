@@ -22,5 +22,5 @@
 
 ## 5. 集成验收
 
-- [ ] 5.1 在仓库根运行 `bun run typecheck` 与 `bun run lint`，确认全仓类型检查通过且 oxlint 无新增错误。
-- [ ] 5.2 运行 `openspec validate sync-failed-retry --strict`，并检查 delta specs 与 proposal、design、tasks 的行为描述一致。
+- [x] 5.1 在仓库根运行 `bun run typecheck` 与 `bun run lint`，确认全仓类型检查通过且 oxlint 无新增错误。
+- [x] 5.2 运行 `openspec validate sync-failed-retry --strict`，并检查 delta specs 与 proposal、design、tasks 的行为描述一致。

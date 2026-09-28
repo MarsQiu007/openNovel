@@ -179,7 +179,7 @@ export async function retryManualEditSync(
   if (ids.length === 0) return { retried: 0, unchanged: 0 }
 
   const db = getDb(directory)
-  const rows = await db
+  const rows = db
     .select({ id: ManualEditSyncQueueTable.id, status: ManualEditSyncQueueTable.status })
     .from(ManualEditSyncQueueTable)
     .where(and(eq(ManualEditSyncQueueTable.novel_id, novelId), inArray(ManualEditSyncQueueTable.id, ids)))

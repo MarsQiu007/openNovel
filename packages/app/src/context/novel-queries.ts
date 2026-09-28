@@ -2091,8 +2091,8 @@ export function useSyncRetry() {
     },
     onSuccess: (_data, variables) => {
       const dir = sdk().directory
-      queryClient.invalidateQueries({ queryKey: ["novel", "sync-status", variables.novelID] })
-      queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
+      void queryClient.invalidateQueries({ queryKey: ["novel", "sync-status", variables.novelID] })
+      void queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
     },
   }))
 }

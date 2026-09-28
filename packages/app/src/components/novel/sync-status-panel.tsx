@@ -6,7 +6,6 @@
  */
 import { For, Show, type JSX } from "solid-js"
 import { useSyncRetry, useSyncStatus } from "@/context/novel-queries"
-import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "待同步",
