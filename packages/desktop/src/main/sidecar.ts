@@ -62,6 +62,7 @@ async function start(command: StartCommand) {
       username: "opennovel",
       password: command.password,
       cors: ["oc://renderer"],
+      syncWorker: true,
     })
     parentPort.postMessage({ type: "ready" })
   } catch (error) {
