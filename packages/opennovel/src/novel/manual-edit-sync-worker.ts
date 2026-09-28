@@ -12,16 +12,14 @@ import {
   StorySpineEntryTable,
   EntityRefTable,
   PendingUpdateTable,
-  NovelTable,
   updateSyncStatus,
-  computeFingerprint,
   getUpgradeGate,
 } from "@opennovel-ai/novel-store"
 
 /** 同步处理器接口，由 opennovel 组合层注册 */
 export interface ManualEditSyncHandler {
   /** 处理章节正文同步（重建摘要、引用、段摘要、主轴） */
-  handleChapterContent?(novelId: string, chapterId: string, fingerprint: string): Promise<void>
+  handleChapterContent?(directory: string | null | undefined, novelId: string, chapterId: string, fingerprint: string): Promise<void>
   /** 处理正式设定同步（引用扫描、影响任务生成） */
   handleSettingChange?(novelId: string, entity: string, entityId: string, fingerprint: string): Promise<void>
 }
@@ -40,6 +38,25 @@ export function clearSyncHandlers(): void {
 
 let running = false
 let timer: ReturnType<typeof setInterval> | null = null
+const directories = new Set<string>()
+let inFlight = false
+
+/** 消费所有已登记目录；定时器与测试共用同一防重入入口 */
+export async function processRegisteredSyncDirectories(): Promise<void> {
+  if (inFlight) return
+  inFlight = true
+  try {
+    for (const directory of directories) {
+      try {
+        await processSyncQueue(directory)
+      } catch {
+        // 单目录轮询失败不影响其余目录，下轮重试
+      }
+    }
+  } finally {
+    inFlight = false
+  }
+}
 
 /**
  * 处理一批 pending 同步任务。返回处理的任务数。
@@ -68,7 +85,7 @@ export async function processSyncQueue(
       }
       if (entry.entity === "chapter" && entry.field === "content" && entry.entity_id) {
         if (handler?.handleChapterContent) {
-          await handler.handleChapterContent(entry.novel_id, entry.entity_id, entry.source_fingerprint ?? "")
+          await handler.handleChapterContent(directory, entry.novel_id, entry.entity_id, entry.source_fingerprint ?? "")
         } else if (entry.source === "upgrade") {
           // 诚实性：升级任务禁止无 handler 的确定性 fallback（不得伪造已同步）
           throw new Error("observer 重建 handler 未注册，升级任务未执行（未重建不得标记已同步）")
@@ -164,23 +181,24 @@ export async function processSyncQueue(
   return processed
 }
 
-/** 启动轮询 worker */
+/** 登记需要轮询的工作区目录；首次登记时启动单一定时器 */
+export function registerSyncDirectory(directory: string, intervalMs = 5000): void {
+  if (directories.has(directory)) return
+  directories.add(directory)
+  if (running) return
+  running = true
+  timer = setInterval(() => void processRegisteredSyncDirectories(), intervalMs)
+  if (timer && typeof timer === "object" && "unref" in timer) {
+    ;(timer as { unref: () => void }).unref()
+  }
+}
+
+/** 启动轮询 worker；保留旧入口，等价于登记目录 */
 export function startSyncWorker(
   directory: string | null | undefined,
   intervalMs = 5000,
 ): void {
-  if (running) return
-  running = true
-  timer = setInterval(async () => {
-    try {
-      await processSyncQueue(directory)
-    } catch {
-      // 轮询失败静默，下轮重试
-    }
-  }, intervalMs)
-  if (timer && typeof timer === "object" && "unref" in timer) {
-    ;(timer as { unref: () => void }).unref()
-  }
+  if (directory) registerSyncDirectory(directory, intervalMs)
 }
 
 /** 停止 worker（测试用） */
@@ -190,6 +208,8 @@ export function stopSyncWorker(): void {
     timer = null
   }
   running = false
+  directories.clear()
+  inFlight = false
 }
 
 /** worker 是否在运行 */

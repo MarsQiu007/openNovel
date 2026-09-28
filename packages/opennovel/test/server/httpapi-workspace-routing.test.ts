@@ -1,5 +1,5 @@
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { describe, expect } from "bun:test"
+import { afterEach, describe, expect } from "bun:test"
 import { Context, Effect, Layer, Queue, Ref, Schema, Stream } from "effect"
 import {
   FetchHttpClient,
@@ -24,6 +24,17 @@ import { Database } from "@opennovel-ai/core/database/database"
 import { Project } from "../../src/project/project"
 import { Session } from "../../src/session/session"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
+import {
+  NovelTable,
+  closeDb,
+  enqueueManualEditSync,
+  getDb,
+  querySyncStatus,
+} from "@opennovel-ai/novel-store"
+import {
+  processRegisteredSyncDirectories,
+  stopSyncWorker,
+} from "../../src/novel/manual-edit-sync-worker"
 import {
   WorkspaceRoutingMiddleware,
   WorkspaceRoutingQuery,
@@ -248,6 +259,10 @@ const probeHandlers = HttpApiBuilder.group(ProbeApi, "probe", (handlers) =>
     .handle("session", () => routeContextResponse)
     .handle("workspace", () => routeContextResponse),
 )
+
+afterEach(() => {
+  stopSyncWorker()
+})
 
 const serveProbe = HttpApiBuilder.layer(ProbeApi).pipe(
   Layer.provide(probeHandlers),
@@ -507,6 +522,22 @@ describe("HttpApi workspace routing middleware", () => {
       const dir = yield* tmpdirScoped()
       const queryDir = path.join(dir, "query-target")
       const headerDir = path.join(dir, "header-target")
+      yield* Effect.promise(() => mkdir(path.join(queryDir, ".novel"), { recursive: true }))
+      const db = getDb(queryDir)
+      const novelId = crypto.randomUUID()
+      db.insert(NovelTable).values({ id: novelId, title: "本地请求登记测试", genre: "玄幻" }).run()
+      yield* Effect.promise(() =>
+        enqueueManualEditSync(
+          {
+            novelId,
+            entity: "character",
+            entityId: "char-local-route",
+            field: "name",
+            sourceFingerprint: "fp-local-route",
+          },
+          queryDir,
+        ),
+      )
       yield* serveProbe
 
       // Without a selected workspace, the middleware falls back to request
@@ -521,6 +552,12 @@ describe("HttpApi workspace routing middleware", () => {
       expect(yield* queryResponse.json).toEqual({ directory: queryDir, workspaceID: null })
       expect(headerResponse.status).toBe(200)
       expect(yield* headerResponse.json).toEqual({ directory: headerDir, workspaceID: null })
+
+      yield* Effect.promise(() => processRegisteredSyncDirectories())
+      const entries = yield* Effect.promise(() => querySyncStatus(novelId, { status: "synced" }, queryDir))
+      expect(entries).toHaveLength(1)
+      closeDb(queryDir)
+      closeDb(headerDir)
     }),
   )
 

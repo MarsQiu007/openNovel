@@ -17,6 +17,9 @@ import {
   clearSyncHandlers,
   processSyncQueue,
   isSyncWorkerRunning,
+  processRegisteredSyncDirectories,
+  registerSyncDirectory,
+  stopSyncWorker,
 } from "../src/novel/manual-edit-sync-worker"
 
 let projectDir: string
@@ -43,6 +46,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clearSyncHandlers()
+  stopSyncWorker()
   closeDb(projectDir)
   try {
     rmSync(projectDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
@@ -79,9 +83,10 @@ describe("processSyncQueue", () => {
     let called = false
     let receivedChapterId = ""
     registerSyncHandler({
-      handleChapterContent: async (nid, cid, fp) => {
+      handleChapterContent: async (directory, _nid, cid, _fp) => {
         called = true
         receivedChapterId = cid
+        expect(directory).toBe(projectDir)
       },
     })
 
@@ -99,7 +104,7 @@ describe("processSyncQueue", () => {
     let calledEntity = ""
     let calledEntityId = ""
     registerSyncHandler({
-      handleSettingChange: async (nid, entity, entityId, fp) => {
+      handleSettingChange: async (_nid, entity, entityId, _fp) => {
         calledEntity = entity
         calledEntityId = entityId
       },
@@ -153,6 +158,72 @@ describe("processSyncQueue", () => {
 describe("worker 生命周期", () => {
   test("isSyncWorkerRunning 初始为 false", () => {
     expect(isSyncWorkerRunning()).toBe(false)
+  })
+
+  test("登记两个目录后轮询各自消费各自队列", async () => {
+    const secondDir = join(tmpdir(), `sync-worker-second-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+    mkdirSync(join(secondDir, ".novel"), { recursive: true })
+    const secondNovelId = crypto.randomUUID()
+    const secondDb = getDb(secondDir)
+    const now = Date.now()
+    secondDb.insert(NovelTable).values({
+      id: secondNovelId,
+      title: "第二工作区",
+      genre: "玄幻",
+      synopsis: "",
+      master_outline: "",
+      status: "draft",
+      created_at: now,
+      updated_at: now,
+    }).run()
+
+    const firstChapter = await createChapter(novelId, "目录一章节", 1, null, projectDir)
+    const secondChapter = await createChapter(secondNovelId, "目录二章节", 1, null, secondDir)
+    await enqueueManualEditSync(
+      { novelId, entity: "character", entityId: "char-a", field: "name", sourceFingerprint: "fp-a" },
+      projectDir,
+    )
+    await enqueueManualEditSync(
+      { novelId: secondNovelId, entity: "character", entityId: "char-b", field: "name", sourceFingerprint: "fp-b" },
+      secondDir,
+    )
+
+    registerSyncDirectory(projectDir)
+    registerSyncDirectory(secondDir)
+    await processRegisteredSyncDirectories()
+
+    expect((await querySyncStatus(novelId, { status: "synced" }, projectDir)).length).toBe(1)
+    expect((await querySyncStatus(secondNovelId, { status: "synced" }, secondDir)).length).toBe(1)
+    expect(firstChapter.id).not.toBe(secondChapter.id)
+    closeDb(secondDir)
+  })
+
+  test("慢消费期间后续轮次不会叠加执行", async () => {
+    let calls = 0
+    let release: (() => void) | undefined
+    registerSyncHandler({
+      handleChapterContent: async () => {
+        calls++
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+      },
+    })
+    const chapter = await createChapter(novelId, "慢消费章节", 1, null, projectDir)
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-slow" },
+      projectDir,
+    )
+
+    registerSyncDirectory(projectDir)
+    const firstRound = processRegisteredSyncDirectories()
+    await Bun.sleep(10)
+    await processRegisteredSyncDirectories()
+    expect(calls).toBe(1)
+
+    release?.()
+    await firstRound
+    expect(calls).toBe(1)
   })
 })
 
@@ -227,4 +298,3 @@ describe("设定影响面和主轴重建", () => {
     expect(spine?.status).toBe("synced")
   })
 })
-

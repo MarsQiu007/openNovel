@@ -138,8 +138,9 @@ describe("升级任务诚实性", () => {
     const up = await seedChapterAndQueue("upgrade")
     let called = false
     registerSyncHandler({
-      handleChapterContent: async (nid, cid, fp) => {
+      handleChapterContent: async (directory, _nid, cid, fp) => {
         called = true
+        expect(directory).toBe(projectDir)
         // 模拟 observer 重建：写入摘要与指纹
         const db = getDb(projectDir)
         db.insert(ChapterSummaryTable)
@@ -172,7 +173,7 @@ describe("升级任务诚实性", () => {
     const fail = await seedChapterAndQueue("upgrade", "失败章", 1)
     const ok = await seedChapterAndQueue("upgrade", "成功章", 2)
     registerSyncHandler({
-      handleChapterContent: async (nid, cid, fp) => {
+      handleChapterContent: async (_directory, _nid, cid, _fp) => {
         if (cid === fail.id) throw new Error("observer 调用失败")
       },
     })
