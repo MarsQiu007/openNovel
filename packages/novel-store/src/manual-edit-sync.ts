@@ -172,7 +172,7 @@ export async function updateSyncStatus(
  */
 export async function retryManualEditSync(
   novelId: string,
-  entryIds: Array<string>,
+  entryIds: ReadonlyArray<string>,
   directory?: string | null,
 ): Promise<{ retried: number; unchanged: number }> {
   const ids = [...new Set(entryIds)]

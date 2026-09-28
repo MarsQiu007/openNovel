@@ -6,6 +6,7 @@ import { SettingOrganization } from "../setting-organization"
 import { resolveAnnotationTarget, resolveAnnotationTargetType, type AnnotationTargetField } from "../annotation-targets"
 import type {
   SaveBookMetaInput,
+  ManualEditSyncRetryInput,
   SettingOrganizationAnalyzeInput,
   SettingOrganizationApplyInput,
   SettingOrganizationDryRunInput,
@@ -27,6 +28,7 @@ import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, WorldMa
 import {
   saveBookMeta as storeSaveBookMeta,
   querySyncStatus as storeQuerySyncStatus,
+  retryManualEditSync as storeRetryManualEditSync,
   computeFingerprint,
   markDerivedStale,
   enqueueManualEditSync,
@@ -2845,6 +2847,12 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           return yield* syncStatusEndpoint(ctx.params.novelID, location.directory)
         }),
       )
+      .handle("novel.sync-retry", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* syncRetryEndpoint(ctx.params.novelID, ctx.payload, location.directory)
+        }),
+      )
       .handle("novel.upgrade-status", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
@@ -2924,6 +2932,15 @@ export function syncStatusEndpoint(novelID: string, directory: string) {
   })
 }
 
+export function syncRetryEndpoint(novelID: string, input: ManualEditSyncRetryInput, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    return yield* Effect.promise(() => storeRetryManualEditSync(novelID, input.entryIds, directory))
+  })
+}
+
 
 export function upgradeStatusEndpoint(novelID: string, directory: string) {
   return Effect.gen(function* () {
@@ -2993,12 +3010,12 @@ export function upgradeProgressEndpoint(novelID: string, directory: string) {
     let synced = 0
     let pending = 0
     let failed = 0
-    const failures: Array<{ chapterId: string; reason: string }> = []
+    const failures: Array<{ entryId: string; chapterId: string; reason: string }> = []
     for (const row of entries) {
       if (row.status === "synced") synced++
       else if (row.status === "failed") {
         failed++
-        failures.push({ chapterId: row.entity_id ?? "", reason: row.failure_reason ?? "未知原因" })
+        failures.push({ entryId: row.id, chapterId: row.entity_id ?? "", reason: row.failure_reason ?? "未知原因" })
       } else if (row.status === "pending") pending++
     }
     return { synced, pending, failed, total: entries.length, failures }
