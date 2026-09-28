@@ -3219,6 +3219,19 @@ function novelScenarios(): Scenario[] {
       .at((ctx) => ({ path: route("/api/novel/{novelID}/sync-status", { novelID: "nov_missing" }), headers: ctx.headers() }))
       .json(404, object, "status"),
     http.protected
+      .post("/api/novel/{novelID}/sync/retry", "v2.novel.sync-retry")
+      .seeded((ctx) => seedNovel(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/sync/retry", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { entryIds: [] },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check(body.retried === 0 && body.unchanged === 0, "empty retry should report zero counts")
+      }),
+    http.protected
       .get("/api/novel/{novelID}/upgrade/status", "v2.novel.upgrade-status")
       .seeded((ctx) => seedNovel(ctx))
       .at((ctx) => ({
