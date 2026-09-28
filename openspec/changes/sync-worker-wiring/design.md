@@ -42,14 +42,14 @@ ManualEditSyncHandler.handleChapterContent 签名扩展为 (directory, novelId, 
 
 plugin 新增章节重建模块：rebuildChapterDerivedData(db, novelId, chapterId, fingerprint, llm)。内部：读章节正文与书籍上下文（体裁、风格指南）→ 构建 observer prompt → llm(prompt) 返回 JSON 文本 → 解析并校验（summary: string, key_events: string[], char_changes: string[], spine: Array<{content, kind}>）→ 事务性落库 chapter_summaries 与 story_spine_entries（先产出新集合，再删除该章既有归属条目、插入新条目，新条目携带 fingerprint 与 status=synced）→ 调用 scanEntityReferences 与 ensureSegmentSummaries 幂等刷新 → 刷新 chapter_summary_fts（复用 state-commit 的既有 FTS 同步逻辑，导出后引用，保证召回检索不读旧摘要）。任一步失败即 throw，由 worker 标 failed。
 
-opennovel 组合层（serve 启动）用 Provider.Service 解析语言模型，注入 llm 闭包（generateText），调 registerSyncHandler 注册全局单例 handler（handlers 现状即全局单例，模型配置进程级，跨目录复用安全）。
+opennovel 组合层（serve 启动）捕获 Provider.Service 与 InstanceStore.Service，调 registerSyncHandler 注册全局单例 handler。handler 每次执行先按任务 directory 经 InstanceStore 加载对应 InstanceContext，再在该上下文中用 Provider.Service 解析默认模型，注入 llm 闭包（generateText）。Provider 状态是 Instance-scoped，因此不能在 `instance:false` 的 serve 命令里直接解析模型；按任务目录加载上下文可以避免启动时绑定全局目录。
 
 - 备选：generateObject 结构化输出——ai 6.x 可用，但项目现有一次性 LLM 惯例均为 generateText + 显式解析，保持一致
 - 备选：重建整体放 opennovel——plugin 已持有全部表写入词汇与写作领域 prompt 经验，放 plugin 避免 opennovel 反向依赖领域知识
 
 ### D5: 每任务运行时解析默认模型
 
-handler 每次执行经 Provider.Service 解析 defaultModel → getModel → getLanguage；解析失败 throw（任务 failed，原因可读）。不启动时缓存：用户可能中途更换模型配置，缓存会消费旧配置。
+handler 每次执行在任务目录的 InstanceContext 中经 Provider.Service 解析 defaultModel → getModel → getLanguage；解析失败 throw（任务 failed，原因可读）。不启动时缓存：用户可能中途更换模型配置，缓存会消费旧配置。
 
 ### D6: 轮询防重入
 
