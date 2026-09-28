@@ -34,6 +34,7 @@ type ListenOptions = CorsOptions & {
   hostname: string
   mdns?: boolean
   mdnsDomain?: string
+  syncWorker?: boolean
 }
 type ListenerState = {
   scope: Scope.Scope

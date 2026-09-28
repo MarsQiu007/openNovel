@@ -275,10 +275,20 @@ const app = LayerNode.group([
   PtyTicket.node,
 ])
 
-export function createRoutes(
-  corsOptions?: CorsOptions,
-): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
+type RouteOptions = CorsOptions & { syncWorker?: boolean }
+
+export function createRoutes(options?: RouteOptions): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
   const locationServiceMapV2 = buildLocationServiceMap()
+  const syncWorkerLayer = options?.syncWorker
+    ? Layer.effectDiscard(
+        Effect.gen(function* () {
+          const provider = yield* Provider.Service
+          const store = yield* InstanceStore.Service
+          const { registerNovelSyncHandler } = yield* Effect.promise(() => import("@/novel/sync-worker-composition"))
+          registerNovelSyncHandler(provider, store)
+        }),
+      )
+    : Layer.empty
 
   return Layer.mergeAll(
     rootApiRoutes,
@@ -295,11 +305,12 @@ export function createRoutes(
       compressionLayer,
       corsVaryFix,
       fenceLayer,
-      cors(corsOptions),
+      cors(options),
       AppNodeBuilderV1.build(MoveSession.node, [[LocationServiceMap.node, locationServiceMapV2]]),
       HttpServer.layerServices,
     ]),
-    Layer.provide(Layer.succeed(CorsConfig)(corsOptions)),
+    Layer.provide(Layer.succeed(CorsConfig)(options)),
+    Layer.provideMerge(syncWorkerLayer),
     Layer.provide(sessionLocationLayer),
     Layer.provide(locationLayer),
     Layer.provide(PtyEnvironment.layer),
