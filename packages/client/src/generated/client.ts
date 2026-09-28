@@ -314,6 +314,8 @@ import type {
   ServerNovelSaveBookMetaOutput,
   ServerNovelSyncStatusInput,
   ServerNovelSyncStatusOutput,
+  ServerNovelSyncRetryInput,
+  ServerNovelSyncRetryOutput,
   ServerNovelUpgradeStatusInput,
   ServerNovelUpgradeStatusOutput,
   ServerNovelUpgradeStartInput,
@@ -2609,6 +2611,19 @@ export function make(options: ClientOptions) {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/sync-status`,
             query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "sync-retry": (input: ServerNovelSyncRetryInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelSyncRetryOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/sync/retry`,
+            query: { location: input["location"] },
+            body: { entryIds: input["entryIds"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,

@@ -1049,6 +1049,17 @@ export const ManualEditSyncQueryResult = Schema.Struct({
 }).annotate({ identifier: "Novel.ManualEditSyncQueryResult" })
 export interface ManualEditSyncQueryResult extends Schema.Schema.Type<typeof ManualEditSyncQueryResult> {}
 
+export const ManualEditSyncRetryInput = Schema.Struct({
+  entryIds: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.ManualEditSyncRetryInput" })
+export interface ManualEditSyncRetryInput extends Schema.Schema.Type<typeof ManualEditSyncRetryInput> {}
+
+export const ManualEditSyncRetryResult = Schema.Struct({
+  retried: Schema.Int,
+  unchanged: Schema.Int,
+}).annotate({ identifier: "Novel.ManualEditSyncRetryResult" })
+export interface ManualEditSyncRetryResult extends Schema.Schema.Type<typeof ManualEditSyncRetryResult> {}
+
 export const ManualEditErrorPayload = Schema.Struct({
   code: Schema.String,
   message: Schema.String,
@@ -1106,6 +1117,7 @@ export const UpgradeStartResult = Schema.Struct({
 export interface UpgradeStartResult extends Schema.Schema.Type<typeof UpgradeStartResult> {}
 
 export const UpgradeFailureItem = Schema.Struct({
+  entryId: Schema.String,
   chapterId: Schema.String,
   reason: Schema.String,
 }).annotate({ identifier: "Novel.UpgradeFailureItem" })

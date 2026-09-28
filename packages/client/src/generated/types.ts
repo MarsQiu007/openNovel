@@ -6140,6 +6140,16 @@ export type ServerNovelSyncStatusOutput = {
   }>
 }
 
+export type ServerNovelSyncRetryInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly entryIds: { readonly entryIds: ReadonlyArray<string> }["entryIds"]
+}
+
+export type ServerNovelSyncRetryOutput = { readonly retried: number; readonly unchanged: number }
+
 export type ServerNovelUpgradeStatusInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
@@ -6187,7 +6197,7 @@ export type ServerNovelUpgradeProgressOutput = {
   readonly pending: number
   readonly failed: number
   readonly total: number
-  readonly failures: ReadonlyArray<{ readonly chapterId: string; readonly reason: string }>
+  readonly failures: ReadonlyArray<{ readonly entryId: string; readonly chapterId: string; readonly reason: string }>
 }
 
 export type ServerNovelUpgradePauseInput = {

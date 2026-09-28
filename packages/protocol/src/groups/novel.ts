@@ -87,6 +87,8 @@ import {
   SettingOrganizationApplyResult,
   ManualEditSyncEntry,
   ManualEditSyncQueryResult,
+  ManualEditSyncRetryInput,
+  ManualEditSyncRetryResult,
   UpgradeStatusResult,
   UpgradeStartResult,
   UpgradeProgressResult,
@@ -1424,6 +1426,17 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.sync-status", summary: "Query manual edit sync status" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.sync-retry", `${root}/:novelID/sync/retry`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: ManualEditSyncRetryInput,
+      success: ManualEditSyncRetryResult,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.sync-retry", summary: "Retry failed manual edit sync entries" })),
   )
   .add(
     HttpApiEndpoint.get("novel.upgrade-status", `${root}/:novelID/upgrade/status`, {

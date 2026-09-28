@@ -7,8 +7,8 @@
 
 ## 2. API 契约与 SDK
 
-- [ ] 2.1 新增同步重试请求 / 响应 schema、升级失败项队列 ID 字段与 `POST /novel/:novelID/sync/retry` 协议端点；在 `packages/schema` 与 `packages/protocol` 分别运行 `bun typecheck` 验证契约类型通过。
-- [ ] 2.2 在 `packages/client` 运行 `bun run generate` 重新生成 SDK，并检查 generated diff 只包含本变更的契约更新。
+- [x] 2.1 新增同步重试请求 / 响应 schema、升级失败项队列 ID 字段与 `POST /novel/:novelID/sync/retry` 协议端点；在 `packages/schema` 与 `packages/protocol` 分别运行 `bun typecheck` 验证契约类型通过。
+- [x] 2.2 在 `packages/client` 运行 `bun run generate` 重新生成 SDK，并检查 generated diff 只包含本变更的契约更新。
 
 ## 3. 服务端实现
 
