@@ -24,3 +24,11 @@
 
 - [x] 5.1 在仓库根运行 `bun run typecheck` 与 `bun run lint`，确认全仓类型检查通过且 oxlint 无新增错误。
 - [x] 5.2 运行 `openspec validate sync-failed-retry --strict`，并检查 delta specs 与 proposal、design、tasks 的行为描述一致。
+
+## Implementation Commits
+
+- `3aa264714` feat(novel-store): 支持同步失败任务重试
+- `b7cc37486` feat(protocol): 增加同步重试契约
+- `22e13aaca` feat(server): 接入同步失败重试端点
+- `d4f4b681b` feat(app): 提供同步失败重试入口
+- `fede5e477` refactor(app): 清理同步重试实现
