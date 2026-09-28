@@ -75,6 +75,18 @@ export async function enqueueManualEditSync(
   )
   if (sameFingerprint) return { queued: false, deduped: true }
 
+  const sameFingerprintFailed = existing.find(
+    (row) => row.source_fingerprint === fingerprint && row.status === "failed",
+  )
+  if (sameFingerprintFailed) {
+    await db
+      .update(ManualEditSyncQueueTable)
+      .set({ status: "pending", failure_reason: null, updated_at: Date.now() })
+      .where(eq(ManualEditSyncQueueTable.id, sameFingerprintFailed.id))
+      .run()
+    return { queued: true, deduped: true }
+  }
+
   // 作废旧指纹的 pending / failed 任务
   for (const row of existing) {
     if (row.source_fingerprint !== fingerprint && (row.status === "pending" || row.status === "failed")) {
@@ -151,6 +163,38 @@ export async function updateSyncStatus(
   const updates: Record<string, unknown> = { status, updated_at: Date.now() }
   if (failureReason !== undefined) updates.failure_reason = failureReason
   await db.update(ManualEditSyncQueueTable).set(updates).where(eq(ManualEditSyncQueueTable.id, syncId)).run()
+}
+
+/**
+ * 显式重试失败同步条目。
+ *
+ * 只重置属于当前小说且状态为 failed 的条目；其余条目保持原状态。
+ */
+export async function retryManualEditSync(
+  novelId: string,
+  entryIds: Array<string>,
+  directory?: string | null,
+): Promise<{ retried: number; unchanged: number }> {
+  const ids = [...new Set(entryIds)]
+  if (ids.length === 0) return { retried: 0, unchanged: 0 }
+
+  const db = getDb(directory)
+  const rows = await db
+    .select({ id: ManualEditSyncQueueTable.id, status: ManualEditSyncQueueTable.status })
+    .from(ManualEditSyncQueueTable)
+    .where(and(eq(ManualEditSyncQueueTable.novel_id, novelId), inArray(ManualEditSyncQueueTable.id, ids)))
+    .all()
+  const failedIds = rows.filter((row) => row.status === "failed").map((row) => row.id)
+
+  if (failedIds.length > 0) {
+    await db
+      .update(ManualEditSyncQueueTable)
+      .set({ status: "pending", failure_reason: null, updated_at: Date.now() })
+      .where(inArray(ManualEditSyncQueueTable.id, failedIds))
+      .run()
+  }
+
+  return { retried: failedIds.length, unchanged: ids.length - failedIds.length }
 }
 
 /**
@@ -321,4 +365,3 @@ export async function scanHistoricalIntermediateStates(
     spine: staleSpine.length,
   }
 }
-

@@ -18,6 +18,7 @@ import {
   computeFingerprint,
   enqueueManualEditSync,
   querySyncStatus,
+  retryManualEditSync,
   updateSyncStatus,
   saveBookMeta,
   markDerivedStale,
@@ -121,6 +122,73 @@ describe("指纹去重与合并", () => {
     const r2 = await enqueueManualEditSync({ novelId: novel.id, entity: "chapter", entityId: "ch1", sourceFingerprint: fp }, projectDir)
     // 相同指纹的 failed 任务应该重新入队
     expect(r2.queued).toBe(true)
+  })
+
+  test("同指纹 failed 任务重新入队复用原记录", async () => {
+    const { novel } = await seedNovelWithChapter()
+    const fp = computeFingerprint("内容A")
+    await enqueueManualEditSync({ novelId: novel.id, entity: "chapter", entityId: "ch1", sourceFingerprint: fp }, projectDir)
+    const [failed] = await querySyncStatus(novel.id, { status: "pending" }, projectDir)
+    await updateSyncStatus(failed.id, "failed", "网络超时", projectDir)
+
+    const result = await enqueueManualEditSync(
+      { novelId: novel.id, entity: "chapter", entityId: "ch1", sourceFingerprint: fp },
+      projectDir,
+    )
+
+    expect(result).toEqual({ queued: true, deduped: true })
+    const entries = await querySyncStatus(novel.id, { includeSynced: true }, projectDir)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].id).toBe(failed.id)
+    expect(entries[0].status).toBe("pending")
+    expect(entries[0].failure_reason).toBeNull()
+  })
+
+  test("显式重试只重置当前小说的 failed 条目", async () => {
+    const { novel } = await seedNovelWithChapter()
+    const { novel: otherNovel } = await seedNovelWithChapter()
+    const entries = [
+      { entity: "chapter", entityId: "failed", status: "failed" },
+      { entity: "chapter", entityId: "pending", status: "pending" },
+      { entity: "chapter", entityId: "synced", status: "synced" },
+      { entity: "chapter", entityId: "skipped", status: "skipped" },
+    ] as const
+    const created = [] as Array<{ id: string; status: string }>
+    for (const [index, entry] of entries.entries()) {
+      await enqueueManualEditSync(
+        { novelId: novel.id, entity: entry.entity, entityId: entry.entityId, sourceFingerprint: `fp-${index}` },
+        projectDir,
+      )
+      const row = (await querySyncStatus(novel.id, { includeSynced: true }, projectDir)).find(
+        (candidate) => candidate.entity_id === entry.entityId,
+      )!
+      if (entry.status !== "pending") await updateSyncStatus(row.id, entry.status, entry.status === "failed" ? "网络超时" : null, projectDir)
+      created.push({ id: row.id, status: entry.status })
+    }
+    await enqueueManualEditSync(
+      { novelId: otherNovel.id, entity: "chapter", entityId: "other-failed", sourceFingerprint: "other-fp" },
+      projectDir,
+    )
+    const [otherFailed] = await querySyncStatus(otherNovel.id, { status: "pending" }, projectDir)
+    await updateSyncStatus(otherFailed.id, "failed", "其他小说失败", projectDir)
+
+    const result = await retryManualEditSync(
+      novel.id,
+      [...created.map((entry) => entry.id), otherFailed.id, "missing-id"],
+      projectDir,
+    )
+
+    expect(result).toEqual({ retried: 1, unchanged: 5 })
+    const rows = await querySyncStatus(novel.id, { includeSynced: true }, projectDir)
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    expect(byId.get(created[0].id)?.status).toBe("pending")
+    expect(byId.get(created[0].id)?.failure_reason).toBeNull()
+    expect(byId.get(created[1].id)?.status).toBe("pending")
+    expect(byId.get(created[2].id)?.status).toBe("synced")
+    expect(byId.get(created[3].id)?.status).toBe("skipped")
+    const otherRows = await querySyncStatus(otherNovel.id, { includeSynced: true }, projectDir)
+    expect(otherRows[0].status).toBe("failed")
+    expect(otherRows[0].failure_reason).toBe("其他小说失败")
   })
 
   test("已跳过任务不会阻塞新任务", async () => {
@@ -261,4 +329,3 @@ describe("历史数据兼容", () => {
     expect(syncTable).toHaveLength(1)
   })
 })
-

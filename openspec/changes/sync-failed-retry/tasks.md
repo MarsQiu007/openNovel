@@ -2,8 +2,8 @@
 
 ## 1. 队列重试语义
 
-- [ ] 1.1 实现 `failed` 同步条目的显式重置能力，并修正同指纹 `failed` 任务重新入队时复用原记录的语义；在 `packages/novel-store` 运行 `bun test test/manual-edit-sync.test.ts` 验证相关用例通过。
-- [ ] 1.2 为显式重试、非失败条目不变、同指纹重试不重复三条行为补充测试；在 `packages/novel-store` 运行 `bun typecheck` 确认类型通过。
+- [x] 1.1 实现 `failed` 同步条目的显式重置能力，并修正同指纹 `failed` 任务重新入队时复用原记录的语义；在 `packages/novel-store` 运行 `bun test test/manual-edit-sync.test.ts` 验证相关用例通过。
+- [x] 1.2 为显式重试、非失败条目不变、同指纹重试不重复三条行为补充测试；在 `packages/novel-store` 运行 `bun typecheck` 确认类型通过。
 
 ## 2. API 契约与 SDK
 
