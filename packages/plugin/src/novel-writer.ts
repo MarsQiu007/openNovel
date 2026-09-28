@@ -153,6 +153,9 @@ import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } 
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
 import { validateWorldMapAiDraft } from "./novel-writer/map-ai.js"
 import { analyzeEntities, executeOrganizePlan, loadOrganizeContext, parseOrganizePlan, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
+import { rebuildChapterDerivedData } from "./novel-writer/chapter-rebuild.js"
+
+export { rebuildChapterDerivedData }
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 

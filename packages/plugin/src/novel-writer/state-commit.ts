@@ -1207,7 +1207,7 @@ export async function commitStateWithReport(
  * 将本章的 chapter_summaries 行同步到 chapter_summary_fts。
  * 在事务内调用，先删后插，幂等。
  */
-async function syncChapterSummaryFts(
+export async function syncChapterSummaryFts(
   db: ReturnType<typeof getDb>,
   novelId: string,
   chapterId: string,
