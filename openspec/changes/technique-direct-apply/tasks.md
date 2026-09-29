@@ -20,3 +20,7 @@
 - [x] 4.1 在 `packages/novel-store`、`packages/plugin`、`packages/opennovel` 分别运行 `bun typecheck` 并通过
 - [x] 4.2 在仓库根运行 `bun run lint` 并通过
 - [x] 4.3 在 `packages/plugin` 运行 `bun test test/novel-writer/technique-store.test.ts test/novel-writer/technique-injection.test.ts test/novel-writer/technique-e2e.test.ts`，在 `packages/novel-store` 运行 `bun test test/technique-management.test.ts`，全部通过
+
+## Implementation Commits
+
+- `cd6ee2a` feat(plugin): 技法提取默认入库并缺省注入
