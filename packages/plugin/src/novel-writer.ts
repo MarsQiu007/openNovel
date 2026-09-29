@@ -116,6 +116,7 @@ import {
 } from "./novel-writer/session-store.js"
 export { readTechniqueInjection }
 import { chooseSoul, fetchGlobalSoul } from "./novel-writer/soul.js"
+export { chooseSoul }
 import {
   StoryArcTable,
   ArcBeatTable,
