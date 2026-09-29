@@ -15,3 +15,7 @@
 - [x] 3.1 在 `packages/plugin` 与 `packages/opennovel` 分别运行 `bun typecheck` 并通过
 - [x] 3.2 在仓库根运行 `bun run lint` 并通过
 - [x] 3.3 在 `packages/plugin` 运行 `bun test test/novel-writer/soul.test.ts test/novel-writer/chapter-rebuild.test.ts`，确认灵魂合并与重建解析语义未回归
+
+## Implementation Commits
+
+- `1d5ae1e` feat(opennovel): 章节重建注入灵魂设定
