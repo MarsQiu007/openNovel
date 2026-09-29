@@ -1192,22 +1192,22 @@ function techniqueConfigPath(directory?: string | null) {
   return join(join(getDbPath(directory), ".."), "config.json")
 }
 
-/** 技法注入开关仅把 true 视为开启；缺失、非法值或文件损坏都保持 shadow 模式。 */
+/** 技法注入开关缺省开启；仅显式 boolean false 关闭，缺失、非法值或文件损坏都按开启处理。 */
 export function readTechniqueInjection(directory?: string | null): boolean {
   const path = techniqueConfigPath(directory)
-  if (!existsSync(path)) return false
+  if (!existsSync(path)) return true
   let raw: string
   try {
     raw = readFileSync(path, "utf-8")
   } catch {
-    return false
+    return true
   }
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1)
   try {
     const data = JSON.parse(raw) as Record<string, unknown>
-    return data.technique_injection === true
+    return data.technique_injection !== false
   } catch {
-    return false
+    return true
   }
 }
 

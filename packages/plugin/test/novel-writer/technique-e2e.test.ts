@@ -77,15 +77,17 @@ describe("技法链路端到端", () => {
     expect(seeded.entry.status).toBe("verified")
     expect(seeded.entry.confidence).toBe(0.8)
 
-    // 2. 默认（未开启注入）：快照输出为 shadow 候选段
+    // 2. 显式关闭注入：快照输出为 shadow 候选段
+    writeProjectConfig(dir, "novel", "technique_injection", "false")
+    expect(readTechniqueInjection(dir)).toBe(false)
     await seedNovelWithDialogueSynopsis()
     const snapshotOff = await assembleSnapshot("n1", 0, dir)
-    const off = formatSnapshotToolOutput(snapshotOff!, { hooks: [] })
+    const off = formatSnapshotToolOutput(snapshotOff!, { hooks: [] }, { techniqueInjectionEnabled: false })
     expect(off.output).toContain("技法候选")
     expect(off.output).not.toContain("写作技法指导")
     expect(off.injectedTechniqueIds).toEqual([])
 
-    // 3. 开关注入后：输出"写作技法指导"段（种子 0.8 ≥ 0.6 注入；提取 0.5 被门槛过滤）
+    // 3. 开关注入后：输出"写作技法指导"段（种子 0.8 排序在前，提取 0.5 同样注入）
     writeProjectConfig(dir, "novel", "technique_injection", "true")
     expect(readTechniqueInjection(dir)).toBe(true)
 
@@ -94,8 +96,8 @@ describe("技法链路端到端", () => {
     expect(on.output).toContain("写作技法指导")
     expect(on.output).toContain("原样传递给 writer")
     expect(on.output).toContain("种子技法")
-    expect(on.output).not.toContain("提取技法")
-    expect(on.injectedTechniqueIds).toEqual([seeded.entry.id])
+    expect(on.output).toContain("提取技法")
+    expect(on.injectedTechniqueIds).toEqual([seeded.entry.id, extracted.entry.id])
 
     // 4. 注入驱动用量统计
     await incrementTechniqueUsage(seeded.entry.id, dir)
@@ -116,8 +118,8 @@ describe("技法链路端到端", () => {
     expect(evolved.entry.status).toBe("verified")
   })
 
-  test("临时项目目录提取导入（CLI --import 等价路径）", async () => {
-    // 与 CLI 相同：extract 落 JSON → importExtractedTechniques(directory) → 同一库
+  test("临时项目目录提取默认入库（CLI 等价路径）", async () => {
+    // 与 CLI 默认路径相同：extract 落 JSON → importExtractedTechniques(directory) → 同一库
     const workDir = mkdtempSync(join(tmpdir(), "tech-e2e-cli-"))
     try {
       const outPath = join(workDir, "out.json")

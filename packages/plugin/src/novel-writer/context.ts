@@ -15,12 +15,7 @@ import { eq, and, lte, desc, sql } from "drizzle-orm"
 import type { RetrievedTechnique } from "./technique.js"
 import type { ProtectedRelationship } from "./relationship-context.js"
 import type { CharacterBindingView } from "./drift-guards.js"
-import {
-  applyP7Budget,
-  formatTechniquesForShadow,
-  formatTechniqueGuidanceLines,
-  INJECTION_MIN_CONFIDENCE,
-} from "./technique-inject.js"
+import { applyP7Budget, formatTechniquesForShadow, formatTechniqueGuidanceLines } from "./technique-inject.js"
 import { ensureSegmentSummaries, listSegmentSummaries } from "./segment-rollup.js"
 import {
   getDb,
@@ -891,9 +886,8 @@ export function formatSnapshotToolOutput(
   // ── P7: 技法候选（shadow 候选段 / 注入段按开关分流） ──
   let injectedTechniqueIds: string[] = []
   if (options?.techniqueInjectionEnabled && snapshot.techniques.length > 0) {
-    // 注入：置信度 ≥ 门槛的候选取 top-5，按 1000 token 预算裁剪
-    const eligible = snapshot.techniques.filter((t) => t.entry.confidence >= INJECTION_MIN_CONFIDENCE)
-    const injected = applyP7Budget(eligible)
+    // 注入：候选取 top-5，按 1000 token 预算裁剪
+    const injected = applyP7Budget(snapshot.techniques)
     if (injected.length > 0) {
       lines.push("")
       lines.push("═══ 写作技法指导（P7 注入已开启：本段必须原样传递给 writer）═══")

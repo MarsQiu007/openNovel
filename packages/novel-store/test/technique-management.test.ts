@@ -70,7 +70,7 @@ describe("技法库管理", () => {
     mkdirSync(join(directory, ".novel"), { recursive: true })
     writeFileSync(configPath, JSON.stringify({ name: "书", writing_mode: "review" }), "utf-8")
 
-    expect(readTechniqueInjection(directory)).toBe(false)
+    expect(readTechniqueInjection(directory)).toBe(true)
     expect(writeTechniqueInjection(directory, true)).toEqual({ enabled: true })
     expect(readTechniqueInjection(directory)).toBe(true)
     const config = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>

@@ -123,13 +123,14 @@ const ExtractTechniquesCommand = effectCmd({
   instance: false,
   builder: (yargs: Argv) =>
     yargs
+      .parserConfiguration({ "populate--": true, "boolean-negation": false })
       .option("input", { type: "string", describe: "输入文件路径", demandOption: true })
       .option("output", { type: "string", describe: "输出 JSON 路径", demandOption: true })
       .option("chunk-size", { type: "number", describe: "分段大小", default: 3000 })
       .option("overlap", { type: "number", describe: "分段重叠", default: 500 })
-      .option("import", {
+      .option("noImport", {
         type: "boolean",
-        describe: "提取完成后直接入库（unverified，走反馈闭环验证）",
+        describe: "仅产出 JSON，不入库（默认提取完成后直接入库）",
         default: false,
       })
       .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
@@ -160,7 +161,7 @@ const ExtractTechniquesCommand = effectCmd({
       console.log(
         `分段 ${result.segments}，高亮 ${result.highlights}，提取 ${result.techniques} 条技法 -> ${args.output}`,
       )
-      if (args.import && result.techniques > 0) {
+      if (!args.noImport && result.techniques > 0) {
         const imported = yield* Effect.promise(() => importExtractedTechniques(args.output, args.dir ?? null))
         console.log(`已入库 ${imported} 条技法（unverified，等待 auditor 反馈验证）`)
       }

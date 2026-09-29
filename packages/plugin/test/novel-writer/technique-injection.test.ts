@@ -26,8 +26,8 @@ function writeConfig(data: unknown): void {
 }
 
 describe("readTechniqueInjection", () => {
-  test("配置缺失返回 false", () => {
-    expect(readTechniqueInjection(projectDir)).toBe(false)
+  test("配置缺失返回 true", () => {
+    expect(readTechniqueInjection(projectDir)).toBe(true)
   })
 
   test("true 返回 true", () => {
@@ -40,14 +40,14 @@ describe("readTechniqueInjection", () => {
     expect(readTechniqueInjection(projectDir)).toBe(false)
   })
 
-  test("字符串 \"false\" 严格拒绝（不真值判断）", () => {
+  test("字符串 \"false\" 按缺省开启处理", () => {
     writeConfig({ technique_injection: "false" })
-    expect(readTechniqueInjection(projectDir)).toBe(false)
+    expect(readTechniqueInjection(projectDir)).toBe(true)
   })
 
-  test("JSON 损坏返回 false 不抛异常", () => {
+  test("JSON 损坏返回 true 不抛异常", () => {
     writeFileSync(join(projectDir, ".novel", "config.json"), "{ broken")
-    expect(readTechniqueInjection(projectDir)).toBe(false)
+    expect(readTechniqueInjection(projectDir)).toBe(true)
   })
 })
 

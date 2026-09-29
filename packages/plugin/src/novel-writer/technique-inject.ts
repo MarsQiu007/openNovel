@@ -26,9 +26,6 @@ export function formatTechniquesForPrompt(techniques: RetrievedTechnique[]): str
   return `## 写作技法指导\n\n${formatTechniqueGuidanceLines(techniques).join("\n")}`
 }
 
-/** 注入门槛：置信度低于该值的技法不进入 writer prompt（仍留在 shadow 候选段供反馈闭环） */
-export const INJECTION_MIN_CONFIDENCE = 0.6
-
 /** "写作技法指导"段落的正文行（不含标题），供快照注入段与 formatTechniquesForPrompt 共用 */
 export function formatTechniqueGuidanceLines(techniques: RetrievedTechnique[]): string[] {
   if (techniques.length === 0) return []
