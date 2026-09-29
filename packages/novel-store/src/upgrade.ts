@@ -150,7 +150,8 @@ export const UPGRADE_TASKS: UpgradeTaskDef[] = [
       db
         .select({ id: ChapterSummaryTable.id })
         .from(ChapterSummaryTable)
-        .where(isNull(ChapterSummaryTable.source_fingerprint))
+        .innerJoin(ChapterTable, eq(ChapterTable.id, ChapterSummaryTable.chapter_id))
+        .where(and(eq(ChapterTable.novel_id, novelId), isNull(ChapterSummaryTable.source_fingerprint)))
         .all().length > 0,
   },
   {
@@ -185,7 +186,8 @@ export async function estimateUpgradeCost(db: Db, novelId: string): Promise<Upgr
   const staleSummaryCount = db
     .select({ id: ChapterSummaryTable.id })
     .from(ChapterSummaryTable)
-    .where(isNull(ChapterSummaryTable.source_fingerprint))
+    .innerJoin(ChapterTable, eq(ChapterTable.id, ChapterSummaryTable.chapter_id))
+    .where(and(eq(ChapterTable.novel_id, novelId), isNull(ChapterSummaryTable.source_fingerprint)))
     .all().length
   return { deterministicTasks, aiChapters: staleSummaryCount }
 }

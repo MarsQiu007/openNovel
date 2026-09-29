@@ -73,6 +73,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateAnnotationEndParagraphIndex(exec, query)
   migrateUnifiedAnnotations(exec, query)
   migrateSyncQueueSource(exec, query)
+  cleanupUpgradeQueueScope(exec)
   migrateChapterContentFingerprint(exec, query)
 }
 
@@ -459,6 +460,31 @@ function migrateSyncQueueSource(exec: ExecFn, query: QueryFn): void {
     exec("CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_source_idx ON manual_edit_sync_queue(novel_id, source)")
   } catch {
     // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+  }
+}
+
+/**
+ * 清理升级队列中跨书错绑的章节任务。
+ *
+ * 历史升级实现曾把其他书的章节 ID 写入当前书的 upgrade 队列，
+ * worker 消费时会因章节归属不匹配失败。这里在 source 列迁移后删除
+ * 这些无效记录，保留章节归属正确的任务。
+ */
+function cleanupUpgradeQueueScope(exec: ExecFn): void {
+  try {
+    exec(`
+      DELETE FROM manual_edit_sync_queue
+      WHERE source = 'upgrade'
+        AND entity = 'chapter'
+        AND entity_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM chapters
+          WHERE chapters.id = manual_edit_sync_queue.entity_id
+            AND chapters.novel_id = manual_edit_sync_queue.novel_id
+        )
+    `)
+  } catch {
+    // 表或列不存在时跳过，后续 schema 迁移完成后的下次打开会重试
   }
 }
 

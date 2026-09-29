@@ -12,6 +12,7 @@ import {
   ChapterSummaryTable,
   CharacterTable,
   EntityRefTable,
+  ManualEditSyncQueueTable,
   SegmentSummaryTable,
   StorySpineEntryTable,
   computeFingerprint,
@@ -88,6 +89,29 @@ describe("升级任务注册表", () => {
     const ids = pending.map((t) => t.id)
     expect(ids).toContain("content-fingerprints")
     expect(ids).toContain("chapter-summaries")
+  })
+
+  test("章节摘要任务不跨书籍泄漏", async () => {
+    const novelWithStaleSummary = await seedNovel()
+    const staleChapter = await createChapter(novelWithStaleSummary, "旧书章节", 1, null, projectDir)
+    const newNovel = await seedNovel()
+    const db = getDb(projectDir)
+    db.insert(ChapterSummaryTable)
+      .values({
+        id: crypto.randomUUID(),
+        chapter_id: staleChapter.id,
+        summary: "旧摘要",
+        key_events: "[]",
+        char_changes: "[]",
+        source_fingerprint: null,
+      })
+      .run()
+
+    const pending = await listPendingUpgradeTasks(db, newNovel)
+    expect(pending.map((task) => task.id)).not.toContain("chapter-summaries")
+
+    const cost = await estimateUpgradeCost(db, newNovel)
+    expect(cost.aiChapters).toBe(0)
   })
 
   test("legacy 主轴文本激活转换任务，结构化条目已存在则不触发", async () => {
@@ -223,6 +247,55 @@ describe("队列 source 列迁移", () => {
     const sourceCol = cols.find((c) => c.name === "source")
     expect(sourceCol).toBeDefined()
     expect(sourceCol!.dflt_value).toBe("'manual'")
+  })
+})
+
+describe("升级队列作用域清理", () => {
+  test("打开数据库时删除跨书错绑的 upgrade 任务", async () => {
+    const oldNovelId = await seedNovel()
+    const oldChapter = await createChapter(oldNovelId, "旧书章节", 1, null, projectDir)
+    const newNovelId = await seedNovel()
+    const db = getDb(projectDir)
+    const now = Date.now()
+    db.insert(ManualEditSyncQueueTable).values([
+      {
+        id: "invalid-upgrade-entry",
+        novel_id: newNovelId,
+        entity: "chapter",
+        entity_id: oldChapter.id,
+        field: "content",
+        category: "creative_fact",
+        status: "failed",
+        source_fingerprint: "old-fingerprint",
+        failure_reason: "Chapter not found",
+        source: "upgrade",
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "valid-upgrade-entry",
+        novel_id: oldNovelId,
+        entity: "chapter",
+        entity_id: oldChapter.id,
+        field: "content",
+        category: "creative_fact",
+        status: "pending",
+        source_fingerprint: "old-fingerprint",
+        failure_reason: null,
+        source: "upgrade",
+        created_at: now,
+        updated_at: now,
+      },
+    ]).run()
+
+    closeDb(projectDir)
+    const reopenedDb = getDb(projectDir)
+    expect(
+      reopenedDb.select().from(ManualEditSyncQueueTable).where(eq(ManualEditSyncQueueTable.id, "invalid-upgrade-entry")).get(),
+    ).toBeUndefined()
+    expect(
+      reopenedDb.select().from(ManualEditSyncQueueTable).where(eq(ManualEditSyncQueueTable.id, "valid-upgrade-entry")).get(),
+    ).toBeDefined()
   })
 })
 

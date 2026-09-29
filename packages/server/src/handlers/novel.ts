@@ -2967,7 +2967,8 @@ export function upgradeStartEndpoint(novelID: string, directory: string) {
     const staleSummaries = db
       .select({ chapter_id: ChapterSummaryTable.chapter_id })
       .from(ChapterSummaryTable)
-      .where(isNull(ChapterSummaryTable.source_fingerprint))
+      .innerJoin(ChapterTable, eq(ChapterTable.id, ChapterSummaryTable.chapter_id))
+      .where(and(eq(ChapterTable.novel_id, novelID), isNull(ChapterSummaryTable.source_fingerprint)))
       .all()
     const legacyEntries = db
       .select({ chapter_id: StorySpineEntryTable.chapter_id })
