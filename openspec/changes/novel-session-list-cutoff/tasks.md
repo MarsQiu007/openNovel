@@ -14,14 +14,15 @@
 
 ## 3. 服务端行为确认
 
-- [ ] 3.1 确认 `session.list` 带 `roots=true` 时服务端只返回根会话（`packages/opennovel` 既有 session 测试通过；如无覆盖该参数的组合，补一个最小用例验证子代理会话被过滤）
-- [ ] 3.2 确认 handler 无需改动：`server.session/session.list` 对 `roots` 的透传成立（`packages/server` 类型检查通过即可）
+- [x] 3.1 确认 `session.list` 带 `roots=true` 时服务端只返回根会话（`packages/opennovel` 既有 session 测试通过；如无覆盖该参数的组合，补一个最小用例验证子代理会话被过滤）
+- [x] 3.2 确认 handler 无需改动：`server.session/session.list` 对 `roots` 的透传成立（`packages/server` 类型检查通过即可）
 
 ## 4. 端到端回归
 
 - [ ] 4.1 `packages/app`、`packages/client`、`packages/protocol`、`packages/server`、`packages/opennovel` 全部通过 `bun typecheck` 与 oxlint
 - [ ] 4.2 用户环境验证：重新打开《金牌》（`C:\Novels\audits`）书籍工作台，会话切换器直接列出全部绑定会话并自动回跳最近会话，不再出现"暂无会话"
 - [ ] 4.3 用户环境验证：对该书执行一次批注"执行"，确认指令发送到既有主线绑定会话而不是静默新建会话；取消生成与审批栏"查看评审"按钮恢复有效
+
 
 
 

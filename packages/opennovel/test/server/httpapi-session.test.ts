@@ -317,6 +317,26 @@ describe("session HttpApi", () => {
   )
 
   it.instance(
+    "filters child sessions when roots is true",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const headers = { "x-opennovel-directory": test.directory }
+        const parent = yield* createSession({ title: "root" })
+        const child = yield* createSession({ title: "child", parentID: parent.id })
+
+        const withRoots = yield* requestJson<Session.Info[]>(`${SessionPaths.list}?roots=true`, { headers })
+        expect(withRoots.map((item) => item.id)).toContain(parent.id)
+        expect(withRoots.map((item) => item.id)).not.toContain(child.id)
+
+        const withoutRoots = yield* requestJson<Session.Info[]>(SessionPaths.list, { headers })
+        expect(withoutRoots.map((item) => item.id)).toContain(parent.id)
+        expect(withoutRoots.map((item) => item.id)).toContain(child.id)
+      }),
+    { git: true },
+  )
+
+  it.instance(
     "serves read routes",
     () =>
       Effect.gen(function* () {
