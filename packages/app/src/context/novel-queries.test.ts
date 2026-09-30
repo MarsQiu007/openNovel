@@ -103,6 +103,18 @@ describe("boundNovelSessions", () => {
     })
     expect(result.map((item) => item.sessionID)).toEqual(["s1", "s2"])
   })
+
+  test("列表超过默认分页窗口（>50 条）时绑定会话仍完整保留", () => {
+    // 模拟 roots+limit 查询返回的完整根会话列表：按 updated 倒序共 60 条，
+    // 绑定指向窗口首、中、尾三处，任何一处的绑定都不得丢失（novel-session-list-cutoff 回归）
+    const sessions = Array.from({ length: 60 }, (_, i) => session(`s${i}`))
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s59"), binding("s30"), binding("s0")],
+      sessions,
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s59", "s30", "s0"])
+  })
 })
 
 describe("resolveAutoAdoptTarget", () => {

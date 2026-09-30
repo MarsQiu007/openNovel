@@ -1,18 +1,20 @@
 import { describe, expect, test } from "bun:test"
-import { createAndBindSession, formatRejectionRewritePrompt, sendNovelSessionInstruction } from "./workspace-data"
+import { createAndBindSession, findBoundNovelSession, formatRejectionRewritePrompt, sendNovelSessionInstruction } from "./workspace-data"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import type { useBindSession } from "@/context/novel-queries"
 
 type Deps = {
   calls: string[]
+  listArgs: unknown[]
   sdk: ReturnType<typeof useSDK>
   novel: ReturnType<typeof useNovel>
   bindSession: ReturnType<typeof useBindSession>
 }
 
-function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string } = {}): Deps {
+function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string; sessions?: unknown[] } = {}): Deps {
   const calls: string[] = []
+  const listArgs: unknown[] = []
   const novel = {
     listSessionBindings: async () => (opts.boundSessionID ? [{ novelID: "novel-1", sessionID: opts.boundSessionID }] : []),
   } as unknown as ReturnType<typeof useNovel>
@@ -26,11 +28,14 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string 
     directory: "dir-1",
     client: {
       session: {
-        list: async () => ({
-          data: opts.boundSessionID
-            ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
-            : [],
-        }),
+        list: async (args?: unknown) => {
+          listArgs.push(args)
+          return {
+            data: opts.sessions ?? (opts.boundSessionID
+              ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
+              : []),
+          }
+        },
         create: async () => {
           calls.push("create")
           if (opts.failAt === "create") throw new Error("create failed")
@@ -43,7 +48,7 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string 
       },
     },
   })) as unknown as ReturnType<typeof useSDK>
-  return { calls, sdk, novel, bindSession }
+  return { calls, listArgs, sdk, novel, bindSession }
 }
 
 describe("createAndBindSession", () => {
