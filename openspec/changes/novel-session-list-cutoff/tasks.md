@@ -3,7 +3,7 @@
 ## 1. 协议契约
 
 - [x] 1.1 在 `packages/protocol/src/groups/session.ts` 的 `SessionsQueryFields` 中新增可选 `roots` 字段，字符串到布尔用 `SchemaGetter.transform` 解码（参照 `packages/schema/src/schema.ts` 的 `DateTimeUtcFromMillis` 惯用法），并在 `packages/protocol` 运行 `bun typecheck` 通过
-- [ ] 1.2 在 `packages/client` 运行 `bun run generate` 重新生成 SDK，确认 `src/generated` 中 `session.list` 查询出现 `roots` 参数且该包 `bun typecheck` 通过
+- [x] 1.2 在 `packages/client` 运行 `bun run generate` 重新生成 SDK，确认 `src/generated` 中 `session.list` 查询出现 `roots` 参数且该包 `bun typecheck` 通过
 
 ## 2. 客户端查询修复
 
@@ -22,6 +22,7 @@
 - [x] 4.1 `packages/app`、`packages/client`、`packages/protocol`、`packages/server`、`packages/opennovel` 全部通过 `bun typecheck` 与 oxlint
 - [ ] 4.2 用户环境验证：重新打开《金牌》（`C:\Novels\audits`）书籍工作台，会话切换器直接列出全部绑定会话并自动回跳最近会话，不再出现"暂无会话"
 - [ ] 4.3 用户环境验证：对该书执行一次批注"执行"，确认指令发送到既有主线绑定会话而不是静默新建会话；取消生成与审批栏"查看评审"按钮恢复有效
+
 
 
 
