@@ -3,6 +3,13 @@ import { DateTime, Option, Schema, SchemaGetter } from "effect"
 export const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
+export const BooleanFromString = Schema.String.pipe(
+  Schema.decodeTo(Schema.Boolean, {
+    decode: SchemaGetter.transform((value) => value === "true"),
+    encode: SchemaGetter.transform((value) => String(value)),
+  }),
+)
+
 export const RelativePath = Schema.String.pipe(Schema.brand("RelativePath"))
 export type RelativePath = typeof RelativePath.Type
 

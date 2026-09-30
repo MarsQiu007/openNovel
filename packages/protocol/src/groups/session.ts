@@ -3,7 +3,7 @@ import { SessionInput } from "@opennovel-ai/schema/session-input"
 import { PromptInput } from "@opennovel-ai/schema/prompt-input"
 import { Session } from "@opennovel-ai/schema/session"
 import { Project } from "@opennovel-ai/schema/project"
-import { AbsolutePath, NonNegativeInt, PositiveInt, RelativePath, statics } from "@opennovel-ai/schema/schema"
+import { AbsolutePath, BooleanFromString, NonNegativeInt, PositiveInt, RelativePath, statics } from "@opennovel-ai/schema/schema"
 import { Workspace } from "@opennovel-ai/schema/workspace"
 import { Context, Effect, Encoding, Result, Schema, Struct } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
@@ -29,6 +29,9 @@ const SessionsQueryFields = {
   }),
   order: Schema.optional(Schema.Union([Schema.Literal("asc"), Schema.Literal("desc")])).annotate({
     description: "Session order for the first page. Use desc for newest first or asc for oldest first.",
+  }),
+  roots: Schema.optional(BooleanFromString).annotate({
+    description: "Only return root sessions (sessions without a parent).",
   }),
   search: Schema.optional(Schema.String),
 }
