@@ -538,6 +538,7 @@ export function make(options: ClientOptions) {
               workspace: input?.["workspace"],
               limit: input?.["limit"],
               order: input?.["order"],
+              roots: input?.["roots"],
               search: input?.["search"],
               directory: input?.["directory"],
               project: input?.["project"],
