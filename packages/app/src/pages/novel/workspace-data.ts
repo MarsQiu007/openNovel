@@ -1,5 +1,5 @@
 import { type Accessor, createMemo } from "solid-js"
-import { useNovelDetail, useVolumes, useChapters, useTension, useBindSession } from "@/context/novel-queries"
+import { bookSessionListParams, useNovelDetail, useVolumes, useChapters, useTension, useBindSession } from "@/context/novel-queries"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import { sessionTitle } from "@/utils/session-title"
@@ -100,7 +100,7 @@ export async function findBoundNovelSession(
   novelID: string,
 ): Promise<string | null> {
   const [{ data: sessionList }, bindings] = await Promise.all([
-    sdk().client.session.list(),
+    sdk().client.session.list({ ...bookSessionListParams }),
     novel.listSessionBindings(),
   ])
   if (!sessionList || !bindings) return null

@@ -350,6 +350,13 @@ export function useNovelForSession(sessionID: Accessor<string>) {
   }))
 }
 
+/**
+ * 书内会话查询参数：服务端先滤出根会话（roots）再按最近窗口取 1000 条。
+ * 目录下子代理会话会频繁刷新 time_updated 挤占默认 50 条窗口，导致绑定会话
+ * 被截出窗口而书内列表静默丢失（novel-session-list-cutoff）。
+ */
+export const bookSessionListParams = { roots: true, limit: 1000 } as const
+
 /** 书内会话列表：绑定关系 × 会话列表取交集并过滤已归档（组合逻辑见 boundNovelSessions，供切换器使用） */
 export function useBoundNovelSessions(novelID: Accessor<string>) {
   const client = useNovelClient()
@@ -361,7 +368,7 @@ export function useBoundNovelSessions(novelID: Accessor<string>) {
       const dir = sdk().directory
       const [bindings, { data: sessionList }] = await Promise.all([
         client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
-        sdk().client.session.list({ directory: dir }),
+        sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
       ])
       return boundNovelSessions({
         novelID: novelID(),
