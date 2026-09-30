@@ -19,9 +19,10 @@
 
 ## 4. 端到端回归
 
-- [ ] 4.1 `packages/app`、`packages/client`、`packages/protocol`、`packages/server`、`packages/opennovel` 全部通过 `bun typecheck` 与 oxlint
+- [x] 4.1 `packages/app`、`packages/client`、`packages/protocol`、`packages/server`、`packages/opennovel` 全部通过 `bun typecheck` 与 oxlint
 - [ ] 4.2 用户环境验证：重新打开《金牌》（`C:\Novels\audits`）书籍工作台，会话切换器直接列出全部绑定会话并自动回跳最近会话，不再出现"暂无会话"
 - [ ] 4.3 用户环境验证：对该书执行一次批注"执行"，确认指令发送到既有主线绑定会话而不是静默新建会话；取消生成与审批栏"查看评审"按钮恢复有效
+
 
 
 
