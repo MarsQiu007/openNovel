@@ -185,6 +185,7 @@ export type RelationshipSummary = {
 
 /** 弧光节点摘要 */
 export type ArcBeatSummary = {
+  id: string
   label: string
   kind: string
   status: string
@@ -203,6 +204,15 @@ export type StoryArcSummary = {
   plannedStartChapter: number | null
   plannedEndChapter: number | null
   beats: ArcBeatSummary[]
+  /** 全量结构节点进度（kind=note 备注不计入；不受快照窗口截断影响） */
+  beatProgress: {
+    /** 结构节点总数 */
+    total: number
+    /** 已落地（drafted）结构节点数 */
+    drafted: number
+    /** 下一个未落地结构节点（按锚定章节升序，未锚定排后） */
+    nextUndrafted: { id: string; label: string; kind: string } | null
+  }
 }
 
 /** key_events 中情绪转移结构化条目的前缀（完整格式：`情绪转移:角色名:从X因Y变成Z`） */
@@ -398,12 +408,22 @@ export async function loadActiveArcs(
         .sort((a, b) => a.sortKey - b.sortKey)
         .slice(0, MAX_BEATS_PER_ARC)
         .map(({ b }) => ({
+    id: b.id,
           label: b.label,
           kind: b.kind,
           status: b.status,
           chapterOrder: b.chapter_order,
           summary: b.summary,
         }))
+  const allArcBeats = beatsByArc.get(arc.id) ?? []
+  const structuralBeats = allArcBeats
+    .filter((b) => b.kind !== "note")
+    .sort((a, b) => {
+      const ka = a.chapter_order == null ? Number.POSITIVE_INFINITY : a.chapter_order
+      const kb = b.chapter_order == null ? Number.POSITIVE_INFINITY : b.chapter_order
+      return ka - kb
+    })
+  const nextUndraftedBeat = structuralBeats.find((b) => b.status !== "drafted") ?? null
       return {
         id: arc.id,
         arcType: arc.arc_type,
@@ -414,6 +434,13 @@ export async function loadActiveArcs(
         plannedStartChapter: arc.planned_start_chapter,
         plannedEndChapter: arc.planned_end_chapter,
         beats,
+    beatProgress: {
+      total: structuralBeats.length,
+      drafted: structuralBeats.filter((b) => b.status === "drafted").length,
+      nextUndrafted: nextUndraftedBeat
+        ? { id: nextUndraftedBeat.id, label: nextUndraftedBeat.label, kind: nextUndraftedBeat.kind }
+        : null,
+    },
       }
     })
 }
@@ -776,9 +803,24 @@ export function formatSnapshotToolOutput(
     for (const arc of snapshot.activeArcs) {
       const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
       lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}：${arc.summary || "（无摘要）"}`)
+      let nextTargetShown = false
       for (const b of arc.beats) {
         const ch = b.chapterOrder != null ? `[内部参照: 章${b.chapterOrder}]` : "未锚定章节"
-        lines.push(`    · [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
+        const landed = b.status === "drafted"
+        const isNextTarget = !landed && arc.beatProgress.nextUndrafted?.id === b.id
+        if (isNextTarget) nextTargetShown = true
+        const marker = landed ? "✅" : "○"
+        const targetTag = isNextTarget ? " 👉本章推进目标" : ""
+        lines.push(`    · ${marker}${targetTag} [${beatLabel[b.kind] ?? b.kind}] ${ch} ${b.label}`)
+      }
+      if (arc.beatProgress.nextUndrafted != null && !nextTargetShown) {
+        const nb = arc.beatProgress.nextUndrafted
+        lines.push(`    · 👉本章推进目标 [${beatLabel[nb.kind] ?? nb.kind}]（未在展示窗口内） ${nb.label}`)
+      }
+      if (arc.status === "active" && (arc.arcType === "narrative" || arc.arcType === "subplot")) {
+        const remaining = arc.beatProgress.total - arc.beatProgress.drafted
+        if (remaining >= 2) lines.push(`    ⚠️ 本章不得完结该事件（尚有 ${remaining} 个未落地节点）`)
+        else if (remaining === 1) lines.push("    ⚠️ 该事件仅剩最后一个未落地节点，本章可完结")
       }
     }
   }
