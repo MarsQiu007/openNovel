@@ -13,10 +13,10 @@
 
 ## 3. 对话学习与召回工具
 
-- [ ] 3.1 在 `packages/plugin/src/novel-writer.ts` 新增 `save_technique` 工具:schema 强校验(name/principle/instruction/scene_types/level/evidence[]/common_misuse + 可选 merge_target_id),复用 `filterTechniques` 过滤规则与 `normalizeTechnique`,同名自动合并或按 merge_target_id 显式合并,返回 `{ action: "created"|"merged"|"rejected", technique_id?, reason? }`;按 `record_technique_feedback` 先例在权限配置处注册为 allow。验证:新增单测覆盖 created/自动 merged/显式 merged/黑名单拒绝/无证据拒绝五条路径
-- [ ] 3.2 在 `packages/plugin/src/novel-writer.ts` 新增 `search_techniques` 工具:按名称关键词、场景类型、层级、状态过滤,返回 id/name/principle/instruction 摘要。验证:新增单测覆盖空库、关键词命中、场景过滤、状态过滤
-- [ ] 3.3 在 `packages/plugin/src/novel-writer.ts` 新增 `confirm_techniques` 工具:入参 ids,逐个调 `incrementTechniqueUsage`,按 1000 token 预算(`applyP7Budget` 复用)裁剪后返回格式化的"写作技法指导"段落文本。验证:新增单测覆盖计数递增、超预算裁剪、空数组返回空段落
-- [ ] 3.4 运行 `bun typecheck`(packages/plugin)、`bunx oxlint`(仓库根,触及路径)与 `packages/plugin` 全部 novel-writer 测试通过
+- [x] 3.1 在 `packages/plugin/src/novel-writer.ts` 新增 `save_technique` 工具:schema 强校验(name/principle/instruction/scene_types/level/evidence[]/common_misuse + 可选 merge_target_id),复用 `filterTechniques` 过滤规则与 `normalizeTechnique`,同名自动合并或按 merge_target_id 显式合并,返回 `{ action: "created"|"merged"|"rejected", technique_id?, reason? }`;按 `record_technique_feedback` 先例在权限配置处注册为 allow。验证:新增单测覆盖 created/自动 merged/显式 merged/黑名单拒绝/无证据拒绝五条路径
+- [x] 3.2 在 `packages/plugin/src/novel-writer.ts` 新增 `search_techniques` 工具:按名称关键词、场景类型、层级、状态过滤,返回 id/name/principle/instruction 摘要。验证:新增单测覆盖空库、关键词命中、场景过滤、状态过滤
+- [x] 3.3 在 `packages/plugin/src/novel-writer.ts` 新增 `confirm_techniques` 工具:入参 ids,逐个调 `incrementTechniqueUsage`,按 1000 token 预算(`applyP7Budget` 复用)裁剪后返回格式化的"写作技法指导"段落文本。验证:新增单测覆盖计数递增、超预算裁剪、空数组返回空段落
+- [x] 3.4 运行 `bun typecheck`(packages/plugin)、`bunx oxlint`(仓库根,触及路径)与 `packages/plugin` 全部 novel-writer 测试通过
 
 ## 4. 快照去自动注入与 Agent 指引
 
