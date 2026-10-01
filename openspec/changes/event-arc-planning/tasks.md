@@ -22,6 +22,6 @@
 
 ## Implementation Commits
 
-（实施阶段完成后用 `git log --grep "OpenSpec-Change: event-arc-planning" --format="%h %s"` 收集填入）
+- `c2a70952` feat(plugin): 跨章事件段规划落地
 
 
