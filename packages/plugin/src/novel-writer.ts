@@ -5838,6 +5838,128 @@ ${sceneChecklist}`
           }
         },
       }),
+
+      save_technique: tool({
+        description:
+          "把提炼出的写作技法入库（对话学习流程专用）。自动执行质量过滤（模糊指令黑名单、指令长度、必须有原文证据）；与库中同名技法自动合并证据，或传 merge_target_id 显式合并到近似技法。合并只追加证据，不动已有技法的状态与置信度。",
+        args: {
+          name: tool.schema.string().describe("技法名称"),
+          principle: tool.schema.string().describe("抽象原则：技法本质概括"),
+          instruction: tool.schema.string().describe("操作指令：可直接给写作模型的具体指令"),
+          scene_types: tool.schema.array(tool.schema.string()).describe("适用场景类型列表"),
+          level: tool.schema
+            .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
+            .describe("技法粒度"),
+          evidence: tool.schema
+            .array(
+              tool.schema.object({
+                source_title: tool.schema.string().describe("来源书名"),
+                source_location: tool.schema.string().describe("来源位置（章节号）"),
+                excerpt: tool.schema.string().describe("原文片段（逐字引用）"),
+                annotation: tool.schema.string().describe("技法标注说明"),
+              }),
+            )
+            .describe("证据列表（至少一条）"),
+          common_misuse: tool.schema.string().describe("常见误用方式"),
+          merge_target_id: tool.schema.string().optional().describe("显式合并目标技法 ID；不传时按同名自动合并"),
+        },
+        async execute(args, ctx) {
+          const { saveTechnique } = await import("./novel-writer/technique-learn.js")
+          const result = await saveTechnique(
+            {
+              name: args.name,
+              principle: args.principle,
+              instruction: args.instruction,
+              sceneTypes: args.scene_types,
+              level: args.level,
+              evidence: args.evidence.map((e) => ({
+                sourceTitle: e.source_title,
+                sourceLocation: e.source_location,
+                excerpt: e.excerpt,
+                annotation: e.annotation,
+              })),
+              commonMisuse: args.common_misuse,
+            },
+            args.merge_target_id,
+            ctx.directory,
+          )
+          if (result.action === "rejected") {
+            return {
+              title: "save_technique",
+              output: `已拒绝入库：「${args.name}」${result.reason}，请给出具体可操作的指令并附原文证据`,
+              action: "rejected",
+              reason: result.reason,
+            }
+          }
+          if (result.action === "merged") {
+            return {
+              title: "save_technique",
+              output: `已合并到技法 ${result.technique_id.slice(0, 8)}`,
+              action: "merged",
+              technique_id: result.technique_id,
+            }
+          }
+          return {
+            title: "save_technique",
+            output: `已入库技法「${args.name}」（unverified/0.5，id=${result.technique_id.slice(0, 8)}）`,
+            action: "created",
+            technique_id: result.technique_id,
+          }
+        },
+      }),
+
+      search_techniques: tool({
+        description:
+          "查询技法库现有技法（对话学习与召回评估共用）。可按名称关键词、场景类型、层级、状态过滤；返回每条技法的 id、名称、原则与指令摘要，供合并判断或多轮召回参考。",
+        args: {
+          keyword: tool.schema.string().optional().describe("名称/原则/指令关键词（不区分大小写）"),
+          scene_type: tool.schema.string().optional().describe("场景类型过滤，如 dialogue/action/suspense"),
+          level: tool.schema
+            .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
+            .optional()
+            .describe("技法粒度过滤"),
+          status: tool.schema
+            .enum(["unverified", "verified", "shadow", "archived"])
+            .optional()
+            .describe("状态过滤"),
+          limit: tool.schema.number().optional().describe("返回条数上限，默认 10"),
+        },
+        async execute(args, ctx) {
+          const { searchTechniques } = await import("./novel-writer/technique-learn.js")
+          const { lines, count } = await searchTechniques(
+            {
+              keyword: args.keyword,
+              sceneType: args.scene_type,
+              level: args.level,
+              status: args.status,
+              limit: args.limit,
+            },
+            ctx.directory,
+          )
+          return {
+            title: "search_techniques",
+            output: count === 0 ? "技法库无匹配条目" : lines.join("\n"),
+            count,
+          }
+        },
+      }),
+
+      confirm_techniques: tool({
+        description:
+          "确认本轮注入 writer prompt 的技法最终列表（pipeline 召回评估后调用）。逐个递增使用计数，按 1000 token 预算裁剪后返回『写作技法指导』段落文本——把返回文本原样放进 writer dispatch prompt。",
+        args: {
+          ids: tool.schema.array(tool.schema.string()).describe("确认注入的技法 ID 列表（默认不超过 3 条）"),
+        },
+        async execute(args, ctx) {
+          const { confirmTechniques } = await import("./novel-writer/technique-learn.js")
+          const { section, injected } = await confirmTechniques(args.ids, ctx.directory)
+          return {
+            title: "confirm_techniques",
+            output: section === "" ? "（无有效技法 ID，本轮不注入写作技法指导）" : section,
+            injected,
+          }
+        },
+      }),
     },
 
     /**
@@ -5944,6 +6066,9 @@ ${sceneChecklist}`
             read_chapter_outline: "allow",
             assemble_context_snapshot: "allow",
             record_technique_feedback: "allow",
+            save_technique: "allow",
+            search_techniques: "allow",
+            confirm_techniques: "allow",
             check_continuity: "allow",
             check_settings_consistency: "allow",
             validate_state_delta: "allow",
@@ -6020,6 +6145,9 @@ ${sceneChecklist}`
             recall_history: "allow",
             submit_chapter_review: "allow",
             record_technique_feedback: "allow",
+            save_technique: "allow",
+            search_techniques: "allow",
+            confirm_techniques: "allow",
           },
         },
         // reviser: subagent，由 pipeline 调度，修正 auditor 发现的章节问题

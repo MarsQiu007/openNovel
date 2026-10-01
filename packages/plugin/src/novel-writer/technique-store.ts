@@ -94,6 +94,12 @@ export async function queryTechniques(
   return [...head, ...freshIncluded].map((entry) => ({ entry, matchScore: entry.confidence }))
 }
 
+export async function listTechniques(directory?: string | null): Promise<TechniqueEntry[]> {
+  const db = getDb(directory)
+  const rows = await db.select().from(TechniqueTable).all()
+  return rows.map(rowToEntry)
+}
+
 /** 规范化名称匹配:trim + 空白折叠 + 大小写归一 */
 function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLowerCase()
