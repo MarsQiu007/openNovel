@@ -20,10 +20,10 @@
 
 ## 4. 快照去自动注入与 Agent 指引
 
-- [ ] 4.1 修改 `packages/plugin/src/novel-writer/context.ts` 的 `formatSnapshotToolOutput`:删除 `techniqueInjectionEnabled` 选项与"写作技法指导"注入分支,候选一律以 shadow 段落格式输出;`SnapshotToolOutput` 移除 `injectedTechniqueIds` 字段。修改 `packages/plugin/src/novel-writer.ts` 的 `assemble_context_snapshot` 工具 execute:删除 `readTechniqueInjection` 调用与计数循环。验证:`context-snapshot.test.ts`、`technique-e2e.test.ts`、`technique-injection.test.ts` 同步更新后全部通过
-- [ ] 4.2 在 `packages/plugin/src/novel-writer/agents/director.ts` 指令表与 `agents/pipeline.ts` 新增"技法学习"段落:触发示例("来学习这本书籍的写作技巧")、范围确认(整本默认分批逐章,可指定单章)、每章报告格式(新学/合并/拒绝计数与拒绝原因)、合并判断步骤(先 search_techniques 再 save)、完成汇总格式。验证:`technique-prompt-alignment.test.ts` 风格的新断言通过——提示词包含触发示例与报告格式要求
-- [ ] 4.3 在 `agents/pipeline.ts` 新增"技法召回评估"步骤(注入开关开启时):对快照候选逐条对照章节大纲/标题评估相关性;不满意则调 `search_techniques` 多轮召回;确认默认 ≤3 条后调 `confirm_techniques` 计数并取回段落文本,原样放入 writer dispatch prompt;确认列表替代原候选段落传给 auditor。删除提示词中"快照含写作技法指导段落则原样传递"的旧指令(快照不再产生该段落)。验证:新增提示词对齐测试覆盖评估/多轮/确认列表三个要点
-- [ ] 4.4 运行 `bun typecheck`(packages/plugin)与相关测试通过
+- [x] 4.1 修改 `packages/plugin/src/novel-writer/context.ts` 的 `formatSnapshotToolOutput`:删除 `techniqueInjectionEnabled` 选项与"写作技法指导"注入分支,候选一律以 shadow 段落格式输出;`SnapshotToolOutput` 移除 `injectedTechniqueIds` 字段。修改 `packages/plugin/src/novel-writer.ts` 的 `assemble_context_snapshot` 工具 execute:删除 `readTechniqueInjection` 调用与计数循环。验证:`context-snapshot.test.ts`、`technique-e2e.test.ts`、`technique-injection.test.ts` 同步更新后全部通过
+- [x] 4.2 在 `packages/plugin/src/novel-writer/agents/director.ts` 指令表与 `agents/pipeline.ts` 新增"技法学习"段落:触发示例("来学习这本书籍的写作技巧")、范围确认(整本默认分批逐章,可指定单章)、每章报告格式(新学/合并/拒绝计数与拒绝原因)、合并判断步骤(先 search_techniques 再 save)、完成汇总格式。验证:`technique-prompt-alignment.test.ts` 风格的新断言通过——提示词包含触发示例与报告格式要求
+- [x] 4.3 在 `agents/pipeline.ts` 新增"技法召回评估"步骤(注入开关开启时):对快照候选逐条对照章节大纲/标题评估相关性;不满意则调 `search_techniques` 多轮召回;确认默认 ≤3 条后调 `confirm_techniques` 计数并取回段落文本,原样放入 writer dispatch prompt;确认列表替代原候选段落传给 auditor。删除提示词中"快照含写作技法指导段落则原样传递"的旧指令(快照不再产生该段落)。验证:新增提示词对齐测试覆盖评估/多轮/确认列表三个要点
+- [x] 4.4 运行 `bun typecheck`(packages/plugin)与相关测试通过
 
 ## 5. 端到端验证
 
