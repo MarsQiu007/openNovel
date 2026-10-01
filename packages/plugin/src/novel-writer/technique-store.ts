@@ -118,7 +118,7 @@ export async function mergeTechniqueEvidence(
   const db = getDb(directory)
   const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).all()
   if (!row) return false
-  const existing = JSON.parse(row.evidence) as TechniqueEvidence[]
+  const existing: TechniqueEvidence[] = JSON.parse(row.evidence)
   const known = new Set(existing.map((e) => e.excerpt))
   const merged = [...existing, ...evidence.filter((e) => !known.has(e.excerpt))]
   await db
