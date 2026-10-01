@@ -2,6 +2,7 @@ import { eq, gte, desc, and } from "drizzle-orm"
 import { getDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
 import type {
   TechniqueEntry,
+  TechniqueEvidence,
   TechniqueQuery,
   RetrievedTechnique,
   TechniqueFeedback,
@@ -47,29 +48,84 @@ export async function upsertTechnique(entry: TechniqueEntry, directory?: string 
     })
 }
 
+/** 未验证新品曝光位:置信度前列之外额外纳入的最近入库 unverified 条数 */
+const UNVERIFIED_SPOTS = 2
+
 export async function queryTechniques(
   query: TechniqueQuery,
   directory?: string | null,
 ): Promise<RetrievedTechnique[]> {
   const db = getDb(directory)
+  const limit = query.limit ?? 10
   const conditions = []
   if (query.minConfidence !== undefined) {
     conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
   }
+  const matchesQuery = (entry: TechniqueEntry) =>
+    entry.sceneTypes.includes(query.sceneType) && (query.level === undefined || entry.level === query.level)
 
   const rows = await db
     .select()
     .from(TechniqueTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(TechniqueTable.confidence))
-    .limit(query.limit ?? 10)
+    .limit(limit)
     .all()
+  const byConfidence = rows.map(rowToEntry).filter(matchesQuery)
 
-  return rows
-    .map(rowToEntry)
-    .filter((entry) => entry.sceneTypes.includes(query.sceneType))
-    .filter((entry) => query.level === undefined || entry.level === query.level)
-    .map((entry) => ({ entry, matchScore: entry.confidence }))
+  // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;尊重 minConfidence 门槛
+  const freshConditions = [eq(TechniqueTable.status, "unverified")]
+  if (query.minConfidence !== undefined) {
+    freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+  }
+  const freshRows = await db
+    .select()
+    .from(TechniqueTable)
+    .where(and(...freshConditions))
+    .orderBy(desc(TechniqueTable.created_at))
+    .limit(UNVERIFIED_SPOTS)
+    .all()
+  const fresh = freshRows.map(rowToEntry).filter(matchesQuery)
+
+  const seen = new Set(byConfidence.map((entry) => entry.id))
+  const freshIncluded = fresh.filter((entry) => !seen.has(entry.id))
+  // 新品占尾部名额：先让出 fresh 槽位，保证曝光位不被置信度前列挤掉
+  const head = byConfidence.slice(0, Math.max(0, limit - freshIncluded.length))
+  return [...head, ...freshIncluded].map((entry) => ({ entry, matchScore: entry.confidence }))
+}
+
+/** 规范化名称匹配:trim + 空白折叠 + 大小写归一 */
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase()
+}
+
+export async function findTechniquesByName(
+  name: string,
+  directory?: string | null,
+): Promise<TechniqueEntry[]> {
+  const db = getDb(directory)
+  const target = normalizeName(name)
+  const rows = await db.select().from(TechniqueTable).all()
+  return rows.map(rowToEntry).filter((entry) => normalizeName(entry.name) === target)
+}
+
+/** 按 excerpt 去重追加证据,不改 status/confidence/usage_count(合并不动状态机) */
+export async function mergeTechniqueEvidence(
+  id: string,
+  evidence: TechniqueEvidence[],
+  directory?: string | null,
+): Promise<boolean> {
+  const db = getDb(directory)
+  const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).all()
+  if (!row) return false
+  const existing = JSON.parse(row.evidence) as TechniqueEvidence[]
+  const known = new Set(existing.map((e) => e.excerpt))
+  const merged = [...existing, ...evidence.filter((e) => !known.has(e.excerpt))]
+  await db
+    .update(TechniqueTable)
+    .set({ evidence: JSON.stringify(merged), updated_at: Date.now() })
+    .where(eq(TechniqueTable.id, id))
+  return true
 }
 
 export async function updateTechniqueStatus(

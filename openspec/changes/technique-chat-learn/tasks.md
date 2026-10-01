@@ -7,9 +7,9 @@
 
 ## 2. 技法合并、查询与曝光位存储逻辑
 
-- [ ] 2.1 在 `packages/plugin/src/novel-writer/technique-store.ts` 新增 `findTechniquesByName(name, directory)`(规范化名称匹配:trim + 空白折叠 + 大小写归一)与 `mergeTechniqueEvidence(id, evidence, directory)`(按 excerpt 去重追加证据,不改 status/confidence/usage_count)。验证:新增 `technique-store.test.ts` 用例——同名命中、证据去重、合并后 verified 状态与置信度不变
-- [ ] 2.2 修改 `queryTechniques`:候选拆两路合并——置信度降序前列 + 按 `created_at` 降序的最近 `unverified` 技法(默认 2 条,排除 shadow/archived),合并去重后截断到 limit。验证:新增用例覆盖"高置信占满时新品仍入候选""无新品时结果与旧逻辑一致""候选总数不超 limit"
-- [ ] 2.3 运行 `bun typecheck`(packages/plugin)与 technique-store 相关测试通过
+- [x] 2.1 在 `packages/plugin/src/novel-writer/technique-store.ts` 新增 `findTechniquesByName(name, directory)`(规范化名称匹配:trim + 空白折叠 + 大小写归一)与 `mergeTechniqueEvidence(id, evidence, directory)`(按 excerpt 去重追加证据,不改 status/confidence/usage_count)。验证:新增 `technique-store.test.ts` 用例——同名命中、证据去重、合并后 verified 状态与置信度不变
+- [x] 2.2 修改 `queryTechniques`:候选拆两路合并——置信度降序前列 + 按 `created_at` 降序的最近 `unverified` 技法(默认 2 条,排除 shadow/archived),合并去重后截断到 limit。验证:新增用例覆盖"高置信占满时新品仍入候选""无新品时结果与旧逻辑一致""候选总数不超 limit"
+- [x] 2.3 运行 `bun typecheck`(packages/plugin)与 technique-store 相关测试通过
 
 ## 3. 对话学习与召回工具
 
