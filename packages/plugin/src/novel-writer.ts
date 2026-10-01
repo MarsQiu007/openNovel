@@ -1134,21 +1134,8 @@ ${sceneChecklist}`
           }
           const hookStats = await getHookStats(novelId, 10, ctx.directory)
           const { formatSnapshotToolOutput } = await import("./novel-writer/context.js")
-          const techniqueInjectionEnabled = readTechniqueInjection(ctx.directory)
-          const { output, metadata, injectedTechniqueIds } = formatSnapshotToolOutput(snapshot, hookStats, {
-            techniqueInjectionEnabled,
-          })
-          // 注入发生的技法计数（尽力而为，失败不阻断写作）
-          if (injectedTechniqueIds.length > 0) {
-            try {
-              const { incrementTechniqueUsage } = await import("./novel-writer/technique-store.js")
-              for (const id of injectedTechniqueIds) {
-                await incrementTechniqueUsage(id, ctx.directory)
-              }
-            } catch {
-              // 统计失败静默
-            }
-          }
+          // 技法一律 shadow 候选输出；注入由 pipeline 评估后调 confirm_techniques 计数
+          const { output, metadata } = formatSnapshotToolOutput(snapshot, hookStats)
           return { title: "assemble_context_snapshot", output, metadata }
         },
       }),

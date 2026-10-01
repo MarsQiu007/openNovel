@@ -1,6 +1,6 @@
 /**
  * 4.1 技法功能端到端测试：
- * 导入技法 → 组装快照可见候选 → 开启注入后快照输出"写作技法指导"段 →
+ * 导入技法 → 组装快照可见候选（一律 shadow 段）→ confirm_techniques 注入并计数 →
  * 模拟 auditor 反馈 → 置信度/状态演进 → usage 统计。
  */
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
@@ -18,9 +18,7 @@ import {
   queryTechniques,
   recordFeedback,
   updateConfidenceFromFeedback,
-  incrementTechniqueUsage,
 } from "../../src/novel-writer/technique-store.js"
-import { readTechniqueInjection, writeProjectConfig } from "../../src/novel-writer.js"
 
 let dir: string
 
@@ -77,30 +75,24 @@ describe("技法链路端到端", () => {
     expect(seeded.entry.status).toBe("verified")
     expect(seeded.entry.confidence).toBe(0.8)
 
-    // 2. 显式关闭注入：快照输出为 shadow 候选段
-    writeProjectConfig(dir, "novel", "technique_injection", "false")
-    expect(readTechniqueInjection(dir)).toBe(false)
+    // 2. 快照一律输出 shadow 候选段（注入改由 pipeline 评估后调 confirm_techniques）
     await seedNovelWithDialogueSynopsis()
     const snapshotOff = await assembleSnapshot("n1", 0, dir)
-    const off = formatSnapshotToolOutput(snapshotOff!, { hooks: [] }, { techniqueInjectionEnabled: false })
+    const off = formatSnapshotToolOutput(snapshotOff!, { hooks: [] })
     expect(off.output).toContain("技法候选")
+    expect(off.output).toContain("提取技法")
+    expect(off.output).toContain("种子技法")
     expect(off.output).not.toContain("写作技法指导")
-    expect(off.injectedTechniqueIds).toEqual([])
 
-    // 3. 开关注入后：输出"写作技法指导"段（种子 0.8 排序在前，提取 0.5 同样注入）
-    writeProjectConfig(dir, "novel", "technique_injection", "true")
-    expect(readTechniqueInjection(dir)).toBe(true)
-
-    const snapshotOn = await assembleSnapshot("n1", 0, dir)
-    const on = formatSnapshotToolOutput(snapshotOn!, { hooks: [] }, { techniqueInjectionEnabled: true })
-    expect(on.output).toContain("写作技法指导")
-    expect(on.output).toContain("原样传递给 writer")
-    expect(on.output).toContain("种子技法")
-    expect(on.output).toContain("提取技法")
-    expect(on.injectedTechniqueIds).toEqual([seeded.entry.id, extracted.entry.id])
+    // 3. pipeline 确认注入：confirm_techniques 返回指导段并计数
+    const { confirmTechniques } = await import("../../src/novel-writer/technique-learn.js")
+    const confirmed = await confirmTechniques([seeded.entry.id, extracted.entry.id], dir)
+    expect(confirmed.injected).toBe(2)
+    expect(confirmed.section).toContain("写作技法指导")
+    expect(confirmed.section).toContain("种子技法")
+    expect(confirmed.section).toContain("提取技法")
 
     // 4. 注入驱动用量统计
-    await incrementTechniqueUsage(seeded.entry.id, dir)
     let after = await queryTechniques({ sceneType: "dialogue", contextText: "" }, dir)
     expect(after.find((r) => r.entry.id === seeded.entry.id)!.entry.usageCount).toBe(1)
 

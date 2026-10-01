@@ -93,7 +93,6 @@ describe("formatSnapshotToolOutput 技法候选", () => {
     expect(result.output).toContain("停顿暗示拒绝")
     expect(result.output).toContain("写紧张对话时插入微小动作")
     expect(result.metadata.technique_count).toBe(1)
-    expect(result.injectedTechniqueIds).toEqual([]) // 默认 shadow，不注入
   })
 
   test("候选为空时不输出候选段落", async () => {
@@ -105,7 +104,7 @@ describe("formatSnapshotToolOutput 技法候选", () => {
   })
 })
 
-// ── 3.3 注入开关分流 ──
+// ── 3.3 注入已移至 confirm_techniques：快照统一 shadow 输出 ──
 
 import { upsertTechnique } from "../../src/novel-writer/technique-store.js"
 import type { TechniqueEntry } from "../../src/novel-writer/technique.js"
@@ -130,37 +129,21 @@ function makeEntry(id: string, name: string, confidence: number, instructionLen 
   }
 }
 
-describe("formatSnapshotToolOutput 注入开关", () => {
-  test("开启时输出'写作技法指导'段，过滤置信度 < 0.6，返回注入 id", async () => {
+describe("formatSnapshotToolOutput 统一 shadow 输出", () => {
+  test("候选非空时只输出 shadow 候选段，不再产出写作技法指导段", async () => {
     await seedNovel("novel-1")
     await getDb(dir).update(NovelTable).set({ synopsis: "对话" }).where(eq(NovelTable.id, "novel-1")).run()
     await upsertTechnique(makeEntry("tech_high", "高分技法", 0.8), dir)
     await upsertTechnique(makeEntry("tech_low", "低分技法", 0.5), dir)
 
     const snapshot = await assembleSnapshot("novel-1", 0, dir)
-    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] }, { techniqueInjectionEnabled: true })
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
 
-    expect(result.output).toContain("写作技法指导")
-    expect(result.output).toContain("原样传递给 writer")
-    expect(result.output).toContain("高分技法")
-    expect(result.output).not.toContain("低分技法")
-    // 注入段替换 shadow 候选段
-    expect(result.output).not.toContain("严禁注入 writer prompt")
-    expect(result.injectedTechniqueIds).toEqual(["tech_high"])
-  })
-
-  test("超预算裁剪：两条合计超 1000 token 时只保留匹配分最高的", async () => {
-    await seedNovel("novel-1")
-    await getDb(dir).update(NovelTable).set({ synopsis: "对话" }).where(eq(NovelTable.id, "novel-1")).run()
-    // 每条约 940 token，合计超 1000 → 只留第一条（置信度更高）
-    await upsertTechnique(makeEntry("tech_big", "长指令技法A", 0.9, 1400), dir)
-    await upsertTechnique(makeEntry("tech_fit", "长指令技法B", 0.8, 1400), dir)
-
-    const snapshot = await assembleSnapshot("novel-1", 0, dir)
-    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] }, { techniqueInjectionEnabled: true })
-
-    expect(result.output).toContain("长指令技法A")
-    expect(result.output).not.toContain("长指令技法B")
-    expect(result.injectedTechniqueIds).toEqual(["tech_big"])
+    // 注入改由 pipeline 评估后调 confirm_techniques 完成，快照只出 shadow 候选段
+    expect(result.output).toContain("技法候选")
+    expect(result.output).toContain("tech_high")
+    expect(result.output).toContain("tech_low")
+    expect(result.output).not.toContain("写作技法指导")
+    expect(result.output).not.toContain("原样传递给 writer")
   })
 })
