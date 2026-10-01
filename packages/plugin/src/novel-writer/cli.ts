@@ -229,7 +229,7 @@ export async function runTechniqueExtraction(
   outputPath: string,
   llm: (prompt: string) => Promise<string>,
   options?: ExtractOptions,
-): Promise<{ segments: number; highlights: number; techniques: number }> {
+): Promise<{ segments: number; highlights: number; techniques: number; parseFailures: number }> {
   const { segmentText, highlightTechniques, distillTechniques, filterTechniques } = await import(
     "./technique-extract.js"
   )
@@ -241,13 +241,18 @@ export async function runTechniqueExtraction(
     overlap: options?.overlap ?? 500,
   })
 
-  const highlights = await highlightTechniques(segments, llm)
-  const distilled = await distillTechniques(highlights, llm)
-  const filtered = filterTechniques(distilled)
+  const highlightResult = await highlightTechniques(segments, llm)
+  const distillResult = await distillTechniques(highlightResult.items, llm)
+  const filtered = filterTechniques(distillResult.items)
   const normalized = filtered.map((partial) => normalizeTechnique(partial))
 
   await writeFile(outputPath, JSON.stringify(normalized, null, 2), "utf-8")
-  return { segments: segments.length, highlights: highlights.length, techniques: normalized.length }
+  return {
+    segments: segments.length,
+    highlights: highlightResult.items.length,
+    techniques: normalized.length,
+    parseFailures: highlightResult.parseFailures + distillResult.parseFailures,
+  }
 }
 
 /**
