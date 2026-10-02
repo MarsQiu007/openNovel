@@ -18,6 +18,12 @@ export const TechniqueStatus = Schema.Literals(["unverified", "verified", "shado
 })
 export type TechniqueStatus = typeof TechniqueStatus.Type
 
+export const TechniqueScope = Schema.Literals(["general", "adult"]).annotate({
+  identifier: "Novel.TechniqueScope",
+  description: "内容性质：general=通用写法（入全局库跨书共享）；adult=成人内容（留本书库）",
+})
+export type TechniqueScope = typeof TechniqueScope.Type
+
 export const TechniqueEvidence = Schema.Struct({
   sourceTitle: Schema.String,
   sourceLocation: Schema.String,
@@ -37,6 +43,7 @@ export const Technique = Schema.Struct({
   commonMisuse: Schema.String,
   confidence: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(1)),
   status: TechniqueStatus,
+  scope: TechniqueScope,
   usageCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   lastUsedAt: optional(Schema.Int),
   createdAt: Schema.Int,
@@ -70,6 +77,7 @@ export const CreateTechniqueInput = Schema.Struct({
   evidence: Schema.optional(Schema.Array(TechniqueEvidence)),
   commonMisuse: Schema.optional(Schema.String),
   status: Schema.optional(TechniqueStatus),
+  scope: Schema.optional(TechniqueScope),
 }).annotate({ identifier: "Novel.CreateTechniqueInput" })
 export interface CreateTechniqueInput extends Schema.Schema.Type<typeof CreateTechniqueInput> {}
 
@@ -82,6 +90,7 @@ export const UpdateTechniqueInput = Schema.Struct({
   evidence: Schema.optional(Schema.Array(TechniqueEvidence)),
   commonMisuse: Schema.optional(Schema.String),
   status: Schema.optional(TechniqueStatus),
+  scope: Schema.optional(TechniqueScope),
 }).annotate({ identifier: "Novel.UpdateTechniqueInput" })
 export interface UpdateTechniqueInput extends Schema.Schema.Type<typeof UpdateTechniqueInput> {}
 

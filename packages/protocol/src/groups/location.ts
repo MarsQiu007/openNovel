@@ -2,6 +2,11 @@ import { Location } from "@opennovel-ai/schema/location"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
+export const TechniqueLibrary = Schema.Literals(["book", "global", "all"]).annotate({
+  identifier: "TechniqueLibrary",
+  description: "技法库范围：book=本书库（缺省）；global=全局通用库；all=双库合并",
+})
+
 export const LocationQuery = Schema.Struct({
   location: Schema.optional(
     Schema.Struct({
@@ -9,6 +14,7 @@ export const LocationQuery = Schema.Struct({
       workspace: Schema.optional(Schema.String),
     }),
   ),
+  library: Schema.optional(TechniqueLibrary),
 }).annotate({ identifier: "LocationQuery" })
 
 export const locationQueryOpenApi = OpenApi.annotations({
