@@ -138,7 +138,7 @@ export const novelKeys = {
   "upgrade-status": (directory: string, novelID: string) =>
     ["novel", "upgrade-status", directory, novelID] as const,
   "upgrade-progress": (directory: string, novelID: string) =>
-    ["novel", "upgrade-progress", directory, novelID] as const,  techniques: (directory: string) => ["novel", "techniques", directory] as const,
+    ["novel", "upgrade-progress", directory, novelID] as const,  techniques: (directory: string, library: string = "all") => ["novel", "techniques", directory, library] as const,
   technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
 }
@@ -1905,6 +1905,8 @@ export type TechniqueInput = {
   evidence?: TechniqueEvidenceInput[]
   commonMisuse?: string
   status?: "unverified" | "verified" | "shadow" | "archived"
+  scope?: "general" | "adult"
+  targetLibrary?: "book" | "global"
 }
 
 export function useTechniques() {
@@ -1912,7 +1914,11 @@ export function useTechniques() {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.techniques(sdk().directory),
-    queryFn: () => client()["server.technique"].list({ location: { directory: sdk().directory } }),
+    queryFn: async () => {
+      const items = await client()["server.technique"].list({ location: { directory: sdk().directory }, library: "all" })
+      // 生成客户端对可选字段给 null，归一化为 undefined 以对齐 schema Technique
+      return items.map((item) => ({ ...item, library: item.library ?? undefined }))
+    },
     enabled: !!sdk().directory,
     staleTime: 30_000,
   }))
@@ -1960,6 +1966,8 @@ export function useCreateTechnique() {
         evidence: input.evidence,
         commonMisuse: input.commonMisuse,
         status: input.status,
+        scope: input.scope,
+        targetLibrary: input.targetLibrary,
       })
     },
     onSuccess: () => {
@@ -1986,6 +1994,7 @@ export function useUpdateTechnique() {
         evidence: input.evidence,
         commonMisuse: input.commonMisuse,
         status: input.status,
+        scope: input.scope,
       })
     },
     onSuccess: (_data, variables) => {
