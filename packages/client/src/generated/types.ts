@@ -6972,6 +6972,7 @@ export type ServerTechniqueListOutput = ReadonlyArray<{
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
   readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number
@@ -7004,6 +7005,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["name"]
   readonly instruction: {
     readonly name: string
@@ -7022,6 +7024,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["instruction"]
   readonly principle?: {
     readonly name: string
@@ -7040,6 +7043,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["principle"]
   readonly sceneTypes?: {
     readonly name: string
@@ -7058,6 +7062,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["sceneTypes"]
   readonly level?: {
     readonly name: string
@@ -7076,6 +7081,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["level"]
   readonly evidence?: {
     readonly name: string
@@ -7094,6 +7100,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["evidence"]
   readonly commonMisuse?: {
     readonly name: string
@@ -7112,6 +7119,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["commonMisuse"]
   readonly status?: {
     readonly name: string
@@ -7130,6 +7138,7 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["status"]
   readonly scope?: {
     readonly name: string
@@ -7148,7 +7157,27 @@ export type ServerTechniqueCreateInput = {
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
     readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["scope"]
+  readonly targetLibrary?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
+  }["targetLibrary"]
 }
 
 export type ServerTechniqueCreateOutput = {
@@ -7168,6 +7197,7 @@ export type ServerTechniqueCreateOutput = {
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
   readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number
@@ -7231,6 +7261,7 @@ export type ServerTechniqueDetailOutput = {
     readonly confidence: number
     readonly status: "unverified" | "verified" | "shadow" | "archived"
     readonly scope: "general" | "adult"
+    readonly library?: "book" | "global" | null
     readonly usageCount: number
     readonly lastUsedAt?: number
     readonly createdAt: number
@@ -7438,6 +7469,7 @@ export type ServerTechniqueUpdateOutput = {
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
   readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number

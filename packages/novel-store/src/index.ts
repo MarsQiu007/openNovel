@@ -1152,6 +1152,7 @@ export async function listTechniques(directory?: string | null, library: Techniq
       common_misuse: TechniqueTable.common_misuse,
       confidence: TechniqueTable.confidence,
       status: TechniqueTable.status,
+      scope: TechniqueTable.scope,
       usage_count: TechniqueTable.usage_count,
       last_used_at: TechniqueTable.last_used_at,
       created_at: TechniqueTable.created_at,

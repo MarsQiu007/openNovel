@@ -124,7 +124,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
       query: LocationQuery,
       payload: UpdateTechniqueInput,
       success: Technique,
-      error: TechniqueNotFoundError,
+      error: [TechniqueNotFoundError, TechniqueValidationError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(

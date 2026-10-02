@@ -2606,6 +2606,7 @@ type Endpoint20_1Input = {
   readonly commonMisuse?: Endpoint20_1Request["payload"]["commonMisuse"]
   readonly status?: Endpoint20_1Request["payload"]["status"]
   readonly scope?: Endpoint20_1Request["payload"]["scope"]
+  readonly targetLibrary?: Endpoint20_1Request["payload"]["targetLibrary"]
 }
 const Endpoint20_1 = (raw: RawClient["server.technique"]) => (input: Endpoint20_1Input) =>
   raw["technique.create"]({
@@ -2620,6 +2621,7 @@ const Endpoint20_1 = (raw: RawClient["server.technique"]) => (input: Endpoint20_
       commonMisuse: input["commonMisuse"],
       status: input["status"],
       scope: input["scope"],
+      targetLibrary: input["targetLibrary"],
     },
   }).pipe(Effect.mapError(mapClientError))
 
