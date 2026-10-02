@@ -5833,7 +5833,11 @@ ${sceneChecklist}`
           name: tool.schema.string().describe("技法名称"),
           principle: tool.schema.string().describe("抽象原则：技法本质概括"),
           instruction: tool.schema.string().describe("操作指令：可直接给写作模型的具体指令"),
-          scene_types: tool.schema.array(tool.schema.string()).describe("适用场景类型列表"),
+          scene_types: tool.schema
+            .array(tool.schema.string())
+            .describe(
+              "适用场景类型列表（规范词表：action/dialogue/description/suspense/emotion_shift/transition/general，可多选，不确定或跨场景用 general）",
+            ),
           level: tool.schema
             .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
             .describe("技法粒度"),
@@ -5900,7 +5904,10 @@ ${sceneChecklist}`
           "查询技法库现有技法（对话学习与召回评估共用）。可按名称关键词、场景类型、层级、状态过滤；返回每条技法的 id、名称、原则与指令摘要，供合并判断或多轮召回参考。",
         args: {
           keyword: tool.schema.string().optional().describe("名称/原则/指令关键词（不区分大小写）"),
-          scene_type: tool.schema.string().optional().describe("场景类型过滤，如 dialogue/action/suspense"),
+          scene_type: tool.schema
+            .string()
+            .optional()
+            .describe("场景类型过滤（规范词表：action/dialogue/description/suspense/emotion_shift/transition/general）"),
           level: tool.schema
             .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
             .optional()

@@ -40,6 +40,31 @@ describe("normalizeTechnique", () => {
     expect(entry.status).toBe("verified")
   })
 
+  test("自由文本场景标签空交集回退为 general", () => {
+    const entry = normalizeTechnique({ sceneTypes: ["性感场景", "约会场景"] })
+    expect(entry.sceneTypes).toEqual(["general"])
+  })
+
+  test("混合标签保留规范值丢弃自由文本", () => {
+    const entry = normalizeTechnique({ sceneTypes: ["dialogue", "约会场景"] })
+    expect(entry.sceneTypes).toEqual(["dialogue"])
+  })
+
+  test("纯规范标签原样保留", () => {
+    const entry = normalizeTechnique({ sceneTypes: ["action", "dialogue"] })
+    expect(entry.sceneTypes).toEqual(["action", "dialogue"])
+  })
+
+  test("空数组回退为 general", () => {
+    const entry = normalizeTechnique({ sceneTypes: [] })
+    expect(entry.sceneTypes).toEqual(["general"])
+  })
+
+  test("未提供场景标签维持默认 general", () => {
+    const entry = normalizeTechnique({})
+    expect(entry.sceneTypes).toEqual(["general"])
+  })
+
   test("seed entry gets verified status and higher confidence", () => {
     const partial = {
       name: "种子技法",

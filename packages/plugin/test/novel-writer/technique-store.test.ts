@@ -88,10 +88,11 @@ describe("technique store", () => {
   })
 
   test("minConfidence filters low confidence", async () => {
-    const entry = makeTechnique({ confidence: 0.3, sceneTypes: ["confidence_test"] })
+    // 自由文本标签已被新规格视为"跨场景通用"，minConfidence 用例改用规范标签隔离变量
+    const entry = makeTechnique({ confidence: 0.3, sceneTypes: ["suspense"] })
     await upsertTechnique(entry, testDir)
     const results = await queryTechniques(
-      { sceneType: "confidence_test", contextText: "", minConfidence: 0.5 },
+      { sceneType: "suspense", contextText: "", minConfidence: 0.5 },
       testDir,
     )
     expect(results.length).toBe(0)
@@ -304,6 +305,68 @@ describe("queryTechniques 未验证新品曝光位", () => {
       )
       const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5, minConfidence: 0.6 }, dir)
       expect(result.some((r) => r.entry.id === low.id)).toBe(false)
+    })
+  })
+})
+describe("queryTechniques 场景词表空交集回退", () => {
+  test("自由文本标签技法按 general 身份进入候选（存量数据可召回）", async () => {
+    await withTempDir(async (dir) => {
+      const legacy = makeTechnique({ name: "存量自由文本", sceneTypes: ["性感场景", "约会场景"], confidence: 0.6 })
+      await upsertTechnique(legacy, dir)
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === legacy.id)).toBe(true)
+    })
+  })
+
+  test("非空交集不适用回退：规范标签不匹配仍被排除", async () => {
+    await withTempDir(async (dir) => {
+      const actionOnly = makeTechnique({ name: "纯动作技法", sceneTypes: ["action"], confidence: 0.9, status: "verified" })
+      await upsertTechnique(actionOnly, dir)
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === actionOnly.id)).toBe(false)
+    })
+  })
+
+  test("混合标签按交集匹配：保留的规范值决定命中与否", async () => {
+    await withTempDir(async (dir) => {
+      const mixed = makeTechnique({ name: "混合标签", sceneTypes: ["dialogue", "约会场景"], confidence: 0.9, status: "verified" })
+      await upsertTechnique(mixed, dir)
+      const hit = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(hit.some((r) => r.entry.id === mixed.id)).toBe(true)
+      const miss = await queryTechniques({ sceneType: "action", contextText: "", limit: 5 }, dir)
+      expect(miss.some((r) => r.entry.id === mixed.id)).toBe(false)
+    })
+  })
+
+  test("空数组标签回退 general 参与匹配", async () => {
+    await withTempDir(async (dir) => {
+      const empty = makeTechnique({ name: "空标签技法", sceneTypes: [], confidence: 0.6 })
+      await upsertTechnique(empty, dir)
+      const result = await queryTechniques({ sceneType: "suspense", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === empty.id)).toBe(true)
+    })
+  })
+
+  test("曝光位新品经回退进入候选（回退覆盖两条检索路径）", async () => {
+    await withTempDir(async (dir) => {
+      const now = Date.now()
+      const fresh = makeTechnique({ name: "自由文本新品", sceneTypes: ["约会场景"], confidence: 0.5, createdAt: now })
+      await upsertTechnique(fresh, dir)
+      for (let i = 0; i < 4; i++) {
+        await upsertTechnique(
+          makeTechnique({
+            name: `高置信对话${i}`,
+            sceneTypes: ["dialogue"],
+            confidence: 0.9,
+            status: "verified",
+            createdAt: now - 1000 * (i + 1),
+          }),
+          dir,
+        )
+      }
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === fresh.id)).toBe(true)
+      expect(result.length).toBeLessThanOrEqual(5)
     })
   })
 })

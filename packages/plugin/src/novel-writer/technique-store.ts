@@ -8,6 +8,7 @@ import type {
   TechniqueFeedback,
   ShadowLogEntry,
 } from "./technique.js"
+import { canonicalSceneIntersection } from "./technique.js"
 
 export async function upsertTechnique(entry: TechniqueEntry, directory?: string | null): Promise<void> {
   const db = getDb(directory)
@@ -61,8 +62,12 @@ export async function queryTechniques(
   if (query.minConfidence !== undefined) {
     conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
   }
-  const matchesQuery = (entry: TechniqueEntry) =>
-    entry.sceneTypes.includes(query.sceneType) && (query.level === undefined || entry.level === query.level)
+  const matchesQuery = (entry: TechniqueEntry) => {
+    const canonical = canonicalSceneIntersection(entry.sceneTypes)
+    // 空交集（历史自由文本标签）视为跨场景通用：按"通用身份"参与任意场景候选，不因标签词表问题被静默过滤
+    const sceneMatch = canonical.length === 0 || canonical.includes(query.sceneType)
+    return sceneMatch && (query.level === undefined || entry.level === query.level)
+  }
 
   const rows = await db
     .select()
