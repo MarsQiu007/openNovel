@@ -71,3 +71,25 @@ export async function writeRegistry(rootDir: string, registry: Registry) {
   await mkdir(path.dirname(file), { recursive: true })
   await writeFile(file, JSON.stringify(registry, null, 2))
 }
+
+/**
+ * `@library`（全局通用技法库）的独立配对登记，存 `<rootDir>/.sync/library-registry.json`。
+ * **必须独立于共享 registry.json**：共享登记的语义是"登记在 + 目录消失 ⇒ 传播删除到远端"，
+ * 旧版客户端会把其中的 `@library` 当作被删除的书，执行 delete_remote 删掉远端全局库。
+ * 复用 RegisteredProject 条目形状；version 用 2 标记格式代际（旧版不读此文件）。
+ */
+const libraryRegistryFile = (rootDir: string) => path.join(rootDir, ".sync", "library-registry.json")
+
+export async function readLibraryRegistry(rootDir: string): Promise<Registry> {
+  const text = await readFile(libraryRegistryFile(rootDir), "utf8").catch(() => undefined)
+  if (text === undefined) return { version: 1, projects: {} }
+  const parsed = JSON.parse(text) as Partial<Registry>
+  if (typeof parsed.projects !== "object" || parsed.projects === null) return { version: 1, projects: {} }
+  return { version: 1, projects: parsed.projects }
+}
+
+export async function writeLibraryRegistry(rootDir: string, registry: Registry) {
+  const file = libraryRegistryFile(rootDir)
+  await mkdir(path.dirname(file), { recursive: true })
+  await writeFile(file, JSON.stringify(registry, null, 2))
+}

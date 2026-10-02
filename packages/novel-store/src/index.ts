@@ -870,12 +870,17 @@ export function getGlobalDb(): Db {
  * 云盘同步拉取远端快照替换 novel.db 文件前必须调用——否则替换后旧连接
  * 仍持有已失效的文件句柄，后续写入会落到被替换掉的旧文件上。
  */
-export function closeDb(directory?: string | null): void {
-  const dbPath = getDbPath(directory)
+/** 按数据库文件路径直接驱逐缓存连接（全局技法库等无法经书目录解析的路径使用）。
+ *  同步下载替换全局库文件前必须调用，语义同 closeDb。 */
+export function closeDbPath(dbPath: string): void {
   const cached = _dbCache.get(dbPath)
   if (!cached) return
   _dbCache.delete(dbPath)
   cached.$client.close()
+}
+
+export function closeDb(directory?: string | null): void {
+  closeDbPath(getDbPath(directory))
 }
 
 // ─── 会话标记 API ───
