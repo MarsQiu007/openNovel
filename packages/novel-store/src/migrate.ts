@@ -59,6 +59,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   // 3. 给 characters 表添加 status 列（始终执行，幂等）
   migrateCharacterStatus(exec, query)
   migrateCharacterStates(exec, query)
+  migrateTechniqueScope(exec, query)
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
@@ -503,5 +504,22 @@ function migrateChapterContentFingerprint(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+  }
+}
+
+/**
+ * 给 techniques 表添加 scope 列（内容性质：general/adult，默认 general）。
+ * 始终执行、幂等：旧行零迁移可读，新库由 CREATE_TABLES_SQL 带列建表。
+ */
+export function migrateTechniqueScope(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(techniques)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    const hasScope = cols.some((c) => c.name === "scope")
+    if (!hasScope) {
+      exec("ALTER TABLE techniques ADD COLUMN scope text NOT NULL DEFAULT 'general'")
+    }
+  } catch {
+    // techniques 表不存在时无需迁移，CREATE_TABLES_SQL 会带 scope 列创建
   }
 }

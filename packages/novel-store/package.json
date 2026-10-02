@@ -24,7 +24,8 @@
   ],
   "dependencies": {
     "drizzle-orm": "catalog:",
-    "@opennovel-ai/schema": "workspace:*"
+    "@opennovel-ai/schema": "workspace:*",
+    "xdg-basedir": "5.1.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
