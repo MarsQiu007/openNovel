@@ -173,21 +173,25 @@ const ExtractTechniquesCommand = effectCmd({
 
 /**
  * 种子技法导入命令 - `opennovel novel seed-techniques`
+ * 默认写入全局通用技法库（一次导入全库受益）；--local 保留写入本书库的旧行为。
  */
 const SeedTechniquesCommand = effectCmd({
   command: "seed-techniques",
-  describe: "导入人工精选的种子技法",
+  describe: "导入人工精选的种子技法（默认入全局通用库）",
   instance: false,
   builder: (yargs: Argv) =>
     yargs
       .option("input", { type: "string", describe: "种子技法 JSON 路径", demandOption: true })
-      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" })
+      .option("local", { type: "boolean", describe: "写入本书库而非全局通用库", default: false }),
   handler: Effect.fn("Cli.novel.seed-techniques")(function* (
-    args: { input: string; dir?: string },
+    args: { input: string; dir?: string; local?: boolean },
   ) {
     try {
-      const count = yield* Effect.promise(() => importSeedTechniques(args.input, args.dir ?? null))
-      console.log(`已导入 ${count} 条种子技法（verified）`)
+      const count = yield* Effect.promise(() =>
+        importSeedTechniques(args.input, args.dir ?? null, { local: args.local === true }),
+      )
+      console.log(`已导入 ${count} 条种子技法（verified，${args.local === true ? "本书库" : "全局通用库"}）`)
     } catch (error) {
       yield* fail(error instanceof Error ? error.message : String(error))
     }

@@ -5797,9 +5797,12 @@ ${sceneChecklist}`
 
       record_technique_feedback: tool({
         description:
-          "记录写作技法的使用反馈（auditor 专用）。对 shadow-mode 检索到的技法，评估其在本章是否被有效运用，并给出评分。",
+          "记录写作技法的使用反馈（auditor 专用）。对 shadow-mode 检索到的技法，评估其在本章是否被有效运用，并给出评分。library 必须与候选列表标注的来源库一致：全局库技法反馈跨书积累，本书库技法反馈留在本书。",
         args: {
           technique_id: tool.schema.string().describe("技法 ID"),
+          library: tool.schema
+            .enum(["book", "global"])
+            .describe("技法来源库（与快照候选列表标注一致）：book=本书库；global=全局通用库"),
           chapter_id: tool.schema.string().describe("章节 ID"),
           score: tool.schema.number().describe("技法运用效果评分 0-1，1 为效果显著"),
           was_used: tool.schema.boolean().describe("技法是否在正文中被实际运用"),
@@ -5817,8 +5820,9 @@ ${sceneChecklist}`
               createdAt: Date.now(),
             },
             ctx.directory,
+            args.library,
           )
-          await updateConfidenceFromFeedback(args.technique_id, ctx.directory)
+          await updateConfidenceFromFeedback(args.technique_id, ctx.directory, args.library)
           return {
             title: "record_technique_feedback",
             output: `已记录技法 ${args.technique_id.slice(0, 8)} 反馈（score=${args.score}）`,
@@ -5828,7 +5832,7 @@ ${sceneChecklist}`
 
       save_technique: tool({
         description:
-          "把提炼出的写作技法入库（对话学习流程专用）。自动执行质量过滤（模糊指令黑名单、指令长度、必须有原文证据）；与库中同名技法自动合并证据，或传 merge_target_id 显式合并到近似技法。合并只追加证据，不动已有技法的状态与置信度。",
+          "把提炼出的写作技法入库（对话学习流程专用）。自动执行质量过滤（模糊指令黑名单、指令长度、必须有原文证据）；与库中同名技法自动合并证据，或传 merge_target_id 显式合并到近似技法。合并只追加证据，不动已有技法的状态与置信度。scope 决定存储位置：general=通用写法入全局通用库（跨书共享），adult=成人内容留本书库——拿不准一律标 adult（宁紧勿松，错标 adult 只是少复用，错标 general 会泄漏进通用书）。",
         args: {
           name: tool.schema.string().describe("技法名称"),
           principle: tool.schema.string().describe("抽象原则：技法本质概括"),
@@ -5852,6 +5856,11 @@ ${sceneChecklist}`
             )
             .describe("证据列表（至少一条）"),
           common_misuse: tool.schema.string().describe("常见误用方式"),
+          scope: tool.schema
+            .enum(["general", "adult"])
+            .describe(
+              "内容性质判断（必填）：general=通用写法（对话节奏、悬念铺设、视角控制等，入全局库跨书共享）；adult=成人内容技法（留本书库）。拿不准一律 adult",
+            ),
           merge_target_id: tool.schema.string().optional().describe("显式合并目标技法 ID；不传时按同名自动合并"),
         },
         async execute(args, ctx) {
@@ -5870,6 +5879,7 @@ ${sceneChecklist}`
                 annotation: e.annotation,
               })),
               commonMisuse: args.common_misuse,
+              scope: args.scope,
             },
             args.merge_target_id,
             ctx.directory,

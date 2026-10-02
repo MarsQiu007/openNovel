@@ -3,6 +3,9 @@
  * 导入技法 → 组装快照可见候选（一律 shadow 段）→ confirm_techniques 注入并计数 →
  * 模拟 auditor 反馈 → 置信度/状态演进 → usage 统计。
  */
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync, mkdtempSync } from "fs"
@@ -112,6 +115,8 @@ describe("技法链路端到端", () => {
 
   test("临时项目目录提取默认入库（CLI 等价路径）", async () => {
     // 与 CLI 默认路径相同：extract 落 JSON → importExtractedTechniques(directory) → 同一库
+    // 上一用例的种子默认写入全局库，这里重置全局库保证断言只含本书条目
+    installFreshGlobalDb()
     const workDir = mkdtempSync(join(tmpdir(), "tech-e2e-cli-"))
     try {
       const outPath = join(workDir, "out.json")

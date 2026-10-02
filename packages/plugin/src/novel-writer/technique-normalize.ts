@@ -21,6 +21,7 @@ export function normalizeTechnique(
     commonMisuse: partial.commonMisuse ?? "",
     confidence: partial.confidence ?? (options?.seed ? 0.8 : 0.5),
     status: (partial.status ?? (options?.seed ? "verified" : "unverified")) as TechniqueStatus,
+    scope: partial.scope === "adult" ? "adult" : "general",
     embedding: partial.embedding ?? null,
     usageCount: partial.usageCount ?? 0,
     lastUsedAt: partial.lastUsedAt ?? null,

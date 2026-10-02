@@ -1,5 +1,5 @@
 import { eq, gte, desc, and } from "drizzle-orm"
-import { getDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
+import { getDb, getGlobalDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
 import type {
   TechniqueEntry,
   TechniqueEvidence,
@@ -7,11 +7,16 @@ import type {
   RetrievedTechnique,
   TechniqueFeedback,
   ShadowLogEntry,
+  TechniqueLibrary,
 } from "./technique.js"
 import { canonicalSceneIntersection } from "./technique.js"
 
-export async function upsertTechnique(entry: TechniqueEntry, directory?: string | null): Promise<void> {
-  const db = getDb(directory)
+export async function upsertTechnique(
+  entry: TechniqueEntry,
+  directory?: string | null,
+  library: TechniqueLibrary = "book",
+): Promise<void> {
+  const db = libDb(library, directory)
   await db
     .insert(TechniqueTable)
     .values({
@@ -25,6 +30,7 @@ export async function upsertTechnique(entry: TechniqueEntry, directory?: string 
       common_misuse: entry.commonMisuse,
       confidence: entry.confidence,
       status: entry.status,
+      scope: entry.scope,
       embedding: entry.embedding ? JSON.stringify(entry.embedding) : null,
       usage_count: entry.usageCount,
       last_used_at: entry.lastUsedAt,
@@ -43,10 +49,16 @@ export async function upsertTechnique(entry: TechniqueEntry, directory?: string 
         common_misuse: entry.commonMisuse,
         confidence: entry.confidence,
         status: entry.status,
+        scope: entry.scope,
         embedding: entry.embedding ? JSON.stringify(entry.embedding) : null,
         updated_at: Date.now(),
       },
     })
+}
+
+/** 按来源库选择连接:global=全局通用技法库;book=本书库 */
+function libDb(library: TechniqueLibrary, directory?: string | null) {
+  return library === "global" ? getGlobalDb() : getDb(directory)
 }
 
 /** 未验证新品曝光位:置信度前列之外额外纳入的最近入库 unverified 条数 */
@@ -56,12 +68,7 @@ export async function queryTechniques(
   query: TechniqueQuery,
   directory?: string | null,
 ): Promise<RetrievedTechnique[]> {
-  const db = getDb(directory)
   const limit = query.limit ?? 10
-  const conditions = []
-  if (query.minConfidence !== undefined) {
-    conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
-  }
   const matchesQuery = (entry: TechniqueEntry) => {
     const canonical = canonicalSceneIntersection(entry.sceneTypes)
     // 空交集（历史自由文本标签）视为跨场景通用：按"通用身份"参与任意场景候选，不因标签词表问题被静默过滤
@@ -69,40 +76,72 @@ export async function queryTechniques(
     return sceneMatch && (query.level === undefined || entry.level === query.level)
   }
 
-  const rows = await db
-    .select()
-    .from(TechniqueTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(TechniqueTable.confidence))
-    .limit(limit)
-    .all()
-  const byConfidence = rows.map(rowToEntry).filter(matchesQuery)
+  // 双源检索：本书库 + 全局通用库各查一轮，同一场景匹配与排序规则
+  const libraries: TechniqueLibrary[] = ["book", "global"]
+  const confidenceHits: RetrievedTechnique[] = []
+  const freshHits: RetrievedTechnique[] = []
+  for (const library of libraries) {
+    const db = libDb(library, directory)
+    const conditions = []
+    if (query.minConfidence !== undefined) {
+      conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+    }
+    const rows = await db
+      .select()
+      .from(TechniqueTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(TechniqueTable.confidence))
+      .limit(limit)
+      .all()
+    confidenceHits.push(
+      ...rows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
+    )
 
-  // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;尊重 minConfidence 门槛
-  const freshConditions = [eq(TechniqueTable.status, "unverified")]
-  if (query.minConfidence !== undefined) {
-    freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+    // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;尊重 minConfidence 门槛
+    const freshConditions = [eq(TechniqueTable.status, "unverified")]
+    if (query.minConfidence !== undefined) {
+      freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+    }
+    const freshRows = await db
+      .select()
+      .from(TechniqueTable)
+      .where(and(...freshConditions))
+      .orderBy(desc(TechniqueTable.created_at))
+      .limit(UNVERIFIED_SPOTS)
+      .all()
+    freshHits.push(
+      ...freshRows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
+    )
   }
-  const freshRows = await db
-    .select()
-    .from(TechniqueTable)
-    .where(and(...freshConditions))
-    .orderBy(desc(TechniqueTable.created_at))
-    .limit(UNVERIFIED_SPOTS)
-    .all()
-  const fresh = freshRows.map(rowToEntry).filter(matchesQuery)
 
-  const seen = new Set(byConfidence.map((entry) => entry.id))
-  const freshIncluded = fresh.filter((entry) => !seen.has(entry.id))
+  // 跨库统一按置信度排序
+  const byConfidence = confidenceHits.sort((a, b) => b.entry.confidence - a.entry.confidence)
+  // 曝光位跨两池取最近入库的 unverified 新品
+  const fresh = freshHits.sort((a, b) => b.entry.createdAt - a.entry.createdAt).slice(0, UNVERIFIED_SPOTS)
+  const seen = new Set(byConfidence.map((hit) => hit.entry.id))
+  const freshIncluded = fresh.filter((hit) => !seen.has(hit.entry.id))
   // 新品占尾部名额：先让出 fresh 槽位，保证曝光位不被置信度前列挤掉
   const head = byConfidence.slice(0, Math.max(0, limit - freshIncluded.length))
-  return [...head, ...freshIncluded].map((entry) => ({ entry, matchScore: entry.confidence }))
+  return [...head, ...freshIncluded]
 }
 
 export async function listTechniques(directory?: string | null): Promise<TechniqueEntry[]> {
   const db = getDb(directory)
   const rows = await db.select().from(TechniqueTable).all()
   return rows.map(rowToEntry)
+}
+
+/** 双源列举：本书库 + 全局库全部技法，逐条标注来源库（search/confirm 跨库场景使用）。 */
+export async function listAllTechniques(
+  directory?: string | null,
+): Promise<Array<{ entry: TechniqueEntry; library: TechniqueLibrary }>> {
+  const book = await listTechniques(directory)
+  const globalDb = libDb("global", directory)
+  const globalRows = await globalDb.select().from(TechniqueTable).all()
+  return [
+    ...book.map((entry) => ({ entry, library: "book" as const })),
+    ...globalRows.map(rowToEntry).map((entry) => ({ entry, library: "global" as const })),
+  ]
 }
 
 /** 规范化名称匹配:trim + 空白折叠 + 大小写归一 */
@@ -113,8 +152,10 @@ function normalizeName(name: string): string {
 export async function findTechniquesByName(
   name: string,
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<TechniqueEntry[]> {
-  const db = getDb(directory)
+  // 同名合并只在本库内进行——避免把成人技法证据并进全局通用技法
+  const db = libDb(library, directory)
   const target = normalizeName(name)
   const rows = await db.select().from(TechniqueTable).all()
   return rows.map(rowToEntry).filter((entry) => normalizeName(entry.name) === target)
@@ -125,8 +166,10 @@ export async function mergeTechniqueEvidence(
   id: string,
   evidence: TechniqueEvidence[],
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<boolean> {
-  const db = getDb(directory)
+  // 证据合并只在技法所在库内进行（跨库同名不合并）
+  const db = libDb(library, directory)
   const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).all()
   if (!row) return false
   const existing: TechniqueEvidence[] = JSON.parse(row.evidence)
@@ -143,8 +186,9 @@ export async function updateTechniqueStatus(
   id: string,
   status: string,
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = getDb(directory)
+  const db = libDb(library, directory)
   await db.update(TechniqueTable).set({ status, updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
 }
 
@@ -152,8 +196,9 @@ export async function updateTechniqueStatus(
 export async function incrementTechniqueUsage(
   id: string,
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = getDb(directory)
+  const db = libDb(library, directory)
   const [row] = await db
     .select({ usage_count: TechniqueTable.usage_count })
     .from(TechniqueTable)
@@ -169,8 +214,10 @@ export async function incrementTechniqueUsage(
 export async function recordFeedback(
   feedback: TechniqueFeedback,
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = getDb(directory)
+  // 反馈行写入技法所在库：全局技法反馈跨书积累，本书技法反馈留本书库
+  const db = libDb(library, directory)
   await db.insert(TechniqueFeedbackTable).values({
     id: `fb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     technique_id: feedback.techniqueId,
@@ -199,8 +246,9 @@ export async function recordShadowLog(log: ShadowLogEntry, directory?: string | 
 export async function updateConfidenceFromFeedback(
   techniqueId: string,
   directory?: string | null,
+  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = getDb(directory)
+  const db = libDb(library, directory)
   const [technique] = await db
     .select()
     .from(TechniqueTable)
@@ -243,6 +291,7 @@ function rowToEntry(row: typeof TechniqueTable.$inferSelect): TechniqueEntry {
     commonMisuse: row.common_misuse,
     confidence: row.confidence,
     status: row.status as TechniqueEntry["status"],
+    scope: (row.scope ?? "general") as TechniqueEntry["scope"],
     embedding: row.embedding ? JSON.parse(row.embedding) : null,
     usageCount: row.usage_count,
     lastUsedAt: row.last_used_at,

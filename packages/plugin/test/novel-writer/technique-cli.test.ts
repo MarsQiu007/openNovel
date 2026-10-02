@@ -1,3 +1,6 @@
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect, afterAll } from "bun:test"
 import { mkdtempSync, rmSync, existsSync } from "fs"
 import { join } from "path"

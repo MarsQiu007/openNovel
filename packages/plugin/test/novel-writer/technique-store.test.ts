@@ -1,4 +1,9 @@
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect, afterAll } from "bun:test"
+import { eq } from "drizzle-orm"
+import { getDb } from "../../src/novel-writer/session-store.js"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -14,6 +19,7 @@ import {
   findTechniquesByName,
   mergeTechniqueEvidence,
 } from "../../src/novel-writer/technique-store.js"
+import { getGlobalDb, TechniqueTable, TechniqueFeedbackTable } from "../../src/novel-writer/session-store.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-test-"))
 
@@ -37,6 +43,7 @@ function makeTechnique(overrides?: Partial<TechniqueEntry>): TechniqueEntry {
     commonMisuse: "环境描写与情绪脱节",
     confidence: 0.5,
     status: "unverified",
+    scope: "general" as const,
     embedding: null,
     usageCount: 0,
     lastUsedAt: null,
@@ -367,6 +374,97 @@ describe("queryTechniques 场景词表空交集回退", () => {
       const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
       expect(result.some((r) => r.entry.id === fresh.id)).toBe(true)
       expect(result.length).toBeLessThanOrEqual(5)
+    })
+  })
+})
+
+describe("queryTechniques 双源合并", () => {
+  test("全局库非空时本书场景召回全局条目并标注来源", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      await upsertTechnique(
+        makeTechnique({ name: "全局对话技法", sceneTypes: ["dialogue"], status: "verified", confidence: 0.9 }),
+        dir,
+        "global",
+      )
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      const hit = result.find((r) => r.entry.name === "全局对话技法")
+      expect(hit).toBeTruthy()
+      expect(hit!.library).toBe("global")
+    })
+  })
+
+  test("反馈按 library 写入对应库", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const globalEntry = makeTechnique({ name: "全局反馈技法", sceneTypes: ["dialogue"] })
+      await upsertTechnique(globalEntry, dir, "global")
+      await recordFeedback(
+        {
+          techniqueId: globalEntry.id,
+          chapterId: "ch1",
+          score: 0.9,
+          wasUsed: true,
+          comment: "运用自然",
+          createdAt: Date.now(),
+        },
+        dir,
+        "global",
+      )
+      const globalDb = getGlobalDb()
+      const rows = await globalDb
+        .select()
+        .from(TechniqueFeedbackTable)
+        .where(eq(TechniqueFeedbackTable.technique_id, globalEntry.id))
+        .all()
+      expect(rows.length).toBe(1)
+      // 本书库不出现该反馈
+      const bookDb = getDb(testDir)
+      const bookRows = await bookDb
+        .select()
+        .from(TechniqueFeedbackTable)
+        .where(eq(TechniqueFeedbackTable.technique_id, globalEntry.id))
+        .all()
+      expect(bookRows.length).toBe(0)
+    })
+  })
+
+  test("置信度状态机按库演进（全局库）", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const entry = makeTechnique({ name: "全局状态机技法", sceneTypes: ["dialogue"], confidence: 0.7 })
+      await upsertTechnique(entry, dir, "global")
+      for (let i = 0; i < 5; i++) {
+        await recordFeedback(
+          {
+            techniqueId: entry.id,
+            chapterId: `ch${i}`,
+            score: 0.9,
+            wasUsed: true,
+            comment: "",
+            createdAt: Date.now(),
+          },
+          dir,
+          "global",
+        )
+      }
+      await updateConfidenceFromFeedback(entry.id, dir, "global")
+      const globalDb = getGlobalDb()
+      const [row] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+      expect(row.confidence).toBeGreaterThan(0.75)
+      expect(row.status).toBe("verified")
+    })
+  })
+
+  test("incrementTechniqueUsage 按库递增", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const entry = makeTechnique({ name: "全局计数技法", sceneTypes: ["dialogue"] })
+      await upsertTechnique(entry, dir, "global")
+      await incrementTechniqueUsage(entry.id, dir, "global")
+      const globalDb = getGlobalDb()
+      const [row] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+      expect(row.usage_count).toBe(1)
     })
   })
 })

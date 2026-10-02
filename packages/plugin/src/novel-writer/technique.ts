@@ -22,6 +22,10 @@ export function toCanonicalSceneTypes(sceneTypes: string[] | undefined): string[
 
 export type TechniqueLevel = "paragraph" | "sentence" | "dialogue" | "description" | "transition"
 export type TechniqueStatus = "unverified" | "verified" | "shadow" | "archived"
+/** 内容性质：general=通用写法（入全局库跨书共享）；adult=成人内容（留本书库） */
+export type TechniqueScope = "general" | "adult"
+/** 技法来源库：book=本书库；global=全局通用技法库 */
+export type TechniqueLibrary = "book" | "global"
 
 export interface TechniqueEvidence {
   sourceTitle: string
@@ -41,6 +45,7 @@ export interface TechniqueEntry {
   commonMisuse: string
   confidence: number
   status: TechniqueStatus
+  scope: TechniqueScope
   embedding: number[] | null
   usageCount: number
   lastUsedAt: number | null
@@ -68,6 +73,8 @@ export interface TechniqueFeedback {
 export interface RetrievedTechnique {
   entry: TechniqueEntry
   matchScore: number
+  /** 技法所在库：反馈/计数按此路由到对应库 */
+  library: TechniqueLibrary
 }
 
 export interface ShadowLogEntry {

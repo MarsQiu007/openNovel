@@ -2,6 +2,9 @@
  * 2.2 prompt 对齐测试：技法候选在"工具输出格式 → pipeline 指令 → auditor 指令 → 反馈工具参数"
  * 四处的字段与段落名必须一致。纯静态断言（prompt 是常量文本），防止单侧改名造成链路静默断裂。
  */
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect } from "bun:test"
 import { pipelineAgentConfig } from "../../src/novel-writer/agents/pipeline.js"
 import { auditorAgent } from "../../src/novel-writer/agents/auditor.js"
@@ -32,6 +35,7 @@ describe("技法链路 prompt 对齐", () => {
           commonMisuse: "",
           confidence: 0.8,
           status: "verified",
+          scope: "general",
           embedding: null,
           usageCount: 0,
           lastUsedAt: null,
@@ -39,11 +43,12 @@ describe("技法链路 prompt 对齐", () => {
           updatedAt: 0,
         },
         matchScore: 0.8,
+        library: "book",
       },
     ])
-    expect(lines[0]).toMatch(/^- \[tech_x\] 测试技法（置信度:0\.80）：指令$/)
-    // pipeline prompt 中描述的行格式模板与实际输出同构
-    expect(pipelineAgentConfig.systemPrompt).toContain("- [技法ID] 名称（置信度:x.xx）：指令")
+    expect(lines[0]).toMatch(/^- \[tech_x\]\[本书\] 测试技法（置信度:0\.80）：指令$/)
+    // pipeline prompt 中描述的行格式模板与实际输出同构（含来源库标记）
+    expect(pipelineAgentConfig.systemPrompt).toContain("- [技法ID][本书] 名称（置信度:x.xx）：指令")
   })
 
   test("pipeline → auditor 的 retrieved_techniques 映射指令与 auditor 反馈指令字段一致", () => {

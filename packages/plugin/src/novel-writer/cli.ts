@@ -258,11 +258,16 @@ export async function runTechniqueExtraction(
 /**
  * 导入人工精选的种子技法（JSON 数组），初始状态为 verified。
  */
+/**
+ * 导入人工精选的种子技法（JSON 数组），初始状态为 verified。
+ * 默认写入全局通用技法库（一次导入全库受益）；传 { local: true } 保留写入本书库的旧行为。
+ */
 export async function importSeedTechniques(
   inputPath: string,
   directory?: string | null,
+  opts?: { local?: boolean },
 ): Promise<number> {
-  return importTechniquesFromJson(inputPath, directory, { seed: true })
+  return importTechniquesFromJson(inputPath, directory, { seed: true, local: opts?.local === true })
 }
 
 /**
@@ -273,21 +278,23 @@ export async function importExtractedTechniques(
   inputPath: string,
   directory?: string | null,
 ): Promise<number> {
-  return importTechniquesFromJson(inputPath, directory, { seed: false })
+  return importTechniquesFromJson(inputPath, directory, { seed: false, local: true })
 }
 
 async function importTechniquesFromJson(
   inputPath: string,
   directory: string | null | undefined,
-  opts: { seed: boolean },
+  opts: { seed: boolean; local?: boolean },
 ): Promise<number> {
   const { normalizeTechnique } = await import("./technique-normalize.js")
   const { upsertTechnique } = await import("./technique-store.js")
 
   const content = JSON.parse(await readFile(inputPath, "utf-8"))
   const items = Array.isArray(content) ? content : [content]
+  // 种子默认入全局通用库；--local 或提取导入（无人工精选语义）落本书库
+  const library = opts.local ? "book" : "global"
   for (const item of items) {
-    await upsertTechnique(normalizeTechnique(item, { seed: opts.seed }), directory)
+    await upsertTechnique(normalizeTechnique(item, { seed: opts.seed }), directory, library)
   }
   return items.length
 }

@@ -6,6 +6,10 @@
  * 使用临时 SQLite 数据库，测试结束后自动清理。
  */
 
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
+
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
