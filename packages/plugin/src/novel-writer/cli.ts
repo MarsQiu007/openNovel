@@ -14,6 +14,8 @@ import { join, resolve } from "path"
 import { existsSync, mkdirSync, writeFileSync } from "fs"
 import { readFile, writeFile } from "fs/promises"
 import { DEFAULT_NOVEL_MODE_CONFIG } from "@opennovel-ai/novel-store"
+import { isTechniqueLevel, LEVEL_CRITERIA } from "./technique.js"
+import { extractJsonValue } from "./technique-extract.js"
 
 // ─── 题材枚举 ───
 
@@ -211,6 +213,115 @@ async function tagNovelSession(sessionId: string, novelId: string): Promise<void
   const db = getDb()
   const id = crypto.randomUUID()
   await db.insert(SessionNovelTable).values({ id, session_id: sessionId, novel_id: novelId }).run()
+}
+
+// ─── 技法层级重分类 ───
+
+// 判据输入只带 name/principle/instruction，不带原文证据摘录：成人技法证据是逐字露骨引文，
+// 批次拼贴会触发模型服务商的内容安全过滤导致整批失败；层级判定看指令操作对象已足够。
+const RELEVEL_PROMPT = `你是技法层级重分类员。请按以下判据为每条技法判定 level（作用层级）：
+${LEVEL_CRITERIA}
+
+待判技法（JSON 数组，含 id/name/principle/instruction）：
+{{TECHNIQUES}}
+
+请以 JSON 返回：{"judgments": [{"id": "技法id", "level": "sentence"}]}——只对给出的 id 返回判定，level 取 paragraph/sentence/dialogue/description/transition 之一。`
+
+export interface RelevelOptions {
+  batchSize?: number
+  /** all=双源；book=仅本书库；global=仅全局通用库 */
+  library?: "all" | "book" | "global"
+}
+
+export interface RelevelResult {
+  total: number
+  changed: number
+  kept: number
+  failed: number
+  before: Record<string, number>
+  after: Record<string, number>
+}
+
+function levelDistribution(levels: string[]): Record<string, number> {
+  const dist: Record<string, number> = {}
+  for (const level of levels) dist[level] = (dist[level] ?? 0) + 1
+  return dist
+}
+
+/**
+ * 存量技法层级重分类：双源（本书库+全局库）扫描，按统一判据分批重判 level 并原地更新。
+ * 幂等可重跑：LLM 判据缺失/非法/整批解析失败时保留原值并计数。
+ */
+export async function relevelTechniques(
+  directory: string | null,
+  llm: (prompt: string) => Promise<string>,
+  options?: RelevelOptions,
+): Promise<RelevelResult> {
+  const { listAllTechniques, updateTechniqueLevel } = await import("./technique-store.js")
+  const every = await listAllTechniques(directory)
+  const wanted = options?.library ?? "all"
+  const all = wanted === "all" ? every : every.filter(({ library }) => library === wanted)
+  const batchSize = options?.batchSize ?? 10
+  const before = levelDistribution(all.map(({ entry }) => entry.level))
+
+  let changed = 0
+  let kept = 0
+  let failed = 0
+
+  for (let i = 0; i < all.length; i += batchSize) {
+    const batch = all.slice(i, i + batchSize)
+    const descriptions = batch.map(({ entry }) => ({
+      id: entry.id,
+      name: entry.name,
+      principle: entry.principle,
+      instruction: entry.instruction.slice(0, 600),
+    }))
+    const prompt = RELEVEL_PROMPT.replace("{{TECHNIQUES}}", JSON.stringify(descriptions, null, 1).slice(0, 8000))
+    // 单批失败（含服务商内容过滤）不中断整体：计为失败保留原值，其余批次继续
+    let parsed: unknown = null
+    try {
+      parsed = extractJsonValue(await llm(prompt))
+    } catch {
+      failed += batch.length
+      continue
+    }
+    const judgments = isRecord(parsed) && Array.isArray(parsed.judgments) ? parsed.judgments : null
+    if (judgments === null) {
+      failed += batch.length
+      continue
+    }
+    const byId = new Map<string, string>()
+    for (const j of judgments) {
+      if (isRecord(j) && typeof j.id === "string" && typeof j.level === "string") byId.set(j.id, j.level)
+    }
+    for (const { entry, library } of batch) {
+      const judged = byId.get(entry.id)
+      if (judged !== undefined && isTechniqueLevel(judged)) {
+        if (judged === entry.level) {
+          kept++
+        } else {
+          await updateTechniqueLevel(entry.id, judged, directory, library)
+          changed++
+        }
+      } else {
+        kept++
+      }
+    }
+  }
+
+  const afterAll = (await listAllTechniques(directory)).filter(({ library }) => wanted === "all" || library === wanted)
+  return {
+    total: all.length,
+    changed,
+    kept,
+    failed,
+    before,
+    after: levelDistribution(afterAll.map(({ entry }) => entry.level)),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
 }
 
 // ─── 技法提取与种子导入 ───

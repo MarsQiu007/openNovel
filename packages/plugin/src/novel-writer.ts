@@ -21,6 +21,7 @@ import { trackHook, getHookStats, HOOK_TYPES } from "./novel-writer/hook-rotatio
 import { writerAgentConfig } from "./novel-writer/agents/writer.js"
 import { detectKinshipEntityDrift, loadCharacterBindingView, loadFullCharacterBindingView } from "./novel-writer/drift-guards.js"
 import { directorAgentConfig } from "./novel-writer/agents/director.js"
+import { LEVEL_CRITERIA } from "./novel-writer/technique.js"
 import { pipelineAgentConfig } from "./novel-writer/agents/pipeline.js"
 import { observerAgent } from "./novel-writer/agents/observer.js"
 import { reflectorAgent } from "./novel-writer/agents/reflector.js"
@@ -5844,7 +5845,7 @@ ${sceneChecklist}`
             ),
           level: tool.schema
             .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
-            .describe("技法粒度"),
+            .describe(`技法作用层级，判定必须按以下判据：${LEVEL_CRITERIA}`),
           evidence: tool.schema
             .array(
               tool.schema.object({
@@ -5921,7 +5922,7 @@ ${sceneChecklist}`
           level: tool.schema
             .enum(["paragraph", "sentence", "dialogue", "description", "transition"])
             .optional()
-            .describe("技法粒度过滤"),
+            .describe(`技法作用层级过滤，层级判定判据：${LEVEL_CRITERIA}`),
           status: tool.schema
             .enum(["unverified", "verified", "shadow", "archived"])
             .optional()

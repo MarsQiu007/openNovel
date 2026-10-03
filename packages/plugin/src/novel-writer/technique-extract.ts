@@ -1,4 +1,4 @@
-import type { TechniqueEntry } from "./technique.js"
+import { LEVEL_CRITERIA, type TechniqueEntry } from "./technique.js"
 
 export interface TextSegment {
   title: string
@@ -74,8 +74,11 @@ const DISTILLER_PROMPT = `你是一个专业的小说写作技法提炼师。请
 
 要求：principle 是对技法本质的抽象概括；instruction 是可以直接给 AI 写作模型的操作指令；evidence 包含原文片段和技法标注；commonMisuse 描述最常见的误用方式。只提炼真正可复用的技法，不要硬凑。
 
+技法的 level（作用层级）必须按以下判据逐条判定，示例值仅示意格式，不得照抄：
+${LEVEL_CRITERIA}
+
 请以 JSON 格式返回：
-{"techniques": [{"name": "技法名", "principle": "抽象原则", "instruction": "操作指令", "sceneTypes": ["dialogue"], "level": "paragraph", "evidence": [{"sourceTitle": "书名", "sourceLocation": "位置", "excerpt": "原文片段", "annotation": "技法标注"}], "commonMisuse": "常见误用"}]}
+{"techniques": [{"name": "技法名", "principle": "抽象原则", "instruction": "操作指令", "sceneTypes": ["dialogue"], "level": "sentence", "evidence": [{"sourceTitle": "书名", "sourceLocation": "位置", "excerpt": "原文片段", "annotation": "技法标注"}], "commonMisuse": "常见误用"}]}
 
 标记段落：
 {{HIGHLIGHTS}}`
@@ -87,7 +90,7 @@ export async function distillTechniques(
   if (highlights.length === 0) return { items: [], parseFailures: 0 }
 
   const highlightTexts = highlights
-    .map((h) => `[来源: ${h.segment.title}] [场景: ${h.sceneType}] [标记原因: ${h.reason}]\n${h.segment.text}`)
+    .map((h) => `[来源: ${h.segment.title}] [场景: ${h.sceneType}] [高亮层级: ${h.level}] [标记原因: ${h.reason}]\n${h.segment.text}`)
     .join("\n\n---\n\n")
 
   const prompt = DISTILLER_PROMPT.replace("{{HIGHLIGHTS}}", highlightTexts.slice(0, 8000))

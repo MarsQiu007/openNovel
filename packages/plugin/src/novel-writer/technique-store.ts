@@ -8,6 +8,7 @@ import type {
   TechniqueFeedback,
   ShadowLogEntry,
   TechniqueLibrary,
+  TechniqueLevel,
 } from "./technique.js"
 import { canonicalSceneIntersection } from "./technique.js"
 
@@ -180,6 +181,17 @@ export async function mergeTechniqueEvidence(
     .set({ evidence: JSON.stringify(merged), updated_at: Date.now() })
     .where(eq(TechniqueTable.id, id))
   return true
+}
+
+/** 重分类用：仅更新 level 并触碰 updated_at，状态/置信度/证据不动 */
+export async function updateTechniqueLevel(
+  id: string,
+  level: TechniqueLevel,
+  directory?: string | null,
+  library: TechniqueLibrary = "book",
+): Promise<void> {
+  const db = libDb(library, directory)
+  await db.update(TechniqueTable).set({ level, updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
 }
 
 export async function updateTechniqueStatus(
