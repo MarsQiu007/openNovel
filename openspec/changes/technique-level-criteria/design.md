@@ -11,11 +11,11 @@
 
 ## Decisions
 
-- **D1 判据单一事实源放 `technique.ts`**：与 `CANONICAL_SCENE_TYPES` 同一模式，导出 `LEVEL_CRITERIA` 判据文本常量（5 值判定定义 + 与场景标签分工说明），director 指引、save_technique 描述、蒸馏提示词三处引用同一常量拼接。备选：各处手写判据——已被现状证伪（各自缩水是失效根因之一）。
+- **D1 判据单一事实源放 `technique.ts`**：与 `CANONICAL_SCENE_TYPES` 同一模式，导出 `LEVEL_CRITERIA` 判据文本常量（5 值判定定义 + 与场景标签分工说明），director 指引、save_technique/search_techniques 描述、蒸馏提示词三处引用同一常量拼接。备选：各处手写判据——已被现状证伪（各自缩水是失效根因之一）。
 - **D2 高亮 level 作参考信号传入蒸馏，而非删除高亮侧要求**：蒸馏输出仍是最终权威（一条技法可能融合多个段落标记）；删除会损失高亮侧 already-paid 的判定信号。备选：蒸馏完全自判——浪费已有信号且两段判定脱节。
 - **D3 存量重分类做 CLI 维护命令（novel-writer cli 增加 relevel 类命令），不接升级框架**：level 列已存在，重分类是数据 UPDATE 不是结构迁移；升级框架（版本门禁/重建队列/横幅）为书籍库结构重建设计，接入是杀鸡用牛刀。零干预原则下不在写作流自动跑，用户手动执行一次即可；多机场景由既有整库同步传播。
 - **D4 重分类幂等 + 非法值保留原值**：LLM 批判输出逐条校验枚举归属，非法/缺失保留原值并计数报告；重跑不产生新数据（UPDATE 同一列）。批大小按 token 预算切（每批 ≤10 条，instruction+evidence 截断），63 条存量预计 ≤10 次调用。
-- **D5 normalize 缺省兜底保持 `paragraph` 不变**：schema/工具层已强制枚举，兜底仅兜 JS 直连等极端路径；不做 sceneTypes 启发式（引入第二套猜测标准，与判据单一事实源冲突）。
+- **D5 normalize 兜底保持 `paragraph` 并新增枚举归属校验**：schema/工具层已强制枚举，兜底仅兜 JS 直连等极端路径；`normalizeTechnique` 对 level 做枚举归属校验，非法字符串视同缺失回落 paragraph（对应规格"缺省兜底"场景，同时防止脏数据经提取路径直通入库）；不做 sceneTypes 启发式（引入第二套猜测标准，与判据单一事实源冲突）。
 
 ## Risks / Trade-offs
 

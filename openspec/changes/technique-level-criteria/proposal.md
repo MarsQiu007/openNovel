@@ -29,6 +29,7 @@
 
 ## Impact
 
+- **packages/opennovel**：`src/cli/cmd/novel.ts` 注册 `relevel-techniques` 命令（仿 extract-techniques 的 Provider 取模型模式）
 - **packages/plugin**：`technique.ts`（判据单一事实源）、`agents/director.ts`（学习流程指引）、`novel-writer.ts`（save_technique/search 工具描述）、`technique-extract.ts`（蒸馏/高亮提示词与信号传递）、`technique-store.ts`（level 更新接口）、`cli.ts`（重分类命令）
 - **数据兼容**：仅 UPDATE 既有 `techniques` 表的 `level` 列（列已存在、默认值不变）；触碰 `updated_at` 使整库同步按内容时间正常传播，无版本协调问题；重分类幂等，中途失败保留原值
 - **AI 成本**：存量重分类为一次性批任务（当前 63 条，每批多条预计 ≤10 次 LLM 调用）
