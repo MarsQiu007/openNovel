@@ -27,6 +27,9 @@
 
 ## 5. 端到端验证
 
-- [ ] 5.1 用真实书库(如 `C:\Novels` 下任一书)在写作会话中发送"来学习这本书籍的写作技巧",观察逐章进度报告;完成后查 `<书目录>\.novel\novel.db` 的 `techniques` 表有条目(unverified/0.5),App 技法库面板可见,且重复学习同名技法时证据合并、不产生重复行
-- [ ] 5.2 同一书库再发"来学习第 1 章的写作技巧",验证只处理指定章节;发送普通写作指令验证不触发学习流程
-- [ ] 5.3 开启该书的 `technique_injection` 后跑一章写作:观察 pipeline 输出召回评估过程(首轮候选→评估→确认列表→confirm_techniques),writer prompt 仅含确认技法,被否决候选不进 prompt 也无 auditor 反馈;确认后查 `usage_count` 对确认技法递增;shadow log 候选含未验证新品(库中有高置信技法时);auditor 仅对确认列表提交反馈
+- [x] 5.1 用真实书库(如 `C:\Novels` 下任一书)在写作会话中发送"来学习这本书籍的写作技巧",观察逐章进度报告;完成后查 `<书目录>\.novel\novel.db` 的 `techniques` 表有条目(unverified/0.5),App 技法库面板可见,且重复学习同名技法时证据合并、不产生重复行
+  - 自动化实证(technique-agent-e2e 用例 `learn-book`,2026-10-04 本机 3/3 绿):整本学习 3 章入库全部 unverified/0.5;协议 `listTechniques(dir)` 路径可见;重复学习同名合并——行数不增、证据 1→2(换摘录)。DB 断言+`save_technique` 命中数双重验证。
+- [x] 5.2 同一书库再发"来学习第 1 章的写作技巧",验证只处理指定章节;发送普通写作指令验证不触发学习流程
+  - 自动化实证(technique-agent-e2e 用例 `learn-chapter`):`read_chapter_content` 仅 1 次且 `chapter_number=1`,只入库 1 条;随后普通写作指令(director 派 @writer)零 `save_technique` 调用且 `write_chapter` 真正落库(正文开头断言)。
+- [x] 5.3 开启该书的 `technique_injection` 后跑一章写作:观察 pipeline 输出召回评估过程(首轮候选→评估→确认列表→confirm_techniques),writer prompt 仅含确认技法,被否决候选不进 prompt 也无 auditor 反馈;确认后查 `usage_count` 对确认技法递增;shadow log 候选含未验证新品(库中有高置信技法时);auditor 仅对确认列表提交反馈
+  - 自动化实证(technique-agent-e2e 用例 `recall-eval`,预置 verified/0.9 + unverified/0.5 各 1 条):`confirm_techniques` 恰 1 次且参数只含确认子集;真实工具返回的"写作技法指导"段只含确认技法(被否决候选不进);`usage_count` 确认技法 0→1、被否决候选保持 0;`technique_shadow_log` 含未验证新品 id;auditor 任务 `retrieved_techniques` 仅含确认列表 id。
