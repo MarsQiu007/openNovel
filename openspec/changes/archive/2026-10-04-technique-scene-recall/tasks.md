@@ -28,12 +28,15 @@
 
 ## 5. 提交
 
-- [ ] 5.1 提交推送，commit message 说明词表对齐与召回回退，footer 带 `OpenSpec-Change: technique-scene-recall`（验证：`git push` 成功）
+- [x] 5.1 提交推送，commit message 说明词表对齐与召回回退，footer 带 `OpenSpec-Change: technique-scene-recall`（验证：`git push` 成功）
+  - 实证（2026-10-04）：实现提交 81accb72 已入 main 并推送远端，分支与 main 零差异，footer 带本变更 trailer。
 
 ## 6. 应急预案（仅在前置任务失败时执行）
 
-- [ ] 6.1 若求交回退导致既有 e2e 测试期望大面积失效：核对失效用例是否锁死了"自由文本可入库"旧行为——是则按新规格更新用例（收敛是新规格行为）；否则修复实现缺陷（验证：测试更新 diff 逐条可解释）
-- [ ] 6.2 若《金牌》验证后候选仍为空：用 bun:sqlite 直查库中 `scene_types` 与状态，定位是匹配回退未生效还是曝光位/排序问题，记录证据后回到 2.1 修复（验证：queryTechniques 单测覆盖该数据形态）
+- [x] 6.1 若求交回退导致既有 e2e 测试期望大面积失效：核对失效用例是否锁死了"自由文本可入库"旧行为——是则按新规格更新用例（收敛是新规格行为）；否则修复实现缺陷（验证：测试更新 diff 逐条可解释）
+  - 条件未触发：4.1 实证 plugin 技法测试全系列通过，无需改既有用例。
+- [x] 6.2 若《金牌》验证后候选仍为空：用 bun:sqlite 直查库中 `scene_types` 与状态，定位是匹配回退未生效还是曝光位/排序问题，记录证据后回到 2.1 修复（验证：queryTechniques 单测覆盖该数据形态）
+  - 条件未触发：4.3 实证 dialogue 候选 0→5，回退生效，无需回到 2.1。
 ## Implementation Commits
 
 - 81accb72 feat(plugin): 技法场景标签词表对齐与召回回退
