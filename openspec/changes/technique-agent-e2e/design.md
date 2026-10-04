@@ -37,7 +37,7 @@ technique-chat-learn 把技法学习与召回评估设计为 agent 自主流程�
 
 ### D3 测试发现机制：命名 `*.test.ts` 纳入默认套件，零 CI 配置
 
-命名规范用例 → `bun test` 自动发现 → `bun turbo test` → test.yml unit 矩阵（linux+windows）自动纳入，PR 门禁即时生效，无需改 workflow。备选：独立 `test:agent-e2e` 脚本 + 独立 CI step——拒绝，多一份配置与漏跑风险；默认套件已有 290s 级 session 测试先例，时长预算可容。注意点：包级脚本带 `--timeout 30000`（每测试 30s），agent 回合可能超出 → 用例显式传更大的 per-test timeout。
+命名规范用例 → `bun test` 自动发现 → `bun turbo test` → test.yml unit 矩阵（linux+windows）自动纳入，PR 门禁即时生效，无需改 workflow。备选：独立 `test:agent-e2e` 脚本 + 独立 CI step——设计期拒绝；**实现期经 CI 数据回退采纳**（D3 修订）：main 的 unit(windows) 作业 21.3min（步上限 20min）无时长余量，三用例 profile 实测 72–115s（固定开销 ~40s/文件，压不进 60s），进默认套件必顶穿。最终实现：用例保留 `*.test.ts` 命名与 bun:test 断言，`OPENNOVEL_TECHNIQUE_E2E=1` env 门（默认套件 3.66s 跳过）+ `test:technique-e2e` 脚本 + test.yml 新增 Linux-only step（30min 预算，httpapi exerciser 的 gating 先例）；Windows 行为本机实测兜底。注意点：包级脚本带 `--timeout 30000`（每测试 30s），agent 回合可能超出 → 用例显式传更大的 per-test timeout。
 
 ### D4 夹具小说：3 个短章、素材人工设计、novel-store 直写
 
