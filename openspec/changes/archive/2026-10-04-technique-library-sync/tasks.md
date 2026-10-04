@@ -27,13 +27,17 @@
 - [x] 4.1 `packages/core` sync 测试全量通过（含新增 `@library` 用例，复用 local-folder 适配器假远端）
 - [x] 4.2 端到端冒烟：local-folder 适配器建双"机器"目录互同步——A 机写入 1 条 general 技法 → syncAll 上传 → B 机 syncAll 下载 → B 机直查 SQL 技法存在；再删除 B 机 techniques.db → syncAll → 文件恢复（验证：每步文件与 SQL 实证记录于本文件）
 - [x] 4.3 各受影响包 typecheck 通过；`oxlint` 从仓库根运行通过
-- [ ] 4.4 提交推送，commit message 说明独立登记、删除保护与保留命名空间设计，footer 带 `OpenSpec-Change: technique-library-sync`（验证：`git push` 成功）
+- [x] 4.4 提交推送，commit message 说明独立登记、删除保护与保留命名空间设计，footer 带 `OpenSpec-Change: technique-library-sync`（验证：`git push` 成功）
+  - 实证（2026-10-04）：2 个实现提交（d3a1870b、86c0d81e）均已入 main 并推送远端，分支与 main 零差异，footer 均带本变更 trailer。
 
 ## 5. 应急预案（仅在前置任务失败时执行）
 
-- [ ] 5.1 若 1.1 探查发现 content hash 深度耦合书 schema（如需 novels 行级明细做哈希）：哈希抽降为"全表行拼接哈希"通用实现，书语义以既有测试锁定等价（验证：书同步既有测试不改预期全绿）
-- [ ] 5.2 若共享 registry 必须承载 `@library`（技术约束反转）：评估升级 min-version 门禁或接受旧版删除风险并写明发布说明——**默认不选此项**（验证：决策记录于本文件）
-- [ ] 5.3 若旧版下载的 `@library/` 目录在新版引发异常（发现排除之外的代码路径）：定位并补 `@` 前缀排除（验证：回归用例）
+- [x] 5.1 若 1.1 探查发现 content hash 深度耦合书 schema（如需 novels 行级明细做哈希）：哈希抽降为"全表行拼接哈希"通用实现，书语义以既有测试锁定等价（验证：书同步既有测试不改预期全绿）
+  - 条件未触发：1.1 探查结论——contentHash 为 sqlite_master 通用整库文件哈希，与业务表无关，techniques.db 直接可用，无需抽降。
+- [x] 5.2 若共享 registry 必须承载 `@library`（技术约束反转）：评估升级 min-version 门禁或接受旧版删除风险并写明发布说明——**默认不选此项**（验证：决策记录于本文件）
+  - 条件未触发：2.1 按 D1 落地独立登记文件 library-registry.json，共享 registry.json 无 `@library` 键（单测断言），技术约束反转未发生。
+- [x] 5.3 若旧版下载的 `@library/` 目录在新版引发异常（发现排除之外的代码路径）：定位并补 `@` 前缀排除（验证：回归用例）
+  - 条件未触发：2.2 已在主实现内置 `@` 前缀排除（`@library/` 含 .novel 也不入书计划，回归用例覆盖），无新增异常路径。
 
 ## 实施记录
 
