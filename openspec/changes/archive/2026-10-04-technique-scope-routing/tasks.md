@@ -36,13 +36,17 @@
 - [x] 5.1 `packages/plugin` 技法测试全量通过（含 novel-store/plugin/server 三层新增用例）
 - [x] 5.2 各受影响包 typecheck 通过；`oxlint` 从仓库根运行通过
 - [x] 5.3 端到端冒烟：全局库置 1 条 general 技法 + 本书库置 1 条 adult 技法，跑一章写作快照——候选含全局条目、shadow log 记录来源；auditor 反馈后对应库状态机演进（验证：日志/SQL 实证记录于本文件）
-- [ ] 5.4 提交推送，commit message 说明路由模型与零干预设计，footer 带 `OpenSpec-Change: technique-scope-routing`（验证：`git push` 成功）
+- [x] 5.4 提交推送，commit message 说明路由模型与零干预设计，footer 带 `OpenSpec-Change: technique-scope-routing`（验证：`git push` 成功）
+  - 实证（2026-10-04）：5 个实现提交（39c120a7 起）全部已入 main 并推送远端；分支与 main 无差异（零未合并提交），footer 均带本变更 trailer。
 
 ## 6. 应急预案（仅在前置任务失败时执行）
 
-- [ ] 6.1 若 SDK 再生成 diff 面远超预期：核对 generate 输入范围；必要时先合入 protocol 单点变更单独生成（验证：生成 diff 仅含 technique 组与 LocationQuery）
-- [ ] 6.2 若存量 agent 判定质量差（大量误判）：改为保守全标 adult（留本书库，零泄漏），通用技法由用户日后面板手动提升；记录判定样本证据（验证：误判率统计随实施记录）
-- [ ] 6.3 若双源合并导致既有 e2e 大面积失效：核对失效用例是否锁定单源假设——全局库为空时行为必须与单源完全一致，非此类失效则修复实现（验证：失效 diff 逐条可解释）
+- [x] 6.1 若 SDK 再生成 diff 面远超预期：核对 generate 输入范围；必要时先合入 protocol 单点变更单独生成（验证：生成 diff 仅含 technique 组与 LocationQuery）
+  - 条件未触发/已处置：protocol `LocationQuery.library` 已随实现合入，client 生成物含 library 字段；2026-10-04 又在 main 重生成 v2 SDK 与 openapi.json（2c618796）消除 schema 漂移，generate/typecheck CI 全绿。
+- [x] 6.2 若存量 agent 判定质量差（大量误判）：改为保守全标 adult（留本书库，零泄漏），通用技法由用户日后面板手动提升；记录判定样本证据（验证：误判率统计随实施记录）
+  - 条件未触发：3.2 实施记录中 63 条存量判定完成（6 general 迁全局库、57 adult 留本书库），直查 SQL 确认无 general 默认值残留误标，无需回退保守策略。
+- [x] 6.3 若双源合并导致既有 e2e 大面积失效：核对失效用例是否锁定单源假设——全局库为空时行为必须与单源完全一致，非此类失效则修复实现（验证：失效 diff 逐条可解释）
+  - 条件未触发：2026-10-04 main 上 technique-agent-e2e 三用例（learn-book/learn-chapter/recall-eval）3 pass/0 fail，本地与 Actions 双确认，无失效需解释。
 
 ## 实施记录
 
