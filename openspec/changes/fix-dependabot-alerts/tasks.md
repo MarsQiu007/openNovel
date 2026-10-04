@@ -18,13 +18,17 @@
 
 ## 3. 提交与告警闭环
 
-- [ ] 3.1 提交推送，commit message 列出修复的 GHSA 清单，footer 带 `OpenSpec-Change: fix-dependabot-alerts`（验证：`git push` 成功）
-- [ ] 3.2 推送后确认 Dependabot 告警 #54、#55、#56、#57、#58、#59 全部关闭；如个别仍开放，核对 Dependabot 修复底版与实际安装版本（验证：`gh api repos/MarsQiu007/openNovel/dependabot/alerts?state=open` 无相关条目）
+- [x] 3.1 提交推送，commit message 列出修复的 GHSA 清单，footer 带 `OpenSpec-Change: fix-dependabot-alerts`（验证：`git push` 成功）
+  - 实证：fd01b591（首批 6 条：GHSA-59hj-4mh9-rj5j 等 electron 5 条 + provider-utils 1 条，message 含清单）、d4b2466e（补漏 dompurify GHSA-p98j-92pf-mc4p，message 含 GHSA）均已推送 main。
+- [x] 3.2 推送后确认 Dependabot 告警 #54、#55、#56、#57、#58、#59 全部关闭；如个别仍开放，核对 Dependabot 修复底版与实际安装版本（验证：`gh api repos/MarsQiu007/openNovel/dependabot/alerts?state=open` 无相关条目）
+  - 实证（2026-10-04）：#54–#59 全部 fixed；推送 d4b2466e 后补漏的 #60、#61（dompurify GHSA-p98j-92pf-mc4p）亦 fixed；`state=open` 查询返回 0 条。
 
 ## 4. 应急预案（仅在前置任务失败时执行）
 
-- [ ] 4.1 若 electron 最新 42.x 构建/打包不可修复地破坏：回退到 42.10.0（最低修复版）重跑第 2 节矩阵（验证：矩阵全绿且 5 条 electron 告警仍可关闭）
-- [ ] 4.2 若 42.10.0 亦不可用：记录证据，与用户确认是否暂升 43.x major（超出本变更范围，需单独确认）
+- [x] 4.1 若 electron 最新 42.x 构建/打包不可修复地破坏：回退到 42.10.0（最低修复版）重跑第 2 节矩阵（验证：矩阵全绿且 5 条 electron 告警仍可关闭）
+  - 条件未触发：electron 升 42.x 后 typecheck/build 本地通过，合并后 main CI 全绿，5 条 electron 告警（#55–#59）fixed，无需回退。
+- [x] 4.2 若 42.10.0 亦不可用：记录证据，与用户确认是否暂升 43.x major（超出本变更范围，需单独确认）
+  - 条件未触发：4.1 回退路径未启用，无需考虑 43.x major。
 ## Implementation Commits
 
 - fd01b591 chore(deps): 修复 Dependabot 6 条依赖漏洞告警
