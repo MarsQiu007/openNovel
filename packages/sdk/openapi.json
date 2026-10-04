@@ -9856,6 +9856,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -9924,6 +9932,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -11681,6 +11697,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -11772,6 +11796,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -11871,6 +11903,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -11969,6 +12009,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12058,6 +12106,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12144,6 +12200,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12240,6 +12304,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12359,6 +12431,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12443,6 +12523,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12512,6 +12600,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12604,6 +12700,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12688,6 +12792,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -12749,6 +12861,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -13359,6 +13479,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -13428,6 +13556,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           },
           {
             "name": "path",
@@ -13517,6 +13653,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           },
           {
             "name": "query",
@@ -13623,6 +13767,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -13704,6 +13856,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -13833,6 +13993,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -13912,6 +14080,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14033,6 +14209,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14128,6 +14312,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14254,6 +14446,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14334,6 +14534,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14539,6 +14747,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14875,6 +15091,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -14964,6 +15188,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -15054,6 +15286,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -15136,6 +15376,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -15191,6 +15439,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15267,6 +15523,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15360,6 +15624,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15438,6 +15710,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15524,6 +15804,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15608,6 +15896,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15701,6 +15997,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15793,6 +16097,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15880,6 +16192,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -15975,6 +16295,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16062,6 +16390,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16165,6 +16501,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16257,6 +16601,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16355,6 +16707,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16458,6 +16818,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16555,6 +16923,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16652,6 +17028,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16746,6 +17130,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16850,6 +17242,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -16946,6 +17346,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17033,6 +17441,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17128,6 +17544,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17215,6 +17639,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17310,6 +17742,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17397,6 +17837,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17492,6 +17940,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17579,6 +18035,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17674,6 +18138,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17758,6 +18230,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -17956,6 +18436,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18057,6 +18545,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18157,6 +18653,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18260,6 +18764,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18355,6 +18867,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18441,6 +18961,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18544,6 +19072,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18645,6 +19181,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18745,6 +19289,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18839,6 +19391,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -18934,6 +19494,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19030,6 +19598,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19131,6 +19707,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19223,6 +19807,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19306,6 +19898,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19401,6 +20001,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19484,6 +20092,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19675,6 +20291,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19762,6 +20386,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19857,6 +20489,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -19943,6 +20583,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20047,6 +20695,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20148,6 +20804,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20248,6 +20912,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20349,6 +21021,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20449,6 +21129,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20550,6 +21238,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20650,6 +21346,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20751,6 +21455,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20851,6 +21563,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -20952,6 +21672,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21044,6 +21772,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21129,6 +21865,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21215,6 +21959,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21318,6 +22070,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21419,6 +22179,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21519,6 +22287,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21607,6 +22383,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21710,6 +22494,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21811,6 +22603,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -21911,6 +22711,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22005,6 +22813,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22100,6 +22916,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22186,6 +23010,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22281,6 +23113,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           },
           {
             "name": "targetType",
@@ -22384,6 +23224,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22487,6 +23335,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22588,6 +23444,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22680,6 +23544,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22773,6 +23645,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           },
           {
             "name": "targetType",
@@ -22886,6 +23766,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -22981,6 +23869,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23087,6 +23983,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23193,6 +24097,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23299,6 +24211,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23382,6 +24302,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23477,6 +24405,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23569,6 +24505,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23651,6 +24595,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23741,6 +24693,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23839,6 +24799,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -23936,6 +24904,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24026,6 +25002,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24134,6 +25118,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24240,6 +25232,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24337,6 +25337,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24445,6 +25453,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24551,6 +25567,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24640,6 +25664,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24735,6 +25767,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24820,6 +25860,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -24915,6 +25963,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25000,6 +26056,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25085,6 +26149,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25170,6 +26242,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25255,6 +26335,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25332,6 +26420,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25405,6 +26501,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25490,6 +26594,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25566,6 +26678,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25651,6 +26771,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25724,6 +26852,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25817,6 +26953,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25901,6 +27045,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -25916,11 +27068,18 @@
             }
           },
           "400": {
-            "description": "InvalidRequestError",
+            "description": "TechniqueValidationError | InvalidRequestError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TechniqueValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
                 }
               }
             }
@@ -25995,6 +27154,14 @@
             "required": false,
             "style": "deepObject",
             "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -34912,6 +36079,10 @@
         },
         "required": ["_tag", "message"],
         "additionalProperties": false
+      },
+      "TechniqueLibrary": {
+        "type": "string",
+        "enum": ["book", "global", "all"]
       },
       "SessionsResponse": {
         "type": "object",
@@ -48539,6 +49710,10 @@
         "type": "string",
         "enum": ["unverified", "verified", "shadow", "archived"]
       },
+      "NovelTechniqueScope": {
+        "type": "string",
+        "enum": ["general", "adult"]
+      },
       "NovelTechnique": {
         "type": "object",
         "properties": {
@@ -48580,6 +49755,13 @@
           "status": {
             "$ref": "#/components/schemas/NovelTechniqueStatus"
           },
+          "scope": {
+            "$ref": "#/components/schemas/NovelTechniqueScope"
+          },
+          "library": {
+            "type": "string",
+            "enum": ["book", "global"]
+          },
           "usageCount": {
             "type": "integer",
             "minimum": 0
@@ -48605,6 +49787,7 @@
           "commonMisuse",
           "confidence",
           "status",
+          "scope",
           "usageCount",
           "createdAt",
           "updatedAt"
@@ -48647,6 +49830,13 @@
           },
           "status": {
             "$ref": "#/components/schemas/NovelTechniqueStatus"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/NovelTechniqueScope"
+          },
+          "targetLibrary": {
+            "type": "string",
+            "enum": ["book", "global"]
           }
         },
         "required": ["name", "instruction"],
@@ -48744,6 +49934,9 @@
           },
           "status": {
             "$ref": "#/components/schemas/NovelTechniqueStatus"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/NovelTechniqueScope"
           }
         },
         "additionalProperties": false
