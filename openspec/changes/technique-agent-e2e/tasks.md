@@ -31,6 +31,14 @@
 - [x] 5.2 用 `TEST_PROFILE_GLOB='test/novel-writer-e2e/**/*.test.ts' bun run profile:test` 度量三用例时长并记录于本文件；单用例超 60s 则先压缩夹具再考虑拆独立脚本（验证：时长数据落 tasks.md）
   - 实测记录（Windows 沙箱，逐文件独立进程）：learn-book 115.1s / recall-eval 113.2s / learn-chapter 72.3s。固定开销（层编译+实例装载+git init）约 40s/文件，压不到 60s 以内 → 按 D3 降级路径拆独立脚本：`OPENNOVEL_TECHNIQUE_E2E=1` env 门（默认套件 3.66s 跳过）+ `test:technique-e2e` 脚本 + test.yml 新增 Linux-only step（30min 预算，httpapi exerciser 先例）。
   - 降级理由（数据）：main 分支 CI unit(windows) 作业总时长 21.3min（"Run unit tests" 步 20min 上限内仅 ~1min 余量），三用例若进默认套件必顶穿；Linux step 独立承担 Bun 1.3.14 兼容与内存验证，Windows 行为本机已实测（3/3 绿）。
-- [ ] 5.3 推 PR 观察 GitHub Actions unit 矩阵 linux+windows 两格绿灯（Bun 1.3.14 兼容、Windows 文件锁、runner 内存三重确认）；如 Windows 格抖动按 httpapi-exercise 先例评估 Linux-only 标记（验证：Actions 运行链接与结果记录于本文件）
-- [ ] 5.4 回填 technique-chat-learn `tasks.md` 5.1–5.3 验证实证（引用本用例名与断言点）并勾选（验证：`openspec validate technique-chat-learn --strict` 通过）
-- [ ] 5.5 提交（footer 带 `OpenSpec-Change: technique-agent-e2e`；commit message 说明夹具+驱动器+三用例设计与 CI 纳入方式；涉及 packages/opennovel 测试目录）（验证：`openspec validate technique-agent-e2e --strict` 通过）
+- [x] 5.3 推 PR 观察 GitHub Actions unit 矩阵 linux+windows 两格绿灯（Bun 1.3.14 兼容、Windows 文件锁、runner 内存三重确认）；如 Windows 格抖动按 httpapi-exercise 先例评估 Linux-only 标记（验证：Actions 运行链接与结果记录于本文件）
+  - Actions 实证（2026-10-04，run https://github.com/MarsQiu007/openNovel/actions/runs/37204001703 ，unit (linux) 作业 "Run technique agent e2e gates" 步）：`OPENNOVEL_TECHNIQUE_E2E=1 bun test test/novel-writer-e2e --timeout 180000` 真实执行，3 pass / 0 fail / 12.88s——learn-book 5178ms、recall-eval 3608ms、learn-chapter 2236ms；env 门在 CI 上生效，Bun 1.3.14 兼容确认。本地 Windows 72–115s 为环境固定开销，Linux runner 无此开销。同 run unit(windows)/e2e(linux+windows)/generate/typecheck 全绿。
+- [x] 5.4 回填 technique-chat-learn `tasks.md` 5.1–5.3 验证实证（引用本用例名与断言点）并勾选（验证：`openspec validate technique-chat-learn --strict` 通过）
+  - 完成于提交 4ded145d，technique-chat-learn 5.1–5.3 已勾选并引用 learn-book/learn-chapter/recall-eval 用例与断言点；validate --strict 通过。
+- [x] 5.5 提交（footer 带 `OpenSpec-Change: technique-agent-e2e`；commit message 说明夹具+驱动器+三用例设计与 CI 纳入方式；涉及 packages/opennovel 测试目录）（验证：`openspec validate technique-agent-e2e --strict` 通过）
+  - 实现提交：53e2850b（夹具+驱动器+三用例+CI 门）、4ded145d（5.4 回填），footer 均为 `OpenSpec-Change: technique-agent-e2e`，已推送。
+
+## Implementation Commits
+
+- `53e2850b` test(opennovel): 技法 agent 流程 e2e 门禁（学习/逐章/召回评估）
+- `4ded145d` docs(openspec): technique-agent-e2e 回填 technique-chat-learn 5.1-5.3 实证
