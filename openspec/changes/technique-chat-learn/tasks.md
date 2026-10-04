@@ -33,3 +33,13 @@
   - 自动化实证(technique-agent-e2e 用例 `learn-chapter`):`read_chapter_content` 仅 1 次且 `chapter_number=1`,只入库 1 条;随后普通写作指令(director 派 @writer)零 `save_technique` 调用且 `write_chapter` 真正落库(正文开头断言)。
 - [x] 5.3 开启该书的 `technique_injection` 后跑一章写作:观察 pipeline 输出召回评估过程(首轮候选→评估→确认列表→confirm_techniques),writer prompt 仅含确认技法,被否决候选不进 prompt 也无 auditor 反馈;确认后查 `usage_count` 对确认技法递增;shadow log 候选含未验证新品(库中有高置信技法时);auditor 仅对确认列表提交反馈
   - 自动化实证(technique-agent-e2e 用例 `recall-eval`,预置 verified/0.9 + unverified/0.5 各 1 条):`confirm_techniques` 恰 1 次且参数只含确认子集;真实工具返回的"写作技法指导"段只含确认技法(被否决候选不进);`usage_count` 确认技法 0→1、被否决候选保持 0;`technique_shadow_log` 含未验证新品 id;auditor 任务 `retrieved_techniques` 仅含确认列表 id。
+
+## Implementation Commits
+
+- `ecf4b7c1` fix(plugin): 提取管线 LLM 输出解析容错
+- `e235bb90` feat(plugin): 技法同名合并、名称查询与未验证新品曝光位
+- `947cd5cc` refactor(plugin): 消除合并证据的类型断言告警
+- `ed5576c6` feat(plugin): save/search/confirm 三个技法工具
+- `941e50a0` test(plugin): 技法学习工具核心逻辑单测
+- `8b64a7a3` refactor(plugin): 快照统一 shadow 输出，注入移至 confirm_techniques
+- `edb57d64` feat(plugin): 技法学习指引与召回评估提示词落地
