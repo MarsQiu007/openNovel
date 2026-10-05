@@ -12482,6 +12482,7 @@ export type V2SessionListData = {
     workspace?: string
     limit?: number
     order?: "asc" | "desc"
+    roots?: boolean | "true" | "false"
     search?: string
     directory?: string
     project?: string

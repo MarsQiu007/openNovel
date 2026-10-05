@@ -5771,6 +5771,7 @@ export class Session3 extends HeyApiClient {
       workspace?: string
       limit?: number
       order?: "asc" | "desc"
+      roots?: boolean | "true" | "false"
       search?: string
       directory?: string
       project?: string
@@ -5787,6 +5788,7 @@ export class Session3 extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "query", key: "limit" },
             { in: "query", key: "order" },
+            { in: "query", key: "roots" },
             { in: "query", key: "search" },
             { in: "query", key: "directory" },
             { in: "query", key: "project" },
