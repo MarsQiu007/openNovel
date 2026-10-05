@@ -12,6 +12,10 @@
  * 预算分配：P0 1K + P1 1.5K + P2 2K + P3 2K + P4 1.5K = 8K
  */
 
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
+
 import { describe, test, expect } from "bun:test"
 import { applyBudget } from "../../src/novel-writer/budget.js"
 import type {

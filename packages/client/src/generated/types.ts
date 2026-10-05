@@ -163,7 +163,12 @@ export type HealthGetOutput = { readonly healthy: true }
 export type LocationGetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type LocationGetOutput = {
@@ -175,7 +180,12 @@ export type LocationGetOutput = {
 export type AgentsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type AgentsListOutput = {
@@ -2006,7 +2016,12 @@ export type MessagesListOutput = {
 export type ModelsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ModelsListOutput = {
@@ -2065,7 +2080,12 @@ export type ModelsListOutput = {
 export type ProvidersListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ProvidersListOutput = {
@@ -2098,7 +2118,12 @@ export type ProvidersGetInput = {
   readonly providerID: { readonly providerID: string }["providerID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ProvidersGetOutput = {
@@ -2130,7 +2155,12 @@ export type ProvidersGetOutput = {
 export type IntegrationsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type IntegrationsListOutput = {
@@ -2182,7 +2212,12 @@ export type IntegrationsGetInput = {
   readonly integrationID: { readonly integrationID: string }["integrationID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type IntegrationsGetOutput = {
@@ -2234,7 +2269,12 @@ export type IntegrationsConnectKeyInput = {
   readonly integrationID: { readonly integrationID: string }["integrationID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly key: { readonly key: string; readonly label?: string | undefined }["key"]
   readonly label?: { readonly key: string; readonly label?: string | undefined }["label"]
 }
@@ -2245,7 +2285,12 @@ export type IntegrationsConnectOauthInput = {
   readonly integrationID: { readonly integrationID: string }["integrationID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly methodID: {
     readonly methodID: string
     readonly inputs: { readonly [x: string]: string }
@@ -2285,7 +2330,12 @@ export type IntegrationsAttemptStatusInput = {
   readonly attemptID: { readonly attemptID: string }["attemptID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type IntegrationsAttemptStatusOutput = {
@@ -2330,7 +2380,12 @@ export type IntegrationsAttemptCompleteInput = {
   readonly attemptID: { readonly attemptID: string }["attemptID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly code?: { readonly code?: string | undefined }["code"]
 }
 
@@ -2340,7 +2395,12 @@ export type IntegrationsAttemptCancelInput = {
   readonly attemptID: { readonly attemptID: string }["attemptID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type IntegrationsAttemptCancelOutput = void
@@ -2349,7 +2409,12 @@ export type CredentialsUpdateInput = {
   readonly credentialID: { readonly credentialID: string }["credentialID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly label: { readonly label: string }["label"]
 }
 
@@ -2359,7 +2424,12 @@ export type CredentialsRemoveInput = {
   readonly credentialID: { readonly credentialID: string }["credentialID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type CredentialsRemoveOutput = void
@@ -2367,7 +2437,12 @@ export type CredentialsRemoveOutput = void
 export type PermissionsListRequestsInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type PermissionsListRequestsOutput = {
@@ -2518,10 +2593,17 @@ export type PermissionsReplyOutput = void
 export type FilesListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly path?: string | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly path?: string | undefined
+  }["library"]
   readonly path?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly path?: string | undefined
   }["path"]
 }
@@ -2538,24 +2620,35 @@ export type FilesListOutput = {
 export type FilesFindInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly query: string
     readonly type?: "file" | "directory" | undefined
     readonly limit?: number | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly query: string
+    readonly type?: "file" | "directory" | undefined
+    readonly limit?: number | undefined
+  }["library"]
   readonly query: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly query: string
     readonly type?: "file" | "directory" | undefined
     readonly limit?: number | undefined
   }["query"]
   readonly type?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly query: string
     readonly type?: "file" | "directory" | undefined
     readonly limit?: number | undefined
   }["type"]
   readonly limit?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly query: string
     readonly type?: "file" | "directory" | undefined
     readonly limit?: number | undefined
@@ -2574,7 +2667,12 @@ export type FilesFindOutput = {
 export type CommandsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type CommandsListOutput = {
@@ -2596,7 +2694,12 @@ export type CommandsListOutput = {
 export type SkillsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type SkillsListOutput = {
@@ -2619,7 +2722,12 @@ export type EventsSubscribeOutput = OpenNovelEventEncoded
 export type PtysListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type PtysListOutput = {
@@ -2643,7 +2751,12 @@ export type PtysListOutput = {
 export type PtysCreateInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly command?: {
     readonly command?: string
     readonly args?: ReadonlyArray<string>
@@ -2703,7 +2816,12 @@ export type PtysGetInput = {
   readonly ptyID: { readonly ptyID: string }["ptyID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type PtysGetOutput = {
@@ -2728,7 +2846,12 @@ export type PtysUpdateInput = {
   readonly ptyID: { readonly ptyID: string }["ptyID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly size?: { readonly rows: number; readonly cols: number }
@@ -2758,7 +2881,12 @@ export type PtysRemoveInput = {
   readonly ptyID: { readonly ptyID: string }["ptyID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type PtysRemoveOutput = void
@@ -2766,7 +2894,12 @@ export type PtysRemoveOutput = void
 export type QuestionsListRequestsInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type QuestionsListRequestsOutput = {
@@ -2824,7 +2957,12 @@ export type QuestionsRejectOutput = void
 export type ReferencesListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ReferencesListOutput = {
@@ -2854,7 +2992,12 @@ export type ProjectCopiesCreateInput = {
   readonly projectID: { readonly projectID: string }["projectID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly strategy: { readonly strategy: string; readonly directory: string; readonly name?: string }["strategy"]
   readonly directory: { readonly strategy: string; readonly directory: string; readonly name?: string }["directory"]
   readonly name?: { readonly strategy: string; readonly directory: string; readonly name?: string }["name"]
@@ -2866,7 +3009,12 @@ export type ProjectCopiesRemoveInput = {
   readonly projectID: { readonly projectID: string }["projectID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly directory: { readonly directory: string; readonly force: boolean }["directory"]
   readonly force: { readonly directory: string; readonly force: boolean }["force"]
 }
@@ -2877,7 +3025,12 @@ export type ProjectCopiesRefreshInput = {
   readonly projectID: { readonly projectID: string }["projectID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ProjectCopiesRefreshOutput = void
@@ -2885,7 +3038,12 @@ export type ProjectCopiesRefreshOutput = void
 export type ServerNovelListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelListOutput = ReadonlyArray<{
@@ -2901,7 +3059,12 @@ export type ServerNovelListOutput = ReadonlyArray<{
 export type ServerNovelCreateInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title: {
     readonly title: string
     readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
@@ -2933,7 +3096,12 @@ export type ServerNovelForSessionInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelForSessionOutput = {
@@ -2949,7 +3117,12 @@ export type ServerNovelForSessionOutput = {
 export type ServerNovelSessionBindingsInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelSessionBindingsOutput = ReadonlyArray<{
@@ -2962,7 +3135,12 @@ export type ServerNovelDetailInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDetailOutput = {
@@ -2993,7 +3171,12 @@ export type ServerNovelVolumesInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelVolumesOutput = ReadonlyArray<{
@@ -3009,7 +3192,12 @@ export type ServerNovelChaptersInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelChaptersOutput = ReadonlyArray<{
@@ -3029,7 +3217,12 @@ export type ServerNovelChapterInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelChapterOutput = {
@@ -3050,7 +3243,12 @@ export type ServerNovelChapterVersionsInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelChapterVersionsOutput = ReadonlyArray<{
@@ -3068,7 +3266,12 @@ export type ServerNovelChapterReviewsInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelChapterReviewsOutput = ReadonlyArray<{
@@ -3096,7 +3299,12 @@ export type ServerNovelRollbackInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelRollbackOutput = {
@@ -3116,7 +3324,12 @@ export type ServerNovelUpdateContentInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly content: { readonly content: string }["content"]
 }
 
@@ -3137,7 +3350,12 @@ export type ServerNovelApprovalInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly action: { readonly action: "approve" | "reject"; readonly comment?: string }["action"]
   readonly comment?: { readonly action: "approve" | "reject"; readonly comment?: string }["comment"]
 }
@@ -3158,7 +3376,12 @@ export type ServerNovelCharactersInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelCharactersOutput = ReadonlyArray<{
@@ -3175,7 +3398,12 @@ export type ServerNovelPlotThreadsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelPlotThreadsOutput = ReadonlyArray<{
@@ -3193,7 +3421,12 @@ export type ServerNovelForeshadowingInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelForeshadowingOutput = ReadonlyArray<{
@@ -3210,7 +3443,12 @@ export type ServerNovelWorldEntriesInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelWorldEntriesOutput = ReadonlyArray<{
@@ -3226,7 +3464,12 @@ export type ServerNovelOutlineInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelOutlineOutput = {
@@ -3239,7 +3482,12 @@ export type ServerNovelUpdateOutlineInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly section: {
     readonly section: "master" | "volume" | "chapter"
     readonly id?: string
@@ -3286,7 +3534,12 @@ export type ServerNovelDeleteChapterInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteChapterOutput = { readonly deleted: boolean }
@@ -3295,7 +3548,12 @@ export type ServerNovelCreateVolumeInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title: { readonly title: string; readonly summary?: string }["title"]
   readonly summary?: { readonly title: string; readonly summary?: string }["summary"]
 }
@@ -3314,7 +3572,12 @@ export type ServerNovelUpdateVolumeInput = {
   readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: { readonly title?: string; readonly summary?: string }["title"]
   readonly summary?: { readonly title?: string; readonly summary?: string }["summary"]
 }
@@ -3333,7 +3596,12 @@ export type ServerNovelDeleteVolumeInput = {
   readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteVolumeOutput = { readonly deleted: boolean }
@@ -3343,7 +3611,12 @@ export type ServerNovelRestoreVersionInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly version: { readonly version: number }["version"]
 }
 
@@ -3364,7 +3637,12 @@ export type ServerNovelMoveChapterInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly action: { readonly action: "up" | "down" | "to-volume"; readonly volumeId?: string }["action"]
   readonly volumeId?: { readonly action: "up" | "down" | "to-volume"; readonly volumeId?: string }["volumeId"]
 }
@@ -3386,7 +3664,12 @@ export type ServerNovelUpdateChapterInput = {
   readonly chapterID: { readonly novelID: string; readonly chapterID: string }["chapterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: { readonly title?: string; readonly status?: string }["title"]
   readonly status?: { readonly title?: string; readonly status?: string }["status"]
 }
@@ -3407,7 +3690,12 @@ export type ServerNovelRelationshipsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelRelationshipsOutput = ReadonlyArray<{
@@ -3423,7 +3711,12 @@ export type ServerNovelCreateRelationshipInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly charAId: {
     readonly charAId: string
     readonly charBId: string
@@ -3464,7 +3757,12 @@ export type ServerNovelUpdateRelationshipInput = {
   readonly relationshipID: { readonly novelID: string; readonly relationshipID: string }["relationshipID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly type?: { readonly type?: string; readonly description?: string }["type"]
   readonly description?: { readonly type?: string; readonly description?: string }["description"]
 }
@@ -3483,7 +3781,12 @@ export type ServerNovelDeleteRelationshipInput = {
   readonly relationshipID: { readonly novelID: string; readonly relationshipID: string }["relationshipID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteRelationshipOutput = { readonly deleted: boolean }
@@ -3493,7 +3796,12 @@ export type ServerNovelCharacterStatesInput = {
   readonly characterID: { readonly novelID: string; readonly characterID: string }["characterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelCharacterStatesOutput = ReadonlyArray<{
@@ -3510,7 +3818,12 @@ export type ServerNovelAllCharacterStatesInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelAllCharacterStatesOutput = ReadonlyArray<{
@@ -3528,7 +3841,12 @@ export type ServerNovelCreateCharacterStateInput = {
   readonly characterID: { readonly novelID: string; readonly characterID: string }["characterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly chapterId: {
     readonly chapterId: string
     readonly place?: string
@@ -3570,7 +3888,12 @@ export type ServerNovelUpdateCharacterStateInput = {
   readonly stateID: { readonly novelID: string; readonly stateID: string }["stateID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly active?: {
     readonly active?: number
     readonly place?: string
@@ -3612,7 +3935,12 @@ export type ServerNovelDeleteCharacterStateInput = {
   readonly stateID: { readonly novelID: string; readonly stateID: string }["stateID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteCharacterStateOutput = { readonly deleted: boolean }
@@ -3621,7 +3949,12 @@ export type ServerNovelStyleGuideInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelStyleGuideOutput = {
@@ -3637,7 +3970,12 @@ export type ServerNovelUpdateStyleGuideInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly tone?: {
     readonly tone?: string
     readonly pov?: string
@@ -3677,7 +4015,12 @@ export type ServerNovelSoulInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelSoulOutput = {
@@ -3691,7 +4034,12 @@ export type ServerNovelUpdateSoulInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly content: { readonly content: string }["content"]
 }
 
@@ -3726,7 +4074,12 @@ export type ServerNovelTensionInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelTensionOutput = ReadonlyArray<{
@@ -3741,7 +4094,12 @@ export type ServerNovelAiArtifactsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelAiArtifactsOutput = {
@@ -3784,7 +4142,12 @@ export type ServerNovelBindInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly sessionID: { readonly sessionID: string }["sessionID"]
 }
 
@@ -3802,7 +4165,12 @@ export type ServerNovelCreateChapterInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title: { readonly title: string; readonly volumeId?: string; readonly order?: number }["title"]
   readonly volumeId?: { readonly title: string; readonly volumeId?: string; readonly order?: number }["volumeId"]
   readonly order?: { readonly title: string; readonly volumeId?: string; readonly order?: number }["order"]
@@ -3824,7 +4192,12 @@ export type ServerNovelUpdateInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly synopsis?: string
@@ -3856,7 +4229,12 @@ export type ServerNovelDeleteInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteOutput = { readonly deleted: boolean }
@@ -3865,7 +4243,12 @@ export type ServerNovelCreateCharacterInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly name: { readonly name: string; readonly role?: string; readonly description?: string }["name"]
   readonly role?: { readonly name: string; readonly role?: string; readonly description?: string }["role"]
   readonly description?: { readonly name: string; readonly role?: string; readonly description?: string }["description"]
@@ -3886,7 +4269,12 @@ export type ServerNovelUpdateCharacterInput = {
   readonly characterID: { readonly novelID: string; readonly characterID: string }["characterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly name?: {
     readonly name?: string
     readonly role?: string
@@ -3928,7 +4316,12 @@ export type ServerNovelDeleteCharacterInput = {
   readonly characterID: { readonly novelID: string; readonly characterID: string }["characterID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteCharacterOutput = { readonly deleted: boolean }
@@ -3937,7 +4330,12 @@ export type ServerNovelCreateTensionInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly chapterNumber: { readonly chapterNumber: number; readonly level: number }["chapterNumber"]
   readonly level: { readonly chapterNumber: number; readonly level: number }["level"]
 }
@@ -3955,7 +4353,12 @@ export type ServerNovelUpdateTensionInput = {
   readonly pointID: { readonly novelID: string; readonly pointID: string }["pointID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly level?: { readonly level?: number | "Infinity" | "-Infinity" | "NaN" }["level"]
 }
 
@@ -3972,7 +4375,12 @@ export type ServerNovelDeleteTensionInput = {
   readonly pointID: { readonly novelID: string; readonly pointID: string }["pointID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteTensionOutput = { readonly deleted: boolean }
@@ -3981,7 +4389,12 @@ export type ServerNovelCreatePlotThreadInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title: { readonly title: string; readonly priority?: string; readonly description?: string }["title"]
   readonly priority?: { readonly title: string; readonly priority?: string; readonly description?: string }["priority"]
   readonly description?: {
@@ -4007,7 +4420,12 @@ export type ServerNovelUpdatePlotThreadInput = {
   readonly threadID: { readonly novelID: string; readonly threadID: string }["threadID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly status?: string
@@ -4050,7 +4468,12 @@ export type ServerNovelDeletePlotThreadInput = {
   readonly threadID: { readonly novelID: string; readonly threadID: string }["threadID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeletePlotThreadOutput = { readonly deleted: boolean }
@@ -4059,7 +4482,12 @@ export type ServerNovelCreateForeshadowingInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly content: { readonly content: string; readonly plantedChapterId?: string }["content"]
   readonly plantedChapterId?: { readonly content: string; readonly plantedChapterId?: string }["plantedChapterId"]
 }
@@ -4079,7 +4507,12 @@ export type ServerNovelUpdateForeshadowingInput = {
   readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly content?: {
     readonly content?: string
     readonly state?: string
@@ -4108,7 +4541,12 @@ export type ServerNovelDeleteForeshadowingInput = {
   readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteForeshadowingOutput = { readonly deleted: boolean }
@@ -4117,7 +4555,12 @@ export type ServerNovelCreateWorldEntryInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly category: { readonly category: string; readonly title: string; readonly content?: string }["category"]
   readonly title: { readonly category: string; readonly title: string; readonly content?: string }["title"]
   readonly content?: { readonly category: string; readonly title: string; readonly content?: string }["content"]
@@ -4137,7 +4580,12 @@ export type ServerNovelUpdateWorldEntryInput = {
   readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly category?: { readonly category?: string; readonly title?: string; readonly content?: string }["category"]
   readonly title?: { readonly category?: string; readonly title?: string; readonly content?: string }["title"]
   readonly content?: { readonly category?: string; readonly title?: string; readonly content?: string }["content"]
@@ -4157,7 +4605,12 @@ export type ServerNovelDeleteWorldEntryInput = {
   readonly entryID: { readonly novelID: string; readonly entryID: string }["entryID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteWorldEntryOutput = { readonly deleted: boolean }
@@ -4166,7 +4619,12 @@ export type ServerNovelStructureInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelStructureOutput = {
@@ -4251,7 +4709,12 @@ export type ServerNovelArcsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelArcsOutput = ReadonlyArray<{
@@ -4274,7 +4737,12 @@ export type ServerNovelCreateArcInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly arcType: {
     readonly arcType: "narrative" | "character" | "subplot"
     readonly title: string
@@ -4361,7 +4829,12 @@ export type ServerNovelUpdateArcInput = {
   readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly summary?: string
@@ -4484,7 +4957,12 @@ export type ServerNovelDeleteArcInput = {
   readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteArcOutput = { readonly deleted: boolean }
@@ -4494,7 +4972,12 @@ export type ServerNovelArcBeatsInput = {
   readonly arcID: { readonly novelID: string; readonly arcID: string }["arcID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelArcBeatsOutput = ReadonlyArray<{
@@ -4515,7 +4998,12 @@ export type ServerNovelCreateBeatInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly arcId: {
     readonly arcId: string
     readonly chapterId?: string
@@ -4585,7 +5073,12 @@ export type ServerNovelUpdateBeatInput = {
   readonly beatID: { readonly novelID: string; readonly beatID: string }["beatID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly label?: {
     readonly label?: string
     readonly kind?: "setup" | "rising" | "turn" | "midpoint" | "crisis" | "climax" | "resolution" | "note"
@@ -4655,7 +5148,12 @@ export type ServerNovelDeleteBeatInput = {
   readonly beatID: { readonly novelID: string; readonly beatID: string }["beatID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteBeatOutput = { readonly deleted: boolean }
@@ -4665,7 +5163,12 @@ export type ServerNovelVolumeReviewsInput = {
   readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelVolumeReviewsOutput = ReadonlyArray<{
@@ -4689,7 +5192,12 @@ export type ServerNovelCreateVolumeReviewInput = {
   readonly volumeID: { readonly novelID: string; readonly volumeID: string }["volumeID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly overall: {
     readonly overall: string
     readonly score?: number | "Infinity" | "-Infinity" | "NaN"
@@ -4792,7 +5300,12 @@ export type ServerNovelEditorialReportsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelEditorialReportsOutput = ReadonlyArray<{
@@ -4810,7 +5323,12 @@ export type ServerNovelCreateEditorialReportInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly scopeType?: {
     readonly scopeType?: string
     readonly scopeId?: string
@@ -4863,16 +5381,25 @@ export type ServerNovelAnnotationsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["library"]
   readonly targetType: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["targetType"]
   readonly targetId: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["targetId"]
@@ -4905,7 +5432,12 @@ export type ServerNovelCreateAnnotationInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly targetType: {
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
@@ -5160,7 +5692,12 @@ export type ServerNovelUpdateAnnotationInput = {
   readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly comment?: {
     readonly comment?: string
     readonly status?: "open" | "resolved" | "wontfix" | "applied"
@@ -5226,7 +5763,12 @@ export type ServerNovelDeleteAnnotationInput = {
   readonly annotationID: { readonly novelID: string; readonly annotationID: string }["annotationID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteAnnotationOutput = { readonly deleted: boolean }
@@ -5235,7 +5777,12 @@ export type ServerNovelCreateAnnotationRoundInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly targetType: {
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
@@ -5373,16 +5920,25 @@ export type ServerNovelAnnotationRoundsInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly targetType: "chapter" | "world_entry"
+    readonly targetId: string
+  }["library"]
   readonly targetType: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["targetType"]
   readonly targetId: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
     readonly targetType: "chapter" | "world_entry"
     readonly targetId: string
   }["targetId"]
@@ -5416,7 +5972,12 @@ export type ServerNovelUpdateAnnotationRoundInput = {
   readonly roundID: { readonly novelID: string; readonly roundID: string }["roundID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly status?: {
     readonly status?: "running" | "completed" | "failed" | "interrupted"
     readonly resultSummary?: string
@@ -5470,7 +6031,12 @@ export type ServerNovelAnalyzeInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly scope?: {
     readonly scope?: "all" | "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
   }["scope"]
@@ -5501,7 +6067,12 @@ export type ServerNovelDryRunInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly planJson: { readonly planJson: string }["planJson"]
 }
 
@@ -5523,7 +6094,12 @@ export type ServerNovelApplyInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly planJson: { readonly planJson: string; readonly planDigest: string; readonly confirmed: boolean }["planJson"]
   readonly planDigest: {
     readonly planJson: string
@@ -5563,7 +6139,12 @@ export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelCanvasLayoutOutput = {
@@ -5589,7 +6170,12 @@ export type ServerNovelUpsertCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly layout: {
     readonly layout: {
       readonly columns: ReadonlyArray<{
@@ -5635,7 +6221,12 @@ export type ServerNovelCreateWorldMapInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly description?: string
@@ -5667,7 +6258,12 @@ export type ServerNovelActiveWorldMapInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelActiveWorldMapOutput = {
@@ -5710,7 +6306,12 @@ export type ServerNovelDraftWorldMapInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDraftWorldMapOutput = {
@@ -5754,7 +6355,12 @@ export type ServerNovelUpdateWorldMapInput = {
   readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: { readonly title?: string; readonly description?: string }["title"]
   readonly description?: { readonly title?: string; readonly description?: string }["description"]
 }
@@ -5774,7 +6380,12 @@ export type ServerNovelDeleteWorldMapInput = {
   readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteWorldMapOutput = { readonly deleted: boolean }
@@ -5784,7 +6395,12 @@ export type ServerNovelPromoteWorldMapInput = {
   readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelPromoteWorldMapOutput = {
@@ -5802,7 +6418,12 @@ export type ServerNovelCreateWorldMapFeatureInput = {
   readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly kind: {
     readonly kind: "region" | "place"
     readonly name: string
@@ -5905,7 +6526,12 @@ export type ServerNovelUpdateWorldMapFeatureInput = {
   readonly featureID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["featureID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly name?: {
     readonly name?: string
     readonly description?: string
@@ -5991,7 +6617,12 @@ export type ServerNovelDeleteWorldMapFeatureInput = {
   readonly featureID: { readonly novelID: string; readonly mapID: string; readonly featureID: string }["featureID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteWorldMapFeatureOutput = { readonly deleted: boolean }
@@ -6001,7 +6632,12 @@ export type ServerNovelCreateCharacterMapPinInput = {
   readonly mapID: { readonly novelID: string; readonly mapID: string }["mapID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly characterId: {
     readonly characterId: string
     readonly featureId?: string | null
@@ -6046,7 +6682,12 @@ export type ServerNovelUpdateCharacterMapPinInput = {
   readonly pinID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["pinID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly featureId?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["featureId"]
   readonly x?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["x"]
   readonly y?: { readonly featureId?: string | null; readonly x?: number; readonly y?: number }["y"]
@@ -6070,7 +6711,12 @@ export type ServerNovelDeleteCharacterMapPinInput = {
   readonly pinID: { readonly novelID: string; readonly mapID: string; readonly pinID: string }["pinID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelDeleteCharacterMapPinOutput = { readonly deleted: boolean }
@@ -6079,7 +6725,12 @@ export type ServerNovelSaveBookMetaInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly title?: {
     readonly title?: string
     readonly synopsis?: string
@@ -6140,7 +6791,12 @@ export type ServerNovelSyncStatusInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelSyncStatusOutput = {
@@ -6163,7 +6819,12 @@ export type ServerNovelSyncRetryInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly entryIds: { readonly entryIds: ReadonlyArray<string> }["entryIds"]
 }
 
@@ -6173,7 +6834,12 @@ export type ServerNovelUpgradeStatusInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelUpgradeStatusOutput = {
@@ -6191,7 +6857,12 @@ export type ServerNovelUpgradeStartInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelUpgradeStartOutput = {
@@ -6208,7 +6879,12 @@ export type ServerNovelUpgradeProgressInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelUpgradeProgressOutput = {
@@ -6223,7 +6899,12 @@ export type ServerNovelUpgradePauseInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelUpgradePauseOutput = { readonly gate: "open" | "paused" }
@@ -6232,7 +6913,12 @@ export type ServerNovelUpgradeResumeInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerNovelUpgradeResumeOutput = { readonly gate: "open" | "paused" }
@@ -6240,7 +6926,12 @@ export type ServerNovelUpgradeResumeOutput = { readonly gate: "open" | "paused" 
 export type NovelModesGetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type NovelModesGetOutput = {
@@ -6251,7 +6942,12 @@ export type NovelModesGetOutput = {
 export type NovelModesSetInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly writing_mode?: {
     readonly writing_mode?: ("auto" | "review") | undefined
     readonly setup_mode?: ("interactive" | "auto") | undefined
@@ -6270,7 +6966,12 @@ export type NovelModesSetOutput = {
 export type ServerTechniqueListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerTechniqueListOutput = ReadonlyArray<{
@@ -6289,6 +6990,8 @@ export type ServerTechniqueListOutput = ReadonlyArray<{
   readonly commonMisuse: string
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number
@@ -6298,7 +7001,12 @@ export type ServerTechniqueListOutput = ReadonlyArray<{
 export type ServerTechniqueCreateInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly name: {
     readonly name: string
     readonly instruction: string
@@ -6315,6 +7023,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["name"]
   readonly instruction: {
     readonly name: string
@@ -6332,6 +7042,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["instruction"]
   readonly principle?: {
     readonly name: string
@@ -6349,6 +7061,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["principle"]
   readonly sceneTypes?: {
     readonly name: string
@@ -6366,6 +7080,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["sceneTypes"]
   readonly level?: {
     readonly name: string
@@ -6383,6 +7099,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["level"]
   readonly evidence?: {
     readonly name: string
@@ -6400,6 +7118,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["evidence"]
   readonly commonMisuse?: {
     readonly name: string
@@ -6417,6 +7137,8 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["commonMisuse"]
   readonly status?: {
     readonly name: string
@@ -6434,7 +7156,47 @@ export type ServerTechniqueCreateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
   }["status"]
+  readonly scope?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
+  }["scope"]
+  readonly targetLibrary?: {
+    readonly name: string
+    readonly instruction: string
+    readonly principle?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+    readonly targetLibrary?: "book" | "global" | undefined
+  }["targetLibrary"]
 }
 
 export type ServerTechniqueCreateOutput = {
@@ -6453,6 +7215,8 @@ export type ServerTechniqueCreateOutput = {
   readonly commonMisuse: string
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number
@@ -6462,7 +7226,12 @@ export type ServerTechniqueCreateOutput = {
 export type ServerTechniqueConfigInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerTechniqueConfigOutput = { readonly enabled: boolean }
@@ -6470,7 +7239,12 @@ export type ServerTechniqueConfigOutput = { readonly enabled: boolean }
 export type ServerTechniqueSetConfigInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly enabled: { readonly enabled: boolean }["enabled"]
 }
 
@@ -6480,7 +7254,12 @@ export type ServerTechniqueDetailInput = {
   readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerTechniqueDetailOutput = {
@@ -6500,6 +7279,8 @@ export type ServerTechniqueDetailOutput = {
     readonly commonMisuse: string
     readonly confidence: number
     readonly status: "unverified" | "verified" | "shadow" | "archived"
+    readonly scope: "general" | "adult"
+    readonly library?: "book" | "global" | null
     readonly usageCount: number
     readonly lastUsedAt?: number
     readonly createdAt: number
@@ -6520,7 +7301,12 @@ export type ServerTechniqueUpdateInput = {
   readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
   readonly name?: {
     readonly name?: string | undefined
     readonly principle?: string | undefined
@@ -6537,6 +7323,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["name"]
   readonly principle?: {
     readonly name?: string | undefined
@@ -6554,6 +7341,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["principle"]
   readonly instruction?: {
     readonly name?: string | undefined
@@ -6571,6 +7359,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["instruction"]
   readonly sceneTypes?: {
     readonly name?: string | undefined
@@ -6588,6 +7377,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["sceneTypes"]
   readonly level?: {
     readonly name?: string | undefined
@@ -6605,6 +7395,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["level"]
   readonly evidence?: {
     readonly name?: string | undefined
@@ -6622,6 +7413,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["evidence"]
   readonly commonMisuse?: {
     readonly name?: string | undefined
@@ -6639,6 +7431,7 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["commonMisuse"]
   readonly status?: {
     readonly name?: string | undefined
@@ -6656,7 +7449,26 @@ export type ServerTechniqueUpdateInput = {
       | undefined
     readonly commonMisuse?: string | undefined
     readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
   }["status"]
+  readonly scope?: {
+    readonly name?: string | undefined
+    readonly principle?: string | undefined
+    readonly instruction?: string | undefined
+    readonly sceneTypes?: ReadonlyArray<string> | undefined
+    readonly level?: ("paragraph" | "sentence" | "dialogue" | "description" | "transition") | undefined
+    readonly evidence?:
+      | ReadonlyArray<{
+          readonly sourceTitle: string
+          readonly sourceLocation: string
+          readonly excerpt: string
+          readonly annotation: string
+        }>
+      | undefined
+    readonly commonMisuse?: string | undefined
+    readonly status?: ("unverified" | "verified" | "shadow" | "archived") | undefined
+    readonly scope?: ("general" | "adult") | undefined
+  }["scope"]
 }
 
 export type ServerTechniqueUpdateOutput = {
@@ -6675,6 +7487,8 @@ export type ServerTechniqueUpdateOutput = {
   readonly commonMisuse: string
   readonly confidence: number
   readonly status: "unverified" | "verified" | "shadow" | "archived"
+  readonly scope: "general" | "adult"
+  readonly library?: "book" | "global" | null
   readonly usageCount: number
   readonly lastUsedAt?: number
   readonly createdAt: number
@@ -6685,7 +7499,12 @@ export type ServerTechniqueDeleteInput = {
   readonly techniqueID: { readonly techniqueID: string }["techniqueID"]
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
   }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
 }
 
 export type ServerTechniqueDeleteOutput = { readonly deleted: boolean }

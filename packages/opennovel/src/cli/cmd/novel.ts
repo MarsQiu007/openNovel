@@ -4,7 +4,7 @@ import { generateText } from "ai"
 import { effectCmd, fail, CliError } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opennovel-ai/core/flag/flag"
-import { GENRES, runTechniqueExtraction, importSeedTechniques, importExtractedTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
+import { GENRES, runTechniqueExtraction, importSeedTechniques, importExtractedTechniques, relevelTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
 import { Provider } from "@/provider/provider"
 
 /**
@@ -110,6 +110,7 @@ export const NovelCommand = effectCmd({
       .command(NovelServerCommand)
       .command(ExtractTechniquesCommand)
       .command(SeedTechniquesCommand)
+      .command(RelevelTechniquesCommand)
       .demandCommand(),
   handler: Effect.fn("Cli.novel")(function* () {}),
 })
@@ -120,7 +121,8 @@ export const NovelCommand = effectCmd({
 const ExtractTechniquesCommand = effectCmd({
   command: "extract-techniques",
   describe: "从小说文本中提取写作技法",
-  instance: false,
+  // 需实例上下文：defaultModel/getLanguage 经 Config 读取默认模型，instance:false 下 InstanceRef 缺失必炸
+  directory: (args: { dir?: string }) => args.dir ?? process.cwd(),
   builder: (yargs: Argv) =>
     yargs
       .parserConfiguration({ "populate--": true, "boolean-negation": false })
@@ -173,21 +175,70 @@ const ExtractTechniquesCommand = effectCmd({
 
 /**
  * 种子技法导入命令 - `opennovel novel seed-techniques`
+ * 默认写入全局通用技法库（一次导入全库受益）；--local 保留写入本书库的旧行为。
  */
 const SeedTechniquesCommand = effectCmd({
   command: "seed-techniques",
-  describe: "导入人工精选的种子技法",
+  describe: "导入人工精选的种子技法（默认入全局通用库）",
   instance: false,
   builder: (yargs: Argv) =>
     yargs
       .option("input", { type: "string", describe: "种子技法 JSON 路径", demandOption: true })
-      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" })
+      .option("local", { type: "boolean", describe: "写入本书库而非全局通用库", default: false }),
   handler: Effect.fn("Cli.novel.seed-techniques")(function* (
-    args: { input: string; dir?: string },
+    args: { input: string; dir?: string; local?: boolean },
   ) {
     try {
-      const count = yield* Effect.promise(() => importSeedTechniques(args.input, args.dir ?? null))
-      console.log(`已导入 ${count} 条种子技法（verified）`)
+      const count = yield* Effect.promise(() =>
+        importSeedTechniques(args.input, args.dir ?? null, { local: args.local === true }),
+      )
+      console.log(`已导入 ${count} 条种子技法（verified，${args.local === true ? "本书库" : "全局通用库"}）`)
+    } catch (error) {
+      yield* fail(error instanceof Error ? error.message : String(error))
+    }
+  }),
+})
+/**
+ * 技法层级重分类命令 - `opennovel novel relevel-techniques`
+ * 双源（本书库+全局库）按统一判据批量重判 level，幂等可重跑。
+ */
+const RelevelTechniquesCommand = effectCmd({
+  command: "relevel-techniques",
+  describe: "按统一判据重分类存量技法的层级（本书库+全局库，幂等可重跑）",
+  // 需实例上下文：defaultModel 经 Config 读取默认模型，instance:false 下 InstanceRef 缺失必炸
+  directory: (args: { dir?: string }) => args.dir ?? process.cwd(),
+  builder: (yargs: Argv) =>
+    yargs
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" })
+      .option("batch-size", { type: "number", describe: "每批送判条数", default: 10 })
+      .option("library", { type: "string", choices: ["all", "book", "global"], describe: "重分类范围", default: "all" }),
+  handler: Effect.fn("Cli.novel.relevel-techniques")(function* (args) {
+    const provider = yield* Provider.Service
+    const modelError = (msg: string) => (e: { _tag?: string }) =>
+      new CliError({ message: `${msg}: ${e._tag ?? "unknown"}` })
+    const modelRef = yield* provider.defaultModel().pipe(Effect.mapError(modelError("无法解析默认模型")))
+    const model = yield* provider
+      .getModel(modelRef.providerID, modelRef.modelID)
+      .pipe(Effect.mapError(modelError("无法加载模型")))
+    const languageModel = yield* provider
+      .getLanguage(model)
+      .pipe(Effect.mapError(modelError("无法加载语言模型")))
+
+    const llm = async (prompt: string) => {
+      const { text } = await generateText({ model: languageModel, prompt })
+      return text
+    }
+
+    try {
+      const result = yield* Effect.promise(() =>
+        relevelTechniques(args.dir ?? null, llm, {
+          batchSize: (args as { batchSize?: number }).batchSize ?? 10,
+          library: (args as { library?: "all" | "book" | "global" }).library ?? "all",
+        }),
+      )
+      console.log(`重分类完成：共 ${result.total} 条，变更 ${result.changed} 条，保留 ${result.kept} 条，失败 ${result.failed} 条`)
+      console.log(`分布变化：${JSON.stringify(result.before)} -> ${JSON.stringify(result.after)}`)
     } catch (error) {
       yield* fail(error instanceof Error ? error.message : String(error))
     }

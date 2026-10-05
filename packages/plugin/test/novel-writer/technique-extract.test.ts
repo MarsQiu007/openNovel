@@ -1,9 +1,13 @@
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect } from "bun:test"
 import {
   segmentText,
   highlightTechniques,
   distillTechniques,
   filterTechniques,
+  extractJsonValue,
 } from "../../src/novel-writer/technique-extract.js"
 
 describe("segmentText", () => {
@@ -40,22 +44,42 @@ describe("highlightTechniques", () => {
         highlights: [{ reason: "对话中通过停顿制造张力", sceneType: "dialogue", level: "paragraph" }],
       })
     const segments = [{ title: "测试", text: "这是一段测试文本。", startOffset: 0, endOffset: 10 }]
-    const highlights = await highlightTechniques(segments, mockLLM)
-    expect(highlights.length).toBe(1)
-    expect(highlights[0].sceneType).toBe("dialogue")
+    const result = await highlightTechniques(segments, mockLLM)
+    expect(result.items.length).toBe(1)
+    expect(result.items[0].sceneType).toBe("dialogue")
+    expect(result.parseFailures).toBe(0)
   })
 
   test("empty input returns empty", async () => {
-    const highlights = await highlightTechniques([], async () => "[]")
-    expect(highlights.length).toBe(0)
+    const result = await highlightTechniques([], async () => "[]")
+    expect(result.items.length).toBe(0)
+    expect(result.parseFailures).toBe(0)
   })
 
-  test("invalid JSON returns empty", async () => {
-    const highlights = await highlightTechniques(
+  test("invalid JSON returns empty and counts failure", async () => {
+    const result = await highlightTechniques(
       [{ title: "t", text: "text", startOffset: 0, endOffset: 4 }],
       async () => "not json",
     )
-    expect(highlights.length).toBe(0)
+    expect(result.items.length).toBe(0)
+    expect(result.parseFailures).toBe(1)
+  })
+
+  test("fenced JSON is parsed", async () => {
+    const mockLLM = async () =>
+      "```json\n" + JSON.stringify({ highlights: [{ reason: "停顿制造张力", sceneType: "dialogue", level: "paragraph" }] }) + "\n```"
+    const result = await highlightTechniques([{ title: "t", text: "text", startOffset: 0, endOffset: 4 }], mockLLM)
+    expect(result.items.length).toBe(1)
+    expect(result.parseFailures).toBe(0)
+  })
+
+  test("JSON wrapped in prose is parsed", async () => {
+    const mockLLM = async () =>
+      '分析完成，结果如下：\n{"highlights": [{"reason": "环境外化情绪", "sceneType": "description", "level": "paragraph"}]}\n以上。'
+    const result = await highlightTechniques([{ title: "t", text: "text", startOffset: 0, endOffset: 4 }], mockLLM)
+    expect(result.items.length).toBe(1)
+    expect(result.items[0].sceneType).toBe("description")
+    expect(result.parseFailures).toBe(0)
   })
 })
 
@@ -85,14 +109,68 @@ describe("distillTechniques", () => {
         level: "paragraph",
       },
     ]
-    const techniques = await distillTechniques(highlights, mockLLM)
-    expect(techniques.length).toBe(1)
-    expect(techniques[0].name).toBe("对话停顿制造张力")
+    const result = await distillTechniques(highlights, mockLLM)
+    expect(result.items.length).toBe(1)
+    expect(result.items[0].name).toBe("对话停顿制造张力")
+    expect(result.parseFailures).toBe(0)
   })
 
   test("empty highlights returns empty", async () => {
-    const techniques = await distillTechniques([], async () => "[]")
-    expect(techniques.length).toBe(0)
+    const result = await distillTechniques([], async () => "[]")
+    expect(result.items.length).toBe(0)
+    expect(result.parseFailures).toBe(0)
+  })
+
+  test("fenced distill output is parsed", async () => {
+    const mockLLM = async () =>
+      "```json\n" + JSON.stringify({ techniques: [{ name: "技法甲", instruction: "写对话时插入角色微小动作" }] }) + "\n```"
+    const highlights = [
+      {
+        segment: { title: "测试", text: "他停下了筷子。", startOffset: 0, endOffset: 7 },
+        reason: "停顿制造张力",
+        sceneType: "dialogue",
+        level: "paragraph",
+      },
+    ]
+    const result = await distillTechniques(highlights, mockLLM)
+    expect(result.items.length).toBe(1)
+    expect(result.items[0].name).toBe("技法甲")
+  })
+
+  test("broken distill output counts parse failure", async () => {
+    const highlights = [
+      {
+        segment: { title: "测试", text: "他停下了筷子。", startOffset: 0, endOffset: 7 },
+        reason: "停顿制造张力",
+        sceneType: "dialogue",
+        level: "paragraph",
+      },
+    ]
+    const result = await distillTechniques(highlights, async () => "not json at all")
+    expect(result.items.length).toBe(0)
+    expect(result.parseFailures).toBe(1)
+  })
+})
+
+describe("extractJsonValue", () => {
+  test("strips code fence", () => {
+    const value = extractJsonValue('```json\n{"a": 1}\n```')
+    expect(value).toEqual({ a: 1 })
+  })
+
+  test("extracts object from surrounding prose", () => {
+    const value = extractJsonValue('前言 {"a": {"b": 2}} 后记')
+    expect(value).toEqual({ a: { b: 2 } })
+  })
+
+  test("handles escaped quotes inside strings", () => {
+    const value = extractJsonValue('{"a": "他说\\"好\\""}')
+    expect(value).toEqual({ a: '他说"好"' })
+  })
+
+  test("returns null for garbage", () => {
+    expect(extractJsonValue("not json")).toBeNull()
+    expect(extractJsonValue("")).toBeNull()
   })
 })
 

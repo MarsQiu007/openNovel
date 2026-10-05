@@ -293,6 +293,7 @@ import type {
   SyncStartResponses,
   SyncStealErrors,
   SyncStealResponses,
+  TechniqueLibrary,
   TextPartInput,
   ToolIdsErrors,
   ToolIdsResponses,
@@ -5361,10 +5362,21 @@ export class Location extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2LocationGetResponses, V2LocationGetErrors, ThrowOnError>({
       url: "/api/location",
       ...options,
@@ -5385,10 +5397,21 @@ export class Agent extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2AgentListResponses, V2AgentListErrors, ThrowOnError>({
       url: "/api/agent",
       ...options,
@@ -6199,10 +6222,21 @@ export class Model extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2ModelListResponses, V2ModelListErrors, ThrowOnError>({
       url: "/api/model",
       ...options,
@@ -6223,10 +6257,21 @@ export class Provider2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2ProviderListResponses, V2ProviderListErrors, ThrowOnError>({
       url: "/api/provider",
       ...options,
@@ -6246,6 +6291,7 @@ export class Provider2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6256,6 +6302,7 @@ export class Provider2 extends HeyApiClient {
           args: [
             { in: "path", key: "providerID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6281,6 +6328,7 @@ export class Connect extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       key: string
       label?: string
     },
@@ -6293,6 +6341,7 @@ export class Connect extends HeyApiClient {
           args: [
             { in: "path", key: "integrationID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "key" },
             { in: "body", key: "label" },
           ],
@@ -6327,6 +6376,7 @@ export class Connect extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       methodID: string
       inputs: {
         [key: string]: string
@@ -6342,6 +6392,7 @@ export class Connect extends HeyApiClient {
           args: [
             { in: "path", key: "integrationID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "methodID" },
             { in: "body", key: "inputs" },
             { in: "body", key: "label" },
@@ -6379,6 +6430,7 @@ export class Attempt extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6389,6 +6441,7 @@ export class Attempt extends HeyApiClient {
           args: [
             { in: "path", key: "attemptID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6416,6 +6469,7 @@ export class Attempt extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6426,6 +6480,7 @@ export class Attempt extends HeyApiClient {
           args: [
             { in: "path", key: "attemptID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6453,6 +6508,7 @@ export class Attempt extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       code?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -6464,6 +6520,7 @@ export class Attempt extends HeyApiClient {
           args: [
             { in: "path", key: "attemptID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "code" },
           ],
         },
@@ -6498,10 +6555,21 @@ export class Integration extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2IntegrationListResponses, V2IntegrationListErrors, ThrowOnError>({
       url: "/api/integration",
       ...options,
@@ -6521,6 +6589,7 @@ export class Integration extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6531,6 +6600,7 @@ export class Integration extends HeyApiClient {
           args: [
             { in: "path", key: "integrationID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6566,6 +6636,7 @@ export class Credential extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6576,6 +6647,7 @@ export class Credential extends HeyApiClient {
           args: [
             { in: "path", key: "credentialID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6601,6 +6673,7 @@ export class Credential extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       label: string
     },
     options?: Options<never, ThrowOnError>,
@@ -6612,6 +6685,7 @@ export class Credential extends HeyApiClient {
           args: [
             { in: "path", key: "credentialID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "label" },
           ],
         },
@@ -6642,10 +6716,21 @@ export class Request_ extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<
       V2PermissionRequestListResponses,
       V2PermissionRequestListErrors,
@@ -6730,10 +6815,21 @@ export class Fs extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2FsReadResponses, V2FsReadErrors, ThrowOnError>({
       url: "/api/fs/read/*",
       ...options,
@@ -6752,6 +6848,7 @@ export class Fs extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       path?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -6762,6 +6859,7 @@ export class Fs extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "query", key: "path" },
           ],
         },
@@ -6785,6 +6883,7 @@ export class Fs extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       query: string
       type?: "file" | "directory"
       limit?: string
@@ -6797,6 +6896,7 @@ export class Fs extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "query", key: "query" },
             { in: "query", key: "type" },
             { in: "query", key: "limit" },
@@ -6824,10 +6924,21 @@ export class Command2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2CommandListResponses, V2CommandListErrors, ThrowOnError>({
       url: "/api/command",
       ...options,
@@ -6848,10 +6959,21 @@ export class Skill extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2SkillListResponses, V2SkillListErrors, ThrowOnError>({
       url: "/api/skill",
       ...options,
@@ -6888,10 +7010,21 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2PtyListResponses, V2PtyListErrors, ThrowOnError>({
       url: "/api/pty",
       ...options,
@@ -6910,6 +7043,7 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       command?: string
       args?: Array<string>
       cwd?: string
@@ -6926,6 +7060,7 @@ export class Pty2 extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "command" },
             { in: "body", key: "args" },
             { in: "body", key: "cwd" },
@@ -6959,6 +7094,7 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -6969,6 +7105,7 @@ export class Pty2 extends HeyApiClient {
           args: [
             { in: "path", key: "ptyID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -6992,6 +7129,7 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7002,6 +7140,7 @@ export class Pty2 extends HeyApiClient {
           args: [
             { in: "path", key: "ptyID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7025,6 +7164,7 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       title?: string
       size?: {
         rows: number
@@ -7040,6 +7180,7 @@ export class Pty2 extends HeyApiClient {
           args: [
             { in: "path", key: "ptyID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "title" },
             { in: "body", key: "size" },
           ],
@@ -7070,6 +7211,7 @@ export class Pty2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7080,6 +7222,7 @@ export class Pty2 extends HeyApiClient {
           args: [
             { in: "path", key: "ptyID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7140,10 +7283,21 @@ export class Request2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<
       V2QuestionRequestListResponses,
       V2QuestionRequestListErrors,
@@ -7175,10 +7329,21 @@ export class Reference extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2ReferenceListResponses, V2ReferenceListErrors, ThrowOnError>({
       url: "/api/reference",
       ...options,
@@ -7195,6 +7360,7 @@ export class ProjectCopy2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       directory: string
       force: boolean
     },
@@ -7207,6 +7373,7 @@ export class ProjectCopy2 extends HeyApiClient {
           args: [
             { in: "path", key: "projectID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "directory" },
             { in: "body", key: "force" },
           ],
@@ -7236,6 +7403,7 @@ export class ProjectCopy2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       strategy: string
       directory: string
       name?: string
@@ -7249,6 +7417,7 @@ export class ProjectCopy2 extends HeyApiClient {
           args: [
             { in: "path", key: "projectID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "body", key: "strategy" },
             { in: "body", key: "directory" },
             { in: "body", key: "name" },
@@ -7277,6 +7446,7 @@ export class ProjectCopy2 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7287,6 +7457,7 @@ export class ProjectCopy2 extends HeyApiClient {
           args: [
             { in: "path", key: "projectID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7316,6 +7487,7 @@ export class SettingsOrganization extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelSettingOrganizationAnalyzeInput: NovelSettingOrganizationAnalyzeInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7327,6 +7499,7 @@ export class SettingsOrganization extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelSettingOrganizationAnalyzeInput", map: "body" },
           ],
         },
@@ -7360,6 +7533,7 @@ export class SettingsOrganization extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelSettingOrganizationDryRunInput: NovelSettingOrganizationDryRunInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7371,6 +7545,7 @@ export class SettingsOrganization extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelSettingOrganizationDryRunInput", map: "body" },
           ],
         },
@@ -7404,6 +7579,7 @@ export class SettingsOrganization extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelSettingOrganizationApplyInput: NovelSettingOrganizationApplyInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7415,6 +7591,7 @@ export class SettingsOrganization extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelSettingOrganizationApplyInput", map: "body" },
           ],
         },
@@ -7449,10 +7626,21 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2NovelListResponses, V2NovelListErrors, ThrowOnError>({
       url: "/api/novel",
       ...options,
@@ -7471,6 +7659,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateNovelInput: NovelCreateNovelInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7481,6 +7670,7 @@ export class Novel extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateNovelInput", map: "body" },
           ],
         },
@@ -7510,6 +7700,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7520,6 +7711,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "sessionID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7542,10 +7734,21 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<
       V2NovelSessionBindingsResponses,
       V2NovelSessionBindingsErrors,
@@ -7567,6 +7770,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7577,6 +7781,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7600,6 +7805,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7610,6 +7816,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7631,6 +7838,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateNovelInput: NovelUpdateNovelInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7642,6 +7850,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateNovelInput", map: "body" },
           ],
         },
@@ -7671,6 +7880,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7681,6 +7891,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7702,6 +7913,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateVolumeInput: NovelCreateVolumeInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7713,6 +7925,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateVolumeInput", map: "body" },
           ],
         },
@@ -7744,6 +7957,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7754,6 +7968,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7775,6 +7990,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateChapterInput: NovelCreateChapterInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7786,6 +8002,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateChapterInput", map: "body" },
           ],
         },
@@ -7818,6 +8035,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7829,6 +8047,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7857,6 +8076,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7868,6 +8088,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7890,6 +8111,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateChapterInput: NovelUpdateChapterInput
     },
     options?: Options<never, ThrowOnError>,
@@ -7902,6 +8124,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateChapterInput", map: "body" },
           ],
         },
@@ -7936,6 +8159,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7947,6 +8171,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -7975,6 +8200,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -7986,6 +8212,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8014,6 +8241,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8025,6 +8253,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8049,6 +8278,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateChapterContentInput: NovelUpdateChapterContentInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8061,6 +8291,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateChapterContentInput", map: "body" },
           ],
         },
@@ -8095,6 +8326,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelApprovalInput: NovelApprovalInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8107,6 +8339,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelApprovalInput", map: "body" },
           ],
         },
@@ -8136,6 +8369,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8146,6 +8380,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8167,6 +8402,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateCharacterInput: NovelCreateCharacterInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8178,6 +8414,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateCharacterInput", map: "body" },
           ],
         },
@@ -8211,6 +8448,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8221,6 +8459,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8242,6 +8481,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreatePlotThreadInput: NovelCreatePlotThreadInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8253,6 +8493,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreatePlotThreadInput", map: "body" },
           ],
         },
@@ -8286,6 +8527,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8296,6 +8538,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8321,6 +8564,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateForeshadowingInput: NovelCreateForeshadowingInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8332,6 +8576,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateForeshadowingInput", map: "body" },
           ],
         },
@@ -8365,6 +8610,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8375,6 +8621,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8396,6 +8643,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateWorldEntryInput: NovelCreateWorldEntryInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8407,6 +8655,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateWorldEntryInput", map: "body" },
           ],
         },
@@ -8440,6 +8689,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8450,6 +8700,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8473,6 +8724,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelOutlineUpdateInput: NovelOutlineUpdateInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8484,6 +8736,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelOutlineUpdateInput", map: "body" },
           ],
         },
@@ -8551,6 +8804,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8562,6 +8816,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "volumeID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8588,6 +8843,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateVolumeInput: NovelUpdateVolumeInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8600,6 +8856,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "volumeID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateVolumeInput", map: "body" },
           ],
         },
@@ -8628,6 +8885,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelRestoreVersionInput: NovelRestoreVersionInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8640,6 +8898,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelRestoreVersionInput", map: "body" },
           ],
         },
@@ -8672,6 +8931,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelMoveChapterInput: NovelMoveChapterInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8684,6 +8944,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "chapterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelMoveChapterInput", map: "body" },
           ],
         },
@@ -8711,6 +8972,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8721,6 +8983,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8746,6 +9009,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateRelationshipInput: NovelCreateRelationshipInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8757,6 +9021,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateRelationshipInput", map: "body" },
           ],
         },
@@ -8789,6 +9054,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8800,6 +9066,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "relationshipID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8826,6 +9093,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateRelationshipInput: NovelUpdateRelationshipInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8838,6 +9106,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "relationshipID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateRelationshipInput", map: "body" },
           ],
         },
@@ -8870,6 +9139,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8881,6 +9151,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "characterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8907,6 +9178,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateCharacterStateInput: NovelCreateCharacterStateInput
     },
     options?: Options<never, ThrowOnError>,
@@ -8919,6 +9191,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "characterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateCharacterStateInput", map: "body" },
           ],
         },
@@ -8950,6 +9223,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8960,6 +9234,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -8986,6 +9261,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -8997,6 +9273,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "stateID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9023,6 +9300,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateCharacterStateInput: NovelUpdateCharacterStateInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9035,6 +9313,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "stateID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateCharacterStateInput", map: "body" },
           ],
         },
@@ -9066,6 +9345,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9076,6 +9356,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9097,6 +9378,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateStyleGuideInput: NovelUpdateStyleGuideInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9108,6 +9390,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateStyleGuideInput", map: "body" },
           ],
         },
@@ -9139,6 +9422,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9149,6 +9433,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9170,6 +9455,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateSoulInput: NovelUpdateSoulInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9181,6 +9467,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateSoulInput", map: "body" },
           ],
         },
@@ -9243,6 +9530,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9253,6 +9541,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9274,6 +9563,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateTensionPointInput: NovelCreateTensionPointInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9285,6 +9575,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateTensionPointInput", map: "body" },
           ],
         },
@@ -9318,6 +9609,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9328,6 +9620,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9351,6 +9644,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelBindSessionInput: NovelBindSessionInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9362,6 +9656,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelBindSessionInput", map: "body" },
           ],
         },
@@ -9390,6 +9685,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9401,6 +9697,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "characterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9427,6 +9724,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateCharacterInput: NovelUpdateCharacterInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9439,6 +9737,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "characterID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateCharacterInput", map: "body" },
           ],
         },
@@ -9471,6 +9770,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9482,6 +9782,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "pointID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9508,6 +9809,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateTensionPointInput: NovelUpdateTensionPointInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9520,6 +9822,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "pointID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateTensionPointInput", map: "body" },
           ],
         },
@@ -9552,6 +9855,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9563,6 +9867,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "threadID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9589,6 +9894,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdatePlotThreadInput: NovelUpdatePlotThreadInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9601,6 +9907,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "threadID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdatePlotThreadInput", map: "body" },
           ],
         },
@@ -9633,6 +9940,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9644,6 +9952,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "entryID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9670,6 +9979,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateForeshadowingInput: NovelUpdateForeshadowingInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9682,6 +9992,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "entryID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateForeshadowingInput", map: "body" },
           ],
         },
@@ -9714,6 +10025,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9725,6 +10037,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "entryID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9751,6 +10064,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateWorldEntryInput: NovelUpdateWorldEntryInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9763,6 +10077,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "entryID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateWorldEntryInput", map: "body" },
           ],
         },
@@ -9794,6 +10109,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9804,6 +10120,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9825,6 +10142,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9835,6 +10153,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9856,6 +10175,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateStoryArcInput: NovelCreateStoryArcInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9867,6 +10187,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateStoryArcInput", map: "body" },
           ],
         },
@@ -9895,6 +10216,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9906,6 +10228,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "arcID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -9928,6 +10251,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateStoryArcInput: NovelUpdateStoryArcInput
     },
     options?: Options<never, ThrowOnError>,
@@ -9940,6 +10264,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "arcID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateStoryArcInput", map: "body" },
           ],
         },
@@ -9968,6 +10293,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -9979,6 +10305,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "arcID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10000,6 +10327,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateArcBeatInput: NovelCreateArcBeatInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10011,6 +10339,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateArcBeatInput", map: "body" },
           ],
         },
@@ -10039,6 +10368,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10050,6 +10380,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "beatID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10072,6 +10403,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateArcBeatInput: NovelUpdateArcBeatInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10084,6 +10416,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "beatID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateArcBeatInput", map: "body" },
           ],
         },
@@ -10112,6 +10445,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10123,6 +10457,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "volumeID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10149,6 +10484,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateVolumeReviewInput: NovelCreateVolumeReviewInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10161,6 +10497,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "volumeID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateVolumeReviewInput", map: "body" },
           ],
         },
@@ -10192,6 +10529,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10202,6 +10540,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10227,6 +10566,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateEditorialReportInput: NovelCreateEditorialReportInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10238,6 +10578,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateEditorialReportInput", map: "body" },
           ],
         },
@@ -10269,6 +10610,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       targetType: "chapter" | "world_entry"
       targetId: string
     },
@@ -10281,6 +10623,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "query", key: "targetType" },
             { in: "query", key: "targetId" },
           ],
@@ -10304,6 +10647,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateAnnotationInput: NovelCreateAnnotationInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10315,6 +10659,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateAnnotationInput", map: "body" },
           ],
         },
@@ -10347,6 +10692,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10358,6 +10704,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "annotationID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10384,6 +10731,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateAnnotationInput: NovelUpdateAnnotationInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10396,6 +10744,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "annotationID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateAnnotationInput", map: "body" },
           ],
         },
@@ -10427,6 +10776,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       targetType: "chapter" | "world_entry"
       targetId: string
     },
@@ -10439,6 +10789,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { in: "query", key: "targetType" },
             { in: "query", key: "targetId" },
           ],
@@ -10466,6 +10817,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateAnnotationRoundInput: NovelCreateAnnotationRoundInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10477,6 +10829,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateAnnotationRoundInput", map: "body" },
           ],
         },
@@ -10509,6 +10862,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateAnnotationRoundInput: NovelUpdateAnnotationRoundInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10521,6 +10875,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "roundID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateAnnotationRoundInput", map: "body" },
           ],
         },
@@ -10552,6 +10907,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10562,6 +10918,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10583,6 +10940,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpsertCanvasLayoutInput: NovelUpsertCanvasLayoutInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10594,6 +10952,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpsertCanvasLayoutInput", map: "body" },
           ],
         },
@@ -10625,6 +10984,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateWorldMapInput: NovelCreateWorldMapInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10636,6 +10996,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateWorldMapInput", map: "body" },
           ],
         },
@@ -10667,6 +11028,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10677,6 +11039,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10702,6 +11065,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10712,6 +11076,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10738,6 +11103,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10749,6 +11115,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "mapID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10775,6 +11142,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateWorldMapInput: NovelUpdateWorldMapInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10787,6 +11155,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "mapID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateWorldMapInput", map: "body" },
           ],
         },
@@ -10819,6 +11188,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10830,6 +11200,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "mapID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10856,6 +11227,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateWorldMapFeatureInput: NovelCreateWorldMapFeatureInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10868,6 +11240,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "mapID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateWorldMapFeatureInput", map: "body" },
           ],
         },
@@ -10901,6 +11274,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -10913,6 +11287,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "mapID" },
             { in: "path", key: "featureID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -10940,6 +11315,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateWorldMapFeatureInput: NovelUpdateWorldMapFeatureInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10953,6 +11329,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "mapID" },
             { in: "path", key: "featureID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateWorldMapFeatureInput", map: "body" },
           ],
         },
@@ -10985,6 +11362,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateCharacterMapPinInput: NovelCreateCharacterMapPinInput
     },
     options?: Options<never, ThrowOnError>,
@@ -10997,6 +11375,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "novelID" },
             { in: "path", key: "mapID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateCharacterMapPinInput", map: "body" },
           ],
         },
@@ -11030,6 +11409,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11042,6 +11422,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "mapID" },
             { in: "path", key: "pinID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11069,6 +11450,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateCharacterMapPinInput: NovelUpdateCharacterMapPinInput
     },
     options?: Options<never, ThrowOnError>,
@@ -11082,6 +11464,7 @@ export class Novel extends HeyApiClient {
             { in: "path", key: "mapID" },
             { in: "path", key: "pinID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateCharacterMapPinInput", map: "body" },
           ],
         },
@@ -11113,6 +11496,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelSaveBookMetaInput: NovelSaveBookMetaInput
     },
     options?: Options<never, ThrowOnError>,
@@ -11124,6 +11508,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelSaveBookMetaInput", map: "body" },
           ],
         },
@@ -11151,6 +11536,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11161,6 +11547,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11182,6 +11569,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelManualEditSyncRetryInput: NovelManualEditSyncRetryInput
     },
     options?: Options<never, ThrowOnError>,
@@ -11193,6 +11581,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelManualEditSyncRetryInput", map: "body" },
           ],
         },
@@ -11220,6 +11609,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11230,6 +11620,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11255,6 +11646,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11265,6 +11657,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11288,6 +11681,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11298,6 +11692,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11323,6 +11718,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11333,6 +11729,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11356,6 +11753,7 @@ export class Novel extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11366,6 +11764,7 @@ export class Novel extends HeyApiClient {
           args: [
             { in: "path", key: "novelID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11399,10 +11798,21 @@ export class NovelMode extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2NovelModeGetResponses, V2NovelModeGetErrors, ThrowOnError>({
       url: "/api/novel/mode",
       ...options,
@@ -11421,6 +11831,7 @@ export class NovelMode extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelNovelModePatch: NovelNovelModePatch
     },
     options?: Options<never, ThrowOnError>,
@@ -11431,6 +11842,7 @@ export class NovelMode extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelNovelModePatch", map: "body" },
           ],
         },
@@ -11461,10 +11873,21 @@ export class Config3 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<
       V2TechniqueConfigGetResponses,
       V2TechniqueConfigGetErrors,
@@ -11487,6 +11910,7 @@ export class Config3 extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelTechniqueInjection: NovelTechniqueInjection
     },
     options?: Options<never, ThrowOnError>,
@@ -11497,6 +11921,7 @@ export class Config3 extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelTechniqueInjection", map: "body" },
           ],
         },
@@ -11531,10 +11956,21 @@ export class Technique extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
     return (options?.client ?? this.client).get<V2TechniqueListResponses, V2TechniqueListErrors, ThrowOnError>({
       url: "/api/techniques",
       ...options,
@@ -11553,6 +11989,7 @@ export class Technique extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelCreateTechniqueInput: NovelCreateTechniqueInput
     },
     options?: Options<never, ThrowOnError>,
@@ -11563,6 +12000,7 @@ export class Technique extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelCreateTechniqueInput", map: "body" },
           ],
         },
@@ -11592,6 +12030,7 @@ export class Technique extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11602,6 +12041,7 @@ export class Technique extends HeyApiClient {
           args: [
             { in: "path", key: "techniqueID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11625,6 +12065,7 @@ export class Technique extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -11635,6 +12076,7 @@ export class Technique extends HeyApiClient {
           args: [
             { in: "path", key: "techniqueID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
           ],
         },
       ],
@@ -11658,6 +12100,7 @@ export class Technique extends HeyApiClient {
         directory?: string
         workspace?: string
       }
+      library?: TechniqueLibrary
       novelUpdateTechniqueInput: NovelUpdateTechniqueInput
     },
     options?: Options<never, ThrowOnError>,
@@ -11669,6 +12112,7 @@ export class Technique extends HeyApiClient {
           args: [
             { in: "path", key: "techniqueID" },
             { in: "query", key: "location" },
+            { in: "query", key: "library" },
             { key: "novelUpdateTechniqueInput", map: "body" },
           ],
         },

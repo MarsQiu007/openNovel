@@ -82,6 +82,14 @@ jobs:
         working-directory: packages/opennovel
         run: bun run test:httpapi
 
+      - name: Run technique agent e2e gates
+        # technique-agent-e2e：默认套件 env 门跳过（Windows unit 步 20min 上限内无时长余量），
+        # 由本步在 Linux 常驻运行，等价 httpapi exerciser 的 gating 先例。
+        if: runner.os == 'Linux'
+        timeout-minutes: 30
+        working-directory: packages/opennovel
+        run: bun run test:technique-e2e
+
   e2e:
     name: e2e (${{ matrix.settings.name }})
     strategy:

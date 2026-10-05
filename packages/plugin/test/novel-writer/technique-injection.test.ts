@@ -4,6 +4,9 @@
  * 覆盖：读取助手四种输入（true / false / 缺失 / 字符串 "false"）、
  * update_project_config 写入与校验、check_project_config 展示。
  */
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs"

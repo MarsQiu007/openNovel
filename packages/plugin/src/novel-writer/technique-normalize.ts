@@ -1,4 +1,5 @@
 import type { TechniqueEntry, TechniqueStatus } from "./technique.js"
+import { isTechniqueLevel, toCanonicalSceneTypes } from "./technique.js"
 
 export interface NormalizeOptions {
   seed?: boolean
@@ -14,12 +15,13 @@ export function normalizeTechnique(
     name: partial.name ?? "未命名技法",
     principle: partial.principle ?? "",
     instruction: partial.instruction ?? "",
-    sceneTypes: partial.sceneTypes ?? ["general"],
-    level: partial.level ?? "paragraph",
+    sceneTypes: toCanonicalSceneTypes(partial.sceneTypes),
+    level: partial.level !== undefined && isTechniqueLevel(partial.level) ? partial.level : "paragraph",
     evidence: partial.evidence ?? [],
     commonMisuse: partial.commonMisuse ?? "",
     confidence: partial.confidence ?? (options?.seed ? 0.8 : 0.5),
     status: (partial.status ?? (options?.seed ? "verified" : "unverified")) as TechniqueStatus,
+    scope: partial.scope === "adult" ? "adult" : "general",
     embedding: partial.embedding ?? null,
     usageCount: partial.usageCount ?? 0,
     lastUsedAt: partial.lastUsedAt ?? null,

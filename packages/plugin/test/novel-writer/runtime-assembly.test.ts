@@ -12,6 +12,10 @@
  * 避免污染同进程其他测试或掩盖 directory 推导路径。
  */
 
+import { installFreshGlobalDb } from "./technique-test-env.js"
+
+installFreshGlobalDb()
+
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, existsSync, readdirSync } from "fs"

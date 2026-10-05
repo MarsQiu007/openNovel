@@ -506,7 +506,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/location`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -520,7 +520,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/agent`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -760,7 +760,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/model`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [503, 401, 400],
             empty: false,
@@ -774,7 +774,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/provider`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [503, 401, 400],
             empty: false,
@@ -786,7 +786,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/provider/${encodeURIComponent(input.providerID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
             empty: false,
@@ -800,7 +800,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/integration`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -812,7 +812,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/integration/${encodeURIComponent(input.integrationID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -824,7 +824,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/integration/${encodeURIComponent(input.integrationID)}/connect/key`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { key: input["key"], label: input["label"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
@@ -837,7 +837,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/integration/${encodeURIComponent(input.integrationID)}/connect/oauth`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { methodID: input["methodID"], inputs: input["inputs"], label: input["label"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -850,7 +850,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/integration/attempt/${encodeURIComponent(input.attemptID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -862,7 +862,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/integration/attempt/${encodeURIComponent(input.attemptID)}/complete`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { code: input["code"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
@@ -875,7 +875,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/integration/attempt/${encodeURIComponent(input.attemptID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 204,
             declaredStatuses: [401, 400],
             empty: true,
@@ -889,7 +889,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/credential/${encodeURIComponent(input.credentialID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { label: input["label"] },
             successStatus: 204,
             declaredStatuses: [401, 400],
@@ -902,7 +902,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/credential/${encodeURIComponent(input.credentialID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 204,
             declaredStatuses: [401, 400],
             empty: true,
@@ -916,7 +916,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/permission/request`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1007,7 +1007,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/fs/list`,
-            query: { location: input?.["location"], path: input?.["path"] },
+            query: { location: input?.["location"], library: input?.["library"], path: input?.["path"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1019,7 +1019,13 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/fs/find`,
-            query: { location: input["location"], query: input["query"], type: input["type"], limit: input["limit"] },
+            query: {
+              location: input["location"],
+              library: input["library"],
+              query: input["query"],
+              type: input["type"],
+              limit: input["limit"],
+            },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1033,7 +1039,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/command`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1047,7 +1053,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/skill`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1068,7 +1074,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/pty`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1080,7 +1086,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/pty`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             body: {
               command: input?.["command"],
               args: input?.["args"],
@@ -1099,7 +1105,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/pty/${encodeURIComponent(input.ptyID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1111,7 +1117,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/pty/${encodeURIComponent(input.ptyID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], size: input["size"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1124,7 +1130,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/pty/${encodeURIComponent(input.ptyID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 204,
             declaredStatuses: [404, 401, 400],
             empty: true,
@@ -1138,7 +1144,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/question/request`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1186,7 +1192,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/reference`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
@@ -1200,7 +1206,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/experimental/project/${encodeURIComponent(input.projectID)}/copy`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { strategy: input["strategy"], directory: input["directory"], name: input["name"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -1213,7 +1219,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/experimental/project/${encodeURIComponent(input.projectID)}/copy`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { directory: input["directory"], force: input["force"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
@@ -1226,7 +1232,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/experimental/project/${encodeURIComponent(input.projectID)}/copy/refresh`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,
@@ -1240,7 +1246,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -1252,7 +1258,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], genre: input["genre"], synopsis: input["synopsis"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -1265,7 +1271,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/for-session/${encodeURIComponent(input.sessionID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1277,7 +1283,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/session-bindings`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -1289,7 +1295,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1301,7 +1307,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1313,7 +1319,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1325,7 +1331,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1337,7 +1343,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/versions`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1349,7 +1355,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/reviews`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1361,7 +1367,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/rollback`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1373,7 +1379,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/content`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { content: input["content"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1386,7 +1392,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/approval`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { action: input["action"], comment: input["comment"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1399,7 +1405,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1411,7 +1417,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/plot-threads`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1423,7 +1429,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/foreshadowing`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1435,7 +1441,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1447,7 +1453,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/outline`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1459,7 +1465,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/outline`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { section: input["section"], id: input["id"], markdown: input["markdown"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1484,7 +1490,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1496,7 +1502,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], summary: input["summary"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1509,7 +1515,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes/${encodeURIComponent(input.volumeID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], summary: input["summary"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1522,7 +1528,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes/${encodeURIComponent(input.volumeID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1534,7 +1540,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/restore`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { version: input["version"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1547,7 +1553,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}/move`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { action: input["action"], volumeId: input["volumeId"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1560,7 +1566,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters/${encodeURIComponent(input.chapterID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], status: input["status"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1573,7 +1579,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/relationships`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1585,7 +1591,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/relationships`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               charAId: input["charAId"],
               charBId: input["charBId"],
@@ -1603,7 +1609,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/relationships/${encodeURIComponent(input.relationshipID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { type: input["type"], description: input["description"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1616,7 +1622,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/relationships/${encodeURIComponent(input.relationshipID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1628,7 +1634,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters/${encodeURIComponent(input.characterID)}/states`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1640,7 +1646,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/character-states`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1652,7 +1658,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters/${encodeURIComponent(input.characterID)}/states`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               chapterId: input["chapterId"],
               place: input["place"],
@@ -1670,7 +1676,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/character-states/${encodeURIComponent(input.stateID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { active: input["active"], place: input["place"], mood: input["mood"], summary: input["summary"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1683,7 +1689,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/character-states/${encodeURIComponent(input.stateID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1695,7 +1701,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/style-guide`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1707,7 +1713,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/style-guide`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { tone: input["tone"], pov: input["pov"], tense: input["tense"], rules: input["rules"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1720,7 +1726,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/soul`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1732,7 +1738,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/soul`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { content: input["content"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1757,7 +1763,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/tension`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1769,7 +1775,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/ai-artifacts`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1781,7 +1787,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/bind`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { sessionID: input["sessionID"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1794,7 +1800,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/chapters`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], volumeId: input["volumeId"], order: input["order"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1807,7 +1813,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], synopsis: input["synopsis"], genre: input["genre"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1820,7 +1826,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1832,7 +1838,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { name: input["name"], role: input["role"], description: input["description"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1845,7 +1851,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters/${encodeURIComponent(input.characterID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               name: input["name"],
               role: input["role"],
@@ -1863,7 +1869,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/characters/${encodeURIComponent(input.characterID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1875,7 +1881,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/tension`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { chapterNumber: input["chapterNumber"], level: input["level"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1888,7 +1894,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/tension/${encodeURIComponent(input.pointID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { level: input["level"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1901,7 +1907,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/tension/${encodeURIComponent(input.pointID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1913,7 +1919,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/plot-threads`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], priority: input["priority"], description: input["description"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1926,7 +1932,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/plot-threads/${encodeURIComponent(input.threadID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               title: input["title"],
               status: input["status"],
@@ -1944,7 +1950,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/plot-threads/${encodeURIComponent(input.threadID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1956,7 +1962,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/foreshadowing`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { content: input["content"], plantedChapterId: input["plantedChapterId"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1969,7 +1975,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/foreshadowing/${encodeURIComponent(input.entryID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { content: input["content"], state: input["state"], resolvedChapterId: input["resolvedChapterId"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -1982,7 +1988,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/foreshadowing/${encodeURIComponent(input.entryID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -1994,7 +2000,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { category: input["category"], title: input["title"], content: input["content"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -2007,7 +2013,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { category: input["category"], title: input["title"], content: input["content"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -2020,7 +2026,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/world-entries/${encodeURIComponent(input.entryID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2032,7 +2038,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/structure`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2044,7 +2050,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/arcs`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2056,7 +2062,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/arcs`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               arcType: input["arcType"],
               title: input["title"],
@@ -2077,7 +2083,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/arcs/${encodeURIComponent(input.arcID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               title: input["title"],
               summary: input["summary"],
@@ -2100,7 +2106,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/arcs/${encodeURIComponent(input.arcID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2112,7 +2118,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/arcs/${encodeURIComponent(input.arcID)}/beats`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2124,7 +2130,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/beats`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               arcId: input["arcId"],
               chapterId: input["chapterId"],
@@ -2144,7 +2150,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/beats/${encodeURIComponent(input.beatID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               label: input["label"],
               kind: input["kind"],
@@ -2164,7 +2170,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/beats/${encodeURIComponent(input.beatID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2176,7 +2182,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes/${encodeURIComponent(input.volumeID)}/reviews`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2188,7 +2194,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/volumes/${encodeURIComponent(input.volumeID)}/reviews`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               overall: input["overall"],
               score: input["score"],
@@ -2210,7 +2216,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/editorial-reports`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2222,7 +2228,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/editorial-reports`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               scopeType: input["scopeType"],
               scopeId: input["scopeId"],
@@ -2241,7 +2247,12 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations`,
-            query: { location: input["location"], targetType: input["targetType"], targetId: input["targetId"] },
+            query: {
+              location: input["location"],
+              library: input["library"],
+              targetType: input["targetType"],
+              targetId: input["targetId"],
+            },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2253,7 +2264,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               targetType: input["targetType"],
               targetId: input["targetId"],
@@ -2281,7 +2292,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations/${encodeURIComponent(input.annotationID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               comment: input["comment"],
               status: input["status"],
@@ -2300,7 +2311,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotations/${encodeURIComponent(input.annotationID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2312,7 +2323,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               targetType: input["targetType"],
               targetId: input["targetId"],
@@ -2332,7 +2343,12 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds`,
-            query: { location: input["location"], targetType: input["targetType"], targetId: input["targetId"] },
+            query: {
+              location: input["location"],
+              library: input["library"],
+              targetType: input["targetType"],
+              targetId: input["targetId"],
+            },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2344,7 +2360,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/annotation-rounds/${encodeURIComponent(input.roundID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               status: input["status"],
               resultSummary: input["resultSummary"],
@@ -2362,7 +2378,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/analyze`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { scope: input["scope"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
@@ -2375,7 +2391,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/dry-run`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { planJson: input["planJson"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
@@ -2388,7 +2404,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/apply`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
@@ -2401,7 +2417,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/canvas-layout`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2413,7 +2429,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/canvas-layout`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { layout: input["layout"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -2426,7 +2442,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], description: input["description"], status: input["status"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2439,7 +2455,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/active`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2451,7 +2467,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/draft`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2463,7 +2479,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { title: input["title"], description: input["description"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2476,7 +2492,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2488,7 +2504,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/promote`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2500,7 +2516,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/features`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               kind: input["kind"],
               name: input["name"],
@@ -2522,7 +2538,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/features/${encodeURIComponent(input.featureID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               name: input["name"],
               description: input["description"],
@@ -2543,7 +2559,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/features/${encodeURIComponent(input.featureID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2555,7 +2571,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/pins`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { characterId: input["characterId"], featureId: input["featureId"], x: input["x"], y: input["y"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2568,7 +2584,7 @@ export function make(options: ClientOptions) {
           {
             method: "PATCH",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/pins/${encodeURIComponent(input.pinID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { featureId: input["featureId"], x: input["x"], y: input["y"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2581,7 +2597,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/maps/${encodeURIComponent(input.mapID)}/pins/${encodeURIComponent(input.pinID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2593,7 +2609,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/book-meta`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               title: input["title"],
               synopsis: input["synopsis"],
@@ -2611,7 +2627,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/sync-status`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2623,7 +2639,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/sync/retry`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { entryIds: input["entryIds"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
@@ -2636,7 +2652,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/status`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2648,7 +2664,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/start`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2660,7 +2676,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/progress`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2672,7 +2688,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/pause`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2684,7 +2700,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/resume`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2698,7 +2714,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel/mode`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2710,7 +2726,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/novel/mode`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             body: { writing_mode: input?.["writing_mode"], setup_mode: input?.["setup_mode"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2725,7 +2741,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/techniques`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2737,7 +2753,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/techniques`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               name: input["name"],
               instruction: input["instruction"],
@@ -2747,6 +2763,8 @@ export function make(options: ClientOptions) {
               evidence: input["evidence"],
               commonMisuse: input["commonMisuse"],
               status: input["status"],
+              scope: input["scope"],
+              targetLibrary: input["targetLibrary"],
             },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2759,7 +2777,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/techniques/config`,
-            query: { location: input?.["location"] },
+            query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
@@ -2771,7 +2789,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/techniques/config`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: { enabled: input["enabled"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2784,7 +2802,7 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/techniques/${encodeURIComponent(input.techniqueID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,
@@ -2796,7 +2814,7 @@ export function make(options: ClientOptions) {
           {
             method: "PUT",
             path: `/api/techniques/${encodeURIComponent(input.techniqueID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             body: {
               name: input["name"],
               principle: input["principle"],
@@ -2806,9 +2824,10 @@ export function make(options: ClientOptions) {
               evidence: input["evidence"],
               commonMisuse: input["commonMisuse"],
               status: input["status"],
+              scope: input["scope"],
             },
             successStatus: 200,
-            declaredStatuses: [404, 401, 400],
+            declaredStatuses: [404, 400, 401],
             empty: false,
           },
           requestOptions,
@@ -2818,7 +2837,7 @@ export function make(options: ClientOptions) {
           {
             method: "DELETE",
             path: `/api/techniques/${encodeURIComponent(input.techniqueID)}`,
-            query: { location: input["location"] },
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,

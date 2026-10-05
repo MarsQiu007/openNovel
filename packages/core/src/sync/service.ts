@@ -7,7 +7,7 @@ import type { SyncAdapter } from "./adapter"
 import { getDeviceIdentity, type DeviceIdentity } from "./device"
 import { createLocalFolderAdapter } from "./local-folder"
 import type { RegisteredProject, Registry, SyncConnection } from "./state"
-import { readConnection, readRegistry, removeConnection, writeConnection, writeRegistry } from "./state"
+import { readConnection, readLibraryRegistry, readRegistry, removeConnection, writeConnection, writeLibraryRegistry, writeRegistry } from "./state"
 import { createWebDavAdapter, SyncError } from "./webdav"
 
 export { SyncError } from "./webdav"
@@ -96,8 +96,16 @@ export interface SyncDeps {
 /** 双方内容时间差小于该值时不擅自仲裁，转人工冲突 */
 const TIE_THRESHOLD_MS = 60_000
 
+/** 保留同步单元名：全局通用技法库。@ 前缀为保留命名空间——书目录发现永不视为书项目 */
+const LIBRARY_UNIT = "@library"
+
 const dbFile = (deps: SyncDeps, directory: string) =>
   deps.dbFileFor?.(directory) ?? path.join(directory, ".novel", "novel.db")
+
+/** 同步单元的数据库文件：@library 以保留名单元名注入 dbFileFor（server 映射 globalDbPath()），书按目录路径解析 */
+function unitDb(deps: SyncDeps, rootDir: string, name: string) {
+  return name === LIBRARY_UNIT ? dbFile(deps, name) : dbFile(deps, path.join(rootDir, name))
+}
 
 /** .novel 目录（备份与下载临时文件的存放处） */
 const novelDir = (db: string) => path.dirname(db)
@@ -184,10 +192,10 @@ function rowOrder(db: string, table: string): string {
   }
 }
 
-/** 内容级最后编辑时间：max(novels.updated_at, chapters.updated_at)；无内容或表缺失时为 null */
-function contentTime(db: string): number | null {
+/** 内容级最后编辑时间：指定表 updated_at 的最大值；无内容或表缺失时为 null */
+function contentTime(db: string, tables: string[]): number | null {
   let latest: number | null = null
-  for (const table of ["novels", "chapters"]) {
+  for (const table of tables) {
     try {
       const value = queryAll(db, `SELECT MAX(updated_at) AS t FROM "${table}"`)[0]?.t
       if (typeof value === "number" && (latest === null || value > latest)) latest = value
@@ -228,7 +236,20 @@ function parseManifest(input: unknown): RemoteManifest | undefined {
   }
 }
 
-function readMeta(db: string): RemoteManifest["meta"] {
+/** 同步单元参与 content_time 抽取的表：书 = novels/chapters；全局技法库 = techniques/technique_feedback */
+function unitContentTables(name: string): string[] {
+  return name === LIBRARY_UNIT ? ["techniques", "technique_feedback"] : ["novels", "chapters"]
+}
+
+function readMeta(db: string, name: string): RemoteManifest["meta"] {
+  if (name === LIBRARY_UNIT) {
+    try {
+      const count = Number(queryAll(db, "SELECT COUNT(*) AS c FROM techniques")[0]?.c ?? 0)
+      return { novels: [], chapters: count }
+    } catch {
+      return { novels: [], chapters: 0 }
+    }
+  }
   try {
     const novels = queryAll(db, "SELECT id, title FROM novels ORDER BY created_at").map((row) => ({
       id: String(row.id),
@@ -332,7 +353,7 @@ async function scanLocalProjects(rootDir: string): Promise<string[]> {
   if (!entries) throw new SyncError("io", "工作根目录不存在或不可读")
   const names = await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("@"))
       .map(async (entry) => {
         const marker = await stat(path.join(rootDir, entry.name, ".novel")).catch(() => undefined)
         return marker?.isDirectory() ? entry.name : undefined
@@ -346,19 +367,21 @@ async function buildPlan(
   connection: SyncConnection,
   adapter: SyncAdapter,
   registry: Registry,
+  libraryRegistry: Registry,
 ): Promise<PlannedProject[]> {
   const rootDir = connection.rootDir!
   const localNames = await scanLocalProjects(rootDir)
-  const remoteNames = (await adapter.list(connection.remoteRoot)).filter((name) => !name.startsWith("."))
-  const names = [...new Set([...localNames, ...remoteNames, ...Object.keys(registry.projects)])].sort()
+  // 远端 @ 前缀目录属保留命名空间（旧版可能生成 @library/ 垃圾目录），不入书计划
+  const remoteNames = (await adapter.list(connection.remoteRoot)).filter((name) => !name.startsWith(".") && !name.startsWith("@"))
+  const names = [...new Set([...localNames, ...remoteNames, ...Object.keys(registry.projects).filter((name) => !name.startsWith("@"))])].sort()
 
-  return Promise.all(
+  const planned = await Promise.all(
     names.map(async (name): Promise<PlannedProject> => {
       const reg = registry.projects[name]
       const dir = path.join(rootDir, name)
       const db = dbFile(deps, dir)
       const localExists = localNames.includes(name) && (await stat(db).catch(() => undefined)) !== undefined
-      const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db) } : undefined
+      const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db, unitContentTables(name)) } : undefined
       const remote = parseManifest(await adapter.readJson(latestPath(remoteDir(connection, name))))
 
       // 仅本地存在 → 上传新建（也覆盖「远端被应用外删除」的自愈：重新上传）
@@ -381,24 +404,68 @@ async function buildPlan(
         if (local!.hash === remote!.content_hash) return { name, action: "adopt", local, remote, reg }
         return { name, action: "pair_conflict", local, remote, reg }
       }
-      const localDirty = local!.hash !== reg.lastSynced?.hash
-      const remoteChanged = remote!.snapshotID !== reg.lastSynced?.snapshotID
-      if (!localDirty && !remoteChanged) return { name, action: "noop", local, remote, reg }
-      if (localDirty && !remoteChanged) return { name, action: "push", local, remote, reg }
-      if (!localDirty && remoteChanged) return { name, action: "pull", local, remote, reg }
-      // 双方都变：谁新谁赢；过近不猜
-      const lt = local!.contentTime
-      const rt = remote!.content_time ?? remote!.createdAt
-      if (lt !== null && rt !== null && Math.abs(lt - rt) < TIE_THRESHOLD_MS) {
-        return { name, action: "tie_conflict", local, remote, reg }
-      }
-      if (lt !== null && rt === null) return { name, action: "overwrite_remote", local, remote, reg }
-      if (lt === null && rt !== null) return { name, action: "overwrite_local", local, remote, reg }
-      if (lt === null && rt === null) return { name, action: "tie_conflict", local, remote, reg }
-      // 前面四个分支已排除全部 null 组合，此处 lt/rt 必为非空（tsgo 不做此收窄，保留断言）
-      return lt! >= rt! ? { name, action: "overwrite_remote", local, remote, reg } : { name, action: "overwrite_local", local, remote, reg }
+      return arbitratePaired(name, local!, remote!, reg)
     }),
   )
+  planned.push(await planLibraryUnit(deps, connection, adapter, libraryRegistry))
+  return planned
+}
+
+/** 同源配对后的脏检测与时间仲裁（书项目与 @library 单元共用） */
+function arbitratePaired(
+  name: string,
+  local: { hash: string; contentTime: number | null },
+  remote: RemoteManifest,
+  reg: RegisteredProject,
+): PlannedProject {
+  const localDirty = local.hash !== reg.lastSynced?.hash
+  const remoteChanged = remote.snapshotID !== reg.lastSynced?.snapshotID
+  if (!localDirty && !remoteChanged) return { name, action: "noop", local, remote, reg }
+  if (localDirty && !remoteChanged) return { name, action: "push", local, remote, reg }
+  if (!localDirty && remoteChanged) return { name, action: "pull", local, remote, reg }
+  // 双方都变：谁新谁赢；过近不猜
+  const lt = local.contentTime
+  const rt = remote.content_time ?? remote.createdAt
+  if (lt !== null && rt !== null && Math.abs(lt - rt) < TIE_THRESHOLD_MS) {
+    return { name, action: "tie_conflict", local, remote, reg }
+  }
+  if (lt !== null && rt === null) return { name, action: "overwrite_remote", local, remote, reg }
+  if (lt === null && rt !== null) return { name, action: "overwrite_local", local, remote, reg }
+  if (lt === null && rt === null) return { name, action: "tie_conflict", local, remote, reg }
+  // 前面四个分支已排除全部 null 组合，此处 lt/rt 必为非空（tsgo 不做此收窄，保留断言）
+  return lt! >= rt! ? { name, action: "overwrite_remote", local, remote, reg } : { name, action: "overwrite_local", local, remote, reg }
+}
+
+/**
+ * 计划 @library（全局通用技法库）单元：与书同构的快照语义，但
+ * 1) 本地存在性 = dbFileFor("@library") 文件存在（非目录含 .novel）；
+ * 2) 删除保护——本地缺席 + 远端存在一律 download_new 恢复，永不 delete_remote；
+ * 3) 登记读写走独立 library-registry.json。
+ */
+async function planLibraryUnit(
+  deps: SyncDeps,
+  connection: SyncConnection,
+  adapter: SyncAdapter,
+  libraryRegistry: Registry,
+): Promise<PlannedProject> {
+  const name = LIBRARY_UNIT
+  const reg = libraryRegistry.projects[name]
+  const db = unitDb(deps, connection.rootDir!, name)
+  const localExists = (await stat(db).catch(() => undefined)) !== undefined
+  const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db, unitContentTables(name)) } : undefined
+  const remote = parseManifest(await adapter.readJson(latestPath(remoteDir(connection, name))))
+
+  if (local && !remote) return { name, action: "upload_new", local, reg }
+  if (!local && remote) {
+    // 删除保护：本地文件缺失只发生于从未创建或手工误删——下载恢复总是正确处置，绝不传播删除
+    return { name, action: "download_new", remote }
+  }
+  if (!local && !remote) return { name, action: reg ? "cleanup" : "noop", reg }
+  if (!reg || reg.uuid !== remote!.uuid) {
+    if (local!.hash === remote!.content_hash) return { name, action: "adopt", local, remote, reg }
+    return { name, action: "pair_conflict", local, remote, reg }
+  }
+  return arbitratePaired(name, local!, remote!, reg)
 }
 
 const toProjectState: Record<PlannedAction, ProjectState | undefined> = {
@@ -427,7 +494,7 @@ async function uploadProject(
   uuid: string,
 ) {
   const dir = path.join(connection.rootDir!, name)
-  const db = dbFile(deps, dir)
+  const db = unitDb(deps, connection.rootDir!, name)
   if (!(await stat(db).catch(() => undefined))) throw new SyncError("io", `本地数据库不存在，无法上传：${name}`)
 
   const tmpDir = path.join(os.tmpdir(), "opennovel-sync")
@@ -443,12 +510,12 @@ async function uploadProject(
       snapshotID,
       file_sha256: (await fileSha256(tmp))!,
       content_hash: contentHash(tmp),
-      content_time: contentTime(tmp),
+      content_time: contentTime(tmp, unitContentTables(name)),
       size: (await stat(tmp)).size,
       createdAt: Date.now(),
       device: await getDeviceIdentity(deps.stateDir),
       base: remote?.snapshotID ?? null,
-      meta: readMeta(tmp),
+      meta: readMeta(tmp, name),
     }
     const dir2 = remoteDir(connection, name)
     await adapter.mkdir(`${dir2}/snapshots`)
@@ -463,10 +530,16 @@ async function uploadProject(
       uuid,
       lastSynced: { snapshotID, hash: manifest.content_hash, at: manifest.createdAt },
     }
-    await writeRegistry(connection.rootDir!, registry)
+    await writeUnitRegistry(connection.rootDir!, name, registry)
   } finally {
     await rm(tmp, { force: true })
   }
+}
+
+/** 按单元路由登记写入：@library 走独立登记文件，书走共享 registry.json */
+async function writeUnitRegistry(rootDir: string, name: string, registry: Registry) {
+  if (name === LIBRARY_UNIT) await writeLibraryRegistry(rootDir, registry)
+  else await writeRegistry(rootDir, registry)
 }
 
 const MAX_BACKUPS = 10
@@ -493,7 +566,7 @@ async function downloadProject(
 ) {
   const rootDir = connection.rootDir!
   const dir = path.join(rootDir, name)
-  const db = dbFile(deps, dir)
+  const db = unitDb(deps, rootDir, name)
   await mkdir(novelDir(db), { recursive: true })
   // 下载到 .novel 内临时文件（与目标同卷），校验后再替换
   const tmp = path.join(novelDir(db), `.sync-download-${randomUUID()}`)
@@ -516,7 +589,7 @@ async function downloadProject(
         uuid: remote.uuid,
         lastSynced: { snapshotID: remote.snapshotID, hash: remote.content_hash, at: remote.createdAt },
       }
-      await writeRegistry(rootDir, registry)
+      await writeUnitRegistry(rootDir, name, registry)
     }
   } finally {
     await rm(tmp, { force: true })
@@ -537,7 +610,7 @@ async function deleteRemoteProject(
 // ─── 库级入口 ───
 
 /** 读取连接并创建适配器，然后在根目录锁内读登记并执行操作（登记必须在锁内读，避免并发下拿到旧快照） */
-function withRoot<T>(deps: SyncDeps, fn: (ctx: { connection: SyncConnection; adapter: SyncAdapter; registry: Registry }) => Promise<T>): Promise<T> {
+function withRoot<T>(deps: SyncDeps, fn: (ctx: { connection: SyncConnection; adapter: SyncAdapter; registry: Registry; libraryRegistry: Registry }) => Promise<T>): Promise<T> {
   const prepare = async () => {
     const connection = await readConnection(deps.configDir)
     if (!connection) throw new SyncError("io", "尚未配置云盘连接")
@@ -548,7 +621,8 @@ function withRoot<T>(deps: SyncDeps, fn: (ctx: { connection: SyncConnection; ada
   return prepare().then(({ connection, adapter }) =>
     withLock(connection.rootDir!, async () => {
       const registry = await readRegistry(connection.rootDir!)
-      return fn({ connection, adapter, registry })
+      const libraryRegistry = await readLibraryRegistry(connection.rootDir!)
+      return fn({ connection, adapter, registry, libraryRegistry })
     }),
   )
 }
@@ -564,7 +638,8 @@ export async function getStatus(deps: SyncDeps): Promise<LibraryStatus> {
 
   const adapter = await createAdapter(connection, await deps.getPassword?.())
   const registry = await readRegistry(connection.rootDir)
-  const planned = await buildPlan(deps, connection, adapter, registry)
+  const libraryRegistry = await readLibraryRegistry(connection.rootDir)
+  const planned = await buildPlan(deps, connection, adapter, registry, libraryRegistry)
   return {
     ...base,
     projects: planned
@@ -576,7 +651,7 @@ export async function getStatus(deps: SyncDeps): Promise<LibraryStatus> {
           name: p.name,
           state,
           lastSyncedAt: p.reg?.lastSynced?.at,
-          novels: p.remote?.meta.novels.map((novel) => novel.title),
+          novels: p.name === LIBRARY_UNIT ? undefined : p.remote?.meta.novels.map((novel) => novel.title),
         }
       })
       .filter((p): p is ProjectStatus => p !== undefined),
@@ -588,8 +663,8 @@ export async function getStatus(deps: SyncDeps): Promise<LibraryStatus> {
  * 转为决策项返回，由调用方（设置页）逐个弹窗后用 resolve 执行。
  */
 export async function syncAll(deps: SyncDeps): Promise<{ results: RunResult[]; decisions: Decision[] }> {
-  return withRoot(deps, async ({ connection, adapter, registry }) => {
-    const planned = await buildPlan(deps, connection, adapter, registry)
+  return withRoot(deps, async ({ connection, adapter, registry, libraryRegistry }) => {
+    const planned = await buildPlan(deps, connection, adapter, registry, libraryRegistry)
     const results: RunResult[] = []
     const decisions: Decision[] = []
 
@@ -602,16 +677,18 @@ export async function syncAll(deps: SyncDeps): Promise<{ results: RunResult[]; d
       if (p.action === "noop") continue
       if (p.action === "adopt") {
         // 内容一致的同名项目：登记配对，之后按同源项目正常走增量
-        registry.projects[p.name] = {
+        const store = p.name === LIBRARY_UNIT ? libraryRegistry : registry
+        store.projects[p.name] = {
           uuid: p.remote!.uuid,
           lastSynced: { snapshotID: p.remote!.snapshotID, hash: p.remote!.content_hash, at: p.remote!.createdAt },
         }
-        await writeRegistry(connection.rootDir!, registry)
+        await writeUnitRegistry(connection.rootDir!, p.name, store)
         continue
       }
       if (p.action === "cleanup") {
-        delete registry.projects[p.name]
-        await writeRegistry(connection.rootDir!, registry)
+        const store = p.name === LIBRARY_UNIT ? libraryRegistry : registry
+        delete store.projects[p.name]
+        await writeUnitRegistry(connection.rootDir!, p.name, store)
         continue
       }
       if (p.action === "pair_conflict") {
@@ -661,17 +738,19 @@ export async function resolve(
   deps: SyncDeps,
   input: { name?: string; action: ResolveAction; names?: readonly string[] },
 ): Promise<LibraryStatus> {
-  await withRoot(deps, async ({ connection, adapter, registry }) => {
+  await withRoot(deps, async ({ connection, adapter, registry, libraryRegistry }) => {
     if (input.action === "skip") return
     if (input.action === "confirm_delete") {
       for (const name of input.names ?? []) {
+        // 防御：@library 由删除保护保证永不进入删除决策，绝不传播删除
+        if (name.startsWith("@")) continue
         await deleteRemoteProject(connection, adapter, registry, name)
       }
       return
     }
     const name = input.name
     if (!name) throw new SyncError("io", "缺少项目名")
-    const planned = await buildPlan(deps, connection, adapter, registry)
+    const planned = await buildPlan(deps, connection, adapter, registry, libraryRegistry)
     const p = planned.find((item) => item.name === name)
     // pair_conflict 下远端可能已变化；以最新清单为准
     const remote = p?.remote ?? parseManifest(await adapter.readJson(latestPath(remoteDir(connection, name))))

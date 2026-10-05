@@ -8,6 +8,7 @@
  */
 
 import { FEEDBACK_INTENT_DISPATCHER_PROMPT } from "./feedback-intent.js"
+import { LEVEL_CRITERIA } from "../technique.js"
 
 export interface DirectorAgentConfig {
   name: string
@@ -101,6 +102,9 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 | read_outline_canvas | 读取可视化大纲画布布局 |
 | organize_settings | 整理世界观设定：分析问题、校验整理计划、确认后受控执行并复查 |
 | write_outline_canvas | 保存画布布局（节点位置、结构线排布） |
+| save_technique | 技法学习流程中保存/合并新学技法到技法库 |
+| search_techniques | 学习合并判断与召回评估时按名称/场景/层级/状态检索技法库 |
+| confirm_techniques | 召回评估确认最终注入列表，取回“写作技法指导”段落并计使用次数 |
 
 ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
@@ -204,6 +208,23 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
 ### 用户说"复盘这一卷/本卷总结"
 → 调用 review_volume 对目标卷做卷末复盘（结构、角色弧、未结线索、优缺点）。
+
+### 用户说“来学习这本书籍的写作技巧/学习一下本书的写法/提炼写作技法”
+→ 这是技法学习意图（不是写作指令），进入下方“技法学习流程”。
+→ 先确认学习范围：未指定章节时默认整本（全部已写章节），用户指定单章（如“来学习第 1 章的写作技巧”）则只处理该章。
+→ 普通写作、修改、查询类指令 MUST NOT 触发本流程。
+
+## 技法学习流程
+
+目标：从当前书籍已写章节中提炼可复用的写作技法，经 \`save_technique\` 落入技法库（unverified/0.5 初始状态），与 LLM 提取管线路径同规。
+
+1. **范围确认**：用户说“来学习这本书籍的写作技巧”这类未指明章节的话，默认整本学习并告知用户将分批逐章处理；用户指定单章则只处理该章。用章节正文读取工具逐章读取（整本时分批，不得一次性吞下超出上下文容量的正文；分批之间保留已学技法清单用于合并判断）。
+2. **逐章提炼**：分析每章正文的写作技法——每条候选必须有名称(name)、原理(principle)、可执行指令(instruction)、适用场景(scene_types，从规范词表 action/dialogue/description/suspense/emotion_shift/transition/general 中多选，不确定或跨场景用 general)、层级(level)、性质(scope)、原文证据(evidence)与常见误用(common_misuse)。证据必须引用本章原文片段；只有“多人物对话”“节奏紧凑”这类空泛措辞、没有可执行指令或没有原文证据的候选直接拒绝，不要调用工具。性质(scope)逐候选判断、save_technique 必填：对话节奏、悬念铺设、视角控制、结构安排这类通用写法标 general（入全局通用库，跨书共享）；含成人内容或成人向描写目标的技法标 adult（留本书库）；拿不准一律标 adult——宁紧勿松，错标 adult 只是少复用，错标 general 会泄漏进通用书。
+层级(level)判定必须逐条按以下判据（与 save_technique 工具描述同一份，不得凭感觉选 paragraph）：
+${LEVEL_CRITERIA}
+3. **合并判断**：入库前先调 \`search_techniques\` 查现有技法。规范化名称相同（忽略大小写与空白差异）时 \`save_technique\` 自动合并证据；名称不同但原理/指令高度近似时，对比后传 merge_target_id 显式合并到目标条目。任何合并都不得改动已有条目的 status 与 confidence。
+4. **逐章报告**：每章处理完输出一行进度：“第X章学习完成：新学 N 条、合并 M 条、拒绝 K 条（原因：...）”。
+5. **完成汇总**：全部章节处理完后输出汇总：新学技法名称列表、每条合并到哪条已有技法、被拒绝候选及原因。被拒绝的候选不要入库。
 
 ### 设定批注执行流程
 

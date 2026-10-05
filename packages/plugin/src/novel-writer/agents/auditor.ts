@@ -104,6 +104,7 @@ const AUDITOR_PROMPT = `# 角色定位
 
 **对每条技法，调用一次 \`record_technique_feedback\` 工具**，传入：
 - technique_id：技法 ID
+- library：技法来源库（候选列表每条标注了 [本书] 或 [通用库]，照抄对应值）
 - chapter_id：当前章节 ID
 - score：上述评分（0-1）
 - was_used：正文是否实际运用了该技法（true/false）
