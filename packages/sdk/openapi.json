@@ -10030,6 +10030,22 @@
             "required": false
           },
           {
+            "name": "roots",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "enum": ["true", "false"]
+                }
+              ]
+            },
+            "required": false
+          },
+          {
             "name": "search",
             "in": "query",
             "schema": {
