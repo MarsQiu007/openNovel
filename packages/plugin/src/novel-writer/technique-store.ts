@@ -115,15 +115,23 @@ export async function queryTechniques(
     )
   }
 
-  // 跨库统一按置信度排序
-  const byConfidence = confidenceHits.sort((a, b) => b.entry.confidence - a.entry.confidence)
-  // 曝光位跨两池取最近入库的 unverified 新品
-  const fresh = freshHits.sort((a, b) => b.entry.createdAt - a.entry.createdAt).slice(0, UNVERIFIED_SPOTS)
-  const seen = new Set(byConfidence.map((hit) => hit.entry.id))
-  const freshIncluded = fresh.filter((hit) => !seen.has(hit.entry.id))
-  // 新品占尾部名额：先让出 fresh 槽位，保证曝光位不被置信度前列挤掉
-  const head = byConfidence.slice(0, Math.max(0, limit - freshIncluded.length))
-  return [...head, ...freshIncluded]
+  // 曝光位先行：跨两池按入库时间取最近 unverified 新品（落实规格"跨两池取最近"），id 兜底保证并列时全序确定
+  const fresh = freshHits
+    .sort((a, b) => b.entry.createdAt - a.entry.createdAt || a.entry.id.localeCompare(b.entry.id))
+    .slice(0, UNVERIFIED_SPOTS)
+  const freshKeys = new Set(fresh.map((hit) => `${hit.library}:${hit.entry.id}`))
+  // 置信度排序剔除曝光位命中，避免新品重复占位；置信度并列按入库时间跨池打破平局，防止本书池饱和时全局库被结构性挤出
+  const byConfidence = confidenceHits
+    .filter((hit) => !freshKeys.has(`${hit.library}:${hit.entry.id}`))
+    .sort(
+      (a, b) =>
+        b.entry.confidence - a.entry.confidence ||
+        b.entry.createdAt - a.entry.createdAt ||
+        a.entry.id.localeCompare(b.entry.id),
+    )
+  // 新品占尾部固定位：先让出 fresh 槽位，保证曝光位不被置信度前列挤掉
+  const head = byConfidence.slice(0, Math.max(0, limit - fresh.length))
+  return [...head, ...fresh]
 }
 
 export async function listTechniques(directory?: string | null): Promise<TechniqueEntry[]> {

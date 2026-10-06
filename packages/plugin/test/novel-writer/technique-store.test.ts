@@ -468,3 +468,95 @@ describe("queryTechniques 双源合并", () => {
     })
   })
 })
+
+describe("queryTechniques 双源饱和池（本书池 ≥ limit）", () => {
+  test("曝光位跨池取最近：本书池饱和时全局新品仍进候选且占尾部固定位", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 5; i++) {
+        await upsertTechnique(
+          makeTechnique({ name: `本书技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 1000 + i }),
+          dir,
+          "book",
+        )
+      }
+      await upsertTechnique(
+        makeTechnique({ name: "全局最新新品", sceneTypes: ["dialogue"], createdAt: now }),
+        dir,
+        "global",
+      )
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result.length).toBeLessThanOrEqual(5)
+      const idx = result.findIndex((r) => r.entry.name === "全局最新新品")
+      expect(idx).toBeGreaterThanOrEqual(0)
+      expect(result[idx].library).toBe("global")
+      // 曝光位占尾部固定位（fresh 内部按入库时间降序，全局新品排 fresh 首位）
+      expect(idx).toBeGreaterThanOrEqual(result.length - 2)
+    })
+  })
+
+  test("全局高置信技法进置信度前列（不被本书并列块挤出）", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 5; i++) {
+        await upsertTechnique(
+          makeTechnique({ name: `本书技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 1000 + i }),
+          dir,
+          "book",
+        )
+      }
+      await upsertTechnique(
+        makeTechnique({ name: "全局高置信", sceneTypes: ["dialogue"], status: "verified", confidence: 0.9, createdAt: now }),
+        dir,
+        "global",
+      )
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result[0].entry.name).toBe("全局高置信")
+      expect(result[0].library).toBe("global")
+    })
+  })
+
+  test("置信度并列时按入库时间跨池打破平局", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 5; i++) {
+        await upsertTechnique(
+          makeTechnique({ name: `本书旧技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 2000 + i }),
+          dir,
+          "book",
+        )
+      }
+      // verified 使全局条目不占曝光位，纯靠平局打破进入候选
+      await upsertTechnique(
+        makeTechnique({ name: "全局较新verified", sceneTypes: ["dialogue"], status: "verified", confidence: 0.5, createdAt: now - 1000 }),
+        dir,
+        "global",
+      )
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      expect(result.map((r) => r.entry.name)).toContain("全局较新verified")
+      // 并列 0.5 中 createdAt 最新的全局条目排置信度段首位
+      expect(result[0].entry.name).toBe("全局较新verified")
+    })
+  })
+
+  test("全局池为空时与单源行为逐条一致", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 7; i++) {
+        await upsertTechnique(
+          makeTechnique({ name: `单源技法${i}`, sceneTypes: ["dialogue"], confidence: 0.5 + i * 0.05, createdAt: now - 1000 + i }),
+          dir,
+          "book",
+        )
+      }
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
+      // 确定性全序：置信度降序取前 3，尾部为跨池最近 unverified 的 2 条（本书池内）
+      expect(result.map((r) => r.entry.name)).toEqual(["单源技法4", "单源技法3", "单源技法2", "单源技法6", "单源技法5"])
+      expect(result.every((r) => r.library === "book")).toBe(true)
+    })
+  })
+})
