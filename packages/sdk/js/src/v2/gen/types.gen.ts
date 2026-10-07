@@ -7183,17 +7183,8 @@ export type NovelCreateTechniqueInput = {
   targetLibrary?: "book" | "global"
 }
 
-export type NovelTechniqueContentNature = "adult" | "general"
-
-export type NovelTechniqueContentNatureState = {
-  value: NovelTechniqueContentNature
-  source: "override" | "passive"
-}
-
 export type NovelTechniqueInjection = {
-  enabled?: boolean
-  contentNature?: NovelTechniqueContentNatureState
-  contentNatureOverride?: NovelTechniqueContentNature
+  enabled: boolean
 }
 
 export type NovelTechniqueFeedback = {
@@ -19397,7 +19388,7 @@ export type V2TechniqueConfigGetError = V2TechniqueConfigGetErrors[keyof V2Techn
 
 export type V2TechniqueConfigGetResponses = {
   /**
-   * 项目级技法配置：enabled=技法注入开关（false 保持 shadow 模式）；contentNature=书级内容性质有效值及来源；contentNatureOverride=人工覆盖（null 清除、缺省=自动模式）
+   * 项目级技法注入开关；false 表示保持 shadow 模式
    */
   200: NovelTechniqueInjection
 }
@@ -19432,7 +19423,7 @@ export type V2TechniqueConfigSetError = V2TechniqueConfigSetErrors[keyof V2Techn
 
 export type V2TechniqueConfigSetResponses = {
   /**
-   * 项目级技法配置：enabled=技法注入开关（false 保持 shadow 模式）；contentNature=书级内容性质有效值及来源；contentNatureOverride=人工覆盖（null 清除、缺省=自动模式）
+   * 项目级技法注入开关；false 表示保持 shadow 模式
    */
   200: NovelTechniqueInjection
 }

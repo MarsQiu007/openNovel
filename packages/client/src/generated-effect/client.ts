@@ -2641,18 +2641,12 @@ type Endpoint20_3Request = Parameters<RawClient["server.technique"]["technique.s
 type Endpoint20_3Input = {
   readonly location?: Endpoint20_3Request["query"]["location"]
   readonly library?: Endpoint20_3Request["query"]["library"]
-  readonly enabled?: Endpoint20_3Request["payload"]["enabled"]
-  readonly contentNature?: Endpoint20_3Request["payload"]["contentNature"]
-  readonly contentNatureOverride?: Endpoint20_3Request["payload"]["contentNatureOverride"]
+  readonly enabled: Endpoint20_3Request["payload"]["enabled"]
 }
-const Endpoint20_3 = (raw: RawClient["server.technique"]) => (input?: Endpoint20_3Input) =>
+const Endpoint20_3 = (raw: RawClient["server.technique"]) => (input: Endpoint20_3Input) =>
   raw["technique.set-config"]({
-    query: { location: input?.["location"], library: input?.["library"] },
-    payload: {
-      enabled: input?.["enabled"],
-      contentNature: input?.["contentNature"],
-      contentNatureOverride: input?.["contentNatureOverride"],
-    },
+    query: { location: input["location"], library: input["library"] },
+    payload: { enabled: input["enabled"] },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint20_4Request = Parameters<RawClient["server.technique"]["technique.detail"]>[0]
