@@ -34,7 +34,7 @@
 
 ## 6. 提交
 
-- [ ] 6.1 提交推送，commit 说明双闸门设计与工具参数机制，footer 带 `OpenSpec-Change: technique-content-nature-gating`（验证：git push 成功，CI 全绿）
+- [x] 6.1 提交推送，commit 说明双闸门设计与工具参数机制，footer 带 `OpenSpec-Change: technique-content-nature-gating`（验证：git push 成功，CI 全绿）
 
 ## 冒烟输出（5.1，真实库复制：C:\Novels\Novels 旧表副本 + 注入通用/成人技法各一条）
 
@@ -51,3 +51,14 @@
 
 - learn-chapter / recall-eval / shadow-eval 3 pass / 0 fail（280s，OPENNOVEL_TECHNIQUE_E2E=1）
 - recall-eval 预置 scope=adult 技法，按新双闸门语义更新脚本：pipeline 判断本章走向并传 content_nature=adult 后候选放行（不传参从紧的行为即本变更目标）
+
+## Implementation Commits
+
+- 8b2fd2ea feat(novel-store): 书级内容性质覆盖配置与协议契约
+- efbeb271 feat(plugin): queryTechniques 内容性质双闸门
+- 9329e9e8 feat(plugin): 内容性质判定接入写作召回
+- 466d8577 feat(app): 技法面板书级内容性质控件与成人语义澄清
+- c193a7a2 test(opennovel): e2e 适配内容性质双闸门语义
+- dc169d7c chore(sdk): 重新生成 openapi 与 JS SDK（TechniqueInjection 扩展）
+
+PR：https://github.com/MarsQiu007/openNovel/pull/6 （CI 6/6 全绿）
