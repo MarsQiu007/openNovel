@@ -9,10 +9,8 @@ import {
   deleteTechnique,
   getTechnique,
   listTechniques,
-  readContentNatureOverride,
   readTechniqueInjection,
   updateTechnique,
-  writeContentNatureOverride,
   writeTechniqueInjection,
 } from "../src/index"
 
@@ -83,23 +81,6 @@ describe("技法库管理", () => {
     expect(existsSync(`${configPath}.bak`)).toBe(true)
   })
 
-  test("书级内容性质覆盖读写、清除与非法值容忍", () => {
-    const configPath = join(directory, ".novel", "config.json")
-    expect(readContentNatureOverride(directory)).toBeUndefined()
-    expect(writeContentNatureOverride(directory, "adult")).toEqual({ contentNatureOverride: "adult" })
-    expect(readContentNatureOverride(directory)).toBe("adult")
-    const config = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>
-    expect(config.technique_injection).toBe(true)
-
-    expect(writeContentNatureOverride(directory, null)).toEqual({ contentNatureOverride: null })
-    expect(readContentNatureOverride(directory)).toBeUndefined()
-    const cleared = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>
-    expect("content_nature_override" in cleared).toBe(false)
-
-    writeFileSync(configPath, JSON.stringify({ content_nature_override: "nsfw" }), "utf-8")
-    expect(readContentNatureOverride(directory)).toBeUndefined()
-    writeFileSync(configPath, JSON.stringify({ technique_injection: true }), "utf-8")
-  })
 
   test("bookHasAdultTechniques 被动信号即时反映", async () => {
     expect(await bookHasAdultTechniques(directory)).toBe(false)

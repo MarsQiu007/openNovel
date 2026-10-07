@@ -171,58 +171,23 @@ describe("technique handler", () => {
   })
 
   test("注入开关缺省开启且写入保留其他字段", async () => {
-    // 独立目录，避免其他用例遗留的 adult 技法影响被动信号断言
     const configDir = join(root, "config-only")
     mkdirSync(join(configDir, ".novel"), { recursive: true })
     const configPath = join(configDir, ".novel", "config.json")
     writeFileSync(configPath, JSON.stringify({ name: "书", writing_mode: "review" }), "utf-8")
 
-    // 配置缺 technique_injection 字段时按开启处理（缺省注入）；书级性质缺省为被动信号 general
-    expect(await Effect.runPromise(readTechniqueConfigForDirectory(configDir))).toEqual({
-      enabled: true,
-      contentNature: { value: "general", source: "passive" },
-      contentNatureOverride: null,
-    })
+    // 配置缺 technique_injection 字段时按开启处理（缺省注入）
+    expect(await Effect.runPromise(readTechniqueConfigForDirectory(configDir))).toEqual({ enabled: true })
     expect(await Effect.runPromise(writeTechniqueConfigForDirectory(configDir, { enabled: false }))).toEqual({
       enabled: false,
-      contentNature: { value: "general", source: "passive" },
-      contentNatureOverride: null,
     })
     expect(JSON.parse(readFileSync(configPath, "utf-8"))).toEqual({
       name: "书",
       writing_mode: "review",
       technique_injection: false,
     })
-
-    // 含 adult 技法时被动信号判 adult；人工覆盖优先并可清除
-    await Effect.runPromise(createTechniqueForDirectory(configDir, {
-      name: "亲密场景节奏",
-      instruction: "亲密场景中用呼吸与停顿控制张力",
-      scope: "adult",
-    }))
-    expect(await Effect.runPromise(readTechniqueConfigForDirectory(configDir))).toEqual({
-      enabled: false,
-      contentNature: { value: "adult", source: "passive" },
-      contentNatureOverride: null,
-    })
-    expect(
-      await Effect.runPromise(writeTechniqueConfigForDirectory(configDir, { contentNatureOverride: "general" })),
-    ).toEqual({
-      enabled: false,
-      contentNature: { value: "general", source: "override" },
-      contentNatureOverride: "general",
-    })
-    expect(
-      await Effect.runPromise(writeTechniqueConfigForDirectory(configDir, { contentNatureOverride: null })),
-    ).toEqual({
-      enabled: false,
-      contentNature: { value: "adult", source: "passive" },
-      contentNatureOverride: null,
-    })
     expect(await Effect.runPromise(writeTechniqueConfigForDirectory(configDir, { enabled: true }))).toEqual({
       enabled: true,
-      contentNature: { value: "adult", source: "passive" },
-      contentNatureOverride: null,
     })
   })
 

@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
-import { closeDb, deleteTechnique, getDb, NovelTable, writeContentNatureOverride } from "../../src/novel-writer/session-store.js"
+import { closeDb, deleteTechnique, getDb, NovelTable } from "../../src/novel-writer/session-store.js"
 import { resolveBookContentNature, resolveChapterContentNature } from "../../src/novel-writer/technique-nature.js"
 import { upsertTechnique } from "../../src/novel-writer/technique-store.js"
 import { assembleSnapshot } from "../../src/novel-writer/context.js"
@@ -56,33 +56,23 @@ async function seedNovelWithAdultTechnique(): Promise<void> {
 }
 
 describe("resolveBookContentNature", () => {
-  test("无覆盖无 adult 技法：passive general", async () => {
-    expect(await resolveBookContentNature(dir)).toEqual({ value: "general", source: "passive" })
+  test("无 adult 技法：general", async () => {
+    expect(await resolveBookContentNature(dir)).toBe("general")
   })
 
-  test("书库存在 adult 技法：passive adult，删除后回落", async () => {
+  test("书库存在 adult 技法：adult，删除后回落 general", async () => {
     const adult = makeTechnique({ scope: "adult" })
     await upsertTechnique(adult, dir, "book")
-    expect(await resolveBookContentNature(dir)).toEqual({ value: "adult", source: "passive" })
+    expect(await resolveBookContentNature(dir)).toBe("adult")
     await deleteTechnique(adult.id, dir)
-    expect(await resolveBookContentNature(dir)).toEqual({ value: "general", source: "passive" })
-  })
-
-  test("人工覆盖优先于被动信号（两个方向）", async () => {
-    const adult = makeTechnique({ scope: "adult" })
-    await upsertTechnique(adult, dir, "book")
-    writeContentNatureOverride(dir, "general")
-    expect(await resolveBookContentNature(dir)).toEqual({ value: "general", source: "override" })
-    await deleteTechnique(adult.id, dir)
-    writeContentNatureOverride(dir, "adult")
-    expect(await resolveBookContentNature(dir)).toEqual({ value: "adult", source: "override" })
+    expect(await resolveBookContentNature(dir)).toBe("general")
   })
 
   test("查询失败按从紧回落 general 不抛异常", async () => {
     const weirdDir = join(tmpdir(), `nature-weird-${Date.now()}`)
     mkdirSync(weirdDir)
     writeFileSync(join(weirdDir, ".novel"), "not a directory")
-    expect(await resolveBookContentNature(weirdDir)).toEqual({ value: "general", source: "passive" })
+    expect(await resolveBookContentNature(weirdDir)).toBe("general")
     rmSync(weirdDir, { recursive: true, force: true })
   })
 })
@@ -112,12 +102,4 @@ describe("assembleSnapshot 双闸门接入", () => {
     expect(names).toContain("受限技法")
   })
 
-  test("书级覆盖为 general 时，即使传 adult 参数也过滤", async () => {
-    await seedNovelWithAdultTechnique()
-    writeContentNatureOverride(dir, "general")
-    const snapshot = await assembleSnapshot("novel-1", 0, dir, "adult")
-    const names = snapshot!.techniques.map((t) => t.entry.name)
-    expect(names).not.toContain("受限技法")
-    expect(names).toContain("通用技法")
-  })
 })

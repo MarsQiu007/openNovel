@@ -1,22 +1,14 @@
-import { bookHasAdultTechniques, readContentNatureOverride } from "./session-store.js"
-
-export type BookContentNature = {
-  value: "adult" | "general"
-  source: "override" | "passive"
-}
+import { bookHasAdultTechniques } from "./session-store.js"
 
 /**
- * 书级内容性质：人工覆盖 ?? 被动信号（书库存在 adult 技法则 adult，否则 general）。
+ * 书级内容性质：被动信号确定性判定（书库存在 adult 技法则 adult，否则 general），无人工标记入口。
  * 任何失败按从紧回落 general（adult 候选不出现），不中断写作主流程。
  */
-export async function resolveBookContentNature(directory?: string | null): Promise<BookContentNature> {
+export async function resolveBookContentNature(directory?: string | null): Promise<"adult" | "general"> {
   try {
-    const override = readContentNatureOverride(directory)
-    if (override) return { value: override, source: "override" }
-    const hasAdult = await bookHasAdultTechniques(directory)
-    return { value: hasAdult ? "adult" : "general", source: "passive" }
+    return (await bookHasAdultTechniques(directory)) ? "adult" : "general"
   } catch {
-    return { value: "general", source: "passive" }
+    return "general"
   }
 }
 
