@@ -181,6 +181,7 @@ function toNovel(row: NovelRow) {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    contentNature: row.content_nature,
   }
 }
 
@@ -513,12 +514,12 @@ export function settingOrganizationApply(novelID: string, directory: string, inp
 }
 
 
-type CreateNovelInput = { title: string; genre: string; synopsis: string }
+type CreateNovelInput = { title: string; genre: string; synopsis: string; contentNature?: "general" | "adult" }
 type UpdateChapterContentInput = { content: string }
 type ApprovalInput = { action: "approve" | "reject"; comment?: string }
 type BindSessionInput = { sessionID: string }
 type CreateChapterInput = { title: string; volumeId?: string; order?: number }
-type UpdateNovelInput = { title?: string; synopsis?: string; genre?: string }
+type UpdateNovelInput = { title?: string; synopsis?: string; genre?: string; contentNature?: "general" | "adult" }
 type CreateCharacterInput = { name: string; role?: string; description?: string }
 type UpdateCharacterInput = { name?: string; role?: string; description?: string; status?: string }
 type CreateTensionPointInput = { chapterNumber: number; level: number }
@@ -566,6 +567,7 @@ export function createNovel(directory: string, input: CreateNovelInput) {
           created_at: now,
           updated_at: now,
           status: "draft",
+          content_nature: input.contentNature ?? "general",
         })
         .run()
     })
@@ -577,6 +579,7 @@ export function createNovel(directory: string, input: CreateNovelInput) {
       status: "draft",
       createdAt: now,
       updatedAt: now,
+      contentNature: input.contentNature ?? "general",
     }
   })
 }
@@ -1448,7 +1451,10 @@ export function updateNovel(novelID: string, input: UpdateNovelInput, directory:
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    const row = yield* Effect.promise(() => storeUpdateNovel(novelID, input, directory))
+    // 协议 camelCase → store snake_case：store 层字段集为 { title?, synopsis?, genre?, content_nature? }
+    const row = yield* Effect.promise(() =>
+      storeUpdateNovel(novelID, { ...input, content_nature: input.contentNature }, directory),
+    )
     return toNovel(row)
   })
 }

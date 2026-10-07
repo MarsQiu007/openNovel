@@ -503,6 +503,7 @@ export function useCreateNovel() {
       title: string
       genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
       synopsis: string
+      contentNature?: "general" | "adult"
     }) => {
       const dir = sdk().directory
       return client()["server.novel"].create({
@@ -510,6 +511,7 @@ export function useCreateNovel() {
         title: input.title,
         genre: input.genre,
         synopsis: input.synopsis,
+        contentNature: input.contentNature,
       })
     },
     onSuccess: () => {
@@ -1087,6 +1089,7 @@ export function useUpdateNovel() {
       title?: string
       synopsis?: string
       genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+      contentNature?: "general" | "adult"
     }) => {
       const dir = sdk().directory
       return client()["server.novel"].update({
@@ -1095,6 +1098,7 @@ export function useUpdateNovel() {
         title: input.title,
         synopsis: input.synopsis,
         genre: input.genre,
+        contentNature: input.contentNature,
       })
     },
     onSuccess: (_data, variables) => {

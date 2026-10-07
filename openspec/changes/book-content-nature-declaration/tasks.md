@@ -2,8 +2,8 @@
 
 ## 1. novel-store 存储与迁移
 
-- [ ] 1.1 `NovelTable` 增加 `content_nature` 列（text，NOT NULL DEFAULT `'general'`），`updateNovel` store 函数支持写该字段（创建插入在 server handler 直接完成，见任务 3.1），新增 `getBookContentNature(directory)` 查询 helper（无行/无列/异常一律返回 `'general'`）；验证：`packages/novel-store` 目录跑 `bun test` 通过，新 helper 行为有测试覆盖
-- [ ] 1.2 `migrate.ts` 新增 `migrateNovelContentNature(exec, query)` 并挂入 `runMigrations`（注册顺序须在 `migrateTechniqueScope` 之后，数据迁移依赖 techniques.scope 列已就绪）：novels 表缺失直接跳过；无 `content_nature` 列则 ALTER 补列；列就绪后执行幂等数据迁移（`UPDATE novels SET content_nature='adult' WHERE content_nature='general' AND EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，techniques 表缺失时跳过）；验证：新增迁移测试覆盖"默认 general / 含 adult 技法的书转 adult / 重复执行幂等 / 无 novels 或 techniques 表跳过"四个场景且 `bun test` 通过
+- [x] 1.1 `NovelTable` 增加 `content_nature` 列（text，NOT NULL DEFAULT `'general'`），`updateNovel` store 函数支持写该字段（创建插入在 server handler 直接完成，见任务 3.1），新增 `getBookContentNature(directory)` 查询 helper（无行/无列/异常一律返回 `'general'`）；验证：`packages/novel-store` 目录跑 `bun test` 通过，新 helper 行为有测试覆盖
+- [x] 1.2 `migrate.ts` 新增 `migrateNovelContentNature(exec, query)` 并挂入 `runMigrations`（注册顺序须在 `migrateTechniqueScope` 之后，数据迁移依赖 techniques.scope 列已就绪）：novels 表缺失直接跳过；无 `content_nature` 列则 ALTER 补列；列就绪后执行幂等数据迁移（`UPDATE novels SET content_nature='adult' WHERE content_nature='general' AND EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，techniques 表缺失时跳过）；验证：新增迁移测试覆盖"默认 general / 含 adult 技法的书转 adult / 重复执行幂等 / 无 novels 或 techniques 表跳过"四个场景且 `bun test` 通过
 
 ## 2. 运行时判定切换（plugin）
 

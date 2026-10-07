@@ -22,6 +22,7 @@ export default function NovelWizard() {
   const [genre, setGenre] = createSignal<"" | (typeof GENRES)[number]>("")
   const [title, setTitle] = createSignal("")
   const [synopsis, setSynopsis] = createSignal("")
+  const [contentNature, setContentNature] = createSignal<"general" | "adult">("general")
 
   const steps = [
     { title: language.t("novel.wizard.genre") },
@@ -66,6 +67,7 @@ export default function NovelWizard() {
         genre: genre() as (typeof GENRES)[number],
         title: title().trim(),
         synopsis: synopsis().trim(),
+        contentNature: contentNature(),
       })
       navigate(`/${base64Encode(sdk().directory)}/novel/${result.id}`)
     } catch (err) {
@@ -183,6 +185,26 @@ export default function NovelWizard() {
               <div class="flex flex-col gap-1">
                 <span class="text-sm text-v2-text-text-muted">{language.t("novel.wizard.description")}:</span>
                 <p class="text-sm text-v2-text-text-base whitespace-pre-wrap">{synopsis()}</p>
+              </div>
+              {/* 内容性质：默认普通，显式声明为成人向的书其成人向技法仅在成人章节召回（双闸门） */}
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-v2-text-text-muted">内容性质:</span>
+                <div class="flex gap-2">
+                  <ButtonV2
+                    variant={contentNature() === "general" ? "contrast" : "outline"}
+                    size="small"
+                    onClick={() => setContentNature("general")}
+                  >
+                    普通
+                  </ButtonV2>
+                  <ButtonV2
+                    variant={contentNature() === "adult" ? "contrast" : "outline"}
+                    size="small"
+                    onClick={() => setContentNature("adult")}
+                  >
+                    成人向
+                  </ButtonV2>
+                </div>
               </div>
             </div>
           </div>

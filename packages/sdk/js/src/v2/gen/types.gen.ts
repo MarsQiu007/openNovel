@@ -6221,12 +6221,14 @@ export type NovelNovel = {
   status: string
   createdAt: number
   updatedAt: number
+  contentNature: string
 }
 
 export type NovelCreateNovelInput = {
   title: string
   genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
   synopsis: string
+  contentNature?: "general" | "adult"
 }
 
 export type NovelSessionBinding = {
@@ -6261,6 +6263,7 @@ export type NovelNovelDetail = {
   status: string
   createdAt: number
   updatedAt: number
+  contentNature: string
   styleGuide: NovelStyleGuide
   stats: NovelNovelStats
 }
@@ -6575,6 +6578,7 @@ export type NovelUpdateNovelInput = {
   title?: string
   synopsis?: string
   genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+  contentNature?: "general" | "adult"
 }
 
 export type NovelCreateCharacterInput = {

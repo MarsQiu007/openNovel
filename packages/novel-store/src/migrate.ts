@@ -60,6 +60,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateCharacterStatus(exec, query)
   migrateCharacterStates(exec, query)
   migrateTechniqueScope(exec, query)
+  migrateNovelContentNature(exec, query)
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
@@ -521,5 +522,36 @@ export function migrateTechniqueScope(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // techniques 表不存在时无需迁移，CREATE_TABLES_SQL 会带 scope 列创建
+  }
+}
+
+/**
+ * novels 表新增 content_nature 列 + 存量书一次性置位。
+ *
+ * 书级内容性质的唯一持久化来源（'general' | 'adult'，默认 'general'）。
+ * 幂等：ALTER 与置位均只在"检测到无列"的当次执行，重复建连为纯 no-op；
+ * 用户后续显式改回的值永远不会被置位翻转。注册顺序须在 migrateTechniqueScope 之后
+ * （置位依赖 techniques.scope 列已就绪；旧库 scope 默认 general，因此旧库本次全部落 general）。
+ * novels/techniques 表不存在时跳过（全局库无 novels 表）。
+ */
+export function migrateNovelContentNature(exec: ExecFn, query: QueryFn): void {
+  // 全局库无 novels 表，显式查表存在性（PRAGMA 对缺失表返回空结果而不抛错）
+  const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='novels'")
+  if (!Array.isArray(tables) || tables.length === 0) return
+  try {
+    const result = query("PRAGMA table_info(novels)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    const hasNature = cols.some((c) => c.name === "content_nature")
+    if (hasNature) return // 置位仅在加列当次执行：天然一次性，重复建连不会翻转用户后续显式改回的值
+    exec("ALTER TABLE novels ADD COLUMN content_nature text NOT NULL DEFAULT 'general'")
+    const techTables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='techniques'")
+    const hasTechniques = Array.isArray(techTables) && techTables.length > 0
+    if (hasTechniques) {
+      exec(
+        "UPDATE novels SET content_nature='adult' WHERE EXISTS (SELECT 1 FROM techniques WHERE scope='adult')",
+      )
+    }
+  } catch {
+    // 加列/置位失败不阻塞 DB 打开：读列 helper 对缺列从紧回落 general，检测确认条可事后兜住
   }
 }

@@ -38,7 +38,7 @@ Non-Goals:
 
 `migrate.ts` 新增 `migrateNovelContentNature(exec, query)`（挂入 `runMigrations`）：
 1. `PRAGMA table_info(novels)` 无 `content_nature` 列则 `ALTER TABLE ... ADD COLUMN content_nature text NOT NULL DEFAULT 'general'`（novels 表不存在时跳过，兼容全局库）。
-2. 数据迁移（同函数内、列就绪后执行；函数注册于 `migrateTechniqueScope` 之后，依赖其补齐 techniques.scope 列——旧库 scope 默认 general，因此旧库本次迁移全部落 general，与存量语义一致）：`UPDATE novels SET content_nature='adult' WHERE EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，并以 `content_nature='general'` 为前置条件保证幂等（已被用户改回 general 的书不会被重复翻成 adult——见 Risks 讨论）。techniques 表不存在时跳过。
+2. 数据迁移（仅在加列当次执行，与 ALTER 同处 `if (!hasNature)` 分支；函数注册于 `migrateTechniqueScope` 之后，依赖其补齐 techniques.scope 列——早于 scope 版本的库 scope 全为默认 general，置位自然不命中，与存量语义一致）：`UPDATE novels SET content_nature='adult' WHERE EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，techniques 表不存在时跳过。幂等由结构保证：重复建连时列已存在，整个分支不执行，用户后续显式改回的值永不被翻转（实现期自审修正：曾设想带 `content_nature='general'` 前置条件的重复 UPDATE，实测会翻转用户显式纠偏，故改为一次性执行）。
 
 - 依据：单次 UPDATE 覆盖全部存量书，无需逐行多库扫描；幂等由条件子句保证，重复执行无漂移。
 - 弃案：运行时保留被动信号作回落——语义二义（列与信号冲突时听谁的），违背"显式声明唯一来源"。
@@ -76,7 +76,7 @@ novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `
 
 ## Risks / Trade-offs
 
-- [迁移把用户已纠偏为 general 的 adult 书再次翻成 adult] → 现实约束：迁移先于任何 UI 存在（同版本发布），用户尚无纠偏入口；`UPDATE ... WHERE content_nature='general'` 保证后续手动纠偏不被重复翻转。发布后若用户用协议把书改回 general，迁移不再动它（幂等条件），但运行时按列判定后 adult 技法也不再被该信号影响——语义一致。
+- [迁移把用户已纠偏为 general 的 adult 书再次翻成 adult] → 已结构性消除：置位仅在加列当次执行（与 ALTER 同分支），用户任何后续显式改回都不会被重复翻转。残余风险：加列与置位之间进程崩溃会留下'有 adult 技法但书为 general'的中间态——方向从紧（adult 技法不召回），且检测确认条会兜住提示。
 - [用户忽略确认条后 adult 技法长期不可召回] → 从紧方向的安全缺省（符合用户"默认普通"哲学）；需要时协议层 update 可纠偏；未来如需重提可再加"重置忽略"入口（本变更不做）。
 - [向导误选 adult 且想改回] → 无专门 UI（非目标）；协议 `novel.update` 可纠偏，影响仅限"adult 技法需章节判定才召回"的从紧偏差，无数据风险。
 - [旧库未打开过则迁移未执行] → 与 `migrateTechniqueScope` 相同懒迁移语义，书库建连即补列；读列 helper 对缺列防御返回 general，双闸门同样从紧安全。

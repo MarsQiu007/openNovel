@@ -19,6 +19,8 @@ import {
   useUpdateTechnique,
   useDeleteTechnique,
   useSetTechniqueInjection,
+  useNovelDetail,
+  useUpdateNovel,
 } from "@/context/novel-queries"
 import { useConfirmDelete } from "./confirm-dialog"
 import { parseEvidenceText } from "./technique-utils"
@@ -64,6 +66,44 @@ function optionLabel<T extends string>(options: SelectOption<T>[], value: T | un
   return options.find((item) => item.value === value)?.label ?? fallback
 }
 
+/** 检测确认条忽略状态：按书存 localStorage，不进数据库与协议（提案非目标）。 */
+function naturePromptDismissKey(novelID: string) {
+  return `content-nature-prompt-dismissed:${novelID}`
+}
+
+/**
+ * 书级内容性质检测确认条。
+ * 显示条件（全为面板已有数据派生）：书为 general 且本书库技法列表存在成人向条目且本地未忽略。
+ * 确认经 novel.update 写列；暂不写本地忽略，同一书不再打扰。
+ */
+function ContentNaturePrompt(props: { novelID: string; bookNature: string; techniques: Technique[] }) {
+  const updateNovel = useUpdateNovel()
+  const dismissed = createMemo(() => localStorage.getItem(naturePromptDismissKey(props.novelID)) === "1")
+  const hasAdultTechnique = createMemo(() => props.techniques.some((item) => item.scope === "adult" && item.library !== "global"))
+  const visible = createMemo(
+    () => props.bookNature === "general" && hasAdultTechnique() && !dismissed() && !updateNovel.isSuccess,
+  )
+
+  return (
+    <Show when={visible()}>
+      <div class="border-b border-v2-border-border-base bg-v2-background-bg-layer-02 px-4 py-3">
+        <p class="text-xs text-v2-text-text-base">检测到本书库存在成人向内容。将本书标记为成人向后，这些技法仅在成人章节进入写作候选。</p>
+        <div class="mt-2 flex gap-2">
+          <ButtonV2 size="small" variant="contrast" disabled={updateNovel.isPending} onClick={() => updateNovel.mutate({ novelID: props.novelID, contentNature: "adult" })}>
+            标记为成人向
+          </ButtonV2>
+          <ButtonV2 size="small" variant="outline" onClick={() => localStorage.setItem(naturePromptDismissKey(props.novelID), "1")}>
+            暂不
+          </ButtonV2>
+        </div>
+        <Show when={updateNovel.error}>
+          <p class="mt-2 text-xs text-v2-text-text-danger">{errorText(updateNovel.error)}</p>
+        </Show>
+      </div>
+    </Show>
+  )
+}
+
 function statusVariant(status: TechniqueStatus) {
   if (status === "verified") return "success"
   if (status === "unverified") return "warning"
@@ -88,10 +128,11 @@ function formatDate(value: number | null | undefined) {
   return new Date(value).toLocaleString()
 }
 
-export default function PanelTechniques() {
+export default function PanelTechniques(props: { novelID: string }) {
   const [selectedId, setSelectedId] = createSignal<string | null>(null)
   const [creating, setCreating] = createSignal(false)
   const query = useTechniques()
+  const novelDetail = useNovelDetail(() => props.novelID)
   const injection = useTechniqueInjection()
   const setInjection = useSetTechniqueInjection()
 
@@ -126,8 +167,13 @@ export default function PanelTechniques() {
           <Show when={setInjection.error}>
             <p class="mt-2 text-xs text-v2-text-text-danger">{errorText(setInjection.error)}</p>
           </Show>
-
         </div>
+        {/* 书级内容性质检测确认条：书为普通且本书库已出现成人向技法时一次性询问，非阻塞 */}
+        <ContentNaturePrompt
+          novelID={props.novelID}
+          bookNature={novelDetail.data?.contentNature ?? "general"}
+          techniques={techniques()}
+        />
       </Show>
 
       <Show
@@ -480,7 +526,7 @@ function TechniqueForm(props: {
           />
           <Show when={scope() === "adult"}>
             <p class="mt-1 text-xs text-v2-text-text-muted">
-              仅成人书的成人章节召回：书库含成人技法时本书自动判为成人书，且当前章节判断为成人时该技法才进入写作候选，其他书与其他章节不可见。
+              仅成人书的成人章节召回：书需在创建时声明为成人向（或经检测确认）且当前章节判断为成人时该技法才进入写作候选，其他书与其他章节不可见。
             </p>
           </Show>
         </FormField>

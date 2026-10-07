@@ -47,6 +47,7 @@ export const NovelTable = sqliteTable("novels", {
     .$default(() => Date.now()),
   status: text().notNull().default("draft"),
   story_spine: text(),
+  content_nature: text().notNull().default("general"),
 })
 
 export const CharacterTable = sqliteTable("characters", {
@@ -1337,7 +1338,21 @@ export function writeTechniqueInjection(
   return { enabled }
 }
 
-/** 被动信号：书库 techniques 表是否存在 scope=adult 行（自动模式下书级内容性质判 adult 的依据）。 */
+/**
+ * 书级内容性质读取： novels 表首行 content_nature 列（'general' | 'adult'）。
+ * 运行时闸门唯一判定来源；无行、缺列或任何异常一律按 'general' 从紧回落，不中断写作主流程。
+ */
+export async function getBookContentNature(directory?: string | null): Promise<"adult" | "general"> {
+  try {
+    const db = getDb(directory)
+    const [row] = await db.select({ content_nature: NovelTable.content_nature }).from(NovelTable).limit(1).all()
+    return row?.content_nature === "adult" ? "adult" : "general"
+  } catch {
+    return "general"
+  }
+}
+
+/** 一次性迁移期使用：书库 techniques 表是否存在 scope=adult 行（存量书 content_nature 置位依据）。 */
 export async function bookHasAdultTechniques(directory?: string | null): Promise<boolean> {
   const db = getDb(directory)
   const [row] = await db
@@ -1641,7 +1656,7 @@ export async function upsertSoul(
 
 export async function updateNovel(
   novelId: string,
-  fields: { title?: string; synopsis?: string; genre?: string },
+  fields: { title?: string; synopsis?: string; genre?: string; content_nature?: string },
   directory?: string | null,
 ): Promise<typeof NovelTable.$inferSelect> {
   const db = getDb(directory)
@@ -1649,6 +1664,7 @@ export async function updateNovel(
   if (fields.title !== undefined) updates.title = fields.title
   if (fields.synopsis !== undefined) updates.synopsis = fields.synopsis
   if (fields.genre !== undefined) updates.genre = fields.genre
+  if (fields.content_nature !== undefined) updates.content_nature = fields.content_nature
   await db.update(NovelTable).set(updates).where(eq(NovelTable.id, novelId)).run()
   return db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()!
 }

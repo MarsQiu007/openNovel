@@ -13,6 +13,7 @@ export const Novel = Schema.Struct({
   status: Schema.String,
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
+  contentNature: Schema.String,
 }).annotate({ identifier: "Novel.Novel" })
 export interface Novel extends Schema.Schema.Type<typeof Novel> {}
 
@@ -32,6 +33,7 @@ export const NovelDetail = Schema.Struct({
   status: Schema.String,
   createdAt: Schema.Int,
   updatedAt: Schema.Int,
+  contentNature: Schema.String,
   styleGuide: Schema.suspend(() => StyleGuide),
   stats: NovelStats,
 }).annotate({ identifier: "Novel.NovelDetail" })
@@ -416,6 +418,7 @@ export const CreateNovelInput = Schema.Struct({
   title: Schema.String,
   genre: Genre,
   synopsis: Schema.String,
+  contentNature: optional(Schema.Literals(["general", "adult"])),
 }).annotate({ identifier: "Novel.CreateNovelInput" })
 export interface CreateNovelInput extends Schema.Schema.Type<typeof CreateNovelInput> {}
 
@@ -453,6 +456,7 @@ export const UpdateNovelInput = Schema.Struct({
   title: optional(Schema.String),
   synopsis: optional(Schema.String),
   genre: optional(Genre),
+  contentNature: optional(Schema.Literals(["general", "adult"])),
 }).annotate({ identifier: "Novel.UpdateNovelInput" })
 export interface UpdateNovelInput extends Schema.Schema.Type<typeof UpdateNovelInput> {}
 

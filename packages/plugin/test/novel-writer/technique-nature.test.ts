@@ -6,7 +6,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
-import { closeDb, deleteTechnique, getDb, NovelTable } from "../../src/novel-writer/session-store.js"
+import { closeDb, getDb, NovelTable, updateNovel } from "../../src/novel-writer/session-store.js"
 import { resolveBookContentNature, resolveChapterContentNature } from "../../src/novel-writer/technique-nature.js"
 import { upsertTechnique } from "../../src/novel-writer/technique-store.js"
 import { assembleSnapshot } from "../../src/novel-writer/context.js"
@@ -48,9 +48,11 @@ function makeTechnique(overrides?: Partial<TechniqueEntry>): TechniqueEntry {
   }
 }
 
-async function seedNovelWithAdultTechnique(): Promise<void> {
+async function seedNovelWithAdultTechnique(novelNature: "general" | "adult" = "general"): Promise<void> {
   const db = getDb(dir)
-  db.insert(NovelTable).values({ id: "novel-1", title: "测试", genre: "科幻", synopsis: "一场对话" }).run()
+  db.insert(NovelTable)
+    .values({ id: "novel-1", title: "测试", genre: "科幻", synopsis: "一场对话", content_nature: novelNature })
+    .run()
   await upsertTechnique(makeTechnique({ name: "通用技法", scope: "general", confidence: 0.8 }), dir, "book")
   await upsertTechnique(makeTechnique({ name: "受限技法", scope: "adult", confidence: 0.9 }), dir, "book")
 }
@@ -60,11 +62,15 @@ describe("resolveBookContentNature", () => {
     expect(await resolveBookContentNature(dir)).toBe("general")
   })
 
-  test("书库存在 adult 技法：adult，删除后回落 general", async () => {
-    const adult = makeTechnique({ scope: "adult" })
-    await upsertTechnique(adult, dir, "book")
+  test("书库存在 adult 技法但 novel 为 general：仍判 general（不再看技法信号）", async () => {
+    await seedNovelWithAdultTechnique("general")
+    expect(await resolveBookContentNature(dir)).toBe("general")
+  })
+
+  test("novel 显式 adult：判 adult；改回 general 后回落（列驱动）", async () => {
+    await seedNovelWithAdultTechnique("adult")
     expect(await resolveBookContentNature(dir)).toBe("adult")
-    await deleteTechnique(adult.id, dir)
+    await updateNovel("novel-1", { content_nature: "general" }, dir)
     expect(await resolveBookContentNature(dir)).toBe("general")
   })
 
@@ -95,8 +101,15 @@ describe("assembleSnapshot 双闸门接入", () => {
     expect(names).not.toContain("受限技法")
   })
 
-  test("传 content_nature=adult：双闸门通过，adult 进候选", async () => {
-    await seedNovelWithAdultTechnique()
+  test("书级 general 时即使传 content_nature=adult：adult 仍不进候选", async () => {
+    await seedNovelWithAdultTechnique("general")
+    const snapshot = await assembleSnapshot("novel-1", 0, dir, "adult")
+    const names = snapshot!.techniques.map((t) => t.entry.name)
+    expect(names).not.toContain("受限技法")
+  })
+
+  test("书级 adult 且传 content_nature=adult：双闸门通过，adult 进候选", async () => {
+    await seedNovelWithAdultTechnique("adult")
     const snapshot = await assembleSnapshot("novel-1", 0, dir, "adult")
     const names = snapshot!.techniques.map((t) => t.entry.name)
     expect(names).toContain("受限技法")

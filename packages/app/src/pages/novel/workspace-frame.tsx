@@ -1151,7 +1151,7 @@ export default function NovelWorkspaceFrame() {
                     class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   >
                     <Show when={railPanel() === "techniques"}>
-                      <PanelTechniques />
+                      <PanelTechniques novelID={novelID()} />
                     </Show>
                     <Show when={railPanel() === "characters"}>
                       <PanelCharacters

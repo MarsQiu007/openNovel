@@ -3054,6 +3054,7 @@ export type ServerNovelListOutput = ReadonlyArray<{
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }>
 
 export type ServerNovelCreateInput = {
@@ -3069,17 +3070,26 @@ export type ServerNovelCreateInput = {
     readonly title: string
     readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
     readonly synopsis: string
+    readonly contentNature?: "general" | "adult"
   }["title"]
   readonly genre: {
     readonly title: string
     readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
     readonly synopsis: string
+    readonly contentNature?: "general" | "adult"
   }["genre"]
   readonly synopsis: {
     readonly title: string
     readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
     readonly synopsis: string
+    readonly contentNature?: "general" | "adult"
   }["synopsis"]
+  readonly contentNature?: {
+    readonly title: string
+    readonly genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly synopsis: string
+    readonly contentNature?: "general" | "adult"
+  }["contentNature"]
 }
 
 export type ServerNovelCreateOutput = {
@@ -3090,6 +3100,7 @@ export type ServerNovelCreateOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }
 
 export type ServerNovelForSessionInput = {
@@ -3112,6 +3123,7 @@ export type ServerNovelForSessionOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }
 
 export type ServerNovelSessionBindingsInput = {
@@ -3151,6 +3163,7 @@ export type ServerNovelDetailOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
   readonly styleGuide: {
     readonly id: string
     readonly novelId: string
@@ -4159,6 +4172,7 @@ export type ServerNovelBindOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }
 
 export type ServerNovelCreateChapterInput = {
@@ -4202,17 +4216,26 @@ export type ServerNovelUpdateInput = {
     readonly title?: string
     readonly synopsis?: string
     readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly contentNature?: "general" | "adult"
   }["title"]
   readonly synopsis?: {
     readonly title?: string
     readonly synopsis?: string
     readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly contentNature?: "general" | "adult"
   }["synopsis"]
   readonly genre?: {
     readonly title?: string
     readonly synopsis?: string
     readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly contentNature?: "general" | "adult"
   }["genre"]
+  readonly contentNature?: {
+    readonly title?: string
+    readonly synopsis?: string
+    readonly genre?: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
+    readonly contentNature?: "general" | "adult"
+  }["contentNature"]
 }
 
 export type ServerNovelUpdateOutput = {
@@ -4223,6 +4246,7 @@ export type ServerNovelUpdateOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }
 
 export type ServerNovelDeleteInput = {
@@ -6785,6 +6809,7 @@ export type ServerNovelSaveBookMetaOutput = {
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
+  readonly contentNature: string
 }
 
 export type ServerNovelSyncStatusInput = {
