@@ -38,14 +38,14 @@ Non-Goals:
 
 `migrate.ts` 新增 `migrateNovelContentNature(exec, query)`（挂入 `runMigrations`）：
 1. `PRAGMA table_info(novels)` 无 `content_nature` 列则 `ALTER TABLE ... ADD COLUMN content_nature text NOT NULL DEFAULT 'general'`（novels 表不存在时跳过，兼容全局库）。
-2. 数据迁移（同函数内、列就绪后执行）：`UPDATE novels SET content_nature='adult' WHERE EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，并以 `content_nature='general'` 为前置条件保证幂等（已被用户改回 general 的书不会被重复翻成 adult——见 Risks 讨论）。techniques 表不存在时跳过。
+2. 数据迁移（同函数内、列就绪后执行；函数注册于 `migrateTechniqueScope` 之后，依赖其补齐 techniques.scope 列——旧库 scope 默认 general，因此旧库本次迁移全部落 general，与存量语义一致）：`UPDATE novels SET content_nature='adult' WHERE EXISTS (SELECT 1 FROM techniques WHERE scope='adult')`，并以 `content_nature='general'` 为前置条件保证幂等（已被用户改回 general 的书不会被重复翻成 adult——见 Risks 讨论）。techniques 表不存在时跳过。
 
 - 依据：单次 UPDATE 覆盖全部存量书，无需逐行多库扫描；幂等由条件子句保证，重复执行无漂移。
 - 弃案：运行时保留被动信号作回落——语义二义（列与信号冲突时听谁的），违背"显式声明唯一来源"。
 
 ### D3 运行时判定改为读列 helper，失败语义不变
 
-novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `content_nature`（无行/无列/异常一律返回 `'general'`）。plugin `resolveBookContentNature` 改为调用它，不再调用 `bookHasAdultTechniques`；调用点（context.ts P7）与失败从紧语义不变。`bookHasAdultTechniques` 保留导出（迁移期语义注释），移出召回路径。
+novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `content_nature`（无行/无列/异常一律返回 `'general'`）。plugin `resolveBookContentNature` 改为调用它，不再调用 `bookHasAdultTechniques`（plugin 的 `session-store.ts` 为纯 re-export，helper 自动透出，无需改动该文件）；调用点（context.ts P7）与失败从紧语义不变。`bookHasAdultTechniques` 保留导出（迁移期语义注释），移出召回路径。
 
 - 依据：判定与存储同层（novel-store），plugin 保持薄封装；读列失败回落 general 与原 try/catch 语义逐字一致。
 
@@ -66,7 +66,7 @@ novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `
 
 `panel-techniques.tsx` 顶部新增确认条，显示条件（全部数据面板已有）：`book.content_nature==='general'`（来自 `useNovelDetail`，协议回传）且本书库技法列表存在 `scope==='adult'` 条目且本地未忽略。确认 → `useUpdateNovel({content_nature:'adult'})` → 条件不再成立自动消失；"暂不" → `localStorage` 按书记录忽略（key 含 novelID），不写库不进协议。
 
-- 依据：不阻塞学习/写作（宿主 Question 是阻塞式，弃）；条件纯派生无需新后端查询；本地忽略足够（用户哲学：尽量少干预，误忽略可由协议层 update 纠偏）。
+- 依据：不阻塞学习/写作（宿主 Question 是阻塞式，弃）；条件纯派生无需新后端查询（书性质经 `novel.detail` 协议回传，面板组件现无 novel 上下文，`workspace-frame.tsx` 挂载时需补传 `novelID` 并在面板内经 `useNovelDetail` 读取）；本地忽略足够（用户哲学：尽量少干预，误忽略可由协议层 update 纠偏）。
 - 弃案：忽略状态存 novels 列——为纯 UI 状态扩协议与 schema 面，收益不值得。
 - 弃案：面板手动切换控件——用户明确否决常驻标志方式。
 
