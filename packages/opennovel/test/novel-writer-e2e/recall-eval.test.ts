@@ -82,9 +82,11 @@ e2e(
           novel_id: novel.novelId,
           chapter_number: 1,
         })
+        // 书库技法为 adult，pipeline 依提示词判断本章走向并传内容性质参数（双闸门放行前提）
         yield* llm.toolMatch((hit) => bodyText(hit).includes("章纲：周慕云夜探盐仓"), "assemble_context_snapshot", {
           novel_id: novel.novelId,
           chapter_number: 1,
+          content_nature: "adult",
         })
         // 快照候选段含 T2（未验证新品）→ 评估后只确认 T1
         yield* llm.toolMatch((hit) => bodyText(hit).includes(T2.name), "confirm_techniques", { ids: [T1.id] })

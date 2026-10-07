@@ -28,10 +28,26 @@
 
 ## 5. 端到端验证
 
-- [ ] 5.1 真实库冒烟（复制临时目录）：通用书（书库无 adult 技法）面板列出技法且召回（带闸门参数）不含 adult 条目；adult 书（被动信号）在 `content_nature=adult` 时候选含 adult 技法、参数缺省或 `=general` 时不含（验证：冒烟输出记录于本文件）
-- [ ] 5.2 technique-agent-e2e 回归（OPENNOVEL_TECHNIQUE_E2E=1）：3 pass / 0 fail（验证：测试输出）
-- [ ] 5.3 全仓门禁：根目录 `bun run lint`（0 errors，warnings 不新增）+ 受影响包 `bun typecheck`（验证：命令输出）
+- [x] 5.1 真实库冒烟（复制临时目录）：通用书（书库无 adult 技法）面板列出技法且召回（带闸门参数）不含 adult 条目；adult 书（被动信号）在 `content_nature=adult` 时候选含 adult 技法、参数缺省或 `=general` 时不含（验证：冒烟输出记录于本文件）
+- [x] 5.2 technique-agent-e2e 回归（OPENNOVEL_TECHNIQUE_E2E=1）：3 pass / 0 fail（验证：测试输出）
+- [x] 5.3 全仓门禁：根目录 `bun run lint`（0 errors，warnings 不新增）+ 受影响包 `bun typecheck`（验证：命令输出）
 
 ## 6. 提交
 
 - [ ] 6.1 提交推送，commit 说明双闸门设计与工具参数机制，footer 带 `OpenSpec-Change: technique-content-nature-gating`（验证：git push 成功，CI 全绿）
+
+## 冒烟输出（5.1，真实库复制：C:\Novels\Novels 旧表副本 + 注入通用/成人技法各一条）
+
+- [1] 旧库（15 列无 scope）经 getDb 打开后自动迁移：16 列含 scope ✓
+- [2] 被动信号 bookHasAdultTechniques: true ✓
+- [3] 闸门关闭（组装层不传参）：候选 = 本书通用 + 全局通用 4 条，adult 被过滤 ✓（全局池不受闸门影响）
+- [4] 闸门开启（allowAdult=true）：候选含 冒烟-成人技法 ✓
+- [7] 书级覆盖 general + 参数 adult：候选不含成人 ✓（覆盖优先于被动信号）
+- [8] 清除覆盖：config 键删除，恢复 被动信号 adult ✓
+- [9] 恢复自动 + 参数 adult：候选含成人 ✓
+- [10] 恢复自动 + 不传参：候选不含成人 ✓（从紧缺省）
+
+## e2e 回归输出（5.2）
+
+- learn-chapter / recall-eval / shadow-eval 3 pass / 0 fail（280s，OPENNOVEL_TECHNIQUE_E2E=1）
+- recall-eval 预置 scope=adult 技法，按新双闸门语义更新脚本：pipeline 判断本章走向并传 content_nature=adult 后候选放行（不传参从紧的行为即本变更目标）

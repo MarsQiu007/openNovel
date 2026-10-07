@@ -50,7 +50,7 @@ function makeTechnique(overrides?: Partial<TechniqueEntry>): TechniqueEntry {
 
 async function seedNovelWithAdultTechnique(): Promise<void> {
   const db = getDb(dir)
-  await db.insert(NovelTable).values({ id: "novel-1", title: "测试", genre: "科幻", synopsis: "一场对话" }).run()
+  db.insert(NovelTable).values({ id: "novel-1", title: "测试", genre: "科幻", synopsis: "一场对话" }).run()
   await upsertTechnique(makeTechnique({ name: "通用技法", scope: "general", confidence: 0.8 }), dir, "book")
   await upsertTechnique(makeTechnique({ name: "受限技法", scope: "adult", confidence: 0.9 }), dir, "book")
 }
