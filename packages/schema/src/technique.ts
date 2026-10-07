@@ -98,10 +98,29 @@ export const UpdateTechniqueInput = Schema.Struct({
 }).annotate({ identifier: "Novel.UpdateTechniqueInput" })
 export interface UpdateTechniqueInput extends Schema.Schema.Type<typeof UpdateTechniqueInput> {}
 
+export const TechniqueContentNature = Schema.Literals(["adult", "general"]).annotate({
+  identifier: "Novel.TechniqueContentNature",
+  description: "书级内容性质：adult=成人内容；general=通用",
+})
+export type TechniqueContentNature = typeof TechniqueContentNature.Type
+
+export const TechniqueContentNatureState = Schema.Struct({
+  value: TechniqueContentNature,
+  /** override=人工覆盖值；passive=被动信号（书库存在 adult 技法判 adult，否则 general） */
+  source: Schema.Literals(["override", "passive"]),
+}).annotate({
+  identifier: "Novel.TechniqueContentNatureState",
+  description: "书级内容性质有效值及来源",
+})
+export interface TechniqueContentNatureState extends Schema.Schema.Type<typeof TechniqueContentNatureState> {}
+
 export const TechniqueInjection = Schema.Struct({
-  enabled: Schema.Boolean,
+  enabled: Schema.optional(Schema.Boolean),
+  contentNature: Schema.optional(TechniqueContentNatureState),
+  contentNatureOverride: Schema.optional(Schema.Union([TechniqueContentNature, Schema.Null])),
 }).annotate({
   identifier: "Novel.TechniqueInjection",
-  description: "项目级技法注入开关；false 表示保持 shadow 模式",
+  description:
+    "项目级技法配置：enabled=技法注入开关（false 保持 shadow 模式）；contentNature=书级内容性质有效值及来源；contentNatureOverride=人工覆盖（null 清除、缺省=自动模式）",
 })
 export interface TechniqueInjection extends Schema.Schema.Type<typeof TechniqueInjection> {}

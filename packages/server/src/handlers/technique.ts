@@ -13,13 +13,16 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Location } from "@opennovel-ai/core/location"
 import { Api } from "../api"
 import {
+  bookHasAdultTechniques,
   createTechnique,
   deleteTechnique,
   getTechnique,
   listTechniques,
   moveTechniqueToLibrary,
+  readContentNatureOverride,
   readTechniqueInjection,
   updateTechnique,
+  writeContentNatureOverride,
   writeTechniqueInjection,
   type TechniqueLibrary,
 } from "@opennovel-ai/novel-store"
@@ -151,22 +154,51 @@ export function deleteTechniqueForDirectory(techniqueId: string, directory: stri
   })
 }
 
-export function readTechniqueInjectionForDirectory(directory: string) {
-  return Effect.sync(() => ({ enabled: readTechniqueInjection(directory) }))
+export function readTechniqueConfigForDirectory(directory: string) {
+  return Effect.gen(function* () {
+    const enabled = readTechniqueInjection(directory)
+    const override = readContentNatureOverride(directory)
+    // 被动信号查询失败按 false 处理（书级性质回落 general，从紧方向退化）
+    const passive = yield* Effect.promise(() => bookHasAdultTechniques(directory).catch(() => false))
+    const value = override ?? (passive ? "adult" : "general")
+    return {
+      enabled,
+      contentNature: { value, source: override ? ("override" as const) : ("passive" as const) },
+      contentNatureOverride: override ?? null,
+    }
+  })
 }
 
-export function writeTechniqueInjectionForDirectory(directory: string, enabled: boolean) {
+export function writeTechniqueConfigForDirectory(
+  directory: string,
+  payload: { enabled?: boolean; contentNatureOverride?: "adult" | "general" | null },
+) {
   return Effect.gen(function* () {
-    const result = yield* Effect.sync(() => writeTechniqueInjection(directory, enabled))
-    if (!result) {
-      return yield* Effect.fail(
-        new TechniqueValidationError({
-          name: "TechniqueValidationError",
-          data: { message: "技法注入开关写入失败，请检查 .novel/config.json" },
-        }),
-      )
+    if (payload.enabled !== undefined) {
+      const result = yield* Effect.sync(() => writeTechniqueInjection(directory, payload.enabled as boolean))
+      if (!result) {
+        return yield* Effect.fail(
+          new TechniqueValidationError({
+            name: "TechniqueValidationError",
+            data: { message: "技法注入开关写入失败，请检查 .novel/config.json" },
+          }),
+        )
+      }
     }
-    return result
+    if (payload.contentNatureOverride !== undefined) {
+      const result = yield* Effect.sync(() =>
+        writeContentNatureOverride(directory, payload.contentNatureOverride as "adult" | "general" | null),
+      )
+      if (!result) {
+        return yield* Effect.fail(
+          new TechniqueValidationError({
+            name: "TechniqueValidationError",
+            data: { message: "书级内容性质写入失败，请检查 .novel/config.json" },
+          }),
+        )
+      }
+    }
+    return yield* readTechniqueConfigForDirectory(directory)
   })
 }
 
@@ -192,13 +224,13 @@ export const TechniqueHandler = HttpApiBuilder.group(Api, "server.technique", (h
       .handle("technique.config", () =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* readTechniqueInjectionForDirectory(directoryOf(location))
+          return yield* readTechniqueConfigForDirectory(directoryOf(location))
         }),
       )
       .handle("technique.set-config", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* writeTechniqueInjectionForDirectory(directoryOf(location), ctx.payload.enabled)
+          return yield* writeTechniqueConfigForDirectory(directoryOf(location), ctx.payload)
         }),
       )
       .handle("technique.detail", (ctx) =>

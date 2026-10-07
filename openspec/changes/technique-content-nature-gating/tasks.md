@@ -4,8 +4,8 @@
 
 ## 1. 配置契约（novel-store + protocol + client）
 
-- [ ] 1.1 novel-store 新增书级内容性质读写：`contentNatureOverride` 单键读写函数（缺省=自动模式），并新增"书库是否含 adult 技法"查询 helper；包目录 `bun typecheck` 与 oxlint 通过
-- [ ] 1.2 协议扩展：`technique.config` 响应增量返回 effective 书级内容性质（override ?? 被动信号 ?? general，含来源标识），`set-config` 请求增量接受可选 `contentNatureOverride`（传 null 清除覆盖）；packages/protocol 通过 `bun typecheck` 后，在 packages/client 运行 `bun run generate` 并确认生成物含新字段（验证：generate 后 client typecheck 通过）
+- [x] 1.1 novel-store 新增书级内容性质读写：`contentNatureOverride` 单键读写函数（缺省=自动模式），并新增"书库是否含 adult 技法"查询 helper；包目录 `bun typecheck` 与 oxlint 通过
+- [x] 1.2 协议扩展：`technique.config` 响应增量返回 effective 书级内容性质（override ?? 被动信号 ?? general，含来源标识），`set-config` 请求增量接受可选 `contentNatureOverride`（传 null 清除覆盖）；packages/protocol 通过 `bun typecheck` 后，在 packages/client 运行 `bun run generate` 并确认生成物含新字段（验证：generate 后 client typecheck 通过）
 
 ## 2. 召回闸门（plugin store 层）
 
@@ -22,7 +22,7 @@
 
 ## 4. 界面（app）
 
-- [ ] 4.1 技法表单 `scope=成人内容` 选项旁内联真实语义说明文案（"仅成人书的成人章节召回，其他书与其他章节不可见"）（验证：界面可见该说明，i18n 词条同步）
+- [ ] 4.1 技法表单 `scope=成人内容` 选项旁内联真实语义说明文案（"仅成人书的成人章节召回，其他书与其他章节不可见"）（验证：界面可见该说明；面板文案为硬编码中文，不涉及 i18n locale 文件）
 - [ ] 4.2 技法面板头部展示书级内容性质（含来源标识：自动/人工覆盖）与切换控件（自动/成人/通用），覆盖操作走扩展后的 `set-config`，成功即刷新展示（验证：切换后重开面板值保持；展示与协议返回值一致）
 - [ ] 4.3 packages/app 通过 `bun typecheck` 与 oxlint
 

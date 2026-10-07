@@ -7234,7 +7234,11 @@ export type ServerTechniqueConfigInput = {
   }["library"]
 }
 
-export type ServerTechniqueConfigOutput = { readonly enabled: boolean }
+export type ServerTechniqueConfigOutput = {
+  readonly enabled?: boolean | undefined
+  readonly contentNature?: { readonly value: "adult" | "general"; readonly source: "override" | "passive" } | undefined
+  readonly contentNatureOverride?: ("adult" | "general") | null | undefined
+}
 
 export type ServerTechniqueSetConfigInput = {
   readonly location?: {
@@ -7245,10 +7249,34 @@ export type ServerTechniqueSetConfigInput = {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
     readonly library?: ("book" | "global" | "all") | undefined
   }["library"]
-  readonly enabled: { readonly enabled: boolean }["enabled"]
+  readonly enabled?: {
+    readonly enabled?: boolean | undefined
+    readonly contentNature?:
+      | { readonly value: "adult" | "general"; readonly source: "override" | "passive" }
+      | undefined
+    readonly contentNatureOverride?: ("adult" | "general") | null | undefined
+  }["enabled"]
+  readonly contentNature?: {
+    readonly enabled?: boolean | undefined
+    readonly contentNature?:
+      | { readonly value: "adult" | "general"; readonly source: "override" | "passive" }
+      | undefined
+    readonly contentNatureOverride?: ("adult" | "general") | null | undefined
+  }["contentNature"]
+  readonly contentNatureOverride?: {
+    readonly enabled?: boolean | undefined
+    readonly contentNature?:
+      | { readonly value: "adult" | "general"; readonly source: "override" | "passive" }
+      | undefined
+    readonly contentNatureOverride?: ("adult" | "general") | null | undefined
+  }["contentNatureOverride"]
 }
 
-export type ServerTechniqueSetConfigOutput = { readonly enabled: boolean }
+export type ServerTechniqueSetConfigOutput = {
+  readonly enabled?: boolean | undefined
+  readonly contentNature?: { readonly value: "adult" | "general"; readonly source: "override" | "passive" } | undefined
+  readonly contentNatureOverride?: ("adult" | "general") | null | undefined
+}
 
 export type ServerTechniqueDetailInput = {
   readonly techniqueID: { readonly techniqueID: string }["techniqueID"]

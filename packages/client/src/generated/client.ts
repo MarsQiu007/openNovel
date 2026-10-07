@@ -2784,13 +2784,17 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      "set-config": (input: ServerTechniqueSetConfigInput, requestOptions?: RequestOptions) =>
+      "set-config": (input?: ServerTechniqueSetConfigInput, requestOptions?: RequestOptions) =>
         request<ServerTechniqueSetConfigOutput>(
           {
             method: "PUT",
             path: `/api/techniques/config`,
-            query: { location: input["location"], library: input["library"] },
-            body: { enabled: input["enabled"] },
+            query: { location: input?.["location"], library: input?.["library"] },
+            body: {
+              enabled: input?.["enabled"],
+              contentNature: input?.["contentNature"],
+              contentNatureOverride: input?.["contentNatureOverride"],
+            },
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,

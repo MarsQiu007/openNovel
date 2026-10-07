@@ -81,8 +81,8 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
       .annotateMerge(
         OpenApi.annotations({
           identifier: "v2.technique.config.get",
-          summary: "读取技法注入开关",
-          description: "读取项目级 technique_injection；缺失或非法值视为关闭。",
+          summary: "读取技法配置",
+          description: "读取项目级技法配置：注入开关（缺失或非法值视为开启）与书级内容性质有效值（override ?? 被动信号 ?? general）。",
         }),
       ),
   )
@@ -97,8 +97,8 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
       .annotateMerge(
         OpenApi.annotations({
           identifier: "v2.technique.config.set",
-          summary: "更新技法注入开关",
-          description: "只更新 .novel/config.json 中的 technique_injection 字段。",
+          summary: "更新技法配置",
+          description: "增量更新 .novel/config.json：technique_injection 与/或 content_nature_override（传 null 清除覆盖恢复自动）。",
         }),
       ),
   )
