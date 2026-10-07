@@ -2048,6 +2048,24 @@ export function useSetTechniqueInjection() {
   }))
 }
 
+export function useSetTechniqueContentNature() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { contentNatureOverride: "adult" | "general" | null }) => {
+      const dir = sdk().directory
+      return client()["server.technique"]["set-config"]({
+        location: { directory: dir },
+        contentNatureOverride: input.contentNatureOverride,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: novelKeys["technique-injection"](sdk().directory) })
+    },
+  }))
+}
+
 export function useSaveBookMeta() {
   const client = useNovelClient()
   const queryClient = useQueryClient()

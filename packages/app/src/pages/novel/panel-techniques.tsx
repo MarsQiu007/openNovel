@@ -19,6 +19,7 @@ import {
   useUpdateTechnique,
   useDeleteTechnique,
   useSetTechniqueInjection,
+  useSetTechniqueContentNature,
 } from "@/context/novel-queries"
 import { useConfirmDelete } from "./confirm-dialog"
 import { parseEvidenceText } from "./technique-utils"
@@ -52,6 +53,12 @@ const ERROR_OPTIONS: SelectOption<"all" | TechniqueLevel | TechniqueStatus>[] = 
 const SCOPE_OPTIONS: SelectOption<TechniqueScope>[] = [
   { value: "general", label: "通用写法" },
   { value: "adult", label: "成人内容" },
+]
+
+const NATURE_OPTIONS: SelectOption<"auto" | "adult" | "general">[] = [
+  { value: "auto", label: "自动" },
+  { value: "adult", label: "成人" },
+  { value: "general", label: "通用" },
 ]
 
 const LIBRARY_OPTIONS: SelectOption<TechniqueLibrary>[] = [
@@ -93,6 +100,18 @@ export default function PanelTechniques() {
   const query = useTechniques()
   const injection = useTechniqueInjection()
   const setInjection = useSetTechniqueInjection()
+  const setNature = useSetTechniqueContentNature()
+
+  const natureOption = createMemo(() => {
+    const override = injection.data?.contentNatureOverride
+    return NATURE_OPTIONS.find((item) => item.value === (override ?? "auto")) ?? NATURE_OPTIONS[0]
+  })
+  const natureSourceLabel = () => {
+    const state = injection.data?.contentNature
+    if (!state) return "加载中…"
+    if (injection.data?.contentNatureOverride) return "人工覆盖，立即生效"
+    return state.value === "adult" ? "自动（书库含成人技法）" : "自动（通用）"
+  }
 
   const techniques = createMemo(() => query.data ?? [])
   const selectedTechnique = createMemo(() => techniques().find((item) => item.id === selectedId()))
@@ -124,6 +143,26 @@ export default function PanelTechniques() {
           </div>
           <Show when={setInjection.error}>
             <p class="mt-2 text-xs text-v2-text-text-danger">{errorText(setInjection.error)}</p>
+          </Show>
+          <div class="mt-2 flex items-center justify-between gap-3 rounded-md bg-v2-background-bg-layer-02 px-3 py-2">
+            <span class="text-sm text-v2-text-text-base">书级内容性质</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-v2-text-text-muted">{natureSourceLabel()}</span>
+              <SelectV2
+                options={NATURE_OPTIONS}
+                value={(item) => item.value}
+                label={(item) => item.label}
+                current={natureOption()}
+                disabled={setNature.isPending}
+                onSelect={(item) => {
+                  const value = item?.value
+                  if (value) setNature.mutate({ contentNatureOverride: value === "auto" ? null : value })
+                }}
+              />
+            </div>
+          </div>
+          <Show when={setNature.error}>
+            <p class="mt-2 text-xs text-v2-text-text-danger">{errorText(setNature.error)}</p>
           </Show>
         </div>
       </Show>
@@ -476,6 +515,11 @@ function TechniqueForm(props: {
             current={SCOPE_OPTIONS.find((item) => item.value === scope())}
             onSelect={(item) => { const value = item?.value; if (value) setScope(value); if (value === "adult") setTargetLibrary("book") }}
           />
+          <Show when={scope() === "adult"}>
+            <p class="mt-1 text-xs text-v2-text-text-muted">
+              仅成人书的成人章节召回：书级内容性质判为成人且当前章节判断为成人时进入写作候选，其他书与其他章节不可见。
+            </p>
+          </Show>
         </FormField>
         <FormField label="层级">
           <SelectV2
