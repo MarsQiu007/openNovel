@@ -560,3 +560,79 @@ describe("queryTechniques 双源饱和池（本书池 ≥ limit）", () => {
     })
   })
 })
+
+describe("queryTechniques 内容性质双闸门", () => {
+  const gateDir = join(testDir, "gate")
+  async function seedGateFixture() {
+    const base = Date.now()
+    const bookGeneral = makeTechnique({
+      name: "闸门-本书通用",
+      scope: "general",
+      status: "verified",
+      confidence: 0.8,
+      sceneTypes: ["dialogue"],
+      createdAt: base - 3000,
+      updatedAt: base - 3000,
+    })
+    const bookAdult = makeTechnique({
+      name: "闸门-本书受限",
+      scope: "adult",
+      status: "unverified",
+      confidence: 0.9,
+      sceneTypes: ["dialogue"],
+      createdAt: base - 1000,
+      updatedAt: base - 1000,
+    })
+    const globalGeneral = makeTechnique({
+      name: "闸门-全局通用",
+      scope: "general",
+      status: "verified",
+      confidence: 0.85,
+      sceneTypes: ["dialogue"],
+      createdAt: base - 2000,
+      updatedAt: base - 2000,
+    })
+    await upsertTechnique(bookGeneral, gateDir, "book")
+    await upsertTechnique(bookAdult, gateDir, "book")
+    await upsertTechnique(globalGeneral, gateDir, "global")
+    return { bookGeneral, bookAdult, globalGeneral }
+  }
+
+  test("闸门缺省关闭：本书 adult 不进候选且不占曝光位", async () => {
+    const { bookGeneral, bookAdult, globalGeneral } = await seedGateFixture()
+    const hits = await queryTechniques({ sceneType: "dialogue", contextText: "对话", limit: 5 }, gateDir)
+    const ids = hits.map((hit) => hit.entry.id)
+    expect(ids).toContain(bookGeneral.id)
+    expect(ids).toContain(globalGeneral.id)
+    expect(ids).not.toContain(bookAdult.id)
+  })
+
+  test("闸门开启（allowAdult）时本书 adult 恢复可见", async () => {
+    const { bookAdult } = await seedGateFixture()
+    const hits = await queryTechniques(
+      { sceneType: "dialogue", contextText: "对话", limit: 5, allowAdult: true },
+      gateDir,
+    )
+    expect(hits.some((hit) => hit.entry.id === bookAdult.id)).toBe(true)
+  })
+
+  test("全局池不受闸门影响：关闭时全局新品仍占曝光位", async () => {
+    const { bookAdult } = await seedGateFixture()
+    const base = Date.now()
+    const globalFresh = makeTechnique({
+      name: "闸门-全局新品",
+      scope: "general",
+      status: "unverified",
+      confidence: 0.5,
+      sceneTypes: ["dialogue"],
+      createdAt: base,
+      updatedAt: base,
+    })
+    await upsertTechnique(globalFresh, gateDir, "global")
+    const hits = await queryTechniques({ sceneType: "dialogue", contextText: "对话", limit: 5 }, gateDir)
+    const ids = hits.map((hit) => hit.entry.id)
+    // 本书 adult 是最新 unverified，但闸门关闭时曝光位让位给全局新品
+    expect(ids).not.toContain(bookAdult.id)
+    expect(ids).toContain(globalFresh.id)
+  })
+})

@@ -1,4 +1,4 @@
-import { eq, gte, desc, and } from "drizzle-orm"
+import { eq, ne, gte, desc, and } from "drizzle-orm"
 import { getDb, getGlobalDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
 import type {
   TechniqueEntry,
@@ -87,6 +87,10 @@ export async function queryTechniques(
     if (query.minConfidence !== undefined) {
       conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
     }
+    // 内容性质双闸门：未显式放行时本书池排除 adult 条目（全局池不受闸门影响）
+    if (library === "book" && query.allowAdult !== true) {
+      conditions.push(ne(TechniqueTable.scope, "adult"))
+    }
     const rows = await db
       .select()
       .from(TechniqueTable)
@@ -102,6 +106,9 @@ export async function queryTechniques(
     const freshConditions = [eq(TechniqueTable.status, "unverified")]
     if (query.minConfidence !== undefined) {
       freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+    }
+    if (library === "book" && query.allowAdult !== true) {
+      freshConditions.push(ne(TechniqueTable.scope, "adult"))
     }
     const freshRows = await db
       .select()

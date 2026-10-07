@@ -87,6 +87,8 @@ export interface TechniqueQuery {
   contextText: string
   limit?: number
   minConfidence?: number
+  /** 双闸门通过（书级与章节级均判 adult）时才为 true；缺省按 false 处理（从紧，过滤本书池 adult 条目） */
+  allowAdult?: boolean
 }
 
 export interface TechniqueFeedback {
