@@ -26800,7 +26800,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "项目级技法注入开关；false 表示保持 shadow 模式",
+            "description": "项目级技法配置：enabled=技法注入开关（false 保持 shadow 模式）；contentNature=书级内容性质有效值及来源；contentNatureOverride=人工覆盖（null 清除、缺省=自动模式）",
             "content": {
               "application/json": {
                 "schema": {
@@ -26837,8 +26837,8 @@
             }
           }
         },
-        "description": "读取项目级 technique_injection；缺失或非法值视为关闭。",
-        "summary": "读取技法注入开关",
+        "description": "读取项目级技法配置：注入开关（缺失或非法值视为开启）与书级内容性质有效值（override ?? 被动信号 ?? general）。",
+        "summary": "读取技法配置",
         "x-codeSamples": [
           {
             "lang": "js",
@@ -26881,7 +26881,7 @@
         "security": [],
         "responses": {
           "200": {
-            "description": "项目级技法注入开关；false 表示保持 shadow 模式",
+            "description": "项目级技法配置：enabled=技法注入开关（false 保持 shadow 模式）；contentNature=书级内容性质有效值及来源；contentNatureOverride=人工覆盖（null 清除、缺省=自动模式）",
             "content": {
               "application/json": {
                 "schema": {
@@ -26918,8 +26918,8 @@
             }
           }
         },
-        "description": "只更新 .novel/config.json 中的 technique_injection 字段。",
-        "summary": "更新技法注入开关",
+        "description": "增量更新 .novel/config.json：technique_injection 与/或 content_nature_override（传 null 清除覆盖恢复自动）。",
+        "summary": "更新技法配置",
         "requestBody": {
           "content": {
             "application/json": {
@@ -49858,14 +49858,37 @@
         "required": ["name", "instruction"],
         "additionalProperties": false
       },
+      "NovelTechniqueContentNature": {
+        "type": "string",
+        "enum": ["adult", "general"]
+      },
+      "NovelTechniqueContentNatureState": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/NovelTechniqueContentNature"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["override", "passive"]
+          }
+        },
+        "required": ["value", "source"],
+        "additionalProperties": false
+      },
       "NovelTechniqueInjection": {
         "type": "object",
         "properties": {
           "enabled": {
             "type": "boolean"
+          },
+          "contentNature": {
+            "$ref": "#/components/schemas/NovelTechniqueContentNatureState"
+          },
+          "contentNatureOverride": {
+            "$ref": "#/components/schemas/NovelTechniqueContentNature"
           }
         },
-        "required": ["enabled"],
         "additionalProperties": false
       },
       "NovelTechniqueFeedback": {

@@ -11865,9 +11865,9 @@ export class NovelMode extends HeyApiClient {
 
 export class Config3 extends HeyApiClient {
   /**
-   * 读取技法注入开关
+   * 读取技法配置
    *
-   * 读取项目级 technique_injection；缺失或非法值视为关闭。
+   * 读取项目级技法配置：注入开关（缺失或非法值视为开启）与书级内容性质有效值（override ?? 被动信号 ?? general）。
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -11902,9 +11902,9 @@ export class Config3 extends HeyApiClient {
   }
 
   /**
-   * 更新技法注入开关
+   * 更新技法配置
    *
-   * 只更新 .novel/config.json 中的 technique_injection 字段。
+   * 增量更新 .novel/config.json：technique_injection 与/或 content_nature_override（传 null 清除覆盖恢复自动）。
    */
   public set<ThrowOnError extends boolean = false>(
     parameters: {
