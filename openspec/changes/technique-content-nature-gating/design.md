@@ -17,7 +17,7 @@ Goals:
 
 - 双闸门（书级+章节级）在召回 store 层单点生效，置信度路径与曝光位路径都被覆盖。
 - 纯通用书（书库无 adult 技法）召回行为与现状逐字节一致，零额外调用。
-- 书级性质默认全自动且确定性（被动信号），人工覆盖作为逃生通道。
+- 书级性质全自动且确定性（被动信号），无任何人工标记入口（用户明确要求：不在 UI 手动标志成人向书籍，零干预）。
 - 工具层零 LLM 调用、不扩展 ToolContext；章节判断融入调用方 agent 的既有回合。
 
 Non-Goals:
@@ -30,19 +30,19 @@ Non-Goals:
 
 ## Decisions
 
-### D1 书级覆盖存 `.novel/config.json`（单键），不建表
+### D1 书级性质无配置键，唯一来源=被动信号
 
-新增 `contentNatureOverride`（`adult`|`general`|缺省）一个键，缺省=自动模式。复用技法注入开关的 config 读写先例。
+书级内容性质不引入任何配置键或人工覆盖：唯一判定依据是被动信号（书库 techniques 表存在 `scope=adult` 行→adult，否则→general）。书表不加列、config 不加键，零人工干预。
 
-- 备选：书表加列——需要书表迁移且与现有 config 体系割裂，弃。
-- 只存覆盖值、不存判定缓存：书级判定由被动信号实时得出，无缓存可避免"缓存与库状态不一致"的复杂度。
+- 依据：书级性质仅用于闸门放行，无 adult 技法的书判 general 对闸门毫无影响（没有 adult 候选可挡）；出现 adult 技法（学习、手工创建、改标）被动信号立即翻转，语义始终正确，无需人工兜底。
+- 弃案：`.novel/config.json` 覆盖键 + 面板切换控件——用户明确不希望以 UI 手动标志成人向书籍，逃生通道整体删除（实现后按用户反馈移除）。
 
-### D2 书级有效性质 = override ?? 被动信号 ?? general，server/plugin 两侧同算
+### D2 书级性质 = 被动信号，plugin 单点计算，协议不回传
 
-自动模式下书级性质为纯确定性查询：书库 techniques 表存在 `scope=adult` 行→adult，否则→general。plugin 召回侧与 server 的 `technique.config` 端点各自用同一 novel-store helper 计算，返回值携带来源标识（人工覆盖/被动信号）。
+书级性质为纯确定性查询：书库 techniques 表存在 `scope=adult` 行→adult，否则→general，仅 plugin 召回侧经 novel-store helper 计算；server 的 `technique.config` 端点维持 enabled-only 契约，不回传性质（无 UI 消费方）。
 
 - 依据：无 adult 技法的书判 general 对闸门毫无影响（没有 adult 候选可挡）；一旦该书出现 adult 技法（学习、手工创建、改标），被动信号立即翻转，语义始终正确。
-- 备选：LLM 元数据判定并缓存——工具层无 LLM 能力（见 Context），且对闸门而言无增量价值，弃。
+- 备选：LLM 元数据判定并缓存——工具层无 LLM 能力（见 Context），且对闸门而言无增量价值，弃；备选：server 计算 effective nature 并经协议回传——随人工覆盖删除而失去消费方，弃。
 
 ### D3 章节级判断 = 调用方 agent 经工具参数给出，未传从紧
 
@@ -61,19 +61,18 @@ Non-Goals:
 
 ### D5 文案澄清用表单内联说明
 
-编辑表单 `scope=成人内容` 选项旁内联一句真实语义说明；书级性质控件放技法面板头部（与注入开关同区），展示"自动（被动信号）/人工覆盖为 general"等来源标识。
+编辑表单 `scope=成人内容` 选项旁内联一句真实语义说明（含书级自动判定方式：书库含成人技法即判为成人书）；不设书级性质展示/覆盖控件。
 
 - 备选：tooltip/问号图标——移动端与可发现性差，弃。
 
 ## Risks / Trade-offs
 
-- [调用 agent 漏传/误传 content_nature] → 缺省从紧（adult 候选不出现）；prompt 指引 + 书级被动信号兜底；用户可临时把书级覆盖为 general 完全绕过闸门（恢复旧行为）。
+- [调用 agent 漏传/误传 content_nature] → 缺省从紧（adult 候选不出现）；prompt 指引 + 书级被动信号兜底；必要时改标/删除 adult 技法即切断来源。
 - [agent 把非成人章节误判为成人] → 仅影响候选可见性，技法系统本身仍是 shadow/注入两级 advisory，auditor 反馈闭环兜底。
-- [UI 展示 effective nature 依赖书库查询] → helper 查询失败按"未知"展示并保留覆盖控件可用性，不影响写入。
 
 ## Migration Plan
 
-1. 部署后无即时数据动作：config 新键缺省即自动模式。
+1. 部署后无即时数据动作：无新配置键、无 schema 变更。
 2. XianXia 这类"书库有 adult 技法"的书：下一次召回即被判为 adult 书（被动信号），adult 技法仅在调用方判断为成人的章节出现——行为变化正是本变更目标。
-3. 回滚：revert 实现提交；遗留的 config 键对旧代码无害（旧代码不读新键）。
-4. 协议变更（technique.config 响应扩展、set-config 请求扩展）向后兼容：纯增量可选字段，旧客户端忽略新字段；工具新参数可选，旧调用方不传即从紧。
+3. 回滚：revert 实现提交；无遗留数据（未引入新键、新列）。
+4. 协议无净变更：technique.config/set-config 回归 enabled-only 契约（与本变更前一致）；工具新参数可选，旧调用方不传即从紧。
