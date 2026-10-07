@@ -555,9 +555,10 @@ export async function assembleWriterSnapshot(
   chapterNumber: number,
   directory?: string | null,
   focus?: string,
+  contentNature?: string,
 ) {
   const db = getDb(directory)
-  const raw = await assembleSnapshot(novelId, chapterNumber, directory)
+  const raw = await assembleSnapshot(novelId, chapterNumber, directory, contentNature)
   if (!raw) return null
 
   // 数据库优先读取章纲；旧项目为空时懒导入存量 Markdown 文件

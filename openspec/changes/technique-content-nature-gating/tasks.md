@@ -9,16 +9,16 @@
 
 ## 2. 召回闸门（plugin store 层）
 
-- [ ] 2.1 `queryTechniques` 增加可选 adult 闸门入参：闸门不通过时过滤本书池中 `scope=adult` 条目，置信度路径与曝光位路径同一过滤点生效；全局池不受参数影响（验证：新增单测覆盖"闸门关闭时 adult 不进候选且不占曝光位""闸门开启行为与现状一致""全局池无关闸门"三态，technique-store 测试全绿）
-- [ ] 2.2 单池场景回归：本书库无 adult 技法的查询不传闸门时结果与现状逐条一致（验证：既有单源等价用例不修改且通过）
-- [ ] 2.3 packages/plugin 通过 `bun typecheck` 与仓库根 oxlint（0 errors）
+- [x] 2.1 `queryTechniques` 增加可选 adult 闸门入参：闸门不通过时过滤本书池中 `scope=adult` 条目，置信度路径与曝光位路径同一过滤点生效；全局池不受参数影响（验证：新增单测覆盖"闸门关闭时 adult 不进候选且不占曝光位""闸门开启行为与现状一致""全局池无关闸门"三态，technique-store 测试全绿）
+- [x] 2.2 单池场景回归：本书库无 adult 技法的查询不传闸门时结果与现状逐条一致（验证：既有单源等价用例不修改且通过）
+- [x] 2.3 packages/plugin 通过 `bun typecheck` 与仓库根 oxlint（0 errors）
 
 ## 3. 判定接入（plugin 流水线侧）
 
-- [ ] 3.1 书级性质确定性解析模块：override → 被动信号（书库存在 adult 技法）→ general 缺省，计算结果携带来源标识（验证：单测覆盖三分支）
-- [ ] 3.2 `assemble_context_snapshot` 新增可选 `content_nature` 参数（`adult`/`general`，未传/非法按 general）；pipeline/writer/outliner 的 system prompt 增加章节内容性质判断指引（何时判 adult、何时判 general、与书级闸门的关系）（验证：单测覆盖参数解析与缺省从紧）
-- [ ] 3.3 上下文组装接入：组装处先解析书级性质、读入工具参数作为章节性质，将闸门结果传入 `queryTechniques`；判定链路整体包在静默降级 try/catch 内——任何失败不影响写作主流程（验证：组装层测试 + 既有流水线回归通过）
-- [ ] 3.4 packages/plugin 通过 `bun typecheck` 与仓库根 oxlint（0 errors）
+- [x] 3.1 书级性质确定性解析模块：override → 被动信号（书库存在 adult 技法）→ general 缺省，计算结果携带来源标识（验证：单测覆盖三分支）
+- [x] 3.2 `assemble_context_snapshot` 新增可选 `content_nature` 参数（`adult`/`general`，未传/非法按 general）；pipeline/writer/outliner 的 system prompt 增加章节内容性质判断指引（何时判 adult、何时判 general、与书级闸门的关系）（验证：单测覆盖参数解析与缺省从紧）
+- [x] 3.3 上下文组装接入：组装处先解析书级性质、读入工具参数作为章节性质，将闸门结果传入 `queryTechniques`；判定链路整体包在静默降级 try/catch 内——任何失败不影响写作主流程（验证：组装层测试 + 既有流水线回归通过）
+- [x] 3.4 packages/plugin 通过 `bun typecheck` 与仓库根 oxlint（0 errors）
 
 ## 4. 界面（app）
 

@@ -1125,11 +1125,23 @@ ${sceneChecklist}`
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("当前章节序号"),
           focus: tool.schema.string().optional().describe("查询焦点关键词，传入时召回围绕该焦点检索而非使用章纲"),
+          content_nature: tool.schema
+            .enum(["adult", "general"])
+            .optional()
+            .describe(
+              "本章内容性质判断：仅当本书为成人内容书且本章将写作成人内容时才传 adult；缺省不传或传 general，成人技法候选不会出现",
+            ),
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
-          const snapshot = await assembleWriterSnapshot(novelId, args.chapter_number, ctx.directory, args.focus)
+          const snapshot = await assembleWriterSnapshot(
+            novelId,
+            args.chapter_number,
+            ctx.directory,
+            args.focus,
+            args.content_nature,
+          )
           if (!snapshot) {
             return { title: "assemble_context_snapshot", output: `无法组装上下文快照，小说 ${novelId} 不存在` }
           }

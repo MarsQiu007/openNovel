@@ -459,6 +459,7 @@ export async function assembleSnapshot(
   novelId: string,
   chapterNumber: number,
   directory?: string | null,
+  contentNatureParam?: string,
 ): Promise<ContextPacket | null> {
   const db = getDb(directory)
 
@@ -614,8 +615,15 @@ export async function assembleSnapshot(
   let techniques: RetrievedTechnique[] = []
   try {
     const { queryTechniques, recordShadowLog } = await import("./technique-store.js")
+    const { resolveBookContentNature, resolveChapterContentNature } = await import("./technique-nature.js")
     const sceneType = inferSceneType(currentChapter?.title ?? "", novel.synopsis)
-    techniques = await queryTechniques({ sceneType, contextText: currentChapter?.title ?? "", limit: 5 }, directory)
+    // 双闸门：书级被动信号/覆盖 × 章节级调用方判断；任一不满足则 adult 候选被过滤
+    const bookNature = await resolveBookContentNature(directory)
+    const allowAdult = bookNature.value === "adult" && resolveChapterContentNature(contentNatureParam) === "adult"
+    techniques = await queryTechniques(
+      { sceneType, contextText: currentChapter?.title ?? "", limit: 5, allowAdult },
+      directory,
+    )
 
     if (techniques.length > 0) {
       await recordShadowLog(
