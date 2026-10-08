@@ -12,7 +12,7 @@ const directory = join(root, "project")
 // 隔离全局通用技法库，避免测试污染真实数据；env 在首次 getGlobalDb() 调用前赋值即可。
 process.env.OPENNOVEL_TECHNIQUE_DB = join(root, "global", "techniques.db")
 
-import { closeDb, getDb, TechniqueFeedbackTable } from "@opennovel-ai/novel-store"
+import { closeDb, getDb, TechniqueFeedbackTable, TechniqueTable } from "@opennovel-ai/novel-store"
 import {
   createTechniqueForDirectory,
   deleteTechniqueForDirectory,
@@ -199,5 +199,40 @@ describe("technique handler", () => {
     if (!Exit.isFailure(exit)) return
     const error = Cause.squash(exit.cause) as TechniqueValidationError
     expect(error.name).toBe("TechniqueValidationError")
+  })
+
+  test("单行坏数据不拖垮列表（单库与 all 两分支）", async () => {
+    mkdirSync(directory, { recursive: true })
+    const good = await Effect.runPromise(
+      createTechniqueForDirectory(directory, { name: "合法技法", instruction: "在关键回应前插入沉默", scope: "adult" }),
+    )
+    // 直写坏行：证据缺必填 sourceTitle（模拟绕过协议校验的历史脏数据）
+    getDb(directory)
+      .insert(TechniqueTable)
+      .values({
+        id: "tech-bad-row",
+        name: "坏行技法",
+        principle: "",
+        instruction: "坏行指令示例文本",
+        scene_types: JSON.stringify(["dialogue"]),
+        level: "paragraph",
+        evidence: JSON.stringify([{ sourceLocation: "第1章", excerpt: "片段", annotation: "批注" }]),
+        common_misuse: "",
+        confidence: 0.5,
+        status: "unverified",
+        scope: "adult",
+        embedding: null,
+        usage_count: 0,
+        last_used_at: null,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      })
+      .run()
+
+    for (const lib of ["book", "all"] as const) {
+      const list = await Effect.runPromise(listTechniquesForDirectory(directory, lib))
+      expect(list.some((item) => item.id === good.id)).toBe(true)
+      expect(list.some((item) => item.id === "tech-bad-row")).toBe(false)
+    }
   })
 })

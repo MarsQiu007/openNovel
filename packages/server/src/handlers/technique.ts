@@ -8,7 +8,7 @@
  * - create 按 payload.targetLibrary 路由，全局库拒绝成人技法；
  * - update 按最终 scope 归位：目标库与当前库不同则先迁移（反馈随迁、id 不变）再更新。
  */
-import { Effect } from "effect"
+import { Effect, Result, Schema } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Location } from "@opennovel-ai/core/location"
 import { Api } from "../api"
@@ -23,7 +23,7 @@ import {
   writeTechniqueInjection,
   type TechniqueLibrary,
 } from "@opennovel-ai/novel-store"
-import type { CreateTechniqueInput } from "@opennovel-ai/schema/technique"
+import { Technique, type CreateTechniqueInput } from "@opennovel-ai/schema/technique"
 import { TechniqueNotFoundError, TechniqueValidationError } from "@opennovel-ai/protocol/groups/technique"
 
 type LibraryFilter = TechniqueLibrary | "all" | undefined
@@ -63,19 +63,32 @@ async function locateTechnique(
 }
 
 export function listTechniquesForDirectory(directory: string, library: Exclude<LibraryFilter, undefined> = "book") {
-  return Effect.promise(async () => {
-    if (library !== "all") {
-      const items = await listTechniques(directory, library)
-      return items.map((item) => ({ ...item, library }))
+  return Effect.gen(function* () {
+    const items = yield* Effect.promise(async () => {
+      if (library !== "all") {
+        const rows = await listTechniques(directory, library)
+        return rows.map((item) => ({ ...item, library }))
+      }
+      const [bookItems, globalItems] = await Promise.all([
+        listTechniques(directory, "book"),
+        listTechniques(directory, "global"),
+      ])
+      return [
+        ...bookItems.map((item) => ({ ...item, library: "book" as const })),
+        ...globalItems.map((item) => ({ ...item, library: "global" as const })),
+      ].sort((a, b) => b.confidence - a.confidence || b.updatedAt - a.updatedAt)
+    })
+    // 行级容错：单行历史脏数据不满足协议契约时跳过（WARN 含 id 与原因首行），不拖垮整个列表
+    const outcomes = items.map((item) => {
+      const result = Schema.decodeUnknownResult(Technique)(item)
+      return Result.isSuccess(result)
+        ? { ok: true as const, value: result.success }
+        : { ok: false as const, id: item.id, reason: String(result.failure).split("\n")[0] }
+    })
+    for (const bad of outcomes.filter((outcome) => !outcome.ok)) {
+      yield* Effect.logWarning(`technique.list 跳过不合协议契约的技法行: id=${bad.id} 原因=${bad.reason}`)
     }
-    const [bookItems, globalItems] = await Promise.all([
-      listTechniques(directory, "book"),
-      listTechniques(directory, "global"),
-    ])
-    return [
-      ...bookItems.map((item) => ({ ...item, library: "book" as const })),
-      ...globalItems.map((item) => ({ ...item, library: "global" as const })),
-    ].sort((a, b) => b.confidence - a.confidence || b.updatedAt - a.updatedAt)
+    return outcomes.flatMap((outcome) => (outcome.ok ? [outcome.value] : []))
   })
 }
 
