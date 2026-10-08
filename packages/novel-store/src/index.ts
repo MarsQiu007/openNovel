@@ -1345,7 +1345,7 @@ export function writeTechniqueInjection(
 export async function getBookContentNature(directory?: string | null): Promise<"adult" | "general"> {
   try {
     const db = getDb(directory)
-    const [row] = await db.select({ content_nature: NovelTable.content_nature }).from(NovelTable).limit(1).all()
+    const [row] = db.select({ content_nature: NovelTable.content_nature }).from(NovelTable).limit(1).all()
     return row?.content_nature === "adult" ? "adult" : "general"
   } catch {
     return "general"

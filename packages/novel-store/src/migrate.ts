@@ -540,8 +540,8 @@ export function migrateNovelContentNature(exec: ExecFn, query: QueryFn): void {
   if (!Array.isArray(tables) || tables.length === 0) return
   try {
     const result = query("PRAGMA table_info(novels)")
-    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
-    const hasNature = cols.some((c) => c.name === "content_nature")
+    const cols = Array.isArray(result) ? result : []
+    const hasNature = cols.some((c) => typeof c === "object" && c !== null && "name" in c && c.name === "content_nature")
     if (hasNature) return // 置位仅在加列当次执行：天然一次性，重复建连不会翻转用户后续显式改回的值
     exec("ALTER TABLE novels ADD COLUMN content_nature text NOT NULL DEFAULT 'general'")
     const techTables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='techniques'")

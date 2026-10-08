@@ -35,8 +35,9 @@ afterEach(() => {
 function natureOf(novelId: string): string {
   const db = new Database(dbPath, { readonly: true })
   try {
-    const row = db.query("SELECT content_nature FROM novels WHERE id = ?").get(novelId) as { content_nature: string }
-    return row.content_nature
+    const row = db.query("SELECT content_nature FROM novels WHERE id = ?").get(novelId)
+    if (typeof row !== "object" || row === null || !("content_nature" in row)) throw new Error("缺少 content_nature 列")
+    return String(row.content_nature)
   } finally {
     db.close()
   }
@@ -45,8 +46,8 @@ function natureOf(novelId: string): string {
 function columnExists(): boolean {
   const db = new Database(dbPath, { readonly: true })
   try {
-    const cols = db.query("PRAGMA table_info(novels)").all() as Array<{ name: string }>
-    return cols.some((c) => c.name === "content_nature")
+    const cols = db.query("PRAGMA table_info(novels)").all()
+    return Array.isArray(cols) && cols.some((c) => typeof c === "object" && c !== null && "name" in c && c.name === "content_nature")
   } finally {
     db.close()
   }
