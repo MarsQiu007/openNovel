@@ -1,4 +1,5 @@
 import { filterTechniques } from "./technique-extract.js"
+import { normalizeTechniqueEvidence } from "./session-store.js"
 import { normalizeTechnique } from "./technique-normalize.js"
 import {
   upsertTechnique,
@@ -49,10 +50,14 @@ export async function saveTechnique(
     return { action: "rejected", reason: "模糊指令或无证据" }
   }
   const entry = normalizeTechnique(filtered[0])
-  const library = entry.scope === "general" ? "global" : "book"
+  // 入库前证据规范化：缺 sourceTitle 按 sourceLocation 回填、其余补空串；不可修复的候选拒绝入库
+  const normalized = normalizeTechniqueEvidence(entry.evidence)
+  if (!normalized.ok) return { action: "rejected", reason: normalized.reason }
+  const ready: TechniqueEntry = { ...entry, evidence: normalized.evidence }
+  const library = ready.scope === "general" ? "global" : "book"
 
   if (mergeTargetId) {
-    const ok = await mergeTechniqueEvidence(mergeTargetId, entry.evidence, directory, library)
+    const ok = await mergeTechniqueEvidence(mergeTargetId, ready.evidence, directory, library)
     if (!ok) return { action: "rejected", reason: "合并目标不存在" }
     return { action: "merged", technique_id: mergeTargetId }
   }
@@ -60,11 +65,11 @@ export async function saveTechnique(
   const sameName = await findTechniquesByName(entry.name, directory, library)
   if (sameName.length > 0) {
     const target = sameName[0]
-    await mergeTechniqueEvidence(target.id, entry.evidence, directory, library)
+    await mergeTechniqueEvidence(target.id, ready.evidence, directory, library)
     return { action: "merged", technique_id: target.id }
   }
 
-  await upsertTechnique(entry, directory, library)
+  await upsertTechnique(ready, directory, library)
   return { action: "created", technique_id: entry.id }
 }
 

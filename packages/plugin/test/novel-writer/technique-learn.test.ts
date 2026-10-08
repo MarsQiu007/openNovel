@@ -278,3 +278,39 @@ describe("confirmTechniques 双源确认", () => {
     }
   })
 })
+
+/** 构造运行时脏输入：等效 LLM 传入的 JSON 负载，绕开编译期形状校验 */
+function runtimeInput(patch: Record<string, unknown>): Parameters<typeof saveTechnique>[0] {
+  return JSON.parse(JSON.stringify({ ...makeInput(), ...patch }))
+}
+
+describe("saveTechnique 证据规范化", () => {
+  test("缺 sourceTitle（有 sourceLocation）的证据补全后入库", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "learn-evidence-fill-"))
+    const result = await saveTechnique(
+      runtimeInput({
+        name: "证据补全技法",
+        evidence: [{ sourceLocation: "第3章", excerpt: "他停下筷子", annotation: "停顿暗示拒绝" }],
+      }),
+      undefined,
+      dir,
+    )
+    expect(result.action).toBe("created")
+    const [entry] = await listTechniques(dir)
+    expect(entry.evidence).toEqual([
+      { sourceTitle: "第3章", sourceLocation: "第3章", excerpt: "他停下筷子", annotation: "停顿暗示拒绝" },
+    ])
+  })
+
+  test("非对象证据元素被拒绝且技法库无变更", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "learn-evidence-reject-"))
+    const result = await saveTechnique(
+      runtimeInput({ name: "坏证据技法", evidence: ["坏元素"] }),
+      undefined,
+      dir,
+    )
+    expect(result.action).toBe("rejected")
+    expect(result.reason).toContain("证据")
+    expect(await listTechniques(dir)).toHaveLength(0)
+  })
+})
