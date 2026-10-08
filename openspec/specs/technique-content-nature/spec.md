@@ -2,28 +2,27 @@
 
 ## Purpose
 
-为写作召回提供书级与章节级的内容性质判定能力：书级由被动信号确定性自动判定（无人工标记入口），章节级由调用方 agent 经工具参数给出，并据此对成人技法候选施加双闸门过滤，使成人内容技法只在真正写作成人内容时进入候选。
+为写作召回提供书级与章节级的内容性质判定能力：书级由 novels 表 `content_nature` 显式声明列判定（默认 `general`），章节级由调用方 agent 经工具参数给出，并据此对成人技法候选施加双闸门过滤，使成人内容技法只在真正写作成人内容时进入候选。
 
 ## Requirements
 
-### Requirement: 书级内容性质被动信号判定
-每本书的书级内容性质 SHALL 由被动信号确定性判定（无配置键、无人工覆盖）：书库中存在 `scope=adult` 技法时该书为 `adult`，否则为 `general`。该判定 MUST 为纯数据查询（不产生 LLM 调用），并 MUST 随书库技法变化即时反映——新增 adult 技法即转 `adult`，adult 技法全部删除或改标 general 即回落 `general`。
+### Requirement: 书级内容性质显式声明判定
+每本书的书级内容性质 SHALL 由 novels 表 `content_nature` 显式列判定（`'general' | 'adult'`，默认 `'general'`），运行时 MUST NOT 以书库技法存在性等被动信号推断。书级性质随显式写入变化（创建声明、检测确认、协议更新），adult 技法的增删不再影响书级判定。读取失败或缺失 MUST 按 `'general'` 从紧回落，不中断写作主流程。
 
-#### Scenario: 含成人技法的书判为 adult
-- **WHEN** 书库中已存在 `scope=adult` 的技法
-- **THEN** 该书自动判为 `adult`，写作召回启用章节级闸门
+#### Scenario: 显式声明为 adult 的书
+- **WHEN** 该书 `content_nature='adult'`（创建声明或检测确认）
+- **THEN** 写作召回启用章节级闸门，adult 技法在章节判定为成人时进入候选
 
-#### Scenario: 纯通用书零开销
-- **WHEN** 书库中没有任何 `scope=adult` 技法
-- **THEN** 该书判为 `general`，写作召回的 adult 闸门快速通过，无任何额外调用
+#### Scenario: 默认普通书
+- **WHEN** 该书 `content_nature='general'`（默认或显式声明）
+- **THEN** 即使书库中存在 adult 技法，书级闸门也不放行，adult 技法不进候选
 
-#### Scenario: 成人技法清空后回落
-- **WHEN** 书库中最后一条 `scope=adult` 技法被删除或改标为 `general`
-- **THEN** 该书书级性质自动回落为 `general`
-
+#### Scenario: 读列失败从紧回落
+- **WHEN** 读取书级性质失败（数据库异常或行缺失）
+- **THEN** 按 `general` 处理，adult 候选不出现，写作流程不中断
 
 ### Requirement: 章节级内容性质判断
-组装写作上下文快照时，调用方 agent SHALL 通过工具参数给出当前章节的内容性质判断（成人/通用）；该参数仅在本书库存在 `scope=adult` 技法且书级性质为 adult 时影响候选。参数缺失或非法时系统 MUST 按非成人处理（从紧）。章节判断随当次召回进行，MUST NOT 持久化存储，且工具执行层 MUST NOT 为此发起额外 LLM 调用。
+组装写作上下文快照时，调用方 agent SHALL 通过工具参数给出当前章节的内容性质判断（成人/通用）；该参数仅在本书 `content_nature='adult'` 且书库存在 `scope=adult` 技法时影响候选。参数缺失或非法时系统 MUST 按非成人处理（从紧）。章节判断随当次召回进行，MUST NOT 持久化存储，且工具执行层 MUST NOT 为此发起额外 LLM 调用。
 
 #### Scenario: 成人书中的非成人章节
 - **WHEN** 书级性质为 adult 的书正在写作一场战斗章节，调用方判断本章为非成人
@@ -38,14 +37,14 @@
 - **THEN** 章节参数不影响候选，候选行为与既有完全一致
 
 ### Requirement: adult 技法候选双闸门过滤
-检索技法候选时，本书库中 `scope=adult` 的技法 MUST 同时通过书级闸门（该书内容性质为 adult）与章节闸门（当前章节判断为成人）才允许进入候选列表；任一闸门不满足则该技法 MUST NOT 进入候选，且不写 shadow 日志。全局通用库中的 `general` 技法 MUST NOT 受此过滤影响。
+检索技法候选时，本书库中 `scope=adult` 的技法 MUST 同时通过书级闸门（该书 `content_nature='adult'`）与章节闸门（当前章节判断为成人）才允许进入候选列表；任一闸门不满足则该技法 MUST NOT 进入候选，且不写 shadow 日志。全局通用库中的 `general` 技法 MUST NOT 受此过滤影响。
 
 #### Scenario: 通用书召回不到成人技法
-- **WHEN** 通用书（书级判为 general）进入写作流水线，本书库存在 adult 技法
+- **WHEN** 通用书（`content_nature='general'`）进入写作流水线，本书库存在 adult 技法
 - **THEN** 候选列表不含任何 `scope=adult` 技法
 
 #### Scenario: 成人书的成人章节双源可见
-- **WHEN** 书级判为 adult 的书当前章节判断为成人
+- **WHEN** 书级 `content_nature='adult'` 的书当前章节判断为成人
 - **THEN** 候选同时包含全局 general 技法与本书 adult 技法
 
 #### Scenario: 闸门不波及全局技法
