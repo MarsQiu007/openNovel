@@ -22,3 +22,10 @@
 ## 5. 集成验证
 
 - [x] 5.1 冒烟：复制 `C:\Novels` 下一本含 adult 技法的旧书库与一本普通旧书库到临时目录，用 novel-store 打开后确认前者迁移为 adult、后者为 general、重复打开结果不变；`packages/novel-store`、`packages/plugin` 全量测试与 `oxlint`（仓库根）通过；冒烟输出记录进提交说明或任务备注
+
+## Implementation Commits
+
+- 116240d8 feat(novel-store): 书籍内容性质显式声明存储与一次性迁移
+- b559021a refactor(app): 内容性质固定 UI 中性化（向导反选框与受限分级措辞）
+- 69fcc52f refactor(app): 向导内容性质提示改为悬停 tips
+- 48f7f4a8 refactor(novel-store): 消除内容性质迁移代码的新增 lint 告警
