@@ -9,6 +9,7 @@ import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
+import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
 
 const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"] as const
 
@@ -186,25 +187,15 @@ export default function NovelWizard() {
                 <span class="text-sm text-v2-text-text-muted">{language.t("novel.wizard.description")}:</span>
                 <p class="text-sm text-v2-text-text-base whitespace-pre-wrap">{synopsis()}</p>
               </div>
-              {/* 内容性质：默认普通，显式声明为成人向的书其成人向技法仅在成人章节召回（双闸门） */}
-              <div class="flex items-center gap-2">
-                <span class="text-sm text-v2-text-text-muted">内容性质:</span>
-                <div class="flex gap-2">
-                  <ButtonV2
-                    variant={contentNature() === "general" ? "contrast" : "outline"}
-                    size="small"
-                    onClick={() => setContentNature("general")}
-                  >
-                    普通
-                  </ButtonV2>
-                  <ButtonV2
-                    variant={contentNature() === "adult" ? "contrast" : "outline"}
-                    size="small"
-                    onClick={() => setContentNature("adult")}
-                  >
-                    成人向
-                  </ButtonV2>
-                </div>
+              {/* 内容性质：默认勾选 = 常规向；取消勾选 = 受限分级（反选框语义，固定文案不出现分级明细） */}
+              <div class="flex items-center gap-3">
+                <Switch
+                  checked={contentNature() === "general"}
+                  onChange={(checked: boolean) => setContentNature(checked ? "general" : "adult")}
+                >
+                  常规向内容
+                </Switch>
+                <span class="text-xs text-v2-text-text-muted">取消勾选表示本书包含受限分级内容</span>
               </div>
             </div>
           </div>

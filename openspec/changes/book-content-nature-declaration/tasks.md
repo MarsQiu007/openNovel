@@ -16,8 +16,8 @@
 
 ## 4. app 界面
 
-- [x] 4.1 创建向导 `wizard.tsx` 确认页增加内容性质选项行（普通默认选中 / 成人向），提交并入 `createNovel.mutateAsync` 的 `content_nature`（`useCreateNovel` 的 mutationFn 显式列字段调用契约，输入类型与调用处都要带该字段）；不新增向导步骤、canNext 不变；文案中性中文硬编码（不改 i18n locale 文件）；验证：app 现有测试通过，创建请求载荷含该字段（单测或手测记录）
-- [x] 4.2 技法面板 `panel-techniques.tsx`：顶部新增检测确认条（显示条件=书 general 且本书技法列表存在 `scope==='adult'` 且本地未忽略；确认调 `useUpdateNovel` 写 `'adult'`（其 mutationFn 同样显式列字段，输入类型与调用处都要带该字段）；暂不写 localStorage 按书忽略）；表单"成人内容"内联说明更新为显式声明语义；验证：app 目录 `bun typecheck` 与现有测试通过；面板组件无单测先例，确认条显示/确认/暂不三种状态随任务 5.1 冒烟记录
+- [x] 4.1 创建向导 `wizard.tsx` 确认页增加"常规向内容"勾选框（默认勾选 = general，取消勾选 = adult，反选框语义），提交并入 `createNovel.mutateAsync` 的 `contentNature`（`useCreateNovel` 的 mutationFn 显式列字段调用契约，输入类型与调用处都要带该字段）；不新增向导步骤、canNext 不变；固定 UI 不含成人相关明确文案（用户要求隐秘化，修订自双按钮方案）；不改 i18n locale 文件；验证：app 现有测试通过，创建请求载荷随勾选状态变化（手测记录）
+- [x] 4.2 技法面板 `panel-techniques.tsx`：顶部新增检测确认条（显示条件=书 general 且本书技法列表存在 `scope==='adult'` 且本地未忽略；确认调 `useUpdateNovel` 写 `'adult'`（其 mutationFn 同样显式列字段，输入类型与调用处都要带该字段）；暂不写 localStorage 按书忽略；确认条文案用中性分级措辞"受限分级"）；scope 选项标签、列表徽标、编辑页归位说明、内联说明统一中性化（内部枚举值 `adult` 不变）；验证：app 目录 `bun typecheck` 与现有测试通过；面板组件无单测先例，确认条显示/确认/暂不三种状态随任务 5.1 冒烟记录
 
 ## 5. 集成验证
 

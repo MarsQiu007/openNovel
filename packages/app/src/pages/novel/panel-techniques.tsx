@@ -53,7 +53,7 @@ const ERROR_OPTIONS: SelectOption<"all" | TechniqueLevel | TechniqueStatus>[] = 
 
 const SCOPE_OPTIONS: SelectOption<TechniqueScope>[] = [
   { value: "general", label: "通用写法" },
-  { value: "adult", label: "成人内容" },
+  { value: "adult", label: "受限分级" },
 ]
 
 
@@ -73,7 +73,7 @@ function naturePromptDismissKey(novelID: string) {
 
 /**
  * 书级内容性质检测确认条。
- * 显示条件（全为面板已有数据派生）：书为 general 且本书库技法列表存在成人向条目且本地未忽略。
+ * 显示条件（全为面板已有数据派生）：书为 general 且本书库技法列表存在受限分级条目且本地未忽略。
  * 确认经 novel.update 写列；暂不写本地忽略，同一书不再打扰。
  */
 function ContentNaturePrompt(props: { novelID: string; bookNature: string; techniques: Technique[] }) {
@@ -87,10 +87,10 @@ function ContentNaturePrompt(props: { novelID: string; bookNature: string; techn
   return (
     <Show when={visible()}>
       <div class="border-b border-v2-border-border-base bg-v2-background-bg-layer-02 px-4 py-3">
-        <p class="text-xs text-v2-text-text-base">检测到本书库存在成人向内容。将本书标记为成人向后，这些技法仅在成人章节进入写作候选。</p>
+        <p class="text-xs text-v2-text-text-base">检测到本书库包含受限分级的内容。调整本书的内容分级后，这些内容仅在其匹配的章节进入写作候选。</p>
         <div class="mt-2 flex gap-2">
           <ButtonV2 size="small" variant="contrast" disabled={updateNovel.isPending} onClick={() => updateNovel.mutate({ novelID: props.novelID, contentNature: "adult" })}>
-            标记为成人向
+            调整分级
           </ButtonV2>
           <ButtonV2 size="small" variant="outline" onClick={() => localStorage.setItem(naturePromptDismissKey(props.novelID), "1")}>
             暂不
@@ -168,7 +168,7 @@ export default function PanelTechniques(props: { novelID: string }) {
             <p class="mt-2 text-xs text-v2-text-text-danger">{errorText(setInjection.error)}</p>
           </Show>
         </div>
-        {/* 书级内容性质检测确认条：书为普通且本书库已出现成人向技法时一次性询问，非阻塞 */}
+        {/* 书级内容性质检测确认条：书为常规且本书库已出现受限分级技法时一次性询问，非阻塞 */}
         <ContentNaturePrompt
           novelID={props.novelID}
           bookNature={novelDetail.data?.contentNature ?? "general"}
@@ -351,7 +351,7 @@ function TechniqueDetail(props: {
                 <Tag variant="info">通用库</Tag>
               </Show>
               <Show when={technique().scope === "adult"}>
-                <Tag variant="warning">成人内容</Tag>
+                <Tag variant="warning">受限分级</Tag>
               </Show>
               <span class="text-xs text-v2-text-text-muted">
                 {optionLabel(LEVEL_OPTIONS, technique().level)} · 置信度 {Math.round(technique().confidence * 100)}%
@@ -526,7 +526,7 @@ function TechniqueForm(props: {
           />
           <Show when={scope() === "adult"}>
             <p class="mt-1 text-xs text-v2-text-text-muted">
-              仅成人书的成人章节召回：书需在创建时声明为成人向（或经检测确认）且当前章节判断为成人时该技法才进入写作候选，其他书与其他章节不可见。
+              仅同分级书与同分级章节召回：书需在创建时声明（取消"常规向内容"勾选或经检测确认），且当前章节判断匹配时该技法才进入写作候选，其他书与其他章节不可见。
             </p>
           </Show>
         </FormField>
@@ -562,7 +562,7 @@ function TechniqueForm(props: {
         </Show>
       </div>
       <Show when={props.mode === "edit"}>
-        <p class="text-xs text-v2-text-text-muted">保存后按内容性质自动归位：通用写法进通用库，成人内容留本书库。</p>
+        <p class="text-xs text-v2-text-text-muted">保存后按内容性质自动归位：通用写法进通用库，受限分级留本书库。</p>
       </Show>
       <FormField label="常见误用">
         <TextareaV2 value={commonMisuse()} onInput={(event) => setCommonMisuse(event.currentTarget.value)} rows={3} fluid />

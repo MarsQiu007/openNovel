@@ -51,28 +51,31 @@ novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `
 
 ### D4 协议最小扩展 + regenerate
 
-`CreateNovelInput` 增 `content_nature: optional(Literals(["general","adult"]))`（缺省 general）；`UpdateNovelInput` 增同型可选字段；`Novel`/`NovelDetail` 增 `content_nature: Schema.String`（回传落库值，客户端展示与确认条判定需要）。server `createNovel`/`updateNovel`/`toNovel` 透传，store 层 `createNovel`/`updateNovel` 支持该列。改后 `packages/client` 跑 `bun run generate`。
+`CreateNovelInput` 增 `content_nature: optional(Literals(["general","adult"]))`（缺省 general）；`UpdateNovelInput` 增同型可选字段；`Novel`/`NovelDetail` 增 `content_nature: Schema.String`（回传落库值，客户端展示与确认条判定需要）。server `createNovel`（handler 直接插入 novels 表）/`updateNovel`/`toNovel` 透传新列，store 层 `updateNovel` 支持该字段（创建写列在 server handler 完成，store 无 createNovel）。改后 `packages/client` 跑 `bun run generate`。
 
 - 依据：`novel.update` 已存在，确认条无需新端点；`UpdateNovelInput` 同时成为协议层纠偏通道（非目标：不为此做 UI）。
 - 弃案：新端点 `novel.set-content-nature`——无端点膨胀必要，update 语义已覆盖。
 
-### D5 向导确认页一行选项，默认普通
+### D5 向导确认页单个勾选框，默认勾选 = 普通（反选框语义）
 
-`wizard.tsx` 确认页增加一行内容性质选项（两个选项：普通（默认）/成人向），提交时并入 `createNovel.mutateAsync`。不加向导步骤、不改 canNext 逻辑。文案中性表述，术语与技法表单"内容性质"一致。i18n locale 文件按 AGENTS.md 约定不改动，文案随面板现有中文硬编码风格。
+`wizard.tsx` 确认页增加一行"常规向内容"勾选框（默认勾选 = general，取消勾选 = adult），提交时并入 `createNovel.mutateAsync`。不加向导步骤、不改 canNext 逻辑。固定 UI 一律不出现成人相关明确文案：勾选框标签为"常规向内容"，附一句中性提示（取消勾选表示本书包含受限分级内容）；内部值与协议字段不变。i18n locale 文件按 AGENTS.md 约定不改动。
 
+- 依据（反选框误操作方向安全）：误取消勾选只会判为 adult，而 adult 技法仍需章节判定才召回（从紧），不会泄漏；创建后可经 `novel.update` 协议纠偏，无需常驻控件。
+- 依据（隐秘化）：用户明确要求固定 UI 字段不含成人相关明确文案，仅用户生成内容可出现；未勾选状态本身即信号，无需显性二选一。
+- 弃案："普通 / 成人向"双按钮——显性文案违背隐秘化要求。
 - 弃案：独立向导步骤——绝大多数书为普通书，为默认值多一步是纯摩擦；确认页本就是提交前总览。
 
 ### D6 检测确认条：条件派生、非阻塞、本地忽略
 
-`panel-techniques.tsx` 顶部新增确认条，显示条件（全部数据面板已有）：`book.content_nature==='general'`（来自 `useNovelDetail`，协议回传）且本书库技法列表存在 `scope==='adult'` 条目且本地未忽略。确认 → `useUpdateNovel({content_nature:'adult'})` → 条件不再成立自动消失；"暂不" → `localStorage` 按书记录忽略（key 含 novelID），不写库不进协议。
+`panel-techniques.tsx` 顶部新增确认条，显示条件（全部数据面板已有）：`book.content_nature==='general'`（来自 `useNovelDetail`，协议回传）且本书库技法列表存在 `scope==='adult'` 条目且本地未忽略。确认 → `useUpdateNovel({contentNature:'adult'})` → 条件不再成立自动消失；"暂不" → `localStorage` 按书记录忽略（key 含 novelID），不写库不进协议。确认条文案用中性分级措辞（"检测到本书库包含受限分级的内容，是否相应调整本书的内容分级？"，按钮"调整分级 / 暂不"），不出现成人相关明确字样。
 
 - 依据：不阻塞学习/写作（宿主 Question 是阻塞式，弃）；条件纯派生无需新后端查询（书性质经 `novel.detail` 协议回传，面板组件现无 novel 上下文，`workspace-frame.tsx` 挂载时需补传 `novelID` 并在面板内经 `useNovelDetail` 读取）；本地忽略足够（用户哲学：尽量少干预，误忽略可由协议层 update 纠偏）。
 - 弃案：忽略状态存 novels 列——为纯 UI 状态扩协议与 schema 面，收益不值得。
 - 弃案：面板手动切换控件——用户明确否决常驻标志方式。
 
-### D7 文案同步
+### D7 文案同步（固定 UI 中性化）
 
-表单"成人内容"内联说明改为显式声明语义（书级由创建选择/检测确认决定，双闸门条件不变）。说明仅文案变更，无行为变更。
+表单"成人内容"内联说明改为显式声明语义（书级由创建声明/检测确认决定，双闸门条件不变）；同时把固定 UI 中的成人相关明确文案统一中性化为"受限分级"措辞：scope 选项标签（"成人内容"→"受限分级"）、列表徽标、编辑页归位说明。内部枚举值 `adult`、DB 列值、协议字段均不变——中性化仅限显示层。说明仅文案变更，无行为变更。
 
 ## Risks / Trade-offs
 
