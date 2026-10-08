@@ -30,6 +30,6 @@
 - [x] 5.3 提交推送，footer 带 `OpenSpec-Change: technique-library-open-failure`
 ## Implementation Commits
 
-- 081c0889 fix(novel-store): 修复技法列表编码失败并加固证据完整性
-- b491f1ba fix(plugin): save_technique 入库前接入证据规范化
-- 84619f0c fix(server): technique.list 单行坏数据行级容错
+- `081c0889` fix(novel-store): 修复技法列表编码失败并加固证据完整性
+- `b491f1ba` fix(plugin): save_technique 入库前接入证据规范化
+- `84619f0c` fix(server): technique.list 单行坏数据行级容错
