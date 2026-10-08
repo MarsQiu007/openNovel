@@ -61,6 +61,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateCharacterStates(exec, query)
   migrateTechniqueScope(exec, query)
   migrateNovelContentNature(exec, query)
+  migrateTechniqueEvidence(exec, query)
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
@@ -553,5 +554,77 @@ export function migrateNovelContentNature(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // 加列/置位失败不阻塞 DB 打开：读列 helper 对缺列从紧回落 general，检测确认条可事后兜住
+  }
+}
+
+/**
+ * 证据元素补全规则判定：元素为对象时给出按规则回填后的字段与是否发生实际写入。
+ *
+ * 规则（与入库校验单一事实源，normalizeTechniqueEvidence 复用）：
+ * sourceTitle 缺失（含 null/非字符串值）时取该元素的 sourceLocation，其余缺失字符串字段补空串。
+ */
+export type EvidenceElementInspection =
+  | { kind: "not_object" }
+  | { kind: "object"; element: Record<string, unknown>; changed: boolean }
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export function inspectEvidenceElement(element: unknown): EvidenceElementInspection {
+  if (!isPlainRecord(element)) return { kind: "not_object" }
+  const sourceLocation = typeof element.sourceLocation === "string" ? element.sourceLocation : ""
+  const filled = {
+    sourceTitle: typeof element.sourceTitle === "string" ? element.sourceTitle : sourceLocation,
+    sourceLocation,
+    excerpt: typeof element.excerpt === "string" ? element.excerpt : "",
+    annotation: typeof element.annotation === "string" ? element.annotation : "",
+  }
+  const changed =
+    filled.sourceTitle !== element.sourceTitle ||
+    filled.sourceLocation !== element.sourceLocation ||
+    filled.excerpt !== element.excerpt ||
+    filled.annotation !== element.annotation
+  return { kind: "object", element: filled, changed }
+}
+
+/**
+ * techniques 证据条目补全（幂等迁移，书库与全局库建连统一执行）。
+ *
+ * save_technique 直写 DB 绕过协议校验，历史行 evidence 元素缺 sourceTitle 等必填
+ * 字段，导致管理接口响应编码失败。逐行解析回填：仅当有字段实际写入时才 UPDATE，
+ * 重复建连为纯 no-op、不回写已有非空值。evidence JSON 整体损坏或元素非对象时
+ * 跳过该行（文件级损坏应显式暴露，由列表行级容错兜底跳过）。
+ * 全局库 techniques 表结构与书库一致，仅操作该表天然安全。
+ */
+export function migrateTechniqueEvidence(exec: ExecFn, query: QueryFn): void {
+  try {
+    const rows = query("SELECT id, evidence FROM techniques")
+    if (!Array.isArray(rows)) return
+    rows.forEach((row) => {
+      if (typeof row !== "object" || row === null) return
+      const raw = "evidence" in row ? row.evidence : null
+      if (typeof raw !== "string") return
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        return
+      }
+      if (!Array.isArray(parsed)) return
+      let changed = false
+      const filled = parsed.map((element) => {
+        const result = inspectEvidenceElement(element)
+        if (result.kind === "not_object") return element
+        if (result.changed) changed = true
+        return result.element
+      })
+      if (!changed) return
+      const json = JSON.stringify(filled).replace(/'/g, "''")
+      const id = String(row.id).replace(/'/g, "''")
+      exec(`UPDATE techniques SET evidence = '${json}' WHERE id = '${id}'`)
+    })
+  } catch {
+    // techniques 表不存在或迁移失败时不阻塞 DB 打开
   }
 }

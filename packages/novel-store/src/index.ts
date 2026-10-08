@@ -10,6 +10,9 @@
 import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
+import { Option, Schema } from "effect"
+import { TechniqueEvidence } from "@opennovel-ai/schema/technique"
+import { inspectEvidenceElement } from "./migrate.js"
 import { join } from "path"
 import { homedir } from "os"
 import { xdgData } from "xdg-basedir"
@@ -1125,10 +1128,32 @@ function toTechnique(row: TechniqueRecord) {
     status: row.status as TechniqueStatus,
     scope: (row.scope ?? "general") as "general" | "adult",
     usageCount: row.usage_count,
-    lastUsedAt: row.last_used_at ?? undefined,
+    // last_used_at 为 NULL（从未使用）时不携带 key：optional 契约允许缺省、拒绝显式 undefined
+    ...(row.last_used_at != null ? { lastUsedAt: row.last_used_at } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+export type NormalizeTechniqueEvidenceResult =
+  | { ok: true; evidence: TechniqueEvidence[] }
+  | { ok: false; reason: string }
+
+/**
+ * 技法证据入库规范化：按迁移同款规则补全缺失（含 null/非字符串值）的字符串字段后，
+ * 逐条经 TechniqueEvidence 协议契约校验。不可修复的候选（元素非对象等）被拒绝并说明原因。
+ * save_technique 等直写路径在写库前调用，与存量回填迁移共用同一份补全规则。
+ */
+export function normalizeTechniqueEvidence(evidence: ReadonlyArray<unknown>): NormalizeTechniqueEvidenceResult {
+  const normalized: TechniqueEvidence[] = []
+  for (const [index, element] of evidence.entries()) {
+    const result = inspectEvidenceElement(element)
+    if (result.kind === "not_object") return { ok: false, reason: `证据第 ${index + 1} 条不是对象，无法补全` }
+    const decoded = Schema.decodeUnknownOption(TechniqueEvidence)(result.element)
+    if (Option.isNone(decoded)) return { ok: false, reason: `证据第 ${index + 1} 条补全后仍不满足协议契约` }
+    normalized.push(decoded.value)
+  }
+  return { ok: true, evidence: normalized }
 }
 
 function toTechniqueFeedback(row: TechniqueFeedbackRecord) {

@@ -25,6 +25,7 @@
   "dependencies": {
     "drizzle-orm": "catalog:",
     "@opennovel-ai/schema": "workspace:*",
+    "effect": "catalog:",
     "xdg-basedir": "5.1.0"
   },
   "devDependencies": {
