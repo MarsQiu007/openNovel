@@ -357,6 +357,26 @@ export function useNovelForSession(sessionID: Accessor<string>) {
  */
 export const bookSessionListParams = { roots: true, limit: 1000 } as const
 
+/**
+ * 书内会话列表空守卫：桌面端 server 启动窗口期内，session-bindings 与 session.list
+ * 可能已可访问但内部初始化滞后，首拉组合结果为空是"结果不确定"而非"真零绑定"。
+ * 当组合为空但 bindings 中存在该书记录时，按 delayMs 间隔重拉，直至结果非空或
+ * 总拉取次数达到 maxAttempts；真零绑定（无该书记录）立即返回空。
+ */
+export async function loadBoundSessionsWithEmptyGuard(input: {
+  novelID: string
+  maxAttempts: number
+  delayMs: number
+  fetchOnce: () => Promise<{ options: NovelSessionOption[]; bindings: readonly NovelSessionBinding[] }>
+}): Promise<NovelSessionOption[]> {
+  for (let attempt = 1; ; attempt++) {
+    const { options, bindings } = await input.fetchOnce()
+    const uncertain = options.length === 0 && bindings.some((b) => b.novelID === input.novelID)
+    if (!uncertain || attempt >= input.maxAttempts) return options
+    await new Promise((resolve) => setTimeout(resolve, input.delayMs))
+  }
+}
+
 /** 书内会话列表：绑定关系 × 会话列表取交集并过滤已归档（组合逻辑见 boundNovelSessions，供切换器使用） */
 export function useBoundNovelSessions(novelID: Accessor<string>) {
   const client = useNovelClient()
@@ -366,17 +386,30 @@ export function useBoundNovelSessions(novelID: Accessor<string>) {
     enabled: !!novelID(),
     queryFn: async () => {
       const dir = sdk().directory
-      const [bindings, { data: sessionList }] = await Promise.all([
-        client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
-        sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
-      ])
-      return boundNovelSessions({
+      return loadBoundSessionsWithEmptyGuard({
         novelID: novelID(),
-        bindings: (bindings ?? []) as readonly NovelSessionBinding[],
-        sessions: sessionList ?? [],
+        maxAttempts: 4,
+        delayMs: 1000,
+        fetchOnce: async () => {
+          const [bindings, { data: sessionList }] = await Promise.all([
+            client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
+            sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
+          ])
+          const safeBindings = (bindings ?? []) as readonly NovelSessionBinding[]
+          return {
+            options: boundNovelSessions({
+              novelID: novelID(),
+              bindings: safeBindings,
+              sessions: sessionList ?? [],
+            }),
+            bindings: safeBindings,
+          }
+        },
       })
     },
-    staleTime: 10_000,
+    // staleTime 0 + refetchOnMount：重新打开书籍工作台总是 background refetch，
+    // 不依赖用户强制刷新整窗（session-list-first-pull-stuck D3）
+    staleTime: 0,
     refetchOnMount: true,
     // 打开书籍时服务端可能仍在启动窗口期，首拉失败以有限退避重试自愈，
     // 避免错误态滞留到用户发出首条消息才被 invalidate 救回

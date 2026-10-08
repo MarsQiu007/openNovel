@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
-import { boundNovelSessions, resolveAutoAdoptTarget, type NovelSessionBinding } from "./novel-queries"
+import {
+  boundNovelSessions,
+  loadBoundSessionsWithEmptyGuard,
+  resolveAutoAdoptTarget,
+  type NovelSessionBinding,
+} from "./novel-queries"
 
 function session(id: string, title?: string, archived?: boolean, parentID?: string): Session {
   return {
@@ -138,5 +143,61 @@ describe("resolveAutoAdoptTarget", () => {
 
   test("零绑定会话：返回 null（保持懒创建空态）", () => {
     expect(resolveAutoAdoptTarget({ sessions: [], rememberedSessionID: "s1" })).toBeNull()
+  })
+})
+
+describe("loadBoundSessionsWithEmptyGuard", () => {
+  test("首拉为空但绑定存在（启动窗口期）：重拉至非空，fetcher 调用 2 次", async () => {
+    let calls = 0
+    const result = await loadBoundSessionsWithEmptyGuard({
+      novelID: "novel-1",
+      maxAttempts: 4,
+      delayMs: 0,
+      fetchOnce: async () => {
+        calls++
+        const sessions = calls < 2 ? [] : [session("s1")]
+        const bindings = [binding("s1")]
+        return {
+          options: boundNovelSessions({ novelID: "novel-1", bindings, sessions }),
+          bindings,
+        }
+      },
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s1"])
+    expect(calls).toBe(2)
+  })
+
+  test("持续为空（有绑定记录）：恰重拉到 maxAttempts 次后返回空，不无限循环", async () => {
+    let calls = 0
+    const result = await loadBoundSessionsWithEmptyGuard({
+      novelID: "novel-1",
+      maxAttempts: 4,
+      delayMs: 0,
+      fetchOnce: async () => {
+        calls++
+        const bindings = [binding("s1")]
+        return {
+          options: boundNovelSessions({ novelID: "novel-1", bindings, sessions: [] }),
+          bindings,
+        }
+      },
+    })
+    expect(result).toEqual([])
+    expect(calls).toBe(4)
+  })
+
+  test("真零绑定（无该书记录）：立即返回空，仅拉取 1 次", async () => {
+    let calls = 0
+    const result = await loadBoundSessionsWithEmptyGuard({
+      novelID: "novel-1",
+      maxAttempts: 4,
+      delayMs: 0,
+      fetchOnce: async () => {
+        calls++
+        return { options: [], bindings: [binding("s1", "novel-2")] }
+      },
+    })
+    expect(result).toEqual([])
+    expect(calls).toBe(1)
   })
 })
