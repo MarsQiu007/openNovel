@@ -10,6 +10,8 @@ import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
+import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
+import { Icon } from "@opennovel-ai/ui/v2/icon"
 
 const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"] as const
 
@@ -187,7 +189,7 @@ export default function NovelWizard() {
                 <span class="text-sm text-v2-text-text-muted">{language.t("novel.wizard.description")}:</span>
                 <p class="text-sm text-v2-text-text-base whitespace-pre-wrap">{synopsis()}</p>
               </div>
-              {/* 内容性质：默认勾选 = 常规向；取消勾选 = 受限分级（反选框语义，固定文案不出现分级明细） */}
+              {/* 内容性质：默认勾选 = 常规向；取消勾选 = 非常规内容（tips 悬停才显示说明，固定文案不出现分级明细） */}
               <div class="flex items-center gap-3">
                 <Switch
                   checked={contentNature() === "general"}
@@ -195,7 +197,9 @@ export default function NovelWizard() {
                 >
                   常规向内容
                 </Switch>
-                <span class="text-xs text-v2-text-text-muted">取消勾选表示本书包含受限分级内容</span>
+                <TooltipV2 value="取消勾选则允许非常规内容" placement="top">
+                  <Icon name="help" size="small" class="text-v2-text-text-muted" />
+                </TooltipV2>
               </div>
             </div>
           </div>

@@ -58,7 +58,7 @@ novel-store 新增 `getBookContentNature(directory)`：查询 novels 表首行 `
 
 ### D5 向导确认页单个勾选框，默认勾选 = 普通（反选框语义）
 
-`wizard.tsx` 确认页增加一行"常规向内容"勾选框（默认勾选 = general，取消勾选 = adult），提交时并入 `createNovel.mutateAsync`。不加向导步骤、不改 canNext 逻辑。固定 UI 一律不出现成人相关明确文案：勾选框标签为"常规向内容"，附一句中性提示（取消勾选表示本书包含受限分级内容）；内部值与协议字段不变。i18n locale 文件按 AGENTS.md 约定不改动。
+`wizard.tsx` 确认页增加一行"常规向内容"勾选框（默认勾选 = general，取消勾选 = adult），提交时并入 `createNovel.mutateAsync`。不加向导步骤、不改 canNext 逻辑。固定 UI 一律不出现成人相关明确文案：勾选框标签为"常规向内容"，说明文字做成悬停 tips（问号图标 + TooltipV2，悬停才显示"取消勾选则允许非常规内容"），常驻界面不出现提示文案；内部值与协议字段不变。i18n locale 文件按 AGENTS.md 约定不改动。
 
 - 依据（反选框误操作方向安全）：误取消勾选只会判为 adult，而 adult 技法仍需章节判定才召回（从紧），不会泄漏；创建后可经 `novel.update` 协议纠偏，无需常驻控件。
 - 依据（隐秘化）：用户明确要求固定 UI 字段不含成人相关明确文案，仅用户生成内容可出现；未勾选状态本身即信号，无需显性二选一。
