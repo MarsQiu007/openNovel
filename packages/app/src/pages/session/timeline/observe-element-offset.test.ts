@@ -1,4 +1,10 @@
-import { expect, test } from "bun:test"
+import { beforeEach, expect, test } from "bun:test"
+
+// 并发用例可能在 body 留下 main 等结构；root 选取依赖 closest("main")，
+// 残留会改变 observer 挂接点，导致本文件用例观察不到 body 层的重挂载
+beforeEach(() => {
+  document.body.replaceChildren()
+})
 import { type Virtualizer } from "@tanstack/solid-virtual"
 import { mutationNodesContainElement, observeElementOffsetReconnectAware } from "./observe-element-offset"
 
