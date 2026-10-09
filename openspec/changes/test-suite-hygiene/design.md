@@ -9,7 +9,7 @@
 - e2e 写入路径走 cli.getDb()，读取路径（generateMasterOutline 等）走 novel-store getDb(projectDir)，两条通道在 env 变化后分裂。探针实证：配对跑时 cli.getDb 全程只绑定一次到先跑文件的临时库。
 - cli 的 15 张建表是 novel-store 44 张表的子集（表名 diff 已核实）；novel-store 不建 session 表，cli.getRecentSessionId 依赖 session 表缺失时 try/catch 回退（cli.ts:192-205），委托后该语义不变。
 - novel-writer 测试文件中，cascade / recall / segment-rollup / setting-impact / state-commit-reliability / world-category / db-consistency 的 env 修改已在 beforeAll/afterAll 或测试体内（安全模式）；仅 chapter-length-limit（:19-21 模块级捕获/设置）、e2e（:24-26）、review（:17-18）、runtime-assembly（:41-42 模块级捕获/delete）四文件在模块顶层动 env。
-- createBook / createBookAndTagSession / initNovelProject 全仓递归 grep 无生产调用点（opennovel/plugin 源码仅定义与 cli 内部自调用，测试直连除外）。
+- createBook / createBookAndTagSession / initNovelProject 唯一生产调用点是 opennovel CLI 命令（packages/opennovel/src/cli/cmd/novel.ts 的 init / book create）：终端场景 OPENNOVEL_DB 通常未设置，走 cwd 兜底，新旧解析语义一致，行为不变；其余调用均为测试直连。
 
 ## Goals / Non-Goals
 
