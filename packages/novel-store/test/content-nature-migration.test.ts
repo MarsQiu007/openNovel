@@ -100,7 +100,11 @@ describe("migrateNovelContentNature", () => {
     db.close()
     expect(() => getDb(globalDir)).not.toThrow()
     closeDb(globalDir)
-    rmSync(globalDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+    try {
+      rmSync(globalDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+    } catch {
+      // Windows 下 DB 文件可能短暂占用，进程退出后系统回收（与 afterEach 同一兜底策略）
+    }
   })
 })
 
