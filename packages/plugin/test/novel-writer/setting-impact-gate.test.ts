@@ -49,7 +49,7 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  closeDb()
+  closeDb(testDir)
   try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 

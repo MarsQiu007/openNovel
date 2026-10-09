@@ -17,13 +17,12 @@ import { tmpdir } from "os"
 // @ts-ignore - bun:sqlite 类型仅在 bun 运行时可用
 import { Database as BunSqlite } from "bun:sqlite"
 
-// DB 路径必须在模块导入前设置，因为各模块的 getDb() 在首次调用时读取该环境变量
+// getDb() 按调用时读取 OPENNOVEL_DB，在 beforeAll 先存后设即可保证测试窗口内解析到本文件临时库
 const testDir = join(tmpdir(), `novel-writer-e2e-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
 const projectDir = join(testDir, "novel-project")
-const originalOpenNovelDb = process.env.OPENNOVEL_DB
+let prevOpenNovelDb: string | undefined
 const novelWriterHooks = await NovelWriterPlugin(createPluginInput(projectDir))
-process.env.OPENNOVEL_DB = dbPath
 mkdirSync(testDir, { recursive: true })
 
 // 所有模块导入
@@ -243,10 +242,15 @@ describe("小说写作完整流水线 E2E 测试", () => {
   let chapter1Id: string
   let chapter2Id: string
 
+  beforeAll(() => {
+    prevOpenNovelDb = process.env.OPENNOVEL_DB
+    process.env.OPENNOVEL_DB = dbPath
+  })
+
   afterAll(() => {
     closeDb(projectDir)
-    if (originalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
-    else process.env.OPENNOVEL_DB = originalOpenNovelDb
+    if (prevOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+    else process.env.OPENNOVEL_DB = prevOpenNovelDb
     try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
   })
 

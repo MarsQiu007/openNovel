@@ -10,12 +10,12 @@
 
 ## 2. novel-writer 测试 env 卫生（D2）
 
-- [ ] 2.1 修 chapter-length-limit.test.ts：模块级捕获(:19)与设置(:21)移入 beforeAll 开头（prevOpenNovelDb = process.env.OPENNOVEL_DB 后再设置）；模块级保留 TLA(:20) 与 mkdirSync(:22)；afterAll 改为恢复 beforeAll 所存值，closeDb(projectDir) 保持在恢复前（验证：与 e2e.test.ts 配对跑 12 项全绿）
-- [ ] 2.2 修 e2e.test.ts：模块级捕获(:24)与设置(:26)移入 describe 内新增 beforeAll 先存后设，模块级保留 TLA(:25)；afterAll 改为恢复 beforeAll 所存值，closeDb(projectDir) 保持在恢复前；改写 :20 失效注释（"必须在模块导入前设置"不再成立，改为说明 lazy 解析 + beforeAll 设置的原因）（验证：单跑 e2e 7 项全绿）
-- [ ] 2.3 修 review.test.ts：删除模块级捕获/设置(:17-18)，在既有 beforeAll(:34) 开头先存后设；afterAll 恢复 beforeAll 所存值，closeDb() 保持在恢复前；改写 :15 失效注释（验证：review 单跑全绿）
-- [ ] 2.4 修 runtime-assembly.test.ts：删除模块级捕获/delete(:41-42)；Bug 1 测试体(:137) 开头先存 prev 再 delete env，测试末恢复（对照 :189-207 惯例）；afterAll 删除随模块级捕获移除的恢复逻辑，保留 TempRoot 目录遍历 closeDb 与 rmSync（验证：runtime-assembly 单跑全绿）
-- [ ] 2.5 定位 packages/plugin/.novel 污染源：grep test 目录全部模块级 env 修改点，结合探针确认为何有 bare getDb() 在 env 空窗期落到 cwd；消除该路径（修测试或修调用点），删除误建的 packages/plugin/.novel（验证：整目录跑完后 packages/plugin 下无 .novel 目录生成）
-- [ ] 2.6 整目录回归：packages/plugin 目录 bun test test/novel-writer --timeout 90000 全绿（含 e2e 与回归用例）
+- [x] 2.1 修 chapter-length-limit.test.ts：模块级捕获(:19)与设置(:21)移入 beforeAll 开头（prevOpenNovelDb = process.env.OPENNOVEL_DB 后再设置）；模块级保留 TLA(:20) 与 mkdirSync(:22)；afterAll 改为恢复 beforeAll 所存值，closeDb(projectDir) 保持在恢复前（验证：与 e2e.test.ts 配对跑 12 项全绿）
+- [x] 2.2 修 e2e.test.ts：模块级捕获(:24)与设置(:26)移入 describe 内新增 beforeAll 先存后设，模块级保留 TLA(:25)；afterAll 改为恢复 beforeAll 所存值，closeDb(projectDir) 保持在恢复前；改写 :20 失效注释（"必须在模块导入前设置"不再成立，改为说明 lazy 解析 + beforeAll 设置的原因）（验证：单跑 e2e 7 项全绿）
+- [x] 2.3 修 review.test.ts：删除模块级捕获/设置(:17-18)，在既有 beforeAll(:34) 开头先存后设；afterAll 恢复 beforeAll 所存值，closeDb() 保持在恢复前；改写 :15 失效注释（验证：review 单跑全绿）
+- [x] 2.4 修 runtime-assembly.test.ts：模块级捕获/delete(:41-42) 移入 describe 的 beforeAll 开头（先存 prev 再 delete，保持全文件测试窗口内 env 未设置语义，Bug 1 等目录回退用例依赖此前提）；afterAll 恢复 prev，保留 TempRoot 目录遍历 closeDb 与 rmSync（验证：runtime-assembly 单跑全绿）
+- [x] 2.5 定位 packages/plugin/.novel 污染源：grep test 目录全部模块级 env 修改点，结合探针确认为何有 bare getDb() 在 env 空窗期落到 cwd；消除该路径（修测试或修调用点），删除误建的 packages/plugin/.novel。探针定位结论：state-log.md 污染源为 commitState(:1119) 传 db 句柄导致 directory 丢失、appendToMarkdown 经 getNovelDir() 硬编码 process.cwd()——修为 commitState 改传 directory、commitStateWithReport 经 getDbPath 同链推导日志目录；novel.db 污染源为 runtime-assembly Bug 2 负向用例裸调 getNovelForSession 触发 getDb() cwd 回退——修为用例显式传 projectDir；另将 cascade/recall/segment-rollup/setting-impact/state-commit-reliability/world-category/db-consistency 七处 afterAll 统一为先 closeDb 再清 env（setting-impact-gate closeDb 改显式 testDir），消除连接泄漏与误解析（验证：整目录 695/0 且跑完后 packages/plugin 下无 .novel 目录生成）
+- [x] 2.6 整目录回归：packages/plugin 目录 bun test test/novel-writer --timeout 90000 全绿（含 e2e 与回归用例）
 
 ## 3. schema 测试修复（D3/D4）
 
