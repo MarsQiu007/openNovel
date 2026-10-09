@@ -46647,9 +46647,12 @@
           },
           "updatedAt": {
             "type": "integer"
+          },
+          "contentNature": {
+            "type": "string"
           }
         },
-        "required": ["id", "title", "genre", "synopsis", "status", "createdAt", "updatedAt"],
+        "required": ["id", "title", "genre", "synopsis", "status", "createdAt", "updatedAt", "contentNature"],
         "additionalProperties": false
       },
       "NovelCreateNovelInput": {
@@ -46664,6 +46667,10 @@
           },
           "synopsis": {
             "type": "string"
+          },
+          "contentNature": {
+            "type": "string",
+            "enum": ["general", "adult"]
           }
         },
         "required": ["title", "genre", "synopsis"],
@@ -46761,6 +46768,9 @@
           "updatedAt": {
             "type": "integer"
           },
+          "contentNature": {
+            "type": "string"
+          },
           "styleGuide": {
             "$ref": "#/components/schemas/NovelStyleGuide"
           },
@@ -46768,7 +46778,18 @@
             "$ref": "#/components/schemas/NovelNovelStats"
           }
         },
-        "required": ["id", "title", "genre", "synopsis", "status", "createdAt", "updatedAt", "styleGuide", "stats"],
+        "required": [
+          "id",
+          "title",
+          "genre",
+          "synopsis",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "contentNature",
+          "styleGuide",
+          "stats"
+        ],
         "additionalProperties": false
       },
       "NovelVolume": {
@@ -47713,6 +47734,10 @@
           "genre": {
             "type": "string",
             "enum": ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"]
+          },
+          "contentNature": {
+            "type": "string",
+            "enum": ["general", "adult"]
           }
         },
         "additionalProperties": false
