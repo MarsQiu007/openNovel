@@ -275,8 +275,14 @@ describe("registerNovelSyncHandler", () => {
 
     await processSyncQueue(projectDir)
 
-    expect(model.doGenerateCalls).toHaveLength(2)
-    expect(systemTextOf(model.doGenerateCalls[0].prompt)).toBe("共享人格")
-    expect(systemTextOf(model.doGenerateCalls[1].prompt)).toBe("共享人格")
+    // 全局轮询定时器可能在本用例断言前消费其他目录的遗留任务（复用本 handler 闭包与 model），
+    // 计数只认本用例两章标题锚点，避免跨用例串扰
+    const rebuildCalls = model.doGenerateCalls.filter((call) => {
+      const text = call.prompt.map((entry) => JSON.stringify(entry.content)).join("\n")
+      return text.includes("《第一章》") || text.includes("《第二章》")
+    })
+    expect(rebuildCalls).toHaveLength(2)
+    expect(systemTextOf(rebuildCalls[0].prompt)).toBe("共享人格")
+    expect(systemTextOf(rebuildCalls[1].prompt)).toBe("共享人格")
   })
 })
