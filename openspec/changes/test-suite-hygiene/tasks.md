@@ -24,5 +24,5 @@
 
 ## 4. 门禁
 
-- [ ] 4.1 packages/plugin、packages/schema 目录 bun typecheck 通过；仓库根 bun run lint 0 errors 且新增代码零告警（同文件清单对照法）
-- [ ] 4.2 packages/schema bun test 全绿；packages/plugin 全目录测试全绿；提交推送，footer 带 OpenSpec-Change: test-suite-hygiene
+- [x] 4.1 packages/plugin、packages/schema 目录 bun typecheck 通过；仓库根 bun run lint 0 errors 且新增代码零告警（同文件清单对照法）
+- [x] 4.2 packages/schema bun test 全绿；packages/plugin 全目录测试全绿；提交推送，footer 带 OpenSpec-Change: test-suite-hygiene
