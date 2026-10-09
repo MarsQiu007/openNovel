@@ -16,9 +16,8 @@ import { Database as BunSqlite } from "bun:sqlite"
 const testDir = join(tmpdir(), `novel-writer-length-limit-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
 const projectDir = join(testDir, "novel-project")
-const originalOpenNovelDb = process.env.OPENNOVEL_DB
+let prevOpenNovelDb: string | undefined
 const novelWriterHooks = await NovelWriterPlugin(createPluginInput(projectDir))
-process.env.OPENNOVEL_DB = dbPath
 mkdirSync(testDir, { recursive: true })
 
 import { initNovelProject, createBook } from "../../src/novel-writer/cli.js"
@@ -96,14 +95,16 @@ function toolCtx(): ToolContext {
 
 describe("chapter_length_limit 篇幅限制", () => {
   beforeAll(() => {
+    prevOpenNovelDb = process.env.OPENNOVEL_DB
+    process.env.OPENNOVEL_DB = dbPath
     const result = initNovelProject(projectDir)
     expect(result).toContain("小说项目初始化完成")
   })
 
   afterAll(() => {
     closeDb(projectDir)
-    if (originalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
-    else process.env.OPENNOVEL_DB = originalOpenNovelDb
+    if (prevOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+    else process.env.OPENNOVEL_DB = prevOpenNovelDb
     try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
   })
 

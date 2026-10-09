@@ -12,10 +12,9 @@ import { mkdirSync, rmSync } from "fs"
 import { closeDb } from "@opennovel-ai/novel-store"
 import { tmpdir } from "os"
 
-// DB 路径必须在模块导入前设置，因为各模块的 getDb() 在首次调用时读取该环境变量
+// getDb() 按调用时读取 OPENNOVEL_DB，在 beforeAll 先存后设即可（连接按路径缓存，closeDb 可驱逐）
 const testDir = join(tmpdir(), `novel-review-test-${Date.now()}`)
-const originalOpenNovelDb = process.env.OPENNOVEL_DB
-process.env.OPENNOVEL_DB = join(testDir, "test.db")
+let prevOpenNovelDb: string | undefined
 mkdirSync(testDir, { recursive: true })
 
 import { eq } from "drizzle-orm"
@@ -32,6 +31,8 @@ const novelId = crypto.randomUUID()
 const chapterId = crypto.randomUUID()
 
 beforeAll(async () => {
+  prevOpenNovelDb = process.env.OPENNOVEL_DB
+  process.env.OPENNOVEL_DB = join(testDir, "test.db")
   const db = getDb()
   await db
     .insert(NovelTable)
@@ -65,8 +66,8 @@ beforeAll(async () => {
 afterAll(() => {
   closeDb()
   // 恢复原值，避免污染同进程内按 directory 隔离的其他测试文件
-  if (originalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
-  else process.env.OPENNOVEL_DB = originalOpenNovelDb
+  if (prevOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+  else process.env.OPENNOVEL_DB = prevOpenNovelDb
   try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 

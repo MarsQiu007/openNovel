@@ -12,9 +12,9 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  delete process.env.OPENNOVEL_DB
   const { closeDb } = require("@opennovel-ai/novel-store")
   closeDb()
+  delete process.env.OPENNOVEL_DB
   try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 

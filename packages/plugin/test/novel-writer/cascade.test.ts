@@ -18,8 +18,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  delete process.env.OPENNOVEL_DB
   closeDb()
+  delete process.env.OPENNOVEL_DB
   try { rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }) } catch {}
 })
 

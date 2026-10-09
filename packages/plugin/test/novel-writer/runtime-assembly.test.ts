@@ -38,8 +38,7 @@ function transformHook(hooks: Awaited<ReturnType<typeof NovelWriterPlugin>>): Tr
   return hook
 }
 const TempRoot = join(tmpdir(), `runtime-assembly-${Date.now()}`)
-const OriginalOpenNovelDb = process.env.OPENNOVEL_DB
-delete process.env.OPENNOVEL_DB
+let prevOpenNovelDb: string | undefined
 
 const SessionNovel = sqliteTable("session_novel", {
   id: text().primaryKey(),
@@ -122,12 +121,14 @@ function seedNovel(dbPath: string, novelId: string) {
 
 describe("NovelWriterPlugin runtime assembly regressions", () => {
   beforeAll(() => {
+    prevOpenNovelDb = process.env.OPENNOVEL_DB
+    delete process.env.OPENNOVEL_DB
     mkdirSync(TempRoot, { recursive: true })
   })
 
   afterAll(() => {
-    if (OriginalOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
-    else process.env.OPENNOVEL_DB = OriginalOpenNovelDb
+    if (prevOpenNovelDb === undefined) delete process.env.OPENNOVEL_DB
+    else process.env.OPENNOVEL_DB = prevOpenNovelDb
     for (const entry of readdirSync(TempRoot, { withFileTypes: true })) {
       if (entry.isDirectory()) closeDb(join(TempRoot, entry.name))
     }
@@ -219,7 +220,7 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
     // 模式契约是项目级（unshift 到 system[0]），无小说时仍注入 1 条；不应注入快照
     expect(output.system.length).toBe(1)
     expect(output.system[0]).toContain("【写作模式与初始化模式")
-    expect(await getNovelForSession("unbound-empty")).toBeUndefined()
+    expect(await getNovelForSession("unbound-empty", projectDir)).toBeUndefined()
   })
 
   test("Bug 3: tagNovelSession is idempotent for the same (session, novel) pair", async () => {

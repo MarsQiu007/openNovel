@@ -18,6 +18,7 @@ import { z } from "zod"
 import { eq, and, desc, sql, inArray, ne } from "drizzle-orm"
 import {
   getDb,
+  getDbPath,
   NovelTable,
   NovelStateLogTable,
   CharacterTable,
@@ -47,7 +48,7 @@ import {
   resolveCharacterReference,
   type CharacterBindingView,
 } from "./drift-guards.js"
-import { join } from "path"
+import { dirname, join } from "path"
 import { mkdirSync, appendFileSync } from "fs"
 
 // ─── 10 种事实类型 ───
@@ -197,19 +198,19 @@ async function recordConflict(
 
 // ─── Markdown 同步辅助函数 ───
 
-/** 获取 .novel 目录路径（相对于当前工作目录） */
-function getNovelDir(): string {
-  return join(process.cwd(), ".novel")
+/** 获取 .novel 目录路径：随数据库连接目录推导，缺省回退当前工作目录 */
+function getNovelDir(novelDir?: string | null): string {
+  return novelDir ?? join(process.cwd(), ".novel")
 }
 
 /** 确保 .novel 目录存在 */
-function ensureNovelDir(): void {
-  mkdirSync(getNovelDir(), { recursive: true })
+function ensureNovelDir(novelDir?: string | null): void {
+  mkdirSync(getNovelDir(novelDir), { recursive: true })
 }
 
 /** 追加 Markdown 记录到 .novel/state-log.md */
-function appendToMarkdown(novelId: string, chapterId: string, entries: StateDelta): void {
-  ensureNovelDir()
+function appendToMarkdown(novelId: string, chapterId: string, entries: StateDelta, novelDir?: string | null): void {
+  ensureNovelDir(novelDir)
   const now = new Date().toISOString()
   const lines: string[] = []
 
@@ -232,7 +233,7 @@ function appendToMarkdown(novelId: string, chapterId: string, entries: StateDelt
   lines.push("")
 
   const content = lines.join("\n")
-  const logPath = join(getNovelDir(), "state-log.md")
+  const logPath = join(getNovelDir(novelDir), "state-log.md")
   appendFileSync(logPath, content, "utf-8")
 }
 
@@ -1115,8 +1116,7 @@ export async function commitState(
 ): Promise<number> {
   // 验证 delta 格式
   const validated = StateDeltaSchema.parse(delta)
-  const db = getDb(directory)
-  const result = await commitStateWithReport(novelId, chapterId, validated, db, bindingView)
+  const result = await commitStateWithReport(novelId, chapterId, validated, directory, bindingView)
   return result.count
 }
 
@@ -1195,7 +1195,10 @@ export async function commitStateWithReport(
   }
 
   // 6. 同步 Markdown（事务提交后，旁路审计日志）
-  appendToMarkdown(novelId, chapterId, validated)
+  // 日志目录与连接推导同链：getDbPath 优先 OPENNOVEL_DB，其次入参目录，缺省 cwd，
+  // 避免 db 句柄入参时丢失目录信息而把日志误写到进程工作目录。
+  const markdownDir = dirname(getDbPath(typeof dbOrDirectory === "string" ? dbOrDirectory : null))
+  appendToMarkdown(novelId, chapterId, validated, markdownDir)
 
   
   // 追加故事主轴条目（确定性拼接，不调用 LLM）
