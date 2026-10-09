@@ -83,7 +83,7 @@ export async function rollbackToVersion(
     .update(ChapterTable)
     .set({
       content: targetVersion.content,
-      word_count: targetVersion.content.length,
+      word_count: targetVersion.word_count,
       updated_at: Date.now(),
     })
     .where(eq(ChapterTable.id, chapterId))

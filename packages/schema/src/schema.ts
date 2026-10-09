@@ -35,3 +35,17 @@ export const DateTimeUtcFromMillis = Schema.Finite.pipe(
     encode: SchemaGetter.transform((value) => DateTime.toEpochMillis(value)),
   }),
 )
+
+/**
+ * 统计章节字数（网文字数口径）：汉字逐字计数 + 英文/数字按词计数，
+ * 不含标点、空白与换行。全仓 chapters/chapter_versions 表 word_count 的
+ * 写入与展示唯一口径，写作管线长度闸门与编辑器目标判定共用。
+ */
+export function countWords(text: string): number {
+  let count = 0
+  const cjk = text.match(/\p{Script=Han}/gu)
+  if (cjk) count += cjk.length
+  const tokens = text.match(/[a-zA-Z0-9]+/g)
+  if (tokens) count += tokens.length
+  return count
+}

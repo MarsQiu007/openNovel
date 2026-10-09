@@ -1,3 +1,5 @@
+import { countWords } from "@opennovel-ai/schema/schema"
+
 /**
  * 小说 DB 迁移。
  *
@@ -78,6 +80,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateSyncQueueSource(exec, query)
   cleanupUpgradeQueueScope(exec)
   migrateChapterContentFingerprint(exec, query)
+  migrateChapterWordCount(exec, query)
 }
 
 /**
@@ -626,5 +629,43 @@ export function migrateTechniqueEvidence(exec: ExecFn, query: QueryFn): void {
     })
   } catch {
     // techniques 表不存在或迁移失败时不阻塞 DB 打开
+  }
+}
+
+/**
+ * 按网文字数口径重算历史 word_count（汉字逐字 + 英文/数字按词，不含标点/空白/换行）。
+ *
+ * 早期部分写入路径按 content.length（UTF-16 全字符，含标点空白）落库，与写作管线
+ * countWords 口径不一致，表现为同一章阅读/编辑/侧边栏字数分歧。逐行重算 chapters
+ * 与 chapter_versions 两表：仅当重算值与现值不同才 UPDATE，重复建连零写入（幂等）。
+ * 全局库（opennovel.db）无 chapters 表，查 sqlite_master 存在性后整体跳过。
+ * 失败不阻塞 DB 打开。
+ */
+export function migrateChapterWordCount(exec: ExecFn, query: QueryFn): void {
+  const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('chapters', 'chapter_versions')")
+  const names = Array.isArray(tables)
+    ? tables
+        .filter((t): t is Record<string, unknown> => typeof t === "object" && t !== null)
+        .map((t) => t.name)
+    : []
+  if (!names.includes("chapters")) return
+  try {
+    for (const table of ["chapters", "chapter_versions"]) {
+      if (!names.includes(table)) continue
+      const rows = query("SELECT id, content, word_count FROM " + table)
+      if (!Array.isArray(rows)) continue
+      for (const row of rows) {
+        if (typeof row !== "object" || row === null) continue
+        const id = "id" in row ? row.id : null
+        const content = "content" in row ? row.content : null
+        const current = "word_count" in row ? row.word_count : null
+        if (typeof id !== "string" || typeof content !== "string" || typeof current !== "number") continue
+        const recomputed = countWords(content)
+        if (recomputed === current) continue
+        exec("UPDATE " + table + " SET word_count = " + recomputed + " WHERE id = '" + id.replace(/'/g, "''") + "'")
+      }
+    }
+  } catch {
+    // 重算失败不阻塞 DB 打开
   }
 }

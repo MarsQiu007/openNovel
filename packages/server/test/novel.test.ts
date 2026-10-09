@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test"
 import { eq } from "drizzle-orm"
 import { Effect } from "effect"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -210,7 +211,11 @@ describe("novel handler - chapter versions", () => {
     const updated = await Effect.runPromise(
       updateChapterContent(novelId, chapterId1, { content: "New content here" }, tempDir),
     )
-    expect(updated.wordCount).toBe("New content here".length)
+    expect(updated.wordCount).toBe(countWords("New content here"))
+
+    // 落库口径与返回口径一致（网文字数，非 content.length）
+    const stored = getDb(tempDir).select().from(ChapterTable).where(eq(ChapterTable.id, chapterId1)).get()
+    expect(stored?.word_count).toBe(countWords("New content here"))
 
     const versions = await Effect.runPromise(listChapterVersions(novelId, chapterId1, tempDir))
     expect(versions.length).toBe(1)

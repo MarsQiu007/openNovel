@@ -8,6 +8,7 @@
  * 遵循 novel-writer.ts 的数据库访问模式。
  */
 import { eq } from "drizzle-orm"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { getDb, ChapterTable } from "./index.js"
 
 // ─── 审批结果类型 ───
@@ -61,7 +62,7 @@ export async function requestApproval(
     .update(ChapterTable)
     .set({
       content,
-      word_count: content.length,
+      word_count: countWords(content),
       status: "pending_review",
       updated_at: Date.now(),
     })
@@ -73,7 +74,7 @@ export async function requestApproval(
     novelId: chapter.novel_id,
     title: chapter.title,
     content,
-    wordCount: content.length,
+    wordCount: countWords(content),
     status: "pending_review",
     order: chapter.order,
   }
