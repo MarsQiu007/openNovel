@@ -9,7 +9,7 @@
  */
 import { expect } from "bun:test"
 import { Effect } from "effect"
-import { getDb, ChapterTable, TechniqueTable } from "@opennovel-ai/novel-store"
+import { getDb, ChapterTable, NovelTable, TechniqueTable } from "@opennovel-ai/novel-store"
 import { provideTmpdirServer } from "../fixture/fixture"
 import { buildTestNovel, dbSnapshot, eq, installFreshGlobalDb, REWRITE_CONTENT, shadowLogRows, useIsolatedBookDb } from "./fixture.js"
 import { driveTurn, hitCount, it, providerCfg, toolCallsOf, toolResultAfter } from "./harness.js"
@@ -67,6 +67,8 @@ e2e(
         const restoreBookDb = useIsolatedBookDb(dir)
         yield* Effect.addFinalizer(() => Effect.sync(restoreBookDb))
         const novel = buildTestNovel(dir, { techniqueInjection: true })
+        // 双闸门要求书级内容性质同步放行，否则本书库受限范围技法在快照候选段被过滤，confirm 链路不会触发
+        getDb(dir).update(NovelTable).set({ content_nature: "adult" }).where(eq(NovelTable.id, novel.novelId)).run()
         seedTechniques(dir)
         // 第 1 章补非空章纲，保证流水线 plan 步成功
         getDb(dir).update(ChapterTable).set({ outline: "章纲：周慕云夜探盐仓，发现暗格与绣样线索。" }).where(eq(ChapterTable.id, novel.chapters[0].id)).run()
