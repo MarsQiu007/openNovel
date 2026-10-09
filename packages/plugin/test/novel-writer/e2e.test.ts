@@ -38,6 +38,7 @@ import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
 import type { ToolContext } from "../../src/tool.js"
 import { closeDb, getDb, WorldEntryTable } from "@opennovel-ai/novel-store"
+import { countWords } from "@opennovel-ai/schema/schema"
 
 // 合成章节内容（2000+ 中文字符，满足 write_chapter 的字数验证）
 const CHAPTER_1_CONTENT_BASE = `第1章 陨落的天才
@@ -432,7 +433,7 @@ describe("小说写作完整流水线 E2E 测试", () => {
     expect(approvalRequest.chapterId).toBe(chapter1Id)
     expect(approvalRequest.novelId).toBe(novelId)
     expect(approvalRequest.title).toBeTruthy()
-    expect(approvalRequest.wordCount).toBe(CHAPTER_1_CONTENT.length)
+    expect(approvalRequest.wordCount).toBe(countWords(CHAPTER_1_CONTENT))
     expect(approvalRequest.status).toBe("pending_review")
 
     // 审批通过

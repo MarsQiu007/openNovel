@@ -1,6 +1,7 @@
 import { Location } from "@opennovel-ai/core/location"
 import { Effect, Option } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
 import { resolveAnnotationTarget, resolveAnnotationTargetType, type AnnotationTargetField } from "../annotation-targets"
@@ -801,7 +802,7 @@ export function updateChapterContent(
     })
     yield* Effect.sync(() => {
       db.update(ChapterTable)
-        .set({ content: input.content, word_count: input.content.length, updated_at: Date.now() })
+        .set({ content: input.content, word_count: countWords(input.content), updated_at: Date.now() })
         .where(eq(ChapterTable.id, chapterID))
         .run()
     })

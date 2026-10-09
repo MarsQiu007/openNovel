@@ -11,6 +11,7 @@ import { showToast } from "@/utils/toast"
 import { SaveStatusIndicator } from "@/components/novel/save-status-indicator"
 import { createSaveStatusStore, type EditSaveStatus } from "@/utils/save-status"
 import { Spinner } from "@opennovel-ai/ui/spinner"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 
 // ─── Constants ───
@@ -88,7 +89,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
     onCleanup(() => clearTimeout(timer))
   })
 
-  const charCount = () => content().length
+  const charCount = () => countWords(content())
 
   const targetStatus = createMemo(() => {
     const count = charCount()

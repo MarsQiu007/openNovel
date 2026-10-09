@@ -10,6 +10,7 @@ import type { Plugin } from "./index.js"
 import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
@@ -6338,17 +6339,6 @@ function computeParagraphDiff(a: string[], b: string[]): DiffOp[] {
   return out.reverse()
 }
 
-/**
- * 统计字数。对中文按非空白字符计数，最贴近网文字数口径。
- */
-function countWords(text: string): number {
-  let count = 0
-  const cjk = text.match(/\p{Script=Han}/gu)
-  if (cjk) count += cjk.length
-  const tokens = text.match(/[a-zA-Z0-9]+/g)
-  if (tokens) count += tokens.length
-  return count
-}
 
 /**
  * 检测正文中误入的大纲/节拍标签。

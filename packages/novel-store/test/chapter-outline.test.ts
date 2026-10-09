@@ -9,6 +9,7 @@ import { mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
 import { Database } from "bun:sqlite"
+import { countWords } from "@opennovel-ai/schema/schema"
 import {
   closeDb,
   createChapter,
@@ -91,7 +92,8 @@ describe("chapter outline persistence", () => {
 
     const migrated = getDb(projectDir).select().from(ChapterTable).where(eq(ChapterTable.id, "chapter-1")).get()
     expect(migrated?.content).toBe("原正文")
-    expect(migrated?.word_count).toBe(100)
+    // word_count 存量迁移按网文口径（countWords）重算，脏值 100 被修正为实际字数
+expect(migrated?.word_count).toBe(countWords("原正文"))
     expect(migrated?.outline).toBe("")
   })
 
