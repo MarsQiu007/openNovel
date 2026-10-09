@@ -19,8 +19,8 @@
 
 ## 3. schema 测试修复（D3/D4）
 
-- [ ] 3.1 修 packages/schema/test/contract-hygiene.test.ts:57 与 v1-isolation.test.ts:20：new URL("../src", import.meta.url).pathname 改 fileURLToPath(new URL("../src", import.meta.url))（import { fileURLToPath } from "node:url"）；contract-hygiene:61 传给 Bun.file 的 URL 对象不动（验证：packages/schema bun test 两文件全绿）
-- [ ] 3.2 修 packages/schema/test/event-manifest.test.ts：计数断言更新为实测值（ServerDefinitions=58、Definitions=88、Latest=88、Durable=35）；Definitions.slice(40,43) 位置锚点改为 indexOf 相对顺序断言（PartDelta 在 Diff 前、Diff 在 Error 前）（验证：event-manifest 全绿，且新增事件场景下不依赖绝对位置）
+- [x] 3.1 修 packages/schema/test/contract-hygiene.test.ts:57 与 v1-isolation.test.ts:20：new URL("../src", import.meta.url).pathname 改 fileURLToPath(new URL("../src", import.meta.url))（import { fileURLToPath } from "node:url"）；contract-hygiene:61 传给 Bun.file 的 URL 对象不动（验证：packages/schema bun test 两文件全绿）
+- [x] 3.2 修 packages/schema/test/event-manifest.test.ts：计数断言更新为实测值（ServerDefinitions=58、Definitions=88、Latest=88、Durable=35）；Definitions.slice(40,43) 位置锚点改为 indexOf 相对顺序断言（PartDelta 在 Diff 前、Diff 在 Error 前）（验证：event-manifest 全绿，且新增事件场景下不依赖绝对位置）
 
 ## 4. 门禁
 
