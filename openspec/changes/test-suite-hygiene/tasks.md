@@ -4,7 +4,7 @@
 
 ## 1. cli.ts 连接收编（D1）
 
-- [ ] 1.1 逐表比对 cli.ts CREATE_TABLES_SQL（15 张）与 novel-store CREATE_TABLES_SQL（44 张）同名列定义，差异清单记入 design.md Risks 节（比对方法：按表名抽取列定义逐字段 diff；验证：清单落盘且确认 novels/volumes/chapters/chapter_versions/characters/character_states/chapter_summaries/foreshadowing/novel_state_log/plot_threads/relationships/session_novel/style_guide/volume_summaries/world_entries 15 张全覆盖）
+- [x] 1.1 逐表比对 cli.ts CREATE_TABLES_SQL（15 张）与 novel-store CREATE_TABLES_SQL（44 张）同名列定义，差异清单记入 design.md Risks 节（比对方法：按表名抽取列定义逐字段 diff；验证：清单落盘且确认 novels/volumes/chapters/chapter_versions/characters/character_states/chapter_summaries/foreshadowing/novel_state_log/plot_threads/relationships/session_novel/style_guide/volume_summaries/world_entries 15 张全覆盖）
 - [ ] 1.2 修改 packages/plugin/src/novel-writer/cli.ts：删除本地 getDbPath（:71-75）、_db 单例与私有 getDb（:95-106）、CREATE_TABLES_SQL（:77-93）及 drizzle/bun-sqlite/BunSqlite 三个 import；新增 import { getDb } from "@opennovel-ai/novel-store"；调用点 getDb()（:149/:194/:213）保持不变；保留本地表定义（:36-66）；同步改写文件头 :5 注释（私有连接层已删除）（验证：packages/plugin 目录 bun typecheck 通过）
 - [ ] 1.3 在 design.md Context 记录调用点核查结论：createBook/createBookAndTagSession/initNovelProject 全仓递归 grep（opennovel/src、plugin/src 含子目录）无生产调用点，仅测试直连与 cli 内部自调用（验证：grep 输出附在结论旁）
 

@@ -60,7 +60,7 @@ contract-hygiene.test.ts:57 与 v1-isolation.test.ts:20 的 new URL("../src", im
 
 ## Risks / Trade-offs
 
-- [cli 15 张表与 novel-store 同名列定义存在差异] → 任务 1.1 逐表 diff 列定义，差异清单落 design.md；plugin 全目录测试兜底。
+- [任务 1.1 结论·列定义比对] 10 张完全一致（chapter_versions/character_states/chapter_summaries/foreshadowing/novel_state_log/plot_threads/relationships/style_guide/volume_summaries/world_entries）；5 张差异均为 novel-store 列超集：novels+master_outline、volumes+outline、chapters+outline+content_fingerprint、characters+status；session_novel 差异为 cli 侧多一条 REFERENCES session(id) 外键（书库本无 session 表，该外键不可执行，收敛后语义不变）。结论：委托安全，对存量 novel.db 无影响（CREATE TABLE IF NOT EXISTS 不改已存在表）。
 - [getRecentSessionId 行为差异] → 已核实：novel-store 建表 SQL 无 session 表，session 表缺失时 try/catch 回退不变。
 - [运行时 cwd 兜底建库污染源定位耗时] → 任务 2.5 专步定位（grep 模块级 env 修改 + 探针），定位为可交付物，不阻塞主修复。
 - [安全模式文件 afterAll 裸 delete env 残留] → 非目标；当前顺序下无受害者，如未来新增前置文件再统一。
