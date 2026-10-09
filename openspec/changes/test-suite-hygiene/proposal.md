@@ -37,4 +37,5 @@
 - **packages/plugin**：src/novel-writer/cli.ts（生产代码，连接生命周期对齐 novel-store）；test/novel-writer 下 chapter-length-limit / e2e / review / runtime-assembly 四个测试文件的 env 设置方式。
 - **packages/schema**：test/contract-hygiene.test.ts、test/v1-isolation.test.ts、test/event-manifest.test.ts 三个测试文件。
 - 数据兼容：建表 SQL 为子集关系且列定义经核对后以 novel-store 为准，对现有本地数据库文件无迁移需求；连接生命周期只影响进程内行为，不改落库格式。
+- 调用面：cli.ts 导出函数（createBook 等）全仓递归 grep 无生产调用点，仅测试直连与 cli 内部自调用，变更风险面可控。
 - CI：修复后 main 的 test workflow 在 Windows 与 Linux 上均应转绿（schema 计数断言双平台均失败）。
