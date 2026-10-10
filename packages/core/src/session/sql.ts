@@ -187,6 +187,7 @@ export const NovelTable = sqliteTable(
     title: text().notNull(),
     genre: text().notNull(),
     synopsis: text().notNull().default(""),
+    master_outline: text().notNull().default(""),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
@@ -194,6 +195,8 @@ export const NovelTable = sqliteTable(
       .notNull()
       .$default(() => Date.now()),
     status: text().notNull().default("draft"),
+    story_spine: text(),
+    content_nature: text().notNull().default("general"),
   },
   (table) => [index("novels_status_idx").on(table.status)],
 )

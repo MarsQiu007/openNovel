@@ -228,9 +228,12 @@ export default {
           \`title\` text NOT NULL,
           \`genre\` text NOT NULL,
           \`synopsis\` text DEFAULT '' NOT NULL,
+          \`master_outline\` text DEFAULT '' NOT NULL,
           \`created_at\` integer NOT NULL,
           \`updated_at\` integer NOT NULL,
-          \`status\` text DEFAULT 'draft' NOT NULL
+          \`status\` text DEFAULT 'draft' NOT NULL,
+          \`story_spine\` text,
+          \`content_nature\` text DEFAULT 'general' NOT NULL
         );
       `)
       yield* tx.run(`
