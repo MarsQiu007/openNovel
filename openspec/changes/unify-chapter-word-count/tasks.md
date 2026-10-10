@@ -31,3 +31,7 @@
 - [x] 5.1 相关包（schema / plugin / server / novel-store / app）`bun typecheck` 通过；仓库根 `bun run lint` 0 errors 且新增代码零告警
 - [x] 5.2 schema、novel-store、server、plugin 相关测试全绿
 - [x] 5.3 提交推送，footer 带 `OpenSpec-Change: unify-chapter-word-count`
+
+## Implementation Commits
+
+- `a2c53f00` feat(opennovel): 统一章节字数为网文口径（countWords 单一事实源）
