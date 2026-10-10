@@ -25,7 +25,17 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   // 1. 清理历史遗留孤儿行（早期 bun 驱动未开启外键，删除小说后子表数据全部残留）。
   //    必须先于 session_novel 重建执行——重建时的 INSERT...SELECT 在外键开启下
   //    遇到孤儿绑定行会违反 novels(id) 外键导致回滚。
-  cleanupOrphanRows(exec)
+  // 单表缺失（外部建表器只建了部分表）不应中断后续迁移链
+  try {
+    cleanupOrphanRows(exec)
+  } catch {
+    // 忽略：孤儿清理是优化项，列补齐才是正确性前提
+  }
+
+  // 列补齐优先于一切结构性迁移：novels 表可能由外部建表器（core 全局库迁移）以旧结构创建，
+  // 必须先补齐列，后续任何对该表的读写才不会因缺列失败
+  migrateNovelMasterOutline(exec, query)
+  migrateNovelContentNature(exec, query)
 
   // 2. 修复 session_novel 悬空外键
   try {
@@ -62,14 +72,12 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateCharacterStatus(exec, query)
   migrateCharacterStates(exec, query)
   migrateTechniqueScope(exec, query)
-  migrateNovelContentNature(exec, query)
   migrateTechniqueEvidence(exec, query)
 
   // 4. 批注执行轮次：批注表加关联列，旧轮次表补状态与快照列
   migrateAnnotationExecutionRound(exec, query)
   migrateChapterOutline(exec, query)
   migrateAnnotationExecutionRoundColumns(exec, query)
-  migrateNovelMasterOutline(exec, query)
   migrateVolumeOutline(exec, query)
   migrateStorySpine(exec, query)
   migrateSyncQueue(exec, query)
