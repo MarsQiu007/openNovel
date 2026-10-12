@@ -406,6 +406,7 @@ export async function generateChapterOutline(
   lines.push("- **出场角色**：（待填写）")
   lines.push("- **场景概要**：（待填写）")
   lines.push("- **字数预估**：（待填写）")
+  lines.push("- **信息边界**：（待填写）")
   lines.push("")
   lines.push("### 场景二：发展")
   lines.push("")
@@ -414,6 +415,7 @@ export async function generateChapterOutline(
   lines.push("- **出场角色**：（待填写）")
   lines.push("- **场景概要**：（待填写）")
   lines.push("- **字数预估**：（待填写）")
+  lines.push("- **信息边界**：（待填写）")
   lines.push("")
   lines.push("### 场景三：高潮 / 转折")
   lines.push("")
@@ -422,6 +424,7 @@ export async function generateChapterOutline(
   lines.push("- **出场角色**：（待填写）")
   lines.push("- **场景概要**：（待填写）")
   lines.push("- **字数预估**：（待填写）")
+  lines.push("- **信息边界**：（待填写）")
   lines.push("")
   lines.push("### 场景四：收尾")
   lines.push("")
@@ -430,6 +433,7 @@ export async function generateChapterOutline(
   lines.push("- **出场角色**：（待填写）")
   lines.push("- **场景概要**：（待填写）")
   lines.push("- **字数预估**：（待填写）")
+  lines.push("- **信息边界**：（待填写）")
   lines.push("")
 
   // 角色出场

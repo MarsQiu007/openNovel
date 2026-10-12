@@ -98,4 +98,44 @@ describe("compileSceneChecklist", () => {
   test("未提供关键场景清单时不输出半成品（截断章纲只含入口标题）", () => {
     expect(compileSceneChecklist("## 关键场景")).toBeNull()
   })
+
+  test("信息边界字段编译为知情范围", () => {
+    const outline = `## 关键场景
+
+### 场景一：开场
+
+- **地点**：主角家中
+- **时间**：当夜
+- **出场角色**：主角、家人
+- **场景概要**：主角晚归回家，家人迎上来。
+- **字数预估**：800
+- **信息边界**：家人仅知主角晚归，不知坠崖（坠崖仅主角与读者知情）
+`
+    const checklist = compileSceneChecklist(outline)
+    expect(checklist).not.toBeNull()
+    expect(checklist).toContain("- 知情范围：家人仅知主角晚归，不知坠崖（坠崖仅主角与读者知情）")
+    expect(checklist).not.toContain("- 信息边界：")
+  })
+
+  test("信息边界缺失或为占位符时跳过该行", () => {
+    const outline = `## 关键场景
+
+### 场景一：开场
+
+- **地点**：主角家中
+- **出场角色**：主角、家人
+- **场景概要**：家人准备了一桌饭菜。
+- **信息边界**：（待填写）
+
+### 场景二：发展
+
+- **地点**：院中
+- **出场角色**：主角
+- **场景概要**：主角独自包扎伤口。
+`
+    const checklist = compileSceneChecklist(outline)
+    expect(checklist).not.toBeNull()
+    expect(checklist).not.toContain("知情范围")
+    expect(checklist).toContain("- 出场角色：主角")
+  })
 })
