@@ -71,10 +71,12 @@ export const prettier: Info = {
   async enabled(context) {
     const items = await Filesystem.findUp("package.json", context.directory, context.worktree)
     for (const item of items) {
+      // package.json 畸形或不可读只是“探测未命中”，不能让格式化器检测抛未处理拒绝
       const json = await Filesystem.readJson<{
         dependencies?: Record<string, string>
         devDependencies?: Record<string, string>
-      }>(item)
+      }>(item).catch(() => undefined)
+      if (!json) continue
       if (json.dependencies?.prettier || json.devDependencies?.prettier) {
         const bin = await Npm.which("prettier")
         if (bin) return [bin, "--write", "$FILE"]
@@ -196,7 +198,8 @@ export const ruff: Info = {
       const found = await Filesystem.findUp(config, context.directory, context.worktree)
       if (found.length > 0) {
         if (config === "pyproject.toml") {
-          const content = await Filesystem.readText(found[0])
+          // 配置文件读取失败视作未命中，继续探测下一个候选
+          const content = await Filesystem.readText(found[0]).catch(() => "")
           if (content.includes("[tool.ruff]")) return ["ruff", "format", "$FILE"]
         } else {
           return ["ruff", "format", "$FILE"]

@@ -124,16 +124,22 @@ const layer = Layer.effect(
           return acc.some((item) => item.width === next.width && item.height === next.height) ? acc : [...acc, next]
         }, [])) {
           const resized = photon.resize(decoded, size.width, size.height, photon.SamplingFilter.Lanczos3)
-          const candidate = [
-            { data: Buffer.from(resized.get_bytes()).toString("base64"), mime: "image/png" },
-            ...JPEG_QUALITIES.map((quality) => ({
-              data: Buffer.from(resized.get_bytes_jpeg(quality)).toString("base64"),
-              mime: "image/jpeg",
-            })),
-          ]
-            .map((item) => ({ ...item, bytes: Buffer.byteLength(item.data, "utf8") }))
-            .find((item) => item.bytes <= info.maxBase64Bytes)
-          resized.free()
+          // get_bytes/get_bytes_jpeg 抛错时也要 free，否则每轮缩放都泄漏一个 WASM 缓冲
+          const candidate = (() => {
+            try {
+              return [
+                { data: Buffer.from(resized.get_bytes()).toString("base64"), mime: "image/png" },
+                ...JPEG_QUALITIES.map((quality) => ({
+                  data: Buffer.from(resized.get_bytes_jpeg(quality)).toString("base64"),
+                  mime: "image/jpeg",
+                })),
+              ]
+                .map((item) => ({ ...item, bytes: Buffer.byteLength(item.data, "utf8") }))
+                .find((item) => item.bytes <= info.maxBase64Bytes)
+            } finally {
+              resized.free()
+            }
+          })()
 
           if (candidate) {
             yield* Effect.logInfo("using resized image", {

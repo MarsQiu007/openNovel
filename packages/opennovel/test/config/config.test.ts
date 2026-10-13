@@ -1944,11 +1944,24 @@ describe("OPENNOVEL_CONFIG_CONTENT token substitution", () => {
 
 // parseManagedPlist unit tests — pure function, no OS interaction
 
+// parseManagedPlist 对畸形输入返回 undefined，测试里先断言非空再交给 jsonc 解析
+function managedPlistText(json: string) {
+  const text = ConfigManaged.parseManagedPlist(json)
+  if (text === undefined) throw new Error("parseManagedPlist rejected a valid plist payload")
+  return text
+}
+
+test("parseManagedPlist returns undefined for malformed plutil output", () => {
+  expect(ConfigManaged.parseManagedPlist("")).toBeUndefined()
+  expect(ConfigManaged.parseManagedPlist("not json")).toBeUndefined()
+  expect(ConfigManaged.parseManagedPlist("[]")).toBeUndefined()
+})
+
 test("parseManagedPlist strips MDM metadata keys", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(
+      managedPlistText(
         JSON.stringify({
           PayloadDisplayName: "OpenNovel Managed",
           PayloadIdentifier: "ai.opennovel.managed.test",
@@ -1976,7 +1989,7 @@ test("parseManagedPlist parses server settings", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(
+      managedPlistText(
         JSON.stringify({
           $schema: "https://opennovel.ai/config.json",
           server: { hostname: "127.0.0.1", mdns: false },
@@ -1996,7 +2009,7 @@ test("parseManagedPlist parses permission rules", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(
+      managedPlistText(
         JSON.stringify({
           $schema: "https://opennovel.ai/config.json",
           permission: {
@@ -2026,7 +2039,7 @@ test("parseManagedPlist parses enabled_providers", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(
+      managedPlistText(
         JSON.stringify({
           $schema: "https://opennovel.ai/config.json",
           enabled_providers: ["anthropic", "google"],
@@ -2043,7 +2056,7 @@ test("parseManagedPlist handles empty config", async () => {
   const config = ConfigParse.schema(
     ConfigV1.Info,
     ConfigParse.jsonc(
-      await ConfigManaged.parseManagedPlist(JSON.stringify({ $schema: "https://opennovel.ai/config.json" })),
+      managedPlistText(JSON.stringify({ $schema: "https://opennovel.ai/config.json" })),
       "test:mobileconfig",
     ),
     "test:mobileconfig",
