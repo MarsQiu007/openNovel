@@ -438,54 +438,54 @@
 | H729 | packages/opennovel/src/server/routes/instance/httpapi/middleware/schema-error.ts:40 | high | security | wontfix | 日志已按 6-10 行注释的截断策略执行（避免整包回显），1024 残片与服务器日志同信任级；全脱敏需重设计校验错误词汇表，属增强。 |
 | H732 | packages/opennovel/src/server/routes/instance/httpapi/middleware/workspace-routing.ts:87 | high | security | wontfix | 同 C238：header 目录即路由入口（架构声明），边界为鉴权层；query schema 校验属契约变更且拒不了合法绝对路径。 |
 | C009 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:0 | critical | security | fix | novel-reader.html 把 id 直接拼进 onclick 字符串字面量（无 JSON.stringify/转义），id 现虽为内部生成，但读者页属可达 HTML 面、习惯即漏洞温床。修复：onclick 参数用 JSON.stringify 内嵌或改 data-* + 事件委托。 |
-| H055 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:1144 | high | bug |  |  |
-| C239 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:23 | critical | security |  |  |
-| H734 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:94 | high | bug |  |  |
-| H736 | packages/opennovel/src/server/routes/instance/httpapi/websocket-tracker.ts:18 | high | bug |  |  |
-| H733 | packages/opennovel/src/server/server.ts:72 | high | bug |  |  |
-| H735 | packages/opennovel/src/server/shared/tui-control.ts:11 | high | maintainability |  |  |
-| H737 | packages/opennovel/src/server/shared/workspace-routing.ts:20 | high | bug |  |  |
-| H738 | packages/opennovel/src/server/shared/workspace-routing.ts:31 | high | bug |  |  |
-| H739 | packages/opennovel/src/session/compaction.ts:296 | high | bug |  |  |
-| H740 | packages/opennovel/src/session/instruction.ts:95 | high | security |  |  |
-| H743 | packages/opennovel/src/session/llm.ts:157 | high | bug |  |  |
-| H741 | packages/opennovel/src/session/llm/request.ts:212 | high | bug |  |  |
-| H742 | packages/opennovel/src/session/llm/request.ts:224 | high | bug |  |  |
-| C240 | packages/opennovel/src/session/prompt.ts:0 | critical | security |  |  |
-| H749 | packages/opennovel/src/session/prompt.ts:170 | high | security |  |  |
-| H750 | packages/opennovel/src/session/prompt.ts:813 | high | security |  |  |
-| H744 | packages/opennovel/src/session/reminders.ts:26 | high | bug |  |  |
-| H745 | packages/opennovel/src/session/reminders.ts:78 | high | bug |  |  |
-| H746 | packages/opennovel/src/session/revert.ts:44 | high | bug |  |  |
-| C241 | packages/opennovel/src/session/run-state.ts:74 | critical | bug |  |  |
-| H751 | packages/opennovel/src/session/run-state.ts:125 | high | bug |  |  |
-| H747 | packages/opennovel/src/session/session.ts:606 | high | bug |  |  |
-| H748 | packages/opennovel/src/session/status.ts:39 | high | bug |  |  |
-| H752 | packages/opennovel/src/session/system.ts:121 | high | bug |  |  |
-| H755 | packages/opennovel/src/session/todo.ts:49 | high | bug |  |  |
-| H756 | packages/opennovel/src/session/todo.ts:49 | high | bug |  |  |
-| H757 | packages/opennovel/src/session/todo.ts:49 | high | bug |  |  |
-| H760 | packages/opennovel/src/session/tools.ts:127 | high | bug |  |  |
-| H754 | packages/opennovel/src/setting-organization.ts:80 | high | bug |  |  |
-| H753 | packages/opennovel/src/setting-organization.ts:133 | high | bug |  |  |
-| H758 | packages/opennovel/src/share/session.ts:26 | high | bug |  |  |
-| H759 | packages/opennovel/src/share/share-next.ts:130 | high | bug |  |  |
-| C242 | packages/opennovel/src/share/share-next.ts:253 | critical | bug |  |  |
-| H766 | packages/opennovel/src/skill/discovery.ts:49 | high | security |  |  |
-| C243 | packages/opennovel/src/skill/discovery.ts:79 | critical | security |  |  |
-| H764 | packages/opennovel/src/skill/index.ts:325 | high | security |  |  |
-| H765 | packages/opennovel/src/skill/index.ts:340 | high | security |  |  |
-| H761 | packages/opennovel/src/snapshot/index.ts:623 | high | bug |  |  |
-| H762 | packages/opennovel/src/snapshot/index.ts:656 | high | bug |  |  |
-| H763 | packages/opennovel/src/snapshot/index.ts:743 | high | bug |  |  |
-| H769 | packages/opennovel/src/storage/storage.ts:301 | high | maintainability |  |  |
-| H767 | packages/opennovel/src/tool/apply_patch.ts:77 | high | bug |  |  |
-| H768 | packages/opennovel/src/tool/apply_patch.ts:241 | high | bug |  |  |
-| H770 | packages/opennovel/src/tool/edit.ts:37 | high | bug |  |  |
-| H771 | packages/opennovel/src/tool/edit.ts:174 | high | bug |  |  |
-| H775 | packages/opennovel/src/tool/grep.ts:110 | high | bug |  |  |
-| H772 | packages/opennovel/src/tool/json-schema.ts:6 | high | bug |  |  |
-| H773 | packages/opennovel/src/tool/mcp-websearch.ts:4 | high | security |  |  |
+| H055 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:1144 | high | bug | fix | novel-reader 全部 fetch 链无 catch：网络/4xx/JSON 错误时 UI 永卡 loading 且 unhandled rejection。修复：统一 .then(r=>r.ok?r.json():Promise.reject()) + catch 呈现错误态。 |
+| C239 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:23 | critical | security | wontfix | 与 C238/C232（H732）同口径：directory 头/参数选择项目目录是本服务器声明架构，reader 仅读该目录大纲文件；边界为 authorization 中间件。 |
+| H734 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:94 | high | bug | fix | existsSync→readFileSync 的 TOCTOU（outline 文件被并发改删时同步抛错直达 500）。修复：readFileSync 套 Effect.try/catch，缺文件按空大纲降级。 |
+| H736 | packages/opennovel/src/server/routes/instance/httpapi/websocket-tracker.ts:18 | high | bug | wontfix | closing 检查与 sockets.add 在同一同步函数段（无 await 间隙），closeAll 无法在其间执行；"untracked socket"路径不可达。 |
+| H733 | packages/opennovel/src/server/server.ts:72 | high | bug | wontfix | Server.listen 一进程一次（桌面/CLI 启动路径互斥），并发 listener 不存在使用面；模块级 url 是单例句柄便利导出。 |
+| H735 | packages/opennovel/src/server/shared/tui-control.ts:11 | high | maintainability | wontfix | tui-control 队列是进程级控制总线单例（服务器与 TUI 同进程对接），跨 import 共享正是设计目的；多租户隔离属未来形态议题。 |
+| H737 | packages/opennovel/src/server/shared/workspace-routing.ts:20 | high | bug | wontfix | SessionID.make 为 brand 断言不做校验、不抛错；畸形 id 进入 store 查询命中空集，走既有 NotFound 通道。 |
+| H738 | packages/opennovel/src/server/shared/workspace-routing.ts:31 | high | bug | wontfix | target 来自配置中的代理 URL（内部生产方），非法配置就该在路由时显式失败；包一层 TypeError 不改变行为面。 |
+| H739 | packages/opennovel/src/session/compaction.ts:296 | high | bug | wontfix | 生成器内 throw 进入 die 通道是本仓 misuse 惯例（H416/C169 家族）：parent 消息缺失属数据不变量破坏，defect 大声失败合理。 |
+| H740 | packages/opennovel/src/session/instruction.ts:95 | high | security | wontfix | instructions URL 来自用户自己的配置（信任级同 H387/H703）：本客户端形态加 SSRF 拦截会破坏自托管模型接入。 |
+| H743 | packages/opennovel/src/session/llm.ts:157 | high | bug | fix | 权限确认 catch 全吞并返回 approved:false：权限服务故障与用户拒绝不可区分且无日志。修复：记录 cause 后返回拒绝（保留降级行为）。 |
+| H741 | packages/opennovel/src/session/llm/request.ts:212 | high | bug | fix | 212 行 `startsWith("opennovel") // startsWith("opennovel")` 同表达式重复（fork 改名残留，第二项原意应为 legacy provider 前缀）。修复：查 git 历史确认原判定后重写（或去重），行为面先安全去重。 |
+| H742 | packages/opennovel/src/session/llm/request.ts:224 | high | bug | fix | 224 行同 H741 的复制粘贴恒真条件。修复：同批处理。 |
+| C240 | packages/opennovel/src/session/prompt.ts:0 | critical | security | wontfix | 自定义命令模板 `!`cmd`` 与 $ARGUMENTS 插值是面向用户的显式 shell 执行特性（agent 权限门控下操作者自己提交命令），输入源即操作者本人，信任模型同 C211/C208；无外部不可信注入面。 |
+| H749 | packages/opennovel/src/session/prompt.ts:170 | high | security | wontfix | prompt @文件引用允许 ~/ 与任意路径是用户显式意图（操作者本就可读这些文件进上下文，与工具层 permission 模型同级）；"留在 worktree 内"限制会破坏跨目录引用的既有工作流。 |
+| H750 | packages/opennovel/src/session/prompt.ts:813 | high | security | wontfix | bypassCwdCheck 服务于 part.url（客户端生成的附件引用）读取通道，路径来源与 H749 同信任级；二次收束与权限系统重复。 |
+| H744 | packages/opennovel/src/session/reminders.ts:26 | high | bug | fix | 非实验分支内联 push part 未走 sessions.updatePart，与实验分支持久化口径不一（疑漏持久化）。修复：统一经 updatePart 写入；实现批次核对两条分支落库差异。 |
+| H745 | packages/opennovel/src/session/reminders.ts:78 | high | bug | fix | `Effect.catch(Effect.die)` 把 ensureDir 可恢复错误（权限/磁盘）升格 defect。修复：改 tapError 记日志并跳过写入（提醒功能可降级）。 |
+| H746 | packages/opennovel/src/session/revert.ts:44 | high | bug | fix | 循环内收集的 remaining 循环后无消费（疑为未接线的"应用过滤结果"意图或纯死代码）。修复：核对意图后接线或删除；保持行为不变优先。 |
+| C241 | packages/opennovel/src/session/run-state.ts:74 | critical | bug | wontfix | busyError 返回 Session.BusyError（TaggedError 实例）本身 yieldable，`yield* 错误对象`即 Effect.fail（C158 全仓惯例）；评论前提不成立。 |
+| H751 | packages/opennovel/src/session/run-state.ts:125 | high | bug | wontfix | jobs 快照是有意的"调用时刻可取消清单"，cancelled 集合防重入；cancel 抛错沿错误通道终结整个批量操作（非无限循环面）。 |
+| H747 | packages/opennovel/src/session/session.ts:606 | high | bug | wontfix | 紧邻注释明示 remove 须对损坏会话尽力工作（best-effort 删除），子会话移除失败仅记日志是设计选择；改为上抛会卡死删除路径。 |
+| H748 | packages/opennovel/src/session/status.ts:39 | high | bug | wontfix | 状态事件是电平触发提示（消费者按事件重读，最终一致），先 publish 后 set 的窗口仅导致一次冗余读；改序反而引入 set 成功 publish 失败的更大窗口。 |
+| H752 | packages/opennovel/src/session/system.ts:121 | high | bug | wontfix | `disabled.size < tools.length` 语义即"存在未被禁用的工具才注入该 server"，部分禁用仍注入是正确行为（禁用的是个别工具）；评论把预期语义读成 bug。 |
+| H755 | packages/opennovel/src/session/todo.ts:49 | high | bug | fix | DB 提交后 publish 失败无兜底：订阅者丢更新且无痕。修复：publish 套 tapError 记警告（状态已提交，通知尽力而为），保持既有提交顺序。 |
+| H756 | packages/opennovel/src/session/todo.ts:49 | high | bug | wontfix | orDie 属仓库 DB 层统一错误收敛（H441 家族）；transient 失败由重试策略统一解决，不在每个调用点分叉。 |
+| H757 | packages/opennovel/src/session/todo.ts:49 | high | bug | wontfix | 同 H756（同一行第二条评论）。 |
+| H760 | packages/opennovel/src/session/tools.ts:127 | high | bug | fix | abort 分支 completeToolCall 后仍 return output，外层对同一 callID 再完成一次存在双完成竞态。修复：abort 后走独立终局（返回已完成哨兵或不再向上抛 output）；实现批次核对调用方。 |
+| H754 | packages/opennovel/src/setting-organization.ts:80 | high | bug | fix | analyze 无 dryRun 同款的 try 包裹：loadOrganizeContext/analyzeEntities 抛错直达服务器未处理面。修复：对齐 dryRun 的失败呈现。 |
+| H753 | packages/opennovel/src/setting-organization.ts:133 | high | bug | fix | 同 H754：apply 缺 try 包裹而 dryRun 有（133 行对比明确不对称）。 |
+| H758 | packages/opennovel/src/share/session.ts:26 | high | bug | wontfix | throw 进 die 通道为仓库惯例（C169/H416 家族）；ShareDisabled 属配置违规的显式失败，die 呈现可接受，若需类型化应全仓统一。 |
+| H759 | packages/opennovel/src/share/share-next.ts:130 | high | bug | wontfix | queue 的 get→set 在同一同步段（无 await 间隙），并发 sync 无法在检查与登记间交错；"Map 被覆盖"路径不可达。 |
+| C242 | packages/opennovel/src/share/share-next.ts:253 | critical | bug | fix | sync 在 HTTP 请求前删除队列条目，网络失败即数据永久丢失（无重试源）。修复：请求成功后再移除；失败保留队列等下轮。 |
+| H766 | packages/opennovel/src/skill/discovery.ts:49 | high | security | wontfix | discovery url 来自用户自己的 skill 配置（信任级同 H740/C211）；操作者指定 file:// 是其本机资源的读取意图，不构成越权面。 |
+| C243 | packages/opennovel/src/skill/discovery.ts:79 | critical | security | fix | 远端 skill index 的 name/files 未经校验直接 join 本地缓存路径：恶意索引可用 ../ 写越界（外部数据源，非用户输入面）。修复：段级拒绝 ..，解析结果必须落在缓存目录内。 |
+| H764 | packages/opennovel/src/skill/index.ts:325 | high | security | fix | skill 列表 HTML 输出仅转义 location，name/description 来自远端 index/SKILL.md 的外部内容未 escapeHtml（外部可控→Web 视图 XSS 面）。修复：两字段同批转义。 |
+| H765 | packages/opennovel/src/skill/index.ts:340 | high | security | fix | 非 verbose 的 markdown 输出路径同样未处理 name/description（下游会进 HTML 渲染面）。修复：同口径转义或剥离危险片段。 |
+| H761 | packages/opennovel/src/snapshot/index.ts:623 | high | bug | fix | snapshot cat-file 解析的 fail() 只返回 undefined 不记日志，协议错位被静默吞掉难排查。修复：fail 内加 logWarning（保留返回 undefined 的控制流）。 |
+| H762 | packages/opennovel/src/snapshot/index.ts:656 | high | bug | fix | 边界条件 `i + size >= out.length` 把"恰好读到数组末尾"误判为截断（off-by-one，合法尾记录被拒）。修复：改 `i + size + 1 > out.length` 语义核对协议尾换行。 |
+| H763 | packages/opennovel/src/snapshot/index.ts:743 | high | bug | fix | load 失败时 hit 退化为空占位对象，三元取 [before,after] 而非回落 show(row)，行内容错位。修复：hit 判存在性（text?.get 结果对象与空占位区分），缺失走 show(row)。 |
+| H769 | packages/opennovel/src/storage/storage.ts:301 | high | maintainability | wontfix | list 是目录 glob 的尽力快照（读取与文件级写锁目标不同），加目录级锁会把并发缩到串行；不一致窗口仅导致列表多/少一项，读写仍单文件原子。 |
+| H767 | packages/opennovel/src/tool/apply_patch.ts:77 | high | bug | fix | apply_patch add 的 stat 不存在→write 之间存在跨进程窗口，会静默覆盖并发新建文件。修复：改用 O_EXCL 原语写入或捕获 EEXIST 报错。 |
+| H768 | packages/opennovel/src/tool/apply_patch.ts:241 | high | bug | fix | move 以写新+删旧实现，崩溃中间态两份共存。修复：同卷用 rename 原子移动，跨卷失败显式报错。 |
+| H770 | packages/opennovel/src/tool/edit.ts:37 | high | bug | wontfix | lock() 的 get→set 为同步段（无 await），同路径双 semaphore 不可达；建议的 computeIfAbsent 与现状等价。 |
+| H771 | packages/opennovel/src/tool/edit.ts:174 | high | bug | wontfix | edit 工具对 FS 意外的 orDie 属工具层统一收敛（H441/H775 家族）：编辑失败以 defect 进入会话错误通道呈现，不影响进程。 |
+| H775 | packages/opennovel/src/tool/grep.ts:110 | high | bug | wontfix | grep 工具 orDie 同家族：底层搜索异常即工具调用失败（会话可见），进程不受影响；"返回 error 文案"已由上层工具执行器的失败通道完成。 |
+| H772 | packages/opennovel/src/tool/json-schema.ts:6 | high | bug | wontfix | 缓存 schema 的消费方（校验器）只读不写（仓内无 mutation 调用点），防御性深拷贝属加固；与 H617/H618 同口径。 |
+| H773 | packages/opennovel/src/tool/mcp-websearch.ts:4 | high | security | wontfix | 查询参数携带 websearch API key 是供应商 API 形态（同 H506 论证：端点即服务方、TLS 直达），改 header 需对方支持。 |
 | H774 | packages/opennovel/src/tool/mcp-websearch.ts:92 | high | bug |  |  |
 | H776 | packages/opennovel/src/tool/question.ts:0 | high | bug |  |  |
 | H778 | packages/opennovel/src/tool/read.ts:159 | high | performance |  |  |
