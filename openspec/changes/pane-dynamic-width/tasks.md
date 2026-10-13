@@ -25,3 +25,12 @@
 ## Workflow follow-up
 
 - 归档前收集 `OpenSpec-Change: pane-dynamic-width` 实现提交写入 tasks.md，运行 `openspec validate pane-dynamic-width`，同步主 specs 后归档。
+
+## Implementation Commits
+
+- `a1d24bbe7` docs(openspec): 新增 pane-dynamic-width 提案工件
+- `0171626c5` docs(openspec): 修复 pane-dynamic-width 提案审查问题
+- `4ec1febab` feat(app): 分栏宽度改为动态派生边界
+- `07b7b74fe` feat(app): 拖拽分栏时推挤另一侧
+- `18c5e333d` fix(app): 分栏推挤越界后自动收起
+- `5ea556275` fix(app): 放宽中心面板最小宽度
