@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible } from "../utils/waits"
 
 const directory = "C:/OpenNovel/PromptThinkingLevelRegression"
+const novelID = "novel_prompt_thinking_level"
 const projectID = "proj_prompt_thinking_level_regression"
 const sessionID = "ses_prompt_thinking_level_regression"
 
@@ -51,9 +52,15 @@ test("shows the V2 thinking level control while relevant", async ({ page }) => {
   })
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   const composer = page.locator('[data-component="prompt-input-v2"]')
   const input = composer.locator('[data-component="prompt-input"]')
   const control = composer.getByRole("button", { name: "Choose model variant" })

@@ -152,14 +152,16 @@ test.describe("session timeline projection", () => {
       parentID: "msg_2000_diff_next_user",
       created: 1700000011000,
     })
+    // 旧界面布局已在日落日后强制退役（SettingsProvider）；该用例关注的是时间线投影
+    // 渲染（comment strip / diff summary 溢出），与布局外观无关，直接在默认布局下验证。
     await setupTimeline(page, {
       messages: [user, assistantMessage(), nextUser, nextAssistant],
-      settings: { newLayoutDesigns: false },
     })
     const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
     await scroller.evaluate((element) => (element.scrollTop = 0))
 
-    await expect(page.locator('[data-timeline-row="CommentStrip"]')).toBeVisible()
+    // v2（新布局）将评论渲染进用户消息内联区（user-message-comments），不再有独立 CommentStrip 行
+    await expect(page.locator('[data-slot="user-message-comments"]')).toBeVisible()
     await expect(page.getByText("Keep this stable", { exact: true })).toBeVisible()
     await expect(page.locator('[data-timeline-row="DiffSummary"]')).toBeVisible()
     await expect(page.getByText(/show all/i)).toBeVisible()

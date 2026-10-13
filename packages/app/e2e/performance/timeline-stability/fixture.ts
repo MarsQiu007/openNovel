@@ -1,4 +1,3 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { Event } from "@opennovel-ai/schema/event"
 import { SessionStatusEvent } from "@opennovel-ai/schema/session-status-event"
 import { SessionV1 } from "@opennovel-ai/schema/session-v1"
@@ -16,10 +15,12 @@ import type {
 import { expect, type Page } from "@playwright/test"
 import { Schema } from "effect"
 import { mockOpenNovelServer } from "../../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { installSseTransport } from "../../utils/sse-transport"
 import { expectSessionTitle } from "../../utils/waits"
 
 export const directory = "C:/OpenNovel/TimelineStability"
+export const novelID = "novel_timeline_stability"
 export const projectID = "proj_timeline_stability"
 export const sessionID = "ses_timeline_stability"
 export const userID = "msg_1000_timeline_user"
@@ -123,6 +124,13 @@ export async function setupTimeline(
       items: messages,
     }),
   })
+  // 独立会话路由已退役（session-book-only）：时间线随会话页嵌在书籍工作台右栏，
+  // 以工作台路由进入并补充小说 API mock（含会话绑定）
+  await mockNovelWorkspaceAPIs(page, {
+    directory,
+    novelID,
+    boundSessionIDs: sessions.map((item) => item.id),
+  })
   await page.addInitScript((settings) => {
     localStorage.setItem(
       "settings.v3",
@@ -161,7 +169,14 @@ export async function setupTimeline(
   if (input.settings?.newLayoutDesigns === false) {
     await page.clock.install({ time: new Date("2026-09-01T00:00:00") })
   }
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.addInitScript(() => {
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
+  })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
   if (input.cpuRate && input.cpuRate > 1) {

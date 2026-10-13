@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 import {
   analyzeVisualObservations,
@@ -10,6 +11,7 @@ import {
 } from "../utils/visual-stability"
 
 const directory = "C:/OpenNovel/ContextResizeRegression"
+const novelID = "novel_context_resize_regression"
 const projectID = "proj_context_resize_regression"
 const sessionID = "ses_context_resize_regression"
 const title = "Context resize regression"
@@ -30,7 +32,7 @@ test.describe("regression: session timeline context group resize", () => {
     await mockServer(page)
     await configurePage(page)
 
-    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+    await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
     await expectSessionTitle(page, title)
     await expectAppVisible(page.locator(`[data-timeline-part-ids="${contextIDs.join(",")}"]`).first())
     await expectAppVisible(page.locator(`[data-timeline-part-id="${followingTextID}"]`).first())
@@ -53,7 +55,7 @@ test.describe("regression: session timeline context group resize", () => {
     ])
     await configurePage(page)
 
-    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+    await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
     await expectSessionTitle(page, title)
     const devtools = await page.context().newCDPSession(page)
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: 4 })
@@ -132,6 +134,11 @@ async function configurePage(page: Page) {
           showReasoningSummaries: true,
         },
       }),
+    )
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
     )
   })
 }
@@ -322,6 +329,7 @@ async function mockServer(
     events: () => events.splice(0, 1),
     eventRetry: 50,
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
 }
 
 async function settle(page: Page) {
@@ -367,8 +375,4 @@ function provider() {
     connected: ["opennovel"],
     default: { providerID: "opennovel", modelID: "claude-opus-4-6" },
   }
-}
-
-function base64Encode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }

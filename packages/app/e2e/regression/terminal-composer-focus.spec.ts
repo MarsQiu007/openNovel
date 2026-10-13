@@ -1,9 +1,11 @@
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/TerminalComposerFocus"
+const novelID = "novel_terminal_composer_focus"
 const projectID = "proj_terminal_composer_focus"
 const sessionID = "ses_terminal_composer_focus"
 const ptyID = "pty_terminal_composer_focus"
@@ -46,6 +48,7 @@ test.beforeEach(async ({ page }) => {
     ],
     pageMessages: () => ({ items: [] }),
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
   await page.route("**/pty", (route) =>
     route.fulfill({
       status: 200,
@@ -67,11 +70,16 @@ test.beforeEach(async ({ page }) => {
   await page.routeWebSocket(new RegExp(`/pty/${ptyID}/connect`), () => undefined)
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
   })
 })
 
 test("routes typing to the composer unless the open terminal is focused", async ({ page }) => {
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, "Terminal composer focus")
 
   const composer = page.locator('[data-component="prompt-input"]')
@@ -110,7 +118,7 @@ test("keeps composer focus when a cached terminal finishes mounting", async ({ p
   })
   await seedCachedTerminal(page)
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`, { waitUntil: "commit" })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID), { waitUntil: "commit" })
   await expectSessionTitle(page, "Terminal composer focus")
 
   const composer = page.locator('[data-component="prompt-input"]')
@@ -136,7 +144,7 @@ test("keeps newer composer focus while an explicit terminal open finishes", asyn
     await route.continue()
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, "Terminal composer focus")
 
   const composer = page.locator('[data-component="prompt-input"]')
@@ -177,7 +185,7 @@ test("focuses a terminal created from the new-terminal button", async ({ page })
   )
   await page.routeWebSocket(new RegExp(`/pty/${newPtyID}/connect`), () => undefined)
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, "Terminal composer focus")
 
   const composer = page.locator('[data-component="prompt-input"]')

@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/ReviewTerminalStacked"
+const novelID = "novel_review_terminal_stacked"
 const projectID = "proj_review_terminal_stacked"
 const sessionID = "ses_review_terminal_stacked"
 const title = "Review terminal stacked"
@@ -60,6 +62,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
     events: () => events.splice(0, 1),
     eventRetry: 16,
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
   await page.route(/\/vcs(?:\?.*)?$/, (route) =>
     route.fulfill({
       status: 200,
@@ -103,9 +106,14 @@ test("keeps the review tree and terminal sized when both panels are open", async
       "opennovel.global.dat:layout",
       JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
     )
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
   await expect(page.locator("#review-panel")).toBeVisible()
   await expectTree(page, 8, "git-0.ts")
@@ -239,9 +247,6 @@ async function expectStackGeometry(page: Page) {
   expect(Math.abs(geometry.terminal - geometry.terminalParent)).toBeLessThanOrEqual(1)
 }
 
-function base64Encode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}
 
 function statusEvent(type: "busy" | "idle") {
   return {

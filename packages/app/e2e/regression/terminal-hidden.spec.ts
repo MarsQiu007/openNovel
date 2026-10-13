@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/HiddenTerminalRegression"
+const novelID = "novel_hidden_terminal"
 const projectID = "proj_hidden_terminal_regression"
 const sessionID = "ses_hidden_terminal_regression"
 const title = "Hidden terminal regression"
@@ -43,6 +45,7 @@ test("unmounts the terminal panel while it is hidden", async ({ page }) => {
     ],
     pageMessages: () => ({ items: [] }),
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
   await page.route("**/pty", (route) =>
     route.fulfill({
       status: 200,
@@ -55,7 +58,14 @@ test("unmounts the terminal panel while it is hidden", async ({ page }) => {
   )
   await page.routeWebSocket("**/pty/pty_hidden_terminal/connect", () => undefined)
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.addInitScript(() => {
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
+  })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
 
   await page.keyboard.press("Control+Backquote")
@@ -74,7 +84,3 @@ test("unmounts the terminal panel while it is hidden", async ({ page }) => {
   await expect(panel).toBeVisible()
   await expect(page.locator('[data-component="terminal"]')).toBeVisible()
 })
-
-function base64Encode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}

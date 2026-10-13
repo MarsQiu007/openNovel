@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/ReviewImageFlashRegression"
+const novelID = "novel_review_image_flash"
 const sessionID = "ses_review_image_flash_regression"
 const title = "Review image flash regression"
 const imageFile = "assets/preview.png"
@@ -25,9 +26,15 @@ test("clicking an image file in the v2 review pane does not blank the panel", as
 })
 
 async function openReview(page: Page) {
-  await page.setViewportSize({ width: 960, height: 900 })
+  // 会话页嵌入工作台右栏（session-book-only）：宽度需容纳左栏+右栏对话面板
+  await page.setViewportSize({ width: 1200, height: 900 })
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
   })
   await mockOpenNovelServer(page, {
     directory,
@@ -135,7 +142,8 @@ async function openReview(page: Page) {
     }),
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expectAppVisible(page.locator('#review-panel [data-component="session-review-v2"]'))

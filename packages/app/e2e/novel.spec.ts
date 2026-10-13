@@ -382,9 +382,10 @@ test.describe("novel journey", () => {
     // ════════════════════════════════════════════════
     // Step 4: Sidebar — verify chapter sidebar
     // ════════════════════════════════════════════════
-    // 当前宽度规则可能自动收起侧栏；先展开导航，再验证卷章列表。
-    await page.getByRole("button", { name: "Toggle nav" }).click()
-    await expect(page.getByRole("button", { name: "Toggle nav" })).toHaveAttribute("aria-expanded", "true")
+    // 宽度规则可能自动收起侧栏（窄窗场景）：仅在收起态时展开导航，再验证卷章列表。
+    const toggleNav = page.getByRole("button", { name: "Toggle nav" })
+    if ((await toggleNav.getAttribute("aria-expanded")) === "false") await toggleNav.click()
+    await expect(toggleNav).toHaveAttribute("aria-expanded", "true")
     // Verify volume header
     await expect(page.getByText("第一卷")).toBeVisible()
     // Verify chapter titles in sidebar
@@ -441,8 +442,9 @@ test.describe("novel journey", () => {
     const readingTab = page.getByRole("button", { name: "Reading" })
     await readingTab.click()
     await page.waitForTimeout(500)
-    await page.getByRole("button", { name: "Toggle rail" }).click()
-    await expect(page.getByRole("button", { name: "Toggle rail" })).toHaveAttribute("aria-expanded", "true")
+    const toggleRail = page.getByRole("button", { name: "Toggle rail" })
+    if ((await toggleRail.getAttribute("aria-expanded")) === "false") await toggleRail.click()
+    await expect(toggleRail).toHaveAttribute("aria-expanded", "true")
 
     // Panel: Characters tab (default)
     const charactersTab = page.getByRole("button", { name: "Characters" })

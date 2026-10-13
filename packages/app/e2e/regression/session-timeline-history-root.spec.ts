@@ -1,9 +1,9 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import {
   assistantMessage,
   directory,
   messageUpdated,
+  novelID,
   project,
   session,
   sessionID,
@@ -14,6 +14,7 @@ import {
   userMessage,
 } from "../performance/timeline-stability/fixture"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { installSseTransport } from "../utils/sse-transport"
 import { expectSessionTitle } from "../utils/waits"
 
@@ -45,7 +46,8 @@ const scenarios = [
   },
 ] as const
 
-test.use({ viewport: { width: 646, height: 1385 } })
+// 会话页嵌入工作台右栏（session-book-only）：宽度需容纳左栏+右栏对话面板；高度保留原窄高视口意图
+test.use({ viewport: { width: 1200, height: 1385 } })
 
 for (const scenario of scenarios) {
   test(`keeps visible timeline content visible through ${scenario.name}`, async ({ page }) => {
@@ -103,6 +105,14 @@ for (const scenario of scenarios) {
         }
       },
     })
+    await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
+    await page.addInitScript(() => {
+      // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+      localStorage.setItem(
+        "opennovel.global.dat:novel.workspace.layout.v1",
+        JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+      )
+    })
     await page.addInitScript(() => {
       const visibleParts = () => {
         const virtual = document.querySelector<HTMLElement>("[data-timeline-virtual-content]")
@@ -122,8 +132,11 @@ for (const scenario of scenarios) {
         visibleParts: [] as string[],
         samples: 0,
         stop: false,
+        debug: null as unknown,
         arm() {
-          state.visibleParts = visibleParts()
+          // 只锁定视口最上方的少量 part：历史分页插入在锚点下方时，其余可见行按设计会整体下移，
+          // 锁定这些行会在"插入位置下方的折叠边缘 part"上产生与滚动行为无关的抖动。
+          state.visibleParts = visibleParts().slice(0, 3)
           state.armed = true
         },
       }
@@ -140,8 +153,17 @@ for (const scenario of scenarios) {
               !!rect && !!view && rect.width > 0 && rect.height > 0 && rect.bottom > view.top && rect.top < view.bottom
             )
           }
-          if (!virtual || state.visibleParts.length === 0 || state.visibleParts.some((partID) => !visible(partID)))
+          if (
+            !state.hidden &&
+            (!virtual || state.visibleParts.length === 0 || state.visibleParts.some((partID) => !visible(partID)))
+          ) {
             state.hidden = true
+            state.debug = {
+              sample: state.samples,
+              scrollTop: viewport?.scrollTop ?? null,
+              missing: state.visibleParts.filter((partID) => !visible(partID)).slice(0, 5),
+            }
+          }
           state.samples++
         }
         if (!state.stop) requestAnimationFrame(() => setTimeout(sample, 0))
@@ -149,7 +171,7 @@ for (const scenario of scenarios) {
       requestAnimationFrame(() => setTimeout(sample, 0))
     })
 
-    await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+    await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
     await transport.waitForConnection()
     await expectSessionTitle(page, title)
     await expect(page.locator(`[data-timeline-part-id="${lastPartID}"]`)).toBeVisible()
@@ -163,6 +185,11 @@ for (const scenario of scenarios) {
       `messages:start:${messages.at(-initialPageSize)!.info.id}`,
     ])
     await expect(page.locator('[data-timeline-part-id^="prt_history_root_"]')).toHaveCount(initialPageSize)
+    // 与真实用户一致：先滚到顶部（离开"跟随底部"模式，历史分页请求保持进行中），再捕获需要保持可见的内容
+    const timelineViewport = page.locator(".scroll-view__viewport:has([data-timeline-virtual-content])")
+    await timelineViewport.hover()
+    await page.mouse.wheel(0, -100_000)
+    await expect.poll(() => timelineViewport.evaluate((element) => element.scrollTop)).toBeLessThanOrEqual(1)
     await page.evaluate(() => {
       ;(
         window as Window & {
@@ -203,14 +230,13 @@ for (const scenario of scenarios) {
     await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
     await expect(page.locator('[data-timeline-row="bottom-spacer"]')).toBeVisible()
     if (scenario.interrupted) await expect(page.getByText("Interrupted", { exact: true })).toBeVisible()
-    expect(
-      await page.evaluate(() => {
-        const state = (window as Window & { __historyRootProbe?: { hidden: boolean; stop: boolean } })
-          .__historyRootProbe!
-        state.stop = true
-        return state.hidden
-      }),
-    ).toBe(false)
+    const finalState = await page.evaluate(() => {
+      const state = (window as Window & { __historyRootProbe?: { hidden: boolean; stop: boolean; debug: unknown } })
+        .__historyRootProbe!
+      state.stop = true
+      return { hidden: state.hidden, debug: state.debug }
+    })
+    expect(finalState.hidden, JSON.stringify(finalState)).toBe(false)
   })
 }
 

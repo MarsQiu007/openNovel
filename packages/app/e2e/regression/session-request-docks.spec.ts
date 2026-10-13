@@ -1,10 +1,11 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { installSseTransport } from "../utils/sse-transport"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/RequestDocks"
+const novelID = "novel_request_docks"
 const projectID = "proj_request_docks"
 const sessionID = "ses_request_docks"
 const title = "Request dock regression"
@@ -29,7 +30,7 @@ test("shows a pending question dock", async ({ page }) => {
     ],
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
 
   const question = page.locator('[data-component="dock-prompt"][data-kind="question"]')
@@ -84,7 +85,7 @@ test("shows a pending permission dock", async ({ page }) => {
     ],
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
 
   const permission = page.locator('[data-component="dock-prompt"][data-kind="permission"]')
@@ -107,7 +108,7 @@ test("restores the draft caret before typing after a request dock closes", async
     retry: 20,
   })
   await mockServer(page, { questions: [] })
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
 
@@ -211,7 +212,13 @@ async function mockServer(
     permissions: requests.permissions,
     questions: requests.questions,
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
   })
 }

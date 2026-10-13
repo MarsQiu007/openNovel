@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenNovel/ReviewLineCommentRegression"
+const novelID = "novel_review_line_comment"
 const sessionID = "ses_review_line_comment_regression"
 const title = "Review line comment regression"
 
@@ -85,7 +86,9 @@ test("stages a submitted line comment in the prompt context", async ({ page }) =
 })
 
 async function openReview(page: Page) {
-  await page.setViewportSize({ width: 700, height: 900 })
+  // 会话页嵌入工作台右栏（session-book-only）：保持 <768px 以走移动端布局（Session/Changes 页签），
+  // 宽度取 760 为左栏+右栏对话面板留出余量
+  await page.setViewportSize({ width: 760, height: 900 })
   await mockOpenNovelServer(page, {
     directory,
     project: {
@@ -144,7 +147,16 @@ async function openReview(page: Page) {
     }),
   })
 
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.addInitScript(() => {
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区；
+    // 检视侧栏默认收起，需置为打开才能出现 Changes / All files 页签
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
+    )
+  })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
   const diffResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/vcs/diff")
   await page.getByRole("tab", { name: "Changes" }).click()
@@ -152,9 +164,7 @@ async function openReview(page: Page) {
 
   const review = page.locator('[data-component="session-review"]')
   await expectAppVisible(review)
-  await review
-    .getByRole("heading", { name: /review\.ts/ })
-    .getByRole("button")
-    .first()
-    .click()
+  // 标题行为 Accordion 触发器，内部嵌套独立的 "Open file" 按钮（stopPropagation）；
+  // 窄栏下行中心可能正好落在该按钮上导致 diff 不展开，改为点击文件名区域触发展开
+  await review.locator('[data-slot="session-review-filename"]').first().click()
 }
