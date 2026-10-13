@@ -84,7 +84,12 @@ export const Plugin = define({
             id: plugin.id,
             effect: (host) => plugin.effect({ ...host, options: ref.options ?? {} }),
           })
-        }).pipe(Effect.ignoreCause)
+        }).pipe(
+          Effect.tapCause((cause) =>
+            Effect.logWarning("failed to load external plugin", { package: ref.package, cause }),
+          ),
+          Effect.ignoreCause,
+        )
       }
     }).pipe(Effect.forkScoped({ startImmediately: true }))
   }),

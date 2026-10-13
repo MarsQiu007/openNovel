@@ -101,10 +101,18 @@ function prepareOptions(model: ModelV2.Info, pkg: string) {
       opts.body &&
       opts.method === "POST"
     ) {
-      const body = JSON.parse(opts.body as string)
-      if (body.store !== true && Array.isArray(body.input)) {
+      // body 由 provider SDK 以 JSON 字符串发送；非字符串或畸形 JSON 透传，不做 id 剥离
+      let body: { store?: boolean; input?: unknown[] } | undefined
+      if (typeof opts.body === "string") {
+        try {
+          body = JSON.parse(opts.body)
+        } catch {
+          body = undefined
+        }
+      }
+      if (body && body.store !== true && Array.isArray(body.input)) {
         for (const item of body.input) {
-          if ("id" in item) delete item.id
+          if (typeof item === "object" && item !== null && "id" in item) delete (item as { id?: string }).id
         }
         opts.body = JSON.stringify(body)
       }

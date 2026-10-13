@@ -40,12 +40,19 @@ export const GithubCopilotPlugin = {
           return
         }
         const match = /^gpt-(\d+)/.exec(evt.model.api.id)
+        const responses = evt.sdk.responses
         // Copilot supports Responses for GPT-5 class models, except mini variants
         // which still need the chat-completions endpoint.
-        evt.language =
-          match && Number(match[1]) >= 5 && !evt.model.api.id.startsWith("gpt-5-mini") && evt.sdk.responses
-            ? evt.sdk.responses(evt.model.api.id)
-            : evt.sdk.chat(evt.model.api.id)
+        if (match && Number(match[1]) >= 5 && !evt.model.api.id.startsWith("gpt-5-mini") && responses) {
+          evt.language = responses(evt.model.api.id)
+          return
+        }
+        // 两个专用 endpoint 工厂都不可用时退回通用 languageModel，避免调用缺失的 chat 工厂
+        if (!evt.sdk.chat) {
+          evt.language = evt.sdk.languageModel(evt.model.api.id)
+          return
+        }
+        evt.language = evt.sdk.chat(evt.model.api.id)
       }),
     )
   }),

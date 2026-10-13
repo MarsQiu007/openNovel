@@ -20,7 +20,10 @@ export interface Interface {
   ) => Effect.Effect<SessionMessage.Message[], MessageDecodeError>
   readonly message: (
     messageID: SessionMessage.ID,
-  ) => Effect.Effect<{ readonly sessionID: SessionSchema.ID; readonly message: SessionMessage.Message } | undefined>
+  ) => Effect.Effect<
+    { readonly sessionID: SessionSchema.ID; readonly message: SessionMessage.Message } | undefined,
+    MessageDecodeError
+  >
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/v2/SessionStore") {}
@@ -52,7 +55,15 @@ const layer = Layer.effect(
         return row
           ? {
               sessionID: SessionSchema.ID.make(row.session_id),
-              message: yield* decodeMessage({ ...row.data, id: row.id, type: row.type }).pipe(Effect.orDie),
+              message: yield* decodeMessage({ ...row.data, id: row.id, type: row.type }).pipe(
+                Effect.mapError(
+                  () =>
+                    new MessageDecodeError({
+                      sessionID: SessionSchema.ID.make(row.session_id),
+                      messageID: SessionMessage.ID.make(row.id),
+                    }),
+                ),
+              ),
             }
           : undefined
       }),

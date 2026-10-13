@@ -43,8 +43,11 @@ export class Service extends Context.Service<Service, Interface>()("@opennovel/N
 const illegal = process.platform === "win32" ? new Set(["<", ">", ":", '"', "|", "?", "*"]) : undefined
 
 export function sanitize(pkg: string) {
-  if (!illegal) return pkg
-  return Array.from(pkg, (char) => (illegal.has(char) || char.charCodeAt(0) < 32 ? "_" : char)).join("")
+  const replaced = !illegal
+    ? pkg
+    : Array.from(pkg, (char) => (illegal.has(char) || char.charCodeAt(0) < 32 ? "_" : char)).join("")
+  // 全平台拒绝 ".." 序列：包名会 join 进缓存目录；scoped 包的单个 "/" 是合法层级，仅压制遍历
+  return replaced.replaceAll("..", "__")
 }
 
 const resolveEntryPoint = (name: string, dir: string): EntryPoint => {

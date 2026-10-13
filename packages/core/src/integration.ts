@@ -319,6 +319,22 @@ export const locationLayer = Layer.effect(
       return error instanceof Error ? error.message : String(error)
     }
 
+    // settle 的 CAS 已把 attempt 置为 terminal；凭据落库失败时必须回写 failed，否则调用方误认为授权成功
+    const markAttemptFailed = Effect.fnUntraced(function* (attemptID: AttemptID, cause: Cause.Cause<unknown>) {
+      const now = yield* Clock.currentTimeMillis
+      yield* SynchronizedRef.update(attempts, (current) => {
+        const attempt = current.get(attemptID)
+        if (!attempt || attempt.status !== "complete") return current
+        return new Map(current).set(attemptID, {
+          status: "failed",
+          message: message(cause),
+          time: attempt.time,
+          removeAt: now + terminalRetention,
+        })
+      })
+      yield* events.publish(Event.Updated, {}).pipe(Effect.ignore)
+    })
+
     const settle = Effect.fnUntraced(function* (attemptID: AttemptID, exit: Exit.Exit<Credential.OAuth, unknown>) {
       const now = yield* Clock.currentTimeMillis
       const result = yield* SynchronizedRef.modify(attempts, (current) => {
@@ -332,13 +348,15 @@ export const locationLayer = Layer.effect(
       if (!result) return
       if (Exit.isSuccess(exit)) {
         const implementation = state.get().integrations.get(result.integrationID)?.implementations.get(result.methodID)
-        yield* credentials.create({
-          integrationID: result.integrationID,
-          label: result.label ?? implementation?.label?.(exit.value),
-          value: exit.value,
-        })
-        yield* events.publish(Event.ConnectionUpdated, { integrationID: result.integrationID })
-        yield* events.publish(Event.Updated, {})
+        yield* Effect.gen(function* () {
+          yield* credentials.create({
+            integrationID: result.integrationID,
+            label: result.label ?? implementation?.label?.(exit.value),
+            value: exit.value,
+          })
+          yield* events.publish(Event.ConnectionUpdated, { integrationID: result.integrationID })
+          yield* events.publish(Event.Updated, {})
+        }).pipe(Effect.catch((error) => markAttemptFailed(attemptID, Cause.fail(error))))
       }
       yield* close(result.scope)
     })

@@ -56,8 +56,7 @@ const modelOutput = (output: Output) => {
   return `${warnings.trimStart()}${warnings ? "\n\n" : ""}Command exited with code ${output.exit}.`
 }
 
-const isTimeout = (error: AppProcess.AppProcessError) =>
-  error.cause instanceof Error && error.cause.message === "Timed out"
+const isTimeout = (error: AppProcess.AppProcessError) => error.timedOut === true
 
 /**
  * Minimal V2 core shell boundary. Keep parity debt visible without pulling the

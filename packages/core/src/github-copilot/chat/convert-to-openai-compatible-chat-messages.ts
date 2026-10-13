@@ -38,6 +38,7 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV3Pro
           role: "user",
           content: content.map((part) => {
             const partMetadata = getOpenAIMetadata(part)
+            const partType = part.type
             switch (part.type) {
               case "text": {
                 return { type: "text", text: part.text, ...partMetadata }
@@ -63,6 +64,9 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV3Pro
                 }
               }
             }
+            throw new UnsupportedFunctionalityError({
+              functionality: `user message part type: ${partType}`,
+            })
           }),
           ...metadata,
         })
@@ -133,6 +137,7 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV3Pro
           const output = toolResponse.output
 
           let contentValue: string
+          const outputType = output.type
           switch (output.type) {
             case "text":
             case "error-text":
@@ -146,6 +151,10 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV3Pro
             case "error-json":
               contentValue = JSON.stringify(output.value)
               break
+            default:
+              throw new UnsupportedFunctionalityError({
+                functionality: `tool result output type: ${outputType}`,
+              })
           }
 
           const toolResponseMetadata = getOpenAIMetadata(toolResponse)

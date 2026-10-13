@@ -125,6 +125,23 @@ export const Provider = Schema.Struct({
 
 export type Provider = Schema.Schema.Type<typeof Provider>
 
+// 远端目录属于未信任输入：在 populate 边界解码并包装错误，畸形数据立刻在这里报清楚，而不是在使用处炸开。
+// 这里只做粗粒度结构校验（顶层必须是「provider ID → 对象」映射）：真实目录里存在字段缺失的条目
+// （例如 venice / digitalocean 的多个模型没有 temperature），严格套用 Provider/Model 会拒掉可用数据。
+const Catalog = Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Unknown))
+
+const decodeCatalog = Effect.fnUntraced(function* (text: string) {
+  const parsed = yield* Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(text).pipe(
+    Effect.mapError((error) => new Error(`models.dev catalog is not valid JSON: ${error.message}`, { cause: error })),
+  )
+  yield* Schema.decodeUnknownEffect(Catalog)(parsed).pipe(
+    Effect.mapError(
+      (error) => new Error(`models.dev catalog is not a provider-keyed object: ${error.message}`, { cause: error }),
+    ),
+  )
+  return parsed as Record<string, Provider>
+})
+
 export const Event = ModelsDev.Event
 
 declare const OPENNOVEL_MODELS_DEV: Record<string, Provider> | undefined
@@ -252,7 +269,7 @@ const layer = Layer.effect(
           return yield* fetchAndWrite()
         }),
       )
-      return JSON.parse(text) as Record<string, Provider>
+      return yield* decodeCatalog(text)
     }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)

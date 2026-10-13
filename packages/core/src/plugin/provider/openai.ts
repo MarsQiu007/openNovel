@@ -15,6 +15,8 @@ const clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 const issuer = "https://auth.openai.com"
 const callbackPort = 1455
 const pollingSafetyMargin = 3000
+// 服务端未给出 expires_in 时按 OpenAI 设备码常规寿命兜底，防止无限轮询
+const deviceCodeLifetimeSeconds = 15 * 60
 const browserMethodID = Integration.MethodID.make("chatgpt-browser")
 const headlessMethodID = Integration.MethodID.make("chatgpt-headless")
 
@@ -102,21 +104,24 @@ const headless = {
   },
   authorize: () =>
     Effect.gen(function* () {
-      const device = yield* request<{ device_auth_id: string; user_code: string; interval: string }>(
-        `${issuer}/api/accounts/deviceauth/usercode`,
-        {
-          method: "POST",
-          headers: headers("application/json"),
-          body: JSON.stringify({ client_id: clientID }),
-        },
-      )
+      const device = yield* request<{
+        device_auth_id: string
+        user_code: string
+        interval: string
+        expires_in?: number
+      }>(`${issuer}/api/accounts/deviceauth/usercode`, {
+        method: "POST",
+        headers: headers("application/json"),
+        body: JSON.stringify({ client_id: clientID }),
+      })
       const interval = Math.max(Number.parseInt(device.interval) || 5, 1) * 1000
+      const expiresAt = Date.now() + Math.max(device.expires_in || deviceCodeLifetimeSeconds, 1) * 1000
       return {
         mode: "auto" as const,
         url: `${issuer}/codex/device`,
         instructions: `Enter code: ${device.user_code}`,
         callback: Effect.gen(function* () {
-          while (true) {
+          while (Date.now() < expiresAt) {
             const response = yield* Effect.tryPromise({
               try: (signal) =>
                 fetch(`${issuer}/api/accounts/deviceauth/token`, {
@@ -145,6 +150,7 @@ const headless = {
             }
             yield* Effect.sleep(interval + pollingSafetyMargin)
           }
+          return yield* Effect.fail(new Error("Device authorization timed out. Start the sign-in again."))
         }),
       }
     }),

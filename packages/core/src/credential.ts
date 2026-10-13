@@ -65,12 +65,15 @@ const layer = Layer.effect(
 
     return Service.of({
       all: Effect.fn("Credential.all")(function* () {
-        return (yield* db
+        const rows = yield* db
           .select()
           .from(CredentialTable)
           .orderBy(asc(CredentialTable.time_created))
           .all()
-          .pipe(Effect.orDie)).flatMap((row) => {
+          .pipe(Effect.orDie)
+        const broken = rows.filter((row) => !row.integration_id)
+        if (broken.length > 0) yield* Effect.logWarning("credential rows without integration_id skipped", { count: broken.length })
+        return rows.flatMap((row) => {
           const credential = stored(row)
           return credential ? [credential] : []
         })

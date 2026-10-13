@@ -94,7 +94,7 @@ const layer = Layer.effect(
         ? yield* git.change
             .capture({ repository: sourceRepository, path: current.location.directory })
             .pipe(Effect.mapError((error) => new CaptureChangesError({ message: error.message })))
-        : Git.ChangeSet.make("")
+        : undefined
       if (patch) {
         const repository = yield* git.repo.discover(directory)
         if (!repository) return yield* new ApplyChangesError({ message: "Destination is not a Git repository" })

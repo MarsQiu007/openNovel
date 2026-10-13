@@ -10,6 +10,8 @@ export class AppProcessError extends Schema.TaggedErrorClass<AppProcessError>()(
   exitCode: Schema.optional(Schema.Number),
   stderr: Schema.optional(Schema.String),
   cause: Schema.optional(Schema.Defect()),
+  /** 超时标记：调用方据此区分超时与其他失败，不依赖 cause 的错误文案 */
+  timedOut: Schema.optional(Schema.Boolean),
 }) {
   override get message() {
     const detail =
@@ -183,7 +185,8 @@ const layer = Layer.effect(
       const timed = options?.timeout
         ? Effect.timeoutOrElse(collect, {
             duration: options.timeout,
-            orElse: () => Effect.fail(new AppProcessError({ command: description, cause: new Error("Timed out") })),
+            orElse: () =>
+              Effect.fail(new AppProcessError({ command: description, cause: new Error("Timed out"), timedOut: true })),
           })
         : collect
       const aborted = options?.signal

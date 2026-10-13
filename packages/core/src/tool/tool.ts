@@ -98,15 +98,27 @@ export function make<
                 Effect.flatMap((output) => {
                   if (!config.structured || !config.toStructuredOutput)
                     return Effect.succeed({ output, structured: output })
-                  return Schema.encodeEffect(config.structured)(config.toStructuredOutput({ input, output })).pipe(
+                  const structuredSchema = config.structured
+                  const convert = config.toStructuredOutput
+                  // 转换回调由工具实现提供，同步抛错必须收敛成 ToolFailure，不能以 defect 绕过工具失败通道
+                  return Effect.try({
+                    try: () => convert({ input, output }),
+                    catch: (cause) =>
+                      new ToolFailure({
+                        message: `Unable to build structured output: ${cause instanceof Error ? cause.message : String(cause)}`,
+                      }),
+                  }).pipe(
+                    Effect.flatMap((structured) => Schema.encodeEffect(structuredSchema)(structured)),
                     Effect.map((structured) => ({ output, structured })),
                   )
                 }),
                 Effect.mapError(
                   (error) =>
-                    new ToolFailure({
-                      message: `Tool returned an invalid value for its output schema: ${error.message}`,
-                    }),
+                    (error instanceof ToolFailure
+                      ? error
+                      : new ToolFailure({
+                          message: `Tool returned an invalid value for its output schema: ${error.message}`,
+                        })),
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "fs/promises"
 import { mkdir } from "fs/promises"
 import path from "path"
+import { Json } from "../util/json"
 import type { SyncAdapter } from "./adapter"
 
 export class SyncError extends Error {
@@ -122,7 +123,10 @@ export async function createWebDavAdapter(options: {
         },
       )
       if (text === undefined) return undefined
-      return JSON.parse(String(text))
+      // 适配器错误契约：解析失败也必须以 SyncError 抛出，调用方按 code 分支处理
+      const parsed = Json.parseObject(String(text))
+      if (!parsed) throw new SyncError("io", `远端 JSON 解析失败: ${remotePath}`)
+      return parsed
     },
     async writeJson(remotePath, value) {
       await call((c) => c.putFileContents(resolve(remotePath), JSON.stringify(value, null, 2), { overwrite: true }))

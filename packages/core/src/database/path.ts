@@ -1,4 +1,5 @@
 import nodePath from "path"
+import { Option, Schema } from "effect"
 import { customType } from "drizzle-orm/sqlite-core"
 import { AbsolutePath } from "../schema"
 
@@ -86,6 +87,10 @@ export const absoluteArrayColumn = customType<{
     return JSON.stringify(input.map(absolute))
   },
   fromDriver(input) {
-    return (JSON.parse(input) as string[]).map((item) => AbsolutePath.make(toPlatform(absolute(item))))
+    // 损坏行给出定位错误，而非裸 SyntaxError/TypeError defect
+    const json = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)(input)
+    const items = Option.flatMap(json, (value) => Schema.decodeUnknownOption(Schema.Array(Schema.String))(value))
+    if (Option.isNone(items)) throw new Error(`Invalid absolute-path array column value: ${input.slice(0, 120)}`)
+    return items.value.map((item) => AbsolutePath.make(toPlatform(absolute(item))))
   },
 })

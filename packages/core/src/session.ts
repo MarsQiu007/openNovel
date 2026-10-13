@@ -126,7 +126,7 @@ export interface Interface {
   readonly message: (input: {
     sessionID: SessionSchema.ID
     messageID: SessionMessage.ID
-  }) => Effect.Effect<SessionMessage.Message | undefined>
+  }) => Effect.Effect<SessionMessage.Message | undefined, MessageDecodeError>
   readonly context: (
     sessionID: SessionSchema.ID,
   ) => Effect.Effect<SessionMessage.Message[], NotFoundError | MessageDecodeError>
