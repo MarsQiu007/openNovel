@@ -363,10 +363,6 @@ export default function NovelWorkspaceFrame() {
   // —— 宽度规则（D5）：主区保底 30px，侧栏上限随窗口动态派生，两档自动收边（随行右栏先让位），手动操作优先 ——
   const [widthCollapsed, setWidthCollapsed] = createSignal(false)
   const [railWidthCollapsed, setRailWidthCollapsed] = createSignal(false)
-  const leftManual = () => (typeof layout.leftManual === "boolean" ? layout.leftManual : null)
-  const leftCollapsed = () => !!expandedPanel() || (leftManual() ?? widthCollapsed())
-  const railManual = () => (typeof layout.railManual === "boolean" ? layout.railManual : null)
-  const railCollapsed = () => railManual() ?? railWidthCollapsed()
   // —— 分栏宽度（D1/D4）：生效宽度 = 拖拽内存态 ?? 设定宽度 ?? 默认值。
   // onResize 高频回调只写内存态，松手（onCollapseChange(false)）才提交持久化，避免每帧写 localStorage；
   // 未发生拖拽（内存态为 null，普通点击/双击的第一段按下）不提交，防止覆盖设定值。
@@ -374,11 +370,24 @@ export default function NovelWorkspaceFrame() {
   const [dragRailWidth, setDragRailWidth] = createSignal<number | null>(null)
   // 三区容器宽度：observer 首帧前取无穷大，初始渲染按设定宽度显示（避免闪到最小宽度）
   const [bodyWidth, setBodyWidth] = createSignal(Number.POSITIVE_INFINITY)
+  const leftManual = () => (typeof layout.leftManual === "boolean" ? layout.leftManual : null)
+  const railManual = () => (typeof layout.railManual === "boolean" ? layout.railManual : null)
+  // 拖拽推挤越过另一侧最小宽度后，该侧进入拖拽期自动收起；松手越过阈值才固化收起
+  const leftPushCollapsed = () => {
+    const dragging = dragRailWidth()
+    return dragging !== null && dragging > paneMaxWidth(bodyWidth(), LEFT_PANE_MIN_WIDTH)
+  }
+  const railPushCollapsed = () => {
+    const dragging = dragLeftWidth()
+    return dragging !== null && dragging > paneMaxWidth(bodyWidth(), RAIL_PANE_MIN_WIDTH)
+  }
+  const leftCollapsed = () => leftPushCollapsed() || !!expandedPanel() || (leftManual() ?? widthCollapsed())
+  const railCollapsed = () => railPushCollapsed() || (railManual() ?? railWidthCollapsed())
   // 设定宽度（用户意图）= 拖拽内存态 ?? 持久化设定 ?? 默认值
   const leftPaneIntent = () => dragLeftWidth() ?? resolvePaneWidth(layout.leftWidth, LEFT_PANE_DEFAULT_WIDTH)
   const railPaneIntent = () => dragRailWidth() ?? resolvePaneWidth(layout.railWidth, RAIL_PANE_DEFAULT_WIDTH)
   // 渲染钳制：非拖拽期对称钳制（另一侧按设定宽度，避免循环派生），收起侧按 0 计，下限兜底栏最小宽；
-  // 拖拽期单侧权威（推挤模型）：被拖侧直接取拖拽值，另一侧让位压缩至自身最小宽度
+  // 拖拽期单侧权威（推挤模型）：被拖侧直接取拖拽值，另一侧让位至最小宽，越过最小宽后自动收起
   const leftPaneWidth = () => {
     const dragging = dragLeftWidth()
     if (dragging !== null) return dragging
@@ -386,7 +395,7 @@ export default function NovelWorkspaceFrame() {
     if (railDrag !== null) {
       return Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), railDrag)))
     }
-    const otherVisible = leftCollapsed() ? 0 : railPaneIntent()
+    const otherVisible = railCollapsed() ? 0 : railPaneIntent()
     return Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), otherVisible)))
   }
   const railPaneWidth = () => {
@@ -402,9 +411,15 @@ export default function NovelWorkspaceFrame() {
   const commitLeftWidth = () => {
     const width = dragLeftWidth()
     if (width === null) return
+    const collapseRail = railPushCollapsed()
     setDragLeftWidth(null)
     setLayout("leftWidth", width)
     // 推挤固化：右栏被挤压后的宽度固化为新设定宽度（VS Code 行为，窗口变宽不回弹）
+    if (collapseRail) {
+      setLayout("railWidth", RAIL_PANE_MIN_WIDTH)
+      setLayout("railManual", true)
+      return
+    }
     if (!railCollapsed()) {
       const pushed = Math.max(RAIL_PANE_MIN_WIDTH, Math.min(railPaneIntent(), paneMaxWidth(bodyWidth(), width)))
       if (pushed < railPaneIntent()) setLayout("railWidth", pushed)
@@ -413,9 +428,15 @@ export default function NovelWorkspaceFrame() {
   const commitRailWidth = () => {
     const width = dragRailWidth()
     if (width === null) return
+    const collapseLeft = leftPushCollapsed()
     setDragRailWidth(null)
     setLayout("railWidth", width)
     // 推挤固化：左栏被挤压后的宽度固化为新设定宽度
+    if (collapseLeft) {
+      setLayout("leftWidth", LEFT_PANE_MIN_WIDTH)
+      setLayout("leftManual", true)
+      return
+    }
     if (!leftCollapsed()) {
       const pushed = Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), width)))
       if (pushed < leftPaneIntent()) setLayout("leftWidth", pushed)
@@ -892,7 +913,7 @@ export default function NovelWorkspaceFrame() {
                   edge="end"
                   size={leftPaneWidth()}
                   min={LEFT_PANE_MIN_WIDTH}
-                  max={paneMaxWidth(bodyWidth(), railCollapsed() ? 0 : RAIL_PANE_MIN_WIDTH)}
+                  max={paneMaxWidth(bodyWidth(), 0)}
                   collapseThreshold={LEFT_PANE_MIN_WIDTH}
                   onResize={setDragLeftWidth}
                   onCollapseChange={(dragging) => {
@@ -1124,7 +1145,7 @@ export default function NovelWorkspaceFrame() {
                   edge="start"
                   size={railPaneWidth()}
                   min={RAIL_PANE_MIN_WIDTH}
-                  max={paneMaxWidth(bodyWidth(), leftCollapsed() ? 0 : LEFT_PANE_MIN_WIDTH)}
+                  max={paneMaxWidth(bodyWidth(), 0)}
                   collapseThreshold={RAIL_PANE_MIN_WIDTH}
                   onResize={setDragRailWidth}
                   onCollapseChange={(dragging) => {

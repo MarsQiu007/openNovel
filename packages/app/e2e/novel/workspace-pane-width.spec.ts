@@ -98,23 +98,23 @@ test("pane width: dynamic cap beyond old constants, clamp on shrink, restore, db
   await dragBy(page, leftHandle, 300)
   await expectApproxWidth(left, 588)
 
-  // 继续拖到拖拽上限：中心被压到保底缝后推挤右栏 380 → 320，左栏 = 1600 − 30 − 320 = 1250
-  await dragBy(page, leftHandle, 700)
-  await expectApproxWidth(left, 1250, 12)
-  await expectApproxWidth(rail, 320)
+  // 继续拖入推挤区：中心被压到保底缝，右栏 380 → 342，左栏 = 1600 − 30 − 342 = 1228
+  await dragBy(page, leftHandle, 640)
+  await expectApproxWidth(left, 1228, 12)
+  await expectApproxWidth(rail, 342)
   const leftBox = await left.boundingBox()
   const railBox = await rail.boundingBox()
   const mainWidth = railBox!.x - (leftBox!.x + leftBox!.width)
   expect(mainWidth).toBeLessThanOrEqual(60)
   expect(mainWidth).toBeGreaterThanOrEqual(1)
 
-  // 缩窗：设定宽度 1250 被钳制到 1000 − 30 − 320 = 650
+  // 缩窗：设定宽度 1228 被钳制到 1000 − 30 − 342 = 628
   await page.setViewportSize({ width: 1000, height: 900 })
-  await expectApproxWidth(left, 650, 12)
+  await expectApproxWidth(left, 628, 12)
 
   // 变宽：完整设定宽度自动恢复
   await page.setViewportSize({ width: 1600, height: 900 })
-  await expectApproxWidth(left, 1250, 12)
+  await expectApproxWidth(left, 1228, 12)
 
   // 双击重置默认宽度
   await leftHandle.dblclick({ position: { x: 4, y: 200 } })
@@ -172,7 +172,7 @@ test("pane width: auto collapse on narrow window, manual expand floors at min wi
   expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
 })
 
-test("pane width: dragging one pane pushes the other to its minimum and persists", async ({ page }) => {
+test("pane width: pushing beyond the other minimum collapses and persists", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 })
   const errors = trackPageErrors(page)
   await openWorkspace(page)
@@ -186,25 +186,49 @@ test("pane width: dragging one pane pushes the other to its minimum and persists
   await expect(leftHandle).toHaveCount(1)
   await expect(railHandle).toHaveCount(1)
 
-  // 拖左栏至上限 1250：右栏被推挤至 320，主区剩约 30px
-  await dragBy(page, leftHandle, 1300)
-  await expectApproxWidth(left, 1250, 12)
-  await expectApproxWidth(rail, 320)
-
-  // 放大窗口：被推挤的右栏保持 320（固化，不回弹 380），左栏恢复完整设定宽 1250
-  await page.setViewportSize({ width: 2000, height: 900 })
-  await expectApproxWidth(rail, 320)
-  await expectApproxWidth(left, 1250, 12)
-
-  // 对称：拖右栏至上限 2000 − 30 − 220 = 1750，左栏被推挤至 220
-  await dragBy(page, railHandle, -1430)
-  await expectApproxWidth(rail, 1750, 12)
-  await expectApproxWidth(left, 220)
+  // 先进入推挤区：1600 − 30 − 1228 = 342，右栏被压过默认宽度但尚未收起
+  await dragBy(page, leftHandle, 940)
+  await expectApproxWidth(left, 1228, 12)
+  await expectApproxWidth(rail, 342)
   const leftBox = await left.boundingBox()
   const railBox = await rail.boundingBox()
-  const mainWidth = railBox!.x - (leftBox!.x + leftBox!.width)
-  expect(mainWidth).toBeLessThanOrEqual(60)
-  expect(mainWidth).toBeGreaterThanOrEqual(1)
+  const pushedMainWidth = railBox!.x - (leftBox!.x + leftBox!.width)
+  expect(pushedMainWidth).toBeLessThanOrEqual(60)
+  expect(pushedMainWidth).toBeGreaterThanOrEqual(1)
+
+  // 越过右栏最小宽（1250）后自动收起；继续拖到 1600 − 30 = 1570，中心只剩保底缝
+  await dragBy(page, leftHandle, 40)
+  await expect(rail).toBeHidden({ timeout: 5_000 })
+  await dragBy(page, leftHandle, 302)
+  await expectApproxWidth(left, 1570, 12)
+  await expect(rail).toBeHidden()
+
+  // 松手已把推挤收起固化为手动收起；窗口变宽也不回弹
+  await page.setViewportSize({ width: 2000, height: 900 })
+  await expectApproxWidth(left, 1570, 12)
+  await expect(rail).toBeHidden()
+
+  // 手动展开右栏按最小宽恢复，左栏保留可恢复的完整设定宽度
+  await page.locator('[data-edge-rail="right-collapsed"]').click()
+  await expect(rail).toBeVisible()
+  await expectApproxWidth(rail, 320)
+  await expectApproxWidth(left, 1570, 12)
+
+  // 对称：右栏越过左栏最小宽（2000 − 30 − 220 = 1750）后自动收起左栏
+  await dragBy(page, railHandle, -1450)
+  await expect(left).toBeHidden({ timeout: 5_000 })
+  await expectApproxWidth(rail, 1770, 12)
+
+  // 右栏继续拖到 2000 − 30 = 1970，中心只剩保底缝
+  await dragBy(page, railHandle, -200)
+  await expectApproxWidth(rail, 1970, 12)
+  await expect(left).toBeHidden()
+
+  // 手动展开左栏按最小宽恢复，右栏按动态上限钳制显示
+  await page.locator('[data-edge-rail="left-collapsed"]').click()
+  await expect(left).toBeVisible()
+  await expectApproxWidth(left, 220)
+  await expectApproxWidth(rail, 1750, 12)
 
   expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
 })
