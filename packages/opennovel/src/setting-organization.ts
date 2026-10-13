@@ -79,17 +79,23 @@ export function createSettingOrganizationService(): SettingOrganizationService {
   return {
     async analyze(novelID, directory, input) {
       const scope = input.scope ?? "all"
-      const context = await loadOrganizeContext(directory, novelID, scope)
-      const rawIssues = analyzeEntities(context.entities)
-      const issues = rawIssues.map(mapIssue)
-      const suggested = generatePlanFromIssues(context.entities, rawIssues)
-      const result: SettingOrganizationAnalyzeResult = {
-        scope,
-        issues,
-        count: issues.length,
-        suggestedPlanJson: suggested.operations.length > 0 ? JSON.stringify(suggested) : undefined,
+      try {
+        const context = await loadOrganizeContext(directory, novelID, scope)
+        const rawIssues = analyzeEntities(context.entities)
+        const issues = rawIssues.map(mapIssue)
+        const suggested = generatePlanFromIssues(context.entities, rawIssues)
+        const result: SettingOrganizationAnalyzeResult = {
+          scope,
+          issues,
+          count: issues.length,
+          suggestedPlanJson: suggested.operations.length > 0 ? JSON.stringify(suggested) : undefined,
+        }
+        return result
+      } catch (error) {
+        // 与 dryRun 同口径：分析异常返回结构化结果，不冒泡成未处理的 500
+        console.error("[setting-organization analyze] 服务端异常:", error)
+        return { scope, issues: [], count: 0 }
       }
-      return result
     },
 
     async dryRun(novelID, directory, input) {
@@ -134,30 +140,36 @@ export function createSettingOrganizationService(): SettingOrganizationService {
       if (!input.confirmed) return rejectedApply(["UI 执行计划缺少显式确认"])
       if (!input.planDigest) return rejectedApply(["UI 执行计划缺少 dry run 摘要"])
 
-      const parsed = parseOrganizePlan(input.planJson)
-      if (parsed.errors.length > 0 || !parsed.plan) return rejectedApply(parsed.errors)
+      try {
+        const parsed = parseOrganizePlan(input.planJson)
+        if (parsed.errors.length > 0 || !parsed.plan) return rejectedApply(parsed.errors)
 
-      const context = await loadOrganizeContext(directory, novelID, "all")
-      const validation = validateOrganizePlan({
-        plan: parsed.plan,
-        entries: context.entities,
-        referencedKeys: context.referencedKeys,
-        relatedCharacterIds: context.relatedCharacterIds,
-      })
-      if (!validation.ok) return rejectedApply(validation.errors)
+        const context = await loadOrganizeContext(directory, novelID, "all")
+        const validation = validateOrganizePlan({
+          plan: parsed.plan,
+          entries: context.entities,
+          referencedKeys: context.referencedKeys,
+          relatedCharacterIds: context.relatedCharacterIds,
+        })
+        if (!validation.ok) return rejectedApply(validation.errors)
 
-      const digest = planDigest(parsed.plan)
-      if (input.planDigest !== digest) return rejectedApply(["整理计划摘要不匹配，请重新 dry run"])
+        const digest = planDigest(parsed.plan)
+        if (input.planDigest !== digest) return rejectedApply(["整理计划摘要不匹配，请重新 dry run"])
 
-      const execution = await executeOrganizePlan(parsed.plan, { directory, novelId: novelID })
-      const errors = execution.results
-        .filter((result) => result.status === "failed")
-        .map((result) => `operations[${result.index}]：${result.error ?? "执行失败"}`)
-      return {
-        ok: execution.ok,
-        errors,
-        results: execution.results.map(mapResult),
-        remaining: mapRemaining(execution.remaining),
+        const execution = await executeOrganizePlan(parsed.plan, { directory, novelId: novelID })
+        const errors = execution.results
+          .filter((result) => result.status === "failed")
+          .map((result) => `operations[${result.index}]：${result.error ?? "执行失败"}`)
+        return {
+          ok: execution.ok,
+          errors,
+          results: execution.results.map(mapResult),
+          remaining: mapRemaining(execution.remaining),
+        }
+      } catch (error) {
+        // 与 dryRun 同口径：执行期异常按 rejected 返回，未落库的部分不会被当成成功
+        console.error("[setting-organization apply] 服务端异常:", error)
+        return rejectedApply(["服务端执行异常: " + (error instanceof Error ? error.message : String(error))])
       }
     },
   }

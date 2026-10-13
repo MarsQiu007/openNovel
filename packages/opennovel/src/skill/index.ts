@@ -328,8 +328,8 @@ export function fmt(list: Info[], opts: { verbose: boolean }) {
         .toSorted((a, b) => a.name.localeCompare(b.name))
         .flatMap((skill) => [
           "  <skill>",
-          `    <name>${skill.name}</name>`,
-          `    <description>${skill.description}</description>`,
+          `    <name>${escapeHtml(skill.name)}</name>`,
+          `    <description>${escapeHtml(skill.description ?? "")}</description>`,
           `    <location>${escapeHtml(skill.location)}</location>`,
           "  </skill>",
         ]),
@@ -341,7 +341,7 @@ export function fmt(list: Info[], opts: { verbose: boolean }) {
     "## Available Skills",
     ...described
       .toSorted((a, b) => a.name.localeCompare(b.name))
-      .map((skill) => `- **${skill.name}**: ${skill.description}`),
+      .map((skill) => `- **${escapeHtml(skill.name)}**: ${escapeHtml(skill.description ?? "")}`),
   ].join("\n")
 }
 

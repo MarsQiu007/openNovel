@@ -1,5 +1,5 @@
 import * as path from "path"
-import { Effect, Schema } from "effect"
+import { Effect, Exit, Schema } from "effect"
 import * as Tool from "./tool"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Watcher } from "@opennovel-ai/core/filesystem/watcher"
@@ -226,12 +226,24 @@ export const ApplyPatchTool = Tool.define(
       for (const change of fileChanges) {
         const edited = change.type === "delete" ? undefined : (change.movePath ?? change.filePath)
         switch (change.type) {
-          case "add":
-            // Create parent directories (recursive: true is safe on existing/root dirs)
-
-            yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
+          case "add": {
+            // stat 检查只负责友好提示，真正防覆盖靠 wx（O_CREAT|O_EXCL）：
+            // 解析与写入之间被并发新建同名文件时必须失败，而不是静默覆盖对方内容
+            yield* afs.makeDirectory(path.dirname(change.filePath), { recursive: true })
+            const created = yield* Effect.scoped(
+              Effect.gen(function* () {
+                const handle = yield* afs.open(change.filePath, { flag: "wx" })
+                yield* handle.writeAll(Buffer.from(Bom.join(change.newContent, change.bom), "utf-8"))
+              }),
+            ).pipe(Effect.exit)
+            if (Exit.isFailure(created)) {
+              const exists = yield* afs.exists(change.filePath).pipe(Effect.orDie)
+              if (exists) return yield* Effect.fail(new Error(`File already exists: ${change.filePath}`))
+              return yield* Effect.failCause(created.cause)
+            }
             updates.push({ file: change.filePath, event: "add" })
             break
+          }
 
           case "update":
             yield* afs.writeWithDirs(change.filePath, Bom.join(change.newContent, change.bom))
@@ -240,10 +252,19 @@ export const ApplyPatchTool = Tool.define(
 
           case "move":
             if (change.movePath) {
-              // Create parent directories (recursive: true is safe on existing/root dirs)
-
-              yield* afs.writeWithDirs(change.movePath!, Bom.join(change.newContent, change.bom))
-              yield* afs.remove(change.filePath)
+              // 先 rename 再补写编辑内容：原实现"写新+删旧"在两步之间崩溃会同时留下两份文件，
+              // rename 本身原子，最坏中间态只是目标内容尚未更新
+              yield* afs.makeDirectory(path.dirname(change.movePath), { recursive: true })
+              const renamed = yield* afs
+                .rename(change.filePath, change.movePath)
+                .pipe(Effect.as(true), Effect.catch(() => Effect.succeed(false)))
+              if (!renamed) {
+                yield* afs.writeWithDirs(change.movePath, Bom.join(change.newContent, change.bom))
+                yield* afs.remove(change.filePath)
+              } else if (change.oldContent !== change.newContent) {
+                // move 带编辑时 rename 只搬了原内容，还要把补丁后的内容写回目标
+                yield* afs.writeWithDirs(change.movePath, Bom.join(change.newContent, change.bom))
+              }
               updates.push({ file: change.filePath, event: "unlink" })
               updates.push({ file: change.movePath, event: "add" })
             }
