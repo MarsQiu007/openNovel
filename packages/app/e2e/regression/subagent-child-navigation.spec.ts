@@ -1,9 +1,13 @@
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
+// 独立会话路由已退役为重定向宿主（session-book-only）：子代理子会话直接落在
+// 所属书籍工作台的对话面板，本 spec 工作台路由上验证导航与删除兜底。
 const directory = "C:/OpenNovel/SubagentNavigation"
+const novelID = "novel_subagent_navigation"
 const projectID = "proj_subagent_navigation"
 const parentID = "ses_subagent_parent"
 const childID = "ses_subagent_child"
@@ -84,18 +88,20 @@ async function setup(page: Page, events?: () => EventPayload[]) {
         body: JSON.stringify([session(parentID, parentTitle, 1700000000000)]),
       }),
   )
-  await configurePage(page)
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [parentID, childID] })
 }
 
 async function openChildFromParent(page: Page) {
-  await page.goto(sessionHref(parentID))
+  await page.goto(novelWorkspaceURL(directory, novelID, parentID))
   await expectSessionTitle(page, parentTitle)
 
-  const card = page.locator(`a[href="${sessionHref(childID)}"]`)
+  // 时间线子会话卡片链接沿用目录级会话路由（DirectoryDataProvider 的
+  // onSessionHref）：/:dir/session/:childID——经重定向宿主查绑定后 replace 进书内
+  const card = page.locator(`a[href="/${base64Encode(directory)}/session/${childID}"]`)
   await expect(card).toBeVisible()
   await card.click()
 
-  await expect(page).toHaveURL(new RegExp(`/server/.+/session/${childID}$`), { timeout: 15_000 })
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${childID}$`), { timeout: 15_000 })
 }
 
 function session(id: string, title: string, created: number, extra?: Record<string, unknown>) {
@@ -176,28 +182,3 @@ function parentMessages() {
   ]
 }
 
-async function configurePage(page: Page) {
-  const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
-  await page.addInitScript(
-    ({ directory, server, sessionId }) => {
-      localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
-      localStorage.setItem(
-        "opennovel.global.dat:server",
-        JSON.stringify({
-          projects: { local: [{ worktree: directory, expanded: true }] },
-          lastProject: { local: directory },
-        }),
-      )
-      localStorage.setItem(
-        "opennovel.window.browser.dat:tabs",
-        JSON.stringify([{ type: "session", server, sessionId }]),
-      )
-    },
-    { directory, server, sessionId: parentID },
-  )
-}
-
-function sessionHref(sessionID: string) {
-  const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
-  return `/server/${base64Encode(server)}/session/${sessionID}`
-}

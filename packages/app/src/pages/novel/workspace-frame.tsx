@@ -1,7 +1,8 @@
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createSignal, createMemo, For, Show, onCleanup } from "solid-js"
+import { createEffect, createSignal, createMemo, For, Show, onCleanup, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { useServerSync } from "@/context/server-sync"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
@@ -26,6 +27,7 @@ import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
+import { createSessionLineage } from "@/pages/session/session-lineage"
 import {
   useBindSession,
   useUpdateNovel,
@@ -1184,7 +1186,9 @@ export default function NovelWorkspaceFrame() {
                     >
                       <div class="flex-1 min-h-0 overflow-y-auto">
                         <SessionRouteErrorBoundary sessionID={params.id}>
-                          <SessionPage />
+                          <WorkspaceSessionGate sessionID={() => params.id}>
+                            <SessionPage />
+                          </WorkspaceSessionGate>
                         </SessionRouteErrorBoundary>
                       </div>
                       {/* 已绑定空会话（如新建轻会话后未发消息）：时间线就绪且无用户消息时
@@ -1280,4 +1284,19 @@ export default function NovelWorkspaceFrame() {
       </Show>
     </Show>
   )
+}
+
+/**
+ * 书内会话的 not-found 兜底（承接旧独立会话路由的 lineage 语义，session-book-only）：
+ * 会话被删除（本端归档、其他客户端删除）后 lineage 落定但缓存缺失时抛出 not-found，
+ * 由外层 SessionRouteErrorBoundary 渲染"会话无法找到"兜底；lineage 未命中期间不挂载
+ * 会话页（与旧路由 Show when={directory()} 一致，避免给不存在的会话搭 UI）。
+ */
+function WorkspaceSessionGate(props: ParentProps<{ sessionID: () => string | undefined }>) {
+  const serverSync = useServerSync()
+  const current = createSessionLineage(
+    () => props.sessionID() ?? "",
+    () => serverSync().session.lineage,
+  )
+  return <Show when={props.sessionID() ? current() : false}>{props.children}</Show>
 }
