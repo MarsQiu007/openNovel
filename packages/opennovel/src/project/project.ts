@@ -414,34 +414,49 @@ const layer = Layer.effect(
       ).pipe(Effect.map((arr) => arr.filter((x): x is string => x !== undefined)))
     })
 
+    // sandboxes is a JSON array column, so read-modify-write has to stay inside one
+    // immediate transaction or concurrent callers silently overwrite each other.
     const addSandbox = Effect.fn("Project.addSandbox")(function* (id: ProjectV2.ID, directory: string) {
-      const row = yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get().pipe(Effect.orDie)
-      if (!row) throw new Error(`Project not found: ${id}`)
       const sandbox = AbsolutePath.make(directory)
-      const sboxes = [...row.sandboxes]
-      if (!sboxes.includes(sandbox)) sboxes.push(sandbox)
       const result = yield* db
-        .update(ProjectTable)
-        .set({ sandboxes: sboxes, time_updated: Date.now() })
-        .where(eq(ProjectTable.id, id))
-        .returning()
-        .get()
+        .transaction(
+          (d) =>
+            Effect.gen(function* () {
+              const row = yield* d.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get()
+              if (!row) return undefined
+              const sboxes = [...row.sandboxes]
+              if (!sboxes.includes(sandbox)) sboxes.push(sandbox)
+              return yield* d
+                .update(ProjectTable)
+                .set({ sandboxes: sboxes, time_updated: Date.now() })
+                .where(eq(ProjectTable.id, id))
+                .returning()
+                .get()
+            }),
+          { behavior: "immediate" },
+        )
         .pipe(Effect.orDie)
       if (!result) throw new Error(`Project not found: ${id}`)
       yield* emitUpdated(fromRow(result))
     })
 
     const removeSandbox = Effect.fn("Project.removeSandbox")(function* (id: ProjectV2.ID, directory: string) {
-      const row = yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get().pipe(Effect.orDie)
-      if (!row) throw new Error(`Project not found: ${id}`)
       const sandbox = AbsolutePath.make(directory)
-      const sboxes = row.sandboxes.filter((s) => s !== sandbox)
       const result = yield* db
-        .update(ProjectTable)
-        .set({ sandboxes: sboxes, time_updated: Date.now() })
-        .where(eq(ProjectTable.id, id))
-        .returning()
-        .get()
+        .transaction(
+          (d) =>
+            Effect.gen(function* () {
+              const row = yield* d.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get()
+              if (!row) return undefined
+              return yield* d
+                .update(ProjectTable)
+                .set({ sandboxes: row.sandboxes.filter((s) => s !== sandbox), time_updated: Date.now() })
+                .where(eq(ProjectTable.id, id))
+                .returning()
+                .get()
+            }),
+          { behavior: "immediate" },
+        )
         .pipe(Effect.orDie)
       if (!result) throw new Error(`Project not found: ${id}`)
       yield* emitUpdated(fromRow(result))

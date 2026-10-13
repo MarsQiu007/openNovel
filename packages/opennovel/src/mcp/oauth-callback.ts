@@ -130,8 +130,23 @@ export async function ensureRunning(redirectUri?: string): Promise<void> {
   })
 }
 
+function dropPending(oauthState: string, error: Error) {
+  const pending = pendingAuths.get(oauthState)
+  if (!pending) return
+  clearTimeout(pending.timeout)
+  pendingAuths.delete(oauthState)
+  cleanupStateIndex(oauthState)
+  pending.reject(error)
+  stopIfIdle()
+}
+
 export function waitForCallback(oauthState: string, mcpName?: string): Promise<string> {
-  if (mcpName) mcpNameToState.set(mcpName, oauthState)
+  if (mcpName) {
+    const previous = mcpNameToState.get(mcpName)
+    // 同一 server 重新发起授权时先回收旧 oauthState，否则旧条目只能等超时、也无法再被 cancelPending 命中
+    if (previous && previous !== oauthState) dropPending(previous, new Error("Authorization superseded"))
+    mcpNameToState.set(mcpName, oauthState)
+  }
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (pendingAuths.has(oauthState)) {
@@ -148,16 +163,7 @@ export function waitForCallback(oauthState: string, mcpName?: string): Promise<s
 
 export function cancelPending(mcpName: string): void {
   // Look up the oauthState for this mcpName via the reverse index
-  const oauthState = mcpNameToState.get(mcpName)
-  const key = oauthState ?? mcpName
-  const pending = pendingAuths.get(key)
-  if (pending) {
-    clearTimeout(pending.timeout)
-    pendingAuths.delete(key)
-    mcpNameToState.delete(mcpName)
-    pending.reject(new Error("Authorization cancelled"))
-    stopIfIdle()
-  }
+  dropPending(mcpNameToState.get(mcpName) ?? mcpName, new Error("Authorization cancelled"))
 }
 
 export async function isPortInUse(port: number = OAUTH_CALLBACK_PORT): Promise<boolean> {

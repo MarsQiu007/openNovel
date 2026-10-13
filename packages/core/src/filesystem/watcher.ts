@@ -83,7 +83,8 @@ const layer = Layer.effect(
       Effect.promise(() => Promise.allSettled(subscriptions.map((subscription) => subscription.unsubscribe()))),
     )
 
-    const callback: ParcelWatcher.SubscribeCallback = (_error, updates) => {
+    const callback: ParcelWatcher.SubscribeCallback = (error, updates) => {
+      if (error) runFork(Effect.logWarning("file watcher native error", { error: String(error) }))
       for (const update of updates) {
         if (update.type === "create") runFork(events.publish(Event.Updated, { file: update.path, event: "add" }))
         if (update.type === "update") runFork(events.publish(Event.Updated, { file: update.path, event: "change" }))

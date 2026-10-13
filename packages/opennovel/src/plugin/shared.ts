@@ -202,7 +202,8 @@ export async function checkPluginCompatibility(target: string, opennovelVersion:
   if (!hit) return
   const engines = hit.json.engines
   if (!isRecord(engines)) return
-  const range = engines.opennovel ?? engines.opennovel
+  // 第二个键不是笔误：改名前发布的插件包只有 engines.opencode，缺它会把兼容检查整体旁路
+  const range = engines.opennovel ?? engines.opencode
   if (typeof range !== "string") return
   if (!semver.satisfies(opennovelVersion, range)) {
     throw new Error(`Plugin requires opennovel ${range} but running ${opennovelVersion}`)

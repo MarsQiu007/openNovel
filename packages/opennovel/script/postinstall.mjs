@@ -170,7 +170,12 @@ function main() {
       copyBinary(resolveBinary(name), targetBinary)
       if (verifyBinary()) return
     } catch {
-      if (installPackage(name) && verifyBinary()) return
+      try {
+        if (installPackage(name) && verifyBinary()) return
+      } catch (installError) {
+        // 单个候选包安装失败继续尝试下一个，最后由聚合错误提示人工安装
+        console.warn(`[postinstall] ${name}: ${String(installError)}`)
+      }
     }
   }
 

@@ -26,6 +26,9 @@ export interface ManualEditSyncHandler {
 
 const handlers = new Map<string, ManualEditSyncHandler>()
 
+type SyncEntry = typeof ManualEditSyncQueueTable.$inferSelect
+type SyncTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0]
+
 /** 注册同步处理器（由 opennovel 启动时调用） */
 export function registerSyncHandler(handler: ManualEditSyncHandler): void {
   handlers.set("default", handler)
@@ -83,94 +86,30 @@ export async function processSyncQueue(
       if (entry.source === "upgrade" && (await getUpgradeGate(db, entry.novel_id)) === "paused") {
         continue
       }
+      // 无 handler 的普通条目走确定性摘要 upsert；observer 与升级任务都在下面事务之外先行完成
+      const deterministicSummary =
+        entry.entity === "chapter" &&
+        entry.field === "content" &&
+        Boolean(entry.entity_id) &&
+        !handler?.handleChapterContent
       if (entry.entity === "chapter" && entry.field === "content" && entry.entity_id) {
         if (handler?.handleChapterContent) {
           await handler.handleChapterContent(directory, entry.novel_id, entry.entity_id, entry.source_fingerprint ?? "")
         } else if (entry.source === "upgrade") {
           // 诚实性：升级任务禁止无 handler 的确定性 fallback（不得伪造已同步）
           throw new Error("observer 重建 handler 未注册，升级任务未执行（未重建不得标记已同步）")
-        } else {
-          // 无 handler 时执行确定性标记（upsert）
-          const db2 = getDb(directory)
-          const existing = await db2
-            .select()
-            .from(ChapterSummaryTable)
-            .where(eq(ChapterSummaryTable.chapter_id, entry.entity_id))
-            .get()
-          if (existing) {
-            await db2
-              .update(ChapterSummaryTable)
-              .set({ source_fingerprint: entry.source_fingerprint })
-              .where(eq(ChapterSummaryTable.chapter_id, entry.entity_id))
-              .run()
-          } else {
-            await db2
-              .insert(ChapterSummaryTable)
-              .values({
-                id: crypto.randomUUID(),
-                chapter_id: entry.entity_id,
-                summary: "",
-                key_events: "[]",
-                char_changes: "[]",
-                source_fingerprint: entry.source_fingerprint,
-              })
-              .run()
-          }
         }
       } else if (entry.entity !== "chapter") {
         // 正式设定变更：确定性引用扫描 + 稳定键去重的影响任务
-        if (handler?.handleSettingChange) {
-          await handler.handleSettingChange(entry.novel_id, entry.entity, entry.entity_id ?? "", entry.source_fingerprint ?? "")
-        }
-        const db2 = getDb(directory)
-        const entityId = entry.entity_id ?? ""
-        // 确定性引用扫描：找出引用该实体的章节
-        const refs = await db2
-          .select()
-          .from(EntityRefTable)
-          .where(and(eq(EntityRefTable.novel_id, entry.novel_id), eq(EntityRefTable.target_id, entityId)))
-          .all()
-        // 按稳定键去重生成影响任务（novel + trigger_type + trigger_id + trigger_field）
-        for (const ref of refs) {
-          const existing = await db2
-            .select()
-            .from(PendingUpdateTable)
-            .where(
-              and(
-                eq(PendingUpdateTable.novel_id, entry.novel_id),
-                eq(PendingUpdateTable.trigger_id, entityId),
-                eq(PendingUpdateTable.source_id, ref.source_id),
-                eq(PendingUpdateTable.status, "pending"),
-              ),
-            )
-            .get()
-          if (!existing) {
-            await db2.insert(PendingUpdateTable).values({
-              id: crypto.randomUUID(),
-              novel_id: entry.novel_id,
-              source_type: ref.source_type,
-              source_id: ref.source_id,
-              trigger_type: entry.entity,
-              trigger_id: entityId,
-              trigger_field: entry.field,
-              reason: `手动修改 ${entry.entity} 触发引用更新`,
-              status: "pending",
-              priority: "medium",
-            }).run()
-          }
-        }
+        await handler?.handleSettingChange?.(
+          entry.novel_id,
+          entry.entity,
+          entry.entity_id ?? "",
+          entry.source_fingerprint ?? "",
+        )
       }
-      // 章节正文同步完成后重建结构化故事主轴条目并刷新指纹
-      if (entry.entity === "chapter" && entry.entity_id) {
-        const db3 = getDb(directory)
-        const fp = entry.source_fingerprint ?? ""
-        await db3
-          .update(StorySpineEntryTable)
-          .set({ source_fingerprint: fp, status: "synced", updated_at: Date.now() })
-          .where(and(eq(StorySpineEntryTable.novel_id, entry.novel_id), eq(StorySpineEntryTable.chapter_id, entry.entity_id)))
-          .run()
-      }
-      await updateSyncStatus(entry.id, "synced", null, directory)
+      // 摘要、影响任务、主轴与状态回写同事务落地，中途失败整条回滚
+      db.transaction((tx) => applySyncEntry(tx, entry, deterministicSummary))
       processed++
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -180,6 +119,93 @@ export async function processSyncQueue(
 
   return processed
 }
+
+/**
+ * 单条同步任务的确定性写入：摘要 upsert、影响任务插入、主轴刷新与状态回写必须在同一事务里完成。
+ * 分步提交会在中途失败时留下半同步状态（数据已改但条目仍 pending，或条目已 synced 但数据未改）。
+ */
+function applySyncEntry(tx: SyncTx, entry: SyncEntry, writeSummary: boolean) {
+  const entityId = entry.entity_id ?? ""
+  if (writeSummary && entityId) {
+    const existing = tx.select().from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, entityId)).get()
+    if (existing) {
+      tx.update(ChapterSummaryTable)
+        .set({ source_fingerprint: entry.source_fingerprint })
+        .where(eq(ChapterSummaryTable.chapter_id, entityId))
+        .run()
+    }
+    if (!existing) {
+      tx.insert(ChapterSummaryTable)
+        .values({
+          id: crypto.randomUUID(),
+          chapter_id: entityId,
+          summary: "",
+          key_events: "[]",
+          char_changes: "[]",
+          source_fingerprint: entry.source_fingerprint,
+        })
+        .run()
+    }
+  }
+
+  if (entry.entity !== "chapter") {
+    // 确定性引用扫描：找出引用该实体的章节，并按稳定键去重生成影响任务
+    const refs = tx
+      .select()
+      .from(EntityRefTable)
+      .where(and(eq(EntityRefTable.novel_id, entry.novel_id), eq(EntityRefTable.target_id, entityId)))
+      .all()
+    for (const ref of refs) {
+      const existing = tx
+        .select()
+        .from(PendingUpdateTable)
+        .where(
+          and(
+            eq(PendingUpdateTable.novel_id, entry.novel_id),
+            eq(PendingUpdateTable.trigger_id, entityId),
+            eq(PendingUpdateTable.source_id, ref.source_id),
+            eq(PendingUpdateTable.status, "pending"),
+          ),
+        )
+        .get()
+      if (existing) continue
+      tx.insert(PendingUpdateTable)
+        .values({
+          id: crypto.randomUUID(),
+          novel_id: entry.novel_id,
+          source_type: ref.source_type,
+          source_id: ref.source_id,
+          trigger_type: entry.entity,
+          trigger_id: entityId,
+          trigger_field: entry.field,
+          reason: `手动修改 ${entry.entity} 触发引用更新`,
+          status: "pending",
+          priority: "medium",
+        })
+        .run()
+    }
+  }
+
+  // 章节正文同步完成后重建结构化故事主轴条目并刷新指纹
+  if (entry.entity === "chapter" && entry.entity_id) {
+    tx.update(StorySpineEntryTable)
+      .set({ source_fingerprint: entry.source_fingerprint ?? "", status: "synced", updated_at: Date.now() })
+      .where(
+        and(
+          eq(StorySpineEntryTable.novel_id, entry.novel_id),
+          eq(StorySpineEntryTable.chapter_id, entry.entity_id),
+        ),
+      )
+      .run()
+  }
+
+  // 状态回写也进事务：updateSyncStatus 自开连接无法加入，直接写队列表保持同样的字段语义
+  tx.update(ManualEditSyncQueueTable)
+    .set({ status: "synced", failure_reason: null, updated_at: Date.now() })
+    .where(eq(ManualEditSyncQueueTable.id, entry.id))
+    .run()
+}
+
 
 /** 登记需要轮询的工作区目录；首次登记时启动单一定时器 */
 export function registerSyncDirectory(directory: string, intervalMs = 5000): void {

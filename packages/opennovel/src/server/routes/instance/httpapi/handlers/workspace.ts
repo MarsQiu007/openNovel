@@ -22,6 +22,14 @@ export const workspaceHandlers = HttpApiBuilder.group(InstanceHttpApi, "workspac
       return yield* workspace.list((yield* InstanceState.context).project)
     })
 
+    // Plugin throws surface as defects (because EffectBridge.fromPromise uses Effect.promise),
+    // bypassing Effect.mapError. Walk the cause to surface the real error to the client.
+    const causeReason = (cause: Cause.Cause<unknown>): unknown => {
+      const die = cause.reasons.find(Cause.isDieReason)
+      const fail = cause.reasons.find(Cause.isFailReason)
+      return die?.defect ?? fail?.error
+    }
+
     const create = Effect.fn("WorkspaceHttpApi.create")(function* (ctx: { payload: typeof CreatePayload.Type }) {
       const instance = yield* InstanceState.context
       return yield* workspace
@@ -32,11 +40,7 @@ export const workspaceHandlers = HttpApiBuilder.group(InstanceHttpApi, "workspac
         })
         .pipe(
           Effect.catchCause((cause) => {
-            // Plugin throws surface as defects (because EffectBridge.fromPromise uses Effect.promise),
-            // bypassing Effect.mapError. Walk the cause to surface the real error to the client.
-            const die = cause.reasons.find(Cause.isDieReason)
-            const fail = cause.reasons.find(Cause.isFailReason)
-            const reason: unknown = die?.defect ?? fail?.error
+            const reason = causeReason(cause)
             const message = reason instanceof Error ? reason.message : "Workspace creation failed"
             return Effect.fail(
               new ApiWorkspaceCreateError({
@@ -61,6 +65,25 @@ export const workspaceHandlers = HttpApiBuilder.group(InstanceHttpApi, "workspac
       return yield* workspace.remove(ctx.params.id)
     })
 
+    const warpError = (reason: unknown) => {
+      if (reason instanceof Workspace.WorkspaceNotFoundError) return notFound(reason.message)
+      if (reason instanceof Vcs.PatchApplyError) {
+        return new ApiVcsApplyError({
+          name: "VcsApplyError",
+          data: {
+            message: reason.message,
+            reason: reason.reason,
+          },
+        })
+      }
+      const message = reason instanceof Error ? reason.message : "Workspace warp failed"
+      return new ApiWorkspaceWarpError({
+        name: "WorkspaceWarpError",
+        data: { message },
+      })
+    }
+
+    // 与 create 同口径：warp 也可能因插件 throw 产生 defect，只 mapError 会把 defect 裸抛给框架。
     const warp = Effect.fn("WorkspaceHttpApi.warp")(function* (ctx: { payload: typeof WarpPayload.Type }) {
       yield* workspace
         .sessionWarp({
@@ -68,26 +91,7 @@ export const workspaceHandlers = HttpApiBuilder.group(InstanceHttpApi, "workspac
           sessionID: ctx.payload.sessionID,
           copyChanges: ctx.payload.copyChanges,
         })
-        .pipe(
-          Effect.mapError((error) => {
-            if (error instanceof Workspace.WorkspaceNotFoundError) return notFound(error.message)
-            if (error instanceof Vcs.PatchApplyError) {
-              return new ApiVcsApplyError({
-                name: "VcsApplyError",
-                data: {
-                  message: error.message,
-                  reason: error.reason,
-                },
-              })
-            }
-            return new ApiWorkspaceWarpError({
-              name: "WorkspaceWarpError",
-              data: {
-                message: error.message,
-              },
-            })
-          }),
-        )
+        .pipe(Effect.catchCause((cause) => Effect.fail(warpError(causeReason(cause)))))
     })
 
     return handlers

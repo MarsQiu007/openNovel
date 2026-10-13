@@ -113,12 +113,13 @@ const AUTO_CLOSE_SCRIPT = `setTimeout(function(){try{window.close()}catch(e){}},
 
 function bootstrapScript(options: BootstrapOptions) {
   return `var PROVIDER=${scriptString(options.provider ?? "")};
-var TOKEN_URL=new URL(${scriptString(options.tokenPath)},window.location.origin).href;
+var TOKEN_URL=new URL(${scriptString(options.tokenPath)},window.location.origin);
 (function(){
   var card=document.getElementById("oc-card"),headline=document.getElementById("oc-headline"),message=document.getElementById("oc-message"),detail=document.getElementById("oc-detail"),footnote=document.getElementById("oc-footnote");
   function fail(text){card.dataset.status="error";headline.textContent="Authorization failed";message.textContent=PROVIDER?("OpenNovel couldn't finish connecting to "+PROVIDER+"."):"OpenNovel couldn't complete authorization.";if(text){detail.textContent=text;detail.hidden=false}footnote.textContent="Close this window and try again from OpenNovel."}
   function ok(){card.dataset.status="success";headline.textContent="Authorization successful";message.textContent=PROVIDER?("OpenNovel is now connected to "+PROVIDER+"."):"OpenNovel is now authorized.";detail.hidden=true;footnote.textContent="You can close this window.";setTimeout(function(){try{window.close()}catch(e){}},2500)}
   try{
+    if(TOKEN_URL.origin!==window.location.origin){fail("OAuth token endpoint must be same-origin");return}
     var hash=new URLSearchParams((window.location.hash||"").slice(1));
     var search=new URLSearchParams(window.location.search||"");
     var err=hash.get("error")||search.get("error");

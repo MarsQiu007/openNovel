@@ -56,9 +56,13 @@ const layer = Layer.effect(
       return { ...account, active_org_id: state.active_org_id ?? null }
     })
 
-    const state = (accountID: AccountID, orgID: Option.Option<OrgID>) => {
+    const state = (
+      runner: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
+      accountID: AccountID,
+      orgID: Option.Option<OrgID>,
+    ) => {
       const id = Option.getOrNull(orgID)
-      return db
+      return runner
         .insert(AccountStateTable)
         .values({ id: ACCOUNT_STATE_ID, active_account_id: accountID, active_org_id: id })
         .onConflictDoUpdate({
@@ -98,7 +102,7 @@ const layer = Layer.effect(
     )
 
     const use = Effect.fn("AccountRepo.use")((accountID: AccountID, orgID: Option.Option<OrgID>) =>
-      query(state(accountID, orgID)).pipe(Effect.asVoid),
+      query(state(db, accountID, orgID)).pipe(Effect.asVoid),
     )
 
     const getRow = Effect.fn("AccountRepo.getRow")((accountID: AccountID) =>
@@ -126,6 +130,7 @@ const layer = Layer.effect(
         db.transaction((tx) =>
           Effect.gen(function* () {
             const url = normalizeServerUrl(input.url)
+            if (!url) return yield* Effect.fail(new AccountRepoError({ message: `Invalid server URL: ${input.url}` }))
 
             yield* tx
               .insert(AccountTable)
@@ -148,7 +153,7 @@ const layer = Layer.effect(
                 },
               })
               .run()
-            yield* state(input.id, input.orgID)
+            yield* state(tx, input.id, input.orgID)
           }),
         ),
       ).pipe(Effect.asVoid),

@@ -116,12 +116,16 @@ const azure: Lowerer = {
   request: openai.request,
 }
 
+// Bedrock 的凭据只用于构造 provider；settings 会对外暴露，additionalModelRequestFields 会原样发往
+// Converse 端点，两侧都必须剔除密钥类键。
+const bedrockCredentials = ["apiKey", "baseURL"]
+
 const bedrock: Lowerer = {
   provider(options) {
-    return direct(options)
+    return direct(options, bedrockCredentials)
   },
   request(options) {
-    return { additionalModelRequestFields: clone(options) }
+    return { additionalModelRequestFields: omit(options, bedrockCredentials) }
   },
 }
 

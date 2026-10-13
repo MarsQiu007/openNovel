@@ -1,7 +1,7 @@
 export * as PluginHost from "./host"
 
 import type { PluginContext as Interface } from "@opennovel-ai/plugin/v2/effect"
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import { AgentV2 } from "../agent"
 import { AISDK } from "../aisdk"
 import { Catalog } from "../catalog"
@@ -16,6 +16,14 @@ import type { DeepMutable } from "../schema"
 import { SkillV2 } from "../skill"
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
+
+// 插件回调传入的 source/method 来自插件侧（未受信）：解码失败时抛出点名标签的错误，
+// 而不是让裸 SchemaError 以 defect 形式冲击 reload 管线。
+function decodeHostValue<S extends Schema.Decoder<unknown>>(label: string, schema: S, value: unknown) {
+  const decoded = Schema.decodeUnknownOption(schema)(value)
+  if (Option.isSome(decoded)) return decoded.value
+  throw new Error(`Plugin host received an invalid ${label}`)
+}
 
 export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Interface) {
   const agents = yield* AgentV2.Service
@@ -185,7 +193,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
                 })
               },
               remove: (id, method) =>
-                draft.method.remove(Integration.ID.make(id), Schema.decodeUnknownSync(Integration.Method)(method)),
+                draft.method.remove(Integration.ID.make(id), decodeHostValue("integration method", Integration.Method, method)),
             },
           }),
         ),
@@ -199,7 +207,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       transform: (callback) =>
         reference.transform((draft) =>
           callback({
-            add: (name, source) => draft.add(name, Schema.decodeUnknownSync(Reference.Source)(source)),
+            add: (name, source) => draft.add(name, decodeHostValue("reference source", Reference.Source, source)),
             remove: draft.remove,
             list: draft.list,
           }),
@@ -210,7 +218,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       transform: (callback) =>
         skill.transform((draft) =>
           callback({
-            source: (source) => draft.source(Schema.decodeUnknownSync(SkillV2.Source)(source)),
+            source: (source) => draft.source(decodeHostValue("skill source", SkillV2.Source, source)),
             list: draft.list,
           }),
         ),

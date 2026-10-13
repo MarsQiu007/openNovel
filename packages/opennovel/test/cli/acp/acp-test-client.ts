@@ -88,7 +88,8 @@ export function flattenSelectOptions(option: Extract<SessionConfigOption, { type
 
 function isJsonRpcResponse<T>(input: unknown): input is JsonRpcResponse<T> {
   if (!input || typeof input !== "object") return false
-  return "id" in input && "jsonrpc" in input
+  // agent→client 请求帧同样带 id/jsonrpc，必须排除 method 才能判定为响应
+  return "id" in input && "jsonrpc" in input && !("method" in input)
 }
 
 function isJsonRpcNotification<T>(input: unknown): input is JsonRpcNotification<T> {

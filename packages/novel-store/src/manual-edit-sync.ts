@@ -53,72 +53,71 @@ export async function enqueueManualEditSync(
   const entityId = request.entityId ?? null
   const field = request.field ?? ""
 
-  // 查找同 novel + entity + entity_id 的现有任务
-  const existing = await db
-    .select()
-    .from(ManualEditSyncQueueTable)
-    .where(
-      and(
-        eq(ManualEditSyncQueueTable.novel_id, request.novelId),
-        eq(ManualEditSyncQueueTable.entity, request.entity),
-        entityId === null
-          ? isNull(ManualEditSyncQueueTable.entity_id)
-          : eq(ManualEditSyncQueueTable.entity_id, entityId),
-        ne(ManualEditSyncQueueTable.status, "skipped"),
-      ),
+  // select→update→insert 在同一个同步事务里完成：并发入队时去重判定不会读到过期快照
+  return db.transaction((tx) => {
+    // 查找同 novel + entity + entity_id 的现有任务
+    const existing = tx
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(
+        and(
+          eq(ManualEditSyncQueueTable.novel_id, request.novelId),
+          eq(ManualEditSyncQueueTable.entity, request.entity),
+          entityId === null
+            ? isNull(ManualEditSyncQueueTable.entity_id)
+            : eq(ManualEditSyncQueueTable.entity_id, entityId),
+          ne(ManualEditSyncQueueTable.status, "skipped"),
+        ),
+      )
+      .all()
+
+    // 指纹相同且仍是 pending → 去重
+    const sameFingerprint = existing.find((row) => row.source_fingerprint === fingerprint && row.status === "pending")
+    if (sameFingerprint) return { queued: false, deduped: true }
+
+    const sameFingerprintFailed = existing.find(
+      (row) => row.source_fingerprint === fingerprint && row.status === "failed",
     )
-    .all()
-
-  // 指纹相同且仍是 pending → 去重
-  const sameFingerprint = existing.find(
-    (row) => row.source_fingerprint === fingerprint && row.status === "pending",
-  )
-  if (sameFingerprint) return { queued: false, deduped: true }
-
-  const sameFingerprintFailed = existing.find(
-    (row) => row.source_fingerprint === fingerprint && row.status === "failed",
-  )
-  if (sameFingerprintFailed) {
-    await db
-      .update(ManualEditSyncQueueTable)
-      .set({ status: "pending", failure_reason: null, updated_at: Date.now() })
-      .where(eq(ManualEditSyncQueueTable.id, sameFingerprintFailed.id))
-      .run()
-    return { queued: true, deduped: true }
-  }
-
-  // 作废旧指纹的 pending / failed 任务
-  for (const row of existing) {
-    if (row.source_fingerprint !== fingerprint && (row.status === "pending" || row.status === "failed")) {
-      await db
-        .update(ManualEditSyncQueueTable)
-        .set({ status: "skipped", updated_at: Date.now() })
-        .where(eq(ManualEditSyncQueueTable.id, row.id))
+    if (sameFingerprintFailed) {
+      tx.update(ManualEditSyncQueueTable)
+        .set({ status: "pending", failure_reason: null, updated_at: Date.now() })
+        .where(eq(ManualEditSyncQueueTable.id, sameFingerprintFailed.id))
         .run()
+      return { queued: true, deduped: true }
     }
-  }
 
-  // 入队新任务
-  const id = crypto.randomUUID()
-  const now = Date.now()
-  await db
-    .insert(ManualEditSyncQueueTable)
-    .values({
-      id,
-      novel_id: request.novelId,
-      entity: request.entity,
-      entity_id: entityId,
-      field,
-      category: request.category ?? "creative_fact",
-      status: "pending",
-      source_fingerprint: fingerprint,
-      source: request.source ?? "manual",
-      created_at: now,
-      updated_at: now,
-    })
-    .run()
+    // 作废旧指纹的 pending / failed 任务
+    for (const row of existing) {
+      if (row.source_fingerprint !== fingerprint && (row.status === "pending" || row.status === "failed")) {
+        tx.update(ManualEditSyncQueueTable)
+          .set({ status: "skipped", updated_at: Date.now() })
+          .where(eq(ManualEditSyncQueueTable.id, row.id))
+          .run()
+      }
+    }
 
-  return { queued: true, deduped: false }
+    // 入队新任务
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    tx
+      .insert(ManualEditSyncQueueTable)
+      .values({
+        id,
+        novel_id: request.novelId,
+        entity: request.entity,
+        entity_id: entityId,
+        field,
+        category: request.category ?? "creative_fact",
+        status: "pending",
+        source_fingerprint: fingerprint,
+        source: request.source ?? "manual",
+        created_at: now,
+        updated_at: now,
+      })
+      .run()
+
+    return { queued: true, deduped: false }
+  })
 }
 
 /**
@@ -200,9 +199,7 @@ export async function retryManualEditSync(
 /**
  * 联合保存书籍元数据和风格指南。
  *
- * 两部分在同一事务上下文中执行；如果任一部分抛出错误则不调用数据库提交。
- * Drizzle 的 Bun 驱动目前不支持事务包装（ Effect-drizzle-sqlite 提供），
- * 这里采用手动序列化 + 异常时先恢复旧值的补偿模式，确保感知级别原子性。
+ * 两部分在同一事务中执行：任一步骤抛错都整体回滚，不会留下只改了一半的书目或风格指南。
  */
 export async function saveBookMeta(
   novelId: string,
@@ -215,45 +212,45 @@ export async function saveBookMeta(
   directory?: string | null,
 ): Promise<{ novel: typeof NovelTable.$inferSelect; styleGuide: typeof StyleGuideTable.$inferSelect | null }> {
   const db = getDb(directory)
-  const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
-  if (!novel) throw new Error(`Novel not found: ${novelId}`)
+  return db.transaction((tx) => {
+    const novel = tx.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
+    if (!novel) throw new Error(`Novel not found: ${novelId}`)
 
-  const updates: Record<string, unknown> = { updated_at: Date.now() }
-  if (input.title !== undefined) updates.title = input.title
-  if (input.synopsis !== undefined) updates.synopsis = input.synopsis
-  if (input.genre !== undefined) updates.genre = input.genre
+    const updates: Record<string, unknown> = { updated_at: Date.now() }
+    if (input.title !== undefined) updates.title = input.title
+    if (input.synopsis !== undefined) updates.synopsis = input.synopsis
+    if (input.genre !== undefined) updates.genre = input.genre
 
-  // 风格指南更新
-  let styleGuideRow: typeof StyleGuideTable.$inferSelect | null = null
-  if (input.styleGuide) {
-    const sgUpdates: Record<string, unknown> = {}
-    if (input.styleGuide.tone !== undefined) sgUpdates.tone = input.styleGuide.tone
-    if (input.styleGuide.pov !== undefined) sgUpdates.pov = input.styleGuide.pov
-    if (input.styleGuide.tense !== undefined) sgUpdates.tense = input.styleGuide.tense
-    if (input.styleGuide.rules !== undefined) sgUpdates.rules = JSON.stringify(input.styleGuide.rules)
-    const existing = db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get()
-    if (existing) {
-      await db.update(StyleGuideTable).set(sgUpdates).where(eq(StyleGuideTable.novel_id, novelId)).run()
-    } else {
-      await db
-        .insert(StyleGuideTable)
-        .values({
-          id: crypto.randomUUID(),
-          novel_id: novelId,
-          rules: JSON.stringify(input.styleGuide.rules ?? {}),
-          tone: input.styleGuide.tone ?? "",
-          pov: input.styleGuide.pov ?? "",
-          tense: input.styleGuide.tense ?? "",
-        })
-        .run()
+    // 风格指南更新
+    let styleGuideRow: typeof StyleGuideTable.$inferSelect | null = null
+    if (input.styleGuide) {
+      const sgUpdates: Record<string, unknown> = {}
+      if (input.styleGuide.tone !== undefined) sgUpdates.tone = input.styleGuide.tone
+      if (input.styleGuide.pov !== undefined) sgUpdates.pov = input.styleGuide.pov
+      if (input.styleGuide.tense !== undefined) sgUpdates.tense = input.styleGuide.tense
+      if (input.styleGuide.rules !== undefined) sgUpdates.rules = JSON.stringify(input.styleGuide.rules)
+      const existing = tx.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get()
+      if (existing) {
+        tx.update(StyleGuideTable).set(sgUpdates).where(eq(StyleGuideTable.novel_id, novelId)).run()
+      } else {
+        tx.insert(StyleGuideTable)
+          .values({
+            id: crypto.randomUUID(),
+            novel_id: novelId,
+            rules: JSON.stringify(input.styleGuide.rules ?? {}),
+            tone: input.styleGuide.tone ?? "",
+            pov: input.styleGuide.pov ?? "",
+            tense: input.styleGuide.tense ?? "",
+          })
+          .run()
+      }
+      styleGuideRow = tx.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get() ?? null
     }
-    styleGuideRow = db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get() ?? null
-  }
 
-  await db.update(NovelTable).set(updates).where(eq(NovelTable.id, novelId)).run()
-  const updatedNovel = db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()!
-
-  return { novel: updatedNovel, styleGuide: styleGuideRow }
+    tx.update(NovelTable).set(updates).where(eq(NovelTable.id, novelId)).run()
+    const updatedNovel = tx.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()!
+    return { novel: updatedNovel, styleGuide: styleGuideRow }
+  })
 }
 
 /**

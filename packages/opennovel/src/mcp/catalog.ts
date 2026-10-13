@@ -44,7 +44,8 @@ export function convertTool(mcpTool: MCPToolDef, client: Client, timeout?: numbe
     ...(mcpTool.inputSchema as JSONSchema7),
     type: "object",
     properties: (mcpTool.inputSchema.properties ?? {}) as JSONSchema7["properties"],
-    additionalProperties: false,
+    // 上游显式声明时保留其值：一律压成 false 会让允许动态属性的合法工具在本地校验被拒
+    additionalProperties: (mcpTool.inputSchema as JSONSchema7).additionalProperties ?? false,
   }
 
   return dynamicTool({

@@ -65,6 +65,8 @@ export function truncate(str: string, len: number): string {
 
 export function truncateLeft(str: string, len: number): string {
   if (str.length <= len) return str
+  // len<=1 时 slice(-(len-1)) 退化成 slice(0)/slice(1)，返回整串或丢首字符，都超出预算
+  if (len <= 1) return "…"
   return "…" + str.slice(-(len - 1))
 }
 

@@ -10,11 +10,22 @@ import { ShareNext } from "@/share/share-next"
 import { EOL } from "os"
 import path from "path"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
-import { Effect, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import type { InstanceContext } from "@/project/instance-context"
+import type { DeepMutable } from "@opennovel-ai/core/schema"
 
 const decodeMessageInfo = Schema.decodeUnknownSync(SessionV1.Info)
 const decodePart = Schema.decodeUnknownSync(SessionV1.Part)
+
+/** ShareNext 返回的扁平条目信封；深层 data 形状仍由后续 SessionV1 Schema 解码把关 */
+const ShareListSchema = Schema.Array(Schema.Struct({ type: Schema.String, data: Schema.Unknown }))
+const decodeShareList = Schema.decodeUnknownOption(ShareListSchema)
+
+// 与 core projector 写 message.data 保持同一列类型边界；裸 `as never` 会在列契约变化时静默通过
+function messageData(info: SessionV1.Info): (typeof MessageTable.$inferInsert)["data"] {
+  const { id: _, sessionID: __, ...rest } = info
+  return rest as DeepMutable<typeof rest>
+}
 
 /** Discriminated union returned by the ShareNext API (GET /api/shares/:id/data) */
 export type ShareData =
@@ -140,10 +151,18 @@ const runImport = Effect.fn("Cli.import.body")(function* (file: string, ctx: Ins
       return
     }
 
-    const shareData = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<ShareData[]>,
+    const raw = yield* Effect.tryPromise({
+      try: () => response.json(),
       catch: () => new CliError({ message: "Share data was not valid JSON" }),
     })
+    // 远端可能返回非数组的错误对象，先校验信封形状再进入 transform
+    const decoded = decodeShareList(raw)
+    if (Option.isNone(decoded)) {
+      process.stdout.write("Share data has an unexpected structure")
+      process.stdout.write(EOL)
+      return
+    }
+    const shareData = decoded.value as ShareData[]
     const transformed = transformShareData(shareData)
 
     if (!transformed) {
@@ -189,14 +208,13 @@ const runImport = Effect.fn("Cli.import.body")(function* (file: string, ctx: Ins
 
   for (const msg of exportData.messages) {
     const msgInfo = decodeMessageInfo(msg.info) as SessionV1.Info
-    const { id, sessionID: _, ...msgData } = msgInfo
     yield* db
       .insert(MessageTable)
       .values({
-        id,
+        id: msgInfo.id,
         session_id: row.id,
         time_created: msgInfo.time?.created ?? Date.now(),
-        data: msgData as never,
+        data: messageData(msgInfo),
       })
       .onConflictDoNothing()
       .run()

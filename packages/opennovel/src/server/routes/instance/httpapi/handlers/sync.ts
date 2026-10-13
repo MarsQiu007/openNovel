@@ -27,7 +27,10 @@ export const syncHandlers = HttpApiBuilder.group(InstanceHttpApi, "sync", (handl
     const start = Effect.fn("SyncHttpApi.start")(function* () {
       yield* workspace
         .startWorkspaceSyncing((yield* InstanceState.context).project.id)
-        .pipe(Effect.ignore, Effect.forkIn(scope))
+        .pipe(
+          Effect.catchCause((cause) => Effect.logWarning("workspace sync failed", { cause })),
+          Effect.forkIn(scope),
+        )
       return true
     })
 

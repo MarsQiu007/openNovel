@@ -48,7 +48,12 @@ export async function highlightTechniques(
 
   for (const segment of segments) {
     const prompt = HIGHLIGHTER_PROMPT.replace("{{TEXT}}", segment.text.slice(0, 3000))
-    const response = await llm(prompt)
+    // 单次调用失败（网络异常等）只影响当前分段：计入 parseFailures 后继续，不丢整批已收集结果
+    const response = await llm(prompt).catch(() => undefined)
+    if (response === undefined) {
+      parseFailures++
+      continue
+    }
     const parsed = extractJsonValue(response)
     if (parsed === null) {
       parseFailures++
@@ -94,7 +99,9 @@ export async function distillTechniques(
     .join("\n\n---\n\n")
 
   const prompt = DISTILLER_PROMPT.replace("{{HIGHLIGHTS}}", highlightTexts.slice(0, 8000))
-  const response = await llm(prompt)
+  // 调用失败与解析失败一样按 parseFailures 上报，让上层保留已有的标记结果
+  const response = await llm(prompt).catch(() => undefined)
+  if (response === undefined) return { items: [], parseFailures: 1 }
 
   const parsed = extractJsonValue(response)
   if (parsed === null) return { items: [], parseFailures: 1 }

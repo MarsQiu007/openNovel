@@ -68,11 +68,8 @@ export function verifierConfig(llmUrl: string, skills?: string) {
 }
 
 export function expectErrorCode(error: unknown, code: number) {
-  if (!error || typeof error !== "object" || !("code" in error)) {
-    expect(error).toEqual({ code })
-    return
-  }
-  expect(error.code).toBe(code)
+  // 形状不符（缺 code 字段）时由 toMatchObject 直接报错，不再拿 falsy 值与 { code } 做等值比较
+  expect(error).toMatchObject({ code })
 }
 
 export function expectSelectOption(options: SessionConfigOption[] | null | undefined, id: string) {

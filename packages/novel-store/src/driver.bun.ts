@@ -11,13 +11,19 @@ export type Db = ReturnType<typeof drizzle>
 
 export function createDb(path: string, schemaSql: string): Db {
   const sqlite = new Database(path)
-  // bun:sqlite 默认不启用外键约束，必须显式开启，
-  // 否则各表 ON DELETE CASCADE 全部失效（删除小说后子表数据残留为孤儿行）
-  sqlite.exec("PRAGMA foreign_keys = ON")
-  sqlite.exec(schemaSql)
-  runMigrations(
-    (sql) => sqlite.exec(sql),
-    (sql) => sqlite.query(sql).all(),
-  )
+  try {
+    // bun:sqlite 默认不启用外键约束，必须显式开启，
+    // 否则各表 ON DELETE CASCADE 全部失效（删除小说后子表数据残留为孤儿行）
+    sqlite.exec("PRAGMA foreign_keys = ON")
+    sqlite.exec(schemaSql)
+    runMigrations(
+      (sql) => sqlite.exec(sql),
+      (sql) => sqlite.query(sql).all(),
+    )
+  } catch (error) {
+    // 建库/迁移失败也要关闭连接，否则文件句柄随错误泄漏
+    sqlite.close()
+    throw error
+  }
   return drizzle({ client: sqlite })
 }

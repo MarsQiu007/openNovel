@@ -12,10 +12,10 @@
 const SCENE_SECTION_HEADING = "## 关键场景"
 const SCENE_HEADING_PREFIX = "### 场景"
 const PLACEHOLDER_RE = /^(（待填写）|\(待填写\)|待填写)$/
-const FIELD_RE = /^- \*\*(地点|时间|出场角色|场景概要|字数预估)\*\*[：:]\s*(.*?)\s*$/
-type SceneField = "地点" | "时间" | "出场角色" | "场景概要" | "字数预估"
+const FIELD_RE = /^- \*\*(地点|时间|出场角色|场景概要|字数预估|信息边界)\*\*[：:]\s*(.*?)\s*$/
+type SceneField = "地点" | "时间" | "出场角色" | "场景概要" | "字数预估" | "信息边界"
 
-const FIELD_LABELS: Partial<Record<SceneField, string>> = { 场景概要: "必须发生" }
+const FIELD_LABELS: Partial<Record<SceneField, string>> = { 场景概要: "必须发生", 信息边界: "知情范围" }
 
 /**
  * 编译章纲 markdown 为场景硬约束清单文本；无章纲场景段时返回 null。

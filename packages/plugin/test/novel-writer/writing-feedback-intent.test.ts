@@ -33,12 +33,13 @@ describe("写作反馈意图协议", () => {
     }
   })
 
-  test("调度方提示词包含五类转换规则和关键示例", () => {
+  test("调度方提示词包含六类转换规则和关键示例", () => {
     const intentTypes = [
       "remove_assertion",
       "replace_assertion",
       "constrain_future",
       "narrative_fact",
+      "knowledge_boundary",
       "unclear",
     ]
 
@@ -150,5 +151,42 @@ describe("审计意图感知", () => {
     expect(writerPrompt).toContain("不能直接改写成正文事实、旁白说明或角色内心独白")
     expect(reviserPrompt).toContain("不能直接改写成正文事实、旁白说明或角色内心独白")
     expect(pipelinePrompt).toContain("有反馈时列出意图编号、反馈编号和原始反馈")
+  })
+})
+
+describe("知识边界意图协议", () => {
+  test("调度方将认知动词句排除出剧情事实并编入知识边界", () => {
+    for (const prompt of [dispatcherPrompt, pipelinePrompt]) {
+      expect(prompt).toContain("knowledge_boundary")
+      expect(prompt).toContain("认知动词")
+      expect(prompt).toContain("MUST NOT 判为「narrative_fact」")
+      expect(prompt).toContain("家人不知道主角坠崖")
+      expect(prompt).toContain("知情角色")
+      expect(prompt).toContain("知情范围")
+    }
+  })
+
+  test("知识边界字段约定默认不允许正文否定", () => {
+    for (const prompt of [dispatcherPrompt, pipelinePrompt]) {
+      expect(prompt).toContain("「knowledge_boundary」类型字段约定")
+      expect(prompt).toContain("「允许正文否定」默认 false")
+    }
+  })
+
+  test("执行者只允许删除矛盾断言与知情范围内言行呈现", () => {
+    for (const prompt of [writerPrompt, reviserPrompt]) {
+      expect(prompt).toContain("「knowledge_boundary」意图的执行只允许两种方式")
+      expect(prompt).toContain("可观察言行")
+      expect(prompt).toContain("追问晚归缘由、上下打量、叮嘱休息")
+      expect(prompt).toContain("MUST NOT 在正文直述")
+      expect(prompt).toContain("唯一例外：叙述视角角色的内心独白")
+    }
+  })
+
+  test("审计检查直述元否定与知情范围外言行", () => {
+    expect(auditorPrompt).toContain("存在「knowledge_boundary」意图时额外检查两项")
+    expect(auditorPrompt).toContain("直述知识边界元否定")
+    expect(auditorPrompt).toContain("超出知情范围的言行")
+    expect(auditorPrompt).toContain("配合隐瞒的表演")
   })
 })

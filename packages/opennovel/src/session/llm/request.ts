@@ -209,10 +209,9 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     })
   }
 
-  const opennovelProjectID =
-    input.model.providerID.startsWith("opennovel") || input.model.providerID.startsWith("opennovel")
-      ? (yield* InstanceState.context).project.id
-      : undefined
+  const opennovelProjectID = input.model.providerID.startsWith("opennovel")
+    ? (yield* InstanceState.context).project.id
+    : undefined
 
   return {
     system,
@@ -221,7 +220,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     params,
     messageTransformOptions: options,
     headers: {
-      ...(input.model.providerID.startsWith("opennovel") || input.model.providerID.startsWith("opennovel")
+      ...(input.model.providerID.startsWith("opennovel")
         ? {
             ...(opennovelProjectID ? { "x-opennovel-project": opennovelProjectID } : {}),
             "x-opennovel-session": input.sessionID,

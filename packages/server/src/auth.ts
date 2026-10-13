@@ -1,5 +1,6 @@
 export * as ServerAuth from "./auth"
 
+import { timingSafeEqual } from "crypto"
 import { Config as EffectConfig, Context, Effect, Layer, Option, Redacted } from "effect"
 
 export type Credentials = {
@@ -41,12 +42,17 @@ export function required(config: Info) {
   return Option.isSome(config.password) && config.password.value !== ""
 }
 
+function sameSecret(input: string, expected: string) {
+  const a = Buffer.from(input)
+  const b = Buffer.from(expected)
+  // timingSafeEqual 要求等长，长度差异本身不泄露密码内容，先短路返回
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
+
 export function authorized(credentials: DecodedCredentials, config: Info) {
-  return (
-    Option.isSome(config.password) &&
-    credentials.username === config.username &&
-    Redacted.value(credentials.password) === config.password.value
-  )
+  if (!Option.isSome(config.password)) return false
+  return credentials.username === config.username && sameSecret(Redacted.value(credentials.password), config.password.value)
 }
 
 export function header(credentials?: Credentials) {

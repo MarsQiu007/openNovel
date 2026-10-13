@@ -1,5 +1,5 @@
 import { castDraft, produce, type WritableDraft } from "immer"
-import { Effect } from "effect"
+import { Effect, Option, Schema } from "effect"
 import { SessionEvent } from "./event"
 import { SessionMessage } from "./message"
 
@@ -331,7 +331,7 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
               SessionMessage.ToolStateError.make({
                 status: "error",
                 error: event.data.error,
-                input: typeof match.state.input === "string" ? {} : match.state.input,
+                input: failedToolInput(match.state.input),
                 structured: match.state.status === "running" ? match.state.structured : {},
                 content: match.state.status === "running" ? match.state.content : [],
                 result: event.data.result,
@@ -392,6 +392,17 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
       "session.next.revert.committed": () => Effect.void,
     })
   })
+}
+
+const ToolInputObject = Schema.Record(Schema.String, Schema.Unknown)
+
+// pending 态失败时 input 仍是模型生成的原始参数串：能解码成对象就保留，解不动退化成 {_raw}，
+// 不再静默丢掉已经生成的参数。
+function failedToolInput(input: string | Record<string, unknown>) {
+  if (typeof input !== "string") return input
+  const parsed = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)(input)
+  const decoded = Option.flatMap(parsed, (value) => Schema.decodeUnknownOption(ToolInputObject)(value))
+  return Option.getOrElse(decoded, () => ({ _raw: input }))
 }
 
 export * as SessionMessageUpdater from "./message-updater"

@@ -38,5 +38,5 @@ export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {})
       await new Promise((resolve) => setTimeout(resolve, wait))
     }
   }
-  throw lastError
+  throw lastError ?? new Error("retry: attempts must be >= 1")
 }

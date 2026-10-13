@@ -397,7 +397,7 @@ describe("BashTool", () => {
       Effect.promise(() => tmpdir()),
       (tmp) => {
         reset()
-        runFailure = new AppProcess.AppProcessError({ command: "sleep", cause: new Error("Timed out") })
+        runFailure = new AppProcess.AppProcessError({ command: "sleep", cause: new Error("Timed out"), timedOut: true })
         return withTool(tmp.path, (registry) => settleTool(registry, call({ command: "sleep 60", timeout: 10 }))).pipe(
           Effect.andThen((settled) =>
             Effect.sync(() => {

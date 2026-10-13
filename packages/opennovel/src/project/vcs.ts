@@ -89,7 +89,10 @@ const splitGitPatch = (patch: Git.Patch) => {
   const starts = [...patch.text.matchAll(/(?:^|\n)diff --git /g)].map((match) =>
     match[0].startsWith("\n") ? match.index + 1 : match.index,
   )
-  const chunks = starts.map((start, index) => patch.text.slice(start, starts[index + 1] ?? patch.text.length))
+  const chunks = starts.map((start, index) => ({
+    index,
+    text: patch.text.slice(start, starts[index + 1] ?? patch.text.length),
+  }))
   if (!patch.truncated) return chunks
   return chunks.slice(0, -1)
 }
@@ -109,10 +112,10 @@ const batchPatches = Effect.fnUntraced(function* (
   })
 
   return {
-    patches: splitGitPatch(result).reduce((acc, patch, index) => {
-      const file = fileFromPatchChunk(patch) ?? list[index]?.file
+    patches: splitGitPatch(result).reduce((acc, chunk) => {
+      const file = fileFromPatchChunk(chunk.text) ?? list[chunk.index]?.file
       if (!file) return acc
-      acc.set(file, (acc.get(file) ?? "") + patch)
+      acc.set(file, (acc.get(file) ?? "") + chunk.text)
       return acc
     }, new Map<string, string>()),
     capped: result.truncated,

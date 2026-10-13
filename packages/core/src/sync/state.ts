@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir } from "fs/promises"
 import path from "path"
+import { Json } from "../util/json"
 
 /** 云盘连接配置（全局，密码不落盘——走凭据存储） */
 export interface SyncConnection {
@@ -36,8 +37,9 @@ const CONNECTION_FILE = "sync.json"
 export async function readConnection(configDir: string): Promise<SyncConnection | undefined> {
   const text = await readFile(path.join(configDir, CONNECTION_FILE), "utf8").catch(() => undefined)
   if (text === undefined) return undefined
-  const parsed = JSON.parse(text) as Partial<SyncConnection>
-  if (typeof parsed.url !== "string" || typeof parsed.username !== "string") return undefined
+  // 配置读取容错：解析失败视为未配置，不能让裸 SyntaxError 冒泡（readFile 的 catch 只护住了读取）
+  const parsed = Json.parseObject(text) as Partial<SyncConnection> | undefined
+  if (!parsed || typeof parsed.url !== "string" || typeof parsed.username !== "string") return undefined
   return {
     url: parsed.url,
     username: parsed.username,
@@ -61,8 +63,9 @@ const registryFile = (rootDir: string) => path.join(rootDir, ".sync", "registry.
 export async function readRegistry(rootDir: string): Promise<Registry> {
   const text = await readFile(registryFile(rootDir), "utf8").catch(() => undefined)
   if (text === undefined) return { version: 1, projects: {} }
-  const parsed = JSON.parse(text) as Partial<Registry>
-  if (typeof parsed.projects !== "object" || parsed.projects === null) return { version: 1, projects: {} }
+  const parsed = Json.parseObject(text) as Partial<Registry> | undefined
+  if (!parsed || typeof parsed.projects !== "object" || parsed.projects === null)
+    return { version: 1, projects: {} }
   return { version: 1, projects: parsed.projects }
 }
 
@@ -83,8 +86,9 @@ const libraryRegistryFile = (rootDir: string) => path.join(rootDir, ".sync", "li
 export async function readLibraryRegistry(rootDir: string): Promise<Registry> {
   const text = await readFile(libraryRegistryFile(rootDir), "utf8").catch(() => undefined)
   if (text === undefined) return { version: 1, projects: {} }
-  const parsed = JSON.parse(text) as Partial<Registry>
-  if (typeof parsed.projects !== "object" || parsed.projects === null) return { version: 1, projects: {} }
+  const parsed = Json.parseObject(text) as Partial<Registry> | undefined
+  if (!parsed || typeof parsed.projects !== "object" || parsed.projects === null)
+    return { version: 1, projects: {} }
   return { version: 1, projects: parsed.projects }
 }
 

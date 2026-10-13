@@ -480,6 +480,15 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV3 {
             // enqueue reasoning before text deltas (Copilot uses reasoning_text):
             const reasoningContent = delta.reasoning_text
             if (reasoningContent) {
+              // 文本段与推理段互斥：先关闭活跃文本段，避免出现两个同时活跃的段
+              if (isActiveText) {
+                controller.enqueue({
+                  type: "text-end",
+                  id: "txt-0",
+                })
+                isActiveText = false
+              }
+
               if (!isActiveReasoning) {
                 controller.enqueue({
                   type: "reasoning-start",
@@ -536,6 +545,13 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV3 {
               }
               for (const toolCallDelta of delta.tool_calls) {
                 const index = toolCallDelta.index
+
+                if (index == null) {
+                  throw new InvalidResponseDataError({
+                    data: toolCallDelta,
+                    message: `Expected 'index' to be a number.`,
+                  })
+                }
 
                 if (toolCalls[index] == null) {
                   if (toolCallDelta.id == null) {

@@ -98,14 +98,17 @@ async function substituteWellKnownRemoteConfig(input: {
   return { url, headers }
 }
 
+// resolvePluginSpec 会回退到裸路径，真正的失败要到 import 阶段才暴露；这里把原因收上来交给 Effect 侧告警
 async function resolveLoadedPlugins<T extends { plugin?: ConfigPluginV1.Spec[] }>(config: T, filepath: string) {
-  if (!config.plugin) return config
+  const warnings: string[] = []
+  const warn = (message: string) => warnings.push(message)
+  if (!config.plugin) return warnings
   for (let i = 0; i < config.plugin.length; i++) {
     // Normalize path-like plugin specs while we still know which config file declared them.
     // This prevents `./plugin.ts` from being reinterpreted relative to some later merge location.
-    config.plugin[i] = await ConfigPlugin.resolvePluginSpec(config.plugin[i], filepath)
+    config.plugin[i] = await ConfigPlugin.resolvePluginSpec(config.plugin[i], filepath, warn)
   }
-  return config
+  return warnings
 }
 
 type Info = ConfigV1.Info & {
@@ -227,7 +230,9 @@ const layer = Layer.effect(
       const data = ConfigParse.schema(ConfigV1.Info, normalizeLoadedConfig(parsed), source)
       if (!("path" in options)) return data
 
-      yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
+      for (const warning of yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))) {
+        yield* Effect.logWarning("failed to resolve plugin spec", { source: options.path, warning })
+      }
       if (!data.$schema) {
         data.$schema = "https://opennovel.ai/config.json"
         const updated = text.replace(/^\s*\{/, '{\n  "$schema": "https://opennovel.ai/config.json",')
@@ -422,7 +427,7 @@ const layer = Layer.effect(
         const deps: Fiber.Fiber<void>[] = []
 
         for (const dir of directories) {
-          if (dir.endsWith(".opennovel") || dir.endsWith(".opennovel") || dir === Flag.OPENNOVEL_CONFIG_DIR) {
+          if (dir.endsWith(".opennovel") || dir === Flag.OPENNOVEL_CONFIG_DIR) {
             for (const file of ["opennovel.json", "opennovel.jsonc"]) {
               const source = path.join(dir, file)
               yield* Effect.logDebug(`loading config from ${source}`)

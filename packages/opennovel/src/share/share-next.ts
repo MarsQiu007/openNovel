@@ -250,15 +250,19 @@ const layer = Layer.effect(
       const queued = s.queue.get(sessionID)
       if (!queued) return
 
-      s.queue.delete(sessionID)
+      // 只取快照不删队列：网络失败时原始条目必须保留，否则待同步数据永久丢失
+      const pending = new Map(queued)
 
       const share = yield* getCached(sessionID)
-      if (!share) return
+      if (!share) {
+        s.queue.delete(sessionID)
+        return
+      }
 
       const req = yield* request()
       const res = yield* HttpClientRequest.post(`${req.baseUrl}${req.api.sync(share.id)}`).pipe(
         HttpClientRequest.setHeaders(req.headers),
-        HttpClientRequest.bodyJson({ secret: share.secret, data: Array.from(queued.values()) }),
+        HttpClientRequest.bodyJson({ secret: share.secret, data: Array.from(pending.values()) }),
         Effect.flatMap((r) => http.execute(r)),
       )
 
@@ -268,7 +272,14 @@ const layer = Layer.effect(
           shareID: share.id,
           status: res.status,
         })
+        return
       }
+
+      // 请求成功后才摘掉已同步条目，期间新 push 的数据留给下一轮
+      const current = s.queue.get(sessionID)
+      if (!current) return
+      for (const key of pending.keys()) current.delete(key)
+      if (current.size === 0) s.queue.delete(sessionID)
     })
 
     const full = Effect.fn("ShareNext.full")(function* (sessionID: SessionID) {

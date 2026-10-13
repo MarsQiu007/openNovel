@@ -215,7 +215,10 @@ const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProcess.Serv
           if (formula.includes("/")) {
             const infoJson = yield* text(["brew", "info", "--json=v2", formula])
             const info = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(BrewInfoV2))(infoJson)
-            return info.formulae[0].versions.stable
+            // brew 对 tap 公式可能返回空 formulae，越界前要给出可读失败
+            const stable = info.formulae[0]?.versions.stable
+            if (!stable) return yield* Effect.die(new Error("brew info returned no formulae"))
+            return stable
           }
           const response = yield* httpOk.execute(
             HttpClientRequest.get("https://formulae.brew.sh/api/formula/opennovel.json").pipe(
@@ -243,7 +246,10 @@ const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProcess.Serv
             ).pipe(HttpClientRequest.setHeaders({ Accept: "application/json;odata=verbose" })),
           )
           const data = yield* HttpClientResponse.schemaBodyJson(ChocoPackage)(response)
-          return data.d.results[0].Version
+          // Chocolatey 对未收录的包返回空 results，越界前要给出可读失败
+          const version = data.d.results[0]?.Version
+          if (!version) return yield* Effect.die(new Error("Chocolatey returned no opennovel package"))
+          return version
         }
 
         if (detectedMethod === "scoop") {

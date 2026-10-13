@@ -38,14 +38,37 @@ function replaceVertexVars(value: string, project: string | undefined, location:
     .replaceAll("${GOOGLE_VERTEX_ENDPOINT}", vertexEndpoint(location))
 }
 
+function createAuthClient() {
+  return import("google-auth-library").then(({ GoogleAuth }) =>
+    new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] }).getClient(),
+  )
+}
+
+// google-auth-library 自己负责 token 刷新，client 只需按进程构造一次；
+// 构造失败时清空缓存，凭据修好后下一次请求可以重试。
+let authClient: ReturnType<typeof createAuthClient> | undefined
+
+function googleAuthClient() {
+  if (authClient) return authClient
+  authClient = createAuthClient().catch((cause) => {
+    authClient = undefined
+    throw cause
+  })
+  return authClient
+}
+
 function authFetch(fetchWithRuntimeOptions?: unknown) {
   // Native Vertex SDKs handle ADC internally. OpenAI-compatible Vertex endpoints
   // do not, so inject a Google access token into their fetch path.
   return async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-    const { GoogleAuth } = await import("google-auth-library")
-    const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] })
-    const client = await auth.getClient()
+    const client = await googleAuthClient()
     const token = await client.getAccessToken()
+    // 半配置的 ADC 凭据会解析出空 token：在这里报明确错误，而不是把 `Bearer undefined` 发到远端换 401
+    if (!token?.token) {
+      throw new Error(
+        "Google Vertex AI credentials did not produce an access token; check application default credentials.",
+      )
+    }
     const headers = new Headers(init?.headers)
     headers.set("Authorization", `Bearer ${token.token}`)
     return typeof fetchWithRuntimeOptions === "function"

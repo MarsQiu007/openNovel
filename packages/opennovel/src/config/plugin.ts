@@ -2,6 +2,7 @@ import { Glob } from "@opennovel-ai/core/util/glob"
 import { ConfigPluginV1 } from "@opennovel-ai/core/v1/config/plugin"
 import { pathToFileURL } from "url"
 import { isPathPluginSpec, parsePluginSpecifier, resolvePathPluginTarget } from "@/plugin/shared"
+import { errorMessage } from "@/util/error"
 import path from "path"
 
 export type Scope = "global" | "local"
@@ -42,6 +43,7 @@ export function pluginOptions(plugin: ConfigPluginV1.Spec): ConfigPluginV1.Optio
 export async function resolvePluginSpec(
   plugin: ConfigPluginV1.Spec,
   configFilepath: string,
+  onWarning: (message: string) => void = () => {},
 ): Promise<ConfigPluginV1.Spec> {
   const spec = pluginSpecifier(plugin)
   if (!isPathPluginSpec(spec)) return plugin
@@ -53,7 +55,11 @@ export async function resolvePluginSpec(
     return pathToFileURL(path.resolve(base, spec)).href
   })()
 
-  const resolved = await resolvePathPluginTarget(file).catch(() => file)
+  // 目录缺 package.json/index 时仍回退裸路径保持可导入语义，但失败原因要交给调用方
+  const resolved = await resolvePathPluginTarget(file).catch((error: unknown) => {
+    onWarning(errorMessage(error))
+    return file
+  })
 
   if (Array.isArray(plugin)) return [resolved, plugin[1]]
   return resolved

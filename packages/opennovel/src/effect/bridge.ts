@@ -66,12 +66,15 @@ export function make(): Effect.Effect<Shape> {
       fork: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
         restoreWorkspace(workspace, () => Effect.runFork(wrap(effect))),
       run: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        Effect.callback<A, E>((resume) => {
+        Effect.callback<A, E>((resume, signal) => {
+          const fiber = restoreWorkspace(workspace, () => Effect.runFork(wrap(effect)))
           restoreWorkspace(workspace, () =>
-            Effect.runPromiseExit(wrap(effect)).then((exit) =>
+            Effect.runPromise(Fiber.await(fiber)).then((exit) =>
               resume(Exit.isSuccess(exit) ? Effect.succeed(exit.value) : Effect.failCause(exit.cause)),
             ),
           )
+          // 独立 runtime 起的 fiber 不会随外层中断：不打断它，副作用会在取消之后继续生效
+          signal.addEventListener("abort", () => fiber.interruptUnsafe(), { once: true })
         }),
       bind:
         <Args extends readonly unknown[], Result>(fn: (...args: Args) => Result) =>

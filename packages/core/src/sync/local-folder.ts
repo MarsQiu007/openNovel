@@ -12,7 +12,16 @@ import type { RemoteStat, SyncAdapter } from "./adapter"
  *    由云盘客户端自己完成上传。
  */
 export function createLocalFolderAdapter(root: string): SyncAdapter {
-  const resolve = (remotePath: string) => path.join(root, ...remotePath.split("/").filter(Boolean))
+  // 远端 name/snapshotID 来自可能被劫持的同步服务器响应：拒绝 `..` 段，并确认结果仍在同步根目录内
+  const base = path.resolve(root)
+  const resolve = (remotePath: string) => {
+    const segments = remotePath.split("/").filter(Boolean)
+    if (segments.some((segment) => segment === "..")) throw new Error(`Invalid remote path: ${remotePath}`)
+    const target = path.resolve(base, ...segments)
+    if (target !== base && !target.startsWith(base + path.sep))
+      throw new Error(`Remote path escapes the sync root: ${remotePath}`)
+    return target
+  }
 
   return {
     async stat(remotePath) {

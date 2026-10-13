@@ -258,6 +258,7 @@ export function compile<A, E, const Items extends Replacements = readonly []>(
       node,
       (node, context) => {
         if (node.kind === "unbound") throw new Error(`Unbound layer node: ${node.name}`)
+        if (node.kind === "group") throw new Error(`Group layer node cannot be compiled directly: ${node.name}`)
         const dependencies = node.dependencies.flatMap(flatten).map(context.visit)
         const implementation = node.implementation! as RuntimeLayer
         return dependencies.length === 0

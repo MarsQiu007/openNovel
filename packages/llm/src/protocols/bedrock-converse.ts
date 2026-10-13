@@ -276,12 +276,15 @@ const lowerToolResultContent = Effect.fn("BedrockConverse.lowerToolResultContent
       content.push({ text: item.text })
       continue
     }
-    const media = yield* BedrockMedia.lower({
-      type: "media",
-      mediaType: item.mime,
-      data: item.uri,
-      filename: item.name,
-    })
+    const media = yield* BedrockMedia.lower(
+      {
+        type: "media",
+        mediaType: item.mime,
+        data: item.uri,
+        filename: item.name,
+      },
+      content.length,
+    )
     if (!("image" in media))
       return yield* ProviderShared.invalidRequest("Bedrock Converse only supports image media in tool results")
     content.push(media)
@@ -326,7 +329,7 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
           continue
         }
         if (part.type === "media") {
-          content.push(yield* BedrockMedia.lower(part))
+          content.push(yield* BedrockMedia.lower(part, content.length))
           continue
         }
       }

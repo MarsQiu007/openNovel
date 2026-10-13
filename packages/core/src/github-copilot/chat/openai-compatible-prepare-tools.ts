@@ -64,7 +64,13 @@ export function prepareTools({
     case "none":
     case "required":
       return { tools: openaiCompatTools, toolChoice: type, toolWarnings }
-    case "tool":
+    case "tool": {
+      // provider 型工具已在上面被过滤；若 toolChoice 指向不存在的函数，请求会被端点 400 拒绝，
+      // 这里降级为 auto 并把不兼容情况回报给调用方。
+      if (!openaiCompatTools.some((tool) => tool.function.name === toolChoice.toolName)) {
+        toolWarnings.push({ type: "unsupported", feature: `tool choice for unsupported tool: ${toolChoice.toolName}` })
+        return { tools: openaiCompatTools, toolChoice: "auto", toolWarnings }
+      }
       return {
         tools: openaiCompatTools,
         toolChoice: {
@@ -73,6 +79,7 @@ export function prepareTools({
         },
         toolWarnings,
       }
+    }
     default: {
       const _exhaustiveCheck: never = type
       throw new UnsupportedFunctionalityError({

@@ -97,10 +97,14 @@ const layer = Layer.effect(
             )
             yield* cache.ensure({ reference: repository, branch: source.branch, refresh: true }).pipe(
               Effect.catchCause((cause) =>
-                Effect.logWarning("failed to materialize reference", {
-                  name,
-                  repository: source.repository,
-                  cause,
+                Effect.gen(function* () {
+                  // 克隆目录从未建立：撤掉刚登记的条目，消费方不会拿到指向空目录的幽灵引用
+                  materialized.delete(name)
+                  yield* Effect.logWarning("failed to materialize reference", {
+                    name,
+                    repository: source.repository,
+                    cause,
+                  })
                 }),
               ),
               Effect.forkIn(scope),

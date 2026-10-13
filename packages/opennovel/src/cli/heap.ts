@@ -31,7 +31,11 @@ export function start() {
     )
     await Promise.resolve()
       .then(() => writeHeapSnapshot(file))
-      .catch(() => {})
+      .catch((error: unknown) => {
+        // 快照仍是尽力而为，但权限/磁盘失败的原因需要可见
+        const reason = error instanceof Error ? error.message : String(error)
+        console.error(`Failed to write heap snapshot to ${file}: ${reason}`)
+      })
 
     lock = false
   }

@@ -20,6 +20,12 @@ class Index extends Schema.Class<Index>("Index")({
   skills: Schema.Array(IndexSkill),
 }) {}
 
+// 远端 index 的 name/files 属外部数据：.. 段或绝对路径会让缓存写入越出 cache 目录
+function safeSegment(value: string) {
+  if (!value || value.includes("\0")) return false
+  if (value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:/.test(value)) return false
+  return !value.split(/[\\/]/).includes("..")
+}
 export interface Interface {
   readonly pull: (url: string) => Effect.Effect<string[]>
 }
@@ -70,7 +76,16 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | Path.Path | HttpClient
         (skill) => Effect.logWarning("skill entry missing SKILL.md", { url: index, skill: skill.name }),
         { discard: true },
       )
-      const list = data.skills.filter((skill) => skill.files.includes("SKILL.md"))
+      const unsafe = data.skills.filter((skill) => !safeSegment(skill.name) || !skill.files.every(safeSegment))
+      yield* Effect.forEach(
+        unsafe,
+        (skill) =>
+          Effect.logWarning("rejected skill index entry with unsafe path", { url: index, skill: skill.name }),
+        { discard: true },
+      )
+      const list = data.skills.filter(
+        (skill) => skill.files.includes("SKILL.md") && safeSegment(skill.name) && skill.files.every(safeSegment),
+      )
 
       const dirs = yield* Effect.forEach(
         list,

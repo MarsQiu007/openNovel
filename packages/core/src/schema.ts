@@ -50,12 +50,9 @@ export type DeepMutable<T> = T extends string | number | boolean | bigint | symb
  * though the values are structurally equivalent at runtime.
  *
  * @example
- *   class QuestionID extends Newtype<QuestionID>()("QuestionID", Schema.String) {
- *     static make(id: string): QuestionID {
- *       return this.make(id)
- *     }
- *   }
+ *   class QuestionID extends Newtype<QuestionID>()("QuestionID", Schema.String) {}
  *
+ *   const id = QuestionID.make("q1")
  *   Schema.decodeEffect(QuestionID)(input)
  */
 export function Newtype<Self>() {

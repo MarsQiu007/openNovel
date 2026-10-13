@@ -17,7 +17,7 @@ export const V2Command = effectCmd({
       const all = (yield* catalog.provider.all()).sort((a, b) => a.id.localeCompare(b.id))
       const result = {
         providers,
-        default: catalog.model.default().pipe(Effect.map((item) => item?.id)),
+        default: yield* catalog.model.default().pipe(Effect.map((item) => item?.id)),
         small: Object.fromEntries(
           yield* Effect.all(
             all.map((provider) =>

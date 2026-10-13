@@ -260,9 +260,27 @@ export namespace EffectFlock {
         const handle = yield* Effect.acquireRelease(acquireHandle(lockfile, key), (handle) => release(handle))
 
         // Heartbeat fiber — scoped, so it's interrupted before release runs
-        yield* fs
-          .utimes(handle.heartbeatPath, new Date(), new Date())
-          .pipe(Effect.ignore, Effect.repeat(Schedule.spaced(HEARTBEAT_MS)), Effect.forkScoped)
+        const heartbeat = { failures: 0 }
+        yield* fs.utimes(handle.heartbeatPath, new Date(), new Date()).pipe(
+          Effect.tap(() => Effect.sync(() => (heartbeat.failures = 0))),
+          Effect.tapError((error) =>
+            Effect.gen(function* () {
+              heartbeat.failures += 1
+              yield* Effect.logWarning("failed to refresh lock heartbeat", {
+                key,
+                lockDir: handle.lockDir,
+                consecutiveFailures: heartbeat.failures,
+                error,
+              })
+              // 连续失败覆盖整个过期窗口后其他进程已可能窃取锁：中止持有方，避免双持写入
+              if (heartbeat.failures * HEARTBEAT_MS >= STALE_MS)
+                yield* Effect.die(new LockCompromisedError({ detail: `heartbeat lost: ${key}` }))
+            }),
+          ),
+          Effect.ignore,
+          Effect.repeat(Schedule.spaced(HEARTBEAT_MS)),
+          Effect.forkScoped,
+        )
       })
 
       const withLock: Interface["withLock"] = Function.dual(

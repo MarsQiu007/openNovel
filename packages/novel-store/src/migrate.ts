@@ -58,8 +58,10 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
       } catch (error) {
         try {
           exec("ROLLBACK")
-        } catch {
-          // 回滚失败时忽略，保留现场便于排查
+        } catch (rollbackError) {
+          // 回滚失败保留现场，但仍要记录，否则事后无从排查
+          const detail = rollbackError instanceof Error ? rollbackError.message : rollbackError
+          console.warn("[novel-store] session_novel rollback failed:", detail)
         }
         console.warn("[novel-store] session_novel migration failed:", error instanceof Error ? error.message : error)
       }

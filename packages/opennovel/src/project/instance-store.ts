@@ -128,15 +128,18 @@ const layer: Layer.Layer<Service, never, Project.Service | InstanceBootstrap.Ser
       return Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const previous = cache.get(directory)
+          // Finish the handoff from the old instance before publishing the new
+          // entry, otherwise a concurrent load resolves against an instance whose
+          // predecessor is still being torn down.
+          if (previous) {
+            yield* Deferred.await(previous.deferred).pipe(Effect.ignore)
+            yield* Effect.promise(() => runDisposers(directory))
+            yield* emitDisposed({ directory, project: input.project?.id })
+          }
           const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>() }
           cache.set(directory, entry)
           yield* Effect.gen(function* () {
             yield* Effect.logInfo("reloading instance", { directory: directory })
-            if (previous) {
-              yield* Deferred.await(previous.deferred).pipe(Effect.ignore)
-              yield* Effect.promise(() => runDisposers(directory))
-              yield* emitDisposed({ directory, project: input.project?.id })
-            }
             yield* completeLoad(directory, input, entry)
           }).pipe(Effect.forkIn(scope, { startImmediately: true }))
           return yield* restore(Deferred.await(entry.deferred))

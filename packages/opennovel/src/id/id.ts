@@ -19,6 +19,9 @@ const LENGTH = 26
 let lastTimestamp = 0
 let counter = 0
 
+// counter 只占低位 12 位，同一毫秒最多 4095 个 ID，超出必须进位时间戳
+const MAX_COUNTER = 0xfff
+
 export function ascending(prefix: keyof typeof prefixes, given?: string) {
   return generateID(prefix, "ascending", given)
 }
@@ -55,9 +58,14 @@ export function create(prefix: string, direction: "descending" | "ascending", ti
     lastTimestamp = currentTimestamp
     counter = 0
   }
+  // 用满后把时间戳推进 1ms 重新计数，否则 counter 会污染时间戳低位，破坏唯一性与有序性
+  if (counter === MAX_COUNTER) {
+    lastTimestamp += 1
+    counter = 0
+  }
   counter++
 
-  let now = BigInt(currentTimestamp) * BigInt(0x1000) + BigInt(counter)
+  let now = BigInt(lastTimestamp) * BigInt(0x1000) + BigInt(counter)
 
   now = direction === "descending" ? ~now : now
 

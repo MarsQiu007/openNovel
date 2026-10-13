@@ -544,15 +544,18 @@ async function writeUnitRegistry(rootDir: string, name: string, registry: Regist
 
 const MAX_BACKUPS = 10
 
+/** 返回本次生成的备份文件路径，供替换失败时回滚 */
 async function backupCurrent(db: string) {
-  if (!(await stat(db).catch(() => undefined))) return
+  if (!(await stat(db).catch(() => undefined))) return undefined
   const backupDir = path.join(novelDir(db), "backups")
   await mkdir(backupDir, { recursive: true })
-  await copyFile(db, path.join(backupDir, `novel-${Date.now()}.db`))
+  const backup = path.join(backupDir, `novel-${Date.now()}.db`)
+  await copyFile(db, backup)
   const backups = (await readdir(backupDir)).filter((name) => name.endsWith(".db")).sort()
   for (const stale of backups.slice(0, Math.max(0, backups.length - MAX_BACKUPS))) {
     await rm(path.join(backupDir, stale), { force: true })
   }
+  return backup
 }
 
 async function downloadProject(
@@ -576,12 +579,16 @@ async function downloadProject(
     if (downloaded !== remote.file_sha256) throw new SyncError("io", "下载内容校验失败，请重试")
 
     await deps.closeDatabase?.(dir)
-    await backupCurrent(db)
+    const backup = await backupCurrent(db)
     // 替换主库前清掉可能残留的 WAL/日志侧车文件，防止旧日志重放到新库上
     for (const suffix of ["-wal", "-shm", "-journal"]) {
       await rm(db + suffix, { force: true })
     }
-    await copyFile(tmp, db)
+    // 侧车日志已清理，半写的主库无法靠 WAL 回滚：复制失败（ENOSPC 等）时立刻用刚生成的备份还原
+    await copyFile(tmp, db).catch(async (cause) => {
+      if (backup) await copyFile(backup, db).catch(() => undefined)
+      throw cause
+    })
     await rm(tmp, { force: true })
 
     if (options.pair) {

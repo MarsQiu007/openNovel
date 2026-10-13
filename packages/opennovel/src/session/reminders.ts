@@ -5,6 +5,7 @@ import { Agent } from "@/agent/agent"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { InstanceState } from "@/effect/instance-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { errorMessage } from "@/util/error"
 import { PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Session } from "./session"
@@ -75,7 +76,13 @@ export const apply = Effect.fn("SessionReminders.apply")(function* (input: {
   const ctx = yield* InstanceState.context
   const plan = Session.plan(input.session, ctx)
   const exists = yield* fsys.existsSafe(plan)
-  if (!exists) yield* fsys.ensureDir(path.dirname(plan)).pipe(Effect.catch(Effect.die))
+  // 提醒属可降级功能：目录创建失败（权限/磁盘）记日志继续，不能把整轮 prompt 升格成 defect
+  if (!exists)
+    yield* fsys.ensureDir(path.dirname(plan)).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("plan directory ensure failed", { plan, error: errorMessage(error) }),
+      ),
+    )
   const part = yield* sessions.updatePart({
     id: PartID.ascending(),
     messageID: userMessage.info.id,

@@ -35,7 +35,21 @@ interface RouterEntry {
 }
 
 let oauthServer: ReturnType<typeof createServer> | undefined
-let pendingOAuth: PendingOAuth | undefined
+// 并发授权按 state 各自登记，避免后发起者覆盖前一个流程的 callback
+const pendingOAuth = new Map<string, PendingOAuth>()
+
+function takePending(state: string | undefined | null): PendingOAuth | undefined {
+  if (!state) return undefined
+  const pending = pendingOAuth.get(state)
+  if (pending) pendingOAuth.delete(state)
+  return pending
+}
+
+function failAllPending(message: string) {
+  const others = [...pendingOAuth.values()]
+  pendingOAuth.clear()
+  for (const pending of others) pending.reject(new Error(message))
+}
 
 function generateState(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
@@ -81,40 +95,32 @@ async function startOAuthServer(): Promise<void> {
         } catch {
           body = {}
         }
-        if (!pendingOAuth) {
+        // state 无法匹配时不得牵连其他在途流程：只回 409，真实流程留给自己的超时收敛
+        const pending = takePending(body.state)
+        if (!pending) {
           res.writeHead(409, { "Content-Type": "application/json" })
           res.end(JSON.stringify({ error: "no_pending_oauth" }))
           return
         }
         if (body.error) {
           const message = body.error_description || body.error || "OAuth error"
-          pendingOAuth.reject(new Error(String(message)))
-          pendingOAuth = undefined
+          pending.reject(new Error(String(message)))
           res.writeHead(200, { "Content-Type": "application/json" })
           res.end(JSON.stringify({ ok: true }))
           return
         }
         if (!body.access_token) {
-          pendingOAuth.reject(new Error("Missing access_token in callback"))
-          pendingOAuth = undefined
+          pending.reject(new Error("Missing access_token in callback"))
           res.writeHead(400, { "Content-Type": "application/json" })
           res.end(JSON.stringify({ error: "missing_access_token" }))
           return
         }
-        if (body.state !== pendingOAuth.state) {
-          pendingOAuth.reject(new Error("Invalid state - potential CSRF attack"))
-          pendingOAuth = undefined
-          res.writeHead(400, { "Content-Type": "application/json" })
-          res.end(JSON.stringify({ error: "invalid_state" }))
-          return
-        }
         const expires = parseInt(body.expires_in || "0", 10)
-        pendingOAuth.resolve({
+        pending.resolve({
           access_token: body.access_token,
           expires_in: Number.isFinite(expires) && expires > 0 ? expires : 60 * 60 * 24 * 30,
           state: body.state,
         })
-        pendingOAuth = undefined
         res.writeHead(200, { "Content-Type": "application/json" })
         res.end(JSON.stringify({ ok: true }))
       })
@@ -125,12 +131,15 @@ async function startOAuthServer(): Promise<void> {
     res.end("Not found")
   })
 
-  await new Promise<void>((resolve, reject) => {
-    oauthServer!.listen(OAUTH_PORT, () => {
-      resolve()
-    })
-    oauthServer!.on("error", reject)
-  })
+  // 端口被占用时 listen 只发 error 事件：转成可读失败并清理引用，authorize 才不会拿到裸异常或误判已在运行
+  const bound = await new Promise<boolean>((resolve, reject) => {
+    oauthServer!.once("error", (error) => reject(error))
+    oauthServer!.listen(OAUTH_PORT, () => resolve(true))
+  }).catch(() => false)
+  if (!bound) {
+    oauthServer = undefined
+    throw new Error(`DigitalOcean OAuth callback server failed to bind port ${OAUTH_PORT}`)
+  }
 }
 
 function stopOAuthServer() {
@@ -143,14 +152,13 @@ function waitForOAuthCallback(state: string): Promise<ImplicitTokenPayload> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => {
-        if (pendingOAuth) {
-          pendingOAuth = undefined
-          reject(new Error("OAuth callback timeout - authorization took too long"))
-        }
+        if (!pendingOAuth.delete(state)) return
+        reject(new Error("OAuth callback timeout - authorization took too long"))
+        if (pendingOAuth.size === 0) stopOAuthServer()
       },
       5 * 60 * 1000,
     )
-    pendingOAuth = {
+    pendingOAuth.set(state, {
       state,
       resolve: (tokens) => {
         clearTimeout(timeout)
@@ -160,7 +168,7 @@ function waitForOAuthCallback(state: string): Promise<ImplicitTokenPayload> {
         clearTimeout(timeout)
         reject(error)
       },
-    }
+    })
   })
 }
 

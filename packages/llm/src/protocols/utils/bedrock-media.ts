@@ -49,10 +49,11 @@ const DOCUMENT_FORMATS = {
   "text/markdown": "md",
 } as const satisfies Record<string, DocumentFormat>
 
-const documentBlock = (part: MediaPart, format: DocumentFormat, bytes: string): DocumentBlock => ({
+const documentBlock = (part: MediaPart, format: DocumentFormat, bytes: string, index: number): DocumentBlock => ({
   document: {
     format,
-    name: part.filename ?? `document.${format}`,
+    // 缺文件名时按位置生成 name，避免同格式多文档重名后模型无法区分引用
+    name: part.filename ?? `document-${index + 1}.${format}`,
     source: { bytes },
   },
 })
@@ -62,7 +63,7 @@ const documentBlock = (part: MediaPart, format: DocumentFormat, bytes: string): 
 // document block. Image MIME types not in `IMAGE_FORMATS` (e.g. `image/svg+xml`)
 // get an image-specific error so the caller knows it's a format-support issue,
 // not a kind-detection issue.
-export const lower = Effect.fn("BedrockMedia.lower")(function* (part: MediaPart) {
+export const lower = Effect.fn("BedrockMedia.lower")(function* (part: MediaPart, index = 0) {
   const mime = part.mediaType.toLowerCase()
   const imageFormat = IMAGE_FORMATS[mime as keyof typeof IMAGE_FORMATS]
   if (imageFormat) {
@@ -82,7 +83,7 @@ export const lower = Effect.fn("BedrockMedia.lower")(function* (part: MediaPart)
       part,
       new Set<string>(Object.keys(DOCUMENT_FORMATS)),
     )
-    return documentBlock(part, documentFormat, media.base64)
+    return documentBlock(part, documentFormat, media.base64, index)
   }
   return yield* ProviderShared.invalidRequest(`Bedrock Converse does not support media type ${part.mediaType}`)
 })

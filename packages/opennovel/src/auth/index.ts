@@ -1,6 +1,6 @@
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import path from "path"
-import { Effect, Layer, Record, Result, Schema, Context } from "effect"
+import { Effect, Layer, Record, Result, Schema, Semaphore, Context } from "effect"
 import { NonNegativeInt } from "@opennovel-ai/core/schema"
 import { Global } from "@opennovel-ai/core/global"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
@@ -54,6 +54,8 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const fsys = yield* FSUtil.Service
     const decode = Schema.decodeUnknownOption(Info)
+    // set/remove 都是「读全量 → 改 → 写全量」：并发登录/登出会互相覆盖，这里用进程内信号量串行化
+    const writeLock = yield* Semaphore.make(1)
 
     const all = Effect.fn("Auth.all")(function* () {
       if (process.env.OPENNOVEL_AUTH_CONTENT) {
@@ -70,23 +72,29 @@ const layer = Layer.effect(
       return (yield* all())[providerID]
     })
 
-    const set = Effect.fn("Auth.set")(function* (key: string, info: Info) {
-      const norm = key.replace(/\/+$/, "")
-      const data = yield* all()
-      if (norm !== key) delete data[key]
-      delete data[norm + "/"]
-      yield* fsys
-        .writeJson(file, { ...data, [norm]: info }, 0o600)
-        .pipe(Effect.mapError(fail("Failed to write auth data")))
-    })
+    const set = Effect.fn("Auth.set")((key: string, info: Info) =>
+      writeLock.withPermits(1)(
+        Effect.gen(function* () {
+          const norm = key.replace(/\/+$/, "")
+          const data = yield* all()
+          if (norm !== key) delete data[key]
+          delete data[norm + "/"]
+          yield* fsys.writeJson(file, { ...data, [norm]: info }, 0o600).pipe(Effect.mapError(fail("Failed to write auth data")))
+        }),
+      ),
+    )
 
-    const remove = Effect.fn("Auth.remove")(function* (key: string) {
-      const norm = key.replace(/\/+$/, "")
-      const data = yield* all()
-      delete data[key]
-      delete data[norm]
-      yield* fsys.writeJson(file, data, 0o600).pipe(Effect.mapError(fail("Failed to write auth data")))
-    })
+    const remove = Effect.fn("Auth.remove")((key: string) =>
+      writeLock.withPermits(1)(
+        Effect.gen(function* () {
+          const norm = key.replace(/\/+$/, "")
+          const data = yield* all()
+          delete data[key]
+          delete data[norm]
+          yield* fsys.writeJson(file, data, 0o600).pipe(Effect.mapError(fail("Failed to write auth data")))
+        }),
+      ),
+    )
 
     return Service.of({ get, all, set, remove })
   }),

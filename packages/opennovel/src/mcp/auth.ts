@@ -66,7 +66,12 @@ const layer = Layer.effect(
 
     const read = Effect.fn("McpAuth.read")(function* () {
       return yield* fs.readJson(filepath).pipe(
-        Effect.map((data): AuthData => Option.getOrElse(decodeAuthData(data), () => ({}) as AuthData) as AuthData),
+        Effect.flatMap((data) => {
+          const decoded = decodeAuthData(data)
+          if (Option.isSome(decoded)) return Effect.succeed(decoded.value as AuthData)
+          // 静默返回空对象会让后续写回清空全部凭据，至少要留下痕迹与原文件
+          return Effect.logWarning("mcp auth store failed to decode", { filepath }).pipe(Effect.as({} as AuthData))
+        }),
         Effect.catch(() => Effect.succeed({} as AuthData)),
       )
     })
@@ -75,10 +80,19 @@ const layer = Layer.effect(
       return yield* read().pipe(flock.withLock(lockKey), Effect.orDie)
     })
 
+    // 解码失败时 read 只会给出空对象，写回前把原文件另存一份，凭据才有恢复余地
+    const keepBackup = Effect.fnUntraced(function* () {
+      const original = yield* fs.readFileStringSafe(filepath)
+      if (original === undefined) return
+      yield* fs.writeWithDirs(`${filepath}.bak`, original, 0o600).pipe(Effect.catch(() => Effect.void))
+    })
+
     const mutate = Effect.fn("McpAuth.mutate")(function* (update: (data: AuthData) => AuthData | undefined) {
       yield* Effect.gen(function* () {
-        const next = update(yield* read())
+        const data = yield* read()
+        const next = update(data)
         if (!next) return
+        if (Object.keys(data).length === 0) yield* keepBackup()
         yield* fs.writeJson(filepath, next, 0o600).pipe(Effect.orDie)
       }).pipe(flock.withLock(lockKey), Effect.orDie)
     })

@@ -20,7 +20,9 @@ function sanitize(out: Headers) {
 
 export function headers(input: Request | HeadersInit | Record<string, string>, extra?: HeadersInit) {
   const raw = input instanceof Request ? input.headers : input
-  const out = new Headers(raw instanceof Headers ? raw : Object.entries(raw as Record<string, string>))
+  // Headers 原生支持 Headers、Record 与 [name, value][] 三种形态；走 Object.entries
+  // 会把元组数组变成 "0"/"1" 索引键，构造出一堆垃圾头部
+  const out = new Headers(raw as HeadersInit)
   sanitize(out)
   if (!extra) return out
   for (const [key, value] of new Headers(extra).entries()) {

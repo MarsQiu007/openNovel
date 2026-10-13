@@ -357,6 +357,43 @@ describe("Runner", () => {
   // --- shell→run handoff ---
 
   it.live(
+    "shell survives caller interruption",
+    Effect.gen(function* () {
+      const s = yield* Scope.Scope
+      const runner = Runner.make<string>(s)
+      const gate = yield* Deferred.make<void>()
+
+      const starter = yield* runner
+        .startShell(Deferred.await(gate).pipe(Effect.as("shell-done")))
+        .pipe(Effect.forkChild)
+      yield* waitForState(runner, "Shell")
+      yield* Fiber.interrupt(starter)
+
+      // 调用方被中断不该带走 shell：Runner 自己的 scope 才是它的所有者
+      expect(runner.state._tag).toBe("Shell")
+      yield* Deferred.succeed(gate, undefined)
+      yield* waitForState(runner, "Idle")
+      expect(runner.busy).toBe(false)
+    }),
+  )
+
+  it.live(
+    "cancel returns when shell never becomes ready",
+    Effect.gen(function* () {
+      const s = yield* Scope.Scope
+      const runner = Runner.make<string>(s)
+      const ready = yield* Latch.make()
+
+      yield* runner.startShell(Effect.never.pipe(Effect.as("ignored")), ready).pipe(Effect.forkDetach)
+      yield* waitForState(runner, "Shell")
+
+      // latch 永不打开时 cancel 只等一个有界窗口，之后照常打断 shell
+      yield* runner.cancel.pipe(Effect.timeout("10 seconds"), Effect.exit)
+      expect(runner.state._tag).toBe("Idle")
+    }),
+  )
+
+  it.live(
     "ensureRunning queues behind shell then runs after",
     Effect.gen(function* () {
       const s = yield* Scope.Scope
