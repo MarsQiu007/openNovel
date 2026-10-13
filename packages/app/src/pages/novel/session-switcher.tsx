@@ -1,9 +1,10 @@
 /**
  * 书内会话切换器（对话面板顶部常驻一条）：
- * 当前会话标题 + 下拉列出该书全部未归档绑定会话 + 新建轻会话入口。
- * 切换即更新工作台路由 session/:id 段——params.id 是当前会话的唯一事实来源，
- * 切换器自身不持有任何会话状态；无论是否存在绑定会话都渲染（0 会话时下拉
- * 触发器显示占位并禁用，"+"号新建入口始终可用，空态引导见 workspace-frame）。
+ * 当前会话标题 + 下拉列出该书全部未归档绑定会话（子代理按父会话嵌套收纳，
+ * 默认折叠，展开控件在子代理存在时显示）+ 新建轻会话入口。
+ * 切换即更新工作台路由 session/:id 段——params.id 是当前会话的唯一事实来源；
+ * 无论是否存在绑定会话都渲染（0 会话时下拉触发器显示占位并禁用，"+"号新建
+ * 入口始终可用，空态引导见 workspace-frame）。
  */
 import { For, Show, createSignal } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
@@ -14,7 +15,7 @@ import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
-import { useBindSession, useBoundNovelSessions } from "@/context/novel-queries"
+import { useBindSession, useBoundNovelSessions, type NovelSessionOption } from "@/context/novel-queries"
 import { sessionSwitcherTrigger } from "./workspace-data"
 import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
@@ -27,11 +28,15 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const bindSession = useBindSession()
   const sessions = useBoundNovelSessions(() => props.novelID)
   const [creating, setCreating] = createSignal(false)
+  // 子代理收纳展开态：仅记录用户手动展开/收起；当前打开的子会话所在父会话始终展开（见下）
+  const [childrenExpanded, setChildrenExpanded] = createSignal<Record<string, boolean>>({})
 
   const trigger = () =>
     sessionSwitcherTrigger({
       status: sessions.isPending ? "pending" : sessions.isError ? "error" : "ready",
-      sessions: sessions.data ?? [],
+      // 拍平嵌套列表供当前会话命中查找：子会话是合法打开目标（params.id），
+      // 顶层查找落空会把触发器标签错误回退成面板名
+      sessions: (sessions.data ?? []).flatMap((option) => [option, ...option.children]),
       paramsID: params.id,
       fallbackLabel: language.t("novel.workspace.chat"),
       emptyLabel: language.t("novel.workspace.sessionEmpty"),
@@ -85,9 +90,14 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
                 <MenuV2.RadioGroup value={params.id} onChange={(value) => switchTo(value)}>
                   <For each={sessions.data ?? []}>
                     {(option) => (
-                      <MenuV2.RadioItem value={option.sessionID}>
-                        <span class="truncate">{sessionTitle(option.title) ?? option.title}</span>
-                      </MenuV2.RadioItem>
+                      <SwitcherSessionEntry
+                        option={option}
+                        activeSessionID={params.id}
+                        expanded={() => !!childrenExpanded()[option.sessionID]}
+                        onToggleChildren={() =>
+                          setChildrenExpanded((prev) => ({ ...prev, [option.sessionID]: !prev[option.sessionID] }))
+                        }
+                      />
                     )}
                   </For>
                 </MenuV2.RadioGroup>
@@ -112,5 +122,63 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
         />
       </TooltipV2>
     </div>
+  )
+}
+
+/**
+ * 切换器下拉的单个主会话条目：展开控件（有子代理时）+ 主会话选择项；
+ * 展开后在主会话下方渲染子代理子项（缩进 + 分支图标 + 斜体弱化，与主会话视觉区分）。
+ * 当前打开的是子会话时其父会话始终展开，保证活动项可见（与首页侧栏同规则）。
+ */
+function SwitcherSessionEntry(props: {
+  option: NovelSessionOption
+  activeSessionID: string | undefined
+  expanded: () => boolean
+  onToggleChildren: () => void
+}) {
+  const language = useLanguage()
+  const showChildren = () =>
+    props.expanded() || props.option.children.some((child) => child.sessionID === props.activeSessionID)
+  return (
+    <>
+      <div class="flex items-center">
+        <Show
+          when={props.option.children.length > 0}
+          fallback={<span class="w-5 shrink-0" aria-hidden="true" />}
+        >
+          <button
+            type="button"
+            data-action="novel-switcher-toggle-children"
+            class="flex h-7 w-5 shrink-0 items-center justify-center text-v2-icon-icon-muted"
+            aria-label={language.t("home.sessions.sidebar.subagent")}
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onToggleChildren()
+            }}
+          >
+            <Icon
+              name="chevron-down"
+              size="small"
+              class={showChildren() ? "transition-transform" : "-rotate-90 transition-transform"}
+            />
+          </button>
+        </Show>
+        <MenuV2.RadioItem value={props.option.sessionID} class="min-w-0 flex-1">
+          <span class="truncate">{sessionTitle(props.option.title) ?? props.option.title}</span>
+        </MenuV2.RadioItem>
+      </div>
+      <Show when={showChildren()}>
+        <For each={props.option.children}>
+          {(child) => (
+            <MenuV2.RadioItem value={child.sessionID} class="pl-10">
+              <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+              <span class="truncate italic text-v2-text-text-faint [font-weight:440]">
+                {sessionTitle(child.title) ?? child.title}
+              </span>
+            </MenuV2.RadioItem>
+          )}
+        </For>
+      </Show>
+    </>
   )
 }
