@@ -276,10 +276,10 @@ export async function getUpgradeGate(db: Db, novelId: string): Promise<UpgradeGa
 /** 切换升级消费闸门（持久化，进程重启后保持）。 */
 export async function setUpgradeGate(db: Db, novelId: string, gate: UpgradeGate): Promise<void> {
   const now = Date.now()
-  const existing = db.select().from(UpgradeStateTable).where(eq(UpgradeStateTable.novel_id, novelId)).get()
-  if (existing) {
-    await db.update(UpgradeStateTable).set({ gate, updated_at: now }).where(eq(UpgradeStateTable.novel_id, novelId)).run()
-    return
-  }
-  await db.insert(UpgradeStateTable).values({ novel_id: novelId, gate, updated_at: now }).run()
+  // novel_id 是主键：read-then-insert 的并发交错会把 PRIMARY KEY 冲突抛给调用方，改用原子 upsert
+  await db
+    .insert(UpgradeStateTable)
+    .values({ novel_id: novelId, gate, updated_at: now })
+    .onConflictDoUpdate({ target: UpgradeStateTable.novel_id, set: { gate, updated_at: now } })
+    .run()
 }

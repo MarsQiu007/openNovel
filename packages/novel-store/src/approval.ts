@@ -51,23 +51,23 @@ export async function requestApproval(
   directory?: string | null,
 ): Promise<ApprovalRequest> {
   const db = getDb(directory)
-  const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).all()
-
-  if (!chapter) {
-    throw new Error(`未找到章节 ${chapterId}`)
-  }
-
-  // 保存写手内容，标记为待审核状态
-  await db
-    .update(ChapterTable)
-    .set({
-      content,
-      word_count: countWords(content),
-      status: "pending_review",
-      updated_at: Date.now(),
-    })
-    .where(eq(ChapterTable.id, chapterId))
-    .run()
+  // check-then-act 放进同一事务：并发审批不会读到过期章节，也不会更新到已被删除的行后仍报成功
+  const chapter = db.transaction((tx) => {
+    const current = tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+    if (!current) throw new Error(`未找到章节 ${chapterId}`)
+    // 保存写手内容，标记为待审核状态
+    tx
+      .update(ChapterTable)
+      .set({
+        content,
+        word_count: countWords(content),
+        status: "pending_review",
+        updated_at: Date.now(),
+      })
+      .where(eq(ChapterTable.id, chapterId))
+      .run()
+    return current
+  })
 
   return {
     chapterId: chapter.id,
