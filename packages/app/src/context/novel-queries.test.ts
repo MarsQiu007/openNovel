@@ -100,13 +100,55 @@ describe("boundNovelSessions", () => {
     expect(result).toEqual([])
   })
 
-  test("子代理会话被剔除（懒绑定连带标记，不属于用户对话线）", () => {
+  test("子代理会话不占顶层，归组到其父会话之下", () => {
     const result = boundNovelSessions({
       novelID: "novel-1",
       bindings: [binding("s1"), binding("sub1"), binding("s2")],
       sessions: [session("s1"), session("sub1", "审查第二章连续性（@auditor subagent）", false, "s1"), session("s2")],
     })
     expect(result.map((item) => item.sessionID)).toEqual(["s1", "s2"])
+    expect(result[0]?.children.map((item) => item.sessionID)).toEqual(["sub1"])
+    expect(result[0]?.children[0]?.title).toBe("审查第二章连续性（@auditor subagent）")
+    expect(result[1]?.children).toEqual([])
+  })
+
+  test("孤儿子代理不展示：父会话缺失于会话列表", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1"), binding("orphan")],
+      sessions: [session("s1"), session("orphan", "悬空子代理", false, "ghost-parent")],
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s1"])
+    expect(result[0]?.children).toEqual([])
+  })
+
+  test("孤儿子代理不展示：父会话已归档", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1"), binding("s2")],
+      sessions: [session("s1", undefined, true), session("sub1", "子代理", false, "s1"), session("s2")],
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s2"])
+    expect(result[0]?.children).toEqual([])
+  })
+
+  test("孤儿子代理不展示：父会话未绑定本书", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1"), binding("sub1")],
+      sessions: [session("s1"), session("sub1", "别书的子代理", false, "other-book-main")],
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s1"])
+    expect(result[0]?.children).toEqual([])
+  })
+
+  test("已归档子代理被剔除，未归档兄弟保留", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("sub1", "活跃子代理", false, "s1"), session("sub2", "已归档子代理", true, "s1")],
+    })
+    expect(result[0]?.children.map((item) => item.sessionID)).toEqual(["sub1"])
   })
 
   test("列表超过默认分页窗口（>50 条）时绑定会话仍完整保留", () => {

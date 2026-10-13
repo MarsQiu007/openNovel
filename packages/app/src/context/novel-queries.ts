@@ -40,12 +40,21 @@ export type NovelSessionBinding = {
   novelTitle: string
 }
 
+/** 书内会话切换器的子代理子项（收纳在主会话之下，只读浏览，不作为用户对话线） */
+export type NovelChildSessionOption = {
+  sessionID: string
+  title: string
+  updatedAt: number
+}
+
 /** 书内会话切换器的列表项（标题取自会话本身，用户可在会话内改名） */
 export type NovelSessionOption = {
   sessionID: string
   title: string
   /** 会话最近活跃时间（session.time.updated），供自动回跳选"最近会话"用 */
   updatedAt: number
+  /** 子代理会话（parentID 指向主会话），切换器中默认折叠收纳 */
+  children: NovelChildSessionOption[]
 }
 
 /**
@@ -64,9 +73,11 @@ export function resolveAutoAdoptTarget(input: {
 
 /**
  * 书内会话列表组合：某本书的绑定关系 × 会话列表取交集，剔除已归档、未知会话与
- * 子代理会话（subagent 会被上下文注入的懒绑定连带标记，但它们不是用户的对话线），
+ * 顶层子代理会话（subagent 会被上下文注入的懒绑定连带标记，但顶层只保留用户对话线），
  * 按绑定顺序排列（首个即主线写作流 findBoundNovelSession 指向的会话）。
  * 与 findBoundNovelSession 相同的查询模式，差异仅在返回列表而非第一个。
+ * 子代理会话在同一份会话列表查询内按 parentID 归组到主会话之下（session-book-only D3，
+ * 不新增请求）：父会话须是本书已展示的主会话，孤儿（父缺失/已归档/未绑定本书）不展示。
  */
 export function boundNovelSessions(input: {
   novelID: string
@@ -83,7 +94,17 @@ export function boundNovelSessions(input: {
     if (!session || session.time.archived) continue
     if (session.parentID) continue
     seen.add(binding.sessionID)
-    options.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated })
+    options.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated, children: [] })
+  }
+  const mainById = new Map(options.map((option) => [option.sessionID, option]))
+  const seenChildren = new Set<string>()
+  for (const session of input.sessions) {
+    if (!session.parentID) continue
+    const parent = mainById.get(session.parentID)
+    if (!parent || session.time.archived) continue
+    if (seenChildren.has(session.id)) continue
+    seenChildren.add(session.id)
+    parent.children.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated })
   }
   return options
 }
@@ -351,11 +372,11 @@ export function useNovelForSession(sessionID: Accessor<string>) {
 }
 
 /**
- * 书内会话查询参数：服务端先滤出根会话（roots）再按最近窗口取 1000 条。
- * 目录下子代理会话会频繁刷新 time_updated 挤占默认 50 条窗口，导致绑定会话
- * 被截出窗口而书内列表静默丢失（novel-session-list-cutoff）。
+ * 书内会话查询参数：按最近窗口取 1000 条（默认 50 条窗口会被子代理会话频繁刷新的
+ * time_updated 挤占，导致绑定会话被截出窗口而书内列表静默丢失，novel-session-list-cutoff）。
+ * 不滤 roots：子代理会话要在同一次查询内按 parentID 归组进切换器主会话（session-book-only D3）。
  */
-export const bookSessionListParams = { roots: true, limit: 1000 } as const
+export const bookSessionListParams = { limit: 1000 } as const
 
 /**
  * 书内会话列表空守卫：桌面端 server 启动窗口期内，session-bindings 与 session.list
