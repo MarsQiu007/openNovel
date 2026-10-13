@@ -37,10 +37,10 @@ beforeAll(async () => {
 })
 
 describe("prompt persistence", () => {
-  test("waits for an async draft to hydrate before reporting ready", async () => {
+  test("waits for an async persisted prompt to hydrate before reporting ready", async () => {
     await new Promise<void>((resolve, reject) => {
       createRoot((dispose) => {
-        const session = Prompt.createPromptSession(ServerScope.local, { draftID: "draft-async" })
+        const session = Prompt.createPromptSession(ServerScope.local, { dir: "test-directory" })
         const ready = Prompt.createPromptReady(() => session)
 
         expect(ready()).toBe(false)
