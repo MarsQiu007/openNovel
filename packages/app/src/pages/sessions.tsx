@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/solid-query"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ScrollView } from "@opennovel-ai/ui/scroll-view"
 import { ProjectAvatar } from "@opennovel-ai/ui/v2/project-avatar-v2"
-import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
@@ -596,7 +595,7 @@ export function HomeSessionRow(props: {
   )
 }
 
-export function HomeSessionsEmpty(props: { onNewSession?: () => void }) {
+export function HomeSessionsEmpty() {
   const language = useLanguage()
   return (
     <div class="flex min-h-full flex-col items-center gap-4 px-6 pt-[52px] text-center">
@@ -606,13 +605,6 @@ export function HomeSessionsEmpty(props: { onNewSession?: () => void }) {
       <p class="mb-1 text-center text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
         {language.t("home.sessions.empty.description")}
       </p>
-      <Show when={props.onNewSession}>
-        {(onNewSession) => (
-          <ButtonV2 data-action="home-new-session" variant="neutral" size="normal" icon="edit" onClick={onNewSession()}>
-            {language.t("command.session.new")}
-          </ButtonV2>
-        )}
-      </Show>
     </div>
   )
 }

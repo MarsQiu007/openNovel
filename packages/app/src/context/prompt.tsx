@@ -42,7 +42,6 @@ const WORKSPACE_KEY = "__workspace__"
 const MAX_PROMPT_SESSIONS = 20
 
 function scopeKey(scope: PromptScope) {
-  if ("draftID" in scope) return `draft:${scope.draftID}`
   return `${scope.dir}:${scope.id ?? WORKSPACE_KEY}`
 }
 

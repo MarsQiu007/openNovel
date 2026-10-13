@@ -95,13 +95,6 @@ export function NewHome() {
     () => focusedServerCtx()?.projects.recentlyClosed() ?? layout.projects.recentlyClosed(),
   )
   const homedir = createMemo(() => focusedSync().data.path.home ?? "")
-  const selectedProject = createMemo(() => projects().find((project) => project.worktree === selection().directory))
-  const newSessionProject = createMemo(
-    () =>
-      selectedProject() ??
-      projects().find((project) => project.worktree === focusedServerCtx()?.projects.last()) ??
-      projects()[0],
-  )
   // The bookshelf is the landing view, so it must resolve a directory even when no
   // project is selected: selected project > last used > first project > home dir.
   const bookshelfDirectory = createMemo(

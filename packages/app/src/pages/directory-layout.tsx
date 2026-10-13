@@ -16,7 +16,6 @@ import { useServerSync } from "@/context/server-sync"
 export function DirectoryDataProvider(
   props: ParentProps<{
     directory: string | Accessor<string>
-    draftID?: string
     server?: Accessor<ServerConnection.Key | undefined>
   }>,
 ) {

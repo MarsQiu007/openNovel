@@ -343,12 +343,6 @@ function workspaceStorage(dir: string) {
   return `opennovel.workspace.${head}.${sum}.dat`
 }
 
-function draftStorage(draftID: string) {
-  const head = (draftID.slice(0, 12) || "draft").replace(/[^a-zA-Z0-9._-]/g, "-")
-  const sum = checksum(draftID) ?? "0"
-  return `opennovel.draft.${head}.${sum}.dat`
-}
-
 function windowStorage(windowID: string) {
   const safe = (windowID || "browser").replace(/[^a-zA-Z0-9._-]/g, "-")
   return `${WINDOW_STORAGE}.${safe}.dat`
@@ -463,12 +457,6 @@ function localStorageDirect(): SyncStorage {
   }
 }
 
-const DRAFT_PERSISTED_KEYS = ["prompt", "comments", "file-view", "layout"]
-
-export function draftPersistedKeys() {
-  return DRAFT_PERSISTED_KEYS
-}
-
 export const PersistTesting = {
   localStorageDirect,
   localStorageWithPrefix,
@@ -485,9 +473,6 @@ export const Persist = {
   },
   window(key: string, legacy?: string[]): PersistTarget {
     return { scope: "window", key, legacy }
-  },
-  draft(draftID: string, key: string, legacy?: string[]): PersistTarget {
-    return { storage: draftStorage(draftID), key: `draft:${key}`, legacy }
   },
   serverGlobal(scope: ServerScopeValue, key: string, legacy?: string[]): PersistTarget {
     if (scope === ServerScope.local) return Persist.global(key, legacy)
