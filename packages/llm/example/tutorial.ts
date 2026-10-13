@@ -252,4 +252,15 @@ const program = Effect.gen(function* () {
   yield* streamWithTools
 }).pipe(Effect.provide(Layer.mergeAll(llmDeps, llmClientLayer)))
 
-Effect.runPromise(program)
+// 顶层不裸奔 runPromise：失败在 effect 内收敛并给出非零退出码，避免示例被复制进生产代码后
+// 产生 unhandled rejection。
+await Effect.runPromise(
+  program.pipe(
+    Effect.catchCause((cause) =>
+      Effect.sync(() => {
+        console.error("tutorial failed:", String(cause))
+        process.exitCode = 1
+      }),
+    ),
+  ),
+)

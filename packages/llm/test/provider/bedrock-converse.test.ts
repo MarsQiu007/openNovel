@@ -531,6 +531,7 @@ describe("Bedrock Converse route", () => {
             Message.user([
               { type: "media", mediaType: "application/pdf", data: "UERGREFUQQ==", filename: "report.pdf" },
               { type: "media", mediaType: "text/csv", data: "Q1NWREFUQQ==" },
+              { type: "media", mediaType: "application/pdf", data: "VVVERkRBVEE=" },
             ]),
           ],
         }),
@@ -543,8 +544,10 @@ describe("Bedrock Converse route", () => {
             content: [
               // Filename round-trips when supplied.
               { document: { format: "pdf", name: "report.pdf", source: { bytes: "UERGREFUQQ==" } } },
-              // Falls back to a stable placeholder when filename is missing.
-              { document: { format: "csv", name: "document.csv", source: { bytes: "Q1NWREFUQQ==" } } },
+              // Missing filenames fall back to a positional name, so two unnamed documents of
+              // the same format stay distinguishable for the model.
+              { document: { format: "csv", name: "document-2.csv", source: { bytes: "Q1NWREFUQQ==" } } },
+              { document: { format: "pdf", name: "document-3.pdf", source: { bytes: "VVVERkRBVEE=" } } },
             ],
           },
         ],

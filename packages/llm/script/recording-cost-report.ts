@@ -216,7 +216,18 @@ const rowFor = (models: JsonRecord, file: string, cassette: unknown): Row | unde
 const money = (value: number) => (value === 0 ? "$0.000000" : `$${value.toFixed(6)}`)
 const tokens = (value: number) => value.toLocaleString("en-US")
 
-const models = (await (await fetch(MODELS_DEV_URL)).json()) as JsonRecord
+async function loadPricing(): Promise<JsonRecord> {
+  const response = await fetch(MODELS_DEV_URL)
+  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`)
+  return (await response.json()) as JsonRecord
+}
+
+// 定价表拉取失败（网络错误或非 2xx）不应让脚本以未处理拒绝崩掉：给出友好错误并以非零码退出
+const models = await loadPricing().catch((cause: unknown) => {
+  const detail = cause instanceof Error ? cause.message : String(cause)
+  console.error(`Failed to load pricing from ${MODELS_DEV_URL}: ${detail}`)
+  process.exit(1)
+})
 const rows = (
   await Promise.all(
     (await walk(RECORDINGS_DIR))
