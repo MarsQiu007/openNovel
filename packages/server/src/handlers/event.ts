@@ -1,6 +1,6 @@
 import { EventV2 } from "@opennovel-ai/core/event"
 import { OpenNovelEvent } from "@opennovel-ai/protocol/groups/event"
-import { Effect, Schema, Stream } from "effect"
+import { Effect, Option, Schema, Stream } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import * as Sse from "effect/unstable/encoding/Sse"
@@ -8,13 +8,25 @@ import { Api } from "../api"
 
 const subscriberCapacity = 256
 
-function eventData(data: unknown): Sse.Event {
-  return {
+function eventType(data: unknown) {
+  if (typeof data !== "object" || data === null || !("type" in data)) return "unknown"
+  return String(data.type)
+}
+
+// EventV2.all() 承载全量事件，桥接层会带入 protocol 未定义的类型（TUI/MCP/VCS/LSP 等）。
+// 契约外的事件跳过并记日志，不能让编码错误炸掉整条 SSE 流。
+function eventData(data: unknown): Effect.Effect<Sse.Event | undefined> {
+  const encoded = Schema.encodeUnknownOption(OpenNovelEvent)(data)
+  if (Option.isNone(encoded))
+    return Effect.logWarning("skipping event outside the server event schema", { type: eventType(data) }).pipe(
+      Effect.as(undefined),
+    )
+  return Effect.succeed({
     _tag: "Event",
     event: "message",
     id: undefined,
-    data: JSON.stringify(Schema.encodeUnknownSync(OpenNovelEvent)(data)),
-  }
+    data: JSON.stringify(encoded.value),
+  })
 }
 
 export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers) =>
@@ -33,7 +45,11 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
             const live = yield* EventV2.allBounded(events, subscriberCapacity)
             return Stream.make(connected).pipe(Stream.concat(live))
           }),
-        ).pipe(Stream.map(eventData), Stream.pipeThroughChannel(Sse.encode()))
+        ).pipe(
+          Stream.mapEffect(eventData),
+          Stream.filter((event): event is Sse.Event => event !== undefined),
+          Stream.pipeThroughChannel(Sse.encode()),
+        )
         const heartbeat = Stream.tick("15 seconds").pipe(Stream.map(() => ": heartbeat\n\n"))
         return HttpServerResponse.stream(
           output.pipe(Stream.merge(heartbeat, { haltStrategy: "left" }), Stream.encodeText),

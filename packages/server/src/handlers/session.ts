@@ -372,13 +372,15 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.message",
         Effect.fn(function* (ctx) {
-          const message = yield* session.message(ctx.params)
-          if (message) return { data: message }
-          return yield* new MessageNotFoundError({
+          // 契约不变：损坏的消息行按「消息不存在」返回，不把内部解码错误暴露成新的 HTTP 错误码
+          const notFound = new MessageNotFoundError({
             sessionID: ctx.params.sessionID,
             messageID: ctx.params.messageID,
             message: `Message not found: ${ctx.params.messageID}`,
           })
+          const message = yield* session.message(ctx.params).pipe(Effect.mapError(() => notFound))
+          if (message) return { data: message }
+          return yield* notFound
         }),
       )
   }),
