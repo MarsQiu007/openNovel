@@ -19,10 +19,14 @@ export function publish(port: number, domain?: string) {
       txt: { path: "/" },
     })
 
-    service.on("error", () => {})
+    // 注册失败（端口冲突、组播不可用等）必须留痕，否则服务发现静默失效无从诊断
+    service.on("error", (error: unknown) => {
+      console.error(`mDNS service ${name} error`, error)
+    })
 
     currentPort = port
-  } catch {
+  } catch (error) {
+    console.error(`mDNS publish on port ${port} failed`, error)
     if (bonjour) {
       try {
         bonjour.destroy()

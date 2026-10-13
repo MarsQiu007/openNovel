@@ -198,7 +198,9 @@ const live: Layer.Layer<
             for (const name of uniqueNames) approvedToolsForSession.add(name)
             workflowModel.sessionPreapprovedTools = [...(workflowModel.sessionPreapprovedTools ?? []), ...uniqueNames]
             return { approved: true }
-          } catch {
+          } catch (cause) {
+            // 权限服务故障与用户主动拒绝都降级为不批准，但只有留下原因才区分得了两者
+            bridge.fork(Effect.logWarning("workflow tool approval failed", { error: cause }))
             return { approved: false }
           } finally {
             if (unsub) await bridge.promise(unsub)
