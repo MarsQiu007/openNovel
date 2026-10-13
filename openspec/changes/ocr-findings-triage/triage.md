@@ -172,68 +172,68 @@
 | H476 | packages/core/src/session/input.ts:129 | high | bug | wontfix | 该投影体在 durable 事件 publish 事务内执行（见 C147：event.ts:320-321 projector 同事务运行），update+insert 已共处同一事务边界，再套 db.transaction 会嵌套冲突（migrate.ts:46 同类教训）。 |
 | H478 | packages/core/src/session/message-updater.ts:334 | high | bug | fix | pending 态工具失败时 `typeof input === "string" ? {}` 直接丢弃已生成的参数 JSON。修复：尝试经 Schema 解码为对象、失败保留 {_raw: string}，不静默丢数据。 |
 | C168 | packages/core/src/session/message.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H479 | packages/core/src/session/projector.ts:312 | high | bug |  |  |
-| H481 | packages/core/src/session/run-coordinator.ts:37 | high | bug |  |  |
-| C169 | packages/core/src/session/runner/publish-llm-event.ts:46 | critical | bug |  |  |
-| H483 | packages/core/src/session/store.ts:36 | high | bug |  |  |
-| H484 | packages/core/src/session/store.ts:55 | high | bug |  |  |
-| H482 | packages/core/src/share/sql.ts:10 | high | security |  |  |
-| H485 | packages/core/src/skill.ts:79 | high | security |  |  |
-| H495 | packages/core/src/state.ts:33 | high | bug |  |  |
-| H486 | packages/core/src/sync/device.ts:0 | high | bug |  |  |
-| C170 | packages/core/src/sync/local-folder.ts:15 | critical | security |  |  |
-| H492 | packages/core/src/sync/service.ts:578 | high | bug |  |  |
-| H489 | packages/core/src/sync/sqlite.bun.ts:10 | high | security |  |  |
-| C171 | packages/core/src/sync/sqlite.bun.ts:20 | critical | security |  |  |
-| H487 | packages/core/src/sync/sqlite.node.ts:19 | high | security |  |  |
-| H488 | packages/core/src/sync/state.ts:36 | high | bug |  |  |
-| H490 | packages/core/src/sync/webdav.ts:117 | high | bug |  |  |
+| H479 | packages/core/src/session/projector.ts:312 | high | bug | wontfix | events.project 回调在 durable 事件 publish 事务内执行（event.ts:320-321，同 C147/H476 结论），多步 DB 写已共处同一事务边界，无需再包 transaction。 |
+| H481 | packages/core/src/session/run-coordinator.ts:37 | high | bug | wontfix | JS 协作式调度：fork 与 entry.owner 赋值同一同步段，其他 fiber 的 interrupt 无法在两段之间执行；新 fiber 首步（yieldNow/Deferred.await）必然挂起至赋值完成。 |
+| C169 | packages/core/src/session/runner/publish-llm-event.ts:46 | critical | bug | wontfix | 纯同步 helper 内 throw 属 misuse 路径（上游应产出受支持的结果类型），以 defect 传播符合仓库"意外错误走 die 通道"惯例（同 H416/C158 论证）；改返回 Effect 是无谓上下文负担。 |
+| H483 | packages/core/src/session/store.ts:36 | high | bug | wontfix | orDie 是本仓库 DB 读统一错误收敛惯例（H441 同论）；store.get 的调用方（drain/HTTP 层）均有统一崩溃上报，不存在需要分支处理的预期 DB 错误面。 |
+| H484 | packages/core/src/session/store.ts:55 | high | bug | fix | store.ts:55 解码失败 orDie，而 history.ts:55-64 同型解码产出类型化 MessageDecodeError——同库两口径会让损坏消息行在单条读取路径变 defect 崩溃。修复：对齐为 Effect.mapError(MessageDecodeError)。 |
+| H482 | packages/core/src/share/sql.ts:10 | high | security | wontfix | session_id 即主键（每会话一个分享），secret 由随机 Identifier 生成、URL 校验需原值比对；加 unique 约束不改变任何行为，明文存储与 H365/H381 属同一静态加密议题（已 defer）。 |
+| H485 | packages/core/src/skill.ts:79 | high | security | wontfix | skill 目录来自本地工作区/仓库配置（信任边界同插件加载 H454），symlink:true 与 external.ts:64 同惯例；能在工作区制造恶意符号链接者已有全盘读权限。 |
+| H495 | packages/core/src/state.ts:33 | high | bug | wontfix | 35-36 行已有批则复用外层（return yield* effect，不再 provideService），嵌套 batch 正确合并；建议代码与实际实现等价，评论未读 36 行短路分支。 |
+| H486 | packages/core/src/sync/device.ts:0 | high | bug | fix | device.json 存在但损坏时 JSON.parse 裸抛 SyntaxError，设备身份初始化路径无恢复（.catch 只护 readFile）。修复：解析失败按缺省身份处理或重建文件（仓库惯例走 Schema 解码 Option）。 |
+| C170 | packages/core/src/sync/local-folder.ts:15 | critical | security | fix | remotePath 段可含 ..（filter(Boolean) 不滤点段），path.join(root, "..", ...) 可越出同步根目录；而远端 name/snapshotID 来自可被劫持的同步服务器响应。修复：resolve 拒绝 .. 段并校验结果在 root 内。 |
+| H492 | packages/core/src/sync/service.ts:578 | high | bug | fix | copyFile 中途失败（ENOSPC 等）会留下半写主库且无自动恢复，而 backupCurrent 备份就在手边。修复：copy 失败时以备份文件回写 db 后再抛原错误。 |
+| H489 | packages/core/src/sync/sqlite.bun.ts:10 | high | security | wontfix | target 为内部生成的临时快照路径（同步代码常量拼接），单引号已转义（13 行）；对内部路径做遍历校验属防御性扩展，非用户输入面（同 H387 信任模型）。 |
+| C171 | packages/core/src/sync/sqlite.bun.ts:20 | critical | security | wontfix | queryAll 的 sql 全部来自内部常量调用（注释 19 行限定用途），连接以 readonly 打开已杜绝写能力；"如果调用方传不可信输入"不构成现实攻击面。 |
+| H487 | packages/core/src/sync/sqlite.node.ts:19 | high | security | wontfix | 同 C171：node 驱动版 queryAll 亦 readonly DatabaseSync、内部常量 SQL，无注入面。 |
+| H488 | packages/core/src/sync/state.ts:36 | high | bug | fix | 同 H486：sync.json/registry 文件损坏时 JSON.parse 裸抛（37-39 行 .catch 只护 readFile），配置读取应容错。修复：解析失败返回 undefined（视为未配置）。 |
+| H490 | packages/core/src/sync/webdav.ts:117 | high | bug | fix | webdav readJson 的 JSON.parse 失败抛裸 SyntaxError，违反适配器"仅 SyncError"错误契约（调用方按 code 分支处理）。修复：解析失败转 SyncError(io) 或按 not_found 语义返回 undefined（与相邻方法一致）。 |
 | H491 | packages/core/src/system-context/builtins.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H493 | packages/core/src/system-context/index.ts:228 | high | bug |  |  |
-| H494 | packages/core/src/system-context/index.ts:314 | high | bug |  |  |
-| C172 | packages/core/src/tool-output-store.ts:182 | critical | bug |  |  |
-| H498 | packages/core/src/tool/apply-patch.ts:91 | high | bug |  |  |
-| H500 | packages/core/src/tool/bash.ts:59 | high | maintainability |  |  |
+| H493 | packages/core/src/system-context/index.ts:228 | high | bug | wontfix | reconcileObservation 是纯同步代数（返回 Unchanged/Updated/Replace 联合即其错误面），可能 throw 的均为程序错误路径，die 传播正确（同 C169）；引入 tagged 错误类型是扩展。 |
+| H494 | packages/core/src/system-context/index.ts:314 | high | bug | wontfix | combine 为同步公开 API、以 throw 传达 DuplicateKey 是其既有契约（评论自认 acceptable）；改 Effect 返回会波及全部调用方，属 API 演进非缺陷修复。 |
+| C172 | packages/core/src/tool-output-store.ts:182 | critical | bug | wontfix | `info?.mtime.pipe(...)` 可选链在 info 为 undefined 时短路整链，不会 TypeError；187 行 `modified !== undefined` 使 stat 失败条目被跳过，不存在误删。评论误读可选链语义。 |
+| H498 | packages/core/src/tool/apply-patch.ts:91 | high | bug | wontfix | `return yield* new ToolFailure(...)` 即 Effect.fail（TaggedError yieldable，同 C158 全仓惯例），执行正确中断。 |
+| H500 | packages/core/src/tool/bash.ts:59 | high | maintainability | fix | isTimeout 依赖跨文件字符串比较 error.cause.message === "Timed out"（process.ts:186 构造），文案漂移即静默失效。修复：AppProcess 导出带标记的超时错误类型/谓词，bash.ts 按标记判定。 |
 | C173 | packages/core/src/tool/builtins.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H496 | packages/core/src/tool/glob.ts:75 | high | security |  |  |
-| H497 | packages/core/src/tool/question.ts:80 | high | bug |  |  |
-| H505 | packages/core/src/tool/read-filesystem.ts:216 | high | bug |  |  |
-| H499 | packages/core/src/tool/read.ts:69 | high | security |  |  |
-| H502 | packages/core/src/tool/registry.ts:75 | high | bug |  |  |
-| H501 | packages/core/src/tool/registry.ts:89 | high | bug |  |  |
-| H503 | packages/core/src/tool/tool.ts:98 | high | bug |  |  |
+| H496 | packages/core/src/tool/glob.ts:75 | high | security | wontfix | 工具执行前已 permission.ask 按本次调用授权（70-74 行 source=tool），目录边界由权限系统管理而非 Location 圈禁（read/glob 跨目录访问是受控能力）；补 startsWith 检查与权限模型重复。 |
+| H497 | packages/core/src/tool/question.ts:80 | high | bug | wontfix | question.ask 的失败（会话不存在等）在本仓库属致命异常，orDie 与工具层统一收敛惯例一致（H441）；用户拒答走 Reply 通道而非错误通道。 |
+| H505 | packages/core/src/tool/read-filesystem.ts:216 | high | bug | wontfix | 非分页分支仅限 <=MAX_READ_BYTES 的小文件（215 行 size 超限即走 paged 逐块检查），且后续块经 fatal TextDecoder 解码失败同样转 BinaryFileError（218-222），二进制判定不止首块；首块启发式为设计。 |
+| H499 | packages/core/src/tool/read.ts:69 | high | security | wontfix | inspect 仅 stat（存在/类型），不读内容；外部目录访问权限已在 target 解析处校验（64-68 externalDirectoryPermission），resource 审批门只管内容读取，调序不改变安全语义。 |
+| H502 | packages/core/src/tool/registry.ts:75 | high | bug | wontfix | bound 的类型化错误在工具调用错误声明通道内传播，68-73 行正是 ToolFailure 的统一转化点；评论未指出可越过该通道的具体错误。 |
+| H501 | packages/core/src/tool/registry.ts:89 | high | bug | wontfix | 89-93 整个 get→set 循环处于 uninterruptible 同步段、无 await 挂起点，单线程下并发注册不可交错；"lost registration"需要抢占模型。 |
+| H503 | packages/core/src/tool/tool.ts:98 | high | bug | fix | 插件提供的 toStructuredOutput 同步 throw 会变成裸 defect，绕过 ToolFailure 通道。修复：以 Effect.try 包裹回调并 catch 为 ToolFailure（无效的结构化转换输出）。 |
 | C174 | packages/core/src/tool/tools.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H504 | packages/core/src/tool/webfetch.ts:85 | high | security |  |  |
-| H506 | packages/core/src/tool/websearch.ts:146 | high | security |  |  |
-| H510 | packages/core/src/util/effect-flock.ts:263 | high | bug |  |  |
-| H511 | packages/core/src/util/flock.ts:213 | high | bug |  |  |
-| H507 | packages/core/src/util/hash.ts:4 | high | security |  |  |
-| H508 | packages/core/src/util/lazy.ts:5 | high | bug |  |  |
-| H509 | packages/core/src/util/retry.ts:27 | high | bug |  |  |
+| H504 | packages/core/src/tool/webfetch.ts:85 | high | security | wontfix | 本地单用户代理进程的网络能力与用户自身等价（拦内网段会破坏 localhost 联调这一常用场景）；SSRF 威胁模型适用于多租户服务端，本工具按调用走权限审批，部署隔离属进程/防火墙边界。 |
+| H506 | packages/core/src/tool/websearch.ts:146 | high | security | wontfix | ?exaApiKey 查询参数是 Exa liveapi 文档规定的传法，端点即服务方本身（TLS 直达），不存在第三方日志泄漏面；改 header 需供应商支持。 |
+| H510 | packages/core/src/util/effect-flock.ts:263 | high | bug | fix | 心跳 utimes 失败经 ignore 静默后持锁进程不再刷新心跳，其他进程按过期窃取锁形成双持。修复：失败分支记告警（保留重试），连续失败达到过期阈值时中断持有方或显式释放。 |
+| H511 | packages/core/src/util/flock.ts:213 | high | bug | wontfix | 213 行 `await writeFile(...).catch(async () => {...throw})`：catch 回调返回 rejected promise 被链式传播、外层 await 收到，不存在未处理 rejection。 |
+| H507 | packages/core/src/util/hash.ts:4 | high | security | wontfix | fast() 命名与用途即非安全摘要（缓存键/标识），安全场景同文件已提供 sha256；评论未指出任何把 Hash.fast 用作凭据/完整性验证的调用点。 |
+| H508 | packages/core/src/util/lazy.ts:5 | high | bug | fix | lazy() 先置 loaded=true 再调 fn()：fn 抛错后缓存被永久毒化为 undefined（返回类型 T 却给 undefined）。修复：fn() 成功后再置 loaded（失败重试语义）。 |
+| H509 | packages/core/src/util/retry.ts:27 | high | bug | fix | attempts<=0 时循环不执行、`throw lastError` 抛 undefined。修复：入口对 attempts 取 Math.max(1, …) 或直接 fail 明确参数错误。 |
 | C175 | packages/core/src/util/token.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H513 | packages/core/src/util/wildcard.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H514 | packages/core/src/util/wildcard.ts:11 | high | bug |  |  |
-| C176 | packages/core/src/util/wildcard.ts:13 | critical | bug |  |  |
+| H514 | packages/core/src/util/wildcard.ts:11 | high | bug | wontfix | 8 行把 * 替换为 .* 后空格保留："foo *" 转义为 "foo .*"，11 行 endsWith(" .*") 恰好命中"空格+尾通配"场景并转 ( .*)?；评论误读替换顺序，条件可达且语义正确。 |
+| C176 | packages/core/src/util/wildcard.ts:13 | critical | bug | wontfix | packages/core 只在 Bun/Node 运行时（桌面主进程/服务器/CLI），无浏览器构建路径；浏览器端走 sdk HTTP。process 可用是包级运行时前提（同文件大量 os/path 导入同理）。 |
 | H512 | packages/core/src/v1/config/command.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H516 | packages/core/src/v1/config/error.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C177 | packages/core/src/v1/config/layout.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H515 | packages/core/src/v1/config/lsp.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H519 | packages/core/src/v1/config/mcp.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H518 | packages/core/src/v1/config/migrate.ts:30 | high | bug |  |  |
+| H518 | packages/core/src/v1/config/migrate.ts:30 | high | bug | wontfix | isV1 是新旧配置格式判别启发式（config.ts 仅用于 decodeV1Info/decodeInfo 分支）：V2 Info 字段名不与键集冲突，误入 V1 分支也会因 decode 失败跳过、再走正常 decodeInfo，不损坏配置。 |
 | C178 | packages/core/src/v1/config/permission.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H517 | packages/core/src/v1/config/permission.ts:8 | high | maintainability |  |  |
-| H520 | packages/core/src/v1/config/provider-options.ts:98 | high | bug |  |  |
-| C179 | packages/core/src/v1/config/provider-options.ts:119 | critical | security |  |  |
+| H517 | packages/core/src/v1/config/permission.ts:8 | high | maintainability | wontfix | Shadowing 仅限该文件自身且文件内无 Object.* 静态调用（8-11 行为 Schema 组合），消费方一律经命名空间 Permission.Object 引用；改名属风格议题。 |
+| H520 | packages/core/src/v1/config/provider-options.ts:98 | high | bug | wontfix | Gemini/Vertex REST 的 generationConfig 字段（thinkingConfig/responseModalities/mediaResolution/imageConfig）官方即 camelCase；snake() 只约束其他 provider 的字段，评论的"一致性"与 Google API 事实相反。 |
+| C179 | packages/core/src/v1/config/provider-options.ts:119 | critical | security | fix | bedrock 的 direct(options) 未像 openai/vertex 剔除凭据：apiKey 留在 provider settings，且 request() 的 clone(options) 会把凭据塞进 additionalModelRequestFields 发往端点。修复：provider 分支 omit ["apiKey","baseURL"]，request clone 前剔除敏感键。 |
 | H521 | packages/core/src/v1/config/provider.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H525 | packages/core/src/v1/config/server.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C183 | packages/core/src/v1/config/skills.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C184 | packages/core/src/v1/config/skills.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H522 | packages/core/src/v1/permission.ts:25 | high | bug |  |  |
+| H522 | packages/core/src/v1/permission.ts:25 | high | bug | wontfix | ruleset 由权限系统从配置解码构造（Schema 通道数据、无环/函数成员），message getter 的 stringify 抛错路径不可达；getter 内补 try/catch 属防御噪音。 |
 | H524 | packages/core/src/v1/session.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C181 | packages/core/src/v2-schema.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C180 | packages/core/src/workspace.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H523 | packages/core/test/fixture/effect-flock-worker.ts:21 | high | bug |  |  |
-| C182 | packages/core/test/fixture/flock-worker.ts:37 | critical | bug |  |  |
+| H523 | packages/core/test/fixture/effect-flock-worker.ts:21 | high | bug | wontfix | test fixture worker 的 argv 由本仓测试代码固定 JSON.stringify 传入，非外部输入；参数缺失时崩溃正是 fixture 期望的失败可见性。 |
+| C182 | packages/core/test/fixture/flock-worker.ts:37 | critical | bug | wontfix | 38 行 writeFile 位于 try-finally（41 行起）之外：wx 冲突时函数直接 reject、根本不会进入 finally，不存在误删他进程 active 文件的路径；评论误读作用域。 |
 | H576 | packages/llm/example/tutorial.ts:255 | high | bug | fix | tutorial.ts:230 末尾 Effect.runPromise(program) 无错误处理，示例被复制到生产代码会产生 unhandled rejection；改用 runPromiseExit 或补 .catch 展示惯用错误处理。 |
 | H577 | packages/llm/script/recording-cost-report.ts:219 | high | bug | fix | recording-cost-report.ts:219 顶层 await fetch(MODELS_DEV_URL) 无错误处理且未检查 response.ok，网络失败时脚本以未处理拒绝崩溃；按 suggestion 思路包 try/catch 并输出友好错误。 |
 | H579 | packages/llm/src/protocols/bedrock-event-stream.ts:41 | high | bug | wontfix | 误报：bedrock-event-stream.ts:34-37 中 totalLength=0 时 subarray(0,0) 为空帧，@smithy/eventstream-codec 对空帧必抛异常并被上方 Effect.try 转为类型化错误，offset 不推进的分支不可达，不存在死循环。 |
