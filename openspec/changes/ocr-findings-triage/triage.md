@@ -269,78 +269,78 @@
 | H596 | packages/novel-store/src/mode.ts:145 | high | bug | wontfix | 同 H595：写入失败返回 next（生效配置）是 mode.ts:13-14 与 108-110 明确记载的设计，告警经 stderr 给用户；返回'未生效'反而需要契约级返回类型变更 |
 | C205 | packages/novel-store/src/upgrade.ts:201 | critical | bug | wontfix | 刻意设计：upgrade.ts:195-199 注释声明'四步全部幂等'，任一步失败后可由 listPendingUpgradeTasks 的 appliesTo 检测重新触发恢复；且本包驱动为同步事务回调（index.ts:2083 同步用法），无法跨越 await 包住 runDeterministicUpgrade 的 async 流程，建议的事务包装不适用 |
 | H599 | packages/novel-store/src/upgrade.ts:277 | high | bug | fix | novel_id 是 upgrade_state 主键（index.ts 表定义 text().notNull().primaryKey()），并发 read-then-insert 虽不会产生重复行但会把 PRIMARY KEY 约束错误抛给调用方；改 insert...onConflictDoUpdate({target: novel_id}) 原子 upsert |
-| H117 | packages/opennovel/package.json:9 | high | bug |  |  |
-| H604 | packages/opennovel/script/bench-test-suite.ts:23 | high | bug |  |  |
-| H601 | packages/opennovel/script/build-node.ts:13 | high | bug |  |  |
-| C207 | packages/opennovel/script/build-node.ts:15 | critical | bug |  |  |
-| H600 | packages/opennovel/script/build.ts:14 | high | bug |  |  |
-| C206 | packages/opennovel/script/build.ts:162 | critical | bug |  |  |
-| H603 | packages/opennovel/script/generate.ts:8 | high | maintainability |  |  |
-| H602 | packages/opennovel/script/httpapi-exercise.ts:1 | high | bug |  |  |
-| H124 | packages/opennovel/script/postinstall.mjs:172 | high | bug |  |  |
-| H605 | packages/opennovel/script/profile-test-files.ts:14 | high | bug |  |  |
-| H608 | packages/opennovel/script/publish.ts:0 | high | security |  |  |
-| H609 | packages/opennovel/script/publish.ts:128 | high | bug |  |  |
-| H611 | packages/opennovel/script/schema.ts:67 | high | bug |  |  |
-| C208 | packages/opennovel/script/time.ts:4 | critical | security |  |  |
-| H606 | packages/opennovel/specs/v2/api.ts:1 | high | maintainability |  |  |
-| H607 | packages/opennovel/specs/v2/api.ts:41 | high | bug |  |  |
-| H610 | packages/opennovel/src/account/repo.ts:46 | high | bug |  |  |
-| C209 | packages/opennovel/src/account/repo.ts:59 | critical | bug |  |  |
-| H614 | packages/opennovel/src/account/url.ts:2 | high | bug |  |  |
-| H612 | packages/opennovel/src/acp/config-option.ts:199 | high | bug |  |  |
-| H613 | packages/opennovel/src/acp/event.ts:125 | high | maintainability |  |  |
-| H616 | packages/opennovel/src/acp/permission.ts:99 | high | security |  |  |
-| H615 | packages/opennovel/src/acp/permission.ts:110 | high | bug |  |  |
-| H619 | packages/opennovel/src/acp/profile.ts:1 | high | bug |  |  |
-| H618 | packages/opennovel/src/acp/session.ts:153 | high | bug |  |  |
-| H617 | packages/opennovel/src/acp/session.ts:219 | high | bug |  |  |
-| H623 | packages/opennovel/src/agent/agent.ts:419 | high | bug |  |  |
-| C210 | packages/opennovel/src/agent/subagent-permissions.ts:18 | critical | bug |  |  |
-| H620 | packages/opennovel/src/auth/index.ts:73 | high | bug |  |  |
-| H621 | packages/opennovel/src/cli/cmd/agent.ts:71 | high | maintainability |  |  |
-| H624 | packages/opennovel/src/cli/cmd/attach.ts:7 | high | maintainability |  |  |
-| H622 | packages/opennovel/src/cli/cmd/db.ts:38 | high | bug |  |  |
-| C211 | packages/opennovel/src/cli/cmd/debug/agent.handler.ts:105 | critical | security |  |  |
-| C212 | packages/opennovel/src/cli/cmd/debug/agent.ts:18 | critical | security |  |  |
-| H628 | packages/opennovel/src/cli/cmd/debug/config.ts:12 | high | security |  |  |
-| H625 | packages/opennovel/src/cli/cmd/debug/scrap.ts:8 | high | bug |  |  |
-| C213 | packages/opennovel/src/cli/cmd/debug/v2.ts:18 | critical | bug |  |  |
-| H626 | packages/opennovel/src/cli/cmd/debug/v2.ts:31 | high | maintainability |  |  |
-| H627 | packages/opennovel/src/cli/cmd/export.ts:93 | high | maintainability |  |  |
-| C214 | packages/opennovel/src/cli/cmd/generate.ts:20 | critical | bug |  |  |
-| C215 | packages/opennovel/src/cli/cmd/github.handler.ts:387 | critical | bug |  |  |
-| H629 | packages/opennovel/src/cli/cmd/github.handler.ts:631 | high | security |  |  |
-| H633 | packages/opennovel/src/cli/cmd/import.ts:143 | high | bug |  |  |
-| H632 | packages/opennovel/src/cli/cmd/import.ts:199 | high | maintainability |  |  |
-| H630 | packages/opennovel/src/cli/cmd/models.ts:36 | high | bug |  |  |
-| H631 | packages/opennovel/src/cli/cmd/novel.ts:89 | high | security |  |  |
-| H635 | packages/opennovel/src/cli/cmd/pr.ts:54 | high | bug |  |  |
-| H634 | packages/opennovel/src/cli/cmd/serve.ts:15 | high | security |  |  |
-| H636 | packages/opennovel/src/cli/cmd/stats.ts:117 | high | bug |  |  |
-| H638 | packages/opennovel/src/cli/cmd/uninstall.ts:299 | high | bug |  |  |
-| H637 | packages/opennovel/src/cli/cmd/web.ts:40 | high | security |  |  |
-| H640 | packages/opennovel/src/cli/effect-cmd.ts:90 | high | bug |  |  |
-| H641 | packages/opennovel/src/cli/heap.ts:32 | high | bug |  |  |
-| H639 | packages/opennovel/src/cli/network.ts:41 | high | bug |  |  |
-| H643 | packages/opennovel/src/cli/ui.ts:47 | high | bug |  |  |
-| H644 | packages/opennovel/src/cli/ui.ts:74 | high | bug |  |  |
-| H645 | packages/opennovel/src/command/index.ts:123 | high | bug |  |  |
-| H642 | packages/opennovel/src/config/agent.ts:50 | high | maintainability |  |  |
-| H647 | packages/opennovel/src/config/config.ts:425 | high | bug |  |  |
-| H646 | packages/opennovel/src/config/managed.ts:35 | high | bug |  |  |
-| H648 | packages/opennovel/src/config/parse.ts:74 | high | bug |  |  |
-| H650 | packages/opennovel/src/config/plugin.ts:56 | high | bug |  |  |
-| H649 | packages/opennovel/src/control-plane/adapters/index.ts:9 | high | maintainability |  |  |
-| H652 | packages/opennovel/src/control-plane/adapters/worktree.ts:45 | high | bug |  |  |
-| C216 | packages/opennovel/src/control-plane/dev/debug-workspace-plugin.ts:27 | critical | bug |  |  |
-| H651 | packages/opennovel/src/control-plane/dev/debug-workspace-plugin.ts:54 | high | bug |  |  |
-| H653 | packages/opennovel/src/control-plane/util.ts:8 | high | bug |  |  |
-| C217 | packages/opennovel/src/control-plane/util.ts:24 | critical | bug |  |  |
-| H655 | packages/opennovel/src/control-plane/workspace.ts:587 | high | bug |  |  |
-| H658 | packages/opennovel/src/effect/bridge.ts:68 | high | bug |  |  |
-| H654 | packages/opennovel/src/effect/instance-registry.ts:10 | high | bug |  |  |
-| H665 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug |  |  |
+| H117 | packages/opennovel/package.json:9 | high | bug | wontfix | 同 H112：tsgo 由根 package.json 的 @typescript/native-preview（catalog）提供并提升进根 node_modules/.bin，包目录 bun run 可解析；"未声明依赖"前提不成立。 |
+| H604 | packages/opennovel/script/bench-test-suite.ts:23 | high | bug | wontfix | bench 开发脚本自身由 bun 执行（bun 必存在），spawn 抛错直接可见堆栈即开发工具预期行为；包裹 try-catch 属噪音。 |
+| H601 | packages/opennovel/script/build-node.ts:13 | high | bug | wontfix | 构建脚本顶层 await 导入失败会以非零码崩溃并打印堆栈，正是 CI 需要的失败可见性；补消息外壳无增益。 |
+| C207 | packages/opennovel/script/build-node.ts:15 | critical | bug | fix | Bun.build 失败不 throw 而是返回 {success:false}：build-node.ts:15 未检查即打日志"完成"，坏产物静默通过。修复：检查 result.success，失败打印 logs 并 process.exit(1)。 |
+| H600 | packages/opennovel/script/build.ts:14 | high | bug | wontfix | 同 H601：build.ts 顶层 import 失败即崩溃可见，无需外壳错误处理。 |
+| C206 | packages/opennovel/script/build.ts:162 | critical | bug | fix | 同 C207：build.ts:162 主构建调用未检查 Bun.build 返回的 success，失败会带病进入冒烟测试与打包。修复：检查 success 并输出 logs 后 exit(1)。 |
+| H603 | packages/opennovel/script/generate.ts:8 | high | maintainability | wontfix | 构建脚本以顶层 process.chdir 钉目录是全仓统一写法（build.ts:12、build-node.ts:11 同型），此类脚本仅作为独立构建入口执行，不存在被测试/消费者复用导致 cwd 漂移的调用面。 |
+| H602 | packages/opennovel/script/httpapi-exercise.ts:1 | high | bug | wontfix | 该文件是 2 行入口垫片（转发 import 测试目录 index），失败即崩溃可见；同 H601 惯例。 |
+| H124 | packages/opennovel/script/postinstall.mjs:172 | high | bug | fix | 169-174：catch 内 installPackage 若抛错会直接冲出 main()，跳过后补选候选包，违背循环回退设计。修复：installPackage/verifyBinary 分支也套 try，失败继续下一候选，最后统一抛聚合错误。 |
+| H605 | packages/opennovel/script/profile-test-files.ts:14 | high | bug | wontfix | 同 H604：profile 开发脚本由 bun 运行，spawn 失败堆栈可见即预期。 |
+| H608 | packages/opennovel/script/publish.ts:0 | high | security | wontfix | publish.ts 全文无 GITHUB_TOKEN 或嵌入 token 的 URL（grep 仅见 ssh:// AUR 克隆与公开 releases 下载地址）；评论指认的事实不存在。 |
+| H609 | packages/opennovel/script/publish.ts:128 | high | bug | fix | AUR 重试循环 `catch { continue }` 耗尽 30 次后无告警继续走完发布流程（138-141），发布失败静默。修复：循环耗尽未成功时 throw 最后一个错误。 |
+| H611 | packages/opennovel/script/schema.ts:67 | high | bug | wontfix | schema.ts 是仓库内部 codegen 脚本、调用点固定传参；缺参时 Bun.write 的报错足以定位（开发脚本自身用法错误）。 |
+| C208 | packages/opennovel/script/time.ts:4 | critical | security | wontfix | time.ts 是 7 行本地计时垫片，"import 任意模块"正是其用途（操作者自己传参），按信任模型等同直接运行 node <file>；不构成注入面。 |
+| H606 | packages/opennovel/specs/v2/api.ts:1 | high | maintainability | wontfix | specs/v2/api.ts 为规格示例代码（@ts-nocheck 即"不参与类型检查的说明样例"标记，无 CI 入口），示例代码不因产品缺陷口径处理。 |
+| H607 | packages/opennovel/specs/v2/api.ts:41 | high | bug | wontfix | 同 H606：specs/v2 示例脚本演示 SDK 用法，错误处理在示例中省略是文档惯例。 |
+| H610 | packages/opennovel/src/account/repo.ts:46 | high | bug | wontfix | DB 行由本层自写自读，decodeUnknownSync 是全仓同层统一用法（credential.ts:54、event.ts 同型）；解码失败即数据损坏，defect 大声失败优于静默降级。 |
+| C209 | packages/opennovel/src/account/repo.ts:59 | critical | bug | fix | state() 固定使用外层 db（59-66），从 persistAccount 事务内调用时更新逃逸事务边界，回滚路径会留下已提交的状态半态。修复：state 接受 tx 形参（同 current/persistAccount 的 db/tx 双通道写法）。 |
+| H614 | packages/opennovel/src/account/url.ts:2 | high | bug | fix | normalizeServerUrl 对非法 URL 裸抛 TypeError，用户手输服务地址的登录路径会崩溃而非得到校验错误。修复：解析失败返回 undefined，调用处提示"URL 非法"。 |
+| H612 | packages/opennovel/src/acp/config-option.ts:199 | high | bug | wontfix | 函数无显式返回注解（199 行），variants[0] 空数组的 undefined 会进入推断类型并在调用侧显式处理；"隐式声明 returns string"与实际代码不符。 |
+| H613 | packages/opennovel/src/acp/event.ts:125 | high | maintainability | fix | ACP 事件泵 catch(()=>{}) 全量吞掉 handle 错误（125），故障无法诊断。修复：catch 分支记录错误（保留流继续循环的行为）。 |
+| H616 | packages/opennovel/src/acp/permission.ts:99 | high | security | wontfix | metadata.filepath 由本仓服务端工具事件产生（内部生产者、非客户端可注入面），writeTextFile 走 ACP 客户端协议做编辑器暂存，边界由客户端会话管理。 |
+| H615 | packages/opennovel/src/acp/permission.ts:110 | high | bug | fix | void writeTextFile 丢弃 promise：用户批准编辑后写入失败完全静默（110-114），呈现成功假象。修复：await 并在失败时记录错误日志（函数已是 async）。 |
+| H619 | packages/opennovel/src/acp/profile.ts:1 | high | bug | wontfix | opennovel 包只在 Bun/Node 运行（同 C176 口径），profile 垫片不会在浏览器侧被 import；模块顶层 process.env 是包级运行时前提。 |
+| H618 | packages/opennovel/src/acp/session.ts:153 | high | bug | wontfix | recordPartMetadata 的返回对象在 acp 目录内全部只读消费（grep 无 mutation 站点），"调用方改写"是假想场景；防御性复制属加固。 |
+| H617 | packages/opennovel/src/acp/session.ts:219 | high | bug | wontfix | snapshot 语义防的是集合增删重排，knownParts 值对象在仓内消费者只读（同 H618），单线程事件循环无并发写；深拷贝属加固非缺陷。 |
+| H623 | packages/opennovel/src/agent/agent.ts:419 | high | bug | wontfix | oauth 分支系统提示经 providerOptions.instructions 传递是 Codex 端点协议要求（非 oauth 才用 messages 内 system），两分支各有明确通道；评论把协议差异当成缺失。 |
+| C210 | packages/opennovel/src/agent/subagent-permissions.ts:18 | critical | bug | fix | canTask/canTodo 只判 rule.permission 存在、不看 action：子代理仅有 {task,deny} 规则时判定为"允许"，且该 deny 规则未进入派生 ruleset，子代理权限反而放开。修复：some 条件加 rule.action !== "deny"，deny-only 视作不允许。 |
+| H620 | packages/opennovel/src/auth/index.ts:73 | high | bug | fix | auth set/remove 为读-改-写双 await 无互斥，并发登录/登出交错会丢写。修复：以进程内 Effect Semaphore（或复用仓内 Flock）串行化 set/remove。 |
+| H621 | packages/opennovel/src/cli/cmd/agent.ts:71 | high | maintainability | wontfix | CLI 适配层用 Effect.promise 包本地交互流程是本仓 cli/cmd 通用写法（attach/export 等同型），改全 Effect 是重构规模；无错误逃逸面（内部已 catch）。 |
+| H624 | packages/opennovel/src/cli/cmd/attach.ts:7 | high | maintainability | wontfix | attach 是占位命令：handler 显式提示未实现，保留参数形状是接口预留（删除会让用户收到"unknown command"更差）；非缺陷。 |
+| H622 | packages/opennovel/src/cli/cmd/db.ts:38 | high | bug | fix | spawn sqlite3 只挂 close 不挂 error：未安装 sqlite3 时 EventEmitter 的 error 无人接会抛未捕获异常。修复：child.on("error", reject)，错误经 CliError 呈现。 |
+| C211 | packages/opennovel/src/cli/cmd/debug/agent.handler.ts:105 | critical | security | wontfix | new Function 仅解析操作者自己在命令行输入的 --params JS 字面量（调试便利、20 行 description 明示），argv 属本人输入，等价于直接执行代码；无外部不可信输入面。 |
+| C212 | packages/opennovel/src/cli/cmd/debug/agent.ts:18 | critical | security | wontfix | 同 C211：选项文案与解析行为一致（接受 JS 字面量是有意文档化的 dev 便利），信任边界为操作者自身。 |
+| H628 | packages/opennovel/src/cli/cmd/debug/config.ts:12 | high | security | fix | debug config 把解析后配置原样打 stdout，其中可含 provider apiKey/oauth clientSecret/mcp environment；写日志或贴 issue 即泄漏。修复：仿 export.ts 的 redact 先例对敏感键脱敏后输出。 |
+| H625 | packages/opennovel/src/cli/cmd/debug/scrap.ts:8 | high | bug | wontfix | debug scrap 为开发者诊断命令，失败以堆栈呈现即预期可见性；补 try-catch 外壳无行为收益。 |
+| C213 | packages/opennovel/src/cli/cmd/debug/v2.ts:18 | critical | bug | fix | debug v2 的 default 字段漏 yield*（20 行把 Effect 对象塞进 result），JSON.stringify 输出内部结构垃圾、调试信息错误。修复：yield* 后再入对象。 |
+| H626 | packages/opennovel/src/cli/cmd/debug/v2.ts:31 | high | maintainability | wontfix | debug v2 无 provide 错误通道：CLI 顶层会把错误打印退出（可见失败），"更友好文案"属口味；服务查询失败对 debug 命令就该直接报错。 |
+| H627 | packages/opennovel/src/cli/cmd/export.ts:93 | high | maintainability | wontfix | 4 层三元是导出序列化的数据形状映射（分支皆纯对象字面量），与仓库"复杂校验分支拆 helper"准则的适用场景不同；可读性口味调整非缺陷。 |
+| C214 | packages/opennovel/src/cli/cmd/generate.ts:20 | critical | bug | fix | 生成代码示例字符串缺收尾双引号（21 行 `"@opennovel-ai/sdk`），产出的 x-codeSamples 是语法错误 JS。修复：补全引号。 |
+| C215 | packages/opennovel/src/cli/cmd/github.handler.ts:387 | critical | bug | fix | isMock = token // event：仅传 token 未传 event 时对 undefined 做 JSON.parse 直接崩溃（389 行 `args.event!`）。修复：isMock && args.event ? JSON.parse(args.event) : github.context。 |
+| H629 | packages/opennovel/src/cli/cmd/github.handler.ts:631 | high | security | fix | github action 把 e.message/子进程 stderr 原文贴进公开 PR 评论（636 行 msg=e.stderr），命令行参数与路径可能含凭据。修复：评论仅呈现通用失败文案+运行日志链接，细节保留在 console.error（633 行已有）。 |
+| H633 | packages/opennovel/src/cli/cmd/import.ts:143 | high | bug | fix | 分享导入对远端 response.json() 裸 cast 为 ShareData[]，后续 transform 对畸形结构无兜底即远端爆错。修复：Schema 解码（onExcessProperty ignore），失败按 138-140 的友好提示路径走。 |
+| H632 | packages/opennovel/src/cli/cmd/import.ts:199 | high | maintainability | fix | `data: msgData as never` 静默绕过列类型（199 行），导入的旧消息形状与 MessageTable.data 契约脱钩后无编译期防线。修复：写入前经 SessionMessage 数据 Schema 解码校验替换 as never。 |
+| H630 | packages/opennovel/src/cli/cmd/models.ts:36 | high | bug | fix | print(providerID) 在 providers 表中取不存在的 id 时 p.models 抛 TypeError（37-38 行），用户传错 provider 名即裸崩溃。修复：p 未命中输出"未知 provider"错误并返回。 |
+| H631 | packages/opennovel/src/cli/cmd/novel.ts:89 | high | security | defer | novel 服务器无密码仅提示：默认绑定 localhost，但 bind 0.0.0.0 场景确实裸奔；改为拒绝启动/强制 --insecure 属 CLI 行为契约变化（现有自动化依赖无密码本地用法），归安全增强 change。 |
+| H635 | packages/opennovel/src/cli/cmd/pr.ts:54 | high | bug | wontfix | 仅当 gh 退出码 0 且输出非空才 parse（54 行守卫），gh --json 契约保证合法 JSON；"gh 崩了但返回 0"不可达，CLI 抛错即可见失败。 |
+| H634 | packages/opennovel/src/cli/cmd/serve.ts:15 | high | security | defer | 同 H631：serve 无密码硬失败化改变既有启动语义，涉及用户部署方式决策，归后续安全 change。 |
+| H636 | packages/opennovel/src/cli/cmd/stats.ts:117 | high | bug | wontfix | CLI 命令生成器内同步 throw 进入 die 通道、顶层 runner 可见呈现（同 C169 家族）；逐处改 Effect.fail 是错误模型重构非缺陷。 |
+| H638 | packages/opennovel/src/cli/cmd/uninstall.ts:299 | high | bug | wontfix | 清除仅命中引用 ~/.opennovel/bin 的 PATH 行，该行归属无歧义（我们的安装目录），无 marker 也删除正是卸载清理目的；不会动用户其他 PATH 行。 |
+| H637 | packages/opennovel/src/cli/cmd/web.ts:40 | high | security | defer | 同 H631/H634：无密码+0.0.0.0 改为拒绝启动属 CLI 行为契约变化，归安全增强 change。 |
+| H640 | packages/opennovel/src/cli/effect-cmd.ts:90 | high | bug | fix | finally 中 store.dispose 抛错会顶掉 handler 原始错误。修复：dispose 失败仅记日志、保留原异常（或用 Effect 资源管理让双错误并存）。 |
+| H641 | packages/opennovel/src/cli/heap.ts:32 | high | bug | fix | heap 快照 .catch(()=>{}) 使权限/磁盘失败完全静默。修复：catch 分支 console.error 输出失败原因（保留尽力而为语义）。 |
+| H639 | packages/opennovel/src/cli/network.ts:41 | high | bug | fix | hasArg 只认 `--port=N` 与裸旗，不认 `--port 8080` 双段形式，显式旗标可能被误判为未提供而让 env/config 覆盖。修复：判定改用 yargs 解析结果与默认值比对（或补双段扫描）。 |
+| H643 | packages/opennovel/src/cli/ui.ts:47 | high | bug | fix | logo() 的 TTY 分支两侧代码完全相同（死逻辑）。修复：确认无隐藏差异后合并为单一路径；如原意是 ANSI 降级需补差异化，二选一都需动此处。 |
+| H644 | packages/opennovel/src/cli/ui.ts:74 | high | bug | fix | readline 仅在收到 answer 时 resolve：stdin 提前关闭/出错时 Promise 永挂（调用方卡死）。修复：挂 rl.on("close") 无答案时 resolve("") 或 reject。 |
+| H645 | packages/opennovel/src/command/index.ts:123 | high | bug | wontfix | `template?.messages.map(...)` 可选链短路整条链（template 为 null 时表达式 undefined，不抛 TypeError）；getPrompt 返回类型保证 messages 存在；评论误读 ?. 语义。 |
+| H642 | packages/opennovel/src/config/agent.ts:50 | high | maintainability | wontfix | 目录扫描式加载默认跳过畸形条目是全仓惯例（51 行 md 解析 .catch 跳过、external.ts 插件 ignoreCause 同族），严格报错只用于显式单文件 load；两口径语义清晰非不一致。 |
+| H647 | packages/opennovel/src/config/config.ts:425 | high | bug | fix | 425 行 `dir.endsWith(".opennovel") // dir.endsWith(".opennovel")` 复制粘贴重复条件（第二项永假的死条件）。修复：去重；行为不变。 |
+| H646 | packages/opennovel/src/config/managed.ts:35 | high | bug | fix | parseManagedPlist 对 plutil 外部输出裸 JSON.parse：空串/畸形（MDM 配置异常）时抛 SyntaxError 崩启动。修复：try-catch 返回 null 并告警（调用处已有 null 分支语义）。 |
+| H648 | packages/opennovel/src/config/parse.ts:74 | high | bug | wontfix | topLevelExtraKeys 对 wrapped schema 只是跳过"额外键提示"（保守方向，不会误报也不会漏校验——decode 本身照常执行）；解包 refinement/brand 属增强。 |
+| H650 | packages/opennovel/src/config/plugin.ts:56 | high | bug | fix | resolvePathPluginTarget 的显式错误（目录缺 package.json）被 .catch(()=>file) 吞掉后以裸路径进入 import，报错错位难懂。修复：catch 分支记 warn 再回退（同 external.ts 的告警口径）。 |
+| H649 | packages/opennovel/src/control-plane/adapters/index.ts:9 | high | maintainability | wontfix | adapters 注册表规模=本地项目数（有界）、与进程同生命周期，不存在随会话增长的泄漏面；unregister API 属扩展（项目删除路径本身也无其他清理需求）。 |
+| H652 | packages/opennovel/src/control-plane/adapters/worktree.ts:45 | high | bug | wontfix | worktree 适配器错误沿 control-plane 通道呈现给 UI（上层统一负责文案），就地 try-catch 重抛只会丢堆栈与类型。 |
+| C216 | packages/opennovel/src/control-plane/dev/debug-workspace-plugin.ts:27 | critical | bug | wontfix | dev/debug 专用插件的 PORT! 依赖插件生命周期顺序（create 先于 target，无乱序调用面），且该文件仅在调试路径装载；断言风险面不超出调试夹具。 |
+| H651 | packages/opennovel/src/control-plane/dev/debug-workspace-plugin.ts:54 | high | bug | wontfix | 随机端口属 dev 调试夹具的失败可见路径（超时后报错可见），listen(0) 探测属体验增强；不进生产路径。 |
+| H653 | packages/opennovel/src/control-plane/util.ts:8 | high | bug | wontfix | Effect.async 的 resume 幂等（首次生效后续忽略），多触发器并发 resume 不会双完成；各路径已显式 cleanup。 |
+| C217 | packages/opennovel/src/control-plane/util.ts:24 | critical | bug | wontfix | cleanup 双跑（显式+finalizer）中的 clearTimeout/off/removeEventListener 均为幂等操作，无副作用面；"double cleanup"不构成缺陷。 |
+| H655 | packages/opennovel/src/control-plane/workspace.ts:587 | high | bug | fix | warp 序中 events.claim 先于 patch 应用/事件回放无条件执行，后两者失败时会话所有权已迁移而内容未迁（半态）。修复：claim 移到 patch+replay 成功后，或失败路径回滚 claim；实现批次细读 warp 全流程再落刀。 |
+| H658 | packages/opennovel/src/effect/bridge.ts:68 | high | bug | fix | bridge.run 的 runPromiseExit 内层 fiber 不随外层中断，中断后内层继续跑（资源泄漏/写后生效）。修复：改用 forkIn 或在外层 interrupt 回调里 fiber 中断。 |
+| H654 | packages/opennovel/src/effect/instance-registry.ts:10 | high | bug | fix | disposers 集合执行后不清空：二次 disposeInstance 会对同一批 disposer 重跑（双清理/报错）。修复：快照后 delete 已执行项（clear 全集或逐项移除）。 |
+| H665 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug | wontfix | ScopedCache.invalidate 错误通道为 never（等待纤维结算后不 reject），runPromise 无拒绝面，"unhandled rejection"前提不成立。 |
 | H666 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug |  |  |
 | H656 | packages/opennovel/src/effect/run-service.ts:28 | high | bug |  |  |
 | H657 | packages/opennovel/src/effect/run-service.ts:34 | high | bug |  |  |
