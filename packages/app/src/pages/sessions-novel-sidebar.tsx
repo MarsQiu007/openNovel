@@ -43,8 +43,6 @@ export type NovelSessionGroupListProps = {
   loading: boolean
   /** 当前正在查看的会话（聊天页侧边栏用于高亮） */
   activeSessionID?: string
-  /** 是否在底部展示「全局对话」栏目（不纳入书籍的对话） */
-  showUnbound?: boolean
   openSessionById: (sessionID: string) => void
   createNovelSession: (novelID: string, title: string) => Promise<void>
   archiveSession: (session: Session) => Promise<void>
@@ -52,7 +50,6 @@ export type NovelSessionGroupListProps = {
 }
 
 /** 未绑定分组的展开状态在 expanded store 中使用的固定 key */
-const UNBOUND_GROUP_KEY = "__unbound__"
 
 /**
  * 子代理会话行（只读查看入口，不提供单独归档）。
@@ -249,16 +246,7 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
     return map
   })
 
-  // 全局对话：未绑定书籍的主会话，按最近更新排序（仅 showUnbound 时枚举）
-  const unboundSessions = createMemo(() => {
-    if (!props.showUnbound) return []
-    const bound = new Set(props.bindings.map((binding) => binding.sessionID))
-    return props.sessions
-      .filter((session) => !session.parentID && !session.time.archived && !bound.has(session.id))
-      .sort((a, b) => sessionTime(b) - sessionTime(a))
-  })
-  const unboundExpanded = () => expanded[UNBOUND_GROUP_KEY] ?? false
-  const hasContent = () => groups().length > 0 || unboundSessions().length > 0
+  const hasContent = () => groups().length > 0
 
   async function handleCreate(novel: NovelSessionNovel) {
     if (creating()) return
@@ -425,54 +413,6 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
             </div>
           )}
         </For>
-        {/* 全局对话：不纳入书籍的会话，默认收起，展开后可查看/归档，子代理会话同样收纳展示 */}
-        <Show when={props.showUnbound && unboundSessions().length > 0}>
-          <div class="mt-1 flex min-w-0 flex-col">
-            <div class="group/novel relative flex h-9 min-w-0 items-center rounded-[6px] transition-colors hover:bg-v2-overlay-simple-overlay-hover">
-              <button
-                type="button"
-                class="flex h-full w-6 shrink-0 items-center justify-center text-v2-icon-icon-muted"
-                aria-label={language.t("home.sessions.sidebar.unbound")}
-                onClick={() => setExpanded(UNBOUND_GROUP_KEY, !unboundExpanded())}
-              >
-                <IconV2
-                  name="chevron-down"
-                  size="small"
-                  class={unboundExpanded() ? "transition-transform" : "-rotate-90 transition-transform"}
-                />
-              </button>
-              <button
-                type="button"
-                data-component="novel-sidebar-unbound"
-                class="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
-                onClick={() => setExpanded(UNBOUND_GROUP_KEY, !unboundExpanded())}
-              >
-                <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:530]">
-                  {language.t("home.sessions.sidebar.unbound")}
-                </span>
-                <span class="shrink-0 pr-2 text-[11px] text-v2-text-text-faint">{unboundSessions().length}</span>
-              </button>
-            </div>
-            <Show when={unboundExpanded()}>
-              <div class="flex min-w-0 flex-col gap-px">
-                <For each={unboundSessions()}>
-                  {(session) => (
-                    <SidebarSessionEntry
-                      session={session}
-                      activeSessionID={props.activeSessionID}
-                      childrenByParent={childrenByParent()}
-                      childrenExpanded={subExpanded(session.id)}
-                      onToggleChildren={() => toggleSub(session.id)}
-                      openSessionById={props.openSessionById}
-                      onArchive={handleArchive}
-                      onExport={props.exportSession}
-                    />
-                  )}
-                </For>
-              </div>
-            </Show>
-          </div>
-        </Show>
       </Show>
     </Show>
   )
