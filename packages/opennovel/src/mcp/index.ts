@@ -803,12 +803,24 @@ const layer = Layer.effect(
       return mcpConfig
     })
 
+    // 回收某个 server 的在途授权：移除 Map 条目并关闭 transport，避免死条目与 PKCE verifier 悬挂
+    const dropPendingAuth = Effect.fnUntraced(function* (mcpName: string) {
+      const stale = pendingOAuthTransports.get(mcpName)
+      if (!stale) return
+      pendingOAuthTransports.delete(mcpName)
+      yield* Effect.tryPromise(() => stale.transport.close()).pipe(Effect.ignore)
+    })
+
     const startAuth = Effect.fn("MCP.startAuth")(function* (mcpName: string) {
       const mcpConfig = yield* requireMcpConfig(mcpName)
       if (mcpConfig.type !== "remote") throw new Error(`MCP server ${mcpName} is not a remote server`)
       if (mcpConfig.oauth === false) throw new Error(`MCP server ${mcpName} has OAuth explicitly disabled`)
       const url = remoteURL(mcpConfig.url)
       if (!url) throw new Error(`Invalid MCP URL for "${mcpName}"`)
+
+      // 同一 server 重复发起授权会覆盖在途流程：先取消旧的回调等待并回收旧 transport
+      McpOAuthCallback.cancelPending(mcpName)
+      yield* dropPendingAuth(mcpName)
 
       // OAuth config is optional - if not provided, we'll use auto-discovery
       const oauthConfig = typeof mcpConfig.oauth === "object" ? mcpConfig.oauth : undefined
@@ -900,11 +912,19 @@ const layer = Layer.effect(
 
       yield* browser.open(result.authorizationUrl).pipe(
         Effect.catch(() => {
+          // 浏览器打不开就永远等不到回调：终止本次授权，让下面的 await 走失败与回收路径
+          McpOAuthCallback.cancelPending(mcpName)
           return events.publish(BrowserOpenFailed, { mcpName, url: result.authorizationUrl }).pipe(Effect.ignore)
         }),
       )
 
-      const code = yield* Effect.promise(() => callbackPromise)
+      const callback = yield* Effect.promise(() => callbackPromise).pipe(Effect.exit)
+      if (Exit.isFailure(callback)) {
+        // 超时或取消后不会再有人 finishAuth：回收在途 transport，避免 Map 留下死条目
+        yield* dropPendingAuth(mcpName)
+        return yield* Effect.failCause(callback.cause)
+      }
+      const code = callback.value
 
       const storedState = yield* auth.getOAuthState(mcpName)
       if (storedState !== result.oauthState) {
