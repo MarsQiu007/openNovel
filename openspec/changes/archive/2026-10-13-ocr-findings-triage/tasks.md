@@ -54,7 +54,7 @@
 - 逐包 `bun test --timeout 90000`（在包目录内运行）：schema 22 pass / 0 fail；core 1091 pass / 7 skip / 0 fail；llm 298 pass / 30 skip / 0 fail；novel-store 148 pass / 0 fail；server 125 pass / 0 fail；plugin 725 pass / 0 fail。
 - opennovel 全量：2939 pass / 52 skip / 1 todo / 6 fail / 1 error（2998 用例、218 文件、4582s）；`test/server` 单跑 272 pass / 23 skip / 1 fail。C248 回退后先前 11 条陈旧失败全部恢复，与全量 +11 pass / -11 fail 对账一致。
 - oxlint（仓库根，覆盖 main..HEAD 全部 150 个 touched `.ts`/`.tsx`）：0 errors，仅存量 warnings。
-- 基线既有失败（均已在实施前提交 `79f0d1b9` 复现，非本 change 引入，故 3.2 以"与基线一致"为通过标准）：
+- 基线既有失败（均已在实施前基线提交 `5b51d77f`（rebase 前为 `79f0d1b9`）复现，非本 change 引入，故 3.2 以"与基线一致"为通过标准）：
   - `file HttpApi > serves search endpoints`：报 "file search index was not ready"（`pollWithTimeout` 默认 5 秒窗口），孤立单跑与基线单跑同样失败，此前误记为 C248 陈旧项。
   - `session.compaction.process > stops quickly when aborted during retry backoff`，以及它泄漏到用例之间的 1 条 `TimeoutError` 未捕获错误（即汇总里的 "1 error"）。
   - shell/queue 三条：`cancel with queued callers resolves all cleanly`、`loop waits while shell runs and starts after shell exits`、`shell completion resumes queued loop callers`。
@@ -62,23 +62,23 @@
 
 ## Implementation Commits
 
-- `58a7c80f` fix(core): 落实 OCR 分诊的 core 批次 41 项修复
-- `b95da947` fix(llm): 落实 OCR 分诊的 llm 批次 3 项修复
-- `538ec6ab` fix(novel-store): 落实 OCR 分诊的 novel-store 批次 8 项修复
-- `016a3e7c` fix(server): 落实 OCR 分诊的 server 批次 2 项修复
-- `28c6b3a4` fix(plugin): 落实 OCR 分诊的 plugin 批次 12 项修复
-- `5984f466` fix(opennovel): opennovel 批次第 1 组（script/account/acp/agent/auth）
-- `e3868f7e` fix(opennovel): opennovel 批次第 2 组（cli 命令与入口）
-- `e08a1835` fix(opennovel): opennovel 批次第 3 组（config/format/id/image/installation）
-- `f548bc16` fix(opennovel): opennovel 批次第 3b 组（effect 运行时生命周期）
-- `986ba132` fix(opennovel): opennovel 批次第 4 组（mcp 授权与手动编辑同步）
-- `3d038c95` fix(opennovel): opennovel 批次第 5 组（provider 插件授权与 WebSocket）
-- `2198f468` fix(opennovel): opennovel 批次第 6 组（provider 与 question）
-- `4ba19b97` fix(opennovel): opennovel 批次第 7 组（project 与 control-plane）
-- `c962b6c9` fix(opennovel): opennovel 批次第 8 组（session 与 server 核心）
-- `eddf8f74` fix(opennovel): opennovel 批次第 9 组（httpapi 与读者页）
-- `cd43f34d` fix(opennovel): opennovel 批次第 10 组（skill/share/snapshot/util/tool 与测试）
-- `9b0e8cbe` revert(opennovel): 回退 httpapi 测试夹具的查询串改动
+- `9f8dfda3` fix(core): 落实 OCR 分诊的 core 批次 41 项修复
+- `0afae5ce` fix(llm): 落实 OCR 分诊的 llm 批次 3 项修复
+- `63392521` fix(novel-store): 落实 OCR 分诊的 novel-store 批次 8 项修复
+- `3208411f` fix(server): 落实 OCR 分诊的 server 批次 2 项修复
+- `c844fc21` fix(plugin): 落实 OCR 分诊的 plugin 批次 12 项修复
+- `9762fcd5` fix(opennovel): opennovel 批次第 1 组（script/account/acp/agent/auth）
+- `a84149ad` fix(opennovel): opennovel 批次第 2 组（cli 命令与入口）
+- `3f37c647` fix(opennovel): opennovel 批次第 3 组（config/format/id/image/installation）
+- `c2a44e3a` fix(opennovel): opennovel 批次第 3b 组（effect 运行时生命周期）
+- `335b9eff` fix(opennovel): opennovel 批次第 4 组（mcp 授权与手动编辑同步）
+- `72042980` fix(opennovel): opennovel 批次第 5 组（provider 插件授权与 WebSocket）
+- `fa3379f2` fix(opennovel): opennovel 批次第 6 组（provider 与 question）
+- `2b5382ac` fix(opennovel): opennovel 批次第 7 组（project 与 control-plane）
+- `c95f7f65` fix(opennovel): opennovel 批次第 8 组（session 与 server 核心）
+- `1f3f6d65` fix(opennovel): opennovel 批次第 9 组（httpapi 与读者页）
+- `eed3d722` fix(opennovel): opennovel 批次第 10 组（skill/share/snapshot/util/tool 与测试）
+- `6d03a706` revert(opennovel): 回退 httpapi 测试夹具的查询串改动
 
 ## Workflow follow-up
 
