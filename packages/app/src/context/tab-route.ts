@@ -27,8 +27,6 @@ export type TabInfo = {
 export const novelTabTitle = (info: TabInfo | undefined, novel: { title?: string } | undefined, placeholder: string) =>
   info?.title ?? novel?.title ?? placeholder
 
-export const draftHref = (draftID: string) => `/new-session?draftId=${encodeURIComponent(draftID)}`
-
 export const novelHref = (tab: { dir: string; novelID: string }) => `/${tab.dir}/novel/${tab.novelID}`
 
 export function sessionHref(server: ServerConnection.Key, sessionID: string) {
@@ -56,7 +54,6 @@ export function requireServerKey(segment: string | undefined) {
 
 export type LayoutRoute =
   | { type: "home" }
-  | { type: "draft"; draftID: string; server?: ServerConnection.Key }
   | { type: "dir-new-sesssion"; dir: string; dirBase64: string; server?: ServerConnection.Key }
   | { type: "session"; sessionId: string; server?: ServerConnection.Key }
   | { type: "novel"; dir: string; dirBase64: string; novelID: string; server?: ServerConnection.Key }
@@ -64,12 +61,6 @@ export type LayoutRoute =
 export const currentRoute = (pathname: string, search: string): LayoutRoute => {
   const parts = pathname.split("/").filter(Boolean)
   if (parts.length === 0) return { type: "home" }
-
-  if (parts[0] === "new-session") {
-    const draftID = new URLSearchParams(search).get("draftId")
-    if (!draftID) return { type: "home" }
-    return { type: "draft", draftID }
-  }
 
   if (parts[0] === "server" && parts[2] === "session" && parts[3]) {
     return {

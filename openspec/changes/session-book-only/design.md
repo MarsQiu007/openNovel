@@ -23,7 +23,7 @@
 
 ### D1 独立会话路由保留路径、替换渲染内容为重定向
 
-删除路由会让历史深链 404；保留路径并把 `SessionPage` 替换为轻量重定向组件（复用 `resolveSessionRoute`：绑定 → `replace` 跳书内会话路由；未绑定 → 跳书架 + toast 提示）。独立会话页面组件与 `session-panel-width` 等仅为其服务的布局代码随之移除。备选的「删路由 + 全局 404」方案对存量链接不友好，弃。
+删除路由会让历史深链 404；保留路径并把 `SessionPage` 替换为轻量重定向组件（复用 `resolveSessionRoute`：绑定 → `replace` 跳书内会话路由；未绑定 → 跳书架 + toast 提示）。独立会话页面专属组件（`SessionNovelPanel`、`ResolvedTargetSessionRoute`、`TargetSessionPage`）随之移除；`session-panel-width` 与 `session-panel-layout` 经核实被工作台内嵌的 `Page()` 共用，保留。备选的「删路由 + 全局 404」方案对存量链接不友好，弃。
 
 ### D2 首页会话面保留但语义收敛为书籍会话快捷入口
 

@@ -1,6 +1,6 @@
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { createQuery } from "@tanstack/solid-query"
-import { useNavigate, useSearchParams } from "@solidjs/router"
+import { useNavigate } from "@solidjs/router"
 import { type Accessor, createMemo } from "solid-js"
 import type { PromptInputControls } from "@/components/prompt-input/contracts"
 import type { PromptProjectControls } from "@/components/prompt-project-selector"
@@ -64,13 +64,10 @@ export function createPromptProjectControls() {
   const tabs = useTabs()
   const global = useGlobal()
   const pickDirectory = useDirectoryPicker()
-  const [search] = useSearchParams<{ draftId?: string }>()
   const projectServer = () => serverSDK().server
   const projectServerCtx = createMemo(() => global.ensureServerCtx(projectServer()))
   const projects = createMemo(() => {
-    if (server.list.length <= 1) {
-      return search.draftId ? projectServerCtx().projects.list() : layout.projects.list()
-    }
+    if (server.list.length <= 1) return layout.projects.list()
     return server.list.flatMap((conn) => {
       const item = { key: ServerConnection.key(conn), name: serverName(conn) }
       return global
@@ -81,15 +78,6 @@ export function createPromptProjectControls() {
   })
   const selectProject = (worktree: string, serverKey?: string) => {
     const conn = serverKey ? server.list.find((conn) => ServerConnection.key(conn) === serverKey) : projectServer()
-    if (search.draftId) {
-      if (!conn) return
-      const target = global.ensureServerCtx(conn)
-      target.projects.open(worktree)
-      target.projects.touch(worktree)
-      tabs.updateDraft(search.draftId, { server: ServerConnection.key(conn), directory: worktree })
-      return
-    }
-
     if (!serverKey) {
       layout.projects.open(worktree)
       server.projects.touch(worktree)

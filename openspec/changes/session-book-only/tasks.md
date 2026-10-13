@@ -2,9 +2,9 @@
 
 ## 1. 路由层：独立会话路由降级为重定向
 
-- [ ] 1.1 `resolveSessionRoute` 返回类型改为 `novel | orphan` 并更新单测（`session-route.test.ts` 覆盖绑定命中、绑定缺失、查询失败降级三态，`bun test` 于 `packages/app` 通过）
-- [ ] 1.2 独立会话路由渲染内容替换为重定向宿主：绑定会话 `replace` 跳 `/:dir/novel/:novelID/session/:id`，未绑定降级跳书架并 toast 提示；移除独立 `SessionPage` 挂载及其专属布局代码（`session-panel-width` 等），`bun run typecheck` 于 `packages/app` 通过
-- [ ] 1.3 全仓审计并删除草稿链路：`/new-session` 页面、`tabs.newDraft` 入口、`prompt-input/submit.ts` 草稿提升分支；`grep -rE "draftId|newDraft|new-session" packages/app/src` 无残留引用，typecheck 通过
+- [x] 1.1 `resolveSessionRoute` 返回类型改为 `novel | orphan` 并更新单测（`session-route.test.ts` 覆盖绑定命中、绑定缺失、查询失败降级三态，`bun test` 于 `packages/app` 通过）
+- [x] 1.2 独立会话路由渲染内容替换为重定向宿主：绑定会话 `replace` 跳 `/:dir/novel/:novelID/session/:id`，未绑定降级跳书架并 toast 提示；移除独立会话页专属组件（`SessionNovelPanel`、`ResolvedTargetSessionRoute`、`TargetSessionPage`；`session-panel-width`/`-layout` 与工作台共用需保留），`bun run typecheck` 于 `packages/app` 通过
+- [x] 1.3 全仓审计并删除草稿链路：`/new-session` 页面、`tabs.newDraft` 入口、`prompt-input/submit.ts` 草稿提升分支；`grep -rE "draftId|newDraft|new-session" packages/app/src` 无残留引用，typecheck 通过
 
 ## 2. 首页会话面收敛
 

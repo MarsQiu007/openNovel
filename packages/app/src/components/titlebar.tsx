@@ -116,7 +116,7 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
   const path = () => `${location.pathname}${location.search}${location.hash}`
   const creating = createMemo(() => {
     const route = layout.route()
-    if (route.type === "draft" || route.type === "dir-new-sesssion") return true
+    if (route.type === "dir-new-sesssion") return true
     if (!params.dir) return false
     if (params.id) return false
     const parts = location.pathname.replace(/\/+$/, "").split("/")
@@ -309,43 +309,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
               }
             })
 
-            const openNewTab = () => {
-              const route = layout.route()
-              const activeSession = session()
-              if (route.type === "session" && activeSession) {
-                tabs.newDraft({ server: route.server ?? server.key, directory: activeSession.directory }, "")
-                return
-              }
-
-              if (route.type === "home") {
-                const selection = layout.home.selection()
-                const conn = global.servers.list().find((item) => ServerConnection.key(item) === selection.server)
-                const project = conn
-                  ? global
-                      .ensureServerCtx(conn)
-                      .projects.list()
-                      .find((item) => item.worktree === selection.directory)
-                  : undefined
-                if (conn && project) {
-                  tabs.newDraft({ server: ServerConnection.key(conn), directory: project.worktree }, "")
-                  return
-                }
-              }
-
-              const current = layout.projects.list()[0]
-              if (current) {
-                tabs.newDraft({ server: server.key, directory: current.worktree }, "")
-                return
-              }
-
-              const fallback = global.servers.list().flatMap((conn) => {
-                const project = global.ensureServerCtx(conn).projects.list()[0]
-                return project ? [{ server: ServerConnection.key(conn), project }] : []
-              })[0]
-              if (!fallback) return
-
-              tabs.newDraft({ server: fallback.server, directory: fallback.project.worktree }, "")
-            }
             const toggleHome = () => tabs.toggleHome({ home: layout.route().type === "home", current: currentTab() })
 
             // Bookshelf entry: resolves the current project directory so novels can be
@@ -380,14 +343,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
               const current = currentTab()
 
               return [
-                {
-                  id: "tab.new",
-                  category: "tab",
-                  title: language.t("command.session.new"),
-                  keybind: "mod+t,mod+n",
-                  hidden: true,
-                  onSelect: openNewTab,
-                },
                 current && {
                   id: "tab.close",
                   category: "tab",

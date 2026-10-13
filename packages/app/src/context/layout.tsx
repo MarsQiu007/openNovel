@@ -137,10 +137,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       const value = currentRoute(location.pathname, location.search)
       if (value.type === "home") return value
       if (value.server) return value
-      if (value.type === "draft") {
-        const draft = tabs.draftPage(value.draftID)
-        if (draft) return { ...value, server: draft.server }
-      }
       return { ...value, server: server.key }
     })
 

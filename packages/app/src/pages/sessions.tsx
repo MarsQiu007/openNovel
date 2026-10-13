@@ -845,19 +845,6 @@ export function SessionsPage() {
     if (conn) setSelection({ server: ServerConnection.key(conn) })
   })
 
-  function openNewSession() {
-    const conn = focusedServer()
-    const project = newSessionProject()
-    if (!conn || !project) return
-    openProjectNewSession(conn, project.worktree)
-  }
-
-  function openProjectNewSession(conn: ServerConnection.Any, directory: string) {
-    const ctx = global.ensureServerCtx(conn)
-    ctx.projects.open(directory)
-    ctx.projects.touch(directory)
-    tabs.newDraft({ server: ServerConnection.key(conn), directory })
-  }
 
   function openSession(session: Session) {
     const directoryKey = pathKey(session.directory)
@@ -941,20 +928,6 @@ export function SessionsPage() {
                 onClose={closeSearch}
                 onSelect={selectSearchSession}
               />
-              <Show when={newSessionProject()}>
-                <div class="pointer-events-none absolute right-0 top-[84px] z-20 flex lg:top-[108px]">
-                  <ButtonV2
-                    data-action="home-new-session"
-                    variant="ghost-muted"
-                    size="normal"
-                    icon="edit"
-                    class="pointer-events-auto h-7 px-2 [font-weight:530]"
-                    onClick={openNewSession}
-                  >
-                    {language.t("command.session.new")}
-                  </ButtonV2>
-                </div>
-              </Show>
             </div>
             {/* Sticky chrome for the portaled session scrollbar — matches old sessions ScrollView bounds */}
             <div class="pointer-events-none sticky top-[84px] z-40 h-0 -mr-3 lg:top-[108px]">
@@ -985,7 +958,7 @@ export function SessionsPage() {
                         </div>
                       }
                     >
-                      <HomeSessionsEmpty onNewSession={newSessionProject() ? openNewSession : undefined} />
+                      <HomeSessionsEmpty />
                     </Show>
                   }
                 >

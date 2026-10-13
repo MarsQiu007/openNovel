@@ -19,18 +19,18 @@ describe("resolveSessionRoute", () => {
     expect(route).toEqual({ kind: "novel", dir: base64Encode(directory), novelID: "n-1" })
   })
 
-  test("unbound session falls back to the session tab", () => {
+  test("unbound legacy session degrades to orphan", () => {
     const route = resolveSessionRoute({ sessionID: "s-9", directory, bindings: [binding("s-1", "n-1")] })
-    expect(route).toEqual({ kind: "tab" })
+    expect(route).toEqual({ kind: "orphan" })
   })
 
-  test("missing bindings degrade to the session tab", () => {
+  test("missing bindings degrade to orphan", () => {
     const route = resolveSessionRoute({ sessionID: "s-1", directory, bindings: undefined })
-    expect(route).toEqual({ kind: "tab" })
+    expect(route).toEqual({ kind: "orphan" })
   })
 
-  test("empty binding list falls back to the session tab", () => {
+  test("empty binding list degrades to orphan", () => {
     const route = resolveSessionRoute({ sessionID: "s-1", directory, bindings: [] })
-    expect(route).toEqual({ kind: "tab" })
+    expect(route).toEqual({ kind: "orphan" })
   })
 })

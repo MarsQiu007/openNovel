@@ -40,10 +40,8 @@ import { base64Encode, checksum } from "@opennovel-ai/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { ErrorPage } from "@/pages/error"
-import { SessionNovelPanel } from "@/pages/session-novel-panel"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
-import { DirectoryDataProvider } from "@/pages/directory-layout"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -51,7 +49,7 @@ import { ModelsProvider } from "@/context/models"
 import { useNotification } from "@/context/notification"
 import { PromptProvider, usePrompt } from "@/context/prompt"
 import { usePlatform } from "@/context/platform"
-import { SDKProvider, useSDK } from "@/context/sdk"
+import { useSDK } from "@/context/sdk"
 import { useServerSDK } from "@/context/server-sdk"
 import { ServerConnection, serverName, useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
@@ -59,7 +57,6 @@ import { useSync } from "@/context/sync"
 import { TerminalProvider, useTerminal } from "@/context/terminal"
 import { PromptInput } from "@/components/prompt-input"
 import { PromptInputV2Composer, usePromptInputV2Controller } from "@/components/prompt-input-v2"
-import { useSettingsCommand } from "@/components/settings-dialog"
 import { setCursorPosition } from "@/components/prompt-input/editor-dom"
 import { promptLength } from "@/components/prompt-input/history"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
@@ -100,6 +97,7 @@ import { extractPromptFromParts } from "@/utils/prompt"
 import { formatServerError, isLocalSessionNotFoundError, isSessionNotFoundError } from "@/utils/server-errors"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
+import { SessionRedirect } from "./session-redirect"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 
@@ -151,29 +149,19 @@ export function SessionPage() {
   )
 }
 
-// Rendered under app.tsx's TargetSessionRoute, which owns the per-server keyed
-// remount around the server-scoped providers. Nothing here may key on the
-// session ID: session tabs on the same server share this route instance, and
-// workspace-scoped state (terminal, directory providers) lives below.
+// 独立会话路由已退役为重定向宿主（spec「会话归属书籍」）：目录经 lineage 解析后
+// 交由共享 SessionRedirect 决策——绑定会话 replace 进所属书籍工作台，未绑定遗留
+// 会话降级书架并提示。TargetServerScopedProviders 保持通知已读与模型上下文注册。
 export function TargetSessionRouteContent() {
   const params = useParams<{ serverKey: string; id: string }>()
   const serverSync = useServerSync()
   const directory = createMemo(() => serverSync().session.lineage.peek(params.id)?.session.directory)
+
   return (
-    // Settings must keep the target-server SDK, sync, and models context and remain registered
-    // when session content falls back to the route error boundary.
     <TargetServerScopedProviders directory={directory} sessionID={() => params.id}>
-      <TargetSessionSettingsCommand />
-      <SessionRouteErrorBoundary sessionID={params.id} serverKey={requireServerKey(params.serverKey)} padded>
-        <ResolvedTargetSessionRoute />
-      </SessionRouteErrorBoundary>
+      <SessionRedirect sessionID={params.id} directory={directory} />
     </TargetServerScopedProviders>
   )
-}
-
-function TargetSessionSettingsCommand() {
-  useSettingsCommand()
-  return null
 }
 
 export function SessionRouteErrorBoundary(
@@ -239,50 +227,6 @@ function SessionErrorFallback(props: { error: unknown; sessionID?: string; serve
     )
   }
   return <ErrorPage error={props.error} />
-}
-
-function ResolvedTargetSessionRoute() {
-  const params = useParams<{ serverKey: string; id: string }>()
-  const sync = useServerSync()
-  const serverKey = createMemo(() => requireServerKey(params.serverKey))
-  const current = createSessionLineage(
-    () => params.id,
-    () => sync().session.lineage,
-  )
-  const directory = createMemo(() => current()?.session.directory)
-  const targetDirectory = () => directory()!
-
-  return (
-    // Non-keyed: closes only while the target's directory is unknown (uncached
-    // lineage mid-resolution), which tears down the workspace subtree including
-    // the terminal. Same-workspace tab switches keep it open because warm
-    // targets resolve synchronously from the sync cache.
-    <Show when={directory()}>
-      <SDKProvider directory={targetDirectory}>
-        <DirectoryDataProvider directory={targetDirectory} server={serverKey}>
-          <div class="flex size-full min-h-0 min-w-0">
-            <SessionNovelPanel serverKey={serverKey} directory={directory} activeSessionID={() => params.id} />
-            <div class="flex min-w-0 min-h-0 flex-1 flex-col">
-              <TargetSessionPage />
-            </div>
-          </div>
-        </DirectoryDataProvider>
-      </SDKProvider>
-    </Show>
-  )
-}
-
-// Owns the workspace-identity remount. Must not include the session ID in the
-// key: SessionPage handles session changes reactively, and remounting here
-// destroys workspace-scoped state (terminal PTYs, file/prompt providers).
-function TargetSessionPage() {
-  const sdk = useSDK()
-  const serverSDK = useServerSDK()
-  return (
-    <Show when={`${serverSDK().scope}\0${sdk().directory}`} keyed>
-      <SessionPage />
-    </Show>
-  )
 }
 
 function TargetServerScopedProviders(

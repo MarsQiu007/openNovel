@@ -60,7 +60,7 @@ export type FileContextItem = {
 }
 
 export type ContextItem = FileContextItem
-export type PromptScope = { draftID: string } | { dir: string; id?: string }
+export type PromptScope = { dir: string; id?: string }
 
 export const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
 
@@ -168,7 +168,6 @@ function createPromptActions(setStore: SetStoreFunction<PromptStore>) {
 }
 
 function promptTarget(serverScope: ServerScope, scope: PromptScope) {
-  if ("draftID" in scope) return Persist.draft(scope.draftID, "prompt")
   const legacy = `${scope.dir}/prompt${scope.id ? "/" + scope.id : ""}.v2`
   return Persist.serverScoped(serverScope, scope.dir, scope.id, "prompt", [legacy])
 }
@@ -242,10 +241,6 @@ function createPersistedPrompt(target: ReturnType<typeof promptTarget>, initial?
 
 export function createPromptSession(serverScope: ServerScope, scope: PromptScope, initial?: InitialPrompt) {
   return createPersistedPrompt(promptTarget(serverScope, scope), initial)
-}
-
-export function createDraftPromptSession(draftID: string, initial?: InitialPrompt) {
-  return createPersistedPrompt(Persist.draft(draftID, "prompt"), initial)
 }
 
 export type PromptSession = ReturnType<typeof createPromptSession>

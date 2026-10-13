@@ -5,7 +5,7 @@ import type { PermissionRequest } from "@opennovel-ai/sdk/v2/client"
 import { Persist, persisted } from "@/utils/persist"
 import type { ServerSDK } from "@/context/server-sdk"
 import type { ServerSync } from "./server-sync"
-import { useParams, useSearchParams } from "@solidjs/router"
+import { useParams } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
@@ -56,19 +56,16 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
   gate: false,
   init: () => {
     const params = useParams<{ serverKey?: string; dir?: string; id?: string }>()
-    const [search] = useSearchParams<{ draftId?: string }>()
-    const global = useGlobal()
+      const global = useGlobal()
     const server = useServer()
     const tabs = useTabs()
     const settings = useSettings()
     const owner = getOwner()
     const states = new Map<ServerScope, { key: ServerConnection.Key; dispose: () => void; state: PermissionState }>()
 
-    const activeDraft = createMemo(() => tabs.draftPage(search.draftId))
-
     const activeServer = createMemo(() => {
       if (params.serverKey && settings.general.newLayoutDesigns()) return requireServerKey(params.serverKey)
-      return activeDraft()?.server ?? server.key
+      return server.key
     })
 
     const ensure = (key: ServerConnection.Key) => {
@@ -125,8 +122,6 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     const activeDirectory = createMemo(() => {
       const directory = decode64(params.dir)
       if (directory) return directory
-      const draft = activeDraft()
-      if (draft) return draft.directory
       if (!params.id) return
       if (!global.servers.list().some((conn) => ServerConnection.key(conn) === activeServer())) return
       return selected().sync.session.lineage.peek(params.id)?.session.directory

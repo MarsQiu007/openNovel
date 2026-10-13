@@ -26,7 +26,6 @@ const syncedDirectories: string[] = []
 const navigations: string[] = []
 
 let params: { id?: string } = {}
-let search: { draftId?: string } = {}
 let selected = "/repo/worktree-a"
 let variant: string | undefined
 let permissionServer = "server-a"
@@ -99,7 +98,6 @@ beforeAll(async () => {
     },
     useParams: () => params,
     useLocation: () => ({}),
-    useSearchParams: () => [search, () => undefined],
   }))
 
   mock.module("@opennovel-ai/sdk/v2/client", () => ({
@@ -146,12 +144,6 @@ beforeAll(async () => {
 
   mock.module("@/context/server", () => ({
     useServer: () => ({ key: "server-key" }),
-  }))
-
-  mock.module("@/context/tabs", () => ({
-    useTabs: () => ({
-      draftPage: (draftID: string) => ({ server: "project-server", directory: "/repo/main", draftID }),
-    }),
   }))
 
   mock.module("@/context/prompt", () => ({
@@ -257,7 +249,6 @@ beforeEach(() => {
   promoted.length = 0
   navigations.length = 0
   params = {}
-  search = {}
   sentShell.length = 0
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
@@ -365,33 +356,6 @@ describe("prompt submit worktree selection", () => {
     await result
 
     expect(enabledAutoAccept).toEqual([{ server: "server-a", sessionID: "session-1", directory: "/repo/worktree-a" }])
-  })
-
-  test("navigates to the draft server's session route after submitting", async () => {
-    search = { draftId: "draft-1" }
-    const submit = createPromptSubmit({
-      prompt,
-      info: () => undefined,
-      imageAttachments: () => [],
-      commentCount: () => 0,
-      autoAccept: () => false,
-      mode: () => "normal",
-      working: () => false,
-      editor: () => undefined,
-      queueScroll: () => undefined,
-      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
-      addToHistory: () => undefined,
-      resetHistoryNavigation: () => undefined,
-      setMode: () => undefined,
-      setPopover: () => undefined,
-      newSessionWorktree: () => selected,
-      onNewSessionWorktreeReset: () => undefined,
-      onSubmit: () => undefined,
-    })
-
-    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
-
-    expect(navigations).toEqual([`/server/${base64Encode("project-server")}/session/session-1`])
   })
 
   test("includes the selected variant on optimistic prompts", async () => {

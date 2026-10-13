@@ -293,8 +293,8 @@ export function createServerSdkContext(server: ServerConnection.Any, scope: Serv
 
 export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleContext({
   name: "ServerSDK",
-  // Returns an accessor so the resolved server can change reactively (e.g. a
-  // /new-session draft retargeting its server) without re-instantiating the subtree.
+  // Returns an accessor so the resolved server can change reactively without
+  // re-instantiating the subtree.
   init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
     const global = useGlobal()
     const language = useLanguage()

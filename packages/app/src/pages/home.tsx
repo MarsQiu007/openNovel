@@ -284,19 +284,6 @@ export function NewHome() {
     setSelection({ server: ServerConnection.key(conn), directory })
   }
 
-  function openNewSession() {
-    const conn = focusedServer()
-    const project = newSessionProject()
-    if (!conn || !project) return
-    openProjectNewSession(conn, project.worktree)
-  }
-
-  function openProjectNewSession(conn: ServerConnection.Any, directory: string) {
-    const ctx = global.ensureServerCtx(conn)
-    ctx.projects.open(directory)
-    ctx.projects.touch(directory)
-    tabs.newDraft({ server: ServerConnection.key(conn), directory })
-  }
 
   function editProject(conn: ServerConnection.Any, project: LocalProject) {
     void import("@/components/dialog-edit-project-v2").then((x) => {
@@ -354,7 +341,6 @@ export function NewHome() {
             selected={selection()}
             focusServer={focusServer}
             selectProject={selectProject}
-            openNewSession={openProjectNewSession}
             openRecentProject={(conn, directory) => addProjects(conn, [directory])}
             chooseProject={(conn) => void chooseProject(conn)}
             editProject={editProject}
@@ -561,7 +547,6 @@ function HomeProjectColumn(props: {
   selected: HomeProjectSelection
   focusServer: (server: ServerConnection.Any) => void
   selectProject: (server: ServerConnection.Any, directory: string) => void
-  openNewSession: (server: ServerConnection.Any, directory: string) => void
   openRecentProject: (server: ServerConnection.Any, directory: string) => void
   chooseProject: (server: ServerConnection.Any) => void
   editProject: (server: ServerConnection.Any, project: LocalProject) => void
@@ -807,7 +792,6 @@ function HomeProjectList(props: {
   projects: LocalProject[]
   selected: HomeProjectSelection
   selectProject: (server: ServerConnection.Any, directory: string) => void
-  openNewSession: (server: ServerConnection.Any, directory: string) => void
   editProject: (server: ServerConnection.Any, project: LocalProject) => void
   closeProject: (server: ServerConnection.Any, directory: string) => void
   clearNotifications: (server: ServerConnection.Any, project: LocalProject) => void
@@ -827,7 +811,6 @@ function HomeProjectList(props: {
             }
             unseenCount={props.unseenCount(props.server, project)}
             selectProject={props.selectProject}
-            openNewSession={props.openNewSession}
             editProject={props.editProject}
             closeProject={props.closeProject}
             clearNotifications={props.clearNotifications}
@@ -918,7 +901,6 @@ function HomeProjectRow(props: {
   selected: boolean
   unseenCount: number
   selectProject: (server: ServerConnection.Any, directory: string) => void
-  openNewSession: (server: ServerConnection.Any, directory: string) => void
   editProject: (server: ServerConnection.Any, project: LocalProject) => void
   closeProject: (server: ServerConnection.Any, directory: string) => void
   clearNotifications: (server: ServerConnection.Any, project: LocalProject) => void
@@ -978,9 +960,6 @@ function HomeProjectRow(props: {
           />
           <MenuV2.Portal>
             <MenuV2.Content>
-              <MenuV2.Item onSelect={() => props.openNewSession(props.server, props.project.worktree)}>
-                {props.language.t("command.session.new")}
-              </MenuV2.Item>
               <MenuV2.Item onSelect={() => props.editProject(props.server, props.project)}>
                 {props.language.t("dialog.project.edit.title")}
               </MenuV2.Item>
@@ -1000,14 +979,6 @@ function HomeProjectRow(props: {
             </MenuV2.Content>
           </MenuV2.Portal>
         </MenuV2>
-        <IconButtonV2
-          data-action="home-project-new-session"
-          variant="ghost-muted"
-          size="small"
-          icon={<IconV2 name="edit" />}
-          aria-label={props.language.t("command.session.new")}
-          onClick={() => props.openNewSession(props.server, props.project.worktree)}
-        />
       </div>
     </div>
   )

@@ -19,22 +19,8 @@ export const parseDeepLink = (input: string) => {
   return directory
 }
 
-export const parseNewSessionDeepLink = (input: string) => {
-  const url = parseUrl(input)
-  if (!url) return
-  if (url.hostname !== "new-session") return
-  const directory = url.searchParams.get("directory")
-  if (!directory) return
-  const prompt = url.searchParams.get("prompt") || undefined
-  if (!prompt) return { directory }
-  return { directory, prompt }
-}
-
 export const collectOpenProjectDeepLinks = (urls: string[]) =>
   urls.map(parseDeepLink).filter((directory): directory is string => !!directory)
-
-export const collectNewSessionDeepLinks = (urls: string[]) =>
-  urls.map(parseNewSessionDeepLink).filter((link): link is { directory: string; prompt?: string } => !!link)
 
 type OpenNovelWindow = Window & {
   __OPENNOVEL__?: {

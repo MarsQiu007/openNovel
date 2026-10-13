@@ -68,7 +68,6 @@ import {
   sortedRootSessions,
 } from "./layout/helpers"
 import {
-  collectNewSessionDeepLinks,
   collectOpenProjectDeepLinks,
   deepLinkEvent,
   drainPendingDeepLinks,
@@ -1263,17 +1262,6 @@ export default function LegacyLayout(props: ParentProps) {
       void openProject(directory)
     }
 
-    for (const link of collectNewSessionDeepLinks(urls)) {
-      void openProject(link.directory, false)
-      const slug = base64Encode(link.directory)
-      if (link.prompt) {
-        setSessionHandoff(SessionStateKey.from(server.scope(), SessionRouteKey.fromLegacy(slug)), {
-          prompt: link.prompt,
-        })
-      }
-      const href = link.prompt ? `/${slug}/session?prompt=${encodeURIComponent(link.prompt)}` : `/${slug}/session`
-      navigateWithSidebarReset(href)
-    }
   }
 
   onMount(() => {

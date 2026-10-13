@@ -1,6 +1,6 @@
 import { createStore, reconcile } from "solid-js/store"
 import { type Accessor, batch, createEffect, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
-import { useParams, useSearchParams } from "@solidjs/router"
+import { useParams } from "@solidjs/router"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
 import type { ServerSDK } from "./server-sdk"
 import type { ServerSync } from "./server-sync"
@@ -114,8 +114,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
   gate: false,
   init: () => {
     const params = useParams<{ serverKey?: string; dir?: string; id?: string }>()
-    const [search] = useSearchParams<{ draftId?: string }>()
-    const global = useGlobal()
+      const global = useGlobal()
     const server = useServer()
     const tabs = useTabs()
     const platform = usePlatform()
@@ -126,10 +125,6 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const activeServer = createMemo(() => {
       if (params.serverKey) return requireServerKey(params.serverKey)
-      if (search.draftId) {
-        const draft = tabs.draftPage(search.draftId)
-        if (draft) return draft.server
-      }
       return server.key
     })
     const activeDirectory = createMemo(() => decode64(params.dir))

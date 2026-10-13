@@ -1,10 +1,9 @@
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
-import { useParams, useSearchParams } from "@solidjs/router"
+import { useParams } from "@solidjs/router"
 import { createMemo, createResource, createRoot, getOwner, onCleanup } from "solid-js"
 import { useServerSDK } from "./server-sdk"
 import { useSDK } from "./sdk"
-import { useTabs } from "./tabs"
 import {
   createPromptReady,
   createPromptSession,
@@ -58,9 +57,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
   init: () => {
     const params = useParams<{ serverKey?: string; id?: string }>()
     const sdk = useSDK()
-    const [search] = useSearchParams<{ draftId?: string }>()
     const serverSDK = useServerSDK()
-    const tabs = useTabs()
     const cache = new Map<string, PromptCacheEntry>()
 
     const disposeAll = () => {
@@ -81,14 +78,8 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
     }
 
     const owner = getOwner()
-    const scope = (): PromptScope =>
-      search.draftId ? { draftID: search.draftId } : { dir: base64Encode(sdk().directory), id: params.id }
+    const scope = (): PromptScope => ({ dir: base64Encode(sdk().directory), id: params.id })
     const load = (scope: PromptScope) => {
-      if ("draftID" in scope) {
-        const draft = tabs.draftPrompt(scope.draftID)
-        if (draft) return draft
-      }
-
       const key = scopeKey(scope)
       const existing = cache.get(key)
       if (existing) {

@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import {
-  collectNewSessionDeepLinks,
-  collectOpenProjectDeepLinks,
-  drainPendingDeepLinks,
-  parseDeepLink,
-  parseNewSessionDeepLink,
-} from "./deep-links"
+import { collectOpenProjectDeepLinks, drainPendingDeepLinks, parseDeepLink } from "./deep-links"
 import { type Session } from "@opennovel-ai/sdk/v2/client"
 import {
   childSessionOnPath,
@@ -74,28 +68,6 @@ describe("layout deep links", () => {
       "opennovel://open-project?directory=/c",
     ])
     expect(result).toEqual(["/a", "/c"])
-  })
-
-  test("parses new-session deep links with optional prompt", () => {
-    expect(parseNewSessionDeepLink("opennovel://new-session?directory=/tmp/demo")).toEqual({ directory: "/tmp/demo" })
-    expect(parseNewSessionDeepLink("opennovel://new-session?directory=/tmp/demo&prompt=hello%20world")).toEqual({
-      directory: "/tmp/demo",
-      prompt: "hello world",
-    })
-  })
-
-  test("ignores new-session deep links without directory", () => {
-    expect(parseNewSessionDeepLink("opennovel://new-session")).toBeUndefined()
-    expect(parseNewSessionDeepLink("opennovel://new-session?directory=")).toBeUndefined()
-  })
-
-  test("collects only valid new-session deep links", () => {
-    const result = collectNewSessionDeepLinks([
-      "opennovel://new-session?directory=/a",
-      "opennovel://open-project?directory=/b",
-      "opennovel://new-session?directory=/c&prompt=ship%20it",
-    ])
-    expect(result).toEqual([{ directory: "/a" }, { directory: "/c", prompt: "ship it" }])
   })
 
   test("drains global deep links once", () => {

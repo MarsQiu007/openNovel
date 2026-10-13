@@ -34,8 +34,7 @@ export function DirectoryDataProvider(
   }
 
   createEffect(() => {
-    // A draft lives at /new-session?draftId=… and has no directory segment to normalize.
-    if (props.draftID || props.server?.()) return
+    if (props.server?.()) return
     const next = sync().data.path.directory
     if (!next || next === directory()) return
     const path = location.pathname.slice(slug().length + 1)

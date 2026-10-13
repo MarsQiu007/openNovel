@@ -2,9 +2,8 @@ import type { Message, Session } from "@opennovel-ai/sdk/v2/client"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { Binary } from "@opennovel-ai/core/util/binary"
-import { useNavigate, useParams, useSearchParams } from "@solidjs/router"
+import { useNavigate, useParams } from "@solidjs/router"
 import { batch, startTransition, type Accessor } from "solid-js"
-import { useTabs } from "@/context/tabs"
 import { useServerSync, type ServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -206,8 +205,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const layout = useLayout()
   const language = useLanguage()
   const params = useParams()
-  const [search] = useSearchParams<{ draftId?: string }>()
-  const tabs = useTabs()
   const pendingKey = (sessionID: string) => ScopedKey.from(sdk().scope, sessionID)
 
   const errorMessage = (err: unknown) => {
@@ -387,14 +384,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
             variant: variant ?? null,
           })
           layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
-          // 草稿页面态：不再把草稿标签替换为会话标签，直接导航会话路由；
-          // 离开 /new-session 时草稿状态由 tabs 的路由 effect 就地清理。
-          const draftPage = search.draftId ? tabs.draftPage(search.draftId) : undefined
-          navigate(
-            draftPage
-              ? sessionHref(draftPage.server, session.id)
-              : `/${base64Encode(sessionDirectory)}/session/${session.id}`,
-          )
+          navigate(`/${base64Encode(sessionDirectory)}/session/${session.id}`)
           submission.retarget(prompt.capture({ dir: base64Encode(sessionDirectory), id: session.id }))
         })
       }

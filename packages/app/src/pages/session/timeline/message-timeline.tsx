@@ -821,11 +821,7 @@ export function MessageTimeline(props: {
       navigate(href(nextSessionID))
       return
     }
-    if (params.serverKey) {
-      tabs.newDraft({ server: requireServerKey(params.serverKey), directory: sdk().directory })
-      return
-    }
-    navigate(`/${params.dir}/session`)
+    navigate("/")
   }
 
   const archiveSession = async (sessionID: string) => {

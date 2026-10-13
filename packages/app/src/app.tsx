@@ -17,11 +17,10 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  useSearchParams,
 } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
+import { base64Decode, base64Encode } from "@opennovel-ai/core/util/encode"
 import {
   type Component,
   createEffect,
@@ -55,8 +54,7 @@ import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider, useSettings } from "@/context/settings"
-import { TabsProvider, useTabs, type DraftPageState } from "@/context/tabs"
-import { SDKProvider, useSDK } from "@/context/sdk"
+import { TabsProvider } from "@/context/tabs"
 import { WslServersProvider } from "@/wsl/context"
 import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
 import LegacyLayout from "@/pages/layout"
@@ -66,59 +64,22 @@ import { useCheckServerHealth } from "./utils/server-health"
 import { legacySessionHref, requireServerKey, sessionHref } from "./utils/session-route"
 import { createSessionLineage } from "@/pages/session/session-lineage"
 
-import { SessionPage, SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
+import { SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
+import { SessionRedirect } from "@/pages/session-redirect"
 import { NewHome, LegacyHome } from "@/pages/home"
 import { SessionsPage } from "@/pages/sessions"
 import NovelWorkspaceLayout, { NovelWizardLayout } from "@/pages/novel/layout"
 
-const NewSession = lazy(() => import("@/pages/new-session"))
-
+// 旧独立会话路由已退役为重定向入口：目录直接取路由段（base64），统一交由
+// SessionRedirect 决策（绑定进书、未绑定降级书架）；无 id 的草稿形态不再存在。
 const SessionRoute = () => {
-  const settings = useSettings()
-  const params = useParams()
-  const [search] = useSearchParams<{ draftId?: string; prompt?: string }>()
-  const sdk = useSDK()
+  const params = useParams<{ dir: string; id?: string }>()
   const server = useServer()
-  const tabs = useTabs()
+  const directory = createMemo(() => (params.dir ? base64Decode(params.dir) : undefined))
 
-  if (params.id && settings.general.newLayoutDesigns()) {
-    return <Navigate href={sessionHref(server.key, params.id)} />
-  }
+  if (!params.id) return <Navigate href="/" />
 
-  // When the new layout is enabled, the legacy new-session route (/:dir/session with no id)
-  // is replaced by a draft at /new-session?draftId=…
-  createEffect(() => {
-    if (!settings.general.newLayoutDesigns()) return
-    if (params.id || search.draftId) return
-    if (!tabs.ready() || !sdk().directory) return
-    tabs.newDraft({ server: server.key, directory: sdk().directory }, search.prompt)
-  })
-
-  return (
-    <SessionRouteErrorBoundary sessionID={params.id}>
-      <SessionPage />
-    </SessionRouteErrorBoundary>
-  )
-}
-
-function TargetServerRoute(props: ParentProps) {
-  const params = useParams<{ serverKey: string; id: string }>()
-  const global = useGlobal()
-  const conn = createMemo(() => {
-    const key = requireServerKey(params.serverKey)
-    return global.servers.list().find((item) => ServerConnection.key(item) === key)
-  })
-
-  return (
-    // Owns the server-identity remount. Session changes must NOT remount this
-    // subtree (SessionRouteErrorBoundary resets and createSessionLineage
-    // re-resolves reactively instead); both rely on this key for server changes.
-    <Show when={requireServerKey(params.serverKey)} keyed>
-      <ServerSDKProvider server={conn}>
-        <ServerSyncProvider server={conn}>{props.children}</ServerSyncProvider>
-      </ServerSDKProvider>
-    </Show>
-  )
+  return <SessionRedirect sessionID={params.id} directory={directory} />
 }
 
 const TargetSessionRoute = () => (
@@ -156,6 +117,26 @@ function LegacyTargetSessionRedirect() {
   return null
 }
 
+function TargetServerRoute(props: ParentProps) {
+  const params = useParams<{ serverKey: string; id: string }>()
+  const global = useGlobal()
+  const conn = createMemo(() => {
+    const key = requireServerKey(params.serverKey)
+    return global.servers.list().find((item) => ServerConnection.key(item) === key)
+  })
+
+  return (
+    // Owns the server-identity remount. Session changes must NOT remount this
+    // subtree (SessionRouteErrorBoundary resets and createSessionLineage
+    // re-resolves reactively instead); both rely on this key for server changes.
+    <Show when={requireServerKey(params.serverKey)} keyed>
+      <ServerSDKProvider server={conn}>
+        <ServerSyncProvider server={conn}>{props.children}</ServerSyncProvider>
+      </ServerSDKProvider>
+    </Show>
+  )
+}
+
 // One-time bootstrap: seed server config.general.outputLanguage with the current UI
 // locale when it has never been set, so a brand-new install "just works" in the user's
 // language without forcing them through the settings dialog.
@@ -170,7 +151,7 @@ function OutputLanguageBootstrap() {
   return null
 }
 
-// Wraps the non-draft routes. They are gated on (and keyed to) the globally selected
+// Wraps the workspace-level routes. They are gated on (and keyed to) the globally selected
 // server via ServerKey, then provide the server-scoped shell for that server.
 function SelectedServerProviders(props: ParentProps) {
   return (
@@ -190,53 +171,6 @@ function LegacyServerLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) 
     <SelectedServerProviders>
       <LegacyServerScopedShell serverScoped={props.serverScoped}>{props.children}</LegacyServerScopedShell>
     </SelectedServerProviders>
-  )
-}
-
-function DraftRoute() {
-  const [search] = useSearchParams<{ draftId?: string }>()
-  const settings = useSettings()
-  const tabs = useTabs()
-  return (
-    <Show
-      when={tabs.draftPage(search.draftId)}
-      keyed
-      fallback={<Navigate href="/" />}
-    >
-      {(draft) => (
-        <Show
-          when={settings.general.newLayoutDesigns()}
-          fallback={<Navigate href={`/${base64Encode(draft.directory)}/session`} />}
-        >
-          <ResolvedDraftRoute draft={draft} />
-        </Show>
-      )}
-    </Show>
-  )
-}
-
-function ResolvedDraftRoute(props: { draft: DraftPageState }) {
-  const global = useGlobal()
-  const conn = createMemo(() => global.servers.list().find((item) => ServerConnection.key(item) === props.draft.server))
-  const directory = () => props.draft.directory
-  const serverKey = () => props.draft.server
-
-  return (
-    <Show when={`${props.draft.server}\0${props.draft.directory}`} keyed>
-      <ServerSDKProvider server={conn}>
-        <ServerSyncProvider server={conn}>
-          <ModelsProvider directory={directory}>
-            <SDKProvider directory={directory}>
-              <DirectoryDataProvider directory={directory} server={serverKey}>
-                <DraftProviders>
-                  <NewSession />
-                </DraftProviders>
-              </DirectoryDataProvider>
-            </SDKProvider>
-          </ModelsProvider>
-        </ServerSyncProvider>
-      </ServerSDKProvider>
-    </Show>
   )
 }
 
@@ -354,18 +288,6 @@ function NewAppLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) {
         <NewLayout>{props.children}</NewLayout>
       </ServerScopedProviders>
     </SelectedServerProviders>
-  )
-}
-
-// The draft page only renders the prompt composer, so it drops TerminalProvider.
-// FileProvider and CommentsProvider stay because PromptInput uses file search and comment context.
-function DraftProviders(props: ParentProps) {
-  return (
-    <FileProvider>
-      <PromptProvider>
-        <CommentsProvider>{props.children}</CommentsProvider>
-      </PromptProvider>
-    </FileProvider>
   )
 }
 
@@ -623,7 +545,6 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>
-      <Route path="/new-session" component={DraftRoute} />
     </>
   )
 }
