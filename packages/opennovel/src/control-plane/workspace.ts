@@ -565,30 +565,34 @@ const layer = Layer.effect(
           .get()
           .pipe(Effect.orDie)
 
-        if (current?.workspaceID) {
-          const previous = yield* get(current.workspaceID)
-          if (previous) {
-            const target = yield* WorkspaceAdapterRuntime.target(previous)
+        const previous = current?.workspaceID ? yield* get(current.workspaceID) : undefined
+        if (previous) {
+          const sourceTarget = yield* WorkspaceAdapterRuntime.target(previous)
 
-            if (target.type === "remote") {
-              yield* syncHistory(previous, target.url, target.headers).pipe(
-                Effect.catch((error) =>
-                  Effect.logWarning("session warp final source sync failed", {
-                    workspaceID: previous.id,
-                    sessionID: input.sessionID,
-                    error: errorData(error),
-                  }),
-                ),
-              )
-            } else {
-              yield* prompt.cancel(input.sessionID)
-            }
-
-            // "claim" this session so any future events coming from
-            // the old workspace are ignored
-            yield* events.claim(input.sessionID, input.workspaceID ?? previous.projectID)
+          if (sourceTarget.type === "remote") {
+            yield* syncHistory(previous, sourceTarget.url, sourceTarget.headers).pipe(
+              Effect.catch((error) =>
+                Effect.logWarning("session warp final source sync failed", {
+                  workspaceID: previous.id,
+                  sessionID: input.sessionID,
+                  error: errorData(error),
+                }),
+              ),
+            )
+          } else {
+            yield* prompt.cancel(input.sessionID)
           }
         }
+
+        // "claim" makes the warp target the event owner so anything still coming
+        // from the old workspace is ignored. It has to land together with the
+        // durable workspace binding: claiming before the patch/replay steps below
+        // would drop old-workspace events on every failure path and leave the
+        // session half-migrated.
+        const claimSequence = Effect.fnUntraced(function* () {
+          if (!previous) return
+          yield* events.claim(input.sessionID, input.workspaceID ?? previous.projectID)
+        })
 
         const sourcePatch =
           input.copyChanges && current?.workspaceID
@@ -621,6 +625,7 @@ const layer = Layer.effect(
         }
 
         if (input.workspaceID === null) {
+          yield* claimSequence()
           yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: undefined })
 
           return
@@ -637,6 +642,7 @@ const layer = Layer.effect(
         const target = yield* WorkspaceAdapterRuntime.target(space)
 
         if (target.type === "local") {
+          yield* claimSequence()
           yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: input.workspaceID })
 
           return
@@ -709,6 +715,7 @@ const layer = Layer.effect(
           })
         }
 
+        yield* claimSequence()
         yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: input.workspaceID })
       })
     })
