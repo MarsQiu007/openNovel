@@ -107,11 +107,16 @@ export class Handler {
       return
     }
 
-    void this.input.connection.writeTextFile({
-      sessionId,
-      path: filepath,
-      content: next,
-    })
+    // 用户已批准该编辑：写入失败不能静默，否则呈现成功假象
+    await this.input.connection
+      .writeTextFile({
+        sessionId,
+        path: filepath,
+        content: next,
+      })
+      .catch((error) => {
+        console.error(`[acp] failed to write approved edit ${filepath}`, error)
+      })
   }
 }
 

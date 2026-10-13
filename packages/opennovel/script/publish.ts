@@ -125,6 +125,8 @@ if (!Script.preview) {
   ].join("\n")
 
   for (const [pkg, pkgbuild] of [["opennovel-bin", binaryPkgbuild]]) {
+    let done = false
+    let lastError: unknown
     for (let i = 0; i < 30; i++) {
       try {
         await $`rm -rf ./dist/aur-${pkg}`
@@ -133,14 +135,20 @@ if (!Script.preview) {
         await Bun.file(`./dist/aur-${pkg}/PKGBUILD`).write(pkgbuild)
         await $`cd ./dist/aur-${pkg} && makepkg --printsrcinfo > .SRCINFO`
         await $`cd ./dist/aur-${pkg} && git add PKGBUILD .SRCINFO`
-        if ((await $`cd ./dist/aur-${pkg} && git diff --cached --quiet`.nothrow()).exitCode === 0) break
+        if ((await $`cd ./dist/aur-${pkg} && git diff --cached --quiet`.nothrow()).exitCode === 0) {
+          done = true
+          break
+        }
         await $`cd ./dist/aur-${pkg} && git commit -m "Update to v${Script.version}"`
         await $`cd ./dist/aur-${pkg} && git push`
+        done = true
         break
-      } catch {
+      } catch (error) {
+        lastError = error
         continue
       }
     }
+    if (!done) throw new Error(`AUR publish failed for ${pkg} after 30 attempts: ${String(lastError)}`)
   }
 
   // Homebrew formula

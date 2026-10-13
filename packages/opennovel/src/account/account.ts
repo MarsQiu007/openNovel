@@ -386,6 +386,7 @@ const layer: Layer.Layer<Service, never, AccountRepo.Service | HttpClient.HttpCl
 
     const login = Effect.fn("Account.login")(function* (server: string) {
       const normalizedServer = normalizeServerUrl(server)
+      if (!normalizedServer) return yield* Effect.fail(new AccountServiceError({ message: `Invalid server URL: ${server}` }))
       const response = yield* executeEffectOk(
         HttpClientRequest.post(`${normalizedServer}/auth/device/code`).pipe(
           HttpClientRequest.acceptJson,

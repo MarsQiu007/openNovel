@@ -12,7 +12,7 @@ process.chdir(dir)
 
 const generated = await import("./generate.ts")
 
-await Bun.build({
+const result = await Bun.build({
   target: "node",
   entrypoints: ["./src/node.ts"],
   outdir: "./dist/node",
@@ -27,5 +27,10 @@ await Bun.build({
     "opennovel-web-ui.gen.ts": "",
   },
 })
+
+if (!result.success) {
+  console.error("node build failed", result.logs)
+  process.exit(1)
+}
 
 console.log("Build complete")

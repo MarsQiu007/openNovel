@@ -122,7 +122,10 @@ export class Subscription {
       for await (const event of events.stream) {
         if (this.abort.signal.aborted) return
         if (!event.payload) continue
-        await this.handle(event.payload).catch(() => {})
+        // 记录后继续循环（保持原有不中断语义），否则事件泵故障完全无从诊断
+        await this.handle(event.payload).catch((error) => {
+          console.error("[acp] failed to handle event", error)
+        })
       }
       if (!this.abort.signal.aborted) await new Promise((resolve) => setTimeout(resolve, 1000))
     }
