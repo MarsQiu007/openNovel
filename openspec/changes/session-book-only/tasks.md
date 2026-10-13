@@ -23,11 +23,23 @@
 ## 4. 集成验证
 
 - [x] 4.1 深链回归：历史独立会话路由（绑定/未绑定两种）分别重定向进书内与书架，`novel/session-book-routing` e2e 覆盖两态（绑定 replace 进书内、未绑定降级书架并 toast）
-- [ ] 4.2 `packages/app` 全量 `bun test` + `bun run typecheck` + 根目录 `bun run lint` 通过
-- [ ] 4.3 `openspec validate session-book-only --strict` 通过，tasks 勾选完整
+- [x] 4.2 `packages/app` 全量 `bun test` + `bun run typecheck` + 根目录 `bun run lint` 通过（packages/app `bun test` 790 pass / 0 fail；`bun run typecheck` 通过；根目录 `bun run lint` 0 errors；merge origin/main 后全量 `bun turbo typecheck` 30/30 通过）
+- [x] 4.3 `openspec validate session-book-only --strict` 通过，tasks 勾选完整（输出 `Change 'session-book-only' is valid`）
 
 ## Workflow follow-up
 
 - 提交全部实现改动（每个提交带 `OpenSpec-Change: session-book-only` trailer）
 - 收集实现提交写入 `## Implementation Commits`，单独提交记录更新
 - 同步主 specs → 归档 → 合并 `main` → 清理本地与远端分支
+
+## Implementation Commits
+
+- `960f8b1d8` docs(openspec): 新增 session-book-only 提案工件
+- `42dfda767` feat(app): 独立会话路由退役为重定向宿主
+- `70b549d51` feat(app): 首页会话面移除全局对话与自由新建入口
+- `8ca41577c` feat(app): 书内会话数据源按父会话归组子代理
+- `098258da3` feat(app): 书内切换器嵌套收纳子代理会话
+- `7c72859ff` fix(app): 书内会话补回 lineage not-found 兜底并迁移子代理导航 e2e
+- `0c3e46134` fix(app): 工作台补回设置入口并修复进入路径分栏观察
+- `c5cac4c3e` test(app): 迁移会话相关 e2e 到书籍工作台路由并补路由回归
+- `6d6b5b209` test(app): 会话 e2e 迁移至书籍工作台路由
