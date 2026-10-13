@@ -341,31 +341,31 @@
 | H658 | packages/opennovel/src/effect/bridge.ts:68 | high | bug | fix | bridge.run 的 runPromiseExit 内层 fiber 不随外层中断，中断后内层继续跑（资源泄漏/写后生效）。修复：改用 forkIn 或在外层 interrupt 回调里 fiber 中断。 |
 | H654 | packages/opennovel/src/effect/instance-registry.ts:10 | high | bug | fix | disposers 集合执行后不清空：二次 disposeInstance 会对同一批 disposer 重跑（双清理/报错）。修复：快照后 delete 已执行项（clear 全集或逐项移除）。 |
 | H665 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug | wontfix | ScopedCache.invalidate 错误通道为 never（等待纤维结算后不 reject），runPromise 无拒绝面，"unhandled rejection"前提不成立。 |
-| H666 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug |  |  |
-| H656 | packages/opennovel/src/effect/run-service.ts:28 | high | bug |  |  |
-| H657 | packages/opennovel/src/effect/run-service.ts:34 | high | bug |  |  |
-| H660 | packages/opennovel/src/effect/runner.ts:83 | high | bug |  |  |
-| H661 | packages/opennovel/src/effect/runner.ts:108 | high | bug |  |  |
-| H659 | packages/opennovel/src/env/index.ts:26 | high | bug |  |  |
+| H666 | packages/opennovel/src/effect/instance-state.ts:38 | high | bug | wontfix | disposeInstance 以 Promise.allSettled 等全部 disposer 完结，Scope finalizer 的 off 只注销后续再入；不存在未完成 runPromise 与 finalizer 竞速的双路径。 |
+| H656 | packages/opennovel/src/effect/run-service.ts:28 | high | bug | fix | Context.getReferenceUnsafe 在 fiber 存在但 InstanceRef 未提供时抛裸异常（run-service 可能被无实例 fiber 触达）。修复：改 Context.getReference 取 Option 或提供缺省值。 |
+| H657 | packages/opennovel/src/effect/run-service.ts:34 | high | bug | wontfix | 同 H413：memoMap 下 ManagedRuntime 为进程级单例复用，重复 make 不复制资源（memoMap 语义），无泄漏面。 |
+| H660 | packages/opennovel/src/effect/runner.ts:83 | high | bug | fix | startRun 用 forkIn(scope)、startShell 用 forkChild，生命周期语义不一致（shell fiber 随父中断/逃逸行为与 run 不同），违背 Runner 自持生命周期的设计意图。修复：统一到 forkIn(scope) 并复核中断语义。 |
+| H661 | packages/opennovel/src/effect/runner.ts:108 | high | bug | fix | stopShell 无条件 await shell.ready：work 异常/卡死从未打开 latch 时停止流程永挂。修复：ready 等待加超时（cancelled 置位后即可推进）。 |
+| H659 | packages/opennovel/src/env/index.ts:26 | high | bug | wontfix | JS 单线程：env set/delete 各自同步段原子完成，fiber 间不存在数据撕裂；"dual mutation"需要 await 间隙的读-改-写才有危害，env 写入均单行同步。 |
 | C218 | packages/opennovel/src/event-manifest.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H662 | packages/opennovel/src/format/formatter.ts:74 | high | bug |  |  |
-| H663 | packages/opennovel/src/format/formatter.ts:198 | high | bug |  |  |
-| H664 | packages/opennovel/src/format/formatter.ts:225 | high | bug |  |  |
-| C219 | packages/opennovel/src/id/id.ts:54 | critical | bug |  |  |
-| H667 | packages/opennovel/src/id/id.ts:72 | high | bug |  |  |
-| C221 | packages/opennovel/src/image/image.ts:126 | critical | bug |  |  |
-| H670 | packages/opennovel/src/index.ts:37 | high | bug |  |  |
-| C220 | packages/opennovel/src/installation/index.ts:145 | critical | security |  |  |
-| H668 | packages/opennovel/src/installation/index.ts:216 | high | bug |  |  |
-| H669 | packages/opennovel/src/installation/index.ts:245 | high | bug |  |  |
-| H673 | packages/opennovel/src/lsp/lsp.ts:244 | high | bug |  |  |
-| H672 | packages/opennovel/src/lsp/lsp.ts:267 | high | bug |  |  |
-| H675 | packages/opennovel/src/lsp/server.ts:183 | high | security |  |  |
-| H676 | packages/opennovel/src/mcp/auth.ts:67 | high | bug |  |  |
-| C223 | packages/opennovel/src/mcp/browser.ts:19 | critical | bug |  |  |
-| C222 | packages/opennovel/src/mcp/catalog.ts:26 | critical | bug |  |  |
-| H671 | packages/opennovel/src/mcp/catalog.ts:43 | high | bug |  |  |
-| H677 | packages/opennovel/src/mcp/index.ts:109 | high | bug |  |  |
+| H662 | packages/opennovel/src/format/formatter.ts:74 | high | bug | fix | formatter 检测对 glob 命中的 package.json 直接 readJson，畸形 JSON 令检测路径抛未处理拒绝。修复：catch 后按"未识别"返回 false。 |
+| H663 | packages/opennovel/src/format/formatter.ts:198 | high | bug | fix | 同 H662：readText 配置文件失败应视作探测失败，不该裸抛。修复：各 readText 调用加 catch 返回未命中。 |
+| H664 | packages/opennovel/src/format/formatter.ts:225 | high | bug | wontfix | Process.text({nothrow:true}) 契约恒返回 { text: string, code }（stdout 缺省空串），text 无 undefined 分支，.split 不会 TypeError。 |
+| C219 | packages/opennovel/src/id/id.ts:54 | critical | bug | fix | id.ts 计数器同毫秒无上限：>4096/ms 时 counter 溢出污染时间戳低位编码，破坏唯一性与有序性。修复：溢出即时间戳 +1（standard monotonic generator 做法）。 |
+| H667 | packages/opennovel/src/id/id.ts:72 | high | bug | wontfix | 同 H432：timestamp() 文档注释已限定仅适用于 ascending ID，调用方均为内部升序 ID；补运行时校验是防御扩展。 |
+| C221 | packages/opennovel/src/image/image.ts:126 | critical | bug | fix | image.ts:126 resized 原生对象在 get_bytes 抛错路径不 free（136 行 free 不在 finally），WASM 内存泄漏。修复：try/finally 包裹 free（photon.ts 已是正确先例）。 |
+| H670 | packages/opennovel/src/index.ts:37 | high | bug | fix | index.ts:37 同一 `startsWith("opennovel ")` 判断写两遍（复制粘贴死条件）。修复：去重（行为不变）；如需大小写双判需产品确认再改。 |
+| C220 | packages/opennovel/src/installation/index.ts:145 | critical | security | defer | 安装脚本从本仓 GitHub 发行物 HTTPS 直下执行属既有自更新信任模型；引入校验和/签名验证是发布供应链流程决策（需版本工件同步分发校验值），超出缺陷修复范围，归 release 安全 change。 |
+| H668 | packages/opennovel/src/installation/index.ts:216 | high | bug | fix | brew API 返回 formulae 空数组时 info.formulae[0].versions 裸 TypeError。修复：判空后抛可读错误（与网络失败路径同形态）。 |
+| H669 | packages/opennovel/src/installation/index.ts:245 | high | bug | fix | 同 H668：Chocolatey API results 空数组越界。修复：判空报错。 |
+| H673 | packages/opennovel/src/lsp/lsp.ts:244 | high | bug | wontfix | 244-250 的 existing 复查在 await spawn 之后执行且命中即 stop 新实例返回旧引用，双创建被显式消化；调用方 get→set 也同处同步段，无扩大竞态窗口。 |
+| H672 | packages/opennovel/src/lsp/lsp.ts:267 | high | bug | wontfix | 调用点 `s.spawning.get(...)→const task = schedule(...)→s.spawning.set(...)` 之间无 await 挂起点（267-272），单线程下检查与登记原子；并发方从 inflight 合流。 |
+| H675 | packages/opennovel/src/lsp/server.ts:183 | high | security | defer | LSP 二进制下载的校验/签名验证与 C220 同属发布供应链议题（需上游 release 提供稳定校验物），不在缺陷清扫范围。 |
+| H676 | packages/opennovel/src/mcp/auth.ts:67 | high | bug | fix | mcp/auth decode 失败返回 None 后写入空对象，静默清空全部存储凭据且无日志。修复：解码失败记警告并先把原文件改名备份再覆盖。 |
+| C223 | packages/opennovel/src/mcp/browser.ts:19 | critical | bug | wontfix | Effect.callback 的 resume 幂等（仅首次生效，后续忽略），不违反单次契约；500ms 定时器与事件竞争本就取先到者。 |
+| C222 | packages/opennovel/src/mcp/catalog.ts:26 | critical | bug | wontfix | 循环体内 `const page` 遮蔽对 header 的计数器无影响（条件/自增在外层作用域求值，体内只引用结果对象），行为正确；改名属可读性建议。 |
+| H671 | packages/opennovel/src/mcp/catalog.ts:43 | high | bug | fix | convertTool 无条件覆盖 additionalProperties:false，破坏声明允许动态属性的合法 MCP 工具 schema（调用被本地校验拒掉）。修复：原 schema 显式给出 additionalProperties 时保留其值。 |
+| H677 | packages/opennovel/src/mcp/index.ts:109 | high | bug | fix | 模块级 Map 对同一 server 的重复 startAuth 会覆盖在途流程（state 丢失、PKCE verifier 泄漏悬挂）。修复：startAuth 入口检测已存在键即复用或显式拒绝重启。 |
 | H678 | packages/opennovel/src/mcp/index.ts:898 | high | bug |  |  |
 | H679 | packages/opennovel/src/mcp/index.ts:901 | high | bug |  |  |
 | H674 | packages/opennovel/src/mcp/oauth-callback.ts:133 | high | bug |  |  |
