@@ -149,7 +149,22 @@ interface PendingOAuth {
 }
 
 let oauthServer: ReturnType<typeof createServer> | undefined
-let pendingOAuth: PendingOAuth | undefined
+// 并发授权按 state 各自登记，避免后发起者覆盖前一个流程的 callback
+const pendingOAuth = new Map<string, PendingOAuth>()
+
+function takePending(state: string | null | undefined): PendingOAuth | undefined {
+  if (!state) return undefined
+  const pending = pendingOAuth.get(state)
+  if (pending) pendingOAuth.delete(state)
+  return pending
+}
+
+// state 无法归属的失败（provider error、缺 code、用户取消）只能让全部在途流程一起失败
+function failAllPending(message = "Login cancelled") {
+  const others = [...pendingOAuth.values()]
+  pendingOAuth.clear()
+  for (const pending of others) pending.reject(new Error(message))
+}
 
 async function startOAuthServer(): Promise<{ port: number; redirectUri: string }> {
   if (oauthServer) {
@@ -167,8 +182,9 @@ async function startOAuthServer(): Promise<{ port: number; redirectUri: string }
 
       if (error) {
         const errorMsg = errorDescription || error
-        pendingOAuth?.reject(new Error(errorMsg))
-        pendingOAuth = undefined
+        const failed = takePending(state)
+        if (failed) failed.reject(new Error(errorMsg))
+        if (!failed) failAllPending(errorMsg)
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
         res.end(renderOAuthError(errorMsg))
         return
@@ -176,24 +192,21 @@ async function startOAuthServer(): Promise<{ port: number; redirectUri: string }
 
       if (!code) {
         const errorMsg = "Missing authorization code"
-        pendingOAuth?.reject(new Error(errorMsg))
-        pendingOAuth = undefined
+        const failed = takePending(state)
+        if (failed) failed.reject(new Error(errorMsg))
+        if (!failed) failAllPending(errorMsg)
         res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
         res.end(renderOAuthError(errorMsg))
         return
       }
 
-      if (!pendingOAuth || state !== pendingOAuth.state) {
-        const errorMsg = "Invalid state - potential CSRF attack"
-        pendingOAuth?.reject(new Error(errorMsg))
-        pendingOAuth = undefined
+      // state 不匹配的回调不能牵连其他在途流程，只回错误页
+      const current = takePending(state)
+      if (!current) {
         res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
-        res.end(renderOAuthError(errorMsg))
+        res.end(renderOAuthError("Invalid state - potential CSRF attack"))
         return
       }
-
-      const current = pendingOAuth
-      pendingOAuth = undefined
 
       exchangeCodeForTokens(code, `http://localhost:${OAUTH_PORT}/auth/callback`, current.pkce)
         .then((tokens) => current.resolve(tokens))
@@ -205,8 +218,7 @@ async function startOAuthServer(): Promise<{ port: number; redirectUri: string }
     }
 
     if (url.pathname === "/cancel") {
-      pendingOAuth?.reject(new Error("Login cancelled"))
-      pendingOAuth = undefined
+      failAllPending()
       res.writeHead(200)
       res.end("Login cancelled")
       return
@@ -216,12 +228,15 @@ async function startOAuthServer(): Promise<{ port: number; redirectUri: string }
     res.end("Not found")
   })
 
-  await new Promise<void>((resolve, reject) => {
-    oauthServer!.listen(OAUTH_PORT, () => {
-      resolve()
-    })
-    oauthServer!.on("error", reject)
-  })
+  // 绑定失败必须清掉引用，否则下次调用会误判“已在运行”而永远不会再监听
+  const bound = await new Promise<boolean>((resolve, reject) => {
+    oauthServer!.once("error", (error) => reject(error))
+    oauthServer!.listen(OAUTH_PORT, () => resolve(true))
+  }).catch(() => false)
+  if (!bound) {
+    oauthServer = undefined
+    throw new Error(`Codex OAuth callback server failed to bind port ${OAUTH_PORT}`)
+  }
 
   return { port: OAUTH_PORT, redirectUri: `http://localhost:${OAUTH_PORT}/auth/callback` }
 }
@@ -237,15 +252,15 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => {
-        if (pendingOAuth) {
-          pendingOAuth = undefined
-          reject(new Error("OAuth callback timeout - authorization took too long"))
-        }
+        // 超时必须同时回收等待方与共享 server，否则流程永挂且端口泄漏
+        if (!pendingOAuth.delete(state)) return
+        reject(new Error("OAuth callback timeout - authorization took too long"))
+        if (pendingOAuth.size === 0) stopOAuthServer()
       },
       5 * 60 * 1000,
     ) // 5 minute timeout
 
-    pendingOAuth = {
+    pendingOAuth.set(state, {
       pkce,
       state,
       resolve: (tokens) => {
@@ -256,7 +271,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
         clearTimeout(timeout)
         reject(error)
       },
-    }
+    })
   })
 }
 

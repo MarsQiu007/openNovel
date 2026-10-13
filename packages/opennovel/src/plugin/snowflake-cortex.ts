@@ -32,8 +32,16 @@ interface PendingOAuth {
 }
 
 let oauthServer: ReturnType<typeof createServer> | undefined
-let pendingOAuth: PendingOAuth | undefined
+// 并发授权按 state 各自登记：单一变量会让第二个流程把第一个的回调误判为 CSRF
+const pendingOAuth = new Map<string, PendingOAuth>()
 let oauthServerPort: number | undefined
+
+function takePending(state: string | null | undefined): PendingOAuth | undefined {
+  if (!state) return undefined
+  const pending = pendingOAuth.get(state)
+  if (pending) pendingOAuth.delete(state)
+  return pending
+}
 
 function normalizeAccount(input: string) {
   return input
@@ -175,18 +183,14 @@ async function startOAuthServer() {
     const error = url.searchParams.get("error")
     const errorDescription = url.searchParams.get("error_description")
 
-    // CSRF guard: validate state before processing any callback
-    if (!pendingOAuth || state !== pendingOAuth.state) {
+    // CSRF guard: 只接受能匹配到在途流程的 state；未匹配的回调不能牵连其他流程
+    const current = takePending(state)
+    if (!current) {
       const message = "Invalid state - potential CSRF attack"
-      pendingOAuth?.reject(new Error(message))
-      pendingOAuth = undefined
       res.writeHead(400, { "Content-Type": "text/html" })
       res.end(OauthCallbackPage.error(message, { provider: "Snowflake" }))
       return
     }
-
-    const current = pendingOAuth
-    pendingOAuth = undefined
 
     if (error) {
       const message = errorDescription || error
@@ -233,21 +237,25 @@ function stopOAuthServer() {
   oauthServerPort = undefined
 }
 
-function waitForOAuthCallback(account: string, pkce: PkceCodes, state: string): Promise<TokenResponse> {
-  if (pendingOAuth) {
-    pendingOAuth.reject(new Error("Superseded by a newer Snowflake authorize request"))
-    pendingOAuth = undefined
-  }
+// 刷新到的令牌没能落盘：本次会话仍可用，但下次启动要重新授权，失败必须留痕
+function warnRefreshPersistFailure(error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error)
+  process.emitWarning(
+    `Snowflake Cortex refresh token could not be persisted: ${reason}`,
+    "OpenNovelSnowflakeRefreshPersist",
+  )
+}
 
+function waitForOAuthCallback(account: string, pkce: PkceCodes, state: string): Promise<TokenResponse> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      if (!pendingOAuth) return
-      pendingOAuth = undefined
-      stopOAuthServer()
+      if (!pendingOAuth.delete(state)) return
+      // 仍有其他在途流程时不能关掉共享的回调 server
+      if (pendingOAuth.size === 0) stopOAuthServer()
       reject(new Error("Snowflake OAuth callback timeout - authorization took too long"))
     }, OAUTH_TIMEOUT_MS)
 
-    pendingOAuth = {
+    pendingOAuth.set(state, {
       account,
       state,
       pkce,
@@ -259,7 +267,7 @@ function waitForOAuthCallback(account: string, pkce: PkceCodes, state: string): 
         clearTimeout(timeout)
         reject(error)
       },
-    }
+    })
   })
 }
 
@@ -313,7 +321,7 @@ export async function SnowflakeCortexAuthPlugin(_input: PluginInput): Promise<Ho
                   ...(oauth.accountId && { accountId: oauth.accountId }),
                 },
               })
-              .catch(() => {})
+              .catch(warnRefreshPersistFailure)
           } catch {}
         }
 
@@ -350,7 +358,7 @@ export async function SnowflakeCortexAuthPlugin(_input: PluginInput): Promise<Ho
                           ...(accountId && { accountId }),
                         },
                       })
-                      .catch(() => {})
+                      .catch(warnRefreshPersistFailure)
                     return {
                       access: tokens.access_token,
                       refresh: refreshedRefresh,

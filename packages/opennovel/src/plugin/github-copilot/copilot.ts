@@ -12,6 +12,10 @@ const UTILITY_MODELS = ["gpt-5.4-nano", "gpt-4.1", "gpt-4o", "gpt-4o-mini"]
 // Add a small safety buffer when polling to avoid hitting the server
 // slightly too early due to clock skew / timer drift.
 const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000 // 3 seconds
+// 设备码有寿命：无上限轮询会让授权流程永不收敛，这里压一个 10 分钟上限
+const DEVICE_CODE_MAX_POLL_MS = 10 * 60 * 1000
+// GitHub 未返回 expires_in 时按不过期处理；写 0 会让每次取连接都判定即将过期并强制刷新
+const UNKNOWN_TOKEN_TTL_MS = 10 * 365 * 24 * 60 * 60 * 1000
 function normalizeDomain(url: string) {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 }
@@ -253,14 +257,17 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               user_code: string
               device_code: string
               interval: number
+              expires_in?: number
             }
+            const deviceTtlMs = deviceData.expires_in ? deviceData.expires_in * 1000 : DEVICE_CODE_MAX_POLL_MS
+            const pollDeadline = Date.now() + Math.min(deviceTtlMs, DEVICE_CODE_MAX_POLL_MS)
 
             return {
               url: deviceData.verification_uri,
               instructions: `Enter code: ${deviceData.user_code}`,
               method: "auto" as const,
               async callback() {
-                while (true) {
+                while (Date.now() < pollDeadline) {
                   const response = await fetch(urls.ACCESS_TOKEN_URL, {
                     method: "POST",
                     headers: {
@@ -281,6 +288,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                     access_token?: string
                     error?: string
                     interval?: number
+                    expires_in?: number
                   }
 
                   if (data.access_token) {
@@ -295,7 +303,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                       type: "success",
                       refresh: data.access_token,
                       access: data.access_token,
-                      expires: 0,
+                      expires: Date.now() + (data.expires_in ? data.expires_in * 1000 : UNKNOWN_TOKEN_TTL_MS),
                     }
 
                     if (deploymentType === "enterprise") {
@@ -331,6 +339,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   await sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
                   continue
                 }
+                // 到期仍未授权：设备码已失效，直接判失败，不再无限轮询
+                return { type: "failed" as const }
               },
             }
           },

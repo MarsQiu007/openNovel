@@ -178,6 +178,13 @@ export function streamResponsesWebSocket(options: StreamResponsesWebSocketOption
     idleTimer = setTimeout(() => invalidate(new ProviderError.ResponseStreamError(message)), options.idleTimeout)
   }
 
+  // ws 不会 await 异步 handler：内部抛错会变成 unhandledRejection 且流不收敛，必须收进错误通道
+  function onSocketMessage(data: WebSocket.RawData, isBinary: boolean) {
+    onMessage(data, isBinary).catch((error: unknown) => {
+      invalidate(new ProviderError.ResponseStreamError(errorMessage(error), { cause: error }))
+    })
+  }
+
   async function onMessage(data: WebSocket.RawData, isBinary: boolean) {
     if (completed) return
     if (isBinary) {
@@ -196,12 +203,14 @@ export function streamResponsesWebSocket(options: StreamResponsesWebSocketOption
     })()
 
     if (event?.type === "error" && options.onRetryableTerminal) {
+      const source = socket
       cleanupSocket()
       if (idleTimer) clearTimeout(idleTimer)
       idleTimer = undefined
       try {
         const next = await options.onRetryableTerminal(event)
-        if (completed) {
+        // 等待期间可能已 abort，也可能被另一次换连接取代：陈旧事件只能丢弃并回收新 socket
+        if (completed || socket !== source) {
           if (next) terminateSocket(next)
           return
         }
@@ -300,11 +309,11 @@ export function streamResponsesWebSocket(options: StreamResponsesWebSocketOption
   function attach(next: WebSocket) {
     cleanupSocket()
     socket = next
-    socket.on("message", onMessage)
+    socket.on("message", onSocketMessage)
     socket.once("error", onError)
     socket.once("close", onClose)
     cleanupSocket = () => {
-      socket.off("message", onMessage)
+      socket.off("message", onSocketMessage)
       socket.off("error", onError)
       socket.off("close", onClose)
     }

@@ -268,11 +268,18 @@ const layer = Layer.effect(
           )
         }
 
+        const hookContext = yield* Effect.context()
         const unsubscribe = yield* events.listen((event) => {
           if (event.location?.directory !== ctx.directory) return Effect.void
           return Effect.sync(() => {
             for (const hook of hooks) {
-              void hook["event"]?.({ event: { id: event.id, type: event.type, properties: event.data } as any })
+              // 钩子保持即发即弃，但拒绝必须就地接住，否则异常既无痕迹又成为 unhandledRejection
+              const payload = { id: event.id, type: event.type, properties: event.data } as any
+              const result = hook["event"]?.({ event: payload })
+              void Promise.resolve(result).catch((cause: unknown) => {
+                const failed = Effect.logError("plugin event hook failed", { error: errorMessage(cause) })
+                Effect.runFork(failed.pipe(Effect.provide(hookContext)))
+              })
             }
           })
         })
