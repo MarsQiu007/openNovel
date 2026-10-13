@@ -65,7 +65,9 @@ export function MapEditorPanel(props: MapEditorPanelProps) {
   return (
     <Show when={props.editing()}>
       <div class="pointer-events-none absolute inset-0 z-[1000]">
-        <div class="pointer-events-auto absolute left-3 top-3 flex max-w-[calc(100%-24px)] flex-wrap items-center gap-2 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01/95 p-2 shadow-lg">
+        {/* 右侧属性面板固定占 w-72 加 12px 右边距：工具栏必须预留同等宽度，
+            否则窄面板下换行的动作按钮（如「闭合区域」）会被面板盖住并吞掉点击 */}
+        <div class="pointer-events-auto absolute left-3 top-3 flex max-w-[calc(100%_-_24px_-_18rem_-_8px)] flex-wrap items-center gap-2 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01/95 p-2 shadow-lg">
           <div class="flex items-center gap-1">
             <For each={TOOLS}>
               {(tool) => (
