@@ -45,16 +45,6 @@ export function empty() {
 }
 
 export function logo(pad?: string) {
-  if (!process.stdout.isTTY && !process.stderr.isTTY) {
-    const result = []
-    for (const row of wordmark) {
-      if (pad) result.push(pad)
-      result.push(row)
-      result.push(EOL)
-    }
-    return result.join("").trimEnd()
-  }
-
   const result: string[] = []
   for (const row of wordmark) {
     if (pad) result.push(pad)
@@ -71,11 +61,13 @@ export async function input(prompt: string): Promise<string> {
     output: process.stdout,
   })
 
-  return new Promise((resolve) => {
+  return new Promise<string>((resolve) => {
     rl.question(prompt, (answer: string) => {
-      rl.close()
       resolve(answer.trim())
+      rl.close()
     })
+    // stdin 提前 EOF 时 question 回调永不触发：以空串收口，调用方按未输入处理
+    rl.once("close", () => resolve(""))
   })
 }
 

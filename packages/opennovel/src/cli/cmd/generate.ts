@@ -18,7 +18,7 @@ export const GenerateCommand = {
           {
             lang: "js",
             source: [
-              `import { createOpenNovelClient } from "@opennovel-ai/sdk`,
+              `import { createOpenNovelClient } from "@opennovel-ai/sdk"`,
               ``,
               `const client = createOpenNovelClient()`,
               `await client.${operation.operationId}({`,

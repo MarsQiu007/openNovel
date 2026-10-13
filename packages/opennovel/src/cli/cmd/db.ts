@@ -3,7 +3,9 @@ import { spawn } from "child_process"
 import { Database } from "@opennovel-ai/core/database/database"
 import { Effect } from "effect"
 import { sql } from "drizzle-orm"
-import { effectCmd } from "../effect-cmd"
+import { CliError, effectCmd } from "../effect-cmd"
+
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const QueryCommand = effectCmd({
   command: "$0 [query]",
@@ -38,7 +40,15 @@ const QueryCommand = effectCmd({
     const child = spawn("sqlite3", [Database.path()], {
       stdio: "inherit",
     })
-    yield* Effect.promise(() => new Promise((resolve) => child.on("close", resolve)))
+    // sqlite3 未安装时 spawn 只发 error 事件；不接住它会变成未捕获异常，这里转成可读的 CliError
+    yield* Effect.tryPromise({
+      try: () =>
+        new Promise<void>((resolve, reject) => {
+          child.on("close", () => resolve())
+          child.on("error", reject)
+        }),
+      catch: (error) => new CliError({ message: `Failed to run sqlite3: ${reason(error)}` }),
+    })
   }),
 })
 

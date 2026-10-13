@@ -386,7 +386,8 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
   yield* Effect.promise(async () => {
     const isMock = args.token || args.event
 
-    const context = isMock ? (JSON.parse(args.event!) as Context) : github.context
+    // mock 的判定依据是显式传入的 event 载荷：只给 --token 时不能对 undefined 做 JSON.parse
+    const context = args.event ? (JSON.parse(args.event) as Context) : github.context
     if (!SUPPORTED_EVENTS.includes(context.eventName as (typeof SUPPORTED_EVENTS)[number])) {
       core.setFailed(`Unsupported event type: ${context.eventName}`)
       process.exit(1)
@@ -630,18 +631,15 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
       }
     } catch (e: any) {
       exitCode = 1
-      console.error(e instanceof Error ? e.message : String(e))
-      let msg = e
-      if (e instanceof Process.RunFailedError) {
-        msg = e.stderr.toString()
-      } else if (e instanceof Error) {
-        msg = e.message
-      }
+      // 失败细节只留在 Action 日志：命令行参数与路径可能含凭据，不能进公开 PR 评论
+      const detail =
+        e instanceof Process.RunFailedError ? e.stderr.toString() : e instanceof Error ? e.message : String(e)
+      console.error(detail)
       if (isUserEvent) {
-        await createComment(`${msg}${footer()}`)
+        await createComment(`OpenNovel failed to handle this request. See the Action run logs for details.${footer()}`)
         await removeReaction(commentType)
       }
-      core.setFailed(msg)
+      core.setFailed("OpenNovel failed to handle this request")
       // Also output the clean error message for the action to capture
       //core.setOutput("prepare_error", e.message);
     } finally {

@@ -90,7 +90,11 @@ export const effectCmd = <Args, A>(opts: EffectCmdOpts<Args, A>) =>
       try {
         await AppRuntime.runPromise(opts.handler(args).pipe(Effect.provideService(InstanceRef, ctx)))
       } finally {
-        await AppRuntime.runPromise(store.dispose(ctx))
+        // dispose 失败仅记日志，否则会把 handler 的原始错误顶掉
+        await AppRuntime.runPromise(store.dispose(ctx)).catch((error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error)
+          console.error(`Failed to dispose instance context: ${reason}`)
+        })
       }
     },
   })

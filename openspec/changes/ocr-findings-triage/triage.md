@@ -313,7 +313,7 @@
 | H629 | packages/opennovel/src/cli/cmd/github.handler.ts:631 | high | security | fix | github action 把 e.message/子进程 stderr 原文贴进公开 PR 评论（636 行 msg=e.stderr），命令行参数与路径可能含凭据。修复：评论仅呈现通用失败文案+运行日志链接，细节保留在 console.error（633 行已有）。 |
 | H633 | packages/opennovel/src/cli/cmd/import.ts:143 | high | bug | fix | 分享导入对远端 response.json() 裸 cast 为 ShareData[]，后续 transform 对畸形结构无兜底即远端爆错。修复：Schema 解码（onExcessProperty ignore），失败按 138-140 的友好提示路径走。 |
 | H632 | packages/opennovel/src/cli/cmd/import.ts:199 | high | maintainability | fix | `data: msgData as never` 静默绕过列类型（199 行），导入的旧消息形状与 MessageTable.data 契约脱钩后无编译期防线。修复：写入前经 SessionMessage 数据 Schema 解码校验替换 as never。 |
-| H630 | packages/opennovel/src/cli/cmd/models.ts:36 | high | bug | fix | print(providerID) 在 providers 表中取不存在的 id 时 p.models 抛 TypeError（37-38 行），用户传错 provider 名即裸崩溃。修复：p 未命中输出"未知 provider"错误并返回。 |
+| H630 | packages/opennovel/src/cli/cmd/models.ts:36 | high | bug | wontfix | 误报（已核实）：models.ts:51 已有 `if (!providers[providerID]) return yield* fail(...)` 前置守卫（git blame 指向初始提交 49b2add2），print 另一处调用遍历 Object.keys(providers) 恒命中，不存在 p.models 崩溃路径。 原判定理由：print(providerID) 在 providers 表中取不存在的 id 时 p.models 抛 TypeError（37-38 行），用户传错 provider 名即裸崩溃。修复：p 未命中输出"未知 provider"错误并返回。 |
 | H631 | packages/opennovel/src/cli/cmd/novel.ts:89 | high | security | defer | novel 服务器无密码仅提示：默认绑定 localhost，但 bind 0.0.0.0 场景确实裸奔；改为拒绝启动/强制 --insecure 属 CLI 行为契约变化（现有自动化依赖无密码本地用法），归安全增强 change。 |
 | H635 | packages/opennovel/src/cli/cmd/pr.ts:54 | high | bug | wontfix | 仅当 gh 退出码 0 且输出非空才 parse（54 行守卫），gh --json 契约保证合法 JSON；"gh 崩了但返回 0"不可达，CLI 抛错即可见失败。 |
 | H634 | packages/opennovel/src/cli/cmd/serve.ts:15 | high | security | defer | 同 H631：serve 无密码硬失败化改变既有启动语义，涉及用户部署方式决策，归后续安全 change。 |
@@ -322,7 +322,7 @@
 | H637 | packages/opennovel/src/cli/cmd/web.ts:40 | high | security | defer | 同 H631/H634：无密码+0.0.0.0 改为拒绝启动属 CLI 行为契约变化，归安全增强 change。 |
 | H640 | packages/opennovel/src/cli/effect-cmd.ts:90 | high | bug | fix | finally 中 store.dispose 抛错会顶掉 handler 原始错误。修复：dispose 失败仅记日志、保留原异常（或用 Effect 资源管理让双错误并存）。 |
 | H641 | packages/opennovel/src/cli/heap.ts:32 | high | bug | fix | heap 快照 .catch(()=>{}) 使权限/磁盘失败完全静默。修复：catch 分支 console.error 输出失败原因（保留尽力而为语义）。 |
-| H639 | packages/opennovel/src/cli/network.ts:41 | high | bug | fix | hasArg 只认 `--port=N` 与裸旗，不认 `--port 8080` 双段形式，显式旗标可能被误判为未提供而让 env/config 覆盖。修复：判定改用 yargs 解析结果与默认值比对（或补双段扫描）。 |
+| H639 | packages/opennovel/src/cli/network.ts:41 | high | bug | wontfix | 误报（已核实）：`--port 8080` 双段形式里 `--port` 本身就是独立 argv token，`arg === name` 直接命中（实验输出 hasArg(--port)=true），且 cli 目录无任何 alias 定义，前提不成立。 原判定理由：hasArg 只认 `--port=N` 与裸旗，不认 `--port 8080` 双段形式，显式旗标可能被误判为未提供而让 env/config 覆盖。修复：判定改用 yargs 解析结果与默认值比对（或补双段扫描）。 |
 | H643 | packages/opennovel/src/cli/ui.ts:47 | high | bug | fix | logo() 的 TTY 分支两侧代码完全相同（死逻辑）。修复：确认无隐藏差异后合并为单一路径；如原意是 ANSI 降级需补差异化，二选一都需动此处。 |
 | H644 | packages/opennovel/src/cli/ui.ts:74 | high | bug | fix | readline 仅在收到 answer 时 resolve：stdin 提前关闭/出错时 Promise 永挂（调用方卡死）。修复：挂 rl.on("close") 无答案时 resolve("") 或 reject。 |
 | H645 | packages/opennovel/src/command/index.ts:123 | high | bug | wontfix | `template?.messages.map(...)` 可选链短路整条链（template 为 null 时表达式 undefined，不抛 TypeError）；getPrompt 返回类型保证 messages 存在；评论误读 ?. 语义。 |
