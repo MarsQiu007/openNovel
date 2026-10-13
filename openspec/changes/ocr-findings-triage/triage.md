@@ -423,7 +423,7 @@
 | H721 | packages/opennovel/src/server/routes/instance/httpapi/handlers/config.ts:14 | high | security | defer | 同 H711：响应脱敏改变 success schema 与既有消费方（桌面端配置界面直读原值），归 API 安全演进 change。 |
 | H720 | packages/opennovel/src/server/routes/instance/httpapi/handlers/control.ts:13 | high | bug | wontfix | control 处理器的 orDie 与本仓 DB/服务层错误收敛一致（H441 家族），缺陷经 HttpApi 统一映射 5xx；逐个 handler 改类型化错误是仓库级重构。 |
 | H722 | packages/opennovel/src/server/routes/instance/httpapi/handlers/event.ts:12 | high | bug | wontfix | SSE 的 data 来自 EventV2 序列化载荷（本就是可 JSON 化的 schema 数据），不存在循环引用/BigInt 面；防御 try-catch 掩盖上游 schema 错误。 |
-| C236 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:225 | critical | bug | fix | pty WS 结束时 outbox 队列不 shutdown：阻塞在 Queue.take 的 drain fiber 永挂。修复：连接终局（正常/中断）对 outbox 执行 shutdown（addFinalizer）。 |
+| C236 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:225 | critical | bug | wontfix | 误报（已核实）：pty.ts:258 用 Effect.race 连接 drain 与 socket.runRaw，落败一方会被中断，阻塞在 Queue.take 的 drain fiber 不会永挂；管道终局已有 Effect.ensuring(attachment.detach()) 切断 onData/onEnd 的 offerUnsafe 来源，outbox 随 fiber 结束一起回收。再加 Queue.shutdown 只会与既有 race/ensuring 重复。 原判定理由：pty WS 结束时 outbox 队列不 shutdown：阻塞在 Queue.take 的 drain fiber 永挂。修复：连接终局（正常/中断）对 outbox 执行 shutdown（addFinalizer）。| |  |
 | H723 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:244 | high | bug | wontfix | 无界队列 offerUnsafe 永不失败（契约），回放注入自身无挂起点；其生命周期担忧与 C236 重合，由 shutdown 修复覆盖。 |
 | C235 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:248 | critical | bug | wontfix | write 残差错误按 defect 收敛：drain fiber die 触发 scope finalizer 关连接（进程不受影响），非 socket 类写错误本就是程序错误面。 |
 | H724 | packages/opennovel/src/server/routes/instance/httpapi/handlers/sync.ts:27 | high | bug | fix | fork 的同步任务 Effect.ignore 吞掉失败（27 行），同步静默失败无从诊断。修复：tapError/logWarning 后再 ignore。 |
@@ -432,7 +432,7 @@
 | H728 | packages/opennovel/src/server/routes/instance/httpapi/handlers/workspace.ts:64 | high | bug | fix | create 用 catchCause 消化插件 throw、warp 只 mapError：同族操作中 warp 会把 defect 裸抛给框架。修复：对齐 create 的 catchCause 错误映射。 |
 | H726 | packages/opennovel/src/server/routes/instance/httpapi/middleware/authorization.ts:12 | high | security | wontfix | auth_token 查询参数为旧客户端（浏览器 EventSource/WS 无法带头）的显式兼容通道（代码有注释记载），凭据进访问日志面在本地部署可接受；移除属客户端迁移/契约演进。 |
 | H727 | packages/opennovel/src/server/routes/instance/httpapi/middleware/compression.ts:57 | high | performance | fix | gzipSync/deflateSync 同步压缩阻塞事件循环，大响应拖垮吞吐。修复：改异步 gzip/deflate（promisify）。 |
-| H730 | packages/opennovel/src/server/routes/instance/httpapi/middleware/fence.ts:17 | high | bug | fix | fence 双 load 模式在并发请求间存在窗口（A 的 previous/current 之间 B 变更围栏状态），检查语义失真。修复：以单次 load+compare-and-set 或进程内互斥收敛；实现批次细读 Fence 语义。 |
+| H730 | packages/opennovel/src/server/routes/instance/httpapi/middleware/fence.ts:17 | high | bug | defer | 窗口只会超报不会漏报：Fence.load 前快照早于本请求写入、后快照晚于其完成，本请求造成的 seq 变化必然落在窗口内，并发请求的变更只是附带多报；下游 Fence.wait 属保守等待，语义无损。收敛为精确集合需要 per-request 围栏基线（CAS 或请求内互斥），会串行化写请求路径，属性能设计另案。 原判定理由：fence 双 load 模式在并发请求间存在窗口（A 的 previous/current 之间 B 变更围栏状态），检查语义失真。修复：以单次 load+compare-and-set 或进程内互斥收敛；实现批次细读 Fence 语义。| |  |
 | H731 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:23 | high | bug | wontfix | store.load 错误经 HttpApi 错误通道统一映射（H720 同口径）；"用户友好文案"是网关呈现层职责，不在中间件就地吞转。 |
 | C238 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:29 | critical | security | wontfix | 按 x-opennovel-directory/查询参数加载任意目录是本服务器多项目架构的声明设计（serve.ts:10-11 注释原文），访问控制由 authorization 中间件承担；目录白名单属部署形态演进议题。 |
 | H729 | packages/opennovel/src/server/routes/instance/httpapi/middleware/schema-error.ts:40 | high | security | wontfix | 日志已按 6-10 行注释的截断策略执行（避免整包回显），1024 残片与服务器日志同信任级；全脱敏需重设计校验错误词汇表，属增强。 |
@@ -454,18 +454,18 @@
 | C240 | packages/opennovel/src/session/prompt.ts:0 | critical | security | wontfix | 自定义命令模板 `!`cmd`` 与 $ARGUMENTS 插值是面向用户的显式 shell 执行特性（agent 权限门控下操作者自己提交命令），输入源即操作者本人，信任模型同 C211/C208；无外部不可信注入面。 |
 | H749 | packages/opennovel/src/session/prompt.ts:170 | high | security | wontfix | prompt @文件引用允许 ~/ 与任意路径是用户显式意图（操作者本就可读这些文件进上下文，与工具层 permission 模型同级）；"留在 worktree 内"限制会破坏跨目录引用的既有工作流。 |
 | H750 | packages/opennovel/src/session/prompt.ts:813 | high | security | wontfix | bypassCwdCheck 服务于 part.url（客户端生成的附件引用）读取通道，路径来源与 H749 同信任级；二次收束与权限系统重复。 |
-| H744 | packages/opennovel/src/session/reminders.ts:26 | high | bug | fix | 非实验分支内联 push part 未走 sessions.updatePart，与实验分支持久化口径不一（疑漏持久化）。修复：统一经 updatePart 写入；实现批次核对两条分支落库差异。 |
+| H744 | packages/opennovel/src/session/reminders.ts:26 | high | bug | defer | 两条分支的差异是实验开关的既有口径：非实验分支把 synthetic 提醒只注入本次模型请求（messages 数组），实验分支经 updatePart 落库以便会话历史/UI 显示。统一为落库会改变默认路径的会话历史内容与 UI 展示，且 legacy 分支每轮 prompt 都会追加一条新 PartID 的提醒 part，属产品决策，不在本 change 的最小修复范围。 原判定理由：非实验分支内联 push part 未走 sessions.updatePart，与实验分支持久化口径不一（疑漏持久化）。修复：统一经 updatePart 写入；实现批次核对两条分支落库差异。| |  |
 | H745 | packages/opennovel/src/session/reminders.ts:78 | high | bug | fix | `Effect.catch(Effect.die)` 把 ensureDir 可恢复错误（权限/磁盘）升格 defect。修复：改 tapError 记日志并跳过写入（提醒功能可降级）。 |
-| H746 | packages/opennovel/src/session/revert.ts:44 | high | bug | fix | 循环内收集的 remaining 循环后无消费（疑为未接线的"应用过滤结果"意图或纯死代码）。修复：核对意图后接线或删除；保持行为不变优先。 |
+| H746 | packages/opennovel/src/session/revert.ts:44 | high | bug | wontfix | 误报（已核实）：remaining 在内层循环内已被消费——revert.ts:57 用 `remaining.some((item) => ["text","tool"].includes(item.type))` 判断同一条消息里当前 part 之前是否已有文本/工具 part，据此决定是否携带 partID；63 行随即 push。变量作用域就是单条消息，循环后本无需消费。 原判定理由：循环内收集的 remaining 循环后无消费（疑为未接线的"应用过滤结果"意图或纯死代码）。修复：核对意图后接线或删除；保持行为不变优先。| |  |
 | C241 | packages/opennovel/src/session/run-state.ts:74 | critical | bug | wontfix | busyError 返回 Session.BusyError（TaggedError 实例）本身 yieldable，`yield* 错误对象`即 Effect.fail（C158 全仓惯例）；评论前提不成立。 |
 | H751 | packages/opennovel/src/session/run-state.ts:125 | high | bug | wontfix | jobs 快照是有意的"调用时刻可取消清单"，cancelled 集合防重入；cancel 抛错沿错误通道终结整个批量操作（非无限循环面）。 |
 | H747 | packages/opennovel/src/session/session.ts:606 | high | bug | wontfix | 紧邻注释明示 remove 须对损坏会话尽力工作（best-effort 删除），子会话移除失败仅记日志是设计选择；改为上抛会卡死删除路径。 |
 | H748 | packages/opennovel/src/session/status.ts:39 | high | bug | wontfix | 状态事件是电平触发提示（消费者按事件重读，最终一致），先 publish 后 set 的窗口仅导致一次冗余读；改序反而引入 set 成功 publish 失败的更大窗口。 |
 | H752 | packages/opennovel/src/session/system.ts:121 | high | bug | wontfix | `disabled.size < tools.length` 语义即"存在未被禁用的工具才注入该 server"，部分禁用仍注入是正确行为（禁用的是个别工具）；评论把预期语义读成 bug。 |
-| H755 | packages/opennovel/src/session/todo.ts:49 | high | bug | fix | DB 提交后 publish 失败无兜底：订阅者丢更新且无痕。修复：publish 套 tapError 记警告（状态已提交，通知尽力而为），保持既有提交顺序。 |
+| H755 | packages/opennovel/src/session/todo.ts:49 | high | bug | wontfix | 误报（已核实）：EventV2.Interface.publish 的签名为 `Effect<Payload<D>>`（core/src/event.ts:127-131），错误通道是 never，不存在可静默失败的类型化错误路径；桥接层 EventV2Bridge 的 publish 也只是补 location 后转调（event-v2-bridge.ts:19-33）。真正的异常只可能是 defect，会照原路径向上暴露而非无痕丢弃。 原判定理由：DB 提交后 publish 失败无兜底：订阅者丢更新且无痕。修复：publish 套 tapError 记警告（状态已提交，通知尽力而为），保持既有提交顺序。| |  |
 | H756 | packages/opennovel/src/session/todo.ts:49 | high | bug | wontfix | orDie 属仓库 DB 层统一错误收敛（H441 家族）；transient 失败由重试策略统一解决，不在每个调用点分叉。 |
 | H757 | packages/opennovel/src/session/todo.ts:49 | high | bug | wontfix | 同 H756（同一行第二条评论）。 |
-| H760 | packages/opennovel/src/session/tools.ts:127 | high | bug | fix | abort 分支 completeToolCall 后仍 return output，外层对同一 callID 再完成一次存在双完成竞态。修复：abort 后走独立终局（返回已完成哨兵或不再向上抛 output）；实现批次核对调用方。 |
+| H760 | packages/opennovel/src/session/tools.ts:127 | high | bug | wontfix | 误报（已核实）：重复完成是幂等的——processor.ts:169-170 `completeToolCall` 先 readToolCall 再判 `match.part.state.status !== "running"` 即 return，abort 分支完成后外层再调一次不会二次写 part；两处写入的 output 也是同一个对象。 原判定理由：abort 分支 completeToolCall 后仍 return output，外层对同一 callID 再完成一次存在双完成竞态。修复：abort 后走独立终局（返回已完成哨兵或不再向上抛 output）；实现批次核对调用方。| |  |
 | H754 | packages/opennovel/src/setting-organization.ts:80 | high | bug | fix | analyze 无 dryRun 同款的 try 包裹：loadOrganizeContext/analyzeEntities 抛错直达服务器未处理面。修复：对齐 dryRun 的失败呈现。 |
 | H753 | packages/opennovel/src/setting-organization.ts:133 | high | bug | fix | 同 H754：apply 缺 try 包裹而 dryRun 有（133 行对比明确不对称）。 |
 | H758 | packages/opennovel/src/share/session.ts:26 | high | bug | wontfix | throw 进 die 通道为仓库惯例（C169/H416 家族）；ShareDisabled 属配置违规的显式失败，die 呈现可接受，若需类型化应全仓统一。 |
@@ -476,8 +476,8 @@
 | H764 | packages/opennovel/src/skill/index.ts:325 | high | security | fix | skill 列表 HTML 输出仅转义 location，name/description 来自远端 index/SKILL.md 的外部内容未 escapeHtml（外部可控→Web 视图 XSS 面）。修复：两字段同批转义。 |
 | H765 | packages/opennovel/src/skill/index.ts:340 | high | security | fix | 非 verbose 的 markdown 输出路径同样未处理 name/description（下游会进 HTML 渲染面）。修复：同口径转义或剥离危险片段。 |
 | H761 | packages/opennovel/src/snapshot/index.ts:623 | high | bug | fix | snapshot cat-file 解析的 fail() 只返回 undefined 不记日志，协议错位被静默吞掉难排查。修复：fail 内加 logWarning（保留返回 undefined 的控制流）。 |
-| H762 | packages/opennovel/src/snapshot/index.ts:656 | high | bug | fix | 边界条件 `i + size >= out.length` 把"恰好读到数组末尾"误判为截断（off-by-one，合法尾记录被拒）。修复：改 `i + size + 1 > out.length` 语义核对协议尾换行。 |
-| H763 | packages/opennovel/src/snapshot/index.ts:743 | high | bug | fix | load 失败时 hit 退化为空占位对象，三元取 [before,after] 而非回落 show(row)，行内容错位。修复：hit 判存在性（text?.get 结果对象与空占位区分），缺失走 show(row)。 |
+| H762 | packages/opennovel/src/snapshot/index.ts:656 | high | bug | wontfix | 误报（已核实）：协议里每条 blob 内容后必跟一个换行，因此合法读取要求 out[i+size] 存在且为 10，即 i+size <= out.length-1；`i + size >= out.length` 恰好就是越界判定，没有 off-by-one。改成 i+size+1 > out.length 反而会把合法尾记录误判为截断。 原判定理由： 原判定理由：边界条件 `i + size >= out.length` 把"恰好读到数组末尾"误判为截断（off-by-one，合法尾记录被拒）。修复：改 `i + size + 1 > out.length` 语义核对协议尾换行。| |  |
+| H763 | packages/opennovel/src/snapshot/index.ts:743 | high | bug | wontfix | 误报（已核实）：load 里每个非 binary row 的 ref 都会 map.set（含 missing 分支写空串），批处理失败时整个 map 返回 undefined 走 show(row) 回退，所以 `?? { before: "", after: "" }` 只会命中 binary row，而 binary 分支本来就忽略 hit 用 ["",""]，不存在行内容错位。 原判定理由： 原判定理由：load 失败时 hit 退化为空占位对象，三元取 [before,after] 而非回落 show(row)，行内容错位。修复：hit 判存在性（text?.get 结果对象与空占位区分），缺失走 show(row)。| |  |
 | H769 | packages/opennovel/src/storage/storage.ts:301 | high | maintainability | wontfix | list 是目录 glob 的尽力快照（读取与文件级写锁目标不同），加目录级锁会把并发缩到串行；不一致窗口仅导致列表多/少一项，读写仍单文件原子。 |
 | H767 | packages/opennovel/src/tool/apply_patch.ts:77 | high | bug | fix | apply_patch add 的 stat 不存在→write 之间存在跨进程窗口，会静默覆盖并发新建文件。修复：改用 O_EXCL 原语写入或捕获 EEXIST 报错。 |
 | H768 | packages/opennovel/src/tool/apply_patch.ts:241 | high | bug | fix | move 以写新+删旧实现，崩溃中间态两份共存。修复：同卷用 rename 原子移动，跨卷失败显式报错。 |
@@ -488,7 +488,7 @@
 | H773 | packages/opennovel/src/tool/mcp-websearch.ts:4 | high | security | wontfix | 查询参数携带 websearch API key 是供应商 API 形态（同 H506 论证：端点即服务方、TLS 直达），改 header 需对方支持。 |
 | H774 | packages/opennovel/src/tool/mcp-websearch.ts:92 | high | bug | wontfix | 工具层 die/orDie 失败经会话错误通道 squash 成模型可见错误文本（H775/H771 同口径），超时作为 defect 呈现不改变用户可观测行为；改类型化错误属一致性调整。 |
 | H776 | packages/opennovel/src/tool/question.ts:0 | high | bug | wontfix | question 工具的 orDie 与 H497 同判：拒绝/超时走 Reply 数据通道而非错误通道，orDie 只兜底真正的程序异常。 |
-| H778 | packages/opennovel/src/tool/read.ts:159 | high | performance | fix | read 达 limit 后未置 done，流继续遍历全文件剩余行（大文件线性浪费）。修复：同处 flags.done=true 并以 ReadStop 终止流。 |
+| H778 | packages/opennovel/src/tool/read.ts:159 | high | performance | defer | defer 理由（count 不是纯内部计数）：read.ts:334 用 count 校验 offset 越界、349 输出 of {count}、374 写入 display.totalLines；提前终止会把总行数语义降级成下界，需要先把总行数契约拆成已知/未知两级，属输出契约调整，另案处理。 原判定理由：read 达 limit 后未置 done，流继续遍历全文件剩余行（大文件线性浪费）。修复：同处 flags.done=true 并以 ReadStop 终止流。| |  |
 | H777 | packages/opennovel/src/tool/registry.ts:391 | high | bug | wontfix | zodJsonSchema 返回非对象属 schema 定义的程序错误（开发者面），throw 即 die 在注册期暴露是正确信号，类型化不增信息量。 |
 | H782 | packages/opennovel/src/tool/skill.ts:0 | high | security | fix | skill name 未转义直接插进 <skill_content name="..."> XML 属性：frontmatter 可控字符（引号/&/<>）破坏结构并被下游解析。修复：属性经 escapeXml。 |
 | H784 | packages/opennovel/src/tool/skill.ts:0 | high | bug | wontfix | skill 工具末尾 orDie 属工具层统一收敛家族（H775）：权限/FS 异常以错误文本呈现给模型，进程无碍。 |
@@ -525,7 +525,7 @@
 | H807 | packages/opennovel/test/server/httpapi-exercise/assertions.ts:20 | high | bug | wontfix | sort 的输入来自 HTTP JSON 响应（协议上无环），循环引用不可达；WeakSet 防护属泛化加固。 |
 | H808 | packages/opennovel/test/server/httpapi-exercise/backend.ts:53 | high | bug | wontfix | httpapi 测试 exercise 串行发起请求（单 fiber 循环），同凭据并发创建 app 的窗口在本测试驱动形态下不存在；即便双建也是测试资源无害重复。 |
 | H809 | packages/opennovel/test/server/httpapi-exercise/runtime.ts:20 | high | bug | wontfix | runtime() 仅测试 bootstrap 首调；import 失败属环境级致命错误，缓存 rejected promise 与每次重试的诊断结果等价（fail fast 一致）。 |
-| C248 | packages/opennovel/test/server/httpapi-layer.ts:21 | critical | bug | fix | request() 用 HttpClientRequest.setUrl(url.pathname) 覆盖了 fromWeb 保好的完整 URL，查询参数被剥离（?limit=0 类用例失配）。修复：setUrl(url.pathname + url.search)。 |
+| C248 | packages/opennovel/test/server/httpapi-layer.ts:21 | critical | bug | wontfix | 误报（已核实并回归测试）：Effect 的 HttpClientRequest 把 pathname 与 search 分成独立字段，HttpClientRequest.fromWeb 已经保留了查询串，setUrl(url.pathname) 只改路径、不会抹掉 search；证据是 test/server/httpapi-experimental.test.ts:245-253 用 ?limit=1 断言分页结果与 x-next-cursor，在原始实现下通过，说明查询参数确实送达。改成 pathname + url.search 反而把 ? 带进路径，两处用例立刻返回 400（本轮已回退）。 原判定理由：request() 用 HttpClientRequest.setUrl(url.pathname) 覆盖了 fromWeb 保好的完整 URL，查询参数被剥离（?limit=0 类用例失配）。修复：setUrl(url.pathname + url.search)。| |  |
 | H118 | packages/plugin/package.json:8 | high | bug | wontfix | 误报：package.json devDependencies 含 @typescript/native-preview（catalog:），该包正是 tsgo CLI 的分发包，typecheck 脚本在包内可用。 |
 | C062 | packages/plugin/package.json:12 | critical | bug | wontfix | 既定模式：script/publish.ts:26-40 在 pack 前把 exports 重写为 dist/*.js + .d.ts 再 npm publish，发布后 exports 与 files:[dist] 一致；workspace 内直接消费 TS 源码是本仓 monorepo 惯例。 |
 | H810 | packages/plugin/script/publish.ts:32 | high | bug | wontfix | 误报：publish.ts:31-37 是 try/finally（无 catch），finally 恢复 package.json 后原错误继续向上传播，不会被静默吞掉。 |
