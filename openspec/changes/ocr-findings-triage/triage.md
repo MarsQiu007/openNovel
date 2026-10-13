@@ -366,30 +366,30 @@
 | C222 | packages/opennovel/src/mcp/catalog.ts:26 | critical | bug | wontfix | 循环体内 `const page` 遮蔽对 header 的计数器无影响（条件/自增在外层作用域求值，体内只引用结果对象），行为正确；改名属可读性建议。 |
 | H671 | packages/opennovel/src/mcp/catalog.ts:43 | high | bug | fix | convertTool 无条件覆盖 additionalProperties:false，破坏声明允许动态属性的合法 MCP 工具 schema（调用被本地校验拒掉）。修复：原 schema 显式给出 additionalProperties 时保留其值。 |
 | H677 | packages/opennovel/src/mcp/index.ts:109 | high | bug | fix | 模块级 Map 对同一 server 的重复 startAuth 会覆盖在途流程（state 丢失、PKCE verifier 泄漏悬挂）。修复：startAuth 入口检测已存在键即复用或显式拒绝重启。 |
-| H678 | packages/opennovel/src/mcp/index.ts:898 | high | bug |  |  |
-| H679 | packages/opennovel/src/mcp/index.ts:901 | high | bug |  |  |
-| H674 | packages/opennovel/src/mcp/oauth-callback.ts:133 | high | bug |  |  |
-| C224 | packages/opennovel/src/novel/manual-edit-sync-worker.ts:0 | critical | bug |  |  |
-| H680 | packages/opennovel/src/plugin/cloudflare.ts:71 | high | bug |  |  |
-| C225 | packages/opennovel/src/plugin/digitalocean.ts:37 | critical | bug |  |  |
-| H683 | packages/opennovel/src/plugin/digitalocean.ts:62 | high | bug |  |  |
-| H682 | packages/opennovel/src/plugin/github-copilot/copilot.ts:262 | high | bug |  |  |
-| H681 | packages/opennovel/src/plugin/github-copilot/copilot.ts:287 | high | bug |  |  |
-| H685 | packages/opennovel/src/plugin/github-copilot/models.ts:213 | high | bug |  |  |
-| H684 | packages/opennovel/src/plugin/index.ts:274 | high | bug |  |  |
-| H686 | packages/opennovel/src/plugin/loader.ts:187 | high | bug |  |  |
-| H687 | packages/opennovel/src/plugin/openai/codex.ts:152 | high | bug |  |  |
-| H689 | packages/opennovel/src/plugin/openai/codex.ts:219 | high | bug |  |  |
-| H688 | packages/opennovel/src/plugin/openai/codex.ts:238 | high | bug |  |  |
-| H690 | packages/opennovel/src/plugin/openai/ws-pool.ts:78 | high | bug |  |  |
-| C227 | packages/opennovel/src/plugin/openai/ws.ts:181 | critical | bug |  |  |
-| C228 | packages/opennovel/src/plugin/openai/ws.ts:198 | critical | bug |  |  |
-| H694 | packages/opennovel/src/plugin/openai/ws.ts:208 | high | bug |  |  |
-| H695 | packages/opennovel/src/plugin/openai/ws.ts:282 | high | bug |  |  |
-| C226 | packages/opennovel/src/plugin/shared.ts:205 | critical | bug |  |  |
-| H692 | packages/opennovel/src/plugin/snowflake-cortex.ts:34 | high | maintainability |  |  |
-| H693 | packages/opennovel/src/plugin/snowflake-cortex.ts:316 | high | bug |  |  |
-| H691 | packages/opennovel/src/plugin/xai.ts:351 | high | security |  |  |
+| H678 | packages/opennovel/src/mcp/index.ts:898 | high | bug | fix | browser.open 失败或用户未完成授权时 callbackPromise 永挂、pendingOAuthTransports 条目不清理。修复：为等待回调加超时+失败路径统一移除 transport/state 条目。 |
+| H679 | packages/opennovel/src/mcp/index.ts:901 | high | bug | fix | 与 H678 同段：捕获 open 失败只发事件仍继续 await 永不兑现的 callback。修复：失败即终止该 OAuth 流程（reject/清理）。 |
+| H674 | packages/opennovel/src/mcp/oauth-callback.ts:133 | high | bug | fix | waitForCallback 以 mcpName 覆盖映射，旧 oauthState 在 pendingAuths 中孤儿化（仅超时可回收、无法取消）。修复：登记新映射前先回收同 mcpName 的旧状态。 |
+| C224 | packages/opennovel/src/novel/manual-edit-sync-worker.ts:0 | critical | bug | fix | manual-edit-sync-worker 的摘要 upsert、pending 插入、spine 更新、状态回写多步无事务，中途失败留下半同步状态。修复：用 db.transaction 同步回调包裹（仓库 check-then-act 事务先例 promoteWorldMapDraft）。 |
+| H680 | packages/opennovel/src/plugin/cloudflare.ts:71 | high | bug | wontfix | model.api/api.id/capabilities 均为必填类型形状（tsgo 通过即保证，同 H455 论证），可选链建议针对的 undefined 分支不存在。 |
+| C225 | packages/opennovel/src/plugin/digitalocean.ts:37 | critical | bug | fix | 模块级单一 pendingOAuth：并发授权时后者覆盖前者 callback（首个流程拿到错误 promise、CSRF 校验错位）。修复：以 state 参数为键的 Map 管理并发流程。 |
+| H683 | packages/opennovel/src/plugin/digitalocean.ts:62 | high | bug | fix | 1456 端口占用时 listen 的 rejection 无人接（authorize 只 catch 了 open），呈现未处理拒绝。修复：listen 错误捕获后报明确"端口占用"或换端口重试。 |
+| H682 | packages/opennovel/src/plugin/github-copilot/copilot.ts:262 | high | bug | fix | copilot 轮询 while(true) 仅凭 authorization_pending 续轮、无最长时限。修复：按响应 expires_in/10 分钟上限设 deadline，超时 fail。 |
+| H681 | packages/opennovel/src/plugin/github-copilot/copilot.ts:287 | high | bug | fix | expires:0 使 connection.resolve 的 `expires > now+5min` 恒 false，每次取连接都强制刷新令牌（多余网络与失败面）。修复：从响应 expires_in 推导真实过期或写入远期哨兵。 |
+| H685 | packages/opennovel/src/plugin/github-copilot/models.ts:213 | high | bug | wontfix | models get 的 fetch/decode 失败沿插件加载边界统一处理（external ignoreCause，H376 修复后带日志），就地 try-catch 重复且吞类型。 |
+| H684 | packages/opennovel/src/plugin/index.ts:274 | high | bug | fix | `void hook(...)` 丢弃 promise：插件事件钩子异常静默。修复：`.catch((cause) => Effect.logWarning/err)`（保留不阻塞语义）。 |
+| H686 | packages/opennovel/src/plugin/loader.ts:187 | high | bug | wontfix | R 泛型默认 Loaded，无 finisher 的调用点全部以默认参数出现；`as R` 是注释明示的类型出口，无现实错配路径。 |
+| H687 | packages/opennovel/src/plugin/openai/codex.ts:152 | high | bug | fix | 同 C225：codex.ts 全局 pendingOAuth 并发覆盖。修复：state 键控 Map。 |
+| H689 | packages/opennovel/src/plugin/openai/codex.ts:219 | high | bug | fix | startOAuthServer 出错后 oauthServer 引用残留，后续调用误判"已在运行"。修复：server error 事件里清引用并允许重启。 |
+| H688 | packages/opennovel/src/plugin/openai/codex.ts:238 | high | bug | fix | OAuth 超时清 pendingOAuth 但不 reject 等待方 promise、不 stop server：流程永挂且端口泄漏。修复：超时路径同时 reject 与 stopOAuthServer。 |
+| H690 | packages/opennovel/src/plugin/openai/ws-pool.ts:78 | high | bug | wontfix | `if (entry.busy)` 与 `entry.busy = true` 间无 await（同步段原子），并发请求不可能双双通过检查；评论把 JS 当共享内存模型。 |
+| C227 | packages/opennovel/src/plugin/openai/ws.ts:181 | critical | bug | fix | socket.on("message", async fn)：处理器内异常成 unhandledRejection（Node 默认崩溃），且错误无处上报。修复：处理器体套 Effect.runPromise + catch 记录并走错误通道。 |
+| C228 | packages/opennovel/src/plugin/openai/ws.ts:198 | critical | bug | fix | await onRetryableTerminal 期间旧 socket 事件竞态（cleanupSocket 后仍有在途 handler 引用旧连接状态）。修复：socket 世代令牌（generation guard），handler 检查后丢弃陈旧事件。 |
+| H694 | packages/opennovel/src/plugin/openai/ws.ts:208 | high | bug | fix | onRetryableTerminal 返回 undefined 且 completed=false 时函数直接返回：流既不报错也不产出，消费端永等。修复：该分支显式 invalidate/推错误终止流。 |
+| H695 | packages/opennovel/src/plugin/openai/ws.ts:282 | high | bug | fix | onAbort 未考虑重试换 socket 的窗口（旧 handler 已摘除、新 socket 未登记时 abort 落空）。修复：abort 处理同时覆盖 pendingSwap 状态（与 C228 同补丁）。 |
+| C226 | packages/opennovel/src/plugin/shared.ts:205 | critical | bug | fix | `engines.opennovel ?? engines.opennovel` 第二操作数是 fork 改名前 `engines.opencode` 的残留（历史插件包只有旧键，兼容检查被旁路）。修复：右操作数改回 engines.opencode。 |
+| H692 | packages/opennovel/src/plugin/snowflake-cortex.ts:34 | high | maintainability | fix | snowflake pendingOAuth 模块级单值并发覆盖（第二个流程让第一个回调误报 CSRF）。修复：按 state 键控 Map（同 C225）。 |
+| H693 | packages/opennovel/src/plugin/snowflake-cortex.ts:316 | high | bug | fix | 刷新令牌持久化 `.catch(()=>{})`：失败即每次会话重新授权且无痕迹。修复：catch 记录错误。 |
+| H691 | packages/opennovel/src/plugin/xai.ts:351 | high | security | wontfix | xAI 授权走 PKCE+code 交换、回调只取 access_token 不验证 ID token（nonce 为附加 OIDC 参数），未校验 nonce 不构成可利用缺陷（grep 全文件无 id_token 消费路径）。 |
 | H696 | packages/opennovel/src/project/instance-store.ts:126 | high | bug |  |  |
 | H699 | packages/opennovel/src/project/project.ts:417 | high | bug |  |  |
 | H700 | packages/opennovel/src/project/project.ts:434 | high | bug |  |  |
