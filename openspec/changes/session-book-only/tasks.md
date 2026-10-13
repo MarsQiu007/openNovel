@@ -5,6 +5,8 @@
 - [x] 1.1 `resolveSessionRoute` 返回类型改为 `novel | orphan` 并更新单测（`session-route.test.ts` 覆盖绑定命中、绑定缺失、查询失败降级三态，`bun test` 于 `packages/app` 通过）
 - [x] 1.2 独立会话路由渲染内容替换为重定向宿主：绑定会话 `replace` 跳 `/:dir/novel/:novelID/session/:id`，未绑定降级跳书架并 toast 提示；移除独立会话页专属组件（`SessionNovelPanel`、`ResolvedTargetSessionRoute`、`TargetSessionPage`；`session-panel-width`/`-layout` 与工作台共用需保留），`bun run typecheck` 于 `packages/app` 通过
 - [x] 1.3 全仓审计并删除草稿链路：`/new-session` 页面、`tabs.newDraft` 入口、`prompt-input/submit.ts` 草稿提升分支；`grep -rE "draftId|newDraft|new-session" packages/app/src` 无残留引用，typecheck 通过
+- [x] 1.4 工作台补回全局设置命令注册（mod+,，对话框按 params.id 作用域到当前会话）：独立会话页退役后设置入口在书内保持可达，`remote-session-settings` e2e 迁移到工作台路由验证远端服务器上下文
+- [x] 1.5 修复从书架点击/独立路由重定向进入工作台时两侧栏卡在收起态：分栏观察器改由目标信号随 body 元素重建自动改挂，并忽略路由过渡中先建后弃的脱离元素
 
 ## 2. 首页会话面收敛
 

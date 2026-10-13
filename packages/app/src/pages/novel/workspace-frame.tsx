@@ -1,6 +1,7 @@
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
 import { createEffect, createSignal, createMemo, For, Show, onCleanup, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
 import { useServerSync } from "@/context/server-sync"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
@@ -48,6 +49,7 @@ import ModeBadge from "./mode-badge"
 import { OutlineSidebar, type OutlineTarget } from "./outline-sidebar"
 import { OutlineReader } from "./outline-reader"
 import { NovelSessionSwitcher } from "./session-switcher"
+import { useSettingsCommand } from "@/components/settings-dialog"
 import { NovelChatEmptyState, ChatSuggestionChip } from "./chat-empty-state"
 import PanelCharacters from "./panel-characters"
 import PanelTechniques from "./panel-techniques"
@@ -130,6 +132,8 @@ export default function NovelWorkspaceFrame() {
   const language = useLanguage()
   const novel = useNovel()
   const navigate = useNavigate()
+  // 全局设置入口（mod+,）：会话宿主收敛到工作台后保持可达，对话框按 params.id 自动作用域到当前会话
+  useSettingsCommand()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabValue = () => searchParams.tab
   const activeTab = (): "reading" | "writing" | "relations" | "map" | "canvas" => {
@@ -444,36 +448,32 @@ export default function NovelWorkspaceFrame() {
       if (pushed < leftPaneIntent()) setLayout("leftWidth", pushed)
     }
   }
-  let bodyRef: HTMLDivElement | undefined
-  let widthObserver: ResizeObserver | undefined
-  // Body 容器在数据就绪后才挂载（Show when={!data.loading}）：onMount 时 bodyRef 尚未赋值，
-  // observer 必须等就绪后建立，否则自动收边永久失效（走查修复）
-  createEffect(() => {
-    if (data.loading) return
-    if (!bodyRef || widthObserver) return
-    let leftWasBelow = false
-    let railWasBelow = false
-    // 观察三区布局的外层容器而非主区：侧栏显隐会改变主区宽度，观察主区会形成自激励反馈环
-    // （收起→主区变宽→恢复→主区变窄→再收起，每帧翻转，走查时表现为 UI 高频闪烁）
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0
-      setBodyWidth(width)
-      // 阈值从生效宽度（钳制后）实时读取（非响应式：仅 Body 宽变化时判定，拖宽后的悬置态由下次窗口变化收编）
-      const thresholds = collapseThresholds(leftPaneWidth(), railPaneWidth())
-      const leftBelow = width < thresholds.left // 左档 = 左栏宽 + 主区保底
-      const railBelow = width < thresholds.rail // 右档 = max(右栏宽 + 主区保底, 左档 + 1)
-      // 宽度回到阈值以上时结束手动覆盖会话，回归自动规则
-      // 只清除“手动展开”的临时覆盖；手动收起必须跨重启保留，不能因窗口变宽被自动规则清空。
-      if (leftWasBelow && !leftBelow && leftManual() === false) setLayout("leftManual", null)
-      if (railWasBelow && !railBelow && railManual() === false) setLayout("railManual", null)
-      leftWasBelow = leftBelow
-      railWasBelow = railBelow
-      setWidthCollapsed(leftBelow)
-      setRailWidthCollapsed(railBelow)
-    })
-    observer.observe(bodyRef)
-    widthObserver = observer
-    onCleanup(() => observer.disconnect())
+  // 三区容器宽度观察（自动收边依据）：Body 容器在数据就绪后才挂载（Show when={!data.loading}），
+  // 且从书架点击/独立路由重定向进入时，路由过渡与数据就绪会让子树多次（含后续被丢弃的过渡渲染）重建 body 元素，
+  // 最后创建的元素未必是最终存活的那个——所以用数组承载 ref 写入的全部候选、全部观察，
+  // 回调内忽略已脱离文档的元素，保证只有存活容器参与收边判定（session-book-only 路由走查修复）。
+  let leftWasBelow = false
+  let railWasBelow = false
+  const [bodyElements, setBodyElements] = createSignal<HTMLDivElement[]>([])
+  const bindBodyElement = (el: HTMLDivElement) => setBodyElements((list) => [...list, el])
+  // 观察三区布局的外层容器而非主区：侧栏显隐会改变主区宽度，观察主区会形成自激励反馈环
+  // （收起→主区变宽→恢复→主区变窄→再收起，每帧翻转，走查时表现为 UI 高频闪烁）
+  createResizeObserver(bodyElements, (rect, el) => {
+    if (!el.isConnected) return
+    const width = rect.width
+    setBodyWidth(width)
+    // 阈值从生效宽度（钳制后）实时读取（非响应式：仅 Body 宽变化时判定，拖宽后的悬置态由下次窗口变化收编）
+    const thresholds = collapseThresholds(leftPaneWidth(), railPaneWidth())
+    const leftBelow = width < thresholds.left // 左档 = 左栏宽 + 主区保底
+    const railBelow = width < thresholds.rail // 右档 = max(右栏宽 + 主区保底, 左档 + 1)
+    // 宽度回到阈值以上时结束手动覆盖会话，回归自动规则
+    // 只清除“手动展开”的临时覆盖；手动收起必须跨重启保留，不能因窗口变宽被自动规则清空。
+    if (leftWasBelow && !leftBelow && leftManual() === false) setLayout("leftManual", null)
+    if (railWasBelow && !railBelow && railManual() === false) setLayout("railManual", null)
+    leftWasBelow = leftBelow
+    railWasBelow = railBelow
+    setWidthCollapsed(leftBelow)
+    setRailWidthCollapsed(railBelow)
   })
   const panelEdgeRail = (side: "left" | "right") => {
     const isLeft = side === "left"
@@ -900,7 +900,7 @@ export default function NovelWorkspaceFrame() {
           </Show>
 
           {/* Body — 三区布局：左栏导航 / 主区焦点 / 右栏随行 */}
-          <div ref={bodyRef} class="relative flex flex-1 min-h-0">
+          <div ref={bindBodyElement} class="relative flex flex-1 min-h-0">
             {collapsedEdgeRail("left")}
             {/* 左栏：导航区（章节/大纲/设定），常驻可用；宽度 = 设定值（D1），右缘拖拽手柄可调（D3） */}
             <aside
