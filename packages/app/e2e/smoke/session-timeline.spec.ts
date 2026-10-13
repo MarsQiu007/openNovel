@@ -1,9 +1,13 @@
 import { expect, test, type Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { fixture, pageMessages } from "./session-timeline.fixture"
 import { trackPageErrors, expectNoSmokeErrors } from "../utils/errors"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { APP_READY_TIMEOUT, expectAppVisible, expectSessionTitle } from "../utils/waits"
+
+// 独立会话路由已退役为重定向宿主（session-book-only）：时间线随 SessionPage 嵌在
+// 书籍工作台右栏对话面板，本 spec 直接在工作台路由上验证时间线行为。
+const novelID = "novel_smoke_timeline"
 
 const forbiddenText = ["Load details", "Show earlier steps"]
 
@@ -40,6 +44,11 @@ test.describe("smoke: session timeline", () => {
       pageMessages,
       messageDelay: 3_000,
       onMessages: (input) => requests.push({ before: input.before, phase: input.phase, at: performance.now() }),
+    })
+    await mockNovelWorkspaceAPIs(page, {
+      directory: fixture.directory,
+      novelID,
+      boundSessionIDs: [fixture.sourceID, fixture.targetID],
     })
     await configureSmokePage(page, fixture.directory)
 
@@ -97,6 +106,11 @@ test.describe("smoke: session timeline", () => {
       project: fixture.project,
       pageMessages,
     })
+    await mockNovelWorkspaceAPIs(page, {
+      directory: fixture.directory,
+      novelID,
+      boundSessionIDs: [fixture.sourceID, fixture.targetID],
+    })
     await configureSmokePage(page, fixture.directory)
 
     await navigateToSession(page, fixture.directory, fixture.targetID, fixture.expected.targetTitle)
@@ -123,6 +137,11 @@ test.describe("smoke: session timeline", () => {
       directory: fixture.directory,
       project: fixture.project,
       pageMessages,
+    })
+    await mockNovelWorkspaceAPIs(page, {
+      directory: fixture.directory,
+      novelID,
+      boundSessionIDs: [fixture.sourceID, fixture.targetID],
     })
     await configureSmokePage(page, fixture.directory)
 
@@ -173,6 +192,11 @@ async function configureSmokePage(page: Page, directory: string) {
           local: directory,
         },
       }),
+    )
+    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+    localStorage.setItem(
+      "opennovel.global.dat:novel.workspace.layout.v1",
+      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
     )
   }, directory)
 
@@ -506,17 +530,10 @@ function expectCompleteScroll(
 }
 
 async function navigateToSession(page: Page, directory: string, sessionId: string, expectedTitle: string) {
-  await page.goto(`/${base64Encode(directory)}/session/${sessionId}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionId))
   await expectSessionTitle(page, expectedTitle)
 }
 
-async function switchTitlebarSession(page: Page, sessionID: string, title: string) {
-  const href = `/server/${base64Encode(fixture.serverKey)}/session/${sessionID}`
-  const tab = page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`).first()
-  await expect(tab).toBeVisible()
-  await tab.click()
-  await expectSessionTitle(page, title)
-}
 
 async function expectSessionReady(page: Page) {
   await expectAppVisible(page.getByRole("textbox", { name: "Prompt" }))

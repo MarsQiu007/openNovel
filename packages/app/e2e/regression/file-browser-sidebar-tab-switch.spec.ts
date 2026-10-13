@@ -1,13 +1,15 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
+// 独立会话路由已退役为重定向宿主（session-book-only）：检视面板随 SessionPage
+// 嵌在书籍工作台右栏对话面板，本 spec 直接在工作台路由上验证文件侧栏保活。
 const directory = "C:/OpenNovel/FileBrowserSidebar"
+const novelID = "novel_file_browser_sidebar"
 const projectID = "proj_file_browser_sidebar"
 const sessionID = "ses_file_browser_sidebar"
 const title = "File browser sidebar"
-const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const files = Array.from({ length: 80 }, (_, index) => `file-${String(index).padStart(2, "0")}.ts`)
 // Marks the file-browser sidebar DOM node so a remount (fresh node) is detectable.
 const PROBE = "original"
@@ -19,7 +21,7 @@ test.use({ viewport: { width: 1440, height: 900 } })
 test("keeps the file-browser sidebar mounted when switching file tabs", async ({ page }) => {
   await setup(page)
 
-  await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
 
   const panel = page.locator("#review-panel")
@@ -121,6 +123,7 @@ async function setup(page: Page) {
     fileContent: (path) => ({ type: "text", content: `contents:${path}` }),
     pageMessages: () => ({ items: [] }),
   })
+  await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
 
   await page.addInitScript(
     ({ directory, server, sessionID }) => {
@@ -140,11 +143,12 @@ async function setup(page: Page) {
         "opennovel.global.dat:review-panel-v2",
         JSON.stringify({ sidebarOpened: true, sidebarWidth: 240, expandMode: "collapse" }),
       )
+      // 会话页嵌在右栏：拉宽对话面板以接近旧独立页的可用宽度
       localStorage.setItem(
-        "opennovel.window.browser.dat:tabs",
-        JSON.stringify([{ type: "session", server, sessionId: sessionID }]),
+        "opennovel.global.dat:novel.workspace.layout.v1",
+        JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
       )
     },
-    { directory, server, sessionID },
+    { directory, sessionID },
   )
 }

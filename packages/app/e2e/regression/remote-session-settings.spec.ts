@@ -1,11 +1,16 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expect, test, type Page, type Route } from "@playwright/test"
-import { installSseTransport } from "../utils/sse-transport"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 
+// 独立会话路由已退役为重定向宿主（session-book-only）：会话页统一嵌在书籍工作台，
+// 设置对话框的"当前服务器上下文"跟随聚焦服务器。test 1 迁移到工作台路由验证
+// 远端服务器上下文；原 test 2（未聚焦服务器上后台会话的自动批准响应）覆盖的
+// 跨服务器独立会话面已随路由退役，无对应 UI 宿主，用例随之移除——同服务器的
+// 自动批准行为仍由 test 1 与 permission-auto-respond 单测覆盖。
 const serverA = "http://127.0.0.1:4096"
 const serverB = "http://127.0.0.1:4097"
 const directoryA = "C:/server-a"
 const directoryB = "/home/server-b"
+const novelID = "novel_server_b"
 const sessionA = session("ses_server_a", directoryA, "Server A session")
 const childSessionA = { ...session("ses_server_a_child", directoryA, "Server A child session"), parentID: sessionA.id }
 const sessionB = session("ses_server_b", directoryB, "Server B session")
@@ -13,10 +18,11 @@ const sessionB = session("ses_server_b", directoryB, "Server B session")
 test("session settings use the remote server context", async ({ page }) => {
   const permissionRequests: string[] = []
   await mockServers(page, permissionRequests)
+  await mockNovelWorkspaceAPIs(page, { directory: directoryB, novelID, boundSessionIDs: [sessionB.id] })
   await configureServers(page)
 
-  await page.goto(`/server/${base64Encode(serverB)}/session/${sessionB.id}`)
-  await expect(page.getByText(sessionB.title).first()).toBeVisible()
+  await page.goto(novelWorkspaceURL(directoryB, novelID, sessionB.id))
+  await expect(page.getByRole("heading", { name: sessionB.title })).toBeVisible()
   await page.keyboard.press(process.platform === "darwin" ? "Meta+," : "Control+,")
 
   const dialog = page.locator(".settings-v2-dialog")
@@ -42,105 +48,6 @@ test("session settings use the remote server context", async ({ page }) => {
   await expect(dialog.getByRole("switch", { name: "Server A Model" })).toHaveCount(0)
 })
 
-test("auto-accept responds for an unfocused server session", async ({ page }) => {
-  const permissionRequests: string[] = []
-  const permissionResponses: PermissionResponse[] = []
-  const transport = await installSseTransport<{ directory: string; payload: Record<string, unknown> }>(page, {
-    server: serverA,
-    retry: 20,
-  })
-  await mockServers(page, permissionRequests, permissionResponses)
-  await configureServers(page, [
-    { type: "session", server: serverA, sessionId: sessionA.id },
-    { type: "session", server: serverB, sessionId: sessionB.id },
-  ])
-
-  const hrefB = `/server/${base64Encode(serverB)}/session/${sessionB.id}`
-  await page.goto(`/server/${base64Encode(serverA)}/session/${sessionA.id}`)
-  await expect(page.getByText(sessionA.title).first()).toBeVisible()
-  await page.keyboard.press(process.platform === "darwin" ? "Meta+," : "Control+,")
-  const autoAccept = page.locator(".settings-v2-dialog").locator('[data-action="settings-auto-accept-permissions"]')
-  await autoAccept.locator('[data-slot="switch-control"]').click()
-  await expect(autoAccept.getByRole("switch")).toBeChecked()
-  await expect
-    .poll(() =>
-      permissionRequests.some((request) => {
-        const url = new URL(request)
-        return url.origin === serverA && url.searchParams.get("directory") === directoryA
-      }),
-    )
-    .toBe(true)
-  await page.keyboard.press("Escape")
-
-  await page.goto(hrefB)
-  await expect(page).toHaveURL(new RegExp(`${hrefB.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))
-  await expect(page.getByText(sessionB.title).first()).toBeVisible()
-  await transport.waitForConnection()
-
-  await transport.send({
-    directory: directoryA,
-    payload: {
-      id: "event-permission-background-a",
-      type: "permission.asked",
-      properties: {
-        id: "permission-background-a",
-        sessionID: sessionA.id,
-        permission: "bash",
-        patterns: ["git status"],
-        metadata: {},
-        always: [],
-      },
-    },
-  })
-
-  await expect
-    .poll(() => permissionResponses)
-    .toEqual([
-      {
-        origin: serverA,
-        directory: directoryA,
-        sessionID: sessionA.id,
-        permissionID: "permission-background-a",
-        body: { response: "once" },
-      },
-    ])
-
-  await transport.send({
-    directory: directoryA,
-    payload: {
-      id: "event-permission-background-a-child",
-      type: "permission.asked",
-      properties: {
-        id: "permission-background-a-child",
-        sessionID: childSessionA.id,
-        permission: "bash",
-        patterns: ["git diff"],
-        metadata: {},
-        always: [],
-      },
-    },
-  })
-
-  await expect
-    .poll(() => permissionResponses)
-    .toEqual([
-      {
-        origin: serverA,
-        directory: directoryA,
-        sessionID: sessionA.id,
-        permissionID: "permission-background-a",
-        body: { response: "once" },
-      },
-      {
-        origin: serverA,
-        directory: directoryA,
-        sessionID: childSessionA.id,
-        permissionID: "permission-background-a-child",
-        body: { response: "once" },
-      },
-    ])
-})
-
 type PermissionResponse = {
   origin: string
   directory?: string
@@ -149,14 +56,15 @@ type PermissionResponse = {
   body: unknown
 }
 
-async function configureServers(page: Page, tabs: { type: "session"; server: string; sessionId: string }[] = []) {
+async function configureServers(page: Page) {
   await page.addInitScript(
-    ({ serverB, tabs }) => {
+    (serverB) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
       localStorage.setItem("opennovel.global.dat:server", JSON.stringify({ list: [serverB] }))
-      localStorage.setItem("opennovel.window.browser.dat:tabs", JSON.stringify(tabs))
+      // 工作台路由无 server 段：通过默认服务器把远端上下文设为当前，directory 才能在该服务器上解析
+      localStorage.setItem("opennovel.settings.dat:defaultServerUrl", serverB)
     },
-    { serverB, tabs },
+    serverB,
   )
 }
 
@@ -184,6 +92,13 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     if (requestDirectory && requestDirectory !== directory) return json(route, { name: "InvalidDirectory" }, 500)
     if (url.pathname === "/global/event" || url.pathname === "/event") return sse(route)
     if (url.pathname === "/global/health") return json(route, { healthy: true })
+    if (url.pathname === "/api/session") return json(route, { data: sessions.map(v2Session), cursor: {} })
+    if (url.pathname === "/experimental/capabilities") return json(route, { backgroundSubagents: false })
+    const v2Match = url.pathname.match(/^\/api\/session\/([^/]+)$/)
+    if (v2Match) {
+      const found = sessions.find((item) => item.id === v2Match[1])
+      return json(route, found ? v2Session(found) : { name: "NotFoundError" }, found ? 200 : 404)
+    }
     if (url.pathname === "/session/status") return json(route, {})
     if (url.pathname === "/session") return json(route, sessions)
     const current = sessions.find((session) => url.pathname === `/session/${session.id}`)
@@ -232,6 +147,20 @@ function session(id: string, directory: string, title: string) {
     title,
     version: "dev",
     time: { created: 1, updated: 1 },
+  }
+}
+
+// v2 会话投影（书内绑定列表/lineage 走 /api/session 系列端点）
+function v2Session(session: ReturnType<typeof session>) {
+  return {
+    id: session.id,
+    parentID: (session as { parentID?: string }).parentID,
+    projectID: session.projectID,
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: { created: session.time.created, updated: session.time.updated },
+    title: session.title,
+    location: { directory: session.directory },
   }
 }
 
