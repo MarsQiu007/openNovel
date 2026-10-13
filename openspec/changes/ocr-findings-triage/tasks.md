@@ -8,7 +8,7 @@
 
 ## 2. 修复批次（按依赖自底向上，每批验证通过再进下一批）
 
-- [ ] 2.1 修复 packages/schema 批次（分诊为 fix 的项），验证：`packages/schema` 下 `bun typecheck` 通过、仓库根 `bunx oxlint` 检查 touched 路径 0 错误
+- [x] 2.1 修复 packages/schema 批次（分诊为 fix 的项），验证：`packages/schema` 下 `bun typecheck` 通过、仓库根 `bunx oxlint` 检查 touched 路径 0 错误
 - [ ] 2.2 修复 packages/core 批次，验证：`packages/core` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
 - [ ] 2.3 修复 packages/llm 批次，验证：`packages/llm` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
 - [ ] 2.4 修复 packages/novel-store 批次，验证：`packages/novel-store` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
