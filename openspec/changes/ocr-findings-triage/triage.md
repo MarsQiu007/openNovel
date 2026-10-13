@@ -486,46 +486,46 @@
 | H775 | packages/opennovel/src/tool/grep.ts:110 | high | bug | wontfix | grep 工具 orDie 同家族：底层搜索异常即工具调用失败（会话可见），进程不受影响；"返回 error 文案"已由上层工具执行器的失败通道完成。 |
 | H772 | packages/opennovel/src/tool/json-schema.ts:6 | high | bug | wontfix | 缓存 schema 的消费方（校验器）只读不写（仓内无 mutation 调用点），防御性深拷贝属加固；与 H617/H618 同口径。 |
 | H773 | packages/opennovel/src/tool/mcp-websearch.ts:4 | high | security | wontfix | 查询参数携带 websearch API key 是供应商 API 形态（同 H506 论证：端点即服务方、TLS 直达），改 header 需对方支持。 |
-| H774 | packages/opennovel/src/tool/mcp-websearch.ts:92 | high | bug |  |  |
-| H776 | packages/opennovel/src/tool/question.ts:0 | high | bug |  |  |
-| H778 | packages/opennovel/src/tool/read.ts:159 | high | performance |  |  |
-| H777 | packages/opennovel/src/tool/registry.ts:391 | high | bug |  |  |
-| H782 | packages/opennovel/src/tool/skill.ts:0 | high | security |  |  |
-| H784 | packages/opennovel/src/tool/skill.ts:0 | high | bug |  |  |
-| H783 | packages/opennovel/src/tool/skill.ts:23 | high | bug |  |  |
-| H779 | packages/opennovel/src/tool/tool.ts:146 | high | bug |  |  |
-| H780 | packages/opennovel/src/tool/webfetch.ts:82 | high | bug |  |  |
-| H781 | packages/opennovel/src/tool/webfetch.ts:155 | high | bug |  |  |
-| H785 | packages/opennovel/src/tool/websearch.ts:140 | high | bug |  |  |
-| C244 | packages/opennovel/src/util/archive.ts:9 | critical | security |  |  |
-| H786 | packages/opennovel/src/util/data-url.ts:7 | high | bug |  |  |
-| H787 | packages/opennovel/src/util/defer.ts:3 | high | bug |  |  |
-| H788 | packages/opennovel/src/util/error.ts:5 | high | bug |  |  |
-| H789 | packages/opennovel/src/util/lazy.ts:5 | high | bug |  |  |
-| H790 | packages/opennovel/src/util/local-context.ts:3 | high | bug |  |  |
-| H793 | packages/opennovel/src/util/locale.ts:66 | high | bug |  |  |
-| H792 | packages/opennovel/src/util/queue.ts:1 | high | bug |  |  |
-| H791 | packages/opennovel/src/util/queue.ts:16 | high | bug |  |  |
-| H796 | packages/opennovel/src/util/repository.ts:83 | high | security |  |  |
-| H794 | packages/opennovel/src/util/rpc.ts:7 | high | bug |  |  |
-| H795 | packages/opennovel/src/util/rpc.ts:8 | high | bug |  |  |
-| H797 | packages/opennovel/src/util/signal.ts:4 | high | bug |  |  |
-| H800 | packages/opennovel/src/util/timeout.ts:3 | high | bug |  |  |
-| C246 | packages/opennovel/src/worktree/index.ts:461 | critical | security |  |  |
-| C245 | packages/opennovel/test/cli/acp/acp-test-client.ts:46 | critical | bug |  |  |
-| H799 | packages/opennovel/test/cli/acp/acp-test-client.ts:52 | high | bug |  |  |
-| H798 | packages/opennovel/test/cli/acp/acp-test-client.ts:89 | high | bug |  |  |
-| H801 | packages/opennovel/test/cli/acp/helpers.ts:70 | high | bug |  |  |
-| C247 | packages/opennovel/test/fake/auth.ts:4 | critical | bug |  |  |
-| H803 | packages/opennovel/test/fake/npm.ts:4 | high | bug |  |  |
-| H802 | packages/opennovel/test/fake/npm.ts:8 | high | bug |  |  |
-| H804 | packages/opennovel/test/fixture/config.ts:10 | high | bug |  |  |
-| H805 | packages/opennovel/test/fixture/plugin-meta-worker.ts:17 | high | bug |  |  |
-| H806 | packages/opennovel/test/lib/filesystem.ts:4 | high | bug |  |  |
-| H807 | packages/opennovel/test/server/httpapi-exercise/assertions.ts:20 | high | bug |  |  |
-| H808 | packages/opennovel/test/server/httpapi-exercise/backend.ts:53 | high | bug |  |  |
-| H809 | packages/opennovel/test/server/httpapi-exercise/runtime.ts:20 | high | bug |  |  |
-| C248 | packages/opennovel/test/server/httpapi-layer.ts:21 | critical | bug |  |  |
+| H774 | packages/opennovel/src/tool/mcp-websearch.ts:92 | high | bug | wontfix | 工具层 die/orDie 失败经会话错误通道 squash 成模型可见错误文本（H775/H771 同口径），超时作为 defect 呈现不改变用户可观测行为；改类型化错误属一致性调整。 |
+| H776 | packages/opennovel/src/tool/question.ts:0 | high | bug | wontfix | question 工具的 orDie 与 H497 同判：拒绝/超时走 Reply 数据通道而非错误通道，orDie 只兜底真正的程序异常。 |
+| H778 | packages/opennovel/src/tool/read.ts:159 | high | performance | fix | read 达 limit 后未置 done，流继续遍历全文件剩余行（大文件线性浪费）。修复：同处 flags.done=true 并以 ReadStop 终止流。 |
+| H777 | packages/opennovel/src/tool/registry.ts:391 | high | bug | wontfix | zodJsonSchema 返回非对象属 schema 定义的程序错误（开发者面），throw 即 die 在注册期暴露是正确信号，类型化不增信息量。 |
+| H782 | packages/opennovel/src/tool/skill.ts:0 | high | security | fix | skill name 未转义直接插进 <skill_content name="..."> XML 属性：frontmatter 可控字符（引号/&/<>）破坏结构并被下游解析。修复：属性经 escapeXml。 |
+| H784 | packages/opennovel/src/tool/skill.ts:0 | high | bug | wontfix | skill 工具末尾 orDie 属工具层统一收敛家族（H775）：权限/FS 异常以错误文本呈现给模型，进程无碍。 |
+| H783 | packages/opennovel/src/tool/skill.ts:23 | high | bug | wontfix | Skill.NotFoundError 经 Cause.squash 后消息（含可用技能列表）仍进入工具错误文本给模型；die 与 ToolFailure 在此路径的可见输出等价，改法是风格统一。 |
+| H779 | packages/opennovel/src/tool/tool.ts:146 | high | bug | wontfix | 工具执行器末尾 orDie 同家族：ToolFailure 已在 execute 内部以数据形态处理，orDie 仅兜底逃逸异常。 |
+| H780 | packages/opennovel/src/tool/webfetch.ts:82 | high | bug | wontfix | catchIf 的类型谓词读取 err.reason?._tag —— 调用点已处于 Effect 错误对象的稳定形状（StatusCodeError 由本仓 http 层产生），结构漂移即程序错误走 die。 |
+| H781 | packages/opennovel/src/tool/webfetch.ts:155 | high | bug | wontfix | webfetch 末尾 orDie 同 H775 家族（网络错误文本对模型可见），不改变可观测行为。 |
+| H785 | packages/opennovel/src/tool/websearch.ts:140 | high | bug | wontfix | websearch 末尾 orDie 同家族判例。 |
+| C244 | packages/opennovel/src/util/archive.ts:9 | critical | security | fix | archive.ts 把路径内插进 PowerShell 命令串：目录名含单引号（O'Brien 类合法路径）即破坏/注入。修复：改 -LiteralPath 传参或完整 PS 转义（'' 与反引号）。 |
+| H786 | packages/opennovel/src/util/data-url.ts:7 | high | bug | fix | decodeURIComponent 对畸形百分号序列抛 URIError（data-url 内容可来自 prompt 附件），解码助手应容错。修复：try 包裹返回 undefined，调用方按解码失败处理。 |
+| H787 | packages/opennovel/src/util/defer.ts:3 | high | bug | fix | defer 的 `void fn()`：异步回调 reject 时 unhandledRejection。修复：.catch 记日志（保留 fire-and-forget 语义）。 |
+| H788 | packages/opennovel/src/util/error.ts:5 | high | bug | fix | cliErrorMessage 沿 cause.body 递归无深度/环路防护（自引用 cause 可无限循环）。修复：加 depth 上限（>10 即止）。 |
+| H789 | packages/opennovel/src/util/lazy.ts:5 | high | bug | fix | opennovel/util/lazy 在 fn() 之后才置 loaded：重入时工厂被执行多次（与 core 版 H508 相反方向的缺陷）。修复：三态标记（running 时重入直接抛程序错误）。 |
+| H790 | packages/opennovel/src/util/local-context.ts:3 | high | bug | wontfix | NotFound.name 置为上下文名是有意设计（stack/日志里直接可读），错误分类在仓内一律 instanceof；改 name 属约定变更非缺陷。 |
+| H793 | packages/opennovel/src/util/locale.ts:66 | high | bug | fix | truncateLeft 在 len<=1 时 `slice(-0)` 返回整串，输出长于输入违背契约。修复：len<=1 直接返回省略号。 |
+| H792 | packages/opennovel/src/util/queue.ts:1 | high | bug | fix | AsyncQueue 无 close：生产端停止后消费端 pending resolver 永挂。修复：补 close()（置位+唤醒等待者+迭代器终止）。 |
+| H791 | packages/opennovel/src/util/queue.ts:16 | high | bug | fix | 同 H792：asyncIterator 无终止条件，生产者不再 push 时 for-await 永挂（与 close 一并修复）。 |
+| H796 | packages/opennovel/src/util/repository.ts:83 | high | security | wontfix | host/segment 以 spawn 数组参数传 git（不经 shell 解释），元字符无注入语义；parse/validateBranch 已限制危险形态，进一步封禁会拒合法远端。 |
+| H794 | packages/opennovel/src/util/rpc.ts:7 | high | bug | wontfix | rpc 通道两端是同进程/同构建 worker 的内部消息（非外部输入），畸形帧属程序错误，handler 抛错可见即正确。 |
+| H795 | packages/opennovel/src/util/rpc.ts:8 | high | bug | wontfix | 同 H794：method 名来自编译期对齐的调用方（内部代码），方法缺失即打包/编程错误，die 可见合理。 |
+| H797 | packages/opennovel/src/util/signal.ts:4 | high | bug | wontfix | signal 是纯触发闩（trigger/wait），失败路径由调用方以 Effect.race/timeout 组合表达；内置 abort 属功能扩展。 |
+| H800 | packages/opennovel/src/util/timeout.ts:3 | high | bug | fix | Promise.race 超时取胜后原 promise 无 rejection handler：后续 reject 变 unhandledRejection。修复：对原 promise 预挂 .catch(()=>{})（或 finally clearTimeout 方案）。 |
+| C246 | packages/opennovel/src/worktree/index.ts:461 | critical | security | wontfix | worktree 启动命令是操作者在项目设置里显式声明的自定义启动命令（功能定义即执行用户命令），信任模型同 H749/C211/bash 工具：不存在不可信外部输入面。 |
+| C245 | packages/opennovel/test/cli/acp/acp-test-client.ts:46 | critical | bug | wontfix | `received = yield* acp.receive.pipe(Effect.timeout(...))`：超时使整个 Effect 失败并中断 while(true)（yield* 失败即生成器退出），不存在"继续空转"路径；评论把 Effect 失败当成返回哨兵值。 |
+| H799 | packages/opennovel/test/cli/acp/acp-test-client.ts:52 | high | bug | wontfix | 同 C245：超时即失败退出循环。request/waitForNotification 共享接收流是测试客户端顺序化使用的既有约定（用例间无并发消费），非产品缺陷面。 |
+| H798 | packages/opennovel/test/cli/acp/acp-test-client.ts:89 | high | bug | fix | isJsonRpcResponse 未排除带 method 的请求帧：ACP 支持 agent→client 请求（同含 id/jsonrpc），服务端主动请求可能被误判为响应。修复：类型守卫补 !("method" in input)。 |
+| H801 | packages/opennovel/test/cli/acp/helpers.ts:70 | high | bug | fix | expectErrorCode 错误分支的比较逻辑自相矛盾（拿 falsy error 与 {code} 相等比较，恒失败或恒通过取决于形态）。修复：改为 toBeInstanceOf + toHaveProperty("code") + 数值比较。 |
+| C247 | packages/opennovel/test/fake/auth.ts:4 | critical | bug | wontfix | Layer.mock 允许部分实现：现有测试未调用缺失方法（tsgo 通过、全量测试通过），mock 完整性按需补即可，不构成缺陷。 |
+| H803 | packages/opennovel/test/fake/npm.ts:4 | high | bug | wontfix | 同 C247：noop npm mock 只实现现测试用到的 install；add/which 无调用点。 |
+| H802 | packages/opennovel/test/fake/npm.ts:8 | high | bug | wontfix | `export * as NpmTest from "./npm"` 是 AGENTS.md 规定的文件自导出命名空间惯例（D2 白名单第 1 类，src/config 与 test/fake 同构），非循环导入错误。 |
+| H804 | packages/opennovel/test/fixture/config.ts:10 | high | bug | wontfix | TS 结构化类型允许少参实现（函数可忽略尾参），update: () => Effect.void 完全满足 (config: Info) => Effect；无类型不匹配。 |
+| H805 | packages/opennovel/test/fixture/plugin-meta-worker.ts:17 | high | bug | wontfix | 测试 worker 顶层 await 失败即 reject→测试失败可见（正是期望行为）；包 try 重抛不增加信息。 |
+| H806 | packages/opennovel/test/lib/filesystem.ts:4 | high | bug | fix | 测试 helper 在 writeFileString 成功后才注册 finalizer：写失败路径残留临时文件/目录污染后续测试。修复：makeDirectory+finalizer 注册前置，再执行写入。 |
+| H807 | packages/opennovel/test/server/httpapi-exercise/assertions.ts:20 | high | bug | wontfix | sort 的输入来自 HTTP JSON 响应（协议上无环），循环引用不可达；WeakSet 防护属泛化加固。 |
+| H808 | packages/opennovel/test/server/httpapi-exercise/backend.ts:53 | high | bug | wontfix | httpapi 测试 exercise 串行发起请求（单 fiber 循环），同凭据并发创建 app 的窗口在本测试驱动形态下不存在；即便双建也是测试资源无害重复。 |
+| H809 | packages/opennovel/test/server/httpapi-exercise/runtime.ts:20 | high | bug | wontfix | runtime() 仅测试 bootstrap 首调；import 失败属环境级致命错误，缓存 rejected promise 与每次重试的诊断结果等价（fail fast 一致）。 |
+| C248 | packages/opennovel/test/server/httpapi-layer.ts:21 | critical | bug | fix | request() 用 HttpClientRequest.setUrl(url.pathname) 覆盖了 fromWeb 保好的完整 URL，查询参数被剥离（?limit=0 类用例失配）。修复：setUrl(url.pathname + url.search)。 |
 | H118 | packages/plugin/package.json:8 | high | bug | wontfix | 误报：package.json devDependencies 含 @typescript/native-preview（catalog:），该包正是 tsgo CLI 的分发包，typecheck 脚本在包内可用。 |
 | C062 | packages/plugin/package.json:12 | critical | bug | wontfix | 既定模式：script/publish.ts:26-40 在 pack 前把 exports 重写为 dist/*.js + .d.ts 再 npm publish，发布后 exports 与 files:[dist] 一致；workspace 内直接消费 TS 源码是本仓 monorepo 惯例。 |
 | H810 | packages/plugin/script/publish.ts:32 | high | bug | wontfix | 误报：publish.ts:31-37 是 try/finally（无 catch），finally 恢复 package.json 后原错误继续向上传播，不会被静默吞掉。 |

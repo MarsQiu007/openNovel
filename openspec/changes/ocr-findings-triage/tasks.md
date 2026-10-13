@@ -4,7 +4,7 @@
 
 - [x] 1.1 导出 scan 会话 dca30d33 的 critical/high 评论并按 7 个写作管线包过滤，在 change 目录生成 triage.md（表头 + 568 行：ID、文件、级别、类别、处置、理由），验证 triage.md 数据行数与过滤结果一致（135 critical + 433 high）
 - [x] 1.2 按 design D2 白名单批量驳回已知误报类（self-export 惯例、生成代码、行号 0 且无法定位），验证每条 wontfix 均引用具体代码证据
-- [ ] 1.3 逐条阅读剩余发现的对应代码，标注 fix / defer 并写明理由（拿不准的一律 fix；涉及公开 Protocol/HttpApi 契约变更的一律 defer——契约不变是本 change 硬约束），验证 568 条全部有非空处置、无遗漏
+- [x] 1.3 逐条阅读剩余发现的对应代码，标注 fix / defer 并写明理由（拿不准的一律 fix；涉及公开 Protocol/HttpApi 契约变更的一律 defer——契约不变是本 change 硬约束），验证 568 条全部有非空处置、无遗漏
 
 ## 2. 修复批次（按依赖自底向上，每批验证通过再进下一批）
 
