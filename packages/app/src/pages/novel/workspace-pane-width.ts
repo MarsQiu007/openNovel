@@ -1,6 +1,6 @@
 // 工作台分栏宽度派生：设定宽度是唯一状态，渲染宽度与自动收边阈值全部由此派生。
-// 主区保底 30px 是唯一硬编码下限：侧栏不设静态上限，随窗口动态派生（VS Code 式拖拽模型）。
-export const WORKSPACE_MAIN_MIN_WIDTH = 30
+// 主区保底 160px 是唯一硬编码下限：保证窄态仍有可感知内容；侧栏不设静态上限，随窗口动态派生（VS Code 式拖拽模型）。
+export const WORKSPACE_MAIN_MIN_WIDTH = 160
 
 // 左栏（导航区）与右栏（随行区）的最小宽度和默认宽度；可调上限由 paneMaxWidth 按容器宽度派生
 export const LEFT_PANE_MIN_WIDTH = 220

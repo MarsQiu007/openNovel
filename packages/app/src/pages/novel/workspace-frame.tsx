@@ -360,7 +360,7 @@ export default function NovelWorkspaceFrame() {
     onCleanup(() => window.removeEventListener("keydown", handler))
   })
 
-  // —— 宽度规则（D5）：主区保底 30px，侧栏上限随窗口动态派生，两档自动收边（随行右栏先让位），手动操作优先 ——
+  // —— 宽度规则（D5）：主区保底 160px，侧栏上限随窗口动态派生，两档自动收边（随行右栏先让位），手动操作优先 ——
   const [widthCollapsed, setWidthCollapsed] = createSignal(false)
   const [railWidthCollapsed, setRailWidthCollapsed] = createSignal(false)
   // —— 分栏宽度（D1/D4）：生效宽度 = 拖拽内存态 ?? 设定宽度 ?? 默认值。

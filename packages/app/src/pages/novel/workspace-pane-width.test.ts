@@ -35,11 +35,11 @@ describe("collapseThresholds", () => {
 
 describe("paneMaxWidth", () => {
   test("reserves the main floor and the other visible pane from the body width", () => {
-    expect(paneMaxWidth(1000, 380)).toBe(590)
+    expect(paneMaxWidth(1000, 380)).toBe(460)
   })
 
   test("treats a collapsed other pane as zero", () => {
-    expect(paneMaxWidth(1000, 0)).toBe(970)
+    expect(paneMaxWidth(1000, 0)).toBe(840)
   })
 
   test("lets a pane squeeze the main area down to the floor on wide bodies", () => {
@@ -47,7 +47,7 @@ describe("paneMaxWidth", () => {
   })
 
   test("may dip below the pane minimum on narrow bodies; rendering floors at the minimum", () => {
-    expect(paneMaxWidth(500, RAIL_PANE_MIN_WIDTH)).toBe(150)
+    expect(paneMaxWidth(500, RAIL_PANE_MIN_WIDTH)).toBe(20)
   })
 })
 
@@ -65,7 +65,7 @@ describe("resolvePaneWidth", () => {
 })
 
 test("exposes the pane bounds the spec promises", () => {
-  expect(WORKSPACE_MAIN_MIN_WIDTH).toBe(30)
+  expect(WORKSPACE_MAIN_MIN_WIDTH).toBe(160)
   expect(LEFT_PANE_MIN_WIDTH).toBe(220)
   expect(RAIL_PANE_MIN_WIDTH).toBe(320)
   expect(LEFT_PANE_DEFAULT_WIDTH).toBe(288)
