@@ -234,41 +234,41 @@
 | C180 | packages/core/src/workspace.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H523 | packages/core/test/fixture/effect-flock-worker.ts:21 | high | bug |  |  |
 | C182 | packages/core/test/fixture/flock-worker.ts:37 | critical | bug |  |  |
-| H576 | packages/llm/example/tutorial.ts:255 | high | bug |  |  |
-| H577 | packages/llm/script/recording-cost-report.ts:219 | high | bug |  |  |
-| H579 | packages/llm/src/protocols/bedrock-event-stream.ts:41 | high | bug |  |  |
-| H578 | packages/llm/src/protocols/bedrock-event-stream.ts:59 | high | bug |  |  |
-| H581 | packages/llm/src/protocols/shared.ts:165 | high | bug |  |  |
-| H580 | packages/llm/src/protocols/utils/bedrock-media.ts:52 | high | bug |  |  |
-| H582 | packages/llm/src/providers/azure.ts:? | high | bug |  |  |
-| C198 | packages/llm/src/providers/cloudflare.ts:48 | critical | bug |  |  |
-| H583 | packages/llm/src/route/auth.ts:138 | high | bug |  |  |
-| H584 | packages/llm/src/route/client.ts:232 | high | bug |  |  |
-| C199 | packages/llm/src/route/executor.ts:370 | critical | bug |  |  |
-| H586 | packages/llm/src/route/transport/websocket.ts:52 | high | bug |  |  |
-| H587 | packages/llm/src/route/transport/websocket.ts:125 | high | bug |  |  |
-| C200 | packages/llm/src/route/transport/websocket.ts:138 | critical | bug |  |  |
-| H585 | packages/llm/src/schema/errors.ts:122 | high | bug |  |  |
-| H588 | packages/llm/src/tool.ts:174 | high | bug |  |  |
-| H589 | packages/llm/test/continuation-scenarios.ts:83 | high | bug |  |  |
-| H590 | packages/llm/test/recorded-scenarios.ts:120 | high | bug |  |  |
-| H116 | packages/novel-store/package.json:10 | high | maintainability |  |  |
-| C060 | packages/novel-store/package.json:12 | critical | bug |  |  |
-| C061 | packages/novel-store/package.json:15 | critical | bug |  |  |
-| C202 | packages/novel-store/src/approval.ts:54 | critical | bug |  |  |
-| C201 | packages/novel-store/src/driver.bun.ts:12 | critical | bug |  |  |
-| H591 | packages/novel-store/src/driver.node.ts:13 | high | bug |  |  |
-| H594 | packages/novel-store/src/entity-refs.ts:28 | high | bug |  |  |
-| C203 | packages/novel-store/src/entity-refs.ts:36 | critical | bug |  |  |
-| H592 | packages/novel-store/src/manual-edit-sync.ts:56 | high | bug |  |  |
-| H593 | packages/novel-store/src/manual-edit-sync.ts:200 | high | bug |  |  |
-| H598 | packages/novel-store/src/migrate.ts:58 | high | bug |  |  |
-| H597 | packages/novel-store/src/migrate.ts:425 | high | bug |  |  |
-| C204 | packages/novel-store/src/migrate.ts:634 | critical | security |  |  |
-| H595 | packages/novel-store/src/mode.ts:116 | high | bug |  |  |
-| H596 | packages/novel-store/src/mode.ts:145 | high | bug |  |  |
-| C205 | packages/novel-store/src/upgrade.ts:201 | critical | bug |  |  |
-| H599 | packages/novel-store/src/upgrade.ts:277 | high | bug |  |  |
+| H576 | packages/llm/example/tutorial.ts:255 | high | bug | fix | tutorial.ts:230 末尾 Effect.runPromise(program) 无错误处理，示例被复制到生产代码会产生 unhandled rejection；改用 runPromiseExit 或补 .catch 展示惯用错误处理。 |
+| H577 | packages/llm/script/recording-cost-report.ts:219 | high | bug | fix | recording-cost-report.ts:219 顶层 await fetch(MODELS_DEV_URL) 无错误处理且未检查 response.ok，网络失败时脚本以未处理拒绝崩溃；按 suggestion 思路包 try/catch 并输出友好错误。 |
+| H579 | packages/llm/src/protocols/bedrock-event-stream.ts:41 | high | bug | wontfix | 误报：bedrock-event-stream.ts:34-37 中 totalLength=0 时 subarray(0,0) 为空帧，@smithy/eventstream-codec 对空帧必抛异常并被上方 Effect.try 转为类型化错误，offset 不推进的分支不可达，不存在死循环。 |
+| H578 | packages/llm/src/protocols/bedrock-event-stream.ts:59 | high | bug | wontfix | 误报：bedrock-event-stream.ts:12 为 new TextDecoder()（未开 fatal），按 WHATWG 规范非法 UTF-8 字节序列只替换为 U+FFFD，decode 不抛 TypeError。 |
+| H581 | packages/llm/src/protocols/shared.ts:165 | high | bug | wontfix | 误报：shared.ts:165 模式含 (?:[A-Za-z0-9+/]{4})* 重复组，无填充的 abcd 可匹配，且 [A-Za-z0-9+/]{3}= 分支可匹配 abc=；外层另有 length%4 校验（shared.ts:191），两条例证均不成立。 |
+| H580 | packages/llm/src/protocols/utils/bedrock-media.ts:52 | high | bug | fix | bedrock-media.ts:51 name: part.filename ?? `document.${format}` 在同格式多文档缺文件名时产生重名，模型无法区分引用；缺文件名时用格式+序号生成唯一 name。 |
+| H582 | packages/llm/src/providers/azure.ts:? | high | bug | wontfix | 误报（line:0 未定位）：azure.ts:110-114 configuredRoute 的 endpoint.query 已展开 ...(input.apiVersion ? { "api-version": ... } : {}) 与 ...input.queryParams，apiVersion/queryParams 并未被忽略。 |
+| C198 | packages/llm/src/providers/cloudflare.ts:48 | critical | bug | wontfix | 刻意设计：cloudflare.ts:48-54 三分支明确——仅传 apiKey 时网关透传 Authorization（无网关鉴权场景），双鉴权需显式传 gatewayApiKey；cloudflare.test.ts:98 的双鉴权用例也是两者都显式传入。 |
+| H583 | packages/llm/src/route/auth.ts:138 | high | bug | wontfix | 误报：本仓 Effect 4.0.0-beta.83 中 ConfigError 是 class（effect/src/Config.ts:70 export class ConfigError），instanceof 判断有效；finding 按 Effect 3 联合类型语义误判。 |
+| H584 | packages/llm/src/route/client.ts:232 | high | bug | wontfix | 刻意取舍：route/client.ts:235-239 的 eventError 第三参已携带原始 frame（ProviderShared.encodeJson(frame)），错误信息保留完整出错载荷；改用整个 schema 错误树会让流错误冗长。 |
+| C199 | packages/llm/src/route/executor.ts:370 | critical | bug | wontfix | 误报：executor.ts:2-9 从 effect/unstable/http 导入 Headers；effect Headers.ts:724 CurrentRedactedNames 是带默认值的 Context.Reference（yield* 合法），executor.test.ts 的 provideService 只是覆盖默认值。 |
+| H586 | packages/llm/src/route/transport/websocket.ts:52 | high | bug | wontfix | 误报：websocket.ts:51-56 readyState 检查与 Effect.callback 内的 addEventListener 在同一同步块执行，JS 单线程下 open/close 事件不会在检查与注册之间插入，无 TOCTOU。 |
+| H587 | packages/llm/src/route/transport/websocket.ts:125 | high | bug | wontfix | 冲突既定设计：llm 包为服务端包（依赖 @effect/platform-node）；WebSocketExecutor.Service 是可替换接缝（client.ts:422 Effect.serviceOption），构造器强转 WebSocketConstructorWithHeaders 为 ws 类实现预留，浏览器场景由消费方自供实现。 |
+| C200 | packages/llm/src/route/transport/websocket.ts:138 | critical | bug | wontfix | 误报：websocket.ts:253-255 frames 内以 Effect.acquireRelease(open, connection.close) 管理连接，中断/超时/作用域退出必定触发 cleanup（removeEventListener + Queue.shutdown + ws.close）。 |
+| H585 | packages/llm/src/schema/errors.ts:122 | high | bug | defer | TransportReason.retryable=false（errors.ts:122-129）是逐类显式设计；改为可重试会改变 executor.ts:357-367 retryStatusFailures 的全局重试语义（网络错误是否重试是行为级设计变更），需维护者权衡后再动。 |
+| H588 | packages/llm/src/tool.ts:174 | high | bug | wontfix | 已文档化的刻意设计：tool.ts make 的 dynamic 模式注释明确 Inputs are typed as unknown; the handler is responsible for any validation it needs，jsonSchema 仅经 _definition 广告给模型，不做运行时校验。 |
+| H589 | packages/llm/test/continuation-scenarios.ts:83 | high | bug | wontfix | 不可达场景：continuation-scenarios.ts:4 toolContinuation=["tool-call","tool-result"] 常量成对使用，全部调用方（anthropic-messages.test.ts:305、openai-responses.test.ts:510）经此常量传 feature，单独 tool-result 不会出现，建议的校验是死代码。 |
+| H590 | packages/llm/test/recorded-scenarios.ts:120 | high | bug | wontfix | 测试辅助的断言式缺陷：recorded-scenarios.ts:120 throw 是「工具循环超 10 步」必须响亮失败的用例保护，作为 defect 失败清晰可见；改 Effect.fail 需为所有调用方拓宽错误类型，无实际收益。 |
+| H116 | packages/novel-store/package.json:10 | high | maintainability | wontfix | 误报前提：该包不发 npm（script/publish.ts 仅做 CLI/桌面发布，release.yml 只出桌面安装包），exports 指向 src TS 是全仓库惯例（schema/server/core/app/plugin 均如此），且 build:tsc 由包 AGENTS.md 'Build & Verify' 节明确记载为有意保留 |
+| C060 | packages/novel-store/package.json:12 | critical | bug | wontfix | 误报前提：包不发布 npm，files:['dist'] 不影响 workspace:* 内消费；exports→./src/index.ts 与 schema/server 等包一致（packages/schema/package.json exports 同为 ./src），改动反而破坏 monorepo 直跑 TS 约定 |
+| C061 | packages/novel-store/package.json:15 | critical | bug | wontfix | #driver conditional imports 是 novel-store AGENTS.md 明确记载的跨平台驱动选择机制（'The SQLite driver is selected through the #driver import'），仅 workspace 内消费，premise（npm 发布后缺失文件）不成立 |
+| C202 | packages/novel-store/src/approval.ts:54 | critical | bug | fix | 用 db.transaction 同步回调包裹 select+update（参照 packages/novel-store/src/index.ts:2083 promoteWorldMapDraft 的 check-then-act 事务模式），消除审批并发交错窗口 |
+| C201 | packages/novel-store/src/driver.bun.ts:12 | critical | bug | fix | init 失败路径用 try/finally 关闭 sqlite 连接（同包 mode.ts writeNovelConfig 的 IO 资源清理先例）；不做建议中的 BEGIN/COMMIT 包装——migrate.ts:46 内部已自行 BEGIN/COMMIT，外层再包事务会直接冲突 |
+| H591 | packages/novel-store/src/driver.node.ts:13 | high | bug | fix | 同 C201：DatabaseSync 在 init 失败时泄漏，补 try/finally 关闭连接即可；错误向上传播本身符合本层设计，不需吞错加上下文 |
+| H594 | packages/novel-store/src/entity-refs.ts:28 | high | bug | wontfix | delete-then-insert 的原子性问题已由 C203 覆盖（同一文件同一代码块）；追加 try-catch 包错误与 AGENTS.md 'Avoid try/catch where possible' 约定冲突，novel-store 数据层一贯让 drizzle 错误直接向上传播（如 approval.ts:51 throw 未找到章节） |
+| C203 | packages/novel-store/src/entity-refs.ts:36 | critical | bug | fix | 真实数据丢失风险：delete 后任一 insert 失败则旧引用全部丢失；将 delete+inserts 包进 db.transaction 同步回调（index.ts:2083 既有模式），失败整体回滚 |
+| H592 | packages/novel-store/src/manual-edit-sync.ts:56 | high | bug | fix | 将 enqueueManualEditSync 的 select→update→insert 包进 db.transaction 同步回调（bun-sqlite 驱动同步，回调内可全程无 await），消除并发入队时去重判定失效的窗口 |
+| H593 | packages/novel-store/src/manual-edit-sync.ts:200 | high | bug | fix | 注释（manual-edit-sync.ts:200-206）声称'异常时先恢复旧值的补偿模式'但实现无任何补偿逻辑，且声称'Drizzle 的 Bun 驱动不支持事务包装'与 index.ts:2083 的 db.transaction 实际用法矛盾；应改用真实事务或把注释改写成与实际 best-effort 行为一致 |
+| H598 | packages/novel-store/src/migrate.ts:58 | high | bug | fix | migrate.ts:59-63 回滚失败的 catch 为空，注释自称'保留现场便于排查'却无任何记录；在 catch 内补 console.error 记录 rollbackError（与 64/436 行既有 console.warn 风格一致），实现注释承诺的可排查性 |
+| H597 | packages/novel-store/src/migrate.ts:425 | high | bug | wontfix | 刻意设计：425-443 行注释明确'单表搬移失败不阻塞 DB 打开，下次打开按幂等规则重试'，非阻塞幂等迁移是本文件贯穿哲学；且 SQLite 不允许在事务内切换 foreign_keys pragma（事务中该 pragma 为 no-op），建议的事务包装技术上不适用，孤儿行清理紧随其后（445-458 行） |
+| C204 | packages/novel-store/src/migrate.ts:634 | critical | security | wontfix | 误报：migrate.ts:634-636 的单引号翻倍转义正是 SQLite 字符串字面量的标准且充分转义（SQLite 字符串无反斜杠转义陷阱，'' 即唯一转义），被转义值无法突破字面量；数据源自本地库自身写入（本迁移每次建连对 evidence 回填），参数化还需改动整个 ExecFn 字符串签名抽象 |
+| H595 | packages/novel-store/src/mode.ts:116 | high | bug | wontfix | 文档化设计：mode.ts:12-15 错误策略与 108-110 行函数注释明确'任何 IO 错都降级为 warn + 返回 fallback 配置，不抛错'，返回生效配置即承诺语义；改成 result 对象将破坏 plugin/server/CLI 三处共享调用方 |
+| H596 | packages/novel-store/src/mode.ts:145 | high | bug | wontfix | 同 H595：写入失败返回 next（生效配置）是 mode.ts:13-14 与 108-110 明确记载的设计，告警经 stderr 给用户；返回'未生效'反而需要契约级返回类型变更 |
+| C205 | packages/novel-store/src/upgrade.ts:201 | critical | bug | wontfix | 刻意设计：upgrade.ts:195-199 注释声明'四步全部幂等'，任一步失败后可由 listPendingUpgradeTasks 的 appliesTo 检测重新触发恢复；且本包驱动为同步事务回调（index.ts:2083 同步用法），无法跨越 await 包住 runDeterministicUpgrade 的 async 流程，建议的事务包装不适用 |
+| H599 | packages/novel-store/src/upgrade.ts:277 | high | bug | fix | novel_id 是 upgrade_state 主键（index.ts 表定义 text().notNull().primaryKey()），并发 read-then-insert 虽不会产生重复行但会把 PRIMARY KEY 约束错误抛给调用方；改 insert...onConflictDoUpdate({target: novel_id}) 原子 upsert |
 | H117 | packages/opennovel/package.json:9 | high | bug |  |  |
 | H604 | packages/opennovel/script/bench-test-suite.ts:23 | high | bug |  |  |
 | H601 | packages/opennovel/script/build-node.ts:13 | high | bug |  |  |
@@ -526,37 +526,37 @@
 | H808 | packages/opennovel/test/server/httpapi-exercise/backend.ts:53 | high | bug |  |  |
 | H809 | packages/opennovel/test/server/httpapi-exercise/runtime.ts:20 | high | bug |  |  |
 | C248 | packages/opennovel/test/server/httpapi-layer.ts:21 | critical | bug |  |  |
-| H118 | packages/plugin/package.json:8 | high | bug |  |  |
-| C062 | packages/plugin/package.json:12 | critical | bug |  |  |
-| H810 | packages/plugin/script/publish.ts:32 | high | bug |  |  |
-| H811 | packages/plugin/script/publish.ts:33 | high | bug |  |  |
-| H812 | packages/plugin/src/example-workspace.ts:20 | high | bug |  |  |
-| H813 | packages/plugin/src/novel-writer/__verify__/verify-tools.ts:47 | high | bug |  |  |
-| C249 | packages/plugin/src/novel-writer/agents/auditor.ts:1 | critical | bug |  |  |
-| H814 | packages/plugin/src/novel-writer/annotation.ts:99 | high | bug |  |  |
-| H815 | packages/plugin/src/novel-writer/arc-backfill.ts:144 | high | bug |  |  |
-| C250 | packages/plugin/src/novel-writer/arc-progress.ts:21 | critical | bug |  |  |
-| H819 | packages/plugin/src/novel-writer/arc-progress.ts:21 | high | bug |  |  |
-| H818 | packages/plugin/src/novel-writer/arc-progress.ts:116 | high | bug |  |  |
-| H821 | packages/plugin/src/novel-writer/budget.ts:271 | high | bug |  |  |
-| H816 | packages/plugin/src/novel-writer/chapter-normalize.ts:49 | high | bug |  |  |
-| H817 | packages/plugin/src/novel-writer/chapter-normalize.ts:52 | high | bug |  |  |
-| C252 | packages/plugin/src/novel-writer/chapter-rebuild.ts:64 | critical | bug |  |  |
-| H822 | packages/plugin/src/novel-writer/chapter-rebuild.ts:114 | high | bug |  |  |
-| H820 | packages/plugin/src/novel-writer/chapter-rollback.ts:54 | high | bug |  |  |
-| C251 | packages/plugin/src/novel-writer/chapter-rollback.ts:65 | critical | bug |  |  |
-| C253 | packages/plugin/src/novel-writer/chapter-status.ts:61 | critical | bug |  |  |
-| H825 | packages/plugin/src/novel-writer/chapter-status.ts:66 | high | bug |  |  |
-| H826 | packages/plugin/src/novel-writer/cli.ts:106 | high | bug |  |  |
-| H827 | packages/plugin/src/novel-writer/cli.ts:360 | high | bug |  |  |
-| C254 | packages/plugin/src/novel-writer/context.ts:409 | critical | bug |  |  |
-| H824 | packages/plugin/src/novel-writer/drift-guards.ts:114 | high | performance |  |  |
-| H823 | packages/plugin/src/novel-writer/edit-sync-gate.ts:108 | high | bug |  |  |
-| H829 | packages/plugin/src/novel-writer/technique-extract.ts:49 | high | bug |  |  |
-| H828 | packages/plugin/src/novel-writer/technique-hindsight.ts:10 | high | bug |  |  |
-| H999 | packages/plugin/src/novel-writer/tui.tsx:58 | high | bug |  |  |
+| H118 | packages/plugin/package.json:8 | high | bug | wontfix | 误报：package.json devDependencies 含 @typescript/native-preview（catalog:），该包正是 tsgo CLI 的分发包，typecheck 脚本在包内可用。 |
+| C062 | packages/plugin/package.json:12 | critical | bug | wontfix | 既定模式：script/publish.ts:26-40 在 pack 前把 exports 重写为 dist/*.js + .d.ts 再 npm publish，发布后 exports 与 files:[dist] 一致；workspace 内直接消费 TS 源码是本仓 monorepo 惯例。 |
+| H810 | packages/plugin/script/publish.ts:32 | high | bug | wontfix | 误报：publish.ts:31-37 是 try/finally（无 catch），finally 恢复 package.json 后原错误继续向上传播，不会被静默吞掉。 |
+| H811 | packages/plugin/script/publish.ts:33 | high | bug | fix | publish.ts:34 npm publish *.tgz 在遗留 tarball 存在时会匹配多个文件导致发布失败；发布前清理旧 tgz 或改用精确文件名（ui/script/publish.ts:23 已用精确名可循例）。 |
+| H812 | packages/plugin/src/example-workspace.ts:20 | high | bug | wontfix | 断言安全：example-workspace.ts:16-18 configure 恒为 directory 赋 /tmp/folder/folder-${rand} 值，remove/target 被调用时 directory 必存在；create 亦有 if (!config.directory) return 守卫，属示例代码的刻意简写。 |
+| H813 | packages/plugin/src/novel-writer/__verify__/verify-tools.ts:47 | high | bug | wontfix | 退出码契约已满足：verify-tools.ts:268-273 正常路径按 failures 数 process.exit(0/1)，抛错时 unhandled rejection 退出码同为 1（符合文件头约定）；verify.db 残留由下次运行开头的 rmSync(force) 自清理。 |
+| C249 | packages/plugin/src/novel-writer/agents/auditor.ts:1 | critical | bug | fix | auditor.ts:39 与维度清单实为 38 项（94-95 行编号到 38），但 submit_chapter_review 按 CONTINUITY_DIMENSIONS（continuity-check.ts:58-113，仅 37 项、无「书籍坐标泄漏」）校验并拒绝清单外维度；LLM 按 38 维提交会被拒，需把提示词统一回 37 维口径。 |
+| H814 | packages/plugin/src/novel-writer/annotation.ts:99 | high | bug | fix | annotation.ts:98-99 quote 回退分支用 replace() 只替换首个匹配，段落内 quote 重复时会改错位置；要求 quote 在段落内唯一（indexOf===lastIndexOf）否则视为 stale/拒绝。 |
+| H815 | packages/plugin/src/novel-writer/arc-backfill.ts:144 | high | bug | wontfix | 刻意设计：arc-backfill.ts:201 注释表明对事务边界有明确意识（drizzle async 事务在 bun:sqlite 下不回滚），流程为读快照→校验/去重决策→BEGIN 后写入；单用户本地 SQLite 下另一连接改写窗口极小，且把读挪进事务并不能让去重决策更正确。 |
+| C250 | packages/plugin/src/novel-writer/arc-progress.ts:21 | critical | bug | fix | arc-progress.ts:21-114 多处相互依赖写入无事务保护，中途失败留不一致状态；按仓库既有惯例（arc-backfill.ts:201-202 原生 BEGIN/COMMIT/ROLLBACK）包裹。 |
+| H819 | packages/plugin/src/novel-writer/arc-progress.ts:21 | high | bug | wontfix | 冲突仓库风格：AGENTS.md 明确 Avoid try/catch where possible，错误传播到 tool execute 层由框架统一处理；与全仓其它 DB 函数行为一致，加 try-catch 属风格冲突且无行为收益。 |
+| H818 | packages/plugin/src/novel-writer/arc-progress.ts:116 | high | bug | fix | arc-progress.ts:116 set(patch as never) 完全绕过类型检查；patch 仅含 StoryArcTable 已知列，改用 Partial<typeof StoryArcTable.$inferInsert> 或逐列构造即可消除 never 强转。 |
+| H821 | packages/plugin/src/novel-writer/budget.ts:271 | high | bug | fix | budget.ts:254 计算的 indexBudget 未被使用、271 行仍用常量 INDEX_BUDGET，P5 紧张时索引导览会挤占 core 预算使总盘超限；改用 indexBudget。 |
+| H816 | packages/plugin/src/novel-writer/chapter-normalize.ts:49 | high | bug | wontfix | 无暴露面：normalizeChapter 在全仓无任何调用方（src/test 均仅定义处），参数为类型化 string，加运行时防御检查不符合仓库风格。 |
+| H817 | packages/plugin/src/novel-writer/chapter-normalize.ts:52 | high | bug | wontfix | 同上：normalizeChapter 无调用方，targetLength 为类型化 number 且不在信任边界，0/NaN 场景不可达，加校验属死代码。 |
+| C252 | packages/plugin/src/novel-writer/chapter-rebuild.ts:64 | critical | bug | wontfix | 刻意设计：bun:sqlite 为同步驱动，async helper 只是 Promise 包装且复用同一 db 连接（chapter-rebuild.ts:90-93 传入 db），事务内顺序执行无交错；模块头注释声明「数据库写入使用事务，失败不留下半更新状态」，catch 中统一 ROLLBACK。 |
+| H822 | packages/plugin/src/novel-writer/chapter-rebuild.ts:114 | high | bug | wontfix | chapter-rebuild.ts:110-113 catch 中原始错误 rethrow，仅吞掉 ROLLBACK 自身的次要错误；同步驱动下 ROLLBACK 失败仅发生于无活动事务时，无一致性风险，保留原错误是正确取舍。 |
+| H820 | packages/plugin/src/novel-writer/chapter-rollback.ts:54 | high | bug | defer | 根治需在 ChapterVersionTable 加 (chapter_id, version) 唯一约束（涉及 novel-store schema 与 tui.tsx/cli.ts 多处 CREATE TABLE 副本）并改全仓 max+1 模式（novel-writer.ts:6275 nextVersion 同模式），属 schema 契约级变更；本工具并发回滚同一章场景几乎不存在。 |
+| C251 | packages/plugin/src/novel-writer/chapter-rollback.ts:65 | critical | bug | fix | chapter-rollback.ts:68-87 备份版本插入与章节恢复更新是两个独立操作，中途失败留半提交状态；按仓库惯例包原生 BEGIN/COMMIT/ROLLBACK。 |
+| C253 | packages/plugin/src/novel-writer/chapter-status.ts:61 | critical | bug | fix | chapter-status.ts:61-90 状态读-改-写无原子保护，并发调用可双过校验；按仓库惯例用原生事务包裹，或在 UPDATE 的 WHERE 中加 status=currentStatus 乐观锁。 |
+| H825 | packages/plugin/src/novel-writer/chapter-status.ts:66 | high | bug | fix | chapter-status.ts:66 chapter.status as ChapterStatus 在 DB 值为 draft/outline 时（novel-store/src/index.ts:88 默认 draft、outline.ts:358 建章用 outline，均不在 CHAPTER_STATUSES）令 ALLOWED_TRANSITIONS[currentStatus] 为 undefined，canTransitionTo 的 .includes 抛 TypeError；需把未知状态纳入状态机或显式校验。 |
+| H826 | packages/plugin/src/novel-writer/cli.ts:106 | high | bug | wontfix | 冲突仓库风格：AGENTS.md 要求避免 try/catch；createBook 已对题材校验给出友好错误（cli.ts:104-106），DB 约束错误文本可读并由 CLI 层统一兜底。 |
+| H827 | packages/plugin/src/novel-writer/cli.ts:360 | high | bug | fix | cli.ts:360 JSON.parse 直接解析用户提供的文件，语法错误以无上下文 SyntaxError 崩出；包 try/catch 输出「导入文件不是合法 JSON」类友好错误（用户输入属信任边界，符合风格例外）。 |
+| C254 | packages/plugin/src/novel-writer/context.ts:409 | critical | bug | wontfix | 误报：context.ts:396 .map(({ arc }) => { 是块体回调，418-426 的 const 声明与 427 的 return 都在回调体内正常执行，仅 411/437 行缩进不齐；代码可编译运行，unreachable/merge error 的判断不实。 |
+| H824 | packages/plugin/src/novel-writer/drift-guards.ts:114 | high | performance | fix | drift-guards.ts:101-105 无 WHERE 全表扫描 character_states 再在内存按 characterIds 过滤；该表无 novel_id 列，改用 inArray(CharacterStateTable.character_id, [...characterIds]) 在 SQL 层过滤避免全表加载。 |
+| H823 | packages/plugin/src/novel-writer/edit-sync-gate.ts:108 | high | bug | wontfix | 三条均不成立：(1) 加 try-catch 与仓库 Avoid try/catch 风格冲突，错误由 tool 层处理；(2) bun:sqlite 同步驱动顺序更新开销可忽略，Promise.all 同连接无收益；(3) 空数组 for 循环本就是 no-op 且 getDb 走缓存。 |
+| H829 | packages/plugin/src/novel-writer/technique-extract.ts:49 | high | bug | fix | technique-extract.ts:49,94 llm() 网络异常会丢弃整批已收集结果；按模块自身容错设计（parseFailures 计数）把单次调用失败计入 parseFailures 并 continue 该分段。 |
+| H828 | packages/plugin/src/novel-writer/technique-hindsight.ts:10 | high | bug | wontfix | 误报：technique.ts:70-72 sceneTypes/evidence 为必填数组类型，technique-normalize.ts:18-20 保证其存在（toCanonicalSceneTypes(partial.sceneTypes) 与 partial.evidence ?? []）；evidence[0]?. 是数组元素访问守卫而非数组 undefined 守卫，「不一致」判断不实。 |
+| H999 | packages/plugin/src/novel-writer/tui.tsx:58 | high | bug | wontfix | 已有覆盖：tui.tsx:160-164 插件入口 try/catch（注释「数据库不可用，跳过」）包裹 hasNovels 调用，getDb 抛错同样被捕获并降级跳过向导，处理已在失败点上游闭环。 |
 | C256 | packages/schema/src/credential.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H831 | packages/schema/src/event.ts:88 | high | bug |  |  |
+| H831 | packages/schema/src/event.ts:88 | high | bug | wontfix | 引用相等恰好匹配注册模型：definition 均为模块级单例（schema/src/event.ts:42-70 define() 每次新建对象），latest() 把'同一对象被多个清单重复收录'视为合法去重（80-83 行直接 set 跳过），'两个不同对象声明同一 type'（88 行抛错）才是真正的重复注册错误；Effect Schema 无廉价可靠的结构相等比较，放宽会削弱守卫 |
 | C255 | packages/schema/src/file-diff.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C257 | packages/schema/src/mcp-event.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H833 | packages/schema/src/permission-saved.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
@@ -564,13 +564,13 @@
 | C258 | packages/schema/src/prompt-input.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H834 | packages/schema/src/pty-ticket.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C259 | packages/schema/src/pty.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H835 | packages/schema/src/pty.ts:16 | high | security |  |  |
+| H835 | packages/schema/src/pty.ts:16 | high | security | wontfix | ascending(id?) 是全仓库统一的'采纳既有 ID 或新建'约定（opennovel/src/session/schema.ts:13、tool/schema.ts:12、sync/schema.ts:9、workspace.ts:493 均同构）；Pty.ID.ascending 目前无任何带参调用方，且外部 pty id 输入在 protocol 边界经 params:{ptyID: Pty.ID} decode 校验（protocol/src/groups/pty.ts:52-120），无校验绕过路径 |
 | H836 | packages/schema/src/question.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C260 | packages/schema/src/session-delivery.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H842 | packages/server/src/annotation-targets.ts:24 | high | bug |  |  |
-| H846 | packages/server/src/auth.ts:44 | high | security |  |  |
-| H844 | packages/server/src/cors.ts:11 | high | security |  |  |
-| C261 | packages/server/src/handlers/credential.ts:7 | critical | security |  |  |
-| C262 | packages/server/src/handlers/event.ts:11 | critical | bug |  |  |
-| H845 | packages/server/src/handlers/event.ts:30 | high | bug |  |  |
-| C263 | packages/server/src/handlers/permission.ts:63 | critical | bug |  |  |
+| H842 | packages/server/src/annotation-targets.ts:24 | high | bug | wontfix | 契约被误读：annotation-targets.ts:15 注释明确 null 仅表示'目标不存在或不属于当前 novel'，不承诺吞错；若把 DB 错误返回 null，novel.ts:1867 会把它误报成 404 novelNotFound，掩盖基础设施故障；当前抛错进 Effect 错误通道才是正确语义，且符合 avoid try/catch 约定 |
+| H846 | packages/server/src/auth.ts:44 | high | security | fix | 改用 crypto.timingSafeEqual 做常量时间密码比较（长度不等先返回 false 避免其抛错），替换 auth.ts 的 === 字符串比较 |
+| H844 | packages/server/src/cors.ts:11 | high | security | wontfix | 刻意设计：cors.ts:10-11 无 Origin 即放行是为非浏览器客户端（CLI/桌面/侧车请求不带 Origin），CORS 本质是浏览器强制机制、非认证边界；改成 false 会直接打断 CLI/桌面全部请求，白名单（localhost/oc://renderer/tauri/opennovel.ai/opts.cors）已覆盖浏览器面 |
+| C261 | packages/server/src/handlers/credential.ts:7 | critical | security | wontfix | 单用户模型下 BOLA 前提不成立：middleware/authorization.ts 用全局 Basic 认证（OPENNOVEL_SERVER_PASSWORD 单用户名/密码）包装全部端点，无多用户/属主概念；core integration 的 connection.update/remove（core/src/integration.ts:173-176）本身就没有用户维度，加属主校验是无意义的空操作 |
+| C262 | packages/server/src/handlers/event.ts:11 | critical | bug | fix | 真实缺陷：EventV2.all() 承载全量事件，发布方经 EventV2Bridge（event-v2-bridge.ts 包同一 core EventV2.Service 实例）会发出 ServerDefinitions 之外的类型（TuiEvent.ToastShow mcp/index.ts:304/315、McpEvent.ToolsChanged:451、VcsEvent.BranchUpdated vcs.ts:328、LspEvent.Updated lsp.ts:293 等），encodeUnknownSync 抛错会炸掉整条 SSE 流；修复=编码前按 OpenNovelEvent schema 过滤/跳过不合规事件并记日志，端点契约不变 |
+| H845 | packages/server/src/handlers/event.ts:30 | high | bug | wontfix | 刻意背压设计：core/src/event.ts:152-162 用 Queue.dropping(256)+Queue.fail 专用 SubscriberOverflowError 熔断慢消费者，断连即背压信号，SSE 客户端断线自动重连并可经 durable 流恢复；加重试无意义（慢消费者会立即再次溢出），容量 256 与心跳/haltStrategy 均为有意配置 |
+| C263 | packages/server/src/handlers/permission.ts:63 | critical | bug | wontfix | 误报：Effect 4 的 Schema.TaggedErrorClass 官方定义为 yieldable error（effect/src/Schema.ts 文档示例即 yield* new NotFound(...)），return yield* missingRequest(...) 正确进入错误通道并按 httpApiStatus:404 返回；同款模式遍布 question.ts:21、message.ts:35、provider.ts:24、pty.ts:125、session.ts:377 |
