@@ -107,7 +107,8 @@ export const make = <A, E = never>(
 
   const stopShell = (shell: ShellHandle<A, E>) =>
     Effect.gen(function* () {
-      if (shell.ready) yield* shell.ready.await.pipe(Effect.exit, Effect.asVoid)
+      // work 抛错或卡死时 ready 可能永不打开；无界等待会把 cancel 挂死，超时后照常打断 fiber
+      if (shell.ready) yield* shell.ready.await.pipe(Effect.timeout("2 seconds"), Effect.exit, Effect.asVoid)
       yield* Deferred.succeed(shell.cancelled, undefined).pipe(Effect.asVoid)
       yield* Fiber.interrupt(shell.fiber)
     })
@@ -148,7 +149,8 @@ export const make = <A, E = never>(
         yield* onBusy
         const id = next()
         const cancelled = yield* Deferred.make<void>()
-        const fiber = yield* work.pipe(Effect.ensuring(finishShell(id)), Effect.forkChild)
+        // 与 startRun 一致挂在 Runner 自己的 scope 上：调用方 fiber 结束或中断不该带走 shell
+        const fiber = yield* work.pipe(Effect.ensuring(finishShell(id)), Effect.forkIn(scope))
         const shell = { id, cancelled, ready, fiber } satisfies ShellHandle<A, E>
         return [
           Effect.gen(function* () {
