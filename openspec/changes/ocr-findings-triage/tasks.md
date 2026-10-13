@@ -13,7 +13,7 @@
 - [x] 2.3 修复 packages/llm 批次，验证：`packages/llm` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
 - [x] 2.4 修复 packages/novel-store 批次，验证：`packages/novel-store` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
 - [x] 2.5 修复 packages/server 批次，验证：`packages/server` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
-- [ ] 2.6 修复 packages/plugin 批次，验证：`packages/plugin` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
+- [x] 2.6 修复 packages/plugin 批次，验证：`packages/plugin` 下 `bun typecheck` 通过、相关测试通过、oxlint touched 路径 0 错误
 - [ ] 2.7 修复 packages/opennovel 批次，验证：`packages/opennovel` 下 `bun typecheck` 通过、相关测试通过（httpapi 长套件超时 ≥90s）、oxlint touched 路径 0 错误
 
 ## 3. 收尾
