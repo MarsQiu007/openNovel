@@ -98,22 +98,23 @@ test("pane width: dynamic cap beyond old constants, clamp on shrink, restore, db
   await dragBy(page, leftHandle, 300)
   await expectApproxWidth(left, 588)
 
-  // 继续拖到动态上限：1600 − 30（主区保底）− 380（右栏）= 1190，主区只剩约 30px
+  // 继续拖到拖拽上限：中心被压到保底缝后推挤右栏 380 → 320，左栏 = 1600 − 30 − 320 = 1250
   await dragBy(page, leftHandle, 700)
-  await expectApproxWidth(left, 1190, 12)
+  await expectApproxWidth(left, 1250, 12)
+  await expectApproxWidth(rail, 320)
   const leftBox = await left.boundingBox()
   const railBox = await rail.boundingBox()
   const mainWidth = railBox!.x - (leftBox!.x + leftBox!.width)
   expect(mainWidth).toBeLessThanOrEqual(60)
   expect(mainWidth).toBeGreaterThanOrEqual(1)
 
-  // 缩窗：设定宽度 1190 被钳制到 1000 − 30 − 380 = 590
+  // 缩窗：设定宽度 1250 被钳制到 1000 − 30 − 320 = 650
   await page.setViewportSize({ width: 1000, height: 900 })
-  await expectApproxWidth(left, 590, 12)
+  await expectApproxWidth(left, 650, 12)
 
   // 变宽：完整设定宽度自动恢复
   await page.setViewportSize({ width: 1600, height: 900 })
-  await expectApproxWidth(left, 1190, 12)
+  await expectApproxWidth(left, 1250, 12)
 
   // 双击重置默认宽度
   await leftHandle.dblclick({ position: { x: 4, y: 200 } })
@@ -167,6 +168,43 @@ test("pane width: auto collapse on narrow window, manual expand floors at min wi
   await page.locator('[data-edge-rail="right-collapsed"]').click()
   await expect(rail).toBeVisible()
   await expectApproxWidth(rail, 320)
+
+  expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
+})
+
+test("pane width: dragging one pane pushes the other to its minimum and persists", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  const errors = trackPageErrors(page)
+  await openWorkspace(page)
+
+  const left = page.locator("aside.border-r")
+  const rail = page.locator("aside.border-l")
+  await expect(left).toHaveCount(1, { timeout: APP_READY_TIMEOUT })
+  await expect(rail).toHaveCount(1)
+  const leftHandle = page.locator('[data-component="resize-handle"][data-edge="end"]')
+  const railHandle = page.locator('[data-component="resize-handle"][data-edge="start"]')
+  await expect(leftHandle).toHaveCount(1)
+  await expect(railHandle).toHaveCount(1)
+
+  // 拖左栏至上限 1250：右栏被推挤至 320，主区剩约 30px
+  await dragBy(page, leftHandle, 1300)
+  await expectApproxWidth(left, 1250, 12)
+  await expectApproxWidth(rail, 320)
+
+  // 放大窗口：被推挤的右栏保持 320（固化，不回弹 380），左栏恢复完整设定宽 1250
+  await page.setViewportSize({ width: 2000, height: 900 })
+  await expectApproxWidth(rail, 320)
+  await expectApproxWidth(left, 1250, 12)
+
+  // 对称：拖右栏至上限 2000 − 30 − 220 = 1750，左栏被推挤至 220
+  await dragBy(page, railHandle, -1430)
+  await expectApproxWidth(rail, 1750, 12)
+  await expectApproxWidth(left, 220)
+  const leftBox = await left.boundingBox()
+  const railBox = await rail.boundingBox()
+  const mainWidth = railBox!.x - (leftBox!.x + leftBox!.width)
+  expect(mainWidth).toBeLessThanOrEqual(60)
+  expect(mainWidth).toBeGreaterThanOrEqual(1)
 
   expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)
 })

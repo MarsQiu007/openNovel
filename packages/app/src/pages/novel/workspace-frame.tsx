@@ -377,12 +377,25 @@ export default function NovelWorkspaceFrame() {
   // 设定宽度（用户意图）= 拖拽内存态 ?? 持久化设定 ?? 默认值
   const leftPaneIntent = () => dragLeftWidth() ?? resolvePaneWidth(layout.leftWidth, LEFT_PANE_DEFAULT_WIDTH)
   const railPaneIntent = () => dragRailWidth() ?? resolvePaneWidth(layout.railWidth, RAIL_PANE_DEFAULT_WIDTH)
-  // 渲染钳制：上限用另一侧设定宽度派生（避免左右循环派生），收起侧按 0 计；下限兜底到栏最小宽度
+  // 渲染钳制：非拖拽期对称钳制（另一侧按设定宽度，避免循环派生），收起侧按 0 计，下限兜底栏最小宽；
+  // 拖拽期单侧权威（推挤模型）：被拖侧直接取拖拽值，另一侧让位压缩至自身最小宽度
   const leftPaneWidth = () => {
+    const dragging = dragLeftWidth()
+    if (dragging !== null) return dragging
+    const railDrag = dragRailWidth()
+    if (railDrag !== null) {
+      return Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), railDrag)))
+    }
     const otherVisible = leftCollapsed() ? 0 : railPaneIntent()
     return Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), otherVisible)))
   }
   const railPaneWidth = () => {
+    const dragging = dragRailWidth()
+    if (dragging !== null) return dragging
+    const leftDrag = dragLeftWidth()
+    if (leftDrag !== null) {
+      return Math.max(RAIL_PANE_MIN_WIDTH, Math.min(railPaneIntent(), paneMaxWidth(bodyWidth(), leftDrag)))
+    }
     const otherVisible = leftCollapsed() ? 0 : leftPaneIntent()
     return Math.max(RAIL_PANE_MIN_WIDTH, Math.min(railPaneIntent(), paneMaxWidth(bodyWidth(), otherVisible)))
   }
@@ -391,12 +404,22 @@ export default function NovelWorkspaceFrame() {
     if (width === null) return
     setDragLeftWidth(null)
     setLayout("leftWidth", width)
+    // 推挤固化：右栏被挤压后的宽度固化为新设定宽度（VS Code 行为，窗口变宽不回弹）
+    if (!railCollapsed()) {
+      const pushed = Math.max(RAIL_PANE_MIN_WIDTH, Math.min(railPaneIntent(), paneMaxWidth(bodyWidth(), width)))
+      if (pushed < railPaneIntent()) setLayout("railWidth", pushed)
+    }
   }
   const commitRailWidth = () => {
     const width = dragRailWidth()
     if (width === null) return
     setDragRailWidth(null)
     setLayout("railWidth", width)
+    // 推挤固化：左栏被挤压后的宽度固化为新设定宽度
+    if (!leftCollapsed()) {
+      const pushed = Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), width)))
+      if (pushed < leftPaneIntent()) setLayout("leftWidth", pushed)
+    }
   }
   let bodyRef: HTMLDivElement | undefined
   let widthObserver: ResizeObserver | undefined
@@ -869,7 +892,7 @@ export default function NovelWorkspaceFrame() {
                   edge="end"
                   size={leftPaneWidth()}
                   min={LEFT_PANE_MIN_WIDTH}
-                  max={paneMaxWidth(bodyWidth(), railCollapsed() ? 0 : railPaneWidth())}
+                  max={paneMaxWidth(bodyWidth(), railCollapsed() ? 0 : RAIL_PANE_MIN_WIDTH)}
                   collapseThreshold={LEFT_PANE_MIN_WIDTH}
                   onResize={setDragLeftWidth}
                   onCollapseChange={(dragging) => {
@@ -1101,7 +1124,7 @@ export default function NovelWorkspaceFrame() {
                   edge="start"
                   size={railPaneWidth()}
                   min={RAIL_PANE_MIN_WIDTH}
-                  max={paneMaxWidth(bodyWidth(), leftCollapsed() ? 0 : leftPaneWidth())}
+                  max={paneMaxWidth(bodyWidth(), leftCollapsed() ? 0 : LEFT_PANE_MIN_WIDTH)}
                   collapseThreshold={RAIL_PANE_MIN_WIDTH}
                   onResize={setDragRailWidth}
                   onCollapseChange={(dragging) => {
