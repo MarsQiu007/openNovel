@@ -9,7 +9,7 @@
  * 幂等：重复调用同一章不会重复推进（已 drafted 的节点跳过）。
  */
 
-import { eq, and, or } from "drizzle-orm"
+import { and, eq, or, sql } from "drizzle-orm"
 import { getDb, ArcBeatTable, StoryArcTable, ChapterTable } from "./session-store.js"
 
 export type ArcProgressReport = {
@@ -38,83 +38,94 @@ export async function syncArcProgress(
 
   const now = Date.now()
 
-  // 回填：observer 可能用 chapter_id 锚定了节点但没填 chapter_order
-  await db
-    .update(ArcBeatTable)
-    .set({ chapter_order: chapter.order, updated_at: now })
-    .where(
-      and(
-        eq(ArcBeatTable.novel_id, novelId),
-        eq(ArcBeatTable.chapter_id, chapterId),
-        eq(ArcBeatTable.status, "planned"),
-      ),
-    )
-    .run()
+  // 多步相互依赖的写入：drizzle 的 async transaction 在 bun:sqlite 下不回滚，用原生 BEGIN/COMMIT/ROLLBACK
+  await db.run(sql`BEGIN`)
+  try {
+    // 回填：observer 可能用 chapter_id 锚定了节点但没填 chapter_order
+    await db
+      .update(ArcBeatTable)
+      .set({ chapter_order: chapter.order, updated_at: now })
+      .where(
+        and(
+          eq(ArcBeatTable.novel_id, novelId),
+          eq(ArcBeatTable.chapter_id, chapterId),
+          eq(ArcBeatTable.status, "planned"),
+        ),
+      )
+      .run()
 
-  // 找到锚定到本章（按 chapter_order 或 chapter_id）且尚未落地的节点
-  const pendingBeats = await db
-    .select()
-    .from(ArcBeatTable)
-    .where(
-      and(
-        eq(ArcBeatTable.novel_id, novelId),
-        eq(ArcBeatTable.status, "planned"),
-        or(eq(ArcBeatTable.chapter_order, chapter.order), eq(ArcBeatTable.chapter_id, chapterId)),
-      ),
-    )
-    .all()
-
-  if (pendingBeats.length === 0) return { beatsDrafted: 0, arcsStarted: [], arcsCompleted: [] }
-
-  await db
-    .update(ArcBeatTable)
-    .set({ status: "drafted", chapter_id: chapterId, chapter_order: chapter.order, updated_at: now })
-    .where(
-      and(
-        eq(ArcBeatTable.novel_id, novelId),
-        eq(ArcBeatTable.status, "planned"),
-        or(eq(ArcBeatTable.chapter_order, chapter.order), eq(ArcBeatTable.chapter_id, chapterId)),
-      ),
-    )
-    .run()
-
-  const affectedArcIds = [...new Set(pendingBeats.map((b) => b.arc_id))]
-  const arcsStarted: string[] = []
-  const arcsCompleted: string[] = []
-
-  for (const arcId of affectedArcIds) {
-    const [arc] = await db
-      .select()
-      .from(StoryArcTable)
-      .where(eq(StoryArcTable.id, arcId))
-      .limit(1)
-      .all()
-    if (!arc) continue
-
-    const draftedBeats = await db
+    // 找到锚定到本章（按 chapter_order 或 chapter_id）且尚未落地的节点
+    const pendingBeats = await db
       .select()
       .from(ArcBeatTable)
-      .where(and(eq(ArcBeatTable.arc_id, arcId), eq(ArcBeatTable.status, "drafted")))
+      .where(
+        and(
+          eq(ArcBeatTable.novel_id, novelId),
+          eq(ArcBeatTable.status, "planned"),
+          or(eq(ArcBeatTable.chapter_order, chapter.order), eq(ArcBeatTable.chapter_id, chapterId)),
+        ),
+      )
       .all()
 
-    const resolutionBeat = draftedBeats.find((b) => b.kind === "resolution")
-    const firstBeatOrder = Math.min(...draftedBeats.map((b) => b.chapter_order ?? chapter.order))
-
-    const patch: Record<string, unknown> = { updated_at: now }
-    if (arc.actual_start_chapter == null) {
-      patch.actual_start_chapter = firstBeatOrder
-      arcsStarted.push(arc.title)
-    }
-    if (arc.status === "planned") patch.status = "active"
-
-    if (resolutionBeat) {
-      patch.actual_end_chapter = resolutionBeat.chapter_order ?? chapter.order
-      patch.status = "completed"
-      arcsCompleted.push(arc.title)
+    if (pendingBeats.length === 0) {
+      await db.run(sql`COMMIT`)
+      return { beatsDrafted: 0, arcsStarted: [], arcsCompleted: [] }
     }
 
-    await db.update(StoryArcTable).set(patch as never).where(eq(StoryArcTable.id, arcId)).run()
+    await db
+      .update(ArcBeatTable)
+      .set({ status: "drafted", chapter_id: chapterId, chapter_order: chapter.order, updated_at: now })
+      .where(
+        and(
+          eq(ArcBeatTable.novel_id, novelId),
+          eq(ArcBeatTable.status, "planned"),
+          or(eq(ArcBeatTable.chapter_order, chapter.order), eq(ArcBeatTable.chapter_id, chapterId)),
+        ),
+      )
+      .run()
+
+    const affectedArcIds = [...new Set(pendingBeats.map((b) => b.arc_id))]
+    const arcsStarted: string[] = []
+    const arcsCompleted: string[] = []
+
+    for (const arcId of affectedArcIds) {
+      const [arc] = await db
+        .select()
+        .from(StoryArcTable)
+        .where(eq(StoryArcTable.id, arcId))
+        .limit(1)
+        .all()
+      if (!arc) continue
+
+      const draftedBeats = await db
+        .select()
+        .from(ArcBeatTable)
+        .where(and(eq(ArcBeatTable.arc_id, arcId), eq(ArcBeatTable.status, "drafted")))
+        .all()
+
+      const resolutionBeat = draftedBeats.find((b) => b.kind === "resolution")
+      const firstBeatOrder = Math.min(...draftedBeats.map((b) => b.chapter_order ?? chapter.order))
+
+      const patch: Partial<(typeof StoryArcTable)["$inferInsert"]> = { updated_at: now }
+      if (arc.actual_start_chapter == null) {
+        patch.actual_start_chapter = firstBeatOrder
+        arcsStarted.push(arc.title)
+      }
+      if (arc.status === "planned") patch.status = "active"
+
+      if (resolutionBeat) {
+        patch.actual_end_chapter = resolutionBeat.chapter_order ?? chapter.order
+        patch.status = "completed"
+        arcsCompleted.push(arc.title)
+      }
+
+      await db.update(StoryArcTable).set(patch).where(eq(StoryArcTable.id, arcId)).run()
+    }
+
+    await db.run(sql`COMMIT`)
+    return { beatsDrafted: pendingBeats.length, arcsStarted, arcsCompleted }
+  } catch (error) {
+    await db.run(sql`ROLLBACK`)
+    throw error
   }
-
-  return { beatsDrafted: pendingBeats.length, arcsStarted, arcsCompleted }
 }

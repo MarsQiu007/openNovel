@@ -268,7 +268,11 @@ function applyP5Budget(packet: ContextPacket): void {
     .filter((w) => !keptIds.has(w.id))
     .map((w) => ({ category: w.category, title: w.title }))
   packet.worldEntries = kept
-  packet.worldEntryIndex = truncateArray([...packet.worldEntryIndex, ...demoted], worldEntryIndexTokens, INDEX_BUDGET)
+  packet.worldEntryIndex = truncateArray(
+    [...packet.worldEntryIndex, ...demoted],
+    worldEntryIndexTokens,
+    indexBudget,
+  )
 }
 
 /**

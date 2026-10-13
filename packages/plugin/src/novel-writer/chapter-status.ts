@@ -5,7 +5,7 @@
  * 遵循 novel-writer.ts 的数据库访问模式：本地定义 drizzle 表结构，使用 drizzle-orm/bun-sqlite 直接连接。
  */
 
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { getDb, ChapterTable } from "./session-store.js"
 
 // ─── 状态常量 ───
@@ -38,6 +38,8 @@ const ALLOWED_TRANSITIONS: Record<ChapterStatus, ChapterStatus[]> = {
  */
 export function canTransitionTo(currentStatus: ChapterStatus, newStatus: ChapterStatus): boolean {
   const allowed = ALLOWED_TRANSITIONS[currentStatus]
+  // 状态来自数据库，可能是状态机之外的历史值：缺键按「不可转换」处理，不再抛 TypeError
+  if (!allowed) return false
   return allowed.includes(newStatus)
 }
 
@@ -63,6 +65,11 @@ export async function updateChapterStatus(
 
   if (!chapter) return null
 
+  // chapters.status 由别处写入（novel-store 建章默认 draft、大纲流程写 outline），未必落在状态机内
+  if (!CHAPTER_STATUSES.includes(chapter.status as ChapterStatus)) {
+    throw new Error(`章节状态未知，无法流转：「${chapter.status}」。合法状态：${CHAPTER_STATUSES.join(" / ")}`)
+  }
+
   const currentStatus = chapter.status as ChapterStatus
 
   // 验证状态转换合法性
@@ -73,15 +80,20 @@ export async function updateChapterStatus(
     )
   }
 
-  // 更新章节状态
-  await db
+  // 更新章节状态：WHERE 带上刚校验过的当前状态，并发调用只有一个能通过
+  const updated = await db
     .update(ChapterTable)
     .set({
       status,
       updated_at: Date.now(),
     })
-    .where(eq(ChapterTable.id, chapterId))
-    .run()
+    .where(and(eq(ChapterTable.id, chapterId), eq(ChapterTable.status, currentStatus)))
+    .returning({ id: ChapterTable.id })
+    .all()
+
+  if (updated.length === 0) {
+    throw new Error(`章节状态已被并发修改，请重新读取后再试：${chapterId}`)
+  }
 
   return status
 }

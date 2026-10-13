@@ -68,7 +68,7 @@ export const FEEDBACK_INTENT_AUDITOR_PROMPT = `## 写作反馈意图审计
 如果存在【用户反馈原文】但没有意图摘要，在审计汇总前报告“缺少反馈上下文”；不要机械否定所有正文否定句。没有用户反馈时，按既有质量规则审计，不因缺少反馈意图报告异常。
 
 如果 prompt 第一行包含 \`mode: feedback_focus\` 标识，则：
-1. 不跑 37 维，也不调用 \`submit_chapter_review\`。
+1. 不跑 38 维清单，也不调用 \`submit_chapter_review\`。
 2. 只读取章节正文、写作反馈意图摘要和必要上下文，检查上述控制层泄漏与意图执行结果。
 3. 输出以【反馈意图审计】开头的 PASS/WARN/FAIL 结论；每个 FAIL/WARN 引用正文原句和对应意图编号。
 4. 不新增审批轮次，只把结论返回给调度方。

@@ -1195,14 +1195,14 @@ ${sceneChecklist}`
       }),
       submit_chapter_review: tool({
         description:
-          "提交章节评审结果（结构化持久化）。auditor 完成37维深度审计后必须调用此工具提交全部维度结果，供人工审批时查阅。",
+          "提交章节评审结果（结构化持久化）。auditor 完成38维深度审计后必须调用此工具提交全部维度结果，供人工审批时查阅。",
         args: {
           chapter_id: tool.schema.string().describe("章节 ID"),
           overall: tool.schema.enum(["PASS", "WARN", "FAIL"]).describe("总体评估"),
           dimensions: tool.schema
             .array(
               tool.schema.object({
-                dimension: tool.schema.string().describe("维度名称（必须是37维清单中的名称）"),
+                dimension: tool.schema.string().describe("维度名称（必须是评审维度清单中的名称）"),
                 status: tool.schema.enum(["PASS", "WARN", "FAIL"]).describe("该维度审计结果"),
                 detail: tool.schema
                   .string()
@@ -1210,7 +1210,7 @@ ${sceneChecklist}`
                 evidence: tool.schema.string().optional().describe("引用章节中的具体内容作为证据"),
               }),
             )
-            .describe("37个维度的审计结果列表"),
+            .describe("全部评审维度的审计结果列表"),
           summary: tool.schema.string().describe("总体评估文字"),
         },
         async execute(args, ctx) {
@@ -1218,7 +1218,7 @@ ${sceneChecklist}`
           if (invalid.length > 0) {
             return {
               title: "submit_chapter_review",
-              output: `提交失败：${invalid.length} 个维度名称不在37维清单中：${invalid.map((d) => d.dimension).join("、")}。有效维度：${CONTINUITY_DIMENSIONS.join("、")}`,
+              output: `提交失败：${invalid.length} 个维度名称不在评审维度清单中：${invalid.map((d) => d.dimension).join("、")}。有效维度：${CONTINUITY_DIMENSIONS.join("、")}`,
             }
           }
           const review = await createChapterReview(

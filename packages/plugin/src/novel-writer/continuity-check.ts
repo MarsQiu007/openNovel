@@ -6,7 +6,7 @@
  * 对元数据和结构化状态进行启发式分析。
  *
  * 导出：
- * - CONTINUITY_DIMENSIONS — 37个维度名称常量数组
+ * - CONTINUITY_DIMENSIONS — 章节评审维度名称常量数组（37 个确定性维度 + 书籍坐标泄漏）
  * - ContinuityResult — 单个维度检查结果类型
  * - checkContinuity(novelId, chapterNumber) — 执行全维度检查的主函数
  *
@@ -60,9 +60,9 @@ export type ContinuityCheckResult = {
   dimensions: ContinuityResult[]
 }
 
-// ─── 37个维度名称常量 ───
+// ─── 38个维度名称常量 ───
 
-/** 连续性检查的37个维度名称列表 */
+/** 章节评审的维度名称白名单：37 个确定性检查项 + 仅由 auditor LLM 判定的书籍坐标泄漏 */
 export const CONTINUITY_DIMENSIONS: readonly string[] = [
   // 角色连续性（5维）
   "姓名一致性",
@@ -110,6 +110,8 @@ export const CONTINUITY_DIMENSIONS: readonly string[] = [
   "物品追踪",
   "数字一致",
   "称呼一致",
+  // 仅由 auditor 判定，确定性检查不产出该维度（见 spec story-coordinate-isolation）
+  "书籍坐标泄漏",
 ]
 
 // ─── 内部数据缓存类型 ───

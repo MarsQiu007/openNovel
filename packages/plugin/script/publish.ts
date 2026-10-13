@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Script } from "@opennovel-ai/script"
 import { $ } from "bun"
+import { rm } from "node:fs/promises"
 import { fileURLToPath } from "url"
 
 const dir = fileURLToPath(new URL("..", import.meta.url))
@@ -29,10 +30,13 @@ if (await published(pkg.name, pkg.version)) {
     }
   }
   await Bun.write("package.json", JSON.stringify(pkg, null, 2))
+  // 目录里可能残留历史 tarball：`*.tgz` 会匹配到多个文件让发布失败，改用精确文件名
+  const tarball = `${pkg.name.replace("@", "").replace("/", "-")}-${pkg.version}.tgz`
   try {
     await $`bun pm pack`
-    await $`npm publish *.tgz --tag ${Script.channel} --access public`
+    await $`npm publish ${tarball} --tag ${Script.channel} --access public`
   } finally {
     await Bun.write("package.json", originalText)
+    await rm(tarball, { force: true })
   }
 }

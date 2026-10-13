@@ -357,7 +357,14 @@ async function importTechniquesFromJson(
   const { normalizeTechnique } = await import("./technique-normalize.js")
   const { upsertTechnique } = await import("./technique-store.js")
 
-  const content = JSON.parse(await readFile(inputPath, "utf-8"))
+  // 用户提供的文件属于信任边界：语法错误要报出文件路径，而不是抛出无上下文的裸 SyntaxError
+  const raw = await readFile(inputPath, "utf-8")
+  let content: unknown
+  try {
+    content = JSON.parse(raw)
+  } catch (cause) {
+    throw new Error(`导入文件不是合法 JSON：${inputPath}`, { cause })
+  }
   const items = Array.isArray(content) ? content : [content]
   // 种子默认入全局通用库；--local 或提取导入（无人工精选语义）落本书库
   const library = opts.local ? "book" : "global"

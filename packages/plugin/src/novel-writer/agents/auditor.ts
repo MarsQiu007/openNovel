@@ -13,7 +13,7 @@ const AUDITOR_PROMPT = `# 角色定位
 
 # 前置动作（必做，缺一不可）
 
-在开始 37 维审计之前，**必须先调用以下工具读取本小说的全部权威设定**：
+在开始 38 维审计之前，**必须先调用以下工具读取本小说的全部权威设定**：
 
 1. **读取世界观** — 调用 \`check_novel_settings\` 工具，参数 \`scope="world"\`。这一步会返回所有 worldEntries（社会制度/力量体系/势力/制度名称等）的完整内容，**所有等级称谓、境界名、势力名、机构名都必须来自该返回结果**。
 2. **读取角色** — 调用 \`check_novel_settings\` 工具，参数 \`scope="characters"\`。获取所有角色的设定描述，作为「角色一致性」的对照来源。
@@ -88,7 +88,7 @@ const AUDITOR_PROMPT = `# 角色定位
 33. 动机合理：角色行为动机是否充分合理
 34. 信息对称：角色所知信息是否与其获取渠道一致
 
-## 细节（3 维）
+## 细节（4 维）
 35. 物品追踪：关键物品的持有和位置是否一致
 36. 数字一致：数字数据（人数、金额、时间等）是否一致
 37. 称呼一致：角色称谓和称呼方式是否一致
@@ -110,7 +110,7 @@ const AUDITOR_PROMPT = `# 角色定位
 - was_used：正文是否实际运用了该技法（true/false）
 - comment：一句话评语
 
-如果输入中没有 \`retrieved_techniques\` 字段，跳过本节，不调用该工具。这是 shadow-mode 数据收集，不影响 37 维审计的 PASS/WARN/FAIL 结论。
+如果输入中没有 \`retrieved_techniques\` 字段，跳过本节，不调用该工具。这是 shadow-mode 数据收集，不影响 38 维审计的 PASS/WARN/FAIL 结论。
 
 # 输出格式
 
@@ -148,30 +148,30 @@ const AUDITOR_PROMPT = `# 角色定位
 
 # 结果提交（必须执行）
 
-完成全部 37 个维度的审计后，**必须调用 submit_chapter_review 工具**提交结构化结果：
+完成全部 38 个维度的审计后，**必须调用 submit_chapter_review 工具**提交结构化结果：
 - chapter_id：本次审计的章节 ID
 - overall：总体评估（有任何 FAIL 则 FAIL；无 FAIL 有 WARN 则 WARN；全部通过则 PASS）
-- dimensions：全部 37 个维度的数组，每项含 dimension（与上方清单完全一致的名称）、status、detail、evidence（WARN/FAIL 必填，PASS 可省略）
+- dimensions：全部 38 个维度的数组，每项含 dimension（与上方清单完全一致的名称）、status、detail、evidence（WARN/FAIL 必填，PASS 可省略）
 - summary：总体评估文字（含 PASS/WARN/FAIL 数量汇总 + 设定一致性专项结论）
 
-维度名称必须与上方 37 维清单**逐字一致**，否则工具会拒绝提交。提交工具返回成功后，再输出上述文本格式的审计报告供调用方阅读。
+维度名称必须与上方 38 维清单**逐字一致**，否则工具会拒绝提交。提交工具返回成功后，再输出上述文本格式的审计报告供调用方阅读。
 
 # 轻量审计模式（pipeline 步骤 4 PASS/WARN 时调用）
 
 如果 prompt 第一行包含 \`mode: settings_focus\` 标识，则：
-1. **不跑全 37 维**，只跑维度 23/24/25/26/27（世界观相关 5 维）+ 维度 1-5（角色连续性 5 维）+ 维度 6-9（关系连续性 4 维）+ 维度 35-37（细节 3 维）共 17 维
-2. 其余 24 维度在 dimensions 数组中标 PASS + detail="本轮聚焦设定一致性，跳过"
+1. **不跑全 38 维**，只跑维度 23/24/25/26/27（世界观相关 5 维）+ 维度 1-5（角色连续性 5 维）+ 维度 6-9（关系连续性 4 维）+ 维度 35-38（细节 4 维）共 18 维
+2. 其余 20 维度在 dimensions 数组中标 PASS + detail="本轮聚焦设定一致性，跳过"
 3. 严格按"设定一致性最高优先级"段落的规则判定 FAIL
 4. 提交时 overall 仍按"有任何 FAIL 则 FAIL"规则
 
-如果 prompt 第一行包含 \`mode: full\` 标识，则按 37 维全量审计模式执行。
+如果 prompt 第一行包含 \`mode: full\` 标识，则按 38 维全量审计模式执行。
 
 ${FEEDBACK_INTENT_AUDITOR_PROMPT}
 `
 
 export const auditorAgent = {
   name: "auditor" as const,
-  description: "小说连续性审计员。对章节进行 37 维连续性检查，输出 PASS/WARN/FAIL 结果，捕获 90% 以上的矛盾。重点检查 worldEntries 设定的对照一致性。",
+  description: "小说连续性审计员。对章节进行 38 维连续性检查，输出 PASS/WARN/FAIL 结果，捕获 90% 以上的矛盾。重点检查 worldEntries 设定的对照一致性。",
   mode: "subagent" as const,
   prompt: AUDITOR_PROMPT,
   options: {} as Record<string, unknown>,

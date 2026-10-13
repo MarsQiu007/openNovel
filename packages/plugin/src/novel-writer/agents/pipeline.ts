@@ -123,7 +123,7 @@ dispatch 前先执行反馈编译：
 - FAIL -> 调用 \`read_chapter_content\` 工具读取章节正文，然后通过 task 工具 dispatch @auditor 子 agent 进行 LLM 深度审计：
   - subagent_type: "auditor"
   - description: "审计第X章连续性"
-  - prompt: **第一行加 "mode: full"** 标识，其余传入 novel_id、chapter_id、章节正文、确定性检查的失败维度、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_AUDITOR_PROMPT}，指示 auditor 进行 37 维深度审计
+  - prompt: **第一行加 "mode: full"** 标识，其余传入 novel_id、chapter_id、章节正文、确定性检查的失败维度、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_AUDITOR_PROMPT}，指示 auditor 进行 38 维深度审计
   - @auditor 会通过 submit_chapter_review 工具提交结构化审计结果（持久化供人工审批查阅），随后返回文本审计报告
   - @auditor 返回审计结果后，进入步骤 5
 - WARN -> **必须 dispatch @auditor 做轻量设定对照审计**，不允许跳过。理由：设定对照维度的 WARN（命中率低 / 疑似漂移词）正是 LLM 才能准确判断的，确定性扫描可能误报。

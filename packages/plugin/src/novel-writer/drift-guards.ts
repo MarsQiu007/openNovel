@@ -4,7 +4,7 @@
  * 该模块提供跨 writer / auditor / observer / 状态提交共用的角色绑定视图，
  * 以及针对亲属称谓实体化和强关系冲突的保守确定性检查。
  */
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import type { RelationshipSummary } from "./context.js"
 import {
   selectProtectedRelationships,
@@ -111,11 +111,16 @@ export async function loadCharacterBindingView(
   activeCharacterIds: string[] = [],
 ): Promise<CharacterBindingView> {
   const characters = await db.select({ id: CharacterTable.id, name: CharacterTable.name }).from(CharacterTable).where(eq(CharacterTable.novel_id, novelId)).all()
-  const states = await db
-    .select({ character_id: CharacterStateTable.character_id, active: CharacterStateTable.active })
-    .from(CharacterStateTable)
-    .all()
   const characterIds = new Set(characters.map((c) => c.id))
+  // 该表没有 novel_id 列，改为按角色 ID 在 SQL 层过滤，避免全表扫描后在内存里丢弃
+  const states =
+    characterIds.size === 0
+      ? []
+      : await db
+          .select({ character_id: CharacterStateTable.character_id, active: CharacterStateTable.active })
+          .from(CharacterStateTable)
+          .where(inArray(CharacterStateTable.character_id, [...characterIds]))
+          .all()
   const activeFromStates = new Set(states.filter((s) => s.active === 1 && characterIds.has(s.character_id)).map((s) => s.character_id))
 
   const relationshipRows = await db.select().from(RelationshipTable).where(eq(RelationshipTable.novel_id, novelId)).all()

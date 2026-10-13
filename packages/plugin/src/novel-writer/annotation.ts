@@ -97,7 +97,10 @@ export function applySuggestion(
     const original = paragraphs[idx]
     paragraphs[idx] = original.slice(0, anchor.startOffset) + replacement + original.slice(anchor.endOffset)
   } else if (anchor.quote) {
-    paragraphs[idx] = paragraphs[idx].replace(anchor.quote, replacement)
+    const paragraphText = paragraphs[idx]
+    // quote 必须在段落内唯一：replace 只改首个匹配，重复出现时无法确定要改哪一处，直接拒绝
+    if (paragraphText.indexOf(anchor.quote) !== paragraphText.lastIndexOf(anchor.quote)) return null
+    paragraphs[idx] = paragraphText.replace(anchor.quote, replacement)
   } else {
     paragraphs[idx] = replacement
   }
