@@ -390,54 +390,54 @@
 | H692 | packages/opennovel/src/plugin/snowflake-cortex.ts:34 | high | maintainability | fix | snowflake pendingOAuth 模块级单值并发覆盖（第二个流程让第一个回调误报 CSRF）。修复：按 state 键控 Map（同 C225）。 |
 | H693 | packages/opennovel/src/plugin/snowflake-cortex.ts:316 | high | bug | fix | 刷新令牌持久化 `.catch(()=>{})`：失败即每次会话重新授权且无痕迹。修复：catch 记录错误。 |
 | H691 | packages/opennovel/src/plugin/xai.ts:351 | high | security | wontfix | xAI 授权走 PKCE+code 交换、回调只取 access_token 不验证 ID token（nonce 为附加 OIDC 参数），未校验 nonce 不构成可利用缺陷（grep 全文件无 id_token 消费路径）。 |
-| H696 | packages/opennovel/src/project/instance-store.ts:126 | high | bug |  |  |
-| H699 | packages/opennovel/src/project/project.ts:417 | high | bug |  |  |
-| H700 | packages/opennovel/src/project/project.ts:434 | high | bug |  |  |
-| H701 | packages/opennovel/src/project/vcs.ts:11 | high | performance |  |  |
-| H702 | packages/opennovel/src/project/vcs.ts:88 | high | bug |  |  |
-| H697 | packages/opennovel/src/provider/auth.ts:167 | high | bug |  |  |
-| H698 | packages/opennovel/src/provider/auth.ts:203 | high | bug |  |  |
-| H703 | packages/opennovel/src/provider/ollama-models.ts:84 | high | security |  |  |
-| H704 | packages/opennovel/src/provider/provider.ts:46 | high | bug |  |  |
-| C229 | packages/opennovel/src/provider/provider.ts:1794 | critical | security |  |  |
-| H707 | packages/opennovel/src/provider/transform.ts:82 | high | bug |  |  |
-| H708 | packages/opennovel/src/provider/transform.ts:367 | high | bug |  |  |
-| C230 | packages/opennovel/src/question/index.ts:124 | critical | bug |  |  |
-| C231 | packages/opennovel/src/question/index.ts:141 | critical | bug |  |  |
-| H705 | packages/opennovel/src/server/auth.ts:24 | high | security |  |  |
-| C232 | packages/opennovel/src/server/auth.ts:28 | critical | security |  |  |
-| H706 | packages/opennovel/src/server/global-lifecycle.ts:19 | high | bug |  |  |
-| H709 | packages/opennovel/src/server/mdns.ts:22 | high | maintainability |  |  |
-| H710 | packages/opennovel/src/server/proxy-util.ts:23 | high | bug |  |  |
-| H711 | packages/opennovel/src/server/routes/instance/httpapi/groups/config.ts:16 | high | security |  |  |
-| C233 | packages/opennovel/src/server/routes/instance/httpapi/groups/config.ts:26 | critical | security |  |  |
-| H714 | packages/opennovel/src/server/routes/instance/httpapi/groups/control.ts:12 | high | security |  |  |
-| H713 | packages/opennovel/src/server/routes/instance/httpapi/groups/experimental.ts:187 | high | security |  |  |
-| H712 | packages/opennovel/src/server/routes/instance/httpapi/groups/file.ts:15 | high | security |  |  |
-| H715 | packages/opennovel/src/server/routes/instance/httpapi/groups/mcp.ts:21 | high | security |  |  |
-| H716 | packages/opennovel/src/server/routes/instance/httpapi/groups/project-copy.ts:0 | high | maintainability |  |  |
-| H718 | packages/opennovel/src/server/routes/instance/httpapi/groups/project.ts:32 | high | bug |  |  |
-| H717 | packages/opennovel/src/server/routes/instance/httpapi/groups/sync.ts:19 | high | security |  |  |
-| C234 | packages/opennovel/src/server/routes/instance/httpapi/groups/tui.ts:88 | critical | bug |  |  |
-| H719 | packages/opennovel/src/server/routes/instance/httpapi/groups/tui.ts:185 | high | security |  |  |
-| H721 | packages/opennovel/src/server/routes/instance/httpapi/handlers/config.ts:14 | high | security |  |  |
-| H720 | packages/opennovel/src/server/routes/instance/httpapi/handlers/control.ts:13 | high | bug |  |  |
-| H722 | packages/opennovel/src/server/routes/instance/httpapi/handlers/event.ts:12 | high | bug |  |  |
-| C236 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:225 | critical | bug |  |  |
-| H723 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:244 | high | bug |  |  |
-| C235 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:248 | critical | bug |  |  |
-| H724 | packages/opennovel/src/server/routes/instance/httpapi/handlers/sync.ts:27 | high | bug |  |  |
-| H725 | packages/opennovel/src/server/routes/instance/httpapi/handlers/sync.ts:74 | high | bug |  |  |
-| C237 | packages/opennovel/src/server/routes/instance/httpapi/handlers/tui.ts:51 | critical | bug |  |  |
-| H728 | packages/opennovel/src/server/routes/instance/httpapi/handlers/workspace.ts:64 | high | bug |  |  |
-| H726 | packages/opennovel/src/server/routes/instance/httpapi/middleware/authorization.ts:12 | high | security |  |  |
-| H727 | packages/opennovel/src/server/routes/instance/httpapi/middleware/compression.ts:57 | high | performance |  |  |
-| H730 | packages/opennovel/src/server/routes/instance/httpapi/middleware/fence.ts:17 | high | bug |  |  |
-| H731 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:23 | high | bug |  |  |
-| C238 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:29 | critical | security |  |  |
-| H729 | packages/opennovel/src/server/routes/instance/httpapi/middleware/schema-error.ts:40 | high | security |  |  |
-| H732 | packages/opennovel/src/server/routes/instance/httpapi/middleware/workspace-routing.ts:87 | high | security |  |  |
-| C009 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:0 | critical | security |  |  |
+| H696 | packages/opennovel/src/project/instance-store.ts:126 | high | bug | fix | reload 先 set 新缓存再 fork 旧条目 dispose：并发 load 会拿到尚未完成初始化的新实例并与旧实例 dispose 交错。修复：uninterruptibleMask 内先完成 dispose 交接（或以世代令牌延迟发布）。 |
+| H699 | packages/opennovel/src/project/project.ts:417 | high | bug | fix | addSandbox 读-改-写数组无事务，并发丢更新。修复：db.transaction 同步回调包裹 select+update（promoteWorldMapDraft/C202 同型先例）。 |
+| H700 | packages/opennovel/src/project/project.ts:434 | high | bug | fix | 同 H699：removeSandbox 亦读-改-写无事务。 |
+| H701 | packages/opennovel/src/project/vcs.ts:11 | high | performance | wontfix | -U<INT_MAX> 是"取全文件上下文补丁"的标准写法，git 实际按文件长度封顶、无超出生成内容的缓冲分配面。 |
+| H702 | packages/opennovel/src/project/vcs.ts:88 | high | bug | fix | 截断时 `chunks.slice(0,-1)` 丢末块，但 batchPatches 按原下标映射文件：块与文件错位、补丁可能写错目标。修复：保留映射（丢弃时同步剔除对应文件项）。 |
+| H697 | packages/opennovel/src/provider/auth.ts:167 | high | bug | fix | hooks[input.providerID]?.methods[input.method] 无判空：未知 providerID/method 抛裸 TypeError（HTTP 面可达）。修复：判空返回 ValidationFailed 类型化错误。 |
+| H698 | packages/opennovel/src/provider/auth.ts:203 | high | bug | wontfix | result 为判别联合（key/refresh 互斥），"同时具备两字段"的类型不存在；两个独立 if 在当前类型下等价 if-else，无覆盖路径。 |
+| H703 | packages/opennovel/src/provider/ollama-models.ts:84 | high | security | wontfix | baseURL 来自用户自己的 provider 配置（信任级同 H450/H387）：Ollama 场景本就常指内网主机，加 SSRF 拦截会破坏核心用例。 |
+| H704 | packages/opennovel/src/provider/provider.ts:46 | high | bug | fix | 超时分支 `void reader.cancel(err)` 丢弃 promise：cancel 拒绝成 unhandledRejection，且读完成与 reject 竞争未收敛。修复：cancel 走 Effect/promise 收敛后再 reject。 |
+| C229 | packages/opennovel/src/provider/provider.ts:1794 | critical | security | wontfix | 动态加载 model.api.npm 声明的 provider 包是 ai-sdk 生态的机制定义（信任边界=配置与 models.dev 目录，同 H454/C211 口径）；file:// 面向本地开发调试，操作者本可直接 import。 |
+| H707 | packages/opennovel/src/provider/transform.ts:82 | high | bug | fix | sanitizeToolResultOutput 原地改传入 content 对象（写回 content.output.value），normalizeMessages 的调用方复用原消息引用时历史被静默改写。修复：结构共享复制后再改。 |
+| H708 | packages/opennovel/src/provider/transform.ts:367 | high | bug | fix | applyCaching 直接 mutate 输入 msg.providerOptions 与 lastContent（mergeDeep 改首参），对会话历史对象产生副作用。修复：deep-clone 目标消息后写入（同 H707 口径）。 |
+| C230 | packages/opennovel/src/question/index.ts:124 | critical | bug | fix | reply 路径先 delete pending 再 publish(Rejected)：publish 失败 deferred 永不完成、ask 调用方永挂。修复：先完成 deferred（或 publish 失败兜底 fail deferred）。 |
+| C231 | packages/opennovel/src/question/index.ts:141 | critical | bug | fix | 同 C230：reject 分支同样存在 publish 失败导致永挂。 |
+| H705 | packages/opennovel/src/server/auth.ts:24 | high | security | fix | required() 把空串密码视为"未启用"、authorized() 却按已设值比对：空密码配置下两口径不一致存在放行面。修复：统一 password 判定（空串一律按未配置处理并在启动/请求两端一致）。 |
+| C232 | packages/opennovel/src/server/auth.ts:28 | critical | security | fix | 密码 `===` 短路比较存在时序侧信道，且仓内已有 timingSafeEqual 先例。修复：比较改 crypto.timingSafeEqual（等长缓冲）。 |
+| H706 | packages/opennovel/src/server/global-lifecycle.ts:19 | high | bug | fix | swallowErrors 下 disposeAll 失败仍 emitGlobalDisposed：下游按"已全部释放"行动（如退出进程）漏清理。修复：dispose 失败时不发 disposed 事件或携带失败标记。 |
+| H709 | packages/opennovel/src/server/mdns.ts:22 | high | maintainability | fix | mDNS 各错误回调全静默：网络/注册失败无从诊断。修复：统一 console.error/日志（保留吞错继续行为）。 |
+| H710 | packages/opennovel/src/server/proxy-util.ts:23 | high | bug | fix | HeadersInit 为 [name,value][] 元组数组时 Object.entries 产生索引键，头部被构造成垃圾。修复：分支处理 Array/Record/Headers 三形态。 |
+| H711 | packages/opennovel/src/server/routes/instance/httpapi/groups/config.ts:16 | high | security | defer | GET /config 返回含凭据字段的 ConfigV1.Info 属公开 HttpApi 契约；改脱敏响应=契约变更（本 change 硬约束），归 API 安全演进 change。 |
+| C233 | packages/opennovel/src/server/routes/instance/httpapi/groups/config.ts:26 | critical | security | defer | PATCH /config 载荷接受凭据字段是现有契约（写配置本来就需要 apiKey）；收窄 payload 涉及 HttpApi schema 变更，defer 至契约 change。 |
+| H714 | packages/opennovel/src/server/routes/instance/httpapi/groups/control.ts:12 | high | security | defer | LogQuery 参数约束属 HttpApi 请求 schema 契约变更；且消费端按 Location 解析+权限门处理（H496 口径），先补 schema 校验需与契约演进一并做。 |
+| H713 | packages/opennovel/src/server/routes/instance/httpapi/groups/experimental.ts:187 | high | security | defer | disableCodecs 用于透传型端点（日志流/非 JSON 体），改回框架校验涉及 HttpApi codec 行为契约，归契约 change 评估。 |
+| H712 | packages/opennovel/src/server/routes/instance/httpapi/groups/file.ts:15 | high | security | wontfix | path 参数在 handler 端经 Location/文件系统层解析并受工作区边界与权限系统约束（同 H496 信任模型）；query schema 加正则黑名单会拒合法输入且非唯一防线。 |
+| H715 | packages/opennovel/src/server/routes/instance/httpapi/groups/mcp.ts:21 | high | security | defer | callback payload 增加 state 字段属 HttpApi 请求契约变更（客户端需同步送参），本 change 契约不变硬约束；OAuth state 校验链路归 API 安全演进 change。 |
+| H716 | packages/opennovel/src/server/routes/instance/httpapi/groups/project-copy.ts:0 | high | maintainability | defer | 补错误声明（error: [...]）是端点契约注解变更，涉及 SDK 再生成（AGENTS.md 工作流），归契约 change。 |
+| H718 | packages/opennovel/src/server/routes/instance/httpapi/groups/project.ts:32 | high | bug | defer | 同 H716：current 端点错误模式声明缺失属契约演进；把 InstanceState.die 改类型化错误也牵动 HttpApi 错误词汇表。 |
+| H717 | packages/opennovel/src/server/routes/instance/httpapi/groups/sync.ts:19 | high | security | defer | directory 参数加 schema 约束属请求契约变更；消费端按本机文件系统语义处理（同 C238 设计口径），收紧校验应与契约演进一并评估。 |
+| C234 | packages/opennovel/src/server/routes/instance/httpapi/groups/tui.ts:88 | critical | bug | fix | openThemes 端点/处理器与 openSessions 复制粘贴同命令（见 C237），主题对话框打不开。修复：处理器发布 theme 相关命令，group 描述同步更正。 |
+| H719 | packages/opennovel/src/server/routes/instance/httpapi/groups/tui.ts:185 | high | security | wontfix | controlResponse 的 payload 本就是转发给 UI 的任意控制响应，Schema.Unknown 是该端点的既有契约（TODO 注释明示未来收紧计划）；收紧属契约演进。 |
+| H721 | packages/opennovel/src/server/routes/instance/httpapi/handlers/config.ts:14 | high | security | defer | 同 H711：响应脱敏改变 success schema 与既有消费方（桌面端配置界面直读原值），归 API 安全演进 change。 |
+| H720 | packages/opennovel/src/server/routes/instance/httpapi/handlers/control.ts:13 | high | bug | wontfix | control 处理器的 orDie 与本仓 DB/服务层错误收敛一致（H441 家族），缺陷经 HttpApi 统一映射 5xx；逐个 handler 改类型化错误是仓库级重构。 |
+| H722 | packages/opennovel/src/server/routes/instance/httpapi/handlers/event.ts:12 | high | bug | wontfix | SSE 的 data 来自 EventV2 序列化载荷（本就是可 JSON 化的 schema 数据），不存在循环引用/BigInt 面；防御 try-catch 掩盖上游 schema 错误。 |
+| C236 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:225 | critical | bug | fix | pty WS 结束时 outbox 队列不 shutdown：阻塞在 Queue.take 的 drain fiber 永挂。修复：连接终局（正常/中断）对 outbox 执行 shutdown（addFinalizer）。 |
+| H723 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:244 | high | bug | wontfix | 无界队列 offerUnsafe 永不失败（契约），回放注入自身无挂起点；其生命周期担忧与 C236 重合，由 shutdown 修复覆盖。 |
+| C235 | packages/opennovel/src/server/routes/instance/httpapi/handlers/pty.ts:248 | critical | bug | wontfix | write 残差错误按 defect 收敛：drain fiber die 触发 scope finalizer 关连接（进程不受影响），非 socket 类写错误本就是程序错误面。 |
+| H724 | packages/opennovel/src/server/routes/instance/httpapi/handlers/sync.ts:27 | high | bug | fix | fork 的同步任务 Effect.ignore 吞掉失败（27 行），同步静默失败无从诊断。修复：tapError/logWarning 后再 ignore。 |
+| H725 | packages/opennovel/src/server/routes/instance/httpapi/handlers/sync.ts:74 | high | bug | wontfix | DB 错误 orDie 后经 HttpApi 统一 500（同 H441/H720 口径），不会裸崩进程；BadRequest 之外的 DB 形态本就不该映射 4xx。 |
+| C237 | packages/opennovel/src/server/routes/instance/httpapi/handlers/tui.ts:51 | critical | bug | fix | handlers/tui.ts:51 openThemes 发布 "session.list"（与 openSessions 相同的复制粘贴残留），主题面板不可达。修复：发布 theme 命令。 |
+| H728 | packages/opennovel/src/server/routes/instance/httpapi/handlers/workspace.ts:64 | high | bug | fix | create 用 catchCause 消化插件 throw、warp 只 mapError：同族操作中 warp 会把 defect 裸抛给框架。修复：对齐 create 的 catchCause 错误映射。 |
+| H726 | packages/opennovel/src/server/routes/instance/httpapi/middleware/authorization.ts:12 | high | security | wontfix | auth_token 查询参数为旧客户端（浏览器 EventSource/WS 无法带头）的显式兼容通道（代码有注释记载），凭据进访问日志面在本地部署可接受；移除属客户端迁移/契约演进。 |
+| H727 | packages/opennovel/src/server/routes/instance/httpapi/middleware/compression.ts:57 | high | performance | fix | gzipSync/deflateSync 同步压缩阻塞事件循环，大响应拖垮吞吐。修复：改异步 gzip/deflate（promisify）。 |
+| H730 | packages/opennovel/src/server/routes/instance/httpapi/middleware/fence.ts:17 | high | bug | fix | fence 双 load 模式在并发请求间存在窗口（A 的 previous/current 之间 B 变更围栏状态），检查语义失真。修复：以单次 load+compare-and-set 或进程内互斥收敛；实现批次细读 Fence 语义。 |
+| H731 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:23 | high | bug | wontfix | store.load 错误经 HttpApi 错误通道统一映射（H720 同口径）；"用户友好文案"是网关呈现层职责，不在中间件就地吞转。 |
+| C238 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:29 | critical | security | wontfix | 按 x-opennovel-directory/查询参数加载任意目录是本服务器多项目架构的声明设计（serve.ts:10-11 注释原文），访问控制由 authorization 中间件承担；目录白名单属部署形态演进议题。 |
+| H729 | packages/opennovel/src/server/routes/instance/httpapi/middleware/schema-error.ts:40 | high | security | wontfix | 日志已按 6-10 行注释的截断策略执行（避免整包回显），1024 残片与服务器日志同信任级；全脱敏需重设计校验错误词汇表，属增强。 |
+| H732 | packages/opennovel/src/server/routes/instance/httpapi/middleware/workspace-routing.ts:87 | high | security | wontfix | 同 C238：header 目录即路由入口（架构声明），边界为鉴权层；query schema 校验属契约变更且拒不了合法绝对路径。 |
+| C009 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:0 | critical | security | fix | novel-reader.html 把 id 直接拼进 onclick 字符串字面量（无 JSON.stringify/转义），id 现虽为内部生成，但读者页属可达 HTML 面、习惯即漏洞温床。修复：onclick 参数用 JSON.stringify 内嵌或改 data-* + 事件委托。 |
 | H055 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:1144 | high | bug |  |  |
 | C239 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:23 | critical | security |  |  |
 | H734 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:94 | high | bug |  |  |
