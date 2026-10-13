@@ -62,10 +62,9 @@ import CanvasPanel from "./canvas-panel"
 import {
   collapseThresholds,
   LEFT_PANE_DEFAULT_WIDTH,
-  LEFT_PANE_MAX_WIDTH,
   LEFT_PANE_MIN_WIDTH,
+  paneMaxWidth,
   RAIL_PANE_DEFAULT_WIDTH,
-  RAIL_PANE_MAX_WIDTH,
   RAIL_PANE_MIN_WIDTH,
   resolvePaneWidth,
 } from "./workspace-pane-width"
@@ -361,7 +360,7 @@ export default function NovelWorkspaceFrame() {
     onCleanup(() => window.removeEventListener("keydown", handler))
   })
 
-  // —— 宽度规则（D5）：主区保底 720px，两档自动收边（随行右栏先让位，导航左栏后让位），手动操作优先 ——
+  // —— 宽度规则（D5）：主区保底 30px，侧栏上限随窗口动态派生，两档自动收边（随行右栏先让位），手动操作优先 ——
   const [widthCollapsed, setWidthCollapsed] = createSignal(false)
   const [railWidthCollapsed, setRailWidthCollapsed] = createSignal(false)
   const leftManual = () => (typeof layout.leftManual === "boolean" ? layout.leftManual : null)
@@ -373,8 +372,20 @@ export default function NovelWorkspaceFrame() {
   // 未发生拖拽（内存态为 null，普通点击/双击的第一段按下）不提交，防止覆盖设定值。
   const [dragLeftWidth, setDragLeftWidth] = createSignal<number | null>(null)
   const [dragRailWidth, setDragRailWidth] = createSignal<number | null>(null)
-  const leftPaneWidth = () => dragLeftWidth() ?? resolvePaneWidth(layout.leftWidth, LEFT_PANE_DEFAULT_WIDTH)
-  const railPaneWidth = () => dragRailWidth() ?? resolvePaneWidth(layout.railWidth, RAIL_PANE_DEFAULT_WIDTH)
+  // 三区容器宽度：observer 首帧前取无穷大，初始渲染按设定宽度显示（避免闪到最小宽度）
+  const [bodyWidth, setBodyWidth] = createSignal(Number.POSITIVE_INFINITY)
+  // 设定宽度（用户意图）= 拖拽内存态 ?? 持久化设定 ?? 默认值
+  const leftPaneIntent = () => dragLeftWidth() ?? resolvePaneWidth(layout.leftWidth, LEFT_PANE_DEFAULT_WIDTH)
+  const railPaneIntent = () => dragRailWidth() ?? resolvePaneWidth(layout.railWidth, RAIL_PANE_DEFAULT_WIDTH)
+  // 渲染钳制：上限用另一侧设定宽度派生（避免左右循环派生），收起侧按 0 计；下限兜底到栏最小宽度
+  const leftPaneWidth = () => {
+    const otherVisible = leftCollapsed() ? 0 : railPaneIntent()
+    return Math.max(LEFT_PANE_MIN_WIDTH, Math.min(leftPaneIntent(), paneMaxWidth(bodyWidth(), otherVisible)))
+  }
+  const railPaneWidth = () => {
+    const otherVisible = leftCollapsed() ? 0 : leftPaneIntent()
+    return Math.max(RAIL_PANE_MIN_WIDTH, Math.min(railPaneIntent(), paneMaxWidth(bodyWidth(), otherVisible)))
+  }
   const commitLeftWidth = () => {
     const width = dragLeftWidth()
     if (width === null) return
@@ -400,7 +411,8 @@ export default function NovelWorkspaceFrame() {
     // （收起→主区变宽→恢复→主区变窄→再收起，每帧翻转，走查时表现为 UI 高频闪烁）
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0
-      // 阈值从设定宽度实时读取（非响应式：仅 Body 宽变化时判定，拖宽后的悬置态由下次窗口变化收编）
+      setBodyWidth(width)
+      // 阈值从生效宽度（钳制后）实时读取（非响应式：仅 Body 宽变化时判定，拖宽后的悬置态由下次窗口变化收编）
       const thresholds = collapseThresholds(leftPaneWidth(), railPaneWidth())
       const leftBelow = width < thresholds.left // 左档 = 左栏宽 + 主区保底
       const railBelow = width < thresholds.rail // 右档 = max(右栏宽 + 主区保底, 左档 + 1)
@@ -857,7 +869,7 @@ export default function NovelWorkspaceFrame() {
                   edge="end"
                   size={leftPaneWidth()}
                   min={LEFT_PANE_MIN_WIDTH}
-                  max={LEFT_PANE_MAX_WIDTH}
+                  max={paneMaxWidth(bodyWidth(), railCollapsed() ? 0 : railPaneWidth())}
                   collapseThreshold={LEFT_PANE_MIN_WIDTH}
                   onResize={setDragLeftWidth}
                   onCollapseChange={(dragging) => {
@@ -1089,7 +1101,7 @@ export default function NovelWorkspaceFrame() {
                   edge="start"
                   size={railPaneWidth()}
                   min={RAIL_PANE_MIN_WIDTH}
-                  max={RAIL_PANE_MAX_WIDTH}
+                  max={paneMaxWidth(bodyWidth(), leftCollapsed() ? 0 : leftPaneWidth())}
                   collapseThreshold={RAIL_PANE_MIN_WIDTH}
                   onResize={setDragRailWidth}
                   onCollapseChange={(dragging) => {
