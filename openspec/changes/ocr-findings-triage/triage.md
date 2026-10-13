@@ -13,22 +13,22 @@
 | H375 | packages/core/src/background-job.ts:256 | high | bug |  |  |
 | C124 | packages/core/src/background-job.ts:303 | critical | bug |  |  |
 | H374 | packages/core/src/background-job.ts:337 | high | bug |  |  |
-| H367 | packages/core/src/command.ts:1 | high | maintainability |  |  |
+| H367 | packages/core/src/command.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H368 | packages/core/src/config.ts:177 | high | bug |  |  |
 | H369 | packages/core/src/config.ts:196 | high | bug |  |  |
 | H370 | packages/core/src/config.ts:200 | high | bug |  |  |
-| H366 | packages/core/src/config/attachments.ts:1 | high | bug |  |  |
-| C120 | packages/core/src/config/command.ts:1 | critical | bug |  |  |
-| C122 | packages/core/src/config/compaction.ts:1 | critical | bug |  |  |
-| C123 | packages/core/src/config/lsp.ts:1 | critical | bug |  |  |
-| H373 | packages/core/src/config/markdown.ts:1 | high | bug |  |  |
-| H371 | packages/core/src/config/mcp.ts:1 | high | bug |  |  |
-| H372 | packages/core/src/config/plugin.ts:1 | high | bug |  |  |
+| H366 | packages/core/src/config/attachments.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C120 | packages/core/src/config/command.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C122 | packages/core/src/config/compaction.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C123 | packages/core/src/config/lsp.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H373 | packages/core/src/config/markdown.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H371 | packages/core/src/config/mcp.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H372 | packages/core/src/config/plugin.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H376 | packages/core/src/config/plugin/external.ts:87 | high | maintainability |  |  |
 | H384 | packages/core/src/config/plugin/provider.ts:26 | high | bug |  |  |
 | H379 | packages/core/src/config/plugin/reference.ts:41 | high | bug |  |  |
-| H377 | packages/core/src/config/plugin/skill.ts:1 | high | bug |  |  |
-| C127 | packages/core/src/config/tool-output.ts:1 | critical | bug |  |  |
+| H377 | packages/core/src/config/plugin/skill.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C127 | packages/core/src/config/tool-output.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H383 | packages/core/src/control-plane/move-session.ts:93 | high | bug |  |  |
 | H382 | packages/core/src/control-plane/move-session.ts:106 | high | bug |  |  |
 | H378 | packages/core/src/control-plane/workspace.sql.ts:17 | high | bug |  |  |
@@ -109,24 +109,24 @@
 | H432 | packages/core/src/id/id.ts:39 | high | bug |  |  |
 | H434 | packages/core/src/image/photon.ts:? | high | maintainability |  |  |
 | H435 | packages/core/src/integration.ts:322 | high | bug |  |  |
-| C150 | packages/core/src/integration/connection.ts:1 | critical | bug |  |  |
+| C150 | packages/core/src/integration/connection.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H436 | packages/core/src/models-dev.ts:255 | high | bug |  |  |
 | C151 | packages/core/src/models-dev.ts:256 | critical | bug |  |  |
 | H437 | packages/core/src/npm-config.ts:32 | high | bug |  |  |
 | H438 | packages/core/src/npm.ts:45 | high | security |  |  |
 | C152 | packages/core/src/oauth/page.ts:114 | critical | security |  |  |
-| H439 | packages/core/src/patch.ts:1 | high | bug |  |  |
+| H439 | packages/core/src/patch.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H440 | packages/core/src/patch.ts:160 | high | bug |  |  |
 | C154 | packages/core/src/permission.ts:237 | critical | bug |  |  |
 | H443 | packages/core/src/permission.ts:250 | high | bug |  |  |
-| C153 | packages/core/src/permission/saved.ts:1 | critical | bug |  |  |
+| C153 | packages/core/src/permission/saved.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H441 | packages/core/src/permission/saved.ts:47 | high | maintainability |  |  |
 | H442 | packages/core/src/permission/saved.ts:67 | high | maintainability |  |  |
-| H444 | packages/core/src/plugin.ts:1 | high | bug |  |  |
+| H444 | packages/core/src/plugin.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C155 | packages/core/src/plugin.ts:128 | critical | bug |  |  |
-| H446 | packages/core/src/plugin/command.ts:1 | high | bug |  |  |
+| H446 | packages/core/src/plugin/command.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H445 | packages/core/src/plugin/host.ts:201 | high | bug |  |  |
-| H449 | packages/core/src/plugin/internal.ts:1 | high | bug |  |  |
+| H449 | packages/core/src/plugin/internal.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H447 | packages/core/src/plugin/promise.ts:29 | high | bug |  |  |
 | H448 | packages/core/src/plugin/promise.ts:69 | high | bug |  |  |
 | H450 | packages/core/src/plugin/provider/amazon-bedrock.ts:90 | high | bug |  |  |
@@ -148,21 +148,21 @@
 | C161 | packages/core/src/project/copy.ts:175 | critical | bug |  |  |
 | H465 | packages/core/src/project/copy.ts:217 | high | performance |  |  |
 | C160 | packages/core/src/project/copy.ts:244 | critical | bug |  |  |
-| H463 | packages/core/src/project/schema.ts:1 | high | bug |  |  |
-| H464 | packages/core/src/provider.ts:1 | high | bug |  |  |
+| H463 | packages/core/src/project/schema.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H464 | packages/core/src/provider.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H468 | packages/core/src/pty.ts:109 | high | maintainability |  |  |
 | C164 | packages/core/src/pty.ts:204 | critical | bug |  |  |
 | H469 | packages/core/src/pty.ts:223 | high | bug |  |  |
 | H470 | packages/core/src/pty.ts:286 | high | bug |  |  |
-| C159 | packages/core/src/pty/protocol.ts:1 | critical | bug |  |  |
-| C162 | packages/core/src/public-event-manifest.ts:1 | critical | bug |  |  |
+| C159 | packages/core/src/pty/protocol.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C162 | packages/core/src/public-event-manifest.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H467 | packages/core/src/reference.ts:88 | high | bug |  |  |
 | H466 | packages/core/src/reference.ts:109 | high | bug |  |  |
 | C163 | packages/core/src/repository.ts:168 | critical | security |  |  |
 | H480 | packages/core/src/ripgrep.ts:116 | high | bug |  |  |
 | C167 | packages/core/src/ripgrep/binary.ts:58 | critical | security |  |  |
 | H474 | packages/core/src/schema.ts:? | high | bug |  |  |
-| C165 | packages/core/src/session.ts:1 | critical | bug |  |  |
+| C165 | packages/core/src/session.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C166 | packages/core/src/session.ts:374 | critical | bug |  |  |
 | H473 | packages/core/src/session/context-epoch.ts:40 | high | bug |  |  |
 | H471 | packages/core/src/session/context-epoch.ts:80 | high | bug |  |  |
@@ -171,7 +171,7 @@
 | H477 | packages/core/src/session/input.ts:51 | high | bug |  |  |
 | H476 | packages/core/src/session/input.ts:129 | high | bug |  |  |
 | H478 | packages/core/src/session/message-updater.ts:334 | high | bug |  |  |
-| C168 | packages/core/src/session/message.ts:1 | critical | bug |  |  |
+| C168 | packages/core/src/session/message.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H479 | packages/core/src/session/projector.ts:312 | high | bug |  |  |
 | H481 | packages/core/src/session/run-coordinator.ts:37 | high | bug |  |  |
 | C169 | packages/core/src/session/runner/publish-llm-event.ts:46 | critical | bug |  |  |
@@ -188,13 +188,13 @@
 | H487 | packages/core/src/sync/sqlite.node.ts:19 | high | security |  |  |
 | H488 | packages/core/src/sync/state.ts:36 | high | bug |  |  |
 | H490 | packages/core/src/sync/webdav.ts:117 | high | bug |  |  |
-| H491 | packages/core/src/system-context/builtins.ts:1 | high | bug |  |  |
+| H491 | packages/core/src/system-context/builtins.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H493 | packages/core/src/system-context/index.ts:228 | high | bug |  |  |
 | H494 | packages/core/src/system-context/index.ts:314 | high | bug |  |  |
 | C172 | packages/core/src/tool-output-store.ts:182 | critical | bug |  |  |
 | H498 | packages/core/src/tool/apply-patch.ts:91 | high | bug |  |  |
 | H500 | packages/core/src/tool/bash.ts:59 | high | maintainability |  |  |
-| C173 | packages/core/src/tool/builtins.ts:1 | critical | bug |  |  |
+| C173 | packages/core/src/tool/builtins.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H496 | packages/core/src/tool/glob.ts:75 | high | security |  |  |
 | H497 | packages/core/src/tool/question.ts:80 | high | bug |  |  |
 | H505 | packages/core/src/tool/read-filesystem.ts:216 | high | bug |  |  |
@@ -202,7 +202,7 @@
 | H502 | packages/core/src/tool/registry.ts:75 | high | bug |  |  |
 | H501 | packages/core/src/tool/registry.ts:89 | high | bug |  |  |
 | H503 | packages/core/src/tool/tool.ts:98 | high | bug |  |  |
-| C174 | packages/core/src/tool/tools.ts:1 | critical | bug |  |  |
+| C174 | packages/core/src/tool/tools.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H504 | packages/core/src/tool/webfetch.ts:85 | high | security |  |  |
 | H506 | packages/core/src/tool/websearch.ts:146 | high | security |  |  |
 | H510 | packages/core/src/util/effect-flock.ts:263 | high | bug |  |  |
@@ -210,28 +210,28 @@
 | H507 | packages/core/src/util/hash.ts:4 | high | security |  |  |
 | H508 | packages/core/src/util/lazy.ts:5 | high | bug |  |  |
 | H509 | packages/core/src/util/retry.ts:27 | high | bug |  |  |
-| C175 | packages/core/src/util/token.ts:1 | critical | bug |  |  |
-| H513 | packages/core/src/util/wildcard.ts:1 | high | bug |  |  |
+| C175 | packages/core/src/util/token.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H513 | packages/core/src/util/wildcard.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H514 | packages/core/src/util/wildcard.ts:11 | high | bug |  |  |
 | C176 | packages/core/src/util/wildcard.ts:13 | critical | bug |  |  |
-| H512 | packages/core/src/v1/config/command.ts:1 | high | maintainability |  |  |
-| H516 | packages/core/src/v1/config/error.ts:1 | high | bug |  |  |
-| C177 | packages/core/src/v1/config/layout.ts:1 | critical | bug |  |  |
-| H515 | packages/core/src/v1/config/lsp.ts:1 | high | bug |  |  |
-| H519 | packages/core/src/v1/config/mcp.ts:1 | high | maintainability |  |  |
+| H512 | packages/core/src/v1/config/command.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H516 | packages/core/src/v1/config/error.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C177 | packages/core/src/v1/config/layout.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H515 | packages/core/src/v1/config/lsp.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H519 | packages/core/src/v1/config/mcp.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H518 | packages/core/src/v1/config/migrate.ts:30 | high | bug |  |  |
-| C178 | packages/core/src/v1/config/permission.ts:1 | critical | bug |  |  |
+| C178 | packages/core/src/v1/config/permission.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H517 | packages/core/src/v1/config/permission.ts:8 | high | maintainability |  |  |
 | H520 | packages/core/src/v1/config/provider-options.ts:98 | high | bug |  |  |
 | C179 | packages/core/src/v1/config/provider-options.ts:119 | critical | security |  |  |
-| H521 | packages/core/src/v1/config/provider.ts:1 | high | maintainability |  |  |
-| H525 | packages/core/src/v1/config/server.ts:1 | high | bug |  |  |
-| C183 | packages/core/src/v1/config/skills.ts:1 | critical | bug |  |  |
-| C184 | packages/core/src/v1/config/skills.ts:1 | critical | bug |  |  |
+| H521 | packages/core/src/v1/config/provider.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H525 | packages/core/src/v1/config/server.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C183 | packages/core/src/v1/config/skills.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C184 | packages/core/src/v1/config/skills.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H522 | packages/core/src/v1/permission.ts:25 | high | bug |  |  |
-| H524 | packages/core/src/v1/session.ts:1 | high | bug |  |  |
-| C181 | packages/core/src/v2-schema.ts:1 | critical | bug |  |  |
-| C180 | packages/core/src/workspace.ts:1 | critical | bug |  |  |
+| H524 | packages/core/src/v1/session.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C181 | packages/core/src/v2-schema.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C180 | packages/core/src/workspace.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H523 | packages/core/test/fixture/effect-flock-worker.ts:21 | high | bug |  |  |
 | C182 | packages/core/test/fixture/flock-worker.ts:37 | critical | bug |  |  |
 | H576 | packages/llm/example/tutorial.ts:255 | high | bug |  |  |
@@ -347,7 +347,7 @@
 | H660 | packages/opennovel/src/effect/runner.ts:83 | high | bug |  |  |
 | H661 | packages/opennovel/src/effect/runner.ts:108 | high | bug |  |  |
 | H659 | packages/opennovel/src/env/index.ts:26 | high | bug |  |  |
-| C218 | packages/opennovel/src/event-manifest.ts:1 | critical | bug |  |  |
+| C218 | packages/opennovel/src/event-manifest.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H662 | packages/opennovel/src/format/formatter.ts:74 | high | bug |  |  |
 | H663 | packages/opennovel/src/format/formatter.ts:198 | high | bug |  |  |
 | H664 | packages/opennovel/src/format/formatter.ts:225 | high | bug |  |  |
@@ -555,18 +555,18 @@
 | H829 | packages/plugin/src/novel-writer/technique-extract.ts:49 | high | bug |  |  |
 | H828 | packages/plugin/src/novel-writer/technique-hindsight.ts:10 | high | bug |  |  |
 | H999 | packages/plugin/src/novel-writer/tui.tsx:58 | high | bug |  |  |
-| C256 | packages/schema/src/credential.ts:1 | critical | bug |  |  |
+| C256 | packages/schema/src/credential.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H831 | packages/schema/src/event.ts:88 | high | bug |  |  |
-| C255 | packages/schema/src/file-diff.ts:1 | critical | bug |  |  |
-| C257 | packages/schema/src/mcp-event.ts:1 | critical | bug |  |  |
-| H833 | packages/schema/src/permission-saved.ts:1 | high | bug |  |  |
-| H832 | packages/schema/src/project-copy.ts:1 | high | bug |  |  |
-| C258 | packages/schema/src/prompt-input.ts:1 | critical | bug |  |  |
-| H834 | packages/schema/src/pty-ticket.ts:1 | high | bug |  |  |
-| C259 | packages/schema/src/pty.ts:1 | critical | bug |  |  |
+| C255 | packages/schema/src/file-diff.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C257 | packages/schema/src/mcp-event.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H833 | packages/schema/src/permission-saved.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H832 | packages/schema/src/project-copy.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C258 | packages/schema/src/prompt-input.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| H834 | packages/schema/src/pty-ticket.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C259 | packages/schema/src/pty.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H835 | packages/schema/src/pty.ts:16 | high | security |  |  |
-| H836 | packages/schema/src/question.ts:1 | high | bug |  |  |
-| C260 | packages/schema/src/session-delivery.ts:1 | critical | bug |  |  |
+| H836 | packages/schema/src/question.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
+| C260 | packages/schema/src/session-delivery.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H842 | packages/server/src/annotation-targets.ts:24 | high | bug |  |  |
 | H846 | packages/server/src/auth.ts:44 | high | security |  |  |
 | H844 | packages/server/src/cors.ts:11 | high | security |  |  |
