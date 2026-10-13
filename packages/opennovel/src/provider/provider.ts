@@ -47,8 +47,18 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
         const id = setTimeout(() => {
           const err = new ProviderError.ResponseStreamError("SSE read timed out")
           ctl.abort(err)
-          void reader.cancel(err)
-          reject(err)
+          // cancel 的拒绝必须收进 reject：裸 void reader.cancel() 会变成 unhandledRejection
+          reader.cancel(err).then(
+            () => reject(err),
+            (cause: unknown) => {
+              const reason = cause instanceof Error ? cause.message : String(cause)
+              reject(
+                new ProviderError.ResponseStreamError(`SSE read timed out; stream cancel failed: ${reason}`, {
+                  cause,
+                }),
+              )
+            },
+          )
         }, ms)
 
         reader.read().then(

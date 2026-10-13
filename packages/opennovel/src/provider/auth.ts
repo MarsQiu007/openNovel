@@ -164,7 +164,15 @@ const layer: Layer.Layer<Service, never, Auth.Service | Plugin.Service> = Layer.
       input: { providerID: ProviderV2.ID } & AuthorizeInput,
     ) {
       const { hooks, pending } = yield* InstanceState.get(state)
-      const method = hooks[input.providerID].methods[input.method]
+      const hook = hooks[input.providerID]
+      if (!hook)
+        return yield* new ValidationFailed({ field: "providerID", message: `Unknown provider: ${input.providerID}` })
+      const method = hook.methods[input.method]
+      if (!method)
+        return yield* new ValidationFailed({
+          field: "method",
+          message: `Provider ${input.providerID} has no auth method: ${input.method}`,
+        })
       if (method.type !== "oauth") return
 
       if (method.prompts && input.inputs) {

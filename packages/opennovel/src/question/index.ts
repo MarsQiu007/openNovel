@@ -1,5 +1,5 @@
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
-import { Deferred, Effect, Layer, Schema, Context } from "effect"
+import { Deferred, Effect, Exit, Layer, Schema, Context } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import { SessionID } from "@/session/schema"
 import { QuestionID } from "./schema"
@@ -123,11 +123,19 @@ const layer = Layer.effect(
       }
       pending.delete(input.requestID)
       yield* Effect.logInfo("replied", { requestID: input.requestID, answers: input.answers })
-      yield* events.publish(Event.Replied, {
-        sessionID: existing.info.sessionID,
-        requestID: existing.info.id,
-        answers: input.answers.map((a) => [...a]),
-      })
+      const published = yield* events
+        .publish(Event.Replied, {
+          sessionID: existing.info.sessionID,
+          requestID: existing.info.id,
+          answers: input.answers.map((a) => [...a]),
+        })
+        .pipe(Effect.exit)
+      if (Exit.isFailure(published))
+        yield* Effect.logError("failed to publish question reply", {
+          requestID: input.requestID,
+          cause: published.cause,
+        })
+      // 事件发布失败也不能省掉这一步：否则 ask 的等待方永远收不到答复
       yield* Deferred.succeed(existing.deferred, input.answers)
     })
 
@@ -140,10 +148,15 @@ const layer = Layer.effect(
       }
       pending.delete(requestID)
       yield* Effect.logInfo("rejected", { requestID })
-      yield* events.publish(Event.Rejected, {
-        sessionID: existing.info.sessionID,
-        requestID: existing.info.id,
-      })
+      const published = yield* events
+        .publish(Event.Rejected, {
+          sessionID: existing.info.sessionID,
+          requestID: existing.info.id,
+        })
+        .pipe(Effect.exit)
+      if (Exit.isFailure(published))
+        yield* Effect.logError("failed to publish question reject", { requestID, cause: published.cause })
+      // 同上：拒绝信号必须兑现，等待方不能因发布失败而永挂
       yield* Deferred.fail(existing.deferred, new RejectedError())
     })
 

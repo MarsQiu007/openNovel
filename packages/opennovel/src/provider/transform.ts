@@ -79,17 +79,21 @@ function normalizeMessages(
   model: Provider.Model,
   _options: Record<string, unknown>,
 ): ModelMessage[] {
-  const sanitizeToolResultOutput = (content: ToolResultPart) => {
+  // unsupportedParts 只做浅拷贝，output 仍与调用方的消息共用引用：必须复制后再改写
+  const sanitizeToolResultOutput = (content: ToolResultPart): ToolResultPart => {
     if (content.output.type === "text" || content.output.type === "error-text") {
-      content.output.value = sanitizeSurrogates(content.output.value)
+      return { ...content, output: { ...content.output, value: sanitizeSurrogates(content.output.value) } }
     }
     if (content.output.type === "content") {
-      content.output.value = content.output.value.map((item) => {
-        if (item.type === "text") {
-          item.text = sanitizeSurrogates(item.text)
-        }
-        return item
-      })
+      return {
+        ...content,
+        output: {
+          ...content.output,
+          value: content.output.value.map((item) =>
+            item.type === "text" ? { ...item, text: sanitizeSurrogates(item.text) } : item,
+          ),
+        },
+      }
     }
     return content
   }
@@ -357,30 +361,35 @@ function applyCaching(msgs: ModelMessage[], model: Provider.Model): ModelMessage
     },
   }
 
-  for (const msg of unique([...system, ...final])) {
-    const useMessageLevelOptions =
-      model.providerID === "anthropic" ||
-      model.providerID.includes("bedrock") ||
-      model.api.npm === "@ai-sdk/amazon-bedrock"
-    const shouldUseContentOptions = !useMessageLevelOptions && Array.isArray(msg.content) && msg.content.length > 0
+  const targets = new Set(unique([...system, ...final]))
+  const useMessageLevelOptions =
+    model.providerID === "anthropic" ||
+    model.providerID.includes("bedrock") ||
+    model.api.npm === "@ai-sdk/amazon-bedrock"
 
-    if (shouldUseContentOptions) {
-      const lastContent = msg.content[msg.content.length - 1]
-      if (
-        lastContent &&
-        typeof lastContent === "object" &&
-        lastContent.type !== "tool-approval-request" &&
-        lastContent.type !== "tool-approval-response"
-      ) {
-        lastContent.providerOptions = mergeDeep(lastContent.providerOptions ?? {}, providerOptions)
-        continue
-      }
+  // 缓存标记要写在副本上：msg 与 content part 都可能是调用方（会话历史）持有的对象
+  return msgs.map((msg) => {
+    if (!targets.has(msg)) return msg
+    if (useMessageLevelOptions || !Array.isArray(msg.content) || msg.content.length === 0) {
+      return { ...msg, providerOptions: mergeDeep(msg.providerOptions ?? {}, providerOptions) }
     }
-
-    msg.providerOptions = mergeDeep(msg.providerOptions ?? {}, providerOptions)
-  }
-
-  return msgs
+    const last = msg.content[msg.content.length - 1]
+    if (
+      !last ||
+      typeof last !== "object" ||
+      last.type === "tool-approval-request" ||
+      last.type === "tool-approval-response"
+    ) {
+      return { ...msg, providerOptions: mergeDeep(msg.providerOptions ?? {}, providerOptions) }
+    }
+    const marked = mergeDeep(last.providerOptions ?? {}, providerOptions)
+    return {
+      ...msg,
+      content: msg.content.map((part, index) =>
+        index === msg.content.length - 1 ? { ...part, providerOptions: marked } : part,
+      ),
+    } as ModelMessage
+  })
 }
 
 function unsupportedParts(msgs: ModelMessage[], model: Provider.Model): ModelMessage[] {
