@@ -49,7 +49,8 @@ export const tuiHandlers = HttpApiBuilder.group(InstanceHttpApi, "tui", (handler
     })
 
     const openThemes = Effect.fn("TuiHttpApi.openThemes")(function* () {
-      yield* publishCommand("session.list")
+      // 复制粘贴残留会让主题面板不可达；命名与 openSessions/openModels 一致（对应 keybind theme_list）
+      yield* publishCommand("theme.list")
       return true
     })
 

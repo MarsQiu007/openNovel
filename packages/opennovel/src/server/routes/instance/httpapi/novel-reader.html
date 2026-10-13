@@ -1143,43 +1143,43 @@
       const api = {
         novels: () =>
           fetch("/api/novels" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || []),
         novel: (id) =>
           fetch("/api/novels/" + id + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data),
         chapters: (id) =>
           fetch("/api/novels/" + id + "/chapters" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || []),
         chapter: (nid, cid) =>
           fetch("/api/novels/" + nid + "/chapters/" + cid + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data),
         volumes: (id) =>
           fetch("/api/novels/" + id + "/volumes" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || []),
         characters: (id) =>
           fetch("/api/novels/" + id + "/characters" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || { characters: [], relationships: [] }),
         world: (id) =>
           fetch("/api/novels/" + id + "/world" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || []),
         foreshadowing: (id) =>
           fetch("/api/novels/" + id + "/foreshadowing" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || { foreshadowing: [], threads: [] }),
         style: (id) =>
           fetch("/api/novels/" + id + "/style" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data),
         outlines: (id) =>
           fetch("/api/novels/" + id + "/outlines" + dirQs)
-            .then((r) => r.json())
+            .then(json)
             .then((j) => j.data || []),
       }
       const ICONS = {
@@ -1222,6 +1222,31 @@
       function esc(s) {
         return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       }
+      // 生成 onclick 参数：JSON.stringify 负责 JS 字符串转义，再按 HTML 属性规则处理 & < > "，
+      // 属性解码回来后仍然是一个合法的字符串字面量，名字里带引号也逃逸不出脚本
+      function attr(s) {
+        return JSON.stringify(String(s == null ? "" : s))
+          .replace(/&/g, "\\u0026")
+          .replace(/</g, "\\u003c")
+          .replace(/>/g, "\\u003e")
+          .replace(/"/g, "&quot;")
+      }
+      function json(r) {
+        if (!r.ok) throw new Error("HTTP " + r.status + " " + r.url)
+        return r.json()
+      }
+      function failLoading(reason) {
+        // 请求失败不能让界面停在"加载中"：占位块换成错误提示，同时在控制台留痕
+        console.error("reader request failed", reason)
+        var boxes = document.querySelectorAll(".loading")
+        for (var i = 0; i < boxes.length; i++) {
+          boxes[i].innerHTML =
+            '<span style="color:#ef4444">加载失败：</span>' + esc(String((reason && reason.message) || reason))
+        }
+      }
+      window.addEventListener("unhandledrejection", function (event) {
+        failLoading(event.reason)
+      })
       function mdToHtml(md) {
         if (!md) return '<p style="color:var(--muted)">（无内容）</p>'
         let h = esc(md)
@@ -1315,9 +1340,9 @@
           (t) =>
             '<div class="nav-item' +
             (t[0] === curTab ? " active" : "") +
-            '" onclick="switchTab(\'' +
-            t[0] +
-            "')\">" +
+            '" onclick="switchTab(' +
+            attr(t[0]) +
+            ')">' +
             ICONS[t[2]] +
             "<span>" +
             t[1] +
@@ -1456,9 +1481,9 @@
             return c.status === "outline"
           }).length
           html +=
-            '<div class="card" style="cursor:pointer" onclick="showVolumeOutline(\'' +
-            v.id +
-            '\')"><div class="card-title">第' +
+            '<div class="card" style="cursor:pointer" onclick="showVolumeOutline(' +
+            attr(v.id) +
+            ')"><div class="card-title">第' +
             v.order +
             "卷 · " +
             esc(v.title) +
@@ -1535,9 +1560,9 @@
           html += '<div class="section-h">章节大纲 <span class="count">(' + volCh.length + ")</span></div>"
           volCh.forEach(function (c) {
             html +=
-              '<div class="ch-block" onclick="showChapterOutline(\'' +
-              c.id +
-              '\')"><span class="s-dot ' +
+              '<div class="ch-block" onclick="showChapterOutline(' +
+              attr(c.id) +
+              ')"><span class="s-dot ' +
               esc(c.status || "draft") +
               '"></span><div class="ch-info"><div class="ch-title-row"><span class="ch-title">' +
               esc(c.title) +
@@ -1558,9 +1583,9 @@
         el.innerHTML = '<div class="loading">加载中...</div>'
         var ch = await api.chapter(curNovel, chId)
         var html =
-          '<div class="back-btn" onclick="showVolumeOutline(\'' +
-          (ch.volume_id || "") +
-          '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回章节列表</div>'
+          '<div class="back-btn" onclick="showVolumeOutline(' +
+          attr(ch.volume_id || "") +
+          ')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回章节列表</div>'
         html += "<h1>" + esc(ch.title) + "</h1>"
         if (ch.content) {
           html += mdToHtml(ch.content)
@@ -1604,9 +1629,9 @@
           var color = avatarColor(c.name)
           var initial = (c.name || "?").charAt(0)
           html +=
-            '<div class="char-card card" onclick="selectChar(\'' +
-            c.id +
-            '\')" id="char-' +
+            '<div class="char-card card" onclick="selectChar(' +
+            attr(c.id) +
+            ')" id="char-' +
             c.id +
             '"><div class="char-header"><div class="char-avatar" style="background:' +
             color +
@@ -1698,9 +1723,9 @@
           html +=
             '<div class="char-mini' +
             (c.id === selectedCharId ? " active" : "") +
-            '" onclick="selectChar(\'' +
-            c.id +
-            '\')"><div class="char-mini-avatar" style="background:' +
+            '" onclick="selectChar(' +
+            attr(c.id) +
+            ')"><div class="char-mini-avatar" style="background:' +
             color +
             '">' +
             esc(initial) +
@@ -1753,9 +1778,9 @@
         let html = '<div class="section-h">章节列表 <span class="count">(' + chList.length + ")</span></div>"
         chList.forEach((c) => {
           html +=
-            '<div class="ch-item" onclick="readCh(\'' +
-            c.id +
-            '\')"><span class="s-dot ' +
+            '<div class="ch-item" onclick="readCh(' +
+            attr(c.id) +
+            ')"><span class="s-dot ' +
             esc(c.status || "draft") +
             '"></span><span>' +
             esc(c.title) +
@@ -1785,17 +1810,17 @@
           mdToHtml(ch.content) +
           '<div class="nav-bar"><button class="nav-btn"' +
           (prev ? "" : " disabled") +
-          " onclick=\"readCh('" +
-          (prev ? prev.id : "") +
-          '\')">上一章</button><span style="color:var(--muted);font-size:13px">' +
+          ' onclick="readCh(' +
+          attr(prev ? prev.id : "") +
+          ')">上一章</button><span style="color:var(--muted);font-size:13px">' +
           (idx + 1) +
           " / " +
           chList.length +
           '</span><button class="nav-btn"' +
           (next ? "" : " disabled") +
-          " onclick=\"readCh('" +
-          (next ? next.id : "") +
-          "')\">下一章</button></div>"
+          ' onclick="readCh(' +
+          attr(next ? next.id : "") +
+          ")\">下一章</button></div>"
         document.getElementById("main").scrollTop = 0
         document.getElementById("panelContent").innerHTML =
           '<div class="panel-section"><div class="panel-h">章节导航</div><div class="panel-card"><div class="panel-card-title">' +
@@ -1808,16 +1833,16 @@
           ch.word_count +
           " 字</div></div>" +
           (prev
-            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(\'' +
-              prev.id +
-              '\')"><div class="panel-card-title" style="font-size:13px">上一章</div><div class="panel-card-body">' +
+            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(' +
+              attr(prev.id) +
+              ')"><div class="panel-card-title" style="font-size:13px">上一章</div><div class="panel-card-body">' +
               esc(prev.title) +
               "</div></div>"
             : "") +
           (next
-            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(\'' +
-              next.id +
-              '\')"><div class="panel-card-title" style="font-size:13px">下一章</div><div class="panel-card-body">' +
+            ? '<div class="panel-card" style="cursor:pointer" onclick="readCh(' +
+              attr(next.id) +
+              ')"><div class="panel-card-title" style="font-size:13px">下一章</div><div class="panel-card-body">' +
               esc(next.title) +
               "</div></div>"
             : "") +

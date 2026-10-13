@@ -1,7 +1,7 @@
-import { Effect } from "effect"
+import { Effect, Exit } from "effect"
 import { HttpRouter, HttpServerResponse, HttpServerRequest } from "effect/unstable/http"
 import { eq, asc } from "drizzle-orm"
-import { readFileSync, readdirSync, existsSync } from "fs"
+import { readdirSync, existsSync } from "fs"
 import { join, dirname } from "path"
 import {
   getDb,
@@ -27,6 +27,14 @@ function resolveDir(request: HttpServerRequest.HttpServerRequest): string | unde
 
 function getOutlinesDir(directory?: string | null): string {
   return join(dirname(getDbPath(directory)), "outlines")
+}
+
+// 大纲文件可能被写作流水线并发改删：读失败按"缺文件"降级，不让同步抛错冒泡成 500
+function readTextSafe(file: string) {
+  return Effect.tryPromise(() => Bun.file(file).text()).pipe(
+    Effect.exit,
+    Effect.map((exit) => (Exit.isFailure(exit) ? undefined : exit.value)),
+  )
 }
 
 export const novelReaderRoute = HttpRouter.use((router) =>
@@ -93,8 +101,8 @@ export const novelReaderRoute = HttpRouter.use((router) =>
 
         if (chapter.status === "outline") {
           const outlinePath = join(getOutlinesDir(resolveDir(request)), `chapter-${chapter.order}.md`)
-          if (existsSync(outlinePath)) {
-            const outlineContent = readFileSync(outlinePath, "utf-8")
+          const outlineContent = yield* readTextSafe(outlinePath)
+          if (outlineContent !== undefined) {
             return HttpServerResponse.jsonUnsafe({ data: { ...chapter, content: outlineContent } })
           }
         }
@@ -172,16 +180,14 @@ export const novelReaderRoute = HttpRouter.use((router) =>
     )
 
     yield* router.add("GET", "/api/novels/:novelId/outlines", (request) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         const dir = getOutlinesDir(resolveDir(request))
         if (!existsSync(dir)) return HttpServerResponse.jsonUnsafe({ data: [] })
-        const files = readdirSync(dir)
-          .filter((f) => f.endsWith(".md"))
-          .map((f) => {
-            const content = readFileSync(join(dir, f), "utf-8")
-            return { filename: f, content }
-          })
-        return HttpServerResponse.jsonUnsafe({ data: files })
+        const files = yield* Effect.forEach(readdirSync(dir).filter((f) => f.endsWith(".md")), (f) =>
+          Effect.map(readTextSafe(join(dir, f)), (content) => ({ filename: f, content })),
+        )
+        // 读取失败（并发改删）的大纲跳过而不是让整个请求 500
+        return HttpServerResponse.jsonUnsafe({ data: files.filter((item) => item.content !== undefined) })
       }),
     )
   }),
