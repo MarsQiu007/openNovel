@@ -47,18 +47,11 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
         const id = setTimeout(() => {
           const err = new ProviderError.ResponseStreamError("SSE read timed out")
           ctl.abort(err)
-          // cancel 的拒绝必须收进 reject：裸 void reader.cancel() 会变成 unhandledRejection
-          reader.cancel(err).then(
-            () => reject(err),
-            (cause: unknown) => {
-              const reason = cause instanceof Error ? cause.message : String(cause)
-              reject(
-                new ProviderError.ResponseStreamError(`SSE read timed out; stream cancel failed: ${reason}`, {
-                  cause,
-                }),
-              )
-            },
-          )
+          // 先兑现流错误，再回收 cancel：abort 之后 cancel 是否 settle 取决于 Bun 版本，
+          // 把 reject 挂在 cancel 之后会让读循环先收到 done，流错误被吞掉
+          reject(err)
+          // cancel 的拒绝就地吞掉，避免裸 void reader.cancel() 变成 unhandledRejection
+          reader.cancel(err).catch(() => {})
         }, ms)
 
         reader.read().then(
