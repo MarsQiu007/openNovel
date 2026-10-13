@@ -6,17 +6,17 @@
 
 | ID | 文件:行 | 级别 | 类别 | 处置 | 理由 |
 |---|---|---|---|---|---|
-| H363 | packages/core/drizzle.config.ts:7 | high | maintainability |  |  |
-| H112 | packages/core/package.json:13 | high | bug |  |  |
-| H365 | packages/core/src/account/sql.ts:10 | high | security |  |  |
-| C121 | packages/core/src/aisdk.ts:99 | critical | bug |  |  |
-| H375 | packages/core/src/background-job.ts:256 | high | bug |  |  |
-| C124 | packages/core/src/background-job.ts:303 | critical | bug |  |  |
-| H374 | packages/core/src/background-job.ts:337 | high | bug |  |  |
+| H363 | packages/core/drizzle.config.ts:7 | high | maintainability | fix | drizzle.config.ts 的 dbCredentials.url 硬编码维护者 Linux home 路径，其他开发者本地跑 `bun db`（drizzle-kit）必失败；修复：改读环境变量或按当前用户数据目录拼接。仅开发工具配置，无运行时影响。 |
+| H112 | packages/core/package.json:13 | high | bug | wontfix | 根 package.json:99 声明 @typescript/native-preview（catalog，bin 名即 tsgo），已提升到根 node_modules/.bin/tsgo.exe；包目录 `bun run typecheck` 可经 PATH 链解析，"未声明依赖"前提不成立。 |
+| H365 | packages/core/src/account/sql.ts:10 | high | security | defer | access/refresh token 的静态加密属产品级安全决策（密钥来源需 keychain 或平台加密方案），且需 account 表数据迁移；本 change 硬约束不改数据模型。 |
+| C121 | packages/core/src/aisdk.ts:99 | critical | bug | fix | JSON.parse(opts.body as string) 前补 typeof 字符串判断，非 JSON 请求体直接透传不做 chunk-abort 处理；当前断言下非 string body 会抛未捕获异常中断请求路径。 |
+| H375 | packages/core/src/background-job.ts:256 | high | bug | wontfix | 无泄漏路径：extend 被拒（job 非 running）时新建 tail 未写入 jobs、无人 await、随条目 GC；已在链上的 fiber 在 cancel 的 Scope.close 后被打断，ensuring 的 Deferred.succeed(tail) 仍完成。真正可挂起的只有 promoted 未置位，另立 H374 修复。 |
+| C124 | packages/core/src/background-job.ts:303 | critical | bug | fix | waitForPromotion 对非 running 任务返回 Effect.never：已完成/取消的任务永远不可能再被 promote，等待方死语义。修复：running 且未 promote 保留 await promoted；已结束返回 snapshot(job)；缺失任务保留 never（调用方均持有 start 返回的 id）。 |
+| H374 | packages/core/src/background-job.ts:337 | high | bug | fix | settle 终态与 cancel 只完成 done、未置位 promoted，已 await job.promoted 的调用方挂死。修复：两处在状态结束后对 promoted 做 Deferred.succeed(snapshot).pipe(Effect.ignore)，与 C124 同文件同批修。 |
 | H367 | packages/core/src/command.ts:1 | high | maintainability | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H368 | packages/core/src/config.ts:177 | high | bug |  |  |
-| H369 | packages/core/src/config.ts:196 | high | bug |  |  |
-| H370 | packages/core/src/config.ts:200 | high | bug |  |  |
+| H368 | packages/core/src/config.ts:177 | high | bug | wontfix | 同文件 loadFile（148-162 行）用 readFileStringSafe 读取，JSON 解析与 Schema 解码失败均返回 undefined 跳过，"临时不可读会崩溃"前提不成立；Effect.orDie 仅是错误通道收敛后的兜底，实际无可触发缺陷路径。 |
+| H369 | packages/core/src/config.ts:196 | high | bug | wontfix | 同 H368：Effect.forEach(directPaths, loadFile) 的每处文件读取都在 loadFile 内部被 safe 读取+跳过消化，orDie 不会把配置错误升级为崩溃；评论与 loadFile 实际行为不符。 |
+| H370 | packages/core/src/config.ts:200 | high | bug | wontfix | 同 H368：loadDirectory 仅由 forEach(loadFile) 与 Directory 构造组成，无未消化的文件系统错误（目录不存在的读取走 readFileStringSafe 返回 undefined），orDie 为兜底非崩溃点。 |
 | H366 | packages/core/src/config/attachments.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C120 | packages/core/src/config/command.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C122 | packages/core/src/config/compaction.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
@@ -24,153 +24,153 @@
 | H373 | packages/core/src/config/markdown.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H371 | packages/core/src/config/mcp.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H372 | packages/core/src/config/plugin.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H376 | packages/core/src/config/plugin/external.ts:87 | high | maintainability |  |  |
-| H384 | packages/core/src/config/plugin/provider.ts:26 | high | bug |  |  |
-| H379 | packages/core/src/config/plugin/reference.ts:41 | high | bug |  |  |
+| H376 | packages/core/src/config/plugin/external.ts:87 | high | maintainability | fix | 保留 best-effort 跳过语义（67 行 glob 已有 orElseSucceed 先例）但 ignoreCause 使 import 失败、Schema 解码失败、注册失败完全静默；修复：ignoreCause 前对 cause 记一条日志告警。 |
+| H384 | packages/core/src/config/plugin/provider.ts:26 | high | bug | wontfix | 条件语义为"只处理配置了 env 或已注册的集成"：15-21 行 configuredIntegrations 仅收集 env!==undefined 的 id，未配置但已注册者走 name/env 覆盖属 transform 预期；评论把 skip 条件的两个 && 误读为反了。 |
+| H379 | packages/core/src/config/plugin/reference.ts:41 | high | bug | wontfix | string URL 场景下 entry.branch 恒为 undefined、被三元与可选展开跳过，repository 在 43 行 `typeof entry === "string" ? entry : entry.repository` 正确取串；JS 对 string 取属性不抛错，包 typecheck 现经 tsgo 通过，"invalid access"不成立。 |
 | H377 | packages/core/src/config/plugin/skill.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C127 | packages/core/src/config/tool-output.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H383 | packages/core/src/control-plane/move-session.ts:93 | high | bug |  |  |
-| H382 | packages/core/src/control-plane/move-session.ts:106 | high | bug |  |  |
-| H378 | packages/core/src/control-plane/workspace.sql.ts:17 | high | bug |  |  |
-| H380 | packages/core/src/credential.ts:37 | high | maintainability |  |  |
-| C126 | packages/core/src/credential.ts:56 | critical | bug |  |  |
-| C125 | packages/core/src/credential.ts:124 | critical | bug |  |  |
-| H381 | packages/core/src/credential/sql.ts:9 | high | security |  |  |
-| H387 | packages/core/src/database/database.ts:43 | high | security |  |  |
-| H385 | packages/core/src/database/migration/20260211171708_add_project_commands.ts:4 | high | maintainability |  |  |
-| C128 | packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts:4 | critical | maintainability |  |  |
-| H386 | packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts:8 | high | bug |  |  |
-| H388 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:4 | high | maintainability |  |  |
-| C129 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:8 | critical | bug |  |  |
-| H389 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:12 | high | bug |  |  |
-| C130 | packages/core/src/database/migration/20260309230000_move_org_to_state.ts:4 | critical | bug |  |  |
-| H390 | packages/core/src/database/migration/20260309230000_move_org_to_state.ts:9 | high | bug |  |  |
-| C131 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:? | critical | maintainability |  |  |
-| C132 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:? | critical | bug |  |  |
-| H391 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:? | high | performance |  |  |
-| H392 | packages/core/src/database/migration/20260323234822_events.ts:14 | high | bug |  |  |
-| H394 | packages/core/src/database/migration/20260427172553_slow_nightmare.ts:27 | high | bug |  |  |
-| C133 | packages/core/src/database/migration/20260428004200_add_session_path.ts:4 | critical | maintainability |  |  |
-| H393 | packages/core/src/database/migration/20260507164347_add_workspace_time.ts:4 | high | maintainability |  |  |
-| H396 | packages/core/src/database/migration/20260510033149_session_usage.ts:4 | high | maintainability |  |  |
-| H397 | packages/core/src/database/migration/20260511000411_data_migration_state.ts:? | high | maintainability |  |  |
-| C136 | packages/core/src/database/migration/20260601010001_normalize_storage_paths.ts:11 | critical | bug |  |  |
-| C134 | packages/core/src/database/migration/20260601202201_amazing_prowler.ts:4 | critical | maintainability |  |  |
-| H395 | packages/core/src/database/migration/20260601202201_amazing_prowler.ts:8 | high | bug |  |  |
-| H399 | packages/core/src/database/migration/20260602182828_add_project_directories.ts:4 | high | maintainability |  |  |
-| H400 | packages/core/src/database/migration/20260603001617_session_message_projection_indexes.ts:4 | high | maintainability |  |  |
-| C135 | packages/core/src/database/migration/20260603040000_session_message_projection_order.ts:4 | critical | maintainability |  |  |
-| H398 | packages/core/src/database/migration/20260603040000_session_message_projection_order.ts:10 | high | maintainability |  |  |
-| C137 | packages/core/src/database/migration/20260603160727_jittery_ezekiel_stane.ts:4 | critical | maintainability |  |  |
-| C138 | packages/core/src/database/migration/20260605003541_add_session_context_snapshot.ts:? | critical | maintainability |  |  |
-| H401 | packages/core/src/database/migration/20260611035744_credential.ts:? | high | security |  |  |
-| H402 | packages/core/src/database/migration/20260611192811_lush_chimera.ts:4 | high | maintainability |  |  |
-| C139 | packages/core/src/database/migration/20260611192811_lush_chimera.ts:9 | critical | bug |  |  |
-| C140 | packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts:4 | critical | maintainability |  |  |
-| H403 | packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts:8 | high | maintainability |  |  |
-| C145 | packages/core/src/database/migration/20260622202450_simplify_session_input.ts:4 | critical | bug |  |  |
-| C142 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:? | critical | bug |  |  |
-| C143 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:? | critical | bug |  |  |
-| H405 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:? | high | bug |  |  |
-| H406 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:? | high | bug |  |  |
-| H404 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:4 | high | maintainability |  |  |
-| C141 | packages/core/src/database/migration/20261010032350_global_novels_columns.ts:4 | critical | maintainability |  |  |
-| C144 | packages/core/src/database/path.ts:? | critical | bug |  |  |
-| H408 | packages/core/src/database/sqlite.bun.ts:111 | high | security |  |  |
-| H407 | packages/core/src/database/sqlite.bun.ts:123 | high | bug |  |  |
-| H411 | packages/core/src/database/sqlite.node.ts:23 | high | security |  |  |
-| H409 | packages/core/src/database/sqlite.node.ts:58 | high | bug |  |  |
-| H410 | packages/core/src/database/sqlite.node.ts:71 | high | bug |  |  |
-| H415 | packages/core/src/effect/layer-node.ts:259 | high | bug |  |  |
-| H412 | packages/core/src/effect/runtime.ts:6 | high | bug |  |  |
-| H413 | packages/core/src/effect/runtime.ts:12 | high | bug |  |  |
-| C147 | packages/core/src/event.ts:316 | critical | bug |  |  |
-| H417 | packages/core/src/event.ts:354 | high | bug |  |  |
-| H418 | packages/core/src/event.ts:441 | high | bug |  |  |
-| C148 | packages/core/src/event.ts:585 | critical | bug |  |  |
-| H414 | packages/core/src/event/sql.ts:14 | high | maintainability |  |  |
-| C146 | packages/core/src/filesystem/search.ts:30 | critical | bug |  |  |
-| H416 | packages/core/src/filesystem/search.ts:151 | high | bug |  |  |
-| H420 | packages/core/src/filesystem/watcher.ts:86 | high | bug |  |  |
-| H421 | packages/core/src/filesystem/watcher.ts:94 | high | bug |  |  |
-| H419 | packages/core/src/flag/flag.ts:32 | high | security |  |  |
-| H427 | packages/core/src/git.ts:181 | high | bug |  |  |
-| H428 | packages/core/src/git.ts:731 | high | bug |  |  |
-| H422 | packages/core/src/github-copilot/chat/convert-to-openai-compatible-chat-messages.ts:41 | high | bug |  |  |
-| H423 | packages/core/src/github-copilot/chat/convert-to-openai-compatible-chat-messages.ts:135 | high | bug |  |  |
-| H424 | packages/core/src/github-copilot/chat/openai-compatible-chat-language-model.ts:480 | high | bug |  |  |
-| H425 | packages/core/src/github-copilot/chat/openai-compatible-chat-language-model.ts:537 | high | bug |  |  |
-| C149 | packages/core/src/github-copilot/chat/openai-compatible-prepare-tools.ts:67 | critical | bug |  |  |
-| H429 | packages/core/src/github-copilot/responses/convert-to-openai-responses-input.ts:142 | high | bug |  |  |
-| H426 | packages/core/src/github-copilot/responses/openai-responses-api-types.ts:34 | high | bug |  |  |
-| H431 | packages/core/src/github-copilot/responses/tool/file-search.ts:125 | high | bug |  |  |
-| H430 | packages/core/src/github-copilot/responses/tool/image-generation.ts:95 | high | bug |  |  |
-| H433 | packages/core/src/global.ts:11 | high | bug |  |  |
-| H432 | packages/core/src/id/id.ts:39 | high | bug |  |  |
-| H434 | packages/core/src/image/photon.ts:? | high | maintainability |  |  |
-| H435 | packages/core/src/integration.ts:322 | high | bug |  |  |
+| H383 | packages/core/src/control-plane/move-session.ts:93 | high | bug | fix | moveChanges=false（用户显式不搬变更）时 patch=Git.ChangeSet.make("") 恒 truthy：98 行仍向目的仓库 apply 空补丁，112 行仍 discover 源仓库并 discard（untracked:"remove"），源目录非 git 仓库时直接报 ResetSourceChangesError 使移动失败。修复：两处 if (patch) 改为判 sourceRepository !== undefined。 |
+| H382 | packages/core/src/control-plane/move-session.ts:106 | high | bug | wontfix | publish 在 discard 前是 fail-safe 顺序：先 apply 到目的（101-103）、记录 Moved 事件（106）、最后才清源（112 起）。discard 失败时源变更仍在、可恢复；反过来先 discard 会在 publish 失败时销毁用户改动。空 patch 仍进分支的问题由 H383 修复。 |
+| H378 | packages/core/src/control-plane/workspace.sql.ts:17 | high | bug | defer | time_used 实际语义是时间戳（projector.ts:228 与 workspace.ts:511/756 均写 Date.now()），命名澄清需改 opennovel Info.timeUsed 公开 Schema（packages/opennovel/src/control-plane/workspace.ts:40）与既有数据读法，属契约级变更按本 change 硬约束 defer。 |
+| H380 | packages/core/src/credential.ts:37 | high | maintainability | wontfix | 37 行 JSDoc 明示 "Replaces any credential for an integration and returns the new record"，实现（99-117）在事务中先删后插，行为与文档一致；改名属 API 表面调整非缺陷修复。 |
+| C126 | packages/core/src/credential.ts:56 | critical | bug | fix | 全仓仅 credential.ts:109 一处 insert 且恒写 integration_id，integration_id 为空的行必为脏/遗留数据；all() 经 stored() 过滤静默丢弃无诊断痕迹。修复：丢弃行时记一条告警日志。 |
+| C125 | packages/core/src/credential.ts:124 | critical | bug | wontfix | drizzle-orm@1.0.0-rc.2 utils.cjs:201 mapUpdateSet 先 `filter(([, value]) => value !== void 0)`，.set() 忽略 undefined 字段、只更新传入项；123 行已拦全空调用，"部分更新会覆盖密钥"不成立。 |
+| H381 | packages/core/src/credential/sql.ts:9 | high | security | defer | 同 H365：credential value 静态加密属产品级安全决策，涉及密钥管理与既有数据迁移，超出本 change 数据模型不变的范围。 |
+| H387 | packages/core/src/database/database.ts:43 | high | security | wontfix | OPENNOVEL_DB 是进程属主自己的环境配置（:memory: 与绝对路径放行都是有意支持），能控制该 env 者已具备任意执行能力；把进程自身环境当不可信攻击面不成立。 |
+| H385 | packages/core/src/database/migration/20260211171708_add_project_commands.ts:4 | high | maintainability | wontfix | DatabaseMigration.Migration 类型未定义 down（database/migration.ts 无 down 契约），全仓 40 个迁移均只实现 up，是 SQLite append-only 不回滚的既定策略；建议的 down(tx) 不满足现有类型。 |
+| C128 | packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts:4 | critical | maintainability | wontfix | 同 H385：down 不在本仓迁移框架契约内（40/40 迁移仅 up），已应用的历史迁移文件不可改；生产回滚策略属仓库级决策。 |
+| H386 | packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts:8 | high | bug | wontfix | session.sql.ts:30 workspace_id 本就可空（无 notNull），session.ts:275 仅在传入 workspaceID 时过滤，"无工作区归属"是合法语义；历史迁移已应用于本地库不可改写。 |
+| H388 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:4 | high | maintainability | wontfix | down 不在本仓迁移契约：DatabaseMigration.Migration 类型无 down（migration.ts 全文无此字段），40/40 历史迁移仅 up；已应用迁移不可修改。 |
+| C129 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:8 | critical | bug | wontfix | SQLite 仅在表有行时对 ADD COLUMN NOT NULL 无默认报错：全量重放时 workspace 表刚建且为空，迁移成功；既有库已完成该迁移不再重跑，历史文件不可改。 |
+| H389 | packages/core/src/database/migration/20260303231226_add_workspace_fields.ts:12 | high | bug | wontfix | config 列被同批结构化列（type/name/directory/extra）有意取代，发布前开发阶段不做数据搬运；历史迁移不可修改。 |
+| C130 | packages/core/src/database/migration/20260309230000_move_org_to_state.ts:4 | critical | bug | wontfix | 同 H388：down 不属于本仓迁移框架契约，历史迁移不可改。 |
+| H390 | packages/core/src/database/migration/20260309230000_move_org_to_state.ts:9 | high | bug | wontfix | active_org_id 列可空，孤立 account_state 行（理论上不存在）置 NULL 是可接受语义；历史迁移不可修改。 |
+| C131 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:0 | critical | maintainability | wontfix | 同 H388：down 非契约字段，20260312043431 已应用不可改。 |
+| C132 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:0 | critical | bug | wontfix | 与实际文件不符：20260312043431_session_message_cursor.ts:13 的 CREATE INDEX 括号完整闭合（`\`message_id\`,\`id\`);`），不存在语法错误。 |
+| H391 | packages/core/src/database/migration/20260312043431_session_message_cursor.ts:0 | high | performance | wontfix | 迁移在单事务内执行（runner BEGIN/COMMIT 包裹，migrate.ts:46 同证），DROP+CREATE 索引原子生效，不存在"旧索引已删新索引未建"的可观测窗口。 |
+| H392 | packages/core/src/database/migration/20260323234822_events.ts:14 | high | bug | defer | event(aggregate_id,seq) 唯一约束补齐需新增迁移并排查历史重复数据，属 proposal 排除的数据模型变更；应用层经 event_sequence 分配 seq + 一次性插入校验，现状未观察到重复行。归后续 schema change。 |
+| H394 | packages/core/src/database/migration/20260427172553_slow_nightmare.ts:27 | high | bug | wontfix | 发布前开发阶段：20260413 建 session_entry、20260427 即切换 session_message 并删旧表，数据为可弃投影；历史迁移不可修改。 |
+| C133 | packages/core/src/database/migration/20260428004200_add_session_path.ts:4 | critical | maintainability | wontfix | 同 H388：down 非契约，历史迁移不可改。 |
+| H393 | packages/core/src/database/migration/20260507164347_add_workspace_time.ts:4 | high | maintainability | wontfix | 同 H388。 |
+| H396 | packages/core/src/database/migration/20260510033149_session_usage.ts:4 | high | maintainability | wontfix | 同 H388。 |
+| H397 | packages/core/src/database/migration/20260511000411_data_migration_state.ts:0 | high | maintainability | wontfix | 同 H388。 |
+| C136 | packages/core/src/database/migration/20260601010001_normalize_storage_paths.ts:11 | critical | bug | wontfix | sandboxes 为 JSON 数组列（project/sql.ts:16 DatabasePath.absoluteArrayColumn），文本中路径反斜杠以 \\ 成对转义存在，仅替换成对反斜杠正是对 JSON 文本的正确处理；且历史迁移不可改。 |
+| C134 | packages/core/src/database/migration/20260601202201_amazing_prowler.ts:4 | critical | maintainability | wontfix | 同 H388：down 非契约。 |
+| H395 | packages/core/src/database/migration/20260601202201_amazing_prowler.ts:8 | high | bug | wontfix | permission 表已被事件/内存策略取代（20260603 后权限走 Policy），发布前清理废弃表为有意迁移；历史文件不可改。 |
+| H399 | packages/core/src/database/migration/20260602182828_add_project_directories.ts:4 | high | maintainability | wontfix | 同 H388。 |
+| H400 | packages/core/src/database/migration/20260603001617_session_message_projection_indexes.ts:4 | high | maintainability | wontfix | 同 H388；索引重组的逆操作在只进不退策略下本就不支持。 |
+| C135 | packages/core/src/database/migration/20260603040000_session_message_projection_order.ts:4 | critical | maintainability | wontfix | 同 H388；且该迁移 DELETE 仅清理发布前不可信投影（8-9 行注释给出业务理由），一次性数据重置无回滚需求。 |
+| H398 | packages/core/src/database/migration/20260603040000_session_message_projection_order.ts:10 | high | maintainability | wontfix | 8-9 行注释已说明 pre-launch 投影无法赋予真实聚合序、必须重建的决策依据；历史迁移不可修改。 |
+| C137 | packages/core/src/database/migration/20260603160727_jittery_ezekiel_stane.ts:4 | critical | maintainability | wontfix | 同 H388。 |
+| C138 | packages/core/src/database/migration/20260605003541_add_session_context_snapshot.ts:0 | critical | maintainability | wontfix | 同 H388。 |
+| H401 | packages/core/src/database/migration/20260611035744_credential.ts:0 | high | security | defer | credential.value 静态加密属产品级安全决策（密钥来源/迁移），与 H365、H381 同归后续加密 change；本 change 不动数据模型。 |
+| H402 | packages/core/src/database/migration/20260611192811_lush_chimera.ts:4 | high | maintainability | wontfix | down 不在本仓迁移契约内（DatabaseMigration.Migration 类型无 down 字段，40/40 历史迁移仅 up），已应用的历史迁移不可修改，SQLite 采用只进不退策略。 |
+| C139 | packages/core/src/database/migration/20260611192811_lush_chimera.ts:9 | critical | bug | wontfix | lush_chimera 是 credential 表结构重写（drop+同名重建，integration_id 转可空并新增 connector_id/method_id/active），发布前开发阶段不迁移数据属有意决策；历史迁移不可修改。 |
+| C140 | packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts:4 | critical | maintainability | wontfix | 同 H402：本仓迁移框架无 down 契约，历史迁移不可改。 |
+| H403 | packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts:8 | high | maintainability | wontfix | 20260622142730 是 session_context_epoch 结构简化的历史迁移（发布前开发阶段重建，DROP COLUMN 为设计意图）；历史迁移文件不可修改，数据回收已无路径。 |
+| C145 | packages/core/src/database/migration/20260622202450_simplify_session_input.ts:4 | critical | bug | wontfix | 两条迁移（20260622170816 与 20260622202450）语句完全相同且全部幂等（DELETE/UPDATE 对空表无副作用），重复执行无害；删除任一文件反而会让已应用库的迁移记录指向缺失 id。 |
+| C142 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:0 | critical | bug | wontfix | SQLite 的 FK 在 DDL 时不校验父表存在（官方约束列表只限制 PRIMARY KEY/UNIQUE/CHECK），chapter_summaries 先建、chapters 同迁移内随后创建、插入发生在应用层两表齐备之后，重放不报错。 |
+| C143 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:0 | critical | bug | wontfix | session 等基线表由安装期 schema push 创建（packages/core/src/database/schema.gen.ts 含 \`session\`），迁移只做增量；session_novel 的 FK 引用既有表，合法。 |
+| H405 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:0 | high | bug | defer | chapter_versions (chapter_id,version) 唯一约束补齐需新增迁移并排查既有重复数据，属 proposal 明确排除的数据模型变更；应用侧 max+1 串行写入现状未出错，与 novel-store 同型问题（H820）一并归属后续 schema change。 |
+| H406 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:0 | high | bug | defer | style_guide 按书一行由写入方约定保证（manual-edit-sync 仅在创建时插一行），UNIQUE(novel_id) 补齐属新增迁移的数据模型变更，proposal 非目标排除；归后续 schema change。 |
+| H404 | packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:4 | high | maintainability | wontfix | 同 H402：down 不属于本仓迁移契约，历史迁移不可改。 |
+| C141 | packages/core/src/database/migration/20261010032350_global_novels_columns.ts:4 | critical | maintainability | wontfix | 同 H402：down 不属于本仓迁移契约，20261010 迁移已应用于本地库不可改写。 |
+| C144 | packages/core/src/database/path.ts:0 | critical | bug | fix | path.ts absoluteArrayColumn.fromDriver 直接 (JSON.parse(input) as string[])：损坏行抛裸 SyntaxError/TypeError 成 defect。修复：用 Schema.UnknownFromJsonString + 数组解码走 SqlError/明确错误通道。 |
+| H408 | packages/core/src/database/sqlite.bun.ts:111 | high | security | wontfix | 全仓 grep 无任何业务代码调用 loadExtension（仅驱动接口自身与 effect-sqlite-node 垫片），"路径来自用户输入"的攻击面不存在；驱动内部 API 已由 Effect.try 包装错误。 |
+| H407 | packages/core/src/database/sqlite.bun.ts:123 | high | bug | wontfix | transactionAcquirer 只在 Effect.uninterruptibleMask 回调内运行，运行时必然处于 fiber 上，Fiber.getCurrent() 恒非空；这是 Effect 文档化的 semaphore 事务获取器标准实现。 |
+| H411 | packages/core/src/database/sqlite.node.ts:23 | high | security | wontfix | sqlite.node.ts:151-154 已将 config.allowExtension 传入 DatabaseSync 构造选项，未开启（默认 false）时 node:sqlite 原生拒绝 loadExtension；闸门在原生层生效，非遗漏校验。 |
+| H409 | packages/core/src/database/sqlite.node.ts:58 | high | bug | fix | run() 中 native.prepare(query) 位于 try 之外：SQL 语法错误抛裸异常成为 fiber defect 而非类型化 SqlError。修复：prepare/setReadBigInts 移入同一 try 并以 operation:"prepare" 包装。 |
+| H410 | packages/core/src/database/sqlite.node.ts:71 | high | bug | fix | 同 H409：runValues() 的 native.prepare 也在 try 块外，需一并移入并统一 SqlError 通道。 |
+| H415 | packages/core/src/effect/layer-node.ts:259 | high | bug | fix | compile 的 walk 回调只拦 unbound：group 节点（111 行无 implementation）经 resolve 替换进入回调时 undefined.pipe 抛无名字 TypeError。修复：对 kind==="group" 显式 throw 命名错误。 |
+| H412 | packages/core/src/effect/runtime.ts:6 | high | bug | wontfix | JS 单线程，`rt ??=` 同步求值无 await 间隙，不存在并发双创建 ManagedRuntime 的执行路径。 |
+| H413 | packages/core/src/effect/runtime.ts:12 | high | bug | wontfix | makeRuntime 是进程级单例视图：ManagedRuntime 资源随进程生命周期持有，memoMap 统一管理层复用；暴露 dispose 属功能扩展非缺陷修复。 |
+| C147 | packages/core/src/event.ts:316 | critical | bug | wontfix | projector 契约即同事务 DB 投影（event.ts:615 project 注册、session/projector.ts 等实现均为 DB 写），事件行与投影响应在一个事务内提交是 V2 设计要求的原子性（AGENTS.md: reload projected history before durable continuation）；移到提交后反而制造事件-投影不一致窗口。 |
+| H417 | packages/core/src/event.ts:354 | high | bug | wontfix | wake 在事务提交后发布（354-360）是必要顺序：数据先可见、订阅者后被唤醒；若事务内发 wake，读到未提交行的竞态才是真的。评论把安全顺序当成了缺陷。 |
+| H418 | packages/core/src/event.ts:441 | high | bug | wontfix | yield* Effect.die(err) 立即以 defect 中断生成器，不存在"yield 后继续执行"；else 分支是正常路径。评论误读 Effect.die 语义。 |
+| C148 | packages/core/src/event.ts:585 | critical | bug | wontfix | durable() 先 subscribeDurable（588）再历史 readAfter（590），订阅先于读取+提交后才 wake，不存在丢事件窗口；多余 wake 只触发按 sequence 单调推进的幂等重读。 |
+| H414 | packages/core/src/event/sql.ts:14 | high | maintainability | wontfix | cascade 是"整删聚合"清理通道的有意配置：20260622170816/20260622202450 reset 迁移正是靠 DELETE FROM event_sequence 级联清空 event；改 restrict 会破坏既有数据重置路径。 |
+| C146 | packages/core/src/filesystem/search.ts:30 | critical | bug | wontfix | JS 单线程：state.files/directories 的 push 与读不并发，"arrays not thread-safe"是多线程语义错误移植；后台 fiber 渐进填充是有意的流式设计。 |
+| H416 | packages/core/src/filesystem/search.ts:151 | high | bug | wontfix | throw 在 Effect.sync 内即转为 defect 通道，是原生索引器意外的惯用传播方式；调用方统一经错误层呈现，改 Effect.try 只是把 misuse 伪装成预期错误。 |
+| H420 | packages/core/src/filesystem/watcher.ts:86 | high | bug | fix | `(_error, updates)` 下划线前缀是把原生 watcher 错误（inotify/EMFILE 等）直接丢弃；修复：error 非空时记告警日志（同文件已有 runFork 通道），不改变更新处理逻辑。 |
+| H421 | packages/core/src/filesystem/watcher.ts:94 | high | bug | wontfix | catchCause 分支已处理"promise 晚于超时才 resolve"：pending.then(sub=>sub.unsubscribe())（99-101 行）在稍后兑现时仍会退订，评论前提不成立。 |
+| H419 | packages/core/src/flag/flag.ts:32 | high | security | wontfix | 敏感值本就来自进程 env（同信任级），全仓无把 Flag 整体送日志/错误报告的调用点；"如果被打印会泄漏"对任何配置对象都成立，不构成缺陷。 |
+| H427 | packages/core/src/git.ts:181 | high | bug | wontfix | locked 只包裹跨多命令的读-改-写组合（capture/restore 等），单命令操作由 git 自身 index.lock/ref 事务保证；KeyedMutex 不可重入，按建议扩大锁范围会让组合操作嵌套调用直接死锁。 |
+| H428 | packages/core/src/git.ts:731 | high | bug | wontfix | 不带 --exit-code 的 `git diff` 有差异时也返回 0，退出码 1 只在 --exit-code 语义下出现；把非零当错误（735-737 mapError）正确，评论对 git 行为的前提错误。 |
+| H422 | packages/core/src/github-copilot/chat/convert-to-openai-compatible-chat-messages.ts:41 | high | bug | fix | switch 无 default 分支：未处理的 part.type 使 content.map 混入 undefined 元素直达 provider 请求体。修复：default 抛类型化错误或过滤并记告警。 |
+| H423 | packages/core/src/github-copilot/chat/convert-to-openai-compatible-chat-messages.ts:135 | high | bug | fix | 同 H422：output.type 未覆盖时 contentValue 保持 undefined 写入 tool 消息。修复：default 显式处理（抛错或降级文本）。 |
+| H424 | packages/core/src/github-copilot/chat/openai-compatible-chat-language-model.ts:480 | high | bug | fix | reasoning_text 在 isActiveText 时入队 reasoning-start 却未先 close 文本段，与反向（496-505 先关 reasoning）不对称，产生双活跃段。修复：启动 reasoning 前若 text 活跃先入队 text-end。 |
+| H425 | packages/core/src/github-copilot/chat/openai-compatible-chat-language-model.ts:537 | high | bug | fix | index 为 null 时 toolCalls[null] 成为字符串键 "null" 挂到数组上，后续按数字索引聚合漏掉该工具调用。修复：index==null 直接抛 InvalidResponseDataError。 |
+| C149 | packages/core/src/github-copilot/chat/openai-compatible-prepare-tools.ts:67 | critical | bug | fix | provider 型工具被过滤后 toolChoice.type==="tool" 仍指向已删除的函数名，请求 400。修复：case "tool" 分支校验目标存在于 openaiCompatTools，缺失则降级 "auto" 并加 unsupported 告警。 |
+| H429 | packages/core/src/github-copilot/responses/convert-to-openai-responses-input.ts:142 | high | bug | wontfix | convert* 系列为 ai-sdk 上游移植的输入转换模块：对畸形输入抛错是该层契约（调用方经 stream 错误通道统一呈现），换成局部 try-catch 反而偏离上游语义。 |
+| H426 | packages/core/src/github-copilot/responses/openai-responses-api-types.ts:34 | high | bug | wontfix | 类型忠实镜像 OpenAI Responses API 现实（input_image 允许 image_url 或 file_id 两种形态），构造方各取其一；同判别值 union 合法且无运行时缺陷。 |
+| H431 | packages/core/src/github-copilot/responses/tool/file-search.ts:125 | high | bug | wontfix | provider 端执行工具的 inputSchema 对应模型生成输入（契约为空对象）；vectorStoreIds 等泛型是宿主配置 args，不走该输入通道。评论混淆两组泛型参数。 |
+| H430 | packages/core/src/github-copilot/responses/tool/image-generation.ts:95 | high | bug | wontfix | 同 H431：image_generation 为 provider 执行工具，inputSchema z.object({}) 是模型输入契约，args 校验属宿主配置通道。 |
+| H433 | packages/core/src/global.ts:11 | high | bug | wontfix | xdg-basedir 各值在 HOME/XDG_* 可用时恒有值，桌面进程（Bun/Node）环境前提成立；与仓库大量 os.homedir 直用假设一致，非缺陷。 |
+| H432 | packages/core/src/id/id.ts:39 | high | bug | wontfix | timestamp 仅消费 create() 产出的内部 ID（文档注释已限定），畸形入参不属于可达调用面；补校验是防御性扩展非缺陷修复。 |
+| H434 | packages/core/src/image/photon.ts:0 | high | maintainability | wontfix | photon-node 要求模块加载前经 globalThis 注入 WASM 路径（vendor 约束，1 行注释说明由 Bun 编译内嵌）；赋值为同步常量写入，无竞态面。 |
+| H435 | packages/core/src/integration.ts:322 | high | bug | fix | settle 先 CAS 置 complete、随后 credentials.create/publish 若失败，attempt 呈现成功但凭据未落库。修复：保留 CAS 幂等前置，在 create/publish 失败路径把该 attempt 回写为 failed 并记录 message。 |
 | C150 | packages/core/src/integration/connection.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H436 | packages/core/src/models-dev.ts:255 | high | bug |  |  |
-| C151 | packages/core/src/models-dev.ts:256 | critical | bug |  |  |
-| H437 | packages/core/src/npm-config.ts:32 | high | bug |  |  |
-| H438 | packages/core/src/npm.ts:45 | high | security |  |  |
-| C152 | packages/core/src/oauth/page.ts:114 | critical | security |  |  |
+| H436 | packages/core/src/models-dev.ts:255 | high | bug | fix | AGENTS.md 明确要求未信任 JSON 用 Schema 解码而非 manual parse+cast；models.dev 远端 payload 直接 `as Record<string, Provider>` 会让畸形数据在使用处远端爆错。修复：在 populate 边界 decodeUnknown（onExcessProperty ignore）并包装错误。 |
+| C151 | packages/core/src/models-dev.ts:256 | critical | bug | wontfix | populate 顺序为磁盘缓存→内嵌快照 OPENNOVEL_MODELS_DEV→网络（211-226），仅当目录完全缺失且网络失败才 die：此时无模型目录的运行失败快于空目录带病启动，属有意 fail-fast。 |
+| H437 | packages/core/src/npm-config.ts:32 | high | bug | wontfix | .npmrc 是可选配置：缺失/不可读时回退默认 registry（37 行 fallback 与注释同证）是设计意图；记错误日志属锦上添花非缺陷。 |
+| H438 | packages/core/src/npm.ts:45 | high | security | fix | sanitize 仅在 win32 过滤非法字符，POSIX 原样返回：包名含 ../ 时 join(cache, sanitize(pkg)) 可越出缓存目录（配置可来自克隆仓库）。修复：sanitize 对全平台拒绝路径分隔符/..（校验 npm 包名字符集）。 |
+| C152 | packages/core/src/oauth/page.ts:114 | critical | security | fix | new URL(绝对URL, origin) 会忽略 base：tokenPath 一旦为绝对 URL，OAuth fragment token 将被 POST 到外部域。修复：bootstrapScript 生成 TOKEN_URL 后校验与 location.origin 同源，不同源直接 fail 渲染错误态。 |
 | H439 | packages/core/src/patch.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H440 | packages/core/src/patch.ts:160 | high | bug |  |  |
-| C154 | packages/core/src/permission.ts:237 | critical | bug |  |  |
-| H443 | packages/core/src/permission.ts:250 | high | bug |  |  |
+| H440 | packages/core/src/patch.ts:160 | high | bug | wontfix | eof 是"优先匹配"而非硬约束：163-165 先试 EOF，未命中回退常规扫描与 166-168 四级比较器（exact→normalized）渐进容忍语义一致；改硬失败会丧失 patch 容错，属既有设计。 |
+| C154 | packages/core/src/permission.ts:237 | critical | bug | wontfix | JS Map 规范：迭代中删除当前/已访问条目不影响游标，245 行只删正在处理的匹配项，236 行删除在循环前完成；不存在"跳过未处理条目"的路径。 |
+| H443 | packages/core/src/permission.ts:250 | high | bug | wontfix | saved.add 失败经 orDie（saved.ts:68）在 Deferred.succeed（257 行）之前中断，回复不会按"已保存"成功返回；onConflictDoNothing 是幂等设计。 |
 | C153 | packages/core/src/permission/saved.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H441 | packages/core/src/permission/saved.ts:47 | high | maintainability |  |  |
-| H442 | packages/core/src/permission/saved.ts:67 | high | maintainability |  |  |
+| H441 | packages/core/src/permission/saved.ts:47 | high | maintainability | wontfix | orDie 是本仓 DB 操作统一错误收敛（credential.ts、event.ts、permission.ts 同型），DB 缺陷不作为业务错误让调用方分支处理；改类型化错误是仓库级约定变更。 |
+| H442 | packages/core/src/permission/saved.ts:67 | high | maintainability | wontfix | 同 H441：orDie 属仓库 DB 层统一惯例，insert 冲突已由 onConflictDoNothing 显式消化。 |
 | H444 | packages/core/src/plugin.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| C155 | packages/core/src/plugin.ts:128 | critical | bug |  |  |
+| C155 | packages/core/src/plugin.ts:128 | critical | bug | wontfix | active 仅是登记/去重表，子 scope 经父 Scope.close 级联关闭（forkIn 树语义），先 clear 不制造孤儿 scope；关闭中途失败时父级资源随进程作用域一并回收。 |
 | H446 | packages/core/src/plugin/command.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H445 | packages/core/src/plugin/host.ts:201 | high | bug |  |  |
+| H445 | packages/core/src/plugin/host.ts:201 | high | bug | fix | 插件在 transform 回调里传畸形 source 时 decodeUnknownSync 抛裸 SchemaError 并以 defect 冲击 reload 管线。修复：decodeUnknownResult/Either 后抛带 name/类型的显式 Error（保持快速失败但可定位、可被插件边界捕获）。 |
 | H449 | packages/core/src/plugin/internal.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H447 | packages/core/src/plugin/promise.ts:29 | high | bug |  |  |
-| H448 | packages/core/src/plugin/promise.ts:69 | high | bug |  |  |
-| H450 | packages/core/src/plugin/provider/amazon-bedrock.ts:90 | high | bug |  |  |
-| H455 | packages/core/src/plugin/provider/cloudflare-workers-ai.ts:17 | high | bug |  |  |
-| H454 | packages/core/src/plugin/provider/dynamic.ts:14 | high | security |  |  |
-| C156 | packages/core/src/plugin/provider/github-copilot.ts:? | critical | bug |  |  |
-| H456 | packages/core/src/plugin/provider/gitlab.ts:41 | high | bug |  |  |
-| H453 | packages/core/src/plugin/provider/google-vertex.ts:44 | high | bug |  |  |
-| H452 | packages/core/src/plugin/provider/google-vertex.ts:45 | high | performance |  |  |
-| H451 | packages/core/src/plugin/provider/google-vertex.ts:48 | high | bug |  |  |
-| H457 | packages/core/src/plugin/provider/nvidia.ts:10 | high | bug |  |  |
-| H458 | packages/core/src/plugin/provider/nvidia.ts:13 | high | bug |  |  |
-| H459 | packages/core/src/plugin/provider/openai.ts:114 | high | bug |  |  |
-| C157 | packages/core/src/plugin/provider/opennovel.ts:239 | critical | bug |  |  |
-| H460 | packages/core/src/plugin/provider/sap-ai-core.ts:? | high | bug |  |  |
-| H461 | packages/core/src/plugin/provider/vercel.ts:9 | high | bug |  |  |
-| H462 | packages/core/src/policy.ts:35 | high | bug |  |  |
-| C158 | packages/core/src/process.ts:202 | critical | bug |  |  |
-| C161 | packages/core/src/project/copy.ts:175 | critical | bug |  |  |
-| H465 | packages/core/src/project/copy.ts:217 | high | performance |  |  |
-| C160 | packages/core/src/project/copy.ts:244 | critical | bug |  |  |
+| H447 | packages/core/src/plugin/promise.ts:29 | high | bug | wontfix | register/run 的 effect 均签名 Effect<…, never>：Promise 仅在 defect（程序错误）时 reject，崩溃可见正是该适配层给 JS 插件的契约；消费方 await/catch 属插件代码职责。 |
+| H448 | packages/core/src/plugin/promise.ts:69 | high | bug | wontfix | 同 H447：connection.active/resolve 返回给插件的 Promise 由插件消费，never 错误通道下无预期 reject 面。 |
+| H450 | packages/core/src/plugin/provider/amazon-bedrock.ts:90 | high | bug | wontfix | 写 AWS_BEARER_TOKEN_BEDROCK 是 AWS SDK 凭据链读取环境的兼容桥，90 行守卫确保不覆盖已有显式配置；单用户进程模型不存在跨请求泄漏面。 |
+| H455 | packages/core/src/plugin/provider/cloudflare-workers-ai.ts:17 | high | bug | wontfix | request 为 ProviderV2 必填结构（packages/core/src/provider.ts:19-20 复用 protocol Request），aisdk 分支下 tsgo 通过即保证 request.body 存在；评论假设的可选形状不成立。 |
+| H454 | packages/core/src/plugin/provider/dynamic.ts:14 | high | security | wontfix | 按配置安装并 import npm 包正是 provider 插件机制的定义（与 external.ts 同源），信任边界即用户配置；包名经 npm.add registry 校验，"代码注入"是把功能当漏洞。 |
+| C156 | packages/core/src/plugin/provider/github-copilot.ts:0 | critical | bug | fix | 守卫只防 responses 与 chat 同时缺失、34 行只判 responses：`responses 存在但 chat 缺失` 的非 responses endpoint 分支会 TypeError。修复：else 分支对 chat 判空并回落 languageModel 或显式报错。 |
+| H456 | packages/core/src/plugin/provider/gitlab.ts:41 | high | bug | wontfix | 同 H455：model.request.body 为必填类型形状（tsgo 通过即证明），38 行已对可空的 evt.options.featureFlags 做了 typeof 守卫，作者区分了可空/必填字段。 |
+| H453 | packages/core/src/plugin/provider/google-vertex.ts:44 | high | bug | wontfix | fetch 适配器契约：取凭据失败与网络错误同经 rejected promise 由调用方按请求失败呈现，加 try/catch 转译错误形态不改变行为，反偏离 fetch 语义。 |
+| H452 | packages/core/src/plugin/provider/google-vertex.ts:45 | high | performance | fix | 每次 HTTP 请求重建 GoogleAuth+getClient：重复读凭据文件、无谓延迟与限额风险。修复：把 client 以惰性 Promise 缓存在返回函数外（token 刷新由 google-auth-library 自带）。 |
+| H451 | packages/core/src/plugin/provider/google-vertex.ts:48 | high | bug | fix | client.getAccessToken() 可解析出 token 为空（凭据半配置态），直拼出 `Bearer undefined` 造成远端 401 难定位。修复：token 缺失时抛明确本地错误。 |
+| H457 | packages/core/src/plugin/provider/nvidia.ts:10 | high | bug | wontfix | 同 H455：api.type/package/url 为判别联合必填字段，10-12 行逐条 continue 的写法依赖类型收窄，评论的可选链无必要。 |
+| H458 | packages/core/src/plugin/provider/nvidia.ts:13 | high | bug | wontfix | provider.request.headers 为必填 Record（同 H455 类型论证）；HTTP-Referer/X-Title 等硬编码串即该集成的产品需求本身，非缺陷。 |
+| H459 | packages/core/src/plugin/provider/openai.ts:114 | high | bug | fix | while(true) 把 403/404 一律视为继续等待：设备码过期后服务端若持续返回 404 则无限轮询。修复：按 device.expires_in 设截止 deadline，超时后 fail（与 opennovel.ts poll 的服务端驱动终止对齐）。 |
+| C157 | packages/core/src/plugin/provider/opennovel.ts:239 | critical | bug | wontfix | poll 只对 authorization_pending/slow_down 续轮询（256-258），其余 error（含 RFC 8628 的 expired_token）直接 fail，服务端按 expires_in 终止流程；补本地过期判断属增强非缺陷。 |
+| H460 | packages/core/src/plugin/provider/sap-ai-core.ts:0 | high | bug | wontfix | evt.options 为 transform 事件必填字段（gitlab.ts:38 等处同型直用），serviceKey 读取已用 typeof 守卫值类型；可选链前提不成立。 |
+| H461 | packages/core/src/plugin/provider/vercel.ts:9 | high | bug | wontfix | api 为 ProviderV2 必填判别字段（同 H455 类型论证，tsgo 通过即成立），evt.provider.list() 元素形状由 schema 保证；可选链建议针对的类型不存在。 |
+| H462 | packages/core/src/policy.ts:35 | high | bug | wontfix | JS 单线程同步读：hasStatements() 与使用点间无 await 交错点；statements 仅经 load() 原子指针替换（配置重开时），"竞态"需要多线程模型才成立。 |
+| C158 | packages/core/src/process.ts:202 | critical | bug | wontfix | Effect v3 中 TaggedError 实例本身是 Yieldable（yield* new E() 即 Effect.fail），202-205 是全仓统一惯例（move-session.ts、session.ts 同型写法）；评论前提不成立。 |
+| C161 | packages/core/src/project/copy.ts:175 | critical | bug | wontfix | orDie 属本仓库 FS/DB 非预期错误统一收敛惯例（config.ts、credential.ts 同型），项目副本创建失败即致命路径，崩溃报告由上层统一呈现。 |
+| H465 | packages/core/src/project/copy.ts:217 | high | performance | wontfix | isDir 为极轻 stat 操作且规模受 projectID 目录表约束（数十级），unbounded 无实际资源耗尽面；限 20 并发是优化口味非缺陷。 |
+| C160 | packages/core/src/project/copy.ts:244 | critical | bug | wontfix | 同 H441：db.transaction orDie 是本仓库 DB 层统一错误收敛惯例；事务失败die 会经 drain 的 tapCause/日志呈现，不构成静默。 |
 | H463 | packages/core/src/project/schema.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H464 | packages/core/src/provider.ts:1 | high | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H468 | packages/core/src/pty.ts:109 | high | maintainability |  |  |
-| C164 | packages/core/src/pty.ts:204 | critical | bug |  |  |
-| H469 | packages/core/src/pty.ts:223 | high | bug |  |  |
-| H470 | packages/core/src/pty.ts:286 | high | bug |  |  |
+| H468 | packages/core/src/pty.ts:109 | high | maintainability | wontfix | 空 catch 是有意的订阅者隔离：一个回调抛错不得阻断其他订阅者或 PTY 生命周期（109-111 与 204-217 结构一致）；补日志属观测性增强。 |
+| C164 | packages/core/src/pty.ts:204 | critical | bug | wontfix | Map 规范：迭代中删除当前条目安全、不影响游标；204-212 仅删抛错的 token（当前项），与 C154 同型误报。 |
+| H469 | packages/core/src/pty.ts:223 | high | bug | wontfix | 单线程 fiber 下各同步段原子；退出后 removeSession 清理是生命周期正semantics，对已退出 PTY 的 attach 报 NotFound 属正确行为而非竞态缺陷。 |
+| H470 | packages/core/src/pty.ts:286 | high | bug | wontfix | write 闭包已判 session.info.status==="running"（289-291），退出/移除后闭包对象不再触发任何进程副作用；activate/detach 操作历史视图无害。 |
 | C159 | packages/core/src/pty/protocol.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | C162 | packages/core/src/public-event-manifest.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| H467 | packages/core/src/reference.ts:88 | high | bug |  |  |
-| H466 | packages/core/src/reference.ts:109 | high | bug |  |  |
-| C163 | packages/core/src/repository.ts:168 | critical | security |  |  |
-| H480 | packages/core/src/ripgrep.ts:116 | high | bug |  |  |
-| C167 | packages/core/src/ripgrep/binary.ts:58 | critical | security |  |  |
-| H474 | packages/core/src/schema.ts:? | high | bug |  |  |
+| H467 | packages/core/src/reference.ts:88 | high | bug | fix | cache.ensure 失败仅告警、materialized 条目留存为"幽灵引用"（path 指向从未存在的克隆目录）。修复：ensure 失败路径删除该 name 的 materialized 条目或降级标记，消费方不再拿到空目录引用。 |
+| H466 | packages/core/src/reference.ts:109 | high | bug | wontfix | finalize 的 materialized.clear→循环 set 为同步段（forkIn 不阻塞、其间无 await），list 读不到半清空状态；单线程模型下无撕裂窗口。 |
+| C163 | packages/core/src/repository.ts:168 | critical | security | wontfix | 与 H387 同理：该 env 是进程属主的克隆镜像配置通道（本仓在中国大陆网络正需要 ghfast.top 类镜像），能改 env 者已具任意执行能力，file:// 不构成提权增量。 |
+| H480 | packages/core/src/ripgrep.ts:116 | high | bug | wontfix | 计数器语义正确：onItem 恰调 limit 次（observed 先自增，item limit+1 时 observed>=limit 跳过），take(limit+1) 独立用于 truncated 判定（130 行）；评论未跑通该对账即断言错位。 |
+| C167 | packages/core/src/ripgrep/binary.ts:58 | critical | security | wontfix | 优先固定 System32 tar.exe（61-63），which 回退仅在无 bsdtar 环境；PATH 可被攻击者改写则任意执行早已成立（同 H387 信任模型），不构成独立漏洞。 |
+| H474 | packages/core/src/schema.ts:0 | high | bug | fix | JSDoc 示例 `this.make(id)` 自引用会无限递归，示例教坏 Newtype 用法。修复：改为不依赖被覆写 make 的合法示例（直接 Schema 解码/构造）。 |
 | C165 | packages/core/src/session.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
-| C166 | packages/core/src/session.ts:374 | critical | bug |  |  |
-| H473 | packages/core/src/session/context-epoch.ts:40 | high | bug |  |  |
-| H471 | packages/core/src/session/context-epoch.ts:80 | high | bug |  |  |
-| H472 | packages/core/src/session/context-epoch.ts:122 | high | bug |  |  |
-| H475 | packages/core/src/session/execution/local.ts:21 | high | bug |  |  |
-| H477 | packages/core/src/session/input.ts:51 | high | bug |  |  |
-| H476 | packages/core/src/session/input.ts:129 | high | bug |  |  |
-| H478 | packages/core/src/session/message-updater.ts:334 | high | bug |  |  |
+| C166 | packages/core/src/session.ts:374 | critical | bug | wontfix | Effect v3 中 TaggedError 实例即 Effect（yieldable），catchDefect 处理器返回 PromptConflictError 合法等价于 Effect.fail；同 C158 惯例，374-378 无错。 |
+| H473 | packages/core/src/session/context-epoch.ts:40 | high | bug | wontfix | prepare/initialize 仅经 SessionRunCoordinator 的每 Session 串行 drain 调用（AGENTS.md V2：serialized runner、local drains process-local），同 session 无并发读写窗口；乐观锁留给 clustering 落地时一并处理。 |
+| H471 | packages/core/src/session/context-epoch.ts:80 | high | bug | wontfix | 同 H473：drain 串行化排除并发 initialize；即便未来 clustering 引入并发，主键冲突也会经事务通道显式失败而非静默双写。 |
+| H472 | packages/core/src/session/context-epoch.ts:122 | high | bug | wontfix | 同 H473：baselineSeq 生成-插入窗口处于单 Session 串行 drain 内，无其他写入方；跨进程并发属 clustering 未实现范围（AGENTS.md 明示）。 |
+| H475 | packages/core/src/session/execution/local.ts:21 | high | bug | wontfix | locations 为 Effect LayerMap（location-service-map.ts:8-15），get(ref) 契约恒返回 Layer、懒构建/缓存，类型无 undefined 分支；未知 location 在层构建期经 LocationError 通道失败。 |
+| H477 | packages/core/src/session/input.ts:51 | high | bug | wontfix | durable admission 幂等是 V2 显式语义（AGENTS.md：message ID 复用 reconcile exact retry、conflicting reuse fails）：并发双 find 时后到的 publish 以一次性冲突走 374-378 catchDefect 对账路径，属设计而非残留竞态。 |
+| H476 | packages/core/src/session/input.ts:129 | high | bug | wontfix | 该投影体在 durable 事件 publish 事务内执行（见 C147：event.ts:320-321 projector 同事务运行），update+insert 已共处同一事务边界，再套 db.transaction 会嵌套冲突（migrate.ts:46 同类教训）。 |
+| H478 | packages/core/src/session/message-updater.ts:334 | high | bug | fix | pending 态工具失败时 `typeof input === "string" ? {}` 直接丢弃已生成的参数 JSON。修复：尝试经 Schema 解码为对象、失败保留 {_raw: string}，不静默丢数据。 |
 | C168 | packages/core/src/session/message.ts:1 | critical | bug | wontfix | self-export 惯例：首行 export * as X 引用自身（AGENTS.md 规定），非循环导入 |
 | H479 | packages/core/src/session/projector.ts:312 | high | bug |  |  |
 | H481 | packages/core/src/session/run-coordinator.ts:37 | high | bug |  |  |
@@ -180,7 +180,7 @@
 | H482 | packages/core/src/share/sql.ts:10 | high | security |  |  |
 | H485 | packages/core/src/skill.ts:79 | high | security |  |  |
 | H495 | packages/core/src/state.ts:33 | high | bug |  |  |
-| H486 | packages/core/src/sync/device.ts:? | high | bug |  |  |
+| H486 | packages/core/src/sync/device.ts:0 | high | bug |  |  |
 | C170 | packages/core/src/sync/local-folder.ts:15 | critical | security |  |  |
 | H492 | packages/core/src/sync/service.ts:578 | high | bug |  |  |
 | H489 | packages/core/src/sync/sqlite.bun.ts:10 | high | security |  |  |
@@ -240,7 +240,7 @@
 | H578 | packages/llm/src/protocols/bedrock-event-stream.ts:59 | high | bug | wontfix | 误报：bedrock-event-stream.ts:12 为 new TextDecoder()（未开 fatal），按 WHATWG 规范非法 UTF-8 字节序列只替换为 U+FFFD，decode 不抛 TypeError。 |
 | H581 | packages/llm/src/protocols/shared.ts:165 | high | bug | wontfix | 误报：shared.ts:165 模式含 (?:[A-Za-z0-9+/]{4})* 重复组，无填充的 abcd 可匹配，且 [A-Za-z0-9+/]{3}= 分支可匹配 abc=；外层另有 length%4 校验（shared.ts:191），两条例证均不成立。 |
 | H580 | packages/llm/src/protocols/utils/bedrock-media.ts:52 | high | bug | fix | bedrock-media.ts:51 name: part.filename ?? `document.${format}` 在同格式多文档缺文件名时产生重名，模型无法区分引用；缺文件名时用格式+序号生成唯一 name。 |
-| H582 | packages/llm/src/providers/azure.ts:? | high | bug | wontfix | 误报（line:0 未定位）：azure.ts:110-114 configuredRoute 的 endpoint.query 已展开 ...(input.apiVersion ? { "api-version": ... } : {}) 与 ...input.queryParams，apiVersion/queryParams 并未被忽略。 |
+| H582 | packages/llm/src/providers/azure.ts:0 | high | bug | wontfix | 误报（line:0 未定位）：azure.ts:110-114 configuredRoute 的 endpoint.query 已展开 ...(input.apiVersion ? { "api-version": ... } : {}) 与 ...input.queryParams，apiVersion/queryParams 并未被忽略。 |
 | C198 | packages/llm/src/providers/cloudflare.ts:48 | critical | bug | wontfix | 刻意设计：cloudflare.ts:48-54 三分支明确——仅传 apiKey 时网关透传 Authorization（无网关鉴权场景），双鉴权需显式传 gatewayApiKey；cloudflare.test.ts:98 的双鉴权用例也是两者都显式传入。 |
 | H583 | packages/llm/src/route/auth.ts:138 | high | bug | wontfix | 误报：本仓 Effect 4.0.0-beta.83 中 ConfigError 是 class（effect/src/Config.ts:70 export class ConfigError），instanceof 判断有效；finding 按 Effect 3 联合类型语义误判。 |
 | H584 | packages/llm/src/route/client.ts:232 | high | bug | wontfix | 刻意取舍：route/client.ts:235-239 的 eventError 第三参已携带原始 frame（ProviderShared.encodeJson(frame)），错误信息保留完整出错载荷；改用整个 schema 错误树会让流错误冗长。 |
@@ -279,7 +279,7 @@
 | H602 | packages/opennovel/script/httpapi-exercise.ts:1 | high | bug |  |  |
 | H124 | packages/opennovel/script/postinstall.mjs:172 | high | bug |  |  |
 | H605 | packages/opennovel/script/profile-test-files.ts:14 | high | bug |  |  |
-| H608 | packages/opennovel/script/publish.ts:? | high | security |  |  |
+| H608 | packages/opennovel/script/publish.ts:0 | high | security |  |  |
 | H609 | packages/opennovel/script/publish.ts:128 | high | bug |  |  |
 | H611 | packages/opennovel/script/schema.ts:67 | high | bug |  |  |
 | C208 | packages/opennovel/script/time.ts:4 | critical | security |  |  |
@@ -369,7 +369,7 @@
 | H678 | packages/opennovel/src/mcp/index.ts:898 | high | bug |  |  |
 | H679 | packages/opennovel/src/mcp/index.ts:901 | high | bug |  |  |
 | H674 | packages/opennovel/src/mcp/oauth-callback.ts:133 | high | bug |  |  |
-| C224 | packages/opennovel/src/novel/manual-edit-sync-worker.ts:? | critical | bug |  |  |
+| C224 | packages/opennovel/src/novel/manual-edit-sync-worker.ts:0 | critical | bug |  |  |
 | H680 | packages/opennovel/src/plugin/cloudflare.ts:71 | high | bug |  |  |
 | C225 | packages/opennovel/src/plugin/digitalocean.ts:37 | critical | bug |  |  |
 | H683 | packages/opennovel/src/plugin/digitalocean.ts:62 | high | bug |  |  |
@@ -415,7 +415,7 @@
 | H713 | packages/opennovel/src/server/routes/instance/httpapi/groups/experimental.ts:187 | high | security |  |  |
 | H712 | packages/opennovel/src/server/routes/instance/httpapi/groups/file.ts:15 | high | security |  |  |
 | H715 | packages/opennovel/src/server/routes/instance/httpapi/groups/mcp.ts:21 | high | security |  |  |
-| H716 | packages/opennovel/src/server/routes/instance/httpapi/groups/project-copy.ts:? | high | maintainability |  |  |
+| H716 | packages/opennovel/src/server/routes/instance/httpapi/groups/project-copy.ts:0 | high | maintainability |  |  |
 | H718 | packages/opennovel/src/server/routes/instance/httpapi/groups/project.ts:32 | high | bug |  |  |
 | H717 | packages/opennovel/src/server/routes/instance/httpapi/groups/sync.ts:19 | high | security |  |  |
 | C234 | packages/opennovel/src/server/routes/instance/httpapi/groups/tui.ts:88 | critical | bug |  |  |
@@ -437,7 +437,7 @@
 | C238 | packages/opennovel/src/server/routes/instance/httpapi/middleware/instance-context.ts:29 | critical | security |  |  |
 | H729 | packages/opennovel/src/server/routes/instance/httpapi/middleware/schema-error.ts:40 | high | security |  |  |
 | H732 | packages/opennovel/src/server/routes/instance/httpapi/middleware/workspace-routing.ts:87 | high | security |  |  |
-| C009 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:? | critical | security |  |  |
+| C009 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:0 | critical | security |  |  |
 | H055 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.html:1144 | high | bug |  |  |
 | C239 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:23 | critical | security |  |  |
 | H734 | packages/opennovel/src/server/routes/instance/httpapi/novel-reader.ts:94 | high | bug |  |  |
@@ -451,7 +451,7 @@
 | H743 | packages/opennovel/src/session/llm.ts:157 | high | bug |  |  |
 | H741 | packages/opennovel/src/session/llm/request.ts:212 | high | bug |  |  |
 | H742 | packages/opennovel/src/session/llm/request.ts:224 | high | bug |  |  |
-| C240 | packages/opennovel/src/session/prompt.ts:? | critical | security |  |  |
+| C240 | packages/opennovel/src/session/prompt.ts:0 | critical | security |  |  |
 | H749 | packages/opennovel/src/session/prompt.ts:170 | high | security |  |  |
 | H750 | packages/opennovel/src/session/prompt.ts:813 | high | security |  |  |
 | H744 | packages/opennovel/src/session/reminders.ts:26 | high | bug |  |  |
@@ -487,11 +487,11 @@
 | H772 | packages/opennovel/src/tool/json-schema.ts:6 | high | bug |  |  |
 | H773 | packages/opennovel/src/tool/mcp-websearch.ts:4 | high | security |  |  |
 | H774 | packages/opennovel/src/tool/mcp-websearch.ts:92 | high | bug |  |  |
-| H776 | packages/opennovel/src/tool/question.ts:? | high | bug |  |  |
+| H776 | packages/opennovel/src/tool/question.ts:0 | high | bug |  |  |
 | H778 | packages/opennovel/src/tool/read.ts:159 | high | performance |  |  |
 | H777 | packages/opennovel/src/tool/registry.ts:391 | high | bug |  |  |
-| H782 | packages/opennovel/src/tool/skill.ts:? | high | security |  |  |
-| H784 | packages/opennovel/src/tool/skill.ts:? | high | bug |  |  |
+| H782 | packages/opennovel/src/tool/skill.ts:0 | high | security |  |  |
+| H784 | packages/opennovel/src/tool/skill.ts:0 | high | bug |  |  |
 | H783 | packages/opennovel/src/tool/skill.ts:23 | high | bug |  |  |
 | H779 | packages/opennovel/src/tool/tool.ts:146 | high | bug |  |  |
 | H780 | packages/opennovel/src/tool/webfetch.ts:82 | high | bug |  |  |
