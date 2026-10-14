@@ -80,7 +80,12 @@
 - `eed3d722` fix(opennovel): opennovel 批次第 10 组（skill/share/snapshot/util/tool 与测试）
 - `6d03a706` revert(opennovel): 回退 httpapi 测试夹具的查询串改动
 
+### 归档后收尾修复（main 上的 CI 回归）
+
+- `4c080da3` fix(opennovel): 重新生成 openapi 以落地 API 示例收尾引号修复（C214 改了生成器但产物没重生成，generate 门禁的 git diff 非空）
+- `97632278` fix(opennovel): SSE 超时先兑现流错误再回收 cancel（bun 1.3.14 下 cancel 不 settle 会吞掉流错误，chunkTimeout 用例转红并连带把 Windows 同批用例拖到超时）
+
 ## Workflow follow-up
 
-- 已按 AGENTS.md 收集实现提交并登记在 Implementation Commits（17 条：16 条 fix + 1 条 revert）。
+- 已按 AGENTS.md 收集实现提交并登记在 Implementation Commits（17 条：16 条 fix + 1 条 revert）；另有归档后的 2 条收尾修复见上。
 - 用户确认后 `$openspec-complete-change` 归档、合并 main、删除功能分支。
