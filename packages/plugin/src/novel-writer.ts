@@ -934,7 +934,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }),
       generate_chapter_outline: tool({
         description:
-          "生成章节大纲，创建 chapters 表记录并写入数据库。自动创建所属卷记录。传入 content 参数时使用实际内容（director 根据小说设定生成的完整章纲）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。卷长度由剧情决定：省略 volume_number 时沿用上一章所属卷；仅当本章在剧情上开启新卷时才传入新卷号（通常先调用 generate_volume_outline 生成该卷大纲），此时会自动对上一卷执行卷级汇总。",
+          "生成章节大纲，创建 chapters 表记录并写入数据库。自动创建所属卷记录。传入 content 参数时使用实际内容（由大纲 agent 生成完整章纲后传入）；不传时生成空模板。生成后可在 WebUI 大纲标签页查看。卷长度由剧情决定：省略 volume_number 时沿用上一章所属卷；仅当本章在剧情上开启新卷时才传入新卷号（通常先调用 generate_volume_outline 生成该卷大纲），此时会自动对上一卷执行卷级汇总。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           chapter_number: tool.schema.number().describe("章节序号（从 1 开始）"),
@@ -6037,7 +6037,7 @@ ${sceneChecklist}`
             restore_chapter_version: "allow",
             generate_master_outline: "allow",
             generate_volume_outline: "allow",
-            generate_chapter_outline: "allow",
+            generate_chapter_outline: "deny",
             check_project_config: "allow",
             update_project_config: "ask",
             volume_rollup: "allow",
