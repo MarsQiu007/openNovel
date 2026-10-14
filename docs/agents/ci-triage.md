@@ -71,3 +71,4 @@ gh workflow run test.yml --ref main
 - 长任务一律「脚本落盘 + 状态文件轮询」（`Start-Process powershell -File <脚本>`），不要依赖 `write_stdin` 的会话 id（常失效）；`exec` 类工具单次等待上限约 30 秒，长任务要靠轮询状态文件。
 - 文本补丁拆小步：小改动用 `[IO.File]::ReadAllText/WriteAllText` + 锚点 `Replace`（换行/回车用 `[string][char]10`/`[string][char]13` 显式拼接，避免拼反引号）；较大的脚本补丁用 `bun <file>.cjs`（`readFileSync` + 锚点替换 + `writeFileSync`）。命令文本过长或含敏感系统路径 token 时易被策略拦截。
 - PowerShell 5.1 没有 `??`；数组上 `-notmatch` 返回不匹配元素集合而不是布尔。
+- 冷缓存时 pre-push 钩子的根 `bun turbo typecheck` 会全包并行执行；本机实测 tsgo（@typescript/native-preview）在并行负载下可能进程崩溃（Go 栈回溯）。先跑一遍 `bun turbo typecheck --concurrency=1` 预热 turbo 缓存，再推送即可让钩子走缓存通过。
