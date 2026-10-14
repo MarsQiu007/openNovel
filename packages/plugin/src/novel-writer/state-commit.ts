@@ -38,6 +38,7 @@ import {
   DescriptionHistoryTable,
   PendingSettingTable,
   WorldEntryConflictTable,
+  requireNormalizedStyleRules,
 } from "./session-store.js"
 import { validateWorldCategory } from "./world-category.js"
 import { applyImpact } from "./setting-impact.js"
@@ -930,7 +931,7 @@ async function applyToMaterializedView(
           await db.insert(StyleGuideTable).values({
             id: entity_id,
             novel_id: novelId,
-            rules: stringifyRules(data.rules),
+            rules: data.rules === undefined ? {} : requireNormalizedStyleRules(data.rules),
             tone: String(data.tone ?? ""),
             pov: String(data.pov ?? ""),
             tense: String(data.tense ?? ""),
@@ -938,7 +939,7 @@ async function applyToMaterializedView(
         } else {
           // 每本小说只有一条风格指南，已存在则更新
           const fields: Record<string, unknown> = {}
-          if (data.rules !== undefined) fields.rules = stringifyRules(data.rules)
+          if (data.rules !== undefined) fields.rules = requireNormalizedStyleRules(data.rules)
           if (data.tone !== undefined) fields.tone = data.tone
           if (data.pov !== undefined) fields.pov = data.pov
           if (data.tense !== undefined) fields.tense = data.tense
@@ -951,7 +952,7 @@ async function applyToMaterializedView(
         }
       } else if (action === "update") {
         const fields: Record<string, unknown> = {}
-        if (data.rules !== undefined) fields.rules = stringifyRules(data.rules)
+        if (data.rules !== undefined) fields.rules = requireNormalizedStyleRules(data.rules)
         if (data.tone !== undefined) fields.tone = data.tone
         if (data.pov !== undefined) fields.pov = data.pov
         if (data.tense !== undefined) fields.tense = data.tense
@@ -1065,26 +1066,6 @@ async function applyToMaterializedView(
  * @param delta - 状态变更数组
  * @returns 提交的日志条目数量
  */
-// 流水线产生的 rules 可能含数字/布尔值（如 chapter_length: 2500），统一转成字符串
-export function stringifyRules(rules: unknown): Record<string, string> {
-  // agent 常把 rules 序列化成 JSON 字符串传来，先解析再按对象处理，
-  // 否则会被下面的类型检查吞成 {}（风格指南保存后规则为空的 bug）
-  if (typeof rules === "string") {
-    try {
-      rules = JSON.parse(rules)
-    } catch {
-      return {}
-    }
-  }
-  if (!rules || typeof rules !== "object" || Array.isArray(rules)) return {}
-  const record: Record<string, string> = {}
-  for (const [key, value] of Object.entries(rules)) {
-    if (typeof value === "string") record[key] = value
-    else if (typeof value === "number" || typeof value === "boolean") record[key] = String(value)
-  }
-  return record
-}
-
 /**
  * 归一化 style_guide 数据，兼容中英文键名。
  *

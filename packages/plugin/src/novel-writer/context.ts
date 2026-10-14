@@ -33,26 +33,17 @@ import {
   WorldEntryTable,
   StoryArcTable,
   ArcBeatTable,
+  normalizeStyleRules,
 } from "./session-store.js"
 
 /**
- * 解析 style_guide.rules 为对象。
+ * 解析 style_guide.rules 为扁平字符串映射（委托 novel-store 共享归一化）。
  *
- * rules 列是 json 模式，但历史数据存在双重编码（库里存了 JSON 字符串的字符串），
- * 读取时可能拿到对象也可能拿到 JSON 字符串，这里统一兼容。
+ * 历史数据存在嵌套对象、数组与双重编码字符串等形态，统一走共享归一化，
+ * 保证读取侧与写入侧同构；chapter_length 等特殊键的消费语义不变。
  */
-export function parseStyleRules(rules: unknown): Record<string, unknown> {
-  if (rules == null) return {}
-  if (typeof rules === "string") {
-    try {
-      const parsed: unknown = JSON.parse(rules)
-      return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}
-    } catch {
-      return {}
-    }
-  }
-  if (typeof rules === "object") return rules as Record<string, unknown>
-  return {}
+export function parseStyleRules(rules: unknown): Record<string, string> {
+  return normalizeStyleRules(rules).rules
 }
 
 // ─── 类型定义 ───
