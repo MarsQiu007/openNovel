@@ -8,6 +8,8 @@
  */
 import { For, Show, createSignal } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
+import { useQueryClient } from "@tanstack/solid-query"
+import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
@@ -15,7 +17,17 @@ import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
-import { useBindSession, useBoundNovelSessions, type NovelSessionOption } from "@/context/novel-queries"
+import {
+  useBindSession,
+  useBoundNovelSessions,
+  novelKeys,
+  type NovelSessionBinding,
+  type NovelSessionOption,
+} from "@/context/novel-queries"
+import { archiveSessionCascade, exportSessionJson } from "@/pages/novel-sessions"
+import { useConfirmDelete } from "./confirm-dialog"
+import { collectDescendants } from "@/utils/session-descendants"
+import { errorMessage } from "@/pages/layout/helpers"
 import { sessionSwitcherTrigger } from "./workspace-data"
 import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
@@ -25,6 +37,8 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const navigate = useNavigate()
   const params = useParams()
   const sdk = useSDK()
+  const queryClient = useQueryClient()
+  const confirm = useConfirmDelete()
   const bindSession = useBindSession()
   const sessions = useBoundNovelSessions(() => props.novelID)
   const [creating, setCreating] = createSignal(false)
@@ -71,6 +85,59 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
     }
   }
 
+  // 归档（承接已退役列表页的会话管理动作）：级联目标含全部未归档子代理；
+  // 归档的是当前打开会话（或其子代理）时，刷新列表移除归档项后切到最近剩余会话
+  // （无剩余回工作台空态），避免工作台自动回跳读到旧缓存抢跳到已归档会话。
+  function archiveSession(input: { sessionID: string; title: string }) {
+    const sdkCtx = sdk()
+    const list = toSwitcherSessionList(props.novelID, sessions.data ?? [], sdkCtx.directory)
+    const session = list.find((candidate) => candidate.id === input.sessionID)
+    if (!session) return
+    const unarchivedChildren = collectDescendants(session.id, list).filter((item) => !item.time.archived)
+    const confirmAndArchive = () =>
+      void archiveSessionCascade({
+        session,
+        sessions: list,
+        update: (value) => sdkCtx.client.session.update(value),
+        remove: () => {},
+        onError: (error) =>
+          showToast({
+            title: language.t("common.requestFailed"),
+            description: errorMessage(error, language.t("common.requestFailed")),
+          }),
+      }).then(async () => {
+        const refreshed = await queryClient.fetchQuery<NovelSessionOption[]>({
+          queryKey: novelKeys["bound-sessions"](sdkCtx.directory, props.novelID),
+        })
+        // 工作台的未选中自动回跳读缓存列表：移除归档项后再导航，避免其在刷新落地前
+        // 按旧列表抢跳到已归档会话（当前会话被归档时表现为在书内"原地不动"）
+        const archivedIDs = new Set([session.id, ...unarchivedChildren.map((item) => item.id)])
+        const remaining = refreshed.filter((option) => !archivedIDs.has(option.sessionID))
+        queryClient.setQueryData(novelKeys["bound-sessions"](sdkCtx.directory, props.novelID), remaining)
+        if (params.id !== session.id && !unarchivedChildren.some((item) => item.id === params.id)) return
+        navigate(`/${props.dir}/novel/${props.novelID}/session/${remaining[0]?.sessionID ?? ""}`)
+      })
+    if (unarchivedChildren.length > 0) {
+      confirm({
+        title: language.t("home.sessions.sidebar.archiveTitle"),
+        message: language.t("home.sessions.sidebar.archiveWithChildren", { count: unarchivedChildren.length }),
+        confirmLabel: language.t("common.archive"),
+        onConfirm: confirmAndArchive,
+      })
+      return
+    }
+    confirmAndArchive()
+  }
+
+  function exportSession(input: { sessionID: string; title: string }) {
+    const sdkCtx = sdk()
+    const session = toSwitcherSessionList(props.novelID, sessions.data ?? [], sdkCtx.directory).find(
+      (candidate) => candidate.id === input.sessionID,
+    )
+    if (!session) return
+    void exportSessionJson({ session, client: sdkCtx.client })
+  }
+
   return (
     <div class="flex items-center gap-0.5 px-2 py-1 border-b border-v2-border-border-base shrink-0">
       <MenuV2 gutter={4} placement="bottom-start" modal={false}>
@@ -97,6 +164,7 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
                         onToggleChildren={() =>
                           setChildrenExpanded((prev) => ({ ...prev, [option.sessionID]: !prev[option.sessionID] }))
                         }
+                        actions={{ archive: archiveSession, export: exportSession }}
                       />
                     )}
                   </For>
@@ -126,22 +194,63 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
 }
 
 /**
- * 切换器下拉的单个主会话条目：展开控件（有子代理时）+ 主会话选择项；
+ * 切换器数据是 NovelSessionOption 投影，归档/导出接口按 SDK Session 形状取参：
+ * 按「该书绑定关系 × 切换器列表」补出最小 Session 记录（title/time 供列表与回跳显示，
+ * parentID 供级联归档收集子代理）。
+ */
+function toSwitcherSessionList(
+  novelID: string,
+  options: readonly NovelSessionOption[],
+  directory: string,
+): Session[] {
+  const bindings: NovelSessionBinding[] = [
+    ...options.map((option) => ({ sessionID: option.sessionID, novelID, novelTitle: "" })),
+    ...options.flatMap((option) =>
+      option.children.map((child) => ({ sessionID: child.sessionID, novelID, novelTitle: "" })),
+    ),
+  ]
+  const session = (option: { sessionID: string; title: string; updatedAt: number }, parentID?: string) => ({
+    id: option.sessionID,
+    slug: option.sessionID,
+    projectID: "",
+    directory,
+    title: option.title,
+    version: "0",
+    time: { created: option.updatedAt, updated: option.updatedAt },
+    bindings,
+    ...(parentID ? { parentID } : {}),
+  })
+  return options.flatMap((option) => [
+    session(option),
+    ...option.children.map((child) => session(child, option.sessionID)),
+  ])
+}
+
+/**
+ * 切换器下拉的单个主会话条目：展开控件（有子代理时）+ 主会话选择项 + 行内动作菜单；
  * 展开后在主会话下方渲染子代理子项（缩进 + 分支图标 + 斜体弱化，与主会话视觉区分）。
  * 当前打开的是子会话时其父会话始终展开，保证活动项可见（与首页侧栏同规则）。
+ * 动作菜单承接已退役列表页的会话管理动作：归档（子代理级联）与导出会话 JSON；
+ * hover/focus 显现，键盘可 Tab 到达（拖动条目的选中语义不受影响）。
  */
+type SwitcherSessionActions = {
+  archive: (input: { sessionID: string; title: string }) => void
+  export: (input: { sessionID: string; title: string }) => void
+}
+
 function SwitcherSessionEntry(props: {
   option: NovelSessionOption
   activeSessionID: string | undefined
   expanded: () => boolean
   onToggleChildren: () => void
+  actions: SwitcherSessionActions
 }) {
   const language = useLanguage()
   const showChildren = () =>
     props.expanded() || props.option.children.some((child) => child.sessionID === props.activeSessionID)
   return (
     <>
-      <div class="flex items-center">
+      <div class="group/switcher-row flex items-center">
         <Show
           when={props.option.children.length > 0}
           fallback={<span class="w-5 shrink-0" aria-hidden="true" />}
@@ -166,19 +275,61 @@ function SwitcherSessionEntry(props: {
         <MenuV2.RadioItem value={props.option.sessionID} class="min-w-0 flex-1">
           <span class="truncate">{sessionTitle(props.option.title) ?? props.option.title}</span>
         </MenuV2.RadioItem>
+        <SwitcherSessionActionsMenu title={props.option.title} actions={props.actions} sessionID={props.option.sessionID} />
       </div>
       <Show when={showChildren()}>
         <For each={props.option.children}>
           {(child) => (
-            <MenuV2.RadioItem value={child.sessionID} class="pl-10">
-              <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-              <span class="truncate italic text-v2-text-text-faint [font-weight:440]">
-                {sessionTitle(child.title) ?? child.title}
-              </span>
-            </MenuV2.RadioItem>
+            <div class="group/switcher-row flex items-center">
+              <MenuV2.RadioItem value={child.sessionID} class="min-w-0 flex-1 pl-10">
+                <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                <span class="truncate italic text-v2-text-text-faint [font-weight:440]">
+                  {sessionTitle(child.title) ?? child.title}
+                </span>
+              </MenuV2.RadioItem>
+              <SwitcherSessionActionsMenu title={child.title} actions={props.actions} sessionID={child.sessionID} />
+            </div>
           )}
         </For>
       </Show>
     </>
+  )
+}
+
+/** 行内会话动作菜单：hover/focus 显现，提供归档（子代理级联）与导出会话 JSON */
+function SwitcherSessionActionsMenu(props: {
+  sessionID: string
+  title: string
+  actions: SwitcherSessionActions
+}) {
+  const language = useLanguage()
+  return (
+    <MenuV2 gutter={4} placement="bottom-end" modal={false}>
+      <MenuV2.Trigger
+        as={IconButtonV2}
+        data-action="novel-switcher-actions"
+        variant="ghost-muted"
+        size="small"
+        class="mr-1 shrink-0 opacity-0 transition-opacity group-hover/switcher-row:opacity-100 has-[[data-expanded]]:opacity-100 focus-visible:opacity-100"
+        icon={<Icon name="outline-dots" />}
+        aria-label={language.t("common.moreOptions")}
+      />
+      <MenuV2.Portal>
+        <MenuV2.Content>
+          <MenuV2.Item
+            data-action="novel-switcher-archive"
+            onSelect={() => props.actions.archive({ sessionID: props.sessionID, title: props.title })}
+          >
+            {language.t("common.archive")}
+          </MenuV2.Item>
+          <MenuV2.Item
+            data-action="novel-switcher-export"
+            onSelect={() => props.actions.export({ sessionID: props.sessionID, title: props.title })}
+          >
+            导出会话（JSON）
+          </MenuV2.Item>
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
   )
 }

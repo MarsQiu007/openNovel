@@ -1,29 +1,23 @@
 /**
- * 书籍会话分组数据逻辑（会话页侧边栏 & 聊天页侧边栏共用）
+ * 书籍会话数据逻辑（入口收敛后：统一打开动作、级联归档、导出会话）。
  *
- * 负责：novel API client 构建、书籍列表 / 绑定关系 / 目录完整会话列表的查询、
- * 按会话 ID 打开会话（tab）、为书籍创建并绑定新会话、归档会话。
+ * 负责：novel API client 构建、按会话 ID 打开会话（绑定进书内工作台、未绑定走降级）、
+ * 会话级联归档与完整 JSON 导出。会话列表查询与展示由书内切换器组件自行承担。
  */
-import { type Accessor, createMemo } from "solid-js"
-import { produce } from "solid-js/store"
-import { useNavigate } from "@solidjs/router"
-import { useQuery, useQueryClient } from "@tanstack/solid-query"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { OpenNovel } from "@opennovel-ai/client"
-import { Binary } from "@opennovel-ai/core/util/binary"
 import { resolveSessionRoute } from "./session-route"
 import { sessionHref } from "@/utils/session-route"
 import { ServerConnection } from "@/context/server"
 import { useGlobal } from "@/context/global"
 import { authTokenFromCredentials } from "@/utils/server"
 import { archiveHomeSession } from "./home-session-archive"
-import { errorMessage } from "@/pages/layout/helpers"
 import { showToast } from "@/utils/toast"
-import { useLanguage } from "@/context/language"
 import { collectDescendants } from "@/utils/session-descendants"
+import type { DirectorySDK } from "@/context/sdk"
 import type { NovelSessionBinding } from "@/context/novel-queries"
 
-export type { NovelSessionBinding, NovelSessionOption } from "@/context/novel-queries"
+export type { NovelSessionBinding } from "@/context/novel-queries"
 
 export type NovelSessionNovel = {
   id: string
@@ -107,158 +101,30 @@ export async function archiveSessionCascade(input: {
   }
 }
 
-export function useNovelSessions(input: {
-  conn: Accessor<ServerConnection.Any | undefined>
-  directory: Accessor<string | undefined>
-  /** 服务器标识，仅用于 query key 区分不同服务器的数据 */
-  server: Accessor<string>
-}) {
-  const global = useGlobal()
-  const navigate = useNavigate()
-  const language = useLanguage()
-  const queryClient = useQueryClient()
-
-  const novelClient = createMemo(() => {
-    const conn = input.conn()
-    if (!conn) return null
-    return makeNovelClient(conn)
-  })
-
-  const novelsQuery = useQuery(() => ({
-    queryKey: ["sessions-novels", input.server(), input.directory()],
-    enabled: !!novelClient() && !!input.directory(),
-    queryFn: async () => {
-      const result = await novelClient()!["server.novel"].list({ location: { directory: input.directory()! } })
-      return result as readonly NovelSessionNovel[]
-    },
-    staleTime: 30_000,
-  }))
-
-  const bindingsQuery = useQuery(() => ({
-    queryKey: ["sessions-novel-bindings", input.server(), input.directory()],
-    enabled: !!novelClient() && !!input.directory(),
-    queryFn: async () => {
-      const result = await novelClient()!["server.novel"]["session-bindings"]({
-        location: { directory: input.directory()! },
-      })
-      return result as readonly NovelSessionBinding[]
-    },
-    staleTime: 10_000,
-    refetchOnMount: true,
-  }))
-
-  // 绑定会话可能超出主页 64 条最近会话上限，这里拉取当前目录完整会话列表，
-  // 保证老会话也能在侧边栏显示并打开
-  const sessionsQuery = useQuery(() => ({
-    queryKey: ["sessions-novel-sessions", input.server(), input.directory()],
-    enabled: !!input.conn() && !!input.directory(),
-    queryFn: async () => {
-      const ctx = global.ensureServerCtx(input.conn()!)
-      const res = await ctx.sdk.client.session.list({ directory: input.directory() })
-      return res.data ?? []
-    },
-    staleTime: 15_000,
-    refetchOnMount: true,
-  }))
-
-  const boundSessionIds = createMemo(() => new Set((bindingsQuery.data ?? []).map((binding) => binding.sessionID)))
-
-  const loading = createMemo(() => novelsQuery.isLoading || bindingsQuery.isLoading)
-
-  function refresh() {
-    const directory = input.directory()
-    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings", input.server(), directory] })
-    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-sessions", input.server(), directory] })
-    // 归档/解绑后刷新书内会话切换器列表（前缀匹配全部书籍）
-    void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
+/**
+ * 导出完整会话（含每条消息的工具调用参数与结果）为 JSON 文件，供问题排查时交给开发者分析。
+ * 调用方提供 directory 作用域的 SDK client（如书内切换器、遗留侧栏项）。
+ */
+export async function exportSessionJson(input: {
+  session: Session
+  client: DirectorySDK["client"]
+}): Promise<void> {
+  const [info, messages] = await Promise.all([
+    input.client.session.get({ sessionID: input.session.id }).then((r) => r.data),
+    input.client.session.messages({ sessionID: input.session.id }).then((r) => r.data),
+  ]).catch(() => [undefined, undefined])
+  if (!info || !messages) {
+    showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })
+    return
   }
-
-  // 统一打开动作：绑定会话进书的工作台，未绑定会话直接进会话路由（见 openSessionRouted）
-  function openSessionById(sessionID: string) {
-    const conn = input.conn()
-    const directory = input.directory()
-    if (!conn || !directory) return
-    void openSessionRouted({ conn, directory, sessionID, navigate, global })
-  }
-
-  // 为指定书籍创建新会话并绑定，创建后直接打开
-  async function createNovelSession(novelID: string, title: string) {
-    const conn = input.conn()
-    const client = novelClient()
-    const directory = input.directory()
-    if (!conn || !client || !directory) return
-    const ctx = global.ensureServerCtx(conn)
-    ctx.projects.open(directory)
-    const res = await ctx.sdk.client.session.create({ directory, title })
-    const sessionID = res.data?.id
-    if (!sessionID) throw new Error("No session data returned")
-    await client["server.novel"].bind({ novelID, location: { directory }, sessionID })
-    refresh()
-    openSessionById(sessionID)
-  }
-
-  // 归档主会话时级联归档其全部子代理会话，避免遗留孤儿会话
-  // 导出会话完整内容为 JSON（调试用）
-  async function exportSession(session: Session) {
-    const conn = input.conn()
-    if (!conn) return
-    const ctx = global.ensureServerCtx(conn)
-    const client = ctx.sdk.client
-    const [info, messages] = await Promise.all([
-      client.session.get({ sessionID: session.id }).then((r) => r.data),
-      client.session.messages({ sessionID: session.id }).then((r) => r.data),
-    ]).catch(() => [undefined, undefined])
-    if (!info || !messages) {
-      showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })
-      return
-    }
-    const payload = { exported_at: new Date().toISOString(), info, messages }
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }),
-    )
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `session-${session.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast({ title: "已导出会话 JSON", variant: "success" })
-  }
-
-  async function archiveSession(session: Session) {
-    const conn = input.conn()
-    if (!conn) return
-    const ctx = global.ensureServerCtx(conn)
-    const [, setStore] = ctx.sync.child(session.directory)
-    await archiveSessionCascade({
-      session,
-      sessions: sessionsQuery.data ?? [],
-      update: (value) => ctx.sdk.client.session.update(value),
-      remove: (target) =>
-        setStore(
-          produce((draft) => {
-            const match = Binary.search(draft.session, target.id, (s) => s.id)
-            if (match.found) draft.session.splice(match.index, 1)
-          }),
-        ),
-      onError: (error) =>
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: errorMessage(error, language.t("common.requestFailed")),
-        }),
-    })
-    refresh()
-  }
-
-  return {
-    novels: () => novelsQuery.data ?? [],
-    bindings: () => bindingsQuery.data ?? [],
-    sessions: () => sessionsQuery.data ?? [],
-    boundSessionIds,
-    loading,
-    refresh,
-    openSessionById,
-    createNovelSession,
-    archiveSession,
-    exportSession,
-  }
+  const payload = { exported_at: new Date().toISOString(), info, messages }
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }),
+  )
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `session-${input.session.id}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast({ title: "已导出会话 JSON", variant: "success" })
 }

@@ -67,7 +67,6 @@ import { createSessionLineage } from "@/pages/session/session-lineage"
 import { SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
 import { SessionRedirect } from "@/pages/session-redirect"
 import { NewHome, LegacyHome } from "@/pages/home"
-import { SessionsPage } from "@/pages/sessions"
 import NovelWorkspaceLayout, { NovelWizardLayout } from "@/pages/novel/layout"
 
 // 旧独立会话路由已退役为重定向入口：目录直接取路由段（base64），统一交由
@@ -537,7 +536,8 @@ function Routes(props: { serverScoped?: JSX.Element }) {
       </Route>
       <Show when={settings.general.newLayoutDesigns()}>
         <Route path="/" component={NewHome} />
-        <Route path="/sessions" component={SessionsPage} />
+        {/* 会话列表页已退役（retire-sessions-page）：旧链接降级重定向到书架 */}
+        <Route path="/sessions" component={() => <Navigate href="/" />} />
         <Route path="/:dir/novel/wizard" component={NovelWizardLayout} />
         {/* 单 Route 承载工作台主页与会话两种形态（:seg?/:id? 相邻可选段）：
             切换器切换会话时仅 params 变化、路由分支不变，工作台不 remount */}

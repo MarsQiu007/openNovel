@@ -1,4 +1,4 @@
-import { test } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { fixture, pageMessages } from "../smoke/session-timeline.fixture"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { expectAppVisible } from "../utils/waits"
@@ -23,6 +23,7 @@ test("shows loaded sessions before the directory path request resolves", async (
   })
 
   await page.addInitScript((directory) => {
+    localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
     localStorage.setItem(
       "opennovel.global.dat:server",
       JSON.stringify({
@@ -32,9 +33,14 @@ test("shows loaded sessions before the directory path request resolves", async (
     )
   }, fixture.directory)
 
+  // retire-sessions-page：旧会话列表页链接降级为书架，且降级重定向不依赖 /path 请求返回
   await page.goto("/sessions")
   try {
-    await expectAppVisible(page.getByText(fixture.expected.sourceTitle).first())
+    await page.waitForURL(/\/$/, { timeout: 15_000 })
+    // 书架就绪（标题与项目列可见），且旧会话列表 UI 不渲染——降级重定向不依赖 /path 返回
+    await expectAppVisible(page.getByText("Bookshelf").first())
+    await expectAppVisible(page.locator('[data-component="home-project-row"]').first())
+    await expect(page.locator('[data-action="novel-sidebar-new-chat"]')).toHaveCount(0)
   } finally {
     releasePath()
   }

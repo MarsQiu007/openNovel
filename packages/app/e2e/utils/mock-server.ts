@@ -12,11 +12,14 @@ const emptyList = new Set([
 ])
 const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
 
+export type MockSession = { id: string } & Record<string, unknown>
+
 export interface MockServerConfig {
   provider: unknown
   directory: string
   project: unknown
-  sessions: ({ id: string } & Record<string, unknown>)[]
+  /** 会话列表；可传函数以支持会后变更（如归档后从 /api/session 列表消失） */
+  sessions: MockSession[] | (() => MockSession[])
   pageMessages: (sessionId: string, limit: number, before?: string) => { items: unknown[]; cursor?: string }
   vcsDiff?: unknown[]
   messageDelay?: number
@@ -33,6 +36,8 @@ export interface MockServerConfig {
   fileContent?: (path: string) => unknown | Promise<unknown>
   findFiles?: (input: { query: string; dirs?: string; limit?: number }) => unknown
   sessionStatus?: unknown
+  /** 会话归档（PATCH /session/:id { time.archived }）时回调，供测试更新会话列表状态 */
+  onArchive?: (sessionID: string) => void
 }
 
 export async function mockOpenNovelServer(page: Page, config: MockServerConfig) {
@@ -57,7 +62,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     "/project/current": config.project,
     "/agent": [{ name: "build", mode: "primary" }],
     "/vcs": { branch: "main", default_branch: "main" },
-    "/session": config.sessions,
+    "/session": () => currentSessions(config),
   }
 
   await page.route("**/*", async (route) => {
@@ -73,7 +78,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (path === "/global/health") return json(route, { healthy: true })
     if (path === "/api/session")
       return json(route, {
-        data: config.sessions.map((session) => v2Session(session, config.directory)),
+        data: currentSessions(config).map((session) => v2Session(session, config.directory)),
         cursor: {},
       })
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: false })
@@ -110,11 +115,18 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (path === "/api/sync/run") return json(route, { results: [] })
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
-    if (path in staticRoutes) return json(route, staticRoutes[path])
+    if (path in staticRoutes) {
+      const value = staticRoutes[path]
+      return json(route, typeof value === "function" ? (value as () => unknown)() : value)
+    }
 
     const sessionMatch = path.match(/^\/session\/([^/]+)$/)
     if (sessionMatch) {
-      const session = config.sessions.find((s) => s.id === sessionMatch[1])
+      if (route.request().method() === "PATCH") {
+        const body = route.request().postDataJSON() as { time?: { archived?: number } } | undefined
+        if (body?.time?.archived) config.onArchive?.(sessionMatch[1]!)
+      }
+      const session = currentSessions(config).find((s) => s.id === sessionMatch[1])
       return json(route, session ?? {})
     }
 
@@ -154,6 +166,11 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (url.port === targetPort && targetPort !== appPort) return json(route, {})
     return route.fallback()
   })
+}
+
+/** 读取会话列表当前值（支持函数形态以便测试内变更后重查） */
+function currentSessions(config: MockServerConfig): MockSession[] {
+  return typeof config.sessions === "function" ? config.sessions() : config.sessions
 }
 
 function v2Session(session: { id: string } & Record<string, unknown>, fallbackDirectory: string) {
