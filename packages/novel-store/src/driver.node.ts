@@ -16,6 +16,9 @@ export function createDb(path: string, schemaSql: string): Db {
     // node:sqlite 默认已启用外键（enableForeignKeys: true），这里显式开启
     // 与 bun 驱动行为对齐，避免运行时差异导致 ON DELETE CASCADE 失效
     sqlite.exec("PRAGMA foreign_keys = ON")
+    // 与 core 侧（busy_timeout = 5000）对齐：共享同一库文件的多个连接发生 DDL/写入竞争时
+    // 应等待锁释放而不是立即失败——默认 0ms 会瞬时抛 database is locked。
+    sqlite.exec("PRAGMA busy_timeout = 5000")
     sqlite.exec(schemaSql)
     runMigrations(
       (sql) => sqlite.exec(sql),
