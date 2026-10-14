@@ -40,3 +40,8 @@
 - reviser 链路：reviserAgent.prompt 内嵌 EXECUTOR 段，测试断言其含知识边界执行两种方式、直述禁止与 POV 例外（"执行者只允许删除矛盾断言与知情范围内言行呈现"用例覆盖 writer 与 reviser 双 prompt）。
 - auditor 链路：auditorAgent.prompt 内嵌 AUDITOR 段，测试断言其含直述元否定与知情范围外言行两项检查。
 - 生成期链路：outliner prompt 含信息差场景识别职责与 knowledgeBoundary 输出字段；scene-constraints 编译器将「信息边界」映射为「知情范围」进入快照与 read_outline 兜底（同一份编译函数，三处消费点自动继承）；writer 规则 32 与自检清单含知情范围约束。
+
+## Implementation Commits
+
+- `ed66f89cc` feat(plugin): 写作管线新增知识边界约束
+- `227925fce` docs(openspec): 记录 knowledge-boundary-writing 任务完成与走查结论
