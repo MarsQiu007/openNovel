@@ -24,7 +24,7 @@
 
 ### 3. search_techniques 空结果区分空库与无匹配
 
-`packages/plugin/src/novel-writer/technique-learn.ts` 的 `searchTechniques` 返回结构增加库内总条数（`total`）；`packages/plugin/src/novel-writer.ts` 工具包装层按分支输出：
+`packages/plugin/src/novel-writer/technique-learn.ts` 的 `searchTechniques` 返回结构增加库内总条数与未验证条数（`total`、`unverified`，均为过滤前计数）；`packages/plugin/src/novel-writer.ts` 工具包装层按分支输出：
 
 - 双库总条数为 0 → 明确反馈"技法库为空（本书库与全局库均无条目）"；
 - 有条目但过滤后 0 匹配 → 反馈"过滤条件下无匹配条目，库内共 N 条（未验证 M 条），可移除或放宽过滤条件"，不得表述为库为空。
