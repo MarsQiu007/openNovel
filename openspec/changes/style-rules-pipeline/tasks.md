@@ -28,6 +28,6 @@
 
 ## 5. 集成验证
 
-- [ ] 5.1 端到端回归：嵌套 rules 经保存、读取到快照渲染的全链路测试通过（覆盖拒绝与截断两类边界）
-- [ ] 5.2 在仓库根运行 `bunx oxlint`，并在 packages/plugin、packages/novel-store、packages/server、packages/opennovel 分别运行 `bun typecheck`；验证：0 错误、退出码 0
-- [ ] 5.3 运行 `openspec validate style-rules-pipeline --strict`；验证：通过
+- [x] 5.1 端到端回归：嵌套 rules 经保存、读取到快照渲染的全链路测试通过（覆盖拒绝与截断两类边界）
+- [x] 5.2 在仓库根运行 `bunx oxlint`，并在 packages/plugin、packages/novel-store、packages/server、packages/opennovel 分别运行 `bun typecheck`；验证：0 错误、退出码 0
+- [x] 5.3 运行 `openspec validate style-rules-pipeline --strict`；验证：通过
