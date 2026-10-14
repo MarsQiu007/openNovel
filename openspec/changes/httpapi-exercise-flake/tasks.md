@@ -27,3 +27,10 @@
 - 提交全部实现改动（按包拆分 commit，每个带 `OpenSpec-Change: httpapi-exercise-flake` trailer）
 - 收集实现提交写入 `## Implementation Commits`，单独提交记录更新
 - 归档（skip_specs 无需同步主 specs）→ ff 合并 `main` → 推送 → 确认 CI `test` workflow 全绿 → 清理本地与远端分支并 prune
+
+## Implementation Commits
+
+- `00971d278` docs(openspec): 建立 httpapi-exercise-flake 提案
+- `bfe0db2a6` docs(openspec): 校正 httpapi-exercise-flake 重置方案为原地清空
+- `8141bbfa6` fix(novel-store): SQLite 驱动补 busy_timeout 与 core 对齐
+- `480656dcc` fix(opennovel): exercise 门禁重置改为原地清空确定性重建
