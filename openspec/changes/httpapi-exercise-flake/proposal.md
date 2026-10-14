@@ -11,7 +11,8 @@ CI `test` workflow 的 `Run HttpApi exerciser gates`（仅 Linux，`bun run test
 
 - core 层连接：按场景 scope/memoMap 构建；现有重置在场景 scope 内执行，rm 时连接仍存活；
 - novel-store 按路径缓存的连接（`_dbCache`）：重置从不调用 `closeDb`/`closeDbPath`；
-- novel-store 后台同步 worker：每 5s 轮询 `getDb`，可在「rm 之后、core 迁移之前」率先重建文件。
+- novel-store 后台同步 worker：每 5s 轮询 `getDb`，可在「rm 之后、core 迁移之前」率先重建文件；
+- 模块级 AppRuntime（`ManagedRuntime` 单例）：首次构建后永久持有 core 连接（执行期确认：`disposeAllInstances()` 触达即建连，此后文件在 Windows 上无法删除，这是删除式重置无法在 Windows 收尾的直接原因）。
 
 由此产生两类观测失效：
 
@@ -22,9 +23,9 @@ CI `test` workflow 的 `Run HttpApi exerciser gates`（仅 Linux，`bun run test
 ## What Changes
 
 - **exercise 重置确定性（测试基建）**：
-  - 重置前静默所有可影响共享库的后台路径：停止同步 worker、驱逐 novel-store 对 exercise 库的连接缓存、dispose apps/instances；随后才删除 db/-wal/-shm，并校验文件确实已被移除。
-  - 删除后**确定性重建**：先用全新 memoMap 构建 core 连接并跑迁移（保证 core schema 先行），再让 novel-store 打开同一文件完成剩余表/补列并缓存；最后做 schema 冒烟断言（表 `session`、`tension_log`、`annotations`、`annotation_rounds`、`world_maps` + 列 `chapters.outline`、`characters.status`、`volumes.outline`），不满足时以清晰错误终止而非散点失败；守卫语义保持不变。
-  - 场景重置时机移到场景 scope 关闭之后（当前在 scope 内执行，rm 时场景连接仍存活）；warm 失败且错误为守卫语义时重试一次（覆盖已停止 worker 的在途轮询尾巴），仍失败即红且信息明确。
+  - 重置前静默所有可影响共享库的后台路径：停止同步 worker、驱逐 novel-store 对 exercise 库的连接缓存、dispose apps/instances；随后原地清空共享库全部表（不删文件——模块级 AppRuntime 首次构建后会永久持有连接，删除在 Windows 上必然 EBUSY，且删除导致的跨代 inode 正是原始抖动根因；清空后由 core 守卫走全量重建）。
+  - 清空后**确定性重建**：先用全新 memoMap 构建 core 连接并跑迁移（保证 core schema 先行），再让 novel-store 打开同一文件完成剩余表/补列并缓存；最后做 schema 冒烟断言（表 `session`、`tension_log`、`annotations`、`annotation_rounds`、`world_maps` + 列 `chapters.outline`、`characters.status`、`volumes.outline`），不满足时以清晰错误终止而非散点失败；守卫语义保持不变。
+  - 场景重置时机移到场景 scope 关闭之后（当前在 scope 内执行，清空时场景连接仍存活）；warm 失败且错误为守卫语义时重试一次（覆盖已停止 worker 的在途轮询尾巴），仍失败即红且信息明确。
 - **novel-store 驱动对齐（生产代码，防御性）**：bun / node 两个 SQLite 驱动补 `PRAGMA busy_timeout = 5000`（与 core 一致），消除共享库跨连接 DDL 竞争时的瞬时失败与半成品建库。
 - **回归测试**：opennovel 新增重置管线测试（重置后 schema 完整、陈旧连接被驱逐、同步 worker 停止、core 先行不再触发守卫）；novel-store 新增驱动断言测试（`busy_timeout` 生效）。
 - **验证**：Linux（WSL）按 CI 同命令复跑 `test:httpapi` 三连全绿；推送后 CI `test` workflow 全绿。
