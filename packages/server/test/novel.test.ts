@@ -12,6 +12,7 @@ import {
   ChapterTable,
   VolumeTable,
   CharacterTable,
+  StyleGuideTable,
   tagNovelSession,
   createChapterReview,
 } from "@opennovel-ai/novel-store"
@@ -31,6 +32,7 @@ import {
   getOutlineBundle,
   updateOutline,
   listChapterReviews,
+  getStyleGuideEndpoint,
 } from "../src/handlers/novel"
 import { NovelNotFoundError, NovelValidationError, ChapterNotFoundError } from "@opennovel-ai/protocol/groups/novel"
 
@@ -421,5 +423,51 @@ describe("novel handler - outline", () => {
 
     const bundle = await Effect.runPromise(getOutlineBundle(novelId, tempDir))
     expect(bundle.master).toBe("# 数据库版")
+  })
+})
+
+
+describe("novel handler - style guide 归一化", () => {
+  test("novelDetail 将历史嵌套与数组 rules 读取为扁平映射", async () => {
+    const db = getDb(tempDir)
+    db.insert(StyleGuideTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        rules: {
+          异能体系: { 等级严格: "三级" },
+          禁用手法: ["总结式收尾"],
+        },
+        tone: "冷峻",
+        pov: "第三人称",
+        tense: "过去时",
+      })
+      .run()
+
+    const detail = await Effect.runPromise(novelDetail(novelId, tempDir))
+    expect(detail.styleGuide.rules).toEqual({
+      "异能体系.等级严格": "三级",
+      "禁用手法.0": "总结式收尾",
+    })
+    expect(detail.styleGuide.tone).toBe("冷峻")
+    expect(detail.styleGuide.pov).toBe("第三人称")
+    expect(detail.styleGuide.tense).toBe("过去时")
+  })
+
+  test("getStyleGuideEndpoint 容忍双重编码的历史 JSON 字符串 rules", async () => {
+    const db = getDb(tempDir)
+    db.insert(StyleGuideTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        rules: JSON.stringify({ 异能体系: { 等级严格: "三级" } }),
+        tone: "",
+        pov: "",
+        tense: "",
+      })
+      .run()
+
+    const styleGuide = await Effect.runPromise(getStyleGuideEndpoint(novelId, tempDir))
+    expect(styleGuide.rules).toEqual({ "异能体系.等级严格": "三级" })
   })
 })

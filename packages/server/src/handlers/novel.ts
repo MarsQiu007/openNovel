@@ -39,6 +39,7 @@ import {
   runDeterministicUpgrade,
   getUpgradeGate,
   setUpgradeGate,
+  normalizeStyleRules,
 } from "@opennovel-ai/novel-store"
 import {
   getDb,
@@ -301,7 +302,7 @@ function toWorldEntry(row: WorldEntryRow) {
 }
 
 function toStyleGuide(row: StyleGuideRow) {
-  const rules = typeof row.rules === "string" ? safeParseRecord(row.rules) : normalizeRules(row.rules)
+  const rules = normalizeStyleRules(row.rules).rules
   return {
     id: row.id,
     novelId: row.novel_id,
@@ -346,38 +347,6 @@ function toTensionPoint(row: TensionRow) {
     chapterNumber: row.chapter_number,
     level: row.level,
     createdAt: row.created_at,
-  }
-}
-
-// 旧版流水线曾把 rules 存成 "角色：规则" 字符串数组，归一化为按角色名键控的 Record
-function normalizeRules(value: unknown): Record<string, string> {
-  if (Array.isArray(value)) {
-    const record: Record<string, string> = {}
-    for (const entry of value) {
-      if (typeof entry !== "string") continue
-      const idx = entry.search(/[:：]/)
-      if (idx > 0) record[entry.slice(0, idx).trim()] = entry.slice(idx + 1).trim()
-      else record[entry] = ""
-    }
-    return record
-  }
-  if (value && typeof value === "object") {
-    // 流水线写入的 rules 可能含数字/布尔值（如 chapter_length: 2500），统一转成字符串
-    const record: Record<string, string> = {}
-    for (const [key, v] of Object.entries(value)) {
-      if (typeof v === "string") record[key] = v
-      else if (typeof v === "number" || typeof v === "boolean") record[key] = String(v)
-    }
-    return record
-  }
-  return {}
-}
-
-function safeParseRecord(raw: string): Record<string, string> {
-  try {
-    return normalizeRules(JSON.parse(raw))
-  } catch {
-    return {}
   }
 }
 

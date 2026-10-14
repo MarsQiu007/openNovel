@@ -16,6 +16,7 @@ import {
   StyleGuideTable,
   PlotThreadTable,
   ChapterSummaryTable,
+  normalizeStyleRules,
 } from "@opennovel-ai/plugin/novel-writer/session-store"
 // text import is inlined by Bun.build at bundle time; typed as HTMLBundle by bun-types but is a string
 import readerHtml from "./novel-reader.html" with { type: "text" }
@@ -170,12 +171,14 @@ export const novelReaderRoute = HttpRouter.use((router) =>
         const params = yield* HttpRouter.params
         const novelId = params.novelId
         if (!novelId) return HttpServerResponse.jsonUnsafe({ error: "missing novelId" }, { status: 404 })
-        const style = getDb(resolveDir(request), { fresh: true })
+        const row = getDb(resolveDir(request), { fresh: true })
           .select()
           .from(StyleGuideTable)
           .where(eq(StyleGuideTable.novel_id, novelId))
           .get()
-        return HttpServerResponse.jsonUnsafe({ data: style || null })
+        return HttpServerResponse.jsonUnsafe({
+          data: row ? { ...row, rules: normalizeStyleRules(row.rules).rules } : null,
+        })
       }),
     )
 

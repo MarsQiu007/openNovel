@@ -16,9 +16,9 @@
 
 ## 3. 服务端与内嵌阅读器读取路径
 
-- [ ] 3.1 服务端 style_guide 读取归一化改用共享函数（含历史嵌套、数组、JSON 字符串容错）；验证：server 测试断言历史形态读取为扁平映射且 HTTP 响应形状不变
-- [ ] 3.2 内嵌阅读器（packages/opennovel 的 `/reader` 风格页）读取路径使用共享归一化：风格接口返回前将 rules 归一化为扁平映射，历史嵌套/数组/JSON 字符串形态展平展示（不再出现 [object Object]）；验证：新增 packages/opennovel 测试断言接口返回规则为扁平映射
-- [ ] 3.3 在 packages/server 与 packages/opennovel 运行 `bun typecheck` 与相关测试；验证：退出码 0 且测试通过
+- [x] 3.1 服务端 style_guide 读取归一化改用共享函数（含历史嵌套、数组、JSON 字符串容错）；验证：server 测试断言历史形态读取为扁平映射且 HTTP 响应形状不变
+- [x] 3.2 内嵌阅读器（packages/opennovel 的 `/reader` 风格页）读取路径使用共享归一化：风格接口返回前将 rules 归一化为扁平映射，历史嵌套/数组/JSON 字符串形态展平展示（不再出现 [object Object]）；验证：新增 packages/opennovel 测试断言接口返回规则为扁平映射
+- [x] 3.3 在 packages/server 与 packages/opennovel 运行 `bun typecheck` 与相关测试；验证：退出码 0 且测试通过
 
 ## 4. 快照渲染与预算
 
