@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync
 import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { join, dirname } from "path"
-import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
+import { assembleSnapshot, parseStyleRules, styleGuideRuleLines, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
 import { normalizeStyleGuideData } from "./novel-writer/state-commit.js"
@@ -373,6 +373,7 @@ async function injectSystemContext(sessionId: string, directory: string | null |
     if (snapshot.styleGuide.tone) lines.push(`基调：${snapshot.styleGuide.tone}`)
     if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
     if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
+    lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
     lines.push("")
   }
 

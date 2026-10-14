@@ -22,9 +22,9 @@
 
 ## 4. 快照渲染与预算
 
-- [ ] 4.1 快照工具输出与会话级系统注入渲染风格规则行（空规则不渲染规则段）；验证：`packages/plugin/test/novel-writer/context-snapshot.test.ts` 新增断言通过
-- [ ] 4.2 风格指南预算策略改造：基调、视角、时态优先保留，规则逐条截断并带截断提示；验证：预算相关测试覆盖超限截断与“规则超长不减基调、视角、时态”场景，`bun test` 通过
-- [ ] 4.3 在 packages/plugin 运行 `bun typecheck` 与 novel-writer 相关测试套件；验证：退出码 0 且全部通过
+- [x] 4.1 快照工具输出与会话级系统注入渲染风格规则行（空规则不渲染规则段）；验证：`packages/plugin/test/novel-writer/context-snapshot.test.ts` 新增断言通过
+- [x] 4.2 风格指南预算策略改造：基调、视角、时态优先保留，规则逐条截断并带截断提示；验证：预算相关测试覆盖超限截断与“规则超长不减基调、视角、时态”场景，`bun test` 通过
+- [x] 4.3 在 packages/plugin 运行 `bun typecheck` 与 novel-writer 相关测试套件；验证：退出码 0 且全部通过
 
 ## 5. 集成验证
 

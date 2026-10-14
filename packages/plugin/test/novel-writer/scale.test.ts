@@ -58,7 +58,9 @@ function foreshadowTokens(f: ForeshadowingSummary): number {
 
 /** 估算风格指南的 token 数量 */
 function styleGuideTokens(sg: StyleGuideInfo): number {
-  return estimateTokens(JSON.stringify(sg.rules) + sg.tone + sg.pov + sg.tense)
+  const fixed = estimateTokens(`风格：基调=${sg.tone ?? "无"} 视角=${sg.pov ?? "无"} 时态=${sg.tense ?? "无"}`)
+  const rules = Object.entries(sg.rules).reduce((sum, [key, value]) => sum + estimateTokens(`- ${key}: ${value}`), 0)
+  return fixed + rules
 }
 
 // ─── 模拟数据生成（与 scale-test.ts 的 generateMockData 保持一致） ───
@@ -183,6 +185,7 @@ function generateMockData(chapterCount: number): ContextPacket {
     foreshadowing,
     styleGuide,
     genreRules,
+    styleGuideTruncated: false,
     worldEntries: [],
     worldEntryIndex: [],
     recalledHistory: [],
