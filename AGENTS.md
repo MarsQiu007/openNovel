@@ -1,3 +1,11 @@
+## 任务开始前（openNovel 必读）
+
+- 任何 openNovel 相关的任务，开局先快速过一遍规则与历史沉淀：根 `AGENTS.md`、`openspec/config.yaml`（rules / operations）、`docs/agents/*.md`，以及与任务相关的 `openspec/changes/`、`openspec/specs/` 与 GitHub Issues。
+- 再查本机 Codex 记忆库（`$CODEX_HOME/memories`，默认 `C:\Users\Administrator\.codex\memories`）：先 `memory_summary.md`，再用关键词检索 `MEMORY.md`，按命中读 `skills/<name>/SKILL.md` 与 `rollout_summaries/`；新的规则沉淀写进 `extensions/ad_hoc/notes/`。
+- 依据优先于直觉：记录与代码现状冲突时，先核实现状并在答复中说明，再据此行动。
+
+## 仓库约定
+
 - To regenerate the legacy JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit `src/generated` or `src/generated-effect` directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk-next` composes Client, Core, and Server.
@@ -18,6 +26,8 @@ Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes a
 
 Every non-merge commit MUST include a `OpenSpec-Change` trailer in its footer. Use `OpenSpec-Change: <change-id>` for proposal work and `OpenSpec-Change: none` for repository work outside a proposal. Keep one proposal ID per commit; split commits that span multiple proposals.
 
+提案工件的提交标题沿用既有惯例：新建提案用 `docs(openspec): 建立 <change-id> 提案`，归档用 `chore(openspec): 归档 <change-id>`。
+
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
 
 ## Workflow
@@ -35,6 +45,14 @@ Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributi
 - 合并前检查工作树干净，切换并更新 `main`，优先用 `git merge --ff-only <feature-branch>`；无法 fast-forward 时先把功能分支更新到最新 `main`，重新验证后再合并。
 - 推送 `main` 后，确认分支已合并，再删除本地和远端功能分支，并运行 `git fetch --prune`。
 - 不要把记录更新自身或归档目录移动的提交写入 `Implementation Commits`，避免自引用。
+- 归档后发现由本 change 引入的回归修复：在归档 change 的 `tasks.md` 的 `## Implementation Commits` 下补「归档后收尾修复」子小节（短 hash + 一句话原因），并同步 `## Workflow follow-up` 的计数表述。
+
+## CI 排查与重跑
+
+- 失败先归因：定位到 workflow/job/step/用例级日志，用「前一提交同步骤结果 + 本次 diff 能否影响该运行时 + 是否命中已立案 flake」判断归属；证明与自己无关前不要改代码。
+- 重跑（`gh run rerun <runid> --failed`）只作已知 flake 的止血，同一提交上限 3 次；连续红必须开 issue 立案。
+- 「tip 全绿」按 fetch 到的最新 `origin/main` 确认，不按本地旧 SHA。
+- 本地复现、推送不可达、时间预算与 flake 立案模板见 `docs/agents/ci-triage.md`。
 
 ## Style Guide
 
