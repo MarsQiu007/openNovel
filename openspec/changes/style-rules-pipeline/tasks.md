@@ -31,3 +31,13 @@
 - [x] 5.1 端到端回归：嵌套 rules 经保存、读取到快照渲染的全链路测试通过（覆盖拒绝与截断两类边界）
 - [x] 5.2 在仓库根运行 `bunx oxlint`，并在 packages/plugin、packages/novel-store、packages/server、packages/opennovel 分别运行 `bun typecheck`；验证：0 错误、退出码 0
 - [x] 5.3 运行 `openspec validate style-rules-pipeline --strict`；验证：通过
+
+## Implementation Commits
+
+- `e7d2c6ae` docs(openspec): 建立 style-rules-pipeline 提案
+- `7eebc6c6` docs(openspec): 修订 style-rules-pipeline 提案（补齐写入与读取路径覆盖）
+- `a008cf23` feat(novel-store): 新增风格规则归一化并接入写入边界
+- `6ef07a7d` feat(plugin): 风格规则链路改用共享归一化并展平检查输出
+- `9f99adc6` feat(server): 服务端与内嵌阅读器风格规则读取归一化
+- `4e0af0ff` feat(plugin): 快照渲染风格规则并按预算逐条截断
+- `06e5315f` test(plugin): 风格规则端到端回归（保存到快照渲染）
