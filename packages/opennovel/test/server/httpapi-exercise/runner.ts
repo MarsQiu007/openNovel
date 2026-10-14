@@ -7,8 +7,9 @@ import type { Config } from "../../../src/config/config"
 
 import type { MessageV2 } from "../../../src/session/message-v2"
 import { MessageID, PartID } from "../../../src/session/schema"
-import { call, callAuthProbe, disposeApps } from "./backend"
+import { call, callAuthProbe } from "./backend"
 import { original } from "./environment"
+import { resetExerciseDatabase } from "./reset"
 import { runtime } from "./runtime"
 import type { ActiveScenario, Options, ProjectOptions, Result, Scenario, ScenarioContext, SeededContext } from "./types"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
@@ -25,6 +26,20 @@ export function runScenario(options: Options) {
       Effect.as({ status: "pass", scenario } as Result),
       Effect.catchCause((cause) => Effect.succeed({ status: "fail" as const, scenario, message: Cause.pretty(cause) })),
       Effect.scoped,
+      Effect.flatMap((result) =>
+        scenario.reset && options.mode !== "auth"
+          ? resetState.pipe(
+              Effect.as(result),
+              Effect.catchCause((cause) =>
+                Effect.succeed({
+                  status: "fail" as const,
+                  scenario,
+                  message: `exercise reset failed: ${Cause.pretty(cause)}`,
+                }),
+              ),
+            )
+          : Effect.succeed(result),
+      ),
     )
   }
 }
@@ -193,7 +208,6 @@ function withContext<A, E>(
         return result
       }).pipe(Effect.ensuring(context.llm ? context.llm.reset : Effect.void)),
     ),
-    Effect.ensuring(scenario.reset ? resetState : Effect.void),
   )
 }
 
@@ -257,11 +271,7 @@ function fakeLlmConfig(url: string): Partial<ConfigV1.Info> {
 }
 
 const resetState = Effect.promise(async () => {
-  const modules = await runtime()
   Flag.OPENNOVEL_SERVER_PASSWORD = original.OPENNOVEL_SERVER_PASSWORD
   Flag.OPENNOVEL_SERVER_USERNAME = original.OPENNOVEL_SERVER_USERNAME
-  await disposeApps()
-  await modules.disposeAllInstances()
-  await modules.resetDatabase()
-  await Bun.sleep(25)
+  await resetExerciseDatabase()
 })
