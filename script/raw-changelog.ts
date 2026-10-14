@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { releaseNoteType } from "@opennovel-ai/script/changelog"
 import { $ } from "bun"
 import { parseArgs } from "util"
 
@@ -82,8 +83,7 @@ function section(areas: Set<string>) {
 }
 
 function type(message: string) {
-  if (message.match(/fix/i)) return "Bugfixes"
-  return "Improvements"
+  return releaseNoteType(message) === "fix" ? "Bugfixes" : "Improvements"
 }
 
 function reverted(commits: Commit[]) {
@@ -126,7 +126,6 @@ async function commits(from: string, to: string) {
   for (const hash of log.split("\n").filter(Boolean)) {
     const item = data.get(hash)
     if (!item) continue
-    if (item.message.match(/^(ignore:|test:|chore:|ci:|release:)/i)) continue
 
     const diff = await $`git diff-tree --no-commit-id --name-only -r ${hash}`.text()
     const areas = new Set<string>()
@@ -150,7 +149,8 @@ async function commits(from: string, to: string) {
     })
   }
 
-  return reverted(list)
+  // 发布说明只保留用户可感知的 feat/fix；放在 reverted() 之后，让标准 Revert 配对先完成移除
+  return reverted(list).filter((commit) => releaseNoteType(commit.message) !== undefined)
 }
 
 async function contributors(from: string, to: string) {
@@ -161,7 +161,7 @@ async function contributors(from: string, to: string) {
   for (const item of await diff(base, head)) {
     const title = item.message.split("\n")[0] ?? ""
     if (!item.login || team.includes(item.login)) continue
-    if (title.match(/^(ignore:|test:|chore:|ci:|release:)/i)) continue
+    if (!releaseNoteType(title)) continue
     if (!users.has(item.login)) users.set(item.login, new Set())
     users.get(item.login)!.add(title)
   }
