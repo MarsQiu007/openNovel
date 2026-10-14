@@ -378,6 +378,109 @@ describe("queryTechniques 场景词表空交集回退", () => {
   })
 })
 
+describe("queryTechniques general 场景跨场景召回", () => {
+  test("库内全部为具体标签时 general 查询召回非空（含曝光位）", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      const verified = makeTechnique({
+        name: "具体标签高置信",
+        sceneTypes: ["dialogue"],
+        confidence: 0.9,
+        status: "verified",
+        createdAt: now - 1000,
+      })
+      const fresh = makeTechnique({ name: "具体标签新品", sceneTypes: ["action"], confidence: 0.5, createdAt: now })
+      await upsertTechnique(verified, dir)
+      await upsertTechnique(fresh, dir)
+      const result = await queryTechniques({ sceneType: "general", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === verified.id)).toBe(true)
+      expect(result.some((r) => r.entry.id === fresh.id)).toBe(true)
+    })
+  })
+
+  test("具体场景查询行为不变：仅标签命中与通用身份进入候选", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const description = makeTechnique({ name: "描写技法", sceneTypes: ["description"], confidence: 0.9, status: "verified" })
+      const dialogue = makeTechnique({ name: "对话技法", sceneTypes: ["dialogue"], confidence: 0.8, status: "verified" })
+      await upsertTechnique(description, dir)
+      await upsertTechnique(dialogue, dir)
+      const result = await queryTechniques({ sceneType: "description", contextText: "", limit: 5 }, dir)
+      expect(result.some((r) => r.entry.id === description.id)).toBe(true)
+      expect(result.some((r) => r.entry.id === dialogue.id)).toBe(false)
+    })
+  })
+})
+
+describe("queryTechniques 先过滤后取数", () => {
+  test("高置信不匹配条目不再挤占置信度路径名额", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 3; i++) {
+        await upsertTechnique(
+          makeTechnique({
+            name: `不匹配高置信${i}`,
+            sceneTypes: ["suspense"],
+            confidence: 0.9,
+            status: "verified",
+            createdAt: now - 1000 * (i + 1),
+          }),
+          dir,
+        )
+      }
+      for (let i = 0; i < 3; i++) {
+        await upsertTechnique(
+          makeTechnique({
+            name: `匹配对话${i}`,
+            sceneTypes: ["dialogue"],
+            confidence: 0.5,
+            status: "verified",
+            createdAt: now - 10000 - i,
+          }),
+          dir,
+        )
+      }
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 3 }, dir)
+      expect(result.map((r) => r.entry.name).sort()).toEqual(["匹配对话0", "匹配对话1", "匹配对话2"])
+      expect(result.some((r) => r.entry.name.startsWith("不匹配"))).toBe(false)
+    })
+  })
+
+  test("曝光位先过滤后占位：最近新品不匹配时不空占", async () => {
+    await withTempDir(async (dir) => {
+      installFreshGlobalDb()
+      const now = Date.now()
+      for (let i = 0; i < 3; i++) {
+        await upsertTechnique(
+          makeTechnique({
+            name: `匹配已验证${i}`,
+            sceneTypes: ["dialogue"],
+            confidence: 0.9,
+            status: "verified",
+            createdAt: now - 20000 - i,
+          }),
+          dir,
+        )
+      }
+      const matchingFresh = makeTechnique({
+        name: "匹配未验证新品",
+        sceneTypes: ["dialogue"],
+        confidence: 0.5,
+        createdAt: now - 3000,
+      })
+      await upsertTechnique(matchingFresh, dir)
+      await upsertTechnique(makeTechnique({ name: "不匹配新品近1", sceneTypes: ["suspense"], createdAt: now - 2000 }), dir)
+      await upsertTechnique(makeTechnique({ name: "不匹配新品近2", sceneTypes: ["action"], createdAt: now - 1000 }), dir)
+      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 3 }, dir)
+      expect(result.some((r) => r.entry.id === matchingFresh.id)).toBe(true)
+      expect(result.some((r) => r.entry.name.startsWith("不匹配"))).toBe(false)
+      expect(result.length).toBe(3)
+    })
+  })
+})
+
 describe("queryTechniques 双源合并", () => {
   test("全局库非空时本书场景召回全局条目并标注来源", async () => {
     await withTempDir(async (dir) => {

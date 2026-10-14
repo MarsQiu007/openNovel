@@ -10,6 +10,9 @@ import { saveTechnique, searchTechniques, confirmTechniques } from "../../src/no
 import { upsertTechnique, listTechniques } from "../../src/novel-writer/technique-store.js"
 import { getGlobalDb, TechniqueTable } from "../../src/novel-writer/session-store.js"
 import { eq } from "drizzle-orm"
+import { NovelWriterPlugin } from "../../src/novel-writer.js"
+import type { ToolContext } from "../../src/tool.js"
+import { createPluginInput } from "./runtime-assembly-helpers.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-learn-test-"))
 
@@ -31,6 +34,19 @@ async function globalNames(): Promise<string[]> {
   const db = getGlobalDb()
   const rows = await db.select({ name: TechniqueTable.name }).from(TechniqueTable).all()
   return rows.map((r) => r.name)
+}
+
+function toolCtx(directory: string): ToolContext {
+  return {
+    sessionID: "ses-search-tool-test",
+    messageID: "msg_test",
+    agent: "director",
+    directory,
+    worktree: directory,
+    abort: new AbortController().signal,
+    metadata() {},
+    async ask() {},
+  }
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof saveTechnique>[0]>) {
@@ -212,6 +228,42 @@ describe("searchTechniques 双源检索", () => {
     )
     const { count } = await searchTechniques({ status: "verified" }, dir)
     expect(count).toBe(2)
+  })
+
+  test("返回过滤前计数 total/unverified（不受过滤条件影响）", async () => {
+    resetGlobalLibrary()
+    const dir = mkdtempSync(join(tmpdir(), "learn-search-counts-"))
+    await upsertTechnique(makeTechnique({ name: "本书已验证", status: "verified", scope: "adult" }), dir)
+    await upsertTechnique(makeTechnique({ name: "本书未验证", sceneTypes: ["dialogue"] }), dir)
+    await upsertTechnique(makeTechnique({ name: "全局未验证", sceneTypes: ["dialogue"] }), dir, "global")
+    const filtered = await searchTechniques({ status: "verified" }, dir)
+    expect(filtered.count).toBe(1)
+    expect(filtered.total).toBe(3)
+    expect(filtered.unverified).toBe(2)
+    const unfiltered = await searchTechniques({}, dir)
+    expect(unfiltered.count).toBe(3)
+  })
+})
+
+describe("search_techniques 空结果反馈（工具层）", () => {
+  test("双库均无条目时明确反馈技法库为空", async () => {
+    resetGlobalLibrary()
+    const dir = mkdtempSync(join(tmpdir(), "learn-tool-empty-"))
+    const hooks = await NovelWriterPlugin(createPluginInput(dir))
+    const result = await hooks.tool!.search_techniques!.execute({}, toolCtx(dir))
+    expect(result.output).toContain("技法库为空")
+  })
+
+  test("库非空但过滤后无匹配时包含总数与未验证数，不表述为库为空", async () => {
+    resetGlobalLibrary()
+    const dir = mkdtempSync(join(tmpdir(), "learn-tool-nomatch-"))
+    await upsertTechnique(makeTechnique({ name: "未验证技法A", sceneTypes: ["dialogue"] }), dir)
+    await upsertTechnique(makeTechnique({ name: "未验证技法B", sceneTypes: ["dialogue"] }), dir, "global")
+    const hooks = await NovelWriterPlugin(createPluginInput(dir))
+    const result = await hooks.tool!.search_techniques!.execute({ status: "verified" }, toolCtx(dir))
+    expect(result.output).toContain("库内共 2 条")
+    expect(result.output).toContain("未验证 2 条")
+    expect(result.output).not.toContain("技法库为空")
   })
 })
 
