@@ -4,7 +4,6 @@ import { createStore } from "solid-js/store"
 import { DateTime } from "luxon"
 import { useNavigate } from "@solidjs/router"
 import { Spinner } from "@opennovel-ai/ui/spinner"
-import { ScrollView } from "@opennovel-ai/ui/scroll-view"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
@@ -16,8 +15,33 @@ import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
 import { collectDescendants } from "@/utils/session-descendants"
 import { useConfirmDelete } from "@/pages/novel/confirm-dialog"
-import { HOME_ROW, HOME_SECTION_LABEL } from "./sessions"
 import type { NovelSessionBinding, NovelSessionNovel } from "./novel-sessions"
+
+/**
+ * 首页滚动约束：滚轮事件不落在可滚动目标内时阻止默认滚动，
+ * 避免侧栏/右栏滚动穿透到外层容器（首页会话面与侧栏共用）。
+ */
+export function containHomeWheel(event: WheelEvent, viewport: HTMLElement) {
+  if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return
+  if (!(event.target instanceof Element)) return
+
+  const scrollable = event.target.closest<HTMLElement>("[data-scrollable]")
+  if (
+    scrollable !== viewport &&
+    scrollable &&
+    (event.deltaY < 0
+      ? scrollable.scrollTop > 0
+      : scrollable.scrollTop < scrollable.scrollHeight - scrollable.clientHeight)
+  )
+    return
+
+  event.preventDefault()
+}
+
+const HOME_ROW_LAYOUT =
+  "flex min-w-0 w-full shrink-0 cursor-default items-center rounded-[6px] bg-transparent text-left transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out focus-visible:outline-none"
+export const HOME_ROW = `${HOME_ROW_LAYOUT} border-0 [font-weight:530] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover`
+export const HOME_SECTION_LABEL = "text-v2-text-text-muted [font-weight:440]"
 
 export type NovelSidebarNovel = NovelSessionNovel
 export type NovelSidebarBinding = NovelSessionBinding
@@ -415,27 +439,5 @@ export function NovelSessionGroupList(props: NovelSessionGroupListProps) {
         </For>
       </Show>
     </Show>
-  )
-}
-
-/**
- * 会话页左侧「书籍对话」侧边栏。
- */
-export function SessionsNovelSidebar(props: Omit<NovelSessionGroupListProps, "activeSessionID">) {
-  const language = useLanguage()
-  return (
-    <aside
-      class="hidden lg:flex min-h-0 min-w-0 flex-col lg:sticky lg:top-0 lg:h-[100cqh] lg:self-start"
-      aria-label={language.t("home.sessions.sidebar.books")}
-    >
-      <div class="flex h-9 shrink-0 items-center justify-between pl-3 pr-2 pt-12 pb-3">
-        <span class={HOME_SECTION_LABEL}>{language.t("home.sessions.sidebar.books")}</span>
-      </div>
-      <ScrollView class="min-h-0 flex-1">
-        <div class="flex min-w-0 flex-col gap-px px-1.5 pb-16">
-          <NovelSessionGroupList {...props} />
-        </div>
-      </ScrollView>
-    </aside>
   )
 }
