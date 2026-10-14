@@ -2,9 +2,9 @@
 
 ## 1. 共享归一化（novel-store）
 
-- [ ] 1.1 新增规则归一化函数并导出（嵌套 `父.子` 展平、数组索引展平、JSON/行文本解析、显式清空与无法归一化语义）；验证：新增 `packages/novel-store/test/style-rules.test.ts` 覆盖全部形态与失败路径，包目录 `bun test` 通过
-- [ ] 1.2 风格指南写入边界（upsertStyleGuide、书籍元数据联合保存 saveBookMeta）接入归一化，saveBookMeta 不再对 rules 双重编码；验证：新增用例断言嵌套输入落库为扁平映射、读取回为对象形态，`bun test` 通过
-- [ ] 1.3 在 packages/novel-store 运行 `bun typecheck`；验证：退出码 0
+- [x] 1.1 新增规则归一化函数并导出（嵌套 `父.子` 展平、数组索引展平、JSON/行文本解析、显式清空与无法归一化语义）；验证：新增 `packages/novel-store/test/style-rules.test.ts` 覆盖全部形态与失败路径，包目录 `bun test` 通过
+- [x] 1.2 风格指南写入边界（upsertStyleGuide、书籍元数据联合保存 saveBookMeta）接入归一化，saveBookMeta 不再对 rules 双重编码；验证：新增用例断言嵌套输入落库为扁平映射、读取回为对象形态，`bun test` 通过
+- [x] 1.3 在 packages/novel-store 运行 `bun typecheck`；验证：退出码 0
 
 ## 2. 插件写入路径
 

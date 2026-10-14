@@ -10,6 +10,7 @@
 import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
+import { requireNormalizedStyleRules } from "./style-rules.js"
 import { Option, Schema } from "effect"
 import { TechniqueEvidence } from "@opennovel-ai/schema/technique"
 import { inspectEvidenceElement } from "./migrate.js"
@@ -1625,9 +1626,11 @@ export async function deleteCharacterState(stateId: string, directory?: string |
 
 export async function upsertStyleGuide(
   novelId: string,
-  fields: { tone?: string; pov?: string; tense?: string; rules?: Record<string, string> },
+  fields: { tone?: string; pov?: string; tense?: string; rules?: unknown },
   directory?: string | null,
 ): Promise<typeof StyleGuideTable.$inferSelect> {
+  // 规则先归一化：非空且无法归一化时整体拒绝（tone/pov/tense 也不写入，不产生部分成功）
+  const rules = fields.rules === undefined ? undefined : requireNormalizedStyleRules(fields.rules)
   const db = getDb(directory)
   const existing = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get()
   if (!existing) {
@@ -1641,7 +1644,7 @@ export async function upsertStyleGuide(
         pov: fields.pov ?? "",
         tense: fields.tense ?? "",
         // rules 列是 drizzle json 模式，直接传对象（内部会序列化一次）；再 JSON.stringify 会产生双重编码
-        rules: fields.rules ?? {},
+        rules: rules ?? {},
       })
       .run()
     return db.select().from(StyleGuideTable).where(eq(StyleGuideTable.id, id)).get()!
@@ -1650,7 +1653,7 @@ export async function upsertStyleGuide(
   if (fields.tone !== undefined) updates.tone = fields.tone
   if (fields.pov !== undefined) updates.pov = fields.pov
   if (fields.tense !== undefined) updates.tense = fields.tense
-  if (fields.rules !== undefined) updates.rules = fields.rules
+  if (rules !== undefined) updates.rules = rules
   await db.update(StyleGuideTable).set(updates).where(eq(StyleGuideTable.id, existing.id)).run()
   return db.select().from(StyleGuideTable).where(eq(StyleGuideTable.id, existing.id)).get()!
 }
@@ -3027,3 +3030,4 @@ export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
 export * from "./upgrade.js"
+export * from "./style-rules.js"

@@ -18,6 +18,7 @@ import {
   getDb,
   type Db,
 } from "./index.js"
+import { requireNormalizedStyleRules } from "./style-rules.js"
 
 export type SyncStatus = "synced" | "pending" | "failed" | "skipped"
 
@@ -207,7 +208,7 @@ export async function saveBookMeta(
     title?: string
     synopsis?: string
     genre?: string
-    styleGuide?: { tone?: string; pov?: string; tense?: string; rules?: Record<string, string> }
+    styleGuide?: { tone?: string; pov?: string; tense?: string; rules?: unknown }
   },
   directory?: string | null,
 ): Promise<{ novel: typeof NovelTable.$inferSelect; styleGuide: typeof StyleGuideTable.$inferSelect | null }> {
@@ -224,11 +225,14 @@ export async function saveBookMeta(
     // 风格指南更新
     let styleGuideRow: typeof StyleGuideTable.$inferSelect | null = null
     if (input.styleGuide) {
+      // 规则先归一化：非空且无法归一化时抛错，主事务整体回滚（不产生部分写入）
+      const rules = input.styleGuide.rules === undefined ? undefined : requireNormalizedStyleRules(input.styleGuide.rules)
       const sgUpdates: Record<string, unknown> = {}
       if (input.styleGuide.tone !== undefined) sgUpdates.tone = input.styleGuide.tone
       if (input.styleGuide.pov !== undefined) sgUpdates.pov = input.styleGuide.pov
       if (input.styleGuide.tense !== undefined) sgUpdates.tense = input.styleGuide.tense
-      if (input.styleGuide.rules !== undefined) sgUpdates.rules = JSON.stringify(input.styleGuide.rules)
+      // rules 列是 drizzle json 模式，直接传对象（单次序列化）；JSON.stringify 会产生双重编码
+      if (rules !== undefined) sgUpdates.rules = rules
       const existing = tx.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).get()
       if (existing) {
         tx.update(StyleGuideTable).set(sgUpdates).where(eq(StyleGuideTable.novel_id, novelId)).run()
@@ -237,7 +241,7 @@ export async function saveBookMeta(
           .values({
             id: crypto.randomUUID(),
             novel_id: novelId,
-            rules: JSON.stringify(input.styleGuide.rules ?? {}),
+            rules: rules ?? {},
             tone: input.styleGuide.tone ?? "",
             pov: input.styleGuide.pov ?? "",
             tense: input.styleGuide.tense ?? "",
