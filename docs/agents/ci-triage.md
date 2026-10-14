@@ -30,10 +30,41 @@
 - 还原纪律：改 hosts 前先 `Copy-Item` 备份到日志目录，收尾按备份还原并用 `-Raw` 比较确认逐字节一致（用正则替换改写会吞掉行尾 CR）。
 - pre-push hook 会跑根 `bun turbo typecheck`；`bun.lock` 变更后是冷启动全量（约 3-4 分钟），重试预算要算上。
 
+## 文档提交与 CI 触发过滤
+
+`generate`、`typecheck`、`test` 三条工作流带有 `paths-ignore` 过滤：当一次 push 或 PR 的全部变更都命中过滤清单时，不会产生任何 CI run。纯文档提交查不到 run 属预期，不是漏跑，也不要手动补跑。
+
+过滤清单（三条工作流的 push 与 pull_request 共六处需保持一致）：
+
+- `docs/**`、`specs/**`、`openspec/**`：文档、规范与提案体系；
+- `.agents/**`、`.claude/**`、`.kimi-code/**`、`.qoder/**`：各代理工具的纯文档目录，整目录忽略；
+- `.opencode/**.md`：只忽略 markdown；其插件与工具脚本（ts/tsx/json）保持触发；
+- `.github/**.md`：PR/issue 模板类文档；workflow 自身（yml）保持触发；
+- `*.md`：根级 markdown（README / CONTEXT / SECURITY / STATS 等，`*` 不跨目录）；
+- `**/README.md`、`**/AGENTS.md`：任意层级的 README 与 AGENTS 说明。
+
+刻意没有使用 `**/*.md` 一刀切：`packages/` 内存在被运行时或测试读取的 markdown，误伤会让该跑的 CI 被跳过。以下文件不在过滤清单，修改后必须照常触发：
+
+- `packages/core/src/plugin/skill/customize-opennovel.md`（以文本形式打进运行时）；
+- `script/translate-app.md`（翻译脚本读取的提示词）；
+- `packages/opennovel/test/config/fixtures/*.md`、`packages/opennovel/test/fixture/skills/**` 等测试夹具。
+
+确认与补跑：
+
+```powershell
+# 某次推送的 run 数量：纯文档应为 0；含代码或工作流变更则不为 0
+gh api "repos/MarsQiu007/openNovel/actions/runs?head_sha=<sha>" --jq '.total_count'
+
+# 需要人工验证时走 dispatch（不受过滤影响；generate 暂未开放手动触发）
+gh workflow run test.yml --ref main
+```
+
+维护规则：新增整片文档目录（新的代理工具目录、文档站点等）时，同步更新三条工作流的两个清单，并把目录补进本节。
+
 ## 时间预算
 
 - `unit (linux)` 约 15-20 分钟（unit tests + generated client 校验 + HttpApi exerciser gates + technique e2e gates 四段）；`unit (windows)` 约 25-30 分钟；`e2e` 约 9 分钟；`generate` / `typecheck` 少于 2 分钟。
-- 纯文档提交也要约 30 分钟才能等到 6 项检查全绿。
+- 纯文档提交不产生任何 run（见「文档提交与 CI 触发过滤」），无需等待。
 
 ## 本机脚本要点（Windows/PowerShell）
 

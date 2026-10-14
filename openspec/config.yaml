@@ -60,7 +60,7 @@ operations:
       - '提交时在 footer 中写入 `OpenSpec-Change: <change-id>`，非提案工作写 `OpenSpec-Change: none`'
       - 测试只能从具体包目录运行（如 packages/opennovel），不要从仓库根运行
       - 类型检查用 `bun typecheck`，不要直接调 tsc
-      - '完成的判定以 CI 全绿为准（generate / typecheck / test）；红先归因再修复，重跑仅作已知 flake 的止血，细则见 docs/agents/ci-triage.md'
+      - '完成的判定以 CI 全绿为准（generate / typecheck / test）；红先归因再修复，重跑仅作已知 flake 的止血，细则见 docs/agents/ci-triage.md；纯文档推送不产生 run，以「无 run」为预期'
   archive:
     guidance:
       - 归档前先提交与本 change 相关的实现改动，并在 tasks.md 的 `Implementation Commits` 中记录相关提交的短 hash 与标题；记录更新单独提交，验证通过后再归档

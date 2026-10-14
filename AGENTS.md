@@ -52,6 +52,7 @@ Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributi
 - 失败先归因：定位到 workflow/job/step/用例级日志，用「前一提交同步骤结果 + 本次 diff 能否影响该运行时 + 是否命中已立案 flake」判断归属；证明与自己无关前不要改代码。
 - 重跑（`gh run rerun <runid> --failed`）只作已知 flake 的止血，同一提交上限 3 次；连续红必须开 issue 立案。
 - 「tip 全绿」按 fetch 到的最新 `origin/main` 确认，不按本地旧 SHA。
+- 纯文档提交（过滤清单见 `docs/agents/ci-triage.md`）不触发任何工作流：推送后查不到该 SHA 的 run 属预期，不要误判漏跑，也不要手动补跑。
 - 本地复现、推送不可达、时间预算与 flake 立案模板见 `docs/agents/ci-triage.md`。
 
 ## Style Guide
