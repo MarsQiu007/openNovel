@@ -57,6 +57,7 @@ director 权限表中将 `generate_chapter_outline` 从 allow 改为 deny。保�
 
 1. 运行时权限表（参照既有 `agent-permissions.test.ts`，经 `createPluginInput` + `hooks.config` 取 `input.agent.director.permission`）：断言 `generate_chapter_outline === "deny"`、`outliner.permission.generate_chapter_outline === "allow"`。
 2. 提示词源文本（读 `directorAgentConfig.systemPrompt`）：断言"生成大纲"路由块含调度 @outliner 的表述、不含"你先生成实际的章节大纲内容"旧写法；创意路由不含关键词表闸门旧写法；工具描述（经 `NovelWriterPlugin(input)` 返回的 hooks 取 `tool.generate_chapter_outline.description`，`tool()` 工厂原样返回定义对象，可直接读取）不含 director 归属措辞。
+3. 既有 `ideator-agent.test.ts` 中依赖旧文案的两条断言（"不要自动调用"闸门与"新增或修改设定"旧分流）随路由改写同步更新为意图判定与 architect 分流断言，避免旧断言与新契约互相矛盾。
 
 ## Risks / Trade-offs
 

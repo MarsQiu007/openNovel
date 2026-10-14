@@ -24,7 +24,7 @@
 
 ## Impact
 
-- **packages/plugin**：`src/novel-writer/agents/director.ts`（路由段重写）、`src/novel-writer.ts`（director 权限表 + generate_chapter_outline 工具描述）；新增 `test/novel-writer/agent-dispatch-routing.test.ts`。
+- **packages/plugin**：`src/novel-writer/agents/director.ts`（路由段重写）、`src/novel-writer.ts`（director 权限表 + generate_chapter_outline 工具描述）；新增 `test/novel-writer/agent-dispatch-routing.test.ts`；同步更新 `test/novel-writer/ideator-agent.test.ts` 中两条旧文案断言。
 - 无数据模型变更，与现有本地数据完全兼容；不改 writer/pipeline 内部调度，不改 @outliner/@ideator/@architect 子 agent 自身提示词。
 
 ## 非目标
