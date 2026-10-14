@@ -1,10 +1,37 @@
 name: test
 
+# 纯文档推送/PR 不触发本工作流；过滤清单在 push 与 pull_request 两处需同步维护，详见 docs/agents/ci-triage.md
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - 'specs/**'
+      - 'openspec/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.kimi-code/**'
+      - '.qoder/**'
+      - '.opencode/**.md'
+      - '.github/**.md'
+      - '*.md'
+      - '**/README.md'
+      - '**/AGENTS.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'specs/**'
+      - 'openspec/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.kimi-code/**'
+      - '.qoder/**'
+      - '.opencode/**.md'
+      - '.github/**.md'
+      - '*.md'
+      - '**/README.md'
+      - '**/AGENTS.md'
   workflow_dispatch:
 
 concurrency:
