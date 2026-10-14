@@ -26,7 +26,7 @@
 
 ### D3 过滤逻辑放入 packages/script 并补单测
 
-根目录 script 无法从仓库根运行测试（仓库守卫），`packages/script` 已有 `release-notes.test.ts`、`version.test.ts` 先例。新增 `src/changelog.ts` 导出 `releaseNoteType(message)`（返回 feat/fix/undefined）。引用方式：新增子路径导出 `@opennovel-ai/script/changelog`——不能走包入口 `index.ts`（其顶层有 git 查询与 console 输出副作用，会污染 raw-changelog 的 stdout，进而写进发布说明文件）。单测样例取自 v0.0.9..v0.0.10 真实提交，覆盖 scope、`!`、大小写与各排除类型。
+根目录 script 无法从仓库根运行测试（仓库守卫），`packages/script` 已有 `release-notes.test.ts`、`version.test.ts` 先例。新增 `src/changelog.ts` 导出 `releaseNoteType(message)`（返回 feat/fix/undefined）。引用方式：新增子路径导出 `@opennovel-ai/script/changelog`——不能走包入口 `index.ts`（其顶层有 git 查询与 console 输出副作用，会污染 raw-changelog 的 stdout，进而写进发布说明文件）。单测样例取自 v0.0.9..v0.0.10 真实提交，覆盖 scope、`!`、大小写与各排除类型。此外为 `packages/script` 补上此前缺失的 `typecheck` 脚本（`tsgo --noEmit`，与其他包一致），使新增代码纳入 `bun typecheck` 与 turbo 检查。
 
 ### D4 贡献者区块保留机制、修正配置与白名单
 
@@ -44,6 +44,10 @@
 ### D6 v0.0.10 notes 用修复后管线重生成覆盖
 
 以 `-f v0.0.9 -t v0.0.10` 重生成 → 人工检查仅含 feat/fix、无贡献者区块 → `gh release edit v0.0.10 --notes-file` 覆盖（仅改 notes，资产不动），操作前备份原 body。不回填 v0.0.2～v0.0.9。
+
+### D7 修复 Windows 下 spawn 裸名 `bun` 解析失败
+
+两处 `Bun.spawn` 由裸名 `bun` 改为 `process.execPath`。触发场景：Windows 的 PATH 通常只含 bun shim（`bun.cmd`/`bun.ps1`）而非 `bun.exe`，且显式传 `env` 时 Bun 不再做调用方可执行文件目录搜索，裸名解析直接 ENOENT（1.3.14 实测）——脚本此前在 Windows 本地完全无法运行，降级路径冒烟（任务 3.1）无法执行。`process.execPath` 即当前 bun 可执行文件绝对路径，本地与 CI 行为一致，属本 change 验证路径的必要健壮性修复。
 
 ## Risks / Trade-offs
 
