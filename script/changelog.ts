@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { rm } from "fs/promises"
+import { appendFile, rm } from "fs/promises"
 import path from "path"
 import { parseArgs } from "util"
 
@@ -52,8 +52,10 @@ await rm(file, { force: true })
 const quiet = values.quiet
 // opennovel 是 private workspace 包，没有发布 npm 平台二进制，bin/opennovel 启动器在 CI 上不可用；
 // 统一从源码以 bun 调用。cwd 保持仓库根：opennovel 以 cwd 为实例目录。
+// 不要用裸名 "bun"：Windows 的 PATH 通常只有 shim（bun.cmd/bun.ps1），显式传 env 时
+// 裸名解析会 ENOENT（Bun 1.3.14 实测）；用当前进程的 bun 可执行文件，本地与 CI 行为一致。
 const cmd = [
-  "bun",
+  process.execPath,
   "run",
   "--conditions=browser",
   path.join(root, "packages/opennovel/src/index.ts"),
@@ -89,9 +91,16 @@ const code = await proc.exited
 if (code !== 0) {
   // AI 生成失败（如缺少模型 key）不应阻断发版流程：降级为 raw-changelog 的机械输出
   console.error(`[changelog] opennovel changelog command failed (exit ${code}); falling back to raw changelog`)
+  // 降级必须显式可见：GitHub Actions 输出 warning 注解与 step summary，避免再次静默无人察觉
+  if (process.env.GITHUB_ACTIONS) {
+    console.log(`::warning title=Changelog fallback::AI changelog 生成失败（exit ${code}），已降级为机械输出；详见 prepare 日志`)
+  }
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    await appendFile(process.env.GITHUB_STEP_SUMMARY, "> [!WARNING]\n> AI changelog 生成失败，已降级为机械输出（changelog AI fallback）。\n")
+  }
   // raw-changelog 用 git log 按路径过滤 commit，本地 tag 过期会导致 bad revision，先同步
   await $`git fetch --tags --force --quiet`.nothrow().cwd(root)
-  const raw = Bun.spawn(["bun", "run", path.join(root, "script/raw-changelog.ts"), ...args], {
+  const raw = Bun.spawn([process.execPath, "run", path.join(root, "script/raw-changelog.ts"), ...args], {
     cwd: root,
     stdout: "pipe",
     stderr: "inherit",
