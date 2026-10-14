@@ -5925,7 +5925,7 @@ ${sceneChecklist}`
 
       search_techniques: tool({
         description:
-          "查询技法库现有技法（对话学习与召回评估共用）。可按名称关键词、场景类型、层级、状态过滤；返回每条技法的 id、名称、原则与指令摘要，供合并判断或多轮召回参考。",
+          "查询技法库现有技法（对话学习与召回评估共用）。可按名称关键词、场景类型、层级、状态过滤；返回每条技法的 id、名称、原则与指令摘要，供合并判断或多轮召回参考。状态过滤语义：缺省为全部；`verified` 需经反馈积累产生，新库条目常全部为 `unverified`。",
         args: {
           keyword: tool.schema.string().optional().describe("名称/原则/指令关键词（不区分大小写）"),
           scene_type: tool.schema
@@ -5944,7 +5944,7 @@ ${sceneChecklist}`
         },
         async execute(args, ctx) {
           const { searchTechniques } = await import("./novel-writer/technique-learn.js")
-          const { lines, count } = await searchTechniques(
+          const { lines, count, total, unverified } = await searchTechniques(
             {
               keyword: args.keyword,
               sceneType: args.scene_type,
@@ -5956,7 +5956,12 @@ ${sceneChecklist}`
           )
           return {
             title: "search_techniques",
-            output: count === 0 ? "技法库无匹配条目" : lines.join("\n"),
+            output:
+              count > 0
+                ? lines.join("\n")
+                : total === 0
+                  ? "技法库为空（本书库与全局库均无条目）"
+                  : `过滤条件命中 0 条（无匹配条目）：库内共 ${total} 条（未验证 ${unverified} 条），可移除或放宽过滤条件后重试`,
             count,
           }
         },

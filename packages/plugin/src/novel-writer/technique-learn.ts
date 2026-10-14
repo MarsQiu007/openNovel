@@ -85,7 +85,7 @@ export interface SearchTechniquesFilter {
 export async function searchTechniques(
   filter: SearchTechniquesFilter,
   directory: string | null,
-): Promise<{ lines: string[]; count: number }> {
+): Promise<{ lines: string[]; count: number; total: number; unverified: number }> {
   const all = await listAllTechniques(directory)
   const keyword = filter.keyword?.trim().toLowerCase() ?? ""
   const matched = all
@@ -102,7 +102,13 @@ export async function searchTechniques(
     ({ entry, library }) =>
       `- [${entry.id}]${library === "global" ? "[通用库]" : "[本书]"} ${entry.name}（${entry.status}/${entry.confidence.toFixed(2)}）：${entry.instruction.slice(0, 80)}`,
   )
-  return { lines, count: matched.length }
+  // total/unverified 为过滤前计数：空结果反馈据此区分"库为空"与"过滤后无匹配"
+  return {
+    lines,
+    count: matched.length,
+    total: all.length,
+    unverified: all.filter(({ entry }) => entry.status === "unverified").length,
+  }
 }
 
 /** confirm_techniques 工具的核心逻辑：双源取条目 + 计数 + 预算裁剪 + 段落格式化 */

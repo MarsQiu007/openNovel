@@ -65,6 +65,9 @@ function libDb(library: TechniqueLibrary, directory?: string | null) {
 /** 未验证新品曝光位:置信度前列之外额外纳入的最近入库 unverified 条数 */
 const UNVERIFIED_SPOTS = 2
 
+/** 召回全量取数的宽松安全阀:本地单表实际条数十至百级,防未来数据膨胀,超出按排序键截断后再过滤 */
+const QUERY_FETCH_CAP = 500
+
 export async function queryTechniques(
   query: TechniqueQuery,
   directory?: string | null,
@@ -73,7 +76,9 @@ export async function queryTechniques(
   const matchesQuery = (entry: TechniqueEntry) => {
     const canonical = canonicalSceneIntersection(entry.sceneTypes)
     // 空交集（历史自由文本标签）视为跨场景通用：按"通用身份"参与任意场景候选，不因标签词表问题被静默过滤
-    const sceneMatch = canonical.length === 0 || canonical.includes(query.sceneType)
+    // general 查询（场景推断不出/跨场景）不做场景标签过滤：库内技法普遍只带具体场景标签，严格命中会导致候选恒空
+    const sceneMatch =
+      query.sceneType === "general" || canonical.length === 0 || canonical.includes(query.sceneType)
     return sceneMatch && (query.level === undefined || entry.level === query.level)
   }
 
@@ -91,18 +96,19 @@ export async function queryTechniques(
     if (library === "book" && query.allowAdult !== true) {
       conditions.push(ne(TechniqueTable.scope, "adult"))
     }
+    // 先取数后过滤：SQL 层不截断到 limit（仅宽松上限防膨胀），场景过滤与跨池排序截取统一在内存进行
     const rows = await db
       .select()
       .from(TechniqueTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(TechniqueTable.confidence))
-      .limit(limit)
+      .limit(QUERY_FETCH_CAP)
       .all()
     confidenceHits.push(
       ...rows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
     )
 
-    // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;尊重 minConfidence 门槛
+    // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;先场景过滤再占位,尊重 minConfidence 门槛
     const freshConditions = [eq(TechniqueTable.status, "unverified")]
     if (query.minConfidence !== undefined) {
       freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
@@ -115,7 +121,7 @@ export async function queryTechniques(
       .from(TechniqueTable)
       .where(and(...freshConditions))
       .orderBy(desc(TechniqueTable.created_at))
-      .limit(UNVERIFIED_SPOTS)
+      .limit(QUERY_FETCH_CAP)
       .all()
     freshHits.push(
       ...freshRows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
