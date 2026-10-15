@@ -81,11 +81,16 @@ const SessionRoute = () => {
   return <SessionRedirect sessionID={params.id} directory={directory} />
 }
 
-const TargetSessionRoute = () => (
-  <TargetServerRoute>
-    <TargetSessionRouteContent />
-  </TargetServerRoute>
-)
+const TargetSessionRoute = () => {
+  const params = useParams<{ serverKey: string; id: string }>()
+  return (
+    <TargetServerRoute>
+      <SessionRouteErrorBoundary sessionID={params.id} serverKey={requireServerKey(params.serverKey)}>
+        <TargetSessionRouteContent />
+      </SessionRouteErrorBoundary>
+    </TargetServerRoute>
+  )
+}
 
 function LegacyTargetSessionRoute() {
   const params = useParams<{ serverKey: string; id: string }>()

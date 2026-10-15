@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { flattenNovelSessionOptions, type NovelSessionOption } from "@/context/novel-queries"
 import { sessionSwitcherTrigger } from "./workspace-data"
 
 const baseInput = {
@@ -45,6 +46,31 @@ describe("sessionSwitcherTrigger", () => {
       sessions: [{ sessionID: "s1", title: "第一章草稿" }],
     })
     expect(result).toEqual({ label: "对话", disabled: false, showRetry: false })
+  })
+
+  test("深层嵌套子会话：拍平后触发器标签命中孙级标题", () => {
+    const tree: NovelSessionOption[] = [
+      {
+        sessionID: "s1",
+        title: "第一章草稿",
+        updatedAt: 1,
+        children: [
+          {
+            sessionID: "sub1",
+            title: "子代理 A",
+            updatedAt: 2,
+            children: [{ sessionID: "sub2", title: "孙代理 B", updatedAt: 3, children: [] }],
+          },
+        ],
+      },
+    ]
+    const result = sessionSwitcherTrigger({
+      ...baseInput,
+      status: "ready",
+      sessions: flattenNovelSessionOptions(tree),
+      paramsID: "sub2",
+    })
+    expect(result).toEqual({ label: "孙代理 B", disabled: false, showRetry: false })
   })
 
   test("pending：显示加载占位，不显示暂无会话，无重试标记", () => {

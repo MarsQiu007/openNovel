@@ -18,9 +18,11 @@ import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import {
+  flattenNovelSessionOptions,
   useBindSession,
   useBoundNovelSessions,
   novelKeys,
+  type NovelChildSessionOption,
   type NovelSessionBinding,
   type NovelSessionOption,
 } from "@/context/novel-queries"
@@ -42,15 +44,15 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const bindSession = useBindSession()
   const sessions = useBoundNovelSessions(() => props.novelID)
   const [creating, setCreating] = createSignal(false)
-  // 子代理收纳展开态：仅记录用户手动展开/收起；当前打开的子会话所在父会话始终展开（见下）
+  // 子代理收纳展开态（按节点会话 ID 记录手动展开/收起）；当前打开会话的祖先链始终自动展开
   const [childrenExpanded, setChildrenExpanded] = createSignal<Record<string, boolean>>({})
 
   const trigger = () =>
     sessionSwitcherTrigger({
       status: sessions.isPending ? "pending" : sessions.isError ? "error" : "ready",
-      // 拍平嵌套列表供当前会话命中查找：子会话是合法打开目标（params.id），
-      // 顶层查找落空会把触发器标签错误回退成面板名
-      sessions: (sessions.data ?? []).flatMap((option) => [option, ...option.children]),
+      // 递归拍平嵌套列表供当前会话命中查找：任意层级子会话都是合法打开目标
+      // （params.id），顶层/单层查找落空会把触发器标签错误回退成面板名
+      sessions: flattenNovelSessionOptions(sessions.data ?? []),
       paramsID: params.id,
       fallbackLabel: language.t("novel.workspace.chat"),
       emptyLabel: language.t("novel.workspace.sessionEmpty"),
@@ -159,10 +161,11 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
                     {(option) => (
                       <SwitcherSessionEntry
                         option={option}
+                        depth={0}
                         activeSessionID={params.id}
-                        expanded={() => !!childrenExpanded()[option.sessionID]}
-                        onToggleChildren={() =>
-                          setChildrenExpanded((prev) => ({ ...prev, [option.sessionID]: !prev[option.sessionID] }))
+                        isExpanded={(sessionID) => !!childrenExpanded()[sessionID]}
+                        onToggleChildren={(sessionID) =>
+                          setChildrenExpanded((prev) => ({ ...prev, [sessionID]: !prev[sessionID] }))
                         }
                         actions={{ archive: archiveSession, export: exportSession }}
                       />
@@ -195,21 +198,26 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
 
 /**
  * 切换器数据是 NovelSessionOption 投影，归档/导出接口按 SDK Session 形状取参：
- * 按「该书绑定关系 × 切换器列表」补出最小 Session 记录（title/time 供列表与回跳显示，
- * parentID 供级联归档收集子代理）。
+ * 按「该书绑定关系 × 切换器列表」递归拍平补出最小 Session 记录（title/time 供列表与
+ * 回跳显示，parentID 供级联归档收集任意层级子代理）。
  */
 function toSwitcherSessionList(
   novelID: string,
   options: readonly NovelSessionOption[],
   directory: string,
 ): Session[] {
-  const bindings: NovelSessionBinding[] = [
-    ...options.map((option) => ({ sessionID: option.sessionID, novelID, novelTitle: "" })),
-    ...options.flatMap((option) =>
-      option.children.map((child) => ({ sessionID: child.sessionID, novelID, novelTitle: "" })),
-    ),
-  ]
-  const session = (option: { sessionID: string; title: string; updatedAt: number }, parentID?: string) => ({
+  const nodes: Array<{ option: NovelChildSessionOption; parentID?: string }> = []
+  const visit = (option: NovelChildSessionOption, parentID?: string) => {
+    nodes.push({ option, parentID })
+    for (const child of option.children) visit(child, option.sessionID)
+  }
+  for (const option of options) visit(option)
+  const bindings: NovelSessionBinding[] = nodes.map(({ option }) => ({
+    sessionID: option.sessionID,
+    novelID,
+    novelTitle: "",
+  }))
+  return nodes.map(({ option, parentID }) => ({
     id: option.sessionID,
     slug: option.sessionID,
     projectID: "",
@@ -219,18 +227,14 @@ function toSwitcherSessionList(
     time: { created: option.updatedAt, updated: option.updatedAt },
     bindings,
     ...(parentID ? { parentID } : {}),
-  })
-  return options.flatMap((option) => [
-    session(option),
-    ...option.children.map((child) => session(child, option.sessionID)),
-  ])
+  }))
 }
 
 /**
- * 切换器下拉的单个主会话条目：展开控件（有子代理时）+ 主会话选择项 + 行内动作菜单；
- * 展开后在主会话下方渲染子代理子项（缩进 + 分支图标 + 斜体弱化，与主会话视觉区分）。
- * 当前打开的是子会话时其父会话始终展开，保证活动项可见（与首页侧栏同规则）。
- * 动作菜单承接已退役列表页的会话管理动作：归档（子代理级联）与导出会话 JSON；
+ * 切换器下拉的单个会话条目（递归组件）：节点 = 展开控件（有子节点时）+ 选择项 + 行内
+ * 动作菜单；子节点递归渲染并按深度递增缩进（分支图标 + 斜体弱化，与主会话视觉区分），
+ * 任意层级可展开/收纳。当前打开会话的祖先链自动展开，保证活动项可见；展开态按会话 ID
+ * 记录。动作菜单承接已退役列表页的会话管理动作：归档（子代理级联）与导出会话 JSON；
  * hover/focus 显现，键盘可 Tab 到达（拖动条目的选中语义不受影响）。
  */
 type SwitcherSessionActions = {
@@ -239,18 +243,24 @@ type SwitcherSessionActions = {
 }
 
 function SwitcherSessionEntry(props: {
-  option: NovelSessionOption
+  option: NovelSessionOption | NovelChildSessionOption
+  depth: number
   activeSessionID: string | undefined
-  expanded: () => boolean
-  onToggleChildren: () => void
+  isExpanded: (sessionID: string) => boolean
+  onToggleChildren: (sessionID: string) => void
   actions: SwitcherSessionActions
 }) {
   const language = useLanguage()
-  const showChildren = () =>
-    props.expanded() || props.option.children.some((child) => child.sessionID === props.activeSessionID)
+  const containsActive = (node: NovelChildSessionOption): boolean =>
+    node.sessionID === props.activeSessionID || node.children.some(containsActive)
+  const showChildren = () => props.isExpanded(props.option.sessionID) || props.option.children.some(containsActive)
+  const label = () => sessionTitle(props.option.title) ?? props.option.title
   return (
     <>
-      <div class="group/switcher-row flex items-center">
+      <div
+        class="group/switcher-row flex items-center"
+        style={props.depth > 0 ? { "padding-left": `${(props.depth - 1) * 16}px` } : undefined}
+      >
         <Show
           when={props.option.children.length > 0}
           fallback={<span class="w-5 shrink-0" aria-hidden="true" />}
@@ -262,7 +272,7 @@ function SwitcherSessionEntry(props: {
             aria-label={language.t("home.sessions.sidebar.subagent")}
             onClick={(event) => {
               event.stopPropagation()
-              props.onToggleChildren()
+              props.onToggleChildren(props.option.sessionID)
             }}
           >
             <Icon
@@ -272,23 +282,30 @@ function SwitcherSessionEntry(props: {
             />
           </button>
         </Show>
-        <MenuV2.RadioItem value={props.option.sessionID} class="min-w-0 flex-1">
-          <span class="truncate">{sessionTitle(props.option.title) ?? props.option.title}</span>
+        <MenuV2.RadioItem
+          value={props.option.sessionID}
+          class={props.depth > 0 ? "min-w-0 flex-1 pl-10" : "min-w-0 flex-1"}
+        >
+          <Show when={props.depth > 0}>
+            <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+          </Show>
+          <span class={props.depth > 0 ? "truncate italic text-v2-text-text-faint [font-weight:440]" : "truncate"}>
+            {label()}
+          </span>
         </MenuV2.RadioItem>
         <SwitcherSessionActionsMenu title={props.option.title} actions={props.actions} sessionID={props.option.sessionID} />
       </div>
       <Show when={showChildren()}>
         <For each={props.option.children}>
           {(child) => (
-            <div class="group/switcher-row flex items-center">
-              <MenuV2.RadioItem value={child.sessionID} class="min-w-0 flex-1 pl-10">
-                <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                <span class="truncate italic text-v2-text-text-faint [font-weight:440]">
-                  {sessionTitle(child.title) ?? child.title}
-                </span>
-              </MenuV2.RadioItem>
-              <SwitcherSessionActionsMenu title={child.title} actions={props.actions} sessionID={child.sessionID} />
-            </div>
+            <SwitcherSessionEntry
+              option={child}
+              depth={props.depth + 1}
+              activeSessionID={props.activeSessionID}
+              isExpanded={props.isExpanded}
+              onToggleChildren={props.onToggleChildren}
+              actions={props.actions}
+            />
           )}
         </For>
       </Show>

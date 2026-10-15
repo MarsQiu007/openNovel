@@ -66,10 +66,14 @@ export async function openSessionRouted(input: {
     })
     .then((result) => result as readonly NovelSessionBinding[])
     .catch(() => undefined)
+  // 自身未绑定时经 server sync lineage 解析祖先链（subagent-session-binding D3）：
+  // 未绑定子代理按最近绑定祖先归属进书；链不可得时按仅自身绑定判定。
+  const lineage = await ctx.sync.session.lineage.resolve(input.sessionID).catch(() => undefined)
   const route = resolveSessionRoute({
     sessionID: input.sessionID,
     directory: input.directory,
     bindings,
+    lineage: lineage?.chain,
   })
   if (route.kind === "novel") {
     input.navigate(`/${route.dir}/novel/${route.novelID}/session/${input.sessionID}`)
