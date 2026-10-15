@@ -5,7 +5,10 @@
  * 并提示。目录来源由调用方给定（新布局经 lineage 解析，旧布局直接取路由段）；
  * 祖先链经 server sync lineage 落定后注入决策，链不可得（查询失败、缓存缺失）
  * 时按仅自身绑定判定；绑定查询失败同样按无绑定降级，保证路由始终有去处。
+ * 解析期间以全尺寸居中加载占位替代空渲染（session-direct-nav D3），
+ * 避免宿主悬停时出现整屏无内容空白。
  */
+import { Spinner } from "@opennovel-ai/ui/spinner"
 import { createEffect, createResource } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { createQuery } from "@tanstack/solid-query"
@@ -64,5 +67,9 @@ export function SessionRedirect(props: { sessionID: string; directory: () => str
     navigate("/", { replace: true })
   })
 
-  return null
+  return (
+    <div data-slot="session-redirect-loading" class="flex-1 min-h-0 w-full flex items-center justify-center">
+      <Spinner class="size-5 text-v2-icon-icon-muted" />
+    </div>
+  )
 }
