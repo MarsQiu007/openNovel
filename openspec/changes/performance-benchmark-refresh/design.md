@@ -77,6 +77,12 @@
 - `unit/timeline-test-helpers.test.ts`：删除（原仅测 `stressSessionHref`，无剩余被测面）。
 - `README.md`：套件构成改写为现行内容（书内导航、水合、缓存重绘、流式、review pane/scaling）；Chrome trace 示例命令换到保留 spec。
 
+### D8. 收集边界修复（实施中发现）
+
+- 现状：`timeline-stability/fixture.test.ts`（`bun:test` 风格）会被 performance config 收集（`testDir: "."` 且 `testIgnore` 仅 `"unit/**"`），使 `test:bench` 的全目录收集在 node（`bun:` 协议错误）与 bun（`describe` 越界错误）下都直接失败——性能套件自初始提交起就无法整体复跑，属本变更「可复跑」目标的必要条件。
+- 采用：performance config 的 `testIgnore` 改为 `["unit/**", "**/*.test.ts", "timeline-stability/**"]`；`timeline-stability/playwright.config.ts` 显式 `testIgnore: []` 重置继承（该模式会误排其目录下的 spec）。
+- 理由：`bun test` 风格文件由 `bun test` 运行；timeline-stability 有自己的 config 与 `test:stability` 入口，不属本套件范围。收集验证：performance 14 tests（node 与 bun 双通道）、stability 44 tests 全量列出。
+
 ## Risks / Trade-offs
 
 - [书内右栏视区与旧独立页不同] → 用 timeline-stability 已验证的 `railWidth: 1100` 设定接近旧视区（仅 session-timeline fixture；应力类场景的时序采样不依赖绝对像素，不引入宽度设定）；保留断言语义均为相对时序/run-length。

@@ -15,7 +15,7 @@
   - 「review body 分阶段渲染」基准（home-tab 场景 2）的打开入口改为书内会话。
 - **下线（7 个场景，对应产品语义已退役）**：
   - 会话/草稿标签打开与预取（first-navigation 场景 1/2、flash 场景 2）、标签关闭回首页（home-tab 场景 3）、旧首页会话行打开（home-tab 场景 1）、标签冷热切换（session-tab-switch 整文件 2 场景）。
-- **同步**：`timeline-test-helpers` 裁剪标签/草稿工具（`installStressSessionTabs` / `stressSessionHref` / `stressDraftHref`）、新增会话打开注入小工具（`injectSessionLink`）并删除失去使用者的 `navigation-milestones` 采样器及其单测；stress 与 session-timeline 两处 fixture 补 `novelID` 常量；`e2e/performance/README.md` 重写为现行套件构成（含失效的示例命令）。
+- **同步**：`timeline-test-helpers` 裁剪标签/草稿工具（`installStressSessionTabs` / `stressSessionHref` / `stressDraftHref`）、新增会话打开注入小工具（`injectSessionLink`）并删除失去使用者的 `navigation-milestones` 采样器及其单测；stress 与 session-timeline 两处 fixture 补 `novelID` 常量；`e2e/performance/README.md` 重写为现行套件构成（含失效的示例命令）；performance 与 timeline-stability 两个 Playwright config 修正收集边界（排除 bun test 风格文件与跨套件目录，套件恢复整体收集）。
 - **验证**：`cd packages/app` 先跑 unit 集合，再以生产构建复跑全部受影响 spec（`bun run test:bench` 子集；review-pane-scaling 重档位以 `-g` 过滤跑代表档位），确认 `BENCHMARK` 产出与断言全绿。
 
 ## Capabilities
