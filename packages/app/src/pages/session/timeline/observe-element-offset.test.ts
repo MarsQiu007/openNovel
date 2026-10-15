@@ -51,9 +51,7 @@ test("reports a divergent native offset once and ignores equal offsets and unrel
 
   route.remove()
   document.body.append(route)
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await frames(3)
-  expect(calls).toEqual([[0, false]])
+  await waitForCalls(calls, [[0, false]])
 
   route.remove()
   document.body.append(route)
@@ -131,10 +129,7 @@ test.each([
 
   route.remove()
   document.body.append(route)
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await frames(3)
-
-  expect(calls).toEqual([[expected, false]])
+  await waitForCalls(calls, [[expected, false]])
   cleanup?.()
   route.remove()
 })
@@ -161,9 +156,7 @@ test("cleanup suppresses an already queued delegated offset callback", async () 
 
   viewport.dispatchEvent(new Event("scroll"))
   cleanup?.()
-  await new Promise((resolve) => setTimeout(resolve, 25))
-
-  expect(calls).toEqual([[100, true]])
+  await waitForCalls(calls, [[100, true]])
   viewport.remove()
 })
 
@@ -202,4 +195,15 @@ async function frames(count: number) {
   for (let index = 0; index < count; index++) {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   }
+}
+
+// 条件轮询等待回调序列达到期望值：负载下 MutationObserver / rAF 回调可能晚到，
+// 固定帧数窗口会误红；超时失败时打印实际收到的序列便于定位
+async function waitForCalls<T>(calls: T[], expected: T[], timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (JSON.stringify(calls) === JSON.stringify(expected)) return
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+  expect(calls, `等待回调序列超时（${timeoutMs}ms）：期望 ${JSON.stringify(expected)}`).toEqual(expected)
 }
