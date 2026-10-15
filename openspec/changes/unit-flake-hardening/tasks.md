@@ -40,3 +40,4 @@
 - `adc4daf03` docs(openspec): 更新 unit-flake-hardening 提案（#13 真根因与证据）
 - `b67d60ef1` test(opennovel): 稳定 shell 与 sync worker 时序用例的偶发失败
 - `3bfdc59d2` fix(app): 升级 happy-dom 修复观察回调被 GC 静默的偶发失败
+- `c8615ae11` fix(app): 补全 bun.lock 中 happy-dom 条目的解析 URL
