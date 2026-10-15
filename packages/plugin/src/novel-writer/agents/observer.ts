@@ -167,7 +167,7 @@ type_strength 字段（"strong" / "weak"），决定下游 commitState 怎么入
 
 ## 7. style（风格指南）
 提取写作风格的变化：
-- 首次确立风格 → action: "create"，data 包含 tone（基调，如严肃/轻松/热血/悬疑）、pov（视角，如第三人称限知/第一人称）、tense（时态）、rules（风格规则对象）
+- 首次确立风格 → action: "create"，data 包含 tone（基调，如严肃/轻松/热血/悬疑）、pov（视角，如第三人称限知/第一人称）、tense（时态）、rules（风格规则，扁平字符串映射，嵌套对象按 父.子 展平、数组按索引展平）
 - 风格调整 → action: "update"，data 包含变化的字段
 - entity_id 建议格式：style_<novelId>
 

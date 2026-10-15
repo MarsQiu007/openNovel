@@ -7,8 +7,13 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { closeDb, createWorldEntry, getDb, NovelTable } from "@opennovel-ai/novel-store"
-import { assembleSnapshot, formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
+import { closeDb, createWorldEntry, getDb, NovelTable, StyleGuideTable } from "@opennovel-ai/novel-store"
+import {
+  assembleSnapshot,
+  formatSnapshotToolOutput,
+  STYLE_GUIDE_TRUNCATED_HINT,
+  styleGuideRuleLines,
+} from "../../src/novel-writer/context.js"
 
 let dir: string
 
@@ -149,5 +154,64 @@ describe("formatSnapshotToolOutput 统一 shadow 输出", () => {
     expect(result.output).toContain("tech_low")
     expect(result.output).not.toContain("写作技法指导")
     expect(result.output).not.toContain("原样传递给 writer")
+  })
+})
+
+describe("formatSnapshotToolOutput 风格规则", () => {
+  async function seedStyleGuide(novelId: string, rules: unknown) {
+    await getDb(dir)
+      .insert(StyleGuideTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        rules,
+        tone: "冷峻",
+        pov: "第三人称",
+        tense: "过去时",
+      })
+      .run()
+  }
+
+  test("历史嵌套 rules 归一化后逐条渲染规则行", async () => {
+    await seedNovel("novel-1")
+    await seedStyleGuide("novel-1", {
+      异能体系: { 等级严格: "三级" },
+      禁用手法: ["总结式收尾"],
+    })
+
+    const snapshot = await assembleSnapshot("novel-1", 0, dir)
+    expect(snapshot!.styleGuideTruncated).toBe(false)
+    expect(snapshot!.styleGuide!.rules).toEqual({
+      "异能体系.等级严格": "三级",
+      "禁用手法.0": "总结式收尾",
+    })
+
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
+    expect(result.output).toContain("风格：基调=冷峻 视角=第三人称 时态=过去时")
+    expect(result.output).toContain("风格规则：")
+    expect(result.output).toContain("- 异能体系.等级严格: 三级")
+    expect(result.output).toContain("- 禁用手法.0: 总结式收尾")
+    expect(result.output).not.toContain("[object Object]")
+  })
+
+  test("规则为空时不渲染规则段", async () => {
+    await seedNovel("novel-1")
+    await seedStyleGuide("novel-1", {})
+
+    const snapshot = await assembleSnapshot("novel-1", 0, dir)
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
+    expect(result.output).toContain("风格：基调=冷峻 视角=第三人称 时态=过去时")
+    expect(result.output).not.toContain("风格规则：")
+  })
+})
+
+describe("styleGuideRuleLines", () => {
+  test("空规则不产生规则行；截断时为规则行附查询提示", () => {
+    expect(styleGuideRuleLines({ rules: {}, tone: "", pov: "", tense: "" }, false)).toEqual([])
+    expect(styleGuideRuleLines({ rules: { 节奏: "张弛有度" }, tone: "", pov: "", tense: "" }, true)).toEqual([
+      "风格规则：",
+      "- 节奏: 张弛有度",
+      STYLE_GUIDE_TRUNCATED_HINT,
+    ])
   })
 })

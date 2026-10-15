@@ -12,10 +12,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync
 import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { join, dirname } from "path"
-import { assembleSnapshot, parseStyleRules, type StoryArcSummary } from "./novel-writer/context.js"
+import { assembleSnapshot, parseStyleRules, styleGuideRuleLines, type StoryArcSummary } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
-import { stringifyRules, normalizeStyleGuideData } from "./novel-writer/state-commit.js"
+import { normalizeStyleGuideData } from "./novel-writer/state-commit.js"
 import { generateMasterOutline, generateVolumeOutline, generateChapterOutline } from "./novel-writer/outline.js"
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "./novel-writer/continuity-check.js"
 import { trackHook, getHookStats, HOOK_TYPES } from "./novel-writer/hook-rotation.js"
@@ -76,6 +76,8 @@ import {
   PlotThreadTable,
   ForeshadowingTable,
   StyleGuideTable,
+  normalizeStyleRules,
+  STYLE_RULES_FORMAT_HINT,
   RelationshipTable,
   PendingUpdateTable,
   ChapterReviewTable,
@@ -392,6 +394,7 @@ async function injectSystemContext(
     if (snapshot.styleGuide.tone) lines.push(`基调：${snapshot.styleGuide.tone}`)
     if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
     if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
+    lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
     lines.push("")
   }
 
@@ -2570,7 +2573,7 @@ ${sceneChecklist}`
 
       save_novel_settings: tool({
         description:
-          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则对象}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
+          '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则（扁平字符串映射：值需为标量，嵌套对象按 父.子 展平、数组按索引展平）}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
           settings_json: tool.schema
@@ -2742,6 +2745,16 @@ ${sceneChecklist}`
                     errors.push(`第${i}条：style_guide 数据中未找到任何有效字段（支持 tone/基调, pov/视角, tense/时态, rules/规则）`)
                     break
                   }
+                  // 非空规则无法归一化时整体拒绝该条（tone/pov/tense 也不写入，不产生部分成功）
+                  let rules: Record<string, string> = {}
+                  if (normalized.rules !== undefined) {
+                    const result = normalizeStyleRules(normalized.rules)
+                    if (result.unnormalizable) {
+                      errors.push(`第${i}条：规则无法归一化（${STYLE_RULES_FORMAT_HINT}）`)
+                      break
+                    }
+                    rules = result.rules
+                  }
                   // 单条覆盖语义用 update-if-exists / insert-if-not 实现：单条 SQL 原子，
                   // 失败时旧数据仍在；不允许先删后插（insert 失败会丢失原有风格指南）
                   const [existingSg] = await db
@@ -2755,7 +2768,7 @@ ${sceneChecklist}`
                     await db
                       .update(StyleGuideTable)
                       .set({
-                        rules: stringifyRules(normalized.rules),
+                        rules,
                         tone: normalized.tone,
                         pov: normalized.pov,
                         tense: normalized.tense,
@@ -2768,7 +2781,7 @@ ${sceneChecklist}`
                       .values({
                         id: crypto.randomUUID(),
                         novel_id: novelId,
-                        rules: stringifyRules(normalized.rules),
+                        rules,
                         tone: normalized.tone,
                         pov: normalized.pov,
                         tense: normalized.tense,
@@ -3324,9 +3337,8 @@ ${sceneChecklist}`
               if (sg.tone) lines.push(`- 基调：${sg.tone}`)
               if (sg.pov) lines.push(`- 视角：${sg.pov}`)
               if (sg.tense) lines.push(`- 时态：${sg.tense}`)
-              if (sg.rules) {
-                const parsed = parseStyleRules(sg.rules)
-                lines.push(`- 规则：${JSON.stringify(parsed)}`)
+              for (const [key, value] of Object.entries(parseStyleRules(sg.rules))) {
+                lines.push(`- ${key}: ${value}`)
               }
               lines.push("")
             }

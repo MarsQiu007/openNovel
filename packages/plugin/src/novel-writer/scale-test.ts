@@ -40,7 +40,9 @@ function foreshadowTokens(f: ForeshadowingSummary): number {
 }
 
 function styleGuideTokens(sg: StyleGuideInfo): number {
-  return estimateTokens(JSON.stringify(sg.rules) + sg.tone + sg.pov + sg.tense)
+  const fixed = estimateTokens(`风格：基调=${sg.tone ?? "无"} 视角=${sg.pov ?? "无"} 时态=${sg.tense ?? "无"}`)
+  const rules = Object.entries(sg.rules).reduce((sum, [key, value]) => sum + estimateTokens(`- ${key}: ${value}`), 0)
+  return fixed + rules
 }
 
 function worldEntryTokens(w: WorldEntrySummary): number {
@@ -211,6 +213,7 @@ function generateMockData(chapterCount: number): ContextPacket {
       "世界观要自洽，设定前后一致",
       "节奏要张弛有度，高潮和铺垫交替",
     ],
+    styleGuideTruncated: false,
     worldEntries,
     worldEntryIndex: [],
     recalledHistory,

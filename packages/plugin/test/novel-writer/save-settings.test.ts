@@ -111,4 +111,48 @@ describe("save_novel_settings style_guide", () => {
     expect(result.metadata.count).toBe(0)
     expect(result.metadata.errors.length).toBeGreaterThan(0)
   })
+
+  test("嵌套对象规则展平落库", async () => {
+    const db = await seed()
+    await saveStyle([
+      { type: "style_guide", data: { tone: "热血", rules: { "异能体系": { "等级严格": "三级", "禁忌": ["血祭"] } } } },
+    ])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.rules).toMatchObject({ "异能体系.等级严格": "三级", "异能体系.禁忌.0": "血祭" })
+  })
+
+  test("数组规则按索引展平落库", async () => {
+    const db = await seed()
+    await saveStyle([{ type: "style_guide", data: { rules: ["节奏紧凑", "对白简短"] } }])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.rules).toMatchObject({ "0": "节奏紧凑", "1": "对白简短" })
+  })
+
+  test("多行 键: 值 文本解析落库", async () => {
+    const db = await seed()
+    await saveStyle([{ type: "style_guide", data: { rules: "叙事节奏: 紧凑推进\n语言风格: 简洁克制" } }])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.rules).toMatchObject({ "叙事节奏": "紧凑推进", "语言风格": "简洁克制" })
+  })
+
+  test("非空规则无法归一化时拒绝该条，不产生部分写入", async () => {
+    const db = await seed()
+    await saveStyle([{ type: "style_guide", data: { tone: "旧基调", rules: { 既定: "规则" } } }])
+
+    const result = await saveStyle([{ type: "style_guide", data: { tone: "新基调", rules: { bad: null } } }])
+    expect(result.output).toContain("无法归一化")
+    expect(result.metadata.count).toBe(0)
+
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.tone).toBe("旧基调")
+    expect(row.rules).toMatchObject({ 既定: "规则" })
+  })
+
+  test("显式空对象清空风格规则", async () => {
+    const db = await seed()
+    await saveStyle([{ type: "style_guide", data: { rules: { 既定: "规则" } } }])
+    await saveStyle([{ type: "style_guide", data: { rules: {} } }])
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-save")).all()
+    expect(row.rules).toEqual({})
+  })
 })

@@ -33,26 +33,36 @@ import {
   WorldEntryTable,
   StoryArcTable,
   ArcBeatTable,
+  normalizeStyleRules,
 } from "./session-store.js"
 
 /**
- * 解析 style_guide.rules 为对象。
+ * 解析 style_guide.rules 为扁平字符串映射（委托 novel-store 共享归一化）。
  *
- * rules 列是 json 模式，但历史数据存在双重编码（库里存了 JSON 字符串的字符串），
- * 读取时可能拿到对象也可能拿到 JSON 字符串，这里统一兼容。
+ * 历史数据存在嵌套对象、数组与双重编码字符串等形态，统一走共享归一化，
+ * 保证读取侧与写入侧同构；chapter_length 等特殊键的消费语义不变。
  */
-export function parseStyleRules(rules: unknown): Record<string, unknown> {
-  if (rules == null) return {}
-  if (typeof rules === "string") {
-    try {
-      const parsed: unknown = JSON.parse(rules)
-      return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}
-    } catch {
-      return {}
-    }
+export function parseStyleRules(rules: unknown): Record<string, string> {
+  return normalizeStyleRules(rules).rules
+}
+
+/** 风格规则被预算截断时的提示（快照工具输出与会话级注入共用）。 */
+export const STYLE_GUIDE_TRUNCATED_HINT =
+  '（风格规则超出快照预算，已截断；完整规则可通过 check_novel_settings(scope="style_guide") 查询）'
+
+/**
+ * 渲染风格规则行（含截断提示）：快照工具输出与会话级注入共用；
+ * 规则为空时不产生规则段。
+ */
+export function styleGuideRuleLines(styleGuide: StyleGuideInfo, truncated: boolean): string[] {
+  const lines: string[] = []
+  const entries = Object.entries(styleGuide.rules)
+  if (entries.length > 0) {
+    lines.push("风格规则：")
+    for (const [key, value] of entries) lines.push(`- ${key}: ${value}`)
   }
-  if (typeof rules === "object") return rules as Record<string, unknown>
-  return {}
+  if (truncated) lines.push(STYLE_GUIDE_TRUNCATED_HINT)
+  return lines
 }
 
 // ─── 类型定义 ───
@@ -228,8 +238,8 @@ export function extractMoodShifts(keyEvents: string[]): string[] {
 
 /** 风格指南信息 */
 export type StyleGuideInfo = {
-  /** 写作风格规则（JSON 对象） */
-  rules: Record<string, unknown>
+  /** 写作风格规则（扁平字符串映射） */
+  rules: Record<string, string>
   /** 语气基调 */
   tone: string
   /** 叙述视角 */
@@ -279,6 +289,8 @@ export type ContextPacket = {
   /** P4: 风格指南 + 题材规则 */
   styleGuide: StyleGuideInfo | null
   genreRules: string[]
+  /** P4: 风格规则超出预算被截断时置为 true（渲染层附完整规则查询提示） */
+  styleGuideTruncated: boolean
 
   /** P5: 世界观硬约束（writer 创作的权威来源，仅核心相关条目，已裁剪） */
   worldEntries: WorldEntrySummary[]
@@ -674,13 +686,14 @@ export async function assembleSnapshot(
 
     styleGuide: styleGuideRow
       ? {
-          rules: (styleGuideRow.rules as Record<string, unknown>) ?? {},
+          rules: parseStyleRules(styleGuideRow.rules),
           tone: styleGuideRow.tone,
           pov: styleGuideRow.pov,
           tense: styleGuideRow.tense,
         }
       : null,
     genreRules,
+    styleGuideTruncated: false,
 
     // P5: 世界观硬约束
     worldEntries: worldEntries.map((w) => ({
@@ -837,6 +850,7 @@ export function formatSnapshotToolOutput(
     lines.push(
       `风格：基调=${snapshot.styleGuide.tone ?? "无"} 视角=${snapshot.styleGuide.pov ?? "无"} 时态=${snapshot.styleGuide.tense ?? "无"}`,
     )
+    lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
   }
   // ── P5: 世界观硬约束（writer 必须严格遵守的权威来源） ──
   if (snapshot.worldEntries.length > 0) {

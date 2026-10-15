@@ -207,3 +207,51 @@ describe("commitState 可靠性", () => {
     expect(ftsCount[0].count).toBe(0)
   })
 })
+
+describe("commitState style 规则归一化", () => {
+  test("嵌套规则展平落库，不再静默丢弃", async () => {
+    const db = await seedNovel()
+    const { StyleGuideTable } = await import("../../src/novel-writer/session-store.js")
+    const { commitState } = await import("../../src/novel-writer/state-commit.js")
+
+    await commitState(NOVEL, CHAPTER, [
+      {
+        fact_type: "style",
+        action: "create",
+        entity_id: "style-main",
+        data: { tone: "热血", rules: { "异能体系": { "等级严格": "三级" } } },
+      },
+    ])
+
+    const [row] = db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, NOVEL)).all()
+    expect(row!.rules).toMatchObject({ "异能体系.等级严格": "三级" })
+  })
+
+  test("非空规则无法归一化时整次提交失败并回滚", async () => {
+    const db = await seedNovel()
+    const { NovelStateLogTable, StyleGuideTable } = await import("../../src/novel-writer/session-store.js")
+    const { commitState } = await import("../../src/novel-writer/state-commit.js")
+
+    const logsBefore = db.select().from(NovelStateLogTable).all().length
+
+    await expect(
+      commitState(NOVEL, CHAPTER, [
+        {
+          fact_type: "chapter_summary",
+          action: "create",
+          entity_id: "cs-style-rb",
+          data: { chapter_id: CHAPTER, summary: "不应写入", key_events: [] },
+        },
+        {
+          fact_type: "style",
+          action: "update",
+          entity_id: "style-main",
+          data: { rules: { bad: null } },
+        },
+      ]),
+    ).rejects.toThrow("无法归一化")
+
+    expect(db.select().from(NovelStateLogTable).all().length).toBe(logsBefore)
+    expect(db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, NOVEL)).all()).toHaveLength(0)
+  })
+})

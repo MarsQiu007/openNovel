@@ -426,13 +426,14 @@ export async function getEffectiveContext(
 
     styleGuide: styleGuideRow
       ? {
-          rules: (styleGuideRow.rules as Record<string, unknown>) ?? {},
+          rules: parseStyleRules(styleGuideRow.rules),
           tone: styleGuideRow.tone,
           pov: styleGuideRow.pov,
           tense: styleGuideRow.tense,
         }
       : null,
     genreRules,
+    styleGuideTruncated: false,
 
     worldEntries: [],
     volumeList: [],

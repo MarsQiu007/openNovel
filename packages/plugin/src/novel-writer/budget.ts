@@ -56,9 +56,14 @@ function foreshadowTokens(f: ForeshadowingSummary): number {
   return estimateTokens(f.content + f.state + (f.plantedChapterId ?? ""))
 }
 
-/** 估算风格指南的 token 数量 */
-function styleGuideTokens(sg: StyleGuideInfo): number {
-  return estimateTokens(JSON.stringify(sg.rules) + sg.tone + sg.pov + sg.tense)
+/** 估算风格指南固定行（基调/视角/时态）的 token 数量（与快照渲染口径一致） */
+function styleGuideFixedTokens(sg: StyleGuideInfo): number {
+  return estimateTokens(`风格：基调=${sg.tone ?? "无"} 视角=${sg.pov ?? "无"} 时态=${sg.tense ?? "无"}`)
+}
+
+/** 估算单条风格规则行的 token 数量 */
+function styleRuleTokens(key: string, value: string): number {
+  return estimateTokens(`- ${key}: ${value}`)
 }
 
 /** 估算世界观条目的 token 数量 */
@@ -208,21 +213,38 @@ function applyP3Budget(packet: ContextPacket): void {
 }
 
 /**
- * P4 预算裁剪：优先保留 styleGuide，再裁剪 genreRules，确保不超过 1K tokens
+ * P4 预算裁剪：基调、视角、时态固定行优先保留，风格规则按顺序逐条保留、
+ * 超预算截断其余并标记；剩余额度再给 genreRules，确保不超过 1K tokens
  *
  * P4 字段：styleGuide, genreRules
- * 策略：风格指南通常较小，优先保留；题材规则按需截断（从 1.5K 收紧到 1K）
+ * 策略：固定行永不丢弃（规则超长不影响基调视角时态）；规则截断时置
+ * styleGuideTruncated，渲染层据此提示查询完整规则。
  */
 function applyP4Budget(packet: ContextPacket): void {
   const P4_BUDGET = 1000 // 1K tokens
-  const sgTokens = packet.styleGuide ? styleGuideTokens(packet.styleGuide) : 0
-  const remaining = P4_BUDGET - sgTokens
-  if (remaining <= 0) {
-    // 风格指南已超预算，全部丢弃
-    packet.styleGuide = null
-    packet.genreRules = []
-    return
+  packet.styleGuideTruncated = false
+  let usedByStyleGuide = 0
+  if (packet.styleGuide) {
+    const sg = packet.styleGuide
+    const fixedTokens = styleGuideFixedTokens(sg)
+    const ruleEntries = Object.entries(sg.rules)
+    const headerTokens = ruleEntries.length > 0 ? estimateTokens("风格规则：") : 0
+    const rulesBudget = Math.max(0, P4_BUDGET - fixedTokens - headerTokens)
+    const keptRules: Record<string, string> = {}
+    let keptTokens = 0
+    for (const [key, value] of ruleEntries) {
+      const tokens = styleRuleTokens(key, value)
+      if (keptTokens + tokens > rulesBudget) break
+      keptTokens += tokens
+      keptRules[key] = value
+    }
+    if (Object.keys(keptRules).length < ruleEntries.length) {
+      packet.styleGuide = { ...sg, rules: keptRules }
+      packet.styleGuideTruncated = true
+    }
+    usedByStyleGuide = fixedTokens + headerTokens + keptTokens
   }
+  const remaining = Math.max(0, P4_BUDGET - usedByStyleGuide)
   packet.genreRules = truncateArray(packet.genreRules, (r) => estimateTokens(r), remaining)
 }
 

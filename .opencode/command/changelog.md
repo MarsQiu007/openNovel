@@ -1,5 +1,5 @@
 ---
-model: deepseek/deepseek-v4-flash
+model: deepseek/deepseek-v4-pro
 ---
 
 Create `UPCOMING_CHANGELOG.md` from the structured changelog input below.
@@ -7,8 +7,8 @@ If `UPCOMING_CHANGELOG.md` already exists, ignore its current contents completel
 Do not preserve, merge, or reuse text from the existing file.
 
 The input already contains the exact commit range since the last non-draft release.
-The commits are already filtered to the release-relevant packages and grouped into
-the release sections. Do not fetch GitHub releases, PRs, or build your own commit list.
+The commits are already filtered to the release-relevant packages and to `feat`/`fix`
+entry types, and grouped into the release sections. Do not fetch GitHub releases, PRs, or build your own commit list.
 The input may also include a `## Community Contributors Input` section.
 
 Before writing any entry you keep, inspect the real diff with
