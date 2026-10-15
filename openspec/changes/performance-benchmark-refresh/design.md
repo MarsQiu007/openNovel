@@ -26,7 +26,8 @@
 
 - 不新增指标、不引入机器相关阈值（延续套件 AGENTS.md：只断言场景与采集完成）。
 - 不把注入链接手法升级为真实 UI 交互改造（会话切换器 MenuV2 交互脆弱，不适合作基准入口；注入链接是本套件既定诊断手法）。
-- 不做 probe 通用化重命名；不重建书架→书籍导航基准。
+- 不做 probe 通用化重命名，也不重命名 `home-tab-navigation-benchmark.spec.ts`（内容收敛为书内会话打开）——重命名只会扩大 diff。
+- 不重建书架→书籍导航基准。
 
 ## Decisions
 
@@ -39,24 +40,25 @@
 
 ### D2. parent-hydration：入口书内化，probe 不动（备选：改由会话切换器打开）
 
-- 采用：setup goto 与注入 anchor href 都改 `novelWorkspaceURL(directory, novelID, targetID)`，补 `installTimelineSettings` + `mockNovelWorkspaceAPIs`；`measureSessionSwitch` 按 href 匹配点击、按消息 ID 判定 destination/source，与路由形式无关，保持不动。
-- 保留「target 不在会话列表 + 独立 `/session/:id` route mock」的孤儿最新轮次设定。
+- 采用：setup goto 与注入 anchor href 都改 `novelWorkspaceURL(directory, novelID, targetID)`，以 `installTimelineSettings` 替代 `installStressSessionTabs` 并补 `mockNovelWorkspaceAPIs`；`measureSessionSwitch` 按 href 匹配点击、按消息 ID 判定 destination/source，与路由形式无关，保持不动。
+- 保留「target 不在会话列表 + `/session/:id` 接口 mock」的孤儿最新轮次设定。
 - 理由：该 benchmark 测的是「冷点击 → 最新轮次水合」，入口是诊断装置而非用户旅程；改真实入口会引入无关变量。
 
 ### D3. session-timeline fixture：照抄 timeline-stability 迁移模板（备选：直连旧路由 + 绑定 mock）
 
-- 采用：`page.goto(novelWorkspaceURL(directory, novelID, sessionID))`；`mockNovelWorkspaceAPIs`（`boundSessionIDs` 含 fixture 会话）；右栏宽度 init script；`newLayoutDesigns` 默认改 `true`（原默认 `false` 是旧独立页遗留，书内路由要求新布局）。
+- 采用：新增 `novelID` 常量（`novel_timeline_stream`）；`page.goto(novelWorkspaceURL(directory, novelID, sessionID))`；`mockNovelWorkspaceAPIs`（`boundSessionIDs` 含 fixture 会话）；右栏宽度 init script；`newLayoutDesigns` 默认改 `true`（原默认 `false` 是旧独立页遗留，书内路由要求新布局）。
+- 原不传 `newLayoutDesigns` 的流式场景 1 随之收敛为新布局（旧独立页布局已日落，书内宿主只存在于新布局）。
 - 连带恢复流式 5 场景与 review pane 5 场景（spec 侧断言与探针不动；scroller 定位沿用 `has: [data-timeline-row]` 过滤）。
 - 理由：`6d6b5b209` 已把同构迁移完整验证过（含右栏视区与 mock 组合），照抄一致性最高、风险最低。
 
 ### D4. flash 场景 1：缓存重绘书内化（备选：下线）
 
 - 采用：goto 书内 target（访问并缓存）→ 注入 anchor（书内 source）点击切走 → `installCachedRepaintProbe(targetHref = 书内 target)` → 注入 anchor（书内 target）点击切回 → 采集（run-length 压缩与 `samples.length > 0` 断言保留）。
-- 场景 2（prefetch every open session tab）删除：标签预取语义退役。
+- 采用时移除 `installStressSessionTabs` 引用、补 `mockNovelWorkspaceAPIs`；场景 2（prefetch every open session tab）删除：标签预取语义退役。
 - 理由：缓存回访重绘是书内切换的真实体验风险点（隐藏会话面板重挂载/重排）；repaint probe 与标签无关。
-- 注入链接小工具若被 D4/D5 两处使用，收敛到 `timeline-test-helpers` 的一个小函数（不预提取更多抽象）。
+- 注入链接小工具（`injectSessionLink`）被 D2/D4/D5 三处使用，收敛到 `timeline-test-helpers`（不预提取更多抽象）。
 
-### D5. home-tab 场景 2：书内会话打开；场景 1/3 与 navigation-milestones 下线
+### D5. home-tab 场景 2：书内会话打开；场景 1/3 与 navigation-milestones 下线（备选：场景 2 直接下线）
 
 - 采用：场景 2 的打开入口改为注入 anchor（书内 target）点击，保留原「content 先于 review body」两段采样与断言；补书内 mock。
 - 场景 1/3 删除：书架已不渲染会话行（书架卡片打开的是书籍）、标签关闭语义退役。
@@ -77,7 +79,7 @@
 
 ## Risks / Trade-offs
 
-- [书内右栏视区与旧独立页不同] → 用 timeline-stability 已验证的 `railWidth: 1100` 设定接近旧视区；保留断言语义均为相对时序/run-length，不依赖绝对像素。
+- [书内右栏视区与旧独立页不同] → 用 timeline-stability 已验证的 `railWidth: 1100` 设定接近旧视区（仅 session-timeline fixture；应力类场景的时序采样不依赖绝对像素，不引入宽度设定）；保留断言语义均为相对时序/run-length。
 - [工作台内可能有多个 scroll-view] → scroller 定位沿用 `has: [data-timeline-row]` 过滤；若仍歧义，实施时按唯一性收敛（不改变断言语义）。
 - [review body 在书内面板的渲染顺序与旧会话页存在差异] → 若场景 2 既有断言在书内不成立且差异属渲染路径变更（非回归），降级为下线并在 tasks 记录证据；不把错误顺序固化为断言。
 - [删除 navigation-milestones 后如需书架→书籍导航基准] → 另立提案重建，不属于本变更补救范围。
@@ -86,7 +88,7 @@
 ## Migration Plan
 
 - 纯测试/文档改动；回滚 = revert 本变更提交。
-- 提交拆分：修复迁移（D1-D3）→ 改写与下线与同步（D4-D7）→ 文档（README）；随后 `openspec validate --strict` → 归档（skip_specs 无需同步主 specs）→ ff 合并 main → 推送 → 确认 CI 全绿 → 关闭 issue #14。
+- 提交拆分：修复迁移（D1-D3）→ 改写、下线与同步（D4-D7）→ 文档（README）；随后 `openspec validate --strict` → 归档（skip_specs 无需同步主 specs）→ ff 合并 main → 推送 → 确认 CI 全绿 → 关闭 issue #14。
 
 ## Open Questions
 
