@@ -17,11 +17,12 @@ bun run test:bench
 
 The suite contains:
 
-- cold and hot session-tab timing
-- home-session click timing split between content and titlebar-tab paint
-- single-session tab close timing through stable home restoration
-- cached session repaint and mutation tracing
+- in-workspace first navigation paint sampling (subagent child open, no blank frame)
+- cold session hydration timing for orphaned latest turns
+- cached session switch repaint and mutation tracing
+- review body staging after cold session content
 - streaming timeline throughput, RAF-gap, long-task, geometry, and remount diagnostics
+- review pane load, file switching, and scaling diagnostics
 
 All benchmarks import the shared `benchmark` fixture. Pages created through Playwright's `page` fixture automatically capture main-frame navigation history and emit a Chrome trace when `OPENNOVEL_PERFORMANCE_TRACE_DIR` is set. Benchmarks that need isolated browser contexts use `withBenchmarkPage`, which owns the context and the same diagnostics lifecycle.
 
@@ -52,9 +53,9 @@ CPU and high-volume visual profiling are disabled by default. Set `TIMELINE_CPU_
 
 The streaming scenario's 30x CPU throttle is a deterministic stress profile, not a simulated end-user device.
 
-Benchmarks do not assert machine-dependent performance budgets. Streaming processes 160 deltas by default and reports renderer-observed completion time, throughput, RAF callback-gap distributions, frame-budget equivalents, and long tasks through final geometry settlement. Delta count and delivery batch are included in result context when overridden. These are main-thread callback diagnostics, not compositor presentation or dropped-frame measurements. Visual-only and geometry metrics are `null` when their probes are disabled. Tab metrics describe sampled DOM observations. Assertions verify scenario and metric collection completion. Repeated repaint states are run-length grouped, but every original observation timestamp is retained alongside raw mutation batches and layout shifts.
+Benchmarks do not assert machine-dependent performance budgets. Streaming processes 160 deltas by default and reports renderer-observed completion time, throughput, RAF callback-gap distributions, frame-budget equivalents, and long tasks through final geometry settlement. Delta count and delivery batch are included in result context when overridden. These are main-thread callback diagnostics, not compositor presentation or dropped-frame measurements. Visual-only and geometry metrics are `null` when their probes are disabled. Session switch and repaint metrics describe sampled DOM observations. Assertions verify scenario and metric collection completion. Repeated repaint states are run-length grouped, but every original observation timestamp is retained alongside raw mutation batches and layout shifts.
 
-Committed smoke and regression tests continue to own correctness coverage for pagination, tab paint, context resize, collapse state, and composer spacing.
+Committed smoke and regression tests continue to own correctness coverage for pagination, context resize, collapse state, and composer spacing.
 
 ## Chrome traces
 
@@ -63,7 +64,7 @@ Set `OPENNOVEL_PERFORMANCE_TRACE_DIR` to emit a standard Chrome DevTools trace f
 ```sh
 OPENNOVEL_PERFORMANCE_TRACE_DIR=/tmp/opennovel-performance-traces \
 bunx playwright test --config e2e/performance/playwright.config.ts \
-  timeline/session-tab-switch-benchmark.spec.ts
+  timeline/first-navigation-benchmark.spec.ts
 ```
 
 The emitted JSON is a standard Chrome trace and can be loaded directly into the Chrome DevTools Performance panel. `devtools-tracing` can optionally inspect it from the command line without adding package scripts or dependencies:
