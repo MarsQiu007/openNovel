@@ -35,10 +35,12 @@
 
 ## Implementation Commits
 
-- `6c930c910` docs(openspec): 建立 performance-benchmark-refresh 提案
-- `82197d557` docs(openspec): 更新 performance-benchmark-refresh 提案（审查修正）
-- `298ce485c` docs(openspec): 更新 performance-benchmark-refresh 提案（补收集边界修复）
-- `0a88cac69` test(app): 迁移 performance 基准到书内会话路由
-- `3cc4674bd` test(app): 改写并下线标签时代的 performance 场景
-- `27328216b` test(app): 修复 performance 套件收集边界与过期单测
-- `b26990b38` docs(app): 更新 performance 套件构成说明
+- `2a302ef3f` docs(openspec): 建立 performance-benchmark-refresh 提案
+- `bf17c26ed` docs(openspec): 更新 performance-benchmark-refresh 提案（审查修正）
+- `cab552f9e` docs(openspec): 更新 performance-benchmark-refresh 提案（补收集边界修复）
+- `31e0d75a9` test(app): 迁移 performance 基准到书内会话路由
+- `480f7f831` test(app): 改写并下线标签时代的 performance 场景
+- `51313dc43` test(app): 修复 performance 套件收集边界与过期单测
+- `0a7b246bc` docs(app): 更新 performance 套件构成说明
+
+（PR #16 以 rebase 方式合并会重写提交哈希，上表为 main 实际哈希；归档 head 为 `2f87dd073`。）
