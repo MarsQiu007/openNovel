@@ -382,13 +382,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
-  const fork = () => {
-    void openDialog(
-      () => import("@/components/dialog-fork"),
-      (x) => dialog.show(() => <x.DialogFork />),
-    )
-  }
-
   const shareCmds = () => {
     if (sync().data.config.share === "disabled") return []
     return [
@@ -450,14 +443,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       slash: "compact",
       disabled: !params.id || visibleUserMessages().length === 0,
       onSelect: compact,
-    }),
-    sessionCommand({
-      id: "session.fork",
-      title: language.t("command.session.fork"),
-      description: language.t("command.session.fork.description"),
-      slash: "fork",
-      disabled: !params.id || visibleUserMessages().length === 0,
-      onSelect: fork,
     }),
   ]
 
