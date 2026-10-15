@@ -29,6 +29,6 @@
 
 ## Implementation Commits
 
-- `b694c4a82` feat(app): 工作台内会话导航直连
-- `93fc0b0ec` feat(app): 重定向宿主加载占位
-- `831873c61` test(app): 工作台直连与加载态 e2e 覆盖
+- `8d61f5423` feat(app): 工作台内会话导航直连
+- `3bf59f085` feat(app): 重定向宿主加载占位
+- `29eac5f40` test(app): 工作台直连与加载态 e2e 覆盖
