@@ -4,10 +4,10 @@ import { mockOpenNovelServer, type MockSession } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
 
-// 独立会话路由已退役为重定向宿主（session-book-only）：子代理子会话直接落在
-// 所属书籍工作台的对话面板，本 spec 工作台路由上验证导航与删除兜底；
-// subagent-session-binding 追加覆盖「未绑定子代理经祖先绑定兜底进书」与
-// 「孙级子代理沿整条父链回溯」两条链式归属路径。
+// 子代理会话导航（session-direct-nav）：工作台内时间线卡片链接由链接提供层
+// 直接生成为书内会话地址（/:dir/novel/:novelID/session/:id），点击一步直达、
+// history 中不出现独立会话路由（/:dir/session/:id）中间态；本 spec 覆盖卡片
+// 直连、返回父会话直连、未绑定子代理打开不降级、孙级子代理卡片与删除兜底。
 const directory = "C:/OpenNovel/SubagentNavigation"
 const novelID = "novel_subagent_navigation"
 const projectID = "proj_subagent_navigation"
@@ -45,7 +45,7 @@ test("navigates to a subagent child session missing from the session list", asyn
 })
 
 test("unbound subagent child opens through its bound parent without degradation", async ({ page }) => {
-  // 仅父会话持有绑定行：子代理自身无绑定，须沿父链回溯进书
+  // 仅父会话持有绑定行：子代理自身无绑定；工作台内直连打开不得降级（无未绑定提示）
   await setup(page, { boundSessionIDs: [parentID] })
   await openChildFromParent(page)
 
@@ -65,13 +65,28 @@ test("grandchild subagent walks the ancestor chain through an unbound middle par
   await openChildFromParent(page)
   await expectSessionTitle(page, taskDescription)
 
-  const card = page.locator(`a[href="/${base64Encode(directory)}/session/${grandchildID}"]`)
+  await installHistoryProbe(page)
+  const card = page.locator(`a[href="/${base64Encode(directory)}/novel/${novelID}/session/${grandchildID}"]`)
   await expect(card).toBeVisible()
   await card.click()
 
   await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${grandchildID}$`), { timeout: 15_000 })
   await expectSessionTitle(page, grandchildTaskDescription)
+  await expectDirectInBookNavigation(page, grandchildID)
   await expect(page.getByText("会话未绑定书籍")).toHaveCount(0)
+})
+
+test("child session returns to its parent directly within the workspace", async ({ page }) => {
+  await setup(page)
+  await openChildFromParent(page)
+  await expectSessionTitle(page, taskDescription)
+
+  await installHistoryProbe(page)
+  await page.locator('[data-slot="session-title-parent"]').click()
+
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${parentID}$`), { timeout: 15_000 })
+  await expectSessionTitle(page, parentTitle)
+  await expectDirectInBookNavigation(page, parentID)
 })
 
 test("shows the not found fallback when the viewed session is deleted", async ({ page }) => {
@@ -143,13 +158,51 @@ async function openChildFromParent(page: Page) {
   await page.goto(novelWorkspaceURL(directory, novelID, parentID))
   await expectSessionTitle(page, parentTitle)
 
-  // 时间线子会话卡片链接沿用目录级会话路由（DirectoryDataProvider 的
-  // onSessionHref）：/:dir/session/:childID——经重定向宿主查绑定后 replace 进书内
-  const card = page.locator(`a[href="/${base64Encode(directory)}/session/${childID}"]`)
+  await installHistoryProbe(page)
+  // 时间线子会话卡片链接由工作台链接提供层（DirectoryDataProvider 的 novelID 分支）
+  // 直接生成为书内会话地址：/:dir/novel/:novelID/session/:childID——点击仅路由参数
+  // 变化，不经过独立会话路由（/:dir/session/:id）中间态
+  const card = page.locator(`a[href="/${base64Encode(directory)}/novel/${novelID}/session/${childID}"]`)
   await expect(card).toBeVisible()
   await card.click()
 
   await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${childID}$`), { timeout: 15_000 })
+  await expectDirectInBookNavigation(page, childID)
+}
+
+/** 记录 SPA 路由写史（history.pushState/replaceState）的 pathname，供「工作台内直连、无中间路由」断言 */
+async function installHistoryProbe(page: Page) {
+  await page.evaluate(() => {
+    const w = window as Window & { __sessionNavHistory?: string[]; __sessionNavProbeInstalled?: boolean }
+    w.__sessionNavHistory = [location.pathname]
+    if (w.__sessionNavProbeInstalled) return
+    w.__sessionNavProbeInstalled = true
+    const record = () =>
+      (window as Window & { __sessionNavHistory?: string[] }).__sessionNavHistory?.push(location.pathname)
+    const push = history.pushState.bind(history)
+    const replace = history.replaceState.bind(history)
+    history.pushState = (...args) => {
+      push(...args)
+      record()
+    }
+    history.replaceState = (...args) => {
+      replace(...args)
+      record()
+    }
+  })
+}
+
+/** 断言最近一段导航全程停留在工作台内，且未出现独立会话路由（/:dir/session/:id）中间态 */
+async function expectDirectInBookNavigation(page: Page, sessionID: string) {
+  const paths = await page.evaluate(() => {
+    const w = window as Window & { __sessionNavHistory?: string[] }
+    return w.__sessionNavHistory ?? []
+  })
+  const workspace = `/${base64Encode(directory)}/novel/${novelID}`
+  const standalone = `/${base64Encode(directory)}/session/`
+  expect(paths.filter((path) => path.startsWith(standalone))).toEqual([])
+  expect(paths).toContain(`${workspace}/session/${sessionID}`)
+  expect(paths.every((path) => path.startsWith(workspace))).toBe(true)
 }
 
 function session(id: string, title: string, created: number, extra?: Record<string, unknown>) {

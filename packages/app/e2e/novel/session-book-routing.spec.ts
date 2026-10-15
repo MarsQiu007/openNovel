@@ -8,6 +8,7 @@ import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 // - 会话列表页退役：/sessions 旧链接降级重定向到书架，不渲染独立会话列表视图
 // - 书架进入的书籍工作台对话面板显示绑定会话（原小说分组侧栏入口迁移）
 // - 历史独立会话路由深链：绑定会话 replace 进书内；未绑定遗留会话降级书架并提示
+// - 深链解析期间：重定向宿主呈现加载占位而非整屏空白（session-direct-nav）
 const directory = "/home/user/BookRouting"
 const novelID = "novel-e2e-book-routing"
 const boundID = "ses_book_routing_bound"
@@ -49,6 +50,23 @@ test("legacy deep link redirects a bound session into its book workspace", async
   await expectSessionTitle(page, boundTitle)
 })
 
+test("legacy deep link shows a loading placeholder while resolving", async ({ page }) => {
+  await setup(page)
+  const release = await holdSessionBindings(page)
+  await page.goto(`/server/${base64Encode(serverKey)}/session/${boundID}`)
+
+  // bindings 响应挂起期间：重定向宿主呈现全尺寸加载占位（无整屏空白），而非空渲染
+  const loading = page.locator('[data-slot="session-redirect-loading"]')
+  await expect(loading).toBeVisible()
+  await expect(loading.locator('[data-component="spinner"]')).toBeVisible()
+  const box = await loading.boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThan(200)
+
+  release()
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${boundID}$`), { timeout: 15_000 })
+  await expectSessionTitle(page, boundTitle)
+})
+
 test("legacy deep link falls back to the shelf for an unbound session", async ({ page }) => {
   await setup(page)
   await page.goto(`/server/${base64Encode(serverKey)}/session/${orphanID}`)
@@ -86,4 +104,20 @@ async function setup(page: Page) {
       }),
     )
   }, directory)
+}
+
+/** 挂起 /api/novel/session-bindings 响应；返回 release 放行到既有 mock 响应（后注册路由优先，fallback 回落） */
+async function holdSessionBindings(page: Page) {
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = () => resolve()
+  })
+  await page.route(
+    (url) => url.pathname === "/api/novel/session-bindings",
+    async (route) => {
+      await gate
+      await route.fallback()
+    },
+  )
+  return release
 }
