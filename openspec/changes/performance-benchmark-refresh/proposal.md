@@ -2,11 +2,11 @@
 
 ## Why
 
-会话标签退役（session-book-only）与书内路由统一（session-direct-nav）之后，`packages/app/e2e/performance/timeline` 手动性能套件没有跟进收敛：7 个 spec、21 个基准场景依赖已退役的会话/草稿标签点击、`/server/:key/session/:id` 独立路由与书籍工作台前的会话列表行，长期无法复跑（issue #14）。同批迁移已在 `6d6b5b209`（regression 与 timeline-stability）、`7c72859ff`（子代理导航）等提交完成，只剩这一块未同步；套件不在任何 CI workflow、平时被 `testIgnore` 屏蔽，腐烂只在手动 `bun run test:bench` 时才会被撞见。
+会话标签退役（session-book-only）与书内路由统一（session-direct-nav）之后，`packages/app/e2e/performance/timeline` 手动性能套件没有跟进收敛：7 个 spec、21 个基准场景依赖已退役的会话/草稿标签点击、`/server/:key/session/:id` 独立路由与旧首页会话列表行（`home-session-row`），长期无法复跑（issue #14）。同批迁移已在 `6d6b5b209`（regression 与 timeline-stability）、`7c72859ff`（子代理导航）等提交完成，只剩这一块未同步；套件不在任何 CI workflow、平时被 `testIgnore` 屏蔽，腐烂只在手动 `bun run test:bench` 时才会被撞见。
 
 ## What Changes
 
-- **修复（迁移进入路由，保留 12 个场景）**：
+- **修复（进入路径迁移至书内路由，12 个场景恢复复跑）**：
   - 「子代理会话打开无空白帧」基准（first-navigation 场景 3）改为书内直连：工作台内点击子会话卡片一步进入 `/:dir/novel/:novelID/session/:id`，沿用 `subagent-child-navigation` 的迁移模式，`blankSamples === 0` / `unknownSamples === 0` 采样与断言不变。
   - 冷会话水合基准（session-parent-hydration）的 setup 入口与注入链接改走书内工作台路由，补书籍 API mock。
   - `session-timeline-benchmark` fixture 迁移为 `novelWorkspaceURL` + `mockNovelWorkspaceAPIs`（含右栏对话面板宽度设定），连带恢复流式 5 场景与 review pane 5 场景。
@@ -14,8 +14,8 @@
   - 缓存回访重绘基准（session-tab-flash 场景 1）改为书内会话切换形态；
   - 「review body 分阶段渲染」基准（home-tab 场景 2）的打开入口改为书内会话。
 - **下线（7 个场景，对应产品语义已退役）**：
-  - 会话/草稿标签打开与预取（first-navigation 场景 1/2、flash 场景 2）、标签关闭回首页（home-tab 场景 3）、书架会话行打开（home-tab 场景 1）、标签冷热切换（session-tab-switch 整文件 2 场景）。
-- **同步**：`timeline-test-helpers` 裁剪标签/草稿工具（`installStressSessionTabs` / `stressSessionHref` / `stressDraftHref`）与失去使用者的 `navigation-milestones` 采样器及其单测；stress fixture 补 `novelID` 常量；`e2e/performance/README.md` 重写为现行套件构成（含失效的示例命令）。
+  - 会话/草稿标签打开与预取（first-navigation 场景 1/2、flash 场景 2）、标签关闭回首页（home-tab 场景 3）、旧首页会话行打开（home-tab 场景 1）、标签冷热切换（session-tab-switch 整文件 2 场景）。
+- **同步**：`timeline-test-helpers` 裁剪标签/草稿工具（`installStressSessionTabs` / `stressSessionHref` / `stressDraftHref`）、新增会话打开注入小工具（`injectSessionLink`）并删除失去使用者的 `navigation-milestones` 采样器及其单测；stress 与 session-timeline 两处 fixture 补 `novelID` 常量；`e2e/performance/README.md` 重写为现行套件构成（含失效的示例命令）。
 - **验证**：`cd packages/app` 先跑 unit 集合，再以生产构建复跑全部受影响 spec（`bun run test:bench` 子集；review-pane-scaling 重档位以 `-g` 过滤跑代表档位），确认 `BENCHMARK` 产出与断言全绿。
 
 ## Capabilities
