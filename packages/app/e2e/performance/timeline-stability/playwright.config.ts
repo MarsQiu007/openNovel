@@ -4,6 +4,8 @@ export default {
   ...config,
   testDir: ".",
   testMatch: "**/*.spec.ts",
+  // 不继承 performance config 的 testIgnore（其 timeline-stability/** 会误排本目录）
+  testIgnore: [],
   outputDir: "../../test-results/timeline-stability",
   reporter: [["html", { outputFolder: "../../playwright-report/timeline-stability", open: "never" }], ["line"]],
   retries: 0,
