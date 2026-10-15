@@ -31,7 +31,7 @@ Non-Goals（设计层）：
   - 其余（bash 等 POSIX）：`while [ ! -f '.shell-stream-ack' ]; do sleep 0.02; done`。
 - 测试侧：metadata 回调仅在 `output` 非空时 push 并写 ack 文件（空输出是工具初始/收尾调用，忽略；写出即放行第二次 echo）。由此保证「第二行写入必然发生在第一行交付之后」，两次交付结构性成立，与调度无关。
 - 备选「把 sleep 从 0.1 拉长」被否：只是压低合并概率，不消除——合并由消费侧调度决定，不是生产侧节奏问题。
-- 结构：改用 `tmpdirScoped()` + `runIn(tmp, …)`（同文件既有模式），ack 用相对文件名，规避跨 shell 的绝对路径转义；命令补 `timeout: 30_000`，握手死锁时快速失败而不是吃默认超时。
+- 结构：保持 `runIn(projectRoot, …)`（复用既有实例，避免为每次用例新建实例带来的加载开销与秒级冷启动抖动——本机实测 `tmpdirScoped()` 变体会偶发 5s+ 设置延迟），用 `mkdtempSync(os.tmpdir())` 建独立临时目录并以 `workdir` 传入，作为 shell cwd；ack 用相对文件名，规避跨 shell 的绝对路径转义。命令补 `timeout: 30_000` 兜底握手死锁，清理用 `Effect.ensuring` 删除临时目录。
 - 断言：`result.output` 含 first/second 不变；`expect(updates.length, message).toBeGreaterThan(1)` 输出实际序列。
 
 ### D2. #9：停用全局轮询 + 直接断言（`test/novel/sync-worker-composition.test.ts`）
@@ -51,11 +51,12 @@ Non-Goals（设计层）：
 - 保留 `Effect.sleep(50)`：它只服务负断言（给 loop 一个「本应已经启动」的观察窗），负载只会让它更保守，不产生误红；无可观测的「已排队」条件可轮询，故不强行替换。
 - 备选「只把超时从 10s 提到 30s」被否：不消除竞速也不给阶段信息，只是把同一问题推后。
 
-### D4. #13：条件轮询替代固定帧数（`packages/app/src/pages/session/timeline/observe-element-offset.test.ts`）
+### D4. #13：测试环境依赖修复（根因）+ 条件轮询（辅助与诊断）（`packages/app`）
 
-- 新增文件内 `waitForCalls(calls, expected, timeoutMs = 3_000)`：按 rAF 轮询直至 `JSON.stringify` 相等；超时用 `expect(calls, message).toEqual(expected)` 抛出并打印期望与实际序列。3s 预算显著低于 bun 默认 per-test 5s 超时，且约为既有 3 帧窗口的百倍余量。
-- 转换三个「回调必须到达」的正断言（重挂载首个发散回调、horizontal LTR/RTL 回调、cleanup 前的已排队回调）；负断言（无关 mutation 无回调、cleanup 后无回调）保持固定窗口快速通过；`scrollOffset` 前置断言与 stale reset-delay 用例保持原逻辑（其等待由产品 rAF 链先于测试帧顺序保证）。
-- 不再依赖 `setTimeout(0) + frames(3)` 的帧序假设：负载下 MutationObserver 回调与 rAF 链被推迟也不误红。
+- 根因（实施期实证）：happy-dom ≤20.11.1 的 `MutationObserverListener` 把上报回调放在 `new WeakRef((record) => this.report(record))` 里且无强引用——GC 一旦回收该闭包，`reportMutation` 的 `deref()` 失败并移除监听器，observer 从此静默：回调不是「晚到」，而是永远不会到。本地证据：修复前自然跑约 10% 失败（3s 条件等待也救不回）；在首个 remount 前插入 `Bun.gc(true)` 后 100% 失败。
+- 修复：升级 `@happy-dom/global-registrator` 20.0.11 → 20.14.6（其依赖 happy-dom 同步到 20.14.6）。上游 20.14.6 / 21.0.1 把回调改为 `this.#listenerCallback`（私有字段强持有）+ `new WeakRef(this.#listenerCallback)`，回调寿命与监听器一致，GC 不再截断；选择同大版本升级（20.11.1 → 20.14.6，patch 区间）以最小化 app 测试环境行为差异，`bun.lock` 同步更新。验证：修复后强制 GC 场景 8/8、有机 25 连跑 175/175 全绿。
+- 辅助改造（保留）：`waitForCalls(calls, expected, timeoutMs = 3_000)` 条件轮询（按 rAF 轮询直至 `JSON.stringify` 相等；超时用 `expect(calls, message).toEqual(expected)` 打印期望与实际）。它不再是主要修复手段，但把「迟到 / 永不」的区分显式化，避免静默误红；转换三个「回调必须到达」的正断言（重挂载首个发散回调、horizontal LTR/RTL 回调、cleanup 前的已排队回调），负断言保持快速窗口。
+- 备选被否：只加长等待（对 GC 失效无效，已证）；预载中钉住 WeakRef 目标（掩盖上游缺陷、语义面更大）；升到 21.x（跨大版本，回归面更大，无必要）。
 
 ### D5. 验证策略
 
@@ -68,6 +69,7 @@ Non-Goals（设计层）：
 - [stopSyncWorker 停的是进程级状态] 本文件不依赖定时器；后续文件各自重新登记 / 启动，互不影响（`manual-edit-sync-worker.test.ts`、`httpapi-workspace-routing.test.ts` 已是先例）。
 - [条件轮询把「晚到」与「不到」的区分交给超时值] 3s（app）/ 20s（prompt 阶段）/ 30s（shell 命令兜底）均数十倍于正常值；超时失败信息带实际数据，便于区分慢与坏。
 - [在途轮询尾巴 / 帧外重复回调等极端残余] 不追求数学封闭，残余场景由明细化失败信息和 issue 复盘路径兜底；如复发按 `docs/agents/ci-triage.md` 重开。
+- [happy-dom 升级影响全部 app 测试环境] 20.11.1 → 20.14.6 为同大版本 patch 升级，已用 `test:unit` 全量回归验证；若出现行为差异，回退依赖并改走「预载钉住 WeakRef 目标」备选。
 
 ## Migration Plan
 

@@ -2,7 +2,7 @@
 
 ## 1. #8 shell 流式 metadata 用例确定化（packages/opennovel）
 
-- [ ] 1.1 `test/tool/shell.test.ts`：`streams metadata updates progressively` 改为 `tmpdirScoped()` + ack 握手——shell 侧 `echo first; <wait-ack>; echo second`（pwsh / POSIX 分支等待语法），测试侧 metadata 首个非空输出写 ack；命令补 `timeout: 30_000` 兜底；断言失败信息带实际 `updates` 序列；`cd packages/opennovel && bun typecheck` 通过
+- [ ] 1.1 `test/tool/shell.test.ts`：`streams metadata updates progressively` 改为「独立临时目录（`mkdtempSync` + `workdir`）+ ack 握手」——shell 侧 `echo first; <wait-ack>; echo second`（pwsh / POSIX 分支等待语法），测试侧 metadata 首个非空输出写 ack；命令补 `timeout: 30_000` 兜底；断言失败信息带实际 `updates` 序列；`cd packages/opennovel && bun typecheck` 通过
 - [ ] 1.2 定向连跑：`cd packages/opennovel && bun test test/tool/shell.test.ts --rerun-each 20` 全绿（仅关注该用例；文件内其余用例不受影响）
 
 ## 2. #9 sync worker 重建注入用例确定化（packages/opennovel）
@@ -15,10 +15,11 @@
 - [ ] 3.1 `test/session/prompt.test.ts`：新增 ack 等待命令辅助逻辑；`loop waits while shell runs and starts after shell exits` 与 `shell completion resumes queued loop callers` 改为 ack 门控 shell 生命周期 + `waitForBusy` 10s + 阶段化 `awaitWithTimeout`（20s，带阶段名）+ per-test 60_000 兜底；注释同步更新；`bun typecheck` 通过
 - [ ] 3.2 定向连跑：`bun test test/session/prompt.test.ts --rerun-each 20` 全绿
 
-## 4. #13 observe-element-offset 用例条件等待（packages/app）
+## 4. #13 observe-element-offset 用例修复（packages/app）
 
-- [ ] 4.1 `src/pages/session/timeline/observe-element-offset.test.ts`：新增 `waitForCalls` 条件等待 helper（rAF 轮询 + 超时输出实际序列），转换三处正断言（重挂载首个发散回调、horizontal 回调、cleanup 前已排队回调）；负断言保持；`cd packages/app && bun typecheck` 通过
-- [ ] 4.2 定向连跑：`bun test src/pages/session/timeline/observe-element-offset.test.ts --rerun-each 20` 全绿
+- [ ] 4.1 `packages/app/package.json`：`@happy-dom/global-registrator` 20.0.11 → 20.14.6，根目录 `bun install` 更新 `bun.lock`；确认已安装 happy-dom@20.14.6 且 `bun install --frozen-lockfile` 通过（根因：happy-dom ≤20.11.1 的 MutationObserver 回调仅被 WeakRef 弱持有、GC 后 observer 静默失效，上游 20.14.6 已修复）
+- [ ] 4.2 `src/pages/session/timeline/observe-element-offset.test.ts`：新增 `waitForCalls` 条件等待 helper（rAF 轮询 + 超时输出实际序列），转换三处正断言（重挂载首个发散回调、horizontal 回调、cleanup 前已排队回调）；负断言保持；`cd packages/app && bun typecheck` 通过
+- [ ] 4.3 定向验证：`bun test --preload ./happydom.ts src/pages/session/timeline/observe-element-offset.test.ts --rerun-each 20` 全绿；对照证据：remount 前插入 `Bun.gc(true)` 的场景修复前 100% 失败、修复后全过（临时改动验证后移除）
 
 ## 5. 集成验证
 
