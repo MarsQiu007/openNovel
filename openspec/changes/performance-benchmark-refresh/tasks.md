@@ -6,6 +6,7 @@
 - [ ] 1.2 first-navigation 场景 3 改书内直连（setup 补 `mockNovelWorkspaceAPIs`、goto `novelWorkspaceURL`、卡片定位改书内 href、`destinationPath` 同步），删除场景 1/2 及 `stressDraftHref` 等失效引用；运行 `timeline/first-navigation-benchmark.spec.ts` 通过并输出 BENCHMARK
 - [ ] 1.3 parent-hydration 书内化（setup goto 与打开入口 `injectSessionLink` 均改书内 href，以 `installTimelineSettings` 替代 `installStressSessionTabs` 并补 `mockNovelWorkspaceAPIs`）；运行 `timeline/session-parent-hydration-benchmark.spec.ts` 通过
 - [ ] 1.4 session-timeline fixture 迁移（新增 `novelID` 常量、goto `novelWorkspaceURL` + novel mock + 右栏宽度 init script + `newLayoutDesigns` 默认改 `true`）；运行 `timeline/session-timeline-benchmark.spec.ts` 全场景与 `timeline/review-pane-scaling-benchmark.spec.ts` 最小档（`-g` 过滤 1 文件档）通过
+- [ ] 1.5 收集边界修复：performance config `testIgnore` 排除 `**/*.test.ts` 与 `timeline-stability/**`，stability config 重置 `testIgnore: []`；`--list` 收集验证 performance 14 tests（node 与 bun 双通道）、stability 44 tests 全量列出
 
 ## 2. 改写与下线（同目录）
 
