@@ -7,6 +7,8 @@ test("applies message latency after a list response gate is released", async () 
   const gate = Promise.withResolvers<void>()
   let handler: ((route: Route) => Promise<void>) | undefined
   const page = {
+    // mockOpenNovelServer 会用 addInitScript 固定配色方案，假 page 需同步该契约
+    addInitScript: () => Promise.resolve(),
     route: (_url: string, callback: (route: Route) => Promise<void>) => {
       handler = callback
       return Promise.resolve()
