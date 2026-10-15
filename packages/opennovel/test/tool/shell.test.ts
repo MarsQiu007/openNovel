@@ -3,6 +3,7 @@ import { describe, expect } from "bun:test"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { Cause, Effect, Exit, Layer } from "effect"
 import type * as Scope from "effect/Scope"
+import { mkdtempSync, rmSync, writeFileSync } from "fs"
 import os from "os"
 import path from "path"
 import { Config } from "@/config/config"
@@ -1105,30 +1106,44 @@ describe("tool.shell abort", () => {
     ),
   )
 
-  it.live("streams metadata updates progressively", () =>
-    runIn(
-      projectRoot,
-      Effect.gen(function* () {
-        const updates: string[] = []
-        const result = yield* run(
-          {
-            command: `echo first && sleep 0.1 && echo second`,
-          },
-          {
-            ...ctx,
-            metadata: (input) =>
-              Effect.sync(() => {
-                const output = (input.metadata as { output?: string })?.output
-                if (output) updates.push(output)
-              }),
-          },
-        )
-        expect(result.output).toContain("first")
-        expect(result.output).toContain("second")
-        expect(updates.length).toBeGreaterThan(1)
-      }),
-    ),
-  )
+  it.live("streams metadata updates progressively", () => {
+    // ack 文件载体目录：作为 shell cwd 传入，避免在仓库工作树内写测试产物
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "shell-stream-"))
+    return Effect.gen(function* () {
+      yield* runIn(
+        projectRoot,
+        Effect.gen(function* () {
+          const updates: string[] = []
+          // ack 文件握手：第一行交付（metadata 回调）后才放行第二行，
+          // 两次交付不再依赖 sleep 时间窗——负载下两行可能被合并成一次读取。
+          const wait = PS.has(sh())
+            ? `while (-not (Test-Path '.shell-stream-ack')) { Start-Sleep -Milliseconds 20 }`
+            : `while [ ! -f '.shell-stream-ack' ]; do sleep 0.02; done`
+          const result = yield* run(
+            {
+              command: `echo first; ${wait}; echo second`,
+              workdir: tmp,
+              timeout: 30_000,
+            },
+            {
+              ...ctx,
+              metadata: (input) =>
+                Effect.sync(() => {
+                  const output = (input.metadata as { output?: string })?.output
+                  // 工具在命令前后各有一次空输出回调，只在收到真实 chunk 时写 ack
+                  if (!output) return
+                  updates.push(output)
+                  writeFileSync(path.join(tmp, ".shell-stream-ack"), "")
+                }),
+            },
+          )
+          expect(result.output).toContain("first")
+          expect(result.output).toContain("second")
+          expect(updates.length, `实际 metadata 更新序列（${updates.length} 次）: ${JSON.stringify(updates)}`).toBeGreaterThan(1)
+        }),
+      )
+    }).pipe(Effect.ensuring(Effect.sync(() => rmSync(tmp, { recursive: true, force: true }))))
+  })
 })
 
 describe("tool.shell truncation", () => {

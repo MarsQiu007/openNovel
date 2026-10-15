@@ -337,6 +337,13 @@ const waitForBusy = (sessionID: SessionID, duration: Duration.Input = "2 seconds
     duration,
   )
 
+// shell 侧等待 ack 文件出现的命令片段（pwsh / POSIX 两族语法）；
+// 与测试侧写文件配合，把 shell 生命周期从固定 sleep 改为外部信号门控
+const waitForAckCommand = (file: string) =>
+  ["pwsh", "powershell"].includes(Shell.name(Shell.acceptable()))
+    ? `while (-not (Test-Path '${file}')) { Start-Sleep -Milliseconds 20 }`
+    : `while [ ! -f '${file}' ]; do sleep 0.02; done`
+
 const hasBash = Effect.sync(() => Bun.which("bash") !== null)
 
 const deferredAsPromise = <A>(deferred: Deferred.Deferred<A>): PromiseLike<A> => ({
@@ -1678,27 +1685,35 @@ it.instance(
   "loop waits while shell runs and starts after shell exits",
   () =>
     Effect.gen(function* () {
-      const { llm } = yield* useServerConfig(providerCfg)
+      const { dir, llm } = yield* useServerConfig(providerCfg)
       const prompt = yield* SessionPrompt.Service
       const sessions = yield* Session.Service
+      const afs = yield* FSUtil.Service
       const chat = yield* sessions.create({
         title: "Pinned",
         permission: [{ permission: "*", pattern: "*", action: "allow" }],
       })
       yield* llm.text("after-shell")
 
+      // shell 由 ack 文件挡在运行态、运行状态可证明；确认 loop 未启动后再放行 shell 退出
+      const ack = ".loop-shell-ack"
       const sh = yield* prompt
-        .shell({ sessionID: chat.id, agent: "build", command: "sleep 0.2" })
+        .shell({ sessionID: chat.id, agent: "build", command: waitForAckCommand(ack) })
         .pipe(Effect.forkChild)
-      yield* waitForBusy(chat.id)
+      yield* waitForBusy(chat.id, "10 seconds")
 
       const loop = yield* prompt.loop({ sessionID: chat.id }).pipe(Effect.forkChild)
       yield* Effect.sleep(50)
 
       expect(yield* llm.calls).toBe(0)
 
-      yield* Fiber.await(sh)
-      const exit = yield* Fiber.await(loop)
+      yield* afs.writeWithDirs(path.join(dir, ack), "")
+      yield* awaitWithTimeout(Fiber.await(sh), "「等待 shell 退出」阶段超时（shell fiber 未完成）", "20 seconds")
+      const exit = yield* awaitWithTimeout(
+        Fiber.await(loop),
+        "「shell 退出后 loop 恢复」阶段超时（loop fiber 未完成）",
+        "20 seconds",
+      )
 
       expect(Exit.isSuccess(exit)).toBe(true)
       if (Exit.isSuccess(exit)) {
@@ -1708,26 +1723,30 @@ it.instance(
       expect(yield* llm.calls).toBe(1)
     }),
   { git: true },
-  10_000,
+  // Windows CI 下 shell 进程 spawn 偏慢；用例内各阶段已有 20s 明确超时，此处仅作兜底。
+  60_000,
 )
 
 it.instance(
   "shell completion resumes queued loop callers",
   () =>
     Effect.gen(function* () {
-      const { llm } = yield* useServerConfig(providerCfg)
+      const { dir, llm } = yield* useServerConfig(providerCfg)
       const prompt = yield* SessionPrompt.Service
       const sessions = yield* Session.Service
+      const afs = yield* FSUtil.Service
       const chat = yield* sessions.create({
         title: "Pinned",
         permission: [{ permission: "*", pattern: "*", action: "allow" }],
       })
       yield* llm.text("done")
 
+      // shell 由 ack 文件挡在运行态、运行状态可证明；确认排队 loop 均未启动后再放行 shell 退出
+      const ack = ".loop-shell-ack"
       const sh = yield* prompt
-        .shell({ sessionID: chat.id, agent: "build", command: "sleep 0.2" })
+        .shell({ sessionID: chat.id, agent: "build", command: waitForAckCommand(ack) })
         .pipe(Effect.forkChild)
-      yield* waitForBusy(chat.id)
+      yield* waitForBusy(chat.id, "10 seconds")
 
       const a = yield* prompt.loop({ sessionID: chat.id }).pipe(Effect.forkChild)
       const b = yield* prompt.loop({ sessionID: chat.id }).pipe(Effect.forkChild)
@@ -1735,8 +1754,13 @@ it.instance(
 
       expect(yield* llm.calls).toBe(0)
 
-      yield* Fiber.await(sh)
-      const [ea, eb] = yield* Effect.all([Fiber.await(a), Fiber.await(b)])
+      yield* afs.writeWithDirs(path.join(dir, ack), "")
+      yield* awaitWithTimeout(Fiber.await(sh), "「等待 shell 退出」阶段超时（shell fiber 未完成）", "20 seconds")
+      const [ea, eb] = yield* awaitWithTimeout(
+        Effect.all([Fiber.await(a), Fiber.await(b)]),
+        "「shell 退出后排队 loop 恢复」阶段超时（loop fiber 未完成）",
+        "20 seconds",
+      )
 
       expect(Exit.isSuccess(ea)).toBe(true)
       expect(Exit.isSuccess(eb)).toBe(true)
@@ -1747,8 +1771,8 @@ it.instance(
       expect(yield* llm.calls).toBe(1)
     }),
   { git: true },
-  // Windows CI 下 shell 进程 spawn 偏慢，10s 会偶发超时。
-  30_000,
+  // Windows CI 下 shell 进程 spawn 偏慢；用例内各阶段已有 20s 明确超时，此处仅作兜底。
+  60_000,
 )
 
 unix(

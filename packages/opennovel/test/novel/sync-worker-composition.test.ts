@@ -18,7 +18,7 @@ import {
 import { InstanceStore } from "../../src/project/instance-store"
 import type { InstanceContext } from "../../src/project/instance-context"
 import { Provider } from "../../src/provider/provider"
-import { clearSyncHandlers, processSyncQueue } from "../../src/novel/manual-edit-sync-worker"
+import { clearSyncHandlers, processSyncQueue, stopSyncWorker } from "../../src/novel/manual-edit-sync-worker"
 import { registerNovelSyncHandler } from "../../src/novel/sync-worker-composition"
 import { ProviderTest } from "../fake/provider"
 
@@ -32,6 +32,9 @@ beforeEach(() => {
   novelId = crypto.randomUUID()
   db.insert(NovelTable).values({ id: novelId, title: "组合层测试", genre: "玄幻" }).run()
   clearSyncHandlers()
+  // 停掉此前测试文件可能遗留的全局轮询定时器：它会在本文件消费其它目录的遗留任务，
+  // 复用当前注册的 handler 与 model 造成计数串扰（本文件全部经 processSyncQueue 手动驱动）
+  stopSyncWorker()
 })
 
 afterEach(() => {
@@ -275,14 +278,15 @@ describe("registerNovelSyncHandler", () => {
 
     await processSyncQueue(projectDir)
 
-    // 全局轮询定时器可能在本用例断言前消费其他目录的遗留任务（复用本 handler 闭包与 model），
-    // 计数只认本用例两章标题锚点，避免跨用例串扰
-    const rebuildCalls = model.doGenerateCalls.filter((call) => {
-      const text = call.prompt.map((entry) => JSON.stringify(entry.content)).join("\n")
-      return text.includes("《第一章》") || text.includes("《第二章》")
-    })
-    expect(rebuildCalls).toHaveLength(2)
-    expect(systemTextOf(rebuildCalls[0].prompt)).toBe("共享人格")
-    expect(systemTextOf(rebuildCalls[1].prompt)).toBe("共享人格")
+    // 全局轮询已在本文件 beforeEach 停用，只经 processSyncQueue 消费，调用序列对断言确定；
+    // 失败时打印调用明细，便于区分「多消费 / 少消费 / 顺序错」
+    const details = model.doGenerateCalls.map((call) =>
+      call.prompt.map((entry) => JSON.stringify(entry.content)).join("\n"),
+    )
+    expect(details, `实际重建调用明细:\n${details.join("\n---\n")}`).toHaveLength(2)
+    expect(details[0]).toContain("《第一章》")
+    expect(details[1]).toContain("《第二章》")
+    expect(systemTextOf(model.doGenerateCalls[0].prompt)).toBe("共享人格")
+    expect(systemTextOf(model.doGenerateCalls[1].prompt)).toBe("共享人格")
   })
 })
