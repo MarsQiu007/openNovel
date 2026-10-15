@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import {
   boundNovelSessions,
+  flattenNovelSessionOptions,
   loadBoundSessionsWithEmptyGuard,
   resolveAutoAdoptTarget,
   type NovelSessionBinding,
+  type NovelSessionOption,
 } from "./novel-queries"
 
 function session(id: string, title?: string, archived?: boolean, parentID?: string): Session {
@@ -162,6 +164,70 @@ describe("boundNovelSessions", () => {
     })
     expect(result.map((item) => item.sessionID)).toEqual(["s59", "s30", "s0"])
   })
+
+  test("孙级子代理挂接父级链：任意层级嵌套且后代不要求自身绑定行", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("sub1", "一级子代理", false, "s1"), session("sub2", "孙级子代理", false, "sub1")],
+    })
+    expect(result[0]?.children.map((item) => item.sessionID)).toEqual(["sub1"])
+    expect(result[0]?.children[0]?.children.map((item) => item.sessionID)).toEqual(["sub2"])
+  })
+
+  test("嵌套列表排序稳定：主会话按绑定顺序，子节点按会话列表顺序", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s2"), binding("s1")],
+      sessions: [
+        session("s1"),
+        session("sub1-b", "第二子代理", false, "s1"),
+        session("sub1-a", "第一子代理", false, "s1"),
+        session("s2"),
+        session("sub2", "s2 的子代理", false, "s2"),
+      ],
+    })
+    expect(result.map((item) => item.sessionID)).toEqual(["s2", "s1"])
+    expect(result[0]?.children.map((item) => item.sessionID)).toEqual(["sub2"])
+    expect(result[1]?.children.map((item) => item.sessionID)).toEqual(["sub1-b", "sub1-a"])
+  })
+
+  test("孙级孤儿不展示：链中间层缺失", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("sub2", "悬空孙级", false, "ghost-mid")],
+    })
+    expect(result[0]?.children).toEqual([])
+  })
+
+  test("孙级孤儿不展示：中间层已归档导致链断", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("sub1", "已归档中间层", true, "s1"), session("sub2", "孙级子代理", false, "sub1")],
+    })
+    expect(result[0]?.children).toEqual([])
+  })
+
+  test("深层已归档后代被剔除，未归档节点保留", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("sub1", "一级子代理", false, "s1"), session("sub2", "已归档孙级", true, "sub1")],
+    })
+    expect(result[0]?.children.map((item) => item.sessionID)).toEqual(["sub1"])
+    expect(result[0]?.children[0]?.children).toEqual([])
+  })
+
+  test("环状 parent 数据不会死循环，也不挂接", () => {
+    const result = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [session("s1"), session("cyc-a", "环 a", false, "cyc-b"), session("cyc-b", "环 b", false, "cyc-a")],
+    })
+    expect(result[0]?.children).toEqual([])
+  })
 })
 
 describe("resolveAutoAdoptTarget", () => {
@@ -185,6 +251,68 @@ describe("resolveAutoAdoptTarget", () => {
 
   test("零绑定会话：返回 null（保持懒创建空态）", () => {
     expect(resolveAutoAdoptTarget({ sessions: [], rememberedSessionID: "s1" })).toBeNull()
+  })
+
+  test("记忆指向子代理：在含后代全集合内命中恢复", () => {
+    expect(
+      resolveAutoAdoptTarget({
+        sessions: [{ sessionID: "s1", updatedAt: 100 }],
+        allSessions: [
+          { sessionID: "s1", updatedAt: 100 },
+          { sessionID: "sub1", updatedAt: 50 },
+        ],
+        rememberedSessionID: "sub1",
+      }),
+    ).toBe("sub1")
+  })
+
+  test("记忆失效回落主会话：即使子代理 updatedAt 更大也不选子代理", () => {
+    expect(
+      resolveAutoAdoptTarget({
+        sessions: [{ sessionID: "s1", updatedAt: 100 }],
+        allSessions: [
+          { sessionID: "s1", updatedAt: 100 },
+          { sessionID: "sub1", updatedAt: 999 },
+        ],
+        rememberedSessionID: "s-gone",
+      }),
+    ).toBe("s1")
+  })
+
+  test("零主会话返回 null：记忆指向后代也不恢复", () => {
+    expect(
+      resolveAutoAdoptTarget({
+        sessions: [],
+        allSessions: [{ sessionID: "sub1", updatedAt: 50 }],
+        rememberedSessionID: "sub1",
+      }),
+    ).toBeNull()
+  })
+})
+
+describe("flattenNovelSessionOptions", () => {
+  test("递归拍平主会话与全部层级后代（深度优先、保持列表顺序）", () => {
+    const tree: NovelSessionOption[] = [
+      {
+        sessionID: "s1",
+        title: "主一",
+        updatedAt: 1,
+        children: [
+          {
+            sessionID: "sub1",
+            title: "子一",
+            updatedAt: 2,
+            children: [{ sessionID: "sub2", title: "孙一", updatedAt: 3, children: [] }],
+          },
+        ],
+      },
+      { sessionID: "s2", title: "主二", updatedAt: 4, children: [] },
+    ]
+    expect(flattenNovelSessionOptions(tree).map((item) => item.sessionID)).toEqual(["s1", "sub1", "sub2", "s2"])
+  })
+
+  test("空列表拍平为空", () => {
+    expect(flattenNovelSessionOptions([])).toEqual([])
   })
 })
 

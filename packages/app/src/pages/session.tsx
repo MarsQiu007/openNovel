@@ -155,7 +155,13 @@ export function SessionPage() {
 export function TargetSessionRouteContent() {
   const params = useParams<{ serverKey: string; id: string }>()
   const serverSync = useServerSync()
-  const directory = createMemo(() => serverSync().session.lineage.peek(params.id)?.session.directory)
+  // 目录经 lineage 落定解析（subagent-session-binding）：未缓存会话（如未绑定子代理
+  // 深链）先 resolve 再取目录，避免重定向宿主悬停；会话缺失经外层错误边界兜底。
+  const current = createSessionLineage(
+    () => params.id,
+    () => serverSync().session.lineage,
+  )
+  const directory = createMemo(() => current()?.session.directory)
 
   return (
     <TargetServerScopedProviders directory={directory} sessionID={() => params.id}>

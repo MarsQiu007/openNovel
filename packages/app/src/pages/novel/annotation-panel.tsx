@@ -1,6 +1,7 @@
 import { annotationParagraphRangeLabel } from "./annotation-utils"
 import { Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import {
+  flattenNovelSessionOptions,
   useAnnotations,
   useBoundNovelSessions,
   useChapterDetail,
@@ -92,7 +93,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
   const openCount = createMemo(() => activeAnnotations().filter((a) => a.status === "open").length)
   const sessionBusy = createMemo(() =>
     isAnySessionWorking(
-      (boundSessions.data ?? []).map((session) => session.sessionID),
+      flattenNovelSessionOptions(boundSessions.data ?? []).map((session) => session.sessionID),
       (sessionID) => sync().data.session_working(sessionID),
     ),
   )

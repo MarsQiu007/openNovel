@@ -6,7 +6,7 @@
  *
  * DB / session 绑定边界已提取至 session-store.ts。
  */
-import type { Plugin } from "./index.js"
+import type { Plugin, PluginInput } from "./index.js"
 import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
@@ -89,7 +89,7 @@ import {
   HookRotationTable,
   PendingSettingTable,
   WorldEntryConflictTable,
-  resolveNovelForSession,
+  resolveNovelForSessionWithInheritance,
   resolveChapterOutline,
   resolveMasterOutline,
   resolveVolumeOutline,
@@ -243,6 +243,22 @@ function injectModeContext(directory: string | null | undefined, system: string[
 }
 
 /**
+ * 会话归属继承解析（subagent-session-binding D2）：以 clientV2 逐级读取 parentID
+ * 作为父链访问器，交由 novel-store 按「自身绑定 → 单书懒绑定 → 最近绑定祖先 →
+ * 无归属」解析并幂等写回继承。会话查询失败由解析层按无归属降级，不阻断调用方流程。
+ */
+function resolveSessionNovel(
+  client: PluginInput["clientV2"],
+  sessionId: string,
+  directory: string | null | undefined,
+) {
+  return resolveNovelForSessionWithInheritance(sessionId, directory, async (id) => {
+    const result = await client.session.get({ sessionID: id, directory: directory ?? undefined })
+    return result.data?.parentID
+  })
+}
+
+/**
  * 灵魂注入：模式契约固定在 system[0]（injectModeContext 已 unshift），
  * 灵魂插到其后（splice 到 index 1），快照仍由 injectSystemContext push 到尾部。
  * 全局灵魂对所有会话生效；小说灵魂仅在解析到 novelId 时参与合并。
@@ -253,7 +269,7 @@ async function injectSoul(
   system: string[],
   client: Parameters<typeof fetchGlobalSoul>[0],
 ) {
-  const novelId = await resolveNovelForSession(sessionId, directory)
+  const novelId = await resolveSessionNovel(client, sessionId, directory)
   const novelSoul = novelId ? (await getSoul(novelId, directory))?.content : undefined
   const globalSoul = await fetchGlobalSoul(client).catch(() => undefined)
   const soul = chooseSoul(novelSoul, globalSoul)
@@ -291,9 +307,14 @@ function formatActiveArcs(arcs: StoryArcSummary[]): string[] {
   return lines
 }
 
-async function injectSystemContext(sessionId: string, directory: string | null | undefined, system: string[]) {
+async function injectSystemContext(
+  sessionId: string,
+  directory: string | null | undefined,
+  system: string[],
+  client: PluginInput["clientV2"],
+) {
   // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
-  const novelId = await resolveNovelForSession(sessionId, directory)
+  const novelId = await resolveSessionNovel(client, sessionId, directory)
   if (!novelId) return
 
   // 查询当前最新章节序号
@@ -407,9 +428,14 @@ async function injectSystemContext(sessionId: string, directory: string | null |
 }
 
 /** 会话压缩时的小说上下文注入逻辑，同上支持 hook 层降级。 */
-async function injectCompactionContext(sessionId: string, directory: string | null | undefined, context: string[]) {
+async function injectCompactionContext(
+  sessionId: string,
+  directory: string | null | undefined,
+  context: string[],
+  client: PluginInput["clientV2"],
+) {
   // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
-  const novelId = await resolveNovelForSession(sessionId, directory)
+  const novelId = await resolveSessionNovel(client, sessionId, directory)
   if (!novelId) return
 
   const db = getDb(directory)
@@ -444,6 +470,8 @@ async function injectCompactionContext(sessionId: string, directory: string | nu
 }
 
 export const NovelWriterPlugin: Plugin = async (ctx) => {
+  // 工具 execute 的 ctx 参数会遮蔽插件级 ctx，先行捕获 client 供归属继承解析使用
+  const pluginClient = ctx.clientV2
   return {
     /**
      * 系统提示注入 hook
@@ -475,7 +503,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       }
 
       try {
-        await injectSystemContext(input.sessionID, ctx.directory, output.system)
+        await injectSystemContext(input.sessionID, ctx.directory, output.system, ctx.clientV2)
       } catch (error) {
         console.warn(
           "[novel-writer] system.transform hook failed, skipping novel context injection:",
@@ -493,7 +521,7 @@ export const NovelWriterPlugin: Plugin = async (ctx) => {
       if (!input.sessionID) return
 
       try {
-        await injectCompactionContext(input.sessionID, ctx.directory, output.context)
+        await injectCompactionContext(input.sessionID, ctx.directory, output.context, ctx.clientV2)
       } catch (error) {
         console.warn(
           "[novel-writer] session.compacting hook failed, skipping novel context injection:",
@@ -5037,7 +5065,7 @@ ${sceneChecklist}`
             .describe("按类型过滤"),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "list_story_arcs", output: "未找到当前小说项目" }
           const allArcs = await listStoryArcs(novelId, ctx.directory)
           const arcs = allArcs.filter(
@@ -5089,7 +5117,7 @@ ${sceneChecklist}`
           actual_end_chapter: tool.schema.number().optional(),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "plan_story_arc", output: "未找到当前小说项目" }
           // target_character_id 接受角色 ID 或角色名：architect/observer 手里通常只有名字，
           // 这里解析到真实 UUID，避免把名字直接写入外键触发 FOREIGN KEY constraint failed
@@ -5286,7 +5314,7 @@ ${sceneChecklist}`
             .describe("mode=replace_matching 时必填，指定要替换哪些弧光"),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "backfill_story_arcs", output: "未找到当前小说项目" }
           const mode = args.mode ?? "create_only"
           if (mode === "replace_matching" && !args.replace_match?.arc_type && !args.replace_match?.target_character_name) {
@@ -5418,7 +5446,7 @@ ${sceneChecklist}`
           "运行确定性结构检查，聚合弧覆盖、伏笔回收、线索闭合等风险。不依赖 LLM，返回结构化问题列表。",
         args: {},
         async execute(_args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "editorial_review", output: "未找到当前小说项目" }
           const data = await listStructureForEditor(novelId, ctx.directory)
           const report = checkStructure({
@@ -5474,7 +5502,7 @@ ${sceneChecklist}`
           suggested_replacement: tool.schema.string().optional().describe("润色替换文本"),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "annotate", output: "未找到当前小说项目" }
           const field = args.field ?? "content"
           let source = args.source ?? "user"
@@ -5700,7 +5728,7 @@ ${sceneChecklist}`
           suggested_replacement: tool.schema.string().describe("润色后的文本"),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "polish_paragraph", output: "未找到当前小说项目" }
           const db = getDb(ctx.directory)
           const chapter = await db
@@ -5744,7 +5772,7 @@ ${sceneChecklist}`
           allow_replace: tool.schema.boolean().describe("已有草稿时是否允许替换；必须先向用户确认"),
         },
         async execute(args, ctx) {
-          const boundNovelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const boundNovelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!boundNovelId || boundNovelId !== args.novel_id) {
             return { title: "write_world_map_draft", output: "会话未绑定到目标小说，禁止写入地图草稿" }
           }
@@ -5784,7 +5812,7 @@ ${sceneChecklist}`
         description: "读取大纲画布布局。损坏时返回自动布局。",
         args: {},
         async execute(_args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "read_outline_canvas", output: "未找到当前小说项目" }
           const raw = await getOutlineCanvasLayout(novelId, ctx.directory)
           const data = await listStructureForEditor(novelId, ctx.directory)
@@ -5808,7 +5836,7 @@ ${sceneChecklist}`
           layout: tool.schema.string().describe("画布布局 JSON 字符串"),
         },
         async execute(args, ctx) {
-          const novelId = await resolveNovelForSession(ctx.sessionID, ctx.directory)
+          const novelId = await resolveSessionNovel(pluginClient, ctx.sessionID, ctx.directory)
           if (!novelId) return { title: "write_outline_canvas", output: "未找到当前小说项目" }
           const parsed = JSON.parse(args.layout)
           const layout = sanitizeLayout(parsed)

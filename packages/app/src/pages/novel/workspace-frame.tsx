@@ -40,6 +40,7 @@ import {
   useCharacters,
   useBoundNovelSessions,
   resolveAutoAdoptTarget,
+  flattenNovelSessionOptions,
 } from "@/context/novel-queries"
 import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
@@ -267,6 +268,7 @@ export default function NovelWorkspaceFrame() {
     if (!list) return
     const target = resolveAutoAdoptTarget({
       sessions: list,
+      allSessions: flattenNovelSessionOptions(list),
       rememberedSessionID: perBookState[novelID()]?.sessionId,
     })
     if (target) navigate(`/${params.dir}/novel/${novelID()}/session/${target}`)
@@ -584,7 +586,7 @@ export default function NovelWorkspaceFrame() {
   // Session activity & approval state
   const sync = useSync()
   const novelActivity = useNovelActivity(() =>
-    (boundSessions.data ?? []).map((session) => session.sessionID),
+    flattenNovelSessionOptions(boundSessions.data ?? []).map((session) => session.sessionID),
   )
   const pendingCount = createMemo(() => usePendingApprovalCount(data.chapters))
   const updateNovel = useUpdateNovel()

@@ -15,7 +15,7 @@ import { batch } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { diffs as cleanDiffs, message as cleanMessage } from "@/utils/diffs"
 import { sessionNotFoundError } from "@/utils/server-errors"
-import { rootSession } from "@/utils/session-route"
+import { sessionChain } from "@/utils/session-route"
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
@@ -269,6 +269,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     const session = data.info[sessionID]
     if (!session) return
     const seen = new Set([session.id])
+    const chain = [session]
     let root = session
     while (root.parentID) {
       if (seen.has(root.parentID)) throw new Error(`Session parent cycle: ${root.parentID}`)
@@ -276,8 +277,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       const parent = data.info[root.parentID]
       if (!parent) return
       root = parent
+      chain.push(parent)
     }
-    return { session, root }
+    return { session, root, chain }
   }
 
   const clearOptimistic = (sessionID: string, messageID?: string) => {
@@ -1067,7 +1069,8 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       peek: peekLineage,
       async resolve(sessionID: string) {
         const session = await resolve(sessionID)
-        return { session, root: await rootSession(session, resolve) }
+        const chain = await sessionChain(session, resolve)
+        return { session, root: chain[chain.length - 1], chain }
       },
     },
     sync,

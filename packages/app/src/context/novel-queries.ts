@@ -40,44 +40,59 @@ export type NovelSessionBinding = {
   novelTitle: string
 }
 
-/** 书内会话切换器的子代理子项（收纳在主会话之下，只读浏览，不作为用户对话线） */
+/** 书内会话切换器的会话节点（主会话与任意层级子代理同形，children 递归收纳） */
 export type NovelChildSessionOption = {
   sessionID: string
   title: string
   updatedAt: number
+  children: NovelChildSessionOption[]
 }
 
 /** 书内会话切换器的列表项（标题取自会话本身，用户可在会话内改名） */
 export type NovelSessionOption = {
   sessionID: string
   title: string
-  /** 会话最近活跃时间（session.time.updated），供自动回跳选"最近会话"用 */
+  /** 会话最近活跃时间（session.time.updated），供自动回跳选最近会话用 */
   updatedAt: number
-  /** 子代理会话（parentID 指向主会话），切换器中默认折叠收纳 */
+  /** 子代理会话（parentID 指向主会话，任意层级），切换器中默认折叠收纳 */
   children: NovelChildSessionOption[]
 }
 
+/** 会话树递归拍平（主会话 + 全部层级后代，深度优先、保持列表顺序），供触发器标签、回跳记忆与活动判定共用。 */
+export function flattenNovelSessionOptions(options: readonly NovelSessionOption[]): NovelChildSessionOption[] {
+  const nodes: NovelChildSessionOption[] = []
+  const visit = (node: NovelChildSessionOption) => {
+    nodes.push(node)
+    for (const child of node.children) visit(child)
+  }
+  for (const option of options) visit(option)
+  return nodes
+}
+
 /**
- * 未选中会话时的自动回跳目标（design D5）：记忆会话仍在该书绑定列表中则恢复记忆，
- * 否则回落到最近活跃（time.updated 最大）的绑定会话；零绑定会话返回 null（保持懒创建空态）。
+ * 未选中会话时的自动回跳目标（subagent-session-binding D5）：记忆会话在含后代的完整
+ * 集合内查找，命中（任意层级，含子代理）即恢复；未命中回落到最近活跃（time.updated
+ * 最大）的主会话（子代理是只读产物线，不作为回落落点）；零主会话返回 null（保持懒创建空态）。
  */
 export function resolveAutoAdoptTarget(input: {
   sessions: readonly { sessionID: string; updatedAt: number }[]
+  /** 含后代的全集合（记忆查找范围）；缺省时记忆仅在主会话集合内查找 */
+  allSessions?: readonly { sessionID: string; updatedAt: number }[]
   rememberedSessionID: string | undefined
 }): string | null {
   if (input.sessions.length === 0) return null
   const remembered = input.rememberedSessionID
-  if (remembered && input.sessions.some((item) => item.sessionID === remembered)) return remembered
+  const memoryScope = input.allSessions ?? input.sessions
+  if (remembered && memoryScope.some((item) => item.sessionID === remembered)) return remembered
   return input.sessions.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)).sessionID
 }
 
 /**
- * 书内会话列表组合：某本书的绑定关系 × 会话列表取交集，剔除已归档、未知会话与
- * 顶层子代理会话（subagent 会被上下文注入的懒绑定连带标记，但顶层只保留用户对话线），
- * 按绑定顺序排列（首个即主线写作流 findBoundNovelSession 指向的会话）。
- * 与 findBoundNovelSession 相同的查询模式，差异仅在返回列表而非第一个。
- * 子代理会话在同一份会话列表查询内按 parentID 归组到主会话之下（session-book-only D3，
- * 不新增请求）：父会话须是本书已展示的主会话，孤儿（父缺失/已归档/未绑定本书）不展示。
+ * 书内会话列表组合（subagent-session-binding D4）：主会话 = 该书绑定行 ∩ 会话列表 ∩
+ * 未归档 ∩ 无父会话，按绑定顺序排列（首个即主线写作流 findBoundNovelSession 指向的会话）；
+ * 随后从每个主会话出发按 parentID 广度挂接全部未归档后代（任意层级），后代不要求自身
+ * 绑定行；祖先行链无法到达任一棵树根的会话（父缺失/父归档/父未入树）不展示；
+ * 子节点保持会话列表顺序。与 findBoundNovelSession 相同的查询模式，差异仅在返回列表而非第一个。
  */
 export function boundNovelSessions(input: {
   novelID: string
@@ -96,19 +111,34 @@ export function boundNovelSessions(input: {
     seen.add(binding.sessionID)
     options.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated, children: [] })
   }
-  const mainById = new Map(options.map((option) => [option.sessionID, option]))
-  const seenChildren = new Set<string>()
+
+  const childrenByParent = new Map<string, Session[]>()
   for (const session of input.sessions) {
-    if (!session.parentID) continue
-    const parent = mainById.get(session.parentID)
-    if (!parent || session.time.archived) continue
-    if (seenChildren.has(session.id)) continue
-    seenChildren.add(session.id)
-    parent.children.push({ sessionID: session.id, title: session.title, updatedAt: session.time.updated })
+    if (!session.parentID || session.time.archived) continue
+    const siblings = childrenByParent.get(session.parentID)
+    if (siblings) siblings.push(session)
+    else childrenByParent.set(session.parentID, [session])
+  }
+  // BFS 挂接未归档后代；visited 防护异常环状 parent 数据与跨路径重复挂接
+  const seenDescendants = new Set<string>()
+  const queue: Array<NovelSessionOption | NovelChildSessionOption> = [...options]
+  while (queue.length > 0) {
+    const parent = queue.shift()!
+    for (const session of childrenByParent.get(parent.sessionID) ?? []) {
+      if (seenDescendants.has(session.id)) continue
+      seenDescendants.add(session.id)
+      const child: NovelChildSessionOption = {
+        sessionID: session.id,
+        title: session.title,
+        updatedAt: session.time.updated,
+        children: [],
+      }
+      parent.children.push(child)
+      queue.push(child)
+    }
   }
   return options
 }
-
 // ---- Query keys ----
 
 export const novelKeys = {

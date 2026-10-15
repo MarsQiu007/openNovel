@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { ServerConnection } from "@/context/server"
-import { legacySessionHref, requireServerKey, rootSession, sessionHref } from "./session-route"
+import { legacySessionHref, requireServerKey, sessionChain, sessionHref } from "./session-route"
 
 describe("session routes", () => {
   test("builds and decodes a server-keyed session route", () => {
@@ -21,20 +21,20 @@ describe("session routes", () => {
     )
   })
 
-  test("resolves the root session", async () => {
+  test("resolves the full session chain to the root", async () => {
     const sessions: Record<string, { id: string; parentID?: string }> = {
       child: { id: "child", parentID: "parent" },
       parent: { id: "parent", parentID: "root" },
       root: { id: "root" },
     }
 
-    expect(
-      await rootSession(sessions.child, async (id) => {
-        const session = sessions[id]
-        if (!session) throw new Error(`Missing session: ${id}`)
-        return session
-      }),
-    ).toBe(sessions.root)
+    const chain = await sessionChain(sessions.child, async (id) => {
+      const session = sessions[id]
+      if (!session) throw new Error(`Missing session: ${id}`)
+      return session
+    })
+
+    expect(chain).toEqual([sessions.child, sessions.parent, sessions.root])
   })
 
   test("rejects a parent cycle", async () => {
@@ -43,6 +43,6 @@ describe("session routes", () => {
       parent: { id: "parent", parentID: "child" },
     }
 
-    expect(rootSession(sessions.child, async (id) => sessions[id]!)).rejects.toThrow("Session parent cycle: child")
+    expect(sessionChain(sessions.child, async (id) => sessions[id]!)).rejects.toThrow("Session parent cycle: child")
   })
 })
