@@ -1,114 +1,111 @@
+import type { Page } from "@playwright/test"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { benchmark, expect } from "../benchmark"
-import { expectSessionTitle } from "../../utils/waits"
-import { measureNavigationMilestones } from "./navigation-milestones"
 import { fixture } from "./session-timeline-stress.fixture"
-import {
-  installStressSessionTabs,
-  installTimelineSettings,
-  mockStressTimeline,
-  stressSessionHref,
-} from "./timeline-test-helpers"
-import { waitForStableTimeline } from "./session-tab-switch-probe"
+import { createReviewDiffs, installTimelineSettings, mockStressTimeline } from "./timeline-test-helpers"
 
-const homeRow = '[data-component="home-session-row"]'
-const homeShell = '[data-component="home-session-search"]'
+type StagingTransition = { t: number; content: boolean; review: boolean }
+type StagingSnapshot = {
+  transitions: StagingTransition[]
+  firstContentMs: number | null
+  firstReviewMs: number | null
+  completed: boolean
+  stopped: boolean
+}
+type StagingResult = StagingSnapshot & { contentBeforeReview: boolean }
 
-benchmark.describe("performance: home and tab navigation", () => {
-  benchmark("opens a home session and paints its titlebar tab", async ({ page, report }) => {
-    await setup(page, [])
-    await page.goto("/")
-    const row = page.locator(homeRow).filter({ hasText: fixture.expected.targetTitle }).first()
-    await expect(row).toBeVisible()
-    const href = stressSessionHref(fixture.targetID)
-    const result = await measureNavigationMilestones(page, {
-      triggerSelector: homeRow,
-      milestones: {
-        content: { selector: messageSelector(fixture.expected.targetMessageIDs.at(-1)!) },
-        tab: { selector: `[data-slot="titlebar-tabs"] a[href="${href}"]` },
-      },
-      navigate: async () => {
-        await row.click()
-        await expectSessionTitle(page, fixture.expected.targetTitle)
-      },
-    })
-    report(result)
-    await expect(page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`)).toContainText(
-      fixture.expected.targetTitle,
-    )
-  })
-
+benchmark.describe("performance: session open staging", () => {
   benchmark("stages the review body after cold session content", async ({ page, report }) => {
-    await setup(page, [])
-    await page.goto("/")
-    const row = page.locator(homeRow).filter({ hasText: fixture.expected.targetTitle }).first()
-    await expect(row).toBeVisible()
-    const result = await page.evaluate(
-      ({ rowSelector, title, contentSelector }) =>
-        new Promise<{ contentBeforeReview: boolean; samples: number }>((resolve) => {
-          let samples = 0
-          const sample = () => {
-            samples++
-            const content = !!document.querySelector(contentSelector)
-            const review = !!document.querySelector('[data-component="session-review"]')
-            if (content && !review) {
-              resolve({ contentBeforeReview: true, samples })
-              return
-            }
-            if (content && review) {
-              resolve({ contentBeforeReview: false, samples })
-              return
-            }
-            requestAnimationFrame(sample)
-          }
-          const target = [...document.querySelectorAll<HTMLElement>(rowSelector)].find((item) =>
-            item.textContent?.includes(title),
-          )
-          if (!target) throw new Error(`Home session row not found: ${title}`)
-          target.click()
-          requestAnimationFrame(sample)
-        }),
-      {
-        rowSelector: homeRow,
-        title: fixture.expected.targetTitle,
-        contentSelector: messageSelector(fixture.expected.targetMessageIDs.at(-1)!),
-      },
-    )
+    benchmark.setTimeout(120_000)
+    await setup(page)
+    const result = await collectStagingProbe(page)
     report(result)
     expect(result.contentBeforeReview).toBe(true)
-    await expect(page.locator('[data-component="session-review"]')).toBeVisible()
-  })
-
-  benchmark("closes the only session tab and paints home", async ({ page, report }) => {
-    await setup(page, [fixture.sourceID])
-    const href = stressSessionHref(fixture.sourceID)
-    await page.goto(href)
-    await expectSessionTitle(page, fixture.expected.sourceTitle)
-    await waitForStableTimeline(page, fixture.expected.sourceMessageIDs.at(-1)!)
-    const tab = page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`).first()
-    const close = tab.locator("..").locator('[data-component="icon-button-v2"]')
-    await expect(close).toBeVisible()
-    const result = await measureNavigationMilestones(page, {
-      triggerSelector: '[data-slot="titlebar-tabs"] [data-component="icon-button-v2"]',
-      milestones: {
-        home: { selector: homeShell },
-        row: { selector: homeRow },
-        tabRemoved: { selector: `[data-slot="titlebar-tabs"] a[href="${href}"]`, visible: false },
-      },
-      navigate: async () => {
-        await close.click()
-        await expect(page).toHaveURL("/")
-      },
-    })
-    report(result)
+    await expect(page.locator('[data-component="session-review-v2"]')).toBeVisible()
   })
 })
 
-async function setup(page: Parameters<typeof mockStressTimeline>[0], sessionIDs: string[]) {
-  await mockStressTimeline(page)
+// 冷会话打开：书内工作台冷加载目标会话，检视栏预置为打开，
+// 采样"内容先于 review 正文渲染"的过渡（旧 home / 标签入口退役后的等价场景）。
+async function setup(page: Page) {
+  await mockStressTimeline(page, { vcsDiff: createReviewDiffs() })
   await installTimelineSettings(page)
-  await installStressSessionTabs(page, { sessionIDs })
+  await mockNovelWorkspaceAPIs(page, {
+    directory: fixture.directory,
+    novelID: fixture.novelID,
+    boundSessionIDs: [fixture.sourceID, fixture.targetID, fixture.childID],
+  })
+  await page.addInitScript(() => {
+    // 检视栏（review 面板）默认收起，需预置为打开才有 review 正文可被分阶段渲染
+    localStorage.setItem(
+      "opennovel.global.dat:layout",
+      JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
+    )
+  })
+  await page.addInitScript(
+    ({ contentSelector }: { contentSelector: string }) => {
+      const transitions: StagingTransition[] = []
+      let firstContentMs: number | null = null
+      let firstReviewMs: number | null = null
+      let completed = false
+      let stopped = false
+      const started = performance.now()
+      const read = () => ({
+        content: !!document.querySelector(contentSelector),
+        review: !!document.querySelector('[data-component="session-review"], [data-component="session-review-v2"]'),
+      })
+      const record = () => {
+        if (stopped) return
+        const state = read()
+        const last = transitions.at(-1)
+        if (last && last.content === state.content && last.review === state.review) return
+        const t = performance.now() - started
+        transitions.push({ t, ...state })
+        if (state.content && firstContentMs === null) firstContentMs = t
+        if (state.review && firstReviewMs === null) firstReviewMs = t
+        if (state.content && state.review) {
+          completed = true
+          stopped = true
+        }
+      }
+      // DOM 变更与帧双通道采样：单帧采样可能漏掉"仅内容"的过渡窗口
+      new MutationObserver(record).observe(document, { childList: true, subtree: true })
+      const tick = () => {
+        if (stopped) return
+        record()
+        if (performance.now() - started > 30_000) {
+          stopped = true
+          return
+        }
+        requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+      ;(window as Window & { __stagingProbe?: unknown }).__stagingProbe = {
+        snapshot: () => ({ transitions, firstContentMs, firstReviewMs, completed, stopped }),
+      }
+    },
+    { contentSelector: `[data-message-id="${fixture.expected.targetMessageIDs.at(-1)!}"]` },
+  )
+  await page.goto(novelWorkspaceURL(fixture.directory, fixture.novelID, fixture.targetID))
 }
 
-function messageSelector(id: string) {
-  return `[data-message-id="${id}"]`
+async function collectStagingProbe(page: Page): Promise<StagingResult> {
+  await page.waitForFunction(
+    () => {
+      const probe = (
+        window as Window & { __stagingProbe?: { snapshot: () => { completed: boolean; stopped: boolean } } }
+      ).__stagingProbe
+      const snapshot = probe?.snapshot()
+      return !!snapshot && (snapshot.completed || snapshot.stopped)
+    },
+    undefined,
+    { timeout: 35_000 },
+  )
+  const snapshot = await page.evaluate(
+    () => (window as Window & { __stagingProbe: { snapshot: () => StagingSnapshot } }).__stagingProbe.snapshot(),
+  )
+  return {
+    ...snapshot,
+    contentBeforeReview: snapshot.transitions.some((transition) => transition.content && !transition.review),
+  }
 }
