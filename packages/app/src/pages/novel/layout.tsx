@@ -48,7 +48,7 @@ export default function NovelWorkspaceLayout() {
     <Show when={resolved()} keyed>
       {(resolved) => (
         <SDKProvider directory={resolved}>
-          <DirectoryDataProvider directory={resolved}>
+          <DirectoryDataProvider directory={resolved} novelID={() => params.novelID}>
             <NovelProvider>
               <NovelWorkspaceFrame />
             </NovelProvider>

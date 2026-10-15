@@ -2140,6 +2140,10 @@ export default function Page() {
             openParent: () => {
               const id = info()?.parentID
               if (!id) return
+              if (params.novelID) {
+                navigate(`/${params.dir}/novel/${params.novelID}/session/${id}`)
+                return
+              }
               navigate(
                 params.serverKey
                   ? sessionHref(requireServerKey(params.serverKey), id)

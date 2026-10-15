@@ -16,6 +16,7 @@ import { useServerSync } from "@/context/server-sync"
 export function DirectoryDataProvider(
   props: ParentProps<{
     directory: string | Accessor<string>
+    novelID?: string | Accessor<string | undefined>
     server?: Accessor<ServerConnection.Key | undefined>
   }>,
 ) {
@@ -25,10 +26,13 @@ export function DirectoryDataProvider(
   const sync = useSync()
   const serverSync = useServerSync()
   const directory = () => (typeof props.directory === "function" ? props.directory() : props.directory)
+  const novelID = () => (typeof props.novelID === "function" ? props.novelID() : props.novelID)
   const slug = createMemo(() => base64Encode(directory()))
   const href = (sessionID: string) => {
     const server = props.server?.()
     if (server) return sessionHref(server, sessionID)
+    const novel = novelID()
+    if (novel) return `/${slug()}/novel/${novel}/session/${sessionID}`
     return `/${slug()}/session/${sessionID}`
   }
 

@@ -922,6 +922,10 @@ export function MessageTimeline(props: {
   const navigateParent = () => {
     const id = parentID()
     if (!id) return
+    if (params.novelID) {
+      navigate(`/${params.dir}/novel/${params.novelID}/session/${id}`)
+      return
+    }
     navigate(
       params.serverKey ? sessionHref(requireServerKey(params.serverKey), id) : legacySessionHref(sdk().directory, id),
     )
