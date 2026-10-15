@@ -25,6 +25,7 @@ const sourceID = "ses_smoke_source"
 const targetID = "ses_smoke_target"
 const childID = "ses_smoke_child"
 const directory = "C:/OpenNovel/SmokeProject"
+const novelID = "novel_smoke_timeline"
 const projectID = "proj_smoke_timeline"
 const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
 
@@ -281,6 +282,7 @@ function orderedParts(message: Message) {
 
 export const fixture = {
   directory,
+  novelID,
   project: {
     id: projectID,
     worktree: directory,

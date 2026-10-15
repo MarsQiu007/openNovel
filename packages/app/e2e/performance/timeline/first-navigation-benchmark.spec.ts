@@ -1,61 +1,19 @@
+import type { Page } from "@playwright/test"
+import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { expectSessionTitle } from "../../utils/waits"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { benchmark, expect } from "../benchmark"
 import { measureFirstNavigation } from "./first-navigation-probe"
 import { fixture } from "./session-timeline-stress.fixture"
-import {
-  installStressSessionTabs,
-  installTimelineSettings,
-  mockStressTimeline,
-  stressDraftHref,
-  stressSessionHref,
-} from "./timeline-test-helpers"
+import { installTimelineSettings, mockStressTimeline } from "./timeline-test-helpers"
 import { waitForStableTimeline } from "./session-tab-switch-probe"
 
 const contentSelector = '[data-message-id], [data-component="prompt-input"]'
-const draftID = "draft_first_navigation"
 
 benchmark.describe("performance: first navigation paint", () => {
-  benchmark("opens an unvisited session tab without a blank frame", async ({ page, report }) => {
-    await setup(page)
-    const href = stressSessionHref(fixture.targetID)
-    const result = await measureFirstNavigation(page, {
-      href,
-      destinationPath: href,
-      sourceSelector: messageSelector(fixture.expected.sourceMessageIDs.at(-1)!),
-      destinationSelector: messageSelector(fixture.expected.targetMessageIDs.at(-1)!),
-      contentSelector,
-      navigate: async () => {
-        await page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`).first().click()
-        await expectSessionTitle(page, fixture.expected.targetTitle)
-      },
-    })
-    report(result)
-    expect(result.summary.blankSamples).toBe(0)
-    expect(result.summary.unknownSamples).toBe(0)
-  })
-
-  benchmark("opens the new session page before its lazy module is used", async ({ page, report }) => {
-    await setup(page, draftID)
-    const href = stressDraftHref(draftID)
-    const result = await measureFirstNavigation(page, {
-      href,
-      destinationPath: href,
-      sourceSelector: messageSelector(fixture.expected.sourceMessageIDs.at(-1)!),
-      destinationSelector: '[data-component="prompt-input"]',
-      contentSelector,
-      navigate: async () => {
-        await page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`).first().click()
-        await expect(page.locator('[data-component="prompt-input"]')).toBeVisible()
-      },
-    })
-    report(result)
-    expect(result.summary.blankSamples).toBe(0)
-    expect(result.summary.unknownSamples).toBe(0)
-  })
-
   benchmark("opens a child session without a blank frame", async ({ page, report }) => {
     await setup(page)
-    const href = stressSessionHref(fixture.childID)
+    const href = childSessionHref()
     const result = await measureFirstNavigation(page, {
       href,
       destinationPath: href,
@@ -73,13 +31,22 @@ benchmark.describe("performance: first navigation paint", () => {
   })
 })
 
-async function setup(page: Parameters<typeof mockStressTimeline>[0], draft?: string) {
+async function setup(page: Page) {
   await mockStressTimeline(page)
   await installTimelineSettings(page)
-  await installStressSessionTabs(page, draft ? { draftID: draft } : undefined)
-  await page.goto(stressSessionHref(fixture.sourceID))
+  await mockNovelWorkspaceAPIs(page, {
+    directory: fixture.directory,
+    novelID: fixture.novelID,
+    boundSessionIDs: [fixture.sourceID, fixture.targetID, fixture.childID],
+  })
+  await page.goto(novelWorkspaceURL(fixture.directory, fixture.novelID, fixture.sourceID))
   await expectSessionTitle(page, fixture.expected.sourceTitle)
   await waitForStableTimeline(page, fixture.expected.sourceMessageIDs.at(-1)!)
+}
+
+// 子会话卡片由工作台链接提供层生成为书内地址：/:dir/novel/:novelID/session/:childID
+function childSessionHref() {
+  return `/${base64Encode(fixture.directory)}/novel/${fixture.novelID}/session/${fixture.childID}`
 }
 
 function messageSelector(id: string) {

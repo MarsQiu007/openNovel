@@ -1,5 +1,4 @@
 import type { Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "../../utils/mock-server"
 import { fixture, pageMessages } from "./session-timeline-stress.fixture"
 
@@ -37,50 +36,16 @@ export function mockStressTimeline(
   })
 }
 
-export async function installStressSessionTabs(page: Page, input?: { draftID?: string; sessionIDs?: string[] }) {
-  const server = stressServer()
-  await page.addInitScript(
-    ({ directory, sessionIDs, dirBase64, server, draftID }) => {
-      localStorage.setItem(
-        "opennovel.global.dat:server",
-        JSON.stringify({
-          projects: { local: [{ worktree: directory, expanded: true }] },
-          lastProject: { local: directory },
-        }),
-      )
-      localStorage.setItem(
-        "opennovel.window.browser.dat:tabs",
-        JSON.stringify([
-          ...sessionIDs.map((sessionId) => ({
-            type: "session",
-            server,
-            dirBase64,
-            sessionId,
-          })),
-          ...(draftID ? [{ type: "draft", draftID, server, directory }] : []),
-        ]),
-      )
-    },
-    {
-      directory: fixture.directory,
-      sessionIDs: input?.sessionIDs ?? [fixture.sourceID, fixture.targetID],
-      dirBase64: base64Encode(fixture.directory),
-      server,
-      draftID: input?.draftID,
-    },
-  )
-}
-
-export function stressSessionHref(sessionID: string) {
-  return `/server/${base64Encode(stressServer())}/session/${sessionID}`
-}
-
-export function stressDraftHref(draftID: string) {
-  return `/new-session?draftId=${encodeURIComponent(draftID)}`
-}
-
-function stressServer() {
-  return `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
+/** 注入会话链接供基准点击打开：书内基准以锚点点击替代已退役的标签入口（套件既定的诊断手法）。 */
+export async function injectSessionLink(page: Page, input: { id: string; href: string; text?: string }) {
+  await page.evaluate(({ id, href, text }) => {
+    const link = document.createElement("a")
+    link.id = id
+    link.href = href
+    // 无文本的锚点尺寸为零不可点击；默认给可见文本，保证真实点击可用
+    link.textContent = text ?? "open"
+    document.body.append(link)
+  }, input)
 }
 
 export function createReviewDiffs() {

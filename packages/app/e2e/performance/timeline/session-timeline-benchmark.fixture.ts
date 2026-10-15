@@ -1,10 +1,11 @@
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import type { Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../../utils/waits"
 import { expect } from "../benchmark"
 
 const directory = "C:/OpenNovel/TimelineStateRegression"
+const novelID = "novel_timeline_stream"
 const projectID = "proj_timeline_state_regression"
 const sessionID = "ses_timeline_state_regression"
 const userMessageID = "msg_user_regression"
@@ -101,6 +102,10 @@ export async function setupTimelineBenchmark(
     newLayoutDesigns?: boolean
     vcsDiff?: unknown[]
     turnDiffs?: unknown[]
+    /** 覆盖默认视口（1366×768）；窄视口下书籍工作台右栏会被三区保底宽度钳制 */
+    viewport?: { width: number; height: number }
+    /** 书籍工作台右栏宽度（默认 1100），实际渲染宽度受视口与主区保底钳制 */
+    railWidth?: number
   },
 ) {
   const events: EventPayload[] = []
@@ -124,6 +129,13 @@ export async function setupTimelineBenchmark(
     events: () => events.splice(0, eventBatch),
     eventRetry: 16,
   })
+  // 独立会话路由已退役（session-book-only）：时间线随会话页嵌在书籍工作台右栏，
+  // 以工作台路由进入并补充小说 API mock（含会话绑定）
+  await mockNovelWorkspaceAPIs(page, {
+    directory,
+    novelID,
+    boundSessionIDs: [sessionID],
+  })
   await page.addInitScript(
     (input) => {
       localStorage.setItem(
@@ -138,12 +150,25 @@ export async function setupTimelineBenchmark(
         }),
       )
     },
-    { newLayoutDesigns: options.newLayoutDesigns ?? false },
+    { newLayoutDesigns: options.newLayoutDesigns ?? true },
   )
-  await page.setViewportSize({ width: 1366, height: 768 })
+  const viewport = options.viewport ?? { width: 1366, height: 768 }
+  const railWidth = options.railWidth ?? 1100
+  await page.setViewportSize(viewport)
+  await page.addInitScript(
+    (input) => {
+      // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区。
+      // 注意视口较窄时右栏会被"主区保底 160px + 左栏宽度"钳制，需要更大视口才能真正生效。
+      localStorage.setItem(
+        "opennovel.global.dat:novel.workspace.layout.v1",
+        JSON.stringify({ railPanel: "chat", railWidth: input.railWidth }),
+      )
+    },
+    { railWidth },
+  )
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
   const text = page.locator(`[data-timeline-part-id="${textPartID}"]`).first()
-  await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
+  await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await expectSessionTitle(page, title)
   await expectAppVisible(scroller)
   return {

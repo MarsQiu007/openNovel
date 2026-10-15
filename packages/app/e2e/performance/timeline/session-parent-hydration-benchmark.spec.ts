@@ -1,15 +1,17 @@
 import type { Page } from "@playwright/test"
 import { expectSessionTitle } from "../../utils/waits"
 import { mockOpenNovelServer } from "../../utils/mock-server"
+import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { benchmark, expect, withBenchmarkPage } from "../benchmark"
 import { fixture } from "./session-timeline-stress.fixture"
-import { installStressSessionTabs, stressSessionHref } from "./timeline-test-helpers"
+import { injectSessionLink, installTimelineSettings } from "./timeline-test-helpers"
 import { measureSessionSwitch, waitForStableTimeline } from "./session-tab-switch-probe"
 
 type ParentHydrationBenchmarkMode = "natural" | "candidate"
 
 const mode = process.env.SESSION_PARENT_HYDRATION_BENCHMARK_MODE ?? "natural"
 if (mode !== "natural" && mode !== "candidate") throw new Error(`Unknown parent hydration benchmark mode: ${mode}`)
+const novelID = "novel_parent_hydration"
 const userID = "msg_parent_hydration_user"
 const user = {
   ...fixture.messages[fixture.targetID][0]!,
@@ -110,22 +112,19 @@ async function trial(page: Page, mode: ParentHydrationBenchmarkMode) {
   await page.route(`**/session/${fixture.targetID}`, (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(target) }),
   )
-  await installStressSessionTabs(page, { sessionIDs: [fixture.sourceID] })
-  await page.goto(stressSessionHref(fixture.sourceID))
+  await installTimelineSettings(page)
+  await mockNovelWorkspaceAPIs(page, {
+    directory: fixture.directory,
+    novelID,
+    boundSessionIDs: [fixture.sourceID],
+  })
+  await page.goto(novelWorkspaceURL(fixture.directory, novelID, fixture.sourceID))
   await expectSessionTitle(page, fixture.expected.sourceTitle)
   await waitForStableTimeline(page, fixture.expected.sourceMessageIDs.at(-1)!)
 
-  const href = stressSessionHref(fixture.targetID)
-  await page.evaluate(
-    ({ href, title }) => {
-      const link = document.createElement("a")
-      link.id = "parent-hydration-target"
-      link.href = href
-      link.textContent = title
-      document.body.append(link)
-    },
-    { href, title: target.title },
-  )
+  // 打开入口为注入的书内会话链接（套件诊断手法）：点击一步切换，供水合采样
+  const href = novelWorkspaceURL(fixture.directory, novelID, fixture.targetID)
+  await injectSessionLink(page, { id: "parent-hydration-target", href, text: target.title })
   const metrics = await measureSessionSwitch(page, {
     destinationIDs: messages.map((message) => message.info.id),
     sourceIDs: fixture.messages[fixture.sourceID].map((message) => message.info.id),

@@ -74,6 +74,10 @@ benchmark.describe("performance: review pane", () => {
       eventBatch: 1,
       newLayoutDesigns: true,
       vcsDiff: diffs,
+      // v2 检视预览的工具栏需要约 300px 才不折叠；默认视口下右栏被三区保底钳制，
+      // 预览列会被压到 ~160px 导致"下一文件"按钮与分段控件重叠，故本场景使用更宽视口
+      viewport: { width: 1920, height: 1080 },
+      railWidth: 1400,
     })
 
     fixture.transport.enqueue(buildInitialStreamEvent(1))
@@ -173,7 +177,7 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
       queuedDeltas: deltas.length,
       historyTurns,
       eventBatch,
-      newLayoutDesigns: options.newLayoutDesigns === true,
+      newLayoutDesigns: true,
       reviewPane: options.reviewPane === true ? "open" : "closed",
       reviewDiffs: diffs?.length ?? 0,
     },
