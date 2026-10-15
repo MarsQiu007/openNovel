@@ -1,14 +1,16 @@
 import { expect, test, type Page } from "@playwright/test"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
-import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockOpenNovelServer, type MockSession } from "../utils/mock-server"
 import { APP_READY_TIMEOUT } from "../utils/waits"
 
 const directory = "/home/user/SubagentSwitcher"
 const novelID = "novel-e2e-subagent-switcher"
 const mainID = "ses_subagent_switcher_main"
 const childID = "ses_subagent_switcher_child"
+const grandchildID = "ses_subagent_switcher_grandchild"
 const mainTitle = "Main writing session"
 const childTitle = "Inspect chapter two continuity"
+const grandchildTitle = "Verify grandchild nesting"
 const now = Date.now()
 
 const mockNovel = {
@@ -25,30 +27,51 @@ const mockNovel = {
 
 const workspaceURL = `/${base64Encode(directory)}/novel/${novelID}`
 
-async function openWorkspaceSession(page: Page, sessionID: string) {
-  const sessions = [
-    {
-      id: mainID,
-      slug: "main",
-      projectID: "proj-subagent-switcher",
-      directory,
-      title: mainTitle,
-      version: "dev",
-      time: { created: 1700000000000, updated: 1700000000000 },
-    },
-    {
-      id: childID,
-      slug: "child",
-      projectID: "proj-subagent-switcher",
-      directory,
-      title: childTitle,
-      version: "dev",
-      time: { created: 1700000001000, updated: 1700000001000 },
-      parentID: mainID,
-    },
-  ]
+function mainSession(): MockSession {
+  return {
+    id: mainID,
+    slug: "main",
+    projectID: "proj-subagent-switcher",
+    directory,
+    title: mainTitle,
+    version: "dev",
+    time: { created: 1700000000000, updated: 1700000000000 },
+  }
+}
+
+function childSession(): MockSession {
+  return {
+    id: childID,
+    slug: "child",
+    projectID: "proj-subagent-switcher",
+    directory,
+    title: childTitle,
+    version: "dev",
+    time: { created: 1700000001000, updated: 1700000001000 },
+    parentID: mainID,
+  }
+}
+
+function grandchildSession(): MockSession {
+  return {
+    id: grandchildID,
+    slug: "grandchild",
+    projectID: "proj-subagent-switcher",
+    directory,
+    title: grandchildTitle,
+    version: "dev",
+    time: { created: 1700000002000, updated: 1700000002000 },
+    parentID: childID,
+  }
+}
+
+async function openWorkspaceSession(
+  page: Page,
+  sessionID: string,
+  options?: { sessions?: MockSession[]; boundSessionIDs?: string[] },
+) {
   await mockOpenNovelServer(page, {
-    sessions,
+    sessions: options?.sessions ?? [mainSession(), childSession()],
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-subagent-switcher", directory },
@@ -90,10 +113,13 @@ async function openWorkspaceSession(page: Page, sessionID: string) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([
-          { sessionID: mainID, novelID, novelTitle: mockNovel.title },
-          { sessionID: childID, novelID, novelTitle: mockNovel.title },
-        ]),
+        body: JSON.stringify(
+          (options?.boundSessionIDs ?? [mainID, childID]).map((boundID) => ({
+            sessionID: boundID,
+            novelID,
+            novelTitle: mockNovel.title,
+          })),
+        ),
       })
     if (path.endsWith("/annotations"))
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) })
@@ -147,4 +173,44 @@ test("switcher nests subagent sessions collapsed and opens them in-book", async 
   const reopened = await openSwitcherMenu(page)
   await expect(reopened.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
   await expect(reopened.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
+})
+
+test("switcher nests grandchildren and lists subagents without own binding rows", async ({ page }) => {
+  // 仅主会话持有绑定行：子代理（含孙级）自身无绑定行，仍应照常收录并嵌套收纳
+  await openWorkspaceSession(page, mainID, {
+    sessions: [mainSession(), childSession(), grandchildSession()],
+    boundSessionIDs: [mainID],
+  })
+
+  const menu = await openSwitcherMenu(page)
+  await expect(menu.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(1)
+  await expect(menu.locator('[data-action="novel-switcher-toggle-children"]')).toHaveCount(1)
+
+  // 展开主会话：一级子代理可见，孙级仍折叠（子代理行出现自己的展开控件）
+  await menu.locator('[data-action="novel-switcher-toggle-children"]').first().click()
+  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+  await expect(menu.getByRole("menuitemradio", { name: grandchildTitle })).toHaveCount(0)
+  const toggles = menu.locator('[data-action="novel-switcher-toggle-children"]')
+  await expect(toggles).toHaveCount(2)
+
+  // 展开一级子代理：孙级可见，嵌套缩进递增
+  await toggles.nth(1).click()
+  const grandchild = menu.getByRole("menuitemradio", { name: grandchildTitle })
+  await expect(grandchild).toBeVisible()
+  await expect(grandchild.locator("span.italic")).toBeVisible()
+  await expect(grandchild.locator('use[href="#opennovel-v2-icon-branch"]')).toHaveCount(1)
+
+  // 点击孙级：书内打开孙级会话路由，prompt 禁用态生效
+  await grandchild.click()
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${grandchildID}$`), { timeout: 15_000 })
+  await expect(page.getByText("Subagent sessions cannot be prompted.")).toBeVisible()
+
+  // 当前打开孙级：触发器显示孙级标题，重开后祖先链自动展开（无需手动展开两级）
+  const trigger = page.getByRole("button", { name: "Novel sessions" })
+  await expect(trigger).toContainText(grandchildTitle)
+  await page.keyboard.press("Escape")
+  const reopened = await openSwitcherMenu(page)
+  await expect(reopened.getByRole("menuitemradio", { name: grandchildTitle })).toBeVisible()
+  await expect(reopened.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
 })
