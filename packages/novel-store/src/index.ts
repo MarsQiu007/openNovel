@@ -969,6 +969,41 @@ export async function resolveNovelForSession(
   await tagNovelSession(sessionId, novelId, directory)
   return novelId
 }
+/**
+ * 解析会话归属小说，支持沿父会话链继承（subagent-session-binding D2）。
+ *
+ * 解析顺序：
+ * 1. 会话自身绑定（含既有「目录恰好一本书」的单书懒绑定）；
+ * 2. 沿父会话链逐级向上查找最近一个有绑定关系的祖先会话；
+ * 3. 均未命中返回 undefined（无归属）。
+ *
+ * 命中祖先绑定时将书籍幂等写回当前会话（继承持久化），后续解析直接命中自身绑定。
+ * parentOf 由调用方注入（novel-store 不依赖会话库）：返回父会话 ID，无父或查询失败
+ * 时返回 undefined——查询失败按无归属降级，不阻断调用方流程。
+ */
+export async function resolveNovelForSessionWithInheritance(
+  sessionId: string,
+  directory?: string | null,
+  parentOf?: (sessionId: string) => Promise<string | undefined>,
+): Promise<string | undefined> {
+  const direct = await resolveNovelForSession(sessionId, directory)
+  if (direct) return direct
+  if (!parentOf) return undefined
+
+  const seen = new Set([sessionId])
+  let current = await parentOf(sessionId).catch(() => undefined)
+  while (current) {
+    if (seen.has(current)) return undefined
+    seen.add(current)
+    const inherited = await getNovelForSession(current, directory)
+    if (inherited) {
+      await tagNovelSession(sessionId, inherited, directory)
+      return inherited
+    }
+    current = await parentOf(current).catch(() => undefined)
+  }
+  return undefined
+}
 
 // ─── Chapter outline persistence ───
 
