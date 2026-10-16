@@ -2,7 +2,7 @@
 
 ## 1. novel-store 统一事务入口与助手双形态
 
-- [ ] 1.1 新增 `packages/novel-store/src/tx.ts`：导出 `withTransaction(db, fn)`——先经驱动特性探测（`inTransaction` / `isTransaction`）检测嵌套事务并抛可读错误；回调返回 thenable 即抛错回滚；正常路径走 ORM 同步回调事务。验证：`packages/novel-store` 下 `bun typecheck` 通过，新增 `tx` 的单元测试覆盖「正常提交 / 回调抛错回滚 / 异步回调拒绝 / 嵌套检测报错 / 驱动无检测能力时降级」五个场景且 `bun test` 通过。
+- [x] 1.1 新增 `packages/novel-store/src/tx.ts`：导出 `withTransaction(db, fn)`——先经驱动特性探测（`inTransaction` / `isTransaction`）检测嵌套事务并抛可读错误；回调返回 thenable 即抛错回滚；正常路径走 ORM 同步回调事务。验证：`packages/novel-store` 下 `bun typecheck` 通过，新增 `tx` 的单元测试覆盖「正常提交 / 回调抛错回滚 / 异步回调拒绝 / 嵌套检测报错 / 驱动无检测能力时降级」五个场景且 `bun test` 通过。
 - [ ] 1.2 拆分实体引用扫描助手为双形态：`scanEntityReferencesTx`（首参事务对象、函数体同步、不得再开事务）+ `scanEntityReferences`（自包形态，内部经 `withTransaction` 调组合形态），对外签名与返回不变。验证：`packages/novel-store` 下 `bun test` 的 entity-refs 相关测试全绿、`bun typecheck` 通过。
 - [ ] 1.3 拆分手动编辑同步入队助手为双形态（`enqueueManualEditSyncTx` + 自包 `enqueueManualEditSync`），签名与去重语义不变。验证：`packages/novel-store` 下 manual-edit-sync 相关 `bun test` 全绿、`bun typecheck` 通过。
 - [ ] 1.4 拆分书籍元数据保存助手为双形态（`saveBookMetaTx` + 自包 `saveBookMeta`），签名与「书目 + 风格指南同事务」语义不变。验证：`packages/novel-store` 下 style-rules / manual-edit-sync 相关 `bun test` 全绿、`bun typecheck` 通过。

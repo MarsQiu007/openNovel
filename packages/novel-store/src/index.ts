@@ -3066,3 +3066,8 @@ export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
 export * from "./upgrade.js"
 export * from "./style-rules.js"
+
+// ─── 统一事务入口 ───
+// 事务纪律（机制唯一性 / 双形态选用 / 同步回调强制 / 嵌套检测）见 AGENTS.md 与 tx.ts 头注释。
+export { withTransaction, detectInTransaction } from "./tx.js"
+export type { Tx } from "./tx.js"
