@@ -39,6 +39,10 @@ import {
   runDeterministicUpgrade,
   getUpgradeGate,
   setUpgradeGate,
+  createUpgradeRunTx,
+  getActiveUpgradeRun,
+  UpgradeRunTable,
+  UpgradeRunChapterTable,
   normalizeStyleRules,
 } from "@opennovel-ai/novel-store"
 import {
@@ -147,8 +151,9 @@ import {
   resolveChapterOutline,
   resolveMasterOutline,
   resolveVolumeOutline,
+  withTransaction,
 } from "@opennovel-ai/novel-store"
-import { and, eq, asc, desc, isNull, like, or, inArray } from "drizzle-orm"
+import { and, eq, asc, desc, isNull, like, or, inArray, ne } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
 import { rm } from "fs/promises"
 import { join, dirname } from "path"
@@ -2913,8 +2918,110 @@ export function syncRetryEndpoint(novelID: string, input: ManualEditSyncRetryInp
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    // 章节级重试：按 chapterIds 定位 run 内章节并重置
+    if (input.chapterIds && input.chapterIds.length > 0) {
+      const result = yield* Effect.promise(() => retryChapters(novelID, [...input.chapterIds!], directory))
+      return result
+    }
     return yield* Effect.promise(() => storeRetryManualEditSync(novelID, input.entryIds, directory))
   })
+}
+
+/**
+ * 章节级重试（upgrade-reliability）。
+ *
+ * 在活跃 run 内找这些章节的状态：terminal / waiting_retry → pending（清失败字段、attempts 归零），
+ * 同时重置对应队列条目；无活跃队列条目时入队新条目。synced → 跳过（幂等）。
+ */
+async function retryChapters(
+  novelID: string,
+  chapterIds: string[],
+  directory: string,
+): Promise<{ retried: number; unchanged: number }> {
+  const db = getDb(directory)
+  const activeRun = await getActiveUpgradeRun(novelID, directory)
+  if (!activeRun) return { retried: 0, unchanged: chapterIds.length }
+
+  let retried = 0
+  let unchanged = 0
+
+  await withTransaction(db, (tx) => {
+    for (const chapterId of chapterIds) {
+      const runChapter = tx
+        .select()
+        .from(UpgradeRunChapterTable)
+        .where(and(eq(UpgradeRunChapterTable.run_id, activeRun.id), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+        .get()
+      if (!runChapter) {
+        unchanged++
+        continue
+      }
+      if (runChapter.status === "synced") {
+        unchanged++
+        continue
+      }
+      if (runChapter.status !== "terminal" && runChapter.status !== "waiting_retry" && runChapter.status !== "pending") {
+        unchanged++
+        continue
+      }
+      // 重置 run_chapter 为 pending
+      tx.update(UpgradeRunChapterTable)
+        .set({
+          status: "pending",
+          attempts: 0,
+          resume_at: null,
+          failure_class: null,
+          failure_message: null,
+          failure_action: null,
+          failure_detail: null,
+        })
+        .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+        .run()
+      // 重置对应队列条目
+      if (runChapter.queue_entry_id) {
+        tx.update(ManualEditSyncQueueTable)
+          .set({ status: "pending", failure_reason: null, updated_at: Date.now() })
+          .where(and(eq(ManualEditSyncQueueTable.id, runChapter.queue_entry_id), ne(ManualEditSyncQueueTable.status, "skipped")))
+          .run()
+      }
+      retried++
+    }
+  })
+
+  // 无活跃队列条目的章节需要新入队
+  for (const chapterId of chapterIds) {
+    const hasPending = db
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(
+        and(
+          eq(ManualEditSyncQueueTable.novel_id, novelID),
+          eq(ManualEditSyncQueueTable.entity, "chapter"),
+          eq(ManualEditSyncQueueTable.entity_id, chapterId),
+          eq(ManualEditSyncQueueTable.status, "pending"),
+        ),
+      )
+      .get()
+    if (!hasPending) {
+      const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+      if (chapter) {
+        await enqueueManualEditSync(
+          {
+            novelId: novelID,
+            entity: "chapter",
+            entityId: chapterId,
+            field: "content",
+            category: "creative_fact",
+            sourceFingerprint: computeFingerprint(chapter.content),
+            source: "upgrade",
+          },
+          directory,
+        )
+      }
+    }
+  }
+
+  return { retried, unchanged }
 }
 
 
@@ -2923,12 +3030,103 @@ export function upgradeStatusEndpoint(novelID: string, directory: string) {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    const [tasks, estimate, gate] = yield* Effect.all([
+    // upgrade-reliability：先触发对账（检测孤儿队列条目），再查询状态
+    yield* Effect.promise(() => reconcileUpgradeState(db, novelID, directory))
+    const [tasks, estimate] = yield* Effect.all([
       Effect.promise(() => Promise.resolve(listPendingUpgradeTasks(db, novelID))),
       Effect.promise(() => Promise.resolve(estimateUpgradeCost(db, novelID))),
-      Effect.promise(() => Promise.resolve(getUpgradeGate(db, novelID))),
     ])
+    // gate 从活跃 run 状态派生（废弃 upgrade_state 表）
+    const activeRun = yield* Effect.promise(() => getActiveUpgradeRun(novelID, directory))
+    const gate = activeRun?.status === "paused" ? ("paused" as const) : ("open" as const)
     return { tasks, estimate, gate }
+  })
+}
+
+/**
+ * 存量数据对账（upgrade-reliability D6）。
+ *
+ * 打开书籍时检测孤儿队列条目（无活跃 run 归属的 pending / skipped / failed），
+ * 按注册表与指纹判定重算每章真实状态：
+ * - 已实际完成重建的章节（内容指纹与摘要指纹一致）收编为 synced；
+ * - 未满足判定且有在途条目的章节纳入新建 run 的目标集合；
+ * - 零 AI 调用、不伪造已同步。
+ */
+async function reconcileUpgradeState(
+  db: ReturnType<typeof getDb>,
+  novelID: string,
+  directory: string,
+): Promise<void> {
+  const activeRun = await getActiveUpgradeRun(novelID, directory)
+  if (activeRun) return // 有活跃 run 无需对账
+
+  // 查所有非 synced 队列条目（不限 source）
+  const orphanEntries = db
+    .select()
+    .from(ManualEditSyncQueueTable)
+    .where(
+      and(
+        eq(ManualEditSyncQueueTable.novel_id, novelID),
+        inArray(ManualEditSyncQueueTable.status, ["pending", "failed", "skipped"]),
+      ),
+    )
+    .all()
+
+  if (orphanEntries.length === 0) return
+
+  // 按 chapter_id 分组
+  const byChapter = new Map<string, typeof orphanEntries>()
+  for (const entry of orphanEntries) {
+    const chapterId = entry.entity_id
+    if (!chapterId) continue
+    if (!byChapter.has(chapterId)) byChapter.set(chapterId, [])
+    byChapter.get(chapterId)!.push(entry)
+  }
+
+  // 判定每章状态
+  const toAbsorb: string[] = [] // 收编为 synced
+  const toPending: string[] = [] // 纳入新建 run
+  for (const [chapterId, entries] of byChapter) {
+    const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+    if (!chapter) continue
+    const summary = db.select().from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).get()
+    const currentFp = computeFingerprint(chapter.content)
+    const isSynced = summary && summary.source_fingerprint === currentFp
+    const hasPendingOrFailed = entries.some((e) => e.status === "pending" || e.status === "failed")
+
+    if (isSynced) {
+      toAbsorb.push(chapterId)
+    } else if (hasPendingOrFailed) {
+      toPending.push(chapterId)
+    }
+    // 只有 skipped 条目且指纹不一致：不吸收（真正的幽灵）
+  }
+
+  if (toAbsorb.length === 0 && toPending.length === 0) return
+
+  withTransaction(db, (tx) => {
+    if (toAbsorb.length > 0) {
+      // 收编为已完成：创建 terminal run，章节状态为 synced
+      const runId = createUpgradeRunTx(tx, novelID, [])
+      tx.update(UpgradeRunTable)
+        .set({ status: "terminal", updated_at: Date.now() })
+        .where(eq(UpgradeRunTable.id, runId))
+        .run()
+      for (const chapterId of toAbsorb) {
+        tx.insert(UpgradeRunChapterTable)
+          .values({
+            id: crypto.randomUUID(),
+            run_id: runId,
+            chapter_id: chapterId,
+            status: "synced",
+            completed_at: Date.now(),
+          })
+          .run()
+      }
+    }
+    if (toPending.length > 0) {
+      createUpgradeRunTx(tx, novelID, toPending)
+    }
   })
 }
 
@@ -2937,9 +3135,9 @@ export function upgradeStartEndpoint(novelID: string, directory: string) {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    // Phase 1：确定性回填（零 token，同步执行）
+    // Phase 1 + run 创建在同一事务（upgrade-reliability：run 是升级的唯一事实源）
     const phase1 = yield* Effect.promise(() => Promise.resolve(runDeterministicUpgrade(db, novelID)))
-    // Phase 2：缺指纹摘要的章节 + 有归属章的 legacy 主轴条目 → 批量入队 observer 重建
+    // Phase 2 目标章节：缺指纹摘要的章节 + 有归属章的 legacy 主轴条目
     const staleSummaries = db
       .select({ chapter_id: ChapterSummaryTable.chapter_id })
       .from(ChapterSummaryTable)
@@ -2951,13 +3149,45 @@ export function upgradeStartEndpoint(novelID: string, directory: string) {
       .from(StorySpineEntryTable)
       .where(and(eq(StorySpineEntryTable.novel_id, novelID), eq(StorySpineEntryTable.status, "legacy")))
       .all()
-    const chapterIds = new Set<string>()
-    for (const row of staleSummaries) if (row.chapter_id) chapterIds.add(row.chapter_id)
-    for (const row of legacyEntries) if (row.chapter_id) chapterIds.add(row.chapter_id)
-    let queuedChapters = 0
-    for (const chapterId of chapterIds) {
+    const chapterIdSet = new Set<string>()
+    for (const row of staleSummaries) if (row.chapter_id) chapterIdSet.add(row.chapter_id)
+    for (const row of legacyEntries) if (row.chapter_id) chapterIdSet.add(row.chapter_id)
+    // 仅收编已有 Phase 1 基线指纹的章节
+    const targetChapterIds: string[] = []
+    for (const chapterId of chapterIdSet) {
       const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
       if (!chapter || !chapter.content_fingerprint) continue
+      targetChapterIds.push(chapterId)
+    }
+    // 已有活跃 run 时并入目标集合，不创建第二个并发 run
+    const existingRun = yield* Effect.promise(() => getActiveUpgradeRun(novelID, directory))
+    if (existingRun) {
+      const existingChapters = db
+        .select({ chapter_id: UpgradeRunChapterTable.chapter_id })
+        .from(UpgradeRunChapterTable)
+        .where(eq(UpgradeRunChapterTable.run_id, existingRun.id))
+        .all()
+      const existingSet = new Set(existingChapters.map((r) => r.chapter_id))
+      const newChapters = targetChapterIds.filter((id) => !existingSet.has(id))
+      if (newChapters.length > 0) {
+        withTransaction(db, (tx) => {
+          for (const chapterId of newChapters) {
+            tx.insert(UpgradeRunChapterTable)
+              .values({ id: crypto.randomUUID(), run_id: existingRun.id, chapter_id: chapterId, status: "pending" })
+              .run()
+          }
+        })
+      }
+    } else if (targetChapterIds.length > 0) {
+      withTransaction(db, (tx) => {
+        createUpgradeRunTx(tx, novelID, targetChapterIds)
+      })
+    }
+    // Phase 2：批量入队 observer 重建
+    let queuedChapters = 0
+    for (const chapterId of targetChapterIds) {
+      const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+      if (!chapter) continue
       const result = yield* Effect.promise(() =>
         Promise.resolve(enqueueManualEditSync(
           {
@@ -2978,11 +3208,17 @@ export function upgradeStartEndpoint(novelID: string, directory: string) {
   })
 }
 
-export function upgradeProgressEndpoint(novelID: string, directory: string) {
+export function upgradeProgressEndpoint(novelID: string, directory: string, deps?: { getWorkerLastPollAt?: () => number | null }) {
   return Effect.gen(function* () {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    // 优先从活跃 run 聚合（upgrade-reliability）
+    const activeRun = yield* Effect.promise(() => getActiveUpgradeRun(novelID, directory))
+    if (activeRun) {
+      return yield* Effect.promise(() => aggregateProgressFromRun(db, activeRun.id, deps))
+    }
+    // 无活跃 run：回退旧逻辑（兼容尚未对账的存量书）
     const entries = yield* Effect.promise(() => Promise.resolve(storeQuerySyncStatus(novelID, { source: "upgrade", includeSynced: true }, directory)))
     let synced = 0
     let pending = 0
@@ -2999,12 +3235,104 @@ export function upgradeProgressEndpoint(novelID: string, directory: string) {
   })
 }
 
+/** 从活跃 run 的 run_chapter 聚合进度（upgrade-reliability D4）。 */
+async function aggregateProgressFromRun(
+  db: ReturnType<typeof getDb>,
+  runId: string,
+  deps?: { getWorkerLastPollAt?: () => number | null },
+) {
+  const runChapters = db
+    .select()
+    .from(UpgradeRunChapterTable)
+    .where(eq(UpgradeRunChapterTable.run_id, runId))
+    .all()
+
+  let synced = 0
+  let pending = 0
+  let failed = 0
+  let running = 0
+  let waitingRetry = 0
+  let currentChapterId: string | undefined
+  let currentChapterStartedAt: number | undefined
+  const failures: Array<{
+    entryId: string
+    chapterId: string
+    reason: string
+    failureClass?: string
+    failureMessage?: string
+    failureAction?: string
+    failureDetail?: string
+  }> = []
+  const waitingRetryList: Array<{ chapterId: string; resumeAt: number }> = []
+
+  for (const rc of runChapters) {
+    if (rc.status === "synced") synced++
+    else if (rc.status === "pending") pending++
+    else if (rc.status === "running") {
+      running++
+      currentChapterId = rc.chapter_id
+      currentChapterStartedAt = rc.started_at ?? undefined
+    } else if (rc.status === "waiting_retry") {
+      waitingRetry++
+      if (rc.resume_at) waitingRetryList.push({ chapterId: rc.chapter_id, resumeAt: rc.resume_at })
+    } else if (rc.status === "terminal") {
+      failed++
+      failures.push({
+        entryId: rc.queue_entry_id ?? "",
+        chapterId: rc.chapter_id,
+        reason: rc.failure_message ?? "未知原因",
+        failureClass: rc.failure_class ?? undefined,
+        failureMessage: rc.failure_message ?? undefined,
+        failureAction: rc.failure_action ?? undefined,
+        failureDetail: rc.failure_detail ?? undefined,
+      })
+    }
+  }
+
+  const total = runChapters.length
+  // ETA：按已同步速率推算剩余时间
+  let etaMs: number | undefined
+  const run = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.id, runId)).get()
+  if (run && synced > 0 && run.activated_at) {
+    const elapsed = Date.now() - run.activated_at
+    const avgPerChapter = elapsed / synced
+    const remaining = total - synced
+    etaMs = Math.round(avgPerChapter * remaining)
+  }
+
+  // worker 活性信号：server 不能依赖 opennovel（依赖方向），通过可选注入获取
+  const workerLastPollAt = deps?.getWorkerLastPollAt?.() ?? undefined
+
+  return {
+    synced,
+    pending,
+    failed,
+    total,
+    failures,
+    running,
+    waitingRetry,
+    currentChapterId,
+    currentChapterStartedAt,
+    workerLastPollAt,
+    etaMs,
+    waitingRetryList,
+  }
+}
+
 export function upgradePauseEndpoint(novelID: string, directory: string) {
   return Effect.gen(function* () {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    yield* Effect.promise(() => setUpgradeGate(db, novelID, "paused"))
+    // upgrade-reliability：闸门语义并入 upgrade_run.status，废弃 upgrade_state
+    const activeRun = yield* Effect.promise(() => getActiveUpgradeRun(novelID, directory))
+    if (activeRun) {
+      const now = Date.now()
+      db.update(UpgradeRunTable)
+        .set({ status: "paused", paused_at: now, updated_at: now })
+        .where(eq(UpgradeRunTable.id, activeRun.id))
+        .run()
+    }
     return { gate: "paused" as const }
   })
 }
@@ -3014,7 +3342,21 @@ export function upgradeResumeEndpoint(novelID: string, directory: string) {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
-    yield* Effect.promise(() => setUpgradeGate(db, novelID, "open"))
+    // 把 paused run 恢复为 active；无活跃 run 时 no-op
+    const allRuns = db
+      .select()
+      .from(UpgradeRunTable)
+      .where(eq(UpgradeRunTable.novel_id, novelID))
+      .orderBy(UpgradeRunTable.created_at)
+      .all()
+    const pausedRun = allRuns.find((r) => r.status === "paused")
+    if (pausedRun) {
+      const now = Date.now()
+      db.update(UpgradeRunTable)
+        .set({ status: "active", activated_at: now, updated_at: now })
+        .where(eq(UpgradeRunTable.id, pausedRun.id))
+        .run()
+    }
     return { gate: "open" as const }
   })
 }
