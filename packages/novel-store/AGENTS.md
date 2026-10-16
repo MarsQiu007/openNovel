@@ -35,6 +35,32 @@ It holds **no** hook or tool registration logic — those live in `packages/plug
 - Keep this package synchronous-import-friendly and framework-free so it can be
   consumed from the Bun server, the Node Electron sidecar, and plugin code alike.
 
+## Transaction Discipline
+
+All multi-step writes go through the single transaction entry point
+`withTransaction` (`src/tx.ts`) — never hand-write `db.run(sql`BEGIN`)` or call
+`db.transaction` at composition sites.
+
+- **Composition-point rule**: the outermost combining site opens the one
+  transaction; everything it calls takes the `Tx` object and must not open
+  another transaction. Nested opens throw immediately (driver feature-probing via
+  `db.$client.inTransaction`/`isTransaction`) instead of failing inside the
+  driver — bun:sqlite silently tolerates nested `BEGIN` while node:sqlite
+  errors, so relying on the driver alone leaves a CI blind spot.
+- **Dual-form helpers**: exported writes come in two forms — `foo(db, …)`
+  self-wraps with `withTransaction`, and `fooTx(tx, …)` composes inside a
+  caller's transaction (sync body, first parameter is the `Tx` object). New
+  helpers must follow the same split.
+- **Sync constraint**: `withTransaction` callbacks must be synchronous. Async
+  continuations land in the microtask queue and escape the transaction before
+  commit — the callback's return value is runtime-checked for thenables and
+  rejected before commit. When de-awaiting existing write statements, bare
+  `await db.insert(…)` (thenable execution) must gain an explicit `.run()`.
+- Static guards live in `packages/plugin/test/transaction-guards.test.ts`
+  (handwritten `BEGIN` scan across plugin/novel-store/opennovel sources, plus
+  `*Tx` body checks), and node-runtime coverage in each package's `test-node/`
+  directory runs on Node ≥ 24 via `node --test` after `bun build --target=node`.
+
 ## Pitfalls
 
 - **Do NOT** register hooks, tools, or agents here — that belongs in

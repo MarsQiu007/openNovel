@@ -27,7 +27,7 @@
 
 ## 4. 文档与收尾
 
-- [ ] 4.1 在 `packages/novel-store/AGENTS.md`（无则新建）补事务纪律章节：唯一机制（`withTransaction`）、组合点开事务、双形态选用规则、同步回调约束、嵌套检测行为。验证：章节内容与 design.md 的 D1–D3 一致，-review 时对照 spec 可逐条指认。
+- [x] 4.1 在 `packages/novel-store/AGENTS.md`（无则新建）补事务纪律章节：唯一机制（`withTransaction`）、组合点开事务、双形态选用规则、同步回调约束、嵌套检测行为。验证：章节内容与 design.md 的 D1–D3 一致，-review 时对照 spec 可逐条指认。
 - [ ] 4.2 运行全量质量门：`packages/novel-store`、`packages/plugin`、`packages/opennovel` 依次 `bun typecheck` 通过；从仓库根运行 oxlint 通过；上述三包 `bun test` 全绿。验证：三条命令零错误输出。
 - [ ] 4.3 真机验收：以修复后代码对《执棋人》（`C:\Novels\XianXia`）在升级视图显式重试失败章节，队列条目最终标记 synced、章节摘要/引用/主轴落库。验证：novel.db 中该书 failed 条目清零、新指纹条目状态为 synced（验收后向用户出示 DB 行证据）。
 
