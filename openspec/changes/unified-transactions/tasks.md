@@ -7,7 +7,7 @@
 - [x] 1.3 拆分手动编辑同步入队助手为双形态（`enqueueManualEditSyncTx` + 自包 `enqueueManualEditSync`），签名与去重语义不变。验证：`packages/novel-store` 下 manual-edit-sync 相关 `bun test` 全绿、`bun typecheck` 通过。
 - [x] 1.4 拆分书籍元数据保存助手为双形态（`saveBookMetaTx` + 自包 `saveBookMeta`），签名与「书目 + 风格指南同事务」语义不变。验证：`packages/novel-store` 下 style-rules / manual-edit-sync 相关 `bun test` 全绿、`bun typecheck` 通过。
 - [x] 1.5 拆分审批请求助手为双形态（`requestApprovalTx` + 自包 `requestApproval`），签名与错误类型不变。验证：`packages/novel-store` 下 `bun typecheck` 通过；审批相关测试（若存在）全绿。
-- [ ] 1.6 将 `ensureSegmentSummaries` 同步化（去 async/await——其 4 处 await 全是同步驱动返回的非 thenable，行为安全；调用方残留 await 兼容）。将 Phase 1 确定性回填四步（指纹基准 → 段摘要 → 实体引用 → legacy 主轴转换）整体包进 `withTransaction` 单事务，第 2 步调同步化后的函数、第 3 步改调组合形态，中途任一步失败整体回滚。验证：新增「第 3 步注入失败 → 第 1、2 步写入全部回滚、数据库回到执行前」的原子性测试，`packages/novel-store` 下 `bun test` 全绿。
+- [x] 1.6 将 `ensureSegmentSummaries` 同步化（去 async/await——其 4 处 await 全是同步驱动返回的非 thenable，行为安全；调用方残留 await 兼容）。将 Phase 1 确定性回填四步（指纹基准 → 段摘要 → 实体引用 → legacy 主轴转换）整体包进 `withTransaction` 单事务，第 2 步调同步化后的函数、第 3 步改调组合形态，中途任一步失败整体回滚。验证：新增「第 3 步注入失败 → 第 1、2 步写入全部回滚、数据库回到执行前」的原子性测试，`packages/novel-store` 下 `bun test` 全绿。
 
 ## 2. plugin 手写事务清零与组合点归位
 

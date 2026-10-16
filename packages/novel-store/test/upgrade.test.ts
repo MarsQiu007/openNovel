@@ -218,6 +218,25 @@ describe("Phase 1 确定性回填", () => {
     expect(segments[0].source_fingerprint).not.toBeNull()
     expect(segments[0].summary).toContain("第1-20章")
   })
+
+  test("第 3 步实体引用失败整体回滚：第 1 步指纹与第 2 步段摘要不留存", async () => {
+    const novelId = await seedNovel()
+    for (let i = 1; i <= 21; i++) {
+      await createChapter(novelId, `第${i}章`, i, null, projectDir)
+    }
+    const db = getDb(projectDir)
+    // 注入第 3 步失败：实体引用表缺失，scanEntityReferencesTx 的首条 delete 即抛错
+    db.run("DROP TABLE entity_refs")
+
+    await expect(runDeterministicUpgrade(db, novelId)).rejects.toThrow()
+
+    // 第 1 步指纹基准已回滚
+    const chapters = db.select().from(ChapterTable).where(eq(ChapterTable.novel_id, novelId)).all()
+    expect(chapters.every((c) => c.content_fingerprint === null)).toBe(true)
+    // 第 2 步段摘要已回滚
+    const segments = db.select().from(SegmentSummaryTable).where(eq(SegmentSummaryTable.novel_id, novelId)).all()
+    expect(segments).toHaveLength(0)
+  })
 })
 
 describe("升级消费闸门", () => {

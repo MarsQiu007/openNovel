@@ -23,7 +23,8 @@ import {
 } from "./index.js"
 import { computeFingerprint } from "./manual-edit-sync.js"
 import { ensureSegmentSummaries } from "./segment-rollup.js"
-import { scanEntityReferences } from "./entity-refs.js"
+import { scanEntityReferencesTx } from "./entity-refs.js"
+import { withTransaction, type Tx } from "./tx.js"
 
 /** 升级任务种类：确定性回填（零 token）或 AI 重建。 */
 export type UpgradeTaskKind = "deterministic" | "ai"
@@ -196,14 +197,23 @@ export async function estimateUpgradeCost(db: Db, novelId: string): Promise<Upgr
  * Phase 1 确定性回填（零 token，同步执行）。
  *
  * 四步全部幂等：指纹基准 → 段摘要重建 → 实体引用扫描 → legacy 主轴转换。
+ * 四步收进单个 withTransaction：任一步失败整体回滚，不留半成品派生数据。
  * 返回各步处理数量。
  */
 export async function runDeterministicUpgrade(
   db: Db,
   novelId: string,
 ): Promise<{ fingerprints: number; segments: number; refs: number; spineEntries: number }> {
+  return withTransaction(db, (tx) => runDeterministicUpgradeTx(tx, novelId))
+}
+
+/** Phase 1 四步的事务体（同步）：由 runDeterministicUpgrade 自包事务，不得再开事务。 */
+function runDeterministicUpgradeTx(
+  tx: Tx,
+  novelId: string,
+): { fingerprints: number; segments: number; refs: number; spineEntries: number } {
   // 1. 正文指纹基准：为缺指纹的章节计算 SHA-256（16 位）并落库
-  const chapters = await db
+  const chapters = tx
     .select()
     .from(ChapterTable)
     .where(eq(ChapterTable.novel_id, novelId))
@@ -211,8 +221,7 @@ export async function runDeterministicUpgrade(
   let fingerprints = 0
   for (const chapter of chapters) {
     if (chapter.content_fingerprint) continue
-    await db
-      .update(ChapterTable)
+    tx.update(ChapterTable)
       .set({ content_fingerprint: computeFingerprint(chapter.content) })
       .where(eq(ChapterTable.id, chapter.id))
       .run()
@@ -221,18 +230,18 @@ export async function runDeterministicUpgrade(
 
   // 2. 段摘要确定性重建（含占位刷新），rollup 内部按指纹幂等
   const maxOrder = chapters.length > 0 ? Math.max(...chapters.map((c) => c.order)) : 0
-  const segments = await ensureSegmentSummaries(db, novelId, maxOrder)
+  const segments = ensureSegmentSummaries(tx, novelId, maxOrder)
 
   // 3. 实体引用确定性扫描：缺指纹引用清理后按当前正文重扫
   let refs = 0
   for (const chapter of chapters) {
-    refs += await scanEntityReferences(db, novelId, "chapter", chapter.id, "content", chapter.content)
+    refs += scanEntityReferencesTx(tx, novelId, "chapter", chapter.id, "content", chapter.content)
   }
 
   // 4. legacy 主轴文本 → story_spine_entries（status=legacy，缺指纹等待 AI 覆盖）
   let spineEntries = 0
-  const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
-  const entryCount = db
+  const novel = tx.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
+  const entryCount = tx
     .select({ id: StorySpineEntryTable.id })
     .from(StorySpineEntryTable)
     .where(eq(StorySpineEntryTable.novel_id, novelId))
@@ -244,8 +253,7 @@ export async function runDeterministicUpgrade(
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
     for (const content of paragraphs) {
-      await db
-        .insert(StorySpineEntryTable)
+      tx.insert(StorySpineEntryTable)
         .values({
           id: crypto.randomUUID(),
           novel_id: novelId,

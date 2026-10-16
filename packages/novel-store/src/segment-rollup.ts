@@ -15,6 +15,7 @@
 import { eq, and, gte, lte, asc, inArray } from "drizzle-orm"
 import { getDb, ChapterTable, ChapterSummaryTable, SegmentSummaryTable } from "./index.js"
 import { computeFingerprint } from "./manual-edit-sync.js"
+import type { Tx } from "./tx.js"
 
 /** 段摘要窗口：每 20 章压缩为一段 */
 export const SEGMENT_WINDOW = 20
@@ -28,18 +29,21 @@ export interface SegmentSummaryItem {
 type Db = ReturnType<typeof getDb>
 
 /**
- * 确保 uptoChapter 之前所有已关闭的段都有段摘要记录（惰性、幂等）。
+ * 确保 uptoChapter 之前所有已关闭的段都有段摘要记录（惰性、幂等、同步）。
  *
  * 段 [k*W+1, (k+1)*W] 在 uptoChapter > 段末章时视为已关闭——进行中的段不压缩，
  * 因为近期章节由"最近3章摘要"直接承载。
  *
+ * 本函数必须是同步实现：事务回调内调用时，await 会把写入续体推入微任务、
+ * 逃逸到事务提交之后（事务保护形同虚设）；其语句本就由同步驱动执行。
+ *
  * @returns 新生成的段摘要数量
  */
-export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapter: number): Promise<number> {
+export function ensureSegmentSummaries(db: Db | Tx, novelId: string, uptoChapter: number): number {
   const closedSegmentEnd = Math.floor((uptoChapter - 1) / SEGMENT_WINDOW) * SEGMENT_WINDOW
   if (closedSegmentEnd < SEGMENT_WINDOW) return 0
 
-  const existingRows = await db
+  const existingRows = db
     .select({ id: SegmentSummaryTable.id, start_chapter: SegmentSummaryTable.start_chapter, summary: SegmentSummaryTable.summary })
     .from(SegmentSummaryTable)
     .where(eq(SegmentSummaryTable.novel_id, novelId))
@@ -50,7 +54,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
   let created = 0
   for (let start = 1; start + SEGMENT_WINDOW - 1 <= closedSegmentEnd; start += SEGMENT_WINDOW) {
     const end = start + SEGMENT_WINDOW - 1
-    const chapters = await db
+    const chapters = db
       .select()
       .from(ChapterTable)
       .where(and(eq(ChapterTable.novel_id, novelId), gte(ChapterTable.order, start), lte(ChapterTable.order, end)))
@@ -58,7 +62,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
       .all()
     if (chapters.length === 0) continue
 
-    const summaries = await db
+    const summaries = db
       .select()
       .from(ChapterSummaryTable)
       .where(inArray(ChapterSummaryTable.chapter_id, chapters.map((c) => c.id)))
@@ -74,7 +78,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
       if (prevMissing === 0) continue
       const nowMissing = (summary.match(PLACEHOLDER_RE) || []).length
       if (nowMissing >= prevMissing) continue
-      await db.update(SegmentSummaryTable).set({ summary, source_fingerprint: segmentFingerprint }).where(eq(SegmentSummaryTable.id, prev.id)).run()
+      db.update(SegmentSummaryTable).set({ summary, source_fingerprint: segmentFingerprint }).where(eq(SegmentSummaryTable.id, prev.id)).run()
       created++
       continue
     }
@@ -84,7 +88,7 @@ export async function ensureSegmentSummaries(db: Db, novelId: string, uptoChapte
     // 此处静默吞掉冲突，避免 constraint 错误击穿 assembleSnapshot
     // onConflictDoNothing + returning：并发下唯一索引冲突时返回空数组，
     // 仅在真正插入时计入 created
-    const inserted = await db
+    const inserted = db
       .insert(SegmentSummaryTable)
       .values({
         id: crypto.randomUUID(),
