@@ -224,7 +224,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
             </div>
           }
         >
-          <div class="flex flex-col h-full">
+          <div class="flex flex-col flex-1 min-h-0">
             {/* Header bar */}
             <div class="flex items-center justify-between px-6 py-3 border-b border-v2-border-border-base shrink-0">
               <div class="flex items-center gap-3 min-w-0">
