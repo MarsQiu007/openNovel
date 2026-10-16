@@ -22,6 +22,11 @@ export function setCloudSyncAutoEnabled(value: boolean) {
 
 const POLL_INTERVAL_MS = 60_000
 
+/**
+ * 云同步自启：由应用壳挂载（app.tsx 的 SelectedServerProviders），不要在书籍工作台挂载——
+ * 每次进入工作台触发一次同步请求会与首屏加载竞争。语义：启动执行一次 + 页面前台 60s
+ * 轮询 + beforeunload beacon 兜底；决策交给设置页处理，autopilot 不自行解决冲突。
+ */
 export function createCloudSyncAutoPilot() {
   const client = useNovelClient()
   const serverSDK = useServerSDK()

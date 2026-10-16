@@ -1,5 +1,5 @@
 import { type Accessor, createMemo } from "solid-js"
-import { bookSessionListParams, useNovelDetail, useVolumes, useChapters, useTension, useBindSession } from "@/context/novel-queries"
+import { bookSessionListParams, useNovelDetail, useVolumes, useChapters, useBindSession } from "@/context/novel-queries"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import { sessionTitle } from "@/utils/session-title"
@@ -7,7 +7,6 @@ import type {
   ServerNovelDetailOutput,
   ServerNovelVolumesOutput,
   ServerNovelChaptersOutput,
-  ServerNovelTensionOutput,
 } from "@opennovel-ai/client"
 
 export type WorkspaceDataState = {
@@ -16,18 +15,18 @@ export type WorkspaceDataState = {
   readonly novel: ServerNovelDetailOutput | null
   readonly volumes: ServerNovelVolumesOutput
   readonly chapters: ServerNovelChaptersOutput
-  readonly tension: ServerNovelTensionOutput
 }
 
 export function useWorkspaceData(novelID: Accessor<string>) {
   const detail = useNovelDetail(novelID)
   const volumes = useVolumes(novelID)
   const chapters = useChapters(novelID)
-  const tension = useTension(novelID)
 
-  const loading = createMemo(() => detail.isLoading || volumes.isLoading || chapters.isLoading || tension.isLoading)
+  // 张力不进首帧门（book-open-transition D4）：面板挂载时自查询同一 queryKey 并带自身加载态，
+  // 不因它让整个工作台多等一项网络往返。
+  const loading = createMemo(() => detail.isLoading || volumes.isLoading || chapters.isLoading)
   const error = createMemo(() => {
-    const err = detail.error ?? volumes.error ?? chapters.error ?? tension.error
+    const err = detail.error ?? volumes.error ?? chapters.error
     if (!err) return null
     if (err instanceof Error) return err.message
     if (
@@ -43,7 +42,6 @@ export function useWorkspaceData(novelID: Accessor<string>) {
   const novel = createMemo(() => detail.data ?? null)
   const volData = createMemo(() => volumes.data ?? [])
   const chapData = createMemo(() => chapters.data ?? [])
-  const tensionData = createMemo(() => tension.data ?? [])
 
   return {
     get loading() {
@@ -60,9 +58,6 @@ export function useWorkspaceData(novelID: Accessor<string>) {
     },
     get chapters() {
       return chapData()
-    },
-    get tension() {
-      return tensionData()
     },
   }
 }

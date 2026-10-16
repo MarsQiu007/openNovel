@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useSearchParams } from "@solidjs/router"
+import { useParams, useNavigate, useSearchParams, useLocation } from "@solidjs/router"
 import { createEffect, createSignal, createMemo, For, Show, onCleanup, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -24,7 +24,6 @@ import { CheckboxV2 } from "@opennovel-ai/ui/v2/checkbox-v2"
 import { useWorkspaceData, findBoundNovelSession, sendNovelSessionInstruction } from "./workspace-data"
 import { createExportBlob } from "@/utils/export-download"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
-import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { useNovelActivity, usePendingApprovalCount } from "@/context/novel-approval"
 import { useSync } from "@/context/sync"
 import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
@@ -103,6 +102,9 @@ const LEFT_MODES = [
 
 type LeftMode = (typeof LEFT_MODES)[number]["key"]
 
+// 回跳决策（首帧收敛 D1）：hold = 尚不可决（门保持关闭）；stay = 无需导航；go = 待 replace 定址
+type AdoptDecision = { kind: "hold" } | { kind: "stay" } | { kind: "go"; sessionID: string }
+
 // 布局持久化结构（novel.workspace.layout.v1）——leftManual / railManual 为左右栏手动收起覆盖
 // （null = 跟随宽度规则）；
 // leftWidth / railWidth 为分栏设定宽度（null = 未拖过 = 默认宽度，D5 加字段不升版本零迁移）；
@@ -133,6 +135,7 @@ export default function NovelWorkspaceFrame() {
   const language = useLanguage()
   const novel = useNovel()
   const navigate = useNavigate()
+  const location = useLocation()
   // 全局设置入口（mod+,）：会话宿主收敛到工作台后保持可达，对话框按 params.id 自动作用域到当前会话
   useSettingsCommand()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -152,8 +155,7 @@ export default function NovelWorkspaceFrame() {
   const data = useWorkspaceData(novelID)
   const sdk = useSDK()
   // Must match the decoded directory used by novel-queries keys — params.dir is base64-encoded
-  useNovelLiveInvalidation(sdk().directory, novelID())
-  createCloudSyncAutoPilot()
+  useNovelLiveInvalidation(() => sdk().directory, novelID)
   const [selectedChapterId, setSelectedChapterId] = createSignal<string | null>(null)
   // Remember the last-read chapter per novel so reopening a book restores the reading position
   const [readingProgress, setReadingProgress, _, readingProgressReady] = persisted(
@@ -165,19 +167,7 @@ export default function NovelWorkspaceFrame() {
     Persist.global("novel.workspace.state.v1"),
     createStore<Record<string, PerBookState>>({}),
   )
-  // 恢复上次阅读进度：等章节列表就绪后校验 ID 有效性，失效的进度回落到第一章（走查修复：僵尸进度 ID 导致单章 404）
-  createEffect(() => {
-    const id = novelID()
-    if (!readingProgressReady() || data.loading) return
-    const saved = readingProgress[id] ?? null
-    if (saved && data.chapters.some((c) => c.id === saved)) {
-      setSelectedChapterId(saved)
-      return
-    }
-    const fallback = data.chapters[0]?.id ?? null
-    setSelectedChapterId(fallback)
-    if (fallback && saved) setReadingProgress(id, fallback)
-  })
+  // 章节选中恢复移至下方「首帧收敛」区块：开门前完成落值 + 失效校验（僵尸进度 ID 不发单章 404）
   const selectChapter = (chapterID: string) => {
     setSelectedChapterId(chapterID)
     setReadingProgress(novelID(), chapterID)
@@ -221,35 +211,8 @@ export default function NovelWorkspaceFrame() {
       (charactersQuery.data?.length ?? 0) === 0 &&
       (worldQuery.data?.length ?? 0) === 0,
   )
-  // 恢复该书的内容选择现场：等持久化与全部数据源就绪后按存档校验，失效项回落默认空态（不报错）。
-  // 大纲项绑定卷号/章节序号（见 outline-sidebar）：master 校验非空，volume/chapter 匹配序号；
-  // 世界观条目与关系角色按 ID 匹配列表。重跑幂等：上方每个选择联动都同步写存档，任一数据源
-  // refetch 触发重跑时读到的存档值就是用户最新选择，恢复等于无操作。
-  createEffect(() => {
-    if (!perBookStateReady() || data.loading) return
-    const outline = outlineQuery.data
-    const world = worldQuery.data
-    const characters = charactersQuery.data
-    if (!outline || !world || !characters) return
-    const saved = perBookState[novelID()]
-    if (!saved) return
-    const mode = saved.leftMode
-    if (mode === "chapters" || mode === "outlines" || mode === "world") setLeftMode(mode)
-    const target = saved.outline
-    if (target) {
-      const valid =
-        (target.section === "master" && outline.master.length > 0) ||
-        (target.section === "volume" && outline.volumes.some((v) => v.volumeId === target.id)) ||
-        (target.section === "chapter" && outline.chapters.some((c) => c.chapterId === target.id))
-      setSelectedOutline(valid ? target : null)
-    }
-    if (saved.worldEntryId !== undefined)
-      setSelectedWorldEntryId(world.some((e) => e.id === saved.worldEntryId) ? saved.worldEntryId : null)
-    if (saved.relationCharacterId !== undefined)
-      setSelectedRelationCharacterId(
-        characters.some((c) => c.id === saved.relationCharacterId) ? saved.relationCharacterId : null,
-      )
-  })
+  // 内容现场（左栏模式 / 大纲 / 世界观 / 关系）恢复移至下方「首帧收敛」区块：
+  // 门内乐观落值 + 数据就绪后的静默补校验（失效回落），不再等三查询全就绪统一恢复
 
   // —— 会话自动回跳（design D5）：路由会话段可选，打开任何书都处于"未选中"初始态 ——
   const boundSessions = useBoundNovelSessions(novelID)
@@ -260,19 +223,7 @@ export default function NovelWorkspaceFrame() {
     if (!sessionID || !novelID()) return
     setPerBookState(novelID(), { sessionId: sessionID })
   })
-  // 未选中会话时自动回到该书记忆的（无记忆则最近活跃的）绑定会话；零绑定保持懒创建空态
-  createEffect(() => {
-    if (!perBookStateReady()) return
-    if (params.id || !novelID()) return
-    const list = boundSessions.data
-    if (!list) return
-    const target = resolveAutoAdoptTarget({
-      sessions: list,
-      allSessions: flattenNovelSessionOptions(list),
-      rememberedSessionID: perBookState[novelID()]?.sessionId,
-    })
-    if (target) navigate(`/${params.dir}/novel/${novelID()}/session/${target}`)
-  })
+  // 会话自动回跳（决策 + 定址执行）移至下方「首帧收敛」区块：决策落定前门保持关闭，定址一律 replace
   // —— 布局状态（D6）：带版本号持久化键，承载右栏面板与左栏手动收起覆盖 ——
   const [layout, setLayout, , layoutReady] = persisted(
     Persist.global("novel.workspace.layout.v1"),
@@ -317,18 +268,142 @@ export default function NovelWorkspaceFrame() {
   createEffect(() => {
     if (!expandedPanel()) setPeekMemo(railPanel())
   })
-  // 展开态同步进持久化（URL 为准），重启/重进工作台后一次性恢复
+  // —— 首帧收敛（book-open-transition D1-D3）：统一的「首个内容帧」门 ——
+  // 门关闭期间完成章节与内容现场落值、展开态地址同步（replace）与回跳定址（replace）；
+  // 门只在「该书落值完成且无待应用导航」时打开——加载状态与最终视图之间不出现可见翻转。
+  const persistedReady = createMemo(() => readingProgressReady() && perBookStateReady() && layoutReady())
+  // 该书首帧落值完成标记与展开态同步标记（书切换时自动回到未准备态，门随书重新关闭）
+  const [framePreparedFor, setFramePreparedFor] = createSignal<string | null>(null)
+  const [expandSyncedFor, setExpandSyncedFor] = createSignal<string | null>(null)
+  const firstFrameReady = createMemo(() => framePreparedFor() === novelID() && persistedReady() && !data.loading)
+
+  /**
+   * 未选中会话时的回跳决策：「hold」= 尚不可决（门保持关闭）；「stay」= 无需导航；
+   * 「go」= 待 replace 定址的会话。可决性（D1）：
+   * - 列表加载中不可决；
+   * - 空列表要等重拉（refetch / 空守卫）落定，避免复用旧空结果后被替换；
+   * - 非空列表立即决策（后台重拉不阻塞打开）；失败态按无回跳处理，保留失败占位与手动重试。
+   */
+  const adoptDecision = createMemo<AdoptDecision>(() => {
+    if (params.id) return { kind: "stay" }
+    if (!perBookStateReady()) return { kind: "hold" }
+    if (boundSessions.status === "error") return { kind: "stay" }
+    if (boundSessions.status !== "success") return { kind: "hold" }
+    const list = boundSessions.data ?? []
+    if (list.length === 0 && boundSessions.fetchStatus === "fetching") return { kind: "hold" }
+    const target = resolveAutoAdoptTarget({
+      sessions: list,
+      allSessions: flattenNovelSessionOptions(list),
+      rememberedSessionID: perBookState[novelID()]?.sessionId,
+    })
+    return target ? { kind: "go", sessionID: target } : { kind: "stay" }
+  })
+
+  // 回跳执行（持续生效）：决策落定且存在目标时以 replace 一次定址——历史中不残留被替换的中间条目。
+  // 覆盖首次打开、空结果重拉恢复、失败自愈重试恢复三条路径；发起前校验仍处于同一本书。
   createEffect(() => {
+    const adopt = adoptDecision()
+    if (adopt.kind !== "go") return
+    const book = novelID()
+    if (novelID() !== book) return
+    // 保留当前查询串：展开态（?tab=panel:<id>）等地址状态随定址一起迁移，不被 replace 丢弃
+    navigate(`/${params.dir}/novel/${book}/session/${adopt.sessionID}${location.search}`, { replace: true })
+  })
+
+  // 首帧准备（每本书一次）：落值章节选中与内容现场（乐观恢复），同步展开态地址；
+  // 决策未落定或仍有待应用回跳时保持门关闭，等地址落地后重跑开门。
+  createEffect(() => {
+    if (!persistedReady()) return
+    const book = novelID()
+    if (framePreparedFor() === book) return
+    if (data.loading) return
+    if (data.error) {
+      // 主数据失败：开门渲染既有错误兜底（无现场可恢复）
+      setFramePreparedFor(book)
+      return
+    }
+
+    // 章节选中：校验持久进度，失效回落首章（僵尸进度 ID 不发单章 404 请求）
+    const savedChapter = readingProgress[book] ?? null
+    const fallbackChapter = data.chapters[0]?.id ?? null
+    if (savedChapter && data.chapters.some((c) => c.id === savedChapter)) {
+      setSelectedChapterId(savedChapter)
+    } else {
+      setSelectedChapterId(fallbackChapter)
+      if (fallbackChapter && savedChapter) setReadingProgress(book, fallbackChapter)
+    }
+
+    // 内容现场：门内乐观落值（大纲 / 世界观 / 关系的失效补校验在本区块末尾，数据就绪后静默进行）
+    const saved = perBookState[book]
+    const mode = saved?.leftMode
+    setLeftMode(mode === "outlines" || mode === "world" ? mode : "chapters")
+    setSelectedOutline(saved?.outline ?? null)
+    setSelectedWorldEntryId(saved?.worldEntryId ?? null)
+    setSelectedRelationCharacterId(saved?.relationCharacterId ?? null)
+
+    // 展开态地址同步：无 tab 参数时按持久值以 replace 恢复（不在历史残留中间条目）
+    if (expandSyncedFor() !== book) {
+      if (tabValue() === undefined) {
+        const match = RAIL_PANELS.find((item) => item.key === layout.expanded)
+        if (match && match.key !== "chat") setSearchParams({ tab: `panel:${match.key}` }, { replace: true })
+      }
+      setExpandSyncedFor(book)
+    }
+
+    if (adoptDecision().kind !== "stay") return // hold 或待回跳：门保持关闭
+    setFramePreparedFor(book)
+  })
+
+  // 展开态持久化同步（URL 为准，重启 / 重进工作台后恢复）：首帧落定后才开始——
+  // 书切换 / 首挂载的过渡态（短暂无 tab）不代表用户收起，不写回持久化。
+  createEffect(() => {
+    if (expandSyncedFor() !== novelID()) return
     setLayout("expanded", expandedPanel())
   })
-  let expandRestored = false
+
+  // 章节选中持续校验：门内已落值；列表刷新后选中失效时回落首章（含空书后来出现章节的情形），
+  // 失效的持久进度回写为回落值（僵尸进度 ID 不发单章 404 请求）。
   createEffect(() => {
-    if (!layoutReady()) return
-    if (expandRestored) return
-    expandRestored = true
-    if (expandedPanel()) return
-    const match = RAIL_PANELS.find((item) => item.key === layout.expanded)
-    if (match && match.key !== "chat") setSearchParams({ tab: `panel:${match.key}` })
+    if (framePreparedFor() !== novelID()) return
+    const id = selectedChapterId()
+    const fallback = data.chapters[0]?.id ?? null
+    if (id && data.chapters.some((c) => c.id === id)) return
+    setSelectedChapterId(fallback)
+    if (id && fallback) setReadingProgress(novelID(), fallback)
+  })
+
+  // 内容现场失效补校验（D3）：对应数据就绪后，仅当「当前选中」不在数据中时回落，
+  // 并清掉失效存档（下次打开不再重复修正）。罕见路径（删除 / 归档后重开）。
+  createEffect(() => {
+    if (framePreparedFor() !== novelID()) return
+    const outline = outlineQuery.data
+    const target = selectedOutline()
+    if (!outline || !target) return
+    const valid =
+      (target.section === "master" && outline.master.length > 0) ||
+      (target.section === "volume" && outline.volumes.some((v) => v.volumeId === target.id)) ||
+      (target.section === "chapter" && outline.chapters.some((c) => c.chapterId === target.id))
+    if (valid) return
+    setSelectedOutline(null)
+    setPerBookState(novelID(), { outline: undefined })
+  })
+  createEffect(() => {
+    if (framePreparedFor() !== novelID()) return
+    const world = worldQuery.data
+    const selected = selectedWorldEntryId()
+    if (!world || selected === null) return
+    if (world.some((e) => e.id === selected)) return
+    setSelectedWorldEntryId(null)
+    setPerBookState(novelID(), { worldEntryId: undefined })
+  })
+  createEffect(() => {
+    if (framePreparedFor() !== novelID()) return
+    const characters = charactersQuery.data
+    const selected = selectedRelationCharacterId()
+    if (!characters || selected === null) return
+    if (characters.some((c) => c.id === selected)) return
+    setSelectedRelationCharacterId(null)
+    setPerBookState(novelID(), { relationCharacterId: undefined })
   })
   const exitExpand = (target?: RailPanel) => {
     if (!expandedPanel()) return
@@ -724,9 +799,9 @@ export default function NovelWorkspaceFrame() {
 
   return (
     <Show
-      when={!data.loading}
+      when={firstFrameReady()}
       fallback={
-        <div class="flex flex-col h-full items-center justify-center gap-4">
+        <div class="flex flex-col h-full items-center justify-center gap-4" data-slot="novel-workspace-loading">
           <Spinner class="w-8 h-8 text-v2-text-text-muted" />
           <p class="text-sm text-v2-text-text-muted">{language.t("novel.workspace.loading")}</p>
         </div>
@@ -1178,12 +1253,37 @@ export default function NovelWorkspaceFrame() {
                     <Show
                       when={params.id}
                       fallback={
-                        <NovelChatEmptyState
-                          dir={params.dir!}
-                          novelID={novelID()}
-                          novel={data.novel}
-                          zeroSettings={zeroSettings()}
-                        />
+                        <Show
+                          when={boundSessions.status === "success"}
+                          fallback={
+                            // 回跳决策未确认（失败 / 重试期）时不呈现懒创建空态：
+                            // 失败占位 + 重试入口与切换器一致，重试成功后由回跳决策定址
+                            <div class="flex flex-col flex-1 items-center justify-center gap-3 px-6 text-center">
+                              <p class="text-sm text-v2-text-text-muted">
+                                {boundSessions.isError && !boundSessions.isFetching
+                                  ? "会话列表加载失败"
+                                  : language.t("common.loading")}
+                              </p>
+                              <Show when={boundSessions.isError}>
+                                <ButtonV2
+                                  variant="ghost-muted"
+                                  size="small"
+                                  disabled={boundSessions.isFetching}
+                                  onClick={() => void boundSessions.refetch()}
+                                >
+                                  重试
+                                </ButtonV2>
+                              </Show>
+                            </div>
+                          }
+                        >
+                          <NovelChatEmptyState
+                            dir={params.dir!}
+                            novelID={novelID()}
+                            novel={data.novel}
+                            zeroSettings={zeroSettings()}
+                          />
+                        </Show>
                       }
                     >
                       <div class="flex-1 min-h-0 overflow-y-auto">

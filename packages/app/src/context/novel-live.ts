@@ -1,5 +1,5 @@
-import { onCleanup } from "solid-js"
-import { useQueryClient } from "@tanstack/solid-query"
+import { createEffect, on, onCleanup, type Accessor } from "solid-js"
+import { useQueryClient, type QueryClient } from "@tanstack/solid-query"
 import { useServerSDK } from "./server-sdk"
 import { useNovel } from "./novel"
 import type { Event } from "@opennovel-ai/sdk/v2/client"
@@ -12,6 +12,36 @@ const novelKeys = {
   tension: (directory: string, novelID: string) => ["novel", "tension", directory, novelID] as const,
 }
 
+// 失效范围排除清单：单章正文/版本/批注在对应面板挂载时凭 refetchOnMount 自行拉取，
+// 实时失效可能覆盖编辑器里未保存的改动。
+const EXCLUDED_LIVE = new Set(["chapter", "chapter-versions", "chapter-reviews", "annotations"])
+
+/** 查询 key 是否落在指定小说的实时失效范围内（覆盖全部 ["novel", *, directory, novelID, ...] 形态）。 */
+export function isNovelLiveKey(queryKey: readonly unknown[], directory: string, novelID: string) {
+  return (
+    queryKey[0] === "novel" &&
+    !EXCLUDED_LIVE.has(String(queryKey[1])) &&
+    queryKey.includes(directory) &&
+    queryKey.includes(novelID)
+  )
+}
+
+/**
+ * 构造"失效当前小说作用域"的执行器（book-open-transition D5）。
+ * 工作台在书与书之间切换时组件不重挂（单 Route 仅 params 变化），作用域必须经 accessor
+ * 在调用时读取——值参数会让失效停留在挂载时的第一本书（切书后会话事件失效错书）。
+ */
+export function createNovelInvalidator(input: {
+  queryClient: QueryClient
+  directory: Accessor<string>
+  novelID: Accessor<string>
+}) {
+  return () =>
+    input.queryClient.invalidateQueries({
+      predicate: (query) => isNovelLiveKey(query.queryKey, input.directory(), input.novelID()),
+    })
+}
+
 /**
  * Subscribes to directory SSE events and invalidates novel query keys.
  *
@@ -19,35 +49,17 @@ const novelKeys = {
  * - `message.part.updated` for a bound session → 5s debounce then broad invalidate
  * - Active (busy/retry) bound sessions → 15s polling broad invalidation
  * - 单章正文/版本/批注不在实时失效范围内，挂载时自行刷新
+ *
+ * 订阅与定时器保持单份（组件不随切书重挂）；directory / novelID 以 accessor 传入，
+ * 失效判定与 bindings 过滤在调用时读取当前位置。
  */
-export function useNovelLiveInvalidation(directory: string, novelID: string) {
+export function useNovelLiveInvalidation(directory: Accessor<string>, novelID: Accessor<string>) {
   const serverSDK = useServerSDK()
   const sdk = serverSDK()
   const queryClient = useQueryClient()
   const novel = useNovel()
 
-  // ---- helpers ----
-
-  // 失效本小说下的查询。AI 在写作过程中可能改动角色、世界观、伏笔、
-  // 结构线/弧光、关系等任意实体，只失效少量 key 会导致这些面板停留在旧数据。
-  // 用 predicate 覆盖所有 ["novel", *, directory, novelID, ...] 形态的 key；
-  // 但排除单章正文/版本/批注这类 per-chapter 查询——它们会在对应面板挂载时
-  // 凭借 refetchOnMount 拉取最新数据，实时失效可能覆盖编辑器里未保存的改动。
-  const EXCLUDED_LIVE = new Set(["chapter", "chapter-versions", "chapter-reviews", "annotations"])
-  const invalidateNovel = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey
-        return (
-          Array.isArray(key) &&
-          key[0] === "novel" &&
-          !EXCLUDED_LIVE.has(String(key[1])) &&
-          key.includes(directory) &&
-          key.includes(novelID)
-        )
-      },
-    })
-  }
+  const invalidateNovel = createNovelInvalidator({ queryClient, directory, novelID })
 
   // ---- bound session tracking ----
   // 之前依赖 getQueryData(for-session) 判断会话归属，但该 hook 从未被组件调用，
@@ -58,14 +70,20 @@ export function useNovelLiveInvalidation(directory: string, novelID: string) {
   async function refreshBindings() {
     const bindings = await novel.listSessionBindings()
     boundSessionIds.clear()
-    if (bindings) {
-      for (const b of bindings) {
-        if (b.novelID === novelID) boundSessionIds.add(b.sessionID)
-      }
+    if (!bindings) return
+    // await 期间可能已切书：按落地时的当前书过滤，不把旧书的绑定留作本作用域
+    const current = novelID()
+    for (const b of bindings) {
+      if (b.novelID === current) boundSessionIds.add(b.sessionID)
     }
   }
 
   void refreshBindings()
+
+  // 切书立即重拉绑定（订阅保持单份；周期刷新兜底）
+  createEffect(
+    on(novelID, () => void refreshBindings(), { defer: true }),
+  )
 
   // ---- message.part.updated: 5s debounce ----
 
@@ -105,7 +123,7 @@ export function useNovelLiveInvalidation(directory: string, novelID: string) {
 
   // ---- SSE subscription ----
 
-  const unsub = sdk.event.on(directory, (event: Event) => {
+  const unsub = sdk.event.on(directory(), (event: Event) => {
     if (event.type === "session.status") {
       const { sessionID, status } = event.properties
       // Refresh bindings if we don't know this session yet (may be newly bound)

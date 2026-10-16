@@ -43,6 +43,7 @@ import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { ServerSDKProvider } from "@/context/server-sdk"
 import { ServerSyncProvider, useServerSync } from "@/context/server-sync"
+import { createCloudSyncAutoPilot } from "@/context/cloud-sync"
 import { GlobalProvider, useGlobal } from "@/context/global"
 import { HighlightsProvider } from "@/context/highlights"
 import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
@@ -155,6 +156,14 @@ function OutputLanguageBootstrap() {
   return null
 }
 
+// 云同步自启挂载点（book-open-transition D5）：挂在服务器作用域应用壳上、与路由解耦——
+// 启动执行一次 + 页面前台 60s 轮询 + beforeunload beacon 的语义保持不变，不再随每次
+// 进入书籍工作台触发（避免同步请求与工作台首屏加载竞争）。
+function CloudSyncAutoPilot() {
+  createCloudSyncAutoPilot()
+  return null
+}
+
 // Wraps the workspace-level routes. They are gated on (and keyed to) the globally selected
 // server via ServerKey, then provide the server-scoped shell for that server.
 function SelectedServerProviders(props: ParentProps) {
@@ -163,6 +172,7 @@ function SelectedServerProviders(props: ParentProps) {
       <ServerSDKProvider>
         <ServerSyncProvider>
           <OutputLanguageBootstrap />
+          <CloudSyncAutoPilot />
           {props.children}
         </ServerSyncProvider>
       </ServerSDKProvider>
