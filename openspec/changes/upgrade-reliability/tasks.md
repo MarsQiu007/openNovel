@@ -40,9 +40,9 @@
 
 ## 7. 对账与集成验证
 
-- [ ] 7.1 在 `packages/novel-store/test/` 新增对账集成测试：预置含幽灵 skipped 条目（upgrade 源）+ manual 源 synced 条目的数据库，断言对账后该章在 run 内为 synced、total 分母不含 skipped、横幅聚合到达完成态；再预置 manual 源孤儿 failed 条目（无活跃 run），断言对账后该章被纳入新建 run；验证 `bun test` 通过
-- [ ] 7.2 在 `packages/novel-store/test/` 新增 run 生命周期集成测试：创建 run → 模拟消费 → 成功路径 / 瞬时失败退避路径 / 终态失败路径 → run 终态判定；验证 `bun test` 通过
-- [ ] 7.3 在 `packages/server/test/` 新增端点集成测试：覆盖 start / progress / retry / pause / resume 全链路，断言负载形状与 design D4 / D5 一致；验证 `bun test` 通过
+- [x] 7.1 在 `packages/novel-store/test/` 新增对账集成测试：预置含幽灵 skipped 条目（upgrade 源）+ manual 源 synced 条目的数据库，断言对账后该章在 run 内为 synced、total 分母不含 skipped、横幅聚合到达完成态；再预置 manual 源孤儿 failed 条目（无活跃 run），断言对账后该章被纳入新建 run；验证 `bun test` 通过
+- [x] 7.2 在 `packages/novel-store/test/` 新增 run 生命周期集成测试：创建 run → 模拟消费 → 成功路径 / 瞬时失败退避路径 / 终态失败路径 → run 终态判定；验证 `bun test` 通过
+- [x] 7.3 在 `packages/server/test/` 新增端点集成测试：覆盖 start / progress / retry / pause / resume 全链路，断言负载形状与 design D4 / D5 一致；验证 `bun test` 通过
 - [ ] 7.4 全量回归：在 `packages/novel-store`、`packages/server`、`packages/app`、`packages/opennovel` 分别运行 `bun typecheck` 与 `bun run oxlint`，零错误；在 `packages/novel-store`、`packages/server`、`packages/app` 运行 `bun test`，全绿
 
 ## Workflow follow-up
