@@ -14,6 +14,8 @@ import {
   PendingUpdateTable,
   updateSyncStatus,
   getUpgradeGate,
+  withTransaction,
+  type Tx,
 } from "@opennovel-ai/novel-store"
 
 /** 同步处理器接口，由 opennovel 组合层注册 */
@@ -27,7 +29,6 @@ export interface ManualEditSyncHandler {
 const handlers = new Map<string, ManualEditSyncHandler>()
 
 type SyncEntry = typeof ManualEditSyncQueueTable.$inferSelect
-type SyncTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0]
 
 /** 注册同步处理器（由 opennovel 启动时调用） */
 export function registerSyncHandler(handler: ManualEditSyncHandler): void {
@@ -108,8 +109,8 @@ export async function processSyncQueue(
           entry.source_fingerprint ?? "",
         )
       }
-      // 摘要、影响任务、主轴与状态回写同事务落地，中途失败整条回滚
-      db.transaction((tx) => applySyncEntry(tx, entry, deterministicSummary))
+      // 摘要、影响任务、主轴与状态回写同事务落地，中途失败整条回滚（统一事务入口：嵌套检测 + 同步回调约束）
+      withTransaction(db, (tx) => applySyncEntry(tx, entry, deterministicSummary))
       processed++
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -124,7 +125,7 @@ export async function processSyncQueue(
  * 单条同步任务的确定性写入：摘要 upsert、影响任务插入、主轴刷新与状态回写必须在同一事务里完成。
  * 分步提交会在中途失败时留下半同步状态（数据已改但条目仍 pending，或条目已 synced 但数据未改）。
  */
-function applySyncEntry(tx: SyncTx, entry: SyncEntry, writeSummary: boolean) {
+function applySyncEntry(tx: Tx, entry: SyncEntry, writeSummary: boolean) {
   const entityId = entry.entity_id ?? ""
   if (writeSummary && entityId) {
     const existing = tx.select().from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, entityId)).get()
