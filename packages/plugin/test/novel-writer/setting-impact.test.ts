@@ -80,9 +80,9 @@ describe("SettingImpactService", () => {
     const { getDb } = await import("../../src/novel-writer/session-store.js")
     const { planImpact } = await import("../../src/novel-writer/setting-impact.js")
     const db = await setup()
-    await expect(
+    expect(() =>
       planImpact(db, { novelId: NOVEL_ID, entityType: "", entityId: "", field: "", oldValue: "", newValue: "", reason: "" }),
-    ).rejects.toThrow("变更意图不完整")
+    ).toThrow("变更意图不完整")
   })
 
   test("影响计划查询只读：返回引用发现且不生成任务、不改设定", async () => {

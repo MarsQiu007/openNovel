@@ -2,9 +2,9 @@
  * 章节派生数据重建 — 手动编辑同步 worker 的 observer 消费实现。
  *
  * 一次调用完成章节摘要、结构化主轴、实体引用、段摘要与 FTS 的整体刷新；
- * LLM 输出先解析校验，数据库写入使用事务，失败不留下半更新状态。
+ * LLM 输出先解析校验，数据库写入使用统一事务入口 withTransaction，失败不留下半更新状态。
  */
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import {
   ChapterSummaryTable,
   ChapterTable,
@@ -12,7 +12,8 @@ import {
   StorySpineEntryTable,
   StyleGuideTable,
   ensureSegmentSummaries,
-  scanEntityReferences,
+  scanEntityReferencesTx,
+  withTransaction,
   type Db,
 } from "@opennovel-ai/novel-store"
 import { syncChapterSummaryFts } from "./state-commit.js"
@@ -61,9 +62,8 @@ export async function rebuildChapterDerivedData(
 
   const rebuilt = parseRebuiltChapterDerivedData(await llm(buildObserverPrompt(novel.genre, styleGuide, chapter)))
 
-  db.run(sql`BEGIN`)
-  try {
-    const summaries = db
+  withTransaction(db, (tx) => {
+    const summaries = tx
       .select({ id: ChapterSummaryTable.id })
       .from(ChapterSummaryTable)
       .where(eq(ChapterSummaryTable.chapter_id, chapterId))
@@ -75,23 +75,20 @@ export async function rebuildChapterDerivedData(
       source_fingerprint: fingerprint,
     }
     if (summaries.length === 1) {
-      db.update(ChapterSummaryTable).set(summary).where(eq(ChapterSummaryTable.id, summaries[0].id)).run()
+      tx.update(ChapterSummaryTable).set(summary).where(eq(ChapterSummaryTable.id, summaries[0].id)).run()
     } else {
-      db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
-      db
-        .insert(ChapterSummaryTable)
+      tx.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
+      tx.insert(ChapterSummaryTable)
         .values({ id: crypto.randomUUID(), chapter_id: chapterId, ...summary })
         .run()
     }
 
-    db
-      .delete(StorySpineEntryTable)
+    tx.delete(StorySpineEntryTable)
       .where(and(eq(StorySpineEntryTable.novel_id, novelId), eq(StorySpineEntryTable.chapter_id, chapterId)))
       .run()
     const now = Date.now()
     for (const entry of rebuilt.spine) {
-      db
-        .insert(StorySpineEntryTable)
+      tx.insert(StorySpineEntryTable)
         .values({
           id: crypto.randomUUID(),
           novel_id: novelId,
@@ -107,14 +104,10 @@ export async function rebuildChapterDerivedData(
         .run()
     }
 
-    await scanEntityReferences(db, novelId, "chapter", chapterId, "content", chapter.content)
-    await ensureSegmentSummaries(db, novelId, chapter.order)
-    await syncChapterSummaryFts(db, novelId, chapterId)
-    db.run(sql`COMMIT`)
-  } catch (error) {
-    await Promise.resolve(db.run(sql`ROLLBACK`)).catch(() => {})
-    throw error
-  }
+    scanEntityReferencesTx(tx, novelId, "chapter", chapterId, "content", chapter.content)
+    ensureSegmentSummaries(tx, novelId, chapter.order)
+    syncChapterSummaryFts(tx, novelId, chapterId)
+  })
 }
 
 function buildObserverPrompt(

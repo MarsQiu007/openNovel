@@ -10,7 +10,8 @@
  * - FACT_TYPES — 10 种事实类型常量
  */
 
-import { scanEntityReferences } from "@opennovel-ai/novel-store"
+import { scanEntityReferences, withTransaction } from "@opennovel-ai/novel-store"
+import type { Tx } from "@opennovel-ai/novel-store"
 
 export const scanReferences = scanEntityReferences
 
@@ -141,8 +142,8 @@ function extractConflictNote(data: Record<string, unknown>): string {
 }
 
 /** 把候选实体入候选区（status=pending） */
-async function enqueueToPending(
-  db: ReturnType<typeof getDb>,
+function enqueueToPending(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   sourceChapterId: string | null,
   candidateType: "character" | "world_entry" | "relationship" | "location",
@@ -151,9 +152,9 @@ async function enqueueToPending(
   importance: number,
   typeStrength: string,
   displayTitle: string,
-): Promise<string> {
+): string {
   const id = crypto.randomUUID()
-  await db
+  db
     .insert(PendingSettingTable)
     .values({
       id,
@@ -172,16 +173,16 @@ async function enqueueToPending(
 }
 
 /** 记录一条冲突标注到 WorldEntryConflictTable（不污染 WorldEntryTable.content） */
-async function recordConflict(
-  db: ReturnType<typeof getDb>,
+function recordConflict(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   worldEntryId: string,
   conflictNote: string,
   sourceChapterId: string | null,
   conflictKind: "number_inconsistency" | "synonym_drift" | "semantic_conflict" = "semantic_conflict",
-): Promise<string> {
+): string {
   const id = crypto.randomUUID()
-  await db
+  db
     .insert(WorldEntryConflictTable)
     .values({
       id,
@@ -247,13 +248,13 @@ function appendToMarkdown(novelId: string, chapterId: string, entries: StateDelt
  * 若该 ID 在角色表中不存在，则按姓名匹配已存在的角色，
  * 避免重复创建角色、以及产生 character_id 对不上的孤儿状态记录。
  */
-async function resolveCharacterId(
-  db: ReturnType<typeof getDb>,
+function resolveCharacterId(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   entityId: string,
   data: Record<string, unknown>,
   bindingView?: CharacterBindingView,
-): Promise<string> {
+): string {
   if (bindingView) {
     const reference = resolveCharacterReference(bindingView, {
       entityId,
@@ -262,7 +263,7 @@ async function resolveCharacterId(
     })
     if (reference.status === "resolved") return reference.characterId
   }
-  const [byId] = await db
+  const [byId] = db
     .select({ id: CharacterTable.id })
     .from(CharacterTable)
     .where(eq(CharacterTable.id, entityId))
@@ -271,7 +272,7 @@ async function resolveCharacterId(
   if (byId) return entityId
   const name = typeof data.name === "string" && data.name.length > 0 ? data.name : null
   if (name) {
-    const [byName] = await db
+    const [byName] = db
       .select({ id: CharacterTable.id })
       .from(CharacterTable)
       .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.name, name)))
@@ -289,19 +290,19 @@ async function resolveCharacterId(
  * character 按姓名去重；relationship 按双方角色+关系类型去重；plot_thread 按标题；
  * foreshadow 按内容；world_entry 按分类+标题；style 每本小说单例。
  */
-async function resolveEntityId(
-  db: ReturnType<typeof getDb>,
+function resolveEntityId(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   factType: string,
   entityId: string,
   data: Record<string, unknown>,
-): Promise<string> {
+): string {
   if (factType === "character") return resolveCharacterId(db, novelId, entityId, data)
 
-  if (await findEntityById(db, factType, entityId)) return entityId
+  if (findEntityById(db, factType, entityId)) return entityId
 
   if (factType === "relationship") {
-    const [byKey] = await db
+    const [byKey] = db
       .select({ id: RelationshipTable.id })
       .from(RelationshipTable)
       .where(
@@ -317,7 +318,7 @@ async function resolveEntityId(
   }
 
   if (factType === "plot_thread" && typeof data.title === "string" && data.title.length > 0) {
-    const [byTitle] = await db
+    const [byTitle] = db
       .select({ id: PlotThreadTable.id })
       .from(PlotThreadTable)
       .where(and(eq(PlotThreadTable.novel_id, novelId), eq(PlotThreadTable.title, data.title)))
@@ -327,7 +328,7 @@ async function resolveEntityId(
   }
 
   if (factType === "foreshadow" && typeof data.content === "string" && data.content.length > 0) {
-    const [byContent] = await db
+    const [byContent] = db
       .select({ id: ForeshadowingTable.id })
       .from(ForeshadowingTable)
       .where(and(eq(ForeshadowingTable.novel_id, novelId), eq(ForeshadowingTable.content, data.content)))
@@ -337,7 +338,7 @@ async function resolveEntityId(
   }
 
   if (factType === "world_entry" && typeof data.title === "string" && data.title.length > 0) {
-    const [byTitle] = await db
+    const [byTitle] = db
       .select({ id: WorldEntryTable.id })
       .from(WorldEntryTable)
       .where(
@@ -353,7 +354,7 @@ async function resolveEntityId(
   }
 
   if (factType === "style") {
-    const [existing] = await db
+    const [existing] = db
       .select({ id: StyleGuideTable.id })
       .from(StyleGuideTable)
       .where(eq(StyleGuideTable.novel_id, novelId))
@@ -366,7 +367,7 @@ async function resolveEntityId(
 }
 
 /** 按实体表主键查找，供 resolveEntityId 的"已存在"短路使用。 */
-async function findEntityById(db: ReturnType<typeof getDb>, factType: string, entityId: string): Promise<boolean> {
+function findEntityById(db: ReturnType<typeof getDb> | Tx, factType: string, entityId: string): boolean {
   const table = {
     relationship: RelationshipTable,
     plot_thread: PlotThreadTable,
@@ -375,7 +376,7 @@ async function findEntityById(db: ReturnType<typeof getDb>, factType: string, en
     style: StyleGuideTable,
   }[factType]
   if (!table) return false
-  const [row] = await db
+  const [row] = db
     .select({ id: (table as any).id })
     .from(table as any)
     .where(eq((table as any).id, entityId))
@@ -385,14 +386,14 @@ async function findEntityById(db: ReturnType<typeof getDb>, factType: string, en
 }
 
 /** 插入一条角色状态记录；未传的状态字段回退到最近一条（prev） */
-async function insertCharacterStateRow(
-  db: ReturnType<typeof getDb>,
+function insertCharacterStateRow(
+  db: ReturnType<typeof getDb> | Tx,
   characterId: string,
   chapterId: string,
   data: Record<string, unknown>,
   prev?: typeof CharacterStateTable.$inferSelect | null,
-): Promise<void> {
-  await db.insert(CharacterStateTable).values({
+): void {
+  db.insert(CharacterStateTable).values({
     id: crypto.randomUUID(),
     character_id: characterId,
     chapter_id: (data.chapter_id as string) ?? chapterId ?? prev?.chapter_id ?? null,
@@ -400,13 +401,13 @@ async function insertCharacterStateRow(
     location: String(data.location ?? prev?.location ?? ""),
     mood: String(data.mood ?? prev?.mood ?? ""),
     summary: String(data.summary ?? prev?.summary ?? ""),
-  } as any)
+  } as any).run()
 }
 
 /** 查询章节序号（order），供 tension 记录按章号写入 */
-async function getChapterOrder(db: ReturnType<typeof getDb>, chapterId: string): Promise<number | null> {
+function getChapterOrder(db: ReturnType<typeof getDb> | Tx, chapterId: string): number | null {
   if (!chapterId) return null
-  const [ch] = await db
+  const [ch] = db
     .select({ order: ChapterTable.order })
     .from(ChapterTable)
     .where(eq(ChapterTable.id, chapterId))
@@ -422,32 +423,32 @@ async function getChapterOrder(db: ReturnType<typeof getDb>, chapterId: string):
  * tension_logs（本章张力记录，按 chapter_number 定位）。entity_refs 在 scanReferences
  * 写入时自行先删后插，不在此处理。
  */
-async function resetChapterScopedState(
-  db: ReturnType<typeof getDb>,
+function resetChapterScopedState(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   chapterId: string,
-): Promise<void> {
+): void {
   if (!chapterId) return
-  await db.delete(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, chapterId)).run()
-  await db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
-  const order = await getChapterOrder(db, chapterId)
+  db.delete(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, chapterId)).run()
+  db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
+  const order = getChapterOrder(db, chapterId)
   if (order != null) {
-    await db
+    db
       .delete(TensionLogTable)
       .where(and(eq(TensionLogTable.novel_id, novelId), eq(TensionLogTable.chapter_number, order)))
       .run()
   }
   // 清理本章 observer 产生的未决候选和未解决冲突，保证重跑幂等
-  await db
+  db
     .delete(PendingSettingTable)
     .where(and(eq(PendingSettingTable.source_chapter_id, chapterId), eq(PendingSettingTable.status, "pending")))
     .run()
-  await db
+  db
     .delete(WorldEntryConflictTable)
     .where(and(eq(WorldEntryConflictTable.source_chapter_id, chapterId), eq(WorldEntryConflictTable.resolved, 0)))
     .run()
   // 清理本章摘要的 FTS 索引（applyToMaterializedView 会重建）
-  await db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
+  db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
 }
 
 /**
@@ -458,21 +459,21 @@ async function resetChapterScopedState(
  * tension 类型按章节号覆盖写入 tension_log。
  * timeline 和 location 类型仅记录日志，不更新物化视图。
  */
-async function applyToMaterializedView(
-  db: ReturnType<typeof getDb>,
+function applyToMaterializedView(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   chapterId: string,
   entry: StateDeltaEntry,
   report: CommitReport,
   bindingView?: CharacterBindingView,
-): Promise<void> {
+): void {
   const { fact_type, action, entity_id, data } = entry
 
   switch (fact_type) {
     case "character": {
       // observer 可能输出 char_<拼音> 本地引用，先解析到真实角色 ID（按 ID 或姓名匹配），
       // 避免重复创建角色、以及产生 character_id 对不上的孤儿状态记录
-      const resolvedId = await resolveCharacterId(db, novelId, entity_id, data, bindingView)
+      const resolvedId = resolveCharacterId(db, novelId, entity_id, data, bindingView)
 
       if (action === "create") {
         const displayName = String(data.name ?? entity_id)
@@ -481,7 +482,7 @@ async function applyToMaterializedView(
           : null
         if (bindingView && reference?.status === "unresolved" && isKinshipTerm(displayName)) {
           const pendingData = { ...data, unresolved_reason: reference.reason }
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -508,7 +509,7 @@ async function applyToMaterializedView(
           break
         }
         if (importance === 1) {
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -530,25 +531,25 @@ async function applyToMaterializedView(
         }
         if (resolvedId === entity_id) {
           // 角色不存在，插入基本信息
-          await db.insert(CharacterTable).values({
+          db.insert(CharacterTable).values({
             id: entity_id,
             novel_id: novelId,
             name: String(data.name ?? ""),
             role: String(data.role ?? ""),
             description: String(data.description ?? ""),
-          } as any)
+          } as any).run()
           // 插入初始角色状态
-          await insertCharacterStateRow(db, entity_id, chapterId, data, null)
+          insertCharacterStateRow(db, entity_id, chapterId, data, null)
         } else {
           // 同名角色已存在（按姓名解析到真实 ID），仅记录状态，不重复创建
-          const [prev] = await db
+          const [prev] = db
             .select()
             .from(CharacterStateTable)
             .where(eq(CharacterStateTable.character_id, resolvedId))
             .orderBy(desc(sql`rowid`))
             .limit(1)
             .all()
-          await insertCharacterStateRow(db, resolvedId, chapterId, data, prev)
+          insertCharacterStateRow(db, resolvedId, chapterId, data, prev)
         }
       } else if (action === "update") {
         // 更新角色基本信息
@@ -557,10 +558,10 @@ async function applyToMaterializedView(
         if (data.role !== undefined) charFields.role = data.role
         if (data.description !== undefined) charFields.description = data.description
         if (Object.keys(charFields).length > 0) {
-          await db
+          db
             .update(CharacterTable)
             .set(charFields as any)
-            .where(eq(CharacterTable.id, resolvedId))
+            .where(eq(CharacterTable.id, resolvedId)).run()
         }
         // 如果包含状态字段，插入新的角色状态记录
         const hasStateFields =
@@ -570,17 +571,17 @@ async function applyToMaterializedView(
           data.summary !== undefined
         if (hasStateFields) {
           // 先读最近一条角色状态，未传字段回退到旧值，避免部分更新丢失数据
-          const [prev] = await db
+          const [prev] = db
             .select()
             .from(CharacterStateTable)
             .where(eq(CharacterStateTable.character_id, resolvedId))
             .orderBy(desc(sql`rowid`))
             .limit(1)
             .all()
-          await insertCharacterStateRow(db, resolvedId, chapterId, data, prev)
+          insertCharacterStateRow(db, resolvedId, chapterId, data, prev)
         }
       } else if (action === "delete") {
-        await db.delete(CharacterTable).where(eq(CharacterTable.id, resolvedId))
+        db.delete(CharacterTable).where(eq(CharacterTable.id, resolvedId)).run()
       }
       break
     }
@@ -591,7 +592,7 @@ async function applyToMaterializedView(
         const typeStrength = getEntryTypeStrength(data)
         if (typeStrength === "weak") {
           const displayTitle = `${data.char_a_id ?? "?"} ↔ ${data.char_b_id ?? "?"} [${data.type ?? "未分类"}]`
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -627,7 +628,7 @@ async function applyToMaterializedView(
             unresolved_reason: relationshipConflicts.map((conflict) => conflict.reason).join("；"),
           }
           const displayTitle = `${candidateRelationship.charAId} ↔ ${candidateRelationship.charBId} [${candidateRelationship.type}]`
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -647,16 +648,16 @@ async function applyToMaterializedView(
           })
           break
         }
-        const resolvedId = await resolveEntityId(db, novelId, "relationship", entity_id, data)
+        const resolvedId = resolveEntityId(db, novelId, "relationship", entity_id, data)
         if (resolvedId === entity_id) {
-          await db.insert(RelationshipTable).values({
+          db.insert(RelationshipTable).values({
             id: entity_id,
             novel_id: novelId,
             char_a_id: String(data.char_a_id ?? ""),
             char_b_id: String(data.char_b_id ?? ""),
             type: String(data.type ?? ""),
             description: String(data.description ?? ""),
-          } as any)
+          } as any).run()
         } else {
           // 同双方+类型的关系已存在，把新描述合并更新，不重复建
           const fields: Record<string, unknown> = {}
@@ -665,10 +666,10 @@ async function applyToMaterializedView(
           if (data.type !== undefined) fields.type = data.type
           if (data.description !== undefined) fields.description = data.description
           if (Object.keys(fields).length > 0) {
-            await db
+            db
               .update(RelationshipTable)
               .set(fields as any)
-              .where(eq(RelationshipTable.id, resolvedId))
+              .where(eq(RelationshipTable.id, resolvedId)).run()
           }
         }
       } else if (action === "update") {
@@ -678,22 +679,22 @@ async function applyToMaterializedView(
         if (data.type !== undefined) fields.type = data.type
         if (data.description !== undefined) fields.description = data.description
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(RelationshipTable)
             .set(fields as any)
-            .where(eq(RelationshipTable.id, entity_id))
+            .where(eq(RelationshipTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(RelationshipTable).where(eq(RelationshipTable.id, entity_id))
+        db.delete(RelationshipTable).where(eq(RelationshipTable.id, entity_id)).run()
       }
       break
     }
 
     case "plot_thread": {
       if (action === "create") {
-        const resolvedId = await resolveEntityId(db, novelId, "plot_thread", entity_id, data)
+        const resolvedId = resolveEntityId(db, novelId, "plot_thread", entity_id, data)
         if (resolvedId === entity_id) {
-          await db.insert(PlotThreadTable).values({
+          db.insert(PlotThreadTable).values({
             id: entity_id,
             novel_id: novelId,
             title: String(data.title ?? ""),
@@ -701,7 +702,7 @@ async function applyToMaterializedView(
             priority: String(data.priority ?? "medium"),
             description: String(data.description ?? ""),
             closed_at: data.closed_at ? Number(data.closed_at) : null,
-          } as any)
+          } as any).run()
         } else {
           const fields: Record<string, unknown> = {}
           if (data.title !== undefined) fields.title = data.title
@@ -710,10 +711,10 @@ async function applyToMaterializedView(
           if (data.description !== undefined) fields.description = data.description
           if (data.closed_at !== undefined) fields.closed_at = data.closed_at ? Number(data.closed_at) : null
           if (Object.keys(fields).length > 0) {
-            await db
+            db
               .update(PlotThreadTable)
               .set(fields as any)
-              .where(eq(PlotThreadTable.id, resolvedId))
+              .where(eq(PlotThreadTable.id, resolvedId)).run()
           }
         }
       } else if (action === "update") {
@@ -724,29 +725,29 @@ async function applyToMaterializedView(
         if (data.description !== undefined) fields.description = data.description
         if (data.closed_at !== undefined) fields.closed_at = data.closed_at ? Number(data.closed_at) : null
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(PlotThreadTable)
             .set(fields as any)
-            .where(eq(PlotThreadTable.id, entity_id))
+            .where(eq(PlotThreadTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(PlotThreadTable).where(eq(PlotThreadTable.id, entity_id))
+        db.delete(PlotThreadTable).where(eq(PlotThreadTable.id, entity_id)).run()
       }
       break
     }
 
     case "foreshadow": {
       if (action === "create") {
-        const resolvedId = await resolveEntityId(db, novelId, "foreshadow", entity_id, data)
+        const resolvedId = resolveEntityId(db, novelId, "foreshadow", entity_id, data)
         if (resolvedId === entity_id) {
-          await db.insert(ForeshadowingTable).values({
+          db.insert(ForeshadowingTable).values({
             id: entity_id,
             novel_id: novelId,
             planted_chapter_id: (data.planted_chapter_id as string) ?? null,
             resolved_chapter_id: (data.resolved_chapter_id as string) ?? null,
             content: String(data.content ?? ""),
             state: String(data.state ?? "planted"),
-          } as any)
+          } as any).run()
         } else {
           const fields: Record<string, unknown> = {}
           if (data.planted_chapter_id !== undefined) fields.planted_chapter_id = data.planted_chapter_id
@@ -754,10 +755,10 @@ async function applyToMaterializedView(
           if (data.content !== undefined) fields.content = data.content
           if (data.state !== undefined) fields.state = data.state
           if (Object.keys(fields).length > 0) {
-            await db
+            db
               .update(ForeshadowingTable)
               .set(fields as any)
-              .where(eq(ForeshadowingTable.id, resolvedId))
+              .where(eq(ForeshadowingTable.id, resolvedId)).run()
           }
         }
       } else if (action === "update") {
@@ -767,13 +768,13 @@ async function applyToMaterializedView(
         if (data.content !== undefined) fields.content = data.content
         if (data.state !== undefined) fields.state = data.state
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(ForeshadowingTable)
             .set(fields as any)
-            .where(eq(ForeshadowingTable.id, entity_id))
+            .where(eq(ForeshadowingTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(ForeshadowingTable).where(eq(ForeshadowingTable.id, entity_id))
+        db.delete(ForeshadowingTable).where(eq(ForeshadowingTable.id, entity_id)).run()
       }
       break
     }
@@ -787,7 +788,7 @@ async function applyToMaterializedView(
           break
         }
         if (importance === 1) {
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -811,7 +812,7 @@ async function applyToMaterializedView(
         // 分类白名单校验：不在标准列表的分类不直达正式表，降级到 pending 候选区由人工归类，
         // 避免 observer 自造分类导致设定导航碎裂
         if (validateWorldCategory(String(data.category ?? "")) !== null) {
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -831,7 +832,7 @@ async function applyToMaterializedView(
           })
           break
         }
-        const resolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, data)
+        const resolvedId = resolveEntityId(db, novelId, "world_entry", entity_id, data)
         // 冲突标注分离：data.conflict_note 不入 WorldEntryTable.content，独立存 WorldEntryConflictTable
         const conflictNote = extractConflictNote(data)
         const conflictKind =
@@ -841,13 +842,13 @@ async function applyToMaterializedView(
               ? "synonym_drift"
               : "semantic_conflict"
         if (resolvedId === entity_id) {
-          await db.insert(WorldEntryTable).values({
+          db.insert(WorldEntryTable).values({
             id: entity_id,
             novel_id: novelId,
             category: String(data.category ?? ""),
             title: String(data.title ?? ""),
             content: String(data.content ?? ""),
-          } as any)
+          } as any).run()
         } else {
           const fields: Record<string, unknown> = {}
           // 已有条目的 category 更新同样受白名单约束；非法分类静默丢弃（title/content 仍正常更新）
@@ -855,14 +856,14 @@ async function applyToMaterializedView(
           if (data.title !== undefined) fields.title = data.title
           if (data.content !== undefined) fields.content = data.content
           if (Object.keys(fields).length > 0) {
-            await db
+            db
               .update(WorldEntryTable)
               .set(fields as any)
-              .where(eq(WorldEntryTable.id, resolvedId))
+              .where(eq(WorldEntryTable.id, resolvedId)).run()
           }
         }
         if (conflictNote) {
-          const conflictId = await recordConflict(
+          const conflictId = recordConflict(
             db,
             novelId,
             resolvedId,
@@ -886,26 +887,26 @@ async function applyToMaterializedView(
         if (data.title !== undefined) fields.title = data.title
         if (data.content !== undefined) fields.content = data.content
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(WorldEntryTable)
             .set(fields as any)
-            .where(eq(WorldEntryTable.id, entity_id))
+            .where(eq(WorldEntryTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, entity_id))
+        db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, entity_id)).run()
       }
       break
     }
 
     case "chapter_summary": {
       if (action === "create") {
-        await db.insert(ChapterSummaryTable).values({
+        db.insert(ChapterSummaryTable).values({
           id: entity_id,
           chapter_id: String(data.chapter_id ?? ""),
           summary: String(data.summary ?? ""),
           key_events: data.key_events ?? [],
           char_changes: data.char_changes ?? [],
-        } as any)
+        } as any).run()
       } else if (action === "update") {
         const fields: Record<string, unknown> = {}
         if (data.chapter_id !== undefined) fields.chapter_id = data.chapter_id
@@ -913,29 +914,29 @@ async function applyToMaterializedView(
         if (data.key_events !== undefined) fields.key_events = data.key_events
         if (data.char_changes !== undefined) fields.char_changes = data.char_changes
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(ChapterSummaryTable)
             .set(fields as any)
-            .where(eq(ChapterSummaryTable.id, entity_id))
+            .where(eq(ChapterSummaryTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.id, entity_id))
+        db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.id, entity_id)).run()
       }
       break
     }
 
     case "style": {
       if (action === "create") {
-        const resolvedId = await resolveEntityId(db, novelId, "style", entity_id, data)
+        const resolvedId = resolveEntityId(db, novelId, "style", entity_id, data)
         if (resolvedId === entity_id) {
-          await db.insert(StyleGuideTable).values({
+          db.insert(StyleGuideTable).values({
             id: entity_id,
             novel_id: novelId,
             rules: data.rules === undefined ? {} : requireNormalizedStyleRules(data.rules),
             tone: String(data.tone ?? ""),
             pov: String(data.pov ?? ""),
             tense: String(data.tense ?? ""),
-          } as any)
+          } as any).run()
         } else {
           // 每本小说只有一条风格指南，已存在则更新
           const fields: Record<string, unknown> = {}
@@ -944,10 +945,10 @@ async function applyToMaterializedView(
           if (data.pov !== undefined) fields.pov = data.pov
           if (data.tense !== undefined) fields.tense = data.tense
           if (Object.keys(fields).length > 0) {
-            await db
+            db
               .update(StyleGuideTable)
               .set(fields as any)
-              .where(eq(StyleGuideTable.id, resolvedId))
+              .where(eq(StyleGuideTable.id, resolvedId)).run()
           }
         }
       } else if (action === "update") {
@@ -957,29 +958,29 @@ async function applyToMaterializedView(
         if (data.pov !== undefined) fields.pov = data.pov
         if (data.tense !== undefined) fields.tense = data.tense
         if (Object.keys(fields).length > 0) {
-          await db
+          db
             .update(StyleGuideTable)
             .set(fields as any)
-            .where(eq(StyleGuideTable.id, entity_id))
+            .where(eq(StyleGuideTable.id, entity_id)).run()
         }
       } else if (action === "delete") {
-        await db.delete(StyleGuideTable).where(eq(StyleGuideTable.id, entity_id))
+        db.delete(StyleGuideTable).where(eq(StyleGuideTable.id, entity_id)).run()
       }
       break
     }
 
     case "tension": {
       // 每章一条张力记录，按章节号覆盖写（幂等）
-      const chapterNumber = await getChapterOrder(db, chapterId)
+      const chapterNumber = getChapterOrder(db, chapterId)
       if (chapterNumber == null) break
       const level = Number(data.level)
       if (Number.isNaN(level)) break
       const clampedLevel = Math.max(0, Math.min(10, level))
-      await db
+      db
         .delete(TensionLogTable)
         .where(and(eq(TensionLogTable.novel_id, novelId), eq(TensionLogTable.chapter_number, chapterNumber)))
         .run()
-      await db
+      db
         .insert(TensionLogTable)
         .values({
           id: crypto.randomUUID(),
@@ -1002,7 +1003,7 @@ async function applyToMaterializedView(
           break
         }
         if (importance === 1) {
-          const pendingId = await enqueueToPending(
+          const pendingId = enqueueToPending(
             db,
             novelId,
             chapterId,
@@ -1023,27 +1024,27 @@ async function applyToMaterializedView(
           break
         }
         // importance ≥ 2：入 WorldEntryTable，category=地点
-        const locResolvedId = await resolveEntityId(db, novelId, "world_entry", entity_id, {
+        const locResolvedId = resolveEntityId(db, novelId, "world_entry", entity_id, {
           category: "地点",
           title: String(data.name ?? ""),
         })
         if (locResolvedId === entity_id) {
-          await db.insert(WorldEntryTable).values({
+          db.insert(WorldEntryTable).values({
             id: entity_id,
             novel_id: novelId,
             category: "地点",
             title: String(data.name ?? ""),
             content: String(data.description ?? ""),
-          } as any)
+          } as any).run()
         } else {
-          await db
+          db
             .update(WorldEntryTable)
             .set({
               category: "地点",
               title: String(data.name ?? ""),
               content: String(data.description ?? ""),
             } as any)
-            .where(eq(WorldEntryTable.id, locResolvedId))
+            .where(eq(WorldEntryTable.id, locResolvedId)).run()
         }
       }
       break
@@ -1124,41 +1125,41 @@ export async function commitStateWithReport(
     providedBindingView ?? (needsBindingView ? await loadFullCharacterBindingView(db, novelId) : undefined)
   const report: CommitReport = { count: 0, pending: [], conflicts: [], discarded: 0 }
 
-  // 核心写操作包在事务内：drizzle 的 async transaction 在 bun:sqlite 下不回滚，
-  // 故用原生 SQL BEGIN/COMMIT/ROLLBACK。任一步失败整体回滚，杜绝半更新状态。
+  // 核心写操作包在统一事务入口内（ORM 同步回调事务）：任一步失败整体回滚，杜绝半更新状态。
   // Markdown 审计日志在事务提交后追加（文件系统无法回滚，且仅为旁路记录）。
-  await db.run(sql`BEGIN`)
-  try {
+  withTransaction(db, (tx) => {
     // 1. 写入 append-only 日志
     for (const entry of validated) {
       const logId = crypto.randomUUID()
-      await db.insert(NovelStateLogTable).values({
-        id: logId,
-        novel_id: novelId,
-        chapter_id: chapterId ?? null,
-        fact_type: entry.fact_type,
-        fact_data: entry.data,
-        created_at: Date.now(),
-      } as any)
+      tx.insert(NovelStateLogTable)
+        .values({
+          id: logId,
+          novel_id: novelId,
+          chapter_id: chapterId ?? null,
+          fact_type: entry.fact_type,
+          fact_data: entry.data,
+          created_at: Date.now(),
+        } as any)
+        .run()
       report.count++
     }
 
     // 2. 重跑章节时先清理本章归属的快照数据，保证"一章一份"语义幂等
-    await resetChapterScopedState(db, novelId, chapterId)
+    resetChapterScopedState(tx, novelId, chapterId)
 
     // 3. 更新物化视图
     for (const entry of validated) {
-      await applyToMaterializedView(db, novelId, chapterId, entry, report, bindingView)
+      applyToMaterializedView(tx, novelId, chapterId, entry, report, bindingView)
     }
 
     // 4. 同步 FTS 索引（本章摘要）
-    await syncChapterSummaryFts(db, novelId, chapterId)
+    syncChapterSummaryFts(tx, novelId, chapterId)
 
     // 5. 触发级联统改任务（仅 update 操作）
     for (const entry of validated) {
       if (entry.action !== "update") continue
       const changedFields = Object.keys(entry.data).join(", ")
-      await applyImpact(db, {
+      applyImpact(tx, {
         novelId,
         entityType: entry.fact_type,
         entityId: entry.entity_id,
@@ -1168,12 +1169,7 @@ export async function commitStateWithReport(
         reason: `${entry.fact_type} 更新（${changedFields}）`,
       })
     }
-
-    await db.run(sql`COMMIT`)
-  } catch (err) {
-    await Promise.resolve(db.run(sql`ROLLBACK`)).catch(() => {})
-    throw err
-  }
+  })
 
   // 6. 同步 Markdown（事务提交后，旁路审计日志）
   // 日志目录与连接推导同链：getDbPath 优先 OPENNOVEL_DB，其次入参目录，缺省 cwd，
@@ -1189,16 +1185,17 @@ export async function commitStateWithReport(
 
 /**
  * 将本章的 chapter_summaries 行同步到 chapter_summary_fts。
- * 在事务内调用，先删后插，幂等。
+ * 在事务内调用，先删后插，幂等。必须同步实现：事务回调内调用时 await 会把
+ * 写入续体推入微任务、逃逸到事务提交之后。
  */
-export async function syncChapterSummaryFts(
-  db: ReturnType<typeof getDb>,
+export function syncChapterSummaryFts(
+  db: ReturnType<typeof getDb> | Tx,
   novelId: string,
   chapterId: string,
-): Promise<void> {
+): void {
   if (!chapterId) return
-  await db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
-  const summaries = await db
+  db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
+  const summaries = db
     .select({
       chapter_id: ChapterSummaryTable.chapter_id,
       summary: ChapterSummaryTable.summary,
@@ -1209,13 +1206,13 @@ export async function syncChapterSummaryFts(
     .all()
   for (const s of summaries) {
     const keyEvents = Array.isArray(s.key_events) ? s.key_events.map(String).join(" ") : ""
-    const [chapter] = await db
+    const [chapter] = db
       .select({ order: ChapterTable.order, title: ChapterTable.title })
       .from(ChapterTable)
       .where(eq(ChapterTable.id, s.chapter_id))
       .limit(1)
       .all()
-    await db.run(
+    db.run(
       sql`INSERT INTO chapter_summary_fts (novel_id, chapter_id, chapter_order, title, body) VALUES (${novelId}, ${s.chapter_id}, ${chapter?.order ?? 0}, ${chapter?.title ?? ""}, ${s.summary + " " + keyEvents})`,
     )
   }

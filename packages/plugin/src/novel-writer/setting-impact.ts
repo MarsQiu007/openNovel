@@ -24,6 +24,7 @@ import {
   PlotThreadTable,
   WorldEntryTable,
 } from "@opennovel-ai/novel-store"
+import type { Tx } from "@opennovel-ai/novel-store"
 
 // ─── 类型定义 ───
 
@@ -79,8 +80,8 @@ function cascadePriority(triggerType: string, sourceType: string): "high" | "med
 }
 
 /** 已写正文的章节存在时才产生统改任务——初始建设定阶段不产生 */
-async function hasWrittenChapters(db: Db, novelId: string): Promise<boolean> {
-  const rows = await db
+function hasWrittenChapters(db: Db | Tx, novelId: string): boolean {
+  const rows = db
     .select({ id: ChapterTable.id })
     .from(ChapterTable)
     .where(and(eq(ChapterTable.novel_id, novelId), ne(ChapterTable.status, "outline")))
@@ -95,14 +96,14 @@ async function hasWrittenChapters(db: Db, novelId: string): Promise<boolean> {
  * 查询一次变更的影响计划。不修改数据库：只读 entity_refs 引用与结构性依赖。
  * 语义建议不在确定性查询范围内（由 AI 侧另行提出）。
  */
-export async function planImpact(db: Db, intent: ChangeIntent): Promise<ImpactFinding[]> {
+export function planImpact(db: Db | Tx, intent: ChangeIntent): ImpactFinding[] {
   if (!intent.entityType || !intent.entityId) {
     throw new Error("影响计划需要 entityType 与 entityId：变更意图不完整")
   }
   const findings: ImpactFinding[] = []
   const seen = new Set<string>()
 
-  const refs = await db
+  const refs = db
     .select({
       source_type: EntityRefTable.source_type,
       source_id: EntityRefTable.source_id,
@@ -132,7 +133,7 @@ export async function planImpact(db: Db, intent: ChangeIntent): Promise<ImpactFi
     })
   }
 
-  for (const dep of await structuralDeps(db, intent)) {
+  for (const dep of structuralDeps(db, intent)) {
     const key = `s:${dep.sourceType}:${dep.sourceId}:${dep.refField}`
     if (seen.has(key)) continue
     seen.add(key)
@@ -142,11 +143,11 @@ export async function planImpact(db: Db, intent: ChangeIntent): Promise<ImpactFi
 }
 
 /** 结构性依赖：数据库外键或稳定关系（关系端点、伏笔章节、剧情线归属） */
-async function structuralDeps(db: Db, intent: ChangeIntent): Promise<ImpactFinding[]> {
+function structuralDeps(db: Db | Tx, intent: ChangeIntent): ImpactFinding[] {
   const out: ImpactFinding[] = []
   if (intent.entityType === "character") {
     // 关系两端任一命中即视为结构依赖
-    const rels = await db
+    const rels = db
       .select({ id: RelationshipTable.id, type: RelationshipTable.type })
       .from(RelationshipTable)
       .where(
@@ -168,7 +169,7 @@ async function structuralDeps(db: Db, intent: ChangeIntent): Promise<ImpactFindi
     }
   }
   if (intent.entityType === "foreshadow") {
-    const rows = await db
+    const rows = db
       .select({ id: ForeshadowingTable.id, planted: ForeshadowingTable.planted_chapter_id, content: ForeshadowingTable.content })
       .from(ForeshadowingTable)
       .where(and(eq(ForeshadowingTable.novel_id, intent.novelId), eq(ForeshadowingTable.id, intent.entityId)))
@@ -186,7 +187,7 @@ async function structuralDeps(db: Db, intent: ChangeIntent): Promise<ImpactFindi
     }
   }
   if (intent.entityType === "plot_thread") {
-    const rows = await db
+    const rows = db
       .select({ id: PlotThreadTable.id, title: PlotThreadTable.title })
       .from(PlotThreadTable)
       .where(and(eq(PlotThreadTable.novel_id, intent.novelId), eq(PlotThreadTable.id, intent.entityId)))
@@ -211,15 +212,15 @@ async function structuralDeps(db: Db, intent: ChangeIntent): Promise<ImpactFindi
  * 按影响计划创建任务（确定性 + 结构性）。稳定键判重：同一变更对同一对象
  * （含 trigger_field）已有 pending 任务时不重复创建。返回新增任务数。
  */
-export async function applyImpact(db: Db, intent: ChangeIntent): Promise<number> {
+export function applyImpact(db: Db | Tx, intent: ChangeIntent): number {
   if (!intent.entityType || !intent.entityId) {
     throw new Error("影响任务需要 entityType 与 entityId：变更意图不完整")
   }
-  if (!(await hasWrittenChapters(db, intent.novelId))) return 0
-  const findings = await planImpact(db, intent)
+  if (!hasWrittenChapters(db, intent.novelId)) return 0
+  const findings = planImpact(db, intent)
   let count = 0
   for (const finding of findings) {
-    const existing = await db
+    const existing = db
       .select({ id: PendingUpdateTable.id })
       .from(PendingUpdateTable)
       .where(
@@ -236,8 +237,7 @@ export async function applyImpact(db: Db, intent: ChangeIntent): Promise<number>
       .limit(1)
       .all()
     if (existing.length > 0) continue
-    await db
-      .insert(PendingUpdateTable)
+    db.insert(PendingUpdateTable)
       .values({
         id: crypto.randomUUID(),
         novel_id: intent.novelId,
@@ -284,8 +284,7 @@ export async function createSemanticSuggestions(
       .limit(1)
       .all()
     if (existing.length > 0) continue
-    await db
-      .insert(PendingUpdateTable)
+    db.insert(PendingUpdateTable)
       .values({
         id: crypto.randomUUID(),
         novel_id: intent.novelId,
