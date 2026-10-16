@@ -1,5 +1,9 @@
 # Spec Delta
 
+## Purpose
+
+novel-store 数据层及其全部调用方的统一事务纪律：机制唯一性（ORM 同步回调事务为唯一形态，业务代码不得手写 BEGIN/COMMIT/ROLLBACK）、事务归属规则（组合点负责开事务、写入助手提供自包与组合双形态）、同步回调强制（异步回调即抛错回滚）、嵌套事务运行时检测（驱动支持时给出可读错误），以及 bun 与 node:sqlite 双运行时行为一致并由静态守卫与 CI 双闸门兜底。
+
 ## ADDED Requirements
 
 ### Requirement: 事务机制唯一性
