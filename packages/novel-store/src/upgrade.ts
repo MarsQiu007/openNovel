@@ -19,6 +19,8 @@ import {
   SegmentSummaryTable,
   StorySpineEntryTable,
   UpgradeStateTable,
+  UpgradeRunTable,
+  UpgradeRunChapterTable,
   type Db,
 } from "./index.js"
 import { computeFingerprint } from "./manual-edit-sync.js"
@@ -289,5 +291,76 @@ export async function setUpgradeGate(db: Db, novelId: string, gate: UpgradeGate)
     .insert(UpgradeStateTable)
     .values({ novel_id: novelId, gate, updated_at: now })
     .onConflictDoUpdate({ target: UpgradeStateTable.novel_id, set: { gate, updated_at: now } })
+    .run()
+}
+
+// ─── 升级运行实体（upgrade-reliability） ───
+
+/** 升级运行章节状态机。 */
+export type RunChapterStatus = "pending" | "running" | "synced" | "waiting_retry" | "terminal"
+
+/** 升级运行。 */
+export type UpgradeRun = typeof UpgradeRunTable.$inferSelect
+
+/** 升级运行章节。 */
+export type UpgradeRunChapter = typeof UpgradeRunChapterTable.$inferSelect
+
+/**
+ * 创建升级运行（组合形态）。
+ *
+ * 首参为调用方事务对象：已被外层事务包裹时复用其事务，函数体同步、不得再开事务。
+ * 创建 run 并批量插入目标章节集合，全部章节初始 status = pending。
+ * 返回新 run 的 ID。
+ */
+export function createUpgradeRunTx(tx: Tx, novelId: string, chapterIds: string[]): string {
+  const runId = crypto.randomUUID()
+  const now = Date.now()
+  tx.insert(UpgradeRunTable)
+    .values({ id: runId, novel_id: novelId, status: "active", created_at: now, updated_at: now })
+    .run()
+  for (const chapterId of chapterIds) {
+    tx.insert(UpgradeRunChapterTable)
+      .values({ id: crypto.randomUUID(), run_id: runId, chapter_id: chapterId, status: "pending" })
+      .run()
+  }
+  return runId
+}
+
+/** 获取某小说的活跃升级运行（至多一个；多个时取最新创建）。 */
+export async function getActiveUpgradeRun(
+  novelId: string,
+  directory?: string | null,
+): Promise<UpgradeRun | null> {
+  const db = getDb(directory)
+  const rows = db
+    .select()
+    .from(UpgradeRunTable)
+    .where(and(eq(UpgradeRunTable.novel_id, novelId), eq(UpgradeRunTable.status, "active")))
+    .orderBy(sql`${UpgradeRunTable.created_at} DESC`)
+    .limit(1)
+    .all()
+  return rows[0] ?? null
+}
+
+/** 更新升级运行章节状态机字段（组合形态）。 */
+export function updateRunChapterStatusTx(
+  tx: Tx,
+  runChapterId: string,
+  updates: Partial<{
+    status: RunChapterStatus
+    attempts: number
+    started_at: number
+    completed_at: number
+    resume_at: number
+    failure_class: string
+    failure_message: string
+    failure_action: string
+    failure_detail: string
+    queue_entry_id: string
+  }>,
+): void {
+  tx.update(UpgradeRunChapterTable)
+    .set(updates)
+    .where(eq(UpgradeRunChapterTable.id, runChapterId))
     .run()
 }

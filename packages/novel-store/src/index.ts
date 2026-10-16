@@ -818,6 +818,11 @@ CREATE TABLE IF NOT EXISTS manual_edit_sync_queue (id text PRIMARY KEY, novel_id
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_novel_status_idx ON manual_edit_sync_queue(novel_id, status);
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_fingerprint_idx ON manual_edit_sync_queue(novel_id, entity, entity_id, source_fingerprint);
 CREATE TABLE IF NOT EXISTS upgrade_state (novel_id text PRIMARY KEY, gate text NOT NULL DEFAULT 'open', updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS upgrade_run (id text PRIMARY KEY, novel_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, activated_at INTEGER, paused_at INTEGER, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS upgrade_run_novel_status_idx ON upgrade_run(novel_id, status);
+CREATE TABLE IF NOT EXISTS upgrade_run_chapter (id text PRIMARY KEY, run_id TEXT NOT NULL, chapter_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, started_at INTEGER, completed_at INTEGER, resume_at INTEGER, failure_class TEXT, failure_message TEXT, failure_action TEXT, failure_detail TEXT, queue_entry_id TEXT, FOREIGN KEY (run_id) REFERENCES upgrade_run(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS upgrade_run_chapter_run_idx ON upgrade_run_chapter(run_id, status);
+CREATE INDEX IF NOT EXISTS upgrade_run_chapter_chapter_idx ON upgrade_run_chapter(chapter_id);
 CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, chapter_order integer, content text NOT NULL, kind text NOT NULL DEFAULT 'chapter', source_fingerprint text, status text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
 CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);`
@@ -3021,6 +3026,55 @@ export const ManualEditSyncQueueTable = sqliteTable(
   ],
 )
 
+/** 升级运行（upgrade-reliability）：升级的唯一事实源，取代 upgrade_state 闸门。 */
+export const UpgradeRunTable = sqliteTable(
+  "upgrade_run",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    status: text()
+      .notNull()
+      .default("active"),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    activated_at: integer(),
+    paused_at: integer(),
+  },
+  (table) => [index("upgrade_run_novel_status_idx").on(table.novel_id, table.status)],
+)
+
+/** 升级运行章节状态机（upgrade-reliability）：每章的显式状态跟踪。 */
+export const UpgradeRunChapterTable = sqliteTable(
+  "upgrade_run_chapter",
+  {
+    id: text().primaryKey(),
+    run_id: text().notNull(),
+    chapter_id: text().notNull(),
+    status: text()
+      .notNull()
+      .default("pending"),
+    attempts: integer()
+      .notNull()
+      .default(0),
+    started_at: integer(),
+    completed_at: integer(),
+    resume_at: integer(),
+    failure_class: text(),
+    failure_message: text(),
+    failure_action: text(),
+    failure_detail: text(),
+    queue_entry_id: text(),
+  },
+  (table) => [
+    index("upgrade_run_chapter_run_idx").on(table.run_id, table.status),
+    index("upgrade_run_chapter_chapter_idx").on(table.chapter_id),
+  ],
+)
+
 /** 升级消费闸门状态（derived-data-upgrade）：open 正常消费 upgrade 任务，paused 暂停。 */
 export const UpgradeStateTable = sqliteTable("upgrade_state", {
   novel_id: text()
@@ -3065,6 +3119,7 @@ export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
 export * from "./upgrade.js"
+export * from "./sync-error-classifier.js"
 export * from "./style-rules.js"
 
 // ─── 统一事务入口 ───
