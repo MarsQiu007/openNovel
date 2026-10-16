@@ -2,41 +2,41 @@
 
 ## 1. Schema 与数据层
 
-- [ ] 1.1 在 `packages/novel-store/src/schema.ts`（或既有 schema 文件）新增 `upgrade_run` 与 `upgrade_run_chapter` 两张表，运行 drizzle migration 生成 SQL，并验证表结构与设计 D1 一致（字段、默认值、外键）
-- [ ] 1.2 在 `packages/novel-store/src/upgrade.ts` 新增 `createUpgradeRunTx`（组合形态，首参 Tx）：创建 run 并批量插入 run_chapter 目标集合，验证在新测试中用 `withTransaction` 包裹后能读到 run 与全部章节行
-- [ ] 1.3 在 `packages/novel-store/src/upgrade.ts` 新增 `getActiveUpgradeRun(novelID, directory?)`：返回该小说 `status = 'active'` 的 run（至多一个），验证无活跃 run 时返回 null、有多个时取最新
-- [ ] 1.4 在 `packages/novel-store/src/upgrade.ts` 新增 `updateRunChapterStatusTx`（组合形态）：更新单章状态机字段（status / attempts / started_at / completed_at / resume_at / failure_* / queue_entry_id），验证状态字段写入后可通过 `getActiveUpgradeRun` 聚合查询读出
+- [x] 1.1 在 `packages/novel-store/src/schema.ts`（或既有 schema 文件）新增 `upgrade_run` 与 `upgrade_run_chapter` 两张表，运行 drizzle migration 生成 SQL，并验证表结构与设计 D1 一致（字段、默认值、外键）
+- [x] 1.2 在 `packages/novel-store/src/upgrade.ts` 新增 `createUpgradeRunTx`（组合形态，首参 Tx）：创建 run 并批量插入 run_chapter 目标集合，验证在新测试中用 `withTransaction` 包裹后能读到 run 与全部章节行
+- [x] 1.3 在 `packages/novel-store/src/upgrade.ts` 新增 `getActiveUpgradeRun(novelID, directory?)`：返回该小说 `status = 'active'` 的 run（至多一个），验证无活跃 run 时返回 null、有多个时取最新
+- [x] 1.4 在 `packages/novel-store/src/upgrade.ts` 新增 `updateRunChapterStatusTx`（组合形态）：更新单章状态机字段（status / attempts / started_at / completed_at / resume_at / failure_* / queue_entry_id），验证状态字段写入后可通过 `getActiveUpgradeRun` 聚合查询读出
 
 ## 2. 失败分类器
 
-- [ ] 2.1 在 `packages/novel-store/src/sync-error-classifier.ts` 新建 `classifySyncError(error: unknown): FailureClassification`，覆盖六类分类（transient_quota / transient_rate / transient_network / terminal_parse / terminal_model / terminal_unknown），验证单元测试用真实错误文本样例（含「额度将于 2026-10-16 20:51:41 可用」）断言分类与 resumeAt 解析正确
-- [ ] 2.2 在分类器中实现指数退避计算 `computeBackoffMs(attempts: number): number`（1min 起步、上限 30min、±20% jitter），验证单元测试断言边界值与随机范围
+- [x] 2.1 在 `packages/novel-store/src/sync-error-classifier.ts` 新建 `classifySyncError(error: unknown): FailureClassification`，覆盖六类分类（transient_quota / transient_rate / transient_network / terminal_parse / terminal_model / terminal_unknown），验证单元测试用真实错误文本样例（含「额度将于 2026-10-16 20:51:41 可用」）断言分类与 resumeAt 解析正确
+- [x] 2.2 在分类器中实现指数退避计算 `computeBackoffMs(attempts: number): number`（1min 起步、上限 30min、±20% jitter），验证单元测试断言边界值与随机范围
 
 ## 3. Worker 消费回写
 
-- [ ] 3.1 修改 `packages/opennovel/src/novel/manual-edit-sync-worker.ts` `processSyncQueue`：worker 开始消费某章时，在同一事务内把对应 `upgrade_run_chapter` 置为 `running`、写 `started_at` 与 `queue_entry_id`；验证集成测试断言消费开始后 run_chapter 状态为 running
-- [ ] 3.2 在同一文件：重建成功时同事务置 `synced` + `completed_at`；重建失败时先调分类器，按分类置 `waiting_retry`（写 resume_at）或 `terminal`（写 failure_*），或 attempts < MAX 时重置 `pending`；验证集成测试覆盖三种失败路径
-- [ ] 3.3 在同一文件：保留「observer 重建 handler 未注册时升级任务禁止确定性 fallback」的诚实性保护（`entry.source === "upgrade" && !handler?.handleChapterContent` 时抛错），新增回归测试断言该保护未被破坏；验证 `bun test` 通过
-- [ ] 3.4 在 worker 轮询入口记录模块级 `lastPollAt = Date.now()`，新增 `getWorkerLastPollAt()` 导出；验证单元测试模拟两次轮询后时间戳更新
+- [x] 3.1 修改 `packages/opennovel/src/novel/manual-edit-sync-worker.ts` `processSyncQueue`：worker 开始消费某章时，在同一事务内把对应 `upgrade_run_chapter` 置为 `running`、写 `started_at` 与 `queue_entry_id`；验证集成测试断言消费开始后 run_chapter 状态为 running
+- [x] 3.2 在同一文件：重建成功时同事务置 `synced` + `completed_at`；重建失败时先调分类器，按分类置 `waiting_retry`（写 resume_at）或 `terminal`（写 failure_*），或 attempts < MAX 时重置 `pending`；验证集成测试覆盖三种失败路径
+- [x] 3.3 在同一文件：保留「observer 重建 handler 未注册时升级任务禁止确定性 fallback」的诚实性保护（`entry.source === "upgrade" && !handler?.handleChapterContent` 时抛错），新增回归测试断言该保护未被破坏；验证 `bun test` 通过
+- [x] 3.4 在 worker 轮询入口记录模块级 `lastPollAt = Date.now()`，新增 `getWorkerLastPollAt()` 导出；验证单元测试模拟两次轮询后时间戳更新
 
 ## 4. 服务端端点改造
 
-- [ ] 4.1 修改 `packages/server/src/handlers/novel.ts` `upgradeStartEndpoint`：Phase 1 完成后创建 `upgrade_run`（目标集合 = Phase 1 后待重建章节），再入队 Phase 2 条目；同事务完成；验证集成测试断言 start 后 run 存在且章节数与入队条目数一致
-- [ ] 4.2 修改 `upgradeProgressEndpoint`：有活跃 run 时按 `upgrade_run_chapter` 聚合（total / synced / failed / pending / waiting_retry / running），负载新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list`；无活跃 run 时回退旧逻辑；验证集成测试覆盖有 run / 无 run / 有 waiting_retry 三种情况
-- [ ] 4.3 修改 `syncRetryEndpoint`（`packages/server/src/handlers/novel.ts:2911`）：接收 `chapterIds: string[]`（从 `ManualEditSyncRetryInput.entryIds` 改为新字段），在 run 内重置 terminal / waiting_retry 章节为 pending（清失败字段、attempts 归零），同步重置对应队列条目；无活跃队列条目时用 `enqueueManualEditSyncTx` 入队；验证集成测试断言重试后 run_chapter 状态为 pending 且队列条目状态同步
-- [ ] 4.4 在 `upgradeStatusEndpoint` 加对账触发：检测到孤儿队列条目（不限 source——upgrade 或 manual 源都可能是孤儿）且无活跃 run 时，同步执行对账（按设计 D6 算法，单事务、零 AI 调用）；验证集成测试用预置孤儿 skipped 条目断言对账后该章被收编为 synced、横幅分母不再含幽灵条目
-- [ ] 4.5 修改 `upgradePauseEndpoint` / `upgradeResumeEndpoint`：废弃 `upgrade_state` 表，改为更新 `upgrade_run.status`（active ↔ paused），暂停后 worker 跳过 upgrade 来源条目；验证集成测试断言暂停后 run.status = paused 且 worker 不再消费、resume 后恢复消费
+- [x] 4.1 修改 `packages/server/src/handlers/novel.ts` `upgradeStartEndpoint`：Phase 1 完成后创建 `upgrade_run`（目标集合 = Phase 1 后待重建章节），再入队 Phase 2 条目；同事务完成；验证集成测试断言 start 后 run 存在且章节数与入队条目数一致
+- [x] 4.2 修改 `upgradeProgressEndpoint`：有活跃 run 时按 `upgrade_run_chapter` 聚合（total / synced / failed / pending / waiting_retry / running），负载新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list`；无活跃 run 时回退旧逻辑；验证集成测试覆盖有 run / 无 run / 有 waiting_retry 三种情况
+- [x] 4.3 修改 `syncRetryEndpoint`（`packages/server/src/handlers/novel.ts:2911`）：接收 `chapterIds: string[]`（从 `ManualEditSyncRetryInput.entryIds` 改为新字段），在 run 内重置 terminal / waiting_retry 章节为 pending（清失败字段、attempts 归零），同步重置对应队列条目；无活跃队列条目时用 `enqueueManualEditSyncTx` 入队；验证集成测试断言重试后 run_chapter 状态为 pending 且队列条目状态同步
+- [x] 4.4 在 `upgradeStatusEndpoint` 加对账触发：检测到孤儿队列条目（不限 source——upgrade 或 manual 源都可能是孤儿）且无活跃 run 时，同步执行对账（按设计 D6 算法，单事务、零 AI 调用）；验证集成测试用预置孤儿 skipped 条目断言对账后该章被收编为 synced、横幅分母不再含幽灵条目
+- [x] 4.5 修改 `upgradePauseEndpoint` / `upgradeResumeEndpoint`：废弃 `upgrade_state` 表，改为更新 `upgrade_run.status`（active ↔ paused），暂停后 worker 跳过 upgrade 来源条目；验证集成测试断言暂停后 run.status = paused 且 worker 不再消费、resume 后恢复消费
 
 ## 5. Protocol 契约更新
 
-- [ ] 5.1 在 `packages/schema`（或 `packages/protocol`）更新升级进度 / 重试 / 暂停 / 续跑的请求响应类型，新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list` 字段；重试请求从 `entryIds` 改为 `chapterIds`；运行 `cd packages/client && bun run generate` 重新生成 SDK，验证生成产物包含新字段且无手改痕迹
+- [x] 5.1 在 `packages/schema`（或 `packages/protocol`）更新升级进度 / 重试 / 暂停 / 续跑的请求响应类型，新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list` 字段；重试请求从 `entryIds` 改为 `chapterIds`；运行 `cd packages/client && bun run generate` 重新生成 SDK，验证生成产物包含新字段且无手改痕迹
 
 ## 6. App 横幅与进度展示
 
-- [ ] 6.1 修改 `packages/app/src/pages/novel/upgrade-banner.tsx`：横幅状态机改为 `hidden | prompt | running | waiting | done-with-failures`，waiting 态显示「模型额度已用尽，预计 {time} 自动恢复」；running 态显示当前章节与 ETA；验证 Storybook 或单元测试覆盖五态渲染
-- [ ] 6.2 修改 `packages/app/src/pages/novel/upgrade-banner.tsx` 失败列表：展示 `failure_message`（人话说明）+ `failure_action`（行动建议），原始错误文本折叠在细节里；重试按钮传 `chapterIds` 而非 `entryIds`；验证单元测试断言人话文本渲染、原始文本默认隐藏
-- [ ] 6.3 修改 `packages/app/src/context/novel-queries.ts` `useUpgradeProgress`：轮询间隔改为有活跃 run 时 5s、无 run 时停止；响应带 `worker_last_poll_at` 时若超 10s 无更新显示「同步未在运行」；验证单元测试模拟超时场景断言提示出现
-- [ ] 6.4 在 `packages/app` 新增 Phase 1 执行期间的「确定性回填执行中」本地状态：点击确认后、start 请求返回前显示；验证单元测试断言请求 pending 时文案渲染
+- [x] 6.1 修改 `packages/app/src/pages/novel/upgrade-banner.tsx`：横幅状态机改为 `hidden | prompt | running | waiting | done-with-failures`，waiting 态显示「模型额度已用尽，预计 {time} 自动恢复」；running 态显示当前章节与 ETA；验证 Storybook 或单元测试覆盖五态渲染
+- [x] 6.2 修改 `packages/app/src/pages/novel/upgrade-banner.tsx` 失败列表：展示 `failure_message`（人话说明）+ `failure_action`（行动建议），原始错误文本折叠在细节里；重试按钮传 `chapterIds` 而非 `entryIds`；验证单元测试断言人话文本渲染、原始文本默认隐藏
+- [x] 6.3 修改 `packages/app/src/context/novel-queries.ts` `useUpgradeProgress`：轮询间隔改为有活跃 run 时 5s、无 run 时停止；响应带 `worker_last_poll_at` 时若超 10s 无更新显示「同步未在运行」；验证单元测试模拟超时场景断言提示出现
+- [x] 6.4 在 `packages/app` 新增 Phase 1 执行期间的「确定性回填执行中」本地状态：点击确认后、start 请求返回前显示；验证单元测试断言请求 pending 时文案渲染
 
 ## 7. 对账与集成验证
 
