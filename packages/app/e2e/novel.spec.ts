@@ -414,8 +414,17 @@ test.describe("novel journey", () => {
     // ════════════════════════════════════════════════
     // Chapter 1 has status "drafting" which maps to "pending" approval
     // The approval bar should show approve and reject buttons
-    await expect(page.getByText("Approve")).toBeVisible({ timeout: APP_READY_TIMEOUT })
-    await expect(page.getByText("Reject")).toBeVisible()
+    const approveButton = page.getByText("Approve")
+    const rejectButton = page.getByText("Reject")
+    // ratio: 1 断言按钮完整位于视口内：阅读区根节点若退回 h-full 会把审批栏顶出
+    // 视口只剩顶部一条，toBeVisible 对非零尺寸的残条仍判可见，拦不住该回归
+    await expect(approveButton).toBeInViewport({ ratio: 1, timeout: APP_READY_TIMEOUT })
+    await expect(rejectButton).toBeInViewport({ ratio: 1 })
+    // 压缩窗口高度后审批栏仍须完整可见
+    await page.setViewportSize({ width: 1280, height: 500 })
+    await expect(approveButton).toBeInViewport({ ratio: 1 })
+    await expect(rejectButton).toBeInViewport({ ratio: 1 })
+    await page.setViewportSize({ width: 1280, height: 720 })
 
     // Screenshot: approval
     await page.screenshot({ path: "../.omo/evidence/task-35-approval.png", fullPage: true })
