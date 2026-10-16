@@ -23,9 +23,10 @@ import { join } from "node:path"
 const store = await import("@opennovel-ai/novel-store")
 const worker = await import("../src/novel/manual-edit-sync-worker.js")
 const { rebuildChapterDerivedData } = await import("../../plugin/src/novel-writer/chapter-rebuild.js")
+import type { Db } from "@opennovel-ai/novel-store"
 
 let dir: string
-let db: store.Db
+let db: Db
 
 const llm = async () =>
   JSON.stringify({

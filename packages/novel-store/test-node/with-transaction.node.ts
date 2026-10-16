@@ -21,6 +21,7 @@ import { join } from "node:path"
 
 const store = await import("../src/index.js")
 const { sql } = await import("drizzle-orm")
+import type { Db } from "../src/index.js"
 
 /** 每个用例独立目录 + 独立 DB，避免连接缓存串扰 */
 function freshDb() {
@@ -37,7 +38,7 @@ function freshDb() {
   }
 }
 
-function seedNovel(db: store.Db, novelId: string) {
+function seedNovel(db: Db, novelId: string) {
   db.insert(store.NovelTable)
     .values({ id: novelId, title: "node 事务验证", genre: "test", synopsis: "", status: "draft" })
     .run()
