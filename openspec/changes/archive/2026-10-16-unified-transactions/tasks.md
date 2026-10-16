@@ -50,6 +50,10 @@
 > 见 `docs/agents/ci-triage.md` 归因流程），与本提案 diff 无关。
 > node-runtime 测试（Node 24.22.0 + 真实 node:sqlite）8/8 通过。
 
+### 归档后收尾修复
+
+- 2c1c210a fix(ci): 修正 node-runtime job 的 checkout SHA 笔误（3905638 → 390a5638，引入时漏字符导致 actions/checkout 无法解析）
+
 ## Workflow follow-up
 
 - 实现提交按 `OpenSpec-Change: unified-transactions` footer 收集进本文件 `## Implementation Commits`（不含记录更新自身）。
