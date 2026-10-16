@@ -153,7 +153,9 @@ type FailureClassification = {
 
 ### D5: 重试语义（章节级）
 
-`upgradeRetryEndpoint` 改为接收 `chapterIds: string[]`：
+现状：升级重试与手动编辑重试共用 `syncRetryEndpoint`（`packages/server/src/handlers/novel.ts:2911`），接收 `ManualEditSyncRetryInput.entryIds`（`packages/schema/src/novel.ts:1056`）。
+
+改造：`syncRetryEndpoint` 的输入改为 `chapterIds: string[]`（新 schema 字段），语义变为：
 
 1. 在 run 内找这些章节的状态；
 2. 若 `terminal`：重置为 `pending`、`attempts = 0`、清失败字段；

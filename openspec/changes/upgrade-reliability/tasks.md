@@ -23,7 +23,7 @@
 
 - [ ] 4.1 修改 `packages/server/src/handlers/novel.ts` `upgradeStartEndpoint`：Phase 1 完成后创建 `upgrade_run`（目标集合 = Phase 1 后待重建章节），再入队 Phase 2 条目；同事务完成；验证集成测试断言 start 后 run 存在且章节数与入队条目数一致
 - [ ] 4.2 修改 `upgradeProgressEndpoint`：有活跃 run 时按 `upgrade_run_chapter` 聚合（total / synced / failed / pending / waiting_retry / running），负载新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list`；无活跃 run 时回退旧逻辑；验证集成测试覆盖有 run / 无 run / 有 waiting_retry 三种情况
-- [ ] 4.3 修改 `upgradeRetryEndpoint`：接收 `chapterIds: string[]`，在 run 内重置 terminal / waiting_retry 章节为 pending（清失败字段、attempts 归零），同步重置对应队列条目；无活跃队列条目时用 `enqueueManualEditSyncTx` 入队；验证集成测试断言重试后 run_chapter 状态为 pending 且队列条目状态同步
+- [ ] 4.3 修改 `syncRetryEndpoint`（`packages/server/src/handlers/novel.ts:2911`）：接收 `chapterIds: string[]`（从 `ManualEditSyncRetryInput.entryIds` 改为新字段），在 run 内重置 terminal / waiting_retry 章节为 pending（清失败字段、attempts 归零），同步重置对应队列条目；无活跃队列条目时用 `enqueueManualEditSyncTx` 入队；验证集成测试断言重试后 run_chapter 状态为 pending 且队列条目状态同步
 - [ ] 4.4 在 `upgradeStatusEndpoint` 加对账触发：检测到孤儿队列条目（不限 source——upgrade 或 manual 源都可能是孤儿）且无活跃 run 时，同步执行对账（按设计 D6 算法，单事务、零 AI 调用）；验证集成测试用预置孤儿 skipped 条目断言对账后该章被收编为 synced、横幅分母不再含幽灵条目
 - [ ] 4.5 修改 `upgradePauseEndpoint` / `upgradeResumeEndpoint`：废弃 `upgrade_state` 表，改为更新 `upgrade_run.status`（active ↔ paused），暂停后 worker 跳过 upgrade 来源条目；验证集成测试断言暂停后 run.status = paused 且 worker 不再消费、resume 后恢复消费
 
