@@ -194,12 +194,20 @@ export const novelKeys = {
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
 }
 
+/**
+ * 读取类小说查询的缓存保留时长（book-open-transition D6）：离开工作台后缓存保留 30 分钟，
+ * 数分钟内重开书籍直接复用缓存数据、首帧直出。不改变 staleTime（挂载仍会后台刷新）。
+ * 实时类查询（bound-sessions / sync-status）不应用本常量，保持默认 gcTime 与既有重拉语义。
+ */
+export const NOVEL_READ_QUERY_GC_TIME = 30 * 60_000
+
 // ---- createQuery hooks (13) ----
 
 export function useNovels(directory: Accessor<string>) {
   const client = useNovelClient()
   return createQuery(() => ({
     queryKey: novelKeys.list(directory()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].list({ location: { directory: directory() } }),
     enabled: !!directory(),
   }))
@@ -210,6 +218,7 @@ export function useNovelDetail(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.detail(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].detail({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -220,6 +229,7 @@ export function useVolumes(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.volumes(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].volumes({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -230,6 +240,7 @@ export function useChapters(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.chapters(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].chapters({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -240,6 +251,7 @@ export function useChapterDetail(novelID: Accessor<string>, chapterID: Accessor<
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.chapter(sdk().directory, novelID(), chapterID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].chapter({
         novelID: novelID(),
@@ -255,6 +267,7 @@ export function useChapterVersions(novelID: Accessor<string>, chapterID: Accesso
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["chapter-versions"](sdk().directory, novelID(), chapterID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["chapter-versions"]({
         novelID: novelID(),
@@ -270,6 +283,7 @@ export function useChapterReviews(novelID: Accessor<string>, chapterID: Accessor
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["chapter-reviews"](sdk().directory, novelID(), chapterID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["chapter-reviews"]({
         novelID: novelID(),
@@ -285,6 +299,7 @@ export function useCharacters(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.characters(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].characters({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -296,6 +311,7 @@ export function usePlotThreads(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["plot-threads"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["plot-threads"]({
         novelID: novelID(),
@@ -310,6 +326,7 @@ export function useForeshadowing(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.foreshadowing(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].foreshadowing({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -321,6 +338,7 @@ export function useWorldEntries(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["world-entries"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["world-entries"]({
         novelID: novelID(),
@@ -335,6 +353,7 @@ export function useOutline(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.outline(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].outline({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -372,6 +391,7 @@ export function useTension(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.tension(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].tension({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -382,6 +402,7 @@ export function useAiArtifacts(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["ai-artifacts"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["ai-artifacts"]({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -392,6 +413,7 @@ export function useNovelForSession(sessionID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["for-session"](sdk().directory, sessionID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["for-session"]({
         sessionID: sessionID(),
@@ -474,6 +496,7 @@ export function useRelationships(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.relationships(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].relationships({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -485,6 +508,7 @@ export function useCharacterStates(novelID: Accessor<string>, characterID: Acces
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["character-states"](sdk().directory, novelID(), characterID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["character-states"]({
         novelID: novelID(),
@@ -500,6 +524,7 @@ export function useAllCharacterStates(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["all-character-states"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["all-character-states"]({
         novelID: novelID(),
@@ -514,6 +539,7 @@ export function useStyleGuide(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["style-guide"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["style-guide"]({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -525,6 +551,7 @@ export function useSoul(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.soul(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].soul({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -536,6 +563,7 @@ export function useNovelSearch(novelID: Accessor<string>, q: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.search(sdk().directory, novelID(), q()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].search({
         novelID: novelID(),
@@ -551,6 +579,7 @@ export function useUpgradeStatus(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["upgrade-status"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["upgrade-status"]({
         novelID: novelID(),
@@ -565,6 +594,7 @@ export function useUpgradeProgress(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["upgrade-progress"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["upgrade-progress"]({
         novelID: novelID(),
@@ -699,6 +729,7 @@ export function useMode() {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.mode(sdk().directory),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client().novelModes.get({ location: { directory: sdk().directory } }),
     enabled: !!sdk().directory,
     staleTime: 30_000,
@@ -1568,6 +1599,7 @@ export function useStructure(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.structure(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].structure({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -1578,6 +1610,7 @@ export function useStoryArcs(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.arcs(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].arcs({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
   }))
@@ -1588,6 +1621,7 @@ export function useArcBeats(novelID: Accessor<string>, arcID: Accessor<string>) 
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["arc-beats"](sdk().directory, novelID(), arcID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["arc-beats"]({ novelID: novelID(), arcID: arcID(), location: { directory: sdk().directory } }),
     enabled: !!novelID() && !!arcID(),
@@ -1599,6 +1633,7 @@ export function useAnnotations(novelID: Accessor<string>, targetType: Accessor<s
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.annotations(sdk().directory, novelID(), targetType(), targetId()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].annotations({
         novelID: novelID(),
@@ -1615,6 +1650,7 @@ export function useCanvasLayout(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["canvas-layout"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["canvas-layout"]({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -1626,6 +1662,7 @@ export function useEditorialReports(novelID: Accessor<string>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["editorial-reports"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["editorial-reports"]({ novelID: novelID(), location: { directory: sdk().directory } }),
     enabled: !!novelID(),
@@ -1637,6 +1674,7 @@ export function useVolumeReviews(novelID: Accessor<string>, volumeID: Accessor<s
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["volume-reviews"](sdk().directory, novelID(), volumeID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"]["volume-reviews"]({
         novelID: novelID(),
@@ -1848,6 +1886,7 @@ export function useAnnotationRounds(novelID: Accessor<string>, targetType: Acces
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["annotation-rounds"](sdk().directory, novelID(), targetType(), targetId()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: async () => {
       const dir = sdk().directory
       const result = await client()["server.novel"]["annotation-rounds"]({
@@ -2009,6 +2048,7 @@ export function useTechniques() {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.techniques(sdk().directory),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: async () => {
       const items = await client()["server.technique"].list({ location: { directory: sdk().directory }, library: "all" })
       // 生成客户端对可选字段给 null，归一化为 undefined 以对齐 schema Technique
@@ -2024,6 +2064,7 @@ export function useTechniqueDetail(techniqueID: Accessor<string | null>) {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.technique(sdk().directory, techniqueID() ?? ""),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.technique"].detail({
         techniqueID: techniqueID()!,
@@ -2038,6 +2079,7 @@ export function useTechniqueInjection() {
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys["technique-injection"](sdk().directory),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.technique"].config({ location: { directory: sdk().directory } }),
     enabled: !!sdk().directory,
     staleTime: 30_000,
