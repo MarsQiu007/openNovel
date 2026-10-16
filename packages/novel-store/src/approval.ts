@@ -10,6 +10,7 @@
 import { eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { getDb, ChapterTable } from "./index.js"
+import { withTransaction, type Tx } from "./tx.js"
 
 // ─── 审批结果类型 ───
 
@@ -40,10 +41,35 @@ export type ApprovalHandleResult =
 // ─── 公开 API ───
 
 /**
- * 请求人工审批 — 保存写手提交的章节内容，返回章节详情供审核
- * @param chapterId 章节 ID
- * @param content 写手生成的章节内容
- * @returns 章节详情，供人工审核展示
+ * 请求人工审批（组合形态）——保存写手提交的章节内容，返回更新前的章节行。
+ *
+ * 首参为调用方事务对象：已被外层事务包裹时复用其事务，函数体同步、不得再开事务。
+ * check-then-act 放进同一事务：并发审批不会读到过期章节，也不会更新到已被删除的行后仍报成功。
+ */
+export function requestApprovalTx(
+  tx: Tx,
+  chapterId: string,
+  content: string,
+): typeof ChapterTable.$inferSelect {
+  const current = tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+  if (!current) throw new Error(`未找到章节 ${chapterId}`)
+  // 保存写手内容，标记为待审核状态
+  tx.update(ChapterTable)
+    .set({
+      content,
+      word_count: countWords(content),
+      status: "pending_review",
+      updated_at: Date.now(),
+    })
+    .where(eq(ChapterTable.id, chapterId))
+    .run()
+  return current
+}
+
+/**
+ * 请求人工审批 — 保存写手提交的章节内容，返回章节详情供审核（自包形态）。
+ *
+ * 供无事务上下文的调用方使用：内部经 withTransaction 自包事务，签名与错误类型不变。
  */
 export async function requestApproval(
   chapterId: string,
@@ -51,23 +77,7 @@ export async function requestApproval(
   directory?: string | null,
 ): Promise<ApprovalRequest> {
   const db = getDb(directory)
-  // check-then-act 放进同一事务：并发审批不会读到过期章节，也不会更新到已被删除的行后仍报成功
-  const chapter = db.transaction((tx) => {
-    const current = tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
-    if (!current) throw new Error(`未找到章节 ${chapterId}`)
-    // 保存写手内容，标记为待审核状态
-    tx
-      .update(ChapterTable)
-      .set({
-        content,
-        word_count: countWords(content),
-        status: "pending_review",
-        updated_at: Date.now(),
-      })
-      .where(eq(ChapterTable.id, chapterId))
-      .run()
-    return current
-  })
+  const chapter = withTransaction(db, (tx) => requestApprovalTx(tx, chapterId, content))
 
   return {
     chapterId: chapter.id,
