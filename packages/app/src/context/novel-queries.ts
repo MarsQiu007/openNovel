@@ -454,41 +454,46 @@ export async function loadBoundSessionsWithEmptyGuard(input: {
 export function useBoundNovelSessions(novelID: Accessor<string>) {
   const client = useNovelClient()
   const sdk = useSDK()
-  return createQuery(() => ({
-    queryKey: novelKeys["bound-sessions"](sdk().directory, novelID()),
-    enabled: !!novelID(),
-    queryFn: async () => {
-      const dir = sdk().directory
-      return loadBoundSessionsWithEmptyGuard({
-        novelID: novelID(),
-        maxAttempts: 4,
-        delayMs: 1000,
-        fetchOnce: async () => {
-          const [bindings, { data: sessionList }] = await Promise.all([
-            client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
-            sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
-          ])
-          const safeBindings = (bindings ?? []) as readonly NovelSessionBinding[]
-          return {
-            options: boundNovelSessions({
-              novelID: novelID(),
+  return createQuery(() => {
+    // 选项求值内一次性读取：queryKey 与 queryFn 捕获的 book / dir 必须同源同瞬间。
+    // 切书经过路由 transition 时，live accessor 在在途请求 await 之后可能读到回摆的旧值，
+    // queryFn 若在 await 后重新读取，会把旧书会话列表写进新书缓存 key（book-open-transition）。
+    const book = novelID()
+    const dir = sdk().directory
+    return {
+      queryKey: novelKeys["bound-sessions"](dir, book),
+      enabled: !!book,
+      queryFn: async () =>
+        loadBoundSessionsWithEmptyGuard({
+          novelID: book,
+          maxAttempts: 4,
+          delayMs: 1000,
+          fetchOnce: async () => {
+            const [bindings, { data: sessionList }] = await Promise.all([
+              client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
+              sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
+            ])
+            const safeBindings = (bindings ?? []) as readonly NovelSessionBinding[]
+            return {
+              options: boundNovelSessions({
+                novelID: book,
+                bindings: safeBindings,
+                sessions: sessionList ?? [],
+              }),
               bindings: safeBindings,
-              sessions: sessionList ?? [],
-            }),
-            bindings: safeBindings,
-          }
-        },
-      })
-    },
-    // staleTime 0 + refetchOnMount：重新打开书籍工作台总是 background refetch，
-    // 不依赖用户强制刷新整窗（session-list-first-pull-stuck D3）
-    staleTime: 0,
-    refetchOnMount: true,
-    // 打开书籍时服务端可能仍在启动窗口期，首拉失败以有限退避重试自愈，
-    // 避免错误态滞留到用户发出首条消息才被 invalidate 救回
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
-  }))
+            }
+          },
+        }),
+      // staleTime 0 + refetchOnMount：重新打开书籍工作台总是 background refetch，
+      // 不依赖用户强制刷新整窗（session-list-first-pull-stuck D3）
+      staleTime: 0,
+      refetchOnMount: true,
+      // 打开书籍时服务端可能仍在启动窗口期，首拉失败以有限退避重试自愈，
+      // 避免错误态滞留到用户发出首条消息才被 invalidate 救回
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    }
+  })
 }
 
 export function useRelationships(novelID: Accessor<string>) {

@@ -1,6 +1,7 @@
-import { useParams, useNavigate, useSearchParams, useLocation } from "@solidjs/router"
+import { useParams, useNavigate, useSearchParams, useLocation, useIsRouting } from "@solidjs/router"
 import { createEffect, createSignal, createMemo, For, Show, onCleanup, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useQueryClient } from "@tanstack/solid-query"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
 import { useServerSync } from "@/context/server-sync"
@@ -40,6 +41,8 @@ import {
   useBoundNovelSessions,
   resolveAutoAdoptTarget,
   flattenNovelSessionOptions,
+  novelKeys,
+  type NovelSessionOption,
 } from "@/context/novel-queries"
 import ChapterSidebar from "./chapter-sidebar"
 import ChapterReader from "./chapter-reader"
@@ -136,6 +139,19 @@ export default function NovelWorkspaceFrame() {
   const novel = useNovel()
   const navigate = useNavigate()
   const location = useLocation()
+  // 在途导航标记（路由 transition 起止）。开门定址专用：从无会话段（params.id 为空）发起的
+  // 导航——回跳定址 / 展开态地址同步——期间保持门关闭，直到 history.replaceState 与
+  // isRouting=false 同批落地（见路由 navigateEnd），保证「地址已定址」先于最终内容帧渲染。
+  // 书内会话切换（params.id 始终存在）不置位：工作台保持挂载，不闪、不丢组件状态。
+  const isRouting = useIsRouting()
+  const [openingRouting, setOpeningRouting] = createSignal(false)
+  createEffect(() => {
+    if (isRouting() && params.id === undefined) {
+      setOpeningRouting(true)
+      return
+    }
+    if (!isRouting()) setOpeningRouting(false)
+  })
   // 全局设置入口（mod+,）：会话宿主收敛到工作台后保持可达，对话框按 params.id 自动作用域到当前会话
   useSettingsCommand()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -154,6 +170,7 @@ export default function NovelWorkspaceFrame() {
   const novelID = () => params.novelID!
   const data = useWorkspaceData(novelID)
   const sdk = useSDK()
+  const queryClient = useQueryClient()
   // Must match the decoded directory used by novel-queries keys — params.dir is base64-encoded
   useNovelLiveInvalidation(() => sdk().directory, novelID)
   const [selectedChapterId, setSelectedChapterId] = createSignal<string | null>(null)
@@ -275,7 +292,18 @@ export default function NovelWorkspaceFrame() {
   // 该书首帧落值完成标记与展开态同步标记（书切换时自动回到未准备态，门随书重新关闭）
   const [framePreparedFor, setFramePreparedFor] = createSignal<string | null>(null)
   const [expandSyncedFor, setExpandSyncedFor] = createSignal<string | null>(null)
-  const firstFrameReady = createMemo(() => framePreparedFor() === novelID() && persistedReady() && !data.loading)
+  // 决策数据按当前书 key 直读 query client：boundSessions 的结果 store 在切书瞬间可能
+  // 仍停留在旧书的通知（tanstack 批处理滞后），直接读它会让新书命中旧书列表（选错会话、
+  // 甚至带着旧书会话号跳到新书）。按 key 直读天然与该书数据对齐；dataUpdatedAt /
+  // errorUpdatedAt / fetchStatus 仅作订阅，状态落地（含重试自愈）时触发本 memo 重算。
+  const boundSessionsForBook = createMemo(() => {
+    void boundSessions.dataUpdatedAt
+    void boundSessions.errorUpdatedAt
+    void boundSessions.fetchStatus
+    return queryClient.getQueryState<NovelSessionOption[]>(
+      novelKeys["bound-sessions"](sdk().directory, novelID()),
+    )
+  })
 
   /**
    * 未选中会话时的回跳决策：「hold」= 尚不可决（门保持关闭）；「stay」= 无需导航；
@@ -283,14 +311,17 @@ export default function NovelWorkspaceFrame() {
    * - 列表加载中不可决；
    * - 空列表要等重拉（refetch / 空守卫）落定，避免复用旧空结果后被替换；
    * - 非空列表立即决策（后台重拉不阻塞打开）；失败态按无回跳处理，保留失败占位与手动重试。
+   * 决策输入一律取自 boundSessionsForBook（当前书 key），不受跨书滞后影响。
    */
   const adoptDecision = createMemo<AdoptDecision>(() => {
     if (params.id) return { kind: "stay" }
     if (!perBookStateReady()) return { kind: "hold" }
-    if (boundSessions.status === "error") return { kind: "stay" }
-    if (boundSessions.status !== "success") return { kind: "hold" }
-    const list = boundSessions.data ?? []
-    if (list.length === 0 && boundSessions.fetchStatus === "fetching") return { kind: "hold" }
+    const state = boundSessionsForBook()
+    if (!state) return { kind: "hold" }
+    if (state.status === "error") return { kind: "stay" }
+    if (state.status !== "success") return { kind: "hold" }
+    const list = state.data ?? []
+    if (list.length === 0 && state.fetchStatus === "fetching") return { kind: "hold" }
     const target = resolveAutoAdoptTarget({
       sessions: list,
       allSessions: flattenNovelSessionOptions(list),
@@ -299,15 +330,29 @@ export default function NovelWorkspaceFrame() {
     return target ? { kind: "go", sessionID: target } : { kind: "stay" }
   })
 
+  // 首帧门持续条件：仅待回跳（go）期间保持关闭——失败自愈重试等后续触发的定址
+  // 也走「加载 → 最终视图」，不在开门状态被替换（D1 持续生效）。hold 不关门：
+  // 重试窗口内状态在 stay/hold 间翻转，关门会造成内容子树挂载抖动与请求回环。
+  // 注意：必须声明在 adoptDecision 之后（createMemo 即时求值，引用前移会触发 TDZ）。
+  const firstFrameReady = createMemo(
+    () =>
+      framePreparedFor() === novelID() &&
+      persistedReady() &&
+      !data.loading &&
+      !openingRouting() &&
+      adoptDecision().kind !== "go",
+  )
+
   // 回跳执行（持续生效）：决策落定且存在目标时以 replace 一次定址——历史中不残留被替换的中间条目。
-  // 覆盖首次打开、空结果重拉恢复、失败自愈重试恢复三条路径；发起前校验仍处于同一本书。
+  // 覆盖首次打开、空结果重拉恢复、失败自愈重试恢复三条路径；决策与执行在同一同步 pass 内
+  // 基于当前书完成（见 boundSessionsForBook），不存在跨书过期决策。
   createEffect(() => {
     const adopt = adoptDecision()
     if (adopt.kind !== "go") return
-    const book = novelID()
-    if (novelID() !== book) return
     // 保留当前查询串：展开态（?tab=panel:<id>）等地址状态随定址一起迁移，不被 replace 丢弃
-    navigate(`/${params.dir}/novel/${book}/session/${adopt.sessionID}${location.search}`, { replace: true })
+    navigate(`/${params.dir}/novel/${novelID()}/session/${adopt.sessionID}${location.search}`, {
+      replace: true,
+    })
   })
 
   // 首帧准备（每本书一次）：落值章节选中与内容现场（乐观恢复），同步展开态地址；
@@ -341,13 +386,20 @@ export default function NovelWorkspaceFrame() {
     setSelectedWorldEntryId(saved?.worldEntryId ?? null)
     setSelectedRelationCharacterId(saved?.relationCharacterId ?? null)
 
-    // 展开态地址同步：无 tab 参数时按持久值以 replace 恢复（不在历史残留中间条目）
+    // 展开态地址同步：无 tab 参数时按持久值以 replace 恢复（不在历史残留中间条目）。
+    // setSearchParams 经路由 transition 异步落地：落地前不标记完成、首帧门保持关闭——
+    // 否则会先渲染默认态内容、再被地址变更替换（「打开后弹开面板」的闪烁来源）。
     if (expandSyncedFor() !== book) {
-      if (tabValue() === undefined) {
+      if (tabValue() !== undefined) {
+        setExpandSyncedFor(book)
+      } else {
         const match = RAIL_PANELS.find((item) => item.key === layout.expanded)
-        if (match && match.key !== "chat") setSearchParams({ tab: `panel:${match.key}` }, { replace: true })
+        if (match && match.key !== "chat") {
+          setSearchParams({ tab: `panel:${match.key}` }, { replace: true })
+          return // 地址尚未落地：门保持关闭，待 tabValue 更新后重跑本效果
+        }
+        setExpandSyncedFor(book)
       }
-      setExpandSyncedFor(book)
     }
 
     if (adoptDecision().kind !== "stay") return // hold 或待回跳：门保持关闭
@@ -823,7 +875,7 @@ export default function NovelWorkspaceFrame() {
           </div>
         }
       >
-        <div class="flex flex-col h-full w-full">
+        <div class="flex flex-col h-full w-full" data-slot="novel-workspace-content">
           {/* Header */}
           <header class="flex items-center justify-between px-5 py-3 border-b border-v2-border-border-base">
             <div class="flex items-center gap-4">
@@ -1254,11 +1306,12 @@ export default function NovelWorkspaceFrame() {
                       when={params.id}
                       fallback={
                         <Show
-                          when={boundSessions.status === "success"}
+                          // 有待回跳目标时保持占位：重试成功到定址落地之间不闪出懒创建空态
+                          when={boundSessions.status === "success" && adoptDecision().kind === "stay"}
                           fallback={
                             // 回跳决策未确认（失败 / 重试期）时不呈现懒创建空态：
                             // 失败占位 + 重试入口与切换器一致，重试成功后由回跳决策定址
-                            <div class="flex flex-col flex-1 items-center justify-center gap-3 px-6 text-center">
+                            <div data-slot="novel-chat-bindings-error" class="flex flex-col flex-1 items-center justify-center gap-3 px-6 text-center">
                               <p class="text-sm text-v2-text-text-muted">
                                 {boundSessions.isError && !boundSessions.isFetching
                                   ? "会话列表加载失败"
