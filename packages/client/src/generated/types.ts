@@ -6850,7 +6850,14 @@ export type ServerNovelSyncRetryInput = {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
     readonly library?: ("book" | "global" | "all") | undefined
   }["library"]
-  readonly entryIds: { readonly entryIds: ReadonlyArray<string> }["entryIds"]
+  readonly entryIds: {
+    readonly entryIds: ReadonlyArray<string>
+    readonly chapterIds?: ReadonlyArray<string>
+  }["entryIds"]
+  readonly chapterIds?: {
+    readonly entryIds: ReadonlyArray<string>
+    readonly chapterIds?: ReadonlyArray<string>
+  }["chapterIds"]
 }
 
 export type ServerNovelSyncRetryOutput = { readonly retried: number; readonly unchanged: number }
@@ -6917,7 +6924,22 @@ export type ServerNovelUpgradeProgressOutput = {
   readonly pending: number
   readonly failed: number
   readonly total: number
-  readonly failures: ReadonlyArray<{ readonly entryId: string; readonly chapterId: string; readonly reason: string }>
+  readonly failures: ReadonlyArray<{
+    readonly entryId: string
+    readonly chapterId: string
+    readonly reason: string
+    readonly failureClass?: string
+    readonly failureMessage?: string
+    readonly failureAction?: string
+    readonly failureDetail?: string
+  }>
+  readonly currentChapterId?: string
+  readonly currentChapterStartedAt?: number
+  readonly workerLastPollAt?: number
+  readonly etaMs?: number
+  readonly waitingRetryList?: ReadonlyArray<{ readonly chapterId: string; readonly resumeAt: number }>
+  readonly running?: number
+  readonly waitingRetry?: number
 }
 
 export type ServerNovelUpgradePauseInput = {

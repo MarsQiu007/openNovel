@@ -2650,7 +2650,7 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/sync/retry`,
             query: { location: input["location"], library: input["library"] },
-            body: { entryIds: input["entryIds"] },
+            body: { entryIds: input["entryIds"], chapterIds: input["chapterIds"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],
             empty: false,

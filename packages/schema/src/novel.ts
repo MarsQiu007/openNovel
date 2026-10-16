@@ -1055,6 +1055,8 @@ export interface ManualEditSyncQueryResult extends Schema.Schema.Type<typeof Man
 
 export const ManualEditSyncRetryInput = Schema.Struct({
   entryIds: Schema.Array(Schema.String),
+  /** 章节级重试：传入 chapterIds 时按章节定位重置（升级重试新语义）。 */
+  chapterIds: optional(Schema.Array(Schema.String)),
 }).annotate({ identifier: "Novel.ManualEditSyncRetryInput" })
 export interface ManualEditSyncRetryInput extends Schema.Schema.Type<typeof ManualEditSyncRetryInput> {}
 
@@ -1124,6 +1126,14 @@ export const UpgradeFailureItem = Schema.Struct({
   entryId: Schema.String,
   chapterId: Schema.String,
   reason: Schema.String,
+  /** 失败分类（transient_quota / transient_rate / transient_network / terminal_parse / terminal_model / terminal_unknown）。 */
+  failureClass: optional(Schema.String),
+  /** 人话说明（简体中文）。 */
+  failureMessage: optional(Schema.String),
+  /** 行动建议。 */
+  failureAction: optional(Schema.String),
+  /** 原始错误文本（可展开细节）。 */
+  failureDetail: optional(Schema.String),
 }).annotate({ identifier: "Novel.UpgradeFailureItem" })
 export interface UpgradeFailureItem extends Schema.Schema.Type<typeof UpgradeFailureItem> {}
 
@@ -1134,6 +1144,23 @@ export const UpgradeProgressResult = Schema.Struct({
   failed: Schema.Int,
   total: Schema.Int,
   failures: Schema.Array(UpgradeFailureItem),
+  /** 当前正在重建的章节 ID。 */
+  currentChapterId: optional(Schema.String),
+  /** 当前章节重建开始时间（Unix ms）。 */
+  currentChapterStartedAt: optional(Schema.Int),
+  /** worker 最近一次轮询时间（Unix ms）。 */
+  workerLastPollAt: optional(Schema.Int),
+  /** 预计剩余时间（ms）。 */
+  etaMs: optional(Schema.Int),
+  /** 等待自动恢复的章节列表。 */
+  waitingRetryList: optional(Schema.Array(Schema.Struct({
+    chapterId: Schema.String,
+    resumeAt: Schema.Int,
+  }))),
+  /** 正在重建中的章节数。 */
+  running: optional(Schema.Int),
+  /** 等待自动恢复的章节数。 */
+  waitingRetry: optional(Schema.Int),
 }).annotate({ identifier: "Novel.UpgradeProgressResult" })
 export interface UpgradeProgressResult extends Schema.Schema.Type<typeof UpgradeProgressResult> {}
 

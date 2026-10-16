@@ -2394,12 +2394,13 @@ type Endpoint18_101Input = {
   readonly location?: Endpoint18_101Request["query"]["location"]
   readonly library?: Endpoint18_101Request["query"]["library"]
   readonly entryIds: Endpoint18_101Request["payload"]["entryIds"]
+  readonly chapterIds?: Endpoint18_101Request["payload"]["chapterIds"]
 }
 const Endpoint18_101 = (raw: RawClient["server.novel"]) => (input: Endpoint18_101Input) =>
   raw["novel.sync-retry"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
-    payload: { entryIds: input["entryIds"] },
+    payload: { entryIds: input["entryIds"], chapterIds: input["chapterIds"] },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_102Request = Parameters<RawClient["server.novel"]["novel.upgrade-status"]>[0]
