@@ -2945,7 +2945,7 @@ async function retryChapters(
   let retried = 0
   let unchanged = 0
 
-  await withTransaction(db, (tx) => {
+  withTransaction(db, (tx) => {
     for (const chapterId of chapterIds) {
       const runChapter = tx
         .select()
