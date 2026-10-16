@@ -13,7 +13,9 @@ import {
   EntityRefTable,
   PendingUpdateTable,
   updateSyncStatus,
-  getUpgradeGate,
+  UpgradeRunTable,
+  UpgradeRunChapterTable,
+  classifySyncError,
   withTransaction,
   type Tx,
 } from "@opennovel-ai/novel-store"
@@ -45,6 +47,19 @@ let timer: ReturnType<typeof setInterval> | null = null
 const directories = new Set<string>()
 let inFlight = false
 
+/** worker 最近一次轮询时间（模块级，用于活性信号）。 */
+let lastPollAt: number | null = null
+
+/** 返回 worker 最近一次轮询时间戳；从未轮询时为 null。 */
+export function getWorkerLastPollAt(): number | null {
+  return lastPollAt
+}
+
+/** 重置轮询时间戳（测试用）。 */
+export function resetWorkerLastPollAt(): void {
+  lastPollAt = null
+}
+
 /** 消费所有已登记目录；定时器与测试共用同一防重入入口 */
 export async function processRegisteredSyncDirectories(): Promise<void> {
   if (inFlight) return
@@ -69,6 +84,7 @@ export async function processSyncQueue(
   directory: string | null | undefined,
   batchSize = 10,
 ): Promise<number> {
+  lastPollAt = Date.now()
   const db = getDb(directory)
   const pending = await db
     .select()
@@ -81,10 +97,19 @@ export async function processSyncQueue(
   const handler = handlers.get("default")
   let processed = 0
 
+  // 查活跃 run（含 paused），用于消费闸门与 run_chapter 状态回写
+  const activeRun = db
+    .select()
+    .from(UpgradeRunTable)
+    .where(eq(UpgradeRunTable.novel_id, pending[0].novel_id))
+    .orderBy(UpgradeRunTable.created_at)
+    .all()
+    .find((r) => r.status === "active" || r.status === "paused")
+
   for (const entry of pending) {
     try {
-      // 升级消费闸门：paused 时跳过 upgrade 任务（保留 pending，下轮重查）
-      if (entry.source === "upgrade" && (await getUpgradeGate(db, entry.novel_id)) === "paused") {
+      // 升级消费闸门：run paused 时跳过 upgrade 任务（保留 pending，下轮重查）
+      if (entry.source === "upgrade" && activeRun?.status === "paused") {
         continue
       }
       // 无 handler 的普通条目走确定性摘要 upsert；observer 与升级任务都在下面事务之外先行完成
@@ -110,11 +135,53 @@ export async function processSyncQueue(
         )
       }
       // 摘要、影响任务、主轴与状态回写同事务落地，中途失败整条回滚（统一事务入口：嵌套检测 + 同步回调约束）
-      withTransaction(db, (tx) => applySyncEntry(tx, entry, deterministicSummary))
+      withTransaction(db, (tx) => applySyncEntry(tx, entry, deterministicSummary, activeRun?.id ?? null))
       processed++
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       await updateSyncStatus(entry.id, "failed", reason, directory)
+      // run_chapter 状态回写：失败分类
+      if (activeRun && entry.entity_id) {
+        const runChapter = db
+          .select()
+          .from(UpgradeRunChapterTable)
+          .where(and(eq(UpgradeRunChapterTable.run_id, activeRun.id), eq(UpgradeRunChapterTable.chapter_id, entry.entity_id)))
+          .get()
+        if (runChapter) {
+          const classification = classifySyncError(error)
+          const now = Date.now()
+          const nextAttempts = runChapter.attempts + 1
+          const isExhausted = classification.kind === "transient" && nextAttempts >= 5
+          withTransaction(db, (tx) => {
+            if (classification.kind === "transient" && !isExhausted) {
+              if (classification.resumeAt) {
+                tx.update(UpgradeRunChapterTable)
+                  .set({ status: "waiting_retry", resume_at: classification.resumeAt, attempts: nextAttempts, started_at: now })
+                  .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+                  .run()
+              } else {
+                tx.update(UpgradeRunChapterTable)
+                  .set({ status: "pending", attempts: nextAttempts, started_at: now })
+                  .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+                  .run()
+              }
+            } else {
+              tx.update(UpgradeRunChapterTable)
+                .set({
+                  status: "terminal",
+                  attempts: nextAttempts,
+                  started_at: now,
+                  failure_class: classification.failureClass,
+                  failure_message: classification.message,
+                  failure_action: classification.action,
+                  failure_detail: reason,
+                })
+                .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+                .run()
+            }
+          })
+        }
+      }
     }
   }
 
@@ -125,7 +192,7 @@ export async function processSyncQueue(
  * 单条同步任务的确定性写入：摘要 upsert、影响任务插入、主轴刷新与状态回写必须在同一事务里完成。
  * 分步提交会在中途失败时留下半同步状态（数据已改但条目仍 pending，或条目已 synced 但数据未改）。
  */
-function applySyncEntry(tx: Tx, entry: SyncEntry, writeSummary: boolean) {
+function applySyncEntry(tx: Tx, entry: SyncEntry, writeSummary: boolean, runId: string | null) {
   const entityId = entry.entity_id ?? ""
   if (writeSummary && entityId) {
     const existing = tx.select().from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, entityId)).get()
@@ -198,6 +265,29 @@ function applySyncEntry(tx: Tx, entry: SyncEntry, writeSummary: boolean) {
         ),
       )
       .run()
+  }
+
+  // run_chapter 状态回写：消费开始 / 成功
+  if (runId && entry.entity_id) {
+    const now = Date.now()
+    const runChapter = tx
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, entry.entity_id)))
+      .get()
+    if (runChapter) {
+      if (runChapter.status === "pending" || runChapter.status === "waiting_retry") {
+        tx.update(UpgradeRunChapterTable)
+          .set({ status: "running", started_at: now, queue_entry_id: entry.id })
+          .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+          .run()
+      }
+      // 消费成功 → synced
+      tx.update(UpgradeRunChapterTable)
+        .set({ status: "synced", completed_at: now })
+        .where(eq(UpgradeRunChapterTable.id, runChapter.id))
+        .run()
+    }
   }
 
   // 状态回写也进事务：updateSyncStatus 自开连接无法加入，直接写队列表保持同样的字段语义

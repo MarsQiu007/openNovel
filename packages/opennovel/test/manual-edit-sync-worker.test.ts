@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import {
   closeDb,
   getDb,
@@ -11,6 +11,9 @@ import {
   ChapterSummaryTable,
   enqueueManualEditSync,
   querySyncStatus,
+  UpgradeRunTable,
+  UpgradeRunChapterTable,
+  withTransaction,
 } from "@opennovel-ai/novel-store"
 import {
   registerSyncHandler,
@@ -20,6 +23,8 @@ import {
   processRegisteredSyncDirectories,
   registerSyncDirectory,
   stopSyncWorker,
+  getWorkerLastPollAt,
+  resetWorkerLastPollAt,
 } from "../src/novel/manual-edit-sync-worker"
 
 let projectDir: string
@@ -153,6 +158,33 @@ describe("processSyncQueue", () => {
     const processed = await processSyncQueue(projectDir, 5)
     expect(processed).toBe(5)
   })
+
+  test("诚实性保护：upgrade 源条目无 handler 时抛错不降级", async () => {
+    const chapter = await createChapter(novelId, "诚实性保护", 1, null, projectDir)
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp", source: "upgrade" },
+      projectDir,
+    )
+    const processed = await processSyncQueue(projectDir)
+    expect(processed).toBe(0)
+    const entries = await querySyncStatus(novelId, { status: "failed" }, projectDir)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].failure_reason).toContain("observer 重建 handler 未注册")
+    expect(entries[0].failure_reason).toContain("未重建不得标记已同步")
+  })
+
+  test("诚实性保护：manual 源条目无 handler 时走确定性 fallback", async () => {
+    const chapter = await createChapter(novelId, "manual 降级", 2, null, projectDir)
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-manual", source: "manual" },
+      projectDir,
+    )
+    const processed = await processSyncQueue(projectDir)
+    expect(processed).toBe(1)
+    const db = getDb(projectDir)
+    const summary = db.select().from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapter.id)).get()
+    expect(summary?.source_fingerprint).toBe("fp-manual")
+  })
 })
 
 describe("worker 生命周期", () => {
@@ -225,6 +257,18 @@ describe("worker 生命周期", () => {
     await firstRound
     expect(calls).toBe(1)
   })
+
+  test("getWorkerLastPollAt 初始为 null，轮询后更新时间戳", async () => {
+    resetWorkerLastPollAt()
+    expect(getWorkerLastPollAt()).toBeNull()
+    await processSyncQueue(projectDir)
+    const first = getWorkerLastPollAt()
+    expect(first).not.toBeNull()
+    await processSyncQueue(projectDir)
+    const second = getWorkerLastPollAt()
+    expect(second).not.toBeNull()
+    expect(second!).toBeGreaterThanOrEqual(first!)
+  })
 })
 
 describe("设定影响面和主轴重建", () => {
@@ -296,5 +340,78 @@ describe("设定影响面和主轴重建", () => {
     const spine = db.select().from(StorySpineEntryTable).where(eq(StorySpineEntryTable.id, spineId)).get()
     expect(spine?.source_fingerprint).toBe("new-fp")
     expect(spine?.status).toBe("synced")
+  })
+})
+
+describe("upgrade_run 状态回写", () => {
+  function createRunWithChapter(chapterId: string): string {
+    const db = getDb(projectDir)
+    const runId = crypto.randomUUID()
+    const now = Date.now()
+    db.insert(UpgradeRunTable).values({ id: runId, novel_id: novelId, status: "active", created_at: now, updated_at: now }).run()
+    db.insert(UpgradeRunChapterTable).values({ id: crypto.randomUUID(), run_id: runId, chapter_id: chapterId, status: "pending" }).run()
+    return runId
+  }
+
+  test("消费开始后 run_chapter 状态变为 running", async () => {
+    const chapter = await createChapter(novelId, "run 状态测试", 1, null, projectDir)
+    const runId = createRunWithChapter(chapter.id)
+    registerSyncHandler({
+      handleChapterContent: async () => {},
+    })
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-run", source: "upgrade" },
+      projectDir,
+    )
+    await processSyncQueue(projectDir)
+    const db = getDb(projectDir)
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapter.id)))
+      .get()
+    expect(runChapter?.status).toBe("synced")
+    expect(runChapter?.completed_at).not.toBeNull()
+  })
+
+  test("重建失败时 run_chapter 按分类器更新状态", async () => {
+    const chapter = await createChapter(novelId, "失败分类测试", 2, null, projectDir)
+    const runId = createRunWithChapter(chapter.id)
+    registerSyncHandler({
+      handleChapterContent: async () => {
+        throw new Error("model not found: gpt-4")
+      },
+    })
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-fail", source: "upgrade" },
+      projectDir,
+    )
+    await processSyncQueue(projectDir)
+    const db = getDb(projectDir)
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapter.id)))
+      .get()
+    expect(runChapter?.status).toBe("terminal")
+    expect(runChapter?.failure_class).toBe("terminal_model")
+    expect(runChapter?.failure_message).toContain("模型不可用")
+  })
+
+  test("run paused 时 upgrade 条目不被消费", async () => {
+    const chapter = await createChapter(novelId, "paused 测试", 3, null, projectDir)
+    const db = getDb(projectDir)
+    const runId = crypto.randomUUID()
+    const now = Date.now()
+    db.insert(UpgradeRunTable).values({ id: runId, novel_id: novelId, status: "paused", created_at: now, updated_at: now }).run()
+    db.insert(UpgradeRunChapterTable).values({ id: crypto.randomUUID(), run_id: runId, chapter_id: chapter.id, status: "pending" }).run()
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-paused", source: "upgrade" },
+      projectDir,
+    )
+    const processed = await processSyncQueue(projectDir)
+    expect(processed).toBe(0)
+    const entries = await querySyncStatus(novelId, { status: "pending" }, projectDir)
+    expect(entries).toHaveLength(1)
   })
 })
