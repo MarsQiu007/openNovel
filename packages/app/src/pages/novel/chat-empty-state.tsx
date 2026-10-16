@@ -68,7 +68,7 @@ export function NovelChatEmptyState(props: {
   }
 
   return (
-    <div class="flex flex-col flex-1 items-center justify-center gap-4 px-6 text-center">
+    <div class="flex flex-col flex-1 items-center justify-center gap-4 px-6 text-center" data-slot="novel-chat-empty">
       <p class="text-sm text-v2-text-text-muted">{language.t("novel.workspace.chatEmpty")}</p>
       <Show
         when={bootstrapBook()}

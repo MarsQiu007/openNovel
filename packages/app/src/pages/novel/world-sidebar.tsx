@@ -55,7 +55,7 @@ export function WorldSidebar(props: WorldSidebarProps) {
   })
 
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3" data-slot="world-sidebar">
       <Show when={query.isLoading}>
         <div class="flex items-center justify-center py-8">
           <Spinner class="w-5 h-5 text-v2-text-text-muted" />

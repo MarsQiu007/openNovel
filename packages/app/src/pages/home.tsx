@@ -445,7 +445,7 @@ export function NewHome() {
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <For each={filteredNovels()}>
                         {(novel) => (
-                          <div class="group relative flex cursor-pointer flex-col gap-3 rounded-[8px] border border-v2-border-border-base bg-v2-background-bg-layer-01 p-3 transition-[background-color,box-shadow] duration-[120ms] ease-in-out hover:bg-v2-background-bg-layer-02 hover:[box-shadow:var(--v2-elevation-raised)]">
+                          <div data-component="home-book-card" class="group relative flex cursor-pointer flex-col gap-3 rounded-[8px] border border-v2-border-border-base bg-v2-background-bg-layer-01 p-3 transition-[background-color,box-shadow] duration-[120ms] ease-in-out hover:bg-v2-background-bg-layer-02 hover:[box-shadow:var(--v2-elevation-raised)]">
                             <div
                               onClick={() => navigate(`/${base64Encode(bookshelfDirectory())}/novel/${novel.id}`)}
                               class="contents"
