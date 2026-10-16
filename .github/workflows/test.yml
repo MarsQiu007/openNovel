@@ -117,6 +117,46 @@ jobs:
         working-directory: packages/opennovel
         run: bun run test:technique-e2e
 
+  node-runtime:
+    # node:sqlite 驱动冒烟（unified-transactions）：bun:sqlite 会静默放过嵌套 begin 等
+    # 驱动层错误，bun 测试存在盲区；本 job 以 bun build --target=node 打包（#driver 解析到
+    # node 条件）后经 setup-node 的 Node 24 跑 node --test，覆盖 withTransaction 三错误形态、
+    # Phase 1 四步原子性、嵌套 savepoint 与同步队列消费 + 真实章节重建 handler 链。
+    name: node-runtime
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c39056381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Build node-runtime test bundles
+        run: |
+          bun build --target=node --outfile /tmp/ns-with-transaction.mjs packages/novel-store/test-node/with-transaction.node.ts
+          bun build --target=node --outfile /tmp/opennovel-sync-consume.mjs packages/opennovel/test-node/sync-consume.node.ts
+
+      - name: Verify bundles resolved the node driver condition
+        run: |
+          for f in /tmp/ns-with-transaction.mjs /tmp/opennovel-sync-consume.mjs; do
+            grep -q "setReturnArrays" "$f"
+            ! grep -q "bun:sqlite" "$f"
+          done
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Run node-runtime tests
+        timeout-minutes: 10
+        run: node --test /tmp/ns-with-transaction.mjs /tmp/opennovel-sync-consume.mjs
+
   e2e:
     name: e2e (${{ matrix.settings.name }})
     strategy:
