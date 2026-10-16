@@ -5,7 +5,8 @@
  * 回滚时自动保存当前版本为新版本，确保回滚可逆。
  * 遵循 novel-writer.ts 的数据库访问模式：本地定义 drizzle 表结构，使用 drizzle-orm/bun-sqlite 直接连接。
  */
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
+import { withTransaction } from "@opennovel-ai/novel-store"
 import { getDb, ChapterTable, ChapterVersionTable } from "./session-store.js"
 
 // ─── 导出类型 ───
@@ -62,14 +63,11 @@ export async function rollbackToVersion(
 
   const nextVersion = (lastVersion?.version ?? 0) + 1
 
-  // 备份版本插入与章节恢复必须同成同败：drizzle 的 async transaction 在 bun:sqlite 下不回滚，
-  // 按仓库惯例用原生 BEGIN/COMMIT/ROLLBACK 包裹
-  await db.run(sql`BEGIN`)
-  try {
+  // 备份版本插入与章节恢复必须同成同败：统一经 withTransaction 走 ORM 同步回调事务，任一步失败整体回滚
+  withTransaction(db, (tx) => {
     // 保存当前内容为新版本（确保回滚可逆）
     if (chapter.content) {
-      await db
-        .insert(ChapterVersionTable)
+      tx.insert(ChapterVersionTable)
         .values({
           id: crypto.randomUUID(),
           chapter_id: chapterId,
@@ -83,8 +81,7 @@ export async function rollbackToVersion(
     }
 
     // 恢复目标版本内容
-    await db
-      .update(ChapterTable)
+    tx.update(ChapterTable)
       .set({
         content: targetVersion.content,
         word_count: targetVersion.word_count,
@@ -92,12 +89,7 @@ export async function rollbackToVersion(
       })
       .where(eq(ChapterTable.id, chapterId))
       .run()
-
-    await db.run(sql`COMMIT`)
-  } catch (error) {
-    await db.run(sql`ROLLBACK`)
-    throw error
-  }
+  })
 
   return `章节「${chapter.title}」已回滚到版本 ${versionNumber}（当前内容已保存为版本 ${nextVersion}）`
 }

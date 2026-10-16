@@ -9,7 +9,8 @@
  * 幂等：重复调用同一章不会重复推进（已 drafted 的节点跳过）。
  */
 
-import { and, eq, or, sql } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
+import { withTransaction } from "@opennovel-ai/novel-store"
 import { getDb, ArcBeatTable, StoryArcTable, ChapterTable } from "./session-store.js"
 
 export type ArcProgressReport = {
@@ -38,12 +39,10 @@ export async function syncArcProgress(
 
   const now = Date.now()
 
-  // 多步相互依赖的写入：drizzle 的 async transaction 在 bun:sqlite 下不回滚，用原生 BEGIN/COMMIT/ROLLBACK
-  await db.run(sql`BEGIN`)
-  try {
+  // 多步相互依赖的写入：统一经 withTransaction 走 ORM 同步回调事务，任一步失败整体回滚
+  return withTransaction(db, (tx) => {
     // 回填：observer 可能用 chapter_id 锚定了节点但没填 chapter_order
-    await db
-      .update(ArcBeatTable)
+    tx.update(ArcBeatTable)
       .set({ chapter_order: chapter.order, updated_at: now })
       .where(
         and(
@@ -55,7 +54,7 @@ export async function syncArcProgress(
       .run()
 
     // 找到锚定到本章（按 chapter_order 或 chapter_id）且尚未落地的节点
-    const pendingBeats = await db
+    const pendingBeats = tx
       .select()
       .from(ArcBeatTable)
       .where(
@@ -68,12 +67,10 @@ export async function syncArcProgress(
       .all()
 
     if (pendingBeats.length === 0) {
-      await db.run(sql`COMMIT`)
       return { beatsDrafted: 0, arcsStarted: [], arcsCompleted: [] }
     }
 
-    await db
-      .update(ArcBeatTable)
+    tx.update(ArcBeatTable)
       .set({ status: "drafted", chapter_id: chapterId, chapter_order: chapter.order, updated_at: now })
       .where(
         and(
@@ -89,7 +86,7 @@ export async function syncArcProgress(
     const arcsCompleted: string[] = []
 
     for (const arcId of affectedArcIds) {
-      const [arc] = await db
+      const [arc] = tx
         .select()
         .from(StoryArcTable)
         .where(eq(StoryArcTable.id, arcId))
@@ -97,7 +94,7 @@ export async function syncArcProgress(
         .all()
       if (!arc) continue
 
-      const draftedBeats = await db
+      const draftedBeats = tx
         .select()
         .from(ArcBeatTable)
         .where(and(eq(ArcBeatTable.arc_id, arcId), eq(ArcBeatTable.status, "drafted")))
@@ -119,13 +116,9 @@ export async function syncArcProgress(
         arcsCompleted.push(arc.title)
       }
 
-      await db.update(StoryArcTable).set(patch).where(eq(StoryArcTable.id, arcId)).run()
+      tx.update(StoryArcTable).set(patch).where(eq(StoryArcTable.id, arcId)).run()
     }
 
-    await db.run(sql`COMMIT`)
     return { beatsDrafted: pendingBeats.length, arcsStarted, arcsCompleted }
-  } catch (error) {
-    await db.run(sql`ROLLBACK`)
-    throw error
-  }
+  })
 }

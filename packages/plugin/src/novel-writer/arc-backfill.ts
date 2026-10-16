@@ -9,10 +9,11 @@
  * - replace_all：删除项目全部弧光与节点后重建（全局重建）
  * - replace_matching：删除匹配条件的弧光与节点后重建（重建主线/某角色弧/某支线）
  *
- * 删除+新建在同一原生 SQL 事务内，任一失败整体回滚。
+ * 删除+新建在同一事务内（统一经 withTransaction 走 ORM 同步回调事务），任一失败整体回滚。
  */
 
-import { eq, and, sql } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
+import { withTransaction } from "@opennovel-ai/novel-store"
 import {
   getDb,
   StoryArcTable,
@@ -198,14 +199,13 @@ export async function backfillStoryArcs(
     }
   }
 
-  // drizzle 的 async transaction 在 bun:sqlite 下不回滚，用原生 SQL BEGIN/COMMIT/ROLLBACK
-  await db.run(sql`BEGIN`)
-  try {
+  // 删除旧弧光与批量新建相互依赖：统一经 withTransaction 走 ORM 同步回调事务，任一失败整体回滚
+  withTransaction(db, (tx) => {
     // 删除旧弧光及其节点
     if (deleteIds.size > 0) {
       for (const arc of arcsToDelete) {
-        await db.delete(ArcBeatTable).where(eq(ArcBeatTable.arc_id, arc.id)).run()
-        await db.delete(StoryArcTable).where(eq(StoryArcTable.id, arc.id)).run()
+        tx.delete(ArcBeatTable).where(eq(ArcBeatTable.arc_id, arc.id)).run()
+        tx.delete(StoryArcTable).where(eq(StoryArcTable.id, arc.id)).run()
       }
     }
 
@@ -248,8 +248,7 @@ export async function backfillStoryArcs(
 
       const now = Date.now()
       const arcId = crypto.randomUUID()
-      await db
-        .insert(StoryArcTable)
+      tx.insert(StoryArcTable)
         .values({
           id: arcId,
           novel_id: novelId,
@@ -274,8 +273,7 @@ export async function backfillStoryArcs(
           (beat.drafted && beat.chapter_order != null
             ? (orderToChapterId.get(beat.chapter_order) ?? null)
             : null)
-        await db
-          .insert(ArcBeatTable)
+        tx.insert(ArcBeatTable)
           .values({
             id: crypto.randomUUID(),
             novel_id: novelId,
@@ -305,11 +303,7 @@ export async function backfillStoryArcs(
         replaced: deleteIds.size > 0,
       })
     }
-    await db.run(sql`COMMIT`)
-  } catch (err) {
-    await db.run(sql`ROLLBACK`)
-    throw err
-  }
+  })
 
   return result
 }
