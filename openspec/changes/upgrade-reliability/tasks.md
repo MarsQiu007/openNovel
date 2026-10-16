@@ -45,6 +45,16 @@
 - [x] 7.3 在 `packages/server/test/` 新增端点集成测试：覆盖 start / progress / retry / pause / resume 全链路，断言负载形状与 design D4 / D5 一致；验证 `bun test` 通过
 - [x] 7.4 全量回归：在 `packages/novel-store`、`packages/server`、`packages/app`、`packages/opennovel` 分别运行 `bun typecheck` 与 `bun run oxlint`，零错误；在 `packages/novel-store`、`packages/server`、`packages/app` 运行 `bun test`，全绿
 
+## Implementation Commits
+
+- `97f68150` feat(novel-store): 升级运行实体与失败分类器
+- `3aa8fd7c` feat(schema): 升级进度负载新增 run 驱动字段
+- `ab22e40e` feat(opennovel): worker 消费回写 run 章节状态与心跳
+- `43b42424` feat(server): 升级端点改为 run 驱动聚合
+- `97c2334e` fix(server): de-await withTransaction 消除 await-thenable 警告
+- `d5e61fbf` feat(app): 升级横幅 run 驱动五态与进度轮询
+- `020d118d` test(novel-store): run 生命周期与对账集成测试
+
 ## Workflow follow-up
 
 - 归档前收集实现提交，写入 `tasks.md` 的 `## Implementation Commits`。
