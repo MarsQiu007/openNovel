@@ -15,6 +15,11 @@
 - [x] 3.1 在 `packages/app` 下运行 `bun test --preload ./happydom.ts ./src`，确认无回归
 - [x] 3.2 扩展 `e2e/novel.spec.ts` 审批旅程：在 mock 路由中为 `GET /api/novel/:novelID/chapters/:chapterID/chapter-reviews` 补数组响应（默认兜底 `{}` 会让打开面板的查询读到非数组，现有旅程未打开过审查面板故未暴露）；审批栏断言不再出现「展开审查」，点击「审查详情」后断言审查面板（expand 态）可见且包含轮次/评级内容，返回后审批栏按钮（toBeInViewport({ ratio: 1 }) 断言）不回归；验证 `bun run test:e2e e2e/novel.spec.ts` 通过
 
+## Implementation Commits
+
+- `96fa04325` feat(app): 审查详情迁移为右栏检视面板
+- `7edb11646` test(app): 审批旅程覆盖审查面板入口
+
 ## Workflow follow-up
 
 - 归档前用 `OpenSpec-Change` trailer 收集实现提交，写入本文件 `## Implementation Commits`。
