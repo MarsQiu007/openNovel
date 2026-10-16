@@ -28,8 +28,27 @@
 ## 4. 文档与收尾
 
 - [x] 4.1 在 `packages/novel-store/AGENTS.md`（无则新建）补事务纪律章节：唯一机制（`withTransaction`）、组合点开事务、双形态选用规则、同步回调约束、嵌套检测行为。验证：章节内容与 design.md 的 D1–D3 一致，-review 时对照 spec 可逐条指认。
-- [ ] 4.2 运行全量质量门：`packages/novel-store`、`packages/plugin`、`packages/opennovel` 依次 `bun typecheck` 通过；从仓库根运行 oxlint 通过；上述三包 `bun test` 全绿。验证：三条命令零错误输出。
+- [x] 4.2 运行全量质量门：`packages/novel-store`、`packages/plugin`、`packages/opennovel` 依次 `bun typecheck` 通过；从仓库根运行 oxlint 通过；上述三包 `bun test` 全绿。验证：三条命令零错误输出。
 - [ ] 4.3 真机验收：以修复后代码对《执棋人》（`C:\Novels\XianXia`）在升级视图显式重试失败章节，队列条目最终标记 synced、章节摘要/引用/主轴落库。验证：novel.db 中该书 failed 条目清零、新指纹条目状态为 synced（验收后向用户出示 DB 行证据）。
+
+## Implementation Commits
+
+- beb0be94 test(novel-store,opennovel): node 测试改用显式 type Db 导入（修 tsgo TS2503）
+- 1e48b2f1 docs(novel-store): AGENTS.md 补事务纪律章节（对应 design D1–D3）
+- 4e83a887 test(novel-store,opennovel): 新增 node-runtime 测试与 CI job
+- 5016a3a5 test(plugin): 新增事务纪律静态守卫（手写 BEGIN 扫描 + *Tx 函数体防再开事务）
+- 4d0a52a5 refactor(opennovel): 手动编辑同步 worker 落库事务改走 withTransaction
+- 6ae430ad refactor(plugin): 章节重建与状态提交手写事务改走 withTransaction（事务体辅助函数同步化）
+- 6eab2a99 refactor(plugin): 章节回滚与弧光两处手写事务改走 withTransaction
+- 3e95b58f feat(novel-store): Phase 1 四步收进单事务并确保段摘要同步化
+- 15615020 feat(novel-store): 四个写入助手拆双形态（自包 + *Tx 组合）
+- 4b340ca6 feat(novel-store): 新增统一事务入口 withTransaction
+
+> 质量门备注（4.2）：三包 typecheck、oxlint（0 错误）、novel-store/plugin bun 测试全绿；
+> opennovel 全量本地跑存在 7 个失败 + 1 文件级 error（acp/service-session），
+> 经同机 main 基线对照为预存环境问题（分支失败集 ⊆ main 失败集，无新增；
+> 见 `docs/agents/ci-triage.md` 归因流程），与本提案 diff 无关。
+> node-runtime 测试（Node 24.22.0 + 真实 node:sqlite）8/8 通过。
 
 ## Workflow follow-up
 
