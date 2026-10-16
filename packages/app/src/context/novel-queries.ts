@@ -606,8 +606,14 @@ export function useUpgradeProgress(novelID: Accessor<string>) {
         location: { directory: sdk().directory },
       }),
     enabled: !!novelID(),
-    // 有 pending 任务时每 5 秒轮询，完成后停止
-    refetchInterval: (query) => (query.state.data && query.state.data.pending > 0 ? 5000 : false),
+    // 活跃 run 存在时（total > 0）每 5 秒轮询；run 终态后停止。
+    // pending 不再作为轮询信号：waiting_retry 章节 pending = 0 但 run 仍活跃。
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return false
+      const hasActiveRun = data.total > 0
+      return hasActiveRun ? 5000 : false
+    },
   }))
 }
 
@@ -2233,12 +2239,13 @@ export function useSyncRetry() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; entryIds: string[] }) => {
+    mutationFn: (input: { novelID: string; entryIds?: string[]; chapterIds?: string[] }) => {
       const dir = sdk().directory
       return client()["server.novel"]["sync-retry"]({
         novelID: input.novelID,
         location: { directory: dir },
-        entryIds: input.entryIds,
+        entryIds: input.entryIds ?? [],
+        chapterIds: input.chapterIds,
       })
     },
     onSuccess: (_data, variables) => {
