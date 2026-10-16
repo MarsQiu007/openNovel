@@ -64,6 +64,7 @@ import { WorldSidebar } from "./world-sidebar"
 import { WorldReader } from "./world-reader"
 import StructurePanel from "./structure-panel"
 import { AnnotationPanel } from "./annotation-panel"
+import ReviewPanel from "./review-panel"
 import { AiArtifactsPanel } from "./panel-ai-artifacts"
 import CanvasPanel from "./canvas-panel"
 import {
@@ -91,6 +92,7 @@ const RAIL_PANELS = [
   { key: "tension", icon: "align-right", labelKey: "novel.panel.tension" },
   { key: "structure", icon: "file-tree", labelKey: "novel.panel.structure" },
   { key: "annotations", icon: "pencil-line", labelKey: "novel.panel.annotations" },
+  { key: "review", icon: "shield", label: "审查" },
   { key: "ai-artifacts", icon: "brain", label: "AI 产出" },
 ] as const
 
@@ -476,8 +478,8 @@ export default function NovelWorkspaceFrame() {
       return
     }
     setRailPanel(key)
-    // 默认深度：结构面板 expand，其余 peek（3.1）
-    if (key === "structure") setSearchParams({ tab: "panel:structure" })
+    // 默认深度：结构与审查面板 expand，其余 peek（3.1）；审查详情 37 维报告深读场景同结构档
+    if (key === "structure" || key === "review") setSearchParams({ tab: `panel:${key}` })
   }
   const restoreRailPanel = (key: RailPanel) => {
     if (expandedPanel()) {
@@ -1146,6 +1148,12 @@ export default function NovelWorkspaceFrame() {
                             novelID={novelID()}
                             chapterID={selectedChapter()!.id}
                             status={selectedChapter()!.status}
+                            onOpenReview={() => {
+                              // 与 openRailPanel("review") 语义等价：收起态恢复右栏 + 默认 expand
+                              setRailPanel("review")
+                              setLayout("railManual", false)
+                              setSearchParams({ tab: "panel:review" })
+                            }}
                           />
                         </Show>
                       </div>
@@ -1254,6 +1262,14 @@ export default function NovelWorkspaceFrame() {
                         onExecute={(args) => handleAnnotationExecute(args)}
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />
+                    </Show>
+                    <Show when={key === "review"}>
+                      <Show
+                        when={selectedChapterId()}
+                        fallback={<div class="px-4 py-3 text-xs text-v2-text-text-faint">未选中章节</div>}
+                      >
+                        {(id) => <ReviewPanel novelID={novelID()} chapterID={id()} />}
+                      </Show>
                     </Show>
                     <Show when={key === "ai-artifacts"}>
                       <AiArtifactsPanel novelID={novelID} selectedChapterId={selectedChapterId} />
@@ -1402,6 +1418,14 @@ export default function NovelWorkspaceFrame() {
                         onExecute={(args) => handleAnnotationExecute(args)}
                         onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                       />
+                    </Show>
+                    <Show when={railPanel() === "review"}>
+                      <Show
+                        when={selectedChapterId()}
+                        fallback={<div class="px-4 py-3 text-xs text-v2-text-text-faint">未选中章节</div>}
+                      >
+                        {(id) => <ReviewPanel novelID={novelID()} chapterID={id()} />}
+                      </Show>
                     </Show>
                     <Show when={railPanel() === "ai-artifacts"}>
                       <AiArtifactsPanel novelID={novelID} selectedChapterId={selectedChapterId} />
