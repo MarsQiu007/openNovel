@@ -94,7 +94,7 @@ pending ──worker 消费──> running ──成功──> synced
 - 重建失败：先跑分类器（D3），再按分类写状态；
 - 队列条目本身的 `status`（`manual_edit_sync_queue.status`）照旧由消费逻辑更新，但**不再驱动 UI**；UI 只看 `upgrade_run_chapter`。
 
-**关键不变量**：`upgrade_run_chapter.status` 是聚合视图的唯一来源；`manual_edit_edit_sync_queue` 只是 worker 的消费队列。
+**关键不变量**：`upgrade_run_chapter.status` 是聚合视图的唯一来源；`manual_edit_sync_queue` 只是 worker 的消费队列。
 
 ### D3: 失败分类器
 
@@ -121,6 +121,16 @@ type FailureClassification = {
 **指数退避**：`backoffMs = min(2^attempts * 60_000, 30 * 60_000)`（1min 起步、上限 30min）；有 `resumeAt` 时优先用 `resumeAt`。
 
 **MAX_ATTEMPTS**：瞬时失败默认 5 次尝试后转 terminal（避免无限退避）。
+
+**D3a: 闸门语义归属**
+
+现状：`upgradePauseEndpoint` / `upgradeResumeEndpoint` 写 `upgrade_state.gate`（`packages/server/src/handlers/novel.ts:3007,3017`），worker 消费时读 `getUpgradeGate`（`manual-edit-sync-worker.ts:87`）。本提案引入 `upgrade_run.status`（active/paused/terminal）后，**废弃 `upgrade_state` 表**，闸门语义并入 run：
+
+- `upgradePauseEndpoint`：把活跃 run 的 `status` 改为 `paused`（无活跃 run 时 no-op）；
+- `upgradeResumeEndpoint`：把 `paused` run 的 `status` 改回 `active`，写 `activated_at = now`；
+- worker 消费时：查活跃 run，若 `status = 'paused'` 且条目 `source = 'upgrade'`，跳过。
+
+这样消除 `upgrade_state` 与 `upgrade_run` 双闸门不一致的风险（本次事故原因之一即状态分散）。
 
 ### D4: 进度聚合查询（跨来源 + 取代链跟随）
 
@@ -165,7 +175,9 @@ type FailureClassification = {
 3. 对账在**单个事务**内完成；
 4. 对账**零 AI 调用**、**不伪造 synced**（必须有指纹一致证据）。
 
-**触发时机**：`upgradeStatusEndpoint` 检测到 `source = 'upgrade'` 条目存在但无活跃 run 时，同步执行对账（数据量小，毫秒级）。
+**触发时机**：`upgradeStatusEndpoint` 检测到孤儿队列条目（不限 source——upgrade 或 manual 源都可能是孤儿）且无活跃 run 时，同步执行对账（数据量小，毫秒级）。
+
+**对账范围**：不限 `source = 'upgrade'`。任何无活跃 run 归属的 pending / skipped / failed 条目都参与对账——manual 源条目同样可能是孤儿（例如取代链末端失败后被跳过）。
 
 ### D7: `chapters.content_fingerprint` 语义澄清
 
@@ -199,13 +211,17 @@ Phase 1 执行期间：app 在 start 请求返回前显示「确定性回填执�
 - **指数退避雪崩**：多章同时配额失败，同时退避 → 缓解：每章独立 `attempts` 计数，退避时间有随机 jitter（±20%）。
 - **进程重启丢失退避状态**：`waiting_retry` 的 `resume_at` 在 DB 里，进程重启后仍可恢复 → 缓解：`resume_at` 持久化，worker 轮询时检查 `resume_at <= now` 的 waiting_retry 章节，自动重置为 pending。
 - **run 表无限增长**：每本书的 run 在 terminal 后不再更新 → 缓解：app 只查 active run；terminal run 保留作历史记录（未来可加清理任务）。
+- **`upgrade_state` 双闸门残留**：若旧代码路径仍读写 `upgrade_state` 而 worker 已改为查 `upgrade_run.status`，会出现双闸门不一致 → 缓解：本提案一次性把所有读写切到 `upgrade_run`，`upgrade_state` 表保留但代码不再引用；一个版本周期后删除该表。
+- **无 handler 的诚实性保护被破坏**：改造 worker 消费逻辑时，可能意外移除「observer 重建 handler 未注册时升级任务禁止确定性 fallback」的保护 → 缓解：在 tasks 中显式新增回归测试覆盖此保护。
+- **worker 活性信号在渲染进程不可见**：`lastPollAt` 记在 Node 进程（Electron 主进程）模块里；若未来 app 直接读 SQLite（不经过 HTTP），该信号不可见 → 缓解：当前架构下 HTTP 是唯一读取路径，Risks 已记录此简化。
 
 ## Migration Plan
 
 1. 新增 `upgrade_run` + `upgrade_run_chapter` 表（additive schema，drizzle migration）；
-2. 部署后打开书籍时自动触发对账（无需用户操作）；
-3. 旧版本 app 对新负载：缺 `current_chapter_id` 等字段时按 `undefined` 处理，不显示新信息但不崩溃（现有降级约定）；
-4. 回滚：删两张新表即可，旧逻辑（source=upgrade 过滤）在代码里保留一个版本周期。
+2. `upgrade_state` 表保留但不再读写（一个版本周期后删除）；
+3. 部署后打开书籍时自动触发对账（无需用户操作）；
+4. 旧版本 app 对新负载：缺 `current_chapter_id` 等字段时按 `undefined` 处理，不显示新信息但不崩溃（现有降级约定）；
+5. 回滚：删两张新表即可，旧逻辑（source=upgrade 过滤）在代码里保留一个版本周期。
 
 ## Open Questions
 

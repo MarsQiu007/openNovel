@@ -14,17 +14,18 @@
 
 ## 3. Worker 消费回写
 
-- [ ] 3.1 修改 `packages/opennovel/src/sync-consume.ts`（或 worker 消费入口）：worker 开始消费某章时，在同一事务内把对应 `upgrade_run_chapter` 置为 `running`、写 `started_at` 与 `queue_entry_id`；验证集成测试断言消费开始后 run_chapter 状态为 running
+- [ ] 3.1 修改 `packages/opennovel/src/novel/manual-edit-sync-worker.ts` `processSyncQueue`：worker 开始消费某章时，在同一事务内把对应 `upgrade_run_chapter` 置为 `running`、写 `started_at` 与 `queue_entry_id`；验证集成测试断言消费开始后 run_chapter 状态为 running
 - [ ] 3.2 在同一文件：重建成功时同事务置 `synced` + `completed_at`；重建失败时先调分类器，按分类置 `waiting_retry`（写 resume_at）或 `terminal`（写 failure_*），或 attempts < MAX 时重置 `pending`；验证集成测试覆盖三种失败路径
-- [ ] 3.3 在 worker 轮询入口记录模块级 `lastPollAt = Date.now()`，新增 `getWorkerLastPollAt()` 导出；验证单元测试模拟两次轮询后时间戳更新
+- [ ] 3.3 在同一文件：保留「observer 重建 handler 未注册时升级任务禁止确定性 fallback」的诚实性保护（`entry.source === "upgrade" && !handler?.handleChapterContent` 时抛错），新增回归测试断言该保护未被破坏；验证 `bun test` 通过
+- [ ] 3.4 在 worker 轮询入口记录模块级 `lastPollAt = Date.now()`，新增 `getWorkerLastPollAt()` 导出；验证单元测试模拟两次轮询后时间戳更新
 
 ## 4. 服务端端点改造
 
 - [ ] 4.1 修改 `packages/server/src/handlers/novel.ts` `upgradeStartEndpoint`：Phase 1 完成后创建 `upgrade_run`（目标集合 = Phase 1 后待重建章节），再入队 Phase 2 条目；同事务完成；验证集成测试断言 start 后 run 存在且章节数与入队条目数一致
 - [ ] 4.2 修改 `upgradeProgressEndpoint`：有活跃 run 时按 `upgrade_run_chapter` 聚合（total / synced / failed / pending / waiting_retry / running），负载新增 `current_chapter_id`、`current_chapter_started_at`、`worker_last_poll_at`、`eta_ms`、`waiting_retry_list`；无活跃 run 时回退旧逻辑；验证集成测试覆盖有 run / 无 run / 有 waiting_retry 三种情况
 - [ ] 4.3 修改 `upgradeRetryEndpoint`：接收 `chapterIds: string[]`，在 run 内重置 terminal / waiting_retry 章节为 pending（清失败字段、attempts 归零），同步重置对应队列条目；无活跃队列条目时用 `enqueueManualEditSyncTx` 入队；验证集成测试断言重试后 run_chapter 状态为 pending 且队列条目状态同步
-- [ ] 4.4 在 `upgradeStatusEndpoint` 加对账触发：检测到 `source = 'upgrade'` 队列条目存在但无活跃 run 时，同步执行对账（按设计 D6 算法，单事务、零 AI 调用）；验证集成测试用预置孤儿 skipped 条目断言对账后该章被收编为 synced、横幅分母不再含幽灵条目
-- [ ] 4.5 修改 `upgradePauseEndpoint` / `upgradeResumeEndpoint`：改为更新 `upgrade_run.status`（active ↔ paused），暂停后 worker 跳过 upgrade 来源条目；验证集成测试断言暂停后 run.status = paused 且 worker 不再消费
+- [ ] 4.4 在 `upgradeStatusEndpoint` 加对账触发：检测到孤儿队列条目（不限 source——upgrade 或 manual 源都可能是孤儿）且无活跃 run 时，同步执行对账（按设计 D6 算法，单事务、零 AI 调用）；验证集成测试用预置孤儿 skipped 条目断言对账后该章被收编为 synced、横幅分母不再含幽灵条目
+- [ ] 4.5 修改 `upgradePauseEndpoint` / `upgradeResumeEndpoint`：废弃 `upgrade_state` 表，改为更新 `upgrade_run.status`（active ↔ paused），暂停后 worker 跳过 upgrade 来源条目；验证集成测试断言暂停后 run.status = paused 且 worker 不再消费、resume 后恢复消费
 
 ## 5. Protocol 契约更新
 
@@ -39,7 +40,7 @@
 
 ## 7. 对账与集成验证
 
-- [ ] 7.1 在 `packages/novel-store/test/` 新增对账集成测试：预置含幽灵 skipped 条目 + manual 源 synced 条目的数据库，断言对账后该章在 run 内为 synced、total 分母不含 skipped、横幅聚合到达完成态；验证 `bun test` 通过
+- [ ] 7.1 在 `packages/novel-store/test/` 新增对账集成测试：预置含幽灵 skipped 条目（upgrade 源）+ manual 源 synced 条目的数据库，断言对账后该章在 run 内为 synced、total 分母不含 skipped、横幅聚合到达完成态；再预置 manual 源孤儿 failed 条目（无活跃 run），断言对账后该章被纳入新建 run；验证 `bun test` 通过
 - [ ] 7.2 在 `packages/novel-store/test/` 新增 run 生命周期集成测试：创建 run → 模拟消费 → 成功路径 / 瞬时失败退避路径 / 终态失败路径 → run 终态判定；验证 `bun test` 通过
 - [ ] 7.3 在 `packages/server/test/` 新增端点集成测试：覆盖 start / progress / retry / pause / resume 全链路，断言负载形状与 design D4 / D5 一致；验证 `bun test` 通过
 - [ ] 7.4 全量回归：在 `packages/novel-store`、`packages/server`、`packages/app`、`packages/opennovel` 分别运行 `bun typecheck` 与 `bun run oxlint`，零错误；在 `packages/novel-store`、`packages/server`、`packages/app` 运行 `bun test`，全绿
