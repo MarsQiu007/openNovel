@@ -220,7 +220,24 @@ test.describe("novel journey", () => {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify([]),
+          body: JSON.stringify([
+            {
+              id: "rev-001",
+              chapterId: reviewsMatch[1],
+              round: 1,
+              source: "auditor",
+              overall: "WARN",
+              passCount: 33,
+              warnCount: 4,
+              failCount: 0,
+              dimensions: [
+                { dimension: "姓名一致性", status: "WARN", detail: "第3段称呼与设定集不一致", evidence: "设定集：林晚；正文：林婉" },
+                { dimension: "事件顺序", status: "PASS", detail: "", evidence: undefined },
+              ],
+              summary: "整体连续性良好，仅个别称呼与时间细节需复核。",
+              createdAt: Date.now(),
+            },
+          ]),
         })
       }
 
@@ -425,6 +442,15 @@ test.describe("novel journey", () => {
     await expect(approveButton).toBeInViewport({ ratio: 1 })
     await expect(rejectButton).toBeInViewport({ ratio: 1 })
     await page.setViewportSize({ width: 1280, height: 720 })
+
+    // 审查详情入口（review-rail-panel）：不再内嵌展开，点击后右栏审查面板以 expand 态呈现
+    await expect(page.getByText("Expand review", { exact: true })).toHaveCount(0)
+    await page.getByText("审查详情", { exact: true }).click()
+    await expect(page.getByText("Round 1", { exact: true })).toBeVisible({ timeout: APP_READY_TIMEOUT })
+    await expect(page.getByText("WARN", { exact: true }).first()).toBeVisible()
+    // 返回（expand 态回到 peek）后审批栏不回归
+    await page.getByRole("button", { name: "Back", exact: true }).first().click()
+    await expect(approveButton).toBeInViewport({ ratio: 1 })
 
     // Screenshot: approval
     await page.screenshot({ path: "../.omo/evidence/task-35-approval.png", fullPage: true })
