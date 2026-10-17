@@ -7075,6 +7075,7 @@ export type NovelManualEditSyncQueryResult = {
 
 export type NovelManualEditSyncRetryInput = {
   entryIds: Array<string>
+  chapterIds?: Array<string>
 }
 
 export type NovelManualEditSyncRetryResult = {
@@ -7114,6 +7115,10 @@ export type NovelUpgradeFailureItem = {
   entryId: string
   chapterId: string
   reason: string
+  failureClass?: string
+  failureMessage?: string
+  failureAction?: string
+  failureDetail?: string
 }
 
 export type NovelUpgradeProgressResult = {
@@ -7122,6 +7127,16 @@ export type NovelUpgradeProgressResult = {
   failed: number
   total: number
   failures: Array<NovelUpgradeFailureItem>
+  currentChapterId?: string
+  currentChapterStartedAt?: number
+  workerLastPollAt?: number
+  etaMs?: number
+  waitingRetryList?: Array<{
+    chapterId: string
+    resumeAt: number
+  }>
+  running?: number
+  waitingRetry?: number
 }
 
 export type NovelUpgradeGateResult = {

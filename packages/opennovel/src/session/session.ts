@@ -604,7 +604,11 @@ const layer: Layer.Layer<
     })
 
     const remove: Interface["remove"] = Effect.fnUntraced(function* (sessionID: SessionID) {
-      const session = yield* get(sessionID)
+      // 幂等：session 已不存在时视为删除成功
+      const session = yield* get(sessionID).pipe(
+        Effect.catchIf(NotFoundError.isInstance, () => Effect.succeed(null)),
+      )
+      if (!session) return
       try {
         // `remove` needs to work in all cases, such as broken sessions that
         // run cleanup without instance state.

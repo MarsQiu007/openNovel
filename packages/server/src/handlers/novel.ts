@@ -3176,6 +3176,17 @@ async function reconcileUpgradeState(
             completed_at: Date.now(),
           })
           .run()
+        // 同步把对应章节的孤儿条目标记为 synced，防止下次对账重复收编
+        tx.update(ManualEditSyncQueueTable)
+          .set({ status: "synced", updated_at: Date.now() })
+          .where(
+            and(
+              eq(ManualEditSyncQueueTable.novel_id, novelID),
+              eq(ManualEditSyncQueueTable.entity_id, chapterId),
+              inArray(ManualEditSyncQueueTable.status, ["pending", "failed", "skipped"]),
+            ),
+          )
+          .run()
       }
     }
     if (toPending.length > 0) {

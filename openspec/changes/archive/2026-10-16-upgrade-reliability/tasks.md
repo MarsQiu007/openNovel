@@ -58,6 +58,9 @@
 ### 归档后收尾修复
 
 - `250bb9a1` fix(server): 对账自愈活跃 run 内已完成章节并修复 worker run 查询时序竞争 — 线上《执棋人》run cf4f6888 卡 pending 的根因有两个：(1) start endpoint 在 worker 查询 activeRun 之后创建 run，worker 消费成功但 run_chapter 永远 pending；(2) reconcileUpgradeState 遇活跃 run 直接返回，不校验 run_chapter 是否实际已完成。修复：worker 事务内动态查找活跃 run；对账有活跃 run 时也校验指纹匹配并自愈。
+- `ff6242ce` fix(server): 收编孤儿条目时同步标记队列条目为 synced 防止重复收编 — 对账收编创建 terminal run 后未更新原始 skipped 队列条目，下次对账又发现同样条目再创建新 run，无限循环（线上累积 92 个 run）。修复：收编同事务将对应章节的 pending/failed/skipped 条目标记为 synced。
+- `11db170b` fix(opennovel): 恢复升级消费闸门对全局暂停的响应（提案 fix-ci-red）— `ab22e40e8` 把闸门判断改为仅看活跃 run 的 paused 状态，全局闸门（UI 暂停按钮写入）暂停时 worker 仍消费 upgrade 任务，违反「暂停保留队列」契约。修复：全局 gate 或 run 任一 paused 即跳过。
+- `6b7768e7` chore(sdk): 再生成 upgrade 契约 SDK 产物（提案 fix-ci-red）— `43b42424` 改契约后漏跑根 `script/generate.ts` 完整再生成，legacy SDK 与 openapi.json 漂移导致 generate 工作流红。修复：补齐再生成并随本提案提交产物。
 
 ## Workflow follow-up
 

@@ -17,6 +17,7 @@ import {
   UpgradeRunChapterTable,
   classifySyncError,
   withTransaction,
+  getUpgradeGate,
   type Tx,
 } from "@opennovel-ai/novel-store"
 
@@ -105,11 +106,13 @@ export async function processSyncQueue(
     .orderBy(UpgradeRunTable.created_at)
     .all()
     .find((r) => r.status === "active" || r.status === "paused")
+  // 全局升级闸门（持久化，UI 暂停按钮写入），与 run paused 共同决定跳过
+  const gate = await getUpgradeGate(db, pending[0].novel_id)
 
   for (const entry of pending) {
     try {
-      // 升级消费闸门：run paused 时跳过 upgrade 任务（保留 pending，下轮重查）
-      if (entry.source === "upgrade" && activeRun?.status === "paused") {
+      // 升级消费闸门：全局 gate 或 run 任一 paused 时跳过 upgrade 任务（保留 pending，下轮重查）
+      if (entry.source === "upgrade" && (gate === "paused" || activeRun?.status === "paused")) {
         continue
       }
       // 无 handler 的普通条目走确定性摘要 upsert；observer 与升级任务都在下面事务之外先行完成

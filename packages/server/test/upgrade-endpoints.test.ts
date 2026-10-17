@@ -263,6 +263,48 @@ describe("upgradeStatusEndpoint 对账（task 4.4）", () => {
     expect(runChapters[0].status).toBe("synced")
   })
 
+  test("收编后再次对账不重复创建 run（幂等）", async () => {
+    const db = getDb(projectDir)
+    const now = Date.now()
+    db.insert(ManualEditSyncQueueTable).values({
+      id: crypto.randomUUID(),
+      novel_id: novelId,
+      entity: "chapter",
+      entity_id: chapterId,
+      field: "content",
+      category: "creative_fact",
+      status: "skipped",
+      source_fingerprint: "old-fp",
+      failure_reason: null,
+      source: "upgrade",
+      created_at: now,
+      updated_at: now,
+    }).run()
+    const currentFp = computeFingerprint("测试内容")
+    db.update(ChapterSummaryTable)
+      .set({ source_fingerprint: currentFp })
+      .where(eq(ChapterSummaryTable.chapter_id, chapterId))
+      .run()
+
+    // 第一次对账：收编
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+    let runs = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.novel_id, novelId)).all()
+    expect(runs).toHaveLength(1)
+
+    // 第二次对账：不应再创建新 run
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+    runs = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.novel_id, novelId)).all()
+    expect(runs).toHaveLength(1)
+
+    // 队列条目标记为 synced
+    const entry = db
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(eq(ManualEditSyncQueueTable.entity_id, chapterId))
+      .get()
+    expect(entry!.status).toBe("synced")
+  })
+
   test("孤儿 failed 条目且指纹不一致时纳入新建 run（pending）", async () => {
     const db = getDb(projectDir)
     const now = Date.now()
