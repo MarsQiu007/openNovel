@@ -1,4 +1,3 @@
-import type { DesktopMenuAction } from "@opennovel-ai/app/desktop-menu"
 import type { WslServersPlatform } from "@opennovel-ai/app/wsl/types"
 import type { UpdaterState } from "@opennovel-ai/app/updater"
 export type {
@@ -101,7 +100,6 @@ export type ElectronAPI = {
   onPinchZoomEnabledChanged: (cb: (enabled: boolean) => void) => () => void
   onZoomFactorChanged: (cb: (factor: number) => void) => () => void
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
-  runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
   setForceFocus: (enabled: boolean) => Promise<void>

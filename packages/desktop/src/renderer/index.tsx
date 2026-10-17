@@ -24,7 +24,7 @@ import pkg from "../../package.json"
 import { initI18n, t } from "./i18n"
 import { initializationData, initializationReady } from "./initialization"
 import { DesktopFirstLaunchOnboarding } from "./onboarding"
-import { resetZoom, setPinchZoomEnabled, webviewZoom, zoomIn, zoomOut } from "./webview-zoom"
+import { setPinchZoomEnabled, webviewZoom } from "./webview-zoom"
 import { availableStartupServer, readyWslConnections } from "./wsl/connections"
 import "./styles.css"
 import { Splash } from "@opennovel-ai/ui/logo"
@@ -119,22 +119,6 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     if (ua.includes("Linux")) return "linux"
     return undefined
   })()
-
-  const runDesktopMenuAction: Platform["runDesktopMenuAction"] = (action) => {
-    switch (action) {
-      case "view.resetZoom":
-        resetZoom()
-        return
-      case "view.zoomIn":
-        zoomIn()
-        return
-      case "view.zoomOut":
-        zoomOut()
-        return
-    }
-
-    return window.api.runDesktopMenuAction(action)
-  }
 
   const storage = (() => {
     const cache = new Map<string, AsyncStorage>()
@@ -297,8 +281,6 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     getPinchZoomEnabled: () => window.api.getPinchZoomEnabled(),
 
     setPinchZoomEnabled,
-
-    runDesktopMenuAction,
 
     checkAppExists: async (appName: string) => {
       return window.api.checkAppExists(appName)
