@@ -29,7 +29,7 @@ import { usePlatform } from "@/context/platform"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
-import { WindowsAppMenu } from "./windows-app-menu"
+
 import { applyPath, backPath, forwardPath } from "./titlebar-history"
 import { TitlebarTabStrip } from "@/components/titlebar-tab-strip"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -410,9 +410,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                 }}
               >
                 <ChannelIndicator debugTools={props.debugTools} />
-                <Show when={windows() || linux()}>
-                  <WindowsAppMenu command={command} platform={platform} variant="v2" />
-                </Show>
                 <TooltipV2
                   placement="bottom"
                   value={
@@ -512,9 +509,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                 "pl-2": !mac(),
               }}
             >
-              <Show when={windows() || linux()}>
-                <WindowsAppMenu command={command} platform={platform} />
-              </Show>
               <Show when={mac()}>
                 {/*<div class="h-full shrink-0" style={{ width: `${72 / zoom()}px` }} />*/}
                 <div class="xl:hidden w-10 shrink-0 flex items-center justify-center">
