@@ -55,6 +55,10 @@
 - `d5e61fbf` feat(app): 升级横幅 run 驱动五态与进度轮询
 - `020d118d` test(novel-store): run 生命周期与对账集成测试
 
+### 归档后收尾修复
+
+- `250bb9a1` fix(server): 对账自愈活跃 run 内已完成章节并修复 worker run 查询时序竞争 — 线上《执棋人》run cf4f6888 卡 pending 的根因有两个：(1) start endpoint 在 worker 查询 activeRun 之后创建 run，worker 消费成功但 run_chapter 永远 pending；(2) reconcileUpgradeState 遇活跃 run 直接返回，不校验 run_chapter 是否实际已完成。修复：worker 事务内动态查找活跃 run；对账有活跃 run 时也校验指纹匹配并自愈。
+
 ## Workflow follow-up
 
 - 归档前收集实现提交，写入 `tasks.md` 的 `## Implementation Commits`。
