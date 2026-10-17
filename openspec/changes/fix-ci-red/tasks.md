@@ -1,5 +1,11 @@
 # Tasks
 
+## Implementation Commits
+
+- `6b7768e7` chore(sdk): 再生成 upgrade 契约 SDK 产物消除漂移
+- `11db170b` fix(opennovel): 恢复升级消费闸门对全局暂停的响应
+- `4cd710e6` test(opennovel): 适配 session.remove 幂等语义
+
 ## 1. 再生成 SDK 产物
 
 - [x] 1.1 在仓库根运行 `bun script/generate.ts` 完成完整再生成（legacy SDK、openapi.json、prettier），核对漂移字段与 CI 失败日志一致（upgrade 进度 / 收编 / retry 相关）；验证：`git diff --stat` 仅包含 `packages/sdk/js/src/v2/gen/types.gen.ts` 与 `packages/sdk/openapi.json`
