@@ -19,9 +19,14 @@
 
 - [x] 4.1 运行 `packages/app` 全量单测（`bun test --preload ./happydom.ts ./src`）确认无回归；验证：全部通过
 - [x] 4.2 从仓库根目录对全部改动文件运行 oxlint（子包目录直接跑会触发 typeAware 报错）；验证：无新增告警
-- [ ] 4.3 以 `bun run dev:desktop` 启动桌面端人工验收：titlebar 无菜单按钮；输入框内 Ctrl+Z / Ctrl+V 生效；右键输入框出现含复制/粘贴的上下文菜单；Ctrl+滚轮缩放与 F11 全屏生效；页面空白处右键可 Inspect 打开 DevTools；验证：逐项观察符合预期
-- [ ] 4.4 以浏览器访问 Web 端（`bun run dev:all` 或等价方式）人工验收：Windows 浏览器下 titlebar 无菜单按钮，首页按钮为左侧首个入口；验证：观察符合预期
+- [x] 4.3 以 `bun run dev:desktop` 启动桌面端人工验收：titlebar 无菜单按钮；输入框内 Ctrl+Z / Ctrl+V 生效；右键输入框出现含复制/粘贴的上下文菜单；Ctrl+滚轮缩放与 F11 全屏生效；页面空白处右键可 Inspect 打开 DevTools；验证：逐项观察符合预期
+- [x] 4.4 以浏览器访问 Web 端（`bun run dev:all` 或等价方式）人工验收：Windows 浏览器下 titlebar 无菜单按钮，首页按钮为左侧首个入口；验证：观察符合预期
 - [x] 4.5 复核 macOS 保留边界：`git diff` 确认 `desktop/src/main/menu.ts`、`desktop/src/main/desktop-menu-actions.ts`、`app/src/desktop-menu.ts` 无任何改动；验证：diff 为空
+
+## Implementation Commits
+
+- `8dce82be` feat(app): 移除 Windows/Linux titlebar 应用菜单入口
+- `3f84a677` refactor(desktop): 清理 runDesktopMenuAction IPC 死通道
 
 ## Workflow follow-up
 
