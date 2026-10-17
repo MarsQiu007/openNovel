@@ -189,6 +189,30 @@ export async function processSyncQueue(
 }
 
 /**
+ * 在事务内查找包含指定章节的活跃 run ID。
+ * 解决时序竞争：start endpoint 在 worker 查询 activeRun 之后创建 run，
+ * 导致 worker 消费时 activeRun 为 null，run_chapter 永远停留 pending。
+ */
+function findActiveRunIdForChapter(tx: Tx, novelId: string, chapterId: string): string | null {
+  const run = tx
+    .select({ id: UpgradeRunTable.id })
+    .from(UpgradeRunTable)
+    .innerJoin(
+      UpgradeRunChapterTable,
+      eq(UpgradeRunChapterTable.run_id, UpgradeRunTable.id),
+    )
+    .where(
+      and(
+        eq(UpgradeRunTable.novel_id, novelId),
+        eq(UpgradeRunTable.status, "active"),
+        eq(UpgradeRunChapterTable.chapter_id, chapterId),
+      ),
+    )
+    .get()
+  return run?.id ?? null
+}
+
+/**
  * 单条同步任务的确定性写入：摘要 upsert、影响任务插入、主轴刷新与状态回写必须在同一事务里完成。
  * 分步提交会在中途失败时留下半同步状态（数据已改但条目仍 pending，或条目已 synced 但数据未改）。
  */
@@ -268,12 +292,14 @@ function applySyncEntry(tx: Tx, entry: SyncEntry, writeSummary: boolean, runId: 
   }
 
   // run_chapter 状态回写：消费开始 / 成功
-  if (runId && entry.entity_id) {
+  // 即使 activeRun 为 null（start endpoint 在 worker 查询后创建了 run），也动态查找
+  const effectiveRunId = runId ?? (entry.entity_id ? findActiveRunIdForChapter(tx, entry.novel_id, entry.entity_id) : null)
+  if (effectiveRunId && entry.entity_id) {
     const now = Date.now()
     const runChapter = tx
       .select()
       .from(UpgradeRunChapterTable)
-      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, entry.entity_id)))
+      .where(and(eq(UpgradeRunChapterTable.run_id, effectiveRunId), eq(UpgradeRunChapterTable.chapter_id, entry.entity_id)))
       .get()
     if (runChapter) {
       if (runChapter.status === "pending" || runChapter.status === "waiting_retry") {

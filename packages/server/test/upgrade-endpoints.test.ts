@@ -301,4 +301,50 @@ describe("upgradeStatusEndpoint 对账（task 4.4）", () => {
     const runs = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.novel_id, novelId)).all()
     expect(runs).toHaveLength(0)
   })
+
+  test("活跃 run 内 run_chapter 已实际完成（指纹匹配）时对账自愈为 synced", async () => {
+    const db = getDb(projectDir)
+    // 创建活跃 run + run_chapter pending（模拟时序竞争遗留）
+    const runId = withTransaction(db, (tx) => createUpgradeRunTx(tx, novelId, [chapterId]))
+    // 摘要指纹已与当前内容一致（工作已完成，只是 run_chapter 未更新）
+    const currentFp = computeFingerprint("测试内容")
+    db.update(ChapterSummaryTable)
+      .set({ source_fingerprint: currentFp })
+      .where(eq(ChapterSummaryTable.chapter_id, chapterId))
+      .run()
+
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+      .get()
+    expect(runChapter!.status).toBe("synced")
+    expect(runChapter!.completed_at).not.toBeNull()
+    // 全部章节已 synced → run 标记 terminal
+    const run = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.id, runId)).get()
+    expect(run!.status).toBe("terminal")
+  })
+
+  test("活跃 run 内 run_chapter 指纹不匹配时保持 pending", async () => {
+    const db = getDb(projectDir)
+    const runId = withTransaction(db, (tx) => createUpgradeRunTx(tx, novelId, [chapterId]))
+    // 摘要指纹与当前内容不一致（工作未完成）
+    db.update(ChapterSummaryTable)
+      .set({ source_fingerprint: "stale-fp" })
+      .where(eq(ChapterSummaryTable.chapter_id, chapterId))
+      .run()
+
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+      .get()
+    expect(runChapter!.status).toBe("pending")
+    const run = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.id, runId)).get()
+    expect(run!.status).toBe("active")
+  })
 })

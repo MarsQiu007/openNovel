@@ -3058,7 +3058,61 @@ async function reconcileUpgradeState(
   directory: string,
 ): Promise<void> {
   const activeRun = await getActiveUpgradeRun(novelID, directory)
-  if (activeRun) return // 有活跃 run 无需对账
+
+  if (activeRun) {
+    // 有活跃 run 时也需自愈：检查 run_chapter 是否实际已完成（摘要指纹匹配当前内容指纹）
+    // 解决时序竞争遗留：worker 在 run 创建前查询 activeRun，消费成功但 run_chapter 永远 pending
+    const runChapters = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(eq(UpgradeRunChapterTable.run_id, activeRun.id))
+      .all()
+
+    const staleChapters: string[] = []
+    for (const rc of runChapters) {
+      if (rc.status === "synced" || rc.status === "terminal") continue
+      const chapter = db
+        .select({ content: ChapterTable.content })
+        .from(ChapterTable)
+        .where(eq(ChapterTable.id, rc.chapter_id))
+        .get()
+      if (!chapter) continue
+      const summary = db
+        .select({ source_fingerprint: ChapterSummaryTable.source_fingerprint })
+        .from(ChapterSummaryTable)
+        .where(eq(ChapterSummaryTable.chapter_id, rc.chapter_id))
+        .get()
+      if (summary && summary.source_fingerprint === computeFingerprint(chapter.content)) {
+        staleChapters.push(rc.id)
+      }
+    }
+
+    if (staleChapters.length > 0) {
+      withTransaction(db, (tx) => {
+        const now = Date.now()
+        for (const rcId of staleChapters) {
+          tx.update(UpgradeRunChapterTable)
+            .set({ status: "synced", completed_at: now })
+            .where(eq(UpgradeRunChapterTable.id, rcId))
+            .run()
+        }
+        // 若全部章节已 synced/terminal，标记 run 为 terminal
+        const remaining = tx
+          .select({ status: UpgradeRunChapterTable.status })
+          .from(UpgradeRunChapterTable)
+          .where(eq(UpgradeRunChapterTable.run_id, activeRun.id))
+          .all()
+        const allDone = remaining.every((c) => c.status === "synced" || c.status === "terminal")
+        if (allDone) {
+          tx.update(UpgradeRunTable)
+            .set({ status: "terminal", updated_at: now })
+            .where(eq(UpgradeRunTable.id, activeRun.id))
+            .run()
+        }
+      })
+    }
+    return
+  }
 
   // 查所有非 synced 队列条目（不限 source）
   const orphanEntries = db

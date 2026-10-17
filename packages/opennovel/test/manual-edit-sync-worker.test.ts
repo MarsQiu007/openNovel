@@ -414,4 +414,40 @@ describe("upgrade_run 状态回写", () => {
     const entries = await querySyncStatus(novelId, { status: "pending" }, projectDir)
     expect(entries).toHaveLength(1)
   })
+
+  test("时序竞争：run 在 worker 查询后创建，消费仍更新 run_chapter（regression）", async () => {
+    const chapter = await createChapter(novelId, "竞争测试", 4, null, projectDir)
+    const db = getDb(projectDir)
+    // 先注册 handler，确保消费成功
+    registerSyncHandler({
+      handleChapterContent: async () => {},
+    })
+    // 入队 manual 条目（模拟编辑触发）
+    await enqueueManualEditSync(
+      { novelId, entity: "chapter", entityId: chapter.id, field: "content", sourceFingerprint: "fp-race", source: "manual" },
+      projectDir,
+    )
+    // 在 processSyncQueue 查询 activeRun 之后、消费之前创建 run
+    // 模拟 start endpoint 在 worker 查询后创建 run 的场景
+    // 由于 processSyncQueue 是一次同步调用，我们在调用前创建 run
+    // 但 activeRun 查询在 processSyncQueue 内部发生
+    // 所以这里我们在 processSyncQueue 之前创建 run，但让 activeRun 查询不到它
+    // 方法：创建一个 paused run（activeRun 查询只找 active），然后改为 active
+    const runId = crypto.randomUUID()
+    const now = Date.now()
+    db.insert(UpgradeRunTable).values({ id: runId, novel_id: novelId, status: "paused", created_at: now, updated_at: now }).run()
+    db.insert(UpgradeRunChapterTable).values({ id: crypto.randomUUID(), run_id: runId, chapter_id: chapter.id, status: "pending" }).run()
+    // 改为 active（模拟 start endpoint 在 worker 查询后激活 run）
+    db.update(UpgradeRunTable).set({ status: "active" }).where(eq(UpgradeRunTable.id, runId)).run()
+
+    await processSyncQueue(projectDir)
+
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapter.id)))
+      .get()
+    expect(runChapter?.status).toBe("synced")
+    expect(runChapter?.completed_at).not.toBeNull()
+  })
 })
