@@ -49538,6 +49538,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "chapterIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": ["entryIds"],
@@ -49650,6 +49656,18 @@
           },
           "reason": {
             "type": "string"
+          },
+          "failureClass": {
+            "type": "string"
+          },
+          "failureMessage": {
+            "type": "string"
+          },
+          "failureAction": {
+            "type": "string"
+          },
+          "failureDetail": {
+            "type": "string"
           }
         },
         "required": ["entryId", "chapterId", "reason"],
@@ -49675,6 +49693,40 @@
             "items": {
               "$ref": "#/components/schemas/NovelUpgradeFailureItem"
             }
+          },
+          "currentChapterId": {
+            "type": "string"
+          },
+          "currentChapterStartedAt": {
+            "type": "integer"
+          },
+          "workerLastPollAt": {
+            "type": "integer"
+          },
+          "etaMs": {
+            "type": "integer"
+          },
+          "waitingRetryList": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chapterId": {
+                  "type": "string"
+                },
+                "resumeAt": {
+                  "type": "integer"
+                }
+              },
+              "required": ["chapterId", "resumeAt"],
+              "additionalProperties": false
+            }
+          },
+          "running": {
+            "type": "integer"
+          },
+          "waitingRetry": {
+            "type": "integer"
           }
         },
         "required": ["synced", "pending", "failed", "total", "failures"],
