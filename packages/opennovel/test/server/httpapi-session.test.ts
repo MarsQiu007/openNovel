@@ -279,12 +279,13 @@ describe("session HttpApi", () => {
         expect(messages.status).toBe(404)
         expect(yield* responseJson(messages)).toEqual(missingSessionBody)
 
+        // remove 对不存在会话幂等返回成功（与 abort 一致），不属于 not-found 契约
         const remove = yield* request(pathFor(SessionPaths.remove, { sessionID: missingSession }), {
           headers,
           method: "DELETE",
         })
-        expect(remove.status).toBe(404)
-        expect(yield* responseJson(remove)).toEqual(missingSessionBody)
+        expect(remove.status).toBe(200)
+        expect(yield* responseJson(remove)).toBe(true)
 
         const prompt = yield* request(pathFor(SessionPaths.prompt, { sessionID: missingSession }), {
           headers: { ...headers, "content-type": "application/json" },
