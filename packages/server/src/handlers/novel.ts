@@ -33,6 +33,7 @@ import {
   computeFingerprint,
   markDerivedStale,
   enqueueManualEditSync,
+  enqueueManualEditSyncTx,
   ManualEditSyncQueueTable,
   listPendingUpgradeTasks,
   estimateUpgradeCost,
@@ -3111,6 +3112,49 @@ async function reconcileUpgradeState(
         }
       })
     }
+
+    // 反向脱节自愈：run_chapter 等待消费（pending/running）但队列没有 pending 条目
+    // （failed 已消费终结、skipped 是被取代幽灵）→ run 记账与消费侧脱节，补入队恢复续跑。
+    // terminal 章节不触碰（用户显式重试语义）；队列无消费中中间态，有 pending 即不触发，天然避开在跑条目
+    const strandedChapterIds: string[] = []
+    for (const rc of runChapters) {
+      if (rc.status !== "pending" && rc.status !== "running") continue
+      const pendingEntry = db
+        .select({ id: ManualEditSyncQueueTable.id })
+        .from(ManualEditSyncQueueTable)
+        .where(
+          and(
+            eq(ManualEditSyncQueueTable.novel_id, novelID),
+            eq(ManualEditSyncQueueTable.entity, "chapter"),
+            eq(ManualEditSyncQueueTable.entity_id, rc.chapter_id),
+            eq(ManualEditSyncQueueTable.status, "pending"),
+          ),
+        )
+        .get()
+      if (!pendingEntry) strandedChapterIds.push(rc.chapter_id)
+    }
+
+    if (strandedChapterIds.length > 0) {
+      withTransaction(db, (tx) => {
+        for (const chapterId of strandedChapterIds) {
+          const chapter = tx
+            .select({ content_fingerprint: ChapterTable.content_fingerprint })
+            .from(ChapterTable)
+            .where(eq(ChapterTable.id, chapterId))
+            .get()
+          if (!chapter) continue
+          enqueueManualEditSyncTx(tx, {
+            novelId: novelID,
+            entity: "chapter",
+            entityId: chapterId,
+            field: "content",
+            category: "creative_fact",
+            sourceFingerprint: chapter.content_fingerprint,
+            source: "upgrade",
+          })
+        }
+      })
+    }
     return
   }
 
@@ -3191,6 +3235,25 @@ async function reconcileUpgradeState(
     }
     if (toPending.length > 0) {
       createUpgradeRunTx(tx, novelID, toPending)
+      // 同事务恢复队列消费（按来源指纹去重：同指纹 failed 重置 pending），
+      // 使 run 目标章节与队列在途条目原子一致，避免 run 记账但 worker 无活可干的脱节卡死
+      for (const chapterId of toPending) {
+        const chapter = tx
+          .select({ content_fingerprint: ChapterTable.content_fingerprint })
+          .from(ChapterTable)
+          .where(eq(ChapterTable.id, chapterId))
+          .get()
+        if (!chapter) continue
+        enqueueManualEditSyncTx(tx, {
+          novelId: novelID,
+          entity: "chapter",
+          entityId: chapterId,
+          field: "content",
+          category: "creative_fact",
+          sourceFingerprint: chapter.content_fingerprint,
+          source: "upgrade",
+        })
+      }
     }
   })
 }

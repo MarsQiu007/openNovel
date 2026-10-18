@@ -390,3 +390,118 @@ describe("upgradeStatusEndpoint 对账（task 4.4）", () => {
     expect(run!.status).toBe("active")
   })
 })
+
+describe("对账收编恢复消费（fix-reconcile-enqueue）", () => {
+  test("孤儿 failed 条目收编入 run 时同指纹重置为 pending", async () => {
+    const db = getDb(projectDir)
+    const now = Date.now()
+    // 线上形态：上一轮升级失败残留的同指纹 failed 孤儿条目（章节内容未变）
+    db.insert(ManualEditSyncQueueTable).values({
+      id: crypto.randomUUID(),
+      novel_id: novelId,
+      entity: "chapter",
+      entity_id: chapterId,
+      field: "content",
+      category: "creative_fact",
+      status: "failed",
+      source_fingerprint: computeFingerprint("测试内容"),
+      failure_reason: "无可用语言模型：无法加载模型",
+      source: "upgrade",
+      created_at: now,
+      updated_at: now,
+    }).run()
+
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+
+    const entry = db
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(eq(ManualEditSyncQueueTable.entity_id, chapterId))
+      .get()
+    expect(entry!.status).toBe("pending")
+    expect(entry!.failure_reason).toBeNull()
+
+    const run = db.select().from(UpgradeRunTable).where(eq(UpgradeRunTable.novel_id, novelId)).get()
+    expect(run!.status).toBe("active")
+  })
+})
+
+describe("活跃 run 反向脱节自愈（fix-reconcile-enqueue）", () => {
+  test("run_chapter pending 但队列无 pending 条目时补入队", async () => {
+    const db = getDb(projectDir)
+    const now = Date.now()
+    // 线上 run b0884c60 形态：活跃 run + run_chapter 全 pending + 队列全 failed
+    const runId = withTransaction(db, (tx) => createUpgradeRunTx(tx, novelId, [chapterId]))
+    db.insert(ManualEditSyncQueueTable).values({
+      id: crypto.randomUUID(),
+      novel_id: novelId,
+      entity: "chapter",
+      entity_id: chapterId,
+      field: "content",
+      category: "creative_fact",
+      status: "failed",
+      source_fingerprint: computeFingerprint("测试内容"),
+      failure_reason: "无可用语言模型：无法加载模型",
+      source: "upgrade",
+      created_at: now,
+      updated_at: now,
+    }).run()
+
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+
+    const entry = db
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(eq(ManualEditSyncQueueTable.entity_id, chapterId))
+      .get()
+    expect(entry!.status).toBe("pending")
+    expect(entry!.failure_reason).toBeNull()
+    // run_chapter 不被标 terminal，仍等待消费推进
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+      .get()
+    expect(runChapter!.status).toBe("pending")
+  })
+
+  test("terminal 章节不被反向自愈重置", async () => {
+    const db = getDb(projectDir)
+    const now = Date.now()
+    const runId = withTransaction(db, (tx) => createUpgradeRunTx(tx, novelId, [chapterId]))
+    db.update(UpgradeRunChapterTable)
+      .set({ status: "terminal", failure_message: "内容无法解析", attempts: 3 })
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+      .run()
+    db.insert(ManualEditSyncQueueTable).values({
+      id: crypto.randomUUID(),
+      novel_id: novelId,
+      entity: "chapter",
+      entity_id: chapterId,
+      field: "content",
+      category: "creative_fact",
+      status: "failed",
+      source_fingerprint: computeFingerprint("测试内容"),
+      failure_reason: "内容无法解析",
+      source: "upgrade",
+      created_at: now,
+      updated_at: now,
+    }).run()
+
+    await Effect.runPromise(upgradeStatusEndpoint(novelId, projectDir))
+
+    // terminal 章节与队列 failed 条目均保持原状（用户显式重试语义）
+    const runChapter = db
+      .select()
+      .from(UpgradeRunChapterTable)
+      .where(and(eq(UpgradeRunChapterTable.run_id, runId), eq(UpgradeRunChapterTable.chapter_id, chapterId)))
+      .get()
+    expect(runChapter!.status).toBe("terminal")
+    const entry = db
+      .select()
+      .from(ManualEditSyncQueueTable)
+      .where(eq(ManualEditSyncQueueTable.entity_id, chapterId))
+      .get()
+    expect(entry!.status).toBe("failed")
+  })
+})
