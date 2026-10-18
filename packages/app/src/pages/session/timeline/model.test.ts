@@ -23,7 +23,6 @@ describe("timeline model", () => {
 
   test("loads exactly one opaque cursor page", async () => {
     let calls = 0
-    const anchors: Array<string | boolean> = []
 
     await loadOlderTimeline({
       sessionID: () => "ses_test",
@@ -32,12 +31,9 @@ describe("timeline model", () => {
       loadMore: async () => {
         calls += 1
       },
-      before: () => anchors.push("before"),
-      after: (done) => anchors.push("after", done),
     })
 
     expect(calls).toBe(1)
-    expect(anchors).toEqual(["before", "after", true])
   })
 
   test("stops when a page adds no raw messages", async () => {
@@ -54,28 +50,7 @@ describe("timeline model", () => {
     expect(calls).toBe(1)
   })
 
-  test("does not restore an anchor after the session changes", async () => {
-    let sessionID = "ses_old"
-    let restore = 0
-
-    await loadOlderTimeline({
-      sessionID: () => sessionID,
-      more: () => true,
-      loading: () => false,
-      loadMore: async () => {
-        sessionID = "ses_new"
-      },
-      after: () => {
-        restore += 1
-      },
-    })
-
-    expect(restore).toBe(0)
-  })
-
-  test("releases the anchor when loading history fails", async () => {
-    let restore = 0
-
+  test("propagates history load failures", async () => {
     await expect(
       loadOlderTimeline({
         sessionID: () => "ses_test",
@@ -84,12 +59,7 @@ describe("timeline model", () => {
         loadMore: async () => {
           throw new Error("history failed")
         },
-        after: () => {
-          restore += 1
-        },
       }),
     ).rejects.toThrow("history failed")
-
-    expect(restore).toBe(1)
   })
 })

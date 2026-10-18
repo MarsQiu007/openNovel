@@ -1566,8 +1566,6 @@ export default function Page() {
     },
   )
 
-  let captureHistoryAnchor = () => {}
-  let restoreHistoryAnchor = (_done: boolean) => {}
   const historyRequests = new Set<string>()
   let historyContinuationFrame: number | undefined
   const loadOlder = async () => {
@@ -1576,10 +1574,7 @@ export default function Page() {
     historyRequests.add(owner.key)
     const before = timeline.messages().length
     try {
-      await timeline.history.loadOlder({
-        before: () => owner.run(captureHistoryAnchor),
-        after: (done) => owner.run(() => restoreHistoryAnchor(done)),
-      })
+      await timeline.history.loadOlder()
     } finally {
       historyRequests.delete(owner.key)
     }
@@ -2084,10 +2079,6 @@ export default function Page() {
                     if (root) scheduleScrollState(root)
                   }}
                   userMessages={visibleUserMessages()}
-                  setHistoryAnchor={(handlers) => {
-                    captureHistoryAnchor = handlers.capture
-                    restoreHistoryAnchor = handlers.restore
-                  }}
                   anchor={anchor}
                   setRevealMessage={(fn) => {
                     revealMessage = fn
