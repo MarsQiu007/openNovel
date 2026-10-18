@@ -31,4 +31,4 @@
 
 ## Implementation Commits
 
-（实施完成后回填）
+- `b195333af` fix(app): 删除与虚拟器拔河的手动 prepend 锚定补偿
