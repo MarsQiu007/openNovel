@@ -98,9 +98,15 @@ export const useSessionHashScroll = (input: {
     updateHash(message.id)
   }
 
+  let bottomForcedKey = ""
   const applyHash = (behavior: ScrollBehavior) => {
     const hash = location.hash.slice(1)
     if (!hash) {
+      // 无 hash 的回底操作只在该会话首次就绪时执行一次：历史分页落地等后续就绪
+      // 状态变化会再次触发本 effect，此时用户可能已滚动到顶部加载历史，
+      // 重复 forceScrollToBottom 会与 prepend 锚定校正竞争、把视口拉离锚定位置
+      if (bottomForcedKey === input.sessionKey()) return
+      bottomForcedKey = input.sessionKey()
       input.autoScroll.forceScrollToBottom()
       const el = input.scroller()
       if (el) input.scheduleScrollState(el)

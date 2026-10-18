@@ -15,6 +15,8 @@ export function createAutoScroll(options: AutoScrollOptions) {
   let settleTimer: ReturnType<typeof setTimeout> | undefined
   let autoTimer: ReturnType<typeof setTimeout> | undefined
   let auto: { top: number; time: number } | undefined
+  // 用户交互置位 userScrolled 的时间戳：nearBottom 清理据此留出脱离窗口
+  let lastUserStopAt = 0
 
   const threshold = () => options.bottomThreshold ?? 10
 
@@ -100,12 +102,12 @@ export function createAutoScroll(options: AutoScrollOptions) {
   const stop = () => {
     const el = store.scrollRef
     if (!el) return
-    if (!canScroll(el)) {
-      if (store.userScrolled) setStore("userScrolled", false)
-      return
-    }
+    // 不设 canScroll 前置：虚拟列表测量收敛期 scrollHeight 会短暂坍缩至视口高，
+    // 恰在此窗口交互会被误判为「不可滚动」而拒绝置位，随后底部跟随把视口拖走。
+    // 真·不可滚时由 handleScroll 的 canScroll 分支清回。
     if (store.userScrolled) return
 
+    lastUserStopAt = Date.now()
     setStore("userScrolled", true)
     options.onUserInteracted?.()
   }
@@ -132,7 +134,11 @@ export function createAutoScroll(options: AutoScrollOptions) {
     }
 
     if (distanceFromBottom(el) < threshold()) {
-      if (store.userScrolled) setStore("userScrolled", false)
+      // 用户刚向上滚出底部（wheel/touch）时，起步的前几帧仍落在 nearBottom 区间，
+      // 必须给交互留脱离窗口，否则 userScrolled 会被本分支立即清回、底部跟随拖住视口
+      if (store.userScrolled && Date.now() - lastUserStopAt > 300) {
+        setStore("userScrolled", false)
+      }
       return
     }
 

@@ -1566,6 +1566,8 @@ export default function Page() {
     },
   )
 
+  let captureHistoryAnchor = () => {}
+  let restoreHistoryAnchor = (_done: boolean) => {}
   const historyRequests = new Set<string>()
   let historyContinuationFrame: number | undefined
   const loadOlder = async () => {
@@ -1574,7 +1576,10 @@ export default function Page() {
     historyRequests.add(owner.key)
     const before = timeline.messages().length
     try {
-      await timeline.history.loadOlder()
+      await timeline.history.loadOlder({
+        before: () => owner.run(captureHistoryAnchor),
+        after: (done) => owner.run(() => restoreHistoryAnchor(done)),
+      })
     } finally {
       historyRequests.delete(owner.key)
     }
@@ -1950,6 +1955,9 @@ export default function Page() {
     autoScroll: {
       pause: autoScroll.pause,
       forceScrollToBottom: () => {
+        // 用户已滚动离开底部模式时（如滚到顶部加载历史），就绪驱动的回底必须让位，
+        // 否则 resume + scrollToEnd 会与历史 prepend 的锚定校正竞争、把视口拉离锚定位置
+        if (autoScroll.userScrolled()) return
         autoScroll.resume()
         scrollToEnd()
       },
@@ -2079,6 +2087,10 @@ export default function Page() {
                     if (root) scheduleScrollState(root)
                   }}
                   userMessages={visibleUserMessages()}
+                  setHistoryAnchor={(handlers) => {
+                    captureHistoryAnchor = handlers.capture
+                    restoreHistoryAnchor = handlers.restore
+                  }}
                   anchor={anchor}
                   setRevealMessage={(fn) => {
                     revealMessage = fn

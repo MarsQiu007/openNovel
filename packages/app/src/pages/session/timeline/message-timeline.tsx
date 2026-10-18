@@ -257,6 +257,7 @@ export function MessageTimeline(props: {
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
   setScrollToEnd?: (fn: () => void) => void
+  setHistoryAnchor?: (handlers: { capture: () => void; restore: (done: boolean) => void }) => void
 }) {
   let touchGesture: number | undefined
 
@@ -355,6 +356,98 @@ export function MessageTimeline(props: {
   const timelineRowByKey = projection.rowByKey
   const timelineRows = projection.rows
 
+  let prependAnchor: { key: string; start: number; scrollTop: number } | undefined
+  let prependAnchorFrame: number | undefined
+  let prependLoading = false
+  // 补偿循环活跃标志：与 prependLoading（数据窗口）解耦，循环期间冻结测量引起的滚动调整
+  let prependCompensating = false
+  // 程序滚动标记：虚拟器锚定/reconcile/补偿写入 scrollTop 后记下落地值，
+  // 随后的 scroll 事件据此与「用户滚动」区分——落地瞬间的程序位移不得触发锚重捕，
+  // 否则重捕时视口已被程序位移推走，会选错锚行（视口第一行已滚出视口）
+  let lastProgramScrollTop: number | undefined
+  // prepend 锚定补偿期间钉住锚 item：防止测量收敛过程中锚 item 被虚拟列表回收，
+  // 导致补偿循环以「锚元素不存在」假成功退出、锚定内容实际丢失。
+  // 用信号实现：rangeExtractor 在虚拟器 memo 内读它，变化即触发渲染集重算
+  const [prependPinnedIndexes, setPrependPinnedIndexes] = createSignal<number[]>([])
+  const clearPrependAnchor = () => {
+    prependLoading = false
+    prependCompensating = false
+    prependAnchor = undefined
+    setPrependPinnedIndexes([])
+    if (prependAnchorFrame === undefined) return
+    cancelAnimationFrame(prependAnchorFrame)
+    prependAnchorFrame = undefined
+  }
+  const capturePrependAnchor = () => {
+    prependLoading = true
+    updatePrependAnchor()
+  }
+  const updatePrependAnchor = () => {
+    const root = listRoot()
+    if (!root) return
+    const view = root.getBoundingClientRect()
+    const anchor = [...root.querySelectorAll<HTMLElement>("[data-timeline-key]")]
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter((item) => item.rect.bottom > view.top && item.rect.top < view.bottom)
+      .sort((a, b) => a.rect.top - b.rect.top)[0]
+    if (!anchor) return
+    if (!anchor.element.dataset.timelineKey) return
+    const start = virtualizer.measurementsCache.find((item) => item?.key === anchor.element.dataset.timelineKey)
+      ?.start
+    if (start === undefined) return
+    prependAnchor = { key: anchor.element.dataset.timelineKey, start, scrollTop: root.scrollTop }
+  }
+  const restorePrependAnchor = (done: boolean) => {
+    if (done) prependLoading = false
+    applyPrependAnchor()
+  }
+  const applyPrependAnchor = () => {
+    const root = listRoot()
+    if (!root || !prependAnchor) return
+    if (prependAnchorFrame !== undefined) cancelAnimationFrame(prependAnchorFrame)
+    prependCompensating = true
+    let frames = 0
+    let stable = 0
+    const apply = () => {
+      prependAnchorFrame = undefined
+      const anchor = prependAnchor
+      if (!anchor) {
+        prependCompensating = false
+        setPrependPinnedIndexes([])
+        return
+      }
+      const element = root.querySelector<HTMLElement>(`[data-timeline-key="${CSS.escape(anchor.key)}"]`)
+      const anchorIndex = virtualizer.measurementsCache.find((item) => item?.key === anchor.key)?.index
+      // 钉住锚 item 及其前方所有行：prepend 插入的新行若保持估算高度，补偿循环会基于
+      // 错误几何收敛（视口钉在 maxScroll、锚 item 前方行实测收缩后锚定永久偏移）。
+      // 全部纳入渲染集强制实测，测量收敛后才允许判定稳定。
+      setPrependPinnedIndexes(anchorIndex !== undefined ? Array.from({ length: anchorIndex + 1 }, (_, i) => i) : [])
+      // 内容坐标与 scrollTop 无关：prepend 渲染后锚 item 内容坐标从 start 变为 contentTop，
+      // 为保持视觉不动，scrollTop 需同步增加 contentTop - start
+      const contentTop = element
+        ? element.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop
+        : undefined
+      const desired = contentTop !== undefined ? anchor.scrollTop + (contentTop - anchor.start) : undefined
+      const delta = desired !== undefined ? desired - root.scrollTop : undefined
+      if (delta !== undefined && Math.abs(delta) > 0.5) {
+        root.scrollTop += delta
+        lastProgramScrollTop = root.scrollTop
+        stable = 0
+      } else {
+        stable += 1
+      }
+      frames += 1
+      if (stable >= 30 || frames >= 180) {
+        if (!prependLoading) prependAnchor = undefined
+        prependCompensating = false
+        setPrependPinnedIndexes([])
+        return
+      }
+      prependAnchorFrame = requestAnimationFrame(apply)
+    }
+    prependAnchorFrame = requestAnimationFrame(apply)
+  }
+
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
   const [renderOverscan, setRenderOverscan] = createSignal(initialMeasurements?.length || coldBottomMount ? 6 : 20)
   let resizePinnedIndexes: number[] = []
@@ -373,6 +466,8 @@ export function MessageTimeline(props: {
       // Expose the computed range before core writes an anchor correction so the browser does not clamp it to the old height.
       if (virtualContent) virtualContent.style.height = `${instance.getTotalSize()}px`
       elementScroll(offset, options, instance)
+      const root = listRoot()
+      if (root) lastProgramScrollTop = root.scrollTop
     },
     get getItemKey() {
       const rows = timelineRows()
@@ -384,7 +479,12 @@ export function MessageTimeline(props: {
       }
     },
     anchorTo: "end",
-    followOnAppend: true,
+    // 跟随追加与底部锚定状态绑定：用户滚离底部（如滚到顶部加载历史）后立即停用，
+    // 否则内容不足一屏时 isAtEnd 恒真，历史 prepend 落地会误触发 scrollToEnd、
+    // 与 prepend 锚定校正竞争把视口拉离锚定位置
+    get followOnAppend() {
+      return props.shouldAnchorBottom() ? (true as const) : undefined
+    },
     scrollEndThreshold: 80,
     get scrollMargin() {
       return showHeader() ? 64 : 0
@@ -396,7 +496,9 @@ export function MessageTimeline(props: {
       const active = id ? (messageLastRowIndex().get(id) ?? -1) : -1
       const indexes = defaultRangeExtractor({ ...range, overscan: renderOverscan() })
       return filterVirtualIndexes(
-        [...new Set([...resizePinnedIndexes, ...indexes, ...(active < 0 ? [] : [active])])].sort((a, b) => a - b),
+        [...new Set([...resizePinnedIndexes, ...prependPinnedIndexes(), ...indexes, ...(active < 0 ? [] : [active])])].sort(
+          (a, b) => a - b,
+        ),
         range.count,
       )
     },
@@ -409,7 +511,7 @@ export function MessageTimeline(props: {
     queueMicrotask(() => {
       resizeAnchorScheduled = false
       if (!props.shouldAnchorBottom() || props.hasScrollGesture()) return
-      virtualizer.scrollToEnd()
+      scrollToBottomDom()
     })
   }
   virtualizer.resizeItem = (index, size) => {
@@ -436,12 +538,11 @@ export function MessageTimeline(props: {
     if (root && props.shouldAnchorBottom()) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
+    // prepend 锚定补偿循环运行期间，禁止测量引起的滚动调整与手动补偿互相拔河
+    if (prependCompensating) return false
     if (props.shouldAnchorBottom()) return false
     const first = virtualizer.range?.startIndex
-    const adjust = first !== undefined && item.index < first
-    if (adjust)
-      console.log(`[timeline-debug] autoAdjust index=${item.index} first=${first} scrollTop=${listRoot()?.scrollTop}`)
-    return adjust
+    return first !== undefined && item.index < first
   }
   const virtualItemByKey = createMemo(
     () => new Map(virtualizer.getVirtualItems().map((item) => [item.key, item] as const)),
@@ -453,26 +554,37 @@ export function MessageTimeline(props: {
       if (index === undefined) return
       virtualizer.scrollToIndex(index, { align: "center" })
     })
-    props.setScrollToEnd?.(() => virtualizer.scrollToEnd())
+    props.setScrollToEnd?.(() => scrollToBottomDom())
+    props.setHistoryAnchor?.({ capture: capturePrependAnchor, restore: restorePrependAnchor })
   })
 
   let overscanFrame: number | undefined
   onMount(() => {
     overscanFrame = requestAnimationFrame(() => {
-      if (props.shouldAnchorBottom()) virtualizer.scrollToEnd()
+      if (props.shouldAnchorBottom()) scrollToBottomDom()
       overscanFrame = requestAnimationFrame(() => {
         overscanFrame = undefined
         if (renderOverscan() < 20) setRenderOverscan(20)
-        if (props.shouldAnchorBottom()) virtualizer.scrollToEnd()
+        if (props.shouldAnchorBottom()) scrollToBottomDom()
       })
     })
   })
 
+  // 回底走 DOM 直写而非 virtualizer.scrollToEnd：后者会留下 scrollState，
+  // reconcile 在随后 5 秒内每帧重放目标偏移，用户滚动/历史 prepend 期间形成对抗
+  const scrollToBottomDom = () => {
+    const root = listRoot()
+    if (!root) return
+    root.scrollTop = root.scrollHeight
+    lastProgramScrollTop = root.scrollTop
+  }
   const maybeAnchorBottom = () => {
     if (timelineRows().length === 0) return
     if (!props.shouldAnchorBottom() || props.hasScrollGesture()) return
     if (resizePinFrame !== undefined) cancelAnimationFrame(resizePinFrame)
-    virtualizer.scrollToEnd()
+    clearPrependAnchor()
+    if (prependAnchorFrame !== undefined) cancelAnimationFrame(prependAnchorFrame)
+    scrollToBottomDom()
   }
 
   let measuredSessionKey = sessionKey()
@@ -487,6 +599,7 @@ export function MessageTimeline(props: {
   })
 
   onCleanup(() => {
+    clearPrependAnchor()
     timelineCache.delete(ownerSessionKey)
     timelineCache.set(ownerSessionKey, { measurements: virtualizer.takeSnapshot(), toolOpen: { ...toolOpen } })
     while (timelineCache.size > 16) timelineCache.delete(timelineCache.keys().next().value!)
@@ -494,6 +607,7 @@ export function MessageTimeline(props: {
     if (overscanFrame !== undefined) cancelAnimationFrame(overscanFrame)
     props.setRevealMessage?.(() => {})
     props.setScrollToEnd?.(() => {})
+    props.setHistoryAnchor?.({ capture: () => {}, restore: () => {} })
   })
 
   const [title, setTitle] = createStore({
@@ -518,6 +632,7 @@ export function MessageTimeline(props: {
   }
 
   const handleListWheel = (event: WheelEvent & { currentTarget: HTMLDivElement }) => {
+    if (!prependLoading) clearPrependAnchor()
     const root = event.currentTarget
     const delta = normalizeWheelDelta({
       deltaY: event.deltaY,
@@ -529,6 +644,7 @@ export function MessageTimeline(props: {
   }
 
   const handleListTouchStart = (event: TouchEvent) => {
+    if (!prependLoading) clearPrependAnchor()
     touchGesture = event.touches[0]?.clientY
   }
 
@@ -554,6 +670,7 @@ export function MessageTimeline(props: {
   }
 
   const handleListPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    if (!prependLoading) clearPrependAnchor()
     props.onMarkScrollGesture(event.target)
   }
 
@@ -567,10 +684,18 @@ export function MessageTimeline(props: {
     if (!key) return
     if (!isScrollKeyTarget(event.target, key)) return
     if (scrollKeyOwner(event.currentTarget, event.target, key) !== event.currentTarget) return
+    if (!prependLoading) clearPrependAnchor()
     props.onMarkScrollGesture(event.currentTarget)
   }
 
   const handleListScroll = (event: Event & { currentTarget: HTMLDivElement }) => {
+    const root = event.currentTarget
+    if (lastProgramScrollTop !== undefined && root.scrollTop === lastProgramScrollTop) {
+      // 程序写入引发的 scroll 事件：消费标记，不视为用户滚动、不重捕锚
+      lastProgramScrollTop = undefined
+    } else if (prependLoading) {
+      updatePrependAnchor()
+    }
     props.onScheduleScrollState(event.currentTarget)
     props.onHistoryScroll()
     if (!props.hasScrollGesture()) return

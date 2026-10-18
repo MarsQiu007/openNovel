@@ -129,6 +129,11 @@ for (const scenario of scenarios) {
       const state = {
         armed: false,
         hidden: false,
+        // 时间线稳定信号：signature 连续 3 帧不变即稳定。历史分页落地后的滚动锚定补偿
+        // 需要数帧收敛（测量收敛 + 补偿写入），收敛中间态的短暂位移不应判为内容丢失。
+        settled: true,
+        settleFrames: 0,
+        lastSignature: "",
         visibleParts: [] as string[],
         samples: 0,
         stop: false,
@@ -141,7 +146,34 @@ for (const scenario of scenarios) {
         },
       }
       ;(window as Window & { __historyRootProbe?: typeof state }).__historyRootProbe = state
+      const signature = () => {
+        const virtual = document.querySelector<HTMLElement>("[data-timeline-virtual-content]")
+        const viewport = virtual?.closest<HTMLElement>(".scroll-view__viewport")
+        if (!viewport) return ""
+        const view = viewport.getBoundingClientRect()
+        return JSON.stringify({
+          top: viewport.scrollTop,
+          height: viewport.scrollHeight,
+          parts: visibleParts(),
+          // 锁定 part 的视口位置入签名：补偿假成功（锚元素卸载即认为稳定）时锁定 part 仍在位移，
+          // 签名持续变化 → 不满足稳定条件 → 等待超时暴露真失败，而不是误判稳定后漏检
+          locked: state.visibleParts.map((partID) => {
+            const part = viewport.querySelector<HTMLElement>(`[data-timeline-part-id="${CSS.escape(partID)}"]`)
+            const rect = part?.getBoundingClientRect()
+            return rect ? Math.round((rect.top - view.top) * 100) / 100 : "missing"
+          }),
+        })
+      }
       const sample = () => {
+        const current = signature()
+        if (current === state.lastSignature) {
+          state.settleFrames += 1
+          if (state.settleFrames >= 3) state.settled = true
+        } else {
+          state.settleFrames = 0
+          state.settled = false
+        }
+        state.lastSignature = current
         if (state.armed) {
           const virtual = document.querySelector<HTMLElement>("[data-timeline-virtual-content]")
           const viewport = virtual?.closest<HTMLElement>(".scroll-view__viewport")
@@ -155,6 +187,7 @@ for (const scenario of scenarios) {
           }
           if (
             !state.hidden &&
+            state.settled &&
             (!virtual || state.visibleParts.length === 0 || state.visibleParts.some((partID) => !visible(partID)))
           ) {
             state.hidden = true
@@ -204,6 +237,36 @@ for (const scenario of scenarios) {
     await expect(page.locator('[data-timeline-part-id^="prt_history_root_"]')).toHaveCount(assistants.length)
     await expect.poll(() => requests.filter((request) => request.phase === "end").length).toBe(2)
     await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
+    // 历史落地后的锚定补偿需数帧收敛，等时间线稳定再验证可见性
+    await waitForProbeSettled(page)
+    if (await visibleContentHidden(page)) {
+      const dump = await page.evaluate(() => {
+        const state = (
+          window as Window & {
+            __historyRootProbe?: { visibleParts: string[]; debug: unknown; samples: number }
+          }
+        ).__historyRootProbe!
+        const viewport = document
+          .querySelector<HTMLElement>("[data-timeline-virtual-content]")
+          ?.closest<HTMLElement>(".scroll-view__viewport")
+        const view = viewport?.getBoundingClientRect()
+        return {
+          debug: state.debug,
+          samples: state.samples,
+          scrollTop: viewport?.scrollTop,
+          scrollHeight: viewport?.scrollHeight,
+          clientHeight: viewport?.clientHeight,
+          locked: state.visibleParts.map((partID) => {
+            const part = viewport?.querySelector<HTMLElement>(`[data-timeline-part-id="${CSS.escape(partID)}"]`)
+            const rect = part?.getBoundingClientRect()
+            return rect && view
+              ? { partID, top: Math.round(rect.top - view.top), height: Math.round(rect.height) }
+              : { partID, top: null }
+          }),
+        }
+      })
+      throw new Error(`hidden after settle: ${JSON.stringify(dump)}`)
+    }
     await waitForProbeSamples(page, beforeHistory)
     expect(pages).toEqual([
       { before: undefined, limit: initialPageSize },
@@ -230,6 +293,8 @@ for (const scenario of scenarios) {
     await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
     await expect(page.locator('[data-timeline-row="bottom-spacer"]')).toBeVisible()
     if (scenario.interrupted) await expect(page.getByText("Interrupted", { exact: true })).toBeVisible()
+    // SSE 事件后的渲染同样需收敛，最终判定前等时间线稳定
+    await waitForProbeSettled(page)
     const finalState = await page.evaluate(() => {
       const state = (window as Window & { __historyRootProbe?: { hidden: boolean; stop: boolean; debug: unknown } })
         .__historyRootProbe!
@@ -258,6 +323,12 @@ async function waitForProbeSamples(page: Page, after: number) {
     (after) =>
       (window as Window & { __historyRootProbe?: { samples: number } }).__historyRootProbe!.samples >= after + 3,
     after,
+  )
+}
+
+async function waitForProbeSettled(page: Page) {
+  await page.waitForFunction(
+    () => (window as Window & { __historyRootProbe?: { settled: boolean } }).__historyRootProbe!.settled,
   )
 }
 
