@@ -40,4 +40,4 @@
 
 ## Implementation Commits
 
-（提交后回填）
+- `f7e516435` fix(app): 恢复时间线手动 prepend 锚定并修复补偿竞争根因
