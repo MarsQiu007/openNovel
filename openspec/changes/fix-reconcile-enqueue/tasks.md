@@ -16,6 +16,10 @@
 - [x] 3.2 从仓库根目录对全部改动文件运行 oxlint；验证：无新增告警
 - [x] 3.3 本地书库实弹验证：以修复版本对本地《筛选队友，我是专业的》书库（run `b0884c60` 卡死实例）执行一次升级状态查询，断言 5 章队列条目恢复 pending 并被 worker 消费推进（模型配置已确认正常），run 最终到达终态、横幅消失；验证：观察符合预期
 
+## Implementation Commits
+
+- `acdc2378` fix(server): 升级对账收编与活跃 run 脱节时同事务恢复队列消费（提案工件随本提交建立）
+
 ## Workflow follow-up
 
 - 实现提交遵循仓库约定：conventional commit + `OpenSpec-Change: fix-reconcile-enqueue` footer，一个提交一个 change-id。
