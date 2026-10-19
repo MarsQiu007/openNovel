@@ -101,11 +101,11 @@ const entries: readonly ManualEditDirectoryEntry[] = [
   { endpoint: "novel.settings-organization.dry-run", entity: "settings_organization", fields: ["plan"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.settings-organization.apply", entity: "settings_organization", fields: ["plan", "confirmed"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.review-inbox.candidate-accept", entity: "review_inbox", fields: ["allowNewCategory"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
-  { endpoint: "novel.review-inbox.candidate-reject", entity: "review_inbox", fields: [], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
+  { endpoint: "novel.review-inbox.candidate-reject", entity: "review_inbox", fields: ["*"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.review-inbox.candidate-merge", entity: "review_inbox", fields: ["pendingIds", "newId"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.review-inbox.conflict-resolve", entity: "review_inbox", fields: ["action", "content", "note"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.review-inbox.staged-accept", entity: "review_inbox", fields: ["after"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
-  { endpoint: "novel.review-inbox.staged-reject", entity: "review_inbox", fields: [], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
+  { endpoint: "novel.review-inbox.staged-reject", entity: "review_inbox", fields: ["*"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
   { endpoint: "novel.review-inbox.batch", entity: "review_inbox", fields: ["planJson", "source"], category: "workflow_fact", aiPerception: "flow_only", sync: "none" },
 
   // ─── UI 偏好 ───
