@@ -19,14 +19,32 @@
 
 ## 4. 界面（packages/app）
 
-- [ ] 4.1 `settings-node.ts` 的显示标签组扩展：world-entry 增「画廊」，character 增「画廊」，tab 类型与标签键同步
-- [ ] 4.2 `novel-queries.ts` 增 `useSettingImages` 列表查询与上传/删除/重排/说明编辑 mutations（novelKeys 增 setting-images 前缀键）
-- [ ] 4.3 新建画廊组件 `setting-gallery.tsx`：网格缩略图、上传、大图预览、说明编辑、上移/下移排序、删除确认、空态引导；挂入 `settings-main.tsx` 对应节点
-- [ ] 4.4 角色头像露出：`CharacterList` 行与 `CharacterDetail` 头部显示排序最前图片缩略图，无图回退占位
-- [ ] 4.5 i18n 三语（en/zh/zht）补齐 `novel.settings.gallery.*` 键集，en 为 parity 基准
-- [ ] 4.6 补 app 纯 helper 单测（dataUrl 校验、头像选取、排序调整）
+- [x] 4.1 `settings-node.ts` 的显示标签组扩展：world-entry 增「画廊」，character 增「画廊」，tab 类型与标签键同步
+- [x] 4.2 `novel-queries.ts` 增 `useSettingImages` 列表查询与上传/删除/重排/说明编辑 mutations（novelKeys 增 setting-images 前缀键）
+- [x] 4.3 新建画廊组件 `setting-gallery.tsx`：网格缩略图、上传、大图预览、说明编辑、上移/下移排序、删除确认、空态引导；挂入 `settings-main.tsx` 对应节点
+- [x] 4.4 角色头像露出：`CharacterList` 行与 `CharacterDetail` 头部显示排序最前图片缩略图，无图回退占位
+- [x] 4.5 i18n 三语（en/zh/zht）补齐 `novel.settings.gallery.*` 键集，en 为 parity 基准
+- [x] 4.6 补 app 纯 helper 单测（dataUrl 校验、头像选取、排序调整）
 
 ## 5. 收尾验证
 
-- [ ] 5.1 e2e 主路径：mock server 下进条目画廊 → 上传 → 网格出现 → 删除确认后消失
-- [ ] 5.2 在涉及包目录跑 `bun typecheck` 与 `bun test`（novel-store / server / app），修复回归；全部通过后按包记录验收结果
+- [x] 5.1 e2e 主路径：mock server 下进条目画廊 → 上传 → 网格出现 → 删除确认后消失（`e2e/novel/setting-gallery.spec.ts`，含说明编辑与上移排序，1 passed）
+- [x] 5.2 在涉及包目录跑 `bun typecheck` 与 `bun test`（novel-store / server / app），修复回归；全部通过后按包记录验收结果
+  - novel-store：typecheck 通过，222/222 单测通过
+  - server：typecheck 通过，150/150 单测通过（含 5 条 setting-images 端点测试）
+  - app：typecheck 通过，850/850 单测通过，画廊 e2e 1 passed；仓库 lint 0 errors
+
+## Implementation Commits
+
+- 8bbfa47d8 feat(novel-store): 新增设定图片存储与级联清理
+- e0f1d7505 feat(protocol): 新增设定图片画廊端点契约并再生成 SDK
+- 6fb358d34 feat(server): 挂接设定图片画廊端点并补端点测试
+- a7e7624ca feat(app): 设定图片画廊界面与角色头像露出
+
+## 验收记录
+
+- packages/novel-store：typecheck 通过，单测 222 全绿（含 setting-image 18 例）
+- packages/server：typecheck 通过，单测 150 全绿（含 setting-images 端点 5 例）
+- packages/app：typecheck 通过，单测 850 全绿（含画廊纯 helper 9 例），画廊 e2e 主路径 1 例全绿
+- 仓库根 `bun run lint`：0 errors
+- `openspec validate setting-entry-gallery --strict` 通过
