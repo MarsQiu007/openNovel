@@ -17,11 +17,7 @@ import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import UpgradeBanner from "./upgrade-banner"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
-import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
-import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
-import { TextareaV2 } from "@opennovel-ai/ui/v2/textarea-v2"
-import { CheckboxV2 } from "@opennovel-ai/ui/v2/checkbox-v2"
 import { useWorkspaceData, findBoundNovelSession, sendNovelSessionInstruction } from "./workspace-data"
 import { createExportBlob } from "@/utils/export-download"
 import { useNovelLiveInvalidation } from "@/context/novel-live"
@@ -31,10 +27,7 @@ import { SessionPage, SessionRouteErrorBoundary } from "@/pages/session"
 import { createSessionLineage } from "@/pages/session/session-lineage"
 import {
   useBindSession,
-  useUpdateNovel,
   useExportNovel,
-  useStyleGuide,
-  useUpdateStyleGuide,
   useOutline,
   useWorldEntries,
   useCharacters,
@@ -58,10 +51,15 @@ import PanelCharacters from "./panel-characters"
 import PanelTechniques from "./panel-techniques"
 import { PanelForeshadow } from "./panel-foreshadow"
 import { TensionChart } from "./tension-chart"
-import RelationsView from "./relations-view"
-import MapView from "./map-view"
-import { WorldSidebar } from "./world-sidebar"
-import { WorldReader } from "./world-reader"
+import { SettingsTree } from "./settings-tree"
+import { SettingsMain } from "./settings-main"
+import {
+  migrateLegacySettingsNode,
+  parseSettingsNode,
+  serializeSettingsNode,
+  type SettingsNode,
+  type SettingsTab,
+} from "./settings-node"
 import StructurePanel from "./structure-panel"
 import { AnnotationPanel } from "./annotation-panel"
 import ReviewPanel from "./review-panel"
@@ -126,9 +124,13 @@ type WorkspaceLayout = {
 // 按书记忆的工作台内容选择存档（novel.workspace.state.v1）：全 optional 增量写入，缺省即默认态。
 // 与 novel.reading-progress 同模式（全局持久化键 + 按 novelID 分桶）；布局类状态不在此（走
 // novel.workspace.layout.v1 保持全局单份）。大纲项整体存 OutlineTarget（id 语义见 outline-sidebar）。
+// 设定树选中节点 settingsNode 与板块收纳 settingsCollapsed 为本变更新增（design D4）；
+// worldEntryId / relationCharacterId 为遗留只读字段，仅在 settingsNode 缺失时按迁移读取。
 type PerBookState = {
   leftMode?: "chapters" | "outlines" | "world"
   outline?: OutlineTarget
+  settingsNode?: string
+  settingsCollapsed?: string[]
   worldEntryId?: string
   relationCharacterId?: string
   /** 该书最近所在的会话（会话段路由变化时写入，打开书籍时供自动回跳恢复） */
@@ -158,9 +160,9 @@ export default function NovelWorkspaceFrame() {
   useSettingsCommand()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabValue = () => searchParams.tab
-  const activeTab = (): "reading" | "writing" | "relations" | "map" | "canvas" => {
+  const activeTab = (): "reading" | "writing" | "canvas" => {
     const v = tabValue()
-    if (v === "writing" || v === "relations" || v === "map" || v === "canvas") return v
+    if (v === "writing" || v === "canvas") return v
     if (v === "reading") return "reading"
     // 无 tab 参数时：会话模式落在写作视图（对话在右栏随行），否则默认阅读
     return isSessionMode() ? "writing" : "reading"
@@ -196,10 +198,13 @@ export default function NovelWorkspaceFrame() {
     const id = selectedChapterId()
     return id ? (data.chapters.find((c) => c.id === id) ?? null) : null
   })
-  const [selectedRelationCharacterId, setSelectedRelationCharacterId] = createSignal<string | null>(null)
   const [leftMode, setLeftMode] = createSignal<LeftMode>("chapters")
   const [selectedOutline, setSelectedOutline] = createSignal<OutlineTarget | null>(null)
-  const [selectedWorldEntryId, setSelectedWorldEntryId] = createSignal<string | null>(null)
+  // 设定树选中节点与一级板块收纳（按书持久化）；pendingTab 为旧地址重定向的一次性内存标签
+  // （?tab=relations|map → 角色/世界观板块的 graph/map 标签），首帧被 settings-main 消费后清除
+  const [settingsNode, setSettingsNode] = createSignal<SettingsNode | null>(null)
+  const [settingsCollapsed, setSettingsCollapsed] = createSignal<readonly string[]>([])
+  const [pendingSettingsTab, setPendingSettingsTab] = createSignal<SettingsTab | null>(null)
   // 选择联动：写 signal 的同时更新该书存档——恢复 effect 随数据 refetch 重跑时读到的存档值
   // 就是用户最新选择，恢复幂等（每个选择入口都必须走这里的联动，见下方恢复 effect）
   const changeLeftMode = (value: LeftMode) => {
@@ -210,14 +215,16 @@ export default function NovelWorkspaceFrame() {
     setSelectedOutline(target)
     setPerBookState(novelID(), { outline: target })
   }
-  const selectWorldEntry = (entryID: string) => {
-    setSelectedWorldEntryId(entryID)
-    setPerBookState(novelID(), { worldEntryId: entryID })
+  const selectSettingsNode = (node: SettingsNode | null) => {
+    setSettingsNode(node)
+    setPerBookState(novelID(), { settingsNode: node ? serializeSettingsNode(node) : undefined })
   }
-  const selectRelationCharacter = (characterID: string | null) => {
-    setSelectedRelationCharacterId(characterID)
-    // RelationsView 会传 null（取消选中）——null 也同步清存档，否则 refetch 重跑会按旧存档把选择恢复回来
-    setPerBookState(novelID(), { relationCharacterId: characterID ?? undefined })
+  const toggleSettingsSection = (key: string) => {
+    const next = settingsCollapsed().includes(key)
+      ? settingsCollapsed().filter((k) => k !== key)
+      : [...settingsCollapsed(), key]
+    setSettingsCollapsed(next)
+    setPerBookState(novelID(), { settingsCollapsed: [...next] })
   }
   // 恢复校验的数据源：与各子组件同 queryKey，tanstack query 缓存共享，无重复请求
   const outlineQuery = useOutline(novelID)
@@ -358,7 +365,7 @@ export default function NovelWorkspaceFrame() {
   })
 
   // 首帧准备（每本书一次）：落值章节选中与内容现场（乐观恢复），同步展开态地址；
-  // 决策未落定或仍有待应用回跳时保持门关闭，等地址落地后重跑开门。
+  // 决策未落定或仍有待应用导航（回跳 / 旧地址重定向）时保持门关闭，等地址落地后重跑开门。
   createEffect(() => {
     if (!persistedReady()) return
     const book = novelID()
@@ -380,13 +387,27 @@ export default function NovelWorkspaceFrame() {
       if (fallbackChapter && savedChapter) setReadingProgress(book, fallbackChapter)
     }
 
-    // 内容现场：门内乐观落值（大纲 / 世界观 / 关系的失效补校验在本区块末尾，数据就绪后静默进行）
+    // 内容现场：门内乐观落值（大纲 / 设定树的失效补校验在本区块末尾，数据就绪后静默进行）
     const saved = perBookState[book]
     const mode = saved?.leftMode
     setLeftMode(mode === "outlines" || mode === "world" ? mode : "chapters")
     setSelectedOutline(saved?.outline ?? null)
-    setSelectedWorldEntryId(saved?.worldEntryId ?? null)
-    setSelectedRelationCharacterId(saved?.relationCharacterId ?? null)
+    // 设定树节点：settingsNode 存档存在即以其为准（损坏值按未选中回落，不看 legacy）；
+    // 存档缺失时迁移旧 worldEntryId / relationCharacterId（design D4 只读迁移）
+    const parsedNode = saved?.settingsNode != null ? parseSettingsNode(saved.settingsNode) : null
+    setSettingsNode(parsedNode ?? migrateLegacySettingsNode(saved ?? {}))
+    setSettingsCollapsed(saved?.settingsCollapsed ?? [])
+
+    // 旧主区视图地址重定向（design D3）：?tab=relations|map → 设定树对应节点 + 一次性标签，
+    // 不渲染旧视图、replace 不留历史中间条目；地址未落地前保持门关闭，重跑后完成剩余准备
+    const legacyTab = tabValue()
+    if (legacyTab === "relations" || legacyTab === "map") {
+      selectSettingsNode(legacyTab === "relations" ? { kind: "characters" } : { kind: "world" })
+      setPendingSettingsTab(legacyTab === "relations" ? "graph" : "map")
+      changeLeftMode("world")
+      setSearchParams({ tab: undefined }, { replace: true })
+      return
+    }
 
     // 展开态地址同步：无 tab 参数时按持久值以 replace 恢复（不在历史残留中间条目）。
     // setSearchParams 经路由 transition 异步落地：落地前不标记完成、首帧门保持关闭——
@@ -441,23 +462,25 @@ export default function NovelWorkspaceFrame() {
     setSelectedOutline(null)
     setPerBookState(novelID(), { outline: undefined })
   })
+  // 设定树选中节点失效补校验：指向的条目 / 角色已删除时清节点并清存档（design D4），
+  // 与旧 worldEntryId / relationCharacterId 补校验同模式，按各自数据就绪粒度拆开
   createEffect(() => {
     if (framePreparedFor() !== novelID()) return
     const world = worldQuery.data
-    const selected = selectedWorldEntryId()
-    if (!world || selected === null) return
-    if (world.some((e) => e.id === selected)) return
-    setSelectedWorldEntryId(null)
-    setPerBookState(novelID(), { worldEntryId: undefined })
+    const node = settingsNode()
+    if (!world || node?.kind !== "world-entry") return
+    if (world.some((e) => e.id === node.entryId)) return
+    setSettingsNode(null)
+    setPerBookState(novelID(), { settingsNode: undefined })
   })
   createEffect(() => {
     if (framePreparedFor() !== novelID()) return
     const characters = charactersQuery.data
-    const selected = selectedRelationCharacterId()
-    if (!characters || selected === null) return
-    if (characters.some((c) => c.id === selected)) return
-    setSelectedRelationCharacterId(null)
-    setPerBookState(novelID(), { relationCharacterId: undefined })
+    const node = settingsNode()
+    if (!characters || node?.kind !== "character") return
+    if (characters.some((c) => c.id === node.characterId)) return
+    setSettingsNode(null)
+    setPerBookState(novelID(), { settingsNode: undefined })
   })
   const exitExpand = (target?: RailPanel) => {
     if (!expandedPanel()) return
@@ -700,27 +723,12 @@ export default function NovelWorkspaceFrame() {
     )
   }
 
-  const [isEditing, setIsEditing] = createSignal(false)
-  const [editTitle, setEditTitle] = createSignal("")
-  const [editSynopsis, setEditSynopsis] = createSignal("")
-  const [editGenre, setEditGenre] = createSignal("")
-  const [editTone, setEditTone] = createSignal("")
-  const [editPov, setEditPov] = createSignal("")
-  const [editTense, setEditTense] = createSignal("")
-  const [editRules, setEditRules] = createSignal("")
-  const [editLengthLimit, setEditLengthLimit] = createSignal(false)
-
-  const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"] as const
-
   // Session activity & approval state
   const sync = useSync()
   const novelActivity = useNovelActivity(() =>
     flattenNovelSessionOptions(boundSessions.data ?? []).map((session) => session.sessionID),
   )
   const pendingCount = createMemo(() => usePendingApprovalCount(data.chapters))
-  const updateNovel = useUpdateNovel()
-  const styleGuideQuery = useStyleGuide(novelID)
-  const updateStyleGuide = useUpdateStyleGuide()
   const [isCancelling, setIsCancelling] = createSignal(false)
   const bindSessionMutation = useBindSession()
 
@@ -767,56 +775,10 @@ export default function NovelWorkspaceFrame() {
     URL.revokeObjectURL(url)
   }
 
-  function startEdit() {
-    if (!data.novel) return
-    setEditTitle(data.novel.title)
-    setEditSynopsis(data.novel.synopsis)
-    setEditGenre(data.novel.genre)
-    const sg = styleGuideQuery.data
-    setEditTone(sg?.tone ?? "")
-    setEditPov(sg?.pov ?? "")
-    setEditTense(sg?.tense ?? "")
-    setEditLengthLimit(sg?.rules?.chapter_length_limit === "true")
-    setEditRules(
-      Object.entries(sg?.rules ?? {})
-        .filter(([k]) => k !== "chapter_length_limit")
-        .map(([k, v]) => `${k}: ${v}`)
-        .join("\n"),
-    )
-    setIsEditing(true)
-  }
-
-  function cancelEdit() {
-    setIsEditing(false)
-  }
-
-  async function saveEdit() {
-    if (!data.novel) return
-    await updateNovel.mutateAsync({
-      novelID: novelID(),
-      title: editTitle().trim() || undefined,
-      synopsis: editSynopsis().trim() || undefined,
-      genre: (editGenre() as (typeof GENRES)[number]) || undefined,
-    })
-    const rules = { chapter_length_limit: editLengthLimit() ? "true" : "false" }
-    Object.assign(rules, Object.fromEntries(
-      editRules()
-        .split("\n")
-        .map((line) => {
-          const idx = line.search(/[:：]/)
-          if (idx <= 0) return null
-          return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()] as const
-        })
-        .filter((entry): entry is readonly [string, string] => entry !== null && entry[0].length > 0),
-    ))
-    await updateStyleGuide.mutateAsync({
-      novelID: novelID(),
-      tone: editTone().trim(),
-      pov: editPov().trim(),
-      tense: editTense().trim(),
-      rules,
-    })
-    setIsEditing(false)
+  /** 头部「编辑」入口收敛（design D5）：跳转到设定树「书籍信息」节点，不再就地展开混合表单 */
+  function openBookInfo() {
+    changeLeftMode("world")
+    selectSettingsNode({ kind: "book-info" })
   }
 
   const sessionStatusText = createMemo(() => {
@@ -895,64 +857,37 @@ export default function NovelWorkspaceFrame() {
               >
                 ← {language.t("novel.workspace.back")}
               </ButtonV2>
-              <Show
-                when={isEditing()}
-                fallback={
-                  <>
-                    <h1 class="text-xl font-bold text-v2-text-text-base">{data.novel!.title}</h1>
-                    <Tag>{language.t(`novel.genre.${data.novel!.genre}`)}</Tag>
-                    <Tag>{language.t(`novel.chapter.status.${data.novel!.status}`)}</Tag>
-                    <ButtonV2 variant="ghost-muted" size="small" onClick={startEdit}>
-                      {language.t("novel.workspace.edit")}
-                    </ButtonV2>
-                  </>
-                }
-              >
-                <div class="flex items-center gap-3">
-                  <TextInputV2 value={editTitle()} onInput={(e) => setEditTitle(e.currentTarget.value)} />
-                  <SelectV2
-                    options={[...GENRES]}
-                    current={editGenre() as (typeof GENRES)[number]}
-                    label={(g) => language.t(`novel.genre.${g}`)}
-                    onSelect={(g) => g && setEditGenre(g)}
-                  />
-                </div>
-              </Show>
+              <h1 class="text-xl font-bold text-v2-text-text-base">{data.novel!.title}</h1>
+              <Tag>{language.t(`novel.genre.${data.novel!.genre}`)}</Tag>
+              <Tag>{language.t(`novel.chapter.status.${data.novel!.status}`)}</Tag>
+              <ButtonV2 variant="ghost-muted" size="small" onClick={openBookInfo}>
+                {language.t("novel.workspace.edit")}
+              </ButtonV2>
             </div>
             <div class="flex items-center gap-3">
-              <Show when={isEditing()}>
-                <ButtonV2 variant="contrast" size="small" onClick={() => void saveEdit()}>
-                  {language.t("common.action.save")}
-                </ButtonV2>
-                <ButtonV2 variant="neutral" size="small" onClick={cancelEdit}>
-                  {language.t("common.action.cancel")}
-                </ButtonV2>
-              </Show>
-              <Show when={!isEditing()}>
-                <SegmentedControlV2
-                  aria-label="导出格式"
-                  value={exportFormat()}
-                  onChange={(value) => {
-                    const item = exportFormatItems.find((format) => format.value === value)
-                    if (item) setExportFormat(item.value)
-                  }}
-                >
-                  <For each={exportFormatItems}>
-                    {(format) => <SegmentedControlItemV2 value={format.value}>{format.label}</SegmentedControlItemV2>}
-                  </For>
-                </SegmentedControlV2>
-                <ButtonV2
-                  variant="outline"
-                  size="small"
-                  onClick={() => void downloadExport()}
-                  disabled={exportNovel.isPending}
-                  title={language.t("novel.workspace.exportHint")}
-                >
-                  {exportNovel.isPending
-                    ? language.t("novel.workspace.exporting")
-                    : language.t("novel.workspace.export")}
-                </ButtonV2>
-              </Show>
+              <SegmentedControlV2
+                aria-label="导出格式"
+                value={exportFormat()}
+                onChange={(value) => {
+                  const item = exportFormatItems.find((format) => format.value === value)
+                  if (item) setExportFormat(item.value)
+                }}
+              >
+                <For each={exportFormatItems}>
+                  {(format) => <SegmentedControlItemV2 value={format.value}>{format.label}</SegmentedControlItemV2>}
+                </For>
+              </SegmentedControlV2>
+              <ButtonV2
+                variant="outline"
+                size="small"
+                onClick={() => void downloadExport()}
+                disabled={exportNovel.isPending}
+                title={language.t("novel.workspace.exportHint")}
+              >
+                {exportNovel.isPending
+                  ? language.t("novel.workspace.exporting")
+                  : language.t("novel.workspace.export")}
+              </ButtonV2>
               <Show when={pendingCount() > 0}>
                 <Tag variant="accent">
                   {language.t("novel.workspace.pendingApproval")} ({pendingCount()})
@@ -964,58 +899,6 @@ export default function NovelWorkspaceFrame() {
 
           {/* 派生数据升级横幅：有待执行任务或执行中时展示，不阻塞现有操作 */}
           <UpgradeBanner novelID={data.novel!.id} />
-
-          <Show when={isEditing()}>
-            <div class="px-6 py-3 border-b border-v2-border-border-base bg-v2-background-bg-layer-01 space-y-2">
-              <TextareaV2
-                fluid
-                value={editSynopsis()}
-                onInput={(e) => setEditSynopsis(e.currentTarget.value)}
-                placeholder={language.t("novel.wizard.description")}
-                rows={3}
-              />
-              <div class="flex items-center gap-2">
-                <div class="flex-1 min-w-0">
-                  <TextInputV2
-                    fluid
-                    value={editTone()}
-                    onInput={(e) => setEditTone(e.currentTarget.value)}
-                    placeholder={language.t("novel.style.tone")}
-                  />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <TextInputV2
-                    fluid
-                    value={editPov()}
-                    onInput={(e) => setEditPov(e.currentTarget.value)}
-                    placeholder={language.t("novel.style.pov")}
-                  />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <TextInputV2
-                    fluid
-                    value={editTense()}
-                    onInput={(e) => setEditTense(e.currentTarget.value)}
-                    placeholder={language.t("novel.style.tense")}
-                  />
-                </div>
-              </div>
-              <TextareaV2
-                fluid
-                class="font-mono"
-                value={editRules()}
-                onInput={(e) => setEditRules(e.currentTarget.value)}
-                placeholder={language.t("novel.style.rulesHint")}
-                rows={3}
-              />
-              <CheckboxV2
-                checked={editLengthLimit()}
-                onChange={(checked) => setEditLengthLimit(checked)}
-                label="篇幅限制（±15%）"
-                description="启用后，每章正文字数必须落在目标字数 ±15% 区间内，超出会被拒绝写入"
-              />
-            </div>
-          </Show>
 
           {/* Pipeline status bar — shown when a bound session is active */}
           <Show when={novelActivity()}>
@@ -1097,10 +980,12 @@ export default function NovelWorkspaceFrame() {
                     />
                   </Show>
                   <Show when={leftMode() === "world"}>
-                    <WorldSidebar
+                    <SettingsTree
                       novelID={novelID}
-                      selectedEntryId={selectedWorldEntryId}
-                      onSelect={selectWorldEntry}
+                      selectedNode={settingsNode}
+                      onSelect={selectSettingsNode}
+                      collapsedSections={settingsCollapsed}
+                      onToggleSection={toggleSettingsSection}
                     />
                   </Show>
                 </div>
@@ -1112,7 +997,7 @@ export default function NovelWorkspaceFrame() {
               {/* expand 态下原视图保持挂载（display 切换），退出展开后状态不丢 */}
               <div class="flex flex-col flex-1 min-h-0" style={{ display: expandedPanel() ? "none" : "flex" }}>
                 <Show when={leftMode() === "chapters"}>
-                  {/* 视图切换：阅读/写作/关系/地图/画布 */}
+                  {/* 视图切换：阅读 / 写作 / 画布（关系图与地图已迁入设定树，design D3） */}
                   <div class="flex border-b border-v2-border-border-base px-8 py-2 shrink-0">
                     <SegmentedControlV2
                       value={activeTab()}
@@ -1124,10 +1009,6 @@ export default function NovelWorkspaceFrame() {
                       <SegmentedControlItemV2 value="writing">
                         {language.t("novel.workspace.writingSession")}
                       </SegmentedControlItemV2>
-                      <SegmentedControlItemV2 value="relations">
-                        {language.t("novel.relations.tab")}
-                      </SegmentedControlItemV2>
-                      <SegmentedControlItemV2 value="map">{language.t("novel.map.tab")}</SegmentedControlItemV2>
                       <SegmentedControlItemV2 value="canvas">{language.t("novel.panel.canvas")}</SegmentedControlItemV2>
                     </SegmentedControlV2>
                   </div>
@@ -1174,16 +1055,6 @@ export default function NovelWorkspaceFrame() {
                         />
                       </Show>
                     </Show>
-                    <Show when={activeTab() === "relations"}>
-                      <RelationsView
-                        novelID={novelID}
-                        selectedCharacterId={selectedRelationCharacterId}
-                        onSelectCharacter={selectRelationCharacter}
-                      />
-                    </Show>
-                    <Show when={activeTab() === "map"}>
-                      <MapView novelID={novelID} />
-                    </Show>
                     <Show when={activeTab() === "canvas"}>
                       <CanvasPanel novelID={novelID} />
                     </Show>
@@ -1202,10 +1073,13 @@ export default function NovelWorkspaceFrame() {
                 </Show>
 
                 <Show when={leftMode() === "world"}>
-                  <WorldReader
+                  <SettingsMain
                     novelID={novelID}
-                    selectedEntryId={selectedWorldEntryId}
-                    onEntryDeleted={() => setSelectedWorldEntryId(null)}
+                    node={settingsNode}
+                    pendingTab={pendingSettingsTab}
+                    onConsumePendingTab={() => setPendingSettingsTab(null)}
+                    onSelectNode={selectSettingsNode}
+                    onEntryDeleted={() => selectSettingsNode(null)}
                     onExecute={(args) => handleAnnotationExecute(args)}
                     onSessionFocused={(sessionID) => focusAnnotationSession(sessionID)}
                   />

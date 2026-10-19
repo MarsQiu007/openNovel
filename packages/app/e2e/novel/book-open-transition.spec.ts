@@ -39,7 +39,7 @@ const slotLoading = "novel-workspace-loading"
 const slotContent = "novel-workspace-content"
 const slotChatEmpty = "novel-chat-empty"
 
-type SlotSnapshot = { worldSidebar: boolean; structurePanel: boolean }
+type SlotSnapshot = { settingsTree: boolean; structurePanel: boolean }
 type SlotEvent = { slot: string; appear: boolean; url: string; snapshot?: SlotSnapshot }
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -90,14 +90,14 @@ test("first content frame restores left mode and rail panel", async ({ page }) =
   await observeSlots(page)
   await page.goto(novelWorkspaceURL(directory, soloBook.novelID))
 
-  await expectAppVisible(page.locator('[data-slot="world-sidebar"]'))
+  await expectAppVisible(page.locator('[data-slot="settings-tree"]'))
   await expectAppVisible(page.locator('[data-slot="structure-panel"]'))
   await expect(page).toHaveURL((url) => url.pathname === bookPath(soloBook.novelID))
 
   // 首个内容帧的快照即已恢复现场：不存在先默认态后补恢复的闪烁
   const content = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent)
   expect(content).toHaveLength(1)
-  expect(content[0]?.snapshot).toEqual({ worldSidebar: true, structurePanel: true })
+  expect(content[0]?.snapshot).toEqual({ settingsTree: true, structurePanel: true })
 })
 
 test("first content frame restores reading progress and expanded panel address", async ({ page }) => {
@@ -303,7 +303,7 @@ async function observeSlots(page: Page) {
           snapshot:
             hit && slot === "novel-workspace-content"
               ? {
-                  worldSidebar: !!document.querySelector('[data-slot="world-sidebar"]'),
+                  settingsTree: !!document.querySelector('[data-slot="settings-tree"]'),
                   structurePanel: !!document.querySelector('[data-slot="structure-panel"]'),
                 }
               : undefined,

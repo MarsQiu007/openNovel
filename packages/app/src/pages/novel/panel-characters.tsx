@@ -125,7 +125,7 @@ export default function PanelCharacters(props: PanelCharactersProps) {
   )
 }
 
-function CharacterList(props: {
+export function CharacterList(props: {
   characters: ReadonlyArray<{
     id: string
     name: string
@@ -137,6 +137,10 @@ function CharacterList(props: {
   onSelect: (id: string) => void
   language: ReturnType<typeof useLanguage>
   novelID: Accessor<string>
+  /** 设定树统一搜索已覆盖时关闭内嵌搜索框（rail 内不传，行为不变） */
+  hideSearch?: boolean
+  /** 新建成功回调（设定树选中新建的角色节点；rail 内不传） */
+  onCreated?: (id: string) => void
 }) {
   const [searchQuery, setSearchQuery] = createSignal("")
   const [isAdding, setIsAdding] = createSignal(false)
@@ -153,7 +157,7 @@ function CharacterList(props: {
 
   const handleSubmit = async () => {
     if (!name().trim()) return
-    await createChar.mutateAsync({
+    const created = await createChar.mutateAsync({
       novelID: props.novelID(),
       name: name().trim(),
       role: role().trim() || undefined,
@@ -163,6 +167,7 @@ function CharacterList(props: {
     setRole("")
     setDescription("")
     setIsAdding(false)
+    props.onCreated?.(created.id)
   }
 
   const handleCancel = () => {
@@ -174,16 +179,18 @@ function CharacterList(props: {
 
   return (
     <div class="flex flex-col flex-1 min-h-0">
-      {/* Search */}
-      <div class="px-4 py-3 border-b border-v2-border-border-base">
-        <TextInputV2
-          fluid
-          type="text"
-          value={searchQuery()}
-          onInput={(e) => setSearchQuery(e.currentTarget.value)}
-          placeholder={props.language.t("novel.panel.characters.search")}
-        />
-      </div>
+      {/* Search：设定树内由树顶统一搜索承载，关闭内嵌搜索框 */}
+      <Show when={!props.hideSearch}>
+        <div class="px-4 py-3 border-b border-v2-border-border-base">
+          <TextInputV2
+            fluid
+            type="text"
+            value={searchQuery()}
+            onInput={(e) => setSearchQuery(e.currentTarget.value)}
+            placeholder={props.language.t("novel.panel.characters.search")}
+          />
+        </div>
+      </Show>
 
       {/* List */}
       <Show
@@ -306,8 +313,16 @@ export function CharacterDetail(props: {
   language: ReturnType<typeof useLanguage>
   novelID: Accessor<string>
   selectedChapterId: Accessor<string | null>
+  /** 受控编辑态：设定树「内容 / 编辑」标签驱动；缺省回落内部自持（rail 与关系图抽屉用法零改动） */
+  editing?: () => boolean
+  onEditingChange?: (editing: boolean) => void
 }) {
-  const [isEditing, setIsEditing] = createSignal(false)
+  const [innerEditing, setInnerEditing] = createSignal(false)
+  const isEditing = () => (props.editing !== undefined ? props.editing() : innerEditing())
+  function setEditing(value: boolean) {
+    if (props.editing !== undefined) props.onEditingChange?.(value)
+    else setInnerEditing(value)
+  }
   const [name, setName] = createSignal(props.character.name)
   const [role, setRole] = createSignal(props.character.role)
   const [description, setDescription] = createSignal(props.character.description)
@@ -323,7 +338,7 @@ export function CharacterDetail(props: {
     setName(props.character.name)
     setRole(props.character.role)
     setDescription(props.character.description)
-    setIsEditing(true)
+    setEditing(true)
   }
 
   const handleSave = async () => {
@@ -335,11 +350,11 @@ export function CharacterDetail(props: {
       role: role().trim() || undefined,
       description: description().trim() || undefined,
     })
-    setIsEditing(false)
+    setEditing(false)
   }
 
   const handleCancel = () => {
-    setIsEditing(false)
+    setEditing(false)
   }
 
   const isProtagonist = () => props.character.role === "protagonist"
