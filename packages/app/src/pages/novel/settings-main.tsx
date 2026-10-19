@@ -23,6 +23,7 @@ import { WorldEntryDetail } from "./world-entry-detail"
 import { StyleGuideEditor } from "./style-guide-editor"
 import { NovelSoulEditor } from "./novel-soul-editor"
 import { SettingReviewInboxPanel } from "./setting-review-inbox"
+import { SettingGallery } from "./setting-gallery"
 import { PanelForeshadow } from "./panel-foreshadow"
 import PanelTechniques from "./panel-techniques"
 import { CharacterDetail, CharacterList } from "./panel-characters"
@@ -32,6 +33,7 @@ const TAB_LABEL_KEYS: Record<SettingsTab, string> = {
   content: "novel.settings.tabContent",
   edit: "novel.settings.tabEdit",
   graph: "novel.settings.tabGraph",
+  gallery: "novel.settings.tabGallery",
   list: "novel.settings.tabList",
   map: "novel.map.tab",
 }
@@ -151,8 +153,8 @@ export function SettingsMain(props: SettingsMainProps) {
           </Show>
         </Show>
 
-        {/* —— 世界观条目：内容 / 编辑 —— */}
-        <Show when={worldEntryId() !== null}>
+        {/* —— 世界观条目：内容 / 编辑 / 画廊 —— */}
+        <Show when={worldEntryId() !== null && tab() !== "gallery"}>
           <WorldEntryDetail
             novelID={props.novelID}
             selectedEntryId={worldEntryId}
@@ -162,6 +164,9 @@ export function SettingsMain(props: SettingsMainProps) {
             onExecute={props.onExecute}
             onSessionFocused={props.onSessionFocused}
           />
+        </Show>
+        <Show when={tab() === "gallery" ? worldEntryId() : null} keyed>
+          {(id) => <SettingGallery novelID={props.novelID} ownerType="world_entry" ownerID={() => id} />}
         </Show>
 
         {/* —— 角色板块 root：列表 / 关系图 —— */}
@@ -189,8 +194,8 @@ export function SettingsMain(props: SettingsMainProps) {
           </Show>
         </Show>
 
-        {/* —— 角色节点：内容 / 编辑 / 图（ego 关系图） —— */}
-        <Show when={characterId() !== null}>
+        {/* —— 角色节点：内容 / 编辑 / 图（ego 关系图）/ 画廊 —— */}
+        <Show when={characterId() !== null && tab() !== "gallery"}>
           <Show
             when={tab() === "graph"}
             fallback={
@@ -223,6 +228,9 @@ export function SettingsMain(props: SettingsMainProps) {
               onSelectCharacter={pickCharacter}
             />
           </Show>
+        </Show>
+        <Show when={tab() === "gallery" ? characterId() : null} keyed>
+          {(id) => <SettingGallery novelID={props.novelID} ownerType="character" ownerID={() => id} />}
         </Show>
       </div>
     </div>

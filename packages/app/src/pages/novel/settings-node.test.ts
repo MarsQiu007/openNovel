@@ -61,8 +61,8 @@ describe("migrateLegacySettingsNode", () => {
 
 describe("displayTabs", () => {
   test("条目 / 角色 / 板块 root 的标签组", () => {
-    expect(displayTabs({ kind: "world-entry", entryId: "e" })).toEqual(["content", "edit"])
-    expect(displayTabs({ kind: "character", characterId: "c" })).toEqual(["content", "edit", "graph"])
+    expect(displayTabs({ kind: "world-entry", entryId: "e" })).toEqual(["content", "edit", "gallery"])
+    expect(displayTabs({ kind: "character", characterId: "c" })).toEqual(["content", "edit", "graph", "gallery"])
     expect(displayTabs({ kind: "world" })).toEqual(["list", "map"])
     expect(displayTabs({ kind: "characters" })).toEqual(["list", "graph"])
   })

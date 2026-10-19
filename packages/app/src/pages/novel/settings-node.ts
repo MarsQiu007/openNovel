@@ -18,8 +18,8 @@ export type SettingsNode =
   | { kind: "characters" }
   | { kind: "character"; characterId: string }
 
-// 显示标签的取值：内容 / 编辑 / 图（可视化视图）/ 列表 / 地图
-export type SettingsTab = "content" | "edit" | "graph" | "list" | "map"
+// 显示标签的取值：内容 / 编辑 / 图（可视化视图）/ 画廊 / 列表 / 地图
+export type SettingsTab = "content" | "edit" | "graph" | "gallery" | "list" | "map"
 
 /**
  * 按节点类型声明显示标签组（design D2）。
@@ -28,9 +28,9 @@ export type SettingsTab = "content" | "edit" | "graph" | "list" | "map"
 export function displayTabs(node: SettingsNode): SettingsTab[] | null {
   switch (node.kind) {
     case "world-entry":
-      return ["content", "edit"]
+      return ["content", "edit", "gallery"]
     case "character":
-      return ["content", "edit", "graph"]
+      return ["content", "edit", "graph", "gallery"]
     case "world":
       return ["list", "map"]
     case "characters":

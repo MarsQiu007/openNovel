@@ -20,6 +20,7 @@ import {
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
+import { CharacterAvatar } from "./setting-gallery"
 import { Marked } from "marked"
 
 const marked = new Marked()
@@ -214,6 +215,7 @@ export function CharacterList(props: {
                 classList={{ "opacity-50": character.status === "departed" }}
               >
                 <div class="flex items-center gap-2">
+                  <CharacterAvatar novelID={props.novelID} characterID={character.id} name={character.name} />
                   <span class="text-sm font-medium text-v2-text-text-base truncate">{character.name}</span>
                   <Tag class="shrink-0">{character.role}</Tag>
                   <Show when={character.status === "departed"}>
@@ -424,7 +426,10 @@ export function CharacterDetail(props: {
           <>
             {/* Header */}
             <div class="px-4 py-4 border-b border-v2-border-border-base">
-              <h3 class="text-base font-semibold text-v2-text-text-base">{props.character.name}</h3>
+              <div class="flex items-center gap-2.5">
+                <CharacterAvatar novelID={props.novelID} characterID={props.character.id} name={props.character.name} class="h-10 w-10" />
+                <h3 class="text-base font-semibold text-v2-text-text-base">{props.character.name}</h3>
+              </div>
               <div class="flex items-center gap-1.5 mt-1">
                 <Tag>{props.character.role}</Tag>
                 <Show when={isDeparted()}>

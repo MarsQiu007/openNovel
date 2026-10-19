@@ -4,7 +4,7 @@ import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
-import type { AnnotationExecutionSnapshot, ExportFormat, ReviewInboxSource } from "@opennovel-ai/schema/novel"
+import type { AnnotationExecutionSnapshot, ExportFormat, ReviewInboxSource, SettingImageOwnerType } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
@@ -194,6 +194,10 @@ export const novelKeys = {
     ["novel", "review-inbox-counts", directory, novelID] as const,
   "review-inbox-items": (directory: string, novelID: string, source: string, limit: number) =>
     ["novel", "review-inbox-items", directory, novelID, source, limit] as const,
+  "setting-images": (directory: string, novelID: string, ownerType: string, ownerID: string) =>
+    ["novel", "setting-images", directory, novelID, ownerType, ownerID] as const,
+  "setting-image-content": (directory: string, novelID: string, imageID: string) =>
+    ["novel", "setting-image-content", directory, novelID, imageID] as const,
   techniques: (directory: string, library: string = "all") => ["novel", "techniques", directory, library] as const,
   technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
@@ -2355,5 +2359,126 @@ export function useReviewInboxItems(
         offset: 0,
       }),
     enabled: !!novelID(),
+  }))
+}
+
+// ─── 设定图片（画廊，setting-entry-gallery）───
+
+export function useSettingImages(
+  novelID: Accessor<string>,
+  ownerType: Accessor<SettingImageOwnerType>,
+  ownerID: Accessor<string>,
+) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["setting-images"](sdk().directory, novelID(), ownerType(), ownerID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["image-list"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        ownerType: ownerType(),
+        ownerId: ownerID(),
+      }),
+    enabled: !!novelID() && !!ownerID(),
+  }))
+}
+
+export function useUploadSettingImage(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { ownerType: SettingImageOwnerType; ownerID: string; filename?: string; dataUrl: string }) =>
+      client()["server.novel"].upload({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        ownerType: input.ownerType,
+        ownerId: input.ownerID,
+        filename: input.filename,
+        dataUrl: input.dataUrl,
+      }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys["setting-images"](sdk().directory, novelID(), variables.ownerType, variables.ownerID),
+      })
+    },
+  }))
+}
+
+export function useUpdateSettingImageNote(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { ownerType: SettingImageOwnerType; ownerID: string; imageID: string; note: string }) =>
+      client()["server.novel"]["update-note"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        imageID: input.imageID,
+        note: input.note,
+      }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys["setting-images"](sdk().directory, novelID(), variables.ownerType, variables.ownerID),
+      })
+    },
+  }))
+}
+
+export function useReorderSettingImages(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { ownerType: SettingImageOwnerType; ownerID: string; orderedIds: readonly string[] }) =>
+      client()["server.novel"].reorder({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        ownerType: input.ownerType,
+        ownerId: input.ownerID,
+        orderedIds: [...input.orderedIds],
+      }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys["setting-images"](sdk().directory, novelID(), variables.ownerType, variables.ownerID),
+      })
+    },
+  }))
+}
+
+export function useDeleteSettingImage(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { ownerType: SettingImageOwnerType; ownerID: string; imageID: string }) =>
+      client()["server.novel"].remove({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        imageID: input.imageID,
+      }),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys["setting-images"](sdk().directory, novelID(), variables.ownerType, variables.ownerID),
+      })
+    },
+  }))
+}
+
+export function useSettingImageContent(novelID: Accessor<string>, imageID: Accessor<string>, enabled: Accessor<boolean>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["setting-image-content"](sdk().directory, novelID(), imageID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"].read({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        imageID: imageID(),
+      }),
+    enabled: enabled() && !!imageID(),
   }))
 }
