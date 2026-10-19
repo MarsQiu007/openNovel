@@ -9,7 +9,7 @@
 import type { Plugin, PluginInput } from "./index.js"
 import { tool } from "./tool.js"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
-import { eq, desc, and, asc, lt, sql, inArray, like, or } from "drizzle-orm"
+import { eq, desc, and, asc, lt, sql, like, or } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { join, dirname } from "path"
 import { assembleSnapshot, parseStyleRules, styleGuideRuleLines, type StoryArcSummary } from "./novel-writer/context.js"
@@ -87,7 +87,6 @@ import {
   EntityRefTable,
   NovelStateLogTable,
   HookRotationTable,
-  PendingSettingTable,
   WorldEntryConflictTable,
   resolveNovelForSessionWithInheritance,
   resolveChapterOutline,
@@ -158,6 +157,13 @@ import { splitParagraphs, validateAnchor, canApplyAnnotation, applySuggestion } 
 import { sanitizeLayout, defaultLayout } from "./novel-writer/outline-canvas.js"
 import { validateWorldMapAiDraft } from "./novel-writer/map-ai.js"
 import { analyzeEntities, executeOrganizePlan, loadOrganizeContext, parseOrganizePlan, validateOrganizePlan } from "./novel-writer/setting-reorganization.js"
+import {
+  acceptPendingSetting,
+  listPendingSettingRows,
+  mergePendingSettings,
+  rejectPendingSetting,
+  SETTING_TEXT_FIELDS,
+} from "./novel-writer/setting-review-candidates.js"
 import { rebuildChapterDerivedData } from "./novel-writer/chapter-rebuild.js"
 
 export { rebuildChapterDerivedData }
@@ -172,16 +178,6 @@ const SETTING_ENTITY_TYPES = [
   "volume",
   "relationship",
 ]
-
-const SETTING_TEXT_FIELDS: Record<string, string[]> = {
-  character: ["description"],
-  world_entry: ["title", "content"],
-  plot_thread: ["title", "description"],
-  foreshadowing: ["content"],
-  volume: ["title", "summary"],
-  relationship: ["description"],
-  location: ["description"],
-}
 
 function projectDirFromCtx(directory?: string | null): string {
   const dbPath = getDbPath(directory)
@@ -2076,23 +2072,14 @@ ${sceneChecklist}`
           const db = getDb(ctx.directory)
           const novelId = await resolveNovelId(db, args.novel_id)
           const status = args.status ?? "pending"
-          const conditions: any[] = [eq(PendingSettingTable.novel_id, novelId), eq(PendingSettingTable.status, status)]
-          if (args.candidate_type) conditions.push(eq(PendingSettingTable.candidate_type, args.candidate_type))
-          if (args.source_chapter_id) conditions.push(eq(PendingSettingTable.source_chapter_id, args.source_chapter_id))
-          const total = await db
-            .select({ c: sql<number>`count(*)` })
-            .from(PendingSettingTable)
-            .where(and(...conditions))
-            .get()
-          const totalCount = total?.c ?? 0
-          const rows = await db
-            .select()
-            .from(PendingSettingTable)
-            .where(and(...conditions))
-            .orderBy(desc(PendingSettingTable.created_at))
-            .limit(args.limit ?? 20)
-            .offset(args.offset ?? 0)
-            .all()
+          const { total: totalCount, rows } = await listPendingSettingRows(db, {
+            novelId,
+            status: args.status,
+            candidateType: args.candidate_type,
+            sourceChapterId: args.source_chapter_id,
+            limit: args.limit,
+            offset: args.offset,
+          })
           if (rows.length === 0) {
             return {
               title: "list_pending_settings",
@@ -2141,156 +2128,32 @@ ${sceneChecklist}`
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
-          const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, args.pending_id)).all()
-          if (!row) {
-            return { title: "accept_pending_setting", output: `候选不存在：${args.pending_id.slice(0, 8)}` }
-          }
-          if (row.status !== "pending") {
-            return { title: "accept_pending_setting", output: `候选状态为 ${row.status}，不是 pending，不可接受` }
-          }
-          let payload: Record<string, unknown>
-          try {
-            payload = JSON.parse(row.payload_json) as Record<string, unknown>
-          } catch {
-            return { title: "accept_pending_setting", output: `payload_json 解析失败：${row.payload_json}` }
-          }
-          for (const field of SETTING_TEXT_FIELDS[row.candidate_type] ?? []) {
-            if (typeof payload[field] === "string") payload[field] = normalizeSettingText(payload[field] as string)
-          }
-          const textErrors = (SETTING_TEXT_FIELDS[row.candidate_type] ?? []).flatMap((field) => {
-            const error = settingTextFormatError(payload[field], row.candidate_type, field)
-            return error ? [`${row.candidate_type}.${field}：${error}`] : []
-          })
-          if (textErrors.length > 0) {
-            return {
+          const result = await acceptPendingSetting(db, args.pending_id, { allowNewCategory: args.allow_new_category })
+          if (!result.ok) {
+            const response: { title: string; output: string; metadata?: Record<string, unknown> } = {
               title: "accept_pending_setting",
-              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
-              metadata: { pending_id: args.pending_id, candidate_type: row.candidate_type, errors: textErrors },
+              output: result.error,
             }
+            if (result.format_errors) {
+              response.metadata = {
+                pending_id: args.pending_id,
+                candidate_type: result.candidate_type ?? "",
+                errors: result.format_errors,
+              }
+            }
+            return response
           }
-          const newId = row.suggested_entity_id || crypto.randomUUID()
-          let createdId = ""
-          let sameTitleWarning = ""
-          try {
-            if (row.candidate_type === "character") {
-              const charName = String(payload.name ?? row.display_title)
-              const [existingChar] = await db
-                .select({ id: CharacterTable.id })
-                .from(CharacterTable)
-                .where(and(eq(CharacterTable.novel_id, row.novel_id), eq(CharacterTable.name, charName)))
-                .limit(1)
-                .all()
-              if (existingChar) {
-                return {
-                  title: "accept_pending_setting",
-                  output: "已存在同名角色「" + charName + "」，不重复创建。请用 merge_pending_settings 合并或更新已有条目。",
-                }
-              }
-              await db.insert(CharacterTable).values({
-                id: newId,
-                novel_id: row.novel_id,
-                name: charName,
-                role: String(payload.role ?? ""),
-                description: String(payload.description ?? ""),
-                status: "active",
-              } as any)
-              createdId = newId
-            } else if (row.candidate_type === "world_entry") {
-              // 分类白名单校验：category 是导览/组装的结构字段，必须使用受控词汇
-              const categoryError = validateWorldCategory(String(payload.category ?? ""))
-              if (categoryError && !args.allow_new_category) {
-                return { title: "accept_pending_setting", output: categoryError }
-              }
-              // 跨 category 同义检测
-              const sameTitle = await db
-                .select({ id: WorldEntryTable.id, category: WorldEntryTable.category })
-                .from(WorldEntryTable)
-                .where(
-                  and(eq(WorldEntryTable.novel_id, row.novel_id), eq(WorldEntryTable.title, String(payload.title ?? ""))),
-                )
-                .all()
-              if (sameTitle.length > 0) {
-                const cats = [...new Set(sameTitle.map((s) => s.category))].join(" / ")
-                return {
-                  title: "accept_pending_setting",
-                  output: "已存在同标题世界观条目" + String(payload.title ?? "") + "（" + sameTitle.length + " 条，category: " + cats + "）。拒绝重复创建以避免硬约束冲突。请用 merge_pending_settings 合并或更新已有条目。",
-                }
-              }
-              await db.insert(WorldEntryTable).values({
-                id: newId,
-                novel_id: row.novel_id,
-                category: String(payload.category ?? ""),
-                title: String(payload.title ?? row.display_title),
-                content: String(payload.content ?? ""),
-              } as any)
-              createdId = newId
-            } else if (row.candidate_type === "location") {
-              const locName = String(payload.name ?? row.display_title)
-              const [existingLoc] = await db
-                .select({ id: WorldEntryTable.id })
-                .from(WorldEntryTable)
-                .where(and(eq(WorldEntryTable.novel_id, row.novel_id), eq(WorldEntryTable.title, locName)))
-                .limit(1)
-                .all()
-              if (existingLoc) {
-                return {
-                  title: "accept_pending_setting",
-                  output: "已存在同名地点「" + locName + "」，不重复创建。请用 merge_pending_settings 合并或更新已有条目。",
-                }
-              }
-              await db.insert(WorldEntryTable).values({
-                id: newId,
-                novel_id: row.novel_id,
-                category: "地点",
-                title: locName,
-                content: String(payload.description ?? ""),
-              } as any)
-              createdId = newId
-            } else if (row.candidate_type === "relationship") {
-              await db.insert(RelationshipTable).values({
-                id: newId,
-                novel_id: row.novel_id,
-                char_a_id: String(payload.char_a_id ?? ""),
-                char_b_id: String(payload.char_b_id ?? ""),
-                type: String(payload.type ?? ""),
-                description: String(payload.description ?? ""),
-              } as any)
-              createdId = newId
-            } else {
-              return { title: "accept_pending_setting", output: `不支持的 candidate_type：${row.candidate_type}` }
-            }
-            // 标记 accepted
-            await db
-              .update(PendingSettingTable)
-              .set({ status: "accepted", resolved_at: Date.now() })
-              .where(eq(PendingSettingTable.id, args.pending_id))
-              .run()
-            // 统一影响面：候选入库属正式设定变更——重建描述引用并生成任务
-            const acceptEntityType = row.candidate_type === "location" ? "world_entry" : row.candidate_type
-            await scanReferences(db, row.novel_id, acceptEntityType, createdId, "description", String(payload.description ?? payload.content ?? ""))
-            const acceptIntent = {
-              novelId: row.novel_id,
-              entityType: acceptEntityType,
-              entityId: createdId,
-              field: "create",
-              oldValue: "",
-              newValue: row.display_title,
-              reason: `候选「${row.display_title}」接受入库`,
-            }
-            const acceptCreated = await applyImpact(db, acceptIntent)
-            const impact = await buildImpactReport(db, acceptIntent, await planImpact(db, acceptIntent), acceptCreated)
-            const warnLine = sameTitleWarning ? `\n${sameTitleWarning}` : ""
-            const impactLine = impact.task_count > 0 ? `\n⚠ 已生成 ${impact.task_count} 个联动任务（待处理 ${impact.pending_count} 个）` : ""
-            return {
-              title: "accept_pending_setting",
-              output: `已接受 ${row.candidate_type} 候选「${row.display_title}」，入库到正式表（id=${createdId.slice(0, 8)}）${warnLine}${impactLine}`,
-              metadata: { pending_id: args.pending_id, created_id: createdId, candidate_type: row.candidate_type, same_title_warning: sameTitleWarning, impact },
-            }
-          } catch (err) {
-            return {
-              title: "accept_pending_setting",
-              output: `入库失败：${err instanceof Error ? err.message : String(err)}`,
-            }
+          const impactLine =
+            result.impact.task_count > 0 ? `\n⚠ 已生成 ${result.impact.task_count} 个联动任务（待处理 ${result.impact.pending_count} 个）` : ""
+          return {
+            title: "accept_pending_setting",
+            output: `已接受 ${result.candidate_type} 候选「${result.display_title}」，入库到正式表（id=${result.created_id.slice(0, 8)}）${impactLine}`,
+            metadata: {
+              pending_id: result.pending_id,
+              created_id: result.created_id,
+              candidate_type: result.candidate_type,
+              impact: result.impact,
+            },
           }
         },
       }),
@@ -2301,22 +2164,14 @@ ${sceneChecklist}`
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
-          const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, args.pending_id)).all()
-          if (!row) {
-            return { title: "reject_pending_setting", output: `候选不存在：${args.pending_id.slice(0, 8)}` }
+          const result = await rejectPendingSetting(db, args.pending_id)
+          if (!result.ok) {
+            return { title: "reject_pending_setting", output: result.error }
           }
-          if (row.status !== "pending") {
-            return { title: "reject_pending_setting", output: `候选状态为 ${row.status}，不是 pending，不可拒绝` }
-          }
-          await db
-            .update(PendingSettingTable)
-            .set({ status: "rejected", resolved_at: Date.now() })
-            .where(eq(PendingSettingTable.id, args.pending_id))
-            .run()
           return {
             title: "reject_pending_setting",
-            output: `已拒绝 ${row.candidate_type} 候选「${row.display_title}」（id=${args.pending_id.slice(0, 8)}）`,
-            metadata: { pending_id: args.pending_id, candidate_type: row.candidate_type, display_title: row.display_title },
+            output: `已拒绝 ${result.candidate_type} 候选「${result.display_title}」（id=${result.pending_id.slice(0, 8)}）`,
+            metadata: { pending_id: result.pending_id, candidate_type: result.candidate_type, display_title: result.display_title },
           }
         },
       }),
@@ -2336,137 +2191,35 @@ ${sceneChecklist}`
         },
         async execute(args, ctx) {
           const db = getDb(ctx.directory)
-          const rows = await db
-            .select()
-            .from(PendingSettingTable)
-            .where(inArray(PendingSettingTable.id, args.pending_ids))
-            .all()
-          if (rows.length !== args.pending_ids.length) {
-            return {
-              title: "merge_pending_settings",
-              output: `部分候选不存在（找到 ${rows.length}/${args.pending_ids.length} 条）`,
-            }
-          }
-          const ct = rows[0].candidate_type
-          if (!rows.every((r) => r.candidate_type === ct)) {
-            return {
-              title: "merge_pending_settings",
-              output: `候选必须同 candidate_type，检测到多种类型混用：${[...new Set(rows.map((r) => r.candidate_type))].join(", ")}`,
-            }
-          }
-          if (rows.some((r) => r.status !== "pending")) {
-            return { title: "merge_pending_settings", output: `存在非 pending 状态的候选，不可合并` }
-          }
-          const novelIds = new Set(rows.map((r) => r.novel_id))
-          if (novelIds.size > 1) {
-            return { title: "merge_pending_settings", output: `候选分属不同小说，不可跨书合并` }
-          }
-          // 解析所有 payload，合并字段
-          const payloads = rows.map((r) => {
-            try {
-              return { row: r, data: JSON.parse(r.payload_json) as Record<string, unknown> }
-            } catch {
-              return { row: r, data: {} as Record<string, unknown> }
-            }
+          const result = await mergePendingSettings(db, args.pending_ids, {
+            newId: args.new_id,
+            allowNewCategory: args.allow_new_category,
           })
-          const merged: Record<string, unknown> = {}
-          for (const p of payloads) {
-            for (const [k, v] of Object.entries(p.data)) {
-              if (typeof v === "string") {
-                if (!merged[k] || (merged[k] as string).length < v.length) merged[k] = v
-              } else if (merged[k] === undefined) {
-                merged[k] = v
-              }
-            }
-          }
-          for (const field of SETTING_TEXT_FIELDS[ct] ?? []) {
-            if (typeof merged[field] === "string") merged[field] = normalizeSettingText(merged[field] as string)
-          }
-          const textErrors = (SETTING_TEXT_FIELDS[ct] ?? []).flatMap((field) => {
-            const error = settingTextFormatError(merged[field], ct, field)
-            return error ? [`${ct}.${field}：${error}`] : []
-          })
-          if (textErrors.length > 0) {
-            return {
+          if (!result.ok) {
+            const response: { title: string; output: string; metadata?: Record<string, unknown> } = {
               title: "merge_pending_settings",
-              output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
-              metadata: { candidate_type: ct, source_pending_ids: args.pending_ids, errors: textErrors },
+              output: result.error,
             }
-          }
-          const createdId = args.new_id || crypto.randomUUID()
-          const novelId = rows[0].novel_id
-          try {
-            if (ct === "character") {
-              await db.insert(CharacterTable).values({
-                id: createdId,
-                novel_id: novelId,
-                name: String(merged.name ?? rows[0].display_title),
-                role: String(merged.role ?? ""),
-                description: String(merged.description ?? ""),
-                status: "active",
-              } as any)
-            } else if (ct === "world_entry" || ct === "location") {
-              const mergedCategory = ct === "location" ? "地点" : String(merged.category ?? "")
-              const categoryError = validateWorldCategory(mergedCategory)
-              if (categoryError && !args.allow_new_category) {
-                return { title: "merge_pending_settings", output: categoryError }
-              }
-              await db.insert(WorldEntryTable).values({
-                id: createdId,
-                novel_id: novelId,
-                category: mergedCategory,
-                title: String(merged.title ?? merged.name ?? rows[0].display_title),
-                content: String(merged.content ?? merged.description ?? ""),
-              } as any)
-            } else if (ct === "relationship") {
-              await db.insert(RelationshipTable).values({
-                id: createdId,
-                novel_id: novelId,
-                char_a_id: String(merged.char_a_id ?? ""),
-                char_b_id: String(merged.char_b_id ?? ""),
-                type: String(merged.type ?? ""),
-                description: String(merged.description ?? ""),
-              } as any)
-            }
-            // 标记源候选为 merged
-            for (const id of args.pending_ids) {
-              await db
-                .update(PendingSettingTable)
-                .set({ status: "merged", resolved_at: Date.now(), merged_into: createdId })
-                .where(eq(PendingSettingTable.id, id))
-                .run()
-            }
-            // 统一影响面：合并入库属正式设定变更
-            const mergeEntityType = ct === "location" ? "world_entry" : ct
-            await scanReferences(db, rows[0].novel_id, mergeEntityType, createdId, "description", String(merged.description ?? merged.content ?? ""))
-            const mergeIntent = {
-              novelId: rows[0].novel_id,
-              entityType: mergeEntityType,
-              entityId: createdId,
-              field: "create",
-              oldValue: "",
-              newValue: rows[0].display_title,
-              reason: `候选「${rows[0].display_title}」合并入库`,
-            }
-            const mergeCreated = await applyImpact(db, mergeIntent)
-            const mergeImpact = await buildImpactReport(db, mergeIntent, await planImpact(db, mergeIntent), mergeCreated)
-            return {
-              title: "merge_pending_settings",
-              output: `已合并 ${rows.length} 条 ${ct} 候选到新正式条目（id=${createdId.slice(0, 8)}，display_title=${rows[0].display_title}）`,
-              metadata: {
-                merged_count: rows.length,
-                created_id: createdId,
-                candidate_type: ct,
+            if (result.format_errors) {
+              response.metadata = {
+                candidate_type: result.candidate_type ?? "",
                 source_pending_ids: args.pending_ids,
-                merged_payload: merged,
-                impact: mergeImpact,
-              },
+                errors: result.format_errors,
+              }
             }
-          } catch (err) {
-            return {
-              title: "merge_pending_settings",
-              output: `合并失败：${err instanceof Error ? err.message : String(err)}`,
-            }
+            return response
+          }
+          return {
+            title: "merge_pending_settings",
+            output: `已合并 ${result.merged_count} 条 ${result.candidate_type} 候选到新正式条目（id=${result.created_id.slice(0, 8)}，display_title=${result.display_title}）`,
+            metadata: {
+              merged_count: result.merged_count,
+              created_id: result.created_id,
+              candidate_type: result.candidate_type,
+              source_pending_ids: result.source_pending_ids,
+              merged_payload: result.merged_payload,
+              impact: result.impact,
+            },
           }
         },
       }),
