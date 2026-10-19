@@ -85,6 +85,18 @@ import {
   SettingOrganizationAnalyzeResult,
   SettingOrganizationDryRunResult,
   SettingOrganizationApplyResult,
+  ReviewInboxSource,
+  ReviewInboxListResult,
+  ReviewInboxCounts,
+  ReviewInboxCandidateAcceptInput,
+  ReviewInboxCandidateMergeInput,
+  ReviewInboxCandidateOperationResult,
+  ReviewInboxConflictResolveInput,
+  ReviewInboxConflictResolveResult,
+  ReviewInboxStagedAcceptInput,
+  ReviewInboxStagedResolveResult,
+  ReviewInboxBatchInput,
+  ReviewInboxBatchResult,
   ManualEditSyncEntry,
   ManualEditSyncQueryResult,
   ManualEditSyncRetryInput,
@@ -1256,6 +1268,118 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.settings-organization.apply",
           summary: "Apply setting organization plan",
           description: "Apply an explicitly confirmed organization plan after server-side revalidation.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.review-inbox.list", `${root}/:novelID/review-inbox`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({
+        ...LocationQuery.fields,
+        source: ReviewInboxSource.pipe(Schema.optional),
+        limit: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
+        offset: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
+      }),
+      success: ReviewInboxListResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.review-inbox.list",
+          summary: "List review inbox items",
+          description: "Aggregate pending candidates, unresolved conflicts, and staged changes into unified inbox items.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.review-inbox.counts", `${root}/:novelID/review-inbox/counts`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: ReviewInboxCounts,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.counts", summary: "Get review inbox badge counts" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.candidate-accept", `${root}/:novelID/review-inbox/candidates/:candidateID/accept`, {
+      params: { novelID: Schema.String, candidateID: Schema.String },
+      query: LocationQuery,
+      payload: ReviewInboxCandidateAcceptInput,
+      success: ReviewInboxCandidateOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.candidate-accept", summary: "Accept pending setting candidate" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.candidate-reject", `${root}/:novelID/review-inbox/candidates/:candidateID/reject`, {
+      params: { novelID: Schema.String, candidateID: Schema.String },
+      query: LocationQuery,
+      success: ReviewInboxCandidateOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.candidate-reject", summary: "Reject pending setting candidate" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.candidate-merge", `${root}/:novelID/review-inbox/candidates/merge`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: ReviewInboxCandidateMergeInput,
+      success: ReviewInboxCandidateOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.candidate-merge", summary: "Merge pending setting candidates" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.conflict-resolve", `${root}/:novelID/review-inbox/conflicts/:conflictID/resolve`, {
+      params: { novelID: Schema.String, conflictID: Schema.String },
+      query: LocationQuery,
+      payload: ReviewInboxConflictResolveInput,
+      success: ReviewInboxConflictResolveResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.conflict-resolve", summary: "Resolve world entry conflict" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.staged-accept", `${root}/:novelID/review-inbox/staged/:stagedID/accept`, {
+      params: { novelID: Schema.String, stagedID: Schema.String },
+      query: LocationQuery,
+      payload: ReviewInboxStagedAcceptInput,
+      success: ReviewInboxStagedResolveResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.staged-accept", summary: "Accept staged change after revalidation" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.staged-reject", `${root}/:novelID/review-inbox/staged/:stagedID/reject`, {
+      params: { novelID: Schema.String, stagedID: Schema.String },
+      query: LocationQuery,
+      success: ReviewInboxStagedResolveResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.review-inbox.staged-reject", summary: "Reject staged change" })),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.review-inbox.batch", `${root}/:novelID/review-inbox/batch`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: ReviewInboxBatchInput,
+      success: ReviewInboxBatchResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.review-inbox.batch",
+          summary: "Run setting review batch",
+          description: "Split a compiled organization plan: whitelist fixes execute immediately, the rest stage into the inbox.",
         }),
       ),
   )

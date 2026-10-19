@@ -4,6 +4,7 @@ import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
+import { SettingReviewInbox, type ReviewInboxListQuery } from "../setting-review-inbox"
 import { resolveAnnotationTarget, resolveAnnotationTargetType, type AnnotationTargetField } from "../annotation-targets"
 import type {
   SaveBookMetaInput,
@@ -11,6 +12,11 @@ import type {
   SettingOrganizationAnalyzeInput,
   SettingOrganizationApplyInput,
   SettingOrganizationDryRunInput,
+  ReviewInboxCandidateAcceptInput,
+  ReviewInboxCandidateMergeInput,
+  ReviewInboxConflictResolveInput,
+  ReviewInboxStagedAcceptInput,
+  ReviewInboxBatchInput,
   CreateAnnotationInput,
   UpdateAnnotationInput,
   CreateAnnotationRoundInput,
@@ -486,6 +492,87 @@ export function settingOrganizationApply(novelID: string, directory: string, inp
   return Effect.gen(function* () {
     const service = yield* requireSettingOrganizationNovel(novelID, directory)
     return yield* Effect.promise(() => service.apply(novelID, directory, input))
+  })
+}
+
+// ─── 收件箱审阅（setting-review-hub）───
+function requireSettingReviewInboxNovel(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const novel = getDb(directory).select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const service = yield* Effect.serviceOption(SettingReviewInbox)
+    if (Option.isNone(service)) {
+      return yield* Effect.fail(
+        new ServiceUnavailableError({
+          message: "收件箱审阅服务未在当前 Server 组合中安装",
+          service: "setting-review-inbox",
+        }),
+      )
+    }
+    return service.value
+  })
+}
+
+export function reviewInboxList(novelID: string, directory: string, query: ReviewInboxListQuery) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.list(novelID, directory, query))
+  })
+}
+
+export function reviewInboxCounts(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.counts(novelID, directory))
+  })
+}
+
+export function reviewInboxAcceptCandidate(novelID: string, directory: string, candidateID: string, input: ReviewInboxCandidateAcceptInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.acceptCandidate(novelID, directory, candidateID, input))
+  })
+}
+
+export function reviewInboxRejectCandidate(novelID: string, directory: string, candidateID: string) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.rejectCandidate(novelID, directory, candidateID))
+  })
+}
+
+export function reviewInboxMergeCandidates(novelID: string, directory: string, input: ReviewInboxCandidateMergeInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.mergeCandidates(novelID, directory, input))
+  })
+}
+
+export function reviewInboxResolveConflict(novelID: string, directory: string, conflictID: string, input: ReviewInboxConflictResolveInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.resolveConflict(novelID, directory, conflictID, input))
+  })
+}
+
+export function reviewInboxAcceptStaged(novelID: string, directory: string, stagedID: string, input: ReviewInboxStagedAcceptInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.acceptStaged(novelID, directory, stagedID, input))
+  })
+}
+
+export function reviewInboxRejectStaged(novelID: string, directory: string, stagedID: string) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.rejectStaged(novelID, directory, stagedID))
+  })
+}
+
+export function reviewInboxBatch(novelID: string, directory: string, input: ReviewInboxBatchInput) {
+  return Effect.gen(function* () {
+    const service = yield* requireSettingReviewInboxNovel(novelID, directory)
+    return yield* Effect.promise(() => service.batch(novelID, directory, input))
   })
 }
 
@@ -2863,6 +2950,64 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* upgradeResumeEndpoint(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.review-inbox.list", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxList(ctx.params.novelID, location.directory, {
+            source: ctx.query.source,
+            limit: ctx.query.limit,
+            offset: ctx.query.offset,
+          })
+        }),
+      )
+      .handle("novel.review-inbox.counts", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxCounts(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.review-inbox.candidate-accept", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxAcceptCandidate(ctx.params.novelID, location.directory, ctx.params.candidateID, ctx.payload)
+        }),
+      )
+      .handle("novel.review-inbox.candidate-reject", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxRejectCandidate(ctx.params.novelID, location.directory, ctx.params.candidateID)
+        }),
+      )
+      .handle("novel.review-inbox.candidate-merge", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxMergeCandidates(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.review-inbox.conflict-resolve", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxResolveConflict(ctx.params.novelID, location.directory, ctx.params.conflictID, ctx.payload)
+        }),
+      )
+      .handle("novel.review-inbox.staged-accept", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxAcceptStaged(ctx.params.novelID, location.directory, ctx.params.stagedID, ctx.payload)
+        }),
+      )
+      .handle("novel.review-inbox.staged-reject", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxRejectStaged(ctx.params.novelID, location.directory, ctx.params.stagedID)
+        }),
+      )
+      .handle("novel.review-inbox.batch", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* reviewInboxBatch(ctx.params.novelID, location.directory, ctx.payload)
         }),
       )
   ),
