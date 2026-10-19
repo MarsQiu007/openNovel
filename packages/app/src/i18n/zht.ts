@@ -1600,6 +1600,8 @@ export const dict = {
   "novel.settings.tree.soul": "靈魂",
   "novel.settings.tree.techniques": "技法庫",
   "novel.settings.tree.organization": "整理",
+  "novel.settings.tree.characterList": "角色列表",
+  "novel.settings.tree.toggleWorldEntries": "收納或展開世界觀條目分類",
   "novel.settings.bookInfo.saved": "書籍資訊已儲存",
   "novel.settings.tabEntries": "世界觀條目",
   "novel.settings.tabStyle": "寫作風格",

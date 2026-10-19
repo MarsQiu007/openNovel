@@ -1642,6 +1642,8 @@ export const dict = {
   "novel.settings.tree.soul": "Soul",
   "novel.settings.tree.techniques": "Techniques",
   "novel.settings.tree.organization": "Organization",
+  "novel.settings.tree.characterList": "Character List",
+  "novel.settings.tree.toggleWorldEntries": "Collapse or expand world entry categories",
   "novel.settings.bookInfo.saved": "Book info saved",
   "novel.settings.tabEntries": "World Entries",
   "novel.settings.tabStyle": "Writing Style",

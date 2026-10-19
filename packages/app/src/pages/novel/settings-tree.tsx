@@ -7,7 +7,7 @@
  * 板块收纳状态由父级按书持久化（collapsedSections），分类子组收纳为内存态。
  * 新建世界观条目入口承接原 world-sidebar 表单，提交成功选中新条目。
  */
-import { type Accessor, createMemo, createSignal, For, Show, type JSX } from "solid-js"
+import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useCreateWorldEntry, useCharacters, useWorldEntries } from "@/context/novel-queries"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
@@ -156,28 +156,48 @@ export function SettingsTree(props: SettingsTreeProps) {
             active={isSelected({ kind: "book-info" })}
             onClick={() => props.onSelect({ kind: "book-info" })}
           />
+          {/* 世界观条目 root 节点：选中 → 中央区「列表 / 地图」；chevron 单独收纳分类子树 */}
           <Show when={hasEntryHits() || !searching()}>
-            <GroupRow
-              label={language.t("novel.settings.tree.worldEntries")}
-              collapsed={!searching() && groupCollapsed("world-entries")}
-              onToggle={() => toggleGroup("world-entries")}
-              depth={1}
-              trailing={
-                <ButtonV2
-                  variant="ghost"
-                  size="small"
-                  class="shrink-0"
-                  onClick={(e: MouseEvent) => {
-                    e.stopPropagation()
-                    // 分组收纳时先展开，保证内联表单可见
-                    if (!searching() && groupCollapsed("world-entries")) toggleGroup("world-entries")
-                    setIsAddingEntry(!isAddingEntry())
-                  }}
-                >
-                  +
-                </ButtonV2>
-              }
-            />
+            <div
+              class="flex items-center gap-1.5 rounded py-1.5 pr-2"
+              classList={{
+                "bg-v2-background-bg-layer-02": isSelected({ kind: "world" }),
+              }}
+              style={{ "margin-left": "24px", "margin-right": "12px", "padding-left": "8px" }}
+            >
+              <button
+                type="button"
+                class="min-w-0 flex-1 truncate text-left text-sm transition-colors"
+                classList={{
+                  "text-v2-text-text-base font-medium": isSelected({ kind: "world" }),
+                  "text-v2-text-text-muted hover:text-v2-text-text-base": !isSelected({ kind: "world" }),
+                }}
+                onClick={() => props.onSelect({ kind: "world" })}
+              >
+                {language.t("novel.settings.tree.worldEntries")}
+              </button>
+              <button
+                type="button"
+                class="shrink-0 text-v2-text-text-muted hover:text-v2-text-text-base transition-colors"
+                onClick={() => toggleGroup("world-entries")}
+                aria-expanded={!groupCollapsed("world-entries")}
+                aria-label={language.t("novel.settings.tree.toggleWorldEntries")}
+              >
+                <Icon name={groupCollapsed("world-entries") && !searching() ? "chevron-right" : "chevron-down"} size="small" />
+              </button>
+              <ButtonV2
+                variant="ghost"
+                size="small"
+                class="shrink-0"
+                onClick={() => {
+                  // 分组收纳时先展开，保证内联表单可见
+                  if (!searching() && groupCollapsed("world-entries")) toggleGroup("world-entries")
+                  setIsAddingEntry(!isAddingEntry())
+                }}
+              >
+                +
+              </ButtonV2>
+            </div>
             <Show when={!groupCollapsed("world-entries")}>
               <Show when={isAddingEntry()}>
                 <div class="mx-4 my-1 flex flex-col gap-2 rounded border border-v2-border-border-base bg-v2-background-bg-layer-01 p-2">
@@ -299,6 +319,15 @@ export function SettingsTree(props: SettingsTreeProps) {
           onToggle={() => props.onToggleSection("characters")}
         />
         <Show when={!sectionCollapsed("characters")}>
+          {/* 角色板块 root 节点：选中 → 中央区「列表 / 关系图」 */}
+          <Show when={hasCharacterHits() || !searching()}>
+            <NodeRow
+              label={language.t("novel.settings.tree.characterList")}
+              active={isSelected({ kind: "characters" })}
+              onClick={() => props.onSelect({ kind: "characters" })}
+              depth={1}
+            />
+          </Show>
           <Show
             when={filteredCharacters().length > 0}
             fallback={
@@ -315,7 +344,7 @@ export function SettingsTree(props: SettingsTreeProps) {
                   label={character.name}
                   active={isSelected({ kind: "character", characterId: character.id })}
                   onClick={() => props.onSelect({ kind: "character", characterId: character.id })}
-                  depth={1}
+                  depth={2}
                   faded={character.status === "departed"}
                 />
               )}
@@ -342,13 +371,12 @@ function SectionHeader(props: { title: string; collapsed: boolean; onToggle: () 
   )
 }
 
-/** 可收纳分组行（世界观条目根 / 分类子组）：depth 控制缩进。 */
+/** 可收纳分组行（分类子组）：depth 控制缩进。 */
 function GroupRow(props: {
   label: string
   collapsed: boolean
   onToggle: () => void
   depth: number
-  trailing?: JSX.Element
 }) {
   return (
     <div
@@ -364,7 +392,6 @@ function GroupRow(props: {
         <Icon name={props.collapsed ? "chevron-right" : "chevron-down"} size="small" />
         <span class="truncate text-xs font-medium uppercase tracking-wider">{props.label}</span>
       </button>
-      {props.trailing}
     </div>
   )
 }

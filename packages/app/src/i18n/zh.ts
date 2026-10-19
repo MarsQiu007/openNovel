@@ -1604,6 +1604,8 @@ export const dict = {
   "novel.settings.tree.soul": "灵魂",
   "novel.settings.tree.techniques": "技法库",
   "novel.settings.tree.organization": "整理",
+  "novel.settings.tree.characterList": "角色列表",
+  "novel.settings.tree.toggleWorldEntries": "收纳或展开世界观条目分类",
   "novel.settings.bookInfo.saved": "书籍信息已保存",
   "novel.settings.tabEntries": "世界观条目",
   "novel.settings.tabStyle": "写作风格",
