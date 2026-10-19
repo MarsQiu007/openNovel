@@ -910,6 +910,126 @@ export const SettingOrganizationApplyInput = Schema.Struct({
 }).annotate({ identifier: "Novel.SettingOrganizationApplyInput" })
 export interface SettingOrganizationApplyInput extends Schema.Schema.Type<typeof SettingOrganizationApplyInput> {}
 
+// ─── 收件箱（setting-review-hub）：候选 / 冲突 / 暂存变更统一审阅契约 ───
+
+export const ReviewInboxSource = Schema.Literals(["candidate", "conflict", "staged"])
+export type ReviewInboxSource = typeof ReviewInboxSource.Type
+
+export const ReviewInboxCounts = Schema.Struct({
+  candidates: Schema.Int,
+  conflicts: Schema.Int,
+  staged: Schema.Int,
+  total: Schema.Int,
+}).annotate({ identifier: "Novel.ReviewInboxCounts" })
+export interface ReviewInboxCounts extends Schema.Schema.Type<typeof ReviewInboxCounts> {}
+
+export const ReviewInboxItem = Schema.Struct({
+  id: Schema.String,
+  source: ReviewInboxSource,
+  /** candidate_type / conflict_kind / 暂存动作（update|merge|delete） */
+  kind: Schema.String,
+  title: Schema.String,
+  targetId: Schema.NullOr(Schema.String),
+  summary: Schema.String,
+  evidence: Schema.String,
+  /** 旧值 JSON（候选为空串） */
+  before: Schema.String,
+  /** 新值 JSON（候选为 payload，冲突未生成草案时为空串） */
+  after: Schema.String,
+  status: Schema.String,
+  createdAt: Schema.Int,
+  sourceChapterId: Schema.NullOr(Schema.String),
+  reviewNote: Schema.String,
+}).annotate({ identifier: "Novel.ReviewInboxItem" })
+export interface ReviewInboxItem extends Schema.Schema.Type<typeof ReviewInboxItem> {}
+
+export const ReviewInboxListResult = Schema.Struct({
+  items: Schema.Array(ReviewInboxItem),
+  total: Schema.Int,
+  counts: ReviewInboxCounts,
+}).annotate({ identifier: "Novel.ReviewInboxListResult" })
+export interface ReviewInboxListResult extends Schema.Schema.Type<typeof ReviewInboxListResult> {}
+
+export const ReviewInboxImpact = Schema.Struct({
+  taskCount: Schema.Int,
+  pendingCount: Schema.Int,
+  blockedWriting: Schema.Boolean,
+}).annotate({ identifier: "Novel.ReviewInboxImpact" })
+export interface ReviewInboxImpact extends Schema.Schema.Type<typeof ReviewInboxImpact> {}
+
+export const ReviewInboxCandidateAcceptInput = Schema.Struct({
+  allowNewCategory: optional(Schema.Boolean),
+}).annotate({ identifier: "Novel.ReviewInboxCandidateAcceptInput" })
+export interface ReviewInboxCandidateAcceptInput extends Schema.Schema.Type<typeof ReviewInboxCandidateAcceptInput> {}
+
+export const ReviewInboxCandidateMergeInput = Schema.Struct({
+  pendingIds: Schema.Array(Schema.String),
+  newId: optional(Schema.String),
+  allowNewCategory: optional(Schema.Boolean),
+}).annotate({ identifier: "Novel.ReviewInboxCandidateMergeInput" })
+export interface ReviewInboxCandidateMergeInput extends Schema.Schema.Type<typeof ReviewInboxCandidateMergeInput> {}
+
+export const ReviewInboxCandidateOperationResult = Schema.Struct({
+  ok: Schema.Boolean,
+  pendingId: optional(Schema.String),
+  createdId: optional(Schema.String),
+  candidateType: optional(Schema.String),
+  displayTitle: optional(Schema.String),
+  impact: optional(ReviewInboxImpact),
+  error: optional(Schema.String),
+  formatErrors: optional(Schema.Array(Schema.String)),
+}).annotate({ identifier: "Novel.ReviewInboxCandidateOperationResult" })
+export interface ReviewInboxCandidateOperationResult extends Schema.Schema.Type<typeof ReviewInboxCandidateOperationResult> {}
+
+export const ReviewInboxConflictResolveInput = Schema.Struct({
+  action: Schema.Literals(["update_entry", "keep_current"]),
+  content: optional(Schema.String),
+  note: optional(Schema.String),
+  source: optional(Schema.Literals(["agent", "user"])),
+}).annotate({ identifier: "Novel.ReviewInboxConflictResolveInput" })
+export interface ReviewInboxConflictResolveInput extends Schema.Schema.Type<typeof ReviewInboxConflictResolveInput> {}
+
+export const ReviewInboxConflictResolveResult = Schema.Struct({
+  ok: Schema.Boolean,
+  conflictId: optional(Schema.String),
+  action: optional(Schema.Literals(["update_entry", "keep_current"])),
+  stagedChangeId: optional(Schema.String),
+  error: optional(Schema.String),
+}).annotate({ identifier: "Novel.ReviewInboxConflictResolveResult" })
+export interface ReviewInboxConflictResolveResult extends Schema.Schema.Type<typeof ReviewInboxConflictResolveResult> {}
+
+export const ReviewInboxStagedAcceptInput = Schema.Struct({
+  /** 编辑后的 after 字段（缺省用原草案）；同样通过接受前重校验 */
+  after: optional(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "Novel.ReviewInboxStagedAcceptInput" })
+export interface ReviewInboxStagedAcceptInput extends Schema.Schema.Type<typeof ReviewInboxStagedAcceptInput> {}
+
+export const ReviewInboxStagedResolveResult = Schema.Struct({
+  ok: Schema.Boolean,
+  stagedId: optional(Schema.String),
+  execution: optional(SettingOrganizationApplyResult),
+  error: optional(Schema.String),
+  errors: optional(Schema.Array(Schema.String)),
+}).annotate({ identifier: "Novel.ReviewInboxStagedResolveResult" })
+export interface ReviewInboxStagedResolveResult extends Schema.Schema.Type<typeof ReviewInboxStagedResolveResult> {}
+
+export const ReviewInboxBatchInput = Schema.Struct({
+  planJson: Schema.String,
+  source: optional(Schema.Literals(["agent", "user"])),
+}).annotate({ identifier: "Novel.ReviewInboxBatchInput" })
+export interface ReviewInboxBatchInput extends Schema.Schema.Type<typeof ReviewInboxBatchInput> {}
+
+export const ReviewInboxBatchResult = Schema.Struct({
+  ok: Schema.Boolean,
+  autoExecuted: Schema.Int,
+  pendingAdded: Schema.Int,
+  stagedIds: Schema.Array(Schema.String),
+  supersededIds: Schema.Array(Schema.String),
+  execution: optional(SettingOrganizationApplyResult),
+  errors: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.ReviewInboxBatchResult" })
+export interface ReviewInboxBatchResult extends Schema.Schema.Type<typeof ReviewInboxBatchResult> {}
+
 export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,
 }).annotate({ identifier: "Novel.UpsertCanvasLayoutInput" })
