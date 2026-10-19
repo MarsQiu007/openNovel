@@ -37,5 +37,32 @@
 
 ## 6. 收尾
 
-- [ ] 6.1 全量验证：packages/{novel-store,plugin,server,opennovel,app} 各自 typecheck + 单测（从包目录运行）；app e2e；`openspec validate setting-review-hub`
-- [ ] 6.2 实现提交逐个带 `OpenSpec-Change: setting-review-hub` trailer；用 `git log --grep "OpenSpec-Change: setting-review-hub" --format="%h %s"` 收集实现提交回填 `## Implementation Commits`
+- [x] 6.1 全量验证：packages/{novel-store,plugin,server,opennovel,app} 各自 typecheck + 单测（从包目录运行）；app e2e；`openspec validate setting-review-hub`
+- [x] 6.2 实现提交逐个带 `OpenSpec-Change: setting-review-hub` trailer；用 `git log --grep "OpenSpec-Change: setting-review-hub" --format="%h %s"` 收集实现提交回填 `## Implementation Commits`
+
+## Implementation Commits
+
+- 4819eb072 feat(novel-store): 新增暂存变更表与审阅留痕列
+- ebbaa6968 feat(plugin): 新增分级自动化白名单共享常量
+- 09ea4d83f refactor(plugin): 抽取候选区操作共享服务
+- c0c58cc8b feat(plugin): 新增冲突读取与处理共享服务
+- fa9c442ee feat(plugin): 新增暂存变更共享服务
+- 799b601fe feat(plugin): 新增设定整理批处理编排
+- 120a68189 feat(schema): 新增收件箱统一审阅契约类型
+- eda36d5f7 feat(server): 新增收件箱审阅服务契约与端点接线
+- cc983ac41 feat(opennovel): 实现收件箱审阅服务并装配 Layer
+- 2e4126771 chore(sdk): 再生成收件箱审阅端点 SDK 产物
+- 12ddd592e test(opennovel): 收件箱审阅端点接入 httpapi 演练
+- 5ffe8326f feat(plugin): 新增设定整理批处理与冲突审阅工具
+- f178618a2 feat(app): AI 一键整理改走批处理编排指令
+- a4a9f998b feat(app): 整理节点接入设定收件箱视图
+- d56f0791f fix(server): 补齐收件箱拒绝端点的手动编辑目录字段声明
+
+## 验收记录
+
+- packages/novel-store：typecheck 通过，单测 204 全绿
+- packages/plugin：typecheck 通过，单测 828 全绿（含 stage/batch/冲突工具与提示词断言）
+- packages/server：typecheck 通过，单测 145 全绿（d56f0791f 修复 manual-edit-directory 空字段后）
+- packages/opennovel：typecheck 通过；单测 2982 例中 5 例 ~5000ms 超时（agent 默认属性 / httpapi-session 持久化目录 / revert-compact 两例 / snapshot-tool-race）。变更前基线 e6bfd85df（origin/main tip）隔离复现同签名失败，属本机既有负载性超时，与本提案 diff 无关；其余 2977 例全绿，httpapi 演练三模式此前已全绿（12ddd592e）
+- packages/app：typecheck 通过，单测 841 全绿（含收件箱纯逻辑 14 例与 i18n parity），e2e 13 例全绿（新增收件箱主路径 + map-editor / map-manual / book-open-transition 回归）
+- `openspec validate setting-review-hub` 通过
