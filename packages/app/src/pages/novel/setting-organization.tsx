@@ -76,16 +76,14 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
       }),
   }))
 
-  function buildAiFixPrompt(issues: readonly SettingOrganizationIssue[]): string {
-    const lines = issues.map(
-      (issue, i) => `${i + 1}. [${ENTITY_LABELS[issue.entityType]}/${ISSUE_TYPE_LABELS[issue.type]}] ${issue.evidence}（条目：${issue.entryIds.join(", ")}）`,
-    )
+  // AI 一键整理走批处理编排路由：agent 自行跑 lint / 一致性 / 去重扫描 / analyze，
+  // 白名单内机械修复自动执行，其余产出进收件箱，汇报新增待审数量。
+  function buildAiFixPrompt(): string {
     return [
-      `小说 ID：${props.novelID()}\n\n请整理以上小说的设定问题。必须使用 organize_settings 工具完成完整受控流程：先 analyze，再基于报告生成 version 2 plan_json 并 dry_run 校验；把每个操作的影响用中文说明，等待我明确确认；确认后才能 apply，执行完成后再 analyze 复查。不要猜测或改写 novel_id，不要使用 update_setting / delete_setting 等旁路工具直接修改。`,
+      `小说 ID：${props.novelID()}`,
       "",
-      ...lines,
-      "",
-      "对于需要补充内容的空字段，在 plan_json 的 update 操作中根据已有上下文合理补写。",
+      "请对以上小说执行批处理整理编排：先用 lint_settings 获取确定性结构问题，再用 check_settings_consistency 检查一致性，deduplicate_characters(dry_run=true) 与 deduplicate_relationships(dry_run=true) 扫描重复（只扫不改），organize_settings(action=\"analyze\") 汇总整理分析；综合以上发现编译版本 2 plan_json（只使用真实条目 ID 与白名单字段），调用 organize_settings(action=\"batch\") 提交批处理：白名单内机械修复自动执行，其余操作写入设定收件箱待审。完成后向用户汇报「新增 N 条待审」并说明自动执行了哪些修复。",
+      "不要猜测或改写 novel_id，不要使用 update_setting / delete_setting 等旁路工具直接修改，禁止虚构 ID。",
     ].join("\n")
   }
 
@@ -100,7 +98,7 @@ export function SettingOrganizationPanel(props: SettingOrganizationPanelProps) {
               size="small"
               onClick={() => {
                 const issues = analysis.data?.issues
-                if (issues && issues.length > 0) void aiFixMutation.mutateAsync(buildAiFixPrompt(issues))
+                if (issues && issues.length > 0) void aiFixMutation.mutateAsync(buildAiFixPrompt())
               }}
               disabled={analysis.isFetching || aiFixMutation.isPending || (analysis.data?.count ?? 0) === 0}
             >
