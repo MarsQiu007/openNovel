@@ -2,15 +2,15 @@
 
 ## 1. 存储层（packages/novel-store）
 
-- [ ] 1.1 在 `packages/novel-store/src/index.ts` 追加 `setting_images` 幂等 DDL（含 owner_type CHECK 与 owner 索引）与 drizzle 表定义，字段 snake_case
-- [ ] 1.2 实现图片存取函数：上传（dataUrl 解码 + 魔数校验 + mime 白名单 + 大小/张数上限 + owner 存在性 + 文件落盘落行）、按 owner 列表（稳定排序）、读取（返回 dataUrl）、删除（删行删文件，文件缺失幂等）、重排（orderedIds 全集校验后写 0..n-1）、说明编辑（只更新 note 字段）
-- [ ] 1.3 `deleteWorldEntry` / `deleteCharacter` 接入图片级联清理（先删文件后删行，文件失败不阻断）
-- [ ] 1.4 补 novel-store 单测覆盖上传成功与各拒绝路径、排序、重排全集校验、级联清理与文件缺失幂等
+- [x] 1.1 在 `packages/novel-store/src/index.ts` 追加 `setting_images` 幂等 DDL（含 owner_type CHECK 与 owner 索引）与 drizzle 表定义，字段 snake_case
+- [x] 1.2 实现图片存取函数：上传（dataUrl 解码 + 魔数校验 + mime 白名单 + 大小/张数上限 + owner 存在性 + 文件落盘落行）、按 owner 列表（稳定排序）、读取（返回 dataUrl）、删除（删行删文件，文件缺失幂等）、重排（orderedIds 全集校验后写 0..n-1）、说明编辑（只更新 note 字段）
+- [x] 1.3 `deleteWorldEntry` / `deleteCharacter` 接入图片级联清理（先删文件后删行，文件失败不阻断）
+- [x] 1.4 补 novel-store 单测覆盖上传成功与各拒绝路径、排序、重排全集校验、级联清理与文件缺失幂等
 
 ## 2. 契约与 SDK（packages/protocol / packages/client）
 
-- [ ] 2.1 在 `packages/protocol/src/groups/novel.ts` 声明 `novel.setting-images.*` 六个端点（list / upload / read / reorder / delete / update）及请求响应 Schema 与错误 Schema
-- [ ] 2.2 从 `packages/client` 运行 `bun run generate` 重新生成 SDK，不手改生成物
+- [x] 2.1 在 `packages/protocol/src/groups/novel.ts` 声明 `novel.setting-images.*` 六个端点（list / upload / read / reorder / delete / update）及请求响应 Schema 与错误 Schema
+- [x] 2.2 从 `packages/client` 运行 `bun run generate` 重新生成 SDK，不手改生成物
 
 ## 3. 服务端（packages/server）
 

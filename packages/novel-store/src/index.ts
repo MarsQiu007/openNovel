@@ -10,6 +10,7 @@
 import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
+import { withTransaction } from "./tx.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
 import { Option, Schema } from "effect"
 import { TechniqueEvidence } from "@opennovel-ai/schema/technique"
@@ -17,7 +18,7 @@ import { inspectEvidenceElement } from "./migrate.js"
 import { join } from "path"
 import { homedir } from "os"
 import { xdgData } from "xdg-basedir"
-import { existsSync, mkdirSync, readFileSync, copyFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, copyFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
 
 // ─── DDL 表定义 ───
 
@@ -698,6 +699,29 @@ export const CharacterMapPinTable = sqliteTable(
   ],
 )
 
+export const SettingImageTable = sqliteTable(
+  "setting_images",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    /** 归属实体的多态引用：world_entry / character。不加 owner 外键（SQLite 无多态外键），靠上传校验 + 删除级联保持一致 */
+    owner_type: text().notNull(),
+    owner_id: text().notNull(),
+    filename: text().notNull().default(""),
+    mime: text().notNull(),
+    bytes: integer().notNull(),
+    source: text().notNull().default("user"),
+    sort_order: integer().notNull().default(0),
+    note: text().notNull().default(""),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index("setting_images_owner_idx").on(table.novel_id, table.owner_type, table.owner_id, table.sort_order),
+  ],
+)
+
 export const TechniqueTable = sqliteTable("techniques", {
   id: text().primaryKey(),
   name: text().notNull(),
@@ -866,6 +890,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS character_map_pins_map_character_key ON charac
 CREATE INDEX IF NOT EXISTS character_map_pins_map_idx ON character_map_pins(map_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_novel_idx ON character_map_pins(novel_id);
 CREATE INDEX IF NOT EXISTS character_map_pins_character_idx ON character_map_pins(character_id);
+CREATE TABLE IF NOT EXISTS setting_images (id text PRIMARY KEY, novel_id text NOT NULL, owner_type text NOT NULL CHECK (owner_type IN ('world_entry', 'character')), owner_id text NOT NULL, filename text DEFAULT '' NOT NULL, mime text NOT NULL, bytes integer NOT NULL, source text DEFAULT 'user' NOT NULL, sort_order integer DEFAULT 0 NOT NULL, note text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS setting_images_owner_idx ON setting_images(novel_id, owner_type, owner_id, sort_order);
 CREATE TABLE IF NOT EXISTS manual_edit_sync_queue (id text PRIMARY KEY, novel_id text NOT NULL, entity text NOT NULL, entity_id text, field text NOT NULL DEFAULT '', category text NOT NULL DEFAULT 'creative_fact', status text NOT NULL DEFAULT 'pending', source_fingerprint text, failure_reason text, source text NOT NULL DEFAULT 'manual', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_novel_status_idx ON manual_edit_sync_queue(novel_id, status);
 CREATE INDEX IF NOT EXISTS manual_edit_sync_queue_fingerprint_idx ON manual_edit_sync_queue(novel_id, entity, entity_id, source_fingerprint);
@@ -1874,6 +1900,7 @@ export async function deleteCharacter(characterId: string, directory?: string | 
     .delete(EntityRefTable)
     .where(and(eq(EntityRefTable.target_type, "character"), eq(EntityRefTable.target_id, characterId)))
     .run()
+  await deleteSettingImagesForOwner("character", characterId, directory)
   await db.delete(CharacterTable).where(eq(CharacterTable.id, characterId)).run()
 }
 
@@ -2044,6 +2071,7 @@ export async function updateWorldEntry(
 
 export async function deleteWorldEntry(entryId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
+  await deleteSettingImagesForOwner("world_entry", entryId, directory)
   await db
     .delete(AnnotationTable)
     .where(and(eq(AnnotationTable.target_type, "world_entry"), eq(AnnotationTable.target_id, entryId)))
@@ -2463,6 +2491,278 @@ export async function deleteCharacterMapPin(novelId: string, mapId: string, pinI
     .delete(CharacterMapPinTable)
     .where(and(eq(CharacterMapPinTable.id, pinId), eq(CharacterMapPinTable.map_id, mapId)))
     .run()
+}
+
+// ─── 设定图片（画廊） ───
+
+export const SETTING_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const SETTING_IMAGE_MAX_PER_OWNER = 20
+export const SETTING_IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
+export type SettingImageOwnerType = "world_entry" | "character"
+
+const SETTING_IMAGE_EXTENSIONS: Record<(typeof SETTING_IMAGE_MIME_TYPES)[number], string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+}
+
+/** 魔数 sniff：mime 只信 data URL 头不够，解码后对二进制头再做一次校验，防谎报与半截文件。 */
+const SETTING_IMAGE_MAGIC: Array<{
+  mime: (typeof SETTING_IMAGE_MIME_TYPES)[number]
+  test: (bytes: Uint8Array) => boolean
+}> = [
+  { mime: "image/png", test: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 },
+  { mime: "image/jpeg", test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { mime: "image/gif", test: (b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38 },
+  {
+    mime: "image/webp",
+    test: (b) =>
+      b[0] === 0x52 &&
+      b[1] === 0x49 &&
+      b[2] === 0x46 &&
+      b[3] === 0x46 &&
+      b[8] === 0x57 &&
+      b[9] === 0x45 &&
+      b[10] === 0x42 &&
+      b[11] === 0x50,
+  },
+]
+
+export type SettingImageStoreErrorCode =
+  | "invalid_data_url"
+  | "invalid_mime"
+  | "too_large"
+  | "too_many"
+  | "owner_not_found"
+  | "image_not_found"
+  | "reorder_mismatch"
+
+export class SettingImageStoreError extends Error {
+  constructor(
+    readonly code: SettingImageStoreErrorCode,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+function imagesDir(novelId: string, directory?: string | null) {
+  return join(getDbPath(directory), "..", "images", novelId)
+}
+
+function imageExtension(mime: string) {
+  // upload 校验保证库内 mime 恒在白名单内，查不到只可能是外部直写数据库
+  return SETTING_IMAGE_EXTENSIONS[mime as keyof typeof SETTING_IMAGE_EXTENSIONS]
+}
+
+function imageFilePath(image: typeof SettingImageTable.$inferSelect, directory?: string | null) {
+  return join(imagesDir(image.novel_id, directory), `${image.id}.${imageExtension(image.mime)}`)
+}
+
+function decodeDataUrl(dataUrl: string) {
+  const match = /^data:([a-z]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl.trim().replace(/\s+/g, ""))
+  if (!match) throw new SettingImageStoreError("invalid_data_url", "图片 data URL 格式不合法")
+  const mime = match[1]
+  if (!SETTING_IMAGE_MIME_TYPES.includes(mime as (typeof SETTING_IMAGE_MIME_TYPES)[number])) {
+    throw new SettingImageStoreError("invalid_mime", `不支持的图片类型：${mime}`)
+  }
+  const buffer = Buffer.from(match[2], "base64")
+  if (buffer.length === 0) throw new SettingImageStoreError("invalid_data_url", "图片内容解码后为空")
+  if (buffer.length > SETTING_IMAGE_MAX_BYTES) {
+    throw new SettingImageStoreError("too_large", `图片解码后 ${buffer.length} 字节，超过上限 ${SETTING_IMAGE_MAX_BYTES}`)
+  }
+  // Buffer.from 对非法 base64 静默丢弃字符而不是报错，解码有效性靠魔数兜底
+  const magic = SETTING_IMAGE_MAGIC.find((entry) => entry.test(buffer))
+  if (!magic || magic.mime !== mime) {
+    throw new SettingImageStoreError("invalid_mime", "图片内容与声明的 MIME 不符")
+  }
+  return { mime, buffer }
+}
+
+async function requireOwner(
+  novelId: string,
+  ownerType: SettingImageOwnerType,
+  ownerId: string,
+  db: Db,
+) {
+  const table = ownerType === "world_entry" ? WorldEntryTable : CharacterTable
+  const [row] = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.id, ownerId), eq(table.novel_id, novelId)))
+    .limit(1)
+    .all()
+  if (!row) throw new SettingImageStoreError("owner_not_found", `图片归属实体不存在：${ownerType} ${ownerId}`)
+}
+
+async function requireImage(novelId: string, imageId: string, directory?: string | null) {
+  const [image] = await getDb(directory)
+    .select()
+    .from(SettingImageTable)
+    .where(and(eq(SettingImageTable.id, imageId), eq(SettingImageTable.novel_id, novelId)))
+    .limit(1)
+    .all()
+  if (!image) throw new SettingImageStoreError("image_not_found", `图片不存在：${imageId}`)
+  return image
+}
+
+export type SettingImage = typeof SettingImageTable.$inferSelect
+
+export async function uploadSettingImage(
+  novelId: string,
+  input: { ownerType: SettingImageOwnerType; ownerId: string; filename?: string; dataUrl: string },
+  directory?: string | null,
+): Promise<SettingImage> {
+  const db = getDb(directory)
+  await requireOwner(novelId, input.ownerType, input.ownerId, db)
+  const { mime, buffer } = decodeDataUrl(input.dataUrl)
+  const existing = await db
+    .select({ id: SettingImageTable.id, sort_order: SettingImageTable.sort_order })
+    .from(SettingImageTable)
+    .where(
+      and(
+        eq(SettingImageTable.novel_id, novelId),
+        eq(SettingImageTable.owner_type, input.ownerType),
+        eq(SettingImageTable.owner_id, input.ownerId),
+      ),
+    )
+    .all()
+  if (existing.length >= SETTING_IMAGE_MAX_PER_OWNER) {
+    throw new SettingImageStoreError("too_many", `每个归属实体最多 ${SETTING_IMAGE_MAX_PER_OWNER} 张图片`)
+  }
+  const lastOrder = Math.max(-1, ...existing.map((row) => row.sort_order))
+  const id = crypto.randomUUID()
+  const dir = imagesDir(novelId, directory)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, `${id}.${SETTING_IMAGE_EXTENSIONS[mime]}`), buffer)
+  await db
+    .insert(SettingImageTable)
+    .values({
+      id,
+      novel_id: novelId,
+      owner_type: input.ownerType,
+      owner_id: input.ownerId,
+      filename: input.filename ?? "",
+      mime,
+      bytes: buffer.length,
+      source: "user",
+      sort_order: lastOrder + 1,
+      note: "",
+      created_at: Date.now(),
+    })
+    .run()
+  return db.select().from(SettingImageTable).where(eq(SettingImageTable.id, id)).get()!
+}
+
+export async function listSettingImages(
+  novelId: string,
+  ownerType: SettingImageOwnerType,
+  ownerId: string,
+  directory?: string | null,
+): Promise<SettingImage[]> {
+  const db = getDb(directory)
+  await requireOwner(novelId, ownerType, ownerId, db)
+  return db
+    .select()
+    .from(SettingImageTable)
+    .where(
+      and(
+        eq(SettingImageTable.novel_id, novelId),
+        eq(SettingImageTable.owner_type, ownerType),
+        eq(SettingImageTable.owner_id, ownerId),
+      ),
+    )
+    .orderBy(asc(SettingImageTable.sort_order), asc(SettingImageTable.created_at))
+    .all()
+}
+
+export async function readSettingImage(
+  novelId: string,
+  imageId: string,
+  directory?: string | null,
+): Promise<{ dataUrl: string }> {
+  const image = await requireImage(novelId, imageId, directory)
+  const filePath = imageFilePath(image, directory)
+  if (!existsSync(filePath)) throw new SettingImageStoreError("image_not_found", "图片文件已丢失")
+  const buffer = readFileSync(filePath)
+  return { dataUrl: `data:${image.mime};base64,${buffer.toString("base64")}` }
+}
+
+export async function updateSettingImageNote(
+  novelId: string,
+  imageId: string,
+  note: string,
+  directory?: string | null,
+): Promise<SettingImage> {
+  const image = await requireImage(novelId, imageId, directory)
+  const db = getDb(directory)
+  await db.update(SettingImageTable).set({ note }).where(eq(SettingImageTable.id, image.id)).run()
+  return db.select().from(SettingImageTable).where(eq(SettingImageTable.id, image.id)).get()!
+}
+
+export async function deleteSettingImage(novelId: string, imageId: string, directory?: string | null): Promise<void> {
+  const image = await requireImage(novelId, imageId, directory)
+  const filePath = imageFilePath(image, directory)
+  if (existsSync(filePath)) unlinkSync(filePath)
+  await getDb(directory).delete(SettingImageTable).where(eq(SettingImageTable.id, image.id)).run()
+}
+
+export async function reorderSettingImages(
+  novelId: string,
+  ownerType: SettingImageOwnerType,
+  ownerId: string,
+  orderedIds: readonly string[],
+  directory?: string | null,
+): Promise<void> {
+  const db = getDb(directory)
+  await requireOwner(novelId, ownerType, ownerId, db)
+  const current = await db
+    .select({ id: SettingImageTable.id })
+    .from(SettingImageTable)
+    .where(
+      and(
+        eq(SettingImageTable.novel_id, novelId),
+        eq(SettingImageTable.owner_type, ownerType),
+        eq(SettingImageTable.owner_id, ownerId),
+      ),
+    )
+    .all()
+  const currentIds = current.map((row) => row.id).sort()
+  const incoming = [...orderedIds].sort()
+  if (orderedIds.length !== currentIds.length || incoming.some((id, i) => id !== currentIds[i])) {
+    throw new SettingImageStoreError("reorder_mismatch", "重排列表与当前图片集不一致")
+  }
+  // 多条 sort_order 更新是单次多步写：经统一事务入口整体提交，语句同步执行（bun:sqlite 语句 .run() 同步落库）
+  withTransaction(db, (tx) => {
+    for (const [index, id] of orderedIds.entries()) {
+      tx.update(SettingImageTable).set({ sort_order: index }).where(eq(SettingImageTable.id, id)).run()
+    }
+  })
+}
+
+/** owner（条目/角色）删除时的级联清理：先删文件再删行，文件缺失视为成功。 */
+export async function deleteSettingImagesForOwner(
+  ownerType: SettingImageOwnerType,
+  ownerId: string,
+  directory?: string | null,
+): Promise<void> {
+  const db = getDb(directory)
+  const rows = await db
+    .select()
+    .from(SettingImageTable)
+    .where(and(eq(SettingImageTable.owner_type, ownerType), eq(SettingImageTable.owner_id, ownerId)))
+    .all()
+  for (const image of rows) {
+    const filePath = imageFilePath(image, directory)
+    if (existsSync(filePath)) unlinkSync(filePath)
+  }
+  if (rows.length > 0) {
+    await db
+      .delete(SettingImageTable)
+      .where(and(eq(SettingImageTable.owner_type, ownerType), eq(SettingImageTable.owner_id, ownerId)))
+      .run()
+  }
 }
 
 // ─── 章节评审（审批详情） ───
