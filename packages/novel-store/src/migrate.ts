@@ -91,6 +91,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   cleanupUpgradeQueueScope(exec)
   migrateChapterContentFingerprint(exec, query)
   migrateChapterWordCount(exec, query)
+  migrateReviewTrail(exec, query)
 }
 
 /**
@@ -639,6 +640,33 @@ export function migrateTechniqueEvidence(exec: ExecFn, query: QueryFn): void {
     })
   } catch {
     // techniques 表不存在或迁移失败时不阻塞 DB 打开
+  }
+}
+
+/**
+ * 审阅留痕列补齐（setting-review-hub，幂等）。
+ *
+ * pending_settings 补 review_note（收件箱条目级备注）；world_entry_conflicts 补
+ * resolution_kind / resolution_note / resolved_at（冲突处理方式、备注与时间）。
+ * 均带安全默认，旧行零迁移可读；staged_changes 新表由 CREATE_TABLES_SQL 直建。
+ */
+function migrateReviewTrail(exec: ExecFn, query: QueryFn): void {
+  const targets: Array<{ table: string; column: string; ddl: string }> = [
+    { table: "pending_settings", column: "review_note", ddl: "ALTER TABLE pending_settings ADD COLUMN review_note text NOT NULL DEFAULT ''" },
+    { table: "world_entry_conflicts", column: "resolution_kind", ddl: "ALTER TABLE world_entry_conflicts ADD COLUMN resolution_kind text NOT NULL DEFAULT ''" },
+    { table: "world_entry_conflicts", column: "resolution_note", ddl: "ALTER TABLE world_entry_conflicts ADD COLUMN resolution_note text NOT NULL DEFAULT ''" },
+    { table: "world_entry_conflicts", column: "resolved_at", ddl: "ALTER TABLE world_entry_conflicts ADD COLUMN resolved_at integer" },
+  ]
+  for (const { table, column, ddl } of targets) {
+    try {
+      const result = query(`PRAGMA table_info(${table})`)
+      const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+      if (cols.length > 0 && !cols.some((c) => c.name === column)) {
+        exec(ddl)
+      }
+    } catch {
+      // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+    }
   }
 }
 

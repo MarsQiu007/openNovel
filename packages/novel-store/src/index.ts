@@ -408,6 +408,8 @@ export const PendingSettingTable = sqliteTable(
     status: text().notNull().default("pending"),
     /** 合并目标 ID（status=merged 时记录被合并到哪个正式条目） */
     merged_into: text().default(""),
+    /** 审阅备注（收件箱条目级备注，「交给 AI 处理」时随指令发出） */
+    review_note: text().notNull().default(""),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
@@ -443,11 +445,59 @@ export const WorldEntryConflictTable = sqliteTable(
     source_chapter_id: text(),
     conflict_note: text().notNull().default(""),
     resolved: integer().notNull().default(0),
+    /** 处理方式：空=未处理 | update_draft（按正文更新，已生成暂存草案）| ignored（保留现状并忽略） */
+    resolution_kind: text().notNull().default(""),
+    /** 处理备注（处理方式的选择理由，可追溯） */
+    resolution_note: text().notNull().default(""),
+    /** 处理时间（resolution_kind 落定时写入） */
+    resolved_at: integer(),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
   },
   (table) => [index("world_entry_conflicts_novel_idx").on(table.novel_id, table.resolved)],
+)
+
+/**
+ * 暂存变更表 — setting-review-hub 的唯一新增持久化层级（design D2）。
+ *
+ * 承载 AI 批处理与冲突处理产出的 update / merge 类草案；新建实体候选继续走
+ * pending_settings。写入路径 SHALL NOT 触达 pending_updates（写作门禁统改任务）。
+ *
+ * 状态机：pending（待审）→ accepted（服务端完整重校验后执行）| rejected（拒绝）
+ *         | superseded（同一目标的新草案替代旧草案）
+ */
+export const StagedChangeTable = sqliteTable(
+  "staged_changes",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    /** 草案来源：agent（批处理 / organize_settings stage 产出）| user（冲突处理等用户侧动作） */
+    source: text().notNull().default("agent"),
+    /** 草案种类：update / merge（沿用整理计划操作语义） */
+    kind: text().notNull().default("update"),
+    /** 实体类型：world_entry / character / plot_thread / foreshadowing / relationship */
+    entity_type: text().notNull().default("world_entry"),
+    /** 涉及条目 ID（update 为 [目标]；merge 为 [目标, 源…]）JSON 数组 */
+    entry_ids: text().notNull().default("[]"),
+    /** 旧值快照（按操作字段组织的 JSON） */
+    before_json: text().notNull().default("{}"),
+    /** 新值快照（接受前可被用户编辑，编辑后仍须通过重校验） */
+    after_json: text().notNull().default("{}"),
+    /** 产出原因（展示在收件箱与审阅页） */
+    reason: text().notNull().default(""),
+    /** 证据（来源章节、命中规则、冲突说明等）JSON */
+    evidence_json: text().notNull().default("{}"),
+    /** 状态：pending / accepted / rejected / superseded */
+    status: text().notNull().default("pending"),
+    /** 审阅备注（交给 AI 处理时随指令发出） */
+    review_note: text().notNull().default(""),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    resolved_at: integer(),
+  },
+  (table) => [index("staged_changes_novel_idx").on(table.novel_id, table.status)],
 )
 
 // ─── B/C 阶段：结构质量与协作体验 ───
@@ -745,10 +795,12 @@ CREATE TABLE IF NOT EXISTS segment_summaries (id text PRIMARY KEY, novel_id text
 CREATE UNIQUE INDEX IF NOT EXISTS segment_summaries_novel_start_idx ON segment_summaries(novel_id, start_chapter);
 CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, level real NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
-CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, review_note text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS pending_settings_novel_idx ON pending_settings(novel_id, status);
 CREATE INDEX IF NOT EXISTS pending_settings_title_idx ON pending_settings(novel_id, display_title);
-CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, resolution_kind text DEFAULT '' NOT NULL, resolution_note text DEFAULT '' NOT NULL, resolved_at integer, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS staged_changes (id text PRIMARY KEY, novel_id text NOT NULL, source text DEFAULT 'agent' NOT NULL, kind text DEFAULT 'update' NOT NULL, entity_type text DEFAULT 'world_entry' NOT NULL, entry_ids text DEFAULT '[]' NOT NULL, before_json text DEFAULT '{}' NOT NULL, after_json text DEFAULT '{}' NOT NULL, reason text DEFAULT '' NOT NULL, evidence_json text DEFAULT '{}' NOT NULL, status text DEFAULT 'pending' NOT NULL, review_note text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS staged_changes_novel_idx ON staged_changes(novel_id, status);
 CREATE INDEX IF NOT EXISTS world_entry_conflicts_novel_idx ON world_entry_conflicts(novel_id, resolved);
 CREATE TABLE IF NOT EXISTS story_arcs (id text PRIMARY KEY, novel_id text NOT NULL, arc_type text NOT NULL, title text NOT NULL, summary text DEFAULT '' NOT NULL, status text DEFAULT 'planned' NOT NULL, target_character_id text, planned_start_chapter integer, planned_end_chapter integer, actual_start_chapter integer, actual_end_chapter integer, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (target_character_id) REFERENCES characters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS story_arcs_novel_id_idx ON story_arcs(novel_id);
