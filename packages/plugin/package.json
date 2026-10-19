@@ -21,6 +21,11 @@
     "./novel-writer/cli": "./src/novel-writer/cli.ts",
     "./novel-writer/session-store": "./src/novel-writer/session-store.ts",
     "./novel-writer/setting-reorganization": "./src/novel-writer/setting-reorganization.ts",
+    "./novel-writer/setting-review-whitelist": "./src/novel-writer/setting-review-whitelist.ts",
+    "./novel-writer/setting-review-candidates": "./src/novel-writer/setting-review-candidates.ts",
+    "./novel-writer/setting-review-conflicts": "./src/novel-writer/setting-review-conflicts.ts",
+    "./novel-writer/setting-review-staged": "./src/novel-writer/setting-review-staged.ts",
+    "./novel-writer/setting-review-batch": "./src/novel-writer/setting-review-batch.ts",
     "./novel-writer/tui": "./src/novel-writer/tui.tsx"
   },
   "files": [
