@@ -98,6 +98,14 @@ const draftAggregate = {
   pins: [],
 }
 
+// 设定树收敛（setting-center-tree）后地图迁入「设定中心 → 世界观条目 → 地图」标签页：
+// 左栏切到 Settings 模式，选中 World Entries 根节点，再点 Map 标签。
+async function openMapTab(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Settings", exact: true }).click()
+  await page.getByRole("button", { name: "World Entries", exact: true }).click()
+  await page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Map" }).click()
+}
+
 test("renders map, hover details, draft switch and promote confirmation", async ({ page }) => {
   await mockOpenNovelServer(page, {
     sessions: [],
@@ -147,7 +155,7 @@ test("renders map, hover details, draft switch and promote confirmation", async 
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}/map`, { waitUntil: "load" })
   await page.locator("a[data-titlebar-tab-link]").click()
   await expect(page.getByRole("heading", { name: "地图验证" })).toBeVisible()
-  await page.getByRole("button", { name: "Map" }).click()
+  await openMapTab(page)
   await expect(page.locator(".leaflet-container")).toBeVisible()
   await expect(page.locator(".leaflet-interactive")).toHaveCount(1)
   await expect(page.getByText("正式地图")).toBeVisible()
@@ -197,7 +205,7 @@ test("shows empty state when no maps exist", async ({ page }) => {
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}/map`, { waitUntil: "load" })
   await page.locator("a[data-titlebar-tab-link]").click()
   await expect(page.getByRole("heading", { name: "地图验证" })).toBeVisible()
-  await page.getByRole("button", { name: "Map" }).click()
+  await openMapTab(page)
   await expect(page.getByText("还没有世界地图")).toBeVisible()
   await expect(page.getByText("创建一个空白地图草稿")).toBeVisible()
   await expect(page.getByRole("button", { name: "创建地图草稿" })).toBeVisible()
