@@ -282,6 +282,24 @@ import type {
   ServerNovelDryRunOutput,
   ServerNovelApplyInput,
   ServerNovelApplyOutput,
+  ServerNovelItemsInput,
+  ServerNovelItemsOutput,
+  ServerNovelCountsInput,
+  ServerNovelCountsOutput,
+  ServerNovelCandidateAcceptInput,
+  ServerNovelCandidateAcceptOutput,
+  ServerNovelCandidateRejectInput,
+  ServerNovelCandidateRejectOutput,
+  ServerNovelCandidateMergeInput,
+  ServerNovelCandidateMergeOutput,
+  ServerNovelConflictResolveInput,
+  ServerNovelConflictResolveOutput,
+  ServerNovelStagedAcceptInput,
+  ServerNovelStagedAcceptOutput,
+  ServerNovelStagedRejectInput,
+  ServerNovelStagedRejectOutput,
+  ServerNovelBatchInput,
+  ServerNovelBatchOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2416,6 +2434,129 @@ export function make(options: ClientOptions) {
             path: `/api/novel/${encodeURIComponent(input.novelID)}/settings-organization/apply`,
             query: { location: input["location"], library: input["library"] },
             body: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      items: (input: ServerNovelItemsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelItemsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox`,
+            query: {
+              location: input["location"],
+              library: input["library"],
+              source: input["source"],
+              limit: input["limit"],
+              offset: input["offset"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      counts: (input: ServerNovelCountsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCountsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/counts`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "candidate-accept": (input: ServerNovelCandidateAcceptInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCandidateAcceptOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/candidates/${encodeURIComponent(input.candidateID)}/accept`,
+            query: { location: input["location"], library: input["library"] },
+            body: { allowNewCategory: input["allowNewCategory"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "candidate-reject": (input: ServerNovelCandidateRejectInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCandidateRejectOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/candidates/${encodeURIComponent(input.candidateID)}/reject`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "candidate-merge": (input: ServerNovelCandidateMergeInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelCandidateMergeOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/candidates/merge`,
+            query: { location: input["location"], library: input["library"] },
+            body: {
+              pendingIds: input["pendingIds"],
+              newId: input["newId"],
+              allowNewCategory: input["allowNewCategory"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "conflict-resolve": (input: ServerNovelConflictResolveInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelConflictResolveOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/conflicts/${encodeURIComponent(input.conflictID)}/resolve`,
+            query: { location: input["location"], library: input["library"] },
+            body: { action: input["action"], content: input["content"], note: input["note"], source: input["source"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "staged-accept": (input: ServerNovelStagedAcceptInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelStagedAcceptOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/staged/${encodeURIComponent(input.stagedID)}/accept`,
+            query: { location: input["location"], library: input["library"] },
+            body: { after: input["after"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "staged-reject": (input: ServerNovelStagedRejectInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelStagedRejectOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/staged/${encodeURIComponent(input.stagedID)}/reject`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      batch: (input: ServerNovelBatchInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelBatchOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/batch`,
+            query: { location: input["location"], library: input["library"] },
+            body: { planJson: input["planJson"], source: input["source"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
             empty: false,

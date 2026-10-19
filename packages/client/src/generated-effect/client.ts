@@ -2121,130 +2121,268 @@ const Endpoint18_84 = (raw: RawClient["server.novel"]) => (input: Endpoint18_84I
     payload: { planJson: input["planJson"], planDigest: input["planDigest"], confirmed: input["confirmed"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_85Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_85Request = Parameters<RawClient["server.novel"]["novel.review-inbox.items"]>[0]
 type Endpoint18_85Input = {
   readonly novelID: Endpoint18_85Request["params"]["novelID"]
   readonly location?: Endpoint18_85Request["query"]["location"]
   readonly library?: Endpoint18_85Request["query"]["library"]
+  readonly source?: Endpoint18_85Request["query"]["source"]
+  readonly limit?: Endpoint18_85Request["query"]["limit"]
+  readonly offset?: Endpoint18_85Request["query"]["offset"]
 }
 const Endpoint18_85 = (raw: RawClient["server.novel"]) => (input: Endpoint18_85Input) =>
+  raw["novel.review-inbox.items"]({
+    params: { novelID: input["novelID"] },
+    query: {
+      location: input["location"],
+      library: input["library"],
+      source: input["source"],
+      limit: input["limit"],
+      offset: input["offset"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_86Request = Parameters<RawClient["server.novel"]["novel.review-inbox.counts"]>[0]
+type Endpoint18_86Input = {
+  readonly novelID: Endpoint18_86Request["params"]["novelID"]
+  readonly location?: Endpoint18_86Request["query"]["location"]
+  readonly library?: Endpoint18_86Request["query"]["library"]
+}
+const Endpoint18_86 = (raw: RawClient["server.novel"]) => (input: Endpoint18_86Input) =>
+  raw["novel.review-inbox.counts"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"], library: input["library"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_87Request = Parameters<RawClient["server.novel"]["novel.review-inbox.candidate-accept"]>[0]
+type Endpoint18_87Input = {
+  readonly novelID: Endpoint18_87Request["params"]["novelID"]
+  readonly candidateID: Endpoint18_87Request["params"]["candidateID"]
+  readonly location?: Endpoint18_87Request["query"]["location"]
+  readonly library?: Endpoint18_87Request["query"]["library"]
+  readonly allowNewCategory?: Endpoint18_87Request["payload"]["allowNewCategory"]
+}
+const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87Input) =>
+  raw["novel.review-inbox.candidate-accept"]({
+    params: { novelID: input["novelID"], candidateID: input["candidateID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { allowNewCategory: input["allowNewCategory"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_88Request = Parameters<RawClient["server.novel"]["novel.review-inbox.candidate-reject"]>[0]
+type Endpoint18_88Input = {
+  readonly novelID: Endpoint18_88Request["params"]["novelID"]
+  readonly candidateID: Endpoint18_88Request["params"]["candidateID"]
+  readonly location?: Endpoint18_88Request["query"]["location"]
+  readonly library?: Endpoint18_88Request["query"]["library"]
+}
+const Endpoint18_88 = (raw: RawClient["server.novel"]) => (input: Endpoint18_88Input) =>
+  raw["novel.review-inbox.candidate-reject"]({
+    params: { novelID: input["novelID"], candidateID: input["candidateID"] },
+    query: { location: input["location"], library: input["library"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_89Request = Parameters<RawClient["server.novel"]["novel.review-inbox.candidate-merge"]>[0]
+type Endpoint18_89Input = {
+  readonly novelID: Endpoint18_89Request["params"]["novelID"]
+  readonly location?: Endpoint18_89Request["query"]["location"]
+  readonly library?: Endpoint18_89Request["query"]["library"]
+  readonly pendingIds: Endpoint18_89Request["payload"]["pendingIds"]
+  readonly newId?: Endpoint18_89Request["payload"]["newId"]
+  readonly allowNewCategory?: Endpoint18_89Request["payload"]["allowNewCategory"]
+}
+const Endpoint18_89 = (raw: RawClient["server.novel"]) => (input: Endpoint18_89Input) =>
+  raw["novel.review-inbox.candidate-merge"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { pendingIds: input["pendingIds"], newId: input["newId"], allowNewCategory: input["allowNewCategory"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_90Request = Parameters<RawClient["server.novel"]["novel.review-inbox.conflict-resolve"]>[0]
+type Endpoint18_90Input = {
+  readonly novelID: Endpoint18_90Request["params"]["novelID"]
+  readonly conflictID: Endpoint18_90Request["params"]["conflictID"]
+  readonly location?: Endpoint18_90Request["query"]["location"]
+  readonly library?: Endpoint18_90Request["query"]["library"]
+  readonly action: Endpoint18_90Request["payload"]["action"]
+  readonly content?: Endpoint18_90Request["payload"]["content"]
+  readonly note?: Endpoint18_90Request["payload"]["note"]
+  readonly source?: Endpoint18_90Request["payload"]["source"]
+}
+const Endpoint18_90 = (raw: RawClient["server.novel"]) => (input: Endpoint18_90Input) =>
+  raw["novel.review-inbox.conflict-resolve"]({
+    params: { novelID: input["novelID"], conflictID: input["conflictID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { action: input["action"], content: input["content"], note: input["note"], source: input["source"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_91Request = Parameters<RawClient["server.novel"]["novel.review-inbox.staged-accept"]>[0]
+type Endpoint18_91Input = {
+  readonly novelID: Endpoint18_91Request["params"]["novelID"]
+  readonly stagedID: Endpoint18_91Request["params"]["stagedID"]
+  readonly location?: Endpoint18_91Request["query"]["location"]
+  readonly library?: Endpoint18_91Request["query"]["library"]
+  readonly after?: Endpoint18_91Request["payload"]["after"]
+}
+const Endpoint18_91 = (raw: RawClient["server.novel"]) => (input: Endpoint18_91Input) =>
+  raw["novel.review-inbox.staged-accept"]({
+    params: { novelID: input["novelID"], stagedID: input["stagedID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { after: input["after"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_92Request = Parameters<RawClient["server.novel"]["novel.review-inbox.staged-reject"]>[0]
+type Endpoint18_92Input = {
+  readonly novelID: Endpoint18_92Request["params"]["novelID"]
+  readonly stagedID: Endpoint18_92Request["params"]["stagedID"]
+  readonly location?: Endpoint18_92Request["query"]["location"]
+  readonly library?: Endpoint18_92Request["query"]["library"]
+}
+const Endpoint18_92 = (raw: RawClient["server.novel"]) => (input: Endpoint18_92Input) =>
+  raw["novel.review-inbox.staged-reject"]({
+    params: { novelID: input["novelID"], stagedID: input["stagedID"] },
+    query: { location: input["location"], library: input["library"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_93Request = Parameters<RawClient["server.novel"]["novel.review-inbox.batch"]>[0]
+type Endpoint18_93Input = {
+  readonly novelID: Endpoint18_93Request["params"]["novelID"]
+  readonly location?: Endpoint18_93Request["query"]["location"]
+  readonly library?: Endpoint18_93Request["query"]["library"]
+  readonly planJson: Endpoint18_93Request["payload"]["planJson"]
+  readonly source?: Endpoint18_93Request["payload"]["source"]
+}
+const Endpoint18_93 = (raw: RawClient["server.novel"]) => (input: Endpoint18_93Input) =>
+  raw["novel.review-inbox.batch"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { planJson: input["planJson"], source: input["source"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_94Request = Parameters<RawClient["server.novel"]["novel.canvas-layout"]>[0]
+type Endpoint18_94Input = {
+  readonly novelID: Endpoint18_94Request["params"]["novelID"]
+  readonly location?: Endpoint18_94Request["query"]["location"]
+  readonly library?: Endpoint18_94Request["query"]["library"]
+}
+const Endpoint18_94 = (raw: RawClient["server.novel"]) => (input: Endpoint18_94Input) =>
   raw["novel.canvas-layout"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_86Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
-type Endpoint18_86Input = {
-  readonly novelID: Endpoint18_86Request["params"]["novelID"]
-  readonly location?: Endpoint18_86Request["query"]["location"]
-  readonly library?: Endpoint18_86Request["query"]["library"]
-  readonly layout: Endpoint18_86Request["payload"]["layout"]
+type Endpoint18_95Request = Parameters<RawClient["server.novel"]["novel.upsert-canvas-layout"]>[0]
+type Endpoint18_95Input = {
+  readonly novelID: Endpoint18_95Request["params"]["novelID"]
+  readonly location?: Endpoint18_95Request["query"]["location"]
+  readonly library?: Endpoint18_95Request["query"]["library"]
+  readonly layout: Endpoint18_95Request["payload"]["layout"]
 }
-const Endpoint18_86 = (raw: RawClient["server.novel"]) => (input: Endpoint18_86Input) =>
+const Endpoint18_95 = (raw: RawClient["server.novel"]) => (input: Endpoint18_95Input) =>
   raw["novel.upsert-canvas-layout"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { layout: input["layout"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_87Request = Parameters<RawClient["server.novel"]["novel.create-world-map"]>[0]
-type Endpoint18_87Input = {
-  readonly novelID: Endpoint18_87Request["params"]["novelID"]
-  readonly location?: Endpoint18_87Request["query"]["location"]
-  readonly library?: Endpoint18_87Request["query"]["library"]
-  readonly title?: Endpoint18_87Request["payload"]["title"]
-  readonly description?: Endpoint18_87Request["payload"]["description"]
-  readonly status?: Endpoint18_87Request["payload"]["status"]
+type Endpoint18_96Request = Parameters<RawClient["server.novel"]["novel.create-world-map"]>[0]
+type Endpoint18_96Input = {
+  readonly novelID: Endpoint18_96Request["params"]["novelID"]
+  readonly location?: Endpoint18_96Request["query"]["location"]
+  readonly library?: Endpoint18_96Request["query"]["library"]
+  readonly title?: Endpoint18_96Request["payload"]["title"]
+  readonly description?: Endpoint18_96Request["payload"]["description"]
+  readonly status?: Endpoint18_96Request["payload"]["status"]
 }
-const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87Input) =>
+const Endpoint18_96 = (raw: RawClient["server.novel"]) => (input: Endpoint18_96Input) =>
   raw["novel.create-world-map"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { title: input["title"], description: input["description"], status: input["status"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_88Request = Parameters<RawClient["server.novel"]["novel.active-world-map"]>[0]
-type Endpoint18_88Input = {
-  readonly novelID: Endpoint18_88Request["params"]["novelID"]
-  readonly location?: Endpoint18_88Request["query"]["location"]
-  readonly library?: Endpoint18_88Request["query"]["library"]
+type Endpoint18_97Request = Parameters<RawClient["server.novel"]["novel.active-world-map"]>[0]
+type Endpoint18_97Input = {
+  readonly novelID: Endpoint18_97Request["params"]["novelID"]
+  readonly location?: Endpoint18_97Request["query"]["location"]
+  readonly library?: Endpoint18_97Request["query"]["library"]
 }
-const Endpoint18_88 = (raw: RawClient["server.novel"]) => (input: Endpoint18_88Input) =>
+const Endpoint18_97 = (raw: RawClient["server.novel"]) => (input: Endpoint18_97Input) =>
   raw["novel.active-world-map"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_89Request = Parameters<RawClient["server.novel"]["novel.draft-world-map"]>[0]
-type Endpoint18_89Input = {
-  readonly novelID: Endpoint18_89Request["params"]["novelID"]
-  readonly location?: Endpoint18_89Request["query"]["location"]
-  readonly library?: Endpoint18_89Request["query"]["library"]
+type Endpoint18_98Request = Parameters<RawClient["server.novel"]["novel.draft-world-map"]>[0]
+type Endpoint18_98Input = {
+  readonly novelID: Endpoint18_98Request["params"]["novelID"]
+  readonly location?: Endpoint18_98Request["query"]["location"]
+  readonly library?: Endpoint18_98Request["query"]["library"]
 }
-const Endpoint18_89 = (raw: RawClient["server.novel"]) => (input: Endpoint18_89Input) =>
+const Endpoint18_98 = (raw: RawClient["server.novel"]) => (input: Endpoint18_98Input) =>
   raw["novel.draft-world-map"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_90Request = Parameters<RawClient["server.novel"]["novel.update-world-map"]>[0]
-type Endpoint18_90Input = {
-  readonly novelID: Endpoint18_90Request["params"]["novelID"]
-  readonly mapID: Endpoint18_90Request["params"]["mapID"]
-  readonly location?: Endpoint18_90Request["query"]["location"]
-  readonly library?: Endpoint18_90Request["query"]["library"]
-  readonly title?: Endpoint18_90Request["payload"]["title"]
-  readonly description?: Endpoint18_90Request["payload"]["description"]
+type Endpoint18_99Request = Parameters<RawClient["server.novel"]["novel.update-world-map"]>[0]
+type Endpoint18_99Input = {
+  readonly novelID: Endpoint18_99Request["params"]["novelID"]
+  readonly mapID: Endpoint18_99Request["params"]["mapID"]
+  readonly location?: Endpoint18_99Request["query"]["location"]
+  readonly library?: Endpoint18_99Request["query"]["library"]
+  readonly title?: Endpoint18_99Request["payload"]["title"]
+  readonly description?: Endpoint18_99Request["payload"]["description"]
 }
-const Endpoint18_90 = (raw: RawClient["server.novel"]) => (input: Endpoint18_90Input) =>
+const Endpoint18_99 = (raw: RawClient["server.novel"]) => (input: Endpoint18_99Input) =>
   raw["novel.update-world-map"]({
     params: { novelID: input["novelID"], mapID: input["mapID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { title: input["title"], description: input["description"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_91Request = Parameters<RawClient["server.novel"]["novel.delete-world-map"]>[0]
-type Endpoint18_91Input = {
-  readonly novelID: Endpoint18_91Request["params"]["novelID"]
-  readonly mapID: Endpoint18_91Request["params"]["mapID"]
-  readonly location?: Endpoint18_91Request["query"]["location"]
-  readonly library?: Endpoint18_91Request["query"]["library"]
+type Endpoint18_100Request = Parameters<RawClient["server.novel"]["novel.delete-world-map"]>[0]
+type Endpoint18_100Input = {
+  readonly novelID: Endpoint18_100Request["params"]["novelID"]
+  readonly mapID: Endpoint18_100Request["params"]["mapID"]
+  readonly location?: Endpoint18_100Request["query"]["location"]
+  readonly library?: Endpoint18_100Request["query"]["library"]
 }
-const Endpoint18_91 = (raw: RawClient["server.novel"]) => (input: Endpoint18_91Input) =>
+const Endpoint18_100 = (raw: RawClient["server.novel"]) => (input: Endpoint18_100Input) =>
   raw["novel.delete-world-map"]({
     params: { novelID: input["novelID"], mapID: input["mapID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_92Request = Parameters<RawClient["server.novel"]["novel.promote-world-map"]>[0]
-type Endpoint18_92Input = {
-  readonly novelID: Endpoint18_92Request["params"]["novelID"]
-  readonly mapID: Endpoint18_92Request["params"]["mapID"]
-  readonly location?: Endpoint18_92Request["query"]["location"]
-  readonly library?: Endpoint18_92Request["query"]["library"]
+type Endpoint18_101Request = Parameters<RawClient["server.novel"]["novel.promote-world-map"]>[0]
+type Endpoint18_101Input = {
+  readonly novelID: Endpoint18_101Request["params"]["novelID"]
+  readonly mapID: Endpoint18_101Request["params"]["mapID"]
+  readonly location?: Endpoint18_101Request["query"]["location"]
+  readonly library?: Endpoint18_101Request["query"]["library"]
 }
-const Endpoint18_92 = (raw: RawClient["server.novel"]) => (input: Endpoint18_92Input) =>
+const Endpoint18_101 = (raw: RawClient["server.novel"]) => (input: Endpoint18_101Input) =>
   raw["novel.promote-world-map"]({
     params: { novelID: input["novelID"], mapID: input["mapID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_93Request = Parameters<RawClient["server.novel"]["novel.create-world-map-feature"]>[0]
-type Endpoint18_93Input = {
-  readonly novelID: Endpoint18_93Request["params"]["novelID"]
-  readonly mapID: Endpoint18_93Request["params"]["mapID"]
-  readonly location?: Endpoint18_93Request["query"]["location"]
-  readonly library?: Endpoint18_93Request["query"]["library"]
-  readonly kind: Endpoint18_93Request["payload"]["kind"]
-  readonly name: Endpoint18_93Request["payload"]["name"]
-  readonly description?: Endpoint18_93Request["payload"]["description"]
-  readonly color?: Endpoint18_93Request["payload"]["color"]
-  readonly worldEntryId?: Endpoint18_93Request["payload"]["worldEntryId"]
-  readonly x?: Endpoint18_93Request["payload"]["x"]
-  readonly y?: Endpoint18_93Request["payload"]["y"]
-  readonly polygon?: Endpoint18_93Request["payload"]["polygon"]
+type Endpoint18_102Request = Parameters<RawClient["server.novel"]["novel.create-world-map-feature"]>[0]
+type Endpoint18_102Input = {
+  readonly novelID: Endpoint18_102Request["params"]["novelID"]
+  readonly mapID: Endpoint18_102Request["params"]["mapID"]
+  readonly location?: Endpoint18_102Request["query"]["location"]
+  readonly library?: Endpoint18_102Request["query"]["library"]
+  readonly kind: Endpoint18_102Request["payload"]["kind"]
+  readonly name: Endpoint18_102Request["payload"]["name"]
+  readonly description?: Endpoint18_102Request["payload"]["description"]
+  readonly color?: Endpoint18_102Request["payload"]["color"]
+  readonly worldEntryId?: Endpoint18_102Request["payload"]["worldEntryId"]
+  readonly x?: Endpoint18_102Request["payload"]["x"]
+  readonly y?: Endpoint18_102Request["payload"]["y"]
+  readonly polygon?: Endpoint18_102Request["payload"]["polygon"]
 }
-const Endpoint18_93 = (raw: RawClient["server.novel"]) => (input: Endpoint18_93Input) =>
+const Endpoint18_102 = (raw: RawClient["server.novel"]) => (input: Endpoint18_102Input) =>
   raw["novel.create-world-map-feature"]({
     params: { novelID: input["novelID"], mapID: input["mapID"] },
     query: { location: input["location"], library: input["library"] },
@@ -2260,22 +2398,22 @@ const Endpoint18_93 = (raw: RawClient["server.novel"]) => (input: Endpoint18_93I
     },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_94Request = Parameters<RawClient["server.novel"]["novel.update-world-map-feature"]>[0]
-type Endpoint18_94Input = {
-  readonly novelID: Endpoint18_94Request["params"]["novelID"]
-  readonly mapID: Endpoint18_94Request["params"]["mapID"]
-  readonly featureID: Endpoint18_94Request["params"]["featureID"]
-  readonly location?: Endpoint18_94Request["query"]["location"]
-  readonly library?: Endpoint18_94Request["query"]["library"]
-  readonly name?: Endpoint18_94Request["payload"]["name"]
-  readonly description?: Endpoint18_94Request["payload"]["description"]
-  readonly color?: Endpoint18_94Request["payload"]["color"]
-  readonly worldEntryId?: Endpoint18_94Request["payload"]["worldEntryId"]
-  readonly x?: Endpoint18_94Request["payload"]["x"]
-  readonly y?: Endpoint18_94Request["payload"]["y"]
-  readonly polygon?: Endpoint18_94Request["payload"]["polygon"]
+type Endpoint18_103Request = Parameters<RawClient["server.novel"]["novel.update-world-map-feature"]>[0]
+type Endpoint18_103Input = {
+  readonly novelID: Endpoint18_103Request["params"]["novelID"]
+  readonly mapID: Endpoint18_103Request["params"]["mapID"]
+  readonly featureID: Endpoint18_103Request["params"]["featureID"]
+  readonly location?: Endpoint18_103Request["query"]["location"]
+  readonly library?: Endpoint18_103Request["query"]["library"]
+  readonly name?: Endpoint18_103Request["payload"]["name"]
+  readonly description?: Endpoint18_103Request["payload"]["description"]
+  readonly color?: Endpoint18_103Request["payload"]["color"]
+  readonly worldEntryId?: Endpoint18_103Request["payload"]["worldEntryId"]
+  readonly x?: Endpoint18_103Request["payload"]["x"]
+  readonly y?: Endpoint18_103Request["payload"]["y"]
+  readonly polygon?: Endpoint18_103Request["payload"]["polygon"]
 }
-const Endpoint18_94 = (raw: RawClient["server.novel"]) => (input: Endpoint18_94Input) =>
+const Endpoint18_103 = (raw: RawClient["server.novel"]) => (input: Endpoint18_103Input) =>
   raw["novel.update-world-map-feature"]({
     params: { novelID: input["novelID"], mapID: input["mapID"], featureID: input["featureID"] },
     query: { location: input["location"], library: input["library"] },
@@ -2290,81 +2428,81 @@ const Endpoint18_94 = (raw: RawClient["server.novel"]) => (input: Endpoint18_94I
     },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_95Request = Parameters<RawClient["server.novel"]["novel.delete-world-map-feature"]>[0]
-type Endpoint18_95Input = {
-  readonly novelID: Endpoint18_95Request["params"]["novelID"]
-  readonly mapID: Endpoint18_95Request["params"]["mapID"]
-  readonly featureID: Endpoint18_95Request["params"]["featureID"]
-  readonly location?: Endpoint18_95Request["query"]["location"]
-  readonly library?: Endpoint18_95Request["query"]["library"]
+type Endpoint18_104Request = Parameters<RawClient["server.novel"]["novel.delete-world-map-feature"]>[0]
+type Endpoint18_104Input = {
+  readonly novelID: Endpoint18_104Request["params"]["novelID"]
+  readonly mapID: Endpoint18_104Request["params"]["mapID"]
+  readonly featureID: Endpoint18_104Request["params"]["featureID"]
+  readonly location?: Endpoint18_104Request["query"]["location"]
+  readonly library?: Endpoint18_104Request["query"]["library"]
 }
-const Endpoint18_95 = (raw: RawClient["server.novel"]) => (input: Endpoint18_95Input) =>
+const Endpoint18_104 = (raw: RawClient["server.novel"]) => (input: Endpoint18_104Input) =>
   raw["novel.delete-world-map-feature"]({
     params: { novelID: input["novelID"], mapID: input["mapID"], featureID: input["featureID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_96Request = Parameters<RawClient["server.novel"]["novel.create-character-map-pin"]>[0]
-type Endpoint18_96Input = {
-  readonly novelID: Endpoint18_96Request["params"]["novelID"]
-  readonly mapID: Endpoint18_96Request["params"]["mapID"]
-  readonly location?: Endpoint18_96Request["query"]["location"]
-  readonly library?: Endpoint18_96Request["query"]["library"]
-  readonly characterId: Endpoint18_96Request["payload"]["characterId"]
-  readonly featureId?: Endpoint18_96Request["payload"]["featureId"]
-  readonly x: Endpoint18_96Request["payload"]["x"]
-  readonly y: Endpoint18_96Request["payload"]["y"]
+type Endpoint18_105Request = Parameters<RawClient["server.novel"]["novel.create-character-map-pin"]>[0]
+type Endpoint18_105Input = {
+  readonly novelID: Endpoint18_105Request["params"]["novelID"]
+  readonly mapID: Endpoint18_105Request["params"]["mapID"]
+  readonly location?: Endpoint18_105Request["query"]["location"]
+  readonly library?: Endpoint18_105Request["query"]["library"]
+  readonly characterId: Endpoint18_105Request["payload"]["characterId"]
+  readonly featureId?: Endpoint18_105Request["payload"]["featureId"]
+  readonly x: Endpoint18_105Request["payload"]["x"]
+  readonly y: Endpoint18_105Request["payload"]["y"]
 }
-const Endpoint18_96 = (raw: RawClient["server.novel"]) => (input: Endpoint18_96Input) =>
+const Endpoint18_105 = (raw: RawClient["server.novel"]) => (input: Endpoint18_105Input) =>
   raw["novel.create-character-map-pin"]({
     params: { novelID: input["novelID"], mapID: input["mapID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { characterId: input["characterId"], featureId: input["featureId"], x: input["x"], y: input["y"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_97Request = Parameters<RawClient["server.novel"]["novel.update-character-map-pin"]>[0]
-type Endpoint18_97Input = {
-  readonly novelID: Endpoint18_97Request["params"]["novelID"]
-  readonly mapID: Endpoint18_97Request["params"]["mapID"]
-  readonly pinID: Endpoint18_97Request["params"]["pinID"]
-  readonly location?: Endpoint18_97Request["query"]["location"]
-  readonly library?: Endpoint18_97Request["query"]["library"]
-  readonly featureId?: Endpoint18_97Request["payload"]["featureId"]
-  readonly x?: Endpoint18_97Request["payload"]["x"]
-  readonly y?: Endpoint18_97Request["payload"]["y"]
+type Endpoint18_106Request = Parameters<RawClient["server.novel"]["novel.update-character-map-pin"]>[0]
+type Endpoint18_106Input = {
+  readonly novelID: Endpoint18_106Request["params"]["novelID"]
+  readonly mapID: Endpoint18_106Request["params"]["mapID"]
+  readonly pinID: Endpoint18_106Request["params"]["pinID"]
+  readonly location?: Endpoint18_106Request["query"]["location"]
+  readonly library?: Endpoint18_106Request["query"]["library"]
+  readonly featureId?: Endpoint18_106Request["payload"]["featureId"]
+  readonly x?: Endpoint18_106Request["payload"]["x"]
+  readonly y?: Endpoint18_106Request["payload"]["y"]
 }
-const Endpoint18_97 = (raw: RawClient["server.novel"]) => (input: Endpoint18_97Input) =>
+const Endpoint18_106 = (raw: RawClient["server.novel"]) => (input: Endpoint18_106Input) =>
   raw["novel.update-character-map-pin"]({
     params: { novelID: input["novelID"], mapID: input["mapID"], pinID: input["pinID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { featureId: input["featureId"], x: input["x"], y: input["y"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_98Request = Parameters<RawClient["server.novel"]["novel.delete-character-map-pin"]>[0]
-type Endpoint18_98Input = {
-  readonly novelID: Endpoint18_98Request["params"]["novelID"]
-  readonly mapID: Endpoint18_98Request["params"]["mapID"]
-  readonly pinID: Endpoint18_98Request["params"]["pinID"]
-  readonly location?: Endpoint18_98Request["query"]["location"]
-  readonly library?: Endpoint18_98Request["query"]["library"]
+type Endpoint18_107Request = Parameters<RawClient["server.novel"]["novel.delete-character-map-pin"]>[0]
+type Endpoint18_107Input = {
+  readonly novelID: Endpoint18_107Request["params"]["novelID"]
+  readonly mapID: Endpoint18_107Request["params"]["mapID"]
+  readonly pinID: Endpoint18_107Request["params"]["pinID"]
+  readonly location?: Endpoint18_107Request["query"]["location"]
+  readonly library?: Endpoint18_107Request["query"]["library"]
 }
-const Endpoint18_98 = (raw: RawClient["server.novel"]) => (input: Endpoint18_98Input) =>
+const Endpoint18_107 = (raw: RawClient["server.novel"]) => (input: Endpoint18_107Input) =>
   raw["novel.delete-character-map-pin"]({
     params: { novelID: input["novelID"], mapID: input["mapID"], pinID: input["pinID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_99Request = Parameters<RawClient["server.novel"]["novel.save-book-meta"]>[0]
-type Endpoint18_99Input = {
-  readonly novelID: Endpoint18_99Request["params"]["novelID"]
-  readonly location?: Endpoint18_99Request["query"]["location"]
-  readonly library?: Endpoint18_99Request["query"]["library"]
-  readonly title?: Endpoint18_99Request["payload"]["title"]
-  readonly synopsis?: Endpoint18_99Request["payload"]["synopsis"]
-  readonly genre?: Endpoint18_99Request["payload"]["genre"]
-  readonly styleGuide?: Endpoint18_99Request["payload"]["styleGuide"]
+type Endpoint18_108Request = Parameters<RawClient["server.novel"]["novel.save-book-meta"]>[0]
+type Endpoint18_108Input = {
+  readonly novelID: Endpoint18_108Request["params"]["novelID"]
+  readonly location?: Endpoint18_108Request["query"]["location"]
+  readonly library?: Endpoint18_108Request["query"]["library"]
+  readonly title?: Endpoint18_108Request["payload"]["title"]
+  readonly synopsis?: Endpoint18_108Request["payload"]["synopsis"]
+  readonly genre?: Endpoint18_108Request["payload"]["genre"]
+  readonly styleGuide?: Endpoint18_108Request["payload"]["styleGuide"]
 }
-const Endpoint18_99 = (raw: RawClient["server.novel"]) => (input: Endpoint18_99Input) =>
+const Endpoint18_108 = (raw: RawClient["server.novel"]) => (input: Endpoint18_108Input) =>
   raw["novel.save-book-meta"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
@@ -2376,88 +2514,88 @@ const Endpoint18_99 = (raw: RawClient["server.novel"]) => (input: Endpoint18_99I
     },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_100Request = Parameters<RawClient["server.novel"]["novel.sync-status"]>[0]
-type Endpoint18_100Input = {
-  readonly novelID: Endpoint18_100Request["params"]["novelID"]
-  readonly location?: Endpoint18_100Request["query"]["location"]
-  readonly library?: Endpoint18_100Request["query"]["library"]
+type Endpoint18_109Request = Parameters<RawClient["server.novel"]["novel.sync-status"]>[0]
+type Endpoint18_109Input = {
+  readonly novelID: Endpoint18_109Request["params"]["novelID"]
+  readonly location?: Endpoint18_109Request["query"]["location"]
+  readonly library?: Endpoint18_109Request["query"]["library"]
 }
-const Endpoint18_100 = (raw: RawClient["server.novel"]) => (input: Endpoint18_100Input) =>
+const Endpoint18_109 = (raw: RawClient["server.novel"]) => (input: Endpoint18_109Input) =>
   raw["novel.sync-status"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_101Request = Parameters<RawClient["server.novel"]["novel.sync-retry"]>[0]
-type Endpoint18_101Input = {
-  readonly novelID: Endpoint18_101Request["params"]["novelID"]
-  readonly location?: Endpoint18_101Request["query"]["location"]
-  readonly library?: Endpoint18_101Request["query"]["library"]
-  readonly entryIds: Endpoint18_101Request["payload"]["entryIds"]
-  readonly chapterIds?: Endpoint18_101Request["payload"]["chapterIds"]
+type Endpoint18_110Request = Parameters<RawClient["server.novel"]["novel.sync-retry"]>[0]
+type Endpoint18_110Input = {
+  readonly novelID: Endpoint18_110Request["params"]["novelID"]
+  readonly location?: Endpoint18_110Request["query"]["location"]
+  readonly library?: Endpoint18_110Request["query"]["library"]
+  readonly entryIds: Endpoint18_110Request["payload"]["entryIds"]
+  readonly chapterIds?: Endpoint18_110Request["payload"]["chapterIds"]
 }
-const Endpoint18_101 = (raw: RawClient["server.novel"]) => (input: Endpoint18_101Input) =>
+const Endpoint18_110 = (raw: RawClient["server.novel"]) => (input: Endpoint18_110Input) =>
   raw["novel.sync-retry"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
     payload: { entryIds: input["entryIds"], chapterIds: input["chapterIds"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_102Request = Parameters<RawClient["server.novel"]["novel.upgrade-status"]>[0]
-type Endpoint18_102Input = {
-  readonly novelID: Endpoint18_102Request["params"]["novelID"]
-  readonly location?: Endpoint18_102Request["query"]["location"]
-  readonly library?: Endpoint18_102Request["query"]["library"]
+type Endpoint18_111Request = Parameters<RawClient["server.novel"]["novel.upgrade-status"]>[0]
+type Endpoint18_111Input = {
+  readonly novelID: Endpoint18_111Request["params"]["novelID"]
+  readonly location?: Endpoint18_111Request["query"]["location"]
+  readonly library?: Endpoint18_111Request["query"]["library"]
 }
-const Endpoint18_102 = (raw: RawClient["server.novel"]) => (input: Endpoint18_102Input) =>
+const Endpoint18_111 = (raw: RawClient["server.novel"]) => (input: Endpoint18_111Input) =>
   raw["novel.upgrade-status"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_103Request = Parameters<RawClient["server.novel"]["novel.upgrade-start"]>[0]
-type Endpoint18_103Input = {
-  readonly novelID: Endpoint18_103Request["params"]["novelID"]
-  readonly location?: Endpoint18_103Request["query"]["location"]
-  readonly library?: Endpoint18_103Request["query"]["library"]
+type Endpoint18_112Request = Parameters<RawClient["server.novel"]["novel.upgrade-start"]>[0]
+type Endpoint18_112Input = {
+  readonly novelID: Endpoint18_112Request["params"]["novelID"]
+  readonly location?: Endpoint18_112Request["query"]["location"]
+  readonly library?: Endpoint18_112Request["query"]["library"]
 }
-const Endpoint18_103 = (raw: RawClient["server.novel"]) => (input: Endpoint18_103Input) =>
+const Endpoint18_112 = (raw: RawClient["server.novel"]) => (input: Endpoint18_112Input) =>
   raw["novel.upgrade-start"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_104Request = Parameters<RawClient["server.novel"]["novel.upgrade-progress"]>[0]
-type Endpoint18_104Input = {
-  readonly novelID: Endpoint18_104Request["params"]["novelID"]
-  readonly location?: Endpoint18_104Request["query"]["location"]
-  readonly library?: Endpoint18_104Request["query"]["library"]
+type Endpoint18_113Request = Parameters<RawClient["server.novel"]["novel.upgrade-progress"]>[0]
+type Endpoint18_113Input = {
+  readonly novelID: Endpoint18_113Request["params"]["novelID"]
+  readonly location?: Endpoint18_113Request["query"]["location"]
+  readonly library?: Endpoint18_113Request["query"]["library"]
 }
-const Endpoint18_104 = (raw: RawClient["server.novel"]) => (input: Endpoint18_104Input) =>
+const Endpoint18_113 = (raw: RawClient["server.novel"]) => (input: Endpoint18_113Input) =>
   raw["novel.upgrade-progress"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_105Request = Parameters<RawClient["server.novel"]["novel.upgrade-pause"]>[0]
-type Endpoint18_105Input = {
-  readonly novelID: Endpoint18_105Request["params"]["novelID"]
-  readonly location?: Endpoint18_105Request["query"]["location"]
-  readonly library?: Endpoint18_105Request["query"]["library"]
+type Endpoint18_114Request = Parameters<RawClient["server.novel"]["novel.upgrade-pause"]>[0]
+type Endpoint18_114Input = {
+  readonly novelID: Endpoint18_114Request["params"]["novelID"]
+  readonly location?: Endpoint18_114Request["query"]["location"]
+  readonly library?: Endpoint18_114Request["query"]["library"]
 }
-const Endpoint18_105 = (raw: RawClient["server.novel"]) => (input: Endpoint18_105Input) =>
+const Endpoint18_114 = (raw: RawClient["server.novel"]) => (input: Endpoint18_114Input) =>
   raw["novel.upgrade-pause"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
-type Endpoint18_106Request = Parameters<RawClient["server.novel"]["novel.upgrade-resume"]>[0]
-type Endpoint18_106Input = {
-  readonly novelID: Endpoint18_106Request["params"]["novelID"]
-  readonly location?: Endpoint18_106Request["query"]["location"]
-  readonly library?: Endpoint18_106Request["query"]["library"]
+type Endpoint18_115Request = Parameters<RawClient["server.novel"]["novel.upgrade-resume"]>[0]
+type Endpoint18_115Input = {
+  readonly novelID: Endpoint18_115Request["params"]["novelID"]
+  readonly location?: Endpoint18_115Request["query"]["location"]
+  readonly library?: Endpoint18_115Request["query"]["library"]
 }
-const Endpoint18_106 = (raw: RawClient["server.novel"]) => (input: Endpoint18_106Input) =>
+const Endpoint18_115 = (raw: RawClient["server.novel"]) => (input: Endpoint18_115Input) =>
   raw["novel.upgrade-resume"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
@@ -2549,28 +2687,37 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   analyze: Endpoint18_82(raw),
   "dry-run": Endpoint18_83(raw),
   apply: Endpoint18_84(raw),
-  "canvas-layout": Endpoint18_85(raw),
-  "upsert-canvas-layout": Endpoint18_86(raw),
-  "create-world-map": Endpoint18_87(raw),
-  "active-world-map": Endpoint18_88(raw),
-  "draft-world-map": Endpoint18_89(raw),
-  "update-world-map": Endpoint18_90(raw),
-  "delete-world-map": Endpoint18_91(raw),
-  "promote-world-map": Endpoint18_92(raw),
-  "create-world-map-feature": Endpoint18_93(raw),
-  "update-world-map-feature": Endpoint18_94(raw),
-  "delete-world-map-feature": Endpoint18_95(raw),
-  "create-character-map-pin": Endpoint18_96(raw),
-  "update-character-map-pin": Endpoint18_97(raw),
-  "delete-character-map-pin": Endpoint18_98(raw),
-  "save-book-meta": Endpoint18_99(raw),
-  "sync-status": Endpoint18_100(raw),
-  "sync-retry": Endpoint18_101(raw),
-  "upgrade-status": Endpoint18_102(raw),
-  "upgrade-start": Endpoint18_103(raw),
-  "upgrade-progress": Endpoint18_104(raw),
-  "upgrade-pause": Endpoint18_105(raw),
-  "upgrade-resume": Endpoint18_106(raw),
+  items: Endpoint18_85(raw),
+  counts: Endpoint18_86(raw),
+  "candidate-accept": Endpoint18_87(raw),
+  "candidate-reject": Endpoint18_88(raw),
+  "candidate-merge": Endpoint18_89(raw),
+  "conflict-resolve": Endpoint18_90(raw),
+  "staged-accept": Endpoint18_91(raw),
+  "staged-reject": Endpoint18_92(raw),
+  batch: Endpoint18_93(raw),
+  "canvas-layout": Endpoint18_94(raw),
+  "upsert-canvas-layout": Endpoint18_95(raw),
+  "create-world-map": Endpoint18_96(raw),
+  "active-world-map": Endpoint18_97(raw),
+  "draft-world-map": Endpoint18_98(raw),
+  "update-world-map": Endpoint18_99(raw),
+  "delete-world-map": Endpoint18_100(raw),
+  "promote-world-map": Endpoint18_101(raw),
+  "create-world-map-feature": Endpoint18_102(raw),
+  "update-world-map-feature": Endpoint18_103(raw),
+  "delete-world-map-feature": Endpoint18_104(raw),
+  "create-character-map-pin": Endpoint18_105(raw),
+  "update-character-map-pin": Endpoint18_106(raw),
+  "delete-character-map-pin": Endpoint18_107(raw),
+  "save-book-meta": Endpoint18_108(raw),
+  "sync-status": Endpoint18_109(raw),
+  "sync-retry": Endpoint18_110(raw),
+  "upgrade-status": Endpoint18_111(raw),
+  "upgrade-start": Endpoint18_112(raw),
+  "upgrade-progress": Endpoint18_113(raw),
+  "upgrade-pause": Endpoint18_114(raw),
+  "upgrade-resume": Endpoint18_115(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

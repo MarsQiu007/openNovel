@@ -1272,7 +1272,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       ),
   )
   .add(
-    HttpApiEndpoint.get("novel.review-inbox.list", `${root}/:novelID/review-inbox`, {
+    HttpApiEndpoint.get("novel.review-inbox.items", `${root}/:novelID/review-inbox`, {
       params: { novelID: Schema.String },
       query: Schema.Struct({
         ...LocationQuery.fields,

@@ -2952,7 +2952,7 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           return yield* upgradeResumeEndpoint(ctx.params.novelID, location.directory)
         }),
       )
-      .handle("novel.review-inbox.list", (ctx) =>
+      .handle("novel.review-inbox.items", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* reviewInboxList(ctx.params.novelID, location.directory, {

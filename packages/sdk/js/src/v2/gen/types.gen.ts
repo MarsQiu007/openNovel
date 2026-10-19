@@ -6933,6 +6933,106 @@ export type NovelSettingOrganizationApplyResult = {
   remaining: Array<NovelSettingOrganizationRemainingOperation>
 }
 
+export type NovelReviewInboxItem = {
+  id: string
+  source: "candidate" | "conflict" | "staged"
+  kind: string
+  title: string
+  targetId: string
+  summary: string
+  evidence: string
+  before: string
+  after: string
+  status: string
+  createdAt: number
+  sourceChapterId: string
+  reviewNote: string
+}
+
+export type NovelReviewInboxCounts = {
+  candidates: number
+  conflicts: number
+  staged: number
+  total: number
+}
+
+export type NovelReviewInboxListResult = {
+  items: Array<NovelReviewInboxItem>
+  total: number
+  counts: NovelReviewInboxCounts
+}
+
+export type NovelReviewInboxCandidateAcceptInput = {
+  allowNewCategory?: boolean
+}
+
+export type NovelReviewInboxImpact = {
+  taskCount: number
+  pendingCount: number
+  blockedWriting: boolean
+}
+
+export type NovelReviewInboxCandidateOperationResult = {
+  ok: boolean
+  pendingId?: string
+  createdId?: string
+  candidateType?: string
+  displayTitle?: string
+  impact?: NovelReviewInboxImpact
+  error?: string
+  formatErrors?: Array<string>
+}
+
+export type NovelReviewInboxCandidateMergeInput = {
+  pendingIds: Array<string>
+  newId?: string
+  allowNewCategory?: boolean
+}
+
+export type NovelReviewInboxConflictResolveInput = {
+  action: "update_entry" | "keep_current"
+  content?: string
+  note?: string
+  source?: "agent" | "user"
+}
+
+export type NovelReviewInboxConflictResolveResult = {
+  ok: boolean
+  conflictId?: string
+  action?: "update_entry" | "keep_current"
+  stagedChangeId?: string
+  error?: string
+}
+
+export type NovelReviewInboxStagedAcceptInput = {
+  after?: {
+    [key: string]: unknown
+  }
+}
+
+export type NovelReviewInboxStagedResolveResult = {
+  ok: boolean
+  stagedId?: string
+  execution?: NovelSettingOrganizationApplyResult
+  error?: string
+  errors?: Array<string>
+}
+
+export type NovelReviewInboxBatchInput = {
+  planJson: string
+  source?: "agent" | "user"
+}
+
+export type NovelReviewInboxBatchResult = {
+  ok: boolean
+  autoExecuted: number
+  pendingAdded: number
+  stagedIds: Array<string>
+  supersededIds: Array<string>
+  execution?: NovelSettingOrganizationApplyResult
+  errors: Array<string>
+}
+
 export type NovelCanvasLayout = {
   columns: Array<{
     id: string
@@ -18352,6 +18452,432 @@ export type V2NovelSettingsOrganizationApplyResponses = {
 
 export type V2NovelSettingsOrganizationApplyResponse =
   V2NovelSettingsOrganizationApplyResponses[keyof V2NovelSettingsOrganizationApplyResponses]
+
+export type V2NovelReviewInboxListData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+    source?: "candidate" | "conflict" | "staged"
+    limit?: string
+    offset?: string
+  }
+  url: "/api/novel/{novelID}/review-inbox"
+}
+
+export type V2NovelReviewInboxListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxListError = V2NovelReviewInboxListErrors[keyof V2NovelReviewInboxListErrors]
+
+export type V2NovelReviewInboxListResponses = {
+  /**
+   * Novel.ReviewInboxListResult
+   */
+  200: NovelReviewInboxListResult
+}
+
+export type V2NovelReviewInboxListResponse = V2NovelReviewInboxListResponses[keyof V2NovelReviewInboxListResponses]
+
+export type V2NovelReviewInboxCountsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/counts"
+}
+
+export type V2NovelReviewInboxCountsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxCountsError = V2NovelReviewInboxCountsErrors[keyof V2NovelReviewInboxCountsErrors]
+
+export type V2NovelReviewInboxCountsResponses = {
+  /**
+   * Novel.ReviewInboxCounts
+   */
+  200: NovelReviewInboxCounts
+}
+
+export type V2NovelReviewInboxCountsResponse =
+  V2NovelReviewInboxCountsResponses[keyof V2NovelReviewInboxCountsResponses]
+
+export type V2NovelReviewInboxCandidateAcceptData = {
+  body: NovelReviewInboxCandidateAcceptInput
+  path: {
+    novelID: string
+    candidateID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept"
+}
+
+export type V2NovelReviewInboxCandidateAcceptErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxCandidateAcceptError =
+  V2NovelReviewInboxCandidateAcceptErrors[keyof V2NovelReviewInboxCandidateAcceptErrors]
+
+export type V2NovelReviewInboxCandidateAcceptResponses = {
+  /**
+   * Novel.ReviewInboxCandidateOperationResult
+   */
+  200: NovelReviewInboxCandidateOperationResult
+}
+
+export type V2NovelReviewInboxCandidateAcceptResponse =
+  V2NovelReviewInboxCandidateAcceptResponses[keyof V2NovelReviewInboxCandidateAcceptResponses]
+
+export type V2NovelReviewInboxCandidateRejectData = {
+  body?: never
+  path: {
+    novelID: string
+    candidateID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject"
+}
+
+export type V2NovelReviewInboxCandidateRejectErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxCandidateRejectError =
+  V2NovelReviewInboxCandidateRejectErrors[keyof V2NovelReviewInboxCandidateRejectErrors]
+
+export type V2NovelReviewInboxCandidateRejectResponses = {
+  /**
+   * Novel.ReviewInboxCandidateOperationResult
+   */
+  200: NovelReviewInboxCandidateOperationResult
+}
+
+export type V2NovelReviewInboxCandidateRejectResponse =
+  V2NovelReviewInboxCandidateRejectResponses[keyof V2NovelReviewInboxCandidateRejectResponses]
+
+export type V2NovelReviewInboxCandidateMergeData = {
+  body: NovelReviewInboxCandidateMergeInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/candidates/merge"
+}
+
+export type V2NovelReviewInboxCandidateMergeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxCandidateMergeError =
+  V2NovelReviewInboxCandidateMergeErrors[keyof V2NovelReviewInboxCandidateMergeErrors]
+
+export type V2NovelReviewInboxCandidateMergeResponses = {
+  /**
+   * Novel.ReviewInboxCandidateOperationResult
+   */
+  200: NovelReviewInboxCandidateOperationResult
+}
+
+export type V2NovelReviewInboxCandidateMergeResponse =
+  V2NovelReviewInboxCandidateMergeResponses[keyof V2NovelReviewInboxCandidateMergeResponses]
+
+export type V2NovelReviewInboxConflictResolveData = {
+  body: NovelReviewInboxConflictResolveInput
+  path: {
+    novelID: string
+    conflictID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve"
+}
+
+export type V2NovelReviewInboxConflictResolveErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxConflictResolveError =
+  V2NovelReviewInboxConflictResolveErrors[keyof V2NovelReviewInboxConflictResolveErrors]
+
+export type V2NovelReviewInboxConflictResolveResponses = {
+  /**
+   * Novel.ReviewInboxConflictResolveResult
+   */
+  200: NovelReviewInboxConflictResolveResult
+}
+
+export type V2NovelReviewInboxConflictResolveResponse =
+  V2NovelReviewInboxConflictResolveResponses[keyof V2NovelReviewInboxConflictResolveResponses]
+
+export type V2NovelReviewInboxStagedAcceptData = {
+  body: NovelReviewInboxStagedAcceptInput
+  path: {
+    novelID: string
+    stagedID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept"
+}
+
+export type V2NovelReviewInboxStagedAcceptErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxStagedAcceptError =
+  V2NovelReviewInboxStagedAcceptErrors[keyof V2NovelReviewInboxStagedAcceptErrors]
+
+export type V2NovelReviewInboxStagedAcceptResponses = {
+  /**
+   * Novel.ReviewInboxStagedResolveResult
+   */
+  200: NovelReviewInboxStagedResolveResult
+}
+
+export type V2NovelReviewInboxStagedAcceptResponse =
+  V2NovelReviewInboxStagedAcceptResponses[keyof V2NovelReviewInboxStagedAcceptResponses]
+
+export type V2NovelReviewInboxStagedRejectData = {
+  body?: never
+  path: {
+    novelID: string
+    stagedID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject"
+}
+
+export type V2NovelReviewInboxStagedRejectErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxStagedRejectError =
+  V2NovelReviewInboxStagedRejectErrors[keyof V2NovelReviewInboxStagedRejectErrors]
+
+export type V2NovelReviewInboxStagedRejectResponses = {
+  /**
+   * Novel.ReviewInboxStagedResolveResult
+   */
+  200: NovelReviewInboxStagedResolveResult
+}
+
+export type V2NovelReviewInboxStagedRejectResponse =
+  V2NovelReviewInboxStagedRejectResponses[keyof V2NovelReviewInboxStagedRejectResponses]
+
+export type V2NovelReviewInboxBatchData = {
+  body: NovelReviewInboxBatchInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/review-inbox/batch"
+}
+
+export type V2NovelReviewInboxBatchErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelReviewInboxBatchError = V2NovelReviewInboxBatchErrors[keyof V2NovelReviewInboxBatchErrors]
+
+export type V2NovelReviewInboxBatchResponses = {
+  /**
+   * Novel.ReviewInboxBatchResult
+   */
+  200: NovelReviewInboxBatchResult
+}
+
+export type V2NovelReviewInboxBatchResponse = V2NovelReviewInboxBatchResponses[keyof V2NovelReviewInboxBatchResponses]
 
 export type V2NovelCanvasLayoutData = {
   body?: never

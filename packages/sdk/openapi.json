@@ -24196,6 +24196,1050 @@
         ]
       }
     },
+    "/api/novel/{novelID}/review-inbox": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.list",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["candidate", "conflict", "staged"]
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxListResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Aggregate pending candidates, unresolved conflicts, and staged changes into unified inbox items.",
+        "summary": "List review inbox items",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/counts": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.counts",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxCounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxCounts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get review inbox badge counts",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.counts({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.candidate-accept",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "candidateID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxCandidateOperationResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxCandidateOperationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Accept pending setting candidate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelReviewInboxCandidateAcceptInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.candidate-accept({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.candidate-reject",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "candidateID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxCandidateOperationResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxCandidateOperationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reject pending setting candidate",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.candidate-reject({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/candidates/merge": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.candidate-merge",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxCandidateOperationResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxCandidateOperationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Merge pending setting candidates",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelReviewInboxCandidateMergeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.candidate-merge({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.conflict-resolve",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "conflictID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxConflictResolveResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxConflictResolveResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve world entry conflict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelReviewInboxConflictResolveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.conflict-resolve({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.staged-accept",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "stagedID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxStagedResolveResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxStagedResolveResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Accept staged change after revalidation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelReviewInboxStagedAcceptInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.staged-accept({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.staged-reject",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "stagedID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxStagedResolveResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxStagedResolveResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reject staged change",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.staged-reject({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/{novelID}/review-inbox/batch": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.review-inbox.batch",
+        "parameters": [
+          {
+            "name": "novelID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.ReviewInboxBatchResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelReviewInboxBatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NovelNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNotFoundError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ServiceUnavailableError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceUnavailableError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Split a compiled organization plan: whitelist fixes execute immediately, the rest stage into the inbox.",
+        "summary": "Run setting review batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelReviewInboxBatchInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.review-inbox.batch({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}/canvas-layout": {
       "get": {
         "tags": ["novel"],
@@ -48938,6 +49982,312 @@
           }
         },
         "required": ["ok", "errors", "results", "remaining"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["candidate", "conflict", "staged"]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "sourceChapterId": {
+            "type": "string"
+          },
+          "reviewNote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "kind",
+          "title",
+          "targetId",
+          "summary",
+          "evidence",
+          "before",
+          "after",
+          "status",
+          "createdAt",
+          "sourceChapterId",
+          "reviewNote"
+        ],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxCounts": {
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "integer"
+          },
+          "conflicts": {
+            "type": "integer"
+          },
+          "staged": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": ["candidates", "conflicts", "staged", "total"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxListResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelReviewInboxItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/NovelReviewInboxCounts"
+          }
+        },
+        "required": ["items", "total", "counts"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxCandidateAcceptInput": {
+        "type": "object",
+        "properties": {
+          "allowNewCategory": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelReviewInboxImpact": {
+        "type": "object",
+        "properties": {
+          "taskCount": {
+            "type": "integer"
+          },
+          "pendingCount": {
+            "type": "integer"
+          },
+          "blockedWriting": {
+            "type": "boolean"
+          }
+        },
+        "required": ["taskCount", "pendingCount", "blockedWriting"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxCandidateOperationResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "pendingId": {
+            "type": "string"
+          },
+          "createdId": {
+            "type": "string"
+          },
+          "candidateType": {
+            "type": "string"
+          },
+          "displayTitle": {
+            "type": "string"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/NovelReviewInboxImpact"
+          },
+          "error": {
+            "type": "string"
+          },
+          "formatErrors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxCandidateMergeInput": {
+        "type": "object",
+        "properties": {
+          "pendingIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "newId": {
+            "type": "string"
+          },
+          "allowNewCategory": {
+            "type": "boolean"
+          }
+        },
+        "required": ["pendingIds"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxConflictResolveInput": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["update_entry", "keep_current"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["agent", "user"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxConflictResolveResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "conflictId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["update_entry", "keep_current"]
+          },
+          "stagedChangeId": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxStagedAcceptInput": {
+        "type": "object",
+        "properties": {
+          "after": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NovelReviewInboxStagedResolveResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "stagedId": {
+            "type": "string"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/NovelSettingOrganizationApplyResult"
+          },
+          "error": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxBatchInput": {
+        "type": "object",
+        "properties": {
+          "planJson": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["agent", "user"]
+          }
+        },
+        "required": ["planJson"],
+        "additionalProperties": false
+      },
+      "NovelReviewInboxBatchResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "autoExecuted": {
+            "type": "integer"
+          },
+          "pendingAdded": {
+            "type": "integer"
+          },
+          "stagedIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supersededIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "execution": {
+            "$ref": "#/components/schemas/NovelSettingOrganizationApplyResult"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ok", "autoExecuted", "pendingAdded", "stagedIds", "supersededIds", "errors"],
         "additionalProperties": false
       },
       "NovelCanvasLayout": {

@@ -6159,6 +6159,348 @@ export type ServerNovelApplyOutput = {
   }>
 }
 
+export type ServerNovelItemsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["library"]
+  readonly source?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["source"]
+  readonly limit?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["limit"]
+  readonly offset?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["offset"]
+}
+
+export type ServerNovelItemsOutput = {
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly source: "candidate" | "conflict" | "staged"
+    readonly kind: string
+    readonly title: string
+    readonly targetId: string | null
+    readonly summary: string
+    readonly evidence: string
+    readonly before: string
+    readonly after: string
+    readonly status: string
+    readonly createdAt: number
+    readonly sourceChapterId: string | null
+    readonly reviewNote: string
+  }>
+  readonly total: number
+  readonly counts: {
+    readonly candidates: number
+    readonly conflicts: number
+    readonly staged: number
+    readonly total: number
+  }
+}
+
+export type ServerNovelCountsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelCountsOutput = {
+  readonly candidates: number
+  readonly conflicts: number
+  readonly staged: number
+  readonly total: number
+}
+
+export type ServerNovelCandidateAcceptInput = {
+  readonly novelID: { readonly novelID: string; readonly candidateID: string }["novelID"]
+  readonly candidateID: { readonly novelID: string; readonly candidateID: string }["candidateID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly allowNewCategory?: { readonly allowNewCategory?: boolean }["allowNewCategory"]
+}
+
+export type ServerNovelCandidateAcceptOutput = {
+  readonly ok: boolean
+  readonly pendingId?: string
+  readonly createdId?: string
+  readonly candidateType?: string
+  readonly displayTitle?: string
+  readonly impact?: { readonly taskCount: number; readonly pendingCount: number; readonly blockedWriting: boolean }
+  readonly error?: string
+  readonly formatErrors?: ReadonlyArray<string>
+}
+
+export type ServerNovelCandidateRejectInput = {
+  readonly novelID: { readonly novelID: string; readonly candidateID: string }["novelID"]
+  readonly candidateID: { readonly novelID: string; readonly candidateID: string }["candidateID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelCandidateRejectOutput = {
+  readonly ok: boolean
+  readonly pendingId?: string
+  readonly createdId?: string
+  readonly candidateType?: string
+  readonly displayTitle?: string
+  readonly impact?: { readonly taskCount: number; readonly pendingCount: number; readonly blockedWriting: boolean }
+  readonly error?: string
+  readonly formatErrors?: ReadonlyArray<string>
+}
+
+export type ServerNovelCandidateMergeInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly pendingIds: {
+    readonly pendingIds: ReadonlyArray<string>
+    readonly newId?: string
+    readonly allowNewCategory?: boolean
+  }["pendingIds"]
+  readonly newId?: {
+    readonly pendingIds: ReadonlyArray<string>
+    readonly newId?: string
+    readonly allowNewCategory?: boolean
+  }["newId"]
+  readonly allowNewCategory?: {
+    readonly pendingIds: ReadonlyArray<string>
+    readonly newId?: string
+    readonly allowNewCategory?: boolean
+  }["allowNewCategory"]
+}
+
+export type ServerNovelCandidateMergeOutput = {
+  readonly ok: boolean
+  readonly pendingId?: string
+  readonly createdId?: string
+  readonly candidateType?: string
+  readonly displayTitle?: string
+  readonly impact?: { readonly taskCount: number; readonly pendingCount: number; readonly blockedWriting: boolean }
+  readonly error?: string
+  readonly formatErrors?: ReadonlyArray<string>
+}
+
+export type ServerNovelConflictResolveInput = {
+  readonly novelID: { readonly novelID: string; readonly conflictID: string }["novelID"]
+  readonly conflictID: { readonly novelID: string; readonly conflictID: string }["conflictID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly action: {
+    readonly action: "update_entry" | "keep_current"
+    readonly content?: string
+    readonly note?: string
+    readonly source?: "agent" | "user"
+  }["action"]
+  readonly content?: {
+    readonly action: "update_entry" | "keep_current"
+    readonly content?: string
+    readonly note?: string
+    readonly source?: "agent" | "user"
+  }["content"]
+  readonly note?: {
+    readonly action: "update_entry" | "keep_current"
+    readonly content?: string
+    readonly note?: string
+    readonly source?: "agent" | "user"
+  }["note"]
+  readonly source?: {
+    readonly action: "update_entry" | "keep_current"
+    readonly content?: string
+    readonly note?: string
+    readonly source?: "agent" | "user"
+  }["source"]
+}
+
+export type ServerNovelConflictResolveOutput = {
+  readonly ok: boolean
+  readonly conflictId?: string
+  readonly action?: "update_entry" | "keep_current"
+  readonly stagedChangeId?: string
+  readonly error?: string
+}
+
+export type ServerNovelStagedAcceptInput = {
+  readonly novelID: { readonly novelID: string; readonly stagedID: string }["novelID"]
+  readonly stagedID: { readonly novelID: string; readonly stagedID: string }["stagedID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly after?: { readonly after?: { readonly [x: string]: JsonValue } }["after"]
+}
+
+export type ServerNovelStagedAcceptOutput = {
+  readonly ok: boolean
+  readonly stagedId?: string
+  readonly execution?: {
+    readonly ok: boolean
+    readonly errors: ReadonlyArray<string>
+    readonly results: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly status: "success" | "failed"
+      readonly entryIds: ReadonlyArray<string>
+      readonly changedFields?: ReadonlyArray<string>
+      readonly historyCount?: number
+      readonly cascadeTasks?: number
+      readonly error?: string
+    }>
+    readonly remaining: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly entryIds: ReadonlyArray<string>
+    }>
+  }
+  readonly error?: string
+  readonly errors?: ReadonlyArray<string>
+}
+
+export type ServerNovelStagedRejectInput = {
+  readonly novelID: { readonly novelID: string; readonly stagedID: string }["novelID"]
+  readonly stagedID: { readonly novelID: string; readonly stagedID: string }["stagedID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelStagedRejectOutput = {
+  readonly ok: boolean
+  readonly stagedId?: string
+  readonly execution?: {
+    readonly ok: boolean
+    readonly errors: ReadonlyArray<string>
+    readonly results: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly status: "success" | "failed"
+      readonly entryIds: ReadonlyArray<string>
+      readonly changedFields?: ReadonlyArray<string>
+      readonly historyCount?: number
+      readonly cascadeTasks?: number
+      readonly error?: string
+    }>
+    readonly remaining: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly entryIds: ReadonlyArray<string>
+    }>
+  }
+  readonly error?: string
+  readonly errors?: ReadonlyArray<string>
+}
+
+export type ServerNovelBatchInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly planJson: { readonly planJson: string; readonly source?: "agent" | "user" }["planJson"]
+  readonly source?: { readonly planJson: string; readonly source?: "agent" | "user" }["source"]
+}
+
+export type ServerNovelBatchOutput = {
+  readonly ok: boolean
+  readonly autoExecuted: number
+  readonly pendingAdded: number
+  readonly stagedIds: ReadonlyArray<string>
+  readonly supersededIds: ReadonlyArray<string>
+  readonly execution?: {
+    readonly ok: boolean
+    readonly errors: ReadonlyArray<string>
+    readonly results: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly status: "success" | "failed"
+      readonly entryIds: ReadonlyArray<string>
+      readonly changedFields?: ReadonlyArray<string>
+      readonly historyCount?: number
+      readonly cascadeTasks?: number
+      readonly error?: string
+    }>
+    readonly remaining: ReadonlyArray<{
+      readonly index: number
+      readonly action: "update" | "merge" | "delete"
+      readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
+      readonly entryIds: ReadonlyArray<string>
+    }>
+  }
+  readonly errors: ReadonlyArray<string>
+}
+
 export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {

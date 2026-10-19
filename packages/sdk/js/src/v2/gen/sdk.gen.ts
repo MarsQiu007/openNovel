@@ -143,6 +143,11 @@ import type {
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
+  NovelReviewInboxBatchInput,
+  NovelReviewInboxCandidateAcceptInput,
+  NovelReviewInboxCandidateMergeInput,
+  NovelReviewInboxConflictResolveInput,
+  NovelReviewInboxStagedAcceptInput,
   NovelSaveBookMetaInput,
   NovelSettingOrganizationAnalyzeInput,
   NovelSettingOrganizationApplyInput,
@@ -494,6 +499,24 @@ import type {
   V2NovelRelationshipsResponses,
   V2NovelRestoreVersionErrors,
   V2NovelRestoreVersionResponses,
+  V2NovelReviewInboxBatchErrors,
+  V2NovelReviewInboxBatchResponses,
+  V2NovelReviewInboxCandidateAcceptErrors,
+  V2NovelReviewInboxCandidateAcceptResponses,
+  V2NovelReviewInboxCandidateMergeErrors,
+  V2NovelReviewInboxCandidateMergeResponses,
+  V2NovelReviewInboxCandidateRejectErrors,
+  V2NovelReviewInboxCandidateRejectResponses,
+  V2NovelReviewInboxConflictResolveErrors,
+  V2NovelReviewInboxConflictResolveResponses,
+  V2NovelReviewInboxCountsErrors,
+  V2NovelReviewInboxCountsResponses,
+  V2NovelReviewInboxListErrors,
+  V2NovelReviewInboxListResponses,
+  V2NovelReviewInboxStagedAcceptErrors,
+  V2NovelReviewInboxStagedAcceptResponses,
+  V2NovelReviewInboxStagedRejectErrors,
+  V2NovelReviewInboxStagedRejectResponses,
   V2NovelRollbackErrors,
   V2NovelRollbackResponses,
   V2NovelSaveBookMetaErrors,
@@ -7616,6 +7639,396 @@ export class SettingsOrganization extends HeyApiClient {
   }
 }
 
+export class ReviewInbox extends HeyApiClient {
+  /**
+   * List review inbox items
+   *
+   * Aggregate pending candidates, unresolved conflicts, and staged changes into unified inbox items.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      source?: "candidate" | "conflict" | "staged"
+      limit?: string
+      offset?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { in: "query", key: "source" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "offset" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelReviewInboxListResponses,
+      V2NovelReviewInboxListErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get review inbox badge counts
+   */
+  public counts<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelReviewInboxCountsResponses,
+      V2NovelReviewInboxCountsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/counts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Accept pending setting candidate
+   */
+  public candidateAccept<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      candidateID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelReviewInboxCandidateAcceptInput: NovelReviewInboxCandidateAcceptInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "candidateID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelReviewInboxCandidateAcceptInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxCandidateAcceptResponses,
+      V2NovelReviewInboxCandidateAcceptErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reject pending setting candidate
+   */
+  public candidateReject<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      candidateID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "candidateID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxCandidateRejectResponses,
+      V2NovelReviewInboxCandidateRejectErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Merge pending setting candidates
+   */
+  public candidateMerge<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelReviewInboxCandidateMergeInput: NovelReviewInboxCandidateMergeInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelReviewInboxCandidateMergeInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxCandidateMergeResponses,
+      V2NovelReviewInboxCandidateMergeErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/candidates/merge",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Resolve world entry conflict
+   */
+  public conflictResolve<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      conflictID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelReviewInboxConflictResolveInput: NovelReviewInboxConflictResolveInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "conflictID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelReviewInboxConflictResolveInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxConflictResolveResponses,
+      V2NovelReviewInboxConflictResolveErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Accept staged change after revalidation
+   */
+  public stagedAccept<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      stagedID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelReviewInboxStagedAcceptInput: NovelReviewInboxStagedAcceptInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "stagedID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelReviewInboxStagedAcceptInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxStagedAcceptResponses,
+      V2NovelReviewInboxStagedAcceptErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reject staged change
+   */
+  public stagedReject<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      stagedID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "stagedID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxStagedRejectResponses,
+      V2NovelReviewInboxStagedRejectErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Run setting review batch
+   *
+   * Split a compiled organization plan: whitelist fixes execute immediately, the rest stage into the inbox.
+   */
+  public batch<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelReviewInboxBatchInput: NovelReviewInboxBatchInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelReviewInboxBatchInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelReviewInboxBatchResponses,
+      V2NovelReviewInboxBatchErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/review-inbox/batch",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Novel extends HeyApiClient {
   /**
    * List novels
@@ -11785,6 +12198,11 @@ export class Novel extends HeyApiClient {
   private _settingsOrganization?: SettingsOrganization
   get settingsOrganization(): SettingsOrganization {
     return (this._settingsOrganization ??= new SettingsOrganization({ client: this.client }))
+  }
+
+  private _reviewInbox?: ReviewInbox
+  get reviewInbox(): ReviewInbox {
+    return (this._reviewInbox ??= new ReviewInbox({ client: this.client }))
   }
 }
 
