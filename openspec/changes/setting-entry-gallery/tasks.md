@@ -14,8 +14,8 @@
 
 ## 3. 服务端（packages/server）
 
-- [ ] 3.1 在 server handlers 挂接六个 setting-images 端点，透传 location 目录并接 novel-store 实现
-- [ ] 3.2 补 server 端点测试：上传/列表/读取/删除/重排主路径、跨小说访问拒绝、校验错误映射
+- [x] 3.1 在 server handlers 挂接六个 setting-images 端点，透传 location 目录并接 novel-store 实现
+- [x] 3.2 补 server 端点测试：上传/列表/读取/删除/重排主路径、跨小说访问拒绝、校验错误映射
 
 ## 4. 界面（packages/app）
 

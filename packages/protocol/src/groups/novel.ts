@@ -1677,7 +1677,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       params: { novelID: Schema.String, imageID: Schema.String },
       query: LocationQuery,
       success: SettingImageReadResult,
-      error: [SettingImageNotFoundError, NovelNotFoundError],
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -1694,7 +1694,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       query: LocationQuery,
       payload: SettingImageNoteUpdateInput,
       success: SettingImage,
-      error: [SettingImageNotFoundError, NovelNotFoundError],
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
@@ -1727,7 +1727,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       params: { novelID: Schema.String, imageID: Schema.String },
       query: LocationQuery,
       success: Schema.Struct({ deleted: Schema.Boolean }),
-      error: [SettingImageNotFoundError, NovelNotFoundError],
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(

@@ -28,10 +28,13 @@ import type {
   UpdateWorldMapFeatureInput,
   CreateCharacterMapPinInput,
   UpdateCharacterMapPinInput,
+  SettingImageUploadInput,
+  SettingImageReorderInput,
+  SettingImageNoteUpdateInput,
 } from "@opennovel-ai/schema/novel"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
-import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, WorldMapValidationError, ServiceUnavailableError } from "@opennovel-ai/protocol/groups/novel"
+import { NovelNotFoundError, ChapterNotFoundError, NovelValidationError, WorldMapValidationError, ServiceUnavailableError, SettingImageNotFoundError, SettingImageValidationError } from "@opennovel-ai/protocol/groups/novel"
 import {
   saveBookMeta as storeSaveBookMeta,
   querySyncStatus as storeQuerySyncStatus,
@@ -111,6 +114,15 @@ import {
   WorldMapTable,
   WorldMapFeatureTable,
   CharacterMapPinTable,
+  SettingImageStoreError,
+  SettingImageTable,
+  deleteSettingImage,
+  listSettingImages,
+  readSettingImage,
+  reorderSettingImages,
+  updateSettingImageNote,
+  uploadSettingImage,
+  type SettingImageOwnerType,
   deleteChapter as storeDeleteChapter,
   createVolume as storeCreateVolume,
   updateVolume as storeUpdateVolume,
@@ -400,6 +412,46 @@ function runWorldMap<T>(novelId: string, operation: () => Promise<T>) {
   return Effect.tryPromise({ try: operation, catch: (error) => mapStoreError(error, novelId) })
 }
 
+function mapSettingImageError(error: unknown) {
+  if (error instanceof SettingImageStoreError) {
+    if (error.code === "image_not_found" || error.code === "owner_not_found") {
+      return new SettingImageNotFoundError({
+        name: "SettingImageNotFoundError",
+        data: { message: error.message },
+      })
+    }
+    return new SettingImageValidationError({
+      name: "SettingImageValidationError",
+      data: { message: error.message, code: error.code },
+    })
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return new SettingImageValidationError({
+    name: "SettingImageValidationError",
+    data: { message },
+  })
+}
+
+function runSettingImage<T>(operation: () => Promise<T>) {
+  return Effect.tryPromise({ try: operation, catch: mapSettingImageError })
+}
+
+function toSettingImage(row: typeof SettingImageTable.$inferSelect) {
+  return {
+    id: row.id,
+    novelId: row.novel_id,
+    ownerType: row.owner_type as SettingImageOwnerType,
+    ownerId: row.owner_id,
+    filename: row.filename,
+    mime: row.mime,
+    bytes: row.bytes,
+    source: row.source,
+    sortOrder: row.sort_order,
+    note: row.note,
+    createdAt: row.created_at,
+  }
+}
+
 function mapWorldMapStatus(value: string): "draft" | "active" {
   return value === "active" ? "active" : "draft"
 }
@@ -573,6 +625,56 @@ export function reviewInboxBatch(novelID: string, directory: string, input: Revi
   return Effect.gen(function* () {
     const service = yield* requireSettingReviewInboxNovel(novelID, directory)
     return yield* Effect.promise(() => service.batch(novelID, directory, input))
+  })
+}
+
+// ─── 设定图片（画廊，setting-entry-gallery）───
+
+export function settingImagesList(novelID: string, directory: string, ownerType: SettingImageOwnerType, ownerID: string) {
+  return Effect.gen(function* () {
+    const rows = yield* runSettingImage(() => listSettingImages(novelID, ownerType, ownerID, directory))
+    return { images: rows.map(toSettingImage) }
+  })
+}
+
+export function settingImagesUpload(novelID: string, directory: string, input: SettingImageUploadInput) {
+  return Effect.gen(function* () {
+    const row = yield* runSettingImage(() =>
+      uploadSettingImage(
+        novelID,
+        { ownerType: input.ownerType, ownerId: input.ownerId, filename: input.filename, dataUrl: input.dataUrl },
+        directory,
+      ),
+    )
+    return toSettingImage(row)
+  })
+}
+
+export function settingImagesRead(novelID: string, directory: string, imageID: string) {
+  return runSettingImage(() => readSettingImage(novelID, imageID, directory))
+}
+
+export function settingImagesUpdateNote(novelID: string, directory: string, imageID: string, input: SettingImageNoteUpdateInput) {
+  return Effect.gen(function* () {
+    const row = yield* runSettingImage(() => updateSettingImageNote(novelID, imageID, input.note, directory))
+    return toSettingImage(row)
+  })
+}
+
+export function settingImagesReorder(novelID: string, directory: string, input: SettingImageReorderInput) {
+  return Effect.gen(function* () {
+    yield* runSettingImage(() =>
+      reorderSettingImages(novelID, input.ownerType, input.ownerId, input.orderedIds, directory),
+    )
+    const rows = yield* runSettingImage(() => listSettingImages(novelID, input.ownerType, input.ownerId, directory))
+    return { images: rows.map(toSettingImage) }
+  })
+}
+
+export function settingImagesDelete(novelID: string, directory: string, imageID: string) {
+  return Effect.gen(function* () {
+    yield* runSettingImage(() => deleteSettingImage(novelID, imageID, directory))
+    return { deleted: true }
   })
 }
 
@@ -3008,6 +3110,47 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* reviewInboxBatch(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.setting-images.image-list", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesList(
+            ctx.params.novelID,
+            location.directory,
+            ctx.query.ownerType,
+            ctx.query.ownerId,
+          )
+        }),
+      )
+      .handle("novel.setting-images.upload", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesUpload(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.setting-images.read", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesRead(ctx.params.novelID, location.directory, ctx.params.imageID)
+        }),
+      )
+      .handle("novel.setting-images.update-note", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesUpdateNote(ctx.params.novelID, location.directory, ctx.params.imageID, ctx.payload)
+        }),
+      )
+      .handle("novel.setting-images.reorder", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesReorder(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.setting-images.remove", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* settingImagesDelete(ctx.params.novelID, location.directory, ctx.params.imageID)
         }),
       )
   ),
