@@ -15,10 +15,10 @@
 
 ## 3. 契约、端点与 SDK（schema / server / opennovel / protocol / client）
 
-- [ ] 3.1 packages/schema 新增收件箱契约类型：统一条目契约、计数、候选/冲突/暂存操作输入输出（src/novel.ts）
-- [ ] 3.2 packages/server 新增 SettingReviewInbox 服务契约（Effect Tag）与 handlers/novel.ts 薄层接线
-- [ ] 3.3 packages/opennovel 服务实现 + Layer 装配（server/routes/instance/httpapi/server.ts），复用 plugin 共享服务
-- [ ] 3.4 packages/protocol 新增端点族 `novel.review-inbox.*`（列表 / 计数 / candidate / conflict / staged 操作，路径 `/api/novel/:novelID/review-inbox…`）；从 packages/client 运行 `bun run generate` 并提交生成物；验证：packages/opennovel `bun run test:httpapi` 三模式通过
+- [x] 3.1 packages/schema 新增收件箱契约类型：统一条目契约、计数、候选/冲突/暂存操作输入输出（src/novel.ts）
+- [x] 3.2 packages/server 新增 SettingReviewInbox 服务契约（Effect Tag）与 handlers/novel.ts 薄层接线
+- [x] 3.3 packages/opennovel 服务实现 + Layer 装配（server/routes/instance/httpapi/server.ts），复用 plugin 共享服务
+- [x] 3.4 packages/protocol 新增端点族 `novel.review-inbox.*`（列表 / 计数 / candidate / conflict / staged 操作，路径 `/api/novel/:novelID/review-inbox…`）；从 packages/client 运行 `bun run generate` 并提交生成物；验证：packages/opennovel `bun run test:httpapi` 三模式通过
 
 ## 4. Agent 工具与提示词（packages/plugin）
 
