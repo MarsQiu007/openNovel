@@ -358,8 +358,18 @@ export const ShellTool = Tool.define(
     const resolvePath = Effect.fn("ShellTool.resolvePath")(function* (text: string, root: string, shell: string) {
       if (process.platform === "win32") {
         if (Shell.posix(shell) && text.startsWith("/") && FSUtil.windowsPath(text) === text) {
+          // 无盘符 POSIX 路径的解析歧义：cygpath 对真实挂载（/tmp→系统临时目录）解释正确，
+          // 但对无挂载路径（/Users/...）会退化为 MSYS 安装根相对（C:\Program Files\Git\...）。
+          // 区分规则：cygpath 输出落在 MSYS 根内 → 该解释不可信，回退朴素 win32 语义
+          // （当前盘符根相对，存在时）；落在根外 → 是真实挂载，采信。
           const file = yield* cygpath(shell, text)
-          if (file) return file
+          if (file) {
+            const msysRoot = yield* cygpath(shell, "/")
+            if (!msysRoot || !file.startsWith(msysRoot)) return file
+            const naive = FSUtil.normalizePath(path.resolve(root, text))
+            if (yield* fs.existsSafe(naive)) return naive
+            return file
+          }
         }
         return FSUtil.normalizePath(path.resolve(root, FSUtil.windowsPath(text)))
       }

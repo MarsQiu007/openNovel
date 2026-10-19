@@ -88,7 +88,9 @@ const SUBCOMMANDS = [
 // Fixed wrap width so a developer's terminal doesn't affect snapshots.
 // yargs honors COLUMNS; CI runners typically default to 80 which produces
 // different wraps from a 200-col local terminal.
-const SNAPSHOT_ENV = { COLUMNS: "120" }
+// LANG/LC_ALL pin yargs' localized labels（选项：/[布尔] vs Options:/[boolean]）：
+// 中文系统本机默认输出中文，快照以英文为准。
+const SNAPSHOT_ENV = { COLUMNS: "120", LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" }
 
 describe("opennovel CLI help-text snapshots", () => {
   // Single test, parallel spawns. Each command's help fires under

@@ -136,7 +136,10 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
       })
 
       // Use bash tool (always registered) to create a file
-      const command = `echo 'snapshot race test content' > ${path.join(dir, "race-test.txt")}`
+      // bash 的重定向目标必须是 POSIX 路径：Windows 反斜杠路径在 bash 里会被拆成
+      // `D:` + `\AI\...` 两段，文件写到错误位置
+      const target = path.join(dir, "race-test.txt").replaceAll("\\", "/")
+      const command = `echo 'snapshot race test content' > ${target}`
       yield* llm.toolMatch((hit) => JSON.stringify(hit.body).includes("create the file"), "bash", {
         command,
       })
