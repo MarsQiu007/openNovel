@@ -11,6 +11,7 @@ const highImpactTools = [
   "cascade_execute",
   "accept_pending_setting",
   "merge_pending_settings",
+  "resolve_conflict",
   "deduplicate_characters",
   "deduplicate_relationships",
   "update_project_config",

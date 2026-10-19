@@ -13,6 +13,7 @@ import {
   NovelTable,
   PlotThreadTable,
   RelationshipTable,
+  StagedChangeTable,
   WorldEntryTable,
 } from "../../src/novel-writer/session-store.js"
 import type { ToolContext } from "../../src/tool.js"
@@ -341,6 +342,75 @@ describe("organize_settings tool", () => {
     expect(execution.ok).toBe(false)
     expect(execution.results[0]!.status).toBe("failed")
   })
+
+  test("stage 产出暂存草案且不修改正式数据", async () => {
+    const { db, tool } = await hooks()
+    await insertEntry({ id: "world-stage", title: "旧标题", content: "旧内容。" })
+    const plan = JSON.stringify({
+      version: 1,
+      operations: [{ action: "update", id: "world-stage", fields: { title: "新标题", content: "新内容。" }, reason: "整理标题" }],
+    })
+    const result = await tool.organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("待审暂存草案")
+    const staged = await db.select().from(StagedChangeTable).where(eq(StagedChangeTable.status, "pending")).all()
+    expect(staged).toHaveLength(1)
+    expect(JSON.parse(staged[0]!.entry_ids)).toEqual(["world-stage"])
+    expect(staged[0]!.reason).toBe("整理标题")
+    const [row] = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.id, "world-stage")).all()
+    expect(row.title).toBe("旧标题")
+    expect(row.content).toBe("旧内容。")
+  })
+
+  test("stage 校验失败时不产出暂存", async () => {
+    const { db, tool } = await hooks()
+    const plan = JSON.stringify({
+      version: 1,
+      operations: [{ action: "update", id: "world-missing", fields: { title: "新标题" }, reason: "目标不存在" }],
+    })
+    const result = await tool.organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("校验失败")
+    expect((result.metadata as Record<string, unknown>).valid).toBe(false)
+    expect(await db.select().from(StagedChangeTable).all()).toHaveLength(0)
+  })
+
+  test("重复 stage 替代同目标旧草案", async () => {
+    const { db, tool } = await hooks()
+    await insertEntry({ id: "world-restage", title: "旧标题", content: "旧内容。" })
+    const plan = JSON.stringify({
+      version: 1,
+      operations: [{ action: "update", id: "world-restage", fields: { title: "新标题" }, reason: "第一次" }],
+    })
+    await tool.organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    const result = await tool.organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("替代 1 条同目标旧草案")
+    const rows = await db.select().from(StagedChangeTable).all()
+    expect(rows.filter((row) => row.status === "pending")).toHaveLength(1)
+    expect(rows.filter((row) => row.status === "superseded")).toHaveLength(1)
+  })
+
+  test("batch 拆分执行：白名单自动落库、语义操作入箱待审", async () => {
+    const { db, tool } = await hooks()
+    await insertEntry({ id: "world-batch-format", title: "格式条目", content: "第一段。\n\n第二段。" })
+    await insertEntry({ id: "world-batch-semantic", title: "旧标题", content: "第一段。\n\n第二段。" })
+    const plan = JSON.stringify({
+      version: 1,
+      operations: [
+        { action: "update", id: "world-batch-format", fields: { content: "第一段。\n\n第二段。\n" }, reason: "仅调整分段" },
+        { action: "update", id: "world-batch-semantic", fields: { title: "语义新标题" }, reason: "标题整理" },
+      ],
+    })
+    const result = await tool.organize_settings!.execute({ action: "batch", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+    expect(result.output).toContain("新增待审 1 条")
+    const metadata = result.metadata as Record<string, unknown>
+    expect(metadata.auto_executed).toBe(1)
+    expect(metadata.pending_added).toBe(1)
+    const rows = await db.select().from(StagedChangeTable).where(eq(StagedChangeTable.status, "pending")).all()
+    expect(rows).toHaveLength(1)
+    expect(JSON.parse(rows[0]!.after_json)).toEqual({ title: "语义新标题" })
+    // 白名单外的标题变更不应自动生效
+    const [row] = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.id, "world-batch-semantic")).all()
+    expect(row.title).toBe("旧标题")
+  })
 })
 
 
@@ -530,5 +600,25 @@ describe("director organization prompt", () => {
     expect(prompt).toContain("等待用户明确确认")
     expect(prompt).toContain("禁止虚构 ID")
     expect(prompt).toContain("禁止自动删除或合并重复/相似候选")
+  })
+
+  test("批处理编排路由指向收件箱落点并保留会话内路径", () => {
+    const prompt = directorAgentConfig.systemPrompt
+    expect(prompt).toContain('organize_settings(action="batch"')
+    expect(prompt).toContain("新增 N 条待审")
+    expect(prompt).toContain("lint_settings")
+    expect(prompt).toContain("check_settings_consistency")
+    expect(prompt).toContain("deduplicate_characters(dry_run=true)")
+    // 批处理编排不请求运行时确认，白名单边界由服务端代码判定
+    expect(prompt).toContain("白名单边界由服务端代码判定")
+    // 会话内受控整理路径保持不变（显式计划场景）
+    expect(prompt).toContain("不经收件箱")
+    expect(prompt).toContain('organize_settings(action="apply")')
+  })
+
+  test("冲突工具出现在 director 提示词工具表", () => {
+    const prompt = directorAgentConfig.systemPrompt
+    expect(prompt).toContain("| list_conflicts |")
+    expect(prompt).toContain("| resolve_conflict |")
   })
 })

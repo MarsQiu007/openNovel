@@ -164,6 +164,9 @@ import {
   rejectPendingSetting,
   SETTING_TEXT_FIELDS,
 } from "./novel-writer/setting-review-candidates.js"
+import { createStagedChangesFromPlan } from "./novel-writer/setting-review-staged.js"
+import { runSettingReviewBatch } from "./novel-writer/setting-review-batch.js"
+import { listConflicts, resolveConflict } from "./novel-writer/setting-review-conflicts.js"
 import { rebuildChapterDerivedData } from "./novel-writer/chapter-rebuild.js"
 
 export { rebuildChapterDerivedData }
@@ -2223,6 +2226,107 @@ ${sceneChecklist}`
           }
         },
       }),
+      list_conflicts: tool({
+        description:
+          "列出世界观冲突标注（observer 提取的 world_entry 冲突，与设定收件箱同源）。冲突不污染设定正文，处理前先读本工具了解冲突点，再用 resolve_conflict 处理：按正文更新生成暂存草案，或保留现状忽略。",
+        args: {
+          novel_id: tool.schema.string().describe("小说 ID"),
+          status: tool.schema
+            .enum(["unresolved", "resolved"])
+            .optional()
+            .describe("状态过滤（默认 unresolved，只看未解决冲突）"),
+          limit: tool.schema.number().optional().describe("最多返回条数，默认 20"),
+          offset: tool.schema.number().optional().describe("跳过前 N 条，默认 0"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const novelId = await resolveNovelId(db, args.novel_id)
+          const status = args.status ?? "unresolved"
+          const { total, rows } = await listConflicts(db, {
+            novelId,
+            status,
+            limit: args.limit,
+            offset: args.offset,
+          })
+          if (rows.length === 0) {
+            return {
+              title: "list_conflicts",
+              output: `无 ${status === "unresolved" ? "未解决" : "已解决"}冲突`,
+              metadata: { total, returned: 0, items: [] },
+            }
+          }
+          const lines: string[] = [`共 ${total} 条${status === "unresolved" ? "未解决" : "已解决"}冲突，显示 ${rows.length} 条：`]
+          for (const r of rows) {
+            const time = new Date(r.created_at).toLocaleString("zh-CN")
+            lines.push(
+              `\n[${r.id.slice(0, 8)}] ${time} | ${r.conflict_kind} | 条目：${r.entry_title ?? `${r.world_entry_id.slice(0, 8)}（条目缺失）`}\n  冲突说明：${r.conflict_note}`,
+            )
+            if (r.resolved === 1) {
+              lines.push(`  处理留痕：${r.resolution_kind || "已处理"}${r.resolution_note ? `（${r.resolution_note}）` : ""}`)
+            }
+          }
+          return {
+            title: "list_conflicts",
+            output: lines.join("\n"),
+            metadata: {
+              total,
+              returned: rows.length,
+              items: rows.map((r) => ({
+                id: r.id,
+                world_entry_id: r.world_entry_id,
+                entry_title: r.entry_title,
+                conflict_kind: r.conflict_kind,
+                conflict_note: r.conflict_note,
+                resolved: r.resolved,
+                resolution_kind: r.resolution_kind,
+                resolution_note: r.resolution_note,
+                source_chapter_id: r.source_chapter_id,
+                created_at: r.created_at,
+              })),
+            },
+          }
+        },
+      }),
+      resolve_conflict: tool({
+        description:
+          "处理一条世界观冲突。action=update_entry 按你提供的草案正文生成暂存变更（进入设定收件箱，用户接受后才写入正式设定）；action=keep_current 保留现状并忽略该冲突（留痕处理方式与备注）。处理语义与设定收件箱一致：按正文更新时草案内容必须通过设定文本格式校验（纯文本、空行分段、无 Markdown）。",
+        args: {
+          conflict_id: tool.schema.string().describe("冲突 ID（list_conflicts 拿）"),
+          action: tool.schema.enum(["update_entry", "keep_current"]).describe("处理方式：update_entry 按正文更新 / keep_current 保留现状"),
+          content: tool.schema.string().optional().describe("update_entry 必填：修正后的条目正文草案"),
+          note: tool.schema.string().optional().describe("处理备注（记录处理理由，可追溯）"),
+        },
+        async execute(args, ctx) {
+          const db = getDb(ctx.directory)
+          const result = await resolveConflict(db, args.conflict_id, {
+            action: args.action,
+            content: args.content,
+            note: args.note,
+            source: "agent",
+          })
+          if (!result.ok) {
+            return { title: "resolve_conflict", output: result.error }
+          }
+          if (result.action === "keep_current") {
+            return {
+              title: "resolve_conflict",
+              output: "已保留现状并忽略该冲突（可在 list_conflicts status=resolved 复查处理留痕）",
+              metadata: { conflict_id: result.conflict_id, action: result.action, note: args.note ?? "" },
+            }
+          }
+          return {
+            title: "resolve_conflict",
+            output:
+              "已按正文生成暂存草案并写入设定收件箱，等用户审阅接受后才写入正式设定；向用户说明该冲突的处理方式与草案位置。",
+            metadata: {
+              conflict_id: result.conflict_id,
+              action: result.action,
+              staged_change_id: result.staged_change_id,
+              note: args.note ?? "",
+            },
+          }
+        },
+      }),
       list_novels: tool({
         description:
           "列出当前项目中的所有书籍（id、书名、类型、简介、状态、章节数、创建时间）。在初始化新书之前应先调用本工具，确认项目中是否已存在同名书籍，避免重复创建。",
@@ -3712,9 +3816,11 @@ ${sceneChecklist}`
       }),
       organize_settings: tool({
         description:
-          "整理小说设定。action=analyze 跨实体扫描并支持 scope 过滤；action=dry_run 校验版本 1 或版本 2 plan_json 并输出影响预览；action=apply 执行受控 update/merge/delete，执行前重新校验并请求用户确认。必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除重复或相似条目，不跳过确认，不写入 Markdown 或单个段落超过 600 字的长文本。",
+          "整理小说设定。action=analyze 跨实体扫描并支持 scope 过滤；action=dry_run 校验版本 1 或版本 2 plan_json 并输出影响预览；action=stage 对通过校验的计划产出待审暂存草案（不执行，进入设定收件箱等用户审阅，重复 stage 会替代同目标旧草案）；action=batch 提交批处理整理：纯格式修复与分类归一（白名单内）自动执行，其余操作写入设定收件箱待审，返回新增待审数量；action=apply 执行受控 update/merge/delete，执行前重新校验并请求用户确认。stage 与 apply 的分工：apply 走运行时确认直接生效，stage 只产出待审草案。会话内整理必须按 analyze → dry_run → 向用户说明并等待确认 → apply → analyze 复查执行；只使用 analyze 返回的真实条目 ID，不自动删除重复或相似条目，会话内 apply 不跳过确认，不写入 Markdown 或单个段落超过 600 字的长文本。",
         args: {
-          action: tool.schema.enum(["analyze", "dry_run", "apply"]).describe("整理动作：analyze / dry_run / apply"),
+          action: tool.schema
+            .enum(["analyze", "dry_run", "stage", "batch", "apply"])
+            .describe("整理动作：analyze / dry_run / stage（产出待审草案）/ batch（批处理拆分执行）/ apply"),
           novel_id: tool.schema.string().describe("小说 ID"),
           scope: tool.schema
             .enum(["all", "world_entry", "character", "relationship", "plot_thread", "foreshadowing"])
@@ -3764,6 +3870,75 @@ ${sceneChecklist}`
               title: "organize_settings",
               output: `整理计划校验失败，未修改数据：\n${validation.errors.map((error) => `- ${error}`).join("\n")}`,
               metadata: { action: args.action, novel_id: novelId, valid: false, errors: validation.errors, previews: validation.previews },
+            }
+          }
+
+          if (args.action === "stage") {
+            const staged = await createStagedChangesFromPlan(ctx.directory, novelId, parsed.plan, { source: "agent" })
+            if (!staged.ok) {
+              return {
+                title: "organize_settings",
+                output: `整理计划校验失败，未产出暂存：\n${staged.errors.map((error) => `- ${error}`).join("\n")}`,
+                metadata: { action: "stage", novel_id: novelId, valid: false, errors: staged.errors },
+              }
+            }
+            const lines = [`✅ 已产出 ${staged.staged_ids.length} 条待审暂存草案（未修改任何正式数据），可在设定收件箱审阅`]
+            for (const preview of validation.previews) {
+              lines.push(`- [${preview.index}] ${preview.summary}`)
+            }
+            if (staged.superseded_ids.length > 0) {
+              lines.push(`已替代 ${staged.superseded_ids.length} 条同目标旧草案`)
+            }
+            return {
+              title: "organize_settings",
+              output: lines.join("\n"),
+              metadata: {
+                action: "stage",
+                novel_id: novelId,
+                valid: true,
+                staged_ids: staged.staged_ids,
+                superseded_ids: staged.superseded_ids,
+                previews: validation.previews,
+              },
+            }
+          }
+
+          if (args.action === "batch") {
+            const batch = await runSettingReviewBatch(ctx.directory, novelId, parsed.plan, { source: "agent" })
+            if (!batch.ok) {
+              return {
+                title: "organize_settings",
+                output: `批处理失败，未修改数据：\n${batch.errors.map((error) => `- ${error}`).join("\n")}`,
+                metadata: { action: "batch", novel_id: novelId, ok: false, errors: batch.errors },
+              }
+            }
+            const lines = [
+              `✅ 批处理完成：白名单内自动执行 ${batch.auto_executed} 条，新增待审 ${batch.pending_added} 条`,
+              "请到设定收件箱审阅新增待审条目",
+            ]
+            if (batch.superseded_ids.length > 0) {
+              lines.push(`已替代 ${batch.superseded_ids.length} 条同目标旧草案`)
+            }
+            for (const result of batch.execution?.results ?? []) {
+              if (result.status === "failed") {
+                lines.push(`- [${result.index}] ${result.entity_type} ${result.action} 自动执行失败：${result.error}`)
+                continue
+              }
+              lines.push(`- [${result.index}] 自动执行 ${result.entity_type} ${result.action} ${result.entry_ids.join("、")}`)
+            }
+            return {
+              title: "organize_settings",
+              output: lines.join("\n"),
+              metadata: {
+                action: "batch",
+                novel_id: novelId,
+                ok: true,
+                auto_executed: batch.auto_executed,
+                pending_added: batch.pending_added,
+                staged_ids: batch.staged_ids,
+                superseded_ids: batch.superseded_ids,
+                execution: batch.execution,
+              },
             }
           }
 
@@ -5828,6 +6003,8 @@ ${sceneChecklist}`
             deduplicate_relationships: "ask",
             accept_pending_setting: "ask",
             merge_pending_settings: "ask",
+            list_conflicts: "allow",
+            resolve_conflict: "ask",
             description_history: "allow",
             list_chapter_versions: "allow",
             read_chapter_version: "allow",

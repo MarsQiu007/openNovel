@@ -16,6 +16,9 @@ import {
 } from "@opennovel-ai/novel-store"
 import { getDb, NovelTable, closeDb } from "../../src/novel-writer/session-store.js"
 import { listConflicts, resolveConflict } from "../../src/novel-writer/setting-review-conflicts.js"
+import { NovelWriterPlugin } from "../../src/novel-writer.js"
+import { createPluginInput } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/tool.js"
 
 const testDir = join(tmpdir(), `novel-review-conflicts-${Date.now()}`)
 let prevOpenNovelDb: string | undefined
@@ -147,5 +150,112 @@ describe("resolveConflict", () => {
     const result = await resolveConflict(getDb(), id, { action: "update_entry", content: "正文有 **加粗** 标记。" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain("不是纯文本格式")
+  })
+})
+
+describe("list_conflicts / resolve_conflict tools", () => {
+  const toolDir = join(tmpdir(), `novel-review-conflict-tools-${Date.now()}`)
+  let toolPlugin: Awaited<ReturnType<typeof NovelWriterPlugin>>
+
+  function toolCtx(): ToolContext {
+    return {
+      sessionID: "ses-conflict-tools",
+      messageID: "msg_test",
+      agent: "director",
+      directory: toolDir,
+      worktree: toolDir,
+      abort: new AbortController().signal,
+      metadata() {},
+      ask: async () => {},
+    }
+  }
+
+  beforeAll(async () => {
+    mkdirSync(join(toolDir, ".novel"), { recursive: true })
+    const toolNovelId = crypto.randomUUID()
+    const toolEntryId = crypto.randomUUID()
+    const db = getDb(toolDir)
+    await db
+      .insert(NovelTable)
+      .values({ id: toolNovelId, title: "冲突工具测试小说", genre: "玄幻", synopsis: "", status: "draft" })
+      .run()
+    await db
+      .insert(WorldEntryTable)
+      .values({ id: toolEntryId, novel_id: toolNovelId, category: "地理", title: "北境雪原", content: "常年风雪。" })
+      .run()
+    await db
+      .insert(WorldEntryConflictTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: toolNovelId,
+        world_entry_id: toolEntryId,
+        conflict_kind: "semantic_conflict",
+        conflict_note: "雪原范围与第二章描述不一致",
+        created_at: Date.now(),
+      })
+      .run()
+    toolPlugin = await NovelWriterPlugin(createPluginInput(toolDir))
+  })
+
+  afterAll(() => {
+    try {
+      rmSync(toolDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+    } catch {
+      // Windows 下 DB 文件可能短暂占用，进程退出后系统回收
+    }
+  })
+
+  test("list_conflicts 列出未解决冲突并附条目标题", async () => {
+    const tool = toolPlugin.tool!
+    const novel = (await getDb(toolDir).select().from(NovelTable).all()).at(-1)!
+    const result = await tool.list_conflicts!.execute({ novel_id: novel.id }, toolCtx())
+    expect(result.output).toContain("北境雪原")
+    expect(result.output).toContain("雪原范围与第二章描述不一致")
+  })
+
+  test("resolve_conflict keep_current 留痕并移出未解决列表", async () => {
+    const tool = toolPlugin.tool!
+    const db = getDb(toolDir)
+    const novelId = (await db.select().from(NovelTable).all()).at(-1)!.id
+    const listed = await tool.list_conflicts!.execute({ novel_id: novelId }, toolCtx())
+    const items = (listed.metadata as { items: { id: string }[] }).items
+    expect(items.length).toBe(1)
+    const result = await tool.resolve_conflict!.execute(
+      { conflict_id: items[0]!.id, action: "keep_current", note: "以条目为准" },
+      toolCtx(),
+    )
+    expect(result.output).toContain("保留现状")
+    const [row] = await db.select().from(WorldEntryConflictTable).where(eq(WorldEntryConflictTable.id, items[0]!.id)).all()
+    expect(row?.resolution_kind).toBe("ignored")
+    const after = await tool.list_conflicts!.execute({ novel_id: novelId }, toolCtx())
+    expect(after.output).toContain("无 未解决冲突")
+  })
+
+  test("resolve_conflict update_entry 生成 agent 来源暂存草案", async () => {
+    const tool = toolPlugin.tool!
+    const db = getDb(toolDir)
+    const conflictId = crypto.randomUUID()
+    const novelId = (await db.select().from(NovelTable).all()).at(-1)!.id
+    const entryId = (await db.select().from(WorldEntryTable).all()).at(-1)!.id
+    await db
+      .insert(WorldEntryConflictTable)
+      .values({
+        id: conflictId,
+        novel_id: novelId,
+        world_entry_id: entryId,
+        conflict_kind: "semantic_conflict",
+        conflict_note: "雪原边界描述冲突",
+        created_at: Date.now(),
+      })
+      .run()
+    const result = await tool.resolve_conflict!.execute(
+      { conflict_id: conflictId, action: "update_entry", content: "北境雪原横贯大陆北疆，常年风雪不歇。" },
+      toolCtx(),
+    )
+    expect(result.output).toContain("暂存草案")
+    const stagedId = (result.metadata as { staged_change_id: string }).staged_change_id
+    const [staged] = await db.select().from(StagedChangeTable).where(eq(StagedChangeTable.id, stagedId)).all()
+    expect(staged?.source).toBe("agent")
+    expect(staged?.status).toBe("pending")
   })
 })
