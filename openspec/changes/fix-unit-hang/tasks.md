@@ -24,4 +24,4 @@
 
 ## Implementation Commits
 
-（提交后回填）
+- `26677ca4e` fix(opennovel): 分片绕过 bun runner 死循环并修复 Windows 必败用例
