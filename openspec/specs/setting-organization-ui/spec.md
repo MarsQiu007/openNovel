@@ -25,36 +25,41 @@
 
 ### Requirement: AI 一键整理委托受控会话
 
-UI SHALL 提供在有整理问题时可见的 AI 一键整理入口。用户激活后，UI SHALL 将真实 `novel_id`、当前 analyze 返回的问题和条目 ID 发送到该小说的未归档绑定会话；没有绑定会话时 SHALL 创建并绑定新会话。指令 SHALL 明确要求 agent 使用 `organize_settings` 完成 analyze → dry_run → 用户确认 → apply → analyze 复查，SHALL 禁止猜测 `novel_id` 或使用旁路工具直接修改，且 SHALL NOT 代替 agent 的运行时确认。
+UI SHALL 提供收件箱内可见的 AI 一键整理入口。用户激活后，UI SHALL 将真实 `novel_id` 发送到该小说的未归档绑定会话；没有绑定会话时 SHALL 创建并绑定新会话。指令 SHALL 走批处理编排路由：执行设定 lint、一致性检查、去重扫描与整理分析，白名单内机械修复自动执行，其余产出统一写入收件箱并向用户汇报新增待审数量；SHALL 禁止猜测 `novel_id` 或使用旁路工具直接修改，SHALL NOT 扩大分级自动化白名单的执行边界。
 
 #### Scenario: 一键整理发送受控指令
 
-- **WHEN** 用户在存在整理问题的小说上点击 AI 一键整理
-- **THEN** UI 使用真实 `novel_id` 和 analyze 条目 ID 构造指令，发送到绑定会话，并进入该会话
+- **WHEN** 用户在收件箱点击 AI 一键整理
+- **THEN** 绑定会话收到走批处理编排的指令，产出进入收件箱并汇报新增待审数量
 
 #### Scenario: 没有绑定会话时创建会话
 
 - **WHEN** 当前小说还没有未归档的绑定会话
-- **THEN** UI 创建新会话、绑定当前小说，再发送受控整理指令
+- **THEN** UI 创建新会话、绑定当前小说，再发送批处理编排指令
 
 #### Scenario: 指令不得绕过受控流程
 
-- **WHEN** AI 接收 UI 一键整理指令
-- **THEN** AI 只使用指令中的真实 `novel_id` 和 analyze 返回的条目 ID，先 dry run 并等待用户确认后才 apply
+- **WHEN** AI 接收一键整理指令
+- **THEN** AI 只使用指令中的真实 `novel_id`，按编排产出白名单自动执行与待审暂存，不使用旁路工具直接修改正式数据
 
 ### Requirement: UI 不提供直接执行路径
 
-UI SHALL NOT 提供 plan_json 导入、dry run 预览、确认弹层或直接 apply 按钮。UI SHALL NOT 调用 dry-run 或 apply 端点修改数据；服务端 dry-run / apply 契约保留时，不得因 UI 简化而移除其计划校验和显式确认约束。
+UI SHALL NOT 提供 plan_json 导入与未经服务端重校验的直接执行控件。UI 的成果审阅页（收件箱）SHALL 提供受控审阅路径：对暂存变更逐条确认执行——接受动作 SHALL 由服务端完整重校验后才生效，是用户显式确认的产品化形态；UI SHALL NOT 绕过重校验直接调用执行端点修改数据。服务端 dry-run / apply 契约保留时，不得因 UI 简化而移除其计划校验和显式确认约束。
+
+#### Scenario: 收件箱提供受控确认执行
+
+- **WHEN** 用户在收件箱对一条暂存变更点击接受
+- **THEN** 服务端完整重校验通过后才执行并留痕；校验失败时 UI 展示逐条错误且数据不变
 
 #### Scenario: 用户查看整理面板
 
-- **WHEN** 用户打开设定整理面板
-- **THEN** UI 只展示 analyze 报告、AI 一键整理和重新分析入口，不出现计划导入或直接执行控件
+- **WHEN** 用户在设定树选中「整理」节点打开收件箱视图
+- **THEN** UI 只展示收件箱列表、审阅操作与 AI 一键整理入口，不出现 plan_json 导入或跳过重校验的直接执行控件
 
 #### Scenario: 受控流程失败或等待确认
 
-- **WHEN** agent 的 dry run 或 apply 失败，或流程等待运行时确认
-- **THEN** UI 不在整理面板中伪造成功结果，由绑定会话展示流程状态、错误和确认请求
+- **WHEN** 会话内整理的 dry run 或 apply 失败，或流程等待运行时确认
+- **THEN** UI 不在收件箱中伪造成功结果，由绑定会话展示流程状态、错误和确认请求
 
 ### Requirement: Agent 整理流程保持独立受控
 
