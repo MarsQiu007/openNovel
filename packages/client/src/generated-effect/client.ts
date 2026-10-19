@@ -2601,6 +2601,104 @@ const Endpoint18_115 = (raw: RawClient["server.novel"]) => (input: Endpoint18_11
     query: { location: input["location"], library: input["library"] },
   }).pipe(Effect.mapError(mapClientError))
 
+type Endpoint18_116Request = Parameters<RawClient["server.novel"]["novel.setting-images.image-list"]>[0]
+type Endpoint18_116Input = {
+  readonly novelID: Endpoint18_116Request["params"]["novelID"]
+  readonly location?: Endpoint18_116Request["query"]["location"]
+  readonly library?: Endpoint18_116Request["query"]["library"]
+  readonly ownerType: Endpoint18_116Request["query"]["ownerType"]
+  readonly ownerId: Endpoint18_116Request["query"]["ownerId"]
+}
+const Endpoint18_116 = (raw: RawClient["server.novel"]) => (input: Endpoint18_116Input) =>
+  raw["novel.setting-images.image-list"]({
+    params: { novelID: input["novelID"] },
+    query: {
+      location: input["location"],
+      library: input["library"],
+      ownerType: input["ownerType"],
+      ownerId: input["ownerId"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_117Request = Parameters<RawClient["server.novel"]["novel.setting-images.upload"]>[0]
+type Endpoint18_117Input = {
+  readonly novelID: Endpoint18_117Request["params"]["novelID"]
+  readonly location?: Endpoint18_117Request["query"]["location"]
+  readonly library?: Endpoint18_117Request["query"]["library"]
+  readonly ownerType: Endpoint18_117Request["payload"]["ownerType"]
+  readonly ownerId: Endpoint18_117Request["payload"]["ownerId"]
+  readonly filename?: Endpoint18_117Request["payload"]["filename"]
+  readonly dataUrl: Endpoint18_117Request["payload"]["dataUrl"]
+}
+const Endpoint18_117 = (raw: RawClient["server.novel"]) => (input: Endpoint18_117Input) =>
+  raw["novel.setting-images.upload"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: {
+      ownerType: input["ownerType"],
+      ownerId: input["ownerId"],
+      filename: input["filename"],
+      dataUrl: input["dataUrl"],
+    },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_118Request = Parameters<RawClient["server.novel"]["novel.setting-images.read"]>[0]
+type Endpoint18_118Input = {
+  readonly novelID: Endpoint18_118Request["params"]["novelID"]
+  readonly imageID: Endpoint18_118Request["params"]["imageID"]
+  readonly location?: Endpoint18_118Request["query"]["location"]
+  readonly library?: Endpoint18_118Request["query"]["library"]
+}
+const Endpoint18_118 = (raw: RawClient["server.novel"]) => (input: Endpoint18_118Input) =>
+  raw["novel.setting-images.read"]({
+    params: { novelID: input["novelID"], imageID: input["imageID"] },
+    query: { location: input["location"], library: input["library"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_119Request = Parameters<RawClient["server.novel"]["novel.setting-images.update-note"]>[0]
+type Endpoint18_119Input = {
+  readonly novelID: Endpoint18_119Request["params"]["novelID"]
+  readonly imageID: Endpoint18_119Request["params"]["imageID"]
+  readonly location?: Endpoint18_119Request["query"]["location"]
+  readonly library?: Endpoint18_119Request["query"]["library"]
+  readonly note: Endpoint18_119Request["payload"]["note"]
+}
+const Endpoint18_119 = (raw: RawClient["server.novel"]) => (input: Endpoint18_119Input) =>
+  raw["novel.setting-images.update-note"]({
+    params: { novelID: input["novelID"], imageID: input["imageID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { note: input["note"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_120Request = Parameters<RawClient["server.novel"]["novel.setting-images.reorder"]>[0]
+type Endpoint18_120Input = {
+  readonly novelID: Endpoint18_120Request["params"]["novelID"]
+  readonly location?: Endpoint18_120Request["query"]["location"]
+  readonly library?: Endpoint18_120Request["query"]["library"]
+  readonly ownerType: Endpoint18_120Request["payload"]["ownerType"]
+  readonly ownerId: Endpoint18_120Request["payload"]["ownerId"]
+  readonly orderedIds: Endpoint18_120Request["payload"]["orderedIds"]
+}
+const Endpoint18_120 = (raw: RawClient["server.novel"]) => (input: Endpoint18_120Input) =>
+  raw["novel.setting-images.reorder"]({
+    params: { novelID: input["novelID"] },
+    query: { location: input["location"], library: input["library"] },
+    payload: { ownerType: input["ownerType"], ownerId: input["ownerId"], orderedIds: input["orderedIds"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint18_121Request = Parameters<RawClient["server.novel"]["novel.setting-images.remove"]>[0]
+type Endpoint18_121Input = {
+  readonly novelID: Endpoint18_121Request["params"]["novelID"]
+  readonly imageID: Endpoint18_121Request["params"]["imageID"]
+  readonly location?: Endpoint18_121Request["query"]["location"]
+  readonly library?: Endpoint18_121Request["query"]["library"]
+}
+const Endpoint18_121 = (raw: RawClient["server.novel"]) => (input: Endpoint18_121Input) =>
+  raw["novel.setting-images.remove"]({
+    params: { novelID: input["novelID"], imageID: input["imageID"] },
+    query: { location: input["location"], library: input["library"] },
+  }).pipe(Effect.mapError(mapClientError))
+
 const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   list: Endpoint18_0(raw),
   create: Endpoint18_1(raw),
@@ -2718,6 +2816,12 @@ const adaptGroup18 = (raw: RawClient["server.novel"]) => ({
   "upgrade-progress": Endpoint18_113(raw),
   "upgrade-pause": Endpoint18_114(raw),
   "upgrade-resume": Endpoint18_115(raw),
+  "image-list": Endpoint18_116(raw),
+  upload: Endpoint18_117(raw),
+  read: Endpoint18_118(raw),
+  "update-note": Endpoint18_119(raw),
+  reorder: Endpoint18_120(raw),
+  remove: Endpoint18_121(raw),
 })
 
 type Endpoint19_0Request = Parameters<RawClient["server.novelMode"]["novelMode.get"]>[0]

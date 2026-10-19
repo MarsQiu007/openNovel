@@ -133,6 +133,20 @@ export type WorldMapValidationError = {
 export const isWorldMapValidationError = (value: unknown): value is WorldMapValidationError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "WorldMapValidationError"
 
+export type SettingImageNotFoundError = {
+  readonly name: "SettingImageNotFoundError"
+  readonly data: { readonly message: string; readonly imageId?: string | undefined }
+}
+export const isSettingImageNotFoundError = (value: unknown): value is SettingImageNotFoundError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "SettingImageNotFoundError"
+
+export type SettingImageValidationError = {
+  readonly name: "SettingImageValidationError"
+  readonly data: { readonly message: string; readonly code?: string | undefined }
+}
+export const isSettingImageValidationError = (value: unknown): value is SettingImageValidationError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "SettingImageValidationError"
+
 export type NovelModeError = { readonly name: "NovelModeError"; readonly data: { readonly message: string } }
 export const isNovelModeError = (value: unknown): value is NovelModeError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelModeError"
@@ -7311,6 +7325,201 @@ export type ServerNovelUpgradeResumeInput = {
 }
 
 export type ServerNovelUpgradeResumeOutput = { readonly gate: "open" | "paused" }
+
+export type ServerNovelImageListInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+  }["library"]
+  readonly ownerType: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+  }["ownerType"]
+  readonly ownerId: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+  }["ownerId"]
+}
+
+export type ServerNovelImageListOutput = {
+  readonly images: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename: string
+    readonly mime: string
+    readonly bytes: number
+    readonly source: string
+    readonly sortOrder: number
+    readonly note: string
+    readonly createdAt: number
+  }>
+}
+
+export type ServerNovelUploadInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly ownerType: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename?: string
+    readonly dataUrl: string
+  }["ownerType"]
+  readonly ownerId: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename?: string
+    readonly dataUrl: string
+  }["ownerId"]
+  readonly filename?: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename?: string
+    readonly dataUrl: string
+  }["filename"]
+  readonly dataUrl: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename?: string
+    readonly dataUrl: string
+  }["dataUrl"]
+}
+
+export type ServerNovelUploadOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly ownerType: "world_entry" | "character"
+  readonly ownerId: string
+  readonly filename: string
+  readonly mime: string
+  readonly bytes: number
+  readonly source: string
+  readonly sortOrder: number
+  readonly note: string
+  readonly createdAt: number
+}
+
+export type ServerNovelReadInput = {
+  readonly novelID: { readonly novelID: string; readonly imageID: string }["novelID"]
+  readonly imageID: { readonly novelID: string; readonly imageID: string }["imageID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelReadOutput = { readonly dataUrl: string }
+
+export type ServerNovelUpdateNoteInput = {
+  readonly novelID: { readonly novelID: string; readonly imageID: string }["novelID"]
+  readonly imageID: { readonly novelID: string; readonly imageID: string }["imageID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly note: { readonly note: string }["note"]
+}
+
+export type ServerNovelUpdateNoteOutput = {
+  readonly id: string
+  readonly novelId: string
+  readonly ownerType: "world_entry" | "character"
+  readonly ownerId: string
+  readonly filename: string
+  readonly mime: string
+  readonly bytes: number
+  readonly source: string
+  readonly sortOrder: number
+  readonly note: string
+  readonly createdAt: number
+}
+
+export type ServerNovelReorderInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly ownerType: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly orderedIds: ReadonlyArray<string>
+  }["ownerType"]
+  readonly ownerId: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly orderedIds: ReadonlyArray<string>
+  }["ownerId"]
+  readonly orderedIds: {
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly orderedIds: ReadonlyArray<string>
+  }["orderedIds"]
+}
+
+export type ServerNovelReorderOutput = {
+  readonly images: ReadonlyArray<{
+    readonly id: string
+    readonly novelId: string
+    readonly ownerType: "world_entry" | "character"
+    readonly ownerId: string
+    readonly filename: string
+    readonly mime: string
+    readonly bytes: number
+    readonly source: string
+    readonly sortOrder: number
+    readonly note: string
+    readonly createdAt: number
+  }>
+}
+
+export type ServerNovelRemoveInput = {
+  readonly novelID: { readonly novelID: string; readonly imageID: string }["novelID"]
+  readonly imageID: { readonly novelID: string; readonly imageID: string }["imageID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelRemoveOutput = { readonly deleted: boolean }
 
 export type NovelModesGetInput = {
   readonly location?: {

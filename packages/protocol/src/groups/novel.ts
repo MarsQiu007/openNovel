@@ -97,6 +97,13 @@ import {
   ReviewInboxStagedResolveResult,
   ReviewInboxBatchInput,
   ReviewInboxBatchResult,
+  SettingImage,
+  SettingImageOwnerType,
+  SettingImageListResult,
+  SettingImageUploadInput,
+  SettingImageReadResult,
+  SettingImageReorderInput,
+  SettingImageNoteUpdateInput,
   ManualEditSyncEntry,
   ManualEditSyncQueryResult,
   ManualEditSyncRetryInput,
@@ -156,6 +163,22 @@ export class WorldMapValidationError extends Schema.ErrorClass<WorldMapValidatio
   {
     name: Schema.Literal("WorldMapValidationError"),
     data: Schema.Struct({ message: Schema.String, field: Schema.optional(Schema.String) }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export class SettingImageNotFoundError extends Schema.ErrorClass<SettingImageNotFoundError>("SettingImageNotFoundError")(
+  {
+    name: Schema.Literal("SettingImageNotFoundError"),
+    data: Schema.Struct({ message: Schema.String, imageId: Schema.optional(Schema.String) }),
+  },
+  { httpApiStatus: 404 },
+) {}
+
+export class SettingImageValidationError extends Schema.ErrorClass<SettingImageValidationError>("SettingImageValidationError")(
+  {
+    name: Schema.Literal("SettingImageValidationError"),
+    data: Schema.Struct({ message: Schema.String, code: Schema.optional(Schema.String) }),
   },
   { httpApiStatus: 400 },
 ) {}
@@ -1611,5 +1634,108 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(OpenApi.annotations({ identifier: "v2.novel.upgrade-resume", summary: "Resume consuming upgrade rebuild tasks" })),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.setting-images.image-list", `${root}/:novelID/setting-images`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({
+        ...LocationQuery.fields,
+        ownerType: SettingImageOwnerType,
+        ownerId: Schema.String,
+      }),
+      success: SettingImageListResult,
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.image-list",
+          summary: "List setting images",
+          description: "List image metadata for a world entry or character, ordered by sort order.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.setting-images.upload", `${root}/:novelID/setting-images`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SettingImageUploadInput,
+      success: SettingImage,
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.upload",
+          summary: "Upload a setting image",
+          description: "Upload a data-URL image for a world entry or character and persist metadata plus local file.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.setting-images.read", `${root}/:novelID/setting-images/:imageID`, {
+      params: { novelID: Schema.String, imageID: Schema.String },
+      query: LocationQuery,
+      success: SettingImageReadResult,
+      error: [SettingImageNotFoundError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.read",
+          summary: "Read a setting image",
+          description: "Read one image as a data URL.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.patch("novel.setting-images.update-note", `${root}/:novelID/setting-images/:imageID`, {
+      params: { novelID: Schema.String, imageID: Schema.String },
+      query: LocationQuery,
+      payload: SettingImageNoteUpdateInput,
+      success: SettingImage,
+      error: [SettingImageNotFoundError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.update-note",
+          summary: "Update setting image note",
+          description: "Update the note text of one image without touching file, owner, or order.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.setting-images.reorder", `${root}/:novelID/setting-images/reorder`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: SettingImageReorderInput,
+      success: SettingImageListResult,
+      error: [SettingImageNotFoundError, SettingImageValidationError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.reorder",
+          summary: "Reorder setting images",
+          description: "Persist a new order for the full image set of one owner.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.delete("novel.setting-images.remove", `${root}/:novelID/setting-images/:imageID`, {
+      params: { novelID: Schema.String, imageID: Schema.String },
+      query: LocationQuery,
+      success: Schema.Struct({ deleted: Schema.Boolean }),
+      error: [SettingImageNotFoundError, NovelNotFoundError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.setting-images.remove",
+          summary: "Delete a setting image",
+          description: "Delete one image metadata row and its local file.",
+        }),
+      ),
   )
 .annotateMerge(OpenApi.annotations({ title: "novel", description: "Novel writing and review routes." }))

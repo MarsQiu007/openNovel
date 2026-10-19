@@ -344,6 +344,18 @@ import type {
   ServerNovelUpgradePauseOutput,
   ServerNovelUpgradeResumeInput,
   ServerNovelUpgradeResumeOutput,
+  ServerNovelImageListInput,
+  ServerNovelImageListOutput,
+  ServerNovelUploadInput,
+  ServerNovelUploadOutput,
+  ServerNovelReadInput,
+  ServerNovelReadOutput,
+  ServerNovelUpdateNoteInput,
+  ServerNovelUpdateNoteOutput,
+  ServerNovelReorderInput,
+  ServerNovelReorderOutput,
+  ServerNovelRemoveInput,
+  ServerNovelRemoveOutput,
   NovelModesGetInput,
   NovelModesGetOutput,
   NovelModesSetInput,
@@ -2851,6 +2863,91 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/novel/${encodeURIComponent(input.novelID)}/upgrade/resume`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "image-list": (input: ServerNovelImageListInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelImageListOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images`,
+            query: {
+              location: input["location"],
+              library: input["library"],
+              ownerType: input["ownerType"],
+              ownerId: input["ownerId"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      upload: (input: ServerNovelUploadInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUploadOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images`,
+            query: { location: input["location"], library: input["library"] },
+            body: {
+              ownerType: input["ownerType"],
+              ownerId: input["ownerId"],
+              filename: input["filename"],
+              dataUrl: input["dataUrl"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      read: (input: ServerNovelReadInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelReadOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images/${encodeURIComponent(input.imageID)}`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "update-note": (input: ServerNovelUpdateNoteInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelUpdateNoteOutput>(
+          {
+            method: "PATCH",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images/${encodeURIComponent(input.imageID)}`,
+            query: { location: input["location"], library: input["library"] },
+            body: { note: input["note"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      reorder: (input: ServerNovelReorderInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelReorderOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images/reorder`,
+            query: { location: input["location"], library: input["library"] },
+            body: { ownerType: input["ownerType"], ownerId: input["ownerId"], orderedIds: input["orderedIds"] },
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      remove: (input: ServerNovelRemoveInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelRemoveOutput>(
+          {
+            method: "DELETE",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/setting-images/${encodeURIComponent(input.imageID)}`,
             query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 401, 400],

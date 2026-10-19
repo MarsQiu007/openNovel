@@ -1303,3 +1303,56 @@ export const ManualEditSyncQueryParams = Schema.Struct({
   entity: optional(Schema.String),
 }).annotate({ identifier: "Novel.ManualEditSyncQueryParams" })
 export interface ManualEditSyncQueryParams extends Schema.Schema.Type<typeof ManualEditSyncQueryParams> {}
+
+// ─── 设定图片（画廊） ───
+
+export const SettingImageOwnerType = Schema.Literals(["world_entry", "character"])
+export type SettingImageOwnerType = typeof SettingImageOwnerType.Type
+
+export const SettingImage = Schema.Struct({
+  id: Schema.String,
+  novelId: Schema.String,
+  ownerType: SettingImageOwnerType,
+  ownerId: Schema.String,
+  /** 上传时的原始文件名（仅用于展示，不用于存储路径） */
+  filename: Schema.String,
+  mime: Schema.String,
+  bytes: Schema.Int,
+  source: Schema.String,
+  sortOrder: Schema.Int,
+  note: Schema.String,
+  createdAt: Schema.Int,
+}).annotate({ identifier: "Novel.SettingImage" })
+export interface SettingImage extends Schema.Schema.Type<typeof SettingImage> {}
+
+export const SettingImageListResult = Schema.Struct({
+  images: Schema.Array(SettingImage),
+}).annotate({ identifier: "Novel.SettingImageListResult" })
+export interface SettingImageListResult extends Schema.Schema.Type<typeof SettingImageListResult> {}
+
+export const SettingImageUploadInput = Schema.Struct({
+  ownerType: SettingImageOwnerType,
+  ownerId: Schema.String,
+  filename: optional(Schema.String),
+  /** data URL 形式的图片内容（data:image/png;base64,...），解码后上限 5 MiB */
+  dataUrl: Schema.String,
+}).annotate({ identifier: "Novel.SettingImageUploadInput" })
+export interface SettingImageUploadInput extends Schema.Schema.Type<typeof SettingImageUploadInput> {}
+
+export const SettingImageReadResult = Schema.Struct({
+  dataUrl: Schema.String,
+}).annotate({ identifier: "Novel.SettingImageReadResult" })
+export interface SettingImageReadResult extends Schema.Schema.Type<typeof SettingImageReadResult> {}
+
+export const SettingImageReorderInput = Schema.Struct({
+  ownerType: SettingImageOwnerType,
+  ownerId: Schema.String,
+  /** 目标顺序的全量图片 id 列表（多、少、跨 owner 均拒绝） */
+  orderedIds: Schema.Array(Schema.String),
+}).annotate({ identifier: "Novel.SettingImageReorderInput" })
+export interface SettingImageReorderInput extends Schema.Schema.Type<typeof SettingImageReorderInput> {}
+
+export const SettingImageNoteUpdateInput = Schema.Struct({
+  note: Schema.String,
+}).annotate({ identifier: "Novel.SettingImageNoteUpdateInput" })
+export interface SettingImageNoteUpdateInput extends Schema.Schema.Type<typeof SettingImageNoteUpdateInput> {}
