@@ -81,11 +81,10 @@ async function openCharacterDrawer(page: import("@playwright/test").Page) {
   await page.waitForTimeout(3000)
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}`, { waitUntil: "load" })
 
-  const relationsTab = page.getByRole("button", { name: "Relations", exact: true }).first()
-  await relationsTab.waitFor({ state: "visible", timeout: 30_000 })
-  await relationsTab.click()
-
-  const graphBtn = page.getByRole("button", { name: "Graph", exact: true })
+  // 设定树收敛（setting-center-tree）后关系图迁入「设定中心 → 角色列表 → 图」标签页。
+  await page.getByRole("button", { name: "Settings", exact: true }).click()
+  await page.getByRole("button", { name: "Character List", exact: true }).click()
+  const graphBtn = page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Graph" })
   await graphBtn.waitFor({ state: "visible", timeout: 10_000 })
   await graphBtn.click()
   await page.waitForTimeout(500)

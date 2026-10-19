@@ -183,6 +183,8 @@ export function SettingsMain(props: SettingsMainProps) {
               novelID={props.novelID}
               selectedCharacterId={() => null}
               onSelectCharacter={pickCharacter}
+              globalView={() => (tab() === "graph" ? "graph" : "list")}
+              onGlobalViewChange={(view) => setTab(view)}
             />
           </Show>
         </Show>

@@ -140,11 +140,10 @@ async function openNovelRelationsGraph(page: import("@playwright/test").Page, no
   await page.waitForTimeout(3000)
   await page.goto(`/${base64Encode(directory)}/novel/${novelId}`, { waitUntil: "load" })
 
-  const relationsTab = page.getByRole("button", { name: "Relations", exact: true }).first()
-  await relationsTab.waitFor({ state: "visible", timeout: 30_000 })
-  await relationsTab.click()
-
-  const graphBtn = page.getByRole("button", { name: "Graph", exact: true })
+  // 设定树收敛（setting-center-tree）后关系图迁入「设定中心 → 角色列表 → 图」标签页。
+  await page.getByRole("button", { name: "Settings", exact: true }).click()
+  await page.getByRole("button", { name: "Character List", exact: true }).click()
+  const graphBtn = page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Graph" })
   await graphBtn.waitFor({ state: "visible", timeout: 10_000 })
   await graphBtn.click()
 }
@@ -173,7 +172,13 @@ test("ego graph for a character with zero direct relations should still render t
   await setupNovelMocks(page)
   await openNovelRelationsGraph(page, novelID)
 
-  await page.getByRole("button", { name: /月影/, exact: false }).first().click()
+  // 设定树收敛（setting-center-tree）后角色图走树内角色节点 → 图 标签；
+  // /月影/ 会同时命中设定树节点与关系栏角色按钮，这里精确点名树节点再切标签。
+  await page
+    .locator('[data-slot="settings-tree"]')
+    .getByRole("button", { name: "月影", exact: true })
+    .click()
+  await page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Graph" }).click()
   await page.waitForTimeout(800)
 
   const node = page.locator('svg g:has(> circle)', { hasText: "月影" }).first()

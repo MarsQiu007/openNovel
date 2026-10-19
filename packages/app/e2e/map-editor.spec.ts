@@ -1,4 +1,4 @@
-import { expect, test, type Route } from "@playwright/test"
+import { expect, test, type Page, type Route } from "@playwright/test"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "./utils/mock-server"
 
@@ -202,6 +202,14 @@ function setupEditorRoutes(page: import("@playwright/test").Page, fixture: Edito
   })
 }
 
+// 设定树收敛（setting-center-tree）后地图迁入「设定中心 → 世界观条目 → 地图」标签页：
+// 左栏切到 Settings 模式，选中 World Entries 根节点，再点 Map 标签。
+async function openMapTab(page: Page) {
+  await page.getByRole("button", { name: "Settings", exact: true }).click()
+  await page.getByRole("button", { name: "World Entries", exact: true }).click()
+  await page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Map" }).click()
+}
+
 test("create blank draft, place and edit, reject duplicate pin", async ({ page }) => {
   await mockOpenNovelServer(page, {
     sessions: [],
@@ -222,7 +230,7 @@ test("create blank draft, place and edit, reject duplicate pin", async ({ page }
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}/map`, { waitUntil: "load" })
   await page.locator("a[data-titlebar-tab-link]").click()
   await expect(page.getByRole("heading", { name: "地图编辑" })).toBeVisible()
-  await page.getByRole("button", { name: "Map" }).click()
+  await openMapTab(page)
   await page.getByRole("button", { name: "创建地图草稿" }).click()
   await expect(page.getByRole("button", { name: "退出编辑" })).toBeVisible()
   await expect(fixture.requests).toContain(`POST /api/novel/${novelID}/maps`)
@@ -307,7 +315,7 @@ test("drag a placed feature to save a new coordinate", async ({ page }) => {
 
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}/map`, { waitUntil: "load" })
   await page.locator("a[data-titlebar-tab-link]").click()
-  await page.getByRole("button", { name: "Map" }).click()
+  await openMapTab(page)
   await expect(page.locator(".map-place-icon")).toBeVisible()
   await expect(page.getByRole("button", { name: "退出编辑" })).toBeVisible()
   await page.waitForTimeout(100)
@@ -344,7 +352,7 @@ test("derive a draft from active map", async ({ page }) => {
 
   await page.goto(`/${base64Encode(directory)}/novel/${novelID}/map`, { waitUntil: "load" })
   await page.locator("a[data-titlebar-tab-link]").click()
-  await page.getByRole("button", { name: "Map" }).click()
+  await openMapTab(page)
   await page.getByRole("button", { name: "从正式地图派生草稿" }).click()
   await expect(page.getByRole("button", { name: "退出编辑" })).toBeVisible()
   await expect(page.locator(".map-place-icon")).toHaveCount(1)

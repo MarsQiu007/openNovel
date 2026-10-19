@@ -926,9 +926,12 @@ export type RelationsViewProps = {
   novelID: Accessor<string>
   selectedCharacterId: Accessor<string | null>
   onSelectCharacter: (id: string | null) => void
+  // 受控全局视图（设定中心标签条接管 list/graph 切换时传入）；缺省时内部自持并渲染内置切换
+  globalView?: Accessor<GlobalViewMode>
+  onGlobalViewChange?: (view: GlobalViewMode) => void
 }
 
-type GlobalViewMode = "list" | "graph"
+export type GlobalViewMode = "list" | "graph"
 
 export default function RelationsView(props: RelationsViewProps) {
   const language = useLanguage()
@@ -937,7 +940,12 @@ export default function RelationsView(props: RelationsViewProps) {
 
   const characters = createMemo<readonly Character[]>(() => charactersQuery.data ?? [])
   const relationships = createMemo<readonly Relationship[]>(() => relationshipsQuery.data ?? [])
-  const [globalView, setGlobalView] = createSignal<GlobalViewMode>("list")
+  const [innerGlobalView, setInnerGlobalView] = createSignal<GlobalViewMode>("list")
+  const globalView = () => props.globalView?.() ?? innerGlobalView()
+  const setGlobalView = (view: GlobalViewMode) => {
+    if (props.globalView !== undefined) props.onGlobalViewChange?.(view)
+    else setInnerGlobalView(view)
+  }
   const [editingCharacterId, setEditingCharacterId] = createSignal<string | null>(null)
 
   const selectedCharacter = createMemo<Character | null>(() => {
