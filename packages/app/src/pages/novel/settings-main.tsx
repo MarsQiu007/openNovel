@@ -22,7 +22,7 @@ import MapView from "./map-view"
 import { WorldEntryDetail } from "./world-entry-detail"
 import { StyleGuideEditor } from "./style-guide-editor"
 import { NovelSoulEditor } from "./novel-soul-editor"
-import { SettingOrganizationPanel } from "./setting-organization"
+import { SettingReviewInboxPanel } from "./setting-review-inbox"
 import { PanelForeshadow } from "./panel-foreshadow"
 import PanelTechniques from "./panel-techniques"
 import { CharacterDetail, CharacterList } from "./panel-characters"
@@ -138,7 +138,7 @@ export function SettingsMain(props: SettingsMainProps) {
           <PanelTechniques novelID={props.novelID()} />
         </Show>
         <Show when={kindIs("organization")}>
-          <SettingOrganizationPanel novelID={props.novelID} />
+          <SettingReviewInboxPanel novelID={props.novelID} />
         </Show>
 
         {/* —— 世界观板块 root：列表 / 地图 —— */}

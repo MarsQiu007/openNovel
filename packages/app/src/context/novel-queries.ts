@@ -4,7 +4,7 @@ import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
-import type { AnnotationExecutionSnapshot, ExportFormat } from "@opennovel-ai/schema/novel"
+import type { AnnotationExecutionSnapshot, ExportFormat, ReviewInboxSource } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
 
 // ---- Internal client helper ----
@@ -189,7 +189,12 @@ export const novelKeys = {
   "upgrade-status": (directory: string, novelID: string) =>
     ["novel", "upgrade-status", directory, novelID] as const,
   "upgrade-progress": (directory: string, novelID: string) =>
-    ["novel", "upgrade-progress", directory, novelID] as const,  techniques: (directory: string, library: string = "all") => ["novel", "techniques", directory, library] as const,
+    ["novel", "upgrade-progress", directory, novelID] as const,
+  "review-inbox-counts": (directory: string, novelID: string) =>
+    ["novel", "review-inbox-counts", directory, novelID] as const,
+  "review-inbox-items": (directory: string, novelID: string, source: string, limit: number) =>
+    ["novel", "review-inbox-items", directory, novelID, source, limit] as const,
+  techniques: (directory: string, library: string = "all") => ["novel", "techniques", directory, library] as const,
   technique: (directory: string, techniqueID: string) => ["novel", "technique", directory, techniqueID] as const,
   "technique-injection": (directory: string) => ["novel", "technique-injection", directory] as const,
 }
@@ -2313,5 +2318,42 @@ export function useUpgradeResume() {
       queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-status"](dir, variables.novelID) })
       queryClient.invalidateQueries({ queryKey: novelKeys["upgrade-progress"](dir, variables.novelID) })
     },
+  }))
+}
+
+export function useReviewInboxCounts(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["review-inbox-counts"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"].counts({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useReviewInboxItems(
+  novelID: Accessor<string>,
+  source: Accessor<ReviewInboxSource | null>,
+  limit: Accessor<number>,
+) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["review-inbox-items"](sdk().directory, novelID(), source() ?? "all", limit()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"].items({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        source: source() ?? undefined,
+        limit: limit(),
+        offset: 0,
+      }),
+    enabled: !!novelID(),
   }))
 }

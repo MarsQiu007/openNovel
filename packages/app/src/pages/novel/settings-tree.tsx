@@ -9,7 +9,7 @@
  */
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { useCreateWorldEntry, useCharacters, useWorldEntries } from "@/context/novel-queries"
+import { useCreateWorldEntry, useCharacters, useReviewInboxCounts, useWorldEntries } from "@/context/novel-queries"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -30,6 +30,8 @@ export function SettingsTree(props: SettingsTreeProps) {
   const worldQuery = useWorldEntries(props.novelID)
   const charactersQuery = useCharacters(props.novelID)
   const createWorld = useCreateWorldEntry()
+  // 「整理」节点待审徽标：计数 query 随收件箱操作失效联动，清零后不显示
+  const inboxCounts = useReviewInboxCounts(props.novelID)
 
   const [search, setSearch] = createSignal("")
   // 分类子组收纳为内存态（不持久化；一级板块收纳由父级按书记忆）
@@ -309,6 +311,7 @@ export function SettingsTree(props: SettingsTreeProps) {
             label={language.t("novel.settings.tree.organization")}
             active={isSelected({ kind: "organization" })}
             onClick={() => props.onSelect({ kind: "organization" })}
+            badge={inboxCounts.data?.total}
           />
         </Show>
 
@@ -403,11 +406,12 @@ function NodeRow(props: {
   onClick: () => void
   depth?: number
   faded?: boolean
+  badge?: number
 }) {
   return (
     <button
       type="button"
-      class="block w-full truncate rounded py-1.5 pr-3 text-sm transition-colors"
+      class="block w-full rounded py-1.5 pr-3 text-sm transition-colors"
       classList={{
         "bg-v2-background-bg-layer-02 text-v2-text-text-base font-medium": props.active,
         "text-v2-text-text-base hover:bg-v2-background-bg-layer-02": !props.active,
@@ -420,7 +424,14 @@ function NodeRow(props: {
       }}
       onClick={props.onClick}
     >
-      {props.label}
+      <span class="flex min-w-0 items-center gap-1.5">
+        <span class="truncate">{props.label}</span>
+        <Show when={(props.badge ?? 0) > 0}>
+          <span class="ml-auto shrink-0 rounded-full bg-v2-background-bg-accent px-1.5 py-0.5 text-[10px] font-medium leading-none text-v2-text-text-contrast">
+            {props.badge}
+          </span>
+        </Show>
+      </span>
     </button>
   )
 }
