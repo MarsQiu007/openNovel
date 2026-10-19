@@ -22,10 +22,10 @@
 
 ## 4. Agent 工具与提示词（packages/plugin）
 
-- [ ] 4.1 `organize_settings` 新增 `action="stage"`（走共享暂存服务）；验证：工具单测——stage 不改正式数据、校验失败不产出
-- [ ] 4.2 新增 `list_conflicts` / `resolve_conflict` 工具（走共享冲突服务，处理语义与收件箱一致）
-- [ ] 4.3 director 提示词新增「整理设定 / 处理待审」批处理路由（编排 → 汇报「新增 N 条待审」），保留会话内 analyze→dry_run→确认→apply→复查 路径约束（design D6）；验证：提示词断言单测
-- [ ] 4.4 「AI 一键整理」指令模板改走批处理编排路由（buildAiFixPrompt 相应更新）
+- [x] 4.1 `organize_settings` 新增 `action="stage"`（走共享暂存服务）；验证：工具单测——stage 不改正式数据、校验失败不产出
+- [x] 4.2 新增 `list_conflicts` / `resolve_conflict` 工具（走共享冲突服务，处理语义与收件箱一致）
+- [x] 4.3 director 提示词新增「整理设定 / 处理待审」批处理路由（编排 → 汇报「新增 N 条待审」），保留会话内 analyze→dry_run→确认→apply→复查 路径约束（design D6）；验证：提示词断言单测
+- [x] 4.4 「AI 一键整理」指令模板改走批处理编排路由（buildAiFixPrompt 相应更新）
 
 ## 5. UI（packages/app）
 
