@@ -2,16 +2,16 @@
 
 ## 1. 数据层与共享类型（packages/novel-store / plugin）
 
-- [ ] 1.1 novel-store 新增 `staged_changes` 表：DDL 追加进 `CREATE_TABLES_SQL`（`CREATE TABLE IF NOT EXISTS`），字段按 design D2（status 默认 pending、安全默认）；配套行类型与按 novel_id+status 查询 helper；验证：novel-store 单测——新库建表、旧库打开幂等建表、默认值正确
-- [ ] 1.2 审阅留痕列幂等加列 via `migrate.ts`：`world_entry_conflicts` 补 resolution_kind / resolution_note / resolved_at，`pending_settings` 补 review_note（均带安全默认，覆盖 D5 条目级备注对候选来源的存储缺口）；验证：旧库打开补列、既有读取不回归
-- [ ] 1.3 分级自动化白名单共享常量（packages/plugin 单一事实源）：format / category 操作判定与豁免边界（design D3）；验证：单测覆盖白名单内外判定
+- [x] 1.1 novel-store 新增 `staged_changes` 表：DDL 追加进 `CREATE_TABLES_SQL`（`CREATE TABLE IF NOT EXISTS`），字段按 design D2（status 默认 pending、安全默认）；配套行类型与按 novel_id+status 查询 helper；验证：novel-store 单测——新库建表、旧库打开幂等建表、默认值正确
+- [x] 1.2 审阅留痕列幂等加列 via `migrate.ts`：`world_entry_conflicts` 补 resolution_kind / resolution_note / resolved_at，`pending_settings` 补 review_note（均带安全默认，覆盖 D5 条目级备注对候选来源的存储缺口）；验证：旧库打开补列、既有读取不回归
+- [x] 1.3 分级自动化白名单共享常量（packages/plugin 单一事实源）：format / category 操作判定与豁免边界（design D3）；验证：单测覆盖白名单内外判定
 
 ## 2. 共享服务层（packages/plugin）
 
-- [ ] 2.1 候选操作抽取共享服务：把 novel-writer.ts 中 `accept/reject/merge_pending_setting` 的核心逻辑抽为共享模块（novel-writer 工具与 UI 端点共用，单一事实源），工具行为不变；验证：既有 plugin 单测全绿
-- [ ] 2.2 冲突读取与处理服务：listConflicts（未解决 + 分页）与 resolveConflict（按正文更新 → 生成暂存草案；保留现状 → resolved + 处理留痕）；验证：单测两类处理路径与留痕字段
-- [ ] 2.3 暂存变更服务：createFromPlan（stage 落点，复用 validateOrganizePlan 校验通过才落，superseded 语义）/ 聚合查询 / resolve（接受 → 重校验 → executeOrganizePlan 执行并留痕；拒绝）；验证：单测覆盖状态流转与重校验失败不执行
-- [ ] 2.4 批处理编排：lint_settings + check_settings_consistency + 去重扫描 + analyzeEntities → 白名单自动执行（重校验 + 执行 + 留痕）+ 其余 stage 入箱 → 返回新增待审计数；验证：编排单测——白名单直执行、语义类入箱、混合计划拆分
+- [x] 2.1 候选操作抽取共享服务：把 novel-writer.ts 中 `accept/reject/merge_pending_setting` 的核心逻辑抽为共享模块（novel-writer 工具与 UI 端点共用，单一事实源），工具行为不变；验证：既有 plugin 单测全绿
+- [x] 2.2 冲突读取与处理服务：listConflicts（未解决 + 分页）与 resolveConflict（按正文更新 → 生成暂存草案；保留现状 → resolved + 处理留痕）；验证：单测两类处理路径与留痕字段
+- [x] 2.3 暂存变更服务：createFromPlan（stage 落点，复用 validateOrganizePlan 校验通过才落，superseded 语义）/ 聚合查询 / resolve（接受 → 重校验 → executeOrganizePlan 执行并留痕；拒绝）；验证：单测覆盖状态流转与重校验失败不执行
+- [x] 2.4 批处理编排：lint_settings + check_settings_consistency + 去重扫描 + analyzeEntities → 白名单自动执行（重校验 + 执行 + 留痕）+ 其余 stage 入箱 → 返回新增待审计数；验证：编排单测——白名单直执行、语义类入箱、混合计划拆分
 
 ## 3. 契约、端点与 SDK（schema / server / opennovel / protocol / client）
 
