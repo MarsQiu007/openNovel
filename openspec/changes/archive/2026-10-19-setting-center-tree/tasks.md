@@ -52,6 +52,10 @@
 - 495566432 feat(app): 以三节设定树重构设定中心并收缩主区视图
 - b5e8b18da fix(app): 补世界观与角色板块 root 节点的树内入口
 
+### 归档后收尾修复
+
+- 103c3b1af fix(app): map-manual 探针迁移到设定树地图标签 —— 主区地图标签移除后 map-manual 仍点旧按钮，CI e2e（windows/linux）双平台超时失败（run 39226727725），探针改走设定树路径
+
 ## 验收记录
 
 - typecheck（packages/app）通过；app 单测 827 全绿（含 settings-node 迁移/解析/标签组单测 9 例）
