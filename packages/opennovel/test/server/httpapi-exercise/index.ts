@@ -36,7 +36,15 @@ import { runScenario } from "./runner"
 import { disposeApps } from "./backend"
 import { runtime } from "./runtime"
 import { type Scenario, type ScenarioContext } from "./types"
-import { createCharacterMapPin, createWorldMap, createWorldMapFeature } from "@opennovel-ai/novel-store"
+import {
+  createCharacterMapPin,
+  createWorldMap,
+  createWorldMapFeature,
+  getDb,
+  PendingSettingTable,
+  StagedChangeTable,
+  WorldEntryConflictTable,
+} from "@opennovel-ai/novel-store"
 import {
   createNovel,
   bindSession,
@@ -2085,6 +2093,74 @@ function seedCrossTargetAnnotations(ctx: ScenarioContext) {
   )
 }
 
+// 收件箱种子：正式条目 + 待审候选 + 未解决冲突 + 暂存草案，覆盖统一列表的三类来源
+const REVIEW_INBOX_ENTRY_CONTENT = "青云门立于青云山脉九峰之巅，三千弟子分驻各峰。"
+
+function seedReviewInbox(ctx: ScenarioContext, candidateCount = 1) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx, "收件箱小说")
+      const entry = yield* createWorldEntry(
+        novelID,
+        { category: "势力", title: "青云门", content: REVIEW_INBOX_ENTRY_CONTENT },
+        novelDirectory(ctx),
+      )
+      const rows = yield* Effect.try({
+        try: () => {
+          const db = getDb(novelDirectory(ctx))
+          const pendingIDs: string[] = []
+          for (let i = 0; i < candidateCount; i++) {
+            const id = crypto.randomUUID()
+            db.insert(PendingSettingTable)
+              .values({
+                id,
+                novel_id: novelID,
+                candidate_type: "world_entry",
+                suggested_entity_id: `world_${id.slice(0, 8)}`,
+                payload_json: JSON.stringify({
+                  category: "势力",
+                  title: "藏经阁",
+                  content: "藏经阁收藏青云门历代功法典籍。",
+                }),
+                display_title: "藏经阁",
+                importance: 2,
+              })
+              .run()
+            pendingIDs.push(id)
+          }
+          const conflictID = crypto.randomUUID()
+          db.insert(WorldEntryConflictTable)
+            .values({
+              id: conflictID,
+              novel_id: novelID,
+              world_entry_id: entry.id,
+              conflict_kind: "semantic_conflict",
+              conflict_note: "弟子人数与第三章描述不一致",
+            })
+            .run()
+          const stagedID = crypto.randomUUID()
+          db.insert(StagedChangeTable)
+            .values({
+              id: stagedID,
+              novel_id: novelID,
+              kind: "update",
+              entity_type: "world_entry",
+              entry_ids: JSON.stringify([entry.id]),
+              before_json: JSON.stringify({ content: REVIEW_INBOX_ENTRY_CONTENT }),
+              after_json: JSON.stringify({ content: `${REVIEW_INBOX_ENTRY_CONTENT}门规森严，分执法、藏经两堂。` }),
+              reason: "补全门规描述",
+              evidence_json: JSON.stringify({ source: "batch" }),
+            })
+            .run()
+          return { pendingIDs, conflictID, stagedID }
+        },
+        catch: (error) => new Error(`收件箱种子写入失败：${String(error)}`),
+      })
+      return { novelID, entryID: entry.id, ...rows }
+    }),
+  )
+}
+
 function novelScenarios(): Scenario[] {
   const jsonHeaders = (ctx: ScenarioContext) => ({ ...ctx.headers(), "content-type": "application/json" })
   const isObject = (body: unknown) => object(body)
@@ -2871,6 +2947,168 @@ function novelScenarios(): Scenario[] {
       .json(200, (body) => {
         object(body)
         check((body as Record<string, unknown>).ok === false, "摘要不匹配的 apply 应被拒绝")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/review-inbox", "novel.review-inbox.items")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        array(record.items)
+        check((record.items as unknown[]).length === 3, "收件箱应聚合候选、冲突、暂存三类条目")
+        const counts = record.counts as Record<string, number>
+        check(counts.candidates === 1 && counts.conflicts === 1 && counts.staged === 1, "收件箱计数应与种子一致")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/review-inbox/counts", "novel.review-inbox.counts")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/counts", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const counts = body as Record<string, number>
+        check(counts.candidates === 1 && counts.conflicts === 1 && counts.staged === 1, "徽标计数应与种子一致")
+        check(counts.total === 3, "总数应为三类之和")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept", "novel.review-inbox.candidate-accept")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept", {
+          novelID: ctx.state.novelID,
+          candidateID: ctx.state.pendingIDs[0]!,
+        }),
+        headers: jsonHeaders(ctx),
+        body: {},
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "接受合法候选应成功")
+        check(record.candidateType === "world_entry", "候选类型应透传")
+        check(typeof record.createdId === "string", "入库后应返回新实体 ID")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject", "novel.review-inbox.candidate-reject")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject", {
+          novelID: ctx.state.novelID,
+          candidateID: ctx.state.pendingIDs[0]!,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body, ctx) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "拒绝候选应成功")
+        check(record.pendingId === ctx.state.pendingIDs[0], "应回显被拒绝的候选 ID")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/candidates/merge", "novel.review-inbox.candidate-merge")
+      .seeded((ctx) => seedReviewInbox(ctx, 2))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/candidates/merge", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { pendingIds: ctx.state.pendingIDs },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "合并同类候选应成功")
+        check(typeof record.createdId === "string", "合并后应返回新实体 ID")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve", "novel.review-inbox.conflict-resolve")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve", {
+          novelID: ctx.state.novelID,
+          conflictID: ctx.state.conflictID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { action: "keep_current", note: "现状描述正确，忽略冲突" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "保留现状处理冲突应成功")
+        check(record.action === "keep_current", "处理方式应回显")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept", "novel.review-inbox.staged-accept")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept", {
+          novelID: ctx.state.novelID,
+          stagedID: ctx.state.stagedID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: {},
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "接受暂存草案应通过重校验并执行")
+        const execution = record.execution as Record<string, unknown>
+        check(execution.ok === true, "执行结果应为成功")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject", "novel.review-inbox.staged-reject")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject", {
+          novelID: ctx.state.novelID,
+          stagedID: ctx.state.stagedID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body, ctx) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "拒绝暂存草案应成功")
+        check(record.stagedId === ctx.state.stagedID, "应回显被拒绝的草案 ID")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/review-inbox/batch", "novel.review-inbox.batch")
+      .seeded((ctx) => seedReviewInbox(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/review-inbox/batch", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: {
+          planJson: JSON.stringify({
+            version: 2,
+            operations: [
+              {
+                action: "update",
+                entity_type: "world_entry",
+                id: ctx.state.entryID,
+                fields: { content: `${REVIEW_INBOX_ENTRY_CONTENT}\n` },
+                reason: "格式整理：仅调整分段",
+              },
+            ],
+          }),
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "批处理应成功拆分计划")
+        check(record.autoExecuted === 1, "纯格式修订应命中白名单直接执行")
+        check((record.stagedIds as unknown[]).length === 0, "白名单操作不应产生暂存草案")
       }),
     // 覆盖新增的结构评审、技法、云盘同步与全局灵魂路由。
     http.protected.get("/api/novel/mode", "v2.novelMode.get").json(200, (body) => object(body)),
