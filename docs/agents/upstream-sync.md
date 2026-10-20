@@ -24,8 +24,8 @@ openNovel 与上游 openCode 的关系事实、同步禁止事项与已知结构
 
 供移植调研引用，后续结构变化在季度审阅时补充：
 
-- `packages/ai` 独立成包（AI 协议层：protocols、providers、schema options），12 天 48 提交；fork 的 LLM 调用栈仍内嵌 `packages/core`（`aisdk.ts` 等）。
-- 新增 `packages/llm`、`packages/enterprise` 等包。
+- `packages/ai` 独立成包（AI 协议层：protocols、providers、schema options），12 天 48 提交；fork 的对位是自有包 `packages/llm`（`@opennovel-ai/llm`），架构同构但内容分叉，处置结论见 `openspec/changes/archive/2026-10-20-ai-package-alignment/design.md`。fork core 内的 `aisdk.ts` 只是 AI SDK 兼容适配层，不是协议栈本体。
+- 新增 `packages/enterprise` 等包（上游没有 `packages/llm`；fork 的 `packages/llm` 是自有命名）。
 - `packages/core/src/session/` 按新版运行时重组（inbox、run-coordinator、model-transport 等）；fork 有自己的 V2 session 演进（`execution/`、`runner/`、`run-coordinator.ts` 等）。
 - `packages/core/src` 新增 `control-plane/`、`flag/`、`id/`、`sync/`、`share/`、`system-context/` 等目录；fork 有自己的 `location*`、`system-context` 变体。
 
@@ -73,8 +73,11 @@ git -C D:\AI\Codes\opencode log --oneline -20 -- packages/<pkg>/src/<path>
 
 - 每季度对照基线扫一次上游 AI/provider 层修复，产出"移植候选"表格（列：上游 SHA / 主题 / 结构差异判定 / 建议），**替换**旧表而非追加。
 - **只列不搬**：候选转为实现仍需走独立 change 与提案流程。已知限制：无自动化提醒，依赖人工触发。
+- AI 层落点判定依据：上游 `packages/ai` 的修复落点对应 fork `packages/llm` 同名文件（架构同构，处置结论见 `openspec/changes/archive/2026-10-20-ai-package-alignment/design.md`），不要以"fork 无 packages/ai"为由预先排除。
 
 ## 移植候选
 
 （首次季度审阅后填写；候选转为实现走独立 change）
+
+- 首位候选（2026-10-20 预置）：上游 49f52ff2d5（streamUsage 兼容，关闭 `stream_options`）→ 落点 `packages/llm/src/protocols/openai-chat.ts`
 

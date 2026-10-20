@@ -52,3 +52,43 @@
 - 报告中每个结构性结论可复核（文件路径 + SHA 均真实存在于两侧仓库）
 - 结论三选一且含工作量估算与风险段
 - 从仓库根运行 `openspec validate ai-package-alignment --strict` 通过
+
+## 调研结论（2026-10-20，基线 9d90d892dc）
+
+### 关键事实修正
+
+探索阶段的两个前提**不成立**，调研中已核实推翻：
+
+1. ~~"fork 无独立 AI 包，协议栈内嵌 core（aisdk.ts 等）"~~ → fork 有独立 LLM 协议包 `packages/llm`（`@opennovel-ai/llm`，56 文件 / 约 352KB），与上游 `packages/ai`（`@opencode/ai`，218 文件）**架构同构**。`packages/core/src/aisdk.ts` 只是 218 行的 AI SDK v3 兼容适配层，不是协议栈本体。
+2. ~~"上游新增 packages/llm"~~ → 上游 9d90d892dc 的 packages/ 目录**没有** `packages/llm`；`packages/llm` 是 fork 自有包名。`docs/agents/upstream-sync.md` 结构清单中这两处表述已随本结论修正。
+
+### LLM 栈映射表
+
+| fork | 上游 9d90d892dc | 对应关系 |
+| --- | --- | --- |
+| `packages/llm/src/llm.ts` | `packages/ai/src/llm.ts` | 门面同构（diff 186/196 行，中等分叉） |
+| `packages/llm/src/protocols/openai-chat.ts` | `packages/ai/src/protocols/openai-chat.ts` | 同名协议（fork 463 行 vs 上游 1216 行，上游近期大幅扩展） |
+| `packages/llm/src/protocols/{anthropic-messages,bedrock-converse,bedrock-event-stream,gemini,openai-compatible-chat,openai-responses}.ts` | `packages/ai/src/protocols/` 同名文件 | 7 个共享协议 + 40+ 上游独有（alibaba/cohere/mistral/xai/zai/meta/语音/图像/视频系） |
+| `packages/llm/src/providers/`（12 个 profile） | `packages/ai/src/providers*` | provider profile 同构 |
+| `packages/llm/src/route/`（client/auth/transport http+websocket） | `packages/ai/src/route*` | 传输层同构 |
+| `packages/llm/src/schema/` | `packages/ai/src/schema/` | 请求/事件/错误 schema 同构 |
+| `packages/core/src/model.ts`、`provider.ts`（17/30 行薄重导出） | `packages/core` 对应消费层 | 真正类型在 `packages/schema`（Model/Provider），两侧同构 |
+| `packages/core/src/aisdk.ts`（218 行，`LanguageModelV3` 适配） | 无直接对应 | fork 特有的 AI SDK 兼容层；上游以 `packages/ai` 原生接口替代 |
+| `packages/core/src/models-dev.ts`、`plugin/models-dev.ts` | `packages/core` 侧模型目录 | 已由 upstream-port-first-batch 调研定案（fork 构建期拉取，无内嵌快照） |
+
+依赖面：`@opennovel-ai/llm` 依赖 `@opennovel-ai/schema` + `@opennovel-ai/http-recorder`（workspace），与上游 `@opencode/ai` 依赖 `@opencode/schema` + `@opencode/http-recorder` **完全同构**——依赖方向规则（Schema → Core/Protocol → Server）不构成引入障碍，但这不是引入的理由。
+
+上游活跃度：2026-10-08 → 10-20 的 12 天内 `packages/ai` 48 提交（streamUsage、OpenAI/Azure store、Responses null 宽容、Gemini 重试、Bedrock cache 等），大部分为协议细节修复，落点对应 fork `packages/llm/src/protocols/` 同名文件。
+
+### 三选一结论：维持现状（保留 `packages/llm`，不引入上游 `packages/ai`）
+
+**落选项（C）**：fork 已有架构同构的独立 LLM 协议包，"缺独立 AI 包"的前提不成立；上游 AI 层修复按 playbook 决策树评估，落点为 `packages/llm` 对应文件。已在 `docs/agents/upstream-sync.md` 季度审阅节补记处置依据。
+
+**否决 A（引入并迁移）**：上游 `packages/ai` 的 218 文件中，语音（speech/transcription）、图像/视频生成（image/video/media）、open-responses 系、40+ 厂商协议与 novel 写作场景无关，引入即长期死代码；协议内容已深度分叉（openai-chat 1216 vs 463 行），追平违反"不追平"原则。估算工作量 2-4 周当量（引入 + core/session 消费方迁移 + 兼容层去重），外加持续维护上游无关大类的负担。
+
+**否决 B（重命名 llm → ai 对齐）**：收益仅是路径前缀对照直观；fork 与上游无共同 git 历史，rename 不带来任何跨仓库追踪能力，playbook 检索靠关键词不靠路径。成本为 55+ 文件 rename + 约 30 个消费方文件的 import 改动（1-2 天当量）加一次大噪音提交，纯支出无回报。
+
+### 后续动作（不在本 change 内）
+
+- 上游 49f52ff2d5（streamUsage 兼容，关闭 `stream_options`）在 fork 有直接落点（`packages/llm/src/protocols/openai-chat.ts` 的 `stream_options` schema 与请求组装），列为季度审阅移植候选首位。
+- 其余上游 AI 层修复按 playbook 决策树逐个评估，不再以"fork 无 packages/ai"为由预先排除。
