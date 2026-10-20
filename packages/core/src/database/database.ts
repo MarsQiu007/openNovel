@@ -54,4 +54,6 @@ export function path() {
   return join(Global.Path.data, `opennovel-${InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")}.db`)
 }
 
-export const node = makeGlobalNode({ service: Service, layer: layerFromPath(path()), deps: [] })
+// path() 必须推迟到构建时求值：模块加载时捕获会把首次的 Flag.OPENNOVEL_DB 冻结进模块级 Layer，
+// 导致后续进程内改写 Flag 的嵌入宿主（如 sdk-next 测试）复用旧路径
+export const node = makeGlobalNode({ service: Service, layer: Layer.suspend(() => layerFromPath(path())), deps: [] })
