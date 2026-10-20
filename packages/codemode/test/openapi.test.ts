@@ -177,13 +177,13 @@ describe("OpenAPI.fromSpec", () => {
     const spec = await opennovelSpec()
     const result = OpenAPI.fromSpec({ spec, baseUrl })
 
-    expect(result.skipped).toHaveLength(5)
+    expect(result.skipped).toHaveLength(4)
     expect(result.skipped).toContainEqual({
       method: "GET",
       path: "/api/pty/{ptyID}/connect",
       reason: "WebSocket operations are not supported",
     })
-    expect(result.skipped.filter((item) => item.reason === "SSE operations are not supported")).toHaveLength(3)
+    expect(result.skipped.filter((item) => item.reason === "SSE operations are not supported")).toHaveLength(2)
     expect(result.skipped).toContainEqual({
       method: "GET",
       path: "/api/fs/read/*",
@@ -205,11 +205,12 @@ describe("OpenAPI.fromSpec", () => {
     if (!Tool.isDefinition(switchAgent)) throw new Error("v2.session.switchAgent was not generated")
     expect(inputTypeScript(switchAgent)).toBe("{ sessionID: string; agent: string }")
 
-    const contextEntryPut = toolAt(result.tools, "v2.session.contextEntry.put")
-    expect(Tool.isDefinition(contextEntryPut)).toBe(true)
-    if (!Tool.isDefinition(contextEntryPut)) throw new Error("v2.session.contextEntry.put was not generated")
-    expect(inputTypeScript(contextEntryPut)).toBe("{ sessionID: string; key: string; value: unknown }")
-    expect(toolAt(result.tools, "v2_session_context_entry_put_2")).toBeUndefined()
+    const switchModel = toolAt(result.tools, "v2.session.switchModel")
+    expect(Tool.isDefinition(switchModel)).toBe(true)
+    if (!Tool.isDefinition(switchModel)) throw new Error("v2.session.switchModel was not generated")
+    expect(inputTypeScript(switchModel)).toBe(
+      "{ sessionID: string; model: { id: string; providerID: string; variant?: string } }",
+    )
     expect(toolAt(result.tools, "v2.pty.connect")).toBeUndefined()
     expect(toolAt(result.tools, "v2.session.log")).toBeUndefined()
     expect(toolAt(result.tools, "v2.event.subscribe")).toBeUndefined()
@@ -378,7 +379,7 @@ describe("OpenAPI.fromSpec", () => {
       runtime
         .execute(
           `
-        return await tools.$codemode.search({ query: "global health", namespace: "opennovel", limit: 1 })
+        return await tools.$codemode.search({ query: "health", namespace: "opennovel", limit: 1 })
       `,
         )
         .pipe(Effect.provide(layer)),
