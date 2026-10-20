@@ -14,11 +14,14 @@
 
 ## 收尾
 
-- [ ] 7. 按 playbook 验证门槛复核全部移植改动：受影响包目录 `bun typecheck` + oxlint 通过；涉及依赖变更时全量 `bun install` 复核锁文件
-- [ ] 8. 从仓库根运行 `openspec validate upstream-port-first-batch --strict` 通过
-- [ ] 9. 提交：调研与移植分别提交，footer `OpenSpec-Change: upstream-port-first-batch`，移植提交 body 带 `Ported-from: <40 位 SHA>`
+- [ ] 7. 按 playbook 验证门槛复核全部移植改动：受影响包目录 `bun typecheck` + oxlint 通过；涉及依赖变更时全量 `bun install` 复核锁文件（本机无 bun，以 npm registry integrity 核对 + 锁文件 diff 复核代替，CI 为最终门槛）
+- [x] 8. 从仓库根运行 `openspec validate upstream-port-first-batch --strict` 通过
+- [x] 9. 提交：调研与移植分别提交，footer `OpenSpec-Change: upstream-port-first-batch`，移植提交 body 带 `Ported-from: <40 位 SHA>`
 
 ## Implementation Commits
 
-（收尾时填写）
+- 8b92b2b1db docs(openspec): 建立 upstream-port-first-batch 提案（rebase 后新 hash，原 dceb54b06b）
+- a26514a4ab docs(openspec): 实现 upstream-port-first-batch 阶段一调研
+- 7a11f9c7f8 fix(deps): 移植上游 Playwright 1.60.0 版本提升
+
 
