@@ -56,7 +56,7 @@
 - **Workspace** — chapter tree, reader, and character / foreshadow / tension / structure / annotation / canvas panels plus full-text search in one view
 - **Approval flow** — chapters land in a review queue with structured audit details; approve, reject with comments, or jump straight to the originating session
 - **Version history** — every chapter revision is stored and can be diffed and rolled back
-- **Export** — export your manuscript when ready
+- **Export** — export your manuscript as Markdown, EPUB, or TXT when ready, ordered by volume and chapter for reading, backup, and distribution
 
 ### Delivery
 
