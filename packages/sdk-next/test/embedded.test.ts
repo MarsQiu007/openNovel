@@ -6,6 +6,18 @@ import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Deferred, Effect, Latch, Option, Schema, Stream } from "effect"
 import type { OpenNovelEvent } from "../src"
 
+/** Windows 下嵌入宿主释放文件锁存在延迟；Temp 清理尽力而为，EBUSY 重试后放弃（残留无害） */
+async function cleanupTemp(directory: string, attempts = 5): Promise<void> {
+  for (let attempt = attempts; attempt > 0; attempt--) {
+    const removed = await rm(directory, { recursive: true, force: true }).then(
+      () => true,
+      () => false,
+    )
+    if (removed) return
+    await Bun.sleep(100)
+  }
+}
+
 test("embedded client uses the real router and handlers", async () => {
   const directory = await mkdtemp(join(tmpdir(), "opennovel-embedded-"))
   const database = Flag.OPENNOVEL_DB
@@ -100,7 +112,7 @@ test("embedded client uses the real router and handlers", async () => {
     await Effect.runPromise(Effect.scoped(program))
   } finally {
     Flag.OPENNOVEL_DB = database
-    await rm(directory, { recursive: true, force: true })
+    await cleanupTemp(directory)
   }
 })
 
@@ -139,7 +151,7 @@ test("Location-owned runner events reach the ready global client", async () => {
     await Effect.runPromise(Effect.scoped(program))
   } finally {
     Flag.OPENNOVEL_DB = database
-    await rm(directory, { recursive: true, force: true })
+    await cleanupTemp(directory)
   }
 }, 10_000)
 
@@ -182,7 +194,7 @@ test("independent embedded hosts do not share live notifications", async () => {
     await Effect.runPromise(Effect.scoped(program))
   } finally {
     Flag.OPENNOVEL_DB = database
-    await rm(directory, { recursive: true, force: true })
+    await cleanupTemp(directory)
   }
 }, 10_000)
 
@@ -207,6 +219,6 @@ test("embedded client is available as a Layer service", async () => {
     expect(created.id).toBe(sessionID)
   } finally {
     Flag.OPENNOVEL_DB = database
-    await rm(directory, { recursive: true, force: true })
+    await cleanupTemp(directory)
   }
 })
