@@ -210,3 +210,7 @@ GitHub Issues 是本仓库的 issue tracker。见 `docs/agents/issue-tracker.md`
 ### Domain docs
 
 single-context：先读根目录 `CONTEXT.md`，再读相关的 `docs/adr/`。见 `docs/agents/domain.md`。
+
+### Upstream sync
+
+涉及 openCode 上游同步或移植时，先读基线指针 `UPSTREAM-BASELINE.md` 与规则 `docs/agents/upstream-sync.md`（禁止 merge/cherry-pick 上游）。
