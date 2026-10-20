@@ -213,4 +213,4 @@ single-context：先读根目录 `CONTEXT.md`，再读相关的 `docs/adr/`。�
 
 ### Upstream sync
 
-涉及 openCode 上游同步或移植时，先读基线指针 `UPSTREAM-BASELINE.md` 与规则 `docs/agents/upstream-sync.md`（禁止 merge/cherry-pick 上游）。
+涉及 openCode 上游同步或移植时，先读基线指针 `UPSTREAM-BASELINE.md` 与规则 `docs/agents/upstream-sync.md`（禁止 merge/cherry-pick 上游；移植走该文档"移植流程"决策树）。

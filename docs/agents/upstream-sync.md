@@ -29,7 +29,52 @@ openNovel 与上游 openCode 的关系事实、同步禁止事项与已知结构
 - `packages/core/src/session/` 按新版运行时重组（inbox、run-coordinator、model-transport 等）；fork 有自己的 V2 session 演进（`execution/`、`runner/`、`run-coordinator.ts` 等）。
 - `packages/core/src` 新增 `control-plane/`、`flag/`、`id/`、`sync/`、`share/`、`system-context/` 等目录；fork 有自己的 `location*`、`system-context` 变体。
 
-## 移植候选与后续机制
+## 移植流程
 
-- 移植流程（触发条件、决策树、`Ported-from` 追溯、验证门槛、季度审阅）由 `upstream-sync-playbook` 提案建立，建立后在本节展开。
-- AI 协议层是否引入上游 `packages/ai` 由 `ai-package-alignment` 提案调研，结论落地后在此记录处置依据。
+单个上游修复的移植按以下决策树执行：
+
+```
+fork 出现 bug / 需求
+  → 检索上游 dev 是否已有修复
+    → 无修复 → 走 fork 自己的修复流程（与本流程无关）
+    → 有修复 → 评估结构差异
+        → 改动落在 fork 未触碰的文件 → 直接移植
+        → 改动落在 fork 已演化的文件 → 适配后移植（change 的 design.md 必须写明适配点）
+        → 改动触碰 fork 自有设计 → 拒绝，先开讨论提案
+```
+
+### 触发条件
+
+fork 遇到具体 bug 或需求时，先查上游近期提交是否有对应修复。基于本地镜像检索：
+
+```bash
+# 按关键词
+git -C D:\AI\Codes\opencode log --oneline --all --grep="<关键词>"
+# 按路径（定位某文件的历史修复）
+git -C D:\AI\Codes\opencode log --oneline -20 -- packages/<pkg>/src/<path>
+```
+
+### 移植规则
+
+- 每个移植项必须是**独立 OpenSpec change**；一个 change 对应一个上游来源（一个上游提交，或同一主题的一组提交——proposal 中列全 SHA 清单）。
+- 追溯约定：实现提交信息 **body** 写 `Ported-from: <40 位完整 SHA>`（footer 被 husky 强制的 `OpenSpec-Change` 占用，不重复占用）。完整 SHA 可直接在本地镜像 `git show` 复现。
+- fork 侧为移植做的适配改动计入同一 change（同一 `OpenSpec-Change` trailer），保证 change 自含完整因果。
+
+### 验证门槛
+
+- 受影响包目录通过 `bun typecheck` 与 oxlint（不可从仓库根跑）。
+- 涉及运行时行为时补对应包测试；CI 全绿为完成标准（纯文档推送无 CI run 属预期，见 `docs/agents/ci-triage.md`）。
+
+### 拒绝条件
+
+- 上游改动触碰 fork 自有设计（location 体系、system-context、V2 session inbox/execution，见"事实"节）时**默认拒绝**，需先开提案讨论适配方案。
+
+### 季度审阅
+
+- 每季度对照基线扫一次上游 AI/provider 层修复，产出"移植候选"表格（列：上游 SHA / 主题 / 结构差异判定 / 建议），**替换**旧表而非追加。
+- **只列不搬**：候选转为实现仍需走独立 change 与提案流程。已知限制：无自动化提醒，依赖人工触发。
+
+## 移植候选
+
+（首次季度审阅后填写；候选转为实现走独立 change）
+
