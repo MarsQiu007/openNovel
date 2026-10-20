@@ -28,7 +28,27 @@
 
 ## 阶段二：移植方案（调研后回填）
 
-> **待回填**。调研任务完成后，此节由实现者更新：每个通过评估的候选写明移植落点、适配点（若有）、验证方式；被证伪的候选写明证伪原因。移植提交遵循 playbook：独立提交、body `Ported-from: <40 位 SHA>`、受影响包 `bun typecheck` + oxlint 必过。
+### 调研结论（2026-10-20）
+
+**候选 1（Playwright，上游 23a33abad4）：成立，进入移植。**
+
+- fork 根 `package.json` catalog 声明 `"@playwright/test": "1.59.1"`，bun.lock 解析 1.59.1（registry 为 npmmirror，tarball URL 与 integrity 均为镜像值）
+- `packages/app/package.json` 经 `"@playwright/test": "catalog:"` 间接引用，无其他包直接声明
+- 本机 Node v24.22.0，命中上游描述的 24.16+ 安装挂起区间；移植为预防性修复，同时也消除未来 CI/新环境的安装风险
+- 移植落点：根 `package.json`（catalog 一处）+ bun.lock 四行（catalog 版本、`@playwright/test`、`playwright`、`playwright-core` 的版本与 npmmirror tarball URL、integrity）
+- **适配点**：上游 bun.lock 用官方 registry，fork 用 npmmirror，不能照抄上游锁文件行；integrity hash 取自 npm registry `dist.integrity` 官方值（tarball 字节一致，镜像 hash 相同），三个包的新 hash 已逐一核对
+
+**候选 2（models.dev 快照刷新，上游 6e9c85390b）：证伪，移除。**
+
+- fork 数据流与上游形态根本不同：上游内嵌 `snapshot.txt`（bot 定期提交刷新）；fork **无内嵌快照**，构建期由 `packages/cli/script/generate.ts` 实时 `fetch` `https://models.dev/api.json`（或 `MODELS_DEV_API_JSON` 指定本地文件）注入构建全局 `OPENNOVEL_MODELS_DEV`，运行时侧 `packages/core/src/models-dev.ts` 优先读注入值，无则读全局缓存文件（Flock 防跨进程竞争），再无则在线拉取落盘，且支持 `OPENNOVEL_DISABLE_MODELS_FETCH` 关闭
+- 上游"刷新快照内容"的提交在 fork 无对应落点——fork 构建时天然拿到最新数据，数据新鲜度优于上游的内嵌快照
+- 唯一潜在价值：上游 snapshot.txt 可作为离线构建种子（经 `MODELS_DEV_API_JSON` 引入），属未来增强，记入季度审阅候选，不属于本 change
+
+### 移植实施
+
+- **Ported-from**: 23a33abad413d816d2c7fbcc5134eac8bf92a491（上游 bun.lock + 根 package.json 版本提升）
+- **改动**：根 `package.json` catalog `1.59.1 → 1.60.0`；bun.lock 四处条目同步（版本 / npmmirror URL / integrity）
+- **验证**：版本提升为依赖元数据变更，无源代码改动；因本机未安装 bun，`bun install` 与 `bun typecheck` 无法本地执行，以 npm registry integrity 三方核对 + 锁文件 diff 逐行复核代替，CI 安装/typecheck 为最终门槛
 
 ## 决策记录
 
