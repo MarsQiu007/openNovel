@@ -723,7 +723,7 @@ export function write(
     }
     const fs = yield* FileSystem.FileSystem
     yield* fs.makeDirectory(directory, { recursive: true })
-    const manifest = join(directory, manifestName)
+    const manifest = outputPath(directory, manifestName)
     const previous = (yield* fs.exists(manifest))
       ? yield* fs.readFileString(manifest).pipe(
           Effect.flatMap(Schema.decodeUnknownEffect(Manifest)),
@@ -735,14 +735,14 @@ export function write(
     }
     yield* Effect.forEach(
       previous.filter((path) => !paths.has(path)),
-      (path) => fs.remove(join(directory, path), { force: true }),
+      (path) => fs.remove(outputPath(directory, path), { force: true }),
       { concurrency: 8, discard: true },
     )
     yield* Effect.forEach(
       output.files,
       (file) =>
-        fs.exists(join(directory, file.path)).pipe(
-          Effect.flatMap((exists) => (exists ? fs.stat(join(directory, file.path)) : Effect.succeed(undefined))),
+        fs.exists(outputPath(directory, file.path)).pipe(
+          Effect.flatMap((exists) => (exists ? fs.stat(outputPath(directory, file.path)) : Effect.succeed(undefined))),
           Effect.flatMap((info) =>
             info?.type === "SymbolicLink"
               ? new GenerationError({ reason: `Unsafe output path: ${file.path}` })
@@ -757,11 +757,16 @@ export function write(
         Effect.tryPromise({
           try: () => format(file.content, { filepath: file.path, parser: "typescript", semi: false, printWidth: 120 }),
           catch: (error) => new GenerationError({ reason: `Failed to format ${file.path}: ${String(error)}` }),
-        }).pipe(Effect.flatMap((content) => fs.writeFileString(join(directory, file.path), content))),
+        }).pipe(Effect.flatMap((content) => fs.writeFileString(outputPath(directory, file.path), content))),
       { concurrency: 8, discard: true },
     )
     yield* fs.writeFileString(manifest, JSON.stringify(output.files.map((file) => file.path).sort(), null, 2) + "\n")
   })
+}
+
+/** 输出路径统一为 POSIX 分隔符：Windows 文件系统同样接受正斜杠，保证跨平台行为与清单一致 */
+function outputPath(directory: string, path: string) {
+  return join(directory, path).replaceAll("\\", "/")
 }
 
 function isSafeOutputPath(path: string) {
