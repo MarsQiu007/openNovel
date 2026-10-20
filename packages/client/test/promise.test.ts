@@ -25,6 +25,7 @@ test("exposes every standard HTTP API group", () => {
     "projectCopies",
     "server.novel",
     "novelModes",
+    "server.technique",
     "server.sync",
     "server.soul",
   ])
