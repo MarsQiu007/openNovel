@@ -30,8 +30,6 @@ import type {
   EventTuiPromptAppend,
   EventTuiSessionSelect,
   EventTuiToastShow,
-  ExperimentalCapabilitiesGetErrors,
-  ExperimentalCapabilitiesGetResponses,
   ExperimentalConsoleGetErrors,
   ExperimentalConsoleGetResponses,
   ExperimentalConsoleListOrgsErrors,
@@ -43,8 +41,6 @@ import type {
   ExperimentalProjectCopyGenerateNameResponses,
   ExperimentalResourceListErrors,
   ExperimentalResourceListResponses,
-  ExperimentalSessionBackgroundErrors,
-  ExperimentalSessionBackgroundResponses,
   ExperimentalSessionListErrors,
   ExperimentalSessionListResponses,
   ExperimentalWorkspaceAdapterListErrors,
@@ -149,6 +145,9 @@ import type {
   NovelReviewInboxConflictResolveInput,
   NovelReviewInboxStagedAcceptInput,
   NovelSaveBookMetaInput,
+  NovelSettingImageNoteUpdateInput,
+  NovelSettingImageReorderInput,
+  NovelSettingImageUploadInput,
   NovelSettingOrganizationAnalyzeInput,
   NovelSettingOrganizationApplyInput,
   NovelSettingOrganizationDryRunInput,
@@ -525,6 +524,18 @@ import type {
   V2NovelSearchResponses,
   V2NovelSessionBindingsErrors,
   V2NovelSessionBindingsResponses,
+  V2NovelSettingImagesImageListErrors,
+  V2NovelSettingImagesImageListResponses,
+  V2NovelSettingImagesReadErrors,
+  V2NovelSettingImagesReadResponses,
+  V2NovelSettingImagesRemoveErrors,
+  V2NovelSettingImagesRemoveResponses,
+  V2NovelSettingImagesReorderErrors,
+  V2NovelSettingImagesReorderResponses,
+  V2NovelSettingImagesUpdateNoteErrors,
+  V2NovelSettingImagesUpdateNoteResponses,
+  V2NovelSettingImagesUploadErrors,
+  V2NovelSettingImagesUploadResponses,
   V2NovelSettingsOrganizationAnalyzeErrors,
   V2NovelSettingsOrganizationAnalyzeResponses,
   V2NovelSettingsOrganizationApplyErrors,
@@ -995,42 +1006,6 @@ export class ControlPlane extends HeyApiClient {
   }
 }
 
-export class Capabilities extends HeyApiClient {
-  /**
-   * Get experimental capabilities
-   *
-   * Get experimental features enabled on the OpenNovel server.
-   */
-  public get<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<
-      ExperimentalCapabilitiesGetResponses,
-      ExperimentalCapabilitiesGetErrors,
-      ThrowOnError
-    >({
-      url: "/experimental/capabilities",
-      ...options,
-      ...params,
-    })
-  }
-}
-
 export class Console extends HeyApiClient {
   /**
    * Get active Console provider metadata
@@ -1182,42 +1157,6 @@ export class Session extends HeyApiClient {
       ThrowOnError
     >({
       url: "/experimental/session",
-      ...options,
-      ...params,
-    })
-  }
-
-  /**
-   * Background subagents
-   *
-   * Detach any synchronous subagents currently blocking the session and continue them in the background.
-   */
-  public background<ThrowOnError extends boolean = false>(
-    parameters: {
-      sessionID: string
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "sessionID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<
-      ExperimentalSessionBackgroundResponses,
-      ExperimentalSessionBackgroundErrors,
-      ThrowOnError
-    >({
-      url: "/experimental/session/{sessionID}/background",
       ...options,
       ...params,
     })
@@ -1582,11 +1521,6 @@ export class Experimental extends HeyApiClient {
   private _controlPlane?: ControlPlane
   get controlPlane(): ControlPlane {
     return (this._controlPlane ??= new ControlPlane({ client: this.client }))
-  }
-
-  private _capabilities?: Capabilities
-  get capabilities(): Capabilities {
-    return (this._capabilities ??= new Capabilities({ client: this.client }))
   }
 
   private _console?: Console
@@ -8029,6 +7963,273 @@ export class ReviewInbox extends HeyApiClient {
   }
 }
 
+export class SettingImages extends HeyApiClient {
+  /**
+   * List setting images
+   *
+   * List image metadata for a world entry or character, ordered by sort order.
+   */
+  public imageList<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      ownerType: "world_entry" | "character"
+      ownerId: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { in: "query", key: "ownerType" },
+            { in: "query", key: "ownerId" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelSettingImagesImageListResponses,
+      V2NovelSettingImagesImageListErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Upload a setting image
+   *
+   * Upload a data-URL image for a world entry or character and persist metadata plus local file.
+   */
+  public upload<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelSettingImageUploadInput: NovelSettingImageUploadInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelSettingImageUploadInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelSettingImagesUploadResponses,
+      V2NovelSettingImagesUploadErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete a setting image
+   *
+   * Delete one image metadata row and its local file.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      imageID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "imageID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      V2NovelSettingImagesRemoveResponses,
+      V2NovelSettingImagesRemoveErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images/{imageID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Read a setting image
+   *
+   * Read one image as a data URL.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      imageID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "imageID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelSettingImagesReadResponses,
+      V2NovelSettingImagesReadErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images/{imageID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update setting image note
+   *
+   * Update the note text of one image without touching file, owner, or order.
+   */
+  public updateNote<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      imageID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelSettingImageNoteUpdateInput: NovelSettingImageNoteUpdateInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "imageID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelSettingImageNoteUpdateInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<
+      V2NovelSettingImagesUpdateNoteResponses,
+      V2NovelSettingImagesUpdateNoteErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images/{imageID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Reorder setting images
+   *
+   * Persist a new order for the full image set of one owner.
+   */
+  public reorder<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelSettingImageReorderInput: NovelSettingImageReorderInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelSettingImageReorderInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelSettingImagesReorderResponses,
+      V2NovelSettingImagesReorderErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/setting-images/reorder",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Novel extends HeyApiClient {
   /**
    * List novels
@@ -12203,6 +12404,11 @@ export class Novel extends HeyApiClient {
   private _reviewInbox?: ReviewInbox
   get reviewInbox(): ReviewInbox {
     return (this._reviewInbox ??= new ReviewInbox({ client: this.client }))
+  }
+
+  private _settingImages?: SettingImages
+  get settingImages(): SettingImages {
+    return (this._settingImages ??= new SettingImages({ client: this.client }))
   }
 }
 

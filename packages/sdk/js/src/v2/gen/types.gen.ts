@@ -1724,6 +1724,7 @@ export type AgentConfig = {
    * Hex color code (e.g., #FF5733) or theme color (e.g., primary)
    */
   color?: string | "primary" | "secondary" | "accent" | "success" | "warning" | "error" | "info"
+  category?: AgentCategory
   steps?: number
   maxSteps?: number
   permission?: PermissionConfig
@@ -2122,10 +2123,6 @@ export type Provider = {
   }
 }
 
-export type ExperimentalCapabilities = {
-  backgroundSubagents: boolean
-}
-
 export type ConsoleState = {
   consoleManagedProviders: Array<string>
   activeOrgName?: string
@@ -2352,6 +2349,7 @@ export type Agent = {
   topP?: number
   temperature?: number
   color?: string
+  category?: AgentCategory
   permission: PermissionRuleset
   model?: {
     modelID: string
@@ -2985,6 +2983,22 @@ export type WorldMapValidationError = {
   data: {
     message: string
     field?: string
+  }
+}
+
+export type SettingImageNotFoundError = {
+  name: "SettingImageNotFoundError"
+  data: {
+    message: string
+    imageId?: string
+  }
+}
+
+export type SettingImageValidationError = {
+  name: "SettingImageValidationError"
+  data: {
+    message: string
+    code?: string
   }
 }
 
@@ -3898,6 +3912,8 @@ export type ConfigV2ReferenceLocal = {
   hidden?: boolean
 }
 
+export type AgentCategory = "orchestration" | "creation" | "review" | "memory" | "research" | "internal"
+
 export type PolicyEffect = "allow" | "deny"
 
 export type ConfigV2ExperimentalPolicy = {
@@ -3960,6 +3976,7 @@ export type AgentV2Info = {
   mode: "subagent" | "primary" | "all"
   hidden: boolean
   color?: AgentColor
+  category?: AgentCategory
   steps?: number
   permissions: PermissionV2Ruleset
 }
@@ -7243,6 +7260,45 @@ export type NovelUpgradeGateResult = {
   gate: "open" | "paused"
 }
 
+export type NovelSettingImage = {
+  id: string
+  novelId: string
+  ownerType: "world_entry" | "character"
+  ownerId: string
+  filename: string
+  mime: string
+  bytes: number
+  source: string
+  sortOrder: number
+  note: string
+  createdAt: number
+}
+
+export type NovelSettingImageListResult = {
+  images: Array<NovelSettingImage>
+}
+
+export type NovelSettingImageUploadInput = {
+  ownerType: "world_entry" | "character"
+  ownerId: string
+  filename?: string
+  dataUrl: string
+}
+
+export type NovelSettingImageReadResult = {
+  dataUrl: string
+}
+
+export type NovelSettingImageNoteUpdateInput = {
+  note: string
+}
+
+export type NovelSettingImageReorderInput = {
+  ownerType: "world_entry" | "character"
+  ownerId: string
+  orderedIds: Array<string>
+}
+
 export type NovelWritingMode = "auto" | "review"
 
 export type NovelSetupMode = "interactive" | "auto"
@@ -8757,36 +8813,6 @@ export type ConfigProvidersResponses = {
 
 export type ConfigProvidersResponse = ConfigProvidersResponses[keyof ConfigProvidersResponses]
 
-export type ExperimentalCapabilitiesGetData = {
-  body?: never
-  path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/experimental/capabilities"
-}
-
-export type ExperimentalCapabilitiesGetErrors = {
-  /**
-   * Bad request
-   */
-  400: BadRequestError
-}
-
-export type ExperimentalCapabilitiesGetError =
-  ExperimentalCapabilitiesGetErrors[keyof ExperimentalCapabilitiesGetErrors]
-
-export type ExperimentalCapabilitiesGetResponses = {
-  /**
-   * Experimental capabilities
-   */
-  200: ExperimentalCapabilities
-}
-
-export type ExperimentalCapabilitiesGetResponse =
-  ExperimentalCapabilitiesGetResponses[keyof ExperimentalCapabilitiesGetResponses]
-
 export type ExperimentalConsoleGetData = {
   body?: never
   path?: never
@@ -9088,38 +9114,6 @@ export type ExperimentalSessionListResponses = {
 }
 
 export type ExperimentalSessionListResponse = ExperimentalSessionListResponses[keyof ExperimentalSessionListResponses]
-
-export type ExperimentalSessionBackgroundData = {
-  body?: never
-  path: {
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/experimental/session/{sessionID}/background"
-}
-
-export type ExperimentalSessionBackgroundErrors = {
-  /**
-   * BadRequest | InvalidRequestError
-   */
-  400: EffectHttpApiErrorBadRequest | InvalidRequestError
-}
-
-export type ExperimentalSessionBackgroundError =
-  ExperimentalSessionBackgroundErrors[keyof ExperimentalSessionBackgroundErrors]
-
-export type ExperimentalSessionBackgroundResponses = {
-  /**
-   * Backgrounded subagents
-   */
-  200: boolean
-}
-
-export type ExperimentalSessionBackgroundResponse =
-  ExperimentalSessionBackgroundResponses[keyof ExperimentalSessionBackgroundResponses]
 
 export type ExperimentalResourceListData = {
   body?: never
@@ -19764,6 +19758,268 @@ export type V2NovelUpgradeResumeResponses = {
 }
 
 export type V2NovelUpgradeResumeResponse = V2NovelUpgradeResumeResponses[keyof V2NovelUpgradeResumeResponses]
+
+export type V2NovelSettingImagesImageListData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+    ownerType: "world_entry" | "character"
+    ownerId: string
+  }
+  url: "/api/novel/{novelID}/setting-images"
+}
+
+export type V2NovelSettingImagesImageListErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesImageListError =
+  V2NovelSettingImagesImageListErrors[keyof V2NovelSettingImagesImageListErrors]
+
+export type V2NovelSettingImagesImageListResponses = {
+  /**
+   * Novel.SettingImageListResult
+   */
+  200: NovelSettingImageListResult
+}
+
+export type V2NovelSettingImagesImageListResponse =
+  V2NovelSettingImagesImageListResponses[keyof V2NovelSettingImagesImageListResponses]
+
+export type V2NovelSettingImagesUploadData = {
+  body: NovelSettingImageUploadInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/setting-images"
+}
+
+export type V2NovelSettingImagesUploadErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesUploadError = V2NovelSettingImagesUploadErrors[keyof V2NovelSettingImagesUploadErrors]
+
+export type V2NovelSettingImagesUploadResponses = {
+  /**
+   * Novel.SettingImage
+   */
+  200: NovelSettingImage
+}
+
+export type V2NovelSettingImagesUploadResponse =
+  V2NovelSettingImagesUploadResponses[keyof V2NovelSettingImagesUploadResponses]
+
+export type V2NovelSettingImagesRemoveData = {
+  body?: never
+  path: {
+    novelID: string
+    imageID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/setting-images/{imageID}"
+}
+
+export type V2NovelSettingImagesRemoveErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesRemoveError = V2NovelSettingImagesRemoveErrors[keyof V2NovelSettingImagesRemoveErrors]
+
+export type V2NovelSettingImagesRemoveResponses = {
+  /**
+   * Success
+   */
+  200: {
+    deleted: boolean
+  }
+}
+
+export type V2NovelSettingImagesRemoveResponse =
+  V2NovelSettingImagesRemoveResponses[keyof V2NovelSettingImagesRemoveResponses]
+
+export type V2NovelSettingImagesReadData = {
+  body?: never
+  path: {
+    novelID: string
+    imageID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/setting-images/{imageID}"
+}
+
+export type V2NovelSettingImagesReadErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesReadError = V2NovelSettingImagesReadErrors[keyof V2NovelSettingImagesReadErrors]
+
+export type V2NovelSettingImagesReadResponses = {
+  /**
+   * Novel.SettingImageReadResult
+   */
+  200: NovelSettingImageReadResult
+}
+
+export type V2NovelSettingImagesReadResponse =
+  V2NovelSettingImagesReadResponses[keyof V2NovelSettingImagesReadResponses]
+
+export type V2NovelSettingImagesUpdateNoteData = {
+  body: NovelSettingImageNoteUpdateInput
+  path: {
+    novelID: string
+    imageID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/setting-images/{imageID}"
+}
+
+export type V2NovelSettingImagesUpdateNoteErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesUpdateNoteError =
+  V2NovelSettingImagesUpdateNoteErrors[keyof V2NovelSettingImagesUpdateNoteErrors]
+
+export type V2NovelSettingImagesUpdateNoteResponses = {
+  /**
+   * Novel.SettingImage
+   */
+  200: NovelSettingImage
+}
+
+export type V2NovelSettingImagesUpdateNoteResponse =
+  V2NovelSettingImagesUpdateNoteResponses[keyof V2NovelSettingImagesUpdateNoteResponses]
+
+export type V2NovelSettingImagesReorderData = {
+  body: NovelSettingImageReorderInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/setting-images/reorder"
+}
+
+export type V2NovelSettingImagesReorderErrors = {
+  /**
+   * SettingImageValidationError | InvalidRequestError
+   */
+  400: SettingImageValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SettingImageNotFoundError | NovelNotFoundError
+   */
+  404: SettingImageNotFoundError | NovelNotFoundError
+}
+
+export type V2NovelSettingImagesReorderError =
+  V2NovelSettingImagesReorderErrors[keyof V2NovelSettingImagesReorderErrors]
+
+export type V2NovelSettingImagesReorderResponses = {
+  /**
+   * Novel.SettingImageListResult
+   */
+  200: NovelSettingImageListResult
+}
+
+export type V2NovelSettingImagesReorderResponse =
+  V2NovelSettingImagesReorderResponses[keyof V2NovelSettingImagesReorderResponses]
 
 export type V2NovelModeGetData = {
   body?: never

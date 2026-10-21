@@ -220,6 +220,7 @@ export type AgentsListOutput = {
     readonly mode: "subagent" | "primary" | "all"
     readonly hidden: boolean
     readonly color?: string | "primary" | "secondary" | "accent" | "success" | "warning" | "error" | "info"
+    readonly category?: "orchestration" | "creation" | "review" | "memory" | "research" | "internal"
     readonly steps?: number
     readonly permissions: ReadonlyArray<{
       readonly action: string
