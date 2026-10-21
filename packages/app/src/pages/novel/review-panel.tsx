@@ -12,7 +12,7 @@ const OVERALL_BADGE: Record<string, NonNullable<TagProps["variant"]>> = {
   FAIL: "danger",
 }
 
-// 37 维的 9 大类分组，维度名与 plugin CONTINUITY_DIMENSIONS 常量逐字对应
+// 38 维的 9 大类分组，维度名与 plugin CONTINUITY_DIMENSIONS 常量逐字对应
 const REVIEW_CATEGORIES: { key: string; dims: string[] }[] = [
   { key: "character", dims: ["姓名一致性", "外貌描述", "性格一致", "能力等级", "位置连续"] },
   { key: "relationship", dims: ["关系类型一致", "敌友转变有因", "亲密度变化", "信任度变化"] },
@@ -22,7 +22,7 @@ const REVIEW_CATEGORIES: { key: string; dims: string[] }[] = [
   { key: "worldview", dims: ["力量体系", "规则一致", "社会结构", "文化细节", "经济系统"] },
   { key: "style", dims: ["叙事视角", "语言风格", "节奏一致", "描写密度"] },
   { key: "logic", dims: ["因果链", "动机合理", "信息对称"] },
-  { key: "detail", dims: ["物品追踪", "数字一致", "称呼一致"] },
+  { key: "detail", dims: ["物品追踪", "数字一致", "称呼一致", "书籍坐标泄漏"] },
 ]
 
 // ─── Component ───
@@ -44,7 +44,7 @@ export default function ReviewPanel(props: { novelID: string; chapterID: string 
   const rounds = createMemo(() => [...new Set(reviews().map((r) => r.round))].sort((a, b) => b - a))
   const activeRound = createMemo(() => selectedRound() ?? rounds()[0] ?? 1)
   const roundReviews = createMemo(() => reviews().filter((r) => r.round === activeRound()))
-  // 同轮可能同时有 deterministic 与 auditor 两行，auditor 的 37 维深审含证据，优先展示
+  // 同轮可能同时有 deterministic 与 auditor 两行，auditor 的 38 维深审含证据，优先展示
   const mainReview = createMemo(
     () =>
       roundReviews().find((r) => r.source === "auditor") ?? roundReviews().find((r) => r.source === "deterministic"),
