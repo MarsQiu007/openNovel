@@ -132,7 +132,7 @@ V1 config hook 原样保留到运行时切换（两套注册表互不干扰：V1
 ## 9. 命名、V1 拆除与退役衔接
 
 - V2 工具名与 permission action 均为 `subagent`（对齐上游，移植零阻力）
-- **本 change 拆 V1 的实验后台路径**：`opennovel/src/tool/task.ts` 的 `OPENNOVEL_EXPERIMENTAL_BACKGROUND_SUBAGENTS` 门禁与后台分支整段删除（proposal 缺口二——不可靠、作业不持久化、崩溃即丢；其替代品本 change 已在 V2 落地）。V1 task 的前台路径保留——流水线还在 V1 运行时上经它调度，运行时切换 change 落地前拔掉 = 产品当场断
+- **本 change 拆 V1 的实验后台路径**：`opennovel/src/tool/task.ts` 的 `OPENNOVEL_EXPERIMENTAL_BACKGROUND_SUBAGENTS` 门禁与后台分支整段删除（proposal 缺口二——不可靠、作业不持久化、崩溃即丢；其替代品本 change 已在 V2 落地）。flag 仅存的另外两处引用一并退役：experimental `capabilities` 端点（上报 `backgroundSubagents` 位）与 `experimental/session/:id/background` 提升端点（opennovel 侧无消费方）。V1 task 的前台路径保留——流水线还在 V1 运行时上经它调度，运行时切换 change 落地前拔掉 = 产品当场断
 - **V1 task 工具 = 死代码缓期执行**：死期钉死在紧随其后的运行时切换 change（产品会话面切 V2 后即删），不设冻结双轨期、不再接任何 V1 新面
 - 历史会话：不做运行时 legacy notice 垫片——历史 V1 会话数据在运行时切换后的 V1 删除 change 里一次性迁移（上游 `v1-migration.bun.ts` 模式：数据迁进 V2 存储、`RENAMED_TOOLS = {task: "subagent", ...}` 在迁移中改写工具名），迁完删码
 - 权限规则过渡：V1 配置里的 `task/*` 规则对 V2 action=`subagent` 不匹配 → `PermissionV2.evaluate` 落默认 ask——首次使用显式询问，不静默放行也不静默拒绝；作者确认后经 PermissionV2 saved 面写入 V2 规则

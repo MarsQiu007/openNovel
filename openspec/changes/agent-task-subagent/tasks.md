@@ -50,8 +50,8 @@
 
 ## 7. V1 实验后台路径拆除
 
-- [ ] 删 `opennovel/src/tool/task.ts` 的 `OPENNOVEL_EXPERIMENTAL_BACKGROUND_SUBAGENTS` 门禁与后台分支（含 synthetic 后台注入路径）；flag 引用清理
-- [ ] opennovel `bun typecheck` + 相关测试（须在第 5 步后，能力不断档）
+- [x] 删 `opennovel/src/tool/task.ts` 的 `OPENNOVEL_EXPERIMENTAL_BACKGROUND_SUBAGENTS` 门禁与后台分支（含 synthetic 后台注入路径）；flag 引用清理（含 experimental `capabilities` / `sessionBackground` 两端点退役、client SDK 重生成无 diff）
+- [x] opennovel `bun typecheck` + 相关测试（须在第 5 步后，能力不断档）
 
 ## 8. category 字段
 

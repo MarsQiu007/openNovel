@@ -40,7 +40,6 @@ export class Service extends ConfigService.Service<Service>()("@opennovel/Runtim
   enableExperimentalModels: bool("OPENNOVEL_ENABLE_EXPERIMENTAL_MODELS"),
   enableQuestionTool: bool("OPENNOVEL_ENABLE_QUESTION_TOOL"),
   experimentalReferences: enabledByExperimental("OPENNOVEL_EXPERIMENTAL_REFERENCES"),
-  experimentalBackgroundSubagents: enabledByExperimental("OPENNOVEL_EXPERIMENTAL_BACKGROUND_SUBAGENTS"),
   experimentalLspTy: bool("OPENNOVEL_EXPERIMENTAL_LSP_TY"),
   experimentalLspTool: enabledByExperimental("OPENNOVEL_EXPERIMENTAL_LSP_TOOL"),
   experimentalOxfmt: enabledByExperimental("OPENNOVEL_EXPERIMENTAL_OXFMT"),
