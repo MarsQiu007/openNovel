@@ -4,25 +4,25 @@
 
 ## 1. KV 持久化前置件
 
-- [ ] core 新增 `src/kv/sql.ts`（`KVTable`：key PK / value json / time_updated，snake_case）与 `src/kv.ts`（`KV.Service`：get / set upsert / remove / scan 前缀分页），挂现有 `Database`（参照上游 `kv.ts` + `kv/sql.ts`）
-- [ ] focused test：set upsert 覆盖、remove、scan 按 prefix 分页与 after 续扫（真实内存 sqlite）
+- [x] core 新增 `src/kv/sql.ts`（`KVTable`：key PK / value json / time_updated，snake_case）与 `src/kv.ts`（`KV.Service`：get / set upsert / remove / scan 前缀分页），挂现有 `Database`（参照上游 `kv.ts` + `kv/sql.ts`）
+- [x] focused test：set upsert 覆盖、remove、scan 按 prefix 分页与 after 续扫（真实内存 sqlite）
 
 ## 2. Job 注册表升级（core/src/background-job.ts）
 
-- [ ] `Background` schema（id / notificationID / recovery(subagent|shell) / status / output? / error?）与 `job.background/<notificationID>` KV 持久化；`persistBackground` 守卫：无 recovery 或 notificationID 不落盘
-- [ ] `Active` 扩展 backgrounded / consumed / blockingSessions / recovery；`Recovery` 联合类型两 kind 都定义，本期只启用 subagent
-- [ ] 新方法面：`block({id, sessionID})`（raceFirst done/backgrounded + blockingSessions 计数）、`background` / `backgroundAll({sessionID, type?})`、`pendingBackground`（KV scan）/ `runningBackground` / `completeBackground(notificationID)`
-- [ ] 消费历史上限 25 + settle 失败细节保全（errorText 链式渲染）
-- [ ] 保留既有 `list` / `extend` / `waitForPromotion` / `promote` / `wait` / `get` / `start` / `cancel`（V1 wrapper 消费面，删除点在运行时切换 change）
-- [ ] node deps 增 `KV.node`；opennovel V1 wrapper 回归核对（其消费方法行为不变）
-- [ ] focused test：settle 三态、block 竞态（done vs backgrounded）、backgroundAll 会话计数、消费历史裁剪、恢复记录持久化与清理
+- [x] `Background` schema（id / notificationID / recovery(subagent|shell) / status / output? / error?）与 `job.background/<notificationID>` KV 持久化；`persistBackground` 守卫：无 recovery 或 notificationID 不落盘
+- [x] `Active` 扩展 backgrounded / consumed / blockingSessions / recovery；`Recovery` 联合类型两 kind 都定义，本期只启用 subagent
+- [x] 新方法面：`block({id, sessionID})`（raceFirst done/backgrounded + blockingSessions 计数）、`background` / `backgroundAll({sessionID, type?})`、`pendingBackground`（KV scan）/ `runningBackground` / `completeBackground(notificationID)`
+- [x] 消费历史上限 25 + settle 失败细节保全（errorText 链式渲染）
+- [x] 保留既有 `list` / `extend` / `waitForPromotion` / `promote` / `wait` / `get` / `start` / `cancel`（V1 wrapper 消费面，删除点在运行时切换 change）
+- [x] node deps 增 `KV.node`；opennovel V1 wrapper 回归核对（其消费方法行为不变）
+- [x] focused test：settle 三态、block 竞态（done vs backgrounded）、backgroundAll 会话计数、消费历史裁剪、恢复记录持久化与清理
 
 ## 3. Session 写侧扩展
 
-- [ ] `CreateInput` 增 `parentID?` / `title?`；child 创建继承父 location / metadata / permission ruleset
-- [ ] `SessionStore.list({parentID})` + Session 服务透出
-- [ ] `Session.synthetic({id?, sessionID, description, text, metadata?, resume?})`：持久合成用户消息，durable admission；`resume: false` 只落库不 wake
-- [ ] test：child 继承断言、children 查询、synthetic 同 id 幂等、resume:false 不唤醒
+- [x] `CreateInput` 增 `parentID?` / `title?`；child 创建继承父 location / metadata / permission ruleset
+- [x] `SessionStore.list({parentID})` + Session 服务透出
+- [x] `Session.synthetic({id?, sessionID, text, resume?})`：持久合成用户消息，durable admission；`resume: false` 只落库不 wake（fork 适配：description/metadata 无消费方，由 `<subagent>` 文本承载，见 design §4）
+- [x] test：child 继承断言、children 查询、synthetic 同 id 幂等、resume:false 不唤醒
 
 ## 4. subagent 工具前台路径
 

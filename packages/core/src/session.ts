@@ -78,9 +78,11 @@ export type ListInput = typeof ListInput.Type
 
 type CreateInput = {
   id?: SessionSchema.ID
+  parentID?: SessionSchema.ID
+  title?: string
   agent?: AgentV2.ID
   model?: ModelV2.Ref
-  location: Location.Ref
+  location?: Location.Ref
 }
 
 type CompactInput = {
@@ -112,7 +114,14 @@ export type Error = NotFoundError | MessageDecodeError | OperationUnavailableErr
 
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<SessionSchema.Info[]>
-  readonly create: (input: CreateInput) => Effect.Effect<SessionSchema.Info>
+  readonly create: (input: CreateInput) => Effect.Effect<SessionSchema.Info, NotFoundError>
+  readonly children: (sessionID: SessionSchema.ID) => Effect.Effect<SessionSchema.Info[], NotFoundError>
+  readonly synthetic: (input: {
+    readonly id?: SessionMessage.ID
+    readonly sessionID: SessionSchema.ID
+    readonly text: string
+    readonly resume?: boolean
+  }) => Effect.Effect<void, NotFoundError>
   readonly get: (sessionID: SessionSchema.ID) => Effect.Effect<SessionSchema.Info, NotFoundError>
   readonly messages: (input: {
     sessionID: SessionSchema.ID
@@ -209,7 +218,20 @@ const layer = Layer.effect(
         const sessionID = input.id ?? SessionSchema.ID.create()
         const recorded = yield* store.get(sessionID)
         if (recorded) return recorded
-        const project = yield* projects.resolve(input.location.directory)
+        // 子会话从父行继承 location / metadata / permission（对齐上游 create 语义）
+        const parent = input.parentID
+          ? yield* db.select().from(SessionTable).where(eq(SessionTable.id, input.parentID)).get().pipe(Effect.orDie)
+          : undefined
+        if (input.parentID && parent === undefined) return yield* new NotFoundError({ sessionID: input.parentID })
+        const location = parent
+          ? Location.Ref.make({
+              directory: AbsolutePath.make(parent.directory),
+              ...(parent.workspace_id ? { workspaceID: parent.workspace_id } : {}),
+            })
+          : input.location
+        if (location === undefined)
+          return yield* Effect.die(new Error("Session.create requires a location or an existing parentID"))
+        const project = yield* projects.resolve(location.directory)
         yield* db
           .insert(ProjectTable)
           .values({ id: project.id, worktree: project.directory, vcs: project.vcs?.type, sandboxes: [] })
@@ -222,10 +244,11 @@ const layer = Layer.effect(
           slug: Slug.create(),
           version: InstallationVersion,
           projectID: project.id,
-          directory: input.location.directory,
-          path: path.relative(project.directory, input.location.directory).replaceAll("\\", "/"),
-          workspaceID: input.location.workspaceID ? WorkspaceV2.ID.make(input.location.workspaceID) : undefined,
-          title: `New session - ${new Date(now).toISOString()}`,
+          directory: location.directory,
+          path: path.relative(project.directory, location.directory).replaceAll("\\", "/"),
+          workspaceID: location.workspaceID ? WorkspaceV2.ID.make(location.workspaceID) : undefined,
+          parentID: input.parentID,
+          title: input.title ?? `New session - ${new Date(now).toISOString()}`,
           agent: input.agent,
           model: input.model
             ? {
@@ -234,12 +257,14 @@ const layer = Layer.effect(
                 variant: input.model.variant,
               }
             : undefined,
+          metadata: parent?.metadata ?? undefined,
+          permission: parent?.permission ?? undefined,
           cost: 0,
           tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
           time: { created: now, updated: now },
         })
         const projected = yield* events
-          .publish(SessionV1.Event.Created, { sessionID, info }, { location: input.location })
+          .publish(SessionV1.Event.Created, { sessionID, info }, { location })
           .pipe(
             Effect.as({ type: "created" } as const),
             Effect.catchDefect((defect) => {
@@ -260,6 +285,30 @@ const layer = Layer.effect(
         // TODO: Restore recorded sessions onto replacement synchronized workspaces in a future API slice.
         return yield* result.get(sessionID).pipe(Effect.orDie)
       }),
+      children: Effect.fn("V2Session.children")(function* (sessionID) {
+        yield* result.get(sessionID)
+        return yield* store.list({ parentID: sessionID })
+      }),
+      synthetic: Effect.fn("V2Session.synthetic")((input) =>
+        Effect.uninterruptible(
+          Effect.gen(function* () {
+            yield* result.get(input.sessionID)
+            // 同 id 重复注入（完成通知重放）经由 admission 的 find-existing / LifecycleConflict 幂等
+            yield* SessionInput.admit(db, events, {
+              id: input.id ?? SessionMessage.ID.create(),
+              sessionID: input.sessionID,
+              prompt: Prompt.fromUserMessage({ text: input.text }),
+              delivery: "steer",
+            }).pipe(
+              Effect.catchDefect((defect) =>
+                defect instanceof SessionInput.LifecycleConflict ? Effect.void : Effect.die(defect),
+              ),
+              Effect.asVoid,
+            )
+            if (input.resume !== false) yield* execution.wake(input.sessionID)
+          }),
+        ),
+      ),
       get: Effect.fn("V2Session.get")(function* (sessionID) {
         const session = yield* store.get(sessionID)
         if (!session) return yield* new NotFoundError({ sessionID })

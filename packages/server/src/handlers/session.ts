@@ -6,6 +6,7 @@ import { SessionsCursor } from "@opennovel-ai/protocol/groups/session"
 import {
   ConflictError,
   InvalidCursorError,
+  InvalidRequestError,
   MessageNotFoundError,
   ServiceUnavailableError,
   SessionNotFoundError,
@@ -73,7 +74,16 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
               agent: ctx.payload.agent,
               model: ctx.payload.model,
               location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) },
-            }),
+            }).pipe(
+              Effect.catchTag(
+                "Session.NotFoundError",
+                (error) =>
+                  new InvalidRequestError({
+                    message: `Parent session not found: ${error.sessionID}`,
+                    kind: "session_parent_not_found",
+                  }),
+              ),
+            ),
           }
         }),
       )

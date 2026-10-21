@@ -76,7 +76,7 @@ Input / Output / description 逐条平移上游：`agent` / `description`（3-5 
 
 - `core/src/session/subagent-job.ts` 直接移植：全局 Scope fork + `Effect.context` 捕获（「Jobs and their completion observers outlive the plugin that launched them」——fork 语境下是「不随工具调用/插件 Scope/Location 死亡」）；`notifications` Set 按 `${childSessionID}:${startedAt}` 去重（一个作业代际一个观察者）；`start`（`jobs.start` 的 run = `execution.resume(child)` + 取最后一条 completed 无 error 的 assistant 消息提取文本）/ `background` / `notify`
 - `core/src/session/subagent-completion.ts` 直接移植：`text()`（无文本 → `NO_TEXT = "Subagent completed without a text response."` 兜底）；`deliver()` 幂等注入——`<subagent sessionID="..." state="..." description="...">` 包装 + `notificationID` 复用作合成消息 ID（重启后重复 deliver 不产生第二条）+ `completeBackground` 清账 + `resume: false` 透传
-- **缺件补齐 `Session.synthetic`**：fork V2 Session 服务无合成消息注入面。新增 `synthetic({id?, sessionID, description, text, metadata?, resume?})`——持久化合成用户消息，走 V2 durable admission 路径；`resume: false` 时只落库不 wake（恢复通知不惊动 idle 父会话）。这是完成回传与崩溃恢复共用的唯一新 Session 面
+- **缺件补齐 `Session.synthetic`**：fork V2 Session 服务无合成消息注入面。新增 `synthetic({id?, sessionID, text, resume?})`——持久化合成用户消息，走 V2 durable admission 路径（steer 语义：活跃 drain 在安全边界晋级，idle 由 wake 驱动；同 id 重复注入幂等）；`resume: false` 时只落库不 wake（恢复通知不惊动 idle 父会话）。**fork 适配**：上游面带 `description`/`metadata`，fork 的 admission 行无独立载体且无结构化消费方——结构信息（childID/state/description）由 `<subagent>` 文本块承载，不设这两个参数，出现真实消费方时再加。这是完成回传与崩溃恢复共用的唯一新 Session 面
 - 取尾逻辑：fork `store.context(child)` 已可载入消息（`store.ts:42-44`），无需新查询
 
 ## 5. 崩溃恢复 restart.ts（subagent 范围）

@@ -1,6 +1,6 @@
 export * as SessionStore from "./store"
 
-import { eq } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import { Context, Effect, Layer, Schema } from "effect"
 import { Database } from "../database/database"
 import { makeGlobalNode } from "../effect/app-node"
@@ -13,6 +13,7 @@ import { fromRow } from "./info"
 
 export interface Interface {
   readonly get: (sessionID: SessionSchema.ID) => Effect.Effect<SessionSchema.Info | undefined>
+  readonly list: (input: { readonly parentID: SessionSchema.ID }) => Effect.Effect<SessionSchema.Info[]>
   readonly context: (sessionID: SessionSchema.ID) => Effect.Effect<SessionMessage.Message[], MessageDecodeError>
   readonly runnerContext: (
     sessionID: SessionSchema.ID,
@@ -38,6 +39,16 @@ const layer = Layer.effect(
       get: Effect.fn("SessionStore.get")(function* (sessionID) {
         const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie)
         return row ? fromRow(row) : undefined
+      }),
+      list: Effect.fn("SessionStore.list")(function* (input) {
+        const rows = yield* db
+          .select()
+          .from(SessionTable)
+          .where(eq(SessionTable.parent_id, input.parentID))
+          .orderBy(asc(SessionTable.time_created), asc(SessionTable.id))
+          .all()
+          .pipe(Effect.orDie)
+        return rows.map((row) => fromRow(row))
       }),
       context: Effect.fn("SessionStore.context")(function* (sessionID) {
         return yield* SessionHistory.load(db, sessionID)
