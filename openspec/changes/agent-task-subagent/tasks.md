@@ -73,10 +73,23 @@
 
 ## 11. 收尾
 
-- [ ] 各受影响包 `bun typecheck`（包目录内执行，禁止仓库根）：core / schema / plugin / opennovel
-- [ ] `openspec validate agent-task-subagent`
-- [ ] 用 `git log --grep "OpenSpec-Change: agent-task-subagent"` 收集实现提交写入下节
+- [x] 各受影响包 `bun typecheck`（包目录内执行，禁止仓库根）：core / schema / plugin / opennovel
+- [x] `openspec validate agent-task-subagent`
+- [x] 用 `git log --grep "OpenSpec-Change: agent-task-subagent"` 收集实现提交写入下节
 
 ## Implementation Commits
 
-（实现完成后填写）
+- 135ef03d61 feat(core): 移植 V2 KV 服务与 kv 表（步骤 1）
+- b5703209a5 feat(core): BackgroundJob 增补后台作业持久化与恢复查询面（步骤 2）
+- d7052f99f6 feat(core): Session 写侧扩展 parentID 继承、children 查询与 synthetic 注入（步骤 3）
+- 835e8f13df feat(core): subagent 工具前台路径（步骤 4）
+- 602cf46762 feat(core): subagent 后台路径与完成回传（步骤 5）
+- 2b4ef65f4b fix(core): 位置服务 map 内绑定全局 unbound 依赖（步骤 5 修复）
+- 4b0444ce94 feat(core): subagent 崩溃恢复（步骤 6）
+- c8380f682b refactor(opennovel): 拆除 V1 实验后台子代理路径（步骤 7）
+- 087cc2b51a feat(schema): agent category 分类字段与写作 agent 映射（步骤 8）
+- e867ce08ff chore(sdk): 再生成 SDK 与 client 产物（步骤 8 产物）
+- 9dde5e4522 feat(plugin): novel-writer V2 原生注册（步骤 9）
+- 19894cd170 docs(openspec): 衔接核实结论写入 7 个 agent-* 提案（步骤 10）
+
+提案工件提交（不列入实现提交）：8365731401 / cdcbeff1e0 / beb5019240
