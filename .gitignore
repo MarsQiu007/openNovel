@@ -46,3 +46,6 @@ openspec/changes/archive/.openspec-archive.lock
 
 # Local AI-tool session data (Qoder better-harness runs)
 .qoder/better-harness/
+
+# OpenHands 本地记忆目录（agent 自维护，同 .codex）
+.openhands/
