@@ -2,20 +2,33 @@ export * as SubagentTool from "./subagent"
 
 import { ToolFailure } from "@opennovel-ai/llm"
 import { Effect, Layer, Schema } from "effect"
+import { BackgroundJob } from "../background-job"
 import { AgentV2 } from "../agent"
 import { Catalog } from "../catalog"
 import { Config } from "../config"
 import { makeLocationNode } from "../effect/app-node"
 import { ModelV2 } from "../model"
 import { PermissionV2 } from "../permission"
+import { SessionV2 } from "../session"
+import { SubagentCompletion } from "../session/subagent-completion"
+import { SubagentJob } from "../session/subagent-job"
 import { Prompt } from "../session/prompt"
 import { SessionSchema } from "../session/schema"
-import { SessionV2 } from "../session"
 import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
 
 export const name = "subagent"
+
+const backgroundResult = (sessionID: SessionSchema.ID) => ({
+  sessionID,
+  status: "running" as const,
+  output: [
+    `The subagent is working in the background (sessionID: ${sessionID}). You will be notified automatically when it finishes.`,
+    "DO NOT sleep, poll for progress, ask the subagent for status, or duplicate this subagent's work; avoid working with the same files or topics it is using.",
+    "Work on non-overlapping tasks, or briefly tell the user what you launched and end your response.",
+  ].join("\n"),
+})
 
 export const description = [
   "Spawns an agent in a child session to work on the specified task.",
@@ -65,6 +78,8 @@ const layer = Layer.effectDiscard(
     const config = yield* Config.Service
     const permission = yield* PermissionV2.Service
     const tools = yield* Tools.Service
+    const jobs = yield* BackgroundJob.Service
+    const subagents = yield* SubagentJob.Service
 
     const resolveModel = Effect.fn("SubagentTool.resolveModel")(function* (input: string) {
       const ref = yield* Effect.try({
@@ -221,7 +236,9 @@ const layer = Layer.effectDiscard(
                     ),
                   ))
 
-              // 本步只落 admission 序列：前台完成等待、onInterrupt 与后台分支随 SubagentJob（步骤 5）接入
+              // 标准入库 admission 在作业之外：Job.start 加入正在运行的 child 时跳过
+              // 其 run effect，默认 wake 让 idle child 启动或对运行中的 child steer
+              const background = input.background === true
               yield* sessions
                 .prompt({
                   sessionID: child.id,
@@ -231,6 +248,7 @@ const layer = Layer.effectDiscard(
                         ? ["You are a subagent spawned by another session.", input.prompt].join("\n")
                         : input.prompt,
                   }),
+                  ...(background && existing === undefined ? { resume: false } : {}),
                 })
                 .pipe(
                   Effect.mapError(
@@ -238,10 +256,43 @@ const layer = Layer.effectDiscard(
                   ),
                 )
 
+              // fork 适配：上游取 agent.name 作展示名；fork AgentV2.Info 无 name 字段，以 id 承载
+              const recovery = {
+                kind: "subagent" as const,
+                parentSessionID: context.sessionID,
+                childSessionID: child.id,
+                agent: agent.id,
+                description: input.description,
+              }
+              yield* subagents.start(recovery)
+
+              if (background) {
+                yield* subagents.background(recovery)
+                return backgroundResult(child.id)
+              }
+
+              const result = yield* jobs.block({ id: child.id, sessionID: context.sessionID }).pipe(
+                Effect.onInterrupt(() =>
+                  Effect.all([sessions.interrupt(child.id), jobs.cancel(child.id)], {
+                    discard: true,
+                  }),
+                ),
+              )
+              if (result?.type === "backgrounded") {
+                yield* subagents.notify(recovery, result.info.started_at)
+                return backgroundResult(child.id)
+              }
+              // 失败文案保留 sessionID，模型可续聊子会话
+              if (result?.info.status === "error")
+                return yield* new ToolFailure({
+                  message: `Subagent failed (sessionID: ${child.id}): ${result.info.error ?? "unknown error"}`,
+                })
+              if (result?.info.status === "cancelled")
+                return yield* new ToolFailure({ message: `Subagent cancelled (sessionID: ${child.id})` })
               return {
                 sessionID: child.id,
-                status: "running" as const,
-                output: `The subagent is working in session ${child.id}.`,
+                status: "completed" as const,
+                output: result?.info.output ?? SubagentCompletion.NO_TEXT,
               }
             }),
         }),
@@ -260,5 +311,7 @@ export const node = makeLocationNode({
     SessionV2.node,
     Catalog.node,
     Config.node,
+    BackgroundJob.node,
+    SubagentJob.node,
   ],
 })

@@ -1,6 +1,7 @@
 import { describe, expect } from "bun:test"
 import { eq } from "drizzle-orm"
 import { Effect, Layer } from "effect"
+import { BackgroundJob } from "@opennovel-ai/core/background-job"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Catalog } from "@opennovel-ai/core/catalog"
 import { Config } from "@opennovel-ai/core/config"
@@ -17,6 +18,7 @@ import { PermissionV2 } from "@opennovel-ai/core/permission"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
+import { SubagentJob } from "@opennovel-ai/core/session/subagent-job"
 import { SessionInputTable, SessionTable } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { ToolRegistry } from "@opennovel-ai/core/tool/registry"
@@ -101,6 +103,8 @@ const it = testEffect(
       ToolRegistry.node,
       ToolRegistry.toolsNode,
       SubagentTool.node,
+      BackgroundJob.node,
+      SubagentJob.node,
     ]),
     [
       [SessionExecution.node, execution],
@@ -147,6 +151,13 @@ const promptRows = (sessionID: SessionV2.ID) =>
 const childIDOf = (settlement: { output?: { structured?: unknown } }) =>
   (settlement.output?.structured as { sessionID: SessionV2.ID }).sessionID
 
+const eventually = (check: Effect.Effect<boolean, never, Database.Service>) => {
+  const loop: Effect.Effect<void, never, Database.Service> = Effect.flatMap(check, (ok) =>
+    ok ? Effect.void : Effect.sleep(5).pipe(Effect.andThen(loop)),
+  )
+  return loop
+}
+
 describe("SubagentTool", () => {
   it.effect("enforces the default depth limit of 1", () =>
     Effect.gen(function* () {
@@ -166,7 +177,8 @@ describe("SubagentTool", () => {
       const childID = childIDOf(first)
       const child = yield* sessionRow(SessionV2.ID.make(childID))
       expect(child?.parent_id).toBe(parent.id)
-      expect(wakeCalls).toEqual([SessionV2.ID.make(childID)])
+      // prompt 的 wake + 作业 run 的显式 resume，两次都指向 child
+      expect(wakeCalls).toEqual([SessionV2.ID.make(childID), SessionV2.ID.make(childID)])
 
       const second = yield* settleSubagent(SessionV2.ID.make(childID), {
         agent: "helper",
@@ -383,6 +395,56 @@ describe("SubagentTool", () => {
       const filteredSubagent = filtered.find((definition) => definition.name === "subagent")
       expect(filteredSubagent?.description).not.toContain("- helper:")
       expect(filteredSubagent?.description).not.toContain("Available subagents:")
+    }),
+  )
+
+  it.effect("foreground waits on the job and returns its completed output", () =>
+    Effect.gen(function* () {
+      assertions.length = 0
+      wakeCalls.length = 0
+      configEntries.length = 0
+      yield* addAgent("helper", "subagent")
+      const sessions = yield* SessionV2.Service
+      const parent = yield* sessions.create({ location })
+
+      const settlement = yield* settleSubagent(parent.id, { agent: "helper", description: "前台", prompt: "写" })
+      expect(settlement.result.type).toBe("text")
+      // 无 assistant 消息的 child 走 NO_TEXT 兜底
+      expect(settlement.result.value).toContain('state="completed"')
+      expect(settlement.result.value).toContain("Subagent completed without a text response.")
+    }),
+  )
+
+  it.effect("background branch admits resume-free and notifies the parent on completion", () =>
+    Effect.gen(function* () {
+      assertions.length = 0
+      wakeCalls.length = 0
+      configEntries.length = 0
+      yield* addAgent("helper", "subagent")
+      const sessions = yield* SessionV2.Service
+      const parent = yield* sessions.create({ location })
+
+      const settlement = yield* settleSubagent(parent.id, {
+        agent: "helper",
+        description: "后台",
+        prompt: "写第三章",
+        background: true,
+      })
+      expect(settlement.result.type).toBe("text")
+      expect(settlement.result.value).toContain("working in the background")
+      expect(settlement.result.value).toContain("DO NOT sleep, poll for progress")
+
+      const childID = SessionV2.ID.make(childIDOf(settlement))
+      // 后台新会话 admit-only：prompt 落库一次，作业 run 的显式 resume 是唯一执行起点
+      expect(yield* promptRows(childID)).toHaveLength(1)
+      expect(wakeCalls.filter((id) => id === childID)).toHaveLength(1)
+
+      // 作业完成后，观察者把 <subagent> 通知注入父会话（默认 resume 语义唤醒父）；
+      // 送达会触发 completeBackground 清账，作业可能已从注册表移除，故按通知行断言
+      yield* eventually(
+        Effect.map(promptRows(parent.id), (rows) => rows.some((row) => row.prompt.text.includes('state="completed"'))),
+      )
+      expect(wakeCalls.filter((id) => id === parent.id)).toHaveLength(1)
     }),
   )
 })

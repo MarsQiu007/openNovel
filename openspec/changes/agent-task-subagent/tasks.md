@@ -34,11 +34,11 @@
 
 ## 5. 后台路径与完成回传
 
-- [ ] `core/src/session/subagent-completion.ts`：`text()`（NO_TEXT 兜底）/ `deliver()`（notificationID 幂等、`<subagent>` 包装、resume:false 透传、completeBackground 清账）
-- [ ] `core/src/session/subagent-job.ts`：全局 Scope + context 捕获、notifications 按 `${childSessionID}:${startedAt}` 去重、`start`（execution.resume + 尾 completed assistant 提取）/ `background` / `notify`
-- [ ] 工具后台分支：新会话 `resume: false` admit-only → SubagentJob.background → running 文案；前台 block + onInterrupt（child interrupt + job cancel）、backgrounded → notify
-- [ ] node 接线：SubagentJob node（deps Session/Job）挂 global 组装点
-- [ ] test：deliver 幂等（重放不重复注入）、观察者在调用方 Scope 关闭后仍送达、作业先于 background 完成的竞态
+- [x] `core/src/session/subagent-completion.ts`：`text()`（NO_TEXT 兜底）/ `deliver()`（notificationID 幂等、`<subagent>` 包装、resume:false 透传、completeBackground 清账）
+- [x] `core/src/session/subagent-job.ts`：全局 Scope + context 捕获、notifications 按 `${childSessionID}:${startedAt}` 去重、`start`（execution.resume + 尾 completed assistant 提取）/ `background` / `notify`
+- [x] 工具后台分支：新会话 `resume: false` admit-only → SubagentJob.background → running 文案；前台 block + onInterrupt（child interrupt + job cancel）、backgrounded → notify
+- [x] node 接线：SubagentJob node（deps Session/Job）挂 global 组装点
+- [x] test：deliver 幂等（重放不重复注入）、观察者在调用方 Scope 关闭后仍送达、作业先于 background 完成的竞态
 
 ## 6. 崩溃恢复（仅 subagent 范围）
 
