@@ -1,6 +1,6 @@
 # openNovel
 
-**AI-powered long-form fiction workbench** — plan, draft, audit, and revise novels through an 8-step writing pipeline and a 37-dimension continuity audit. Desktop-first, with all data stored locally.
+**AI-powered long-form fiction workbench** — plan, draft, audit, and revise novels through an 8-step writing pipeline and a 38-dimension continuity audit. Desktop-first, with all data stored locally.
 
 <p>
   <a href="README.md">简体中文</a> |
@@ -31,15 +31,15 @@
 </p>
 
 <p align="center">
-  <sub>Bookshelf · Workspace · Relationship graph · 37-dimension continuity audit & approval</sub>
+  <sub>Bookshelf · Workspace · Relationship graph · 38-dimension continuity audit & approval</sub>
 </p>
 
 ## Features
 
 ### Writing pipeline
 
-- **8-step pipeline** — outline → context assembly → drafting → 37-dimension continuity audit → revision → state extraction → commit → chapter advancement, orchestrated by an AI agent
-- **37-dimension continuity audit** — every chapter is checked across 9 categories (character, relationship, timeline, location, plot, worldview, style, logic, detail) with evidence and suggestions, persisted per review round
+- **8-step pipeline** — outline → context assembly → drafting → 38-dimension continuity audit → revision → state extraction → commit → chapter advancement, orchestrated by an AI agent
+- **38-dimension continuity audit** — every chapter is checked across 9 categories (character, relationship, timeline, location, plot, worldview, style, logic, detail) with evidence and suggestions, persisted per review round; 37 dimensions are deterministic checks plus a dedicated AI-judged book-coordinate-leakage dimension
 - **Multi-round revision & quality loop** — chapters that fail the audit return to revision automatically, combining deterministic checks with deep AI review until they pass or a human steps in
 - **Style guide & technique library** — configure POV, tense, tone, and writing rules; extract, store, and reuse techniques from finished chapters
 
@@ -116,7 +116,7 @@ Issues and pull requests are welcome. Commit messages follow the Conventional Co
 
 ## Attribution
 
-openNovel is a derivative work of [openCode](https://github.com/anomalyco/opencode). openCode is an open-source AI coding agent whose session runtime, tool system, context management, and desktop shell form the technical foundation of openNovel. openNovel changes the target domain from *coding* to *long-form fiction* and adds the novel data model, writing pipeline, 37-dimension continuity audit, and approval workflow.
+openNovel is a derivative work of [openCode](https://github.com/anomalyco/opencode). openCode is an open-source AI coding agent whose session runtime, tool system, context management, and desktop shell form the technical foundation of openNovel. openNovel changes the target domain from *coding* to *long-form fiction* and adds the novel data model, writing pipeline, 38-dimension continuity audit, and approval workflow.
 
 - The original openCode code is copyright the openCode authors.
 - openNovel contributions are copyright their respective authors.

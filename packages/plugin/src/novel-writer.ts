@@ -3541,7 +3541,7 @@ ${sceneChecklist}`
       }),
       check_settings_consistency: tool({
         description:
-          "扫描小说设定内部的自相矛盾（intra-setting consistency）。检查 worldEntries / characters / relationships 内部和跨条目的冲突，输出 WARN/FAIL 级别问题列表，供 director 在 save_novel_settings 后或人工审查设定时使用。**不是**审计章节与设定的对照（那个由 37 维审计/auditor 负责）。检查项：(1) 同 category 下标题完全重复的条目；(2) 同 category 下数字冲突（如一条说『12 神主』另一条说『10 神主』）；(3) 跨 category 引用但关键词冲突（如社会制度定义神主数量与势力定义神主数量不一致）。语义级矛盾需 LLM 审计最终判断。",
+          "扫描小说设定内部的自相矛盾（intra-setting consistency）。检查 worldEntries / characters / relationships 内部和跨条目的冲突，输出 WARN/FAIL 级别问题列表，供 director 在 save_novel_settings 后或人工审查设定时使用。**不是**审计章节与设定的对照（那个由 38 维审计/auditor 负责）。检查项：(1) 同 category 下标题完全重复的条目；(2) 同 category 下数字冲突（如一条说『12 神主』另一条说『10 神主』）；(3) 跨 category 引用但关键词冲突（如社会制度定义神主数量与势力定义神主数量不一致）。语义级矛盾需 LLM 审计最终判断。",
         args: {
           novel_id: tool.schema.string().describe("小说 ID"),
         },
@@ -6122,7 +6122,7 @@ ${sceneChecklist}`
             "*": "allow",
           },
         },
-        // auditor: subagent，由 pipeline 调度，37 维 LLM 深度审计
+        // auditor: subagent，由 pipeline 调度，38 维 LLM 深度审计
         auditor: {
           ...(input.agent?.auditor ?? {}),
           description: auditorAgent.description,

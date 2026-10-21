@@ -501,7 +501,7 @@ export default function NovelWorkspaceFrame() {
       return
     }
     setRailPanel(key)
-    // 默认深度：结构与审查面板 expand，其余 peek（3.1）；审查详情 37 维报告深读场景同结构档
+    // 默认深度：结构与审查面板 expand，其余 peek（3.1）；审查详情 38 维报告深读场景同结构档
     if (key === "structure" || key === "review") setSearchParams({ tab: `panel:${key}` })
   }
   const restoreRailPanel = (key: RailPanel) => {
