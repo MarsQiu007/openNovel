@@ -42,11 +42,11 @@
 
 ## 6. 崩溃恢复（仅 subagent 范围）
 
-- [ ] `core/src/session/execution/restart.ts`：recoverSubagent（child 缺失 / parentID 不匹配 / 父缺失 → completeBackground 丢弃；已完结 → 直接通知；running 且本进程 active → 跳过；否则预算检查 → jobs.start(execution.resume + 尾提取) + background + 等待通知）
-- [ ] KV `attempts` 预算：sweep 对 running 子代理 +1，>10 终态化（KV 终态 + error 通知）；先持久化再 resume 的时序
-- [ ] 通知一律 `resume: false`；无 Bus 依赖
-- [ ] 启动接线：app/server 启动组合处显式调用一次（inert until called 语义）
-- [ ] test：记录丢失 / child 缺失 / parentID 不匹配 / 已完结重通知 / 预算耗尽终态化
+- [x] `core/src/session/execution/restart.ts`：recoverSubagent（child 缺失 / parentID 不匹配 / 父缺失 → completeBackground 丢弃；已完结 → 直接通知；running 且本进程 active → 跳过；否则预算检查 → jobs.start(execution.resume + 尾提取) + background + 等待通知）
+- [x] KV `attempts` 预算：sweep 对 running 子代理 +1，>10 终态化（KV 终态 + error 通知）；先持久化再 resume 的时序
+- [x] 通知一律 `resume: false`；无 Bus 依赖
+- [x] 启动接线：app/server 启动组合处显式调用一次（inert until called 语义）
+- [x] test：记录丢失 / child 缺失 / parentID 不匹配 / 已完结重通知 / 预算耗尽终态化
 
 ## 7. V1 实验后台路径拆除
 

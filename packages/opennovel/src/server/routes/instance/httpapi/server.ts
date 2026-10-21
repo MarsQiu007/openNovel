@@ -70,6 +70,7 @@ import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opennovel-ai/core/session/execution/local"
+import { SessionRestart } from "@opennovel-ai/core/session/execution/restart"
 import { lazy } from "@/util/lazy"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opennovel-ai/server/cors"
 import { serveUIEffect } from "@/server/shared/ui"
@@ -321,6 +322,22 @@ export function createRoutes(options?: RouteOptions): Layer.Layer<never, EffectC
         [LocationServiceMap.node, locationServiceMapV2],
         [SessionExecution.node, SessionExecutionLocal.node],
       ]),
+    ),
+    // 崩溃恢复 inert until called：组合处显式调用一次（层构建即服务进程启动时）
+    Layer.provide(
+      Layer.effectDiscard(
+        Effect.gen(function* () {
+          const restart = yield* SessionRestart.Service
+          yield* restart.recover
+        }),
+      ).pipe(
+        Layer.provide(
+          AppNodeBuilderV1.build(SessionRestart.node, [
+            [LocationServiceMap.node, locationServiceMapV2],
+            [SessionExecution.node, SessionExecutionLocal.node],
+          ]),
+        ),
+      ),
     ),
     Layer.provide(locationServiceMapV2),
 

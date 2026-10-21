@@ -31,6 +31,8 @@ const Background = Schema.Struct({
   status: Schema.Literals(["running", "completed", "error", "cancelled"]),
   output: Schema.optionalKey(Schema.String),
   error: Schema.optionalKey(Schema.String),
+  // 恢复预算：每次 boot sweep 对 running 子代理 +1，超过上限终态化（design §5）
+  attempts: Schema.optionalKey(Schema.Int),
 })
 
 export type Background = typeof Background.Type
@@ -39,6 +41,9 @@ export type Recovery = Background["recovery"]
 const decodeBackground = Schema.decodeUnknownResult(Background)
 const backgroundPrefix = "job.background/"
 const COMPLETED_LIMIT = 25
+
+/** KV 键：后台作业记录。崩溃恢复（session/execution/restart.ts）以同键改写预算与终态。 */
+export const backgroundKey = (notificationID: SessionMessage.ID) => `${backgroundPrefix}${notificationID}`
 
 export type Info = {
   id: string
@@ -69,6 +74,7 @@ type Active = {
   isBackgrounded: boolean
   consumed: boolean
   recovery?: Recovery
+  attempts?: number
 }
 
 type State = {
@@ -127,6 +133,7 @@ export type StartInput = {
   metadata?: Record<string, unknown>
   recovery?: Recovery
   notificationID?: SessionMessage.ID
+  attempts?: number
   onPromote?: Effect.Effect<void>
   run: Effect.Effect<string, unknown>
 }
@@ -244,6 +251,7 @@ export const make = Effect.gen(function* () {
       status: job.info.status,
       ...(job.info.output !== undefined ? { output: job.info.output } : {}),
       ...(job.info.error !== undefined ? { error: job.info.error } : {}),
+      ...(job.attempts !== undefined ? { attempts: job.attempts } : {}),
     })
   })
 
@@ -373,6 +381,7 @@ export const make = Effect.gen(function* () {
               isBackgrounded: false,
               consumed: false,
               recovery: input.recovery,
+              ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
             }
             return [{ info: snapshot(job), scope, token }, new Map(jobs).set(id, job)] as readonly [
               StartResult,
