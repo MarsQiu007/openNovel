@@ -25,6 +25,7 @@ import { InstanceState } from "@/effect/instance-state"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { AbsolutePath, type DeepMutable } from "@opennovel-ai/core/schema"
+import { Category } from "@opennovel-ai/schema/agent"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { ModelV2 } from "@opennovel-ai/core/model"
 import { LocationServiceMap, locationServiceMapLayer } from "@opennovel-ai/core/location-services"
@@ -41,6 +42,7 @@ export const Info = Schema.Struct({
   topP: Schema.optional(Schema.Finite),
   temperature: Schema.optional(Schema.Finite),
   color: Schema.optional(Schema.String),
+  category: Schema.optional(Category),
   permission: PermissionV1.Ruleset,
   model: Schema.optional(
     Schema.Struct({
@@ -156,6 +158,7 @@ const layer = Layer.effect(
             ),
             mode: "primary",
             native: true,
+            category: "internal",
           },
           plan: {
             name: "plan",
@@ -183,6 +186,7 @@ const layer = Layer.effect(
             ),
             mode: "primary",
             native: true,
+            category: "internal",
           },
           general: {
             name: "general",
@@ -197,6 +201,7 @@ const layer = Layer.effect(
             options: {},
             mode: "subagent",
             native: true,
+            category: "internal",
           },
           explore: {
             name: "explore",
@@ -216,11 +221,13 @@ const layer = Layer.effect(
             options: {},
             mode: "subagent",
             native: true,
+            category: "internal",
           },
           compaction: {
             name: "compaction",
             mode: "primary",
             native: true,
+            category: "internal",
             hidden: true,
             prompt: PROMPT_COMPACTION,
             permission: Permission.merge(
@@ -237,6 +244,7 @@ const layer = Layer.effect(
             mode: "primary",
             options: {},
             native: true,
+            category: "internal",
             hidden: true,
             temperature: 0.5,
             permission: Permission.merge(
@@ -253,6 +261,7 @@ const layer = Layer.effect(
             mode: "primary",
             options: {},
             native: true,
+            category: "internal",
             hidden: true,
             permission: Permission.merge(
               defaults,
@@ -282,6 +291,7 @@ const layer = Layer.effect(
             options: {},
             mode: "subagent",
             native: true,
+            category: "internal",
           },
         }
 
@@ -298,6 +308,7 @@ const layer = Layer.effect(
               permission: Permission.merge(defaults, user),
               options: {},
               native: false,
+              category: "internal",
             }
           if (value.model) item.model = Provider.parseModel(value.model)
           item.variant = value.variant ?? item.variant
@@ -307,6 +318,7 @@ const layer = Layer.effect(
           item.topP = value.top_p ?? item.topP
           item.mode = value.mode ?? item.mode
           item.color = value.color ?? item.color
+          item.category = value.category ?? item.category
           item.hidden = value.hidden ?? item.hidden
           item.name = value.name ?? item.name
           item.steps = value.steps ?? item.steps

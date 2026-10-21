@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
-import { pipelineAgentConfig } from "../../src/novel-writer/agents/pipeline.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
+import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
 
 const outlinerPrompt = outlinerAgent.prompt
-const writerPrompt = writerAgentConfig.systemPrompt
-const pipelinePrompt = pipelineAgentConfig.systemPrompt
+const writerPrompt = writerAgent.prompt
+const pipelinePrompt = pipelineAgent.prompt
 
 describe("知识边界提示词链路", () => {
   test("outliner 职责包含信息差场景识别与正反例", () => {

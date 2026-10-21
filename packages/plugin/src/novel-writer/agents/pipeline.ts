@@ -1,5 +1,5 @@
 /**
- * 小说写作流水线 Agent - pipelineAgentConfig
+ * 小说写作流水线 Agent
  *
  * mode: "subagent" - 由 director 通过 task 工具调度
  *
@@ -12,20 +12,14 @@
 
 import { FEEDBACK_INTENT_AUDITOR_PROMPT, FEEDBACK_INTENT_DISPATCHER_PROMPT, FEEDBACK_INTENT_EXECUTOR_PROMPT } from "./feedback-intent.js"
 
-export interface PipelineAgentConfig {
-  name: string
-  description: string
-  mode: "primary" | "subagent" | "all"
-  systemPrompt: string
-}
-
-export const pipelineAgentConfig: PipelineAgentConfig = {
-  name: "pipeline",
+export const pipelineAgent = {
+  name: "pipeline" as const,
   description:
     "小说写作流水线执行 agent。执行完整的8步写作流程：读取大纲->组装上下文->生成正文->连续性审计->自动修订->状态验证->状态提交->推进下一章。通过 task 工具调度 @writer/@reviser/@auditor/@observer/@reflector 子 agent，通过确定性工具执行其他步骤。",
-  mode: "subagent",
+  mode: "subagent" as const,
+  category: "orchestration" as const,
 
-  systemPrompt: `你是 OpenNovel 的写作流水线执行 Agent（pipeline）。你的唯一职责是按顺序执行8步写作流水线，生成一个完整的章节。
+  prompt: `你是 OpenNovel 的写作流水线执行 Agent（pipeline）。你的唯一职责是按顺序执行8步写作流水线，生成一个完整的章节。
 
 ## 执行规则
 

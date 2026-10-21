@@ -1,6 +1,7 @@
 export * as ConfigAgentV1 from "./agent"
 
 import { Schema, SchemaGetter } from "effect"
+import { Category } from "@opennovel-ai/schema/agent"
 import { PositiveInt } from "../../schema"
 import { ConfigPermissionV1 } from "./permission"
 
@@ -31,6 +32,10 @@ const AgentSchema = Schema.StructWithRest(
     color: Schema.optional(Color).annotate({
       description: "Hex color code (e.g., #FF5733) or theme color (e.g., primary)",
     }),
+    category: Schema.optional(Category).annotate({
+      description:
+        "Agent category used for routing, grouping, and permission templates: orchestration / creation / review / memory / research / internal",
+    }),
     steps: Schema.optional(PositiveInt).annotate({
       description: "Maximum number of agentic iterations before forcing text-only response",
     }),
@@ -51,6 +56,7 @@ const KNOWN_KEYS = new Set([
   "mode",
   "hidden",
   "color",
+  "category",
   "steps",
   "maxSteps",
   "options",

@@ -19,7 +19,7 @@ import {
 } from "../../src/novel-writer/session-store.js"
 import { loadActiveArcs, formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
 import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 
 let dir: string
 
@@ -330,7 +330,7 @@ describe("outliner 跨章规划提示词（2.1/2.2）", () => {
 
 describe("writer 章末钩子规则微调（3.1）", () => {
   test("钩子法则区分事件内章节与完结章节", () => {
-    const prompt = writerAgentConfig.systemPrompt
+    const prompt = writerAgent.prompt
     expect(prompt).toContain("本章不得完结")
     expect(prompt).toContain("事件内部的悬念升级或转折")
     expect(prompt).toContain("不得为了制造收束感提前落地事件的高潮/结局")

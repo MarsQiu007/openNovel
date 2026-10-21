@@ -105,6 +105,7 @@ export const reflectorAgent = {
   name: "reflector" as const,
   description: "小说状态反射器。校验观察者输出的状态 delta JSON 格式，拒绝格式错误，标记逻辑矛盾，最多允许 1 次重试。",
   mode: "subagent" as const,
+  category: "memory" as const,
   prompt: REFLECTOR_PROMPT,
   options: {} as Record<string, unknown>,
 }

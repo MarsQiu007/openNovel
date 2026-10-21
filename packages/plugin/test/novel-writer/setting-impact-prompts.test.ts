@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test"
 
 describe("设定影响面提示词", () => {
   test("director / architect / observer / pipeline 均包含语义确认与门禁规则", async () => {
-    const { directorAgentConfig } = await import("../../src/novel-writer/agents/director.js")
+    const { directorAgent } = await import("../../src/novel-writer/agents/director.js")
     const { architectAgent } = await import("../../src/novel-writer/agents/architect.js")
     const { observerAgent } = await import("../../src/novel-writer/agents/observer.js")
-    const { pipelineAgentConfig } = await import("../../src/novel-writer/agents/pipeline.js")
-    const prompts = [directorAgentConfig.systemPrompt, architectAgent.systemPrompt, observerAgent.prompt, pipelineAgentConfig.systemPrompt]
+    const { pipelineAgent } = await import("../../src/novel-writer/agents/pipeline.js")
+    const prompts = [directorAgent.prompt, architectAgent.prompt, observerAgent.prompt, pipelineAgent.prompt]
 
     expect(prompts).toHaveLength(4)
     for (const prompt of prompts) {

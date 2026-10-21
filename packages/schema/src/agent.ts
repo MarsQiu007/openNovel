@@ -16,6 +16,11 @@ export const Color = Schema.Union([
 ]).annotate({ identifier: "Agent.Color" })
 export type Color = typeof Color.Type
 
+export const Category = Schema.Literals(["orchestration", "creation", "review", "memory", "research", "internal"]).annotate(
+  { identifier: "Agent.Category" },
+)
+export type Category = typeof Category.Type
+
 export interface Info extends Schema.Schema.Type<typeof Info> {}
 export const Info = Schema.Struct({
   id: ID,
@@ -26,6 +31,7 @@ export const Info = Schema.Struct({
   mode: Schema.Literals(["subagent", "primary", "all"]),
   hidden: Schema.Boolean,
   color: Color.pipe(optional),
+  category: Category.pipe(optional),
   steps: PositiveInt.pipe(optional),
   permissions: Permission.Ruleset,
 })

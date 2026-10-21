@@ -126,6 +126,7 @@ export const Plugin = define({
         item.description = "The default agent. Executes tools based on configured permissions."
         item.system ??= BUILD_SYSTEM
         item.mode = "primary"
+        item.category = "internal"
         item.permissions.push(
           ...PermissionV2.merge(defaults, [
             { action: "question", resource: "*", effect: "allow" },
@@ -137,6 +138,7 @@ export const Plugin = define({
       draft.update(AgentV2.ID.make("plan"), (item) => {
         item.description = "Plan mode. Disallows all edit tools."
         item.mode = "primary"
+        item.category = "internal"
         item.permissions.push(
           ...PermissionV2.merge(defaults, [
             { action: "question", resource: "*", effect: "allow" },
@@ -157,6 +159,7 @@ export const Plugin = define({
         item.description =
           "General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel."
         item.mode = "subagent"
+        item.category = "internal"
         item.permissions.push(...PermissionV2.merge(defaults, [{ action: "todowrite", resource: "*", effect: "deny" }]))
       })
 
@@ -165,6 +168,7 @@ export const Plugin = define({
           'Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.'
         item.system = PROMPT_EXPLORE
         item.mode = "subagent"
+        item.category = "internal"
         item.permissions.push(
           ...PermissionV2.merge(
             defaults,
@@ -184,6 +188,7 @@ export const Plugin = define({
       draft.update(AgentV2.ID.make("compaction"), (item) => {
         item.mode = "primary"
         item.hidden = true
+        item.category = "internal"
         item.system = PROMPT_COMPACTION
         item.permissions.push(...PermissionV2.merge(defaults, [{ action: "*", resource: "*", effect: "deny" }]))
       })
@@ -191,6 +196,7 @@ export const Plugin = define({
       draft.update(AgentV2.ID.make("title"), (item) => {
         item.mode = "primary"
         item.hidden = true
+        item.category = "internal"
         item.system = PROMPT_TITLE
         item.permissions.push(...PermissionV2.merge(defaults, [{ action: "*", resource: "*", effect: "deny" }]))
       })
@@ -198,6 +204,7 @@ export const Plugin = define({
       draft.update(AgentV2.ID.make("summary"), (item) => {
         item.mode = "primary"
         item.hidden = true
+        item.category = "internal"
         item.system = PROMPT_SUMMARY
         item.permissions.push(...PermissionV2.merge(defaults, [{ action: "*", resource: "*", effect: "deny" }]))
       })

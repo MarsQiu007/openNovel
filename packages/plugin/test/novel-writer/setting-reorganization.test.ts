@@ -28,7 +28,7 @@ import {
   validateOrganizePlan,
   type WorldEntryRecord,
 } from "../../src/novel-writer/setting-reorganization.js"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
 
 let projectDir: string
 
@@ -594,7 +594,7 @@ describe("director organization prompt", () => {
   })
 
   test("约束完整流程、确认和禁止自动删除", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain('organize_settings(action="analyze", scope=?)')
     expect(prompt).toContain('organize_settings(action="dry_run")')
     expect(prompt).toContain("等待用户明确确认")
@@ -603,7 +603,7 @@ describe("director organization prompt", () => {
   })
 
   test("批处理编排路由指向收件箱落点并保留会话内路径", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain('organize_settings(action="batch"')
     expect(prompt).toContain("新增 N 条待审")
     expect(prompt).toContain("lint_settings")
@@ -617,7 +617,7 @@ describe("director organization prompt", () => {
   })
 
   test("冲突工具出现在 director 提示词工具表", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("| list_conflicts |")
     expect(prompt).toContain("| resolve_conflict |")
   })

@@ -8,7 +8,7 @@ import { tmpdir } from "os"
 import { TECHNIQUE_LEVELS, LEVEL_CRITERIA, isTechniqueLevel } from "../../src/novel-writer/technique.js"
 import { normalizeTechnique } from "../../src/novel-writer/technique-normalize.js"
 import { distillTechniques } from "../../src/novel-writer/technique-extract.js"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { upsertTechnique, listAllTechniques, updateTechniqueLevel } from "../../src/novel-writer/technique-store.js"
 import { relevelTechniques } from "../../src/novel-writer/cli.js"
 import type { TechniqueEntry } from "../../src/novel-writer/technique.js"
@@ -64,7 +64,7 @@ describe("层级判据单一事实源", () => {
   })
 
   test("director 学习流程提示词引用同一份判据且既有锚点不被破坏", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("最小文本单元")
     expect(prompt).toContain("判定顺序")
     // 4.2 对齐锚点保持完好

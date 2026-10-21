@@ -75,8 +75,11 @@ export type PluginOptions = Record<string, unknown>
 type PluginPermissionAction = "ask" | "allow" | "deny"
 export type PluginPermissionConfig = Record<string, PluginPermissionAction | Record<string, PluginPermissionAction>>
 
-/** 运行时 Agent 配置 — 扩展 SDK AgentConfig 以支持 PluginPermissionConfig */
-export type PluginAgentConfig = Omit<import("@opennovel-ai/sdk").AgentConfig, "permission"> & {
+/**
+ * 运行时 Agent 配置 — 基于 SDK v2 AgentConfig（legacy gen 已冻结，v2 随 SDK 再生成同步演进）
+ * 并扩展 PluginPermissionConfig 支持。
+ */
+export type PluginAgentConfig = Omit<import("@opennovel-ai/sdk/v2").AgentConfig, "permission"> & {
   permission?: PluginPermissionConfig
 }
 

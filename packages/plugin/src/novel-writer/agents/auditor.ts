@@ -173,6 +173,7 @@ export const auditorAgent = {
   name: "auditor" as const,
   description: "小说连续性审计员。对章节进行 38 维连续性检查，输出 PASS/WARN/FAIL 结果，捕获 90% 以上的矛盾。重点检查 worldEntries 设定的对照一致性。",
   mode: "subagent" as const,
+  category: "review" as const,
   prompt: AUDITOR_PROMPT,
   options: {} as Record<string, unknown>,
 }

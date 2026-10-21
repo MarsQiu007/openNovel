@@ -1,9 +1,9 @@
 import { describe, test, expect } from "bun:test"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 
 describe("context-pipeline", () => {
   test("writer 提示词包含三阶段上下文获取策略", () => {
-    const prompt = writerAgentConfig.systemPrompt
+    const prompt = writerAgent.prompt
     expect(prompt).toContain("0a")
     expect(prompt).toContain("0b")
     expect(prompt).toContain("0c")
@@ -13,7 +13,7 @@ describe("context-pipeline", () => {
   })
 
   test("writer 提示词包含 focus 参数使用说明", () => {
-    const prompt = writerAgentConfig.systemPrompt
+    const prompt = writerAgent.prompt
     expect(prompt).toContain("focus")
   })
 })

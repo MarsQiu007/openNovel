@@ -10,7 +10,7 @@ import {
 import { assembleWriterSnapshot } from "../../src/novel-writer/recall.js"
 import { formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
 import { applyBudget } from "../../src/novel-writer/budget.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 import type { ContextPacket } from "../../src/novel-writer/context.js"
 import {
   closeDb,
@@ -187,10 +187,10 @@ async function seedMotherSon() {
 
 describe("writer 提示词关系约束", () => {
   test("提示词声明关系硬约束与称谓绑定规则", () => {
-    expect(writerAgentConfig.systemPrompt).toContain("## 角色关系硬约束")
-    expect(writerAgentConfig.systemPrompt).toContain("【受保护角色关系（硬约束）】")
-    expect(writerAgentConfig.systemPrompt).toContain("称谓绑定")
-    expect(writerAgentConfig.systemPrompt).toContain("未解析称谓")
+    expect(writerAgent.prompt).toContain("## 角色关系硬约束")
+    expect(writerAgent.prompt).toContain("【受保护角色关系（硬约束）】")
+    expect(writerAgent.prompt).toContain("称谓绑定")
+    expect(writerAgent.prompt).toContain("未解析称谓")
   })
 })
 

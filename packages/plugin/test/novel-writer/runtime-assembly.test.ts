@@ -248,7 +248,7 @@ describe("NovelWriterPlugin runtime assembly regressions", () => {
     const writer = input.agent?.writer
     if (!writer) throw new Error("writer agent configuration is missing")
     expect(writer.mode).toBe("subagent")
-    // prompt 单源引用 writerAgentConfig，包含中文写作规则标记
+    // prompt 单源引用 writerAgent，包含中文写作规则标记
     expect(writer.prompt).toContain("写作规则")
     // 覆盖内置 * deny 权限，显式允许非只读工具
     expect(writer.permission).not.toBe("deny")

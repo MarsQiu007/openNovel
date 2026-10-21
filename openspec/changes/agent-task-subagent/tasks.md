@@ -55,10 +55,10 @@
 
 ## 8. category 字段
 
-- [ ] `schema/src/agent.ts` `Agent.Info` 增可选 `category`（orchestration / creation / review / memory / research / internal 字面量联合）；V1 `Agent.Info` 与两级 config schema 同步
-- [ ] 12 个写作 agent 初版映射落 agents/ 定义（映射表以 proposal §3 为准，不在此重复）
-- [ ] `agents/` 导出形态收敛（4 interface vs 8 裸对象，按多数派统一）
-- [ ] schema test：category 可选、非法值拒绝
+- [x] `schema/src/agent.ts` `Agent.Info` 增可选 `category`（orchestration / creation / review / memory / research / internal 字面量联合）；V1 `Agent.Info` 与两级 config schema 同步（含 V2 config-agent 装配管道、core 内置与 markdown agent=internal 默认）
+- [x] 12 个写作 agent 初版映射落 agents/ 定义（映射表以 proposal §3 为准；feedback-intent 为 prompt 协议模块非注册 agent，实际落 11 个，见 design §8）
+- [x] `agents/` 导出形态收敛（4 interface vs 8 裸对象，按多数派统一为裸对象 `*Agent` + `prompt` 字段；novel-writer.ts 与 18 个测试文件引用同步）
+- [x] schema test：category 可选、非法值拒绝
 
 ## 9. novel-writer V2 原生注册
 

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { ideatorAgentConfig } from "../../src/novel-writer/agents/ideator.js"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { ideatorAgent } from "../../src/novel-writer/agents/ideator.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
-import { pipelineAgentConfig } from "../../src/novel-writer/agents/pipeline.js"
+import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
 import type { Config } from "../../src/index.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
 
@@ -38,18 +38,18 @@ const ideatorForbiddenTools = [
 
 describe("novel ideator agent", () => {
   test("defines four read-only ideation modes with a unified candidate format", () => {
-    expect(ideatorAgentConfig.name).toBe("ideator")
-    expect(ideatorAgentConfig.mode).toBe("subagent")
+    expect(ideatorAgent.name).toBe("ideator")
+    expect(ideatorAgent.mode).toBe("subagent")
     for (const mode of ["book_pitch", "plot_spark", "character_spark", "material_spark"]) {
-      expect(ideatorAgentConfig.systemPrompt).toContain(`mode: ${mode}`)
+      expect(ideatorAgent.prompt).toContain(`mode: ${mode}`)
     }
-    expect(ideatorAgentConfig.systemPrompt).toContain("只读 agent")
-    expect(ideatorAgentConfig.systemPrompt).toContain("以下仅为灵感候选，尚未落库")
-    expect(ideatorAgentConfig.systemPrompt).toContain("一句话概念")
-    expect(ideatorAgentConfig.systemPrompt).toContain("对既有故事的影响")
-    expect(ideatorAgentConfig.systemPrompt).toContain("风险或代价")
-    expect(ideatorAgentConfig.systemPrompt).toContain("下一步落地建议")
-    expect(ideatorAgentConfig.systemPrompt).toContain("总共只生成 3 个候选")
+    expect(ideatorAgent.prompt).toContain("只读 agent")
+    expect(ideatorAgent.prompt).toContain("以下仅为灵感候选，尚未落库")
+    expect(ideatorAgent.prompt).toContain("一句话概念")
+    expect(ideatorAgent.prompt).toContain("对既有故事的影响")
+    expect(ideatorAgent.prompt).toContain("风险或代价")
+    expect(ideatorAgent.prompt).toContain("下一步落地建议")
+    expect(ideatorAgent.prompt).toContain("总共只生成 3 个候选")
   })
 
   test("registers ideator as a read-only subagent", async () => {
@@ -64,7 +64,7 @@ describe("novel ideator agent", () => {
 
     expect(ideator.mode).toBe("subagent")
     expect(ideator.description).toContain("只读")
-    expect(ideator.prompt).toBe(ideatorAgentConfig.systemPrompt)
+    expect(ideator.prompt).toBe(ideatorAgent.prompt)
     if (typeof ideator.permission !== "object" || ideator.permission === null) {
       throw new Error("ideator permission configuration is missing")
     }
@@ -79,7 +79,7 @@ describe("novel ideator agent", () => {
   })
 
   test("routes explicit ideation requests through director without automatic pipeline use", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("@ideator")
     expect(prompt).toContain("mode: book_pitch")
     expect(prompt).toContain("mode: plot_spark")
@@ -98,16 +98,16 @@ describe("novel ideator agent", () => {
     expect(prompt).toContain("新增设定（库中不存在的新实体）→ dispatch @architect")
     expect(prompt).toContain("修改既有设定条目 → 你定位后直接修改")
 
-    expect(pipelineAgentConfig.systemPrompt).not.toContain("@ideator")
+    expect(pipelineAgent.prompt).not.toContain("@ideator")
   })
 
   test("uses a confirmed creative brief as an architect hard constraint", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("creative brief")
     expect(prompt).toContain("creative_brief")
     expect(prompt).toContain("注明“用户已确认”")
 
-    const architectPrompt = architectAgent.systemPrompt
+    const architectPrompt = architectAgent.prompt
     expect(architectPrompt).toContain("creative_brief")
     expect(architectPrompt).toContain("brief 是硬约束")
     expect(architectPrompt).toContain("SHALL NOT 替换")

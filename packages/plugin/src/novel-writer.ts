@@ -19,17 +19,17 @@ import { normalizeStyleGuideData } from "./novel-writer/state-commit.js"
 import { generateMasterOutline, generateVolumeOutline, generateChapterOutline } from "./novel-writer/outline.js"
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "./novel-writer/continuity-check.js"
 import { trackHook, getHookStats, HOOK_TYPES } from "./novel-writer/hook-rotation.js"
-import { writerAgentConfig } from "./novel-writer/agents/writer.js"
+import { writerAgent } from "./novel-writer/agents/writer.js"
 import { detectKinshipEntityDrift, loadCharacterBindingView, loadFullCharacterBindingView } from "./novel-writer/drift-guards.js"
-import { directorAgentConfig } from "./novel-writer/agents/director.js"
+import { directorAgent } from "./novel-writer/agents/director.js"
 import { LEVEL_CRITERIA } from "./novel-writer/technique.js"
-import { pipelineAgentConfig } from "./novel-writer/agents/pipeline.js"
+import { pipelineAgent } from "./novel-writer/agents/pipeline.js"
 import { observerAgent } from "./novel-writer/agents/observer.js"
 import { reflectorAgent } from "./novel-writer/agents/reflector.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
 import { reviserAgent } from "./novel-writer/agents/reviser.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
-import { ideatorAgentConfig } from "./novel-writer/agents/ideator.js"
+import { ideatorAgent } from "./novel-writer/agents/ideator.js"
 import { outlinerAgent } from "./novel-writer/agents/outliner.js"
 import { librarianAgent } from "./novel-writer/agents/librarian.js"
 import { lookupDormantCharacters, lookupClosedThreads, lookupPastVolumes } from "./novel-writer/archive.js"
@@ -5971,9 +5971,10 @@ ${sceneChecklist}`
         // director: 主 agent，用户直接交互的入口
         director: {
           ...(input.agent?.director ?? {}),
-          description: directorAgentConfig.description,
-          mode: directorAgentConfig.mode,
-          prompt: directorAgentConfig.systemPrompt,
+          description: directorAgent.description,
+          mode: directorAgent.mode,
+          category: directorAgent.category,
+          prompt: directorAgent.prompt,
           permission: {
             "*": "allow",
             read: "allow",
@@ -6026,7 +6027,8 @@ ${sceneChecklist}`
           ...(input.agent?.architect ?? {}),
           description: architectAgent.description,
           mode: architectAgent.mode,
-          prompt: architectAgent.systemPrompt,
+          category: architectAgent.category,
+          prompt: architectAgent.prompt,
           permission: {
             "*": "allow",
             read: "allow",
@@ -6046,9 +6048,10 @@ ${sceneChecklist}`
         // pipeline: subagent，由 director 调度，执行8步写作流水线
         pipeline: {
           ...(input.agent?.pipeline ?? {}),
-          description: pipelineAgentConfig.description,
-          mode: pipelineAgentConfig.mode,
-          prompt: pipelineAgentConfig.systemPrompt,
+          description: pipelineAgent.description,
+          mode: pipelineAgent.mode,
+          category: pipelineAgent.category,
+          prompt: pipelineAgent.prompt,
           permission: {
             "*": "allow",
             read: "allow",
@@ -6080,9 +6083,10 @@ ${sceneChecklist}`
         // writer: subagent，由 pipeline 调度，生成章节正文
         writer: {
           ...(input.agent?.writer ?? {}),
-          description: writerAgentConfig.description,
-          mode: writerAgentConfig.mode,
-          prompt: writerAgentConfig.systemPrompt,
+          description: writerAgent.description,
+          mode: writerAgent.mode,
+          category: writerAgent.category,
+          prompt: writerAgent.prompt,
           permission: {
             "*": "allow",
             read: "allow",
@@ -6101,6 +6105,7 @@ ${sceneChecklist}`
           ...(input.agent?.observer ?? {}),
           description: observerAgent.description,
           mode: observerAgent.mode,
+          category: observerAgent.category,
           prompt: observerAgent.prompt,
           permission: {
             "*": "allow",
@@ -6117,6 +6122,7 @@ ${sceneChecklist}`
           ...(input.agent?.reflector ?? {}),
           description: reflectorAgent.description,
           mode: reflectorAgent.mode,
+          category: reflectorAgent.category,
           prompt: reflectorAgent.prompt,
           permission: {
             "*": "allow",
@@ -6127,6 +6133,7 @@ ${sceneChecklist}`
           ...(input.agent?.auditor ?? {}),
           description: auditorAgent.description,
           mode: auditorAgent.mode,
+          category: auditorAgent.category,
           prompt: auditorAgent.prompt,
           permission: {
             "*": "allow",
@@ -6148,6 +6155,7 @@ ${sceneChecklist}`
           ...(input.agent?.reviser ?? {}),
           description: reviserAgent.description,
           mode: reviserAgent.mode,
+          category: reviserAgent.category,
           prompt: reviserAgent.prompt,
           permission: {
             "*": "allow",
@@ -6163,6 +6171,7 @@ ${sceneChecklist}`
           ...(input.agent?.outliner ?? {}),
           description: outlinerAgent.description,
           mode: outlinerAgent.mode,
+          category: outlinerAgent.category,
           prompt: outlinerAgent.prompt,
           permission: {
             "*": "allow",
@@ -6181,6 +6190,7 @@ ${sceneChecklist}`
           ...(input.agent?.librarian ?? {}),
           description: librarianAgent.description,
           mode: librarianAgent.mode,
+          category: librarianAgent.category,
           prompt: librarianAgent.prompt,
           permission: {
             "*": "allow",
@@ -6197,9 +6207,10 @@ ${sceneChecklist}`
         // ideator: subagent，由 director 调度，只读生成开书与临时创作灵感
         ideator: {
           ...(input.agent?.ideator ?? {}),
-          description: ideatorAgentConfig.description,
-          mode: ideatorAgentConfig.mode,
-          prompt: ideatorAgentConfig.systemPrompt,
+          description: ideatorAgent.description,
+          mode: ideatorAgent.mode,
+          category: ideatorAgent.category,
+          prompt: ideatorAgent.prompt,
           permission: {
             "*": "deny",
             read: "allow",

@@ -7,12 +7,12 @@
  */
 import { describe, expect, test } from "bun:test"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { createPluginInput } from "./runtime-assembly-helpers.js"
 
 describe("agent dispatch routing", () => {
   test("director 大纲路由调度 @outliner 且不再自撰内容", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain('dispatch @outliner 子 agent（subagent_type: "outliner"）')
     expect(prompt).toContain("由它组装上下文快照、编写完整章纲并调用 generate_chapter_outline 落库")
     expect(prompt).toContain("prompt 传入 novel_id、chapter_number 和【用户反馈原文】")
@@ -27,7 +27,7 @@ describe("agent dispatch routing", () => {
   })
 
   test("创意路由按意图判定且不含关键词闸门旧写法", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("按意图判定")
     expect(prompt).toContain("无论措辞")
     for (const mode of ["mode: book_pitch", "mode: plot_spark", "mode: character_spark", "mode: material_spark"]) {
@@ -39,7 +39,7 @@ describe("agent dispatch routing", () => {
   })
 
   test("新设定分流：新增走 @architect、既有修改由 director 直改", () => {
-    const prompt = directorAgentConfig.systemPrompt
+    const prompt = directorAgent.prompt
     expect(prompt).toContain("库中不存在（无中生有、成批生成内容）→ dispatch @architect 生成内容并落库")
     expect(prompt).toContain("已存在的实体修改 → 你直接改")
     expect(prompt).toContain("新增设定（库中不存在的新实体）→ dispatch @architect 生成内容并落库")

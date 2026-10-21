@@ -5,19 +5,13 @@
  * 所有候选都只在对话中呈现，不直接写入小说数据。
  */
 
-export interface IdeatorAgentConfig {
-  name: string
-  description: string
-  mode: "subagent"
-  systemPrompt: string
-}
-
-export const ideatorAgentConfig: IdeatorAgentConfig = {
-  name: "ideator",
+export const ideatorAgent = {
+  name: "ideator" as const,
   description:
     "创意家 agent。只读地生成开书方案、剧情方向、角色关系灵感和故事内素材候选；不初始化书籍，不写入设定、章节、大纲或弧光。",
-  mode: "subagent",
-  systemPrompt: `你是 OpenNovel 的创意家 Agent（ideator）。你的唯一职责是提供结构化创作灵感，帮助用户比较不同的故事方向。你不负责落库、执行写作或重写正文。
+  mode: "subagent" as const,
+  category: "creation" as const,
+  prompt: `你是 OpenNovel 的创意家 Agent（ideator）。你的唯一职责是提供结构化创作灵感，帮助用户比较不同的故事方向。你不负责落库、执行写作或重写正文。
 
 ## 硬边界
 

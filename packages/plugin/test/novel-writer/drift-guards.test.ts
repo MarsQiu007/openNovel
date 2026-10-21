@@ -14,10 +14,10 @@ import { selectProtectedRelationships } from "../../src/novel-writer/relationshi
 import { commitStateWithReport } from "../../src/novel-writer/state-commit.js"
 import { checkContinuity } from "../../src/novel-writer/continuity-check.js"
 import { formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 import { auditorAgent } from "../../src/novel-writer/agents/auditor.js"
 import { observerAgent } from "../../src/novel-writer/agents/observer.js"
-import { pipelineAgentConfig } from "../../src/novel-writer/agents/pipeline.js"
+import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
 import {
   CharacterStateTable,
   CharacterTable,
@@ -422,10 +422,10 @@ describe("审计与提示词守卫", () => {
   })
 
   test("writer、auditor、observer 和 pipeline 提示词包含防漂移规则", () => {
-    expect(writerAgentConfig.systemPrompt).toContain("命名角色白名单")
-    expect(writerAgentConfig.systemPrompt).toContain("称谓绑定")
-    expect(writerAgentConfig.systemPrompt).toContain("未解析称谓")
-    expect(writerAgentConfig.systemPrompt).toContain("章纲明确要求新增角色时例外")
+    expect(writerAgent.prompt).toContain("命名角色白名单")
+    expect(writerAgent.prompt).toContain("称谓绑定")
+    expect(writerAgent.prompt).toContain("未解析称谓")
+    expect(writerAgent.prompt).toContain("章纲明确要求新增角色时例外")
 
     expect(auditorAgent.prompt).toContain("读取关系")
     expect(auditorAgent.prompt).toContain("关系权威数据必读")
@@ -435,9 +435,9 @@ describe("审计与提示词守卫", () => {
     expect(observerAgent.prompt).toContain("亲属称谓绑定规则")
     expect(observerAgent.prompt).toContain("无法唯一解析或与既有强关系冲突时输出候选")
 
-    expect(pipelineAgentConfig.systemPrompt).toContain("命名角色白名单（硬约束）")
-    expect(pipelineAgentConfig.systemPrompt).toContain("称谓绑定")
-    expect(pipelineAgentConfig.systemPrompt).toContain("未解析称谓")
-    expect(pipelineAgentConfig.systemPrompt).toContain("+ 1-5 + 6-9")
+    expect(pipelineAgent.prompt).toContain("命名角色白名单（硬约束）")
+    expect(pipelineAgent.prompt).toContain("称谓绑定")
+    expect(pipelineAgent.prompt).toContain("未解析称谓")
+    expect(pipelineAgent.prompt).toContain("+ 1-5 + 6-9")
   })
 })

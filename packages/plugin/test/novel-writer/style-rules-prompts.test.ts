@@ -33,8 +33,8 @@ describe("风格规则格式契约提示词", () => {
   })
 
   test("architect 提示词说明 rules 的扁平映射与展平语义", () => {
-    expect(architectAgent.systemPrompt).toContain("扁平字符串映射")
-    expect(architectAgent.systemPrompt).toContain("展平")
+    expect(architectAgent.prompt).toContain("扁平字符串映射")
+    expect(architectAgent.prompt).toContain("展平")
   })
 
   test("observer 提示词说明 rules 的展平语义", () => {

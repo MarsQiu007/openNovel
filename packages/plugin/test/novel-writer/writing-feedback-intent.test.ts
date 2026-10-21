@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
-import { pipelineAgentConfig } from "../../src/novel-writer/agents/pipeline.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
+import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 import { reviserAgent } from "../../src/novel-writer/agents/reviser.js"
 import { auditorAgent } from "../../src/novel-writer/agents/auditor.js"
 
-const dispatcherPrompt = directorAgentConfig.systemPrompt
-const pipelinePrompt = pipelineAgentConfig.systemPrompt
-const writerPrompt = writerAgentConfig.systemPrompt
+const dispatcherPrompt = directorAgent.prompt
+const pipelinePrompt = pipelineAgent.prompt
+const writerPrompt = writerAgent.prompt
 const reviserPrompt = reviserAgent.prompt
 const auditorPrompt = auditorAgent.prompt
 

@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm"
 import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, WorldEntryTable } from "../../src/novel-writer/session-store.js"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
-import { directorAgentConfig } from "../../src/novel-writer/agents/director.js"
+import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { observerAgent } from "../../src/novel-writer/agents/observer.js"
 import { paragraphFormatError, plainTextFormatError } from "../../src/novel-writer/setting-text.js"
 import type { ToolContext } from "../../src/tool.js"
@@ -109,11 +109,11 @@ describe("paragraphFormatError", () => {
 
 describe("setting paragraph prompts", () => {
   test("架构师、观察者和编排者提示使用相同阈值", () => {
-    expect(architectAgent.systemPrompt).toContain("约 80–220 字")
-    expect(architectAgent.systemPrompt).toContain("600 字")
+    expect(architectAgent.prompt).toContain("约 80–220 字")
+    expect(architectAgent.prompt).toContain("600 字")
     expect(observerAgent.prompt).toContain("约 80–220 字")
     expect(observerAgent.prompt).toContain("600 字")
-    expect(directorAgentConfig.systemPrompt).toContain("600 字")
+    expect(directorAgent.prompt).toContain("600 字")
   })
 })
 

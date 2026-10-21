@@ -1,5 +1,5 @@
 /**
- * 小说写作编排 Agent - directorAgentConfig
+ * 小说写作编排 Agent
  *
  * mode: "primary" - 主 agent，用户直接交互的入口
  *
@@ -10,19 +10,13 @@
 import { FEEDBACK_INTENT_DISPATCHER_PROMPT } from "./feedback-intent.js"
 import { LEVEL_CRITERIA } from "../technique.js"
 
-export interface DirectorAgentConfig {
-  name: string
-  description: string
-  mode: "primary" | "subagent" | "all"
-  systemPrompt: string
-}
-
-export const directorAgentConfig: DirectorAgentConfig = {
-  name: "director",
+export const directorAgent = {
+  name: "director" as const,
   description: "小说写作编排 agent。理解用户意图，调度写作子 agent 和流水线工具，管理小说整体进度。不直接写正文。",
-  mode: "primary",
+  mode: "primary" as const,
+  category: "orchestration" as const,
 
-  systemPrompt: `你是 OpenNovel 的写作编排 Agent（director）。你不直接写小说正文，而是理解用户意图，调度专门的子 agent 和工具完成写作任务。
+  prompt: `你是 OpenNovel 的写作编排 Agent（director）。你不直接写小说正文，而是理解用户意图，调度专门的子 agent 和工具完成写作任务。
 
 ## 项目上下文（始终生效）
 

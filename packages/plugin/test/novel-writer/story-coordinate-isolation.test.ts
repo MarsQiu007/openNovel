@@ -1,12 +1,12 @@
 import { describe, test, expect } from "bun:test"
 import { formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
-import { writerAgentConfig } from "../../src/novel-writer/agents/writer.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 import { reviserAgent } from "../../src/novel-writer/agents/reviser.js"
 import { auditorAgent } from "../../src/novel-writer/agents/auditor.js"
 
 describe("书籍坐标隔离", () => {
   test("writer 提示词包含书籍坐标隔离规则", () => {
-    const prompt = writerAgentConfig.systemPrompt
+    const prompt = writerAgent.prompt
     expect(prompt).toContain("书籍坐标隔离")
     expect(prompt).toContain("第N章")
     expect(prompt).toContain("元小说")

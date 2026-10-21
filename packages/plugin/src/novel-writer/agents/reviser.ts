@@ -12,6 +12,7 @@ export const reviserAgent = {
   description:
     "审校修订 agent。读取审校员发现的章节问题，使用 revise_chapter 工具对章节内容进行针对性修正，每个章节最多自动修订 1 次。",
   mode: "subagent" as const,
+  category: "review" as const,
   prompt: `你是一名专业的小说审校修订员。你的职责是根据审校员（auditor）发现的问题和结构化反馈意图，对章节内容进行精确修正。
 
 ## 工作流程

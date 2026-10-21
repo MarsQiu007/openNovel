@@ -128,6 +128,7 @@ V1 config hook 原样保留到运行时切换（两套注册表互不干扰：V1
 - V1 `Agent.Info`（`opennovel/src/agent/agent.ts:35-55`）与两级 config schema 同步加列
 - `agents/` 目录导出形态收敛：4 个带 interface 的 `*AgentConfig` 与 8 个裸对象统一为一种形态（收敛方向任务阶段按多数派定）
 - 消费方（director 按类路由、UI 分组、权限基线模板）本期只落数据不落逻辑，随各自 change 渐进接线
+- 落地核实：映射对象是 11 个注册 agent——feedback-intent 是 prompt 协议模块（`agents/feedback-intent.ts` 只导出 prompt，director/pipeline 内联消费），非注册 agent，无 category 落点；core 内置与 markdown agent=internal 已落（V1 native 8 个显式标注，V2 内置 7 个显式标注，markdown 新建 agent 默认 internal，均可被配置覆写）；plugin 契约 `PluginAgentConfig` 从冻结的 legacy SDK gen 切到活跃的 `@opennovel-ai/sdk/v2` AgentConfig（legacy gen 不再随构建再生成，category 字段只在 v2 面）
 
 ## 9. 命名、V1 拆除与退役衔接
 

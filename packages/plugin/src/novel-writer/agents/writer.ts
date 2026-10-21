@@ -1,7 +1,7 @@
 /**
- * 小说写作 Agent 配置 — writerAgentConfig
+ * 小说写作 Agent 配置
  *
- * 定义 writer agent 的 system prompt，包含 29 条写作规则、节拍结构、
+ * 定义 writer agent 的写作指导 prompt，包含 29 条写作规则、节拍结构、
  * 钩子类型、题材规范等核心写作指导。
  *
  * mode: "subagent" — 子 agent，由 director 或 pipeline 调度
@@ -9,19 +9,13 @@
 
 import { FEEDBACK_INTENT_EXECUTOR_PROMPT } from "./feedback-intent.js"
 
-export interface WriterAgentConfig {
-  name: string
-  description: string
-  mode: "primary" | "subagent" | "all"
-  systemPrompt: string
-}
-
-export const writerAgentConfig: WriterAgentConfig = {
-  name: "writer",
+export const writerAgent = {
+  name: "writer" as const,
   description: "小说写作子 agent。根据大纲和上下文生成章节正文，遵循网文写作规范，控制节奏、钩子和字数。",
-  mode: "subagent",
+  mode: "subagent" as const,
+  category: "creation" as const,
 
-  systemPrompt: `你是一个专业的网络小说作家 Agent。你的任务是根据提供的大纲、角色设定、力量体系和上下文，生成符合网文商业写作标准的章节内容。
+  prompt: `你是一个专业的网络小说作家 Agent。你的任务是根据提供的大纲、角色设定、力量体系和上下文，生成符合网文商业写作标准的章节内容。
 
 ## 正文输出格式（最高优先级）
 
