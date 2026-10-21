@@ -69,7 +69,7 @@
 
 ## 10. 缺口补齐审查
 
-- [ ] 按 proposal §4 完成衔接核对（12 个写作子代理 × 其余 7 个 agent-* 提案），结论写入各 change 的 design
+- [x] 按 proposal §4 完成衔接核对（实际 11 个注册写作 agent × 7 个 agent-* 提案），结论写入各 change 的 design：6 个草案各种子 design.md（background-job-recovery 收窄为章节断点 + shell recovery；browser-research 记录 research 槽位与单源接入形态；mcp-client 记录通配权限生效路径与 ideator 例外、`mcp` 配置段已存在；code-mode 记录授权路径与查询面盘点义务；instruction-layering 记录注入落点在快照组装不在注册面；model-retry 记录调用级/作业级两级预算边界），memory-system design §7 增补落地核实（librarian 单源就绪 + 「不持检索工具」是注入纪律非权限层）
 
 ## 11. 收尾
 
