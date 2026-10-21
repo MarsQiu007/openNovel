@@ -14,6 +14,18 @@ export const writerAgent = {
   description: "小说写作子 agent。根据大纲和上下文生成章节正文，遵循网文写作规范，控制节奏、钩子和字数。",
   mode: "subagent" as const,
   category: "creation" as const,
+  permission: {
+    "*": "allow",
+    read: "allow",
+    list: "allow",
+    glob: "allow",
+    grep: "allow",
+    write_chapter: "allow",
+    revise_chapter: "allow",
+    manage_characters: "allow",
+    assemble_context_snapshot: "allow",
+    recall_history: "allow",
+  } as const,
 
   prompt: `你是一个专业的网络小说作家 Agent。你的任务是根据提供的大纲、角色设定、力量体系和上下文，生成符合网文商业写作标准的章节内容。
 

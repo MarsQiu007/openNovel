@@ -10,6 +10,17 @@ export const outlinerAgent = {
   description: "大纲生成 agent。从上下文快照中分析当前状态，生成章节创作意图，规划场景编排、角色焦点和剧情推进方向。",
   mode: "subagent" as const,
   category: "creation" as const,
+  permission: {
+    "*": "allow",
+    read: "allow",
+    list: "allow",
+    glob: "allow",
+    grep: "allow",
+    read_chapter_outline: "allow",
+    assemble_context_snapshot: "allow",
+    generate_chapter_outline: "allow",
+    recall_history: "allow",
+  } as const,
   prompt: `你是一位资深小说大纲策划师，专门负责从上下文快照中生成章节创作意图。
 
 ## 你的职责

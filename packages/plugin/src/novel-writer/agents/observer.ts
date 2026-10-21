@@ -308,6 +308,15 @@ export const observerAgent = {
     "小说状态观察者。从章节内容中提取 10 种事实类型（角色、关系、剧情线索、伏笔、世界观、章节摘要、风格、时间线、地点、张力），输出结构化 JSON delta 供反射器校验；同时通过工具维护结构线/弧光进度（推进已有节点、补录计划外节点、发现新弧光）。character/world_entry/location 必带 importance 字段（0-3），relationship 必带 type_strength 字段（strong/weak），冲突标注用 conflict_note 而非污染 content。",
   mode: "subagent" as const,
   category: "memory" as const,
+  permission: {
+    "*": "allow",
+    read: "allow",
+    list: "allow",
+    glob: "allow",
+    grep: "allow",
+    read_chapter_content: "allow",
+    recall_history: "allow",
+  } as const,
   prompt: OBSERVER_PROMPT,
   options: {} as Record<string, unknown>,
 }

@@ -1,11 +1,16 @@
 import type { Argv } from "yargs"
 import { Effect } from "effect"
 import { generateText } from "ai"
+import { join } from "path"
+import { existsSync, readFileSync, writeFileSync } from "fs"
 import { effectCmd, fail, CliError } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { GENRES, runTechniqueExtraction, importSeedTechniques, importExtractedTechniques, relevelTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
 import { Provider } from "@/provider/provider"
+
+/** novel-writer V2 插件入口（npm 子路径），novel 项目 opennovel.json 的 plugins 配置指向它 */
+const NOVEL_WRITER_V2_PLUGIN = "@opennovel-ai/plugin/novel-writer-v2"
 
 /**
  * 小说项目初始化命令 — `opennovel init`
@@ -23,9 +28,38 @@ const InitCommand = effectCmd({
   handler: Effect.fn("Cli.novel.init")(function* (args: { dir?: string }) {
     const { initNovelProject } = yield* Effect.promise(() => import("@opennovel-ai/plugin/novel-writer/cli"))
     const result = initNovelProject(args.dir)
+    wireNovelWriterV2(args.dir ?? process.cwd())
     console.log(result)
   }),
 })
+
+/**
+ * novel 项目 V2 接线 — 把 novel-writer V2 插件入口与 subagent_depth 写入项目级
+ * opennovel.json。已有配置做键级合并，其余键原样保留；文件不是有效 JSON（如 jsonc）
+ * 时跳过并提示。幂等，重复 init 不产生重复条目。
+ */
+export function wireNovelWriterV2(directory: string) {
+  const filepath = join(directory, "opennovel.json")
+  let config: Record<string, unknown> = {}
+  if (existsSync(filepath)) {
+    try {
+      config = asRecord(JSON.parse(readFileSync(filepath, "utf8"))) ?? {}
+    } catch {
+      console.log("opennovel.json 不是有效 JSON，跳过 novel-writer V2 接线（请手工补充 plugins 配置）")
+      return
+    }
+  }
+  const plugins = Array.isArray(config.plugins) ? config.plugins : []
+  if (!plugins.includes(NOVEL_WRITER_V2_PLUGIN)) config.plugins = [...plugins, NOVEL_WRITER_V2_PLUGIN]
+  const experimental = asRecord(config.experimental) ?? {}
+  experimental.subagent_depth = 2
+  config.experimental = experimental
+  writeFileSync(filepath, JSON.stringify(config, null, 2) + "\n")
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value instanceof Object && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
 
 /**
  * 创建新书命令 — `opennovel book create`

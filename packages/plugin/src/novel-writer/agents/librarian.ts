@@ -13,6 +13,17 @@ export const librarianAgent = {
     "世界百科查询 agent。查询小说世界数据库中的休眠角色、已关闭线索和历史卷摘要，每次最多返回 3 条记录，仅返回摘要信息。",
   mode: "subagent" as const,
   category: "memory" as const,
+  permission: {
+    "*": "allow",
+    read: "allow",
+    list: "allow",
+    glob: "allow",
+    grep: "allow",
+    recall_history: "allow",
+    lookup_dormant_characters: "allow",
+    lookup_closed_threads: "allow",
+    lookup_past_volumes: "allow",
+  } as const,
   prompt: `你是一个小说世界百科查询助手（Librarian）。你的职责是根据用户查询意图，检索小说世界数据库中的相关信息，每次最多返回 3 条记录，仅返回摘要信息。
 
 ## 可用查询功能

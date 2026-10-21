@@ -62,10 +62,10 @@
 
 ## 9. novel-writer V2 原生注册
 
-- [ ] plugin 包新增 V2 入口（`default {id, effect}`）：`ctx.agent.transform` 注册 12 个写作 agent + `draft.default(director)` + 禁用 build/plan；字段映射 mode/system/description/permissions/model/steps/hidden/color
-- [ ] 加载接线：novel 项目 `plugins` 配置指向该入口；`experimental.subagent_depth: 2` 落入 novel 项目配置文件（生成/引导处落点实现时核对）
-- [ ] V1 config hook 原样保留（运行时切换 change 删）
-- [ ] test：transform 后 `agents.all()` 含 12 agent、default=director、build/plan 已移除
+- [x] plugin 包新增 V2 入口（`default {id, effect}`）：`ctx.agent.transform` 注册写作 agent 家族 + `draft.default(director)` + 禁用 build/plan（实际注册 11 个 agent，feedback-intent 是 prompt 协议模块非注册 agent；字段映射实落 description/mode/category/system/permissions——agent 对象无 model/steps/hidden/color 数据源；权限单源为 agents/*.ts 的 permission map，就地转 V2 ruleset 且 task→subagent）
+- [x] 加载接线：`opennovel novel init` 键级合并写入项目级 opennovel.json（`plugins` 追加入口 + `experimental.subagent_depth: 2`，jsonc/坏 JSON 跳过并提示）；core config-plugin 对 `@opennovel-ai/` 前缀条目改走宿主依赖图解析（import.meta.resolve）——核实 `@opennovel-ai/plugin` 未发布 npm，原 `npm.add` 缓存安装路径必失败
+- [x] V1 config hook 原样保留（运行时切换 change 删；步骤 8 的字段引用重构不改变 hook 行为）
+- [x] test：`agent-v2-registration.test.ts` 手写 AgentDraft 假件（upsert 语义对齐 core/src/agent.ts），断言 11 个写作 agent 注册、default=director、build/plan 已移除且其余内置不受影响、task→subagent 转换
 
 ## 10. 缺口补齐审查
 

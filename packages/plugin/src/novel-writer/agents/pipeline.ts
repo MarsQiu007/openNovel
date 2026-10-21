@@ -18,6 +18,33 @@ export const pipelineAgent = {
     "小说写作流水线执行 agent。执行完整的8步写作流程：读取大纲->组装上下文->生成正文->连续性审计->自动修订->状态验证->状态提交->推进下一章。通过 task 工具调度 @writer/@reviser/@auditor/@observer/@reflector 子 agent，通过确定性工具执行其他步骤。",
   mode: "subagent" as const,
   category: "orchestration" as const,
+  permission: {
+    "*": "allow",
+    read: "allow",
+    list: "allow",
+    glob: "allow",
+    grep: "allow",
+    task: "allow",
+    read_chapter_outline: "allow",
+    assemble_context_snapshot: "allow",
+    record_technique_feedback: "allow",
+    save_technique: "allow",
+    search_techniques: "allow",
+    confirm_techniques: "allow",
+    check_continuity: "allow",
+    check_settings_consistency: "allow",
+    validate_state_delta: "allow",
+    commit_state_delta: "allow",
+    read_chapter_content: "allow",
+    commit_observer_delta: "allow",
+    advance_chapter: "allow",
+    // 模式分支：review 模式置 pending_review、auto 模式置 final
+    update_chapter: "allow",
+    // 驳回后重写指定章节
+    revise_chapter: "allow",
+    // 手动触发卷级汇总（如全书最后一卷完结、自动机制覆盖不到时）
+    volume_rollup: "allow",
+  } as const,
 
   prompt: `你是 OpenNovel 的写作流水线执行 Agent（pipeline）。你的唯一职责是按顺序执行8步写作流水线，生成一个完整的章节。
 

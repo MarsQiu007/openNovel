@@ -72,9 +72,13 @@ export const Plugin = define({
 
       for (const ref of configured) {
         yield* Effect.gen(function* () {
+          // 第一方包随宿主依赖图解析（workspace / 安装产物），不走 npm 缓存安装——
+          // 内部包未发布到 registry 时，npm 安装路径必然失败
           const entrypoint = path.isAbsolute(ref.package)
             ? pathToFileURL(ref.package).href
-            : (yield* npm.add(ref.package)).entrypoint
+            : ref.package.startsWith("@opennovel-ai/")
+              ? resolveHostEntry(ref.package)
+              : (yield* npm.add(ref.package)).entrypoint
           if (!entrypoint) return
 
           const mod = yield* Effect.promise(() => import(entrypoint))
@@ -94,3 +98,11 @@ export const Plugin = define({
     }).pipe(Effect.forkScoped({ startImmediately: true }))
   }),
 })
+
+function resolveHostEntry(pkg: string) {
+  try {
+    return import.meta.resolve(pkg)
+  } catch {
+    return undefined
+  }
+}

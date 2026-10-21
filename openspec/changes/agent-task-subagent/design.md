@@ -122,6 +122,8 @@ Input / Output / description 逐条平移上游：`agent` / `description`（3-5 
 
 V1 config hook 原样保留到运行时切换（两套注册表互不干扰：V1 host 只调 config hook，V2 宿主只跑 V2 入口的 agent 注册，无重复执行）；切换 change 落地时 V1 hook 与 host 一起删。**不造桥接模块**——桥接是为「不动 novel-writer 宿主形态」付出的临时复杂度，激进路线下直接动形态更省。
 
+**落地核实（实现时修正）**：① `@opennovel-ai/plugin` 未发布 npm，config `plugins` 的 npm 包条目走 `Npm.add` 全局缓存安装必然失败——external.ts 对 `@opennovel-ai/` 前缀条目改走 `import.meta.resolve` 宿主依赖图解析（未安装/不可解析时静默跳过，与既有失败路径一致）。② 生成处落点为 `opennovel novel init`：键级合并写项目级 `opennovel.json`（plugins 追加 + `experimental.subagent_depth: 2`，幂等；jsonc/坏 JSON 跳过并提示），插件包保持 host 无关不碰宿主配置格式。③ 注册 agent 实为 11 个（feedback-intent 非 agent）；字段映射实落 description/mode/category/system/permissions，agent 对象无 model/steps/hidden/color 数据源。
+
 ## 8. agent 分类字段 category
 
 - `schema/src/agent.ts` `Agent.Info` 增加可选 `category`（字面量联合，取值集命名任务阶段定，初版映射见 proposal §3，不在此重复）
