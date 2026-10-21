@@ -1,6 +1,6 @@
 export * as ToolRegistry from "./registry"
 
-import { ToolOutput, type ToolCall, type ToolDefinition, type ToolResultValue } from "@opennovel-ai/llm"
+import { ToolDefinition, ToolOutput, type ToolCall, type ToolResultValue } from "@opennovel-ai/llm"
 import { Context, Effect, Layer, Scope } from "effect"
 import { AgentV2 } from "../agent"
 import { PermissionV2 } from "../permission"
@@ -9,7 +9,7 @@ import { SessionSchema } from "../session/schema"
 import { ToolOutputStore } from "../tool-output-store"
 import { Wildcard } from "../util/wildcard"
 import { ApplicationTools } from "./application-tools"
-import { definition, permission, settle, validateName, type AnyTool, type RegistrationError } from "./tool"
+import { definition, describe, permission, settle, validateName, type AnyTool, type RegistrationError } from "./tool"
 import { Tools } from "./tools"
 import { makeLocationNode } from "../effect/app-node"
 
@@ -111,8 +111,25 @@ const registryLayer = Layer.effect(
         }
         for (const [name, registration] of registrations)
           if (whollyDisabled(permission(registration.tool, name), permissions)) registrations.delete(name)
+        const definitions = yield* Effect.forEach(registrations, ([name, registration]) => {
+          const base = definition(name, registration.tool)
+          const augment = describe(registration.tool, permissions)
+          if (augment === undefined) return Effect.succeed(base)
+          return augment.pipe(
+            Effect.map(
+              (description) =>
+                new ToolDefinition({
+                  name: base.name,
+                  description,
+                  inputSchema: base.inputSchema,
+                  outputSchema: base.outputSchema,
+                  cache: base.cache,
+                }),
+            ),
+          )
+        })
         return {
-          definitions: Array.from(registrations, ([name, registration]) => definition(name, registration.tool)),
+          definitions,
           settle: (input) => {
             const registration = registrations.get(input.call.name)
             if (registration) return settleWith(input, registration.identity)

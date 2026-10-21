@@ -26,11 +26,11 @@
 
 ## 4. subagent 工具前台路径
 
-- [ ] V2 config schema 增 `experimental.subagent_depth`（可选，默认 1）
-- [ ] `core/src/tool/subagent.ts`：`Tools.Service` 注册 name=`subagent`；Input/Output/description 平移上游（含空串参数清洗）
-- [ ] 执行序列：parentID 上溯深度计数 → agent resolve（primary 拒绝）→ `PermissionV2.assert({action: "subagent", resources: [agent.id], save: [agent.id], source: {type: "tool", messageID: assistantMessageID, callID: toolCallID}})` → 续聊 parentID 校验 → model 三级链（override > agent.model > parent.model）与可用性校验 → 续聊 switchAgent/switchModel → create → `sessions.prompt`
-- [ ] `builtins.ts` 注册进静态列表；TODO 行订正（task 项已完成）
-- [ ] test：深度限制、primary 拒绝、续聊跨父拒绝、模型链优先级、权限 assert 参数
+- [x] V2 config schema 增 `experimental.subagent_depth`（可选，默认 1）
+- [x] `core/src/tool/subagent.ts`：`Tools.Service` 注册 name=`subagent`；Input/Output/description 平移上游（含空串参数清洗）
+- [x] 执行序列：parentID 上溯深度计数 → agent resolve（primary 拒绝）→ `PermissionV2.assert({action: "subagent", resources: [agent.id], save: [agent.id], source: {type: "tool", messageID: assistantMessageID, callID: toolCallID}})` → 续聊 parentID 校验 → model 三级链（override > agent.model > parent.model）与可用性校验 → 续聊 switchAgent/switchModel → create → `sessions.prompt`
+- [x] `builtins.ts` 注册进静态列表；TODO 行订正（task 项已完成）
+- [x] test：深度限制、primary 拒绝、续聊跨父拒绝、模型链优先级、权限 assert 参数
 
 ## 5. 后台路径与完成回传
 

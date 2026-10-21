@@ -27,7 +27,7 @@ import { fromRow } from "./session/info"
 import { SessionRunner } from "./session/runner/index"
 import { SessionStore } from "./session/store"
 import { SessionExecution } from "./session/execution"
-import { makeGlobalNode } from "./effect/app-node"
+import { Node, makeGlobalNode } from "./effect/app-node"
 import { LocationServiceMap } from "./location-service-map"
 import { MessageDecodeError } from "./session/error"
 import { SessionEvent } from "./session/event"
@@ -520,7 +520,11 @@ const resolvePrompt = (input: PromptInput.Prompt) =>
     }),
   })
 
-export const node = makeGlobalNode({
+// 显式注解读窄 node 静态类型：位置树成员（subagent 工具）依赖本 node 时，其错误
+// 通道会展开 deps 里 LocationServiceMap.node 的类型，反向到达 LocationServiceMap
+// .Service 的类基（内嵌整棵位置树类型），形成 TS2506/TS2456 循环。注解让 TS 在
+// 循环点直接采用本类型，不再重入初始化式推导。运行时图不受影响。
+export const node: Node.GlobalNode<Service> = makeGlobalNode({
   service: Service,
   layer: layer.pipe(Layer.orDie),
   deps: [

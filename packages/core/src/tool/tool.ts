@@ -2,6 +2,7 @@ export * as Tool from "./tool"
 
 import { ToolDefinition, ToolFailure, ToolOutput, type ToolCall } from "@opennovel-ai/llm"
 import { Effect, JsonSchema, Schema } from "effect"
+import type { Permission } from "@opennovel-ai/schema/permission"
 import type { AgentV2 } from "../agent"
 import type { SessionMessage } from "../session/message"
 import type { SessionSchema } from "../session/schema"
@@ -43,6 +44,12 @@ type Config<
   Structured extends SchemaType<any> = Output,
 > = {
   readonly description: string
+  /**
+   * Recomputes the model-facing description each time a Location materializes
+   * tool definitions, receiving the calling agent's permission ruleset. Used
+   * by tools whose catalog depends on mutable state (e.g. the subagent list).
+   */
+  readonly describe?: (permissions: Permission.Ruleset) => Effect.Effect<string, never>
   readonly input: Input
   readonly output: Output
   readonly structured?: Structured
@@ -62,6 +69,7 @@ type Config<
 
 type Runtime = {
   readonly permission?: string
+  readonly describe?: (permissions: Permission.Ruleset) => Effect.Effect<string, never>
   readonly definition: (name: string) => ToolDefinition
   readonly settle: (call: ToolCall, context: Context) => Effect.Effect<ToolOutput, ToolFailure>
 }
@@ -76,6 +84,7 @@ export function make<
   const tool = Object.freeze({}) as Definition<Input, Structured>
   const definitions = new Map<string, ToolDefinition>()
   runtimes.set(tool, {
+    describe: config.describe,
     definition: (name) => {
       const cached = definitions.get(name)
       if (cached) return cached
@@ -159,6 +168,7 @@ export const withPermission = <Input extends SchemaType<any>, Output extends Sch
 
 export const permission = (tool: AnyTool, name: string) => runtimeOf(tool).permission ?? name
 export const definition = (name: string, tool: AnyTool) => runtimeOf(tool).definition(name)
+export const describe = (tool: AnyTool, permissions: Permission.Ruleset) => runtimeOf(tool).describe?.(permissions)
 export const settle = (tool: AnyTool, call: ToolCall, context: Context) => runtimeOf(tool).settle(call, context)
 
 function runtimeOf(tool: AnyTool) {

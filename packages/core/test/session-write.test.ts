@@ -72,7 +72,7 @@ describe("SessionV2 write-side extensions", () => {
       const child = yield* session.create({ parentID: parent.id, title: "章节写作" })
       expect(child.parentID).toBe(parent.id)
       expect(child.title).toBe("章节写作")
-      expect(child.location.directory).toBe("/project")
+      expect(child.location.directory).toBe(AbsolutePath.make("/project"))
 
       const row = yield* sessionRow(child.id)
       expect(row?.metadata).toEqual({ team: "writing" })

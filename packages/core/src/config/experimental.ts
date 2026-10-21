@@ -2,6 +2,7 @@ export * as ConfigExperimental from "./experimental"
 
 import { Schema } from "effect"
 import { Catalog } from "../catalog"
+import { NonNegativeInt } from "../schema"
 import { Policy as PolicyV2 } from "../policy"
 
 // Each core domain exports the policy actions it supports. Adding an action to
@@ -15,4 +16,7 @@ export class Policy extends Schema.Class<Policy>("ConfigV2.Experimental.Policy")
 
 export class Experimental extends Schema.Class<Experimental>("ConfigV2.Experimental")({
   policies: Policy.pipe(Schema.Array, Schema.optional),
+  subagent_depth: NonNegativeInt.pipe(Schema.optional).annotate({
+    description: "Maximum subagent nesting depth. Defaults to 1.",
+  }),
 }) {}

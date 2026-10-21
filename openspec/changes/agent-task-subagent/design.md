@@ -72,6 +72,8 @@ Input / Output / description 逐条平移上游：`agent` / `description`（3-5 
 
 任务阶段按 fork context 组装现状二选一；若两者都不顺，降级为注册时静态注入全量非 hidden 清单（权限过滤只剩 deny 一层在执行时兜底）——**不阻塞其余件**。
 
+**落定（实现时）**：采用 (a)——`Tool.make` 增可选 `describe` 回调（收调用 agent 的权限 ruleset），`registry.materialize` 每次派生 definitions 时求值（`runner/llm.ts:203` 传入 agent permissions）；插件 boot 是位置树内 fork 异步启动，注册时静态求值会与 agent 注册竞态，故 (a) 是唯一可靠落点。连带结构事实：位置树成员依赖全局 `SessionV2.node` 会经 deps 错误通道反向到达 `LocationServiceMap.Service` 类基（其类型内嵌整棵位置树），构成 TS2506/TS2456 类型环——`SessionV2.node` 以显式注解读窄静态类型切断循环，运行时图不变；后续位置树成员依赖会话服务沿用该先例。
+
 ## 4. SubagentJob + SubagentCompletion（完成回传）
 
 - `core/src/session/subagent-job.ts` 直接移植：全局 Scope fork + `Effect.context` 捕获（「Jobs and their completion observers outlive the plugin that launched them」——fork 语境下是「不随工具调用/插件 Scope/Location 死亡」）；`notifications` Set 按 `${childSessionID}:${startedAt}` 去重（一个作业代际一个观察者）；`start`（`jobs.start` 的 run = `execution.resume(child)` + 取最后一条 completed 无 error 的 assistant 消息提取文本）/ `background` / `notify`
