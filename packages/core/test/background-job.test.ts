@@ -1,6 +1,7 @@
 import { describe, expect } from "bun:test"
 import { BackgroundJob } from "@opennovel-ai/core/background-job"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
+import { KV } from "@opennovel-ai/core/kv"
 import { Deferred, Effect, Exit, Scope } from "effect"
 import { it } from "./lib/effect"
 
@@ -90,7 +91,7 @@ describe("BackgroundJob", () => {
     Effect.gen(function* () {
       const scope = yield* Scope.make()
       const interrupted = yield* Deferred.make<void>()
-      const jobs = yield* BackgroundJob.make.pipe(Scope.provide(scope))
+      const jobs = yield* BackgroundJob.make.pipe(Effect.provide(LayerNode.compile(KV.node)), Scope.provide(scope))
       const job = yield* jobs.start({
         type: "test",
         run: Effect.never.pipe(Effect.ensuring(Deferred.succeed(interrupted, undefined))),

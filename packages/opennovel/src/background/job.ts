@@ -1,5 +1,6 @@
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { BackgroundJob as CoreBackgroundJob } from "@opennovel-ai/core/background-job"
+import { KV } from "@opennovel-ai/core/kv"
 import { InstanceState } from "@/effect/instance-state"
 import { Effect, Layer } from "effect"
 
@@ -18,7 +19,10 @@ export {
 const layer = Layer.effect(
   CoreBackgroundJob.Service,
   Effect.gen(function* () {
-    const state = yield* InstanceState.make(() => CoreBackgroundJob.make)
+    const kv = yield* KV.Service
+    const state = yield* InstanceState.make(() =>
+      CoreBackgroundJob.make.pipe(Effect.provide(Layer.succeed(KV.Service, kv))),
+    )
     return CoreBackgroundJob.Service.of({
       list: () => InstanceState.useEffect(state, (jobs) => jobs.list()),
       get: (id) => InstanceState.useEffect(state, (jobs) => jobs.get(id)),
@@ -28,10 +32,16 @@ const layer = Layer.effect(
       waitForPromotion: (id) => InstanceState.useEffect(state, (jobs) => jobs.waitForPromotion(id)),
       promote: (id) => InstanceState.useEffect(state, (jobs) => jobs.promote(id)),
       cancel: (id) => InstanceState.useEffect(state, (jobs) => jobs.cancel(id)),
+      block: (input) => InstanceState.useEffect(state, (jobs) => jobs.block(input)),
+      background: (id) => InstanceState.useEffect(state, (jobs) => jobs.background(id)),
+      backgroundAll: (input) => InstanceState.useEffect(state, (jobs) => jobs.backgroundAll(input)),
+      pendingBackground: InstanceState.useEffect(state, (jobs) => jobs.pendingBackground),
+      runningBackground: InstanceState.useEffect(state, (jobs) => jobs.runningBackground),
+      completeBackground: (notificationID) => InstanceState.useEffect(state, (jobs) => jobs.completeBackground(notificationID)),
     })
   }),
 )
 
-export const node = LayerNode.make({ service: CoreBackgroundJob.Service, layer, deps: [] })
+export const node = LayerNode.make({ service: CoreBackgroundJob.Service, layer, deps: [KV.node] })
 
 export * as BackgroundJob from "./job"
