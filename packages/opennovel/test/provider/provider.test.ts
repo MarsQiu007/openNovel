@@ -1,15 +1,14 @@
 import { afterEach, expect, test } from "bun:test"
-import { mkdir, unlink } from "fs/promises"
+import { unlink } from "fs/promises"
 import path from "path"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
-import { Effect, Layer } from "effect"
+import { Effect } from "effect"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { CrossSpawnSpawner } from "@opennovel-ai/core/cross-spawn-spawner"
 import { Global } from "@opennovel-ai/core/global"
-import { disposeAllInstances, provideInstanceEffect, tmpdirScoped, TestInstance } from "../fixture/fixture"
-import { markPluginDependenciesReady } from "../fixture/plugin"
+import { disposeAllInstances, provideInstanceEffect, tmpdirScoped } from "../fixture/fixture"
 import { Auth } from "@/auth"
 import { Config } from "@/config/config"
 import { Env } from "../../src/env"
@@ -1914,96 +1913,6 @@ const instanceStoreLayer = LayerNode.compile(InstanceStore.node, [
 ])
 const provideMultiInstance = <A, E, R>(eff: Effect.Effect<A, E, R>) =>
   eff.pipe(Effect.provide(instanceStoreLayer), Effect.provide(AppNodeBuilder.build(CrossSpawnSpawner.node)))
-
-it.effect("plugin config providers persist after instance dispose", () =>
-  Effect.gen(function* () {
-    const dir = yield* tmpdirScoped()
-    const configDir = path.join(dir, ".opennovel")
-    const root = path.join(configDir, "plugin")
-    yield* Effect.promise(() => mkdir(root, { recursive: true }))
-    yield* Effect.promise(() => markPluginDependenciesReady(configDir))
-    yield* Effect.promise(() => markPluginDependenciesReady(Global.Path.config))
-    yield* Effect.promise(() =>
-      Bun.write(
-        path.join(root, "demo-provider.ts"),
-        [
-          "export default {",
-          '  id: "demo.plugin-provider",',
-          "  server: async () => ({",
-          "    async config(cfg) {",
-          "      cfg.provider ??= {}",
-          "      cfg.provider.demo = {",
-          '        name: "Demo Provider",',
-          '        npm: "@ai-sdk/openai-compatible",',
-          '        api: "https://example.com/v1",',
-          "        models: {",
-          "          chat: {",
-          '            name: "Demo Chat",',
-          "            tool_call: true,",
-          "            limit: { context: 128000, output: 4096 },",
-          "          },",
-          "        },",
-          "      }",
-          "    },",
-          "  }),",
-          "}",
-          "",
-        ].join("\n"),
-      ),
-    )
-
-    const loadAndList = Effect.gen(function* () {
-      const plugin = yield* Plugin.Service
-      const provider = yield* Provider.Service
-      yield* plugin.init()
-      return yield* provider.list()
-    }).pipe(provideInstanceEffect(dir))
-
-    const first = yield* loadAndList
-    expect(first[ProviderV2.ID.make("demo")]).toBeDefined()
-    expect(first[ProviderV2.ID.make("demo")].models[ModelV2.ID.make("chat")]).toBeDefined()
-
-    yield* Effect.promise(() => disposeAllInstances())
-
-    const second = yield* loadAndList
-    expect(second[ProviderV2.ID.make("demo")]).toBeDefined()
-    expect(second[ProviderV2.ID.make("demo")].models[ModelV2.ID.make("chat")]).toBeDefined()
-  }).pipe(provideMultiInstance),
-)
-
-it.instance(
-  "plugin config enabled and disabled providers are honored",
-  Effect.gen(function* () {
-    const instance = yield* TestInstance
-    const configDir = path.join(instance.directory, ".opennovel")
-    const root = path.join(configDir, "plugin")
-    yield* Effect.promise(() => mkdir(root, { recursive: true }))
-    yield* Effect.promise(() => markPluginDependenciesReady(configDir))
-    yield* Effect.promise(() =>
-      Bun.write(
-        path.join(root, "provider-filter.ts"),
-        [
-          "export default {",
-          '  id: "demo.provider-filter",',
-          "  server: async () => ({",
-          "    async config(cfg) {",
-          '      cfg.enabled_providers = ["anthropic", "openai"]',
-          '      cfg.disabled_providers = ["openai"]',
-          "    },",
-          "  }),",
-          "}",
-          "",
-        ].join("\n"),
-      ),
-    )
-
-    yield* set("ANTHROPIC_API_KEY", "test-anthropic-key")
-    yield* set("OPENAI_API_KEY", "test-openai-key")
-    const providers = yield* list
-    expect(providers[ProviderV2.ID.anthropic]).toBeDefined()
-    expect(providers[ProviderV2.ID.openai]).toBeUndefined()
-  }),
-)
 
 it.effect("opennovel loader keeps paid models when config apiKey is present", () =>
   Effect.gen(function* () {

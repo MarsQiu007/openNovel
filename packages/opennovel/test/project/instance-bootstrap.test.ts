@@ -20,9 +20,10 @@ const it = testEffect(
 
 // InstanceBootstrap must run before any code touches the instance —
 // originally tracked by PRs #25389 and #25449, now a permanent
-// invariant. The plugin config hook writes a marker file; the test
-// bodies deliberately avoid Plugin/config directly. The marker only
-// appears if InstanceBootstrap ran at the instance boundary.
+// invariant. The plugin server hook body writes a marker file（plugin
+// 装载在 InstanceBootstrap 内被 await——"Plugin can mutate config so it
+// has to be initialized before anything else"）；测试体刻意不直接触碰
+// Plugin/config。marker 只在 InstanceBootstrap 于实例边界运行过才出现。
 //
 // The boundaries below are transport-agnostic and stay.
 
@@ -32,18 +33,20 @@ afterEach(async () => {
 
 const bootstrapFixture = Effect.gen(function* () {
   const dir = yield* tmpdirScoped({ git: true })
-  const marker = path.join(dir, "config-hook-fired")
+  const marker = path.join(dir, "plugin-load-fired")
   const pluginFile = path.join(dir, "plugin.ts")
   yield* Effect.promise(() =>
     Bun.write(
       pluginFile,
       [
         `const MARKER = ${JSON.stringify(marker)}`,
-        "export default async () => ({",
-        "  config: async () => {",
+        "export default {",
+        '  id: "test.bootstrap-marker",',
+        "  server: async () => {",
         '    await Bun.write(MARKER, "ran")',
+        "    return {}",
         "  },",
-        "})",
+        "}",
         "",
       ].join("\n"),
     ),
