@@ -39,8 +39,8 @@
 
 ## E. V1 面定点删除（组 D 完成、V1 会话创建面归零后）
 
-- [ ] **切换点**：迁移 dispatch prompt 文本（pipeline.ts 11 处 + director.ts 4 处 task→subagent 参数形状）+ permission map `task` 键更名 `subagent` + 删除 novel-writer-v2.ts 转换 shim；更新 agent-v2-registration.test 断言
-- [ ] 删除 `opennovel/src/tool/task.ts` 与 promptOps 注入链（tool/registry.ts、session/prompt.ts、session/tools.ts 的 TaskPromptOps 引用）+ `agent/subagent-permissions.ts`
+- [x] **切换点**：迁移 dispatch prompt 文本（pipeline.ts 11 处 + director.ts 4 处 task→subagent 参数形状）+ permission map `task` 键更名 `subagent` + 删除 novel-writer-v2.ts 转换 shim；更新 agent-v2-registration.test 断言
+- [x] 删除 `opennovel/src/tool/task.ts` 与 promptOps 注入链（tool/registry.ts、session/prompt.ts、session/tools.ts 的 TaskPromptOps 引用）+ `agent/subagent-permissions.ts`
 - [ ] 删除 `opennovel/src/background/job.ts` wrapper 及级联调用点（session/session.ts、run-state.ts、tool/registry.ts、server.ts、app-runtime.ts）；core `background-job.ts` 删旧方法面（extend/waitForPromotion/promote，list/cancel 以删除时全仓引用核实为准）
 - [ ] 摘除 novel-writer V1 入口：`opennovel/src/plugin/index.ts` internalPlugins 移除 + config hook 消费点摘除（先核实 auth 插件无 config hook 使用）；删 `plugin/src/novel-writer.ts` 本体与 `plugin/src/tool.ts`；宿主反向 import 改指深路径（sync-worker-composition/setting-review-inbox/setting-organization/novel-reader）
 - [ ] plugin / opennovel / core `bun typecheck` + oxlint + 受影响测试
