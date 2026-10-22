@@ -679,20 +679,8 @@ export const RunCommand = effectCmd({
         return await execute(sdk)
       }
 
-      const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        const { Server } = await import("@/server/server")
-        const request = new Request(input, init)
-        const headers = new Headers(request.headers)
-        const auth = ServerAuth.header()
-        if (auth) headers.set("Authorization", auth)
-        return Server.Default().app.fetch(new Request(request, { headers }))
-      }) as typeof globalThis.fetch
-      const sdk = createOpenNovelClient({
-        baseUrl: "http://opennovel.internal",
-        fetch: fetchFn,
-        directory,
-      })
-      await execute(sdk)
+      const { embeddedClient } = await import("../embedded-client")
+      await execute(await embeddedClient(directory))
     })
   }),
 })

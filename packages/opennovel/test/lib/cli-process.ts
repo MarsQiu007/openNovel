@@ -73,6 +73,10 @@ function isolatedEnv(home: string, configJson: string): Record<string, string> {
     XDG_DATA_HOME: path.join(home, ".local/share"),
     XDG_STATE_HOME: path.join(home, ".local/state"),
     XDG_CACHE_HOME: path.join(home, ".cache"),
+    // bun test 的 preload 把 OPENNOVEL_DB 钉为 ":memory:"（供进程内测试用），
+    // extendEnv 会把它泄进子进程，跨子进程（run → session list）就互相看不见数据。
+    // 钉到 home 下的文件路径，子进程间共享且与宿主机隔离。
+    OPENNOVEL_DB: path.join(home, ".local/share/opennovel/opennovel-test.db"),
     OPENNOVEL_CONFIG_CONTENT: configJson,
     OPENNOVEL_DISABLE_PROJECT_CONFIG: "1",
     OPENNOVEL_PURE: "1",
@@ -209,6 +213,9 @@ export function withCliFixture<A, E>(
 
     const configJson = JSON.stringify(testProviderConfig(llm.url))
     const env = isolatedEnv(home, configJson)
+    // core Config（V2 catalog）只从磁盘加载（全局配置目录 + 项目向上查找），
+    // 不读 OPENNOVEL_CONFIG_CONTENT；写盘让 V2 执行链能解析 test/test-model。
+    yield* Effect.promise(() => Bun.write(path.join(home, ".config", "opennovel", "opennovel.json"), configJson))
 
     const spawn = Effect.fn("opennovel.spawn")(function* (args: string[], opts?: SpawnOpts) {
       const start = Date.now()

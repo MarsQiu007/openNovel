@@ -2,17 +2,16 @@ import type { Argv } from "yargs"
 import { Effect } from "effect"
 import { cmd } from "./cmd"
 import { effectCmd, fail } from "../effect-cmd"
-import { Session } from "@/session/session"
-import { SessionID } from "../../session/schema"
 import { UI } from "../ui"
 import { Locale } from "@/util/locale"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
-import { NotFoundError } from "@/storage/storage"
 import { EOL } from "os"
 import path from "path"
 import { which } from "@opennovel-ai/core/util/which"
+import { embeddedClient } from "../embedded-client"
+import type { SessionV2Info } from "@opennovel-ai/sdk/v2"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -58,11 +57,16 @@ export const SessionDeleteCommand = effectCmd({
       demandOption: true,
     }),
   handler: Effect.fn("Cli.session.delete")(function* (args) {
-    const svc = yield* Session.Service
-    const sessionID = SessionID.make(args.sessionID)
-    yield* svc
-      .remove(sessionID)
-      .pipe(Effect.catchIf(NotFoundError.isInstance, () => fail(`Session not found: ${args.sessionID}`)))
+    const client = yield* Effect.promise(() => embeddedClient())
+    // V2 删除对缺失会话是 no-op，先 get 预检保留「不存在则报错」的既有语义
+    const found = yield* Effect.promise(() =>
+      client.v2.session
+        .get({ sessionID: args.sessionID })
+        .then((x) => x.data?.data)
+        .catch(() => undefined),
+    )
+    if (!found) return yield* fail(`Session not found: ${args.sessionID}`)
+    yield* Effect.promise(() => client.v2.session.delete({ sessionID: args.sessionID }))
     UI.println(UI.Style.TEXT_SUCCESS_BOLD + `Session ${args.sessionID} deleted` + UI.Style.TEXT_NORMAL)
   }),
 })
@@ -84,7 +88,27 @@ export const SessionListCommand = effectCmd({
         default: "table",
       }),
   handler: Effect.fn("Cli.session.list")(function* (args) {
-    const sessions = yield* Session.Service.use((svc) => svc.list({ roots: true, limit: args.maxCount }))
+    // core SessionV2.list 尚无 roots 入参（protocol 声明了但被忽略），客户端按 parentID 过滤；
+    // 服务端恒生成 next 游标，空页即到底。directory 与 run 一致走 realpath 规范化
+    // （core 按 SessionTable.directory 精确匹配，raw cwd 会失配）。
+    const listed = yield* Effect.promise(async () => {
+      const client = await embeddedClient(Filesystem.resolve(process.cwd()))
+      const collected: SessionV2Info[] = []
+      let cursor: string | undefined
+      for (;;) {
+        const page = await client.v2.session.list({ limit: 50, ...(cursor === undefined ? {} : { cursor }) })
+        if (page.error) return { error: page.error }
+        const items = page.data?.data ?? []
+        collected.push(...items.filter((item) => !item.parentID))
+        if (args.maxCount !== undefined && collected.length >= args.maxCount) break
+        const next = page.data?.cursor.next
+        if (!next || items.length === 0) break
+        cursor = next
+      }
+      return { sessions: args.maxCount === undefined ? collected : collected.slice(0, args.maxCount) }
+    })
+    if ("error" in listed) return yield* fail(`Failed to list sessions: ${JSON.stringify(listed.error)}`)
+    const sessions = listed.sessions
 
     if (sessions.length === 0) return
 
@@ -115,7 +139,7 @@ export const SessionListCommand = effectCmd({
   }),
 })
 
-function formatSessionTable(sessions: Session.Info[]): string {
+function formatSessionTable(sessions: SessionV2Info[]): string {
   const lines: string[] = []
 
   const maxIdWidth = Math.max(20, ...sessions.map((s) => s.id.length))
@@ -134,14 +158,14 @@ function formatSessionTable(sessions: Session.Info[]): string {
   return lines.join(EOL)
 }
 
-function formatSessionJSON(sessions: Session.Info[]): string {
+function formatSessionJSON(sessions: SessionV2Info[]): string {
   const jsonData = sessions.map((session) => ({
     id: session.id,
     title: session.title,
     updated: session.time.updated,
     created: session.time.created,
     projectId: session.projectID,
-    directory: session.directory,
+    directory: session.location.directory,
   }))
   return JSON.stringify(jsonData, null, 2)
 }
