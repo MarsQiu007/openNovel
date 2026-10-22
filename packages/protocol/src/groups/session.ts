@@ -279,7 +279,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.delete",
             summary: "Delete session",
             description:
-              "Delete a session and its children. Publishes the durable session.deleted event. Deleting a missing session is a no-op.",
+              "Delete a session and its children. Publishes the durable session.next.deleted event. Deleting a missing session is a no-op.",
           }),
         ),
     )

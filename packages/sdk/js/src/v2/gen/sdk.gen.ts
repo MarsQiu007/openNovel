@@ -5826,7 +5826,7 @@ export class Session3 extends HeyApiClient {
   /**
    * Delete session
    *
-   * Delete a session and its children. Publishes the durable session.deleted event. Deleting a missing session is a no-op.
+   * Delete a session and its children. Publishes the durable session.next.deleted event. Deleting a missing session is a no-op.
    */
   public delete<ThrowOnError extends boolean = false>(
     parameters: {
