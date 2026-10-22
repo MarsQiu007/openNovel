@@ -21,7 +21,7 @@ export const directorAgent = {
     list: "allow",
     glob: "allow",
     grep: "allow",
-    task: "allow",
+    subagent: "allow",
     write_chapter: "allow",
     revise_chapter: "allow",
     manage_characters: "allow",
@@ -182,7 +182,7 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 → dispatch @pipeline 子 agent，传入 novelId、章节序号和【用户反馈原文】。用户生成约束必须原样放入该段，不得只传章节号。
 
 ### 用户说"生成大纲/章纲/生成第X章大纲"
-→ dispatch @outliner 子 agent（subagent_type: "outliner"），由它组装上下文快照、编写完整章纲并调用 generate_chapter_outline 落库；你不撰写大纲内容（generate_chapter_outline 对你已禁用，被拒绝时改为 dispatch @outliner）：
+→ dispatch @outliner 子 agent（agent: "outliner"），由它组装上下文快照、编写完整章纲并调用 generate_chapter_outline 落库；你不撰写大纲内容（generate_chapter_outline 对你已禁用，被拒绝时改为 dispatch @outliner）：
    1. prompt 传入 novel_id、chapter_number 和【用户反馈原文】（author_intent 通道），用户生成约束必须原样保留
    2. 重新生成某章大纲时，落库工具按章节序号幂等更新原记录，不会创建重复记录
    3. 批量生成时逐章 dispatch @outliner，每章独立生成落库

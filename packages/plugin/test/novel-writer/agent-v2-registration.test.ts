@@ -91,7 +91,7 @@ describe("novel-writer V2 入口", () => {
     expect(draft.get("explore")).toBeDefined()
   })
 
-  test("V1 permission map 转换为 V2 ruleset（task → subagent）", () => {
+  test("V1 permission map 直译为 V2 ruleset（subagent 权限键来自单一来源）", () => {
     const { draft } = fakeDraft()
     registerWritingAgents(draft)
     for (const id of ["director", "pipeline"]) {

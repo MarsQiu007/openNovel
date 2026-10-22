@@ -6,8 +6,7 @@
  * 经 ctx.tool.transform 一次注册 88 个写作工具（从 V1 机械转换的 effect-Schema
  * 版，窗口期 V1 入口保留同名 zod 版）；`.novel/` 存在的 Location 条件注册
  * novel-writer/context SystemContext 源（非小说目录零注入）。权限以
- * agents/*.ts 的 permission map 为单一来源，就地转换为 V2 ruleset（task 工具在
- * V2 更名为 subagent）。
+ * agents/*.ts 的 permission map 为单一来源，逐键直译为 V2 ruleset。
  *
  * 经 novel 项目配置 `plugins: ["@opennovel-ai/plugin/novel-writer-v2"]` 加载。
  */
@@ -82,10 +81,10 @@ export function registerWritingAgents(draft: AgentDraft) {
   draft.default("director")
 }
 
-/** V1 扁平 permission map → V2 ruleset；task 工具在 V2 更名为 subagent */
+/** V1 扁平 permission map → V2 ruleset（逐键直译，resource 恒为 "*"） */
 function ruleset(permission: Record<string, "allow" | "ask" | "deny">) {
   return Object.entries(permission).map(([action, effect]) => ({
-    action: action === "task" ? "subagent" : action,
+    action,
     resource: "*",
     effect,
   }))
