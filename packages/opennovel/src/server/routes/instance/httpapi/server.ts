@@ -7,7 +7,6 @@ import * as Observability from "@opennovel-ai/core/observability"
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { Auth } from "@/auth"
-import { BackgroundJob } from "@/background/job"
 import { Command } from "@/command"
 import { Config } from "@/config/config"
 import { Workspace } from "@/control-plane/workspace"
@@ -245,7 +244,6 @@ const app = LayerNode.group([
   Session.node,
   SessionProjector.node,
   SessionStatus.node,
-  BackgroundJob.node,
   RuntimeFlags.node,
   EventV2Bridge.node,
   SessionRunState.node,

@@ -47,7 +47,6 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
-import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { ModelV2 } from "@opennovel-ai/core/model"
@@ -425,7 +424,6 @@ export const node = LayerNode.make({
     Agent.node,
     Skill.node,
     Session.node,
-    BackgroundJob.node,
     Provider.node,
     LSP.node,
     Instruction.node,

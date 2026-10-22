@@ -48,7 +48,6 @@ import { ShareNext } from "@/share/share-next"
 import { SessionShare } from "@/share/session"
 import { Npm } from "@opennovel-ai/core/npm"
 import { memoMap } from "@opennovel-ai/core/effect/memo-map"
-import { BackgroundJob } from "@/background/job"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
@@ -79,7 +78,6 @@ export const AppLayer = AppNodeBuilderV1.build(
     Session.node,
     SessionProjector.node,
     SessionStatus.node,
-    BackgroundJob.node,
     RuntimeFlags.node,
     EventV2Bridge.node,
     SessionRunState.node,

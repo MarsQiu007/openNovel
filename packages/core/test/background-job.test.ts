@@ -62,31 +62,6 @@ describe("BackgroundJob", () => {
     }).pipe(Effect.provide(jobsLayer)),
   )
 
-  it.live("increments pending work before starting immediately settling extensions", () =>
-    Effect.gen(function* () {
-      const jobs = yield* BackgroundJob.Service
-
-      yield* Effect.forEach(Array.from({ length: 100 }), (_, index) =>
-        Effect.gen(function* () {
-          const first = yield* Deferred.make<void>()
-          const job = yield* jobs.start({
-            type: "test",
-            run: Deferred.await(first).pipe(Effect.as(`first-${index}`)),
-          })
-
-          expect(yield* jobs.extend({ id: job.id, run: Effect.succeed(`second-${index}`) })).toBe(true)
-          expect((yield* jobs.get(job.id))?.status).toBe("running")
-
-          yield* Deferred.succeed(first, undefined)
-          expect(yield* jobs.wait({ id: job.id })).toMatchObject({
-            timedOut: false,
-            info: { status: "completed", output: `second-${index}` },
-          })
-        }),
-      )
-    }).pipe(Effect.provide(jobsLayer)),
-  )
-
   it.live("interrupts live work without promising settlement after the owning process-local scope closes", () =>
     Effect.gen(function* () {
       const scope = yield* Scope.make()

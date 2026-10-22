@@ -64,12 +64,6 @@ type Active = {
   backgrounded: Deferred.Deferred<Info>
   scope: Scope.Closeable
   token: object
-  pending: number
-  next: number
-  output?: { sequence: number; text: string }
-  tail: Deferred.Deferred<void>
-  promoted: Deferred.Deferred<Info>
-  onPromote?: Effect.Effect<void>
   blockingSessions: Map<SessionSchema.ID, number>
   isBackgrounded: boolean
   consumed: boolean
@@ -86,7 +80,6 @@ type FinishResult = {
   info?: Info
   done?: Deferred.Deferred<Info>
   scope?: Scope.Closeable
-  promoted?: Deferred.Deferred<Info>
   generation?: Scope.Closeable
 }
 
@@ -95,24 +88,7 @@ type BackgroundResult = {
   backgrounded?: Deferred.Deferred<Info>
 }
 
-type PromoteResult = {
-  info?: Info
-  promoted?: Deferred.Deferred<Info>
-  onPromote?: Effect.Effect<void>
-}
-
 type StartResult = { info: Info } | { info: Info; scope: Scope.Closeable; token: object }
-
-type ExtendResult =
-  | { extended: false }
-  | {
-      extended: true
-      previous: Deferred.Deferred<void>
-      scope: Scope.Closeable
-      tail: Deferred.Deferred<void>
-      token: object
-      sequence: number
-    }
 
 type BlockWait = {
   done: Deferred.Deferred<Info>
@@ -134,12 +110,6 @@ export type StartInput = {
   recovery?: Recovery
   notificationID?: SessionMessage.ID
   attempts?: number
-  onPromote?: Effect.Effect<void>
-  run: Effect.Effect<string, unknown>
-}
-
-export type ExtendInput = {
-  id: string
   run: Effect.Effect<string, unknown>
 }
 
@@ -166,13 +136,9 @@ export type BackgroundAllInput = {
 }
 
 export interface Interface {
-  readonly list: () => Effect.Effect<Info[]>
   readonly get: (id: string) => Effect.Effect<Info | undefined>
   readonly start: (input: StartInput) => Effect.Effect<Info>
-  readonly extend: (input: ExtendInput) => Effect.Effect<boolean>
   readonly wait: (input: WaitInput) => Effect.Effect<WaitResult>
-  readonly waitForPromotion: (id: string) => Effect.Effect<Info>
-  readonly promote: (id: string) => Effect.Effect<Info | undefined>
   readonly cancel: (id: string) => Effect.Effect<Info | undefined>
   readonly block: (input: BlockInput) => Effect.Effect<BlockResult | undefined>
   readonly background: (id: string) => Effect.Effect<Info | undefined>
@@ -258,7 +224,6 @@ export const make = Effect.gen(function* () {
   const settle = Effect.fn("BackgroundJob.settle")(function* (
     id: string,
     token: object,
-    sequence: number,
     exit: Exit.Exit<string, unknown>,
   ) {
     const completed_at = yield* Clock.currentTimeMillis
@@ -269,14 +234,6 @@ export const make = Effect.gen(function* () {
         if (!job) return [{}, jobs]
         if (job.token !== token) return [{}, jobs]
         if (job.info.status !== "running") return [{ info: snapshot(job) }, jobs]
-        const pending = job.pending - 1
-        const output =
-          Exit.isSuccess(exit) && (!job.output || sequence > job.output.sequence)
-            ? { sequence, text: exit.value }
-            : job.output
-        if (Exit.isSuccess(exit) && pending > 0) {
-          return [{}, new Map(jobs).set(id, { ...job, pending, output })]
-        }
         const status: Exclude<Status, "running"> = Exit.isSuccess(exit)
           ? "completed"
           : Cause.hasInterruptsOnly(exit.cause)
@@ -284,27 +241,23 @@ export const make = Effect.gen(function* () {
             : "error"
         const next = {
           ...job,
-          onPromote: undefined,
-          pending: 0,
-          output,
           blockingSessions: new Map<SessionSchema.ID, number>(),
           info: {
             ...job.info,
             status,
             completed_at,
-            ...(output ? { output: output.text } : {}),
+            ...(Exit.isSuccess(exit) ? { output: exit.value } : {}),
             ...(Exit.isFailure(exit) ? { error: errorText(exit.cause) } : {}),
           },
         }
         if (status !== "cancelled") yield* persistBackground(next)
         return [
-          { info: snapshot(next), done: job.done, scope: job.scope, promoted: job.promoted },
+          { info: snapshot(next), done: job.done, scope: job.scope },
           new Map(jobs).set(id, next),
         ]
       }),
     )
     if (result.info && result.done) yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
-    if (result.info && result.promoted) yield* Deferred.succeed(result.promoted, result.info).pipe(Effect.ignore)
     if (result.scope) {
       yield* Scope.close(result.scope, Exit.void).pipe(Effect.forkIn(state.scope, { startImmediately: true }))
     }
@@ -315,23 +268,16 @@ export const make = Effect.gen(function* () {
     scope: Scope.Scope,
     id: string,
     token: object,
-    sequence: number,
     run: Effect.Effect<string, unknown>,
   ) {
     return yield* run.pipe(
       Effect.matchCauseEffect({
-        onSuccess: (output) => settle(id, token, sequence, Exit.succeed(output)),
-        onFailure: (cause) => settle(id, token, sequence, Exit.failCause(cause)),
+        onSuccess: (output) => settle(id, token, Exit.succeed(output)),
+        onFailure: (cause) => settle(id, token, Exit.failCause(cause)),
       }),
       Effect.asVoid,
       Effect.forkIn(scope, { startImmediately: true }),
     )
-  })
-
-  const list: Interface["list"] = Effect.fn("BackgroundJob.list")(function* () {
-    return Array.fromIterable((yield* SynchronizedRef.get(state.jobs)).values())
-      .map(snapshot)
-      .toSorted((a, b) => a.started_at - b.started_at)
   })
 
   const get: Interface["get"] = Effect.fn("BackgroundJob.get")(function* (id) {
@@ -346,9 +292,7 @@ export const make = Effect.gen(function* () {
         const id = input.id ?? Identifier.ascending("job")
         const started_at = yield* Clock.currentTimeMillis
         const done = yield* Deferred.make<Info>()
-        const promoted = yield* Deferred.make<Info>()
         const backgrounded = yield* Deferred.make<Info>()
-        const tail = yield* Deferred.make<void>()
         const result = yield* SynchronizedRef.modifyEffect(
           state.jobs,
           Effect.fnUntraced(function* (jobs): Effect.fn.Return<readonly [StartResult, Map<string, Active>]> {
@@ -372,11 +316,6 @@ export const make = Effect.gen(function* () {
               backgrounded,
               scope,
               token,
-              pending: 1,
-              next: 1,
-              tail,
-              promoted,
-              onPromote: input.onPromote,
               blockingSessions: new Map<SessionSchema.ID, number>(),
               isBackgrounded: false,
               consumed: false,
@@ -389,51 +328,8 @@ export const make = Effect.gen(function* () {
             ]
           }),
         )
-        if ("scope" in result)
-          yield* fork(
-            result.scope,
-            id,
-            result.token,
-            0,
-            restore(input.run).pipe(Effect.ensuring(Deferred.succeed(tail, undefined))),
-          )
+        if ("scope" in result) yield* fork(result.scope, id, result.token, restore(input.run))
         return result.info
-      }),
-    )
-  })
-
-  const extend: Interface["extend"] = Effect.fn("BackgroundJob.extend")(function* (input) {
-    return yield* Effect.uninterruptibleMask((restore) =>
-      Effect.gen(function* () {
-        const tail = yield* Deferred.make<void>()
-        const result = yield* SynchronizedRef.modify(
-          state.jobs,
-          (jobs): readonly [ExtendResult, Map<string, Active>] => {
-            const job = jobs.get(input.id)
-            if (!job || job.info.status !== "running") return [{ extended: false }, jobs]
-            return [
-              { extended: true, previous: job.tail, scope: job.scope, tail, token: job.token, sequence: job.next },
-              new Map(jobs).set(input.id, {
-                ...job,
-                pending: job.pending + 1,
-                next: job.next + 1,
-                tail,
-              }),
-            ]
-          },
-        )
-        if (!result.extended) return false
-        yield* fork(
-          result.scope,
-          input.id,
-          result.token,
-          result.sequence,
-          Deferred.await(result.previous).pipe(
-            Effect.andThen(restore(input.run)),
-            Effect.ensuring(Deferred.succeed(result.tail, undefined)),
-          ),
-        )
-        return true
       }),
     )
   })
@@ -454,42 +350,6 @@ export const make = Effect.gen(function* () {
         result.info.status === "running" || job.recovery ? Effect.void : consume(input.id, job.scope),
       ),
     )
-  })
-
-  const waitForPromotion: Interface["waitForPromotion"] = Effect.fn("BackgroundJob.waitForPromotion")(function* (id) {
-    const job = (yield* SynchronizedRef.get(state.jobs)).get(id)
-    if (!job) return yield* Effect.never
-    // 已结束（完成/错误/取消）的任务永远不可能再被 promote：直接返回当前快照，避免调用方永挂
-    if (job.info.status !== "running") return snapshot(job)
-    if (job.info.metadata?.background === true) return snapshot(job)
-    return yield* Deferred.await(job.promoted)
-  })
-
-  const promote: Interface["promote"] = Effect.fn("BackgroundJob.promote")(function* (id) {
-    const result = yield* SynchronizedRef.modifyEffect(
-      state.jobs,
-      Effect.fnUntraced(function* (jobs): Effect.fn.Return<readonly [PromoteResult, Map<string, Active>]> {
-        const job = jobs.get(id)
-        if (!job || job.info.status !== "running") return [{}, jobs] as readonly [PromoteResult, Map<string, Active>]
-        if (job.info.metadata?.background === true)
-          return [{ info: snapshot(job) }, jobs] as readonly [PromoteResult, Map<string, Active>]
-        const next = {
-          ...job,
-          onPromote: undefined,
-          info: {
-            ...job.info,
-            metadata: { ...job.info.metadata, background: true },
-          },
-        }
-        return [
-          { info: snapshot(next), onPromote: job.onPromote, promoted: job.promoted },
-          new Map(jobs).set(id, next),
-        ] as readonly [PromoteResult, Map<string, Active>]
-      }),
-    )
-    if (result.info && result.promoted) yield* Deferred.succeed(result.promoted, result.info).pipe(Effect.ignore)
-    if (result.onPromote) yield* result.onPromote.pipe(Effect.ignore)
-    return result.info
   })
 
   const removeBlock = Effect.fnUntraced(function* (input: BlockInput) {
@@ -596,8 +456,6 @@ export const make = Effect.gen(function* () {
         if (job.info.status !== "running") return [{ info: snapshot(job), generation: job.scope }, jobs]
         const next = {
           ...job,
-          onPromote: undefined,
-          pending: 0,
           blockingSessions: new Map<SessionSchema.ID, number>(),
           info: {
             ...job.info,
@@ -611,7 +469,6 @@ export const make = Effect.gen(function* () {
             info: snapshot(next),
             done: job.done,
             scope: job.scope,
-            promoted: job.promoted,
             generation: job.scope,
           },
           new Map(jobs).set(id, next),
@@ -619,7 +476,6 @@ export const make = Effect.gen(function* () {
       }),
     )
     if (result.info && result.done) yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
-    if (result.info && result.promoted) yield* Deferred.succeed(result.promoted, result.info).pipe(Effect.ignore)
     if (result.scope) yield* Scope.close(result.scope, Exit.void)
     if (result.generation) yield* consume(id, result.generation)
     return result.info
@@ -660,13 +516,9 @@ export const make = Effect.gen(function* () {
   )
 
   return Service.of({
-    list,
     get,
     start,
-    extend,
     wait,
-    waitForPromotion,
-    promote,
     cancel,
     block,
     background,
