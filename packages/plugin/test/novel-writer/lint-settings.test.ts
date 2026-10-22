@@ -9,10 +9,8 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, WorldEntryTable, CharacterTable } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -29,17 +27,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-lint-test",
-    messageID: "msg_test",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: "ses-lint-test" })
 }
 
 async function seed() {
@@ -71,15 +60,15 @@ async function seed() {
   return db
 }
 
-async function getHooks() {
-  return NovelWriterPlugin(createPluginInput(projectDir))
+function getHooks() {
+  return createWritingTools()
 }
 
 describe("lint_settings", () => {
   test("报告非标准分类、空字段、跨分类同标题与分类统计", async () => {
     await seed()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.lint_settings!.execute({ novel_id: "novel-lint" }, toolCtx())
+    const tools = getHooks()
+    const result = await tools.lint_settings.execute({ novel_id: "novel-lint" }, toolCtx())
     expect(result.output).toContain("非标准分类")
     expect(result.output).toContain("「力量」× 2")
     expect(result.output).toContain("空字段")
@@ -97,8 +86,8 @@ describe("lint_settings", () => {
       .insert(WorldEntryTable)
       .values({ id: "we-ok", novel_id: "novel-clean", category: "地理", title: "东域", content: "大陆东部", created_at: 1 })
       .run()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.lint_settings!.execute({ novel_id: "novel-clean" }, toolCtx())
+    const tools = getHooks()
+    const result = await tools.lint_settings.execute({ novel_id: "novel-clean" }, toolCtx())
     expect(result.output).toContain("未发现结构问题")
     expect(result.metadata!.issues).toBe(0)
   })
@@ -107,16 +96,15 @@ describe("lint_settings", () => {
 describe("rename_world_category", () => {
   test("批量归类到标准分类并记录历史", async () => {
     const db = await seed()
-    const hooks = await getHooks()
-    const result = await hooks
-      .tool!.rename_world_category!.execute({ novel_id: "novel-lint", old_category: "力量", new_category: "力量体系" }, toolCtx())
+    const tools = getHooks()
+    const result = await tools.rename_world_category.execute({ novel_id: "novel-lint", old_category: "力量", new_category: "力量体系" }, toolCtx())
     expect(result.metadata!.updated).toBe(2)
     const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.novel_id, "novel-lint")).all()
     expect(rows.find((r) => r.id === "we-old-1")!.category).toBe("力量体系")
     expect(rows.find((r) => r.id === "we-old-2")!.category).toBe("力量体系")
     expect(rows.find((r) => r.id === "we-good")!.category).toBe("势力/宗门")
     // 归类后 lint 不再报非标准分类
-    const lint = await hooks.tool!.lint_settings!.execute({ novel_id: "novel-lint" }, toolCtx())
+    const lint = await tools.lint_settings.execute({ novel_id: "novel-lint" }, toolCtx())
     expect(lint.output).not.toContain("非标准分类")
     // description_history 可回溯
     const { DescriptionHistoryTable } = await import("@opennovel-ai/novel-store")
@@ -127,9 +115,8 @@ describe("rename_world_category", () => {
 
   test("目标分类不在白名单且无逃生门时拒绝", async () => {
     await seed()
-    const hooks = await getHooks()
-    const result = await hooks
-      .tool!.rename_world_category!.execute({ novel_id: "novel-lint", old_category: "力量", new_category: "乱七八糟" }, toolCtx())
+    const tools = getHooks()
+    const result = await tools.rename_world_category.execute({ novel_id: "novel-lint", old_category: "力量", new_category: "乱七八糟" }, toolCtx())
     expect(result.output).toContain("乱七八糟")
     const db = getDb(projectDir)
     const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.category, "力量")).all()
@@ -138,9 +125,8 @@ describe("rename_world_category", () => {
 
   test("allow_new_category=true 放行新分类", async () => {
     await seed()
-    const hooks = await getHooks()
-    const result = await hooks
-      .tool!.rename_world_category!.execute(
+    const tools = getHooks()
+    const result = await tools.rename_world_category.execute(
         { novel_id: "novel-lint", old_category: "力量", new_category: "乱七八糟", allow_new_category: true },
         toolCtx(),
       )
@@ -149,9 +135,8 @@ describe("rename_world_category", () => {
 
   test("无匹配分类时不做任何修改", async () => {
     await seed()
-    const hooks = await getHooks()
-    const result = await hooks
-      .tool!.rename_world_category!.execute({ novel_id: "novel-lint", old_category: "不存在", new_category: "地理" }, toolCtx())
+    const tools = getHooks()
+    const result = await tools.rename_world_category.execute({ novel_id: "novel-lint", old_category: "不存在", new_category: "地理" }, toolCtx())
     expect(result.output).toContain("未找到")
     expect(result.metadata).toBeUndefined()
   })

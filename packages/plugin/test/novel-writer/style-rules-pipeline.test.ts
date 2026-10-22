@@ -9,12 +9,10 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, StyleGuideTable } from "../../src/novel-writer/session-store.js"
 import { formatSnapshotToolOutput } from "../../src/novel-writer/context.js"
 import { assembleWriterSnapshot } from "../../src/novel-writer/recall.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -31,17 +29,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-style-rules",
-    messageID: "msg_style_rules",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: "ses-style-rules", messageID: "msg_style_rules" })
 }
 
 async function seed() {
@@ -69,8 +58,7 @@ describe("check_novel_settings 读取归一化", () => {
       })
       .run()
 
-    const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-    const result = await hooks.tool!.check_novel_settings!.execute(
+    const result = await createWritingTools().check_novel_settings.execute(
       { novel_id: "novel-check", scope: "style_guide" },
       toolCtx(),
     )
@@ -85,9 +73,8 @@ describe("check_novel_settings 读取归一化", () => {
 
 // ── 5.1 端到端：save_novel_settings → 落库 → 写作快照渲染 ──
 
-async function saveStyleGuide(data: Record<string, unknown>) {
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  return hooks.tool!.save_novel_settings!.execute(
+function saveStyleGuide(data: Record<string, unknown>) {
+  return createWritingTools().save_novel_settings.execute(
     { novel_id: "novel-check", settings_json: JSON.stringify([{ type: "style_guide", data }]) },
     toolCtx(),
   )

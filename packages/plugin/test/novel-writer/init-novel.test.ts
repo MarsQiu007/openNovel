@@ -12,10 +12,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin, getNovelForSession } from "../../src/novel-writer.js"
-import { getDb, NovelTable } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { getDb, getNovelForSession, NovelTable } from "../../src/novel-writer/session-store.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -32,29 +30,17 @@ afterEach(() => {
   }
 })
 
-function toolCtx(sessionID: string): ToolContext {
-  return {
-    sessionID,
-    messageID: "msg_test",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx(sessionID: string) {
+  return createToolContext(projectDir, { sessionID })
 }
 
-async function initNovelTool() {
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  const initNovel = hooks.tool?.init_novel
-  if (!initNovel) throw new Error("init_novel tool not registered")
-  return initNovel
+function initNovelTool() {
+  return createWritingTools().init_novel
 }
 
 describe("init_novel 工具", () => {
   test("创建书籍并自动绑定当前会话", async () => {
-    const initNovel = await initNovelTool()
+    const initNovel = initNovelTool()
     const result = await initNovel.execute({ title: "剑来", genre: "仙侠", synopsis: "少年仗剑走天涯" }, toolCtx("ses_global"))
     expect(result).toMatchObject({ title: "init_novel" })
     const output = typeof result === "string" ? result : result.output
@@ -71,7 +57,7 @@ describe("init_novel 工具", () => {
   })
 
   test("已绑定会话重复调用不重复创建", async () => {
-    const initNovel = await initNovelTool()
+    const initNovel = initNovelTool()
     await initNovel.execute({ title: "剑来", genre: "仙侠", synopsis: "" }, toolCtx("ses_global"))
     const second = await initNovel.execute({ title: "另一本书", genre: "都市", synopsis: "" }, toolCtx("ses_global"))
     const output = typeof second === "string" ? second : second.output
@@ -82,7 +68,7 @@ describe("init_novel 工具", () => {
   })
 
   test("非法类型被拒绝且不创建记录", async () => {
-    const initNovel = await initNovelTool()
+    const initNovel = initNovelTool()
     const result = await initNovel.execute({ title: "坏书", genre: "魔幻", synopsis: "" }, toolCtx("ses_global"))
     const output = typeof result === "string" ? result : result.output
     expect(output).toContain("不合法")

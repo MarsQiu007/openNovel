@@ -3,13 +3,11 @@ import { existsSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 import { getDb, NovelTable, ChapterTable, resolveChapterOutline, closeDb } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
 
 let projectDir: string
-let hooks: Awaited<ReturnType<typeof NovelWriterPlugin>>
+let tools: ReturnType<typeof createWritingTools>
 let novelId: string
 
 afterEach(() => {
@@ -22,7 +20,7 @@ afterEach(() => {
 async function seedProject() {
   projectDir = join(tmpdir(), `outline-persist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   mkdirSync(join(projectDir, ".novel", "outlines"), { recursive: true })
-  hooks = await NovelWriterPlugin(createPluginInput(projectDir))
+  tools = createWritingTools()
   const db = getDb(projectDir)
   novelId = crypto.randomUUID()
   const now = Date.now()
@@ -31,24 +29,19 @@ async function seedProject() {
     .run()
 }
 
-function toolCtx(): ToolContext {
-  return {
+function toolCtx() {
+  return createToolContext(projectDir, {
     sessionID: "ses-outline-persistence",
     messageID: "msg-outline-persistence",
     agent: "pipeline",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+  })
 }
 
 describe("chapter outline persistence plugin tools", () => {
   test("generate saves outline to database without writing markdown", async () => {
     await seedProject()
     const outline = "# 第一章大纲\n\n本章完成星舰起航与记忆异常。"
-    await hooks.tool!.generate_chapter_outline.execute(
+    await tools.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 1, title: "起航", content: outline },
       toolCtx(),
     )
@@ -67,12 +60,12 @@ describe("chapter outline persistence plugin tools", () => {
   test("read tools read from database only", async () => {
     await seedProject()
     const outline = "# 数据库章纲\n\n数据库有内容，无文件。"
-    await hooks.tool!.generate_chapter_outline.execute(
+    await tools.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 2, title: "信号", content: outline },
       toolCtx(),
     )
 
-    const chapterResult = await hooks.tool!.read_chapter_outline.execute(
+    const chapterResult = await tools.read_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 2 },
       toolCtx(),
     )
@@ -80,7 +73,7 @@ describe("chapter outline persistence plugin tools", () => {
     expect(chapterResult?.metadata?.outline_available).toBe(true)
     expect(chapterResult?.metadata?.outline_source).toBe("database")
 
-    const outlineResult = await hooks.tool!.read_outline.execute(
+    const outlineResult = await tools.read_outline.execute(
       { type: "chapter", number: 2, novel_id: novelId },
       toolCtx(),
     )
@@ -91,7 +84,7 @@ describe("chapter outline persistence plugin tools", () => {
   test("writer snapshot resolves database outline", async () => {
     await seedProject()
     const outline = "# 写作快照章纲\n\n包含主角冲突、地点和关键悬念。"
-    await hooks.tool!.generate_chapter_outline.execute(
+    await tools.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 3, title: "异常", content: outline },
       toolCtx(),
     )
@@ -100,7 +93,7 @@ describe("chapter outline persistence plugin tools", () => {
     expect(resolved.source).toBe("database")
     expect(resolved.available).toBe(true)
 
-    const snapshotResult = await hooks.tool!.assemble_context_snapshot.execute(
+    const snapshotResult = await tools.assemble_context_snapshot.execute(
       { novel_id: novelId, chapter_number: 3 },
       toolCtx(),
     )

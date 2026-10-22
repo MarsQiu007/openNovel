@@ -247,7 +247,6 @@ export type AuthOuathResult = AuthOAuthResult
 export interface Hooks {
   dispose?: () => Promise<void>
   event?: (input: { event: Event }) => Promise<void>
-  config?: (input: Config) => Promise<void>
   tool?: {
     [key: string]: ToolDefinition
   }

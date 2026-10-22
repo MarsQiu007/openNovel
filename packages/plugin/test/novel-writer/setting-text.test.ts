@@ -8,14 +8,12 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, WorldEntryTable } from "../../src/novel-writer/session-store.js"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { observerAgent } from "../../src/novel-writer/agents/observer.js"
 import { paragraphFormatError, plainTextFormatError } from "../../src/novel-writer/setting-text.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -32,17 +30,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-setting-text",
-    messageID: "msg_test",
-    agent: "architect",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: "ses-setting-text", agent: "architect" })
 }
 
 async function seed() {
@@ -55,8 +44,7 @@ async function seed() {
     title: "锻体期",
     content: "锻体期是第一境界。\n\n主要强化肉身。",
   }).run()
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  return { db, hooks: hooks.tool! }
+  return { db, tools: createWritingTools() }
 }
 
 describe("plainTextFormatError", () => {
@@ -119,8 +107,8 @@ describe("setting paragraph prompts", () => {
 
 describe("setting write tools", () => {
   test("save_novel_settings 拒绝 Markdown 内容", async () => {
-    const { db, hooks } = await seed()
-    const result = await hooks.save_novel_settings!.execute(
+    const { db, tools } = await seed()
+    const result = await tools.save_novel_settings.execute(
       {
         novel_id: "novel-text",
         settings_json: JSON.stringify([
@@ -136,8 +124,8 @@ describe("setting write tools", () => {
   })
 
   test("update_setting 拒绝 Markdown 内容", async () => {
-    const { db, hooks } = await seed()
-    const result = await hooks.update_setting!.execute(
+    const { db, tools } = await seed()
+    const result = await tools.update_setting.execute(
       {
         entity_type: "world_entry",
         entity_id: "world-text",
@@ -152,8 +140,8 @@ describe("setting write tools", () => {
 
   test("save_novel_settings 接受 300 字的单段内容", async () => {
     const content = "这是一段完整的人物描述。".repeat(24)
-    const { db, hooks } = await seed()
-    const result = await hooks.save_novel_settings!.execute(
+    const { db, tools } = await seed()
+    const result = await tools.save_novel_settings.execute(
       {
         novel_id: "novel-text",
         settings_json: JSON.stringify([
@@ -169,8 +157,8 @@ describe("setting write tools", () => {
 
   test("save_novel_settings 接受总长超过 600 字的多段内容", async () => {
     const content = ["字".repeat(250), "字".repeat(250), "字".repeat(250)].join("\n\n")
-    const { db, hooks } = await seed()
-    const result = await hooks.save_novel_settings!.execute(
+    const { db, tools } = await seed()
+    const result = await tools.save_novel_settings.execute(
       {
         novel_id: "novel-text",
         settings_json: JSON.stringify([
@@ -186,8 +174,8 @@ describe("setting write tools", () => {
 
   test("save_novel_settings 拒绝超过 600 字的单段内容", async () => {
     const content = "字".repeat(650)
-    const { hooks } = await seed()
-    const result = await hooks.save_novel_settings!.execute(
+    const { tools } = await seed()
+    const result = await tools.save_novel_settings.execute(
       {
         novel_id: "novel-text",
         settings_json: JSON.stringify([
@@ -202,8 +190,8 @@ describe("setting write tools", () => {
 
   test("update_setting 拒绝超过 600 字的单段内容", async () => {
     const content = "字".repeat(650)
-    const { hooks } = await seed()
-    const result = await hooks.update_setting!.execute(
+    const { tools } = await seed()
+    const result = await tools.update_setting.execute(
       {
         entity_type: "world_entry",
         entity_id: "world-text",
@@ -215,8 +203,8 @@ describe("setting write tools", () => {
   })
 
   test("update_setting 将单个换行规范化为空行分段", async () => {
-    const { db, hooks } = await seed()
-    const result = await hooks.update_setting!.execute(
+    const { db, tools } = await seed()
+    const result = await tools.update_setting.execute(
       {
         entity_type: "world_entry",
         entity_id: "world-text",

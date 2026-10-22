@@ -5,24 +5,13 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { closeDb, getDb, ChapterTable, NovelTable, PendingUpdateTable, WorldEntryTable } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 const testDir = join(tmpdir(), `setting-impact-gate-${Date.now()}`)
-let hooks: NonNullable<Awaited<ReturnType<typeof NovelWriterPlugin>>["tool"]>
+let tools: ReturnType<typeof createWritingTools>
 
-const ctx: ToolContext = {
-  sessionID: "ses-impact-gate",
-  messageID: "msg_test",
-  agent: "writer",
-  directory: testDir,
-  worktree: testDir,
-  abort: new AbortController().signal,
-  metadata() {},
-  async ask() {},
-}
+const ctx = createToolContext(testDir, { sessionID: "ses-impact-gate", agent: "writer" })
 
 beforeAll(async () => {
   mkdirSync(testDir, { recursive: true })
@@ -44,8 +33,7 @@ beforeAll(async () => {
     status: "pending",
     priority: "high",
   }).run()
-  const plugin = await NovelWriterPlugin(createPluginInput(testDir))
-  hooks = plugin.tool!
+  tools = createWritingTools()
 })
 
 afterAll(() => {
@@ -55,7 +43,7 @@ afterAll(() => {
 
 describe("设定影响面写作门禁", () => {
   test("write_chapter 被 pending 任务阻断并提示待处理数量", async () => {
-    const result = await hooks.write_chapter!.execute(
+    const result = await tools.write_chapter.execute(
       { chapter_id: "chapter-gate", content: "第一章正文" },
       ctx,
     )
@@ -65,7 +53,7 @@ describe("设定影响面写作门禁", () => {
   })
 
   test("revise_chapter 被 pending 任务阻断", async () => {
-    const result = await hooks.revise_chapter!.execute(
+    const result = await tools.revise_chapter.execute(
       { chapter_id: "chapter-gate", revision: "修订正文" },
       ctx,
     )

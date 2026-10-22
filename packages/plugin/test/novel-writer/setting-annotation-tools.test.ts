@@ -10,7 +10,6 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
   getDb,
   NovelTable,
@@ -20,8 +19,7 @@ import {
   createAnnotationRound,
   listAnnotationRounds,
 } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 const SESSION_ID = "ses-setting-annotation"
@@ -39,17 +37,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: SESSION_ID,
-    messageID: "msg_test",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: SESSION_ID })
 }
 
 async function seed() {
@@ -73,14 +62,13 @@ async function seed() {
   }).run()
   const { tagNovelSession } = await import("../../src/novel-writer/session-store.js")
   await tagNovelSession(SESSION_ID, "novel-annotation", projectDir)
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  return { db, hooks: hooks.tool! }
+  return { db, tools: createWritingTools() }
 }
 
 describe("setting annotation tools", () => {
   test("annotate 使用真实条目和锚点创建批注", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const result = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -101,8 +89,8 @@ describe("setting annotation tools", () => {
   })
 
   test("annotate 拒绝非原文引用和不存在的条目", async () => {
-    const { hooks } = await seed()
-    const badQuote = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const badQuote = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -113,7 +101,7 @@ describe("setting annotation tools", () => {
       toolCtx(),
     )
     expect(badQuote.output).toContain("quote 不是当前")
-    const missing = await hooks.annotate!.execute(
+    const missing = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-missing",
@@ -127,8 +115,8 @@ describe("setting annotation tools", () => {
   })
 
   test("annotate 支持跨段锚点并落库 end_paragraph_index", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const result = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -158,8 +146,8 @@ describe("setting annotation tools", () => {
   })
 
   test("annotate 拒绝结束段落索引小于起始段落索引", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const result = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -177,8 +165,8 @@ describe("setting annotation tools", () => {
   })
 
   test("annotate 拒绝结束段落索引越界", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const result = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -196,8 +184,8 @@ describe("setting annotation tools", () => {
   })
 
   test("annotate 拒绝跨段引用与原文不一致", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const result = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -216,8 +204,8 @@ describe("setting annotation tools", () => {
   })
 
   test("list_annotations 支持状态筛选", async () => {
-    const { hooks } = await seed()
-    const created = await hooks.annotate!.execute(
+    const { tools } = await seed()
+    const created = await tools.annotate.execute(
       {
         target_type: "world_entry",
         target_id: "world-old-city",
@@ -228,7 +216,7 @@ describe("setting annotation tools", () => {
       toolCtx(),
     )
     const annotationId = ("metadata" in created ? created.metadata : {})?.annotation_id as string
-    const open = await hooks.list_annotations!.execute(
+    const open = await tools.list_annotations.execute(
       { target_type: "world_entry", target_id: "world-old-city", status: "open" },
       toolCtx(),
     )
@@ -237,8 +225,8 @@ describe("setting annotation tools", () => {
     expect(openRows[0].id).toBe(annotationId)
     expect(openRows[0].quote).toBe("城墙很高。")
 
-    await hooks.resolve_annotation!.execute({ annotation_id: annotationId, status: "wontfix" }, toolCtx())
-    const resolved = await hooks.list_annotations!.execute(
+    await tools.resolve_annotation.execute({ annotation_id: annotationId, status: "wontfix" }, toolCtx())
+    const resolved = await tools.list_annotations.execute(
       { target_type: "world_entry", target_id: "world-old-city", status: "wontfix" },
       toolCtx(),
     )
@@ -248,7 +236,7 @@ describe("setting annotation tools", () => {
   })
 
   test("report_annotation_execution 成功后关联最近描述历史", async () => {
-    const { db, hooks } = await seed()
+    const { db, tools } = await seed()
     const round = await createAnnotationRound(
       {
         novelId: "novel-annotation",
@@ -281,7 +269,7 @@ describe("setting annotation tools", () => {
       created_at: 2,
     }).run()
 
-    const result = await hooks.report_annotation_execution!.execute(
+    const result = await tools.report_annotation_execution.execute(
       { execution_round_id: round.id, status: "completed", result_summary: "已按批注修改" },
       toolCtx(),
     )
@@ -293,7 +281,7 @@ describe("setting annotation tools", () => {
   })
 
   test("completed 回填缺少描述历史时被拒绝", async () => {
-    const { hooks } = await seed()
+    const { tools } = await seed()
     const round = await createAnnotationRound(
       {
         novelId: "novel-annotation",
@@ -305,7 +293,7 @@ describe("setting annotation tools", () => {
       },
       projectDir,
     )
-    const result = await hooks.report_annotation_execution!.execute(
+    const result = await tools.report_annotation_execution.execute(
       { execution_round_id: round.id, status: "completed", result_summary: "声称完成" },
       toolCtx(),
     )
@@ -313,8 +301,8 @@ describe("setting annotation tools", () => {
   })
 
   test("report_annotation_execution 拒绝不存在的轮次", async () => {
-    const { hooks } = await seed()
-    const result = await hooks.report_annotation_execution!.execute(
+    const { tools } = await seed()
+    const result = await tools.report_annotation_execution.execute(
       { execution_round_id: "wear-missing", status: "failed", result_summary: "错误轮次" },
       toolCtx(),
     )

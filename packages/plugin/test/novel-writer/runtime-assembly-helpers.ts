@@ -1,30 +1,25 @@
 /**
- * 运行时装配测试辅助 - 构造真实 PluginInput，避免 `as any` / 类型断言。
+ * 运行时装配测试辅助 - V2 工具面装配。
  *
- * 通过 `createOpenNovelClient({ baseUrl })` 构造类型化 SDK 客户端，
- * 通过真实 `Bun.$` 提供 shell，PluginInput 字段全部按类型填充。
- * 不写入或读取任何客户端状态；baseUrl 指向 discard 端口避免意外连接。
+ * createNovelWriterTools 需要 SessionDomain（父链访问器），测试默认无父链；
+ * 会话绑定类用例经 session 参数注入父链 stub。工具 ctx 按 V2 ToolContext
+ * （sessionID/agent/messageID/directory/ask）构造，不写入或读取任何客户端状态。
  */
-import { createOpenNovelClient } from "@opennovel-ai/sdk"
-import type { PluginInput } from "../../src/index.js"
+import type { SessionDomain } from "../../src/v2/effect/session.js"
+import type { ToolContext } from "../../src/v2/effect/tool.js"
+import { createNovelWriterTools } from "../../src/novel-writer/tools/index.js"
 
-const { createOpenNovelClient: createClientV2 } = await import("@opennovel-ai/sdk/v2/client")
+export function createWritingTools(session?: SessionDomain) {
+  return createNovelWriterTools({ session: session ?? { get: async () => undefined } })
+}
 
-export function createPluginInput(directory: string): PluginInput {
+export function createToolContext(directory: string, overrides?: Partial<ToolContext>): ToolContext {
   return {
+    sessionID: "ses_test",
+    messageID: "msg_test",
+    agent: "director",
     directory,
-    worktree: directory,
-    serverUrl: new URL("http://localhost:1"),
-    experimental_workspace: {
-      register() {},
-    },
-    client: createOpenNovelClient({ baseUrl: "http://localhost:1" }),
-    clientV2: createClientV2({ baseUrl: "http://localhost:1" }),
-    project: {
-      id: "test-project",
-      worktree: directory,
-      time: { created: Date.now() },
-    },
-    $: Bun.$,
+    async ask() {},
+    ...overrides,
   }
 }

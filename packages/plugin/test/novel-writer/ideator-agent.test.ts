@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { ideatorAgent } from "../../src/novel-writer/agents/ideator.js"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
 import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
-import type { Config } from "../../src/index.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
 
 const ideatorReadTools = [
   "check_novel_settings",
@@ -52,29 +49,17 @@ describe("novel ideator agent", () => {
     expect(ideatorAgent.prompt).toContain("总共只生成 3 个候选")
   })
 
-  test("registers ideator as a read-only subagent", async () => {
-    const hooks = await NovelWriterPlugin(createPluginInput("ideator-agent-test"))
-    const configHook = hooks.config
-    if (!configHook) throw new Error("NovelWriterPlugin config hook is missing")
+  test("defines ideator as a read-only subagent", () => {
+    expect(ideatorAgent.mode).toBe("subagent")
+    expect(ideatorAgent.description).toContain("只读")
+    expect(typeof ideatorAgent.prompt).toBe("string")
 
-    const input: Config = {}
-    await configHook(input)
-    const ideator = input.agent?.ideator
-    if (!ideator) throw new Error("ideator agent configuration is missing")
-
-    expect(ideator.mode).toBe("subagent")
-    expect(ideator.description).toContain("只读")
-    expect(ideator.prompt).toBe(ideatorAgent.prompt)
-    if (typeof ideator.permission !== "object" || ideator.permission === null) {
-      throw new Error("ideator permission configuration is missing")
-    }
-
-    expect(ideator.permission["*"]).toBe("deny")
+    expect(ideatorAgent.permission["*"]).toBe("deny")
     for (const tool of ideatorReadTools) {
-      expect(ideator.permission[tool]).toBe("allow")
+      expect(ideatorAgent.permission[tool]).toBe("allow")
     }
     for (const tool of ideatorForbiddenTools) {
-      expect(ideator.permission[tool]).toBe("deny")
+      expect(ideatorAgent.permission[tool]).toBe("deny")
     }
   })
 

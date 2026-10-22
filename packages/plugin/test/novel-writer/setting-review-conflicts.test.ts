@@ -16,9 +16,8 @@ import {
 } from "@opennovel-ai/novel-store"
 import { getDb, NovelTable, closeDb } from "../../src/novel-writer/session-store.js"
 import { listConflicts, resolveConflict } from "../../src/novel-writer/setting-review-conflicts.js"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
-import type { ToolContext } from "../../src/tool.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/v2/effect/tool.js"
 
 const testDir = join(tmpdir(), `novel-review-conflicts-${Date.now()}`)
 let prevOpenNovelDb: string | undefined
@@ -155,19 +154,10 @@ describe("resolveConflict", () => {
 
 describe("list_conflicts / resolve_conflict tools", () => {
   const toolDir = join(tmpdir(), `novel-review-conflict-tools-${Date.now()}`)
-  let toolPlugin: Awaited<ReturnType<typeof NovelWriterPlugin>>
+  let tools: ReturnType<typeof createWritingTools>
 
   function toolCtx(): ToolContext {
-    return {
-      sessionID: "ses-conflict-tools",
-      messageID: "msg_test",
-      agent: "director",
-      directory: toolDir,
-      worktree: toolDir,
-      abort: new AbortController().signal,
-      metadata() {},
-      ask: async () => {},
-    }
+    return createToolContext(toolDir, { sessionID: "ses-conflict-tools" })
   }
 
   beforeAll(async () => {
@@ -194,7 +184,7 @@ describe("list_conflicts / resolve_conflict tools", () => {
         created_at: Date.now(),
       })
       .run()
-    toolPlugin = await NovelWriterPlugin(createPluginInput(toolDir))
+    tools = createWritingTools()
   })
 
   afterAll(() => {
@@ -206,7 +196,7 @@ describe("list_conflicts / resolve_conflict tools", () => {
   })
 
   test("list_conflicts 列出未解决冲突并附条目标题", async () => {
-    const tool = toolPlugin.tool!
+    const tool = tools
     const novel = (await getDb(toolDir).select().from(NovelTable).all()).at(-1)!
     const result = await tool.list_conflicts!.execute({ novel_id: novel.id }, toolCtx())
     expect(result.output).toContain("北境雪原")
@@ -214,7 +204,7 @@ describe("list_conflicts / resolve_conflict tools", () => {
   })
 
   test("resolve_conflict keep_current 留痕并移出未解决列表", async () => {
-    const tool = toolPlugin.tool!
+    const tool = tools
     const db = getDb(toolDir)
     const novelId = (await db.select().from(NovelTable).all()).at(-1)!.id
     const listed = await tool.list_conflicts!.execute({ novel_id: novelId }, toolCtx())
@@ -232,7 +222,7 @@ describe("list_conflicts / resolve_conflict tools", () => {
   })
 
   test("resolve_conflict update_entry 生成 agent 来源暂存草案", async () => {
-    const tool = toolPlugin.tool!
+    const tool = tools
     const db = getDb(toolDir)
     const conflictId = crypto.randomUUID()
     const novelId = (await db.select().from(NovelTable).all()).at(-1)!.id

@@ -8,18 +8,16 @@ import { describe, test, expect } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
 import { observerAgent } from "../../src/novel-writer/agents/observer.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools } from "./runtime-assembly-helpers.js"
 
 describe("风格规则格式契约提示词", () => {
   test("save_novel_settings 工具描述包含扁平映射契约", async () => {
     const dir = join(tmpdir(), `style-rules-prompts-${Date.now()}`)
     mkdirSync(join(dir, ".novel"), { recursive: true })
     try {
-      const hooks = await NovelWriterPlugin(createPluginInput(dir))
-      const description = hooks.tool!.save_novel_settings!.description ?? ""
+      const description = createWritingTools().save_novel_settings.description ?? ""
       expect(description).toContain("扁平字符串映射")
       expect(description).toContain("展平")
       expect(description).toContain("数组按索引展平")

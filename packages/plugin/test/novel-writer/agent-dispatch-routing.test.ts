@@ -6,14 +6,14 @@
  * 提示词或权限表回退到代劳写法时本文件必须失败。
  */
 import { describe, expect, test } from "bun:test"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
+import { createWritingTools } from "./runtime-assembly-helpers.js"
 
 describe("agent dispatch routing", () => {
   test("director 大纲路由调度 @outliner 且不再自撰内容", () => {
     const prompt = directorAgent.prompt
-    expect(prompt).toContain('dispatch @outliner 子 agent（subagent_type: "outliner"）')
+    expect(prompt).toContain('dispatch @outliner 子 agent（agent: "outliner"）')
     expect(prompt).toContain("由它组装上下文快照、编写完整章纲并调用 generate_chapter_outline 落库")
     expect(prompt).toContain("prompt 传入 novel_id、chapter_number 和【用户反馈原文】")
     expect(prompt).toContain("按章节序号幂等更新原记录")
@@ -46,25 +46,18 @@ describe("agent dispatch routing", () => {
     expect(prompt).toContain("修改既有设定条目 → 你定位后直接修改")
   })
 
-  test("运行时权限：director 章纲落库 deny、outliner allow、卷/整体大纲保留 allow", async () => {
-    const input = createPluginInput("agent-dispatch-routing-test")
-    const hooks = await NovelWriterPlugin(input)
-    await hooks.config?.(input)
-
-    const permission = input.agent?.director?.permission
-    if (!permission) throw new Error("novel-writer director permission was not configured")
+  test("权限表：director 章纲落库 deny、outliner allow、卷/整体大纲保留 allow", () => {
+    const permission = directorAgent.permission
     expect(permission.generate_chapter_outline).toBe("deny")
     // 精确 deny 必须位于通配 "*" 之后（fromConfig 按对象键插入顺序展开、findLast 取最后匹配）
     expect(Object.keys(permission).indexOf("generate_chapter_outline")).toBeGreaterThan(Object.keys(permission).indexOf("*"))
     expect(permission.generate_volume_outline).toBe("allow")
     expect(permission.generate_master_outline).toBe("allow")
-    expect(input.agent?.outliner?.permission?.generate_chapter_outline).toBe("allow")
+    expect(outlinerAgent.permission.generate_chapter_outline).toBe("allow")
   })
 
-  test("章纲落库工具描述职责中性、不归属 director", async () => {
-    const hooks = await NovelWriterPlugin(createPluginInput("agent-dispatch-routing-test"))
-    const description = hooks.tool?.generate_chapter_outline?.description
-    if (typeof description !== "string") throw new Error("generate_chapter_outline tool description is missing")
+  test("章纲落库工具描述职责中性、不归属 director", () => {
+    const description = createWritingTools().generate_chapter_outline.description
     expect(description).toContain("由大纲 agent 生成完整章纲")
     expect(description).not.toContain("director 根据小说设定生成")
   })

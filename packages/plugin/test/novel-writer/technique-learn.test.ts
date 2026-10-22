@@ -10,9 +10,7 @@ import { saveTechnique, searchTechniques, confirmTechniques } from "../../src/no
 import { upsertTechnique, listTechniques } from "../../src/novel-writer/technique-store.js"
 import { getGlobalDb, TechniqueTable } from "../../src/novel-writer/session-store.js"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-learn-test-"))
 
@@ -36,17 +34,8 @@ async function globalNames(): Promise<string[]> {
   return rows.map((r) => r.name)
 }
 
-function toolCtx(directory: string): ToolContext {
-  return {
-    sessionID: "ses-search-tool-test",
-    messageID: "msg_test",
-    agent: "director",
-    directory,
-    worktree: directory,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx(directory: string) {
+  return createToolContext(directory, { sessionID: "ses-search-tool-test" })
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof saveTechnique>[0]>) {
@@ -249,8 +238,7 @@ describe("search_techniques 空结果反馈（工具层）", () => {
   test("双库均无条目时明确反馈技法库为空", async () => {
     resetGlobalLibrary()
     const dir = mkdtempSync(join(tmpdir(), "learn-tool-empty-"))
-    const hooks = await NovelWriterPlugin(createPluginInput(dir))
-    const result = await hooks.tool!.search_techniques!.execute({}, toolCtx(dir))
+    const result = await createWritingTools().search_techniques.execute({}, toolCtx(dir))
     expect(result.output).toContain("技法库为空")
   })
 
@@ -259,8 +247,7 @@ describe("search_techniques 空结果反馈（工具层）", () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-tool-nomatch-"))
     await upsertTechnique(makeTechnique({ name: "未验证技法A", sceneTypes: ["dialogue"] }), dir)
     await upsertTechnique(makeTechnique({ name: "未验证技法B", sceneTypes: ["dialogue"] }), dir, "global")
-    const hooks = await NovelWriterPlugin(createPluginInput(dir))
-    const result = await hooks.tool!.search_techniques!.execute({ status: "verified" }, toolCtx(dir))
+    const result = await createWritingTools().search_techniques.execute({ status: "verified" }, toolCtx(dir))
     expect(result.output).toContain("库内共 2 条")
     expect(result.output).toContain("未验证 2 条")
     expect(result.output).not.toContain("技法库为空")

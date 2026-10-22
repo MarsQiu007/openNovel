@@ -12,8 +12,6 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { createOpenNovelClient } from "@opennovel-ai/sdk/v2/client"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
   getDb,
   NovelTable,
@@ -22,8 +20,9 @@ import {
   getNovelForSession,
   tagNovelSession,
 } from "../../src/novel-writer/session-store.js"
-import type { ToolContext, ToolResult } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import type { ToolResult } from "../../src/v2/effect/tool.js"
+import type { SessionDomain } from "../../src/v2/effect/session.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 const PARENT_SESSION_ID = "ses-parent-binding"
 const CHILD_SESSION_ID = "ses-child-binding"
@@ -50,33 +49,18 @@ async function seedMultiBookProject() {
   await db.insert(NovelTable).values({ id: "novel-b", title: "B书", genre: "科幻", created_at: 1, updated_at: 1 }).run()
 }
 
-function toolCtx(sessionID: string): ToolContext {
-  return {
-    sessionID,
-    messageID: "msg_binding",
-    agent: "writer",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx(sessionID: string) {
+  return createToolContext(projectDir, { sessionID, messageID: "msg_binding", agent: "writer" })
 }
 
-/**
- * 桩化父链访问器：以真实 v2 客户端 + 自定义 fetch 拦截 GET /session/{id}，
- * 按给定 parentID 链返回会话数据，并记录被查询的会话 ID。
- */
-function parentChainFetch(chain: Record<string, string | undefined>, requested: string[]): typeof fetch {
-  return Object.assign(
-    async (input: Parameters<typeof fetch>[0]): Promise<Response> => {
-      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
-      const sessionID = decodeURIComponent(url.pathname.replace(/^\/session\//, ""))
-      requested.push(sessionID)
-      return Response.json({ id: sessionID, parentID: chain[sessionID] })
+/** 桩化父链访问器：按给定 parentID 链返回会话数据，并记录被查询的会话 ID。 */
+function parentChainSession(chain: Record<string, string | undefined>, requested: string[]): SessionDomain {
+  return {
+    get: async (id) => {
+      requested.push(id)
+      return { id, parentID: chain[id] }
     },
-    { preconnect: () => {} },
-  )
+  }
 }
 
 function outputOf(result: ToolResult): string {
@@ -93,15 +77,11 @@ describe("novel-writer 会话归属继承", () => {
       .run()
 
     const requested: string[] = []
-    const clientV2 = createOpenNovelClient({
-      baseUrl: "http://localhost:1",
-      fetch: parentChainFetch({ [CHILD_SESSION_ID]: PARENT_SESSION_ID }, requested),
-    })
-    const hooks = await NovelWriterPlugin({ ...createPluginInput(projectDir), clientV2 })
+    const tools = createWritingTools(parentChainSession({ [CHILD_SESSION_ID]: PARENT_SESSION_ID }, requested))
 
     expect(await getNovelForSession(CHILD_SESSION_ID, projectDir)).toBeUndefined()
 
-    const result = await hooks.tool!.list_story_arcs!.execute({}, toolCtx(CHILD_SESSION_ID))
+    const result = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
 
     // 工具解析到父会话绑定的 B 书：返回 B 书结构线，而非「未找到当前小说项目」
     expect(outputOf(result)).toContain("B书主线")
@@ -115,7 +95,7 @@ describe("novel-writer 会话归属继承", () => {
     expect(requested).toEqual([CHILD_SESSION_ID])
 
     // 再次调用：继承已持久化为自身绑定，直接命中且不再查询父链
-    const second = await hooks.tool!.list_story_arcs!.execute({}, toolCtx(CHILD_SESSION_ID))
+    const second = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
     expect(outputOf(second)).toContain("B书主线")
     expect(requested).toEqual([CHILD_SESSION_ID])
   })
@@ -123,13 +103,9 @@ describe("novel-writer 会话归属继承", () => {
   test("父链无绑定祖先时工具返回未找到，不误绑多书目录", async () => {
     await seedMultiBookProject()
 
-    const clientV2 = createOpenNovelClient({
-      baseUrl: "http://localhost:1",
-      fetch: parentChainFetch({}, []),
-    })
-    const hooks = await NovelWriterPlugin({ ...createPluginInput(projectDir), clientV2 })
+    const tools = createWritingTools(parentChainSession({}, []))
 
-    const result = await hooks.tool!.list_story_arcs!.execute({}, toolCtx(CHILD_SESSION_ID))
+    const result = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
 
     expect(outputOf(result)).toBe("未找到当前小说项目")
     expect(await getNovelForSession(CHILD_SESSION_ID, projectDir)).toBeUndefined()
@@ -138,10 +114,14 @@ describe("novel-writer 会话归属继承", () => {
   test("父链访问器不可达时工具降级为未找到且不抛错", async () => {
     await seedMultiBookProject()
 
-    // 默认 PluginInput 的 clientV2 指向 discard 端口，session.get 必然失败
-    const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
+    // 父链访问器抛错：解析层按无归属降级，不阻断工具
+    const tools = createWritingTools({
+      get: async () => {
+        throw new Error("session store unreachable")
+      },
+    })
 
-    const result = await hooks.tool!.list_story_arcs!.execute({}, toolCtx(CHILD_SESSION_ID))
+    const result = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
 
     expect(outputOf(result)).toBe("未找到当前小说项目")
     expect(await getNovelForSession(CHILD_SESSION_ID, projectDir)).toBeUndefined()

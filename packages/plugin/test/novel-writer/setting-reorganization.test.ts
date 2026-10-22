@@ -3,7 +3,6 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
   CharacterTable,
   DescriptionHistoryTable,
@@ -16,8 +15,8 @@ import {
   StagedChangeTable,
   WorldEntryTable,
 } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/v2/effect/tool.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 import {
   analyzeWorldEntries,
   generatePlanFromIssues,
@@ -45,17 +44,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(ask?: ToolContext["ask"]): ToolContext {
-  return {
-    sessionID: "ses-setting-reorg",
-    messageID: "msg_test",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    ask: ask ?? (async () => {}),
-  }
+function toolCtx(ask?: ToolContext["ask"]) {
+  return createToolContext(projectDir, { sessionID: "ses-setting-reorg", ask: ask ?? (async () => {}) })
 }
 
 function entry(overrides: Partial<WorldEntryRecord> & Pick<WorldEntryRecord, "id">): WorldEntryRecord {
@@ -93,10 +83,9 @@ async function insertEntry(values: Partial<WorldEntryRecord> & Pick<WorldEntryRe
     .run()
 }
 
-async function hooks() {
+async function tools() {
   const db = await seed()
-  const plugin = await NovelWriterPlugin(createPluginInput(projectDir))
-  return { db, tool: plugin.tool! }
+  return { db, tool: createWritingTools() }
 }
 
 describe("world entry analyzer", () => {
@@ -234,7 +223,7 @@ describe("organize plan validation", () => {
 
 describe("organize_settings tool", () => {
   test("analyze 返回问题报告且不修改数据", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-bad", category: "重要设定", title: "王朝制度", content: "## 王朝\n\n贵族分五等。" })
     const result = await tool.organize_settings!.execute({ action: "analyze", novel_id: "novel-reorg" }, toolCtx())
     expect(result.output).toContain("markdown_syntax")
@@ -243,7 +232,7 @@ describe("organize_settings tool", () => {
   })
 
   test("dry_run 校验合法计划但不修改数据库", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-target", title: "旧标题", content: "旧内容。" })
     const plan = JSON.stringify({
       version: 1,
@@ -257,7 +246,7 @@ describe("organize_settings tool", () => {
   })
 
   test("apply 更新内容、写入历史并支持单换行规范化", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-update", category: "重要设定", title: "旧标题", content: "## 旧内容" })
     const plan = JSON.stringify({
       version: 1,
@@ -275,7 +264,7 @@ describe("organize_settings tool", () => {
   })
 
   test("用户拒绝运行时确认时不修改数据", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-denied", title: "旧标题" })
     const plan = JSON.stringify({
       version: 1,
@@ -293,7 +282,7 @@ describe("organize_settings tool", () => {
   })
 
   test("merge 更新目标并删除未引用源条目", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "merge-target", title: "爵位体系", content: "目标内容。" })
     await insertEntry({ id: "merge-source", title: "爵位体系", content: "源内容。" })
     const plan = JSON.stringify({
@@ -309,7 +298,7 @@ describe("organize_settings tool", () => {
   })
 
   test("删除被引用条目的计划不会执行", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "referenced", content: "" })
     await db.insert(EntityRefTable).values({
       id: "ref-1",
@@ -344,7 +333,7 @@ describe("organize_settings tool", () => {
   })
 
   test("stage 产出暂存草案且不修改正式数据", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-stage", title: "旧标题", content: "旧内容。" })
     const plan = JSON.stringify({
       version: 1,
@@ -362,7 +351,7 @@ describe("organize_settings tool", () => {
   })
 
   test("stage 校验失败时不产出暂存", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     const plan = JSON.stringify({
       version: 1,
       operations: [{ action: "update", id: "world-missing", fields: { title: "新标题" }, reason: "目标不存在" }],
@@ -374,7 +363,7 @@ describe("organize_settings tool", () => {
   })
 
   test("重复 stage 替代同目标旧草案", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-restage", title: "旧标题", content: "旧内容。" })
     const plan = JSON.stringify({
       version: 1,
@@ -389,7 +378,7 @@ describe("organize_settings tool", () => {
   })
 
   test("batch 拆分执行：白名单自动落库、语义操作入箱待审", async () => {
-    const { db, tool } = await hooks()
+    const { db, tool } = await tools()
     await insertEntry({ id: "world-batch-format", title: "格式条目", content: "第一段。\n\n第二段。" })
     await insertEntry({ id: "world-batch-semantic", title: "旧标题", content: "第一段。\n\n第二段。" })
     const plan = JSON.stringify({
@@ -431,8 +420,7 @@ describe("cross-entity organization", () => {
     await db.insert(ForeshadowingTable).values({
       id: "foreshadow-empty", novel_id: "novel-reorg", content: "", state: "planted",
     }).run()
-    const plugin = await NovelWriterPlugin(createPluginInput(projectDir))
-    return { db, tool: plugin.tool! }
+    return { db, tool: createWritingTools() }
   }
 
   test("analyze 按单段长度检查角色描述", async () => {
@@ -584,7 +572,7 @@ describe("automatic paragraph plan", () => {
 
 describe("director organization prompt", () => {
   test("tool description 约束整理流程与确认", async () => {
-    const { tool } = await hooks()
+    const { tool } = await tools()
     const description = tool.organize_settings!.description
     expect(description).toContain("analyze")
     expect(description).toContain("dry_run")

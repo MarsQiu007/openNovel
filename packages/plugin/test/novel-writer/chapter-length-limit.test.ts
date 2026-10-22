@@ -17,14 +17,11 @@ const testDir = join(tmpdir(), `novel-writer-length-limit-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
 const projectDir = join(testDir, "novel-project")
 let prevOpenNovelDb: string | undefined
-const novelWriterHooks = await NovelWriterPlugin(createPluginInput(projectDir))
 mkdirSync(testDir, { recursive: true })
 
 import { initNovelProject, createBook } from "../../src/novel-writer/cli.js"
 import { generateChapterOutline } from "../../src/novel-writer/outline.js"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
-import type { ToolContext } from "../../src/tool.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 import { closeDb, getDb, WorldEntryTable, StyleGuideTable } from "@opennovel-ai/novel-store"
 import { eq } from "drizzle-orm"
 
@@ -76,21 +73,14 @@ async function setupBookWithChapter(title: string, rules?: Record<string, string
   return row.id
 }
 
+const novelWriterTools = createWritingTools()
+
 function writeChapter(chapterId: string, content: string) {
-  return novelWriterHooks.tool!.write_chapter.execute({ chapter_id: chapterId, content }, toolCtx())
+  return novelWriterTools.write_chapter.execute({ chapter_id: chapterId, content }, toolCtx())
 }
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-length-limit",
-    messageID: "msg-length-limit",
-    agent: "writer",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: "ses-length-limit", messageID: "msg-length-limit", agent: "writer" })
 }
 
 describe("chapter_length_limit 篇幅限制", () => {

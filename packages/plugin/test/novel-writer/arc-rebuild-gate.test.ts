@@ -8,15 +8,13 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
   getDb,
   NovelTable,
   CharacterTable,
   StoryArcTable,
 } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -40,19 +38,14 @@ type AskRecord = {
   metadata: Record<string, unknown>
 }
 
-function toolCtx(ask?: (input: AskRecord) => Promise<void>): ToolContext {
-  return {
+function toolCtx(ask?: (input: AskRecord) => Promise<void>) {
+  return createToolContext(projectDir, {
     sessionID: "ses-arc-gate",
-    messageID: "msg_test",
     agent: "architect",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
     async ask(input) {
-      if (ask) await ask(input)
+      if (ask) await ask(input as AskRecord)
     },
-  }
+  })
 }
 
 async function seed() {
@@ -75,8 +68,7 @@ async function seed() {
     .insert(StoryArcTable)
     .values({ id: "arc-jiu", novel_id: "novel-gate", arc_type: "character", title: "九爷救赎弧", summary: "", target_character_id: "char-jiu" })
     .run()
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  return { db, hooks: hooks.tool! }
+  return { db, tools: createWritingTools() }
 }
 
 const newArcs = [
@@ -91,9 +83,9 @@ const arcTitles = (rows: { title: string }[]) => rows.map((r) => r.title).sort()
 
 describe("backfill_story_arcs 删除确认门", () => {
   test("create_only 不触发确认", async () => {
-    const { db, hooks } = await seed()
+    const { db, tools } = await seed()
     const askCalls: AskRecord[] = []
-    const result = await hooks.backfill_story_arcs.execute(
+    const result = await tools.backfill_story_arcs.execute(
       { arcs: newArcs },
       toolCtx(async (input) => {
         askCalls.push(input)
@@ -107,9 +99,9 @@ describe("backfill_story_arcs 删除确认门", () => {
   })
 
   test("replace_all 删除前确认且请求形状正确", async () => {
-    const { db, hooks } = await seed()
+    const { db, tools } = await seed()
     const askCalls: AskRecord[] = []
-    const result = await hooks.backfill_story_arcs.execute(
+    const result = await tools.backfill_story_arcs.execute(
       { arcs: newArcs, mode: "replace_all" },
       toolCtx(async (input) => {
         askCalls.push(input)
@@ -126,9 +118,9 @@ describe("backfill_story_arcs 删除确认门", () => {
   })
 
   test("replace_matching 确认只计匹配弧光", async () => {
-    const { db, hooks } = await seed()
+    const { db, tools } = await seed()
     const askCalls: AskRecord[] = []
-    await hooks.backfill_story_arcs.execute(
+    await tools.backfill_story_arcs.execute(
       {
         arcs: [{ arc_type: "character", title: "林晚黑化弧", target_character_name: "林晚", beats: [{ label: "转折", kind: "turn" }] }],
         mode: "replace_matching",
@@ -145,9 +137,9 @@ describe("backfill_story_arcs 删除确认门", () => {
   })
 
   test("拒绝确认时中止且既有弧光保持原样", async () => {
-    const { db, hooks } = await seed()
+    const { db, tools } = await seed()
     await expect(
-      hooks.backfill_story_arcs.execute(
+      tools.backfill_story_arcs.execute(
         { arcs: newArcs, mode: "replace_all" },
         toolCtx(async () => {
           throw new Error("用户拒绝删除弧光")
@@ -159,9 +151,9 @@ describe("backfill_story_arcs 删除确认门", () => {
   })
 
   test("replace_matching 缺少 replace_match 时直接返回，不发起确认", async () => {
-    const { hooks } = await seed()
+    const { tools } = await seed()
     const askCalls: AskRecord[] = []
-    const result = await hooks.backfill_story_arcs.execute(
+    const result = await tools.backfill_story_arcs.execute(
       { arcs: newArcs, mode: "replace_matching" },
       toolCtx(async (input) => {
         askCalls.push(input)

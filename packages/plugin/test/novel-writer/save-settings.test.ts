@@ -9,10 +9,8 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import { getDb, NovelTable, StyleGuideTable } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 
@@ -29,17 +27,8 @@ afterEach(() => {
   }
 })
 
-function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-save-test",
-    messageID: "msg_test",
-    agent: "architect",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+function toolCtx() {
+  return createToolContext(projectDir, { sessionID: "ses-save-test", agent: "architect" })
 }
 
 async function seed() {
@@ -48,9 +37,11 @@ async function seed() {
   return db
 }
 
-async function saveStyle(settings: Array<{ type: string; data: Record<string, unknown> }>) {
-  const hooks = await NovelWriterPlugin(createPluginInput(projectDir))
-  return hooks.tool!.save_novel_settings!.execute({ novel_id: "novel-save", settings_json: JSON.stringify(settings) }, toolCtx())
+function saveStyle(settings: Array<{ type: string; data: Record<string, unknown> }>) {
+  return createWritingTools().save_novel_settings.execute(
+    { novel_id: "novel-save", settings_json: JSON.stringify(settings) },
+    toolCtx(),
+  )
 }
 
 describe("save_novel_settings style_guide", () => {

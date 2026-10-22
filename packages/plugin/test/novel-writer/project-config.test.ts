@@ -11,7 +11,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs"
 import { tmpdir } from "os"
-import { readProjectConfig, writeProjectConfig } from "../../src/novel-writer.js"
+import { readProjectConfig, writeProjectConfig } from "../../src/novel-writer/tools/project-config.js"
 
 let projectDir: string
 let originalHome: string | undefined

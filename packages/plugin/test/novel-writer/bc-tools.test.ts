@@ -10,7 +10,6 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
 import {
   getDb,
   NovelTable,
@@ -22,8 +21,8 @@ import {
   createAnnotationRound,
   listAnnotationRounds,
 } from "../../src/novel-writer/session-store.js"
-import type { ToolContext } from "../../src/tool.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/v2/effect/tool.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
 let projectDir: string
 const SESSION_ID = "ses-bc-test"
@@ -42,17 +41,7 @@ afterEach(() => {
 })
 
 function toolCtx(overrides: Partial<ToolContext> = {}): ToolContext {
-  return {
-    sessionID: SESSION_ID,
-    messageID: "msg_test",
-    agent: "director",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-    ...overrides,
-  }
+  return createToolContext(projectDir, { sessionID: SESSION_ID, ...overrides })
 }
 
 async function setupNovel() {
@@ -89,15 +78,15 @@ async function setupNovel() {
   await tagNovelSession(SESSION_ID, "novel-bc", projectDir)
 }
 
-async function getHooks() {
-  return NovelWriterPlugin(createPluginInput(projectDir))
+function getTools() {
+  return createWritingTools()
 }
 
 describe("B/C tools", () => {
   test("plan_story_arc 创建结构线", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.plan_story_arc!.execute(
+    const tools = getTools()
+    const result = await tools.plan_story_arc!.execute(
       { action: "create", arc_type: "narrative", title: "主线", summary: "主角成长", status: "active", planned_start_chapter: 1, planned_end_chapter: 50 },
       toolCtx(),
     )
@@ -109,9 +98,9 @@ describe("B/C tools", () => {
 
   test("plan_story_arc 角色弧接受角色名并解析为角色 ID", async () => {
     await setupNovel()
-    const hooks = await getHooks()
+    const tools = getTools()
     // 传入角色名而非 UUID，工具应自动解析，避免外键约束失败
-    const result = await hooks.tool!.plan_story_arc!.execute(
+    const result = await tools.plan_story_arc!.execute(
       { action: "create", arc_type: "character", title: "主角成长弧", target_character_id: "主角" },
       toolCtx(),
     )
@@ -125,8 +114,8 @@ describe("B/C tools", () => {
 
   test("plan_story_arc 角色弧引用不存在的角色名时返回清晰错误", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.plan_story_arc!.execute(
+    const tools = getTools()
+    const result = await tools.plan_story_arc!.execute(
       { action: "create", arc_type: "character", title: "弧光", target_character_id: "林小满" },
       toolCtx(),
     )
@@ -136,13 +125,13 @@ describe("B/C tools", () => {
 
   test("record_arc_beat 创建节点", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const arcResult = await hooks.tool!.plan_story_arc!.execute(
+    const tools = getTools()
+    const arcResult = await tools.plan_story_arc!.execute(
       { action: "create", arc_type: "narrative", title: "主线" },
       toolCtx(),
     )
     const arcId = ("metadata" in arcResult ? arcResult.metadata : {})?.arc_id as string
-    const beatResult = await hooks.tool!.record_arc_beat!.execute(
+    const beatResult = await tools.record_arc_beat!.execute(
       { action: "create", arc_id: arcId, label: "开场", kind: "setup", chapter_order: 1, summary: "引入主角" },
       toolCtx(),
     )
@@ -153,13 +142,13 @@ describe("B/C tools", () => {
 
   test("editorial_review 运行结构检查并保存报告", async () => {
     await setupNovel()
-    const hooks = await getHooks()
+    const tools = getTools()
     // Create an arc without climax that reaches planned end
-    await hooks.tool!.plan_story_arc!.execute(
+    await tools.plan_story_arc!.execute(
       { action: "create", arc_type: "narrative", title: "主线", planned_end_chapter: 1 },
       toolCtx(),
     )
-    const result = await hooks.tool!.editorial_review!.execute({}, toolCtx())
+    const result = await tools.editorial_review!.execute({}, toolCtx())
     expect(result).toMatchObject({ title: "editorial_review" })
     const meta = "metadata" in result ? result.metadata : undefined
     expect(meta?.issue_count).toBeGreaterThanOrEqual(0)
@@ -168,8 +157,8 @@ describe("B/C tools", () => {
 
   test("annotate + list_annotations 批注流程", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    await hooks.tool!.annotate!.execute(
+    const tools = getTools()
+    await tools.annotate!.execute(
       {
         target_type: "chapter",
         target_id: "ch-1",
@@ -181,7 +170,7 @@ describe("B/C tools", () => {
       },
       toolCtx(),
     )
-    const listResult = await hooks.tool!.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
+    const listResult = await tools.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
     const meta = "metadata" in listResult ? listResult.metadata : undefined
     expect(meta?.total).toBe(1)
     expect(meta?.annotations[0].comment).toBe("需要加强冲突")
@@ -189,8 +178,8 @@ describe("B/C tools", () => {
 
   test("annotate 支持跨段锚点并落库 end_paragraph_index", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.annotate!.execute(
+    const tools = getTools()
+    const result = await tools.annotate!.execute(
       {
         target_type: "chapter",
         target_id: "ch-1",
@@ -220,8 +209,8 @@ describe("B/C tools", () => {
 
   test("resolve_annotation 标记批注状态", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    await hooks.tool!.annotate!.execute(
+    const tools = getTools()
+    await tools.annotate!.execute(
       {
         target_type: "chapter",
         target_id: "ch-1",
@@ -233,14 +222,14 @@ describe("B/C tools", () => {
       },
       toolCtx(),
     )
-    const listResult = await hooks.tool!.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
+    const listResult = await tools.list_annotations!.execute({ target_type: "chapter", target_id: "ch-1" }, toolCtx())
     const annId = ("metadata" in listResult ? listResult.metadata : {})?.annotations[0].id as string
-    const resolveResult = await hooks.tool!.resolve_annotation!.execute(
+    const resolveResult = await tools.resolve_annotation!.execute(
       { annotation_id: annId, status: "resolved" },
       toolCtx(),
     )
     expect(resolveResult).toMatchObject({ title: "resolve_annotation" })
-    const resolved = await hooks.tool!.list_annotations!.execute(
+    const resolved = await tools.list_annotations!.execute(
       { target_type: "chapter", target_id: "ch-1", status: "resolved" },
       toolCtx(),
     )
@@ -273,8 +262,8 @@ describe("B/C tools", () => {
       },
       projectDir,
     )
-    const hooks = await getHooks()
-    const result = await hooks.tool!.report_annotation_execution!.execute(
+    const tools = getTools()
+    const result = await tools.report_annotation_execution!.execute(
       { execution_round_id: round.id, status: "completed", result_summary: "已按 2 条批注重写" },
       toolCtx(),
     )
@@ -296,7 +285,7 @@ describe("B/C tools", () => {
       },
       projectDir,
     )
-    await hooks.tool!.report_annotation_execution!.execute(
+    await tools.report_annotation_execution!.execute(
       { execution_round_id: failedRound.id, status: "failed", result_summary: "2 条批注无法定位" },
       toolCtx(),
     )
@@ -309,8 +298,8 @@ describe("B/C tools", () => {
 
   test("report_annotation_execution 拒绝不存在的轮次", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.report_annotation_execution!.execute(
+    const tools = getTools()
+    const result = await tools.report_annotation_execution!.execute(
       { execution_round_id: "missing", status: "completed", result_summary: "不该写入" },
       toolCtx(),
     )
@@ -319,8 +308,8 @@ describe("B/C tools", () => {
 
   test("polish_paragraph 生成润色建议", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.polish_paragraph!.execute(
+    const tools = getTools()
+    const result = await tools.polish_paragraph!.execute(
       { chapter_id: "ch-1", paragraph_index: 0, comment: "更紧凑", suggested_replacement: "改写后的段落一" },
       toolCtx(),
     )
@@ -331,14 +320,14 @@ describe("B/C tools", () => {
 
   test("read/write_outline_canvas 画布布局读写", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const writeResult = await hooks.tool!.write_outline_canvas!.execute(
+    const tools = getTools()
+    const writeResult = await tools.write_outline_canvas!.execute(
       { layout: JSON.stringify({ columns: [{ id: "vol-1", x: 0, width: 300 }], cards: [{ id: "ch-1", x: 0, y: 0, columnId: "vol-1" }], viewport: { x: 0, y: 0, zoom: 1 } }) },
       toolCtx(),
     )
     expect(writeResult).toMatchObject({ title: "write_outline_canvas" })
 
-    const readResult = await hooks.tool!.read_outline_canvas!.execute({}, toolCtx())
+    const readResult = await tools.read_outline_canvas!.execute({}, toolCtx())
     const meta = "metadata" in readResult ? readResult.metadata : undefined
     expect(meta?.layout.columns).toHaveLength(1)
     expect(meta?.layout.cards).toHaveLength(1)
@@ -346,8 +335,8 @@ describe("B/C tools", () => {
 
   test("review_volume 卷末复盘", async () => {
     await setupNovel()
-    const hooks = await getHooks()
-    const result = await hooks.tool!.review_volume!.execute(
+    const tools = getTools()
+    const result = await tools.review_volume!.execute(
       { volume_id: "vol-1", overall: "结构完整", score: 8, strengths: ["节奏好"], weaknesses: ["配角薄"], open_threads: ["谜题"], recommendations: ["深化配角"] },
       toolCtx(),
     )

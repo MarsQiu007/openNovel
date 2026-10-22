@@ -11,7 +11,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs"
 import { tmpdir } from "os"
-import { readTechniqueInjection, writeProjectConfig, readProjectConfig } from "../../src/novel-writer.js"
+import { readTechniqueInjection } from "../../src/novel-writer/session-store.js"
+import { writeProjectConfig, readProjectConfig } from "../../src/novel-writer/tools/project-config.js"
 
 let projectDir: string
 

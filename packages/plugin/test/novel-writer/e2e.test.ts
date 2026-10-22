@@ -22,7 +22,7 @@ const testDir = join(tmpdir(), `novel-writer-e2e-${Date.now()}`)
 const dbPath = join(testDir, "test.db")
 const projectDir = join(testDir, "novel-project")
 let prevOpenNovelDb: string | undefined
-const novelWriterHooks = await NovelWriterPlugin(createPluginInput(projectDir))
+const novelWriterTools = createWritingTools()
 mkdirSync(testDir, { recursive: true })
 
 // 所有模块导入
@@ -33,9 +33,8 @@ import { assembleSnapshot } from "../../src/novel-writer/context.js"
 import { requestApproval, handleApproval } from "../../src/novel-writer/approval-gate.js"
 import { checkContinuity } from "../../src/novel-writer/continuity-check.js"
 import { commitState } from "../../src/novel-writer/state-commit.js"
-import { NovelWriterPlugin } from "../../src/novel-writer.js"
-import { createPluginInput } from "./runtime-assembly-helpers.js"
-import type { ToolContext } from "../../src/tool.js"
+import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
+import type { ToolContext } from "../../src/v2/effect/tool.js"
 import { closeDb, getDb, WorldEntryTable } from "@opennovel-ai/novel-store"
 import { countWords } from "@opennovel-ai/schema/schema"
 
@@ -566,18 +565,9 @@ describe("小说写作完整流水线 E2E 测试", () => {
 })
 
 async function writeChapterTool(chapterId: string, content: string) {
-  return novelWriterHooks.tool!.write_chapter.execute({ chapter_id: chapterId, content }, toolCtx())
+  return novelWriterTools.write_chapter.execute({ chapter_id: chapterId, content }, toolCtx())
 }
 
 function toolCtx(): ToolContext {
-  return {
-    sessionID: "ses-e2e",
-    messageID: "msg-e2e",
-    agent: "writer",
-    directory: projectDir,
-    worktree: projectDir,
-    abort: new AbortController().signal,
-    metadata() {},
-    async ask() {},
-  }
+  return createToolContext(projectDir, { sessionID: "ses-e2e", messageID: "msg-e2e", agent: "writer" })
 }
