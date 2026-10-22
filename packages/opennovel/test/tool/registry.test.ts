@@ -186,23 +186,6 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("hides task background parameter unless experimental background subagents are enabled", () =>
-    Effect.gen(function* () {
-      const registry = yield* ToolRegistry.Service
-      const agent = yield* Agent.Service
-      const build = yield* agent.get("build")
-      if (!build) throw new Error("build agent not found")
-      const task = (yield* registry.tools({
-        providerID: ProviderV2.ID.opennovel,
-        modelID: ModelV2.ID.make("test"),
-        agent: build,
-      })).find((tool) => tool.id === "task")
-
-      expect(task?.jsonSchema).toBeDefined()
-      expect((task?.jsonSchema?.properties as Record<string, unknown> | undefined)?.background).toBeUndefined()
-    }),
-  )
-
   it.instance("loads tools from .opennovel/tool (singular)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance

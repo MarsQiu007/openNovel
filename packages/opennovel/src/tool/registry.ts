@@ -9,7 +9,6 @@ import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
-import { TaskTool } from "./task"
 import { Database } from "@opennovel-ai/core/database/database"
 import { TodoWriteTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
@@ -65,20 +64,18 @@ export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false
   )
 }
 
-type TaskDef = Tool.InferDef<typeof TaskTool>
 type ReadDef = Tool.InferDef<typeof ReadTool>
 
 type State = {
   custom: Tool.Def[]
   builtin: Tool.Def[]
-  task: TaskDef
   read: ReadDef
 }
 
 export interface Interface {
   readonly ids: () => Effect.Effect<string[]>
   readonly all: () => Effect.Effect<Tool.Def[]>
-  readonly named: () => Effect.Effect<{ task: TaskDef; read: ReadDef }>
+  readonly named: () => Effect.Effect<{ read: ReadDef }>
   readonly tools: (model: {
     providerID: ProviderV2.ID
     modelID: ModelV2.ID
@@ -94,13 +91,11 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* Config.Service
     const plugin = yield* Plugin.Service
-    const agents = yield* Agent.Service
     const truncate = yield* Truncate.Service
     const flags = yield* RuntimeFlags.Service
     const mcp = yield* MCP.Service
 
     const invalid = yield* InvalidTool
-    const task = yield* TaskTool
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const todo = yield* TodoWriteTool
@@ -231,7 +226,6 @@ const layer = Layer.effect(
           grep: Tool.init(greptool),
           edit: Tool.init(edit),
           write: Tool.init(writetool),
-          task: Tool.init(task),
           fetch: Tool.init(webfetch),
           todo: Tool.init(todo),
           search: Tool.init(websearch),
@@ -254,7 +248,6 @@ const layer = Layer.effect(
             tool.grep,
             tool.edit,
             tool.write,
-            tool.task,
             tool.fetch,
             tool.todo,
             tool.search,
@@ -264,7 +257,6 @@ const layer = Layer.effect(
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
           ],
-          task: tool.task,
           read: tool.read,
         }
       }),
@@ -277,21 +269,6 @@ const layer = Layer.effect(
 
     const ids: Interface["ids"] = Effect.fn("ToolRegistry.ids")(function* () {
       return (yield* all()).map((tool) => tool.id)
-    })
-
-    const describeTask = Effect.fn("ToolRegistry.describeTask")(function* (agent: Agent.Info) {
-      const items = (yield* agents.list()).filter((item) => item.mode !== "primary")
-      const filtered = items.filter(
-        (item) => Permission.evaluate("task", item.name, agent.permission).action !== "deny",
-      )
-      const list = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
-      const description = list
-        .map(
-          (item) =>
-            `- ${item.name}: ${item.description ?? "This subagent should only be called manually by the user."}`,
-        )
-        .join("\n")
-      return ["Available agent types and the tools they have access to:", description].join("\n")
     })
 
     const describeCodeMode = Effect.fn("ToolRegistry.describeCodeMode")(function* (input: {
@@ -339,11 +316,7 @@ const layer = Layer.effect(
               : undefined
           return {
             id: tool.id,
-            description: [
-              output.description,
-              tool.id === TaskTool.id ? yield* describeTask(input.agent) : undefined,
-              tool.id === "execute" ? codeModeDescription : undefined,
-            ]
+            description: [output.description, tool.id === "execute" ? codeModeDescription : undefined]
               .filter(Boolean)
               .join("\n"),
             parameters: output.parameters,
@@ -358,7 +331,7 @@ const layer = Layer.effect(
 
     const named: Interface["named"] = Effect.fn("ToolRegistry.named")(function* () {
       const s = yield* InstanceState.get(state)
-      return { task: s.task, read: s.read }
+      return { read: s.read }
     })
 
     return Service.of({ ids, all, named, tools })
