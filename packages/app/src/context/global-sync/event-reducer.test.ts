@@ -15,6 +15,19 @@ const rootSession = (input: { id: string; parentID?: string; archived?: number }
     },
   }) as Session
 
+const createdEvent = (input: { id: string; parentID?: string }) => ({
+  type: "session.next.created",
+  properties: {
+    sessionID: input.id,
+    timestamp: 1,
+    projectID: "global",
+    directory: "/tmp",
+    title: input.id,
+    version: "0.0.1",
+    ...(input.parentID === undefined ? {} : { parentID: input.parentID }),
+  },
+})
+
 const userMessage = (id: string, sessionID: string) =>
   ({
     id,
@@ -163,7 +176,7 @@ describe("applyDirectoryEvent", () => {
     )
 
     applyDirectoryEvent({
-      event: { type: "session.created", properties: { info: rootSession({ id: "d" }) } },
+      event: createdEvent({ id: "d" }),
       store,
       setStore,
       push() {},
@@ -184,7 +197,7 @@ describe("applyDirectoryEvent", () => {
     )
 
     applyDirectoryEvent({
-      event: { type: "session.created", properties: { info: rootSession({ id: "a" }) } },
+      event: createdEvent({ id: "a" }),
       store,
       setStore,
       push() {},
@@ -196,7 +209,7 @@ describe("applyDirectoryEvent", () => {
     expect(store.sessionTotal).toBe(2)
 
     applyDirectoryEvent({
-      event: { type: "session.created", properties: { info: rootSession({ id: "c", parentID: "a" }) } },
+      event: createdEvent({ id: "c", parentID: "a" }),
       store,
       setStore,
       push() {},
@@ -224,7 +237,7 @@ describe("applyDirectoryEvent", () => {
     )
 
     applyDirectoryEvent({
-      event: { type: "session.updated", properties: { info: rootSession({ id: "ses_1", archived: 10 }) } },
+      event: { type: "session.next.updated", properties: { sessionID: "ses_1", archived: 10 } },
       store,
       setStore,
       push() {},
@@ -247,7 +260,7 @@ describe("applyDirectoryEvent", () => {
     const [store, setStore] = createStore(baseState({ session: [], sessionTotal: 0 }))
 
     applyDirectoryEvent({
-      event: { type: "session.updated", properties: { info: rootSession({ id: "missing", archived: 10 }) } },
+      event: { type: "session.next.updated", properties: { sessionID: "missing", archived: 10 } },
       store,
       setStore,
       push() {},
@@ -286,7 +299,7 @@ describe("applyDirectoryEvent", () => {
       )
 
       applyDirectoryEvent({
-        event: { type: "session.deleted", properties: { info: item.info } },
+        event: { type: "session.next.deleted", properties: { sessionID: item.info.id } },
         store,
         setStore,
         push() {},
@@ -306,7 +319,7 @@ describe("applyDirectoryEvent", () => {
     }
   })
 
-  test("cleans caches for trimmed sessions on session.created", () => {
+  test("cleans caches for trimmed sessions on session.next.created", () => {
     const dropped = rootSession({ id: "ses_b" })
     const kept = rootSession({ id: "ses_a" })
     const message = userMessage("msg_1", dropped.id)
@@ -326,7 +339,7 @@ describe("applyDirectoryEvent", () => {
     )
 
     applyDirectoryEvent({
-      event: { type: "session.created", properties: { info: kept } },
+      event: createdEvent({ id: kept.id }),
       store,
       setStore,
       push() {},

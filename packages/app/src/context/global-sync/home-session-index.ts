@@ -6,10 +6,9 @@ import { pathKey } from "@/utils/path-key"
 
 export const HOME_V2_SESSION_PAGE_LIMIT = 5_000
 
-export type HomeSessionEvent = {
-  type: "session.created" | "session.updated" | "session.deleted"
-  properties: { sessionID: string; info: Session }
-}
+export type HomeSessionEvent =
+  | { type: "session.next.created"; properties: { sessionID: string; info: Session } }
+  | { type: "session.next.deleted"; properties: { sessionID: string } }
 export type HomeSessionEvents = {
   sequence: number
   entries: Array<{ sequence: number; event: HomeSessionEvent }>
@@ -165,13 +164,18 @@ export function retainHomeSessions(sessions: Session[], limit: number, now: numb
 }
 
 export function applyHomeSessionEvent(sessions: Session[], event: HomeSessionEvent) {
-  const info = event.properties.info
-  const index = sessions.findIndex((session) => session.id === info.id)
-  if (event.type === "session.deleted" || info.parentID || typeof info.time.archived === "number") {
+  if (event.type === "session.next.deleted") {
+    const index = sessions.findIndex((session) => session.id === event.properties.sessionID)
     if (index === -1) return sessions
     return sessions.toSpliced(index, 1)
   }
-  if (event.type !== "session.created" && event.type !== "session.updated") return sessions
+  const info = event.properties.info
+  const index = sessions.findIndex((session) => session.id === info.id)
+  // archived 由 session.next.updated 的 patch 路径移除，created 事件不处理
+  if (info.parentID || typeof info.time.archived === "number") {
+    if (index === -1) return sessions
+    return sessions.toSpliced(index, 1)
+  }
   if (index === -1) return [...sessions, info]
   return sessions.with(index, info)
 }

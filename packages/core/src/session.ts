@@ -19,7 +19,6 @@ import { SessionSchema } from "./session/schema"
 import { AbsolutePath, PositiveInt, RelativePath } from "./schema"
 import { AgentV2 } from "./agent"
 import { CommandV2 } from "./command"
-import { SessionV1 } from "./v1/session"
 import { InstallationVersion } from "./installation/version"
 import { Slug } from "./util/slug"
 import { ProjectTable } from "./project/sql"
@@ -37,7 +36,6 @@ import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
 import { SessionTodo } from "./session/todo"
 import { File } from "./file"
-import { ProviderV2 } from "./provider"
 import { Revert } from "@opennovel-ai/schema/revert"
 import { FSUtil } from "./fs-util"
 import { SessionDurable } from "@opennovel-ai/schema/durable-event-manifest"
@@ -101,7 +99,7 @@ export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Ses
 export class OperationUnavailableError extends Schema.TaggedErrorClass<OperationUnavailableError>()(
   "Session.OperationUnavailableError",
   {
-    operation: Schema.Literals(["move", "shell", "skill", "switchAgent"]),
+    operation: Schema.Literals(["shell", "skill"]),
   },
 ) {}
 
@@ -204,6 +202,11 @@ export interface Interface {
     title?: string
     archived?: number | null
   }) => Effect.Effect<SessionSchema.Info, NotFoundError>
+  readonly move: (input: {
+    sessionID: SessionSchema.ID
+    location: Location.Ref
+    subdirectory?: RelativePath
+  }) => Effect.Effect<void, NotFoundError>
   readonly remove: (sessionID: SessionSchema.ID) => Effect.Effect<void>
   readonly todo: (sessionID: SessionSchema.ID) => Effect.Effect<readonly SessionTodo.Info[], NotFoundError>
   readonly diff: (
@@ -273,33 +276,37 @@ const layer = Layer.effect(
           .onConflictDoNothing()
           .run()
           .pipe(Effect.orDie)
-        const now = Date.now()
-        const info = SessionV1.SessionInfo.make({
-          id: sessionID,
-          slug: Slug.create(),
-          version: InstallationVersion,
-          projectID: project.id,
-          directory: location.directory,
-          path: path.relative(project.directory, location.directory).replaceAll("\\", "/"),
-          workspaceID: location.workspaceID ? WorkspaceV2.ID.make(location.workspaceID) : undefined,
-          parentID: input.parentID,
-          title: input.title ?? `New session - ${new Date(now).toISOString()}`,
-          agent: input.agent,
-          model: input.model
-            ? {
-                id: ModelV2.ID.make(input.model.id),
-                providerID: input.model.providerID,
-                variant: input.model.variant,
-              }
-            : undefined,
-          metadata: parent?.metadata ?? undefined,
-          permission: parent?.permission ?? undefined,
-          cost: 0,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          time: { created: now, updated: now },
-        })
+        const now = yield* DateTime.now
+        const relative = path.relative(project.directory, location.directory).replaceAll("\\", "/")
         const projected = yield* events
-          .publish(SessionV1.Event.Created, { sessionID, info }, { location })
+          .publish(
+            SessionEvent.Created,
+            {
+              sessionID,
+              timestamp: now,
+              projectID: project.id,
+              directory: location.directory,
+              ...(relative === "" ? {} : { path: RelativePath.make(relative) }),
+              ...(location.workspaceID === undefined ? {} : { workspaceID: location.workspaceID }),
+              ...(input.parentID === undefined ? {} : { parentID: input.parentID }),
+              slug: Slug.create(),
+              title: input.title ?? `New session - ${new Date(DateTime.toEpochMillis(now)).toISOString()}`,
+              ...(input.agent === undefined ? {} : { agent: input.agent }),
+              ...(input.model === undefined
+                ? {}
+                : {
+                    model: {
+                      id: ModelV2.ID.make(input.model.id),
+                      providerID: input.model.providerID,
+                      ...(input.model.variant === undefined ? {} : { variant: input.model.variant }),
+                    },
+                  }),
+              version: InstallationVersion,
+              ...(parent?.metadata == null ? {} : { metadata: parent.metadata }),
+              ...(parent?.permission == null ? {} : { permission: parent.permission }),
+            },
+            { location },
+          )
           .pipe(
             Effect.as({ type: "created" } as const),
             Effect.catchDefect((defect) => {
@@ -557,6 +564,15 @@ const layer = Layer.effect(
         })
         return yield* result.get(input.sessionID)
       }),
+      move: Effect.fn("V2Session.move")(function* (input) {
+        yield* result.get(input.sessionID)
+        yield* events.publish(SessionEvent.Moved, {
+          sessionID: input.sessionID,
+          timestamp: yield* DateTime.now,
+          location: input.location,
+          ...(input.subdirectory === undefined ? {} : { subdirectory: input.subdirectory }),
+        })
+      }),
       remove: Effect.fn("V2Session.remove")(function* (sessionID) {
         const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie)
         // 幂等：会话已不存在时视为删除成功（对齐 V1 remove 语义）
@@ -565,15 +581,14 @@ const layer = Layer.effect(
         // parent_id 无 FK 级联，子会话必须显式递归删除
         const kids = yield* store.list({ parentID: sessionID })
         yield* Effect.forEach(kids, (kid) => result.remove(kid.id), { discard: true })
-        // 复用 V1 durable session.deleted 词汇（与 create 的 session.created 对称）：
-        // 全局事件流既有消费方零改动，projector 既有分支删 session 行并 FK 级联清理各会话表
+        // projector 的 Deleted 分支删 session 行并 FK 级联清理各会话表
         yield* events.publish(
-          SessionV1.Event.Deleted,
-          { sessionID, info: legacyInfo(row) },
+          SessionEvent.Deleted,
+          { sessionID, timestamp: yield* DateTime.now },
           {
             location: Location.Ref.make({
               directory: AbsolutePath.make(row.directory),
-              workspaceID: row.workspace_id ? WorkspaceV2.ID.make(row.workspace_id) : undefined,
+              ...(row.workspace_id === null ? {} : { workspaceID: row.workspace_id }),
             }),
           },
         )
@@ -634,48 +649,6 @@ const layer = Layer.effect(
   }),
 )
 
-// session.deleted 事件 payload 需要 V1 SessionInfo（projector 只用 sessionID，
-// 但全局 SSE 会整体解码 data，字段必须合法）；revert/summary 与删除语义无关，省略。
-// 注意 optional 字段必须「缺 key」而非「key: undefined」——V1 optional 解码器
-// 拒绝显式 undefined，live payload 会原样送达严格解码方（事件监听、回放）。
-const legacyInfo = (row: typeof SessionTable.$inferSelect) =>
-  SessionV1.SessionInfo.make({
-    id: row.id,
-    slug: row.slug,
-    projectID: row.project_id,
-    directory: row.directory,
-    title: row.title,
-    version: row.version,
-    cost: row.cost,
-    tokens: {
-      input: row.tokens_input,
-      output: row.tokens_output,
-      reasoning: row.tokens_reasoning,
-      cache: { read: row.tokens_cache_read, write: row.tokens_cache_write },
-    },
-    time: {
-      created: row.time_created,
-      updated: row.time_updated,
-      ...(row.time_compacting === null ? {} : { compacting: row.time_compacting }),
-      ...(row.time_archived === null ? {} : { archived: row.time_archived }),
-    },
-    ...(row.workspace_id === null ? {} : { workspaceID: row.workspace_id }),
-    ...(row.parent_id === null ? {} : { parentID: row.parent_id }),
-    ...(row.path === null ? {} : { path: row.path }),
-    ...(row.agent === null ? {} : { agent: row.agent }),
-    ...(row.model === null
-      ? {}
-      : {
-          model: {
-            id: ModelV2.ID.make(row.model.id),
-            providerID: ProviderV2.ID.make(row.model.providerID),
-            ...(row.model.variant === undefined ? {} : { variant: row.model.variant }),
-          },
-        }),
-    ...(row.metadata === null ? {} : { metadata: row.metadata }),
-    ...(row.permission === null ? {} : { permission: row.permission }),
-    ...(row.share_url === null ? {} : { share: { url: row.share_url } }),
-  })
 
 const resolvePrompt = (input: PromptInput.Prompt) =>
   Prompt.make({

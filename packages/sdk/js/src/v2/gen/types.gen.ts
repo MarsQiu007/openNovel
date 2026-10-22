@@ -16,6 +16,8 @@ export type Event =
   | EventMessageRemoved
   | EventMessagePartUpdated
   | EventMessagePartRemoved
+  | EventSessionNextCreated
+  | EventSessionNextDeleted
   | EventSessionNextAgentSwitched
   | EventSessionNextModelSwitched
   | EventSessionNextMoved
@@ -821,6 +823,36 @@ export type GlobalEvent = {
       }
     | {
         id: string
+        type: "session.next.created"
+        properties: {
+          timestamp: number
+          sessionID: string
+          projectID: string
+          directory: string
+          path?: string
+          workspaceID?: string
+          parentID?: string
+          slug: string
+          title: string
+          agent?: string
+          model?: ModelRef
+          version: string
+          metadata?: {
+            [key: string]: unknown
+          }
+          permission?: PermissionRuleset
+        }
+      }
+    | {
+        id: string
+        type: "session.next.deleted"
+        properties: {
+          timestamp: number
+          sessionID: string
+        }
+      }
+    | {
+        id: string
         type: "session.next.agent.switched"
         properties: {
           timestamp: number
@@ -1619,6 +1651,8 @@ export type GlobalEvent = {
     | SyncEventMessageRemoved
     | SyncEventMessagePartUpdated
     | SyncEventMessagePartRemoved
+    | SyncEventSessionNextCreated
+    | SyncEventSessionNextDeleted
     | SyncEventSessionNextAgentSwitched
     | SyncEventSessionNextModelSwitched
     | SyncEventSessionNextMoved
@@ -1927,6 +1961,7 @@ export type Config = {
         },
       ]
   >
+  plugins?: Array<string | ConfigV2PluginEntry>
   share?: "manual" | "auto" | "disabled"
   autoshare?: boolean
   /**
@@ -2034,6 +2069,7 @@ export type Config = {
     primary_tools?: Array<string>
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
+    subagent_depth?: number
     policies?: Array<ConfigV2ExperimentalPolicy>
   }
 }
@@ -2753,6 +2789,8 @@ export type MessageNotFoundError = {
 }
 
 export type SessionDurableEvent =
+  | SessionNextCreated
+  | SessionNextDeleted
   | SessionNextAgentSwitched
   | SessionNextModelSwitched
   | SessionNextMoved
@@ -2881,6 +2919,8 @@ export type V2Event =
   | MessageRemoved
   | MessagePartUpdated
   | MessagePartRemoved
+  | SessionNextCreated
+  | SessionNextDeleted
   | SessionNextAgentSwitched
   | SessionNextModelSwitched
   | SessionNextMoved
@@ -3392,6 +3432,50 @@ export type SyncEventMessagePartRemoved = {
       sessionID: string
       messageID: string
       partID: string
+    }
+  }
+}
+
+export type SyncEventSessionNextCreated = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.created.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      projectID: string
+      directory: string
+      path?: string
+      workspaceID?: string
+      parentID?: string
+      slug: string
+      title: string
+      agent?: string
+      model?: ModelRef
+      version: string
+      metadata?: {
+        [key: string]: unknown
+      }
+      permission?: PermissionRuleset
+    }
+  }
+}
+
+export type SyncEventSessionNextDeleted = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.deleted.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
     }
   }
 }
@@ -3951,6 +4035,13 @@ export type ConfigV2ReferenceLocal = {
   hidden?: boolean
 }
 
+export type ConfigV2PluginEntry = {
+  package: string
+  options?: {
+    [key: string]: unknown
+  }
+}
+
 export type AgentCategory = "orchestration" | "creation" | "review" | "memory" | "research" | "internal"
 
 export type PolicyEffect = "allow" | "deny"
@@ -4279,6 +4370,56 @@ export type SessionMessage =
   | SessionMessageShell
   | SessionMessageAssistant
   | SessionMessageCompaction
+
+export type SessionNextCreated = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.created"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    projectID: string
+    directory: string
+    path?: string
+    workspaceID?: string
+    parentID?: string
+    slug: string
+    title: string
+    agent?: string
+    model?: ModelRef
+    version: string
+    metadata?: {
+      [key: string]: unknown
+    }
+    permission?: PermissionRuleset
+  }
+}
+
+export type SessionNextDeleted = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.deleted"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+  }
+}
 
 export type SessionNextAgentSwitched = {
   id: string
@@ -7623,6 +7764,38 @@ export type EventMessagePartRemoved = {
     sessionID: string
     messageID: string
     partID: string
+  }
+}
+
+export type EventSessionNextCreated = {
+  id: string
+  type: "session.next.created"
+  properties: {
+    timestamp: number
+    sessionID: string
+    projectID: string
+    directory: string
+    path?: string
+    workspaceID?: string
+    parentID?: string
+    slug: string
+    title: string
+    agent?: string
+    model?: ModelRef
+    version: string
+    metadata?: {
+      [key: string]: unknown
+    }
+    permission?: PermissionRuleset
+  }
+}
+
+export type EventSessionNextDeleted = {
+  id: string
+  type: "session.next.deleted"
+  properties: {
+    timestamp: number
+    sessionID: string
   }
 }
 

@@ -126,14 +126,14 @@ describe("enqueueServerEvent", () => {
 
     enqueue(partUpdated("old"))
     enqueue({
-      type: "session.deleted",
-      properties: { sessionID: "session", info: { id: "session" } },
+      type: "session.next.deleted",
+      properties: { timestamp: 1, sessionID: "session" },
     } as Event)
     enqueue(partUpdated("new"))
 
     expect(events.map((event) => event.payload.type)).toEqual([
       "message.part.updated",
-      "session.deleted",
+      "session.next.deleted",
       "message.part.updated",
     ])
   })

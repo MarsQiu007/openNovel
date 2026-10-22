@@ -12,6 +12,7 @@ import type {
   Todo,
 } from "@opennovel-ai/sdk/v2/client"
 import type { State, VcsCache } from "./types"
+import { adaptCreated } from "@/utils/v2-adapter"
 import { trimSessions } from "./session-trim"
 import { dropSessionCaches } from "./session-cache"
 import { diffs as list, message as clean } from "@/utils/diffs"
@@ -127,8 +128,22 @@ export function applyDirectoryEvent(input: {
       input.push(input.directory)
       return
     }
-    case "session.created": {
-      const info = (event.properties as { info: Session }).info
+    case "session.next.created": {
+      const info = adaptCreated(
+        event.properties as {
+          sessionID: string
+          timestamp: number
+          projectID: string
+          directory: string
+          path?: string
+          workspaceID?: string
+          parentID?: string
+          title: string
+          agent?: string
+          model?: { id: string; providerID: string; variant?: string }
+          version: string
+        },
+      )
       const result = Binary.search(input.store.session, info.id, (s) => s.id)
       if (result.found) {
         input.setStore("session", result.index, reconcile(info))
@@ -140,34 +155,6 @@ export function applyDirectoryEvent(input: {
       input.setStore("session", reconcile(trimmed, { key: "id" }))
       cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
       if (!info.parentID) input.setStore("sessionTotal", (value) => value + 1)
-      break
-    }
-    case "session.updated": {
-      const info = (event.properties as { info: Session }).info
-      const result = Binary.search(input.store.session, info.id, (s) => s.id)
-      if (info.time.archived) {
-        if (!result.found) break
-        if (input.store.session[result.index]!.time.archived === info.time.archived) break
-        input.setStore(
-          "session",
-          produce((draft) => {
-            draft.splice(result.index, 1)
-          }),
-        )
-        cleanupSessionCaches(input.setStore, info.id, input.setSessionTodo)
-        if (info.parentID) break
-        input.setStore("sessionTotal", (value) => Math.max(0, value - 1))
-        break
-      }
-      if (result.found) {
-        input.setStore("session", result.index, reconcile(info))
-        break
-      }
-      const next = input.store.session.slice()
-      next.splice(result.index, 0, info)
-      const trimmed = trimSessions(next, { limit, permission: input.permission ?? input.store.permission })
-      input.setStore("session", reconcile(trimmed, { key: "id" }))
-      cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
       break
     }
     case "session.next.updated": {
@@ -192,9 +179,10 @@ export function applyDirectoryEvent(input: {
       input.setStore("session", result.index, "title", props.title)
       break
     }
-    case "session.deleted": {
-      const info = (event.properties as { info: Session }).info
-      const result = Binary.search(input.store.session, info.id, (s) => s.id)
+    case "session.next.deleted": {
+      const props = event.properties as { sessionID: string }
+      const result = Binary.search(input.store.session, props.sessionID, (s) => s.id)
+      const parentID = result.found ? input.store.session[result.index]?.parentID : undefined
       if (result.found) {
         input.setStore(
           "session",
@@ -203,8 +191,8 @@ export function applyDirectoryEvent(input: {
           }),
         )
       }
-      cleanupSessionCaches(input.setStore, info.id, input.setSessionTodo)
-      if (info.parentID) break
+      cleanupSessionCaches(input.setStore, props.sessionID, input.setSessionTodo)
+      if (parentID) break
       input.setStore("sessionTotal", (value) => Math.max(0, value - 1))
       break
     }

@@ -6,9 +6,12 @@ import { Event } from "./event"
 import { ProviderMetadata, ToolContent } from "./llm"
 import { Delivery } from "./session-delivery"
 import { Model } from "./model"
-import { DateTimeUtcFromMillis, NonNegativeInt, RelativePath } from "./schema"
+import { AbsolutePath, DateTimeUtcFromMillis, NonNegativeInt, RelativePath } from "./schema"
 import { FileAttachment, Prompt } from "./prompt"
+import { PermissionV1 } from "./permission-v1"
+import { ProjectID } from "./project-id"
 import { SessionID } from "./session-id"
+import { WorkspaceID } from "./workspace-id"
 import { Location } from "./location"
 import { SessionMessage } from "./session-message"
 import { Revert } from "./revert"
@@ -50,6 +53,35 @@ const stepSettlementOptions = {
 
 export const UnknownError = SessionMessage.UnknownError
 export type UnknownError = SessionMessage.UnknownError
+
+/** V2 生命周期事件：投影 SessionTable 行的唯一写入路径（接替 V1 session.created/deleted）。 */
+export const Created = Event.define({
+  type: "session.next.created",
+  ...options,
+  schema: {
+    ...Base,
+    projectID: ProjectID,
+    directory: AbsolutePath,
+    path: RelativePath.pipe(optional),
+    workspaceID: WorkspaceID.pipe(optional),
+    parentID: SessionID.pipe(optional),
+    slug: Schema.String,
+    title: Schema.String,
+    agent: Schema.String.pipe(optional),
+    model: Model.Ref.pipe(optional),
+    version: Schema.String,
+    metadata: Schema.Record(Schema.String, Schema.Unknown).pipe(optional),
+    permission: PermissionV1.Ruleset.pipe(optional),
+  },
+})
+export type Created = typeof Created.Type
+
+export const Deleted = Event.define({
+  type: "session.next.deleted",
+  ...options,
+  schema: Base,
+})
+export type Deleted = typeof Deleted.Type
 
 export const AgentSwitched = Event.define({
   type: "session.next.agent.switched",
@@ -457,6 +489,8 @@ export namespace RevertEvent {
 }
 
 export const DurableDefinitions = Event.inventory(
+  Created,
+  Deleted,
   AgentSwitched,
   ModelSwitched,
   Moved,
@@ -489,6 +523,8 @@ export const DurableDefinitions = Event.inventory(
 )
 
 export const Definitions = Event.inventory(
+  Created,
+  Deleted,
   AgentSwitched,
   ModelSwitched,
   Moved,

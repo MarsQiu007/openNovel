@@ -27,7 +27,7 @@ import {
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reducer"
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
-import { adaptInfo } from "@/utils/v2-adapter"
+import { adaptCreated, adaptInfo } from "@/utils/v2-adapter"
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
@@ -397,8 +397,16 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
 
     session.apply(event)
     if (event.type.startsWith("session.next.")) scheduleActiveRefresh()
-    if (event.type === "session.created" || event.type === "session.updated" || event.type === "session.deleted") {
-      homeSessions.apply(event)
+    if (event.type === "session.next.created") {
+      const props = event.properties as Parameters<typeof adaptCreated>[0]
+      homeSessions.apply({
+        type: "session.next.created",
+        properties: { sessionID: props.sessionID, info: adaptCreated(props) },
+      })
+    }
+    if (event.type === "session.next.deleted") {
+      const props = event.properties as { sessionID: string }
+      homeSessions.apply({ type: "session.next.deleted", properties: { sessionID: props.sessionID } })
     }
     if (event.type === "session.next.updated") {
       const props = event.properties as { sessionID: string; title?: string; archived?: number | null }

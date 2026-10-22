@@ -64,6 +64,38 @@ export function adaptInfo(session: SessionV2Info): Session {
   }
 }
 
+/** session.next.created 事件 payload → Session（新会话尚无用量，cost/tokens 置零）。 */
+export function adaptCreated(props: {
+  sessionID: string
+  timestamp: number
+  projectID: string
+  directory: string
+  path?: string
+  workspaceID?: string
+  parentID?: string
+  title: string
+  agent?: string
+  model?: { id: string; providerID: string; variant?: string }
+  version: string
+}): Session {
+  return {
+    id: props.sessionID,
+    slug: props.sessionID,
+    projectID: props.projectID,
+    directory: props.directory,
+    ...(props.workspaceID === undefined ? {} : { workspaceID: props.workspaceID }),
+    ...(props.path === undefined ? {} : { path: props.path }),
+    ...(props.parentID === undefined ? {} : { parentID: props.parentID }),
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    title: props.title,
+    ...(props.agent === undefined ? {} : { agent: props.agent }),
+    ...(props.model === undefined ? {} : { model: props.model }),
+    version: props.version,
+    time: { created: props.timestamp, updated: props.timestamp },
+  }
+}
+
 export function adaptDiff(diffs: FileDiff[]): SnapshotFileDiff[] {
   return diffs.map((diff) => ({
     file: diff.path,

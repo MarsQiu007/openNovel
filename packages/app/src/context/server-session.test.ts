@@ -463,10 +463,7 @@ describe("server session", () => {
     const first = store.sync("child")
 
     store.apply({ type: "message.removed", properties: { sessionID: "child", messageID: message.id } })
-    store.apply({
-      type: "session.deleted",
-      properties: { sessionID: "child", info: session("child", "root") },
-    })
+    store.apply({ type: "session.next.deleted", properties: { timestamp: 2, sessionID: "child" } })
     const second = store.sync("child")
 
     firstResponse.resolve(response())
@@ -483,10 +480,7 @@ describe("server session", () => {
     const message = userMessage("message")
     const store = createServerSession(messageClient(firstResponse.promise, secondResponse.promise))
     const first = store.sync("child")
-    store.apply({
-      type: "session.deleted",
-      properties: { sessionID: "child", info: session("child", "root") },
-    })
+    store.apply({ type: "session.next.deleted", properties: { timestamp: 2, sessionID: "child" } })
     const second = store.sync("child")
 
     store.apply({ type: "message.removed", properties: { sessionID: "child", messageID: message.id } })
@@ -1354,7 +1348,18 @@ describe("server session", () => {
 
   test("applies events without a directory store", () => {
     const ctx = setup({})
-    ctx.store.apply({ type: "session.created", properties: { sessionID: "root", info: session("root") } })
+    ctx.store.apply({
+      type: "session.next.created",
+      properties: {
+        timestamp: 1,
+        sessionID: "root",
+        projectID: "project",
+        directory: "/repo",
+        slug: "root",
+        title: "root",
+        version: "1",
+      },
+    })
     ctx.store.apply({ type: "session.status", properties: { sessionID: "root", status: { type: "busy" } } })
 
     expect(ctx.store.get("root")?.directory).toBe("/repo")
@@ -1400,10 +1405,17 @@ describe("server session", () => {
 describe("server session V2 events", () => {
   const created = (store: ReturnType<typeof createServerSession>, sessionID = "root") =>
     store.apply({
-      type: "session.created",
+      type: "session.next.created",
       properties: {
+        timestamp: 1,
         sessionID,
-        info: { ...session(sessionID), agent: "build", model: { id: "model", providerID: "provider" } },
+        projectID: "project",
+        directory: "/repo",
+        slug: sessionID,
+        title: sessionID,
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        version: "1",
       },
     })
 

@@ -18,7 +18,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { diffs as cleanDiffs, message as cleanMessage } from "@/utils/diffs"
 import { sessionNotFoundError } from "@/utils/server-errors"
 import { sessionChain } from "@/utils/session-route"
-import { adaptDiff, adaptInfo, adaptMessage, adaptMessages, adaptRevert } from "@/utils/v2-adapter"
+import { adaptCreated, adaptDiff, adaptInfo, adaptMessage, adaptMessages, adaptRevert } from "@/utils/v2-adapter"
 import type { AdaptContext } from "@/utils/v2-adapter"
 import { createV2Translator } from "./v2-translator"
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
@@ -813,6 +813,36 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     )
       return false
     switch (event.type) {
+      case "session.next.created": {
+        remember(
+          adaptCreated(
+            event.properties as {
+              sessionID: string
+              timestamp: number
+              projectID: string
+              directory: string
+              path?: string
+              workspaceID?: string
+              parentID?: string
+              title: string
+              agent?: string
+              model?: { id: string; providerID: string; variant?: string }
+              version: string
+            },
+          ),
+        )
+        return true
+      }
+      case "session.next.deleted": {
+        const props = event.properties as { sessionID: string }
+        infoSeen.delete(props.sessionID)
+        setData(
+          "info",
+          produce((draft) => void delete draft[props.sessionID]),
+        )
+        evict([props.sessionID])
+        return true
+      }
       case "session.next.updated": {
         const props = event.properties as {
           timestamp: number
@@ -944,33 +974,14 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       touch(eventID)
       if (
         !data.info[eventID] &&
-        event.type !== "session.created" &&
-        event.type !== "session.updated" &&
-        event.type !== "session.deleted"
+        event.type !== "session.next.created" &&
+        event.type !== "session.next.updated" &&
+        event.type !== "session.next.deleted"
       )
         void resolve(eventID).catch(() => {})
     }
     if (applyV2(event)) return
     switch (event.type) {
-      case "session.created":
-        remember((event.properties as { info: Session }).info)
-        return
-      case "session.updated": {
-        const info = (event.properties as { info: Session }).info
-        remember(info)
-        if (info.time.archived) evict([info.id])
-        return
-      }
-      case "session.deleted": {
-        const sessionID = (event.properties as { info: Session }).info.id
-        infoSeen.delete(sessionID)
-        setData(
-          "info",
-          produce((draft) => void delete draft[sessionID]),
-        )
-        evict([sessionID])
-        return
-      }
       case "session.diff": {
         const props = event.properties as { sessionID: string; diff: SnapshotFileDiff[] }
         setData("session_diff", props.sessionID, reconcile(cleanDiffs(props.diff), { key: "file" }))

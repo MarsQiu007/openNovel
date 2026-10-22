@@ -122,6 +122,8 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
           }),
         )
       },
+      "session.next.created": () => Effect.void,
+      "session.next.deleted": () => Effect.void,
       "session.next.moved": () => Effect.void,
       "session.next.updated": () => Effect.void,
       "session.next.prompted": (event) => {

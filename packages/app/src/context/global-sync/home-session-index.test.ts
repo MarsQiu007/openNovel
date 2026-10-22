@@ -118,13 +118,13 @@ describe("Home V2 session index", () => {
     const created = { ...initial[0], id: "new", slug: "new", title: "new", time: { created: 2, updated: 2 } }
 
     const afterCreate = applyHomeSessionEvent(initial, {
-      type: "session.created",
+      type: "session.next.created",
       properties: { sessionID: created.id, info: created },
     })
     expect(
       applyHomeSessionEvent(afterCreate, {
-        type: "session.deleted",
-        properties: { sessionID: initial[0]!.id, info: initial[0]! },
+        type: "session.next.deleted",
+        properties: { sessionID: initial[0]!.id },
       }),
     ).toEqual([created])
   })
@@ -134,11 +134,11 @@ describe("Home V2 session index", () => {
     const stale = { ...initial[0], title: "stale" }
     const current = { ...initial[0], title: "current" }
     const first = appendHomeSessionEvent(undefined, {
-      type: "session.updated",
+      type: "session.next.created",
       properties: { sessionID: stale.id, info: stale },
     })
     const events = appendHomeSessionEvent(first, {
-      type: "session.updated",
+      type: "session.next.created",
       properties: { sessionID: current.id, info: current },
     })
 

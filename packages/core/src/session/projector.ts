@@ -212,6 +212,48 @@ const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const events = yield* EventV2.Service
     const { db } = yield* Database.Service
+    // V2 生命周期事件是 SessionTable 插入/删除的唯一活写入路径；
+    // 下方 V1 分支随 G5 删除（opennovel legacy 面 G3 后不再发布 V1 事件）。
+    yield* events.project(SessionEvent.Created, (event) =>
+      Effect.gen(function* () {
+        const timestamp = DateTime.toEpochMillis(event.data.timestamp)
+        const stored = yield* db
+          .insert(SessionTable)
+          .values({
+            id: event.data.sessionID,
+            project_id: event.data.projectID,
+            workspace_id: event.data.workspaceID ?? null,
+            parent_id: event.data.parentID ?? null,
+            slug: event.data.slug,
+            directory: event.data.directory,
+            path: event.data.path ?? null,
+            title: event.data.title,
+            agent: event.data.agent ?? null,
+            model: event.data.model ?? null,
+            version: event.data.version,
+            metadata: event.data.metadata ?? null,
+            ...(event.data.permission === undefined ? {} : { permission: [...event.data.permission] }),
+            time_created: timestamp,
+            time_updated: timestamp,
+          })
+          .onConflictDoNothing()
+          .returning({ sessionID: SessionTable.id })
+          .get()
+          .pipe(Effect.orDie)
+        if (!stored) return yield* Effect.die(new SessionAlreadyProjected())
+        if (event.data.workspaceID) {
+          yield* db
+            .update(WorkspaceTable)
+            .set({ time_used: Date.now() })
+            .where(eq(WorkspaceTable.id, event.data.workspaceID))
+            .run()
+            .pipe(Effect.orDie)
+        }
+      }),
+    )
+    yield* events.project(SessionEvent.Deleted, (event) =>
+      db.delete(SessionTable).where(eq(SessionTable.id, event.data.sessionID)).run().pipe(Effect.orDie),
+    )
     yield* events.project(SessionV1.Event.Created, (event) =>
       Effect.gen(function* () {
         const stored = yield* db

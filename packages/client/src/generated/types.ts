@@ -919,6 +919,41 @@ export type SessionsHistoryOutput = {
     | {
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.created"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: {
+          readonly timestamp: number
+          readonly sessionID: string
+          readonly projectID: string
+          readonly directory: string
+          readonly path?: string
+          readonly workspaceID?: string
+          readonly parentID?: string
+          readonly slug: string
+          readonly title: string
+          readonly agent?: string
+          readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
+          readonly version: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly permission?: ReadonlyArray<{
+            readonly permission: string
+            readonly pattern: string
+            readonly action: "allow" | "deny" | "ask"
+          }>
+        }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.deleted"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: { readonly timestamp: number; readonly sessionID: string }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
         readonly type: "session.next.agent.switched"
         readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
         readonly location?: { readonly directory: string; readonly workspaceID?: string }
@@ -1387,6 +1422,41 @@ export type SessionsEventsInput = {
 }
 
 export type SessionsEventsOutput =
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.created"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: {
+        readonly timestamp: number
+        readonly sessionID: string
+        readonly projectID: string
+        readonly directory: string
+        readonly path?: string
+        readonly workspaceID?: string
+        readonly parentID?: string
+        readonly slug: string
+        readonly title: string
+        readonly agent?: string
+        readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
+        readonly version: string
+        readonly metadata?: { readonly [x: string]: unknown }
+        readonly permission?: ReadonlyArray<{
+          readonly permission: string
+          readonly pattern: string
+          readonly action: "allow" | "deny" | "ask"
+        }>
+      }
+    }
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.deleted"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: { readonly timestamp: number; readonly sessionID: string }
+    }
   | {
       readonly id: string
       readonly metadata?: { readonly [x: string]: unknown }
