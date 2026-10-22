@@ -46,6 +46,7 @@ import {
 } from "@/pages/layout/helpers"
 import { SessionTabAvatar } from "@/pages/layout/session-tab-avatar"
 import { pathKey } from "@/utils/path-key"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { useGlobal } from "@/context/global"
 import { useCommand } from "@/context/command"
 import { ServerRowMenu } from "@/components/server/server-row-menu"
@@ -137,8 +138,8 @@ export function NewHome() {
     setDeletingNovelId(null)
     if (!conn || boundIds.length === 0) return
     const ctx = global.ensureServerCtx(conn)
-    const res = await ctx.sdk.client.session.list({ directory }).catch(() => undefined)
-    const sessions = res?.data ?? []
+    const res = await ctx.sdk.client.v2.session.list({ directory, limit: 1000 }).catch(() => undefined)
+    const sessions = (res?.data?.data ?? []).map(adaptInfo)
     const [, setStore] = ctx.sync.child(directory)
     for (const sessionID of boundIds) {
       const session = sessions.find((s) => s.id === sessionID)
@@ -146,7 +147,7 @@ export function NewHome() {
       await archiveSessionCascade({
         session,
         sessions,
-        update: (value) => ctx.sdk.client.session.update(value),
+        update: (value) => ctx.sdk.client.v2.session.update({ sessionID: value.sessionID, time: value.time }),
         remove: (target) =>
           setStore(
             produce((draft) => {

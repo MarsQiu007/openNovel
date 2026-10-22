@@ -14,6 +14,7 @@ import { useSDK, type DirectorySDK } from "@/context/sdk"
 import { useSync, type DirectorySync } from "@/context/sync"
 import { sessionHref } from "@/utils/session-route"
 import { Identifier } from "@/utils/id"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
@@ -52,6 +53,24 @@ const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? 
 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
 
+// V2 的 agent/model 是会话级状态：提交前对比会话现状，不同则先切换（事件会同步回 info，避免重复切换）
+const ensureAgentModel = async (
+  client: DirectorySDK["client"],
+  sessionID: string,
+  current: Session | undefined,
+  agent: string,
+  model: { providerID: string; modelID: string },
+  variant: string | undefined,
+) => {
+  if (current?.agent !== agent) await client.v2.session.switchAgent({ sessionID, agent })
+  const active = current?.model
+  if (active?.id === model.modelID && active.providerID === model.providerID && active.variant === variant) return
+  await client.v2.session.switchModel({
+    sessionID,
+    model: { id: model.modelID, providerID: model.providerID, ...(variant === undefined ? {} : { variant }) },
+  })
+}
+
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
   const images = draftImages(input.draft.prompt)
@@ -81,20 +100,19 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
         return false
       }
 
-      await input.client.session.command({
+      // V2 command 不携带 agent/model/parts：会话级先切换，图片附件不随命令提交
+      await ensureAgentModel(
+        input.client,
+        input.draft.sessionID,
+        input.serverSync.session.get(input.draft.sessionID),
+        input.draft.agent,
+        input.draft.model,
+        input.draft.variant,
+      )
+      await input.client.v2.session.command({
         sessionID: input.draft.sessionID,
         command: cmd,
         arguments: tail.join(" "),
-        agent: input.draft.agent,
-        model: `${input.draft.model.providerID}/${input.draft.model.modelID}`,
-        variant: input.draft.variant,
-        parts: images.map((attachment) => ({
-          id: Identifier.ascending("part"),
-          type: "file" as const,
-          mime: attachment.mime,
-          url: attachment.dataUrl,
-          filename: attachment.filename,
-        })),
       })
       return true
     } catch (err) {
@@ -104,7 +122,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 
   const messageID = input.messageID ?? Identifier.ascending("message")
-  const { requestParts, optimisticParts } = buildRequestParts({
+  const { optimisticParts, promptInput } = buildRequestParts({
     prompt: input.draft.prompt,
     context: input.draft.context,
     images,
@@ -152,13 +170,18 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       return false
     }
 
-    await input.client.session.promptAsync({
+    await ensureAgentModel(
+      input.client,
+      input.draft.sessionID,
+      input.serverSync.session.get(input.draft.sessionID),
+      input.draft.agent,
+      input.draft.model,
+      input.draft.variant,
+    )
+    await input.client.v2.session.prompt({
       sessionID: input.draft.sessionID,
-      agent: input.draft.agent,
-      model: input.draft.model,
-      messageID,
-      parts: requestParts,
-      variant: input.draft.variant,
+      id: messageID,
+      prompt: promptInput,
     })
     return true
   } catch (err) {
@@ -233,9 +256,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return Promise.resolve()
     }
     return sdk()
-      .client.session.abort({
-        sessionID,
-      })
+      .client.v2.session.interrupt({ sessionID })
       .catch(() => {})
   }
 
@@ -362,9 +383,17 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     let session = input.info()
     if (!session && isNewSession) {
-      const created = await client.session
-        .create()
-        .then((x) => x.data ?? undefined)
+      const created = await client.v2.session
+        .create({
+          location: { directory: sessionDirectory },
+          agent: currentAgent.name,
+          model: {
+            id: currentModel.id,
+            providerID: currentModel.provider.id,
+            ...(variant === undefined ? {} : { variant }),
+          },
+        })
+        .then((x) => (x.data?.data ? adaptInfo(x.data.data) : undefined))
         .catch((err) => {
           showToast({
             title: language.t("prompt.toast.sessionCreateFailed.title"),
@@ -444,54 +473,23 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     input.onSubmit?.()
 
-    if (mode === "shell") {
-      clearInput()
-      client.session
-        .shell({
-          sessionID: session.id,
-          agent,
-          model,
-          command: text,
-        })
-        .catch((err) => {
+    if (text.startsWith("/")) {
+      const [cmdName] = text.split(" ")
+      const customCommand = sync().data.command.find((c) => c.name === cmdName.slice(1))
+      if (customCommand) {
+        clearInput()
+        void sendFollowupDraft({
+          client,
+          sync: sync(),
+          serverSync: serverSync(),
+          draft,
+        }).catch((err) => {
           showToast({
-            title: language.t("prompt.toast.shellSendFailed.title"),
-            description: errorMessage(err),
+            title: language.t("prompt.toast.commandSendFailed.title"),
+            description: formatServerError(err, language.t, language.t("common.requestFailed")),
           })
           restoreInput()
         })
-      return
-    }
-
-    if (text.startsWith("/")) {
-      const [cmdName, ...args] = text.split(" ")
-      const commandName = cmdName.slice(1)
-      const customCommand = sync().data.command.find((c) => c.name === commandName)
-      if (customCommand) {
-        clearInput()
-        client.session
-          .command({
-            sessionID: session.id,
-            command: commandName,
-            arguments: args.join(" "),
-            agent,
-            model: `${model.providerID}/${model.modelID}`,
-            variant,
-            parts: images.map((attachment) => ({
-              id: Identifier.ascending("part"),
-              type: "file" as const,
-              mime: attachment.mime,
-              url: attachment.dataUrl,
-              filename: attachment.filename,
-            })),
-          })
-          .catch((err) => {
-            showToast({
-              title: language.t("prompt.toast.commandSendFailed.title"),
-              description: formatServerError(err, language.t, language.t("common.requestFailed")),
-            })
-            restoreInput()
-          })
         return
       }
     }

@@ -16,6 +16,7 @@ import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { showToast } from "@/utils/toast"
+import { exportSessionJson } from "@/pages/novel-sessions"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
@@ -156,25 +157,11 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const serverSDK = useServerSDK()
 
   // 导出完整会话（含每条消息的工具调用参数与结果）为 JSON 文件，供问题排查时交给开发者分析
-  const exportSession = async () => {
-    const client = serverSDK().ensureDirSdkContext(props.session.directory).client
-    const [info, messages] = await Promise.all([
-      client.session.get({ sessionID: props.session.id }).then((r) => r.data),
-      client.session.messages({ sessionID: props.session.id }).then((r) => r.data),
-    ]).catch(() => [undefined, undefined])
-    if (!info || !messages) {
-      showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })
-      return
-    }
-    const payload = { exported_at: new Date().toISOString(), info, messages }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }))
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `session-${props.session.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast({ title: "已导出会话 JSON", variant: "success" })
-  }
+  const exportSession = () =>
+    exportSessionJson({
+      session: props.session,
+      client: serverSDK().ensureDirSdkContext(props.session.directory).client,
+    })
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)

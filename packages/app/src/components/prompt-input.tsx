@@ -433,15 +433,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     })
   }
 
-  const setMode = (mode: "normal" | "shell") => {
-    setStore("mode", mode)
-    setStore({ popover: null, slashMenu: false, slashMenuQuery: "" })
-    requestAnimationFrame(() => editorRef?.focus())
-  }
-
-  const shellModeKey = "mod+shift+x"
-  const normalModeKey = "mod+shift+e"
-
   command.register("prompt-input", () => [
     {
       id: "file.attach",
@@ -450,22 +441,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       keybind: "mod+u",
       disabled: store.mode !== "normal",
       onSelect: pick,
-    },
-    {
-      id: "prompt.mode.shell",
-      title: language.t("command.prompt.mode.shell"),
-      category: language.t("command.category.session"),
-      keybind: shellModeKey,
-      disabled: store.mode === "shell",
-      onSelect: () => setMode("shell"),
-    },
-    {
-      id: "prompt.mode.normal",
-      title: language.t("command.prompt.mode.normal"),
-      category: language.t("command.category.session"),
-      keybind: normalModeKey,
-      disabled: store.mode === "normal",
-      onSelect: () => setMode("normal"),
     },
   ])
 
@@ -1252,16 +1227,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             selection.addRange(range)
           }
         }
-      }
-    }
-
-    if (event.key === "!" && store.mode === "normal") {
-      const cursorPosition = getCursorPosition(editorRef)
-      if (cursorPosition === 0) {
-        setStore("mode", "shell")
-        closePopover()
-        event.preventDefault()
-        return
       }
     }
 

@@ -1,5 +1,5 @@
 import { getFilename } from "@opennovel-ai/core/util/path"
-import type { GlobalSession, Project } from "@opennovel-ai/sdk/v2/client"
+import type { Project, Session } from "@opennovel-ai/sdk/v2/client"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { createMemo, onCleanup } from "solid-js"
 import { useNavigate } from "@solidjs/router"
@@ -11,6 +11,7 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { openSessionRouted } from "@/pages/novel-sessions"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -146,7 +147,9 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     opened: serverCtx.projects.list,
     stored: () => serverCtx.sync.data.project,
     load: (search, signal) =>
-      serverSDK.client.experimental.session.list({ roots: true, search, limit: 50 }, { signal }),
+      serverSDK.client.v2.session
+        .list({ roots: true, search, limit: 50 }, { signal })
+        .then((result) => ({ data: (result.data?.data ?? []).map(adaptInfo) })),
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
   })
@@ -219,7 +222,7 @@ export function createServerSessionEntries(props: {
   server: ServerConnection.Key
   opened: () => LocalProject[]
   stored: () => Project[]
-  load: (search: string, signal: AbortSignal) => Promise<{ data?: GlobalSession[] }>
+  load: (search: string, signal: AbortSignal) => Promise<{ data?: Session[] }>
   untitled: () => string
   category: () => string
 }) {
@@ -264,7 +267,7 @@ export function createServerSessionEntries(props: {
               id: `session:${props.server}:${session.id}`,
               type: "session" as const,
               title: session.title || props.untitled(),
-              description: project ? displayName(project) : session.project?.name || getFilename(session.directory),
+              description: project ? displayName(project) : getFilename(session.directory),
               category: props.category(),
               directory: session.directory,
               sessionID: session.id,

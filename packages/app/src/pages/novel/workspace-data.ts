@@ -94,10 +94,11 @@ export async function findBoundNovelSession(
   novel: ReturnType<typeof useNovel>,
   novelID: string,
 ): Promise<string | null> {
-  const [{ data: sessionList }, bindings] = await Promise.all([
-    sdk().client.session.list({ ...bookSessionListParams }),
+  const [{ data: sessionPage }, bindings] = await Promise.all([
+    sdk().client.v2.session.list({ ...bookSessionListParams }),
     novel.listSessionBindings(),
   ])
+  const sessionList = sessionPage?.data
   if (!sessionList || !bindings) return null
   const boundIds = new Set(bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID))
   if (boundIds.size === 0) return null
@@ -117,15 +118,14 @@ export async function createAndBindSession(input: {
   novelID: string
   prompt: string
 }): Promise<string> {
-  const result = await input.sdk().client.session.create({ directory: input.sdk().directory })
-  if (!result.data) throw new Error("No session data returned")
-  await input.bindSession.mutateAsync({ novelID: input.novelID, sessionID: result.data.id })
-  await input.sdk().client.session.prompt({
-    sessionID: result.data.id,
-    directory: input.sdk().directory,
-    parts: [{ type: "text", text: input.prompt }],
+  const result = await input.sdk().client.v2.session.create({ location: { directory: input.sdk().directory } })
+  if (!result.data?.data) throw new Error("No session data returned")
+  await input.bindSession.mutateAsync({ novelID: input.novelID, sessionID: result.data.data.id })
+  await input.sdk().client.v2.session.prompt({
+    sessionID: result.data.data.id,
+    prompt: { text: input.prompt },
   })
-  return result.data.id
+  return result.data.data.id
 }
 
 /**
@@ -163,10 +163,9 @@ export async function sendNovelSessionInstruction(input: {
 }): Promise<string> {
   const boundID = await findBoundNovelSession(input.sdk, input.novel, input.novelID)
   if (boundID) {
-    await input.sdk().client.session.prompt({
+    await input.sdk().client.v2.session.prompt({
       sessionID: boundID,
-      directory: input.sdk().directory,
-      parts: [{ type: "text", text: input.prompt }],
+      prompt: { text: input.prompt },
     })
     return boundID
   }

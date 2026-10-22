@@ -72,10 +72,10 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
     if (creating()) return
     setCreating(true)
     try {
-      const result = await sdk().client.session.create({ directory: sdk().directory })
-      if (!result.data) throw new Error("No session data returned")
-      await bindSession.mutateAsync({ novelID: props.novelID, sessionID: result.data.id })
-      switchTo(result.data.id)
+      const result = await sdk().client.v2.session.create({ location: { directory: sdk().directory } })
+      if (!result.data?.data) throw new Error("No session data returned")
+      await bindSession.mutateAsync({ novelID: props.novelID, sessionID: result.data.data.id })
+      switchTo(result.data.data.id)
     } catch (err) {
       showToast({
         variant: "error",
@@ -100,7 +100,7 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
       void archiveSessionCascade({
         session,
         sessions: list,
-        update: (value) => sdkCtx.client.session.update(value),
+        update: (value) => sdkCtx.client.v2.session.update({ sessionID: value.sessionID, time: value.time }),
         remove: () => {},
         onError: (error) =>
           showToast({

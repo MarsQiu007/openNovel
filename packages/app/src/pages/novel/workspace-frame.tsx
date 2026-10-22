@@ -739,7 +739,7 @@ export default function NovelWorkspaceFrame() {
       const boundID = await findBoundNovelSession(sdk, novel, novelID())
       if (boundID)
         await sdk()
-          .client.session.abort({ sessionID: boundID })
+          .client.v2.session.interrupt({ sessionID: boundID })
           .catch(() => {})
     } finally {
       setIsCancelling(false)
@@ -806,10 +806,9 @@ export default function NovelWorkspaceFrame() {
   async function sendToCurrentSession(text: string) {
     const sessionID = params.id
     if (!sessionID) return
-    await sdk().client.session.prompt({
+    await sdk().client.v2.session.prompt({
       sessionID,
-      directory: sdk().directory,
-      parts: [{ type: "text", text }],
+      prompt: { text },
     })
   }
 

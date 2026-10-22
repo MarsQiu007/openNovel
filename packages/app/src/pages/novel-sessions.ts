@@ -114,8 +114,24 @@ export async function exportSessionJson(input: {
   client: DirectorySDK["client"]
 }): Promise<void> {
   const [info, messages] = await Promise.all([
-    input.client.session.get({ sessionID: input.session.id }).then((r) => r.data),
-    input.client.session.messages({ sessionID: input.session.id }).then((r) => r.data),
+    input.client.v2.session.get({ sessionID: input.session.id }).then((r) => r.data?.data),
+    // V2 消息分页：desc 拉全量后反转为时间升序导出
+    (async () => {
+      const all = []
+      let cursor: string | undefined
+      for (;;) {
+        const page = await input.client.v2.session.messages({
+          sessionID: input.session.id,
+          limit: 200,
+          order: "desc",
+          ...(cursor === undefined ? {} : { cursor }),
+        })
+        all.push(...(page.data?.data ?? []))
+        const next = page.data?.cursor.next
+        if (!next) return all.reverse()
+        cursor = next
+      }
+    })(),
   ]).catch(() => [undefined, undefined])
   if (!info || !messages) {
     showToast({ title: "导出会话失败", description: "无法从服务器获取会话数据", variant: "error" })

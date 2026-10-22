@@ -21,7 +21,7 @@ const optimistic: Array<{
 const optimisticSeeded: boolean[] = []
 const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
-const sentShell: string[] = []
+const sentPrompts: string[] = []
 const syncedDirectories: string[] = []
 const navigations: string[] = []
 
@@ -63,25 +63,34 @@ const prompt = {
 const clientFor = (directory: string) => {
   createdClients.push(directory)
   return {
-    session: {
-      create: async () => {
-        await createSessionGate
-        createdSessions.push(directory)
-        return {
-          data: {
-            id: `session-${createdSessions.length}`,
-            title: `New session ${createdSessions.length}`,
-          },
-        }
+    v2: {
+      session: {
+        create: async () => {
+          await createSessionGate
+          createdSessions.push(directory)
+          return {
+            data: {
+              data: {
+                id: `session-${createdSessions.length}`,
+                projectID: "project",
+                location: { directory },
+                title: `New session ${createdSessions.length}`,
+                cost: 0,
+                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                time: { created: 1, updated: 1 },
+              },
+            },
+          }
+        },
+        prompt: async () => {
+          sentPrompts.push(directory)
+          return { data: { data: {} } }
+        },
+        command: async () => ({ data: { data: {} } }),
+        interrupt: async () => ({ data: { data: {} } }),
+        switchAgent: async () => ({ data: { data: {} } }),
+        switchModel: async () => ({ data: { data: {} } }),
       },
-      shell: async () => {
-        sentShell.push(directory)
-        return { data: undefined }
-      },
-      prompt: async () => ({ data: undefined }),
-      promptAsync: async () => ({ data: undefined }),
-      command: async () => ({ data: undefined }),
-      abort: async () => ({ data: undefined }),
     },
     worktree: {
       create: async () => ({ data: { directory: `${directory}/new` } }),
@@ -201,6 +210,7 @@ beforeAll(async () => {
     useServerSync: () => () => ({
       session: {
         remember: () => undefined,
+        get: () => undefined,
         set: () => undefined,
       },
       child: (directory: string) => {
@@ -249,7 +259,7 @@ beforeEach(() => {
   promoted.length = 0
   navigations.length = 0
   params = {}
-  sentShell.length = 0
+  sentPrompts.length = 0
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
   variant = undefined
@@ -266,7 +276,7 @@ describe("prompt submit worktree selection", () => {
       imageAttachments: () => [],
       commentCount: () => 0,
       autoAccept: () => false,
-      mode: () => "shell",
+      mode: () => "normal",
       working: () => false,
       editor: () => undefined,
       queueScroll: () => undefined,
@@ -281,14 +291,17 @@ describe("prompt submit worktree selection", () => {
     })
 
     const event = { preventDefault: () => undefined } as unknown as Event
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
     await submit.handleSubmit(event)
     selected = "/repo/worktree-b"
     await submit.handleSubmit(event)
+    // prompt 发送在 sendFollowupDraft 的异步链尾部，冲刷微任务后再断言
+    await flush()
 
     expect(createdClients).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(createdSessions).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
-    expect(sentShell).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
+    expect(sentPrompts).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(syncedDirectories).toEqual(["/repo/worktree-a", "/repo/worktree-a", "/repo/worktree-b", "/repo/worktree-b"])
     expect(promoted).toEqual([
       { directory: "/repo/worktree-a", sessionID: "session-1" },
@@ -304,7 +317,7 @@ describe("prompt submit worktree selection", () => {
       imageAttachments: () => [],
       commentCount: () => 0,
       autoAccept: () => true,
-      mode: () => "shell",
+      mode: () => "normal",
       working: () => false,
       editor: () => undefined,
       queueScroll: () => undefined,
@@ -336,7 +349,7 @@ describe("prompt submit worktree selection", () => {
       imageAttachments: () => [],
       commentCount: () => 0,
       autoAccept: () => true,
-      mode: () => "shell",
+      mode: () => "normal",
       working: () => false,
       editor: () => undefined,
       queueScroll: () => undefined,
@@ -451,7 +464,7 @@ describe("prompt submit worktree selection", () => {
 
     await submit.handleSubmit(event)
 
-    expect(storedSessions["/repo/worktree-a"]).toEqual([{ id: "session-1", title: "New session 1" }])
+    expect(storedSessions["/repo/worktree-a"]).toMatchObject([{ id: "session-1", title: "New session 1" }])
     expect(optimisticSeeded).toEqual([true])
   })
 })

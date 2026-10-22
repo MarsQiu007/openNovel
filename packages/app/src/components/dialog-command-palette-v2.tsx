@@ -13,6 +13,7 @@ import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import { SessionTabAvatar } from "@/pages/layout/session-tab-avatar"
 import { getRelativeTime } from "@/utils/time"
+import { adaptInfo } from "@/utils/v2-adapter"
 import {
   createCommandPaletteCommandEntry,
   createCommandPaletteFileEntry,
@@ -79,7 +80,9 @@ export function DialogHomeCommandPaletteV2(props: {
     opened: serverCtx.projects.list,
     stored: () => serverCtx.sync.data.project,
     load: (search, signal) =>
-      serverCtx.sdk.client.experimental.session.list({ roots: true, search, limit: 50 }, { signal }),
+      serverCtx.sdk.client.v2.session
+        .list({ roots: true, search, limit: 50 }, { signal })
+        .then((result) => ({ data: (result.data?.data ?? []).map(adaptInfo) })),
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
   })

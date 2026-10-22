@@ -1,5 +1,11 @@
 import { getFilename } from "@opennovel-ai/core/util/path"
-import { type AgentPartInput, type FilePartInput, type Part, type TextPartInput } from "@opennovel-ai/sdk/v2/client"
+import {
+  type AgentPartInput,
+  type FilePartInput,
+  type Part,
+  type PromptInput,
+  type TextPartInput,
+} from "@opennovel-ai/sdk/v2/client"
 import type { FileSelection } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
 import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, Prompt } from "@/context/prompt"
@@ -209,5 +215,38 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
   return {
     requestParts,
     optimisticParts: requestParts.map((part) => toOptimisticPart(part, input.sessionID, input.messageID)),
+    promptInput: toPromptInput(requestParts),
+  }
+}
+
+// V2 提交面：PromptInput 只收 text/files/agents 三个键。
+// text 合并全部文本 part（含 synthetic 批注注记）；files 不带 mime（图片 mime 内嵌于 dataUrl）；
+// synthetic/ignored/metadata 等 V1 展示字段在 V2 提交面不承载。
+export function toPromptInput(parts: PromptRequestPart[]): PromptInput {
+  const text = parts
+    .filter((part): part is TextPartInput & { id: string } => part.type === "text")
+    .map((part) => part.text)
+    .join("\n\n")
+  const files = parts
+    .filter((part): part is FilePartInput & { id: string } => part.type === "file")
+    .map((part) => ({
+      uri: part.url,
+      ...(part.filename === undefined ? {} : { name: part.filename }),
+      ...(part.source?.text === undefined
+        ? {}
+        : { source: { start: part.source.text.start, end: part.source.text.end, text: part.source.text.value } }),
+    }))
+  const agents = parts
+    .filter((part): part is AgentPartInput & { id: string } => part.type === "agent")
+    .map((part) => ({
+      name: part.name,
+      ...(part.source === undefined
+        ? {}
+        : { source: { start: part.source.start, end: part.source.end, text: part.source.value } }),
+    }))
+  return {
+    text,
+    ...(files.length === 0 ? {} : { files }),
+    ...(agents.length === 0 ? {} : { agents }),
   }
 }

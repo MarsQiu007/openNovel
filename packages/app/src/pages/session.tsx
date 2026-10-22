@@ -122,7 +122,7 @@ async function runPromptRollbackMutation<T, R>(input: {
   capturePrompt: () => { current: () => T[]; set: (value: T[]) => void; reset: () => void }
   optimistic: (prompt: { set: (value: T[]) => void; reset: () => void }) => void
   request: () => Promise<R>
-  complete: (result: R) => void
+  complete?: (result: R) => void
   rollback: () => void
   fail: (error: unknown) => void
 }) {
@@ -1797,7 +1797,7 @@ export default function Page() {
   const halt = (sessionID: string) =>
     busy(sessionID)
       ? sdk()
-          .client.session.abort({ sessionID })
+          .client.v2.session.interrupt({ sessionID })
           .catch(() => {})
       : Promise.resolve()
 
@@ -1813,10 +1813,11 @@ export default function Page() {
           roll(input.sessionID, { messageID: input.messageID }, target)
           prompt.set(value)
         },
-        request: () => halt(input.sessionID).then(() => client.session.revert(input)),
-        complete: (result) => {
-          if (result.data) merge(result.data, target)
-        },
+        // 确认经 session.next.revert.staged 事件回填，响应体无需合并
+        request: () =>
+          halt(input.sessionID).then(() =>
+            client.v2.session.revert.stage({ sessionID: input.sessionID, messageID: input.messageID }),
+          ),
         rollback: () => roll(input.sessionID, last, target),
         fail,
       })
@@ -1844,12 +1845,11 @@ export default function Page() {
           promptSession.reset()
         },
         request: () =>
-          !next
-            ? halt(sessionID).then(() => client.session.unrevert({ sessionID }))
-            : halt(sessionID).then(() => client.session.revert({ sessionID, messageID: next.id })),
-        complete: (result) => {
-          if (result.data) merge(result.data, target)
-        },
+          halt(sessionID).then(() =>
+            !next
+              ? client.v2.session.revert.clear({ sessionID })
+              : client.v2.session.revert.stage({ sessionID, messageID: next.id }).then(() => undefined),
+          ),
         rollback: () => roll(sessionID, last, target),
         fail,
       })

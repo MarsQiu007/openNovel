@@ -6,6 +6,7 @@ import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
 import type { AnnotationExecutionSnapshot, ExportFormat, ReviewInboxSource, SettingImageOwnerType } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
+import { adaptInfo } from "@/utils/v2-adapter"
 
 // ---- Internal client helper ----
 
@@ -478,16 +479,16 @@ export function useBoundNovelSessions(novelID: Accessor<string>) {
           maxAttempts: 4,
           delayMs: 1000,
           fetchOnce: async () => {
-            const [bindings, { data: sessionList }] = await Promise.all([
+            const [bindings, { data: sessionPage }] = await Promise.all([
               client()["server.novel"]["session-bindings"]({ location: { directory: dir } }),
-              sdk().client.session.list({ directory: dir, ...bookSessionListParams }),
+              sdk().client.v2.session.list({ directory: dir, ...bookSessionListParams }),
             ])
             const safeBindings = (bindings ?? []) as readonly NovelSessionBinding[]
             return {
               options: boundNovelSessions({
                 novelID: book,
                 bindings: safeBindings,
-                sessions: sessionList ?? [],
+                sessions: (sessionPage?.data ?? []).map(adaptInfo),
               }),
               bindings: safeBindings,
             }

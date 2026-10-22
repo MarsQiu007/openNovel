@@ -60,6 +60,7 @@ import { useDirectoryPicker } from "@/components/directory-picker"
 import { ServerConnection, useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
+import { adaptInfo } from "@/utils/v2-adapter"
 import {
   displayName,
   effectiveWorkspaceOrder,
@@ -874,8 +875,7 @@ export default function LegacyLayout(props: ParentProps) {
     const index = sessions.findIndex((s) => s.id === session.id)
     const nextSession = sessions[index + 1] ?? sessions[index - 1]
 
-    await serverSDK().client.session.update({
-      directory: session.directory,
+    await serverSDK().client.v2.session.update({
       sessionID: session.id,
       time: { archived: Date.now() },
     })
@@ -1231,8 +1231,8 @@ export default function LegacyLayout(props: ParentProps) {
         dirs.map(async (item) => ({
           path: { directory: item },
           session: await serverSDK()
-            .client.session.list({ directory: item })
-            .then((x) => x.data ?? [])
+            .client.v2.session.list({ directory: item, limit: 1000 })
+            .then((x) => (x.data?.data ?? []).map(adaptInfo))
             .catch(() => []),
         })),
       ),
@@ -1434,8 +1434,8 @@ export default function LegacyLayout(props: ParentProps) {
     const dismiss = () => toaster.dismiss(progress)
 
     const sessions: Session[] = await serverSDK()
-      .client.session.list({ directory })
-      .then((x) => x.data ?? [])
+      .client.v2.session.list({ directory, limit: 1000 })
+      .then((x) => (x.data?.data ?? []).map(adaptInfo))
       .catch(() => [])
 
     clearWorkspaceTerminals(
@@ -1471,9 +1471,8 @@ export default function LegacyLayout(props: ParentProps) {
         .filter((session) => session.time.archived === undefined)
         .map((session) =>
           serverSDK()
-            .client.session.update({
+            .client.v2.session.update({
               sessionID: session.id,
-              directory: session.directory,
               time: { archived: archivedAt },
             })
             .catch(() => undefined),
@@ -1571,8 +1570,8 @@ export default function LegacyLayout(props: ParentProps) {
 
     const refresh = async () => {
       const sessions = await serverSDK()
-        .client.session.list({ directory: props.directory })
-        .then((x) => x.data ?? [])
+        .client.v2.session.list({ directory: props.directory, limit: 1000 })
+        .then((x) => (x.data?.data ?? []).map(adaptInfo))
         .catch(() => [])
       const active = sessions.filter((session) => session.time.archived === undefined)
       setState({ sessions: active })

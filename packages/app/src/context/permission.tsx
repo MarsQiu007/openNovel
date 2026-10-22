@@ -235,9 +235,11 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
 
   const respond: PermissionRespondFn = (request) => {
     if (meta.disposed) return
-    input.sdk.client.permission.respond(request).catch(() => {
-      responded.delete(request.permissionID)
-    })
+    input.sdk.client.v2.session.permission
+      .reply({ sessionID: request.sessionID, requestID: request.permissionID, reply: request.response })
+      .catch(() => {
+        responded.delete(request.permissionID)
+      })
   }
 
   function respondOnce(permission: PermissionRequest, directory?: string) {
