@@ -4,6 +4,8 @@ import { effectCmd } from "../../effect-cmd"
 export const AgentCommand = effectCmd({
   command: "agent <name>",
   describe: "show agent configuration details",
+  // handler 走 V2 位置服务（AgentV2 / ToolRegistry / SessionV2），不需要 V1 实例
+  instance: false,
   builder: (yargs) =>
     yargs
       .positional("name", {
