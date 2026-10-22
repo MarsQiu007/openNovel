@@ -33,6 +33,13 @@ export function isV1(input: unknown) {
 }
 
 export function migrate(info: typeof ConfigV1.Info.Type) {
+  // V2 接线键（plugins / subagent_depth）以 core 形状写入，但文件内任一 V1 键
+  // 都会让整体走本迁移——必须透传，否则接线过的项目静默丢插件与深度配置。
+  const subagentDepth = info.subagent_depth ?? info.experimental?.subagent_depth
+  const experimental = {
+    ...(info.experimental?.policies ? { policies: info.experimental.policies } : {}),
+    ...(subagentDepth === undefined ? {} : { subagent_depth: subagentDepth }),
+  }
   return {
     $schema: info.$schema,
     shell: info.shell,
@@ -63,10 +70,11 @@ export function migrate(info: typeof ConfigV1.Info.Type) {
     commands: info.command,
     instructions: info.instructions,
     references: info.references ?? info.reference,
-    plugins: info.plugin?.map((plugin) =>
-      typeof plugin === "string" ? plugin : { package: plugin[0], options: plugin[1] },
-    ),
-    experimental: info.experimental?.policies && { policies: info.experimental.policies },
+    plugins:
+      info.plugin?.map((plugin) =>
+        typeof plugin === "string" ? plugin : { package: plugin[0], options: plugin[1] },
+      ) ?? info.plugins,
+    experimental: Object.keys(experimental).length ? experimental : undefined,
     providers: providers(info.provider),
   }
 }

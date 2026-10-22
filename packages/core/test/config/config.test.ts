@@ -666,6 +666,69 @@ describe("Config", () => {
     ),
   )
 
+  it.live("preserves core-shaped wiring keys when a v1 key forces migration", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          // 镜像 wireNovelWriterV2 接线产物：core 形状 plugins + experimental.subagent_depth
+          // 与 V1 provider 键同文件（任何真实 V1 项目都是这种混合形状）。
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(tmp.path, "opennovel.json"),
+              JSON.stringify({
+                plugins: ["@opennovel-ai/plugin/novel-writer-v2"],
+                experimental: { subagent_depth: 2 },
+                provider: {
+                  test: {
+                    npm: "@ai-sdk/openai-compatible",
+                    options: { apiKey: "test-key", baseURL: "http://localhost:1" },
+                    models: { "test-model": { options: {} } },
+                  },
+                },
+              }),
+            ),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.info.plugins).toEqual(["@opennovel-ai/plugin/novel-writer-v2"])
+            expect(documents[0]?.info.experimental?.subagent_depth).toBe(2)
+            expect(documents[0]?.info.providers?.test).toBeDefined()
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("merges the v1 top-level subagent_depth into core experimental", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() =>
+            fs.writeFile(path.join(tmp.path, "opennovel.json"), JSON.stringify({ snapshot: true, subagent_depth: 3 })),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.info.experimental?.subagent_depth).toBe(3)
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
   it.live("ignores an invalid file while loading valid config values", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),

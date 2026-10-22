@@ -224,6 +224,9 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      // core 形状接线键（wireNovelWriterV2 写 experimental.subagent_depth）；
+      // V1 原生位是顶层 subagent_depth，两处经 migrate 汇合到 core experimental
+      subagent_depth: Schema.optional(NonNegativeInt),
       policies: Schema.optional(Schema.mutable(Schema.Array(ConfigExperimental.Policy))).annotate({
         description: "Policy statements applied to supported resources, such as provider access",
       }),
