@@ -1,5 +1,6 @@
 import { Binary } from "@opennovel-ai/core/util/binary"
 import type { Message, Part, Session } from "@opennovel-ai/sdk/v2/client"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { createMemo } from "solid-js"
 import { produce, reconcile, type SetStoreFunction } from "solid-js/store"
 import type { createServerSdkContext } from "./server-sdk"
@@ -123,9 +124,9 @@ export const createDirSyncContext = (
       fetch: async (count = 10) => {
         const [store, setStore] = current()
         setStore("limit", (value) => value + count)
-        const response = await client.session.list()
-        const sessions = (response.data ?? [])
-          .filter((session) => !!session?.id)
+        const response = await client.v2.session.list({ directory, limit: store.limit })
+        const sessions = (response.data?.data ?? [])
+          .map(adaptInfo)
           .sort((a, b) => cmp(a.id, b.id))
           .slice(0, store.limit)
         sessions.forEach(serverSync.session.remember)
@@ -133,7 +134,7 @@ export const createDirSyncContext = (
       },
       more: createMemo(() => current()[0].session.length >= current()[0].limit),
       archive: async (sessionID: string) => {
-        await serverSDK.client.session.update({ sessionID, time: { archived: Date.now() } })
+        await serverSDK.client.v2.session.update({ sessionID, time: { archived: Date.now() } })
         current()[1](
           "session",
           produce((draft) => {

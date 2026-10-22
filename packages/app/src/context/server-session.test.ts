@@ -1,7 +1,18 @@
 import { describe, expect, test } from "bun:test"
 import type { retry } from "@opennovel-ai/core/util/retry"
-import type { Message, OpenNovelClient, Part, Session } from "@opennovel-ai/sdk/v2/client"
+import type {
+  Message,
+  OpenNovelClient,
+  Part,
+  Session,
+  SessionMessage,
+  SessionV2Info,
+} from "@opennovel-ai/sdk/v2/client"
 import { createServerSession } from "./server-session"
+
+// V1 形状保留作事件/断言 fixture；V2 线上形状由 harness 转换（wireOne）。
+// fake session.get 返回的 info 带 agent "build" / model {id:"model",providerID:"provider"}，
+// 使适配器产出的 V1 形状与旧 fixture 默认值一致。
 
 const session = (id: string, parentID?: string): Session => ({
   id,
@@ -14,14 +25,23 @@ const session = (id: string, parentID?: string): Session => ({
   time: { created: 1, updated: 1 },
 })
 
+const v2Session = (id: string, parentID?: string): SessionV2Info => ({
+  id,
+  ...(parentID === undefined ? {} : { parentID }),
+  projectID: "project",
+  agent: "build",
+  model: { id: "model", providerID: "provider" },
+  cost: 0,
+  tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+  time: { created: 1, updated: 1 },
+  title: id,
+  location: { directory: "/repo" },
+})
+
 type UserMessage = Extract<Message, { role: "user" }>
 type AssistantMessage = Extract<Message, { role: "assistant" }>
 type TextPart = Extract<Part, { type: "text" }>
-type MessageResponse = {
-  data: { info: Message; parts: Part[] }[]
-  response: { headers: Headers }
-}
-type SingleMessageResponse = { data: MessageResponse["data"][number] }
+type Page = { data: { data: SessionMessage[]; cursor: { next?: string } } }
 
 const userMessage = (id: string, input: Partial<UserMessage> = {}): UserMessage => ({
   id,
@@ -58,27 +78,72 @@ const textPart = (messageID: string, input: Partial<TextPart> = {}): TextPart =>
   ...input,
 })
 
-const response = (data: MessageResponse["data"] = [], cursor?: string): MessageResponse => ({
-  data,
-  response: { headers: new Headers(cursor ? { "x-next-cursor": cursor } : undefined) },
+// 拉取的 user 文本会被适配器合成为 `${messageID}:text` part，断言统一用这个 id
+const userTextPart = (messageID: string, text = "text"): TextPart => ({
+  id: `${messageID}:text`,
+  sessionID: "child",
+  messageID,
+  type: "text",
+  text,
 })
 
-const singleResponse = (info: Message, parts: Part[] = []): SingleMessageResponse => ({ data: { info, parts } })
+// V1 fixture → V2 线上投影。assistant 的 parentID 不进线上形状（由页内顺序推导）。
+function wireOne(info: Message, parts: Part[]): SessionMessage {
+  if (info.role === "user") {
+    const texts = parts.filter((part): part is TextPart => part.type === "text")
+    if (texts.length > 1) throw new Error(`user message ${info.id} has multiple text parts`)
+    return { id: info.id, time: { created: info.time.created }, text: texts[0]?.text ?? "", type: "user" }
+  }
+  return {
+    id: info.id,
+    time: {
+      created: info.time.created,
+      ...(info.time.completed === undefined ? {} : { completed: info.time.completed }),
+    },
+    type: "assistant",
+    agent: info.agent,
+    model: {
+      id: info.modelID,
+      providerID: info.providerID,
+      ...(info.variant === undefined ? {} : { variant: info.variant }),
+    },
+    content: parts.map((part) => {
+      if (part.type !== "text") throw new Error(`unsupported part type in wire: ${part.type}`)
+      return { type: "text" as const, id: part.id, text: part.text }
+    }),
+    ...(info.finish === undefined ? {} : { finish: info.finish }),
+    cost: info.cost,
+    tokens: info.tokens,
+  }
+}
 
-const deferredResponse = () => Promise.withResolvers<MessageResponse>()
+// items 按升序构造；端点返回 desc（最新在前），cursor.next 指向更旧方向
+const response = (items: { info: Message; parts: Part[] }[] = [], next?: string): Page => ({
+  data: {
+    data: items.map((item) => wireOne(item.info, item.parts)).reverse(),
+    cursor: next === undefined ? {} : { next },
+  },
+})
 
-function messageClient(...responses: Array<MessageResponse | Promise<MessageResponse>>) {
+const deferredPage = () => Promise.withResolvers<Page>()
+
+function messageClient(...responses: Array<Page | Promise<Page>>) {
   let index = 0
   const requests: unknown[] = []
   const waiting = new Map<number, () => void>()
   const client = {
-    session: {
-      get: async () => ({ data: session("child", "root") }),
-      messages: (input: unknown) => {
-        requests.push(input)
-        waiting.get(requests.length)?.()
-        waiting.delete(requests.length)
-        return responses[index++]
+    v2: {
+      session: {
+        get: async () => ({ data: { data: v2Session("child", "root") } }),
+        messages: (input: unknown) => {
+          requests.push(input)
+          waiting.get(requests.length)?.()
+          waiting.delete(requests.length)
+          return responses[index++]
+        },
+        diff: async () => ({ data: { data: [] } }),
+        todo: async () => ({ data: { data: [] } }),
+        active: async () => ({ data: { data: {} } }),
       },
     },
   } as unknown as OpenNovelClient
@@ -87,40 +152,6 @@ function messageClient(...responses: Array<MessageResponse | Promise<MessageResp
     requested(count: number) {
       if (requests.length >= count) return Promise.resolve()
       return new Promise<void>((resolve) => waiting.set(count, resolve))
-    },
-  })
-}
-
-function rootMessageClient(
-  pages: Array<MessageResponse | Promise<MessageResponse>>,
-  roots: Array<SingleMessageResponse | Promise<SingleMessageResponse>>,
-) {
-  let pageIndex = 0
-  let rootIndex = 0
-  const requests: unknown[] = []
-  const rootRequests: unknown[] = []
-  const rootWaiting = new Map<number, () => void>()
-  const client = {
-    session: {
-      get: async () => ({ data: session("child", "root") }),
-      messages: (input: unknown) => {
-        requests.push(input)
-        return pages[pageIndex++]
-      },
-      message: (input: unknown) => {
-        rootRequests.push(input)
-        rootWaiting.get(rootRequests.length)?.()
-        rootWaiting.delete(rootRequests.length)
-        return roots[rootIndex++]
-      },
-    },
-  } as unknown as OpenNovelClient
-  return Object.assign(client, {
-    requests,
-    rootRequests,
-    rootRequested(count: number) {
-      if (rootRequests.length >= count) return Promise.resolve()
-      return new Promise<void>((resolve) => rootWaiting.set(count, resolve))
     },
   })
 }
@@ -140,18 +171,22 @@ function setup(sessions: Record<string, Session>) {
   const get: unknown[] = []
   const messages: unknown[] = []
   const client = {
-    session: {
-      get: async (input: unknown) => {
-        get.push(input)
-        const id = (input as { sessionID: string }).sessionID
-        return { data: sessions[id] }
+    v2: {
+      session: {
+        get: async (input: unknown) => {
+          get.push(input)
+          const id = (input as { sessionID: string }).sessionID
+          const found = sessions[id]
+          return { data: found ? { data: v2Session(found.id, found.parentID) } : undefined }
+        },
+        messages: async (input: unknown) => {
+          messages.push(input)
+          return response()
+        },
+        diff: async () => ({ data: { data: [] } }),
+        todo: async () => ({ data: { data: [] } }),
+        active: async () => ({ data: { data: {} } }),
       },
-      messages: async (input: unknown) => {
-        messages.push(input)
-        return response()
-      },
-      diff: async () => ({ data: [] }),
-      todo: async () => ({ data: [] }),
     },
   } as unknown as OpenNovelClient
   return { get, messages, store: createServerSession(client) }
@@ -174,112 +209,103 @@ describe("server session", () => {
     await ctx.store.sync("root")
 
     expect(ctx.get).toEqual([{ sessionID: "root" }])
-    expect(ctx.messages).toEqual([{ sessionID: "root", limit: 20, before: undefined }])
+    expect(ctx.messages).toEqual([{ sessionID: "root", limit: 20, order: "desc" }])
     expect(ctx.store.data.message.root).toEqual([])
   })
 
-  test("backfills an assistant-only initial page through its user root", async () => {
+  test("re-anchors assistant parents when history prepends their user root", async () => {
     const user = userMessage("message-1")
-    const assistants = [assistantMessage("message-2", user.id), assistantMessage("message-3", user.id)]
-    const client = rootMessageClient(
-      [
-        response(
-          assistants.map((info) => ({ info, parts: [] })),
-          "older",
-        ),
-      ],
-      [singleResponse(user)],
+    const assistants = [assistantMessage("message-2", ""), assistantMessage("message-3", "")]
+    const client = messageClient(
+      response(
+        assistants.map((info) => ({ info, parts: [] })),
+        "older",
+      ),
+      response([{ info: user, parts: [] }]),
     )
     const store = createServerSession(client)
 
     await store.sync("child")
 
-    expect(client.requests).toEqual([{ sessionID: "child", limit: 20, before: undefined }])
-    expect(client.rootRequests).toEqual([{ sessionID: "child", messageID: user.id }])
-    expect(store.data.message.child).toEqual([user, ...assistants])
+    expect(client.requests).toEqual([{ sessionID: "child", limit: 20, order: "desc" }])
+    expect(store.data.message.child).toEqual(assistants)
     expect(store.history.more("child")).toBe(true)
+
+    await store.history.loadMore("child")
+
+    expect(client.requests[1]).toEqual({ sessionID: "child", limit: 200, order: "desc", cursor: "older" })
+    expect(store.data.message.child).toEqual([
+      user,
+      ...assistants.map((info) => ({ ...info, parentID: user.id })),
+    ])
+    expect(store.history.more("child")).toBe(false)
   })
 
-  test("keeps assistant history when its deleted parent cannot be backfilled", async () => {
-    const missing = Promise.withResolvers<SingleMessageResponse>()
-    const assistant = assistantMessage("message-2", "message-missing")
-    const client = rootMessageClient([response([{ info: assistant, parts: [] }], "older")], [missing.promise])
+  test("keeps assistant history when its parent is gone from the completed timeline", async () => {
+    const assistant = assistantMessage("message-2", "")
+    const client = messageClient(response([{ info: assistant, parts: [] }], "older"), response())
     const store = createServerSession(client)
-    const loading = store.sync("child")
-    await client.rootRequested(1)
 
-    missing.reject(new Error("Message not found: message-missing", { cause: { status: 404 } }))
-    await loading
+    await store.sync("child")
+    await store.history.loadMore("child")
 
-    expect(client.rootRequests).toEqual([{ sessionID: "child", messageID: "message-missing" }])
     expect(store.data.message.child).toEqual([assistant])
-    expect(store.history.more("child")).toBe(true)
+    expect(store.history.more("child")).toBe(false)
   })
 
-  test("drops a cached parent when a forced refresh confirms it was deleted", async () => {
-    const missing = Promise.withResolvers<SingleMessageResponse>()
+  test("drops a cached parent when a complete refresh confirms it was deleted", async () => {
     const parent = userMessage("message-1")
-    const part = textPart(parent.id)
-    const assistant = assistantMessage("message-2", parent.id)
-    const client = rootMessageClient(
-      [
-        response([
-          { info: parent, parts: [part] },
-          { info: assistant, parts: [] },
-        ]),
-        response([{ info: assistant, parts: [] }], "older"),
-      ],
-      [missing.promise],
+    const part = userTextPart(parent.id)
+    const assistant = assistantMessage("message-2", "")
+    const client = messageClient(
+      response([
+        { info: parent, parts: [part] },
+        { info: { ...assistant, parentID: parent.id }, parts: [] },
+      ]),
+      response([{ info: assistant, parts: [] }]),
     )
     const store = createServerSession(client)
     await store.sync("child")
-    const loading = store.sync("child", { force: true })
-    await client.rootRequested(1)
 
-    missing.reject(new Error(`Message not found: ${parent.id}`, { cause: { status: 404 } }))
-    await loading
+    await store.sync("child", { force: true })
 
     expect(store.data.message.child).toEqual([assistant])
     expect(store.data.part[parent.id]).toBeUndefined()
   })
 
-  test("does not let an optimistic user suppress initial root backfill", async () => {
+  test("lets an optimistic user anchor fetched assistants", async () => {
     const user = userMessage("message-1")
-    const part = textPart(user.id)
+    const part = userTextPart(user.id)
     const assistants = [assistantMessage("message-2", user.id), assistantMessage("message-3", user.id)]
-    const client = rootMessageClient(
-      [
-        response(
-          assistants.map((info) => ({ info, parts: [] })),
-          "older",
-        ),
-      ],
-      [singleResponse(user)],
+    const client = messageClient(
+      response(
+        assistants.map((info) => ({ info: { ...info, parentID: "" }, parts: [] })),
+        "older",
+      ),
     )
     const store = createServerSession(client)
     store.optimistic.add({ sessionID: "child", message: user, parts: [part] })
 
     await store.sync("child")
-    store.optimistic.remove({ sessionID: "child", messageID: user.id })
 
     expect(client.requests).toHaveLength(1)
-    expect(client.rootRequests).toHaveLength(1)
     expect(store.data.message.child).toEqual([user, ...assistants])
+
+    store.optimistic.remove({ sessionID: "child", messageID: user.id })
+
+    expect(store.data.message.child).toEqual(assistants)
   })
 
-  test("backfills the parent of fetched assistants when another user is cached", async () => {
+  test("derives assistant parents from the page while another user is cached", async () => {
     const unrelated = userMessage("message-0", { time: { created: 0 } })
     const user = userMessage("message-1")
     const assistants = [assistantMessage("message-2", user.id), assistantMessage("message-3", user.id)]
-    const client = rootMessageClient(
-      [
-        response([{ info: unrelated, parts: [] }]),
-        response(
-          assistants.map((info) => ({ info, parts: [] })),
-          "older",
-        ),
-      ],
-      [singleResponse(user)],
+    const client = messageClient(
+      response([{ info: unrelated, parts: [] }]),
+      response(
+        [{ info: user, parts: [] }, ...assistants.map((info) => ({ info, parts: [] }))],
+        "older",
+      ),
     )
     const store = createServerSession(client)
     await store.sync("child")
@@ -287,177 +313,93 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(client.requests).toHaveLength(2)
-    expect(client.rootRequests).toHaveLength(1)
     expect(store.data.message.child).toEqual([unrelated, user, ...assistants])
   })
 
-  test("preserves cached history between an injected parent and the page boundary", async () => {
-    const user = userMessage("message-1")
-    const cached = userMessage("message-3", { time: { created: 3 } })
-    const assistant = assistantMessage("message-4", user.id)
-    const client = rootMessageClient(
-      [response([{ info: cached, parts: [] }]), response([{ info: assistant, parts: [] }], "older")],
-      [singleResponse(user)],
-    )
-    const store = createServerSession(client)
-    await store.sync("child")
-
-    await store.sync("child", { force: true })
-
-    expect(store.data.message.child).toEqual([user, cached, assistant])
-  })
-
-  test("refreshes a cached parent omitted by an assistant-only replacement page", async () => {
-    const stale = userMessage("message-1", { summary: { title: "stale", diffs: [] } })
-    const fresh = { ...stale, summary: { title: "fresh", diffs: [] } }
-    const stalePart = textPart(stale.id, { text: "stale" })
-    const freshPart = { ...stalePart, text: "fresh" }
+  test("refreshes a cached parent's parts from the prepended history page", async () => {
+    const stale = userMessage("message-1")
+    const stalePart = userTextPart(stale.id, "stale")
+    const freshPart = userTextPart(stale.id, "fresh")
     const assistant = assistantMessage("message-2", stale.id)
-    const client = rootMessageClient(
-      [response([{ info: stale, parts: [stalePart] }]), response([{ info: assistant, parts: [] }], "older")],
-      [singleResponse(fresh, [freshPart])],
+    const client = messageClient(
+      response([{ info: stale, parts: [stalePart] }]),
+      response([{ info: { ...assistant, parentID: "" }, parts: [] }], "older"),
+      response([{ info: stale, parts: [freshPart] }]),
     )
     const store = createServerSession(client)
     await store.sync("child")
 
     await store.sync("child", { force: true })
+    await store.history.loadMore("child")
 
-    expect(client.rootRequests).toEqual([{ sessionID: "child", messageID: stale.id }])
-    expect(store.data.message.child).toEqual([fresh, assistant])
+    expect(store.data.message.child).toEqual([stale, assistant])
     expect(store.data.part[stale.id]).toEqual([freshPart])
   })
 
   test("refreshes a confirmed optimistic parent while preserving pending parts", async () => {
-    const stale = userMessage("message-1", { summary: { title: "stale", diffs: [] } })
-    const fresh = { ...stale, summary: { title: "fresh", diffs: [] } }
-    const confirmed = textPart(stale.id, { id: "confirmed", text: "stale" })
-    const refreshed = { ...confirmed, text: "fresh" }
+    const stale = userMessage("message-1")
+    const confirmed = userTextPart(stale.id, "stale")
+    const refreshed = userTextPart(stale.id, "fresh")
     const pending = textPart(stale.id, { id: "pending", text: "pending" })
     const assistant = assistantMessage("message-2", stale.id)
-    const client = rootMessageClient(
-      [response([{ info: stale, parts: [confirmed] }]), response([{ info: assistant, parts: [] }], "older")],
-      [singleResponse(fresh, [refreshed])],
+    const client = messageClient(
+      response([{ info: stale, parts: [confirmed] }]),
+      response([{ info: { ...assistant, parentID: "" }, parts: [] }], "older"),
+      response([{ info: stale, parts: [refreshed] }]),
     )
     const store = createServerSession(client)
     store.optimistic.add({ sessionID: "child", message: stale, parts: [confirmed, pending] })
     await store.sync("child")
 
     await store.sync("child", { force: true })
+    await store.history.loadMore("child")
 
-    expect(client.rootRequests).toEqual([{ sessionID: "child", messageID: stale.id }])
-    expect(store.data.message.child).toEqual([fresh, assistant])
+    expect(store.data.message.child).toEqual([stale, assistant])
     expect(store.data.part[stale.id]).toEqual([refreshed, pending])
   })
 
   test("uses a parent received by SSE during the replacement load", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const user = userMessage("message-1")
     const assistant = assistantMessage("message-2", user.id)
-    const client = rootMessageClient([pending.promise], [])
+    const client = messageClient(pending.promise)
     const store = createServerSession(client)
     const loading = store.sync("child")
 
     store.apply({ type: "message.updated", properties: { info: user } })
-    pending.resolve(response([{ info: assistant, parts: [] }], "older"))
+    pending.resolve(response([{ info: { ...assistant, parentID: "" }, parts: [] }], "older"))
     await loading
 
-    expect(client.rootRequests).toEqual([])
     expect(store.data.message.child).toEqual([user, assistant])
   })
 
-  test("uses a successful retry over events received by a failed backfill attempt", async () => {
-    const failed = deferredResponse()
+  test("uses a successful retry over events received by a failed attempt", async () => {
+    const failed = deferredPage()
+    const retried = deferredPage()
     const user = userMessage("message-1")
     const live = { ...user, agent: "stale" }
     const assistants = [assistantMessage("message-2", user.id), assistantMessage("message-3", user.id)]
-    const client = rootMessageClient(
-      [
-        response(
-          assistants.map((info) => ({ info, parts: [] })),
-          "older",
-        ),
-      ],
-      [failed.promise.then((result) => ({ data: result.data[0]! })), singleResponse(user)],
-    )
+    const client = messageClient(failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     const loading = store.sync("child")
-    await client.rootRequested(1)
 
     store.apply({ type: "message.updated", properties: { info: live } })
     failed.reject(new Error("retry"))
+    await client.requested(2)
+    retried.resolve(
+      response([{ info: user, parts: [] }, ...assistants.map((info) => ({ info, parts: [] }))], "older"),
+    )
     await loading
 
-    expect(client.requests).toHaveLength(1)
-    expect(client.rootRequests).toHaveLength(2)
+    expect(client.requests).toHaveLength(2)
     expect(store.data.message.child).toEqual([user, ...assistants])
   })
 
-  test("preserves newer-page events across a failed parent retry", async () => {
-    const failed = deferredResponse()
-    const user = userMessage("message-1")
-    const assistant = assistantMessage("message-2", user.id)
-    const live = { ...assistant, cost: 1 }
-    const client = rootMessageClient(
-      [response([{ info: assistant, parts: [] }], "older")],
-      [failed.promise.then((result) => ({ data: result.data[0]! })), singleResponse(user)],
-    )
-    const store = createServerSession(client, { retry: retryImmediately })
-    const loading = store.sync("child")
-    await client.rootRequested(1)
-
-    store.apply({ type: "message.updated", properties: { info: live } })
-    failed.reject(new Error("retry"))
-    await loading
-
-    expect(store.data.message.child).toEqual([user, live])
-  })
-
-  test("preserves unrelated message events across a failed parent retry", async () => {
-    const failed = deferredResponse()
-    const user = userMessage("message-1")
-    const assistant = assistantMessage("message-2", user.id)
-    const live = userMessage("message-4", { time: { created: 4 } })
-    const client = rootMessageClient(
-      [response([{ info: assistant, parts: [] }], "older")],
-      [failed.promise.then((result) => ({ data: result.data[0]! })), singleResponse(user)],
-    )
-    const store = createServerSession(client, { retry: retryImmediately })
-    const loading = store.sync("child")
-    await client.rootRequested(1)
-
-    store.apply({ type: "message.updated", properties: { info: live } })
-    failed.reject(new Error("retry"))
-    await loading
-
-    expect(store.data.message.child).toEqual([user, assistant, live])
-  })
-
-  test("preserves newer-page part events across a failed parent retry", async () => {
-    const failed = deferredResponse()
-    const user = userMessage("message-1")
-    const assistant = assistantMessage("message-2", user.id)
-    const stale = textPart(assistant.id, { text: "stale" })
-    const live = { ...stale, text: "live" }
-    const client = rootMessageClient(
-      [response([{ info: assistant, parts: [stale] }], "older")],
-      [failed.promise.then((result) => ({ data: result.data[0]! })), singleResponse(user)],
-    )
-    const store = createServerSession(client, { retry: retryImmediately })
-    const loading = store.sync("child")
-    await client.rootRequested(1)
-
-    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: live, time: 2 } })
-    failed.reject(new Error("retry"))
-    await loading
-
-    expect(store.data.part[assistant.id]).toEqual([live])
-  })
-
   test("merges live events into the initial page", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const user = userMessage("message-1")
     const live = userMessage("message-2", { time: { created: 2 } })
-    const livePart = textPart(live.id, { text: "live" })
+    const livePart = userTextPart(live.id, "live")
     const store = createServerSession(messageClient(pending.promise))
     const loading = store.sync("child")
 
@@ -471,9 +413,9 @@ describe("server session", () => {
   })
 
   test("preserves same-ID live updates over the initial page", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const fetched = userMessage("message")
-    const fetchedPart = textPart(fetched.id, { text: "fetched" })
+    const fetchedPart = userTextPart(fetched.id, "fetched")
     const live = { ...fetched, time: { created: 2 } }
     const livePart = { ...fetchedPart, text: "live" }
     const store = createServerSession(messageClient(pending.promise))
@@ -489,10 +431,10 @@ describe("server session", () => {
   })
 
   test("preserves removals received during the initial load", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const removed = userMessage("message-1")
     const kept = { ...removed, id: "message-2" }
-    const part = textPart(kept.id, { text: "removed" })
+    const part = userTextPart(kept.id, "removed")
     const store = createServerSession(messageClient(pending.promise))
     const loading = store.sync("child")
 
@@ -514,8 +456,8 @@ describe("server session", () => {
   })
 
   test("keeps removal tracking isolated across load generations", async () => {
-    const firstResponse = deferredResponse()
-    const secondResponse = deferredResponse()
+    const firstResponse = deferredPage()
+    const secondResponse = deferredPage()
     const message = userMessage("message")
     const store = createServerSession(messageClient(firstResponse.promise, secondResponse.promise))
     const first = store.sync("child")
@@ -536,8 +478,8 @@ describe("server session", () => {
   })
 
   test("tracks removals in a replacement load generation", async () => {
-    const firstResponse = deferredResponse()
-    const secondResponse = deferredResponse()
+    const firstResponse = deferredPage()
+    const secondResponse = deferredPage()
     const message = userMessage("message")
     const store = createServerSession(messageClient(firstResponse.promise, secondResponse.promise))
     const first = store.sync("child")
@@ -557,7 +499,7 @@ describe("server session", () => {
   })
 
   test("preserves remove then re-add when a refresh omits the message", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
     const store = createServerSession(messageClient(response([{ info: message, parts: [] }]), pending.promise))
     await store.sync("child")
@@ -572,9 +514,9 @@ describe("server session", () => {
   })
 
   test("preserves a re-added message without restoring removed parts", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "stale" })
+    const part = userTextPart(message.id, "stale")
     const store = createServerSession(messageClient(response([{ info: message, parts: [] }]), pending.promise))
     await store.sync("child")
     const refreshing = store.sync("child", { force: true })
@@ -589,9 +531,9 @@ describe("server session", () => {
   })
 
   test("preserves optimistic parts re-added after removal during a refresh", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const stale = textPart(message.id, { id: "stale", text: "stale" })
+    const stale = userTextPart(message.id, "stale")
     const part = textPart(message.id, { id: "optimistic", text: "optimistic" })
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [] }]), pending.promise, response()),
@@ -635,7 +577,7 @@ describe("server session", () => {
 
   test("does not restore removed optimistic content on refresh", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "removed" })
+    const part = userTextPart(message.id, "removed")
     const kept = { ...message, id: "kept" }
     const keptPart = { ...part, id: "kept-part", messageID: kept.id }
     const store = createServerSession(messageClient(response([{ info: kept, parts: [] }])))
@@ -666,10 +608,10 @@ describe("server session", () => {
   })
 
   test("replaces a confirmed optimistic part with fetched content", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const optimistic = textPart(message.id, { text: "optimistic" })
-    const fetched = { ...optimistic, text: "fetched" }
+    const optimistic = userTextPart(message.id, "optimistic")
+    const fetched = userTextPart(message.id, "fetched")
     const store = createServerSession(messageClient(pending.promise))
     const loading = store.sync("child")
 
@@ -681,9 +623,9 @@ describe("server session", () => {
   })
 
   test("rolls back only unconfirmed optimistic parts", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const confirmed = textPart(message.id, { id: "confirmed", text: "confirmed" })
+    const confirmed = userTextPart(message.id, "confirmed")
     const pendingPart = textPart(message.id, { id: "pending", text: "pending" })
     const store = createServerSession(messageClient(pending.promise))
     const loading = store.sync("child")
@@ -699,8 +641,8 @@ describe("server session", () => {
 
   test("updates confirmed optimistic parts from later pages", async () => {
     const message = userMessage("message")
-    const confirmed = textPart(message.id, { id: "confirmed", text: "first" })
-    const updated = { ...confirmed, text: "updated" }
+    const confirmed = userTextPart(message.id, "first")
+    const updated = userTextPart(message.id, "updated")
     const pendingPart = textPart(message.id, { id: "pending", text: "pending" })
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [confirmed] }]), response([{ info: message, parts: [updated] }])),
@@ -716,7 +658,7 @@ describe("server session", () => {
 
   test("does not restore a confirmed optimistic part after its removal event", async () => {
     const message = userMessage("message")
-    const confirmed = textPart(message.id, { id: "confirmed", text: "confirmed" })
+    const confirmed = userTextPart(message.id, "confirmed")
     const pendingPart = textPart(message.id, { id: "pending", text: "pending" })
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [confirmed] }]), response([{ info: message, parts: [] }])),
@@ -735,7 +677,7 @@ describe("server session", () => {
 
   test("clears delta buffers when removing optimistic content", () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "optimistic" })
+    const part = userTextPart(message.id, "optimistic")
     const store = setup({ child: session("child") }).store
     store.optimistic.add({ sessionID: "child", message, parts: [part] })
     store.apply({
@@ -751,7 +693,7 @@ describe("server session", () => {
 
   test("does not remove content confirmed by a message event", () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = setup({ child: session("child") }).store
     store.optimistic.add({ sessionID: "child", message, parts: [part] })
     store.apply({ type: "message.updated", properties: { sessionID: "child", info: message } })
@@ -764,7 +706,7 @@ describe("server session", () => {
 
   test("does not remove parts confirmed by part events", () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = setup({ child: session("child") }).store
     store.optimistic.add({ sessionID: "child", message, parts: [part] })
     store.apply({ type: "message.updated", properties: { sessionID: "child", info: message } })
@@ -778,7 +720,7 @@ describe("server session", () => {
 
   test("treats a part event as confirmation when it precedes the message event", () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = setup({ child: session("child") }).store
     store.optimistic.add({ sessionID: "child", message, parts: [part] })
     store.apply({ type: "message.part.updated", properties: { sessionID: "child", part, time: 2 } })
@@ -790,9 +732,9 @@ describe("server session", () => {
   })
 
   test("clears stale parts when the initial page has none", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "stale" })
+    const part = userTextPart(message.id, "stale")
     const store = createServerSession(messageClient(pending.promise))
     store.apply({ type: "message.updated", properties: { info: message } })
     store.apply({ type: "message.part.updated", properties: { sessionID: "child", part, time: 1 } })
@@ -805,9 +747,9 @@ describe("server session", () => {
   })
 
   test("clears delta buffers for parts omitted by the initial page", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const kept = textPart(message.id, { id: "part-1", text: "kept" })
+    const kept = userTextPart(message.id, "kept")
     const removed: Part = { ...kept, id: "part-2", text: "removed" }
     const store = createServerSession(messageClient(pending.promise))
     store.apply({ type: "message.updated", properties: { info: message } })
@@ -828,8 +770,8 @@ describe("server session", () => {
 
   test("clears a stale delta buffer when a refresh replaces its part", async () => {
     const message = userMessage("message")
-    const stale = textPart(message.id, { text: "stale" })
-    const fetched = { ...stale, text: "fetched" }
+    const stale = userTextPart(message.id, "stale")
+    const fetched = userTextPart(message.id, "fetched")
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [stale] }]), response([{ info: message, parts: [fetched] }])),
     )
@@ -847,7 +789,7 @@ describe("server session", () => {
 
   test("preserves a non-durable delta received before refresh", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "stale" })
+    const part = userTextPart(message.id, "stale")
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [{ ...part }] }])),
     )
@@ -865,8 +807,8 @@ describe("server session", () => {
 
   test("accepts fetched text that intentionally replaces an accumulated prefix", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "abc" })
-    const fetched = { ...part, text: "ab" }
+    const part = userTextPart(message.id, "abc")
+    const fetched = userTextPart(message.id, "ab")
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [fetched] }])),
     )
@@ -884,8 +826,8 @@ describe("server session", () => {
 
   test("preserves an unpersisted delta suffix after partial server catch-up", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "a" })
-    const fetched = { ...part, text: "ab" }
+    const part = userTextPart(message.id, "a")
+    const fetched = userTextPart(message.id, "ab")
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [fetched] }])),
     )
@@ -903,8 +845,8 @@ describe("server session", () => {
 
   test("clears delta state after exact server catch-up", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "a" })
-    const fetched = { ...part, text: "ab" }
+    const part = userTextPart(message.id, "a")
+    const fetched = userTextPart(message.id, "ab")
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [fetched] }])),
     )
@@ -921,10 +863,10 @@ describe("server session", () => {
   })
 
   test("uses the successful retry response over events from a failed attempt", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const stale = textPart(message.id, { text: "stale" })
+    const stale = userTextPart(message.id, "stale")
     const intermediate = { ...stale, text: "intermediate" }
     const fetched = { ...stale, text: "fetched" }
     const client = messageClient(failed.promise, retried.promise)
@@ -943,10 +885,10 @@ describe("server session", () => {
   })
 
   test("preserves non-durable deltas across message retries", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "stale" })
+    const part = userTextPart(message.id, "stale")
     const client = messageClient(failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     store.apply({ type: "message.updated", properties: { info: message } })
@@ -966,10 +908,10 @@ describe("server session", () => {
   })
 
   test("preserves part removals across message retries", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const client = messageClient(response([{ info: message, parts: [part] }]), failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     await store.sync("child")
@@ -988,10 +930,10 @@ describe("server session", () => {
   })
 
   test("preserves message removals across message retries", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const client = messageClient(response([{ info: message, parts: [part] }]), failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     await store.sync("child")
@@ -1008,10 +950,10 @@ describe("server session", () => {
   })
 
   test("preserves optimistic re-adds across message retries", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const stale = textPart(message.id, { id: "stale", text: "stale" })
+    const stale = userTextPart(message.id, "stale")
     const optimistic = textPart(message.id, { id: "optimistic", text: "optimistic" })
     const client = messageClient(response([{ info: message, parts: [stale] }]), failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
@@ -1030,10 +972,10 @@ describe("server session", () => {
   })
 
   test("accepts part omission from a successful retry after an earlier delta", async () => {
-    const failed = Promise.withResolvers<MessageResponse>()
-    const retried = Promise.withResolvers<MessageResponse>()
+    const failed = deferredPage()
+    const retried = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const client = messageClient(response([{ info: message, parts: [part] }]), failed.promise, retried.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     await store.sync("child")
@@ -1053,11 +995,11 @@ describe("server session", () => {
   })
 
   test("clears load-owned orphan parts when all retries fail", async () => {
-    const first = Promise.withResolvers<MessageResponse>()
-    const second = Promise.withResolvers<MessageResponse>()
-    const third = Promise.withResolvers<MessageResponse>()
+    const first = deferredPage()
+    const second = deferredPage()
+    const third = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const client = messageClient(first.promise, second.promise, third.promise)
     const store = createServerSession(client, { retry: retryImmediately })
     const loading = store.sync("child").catch((error) => error)
@@ -1074,9 +1016,9 @@ describe("server session", () => {
   })
 
   test("preserves live updates during a forced refresh", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const stale = userMessage("message")
-    const stalePart = textPart(stale.id, { text: "stale" })
+    const stalePart = userTextPart(stale.id, "stale")
     const store = createServerSession(messageClient(response([{ info: stale, parts: [stalePart] }]), pending.promise))
     await store.sync("child")
     const refreshing = store.sync("child", { force: true })
@@ -1095,10 +1037,10 @@ describe("server session", () => {
   })
 
   test("keeps fetched message metadata when only a part changes", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const stale = userMessage("message")
     const fetched = { ...stale, time: { created: 2 } }
-    const part = textPart(stale.id, { text: "stale" })
+    const part = userTextPart(stale.id, "stale")
     const store = createServerSession(messageClient(response([{ info: stale, parts: [part] }]), pending.promise))
     await store.sync("child")
     const refreshing = store.sync("child", { force: true })
@@ -1115,10 +1057,10 @@ describe("server session", () => {
   })
 
   test("preserves a part update when a forced refresh omits its message", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const stale = textPart(message.id, { text: "stale" })
-    const live = { ...stale, text: "live" }
+    const stale = userTextPart(message.id, "stale")
+    const live = userTextPart(message.id, "live")
     const store = createServerSession(messageClient(response([{ info: message, parts: [stale] }]), pending.promise))
     await store.sync("child")
     const refreshing = store.sync("child", { force: true })
@@ -1132,9 +1074,9 @@ describe("server session", () => {
   })
 
   test("ignores a late part update after its message is removed", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = createServerSession(messageClient(pending.promise))
     const loading = store.sync("child")
 
@@ -1150,7 +1092,7 @@ describe("server session", () => {
 
   test("ignores a late part update after a completed message removal", () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = setup({ child: session("child") }).store
     store.apply({ type: "message.updated", properties: { info: message } })
     store.apply({ type: "message.removed", properties: { sessionID: "child", messageID: message.id } })
@@ -1162,7 +1104,7 @@ describe("server session", () => {
 
   test("does not restore a completed message removal from a stale refresh", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [part] }])),
     )
@@ -1177,7 +1119,7 @@ describe("server session", () => {
 
   test("does not restore a completed part removal from a stale refresh", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id)
+    const part = userTextPart(message.id)
     const store = createServerSession(
       messageClient(response([{ info: message, parts: [part] }]), response([{ info: message, parts: [part] }])),
     )
@@ -1204,7 +1146,7 @@ describe("server session", () => {
 
   test("clears stale delta buffers when replacing optimistic parts", () => {
     const message = userMessage("message")
-    const stale = textPart(message.id, { id: "stale", text: "stale" })
+    const stale = userTextPart(message.id, "stale")
     const optimistic = textPart(message.id, { id: "optimistic", text: "optimistic" })
     const store = setup({ child: session("child") }).store
     store.optimistic.add({ sessionID: "child", message, parts: [stale] })
@@ -1220,7 +1162,7 @@ describe("server session", () => {
   })
 
   test("preserves removals during history prepend", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const latest = userMessage("message-2", { time: { created: 2 } })
     const older = { ...latest, id: "message-1", time: { created: 1 } }
     const store = createServerSession(messageClient(response([{ info: latest, parts: [] }], "older"), pending.promise))
@@ -1232,26 +1174,6 @@ describe("server session", () => {
     await loading
 
     expect(store.data.message.child).toEqual([latest])
-  })
-
-  test("does not scan cached messages for user roots during history prepend", async () => {
-    const guard = { active: false }
-    const latest = new Proxy(userMessage("message-2", { time: { created: 2 } }), {
-      get(target, property, receiver) {
-        if (guard.active && property === "role") throw new Error("cached role accessed")
-        return Reflect.get(target, property, receiver)
-      },
-    })
-    const older = userMessage("message-1")
-    const store = createServerSession(
-      messageClient(response([{ info: latest, parts: [] }], "older"), response([{ info: older, parts: [] }])),
-    )
-    await store.sync("child")
-    guard.active = true
-
-    await store.history.loadMore("child")
-
-    expect(store.data.message.child).toEqual([older, latest])
   })
 
   test("preserves loaded history during an incomplete refresh", async () => {
@@ -1336,11 +1258,11 @@ describe("server session", () => {
   })
 
   test("preserves a part update for a message being loaded from history", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const latest = userMessage("message-2", { time: { created: 2 } })
     const older = userMessage("message-1")
-    const stale = textPart(older.id, { text: "stale" })
-    const live = { ...stale, text: "live" }
+    const stale = userTextPart(older.id, "stale")
+    const live = userTextPart(older.id, "live")
     const store = createServerSession(messageClient(response([{ info: latest, parts: [] }], "older"), pending.promise))
     await store.sync("child")
     const loading = store.history.loadMore("child")
@@ -1353,11 +1275,11 @@ describe("server session", () => {
   })
 
   test("does not clear newer orphan parts after terminal history prepend", async () => {
-    const pending = deferredResponse()
+    const pending = deferredPage()
     const latest = userMessage("message-2", { time: { created: 2 } })
     const older = userMessage("message-1")
     const newer = userMessage("message-3", { time: { created: 3 } })
-    const part = textPart(newer.id, { text: "live" })
+    const part = userTextPart(newer.id, "live")
     const store = createServerSession(messageClient(response([{ info: latest, parts: [] }], "older"), pending.promise))
     await store.sync("child")
     const loading = store.history.loadMore("child")
@@ -1371,11 +1293,11 @@ describe("server session", () => {
   })
 
   test("accepts an authoritative history part after an earlier unknown-parent update", async () => {
-    const pending = deferredResponse()
-    const history = deferredResponse()
+    const pending = deferredPage()
+    const history = deferredPage()
     const latest = userMessage("message-2", { time: { created: 2 } })
     const older = userMessage("message-1")
-    const part = textPart(older.id, { text: "live" })
+    const part = userTextPart(older.id, "live")
     const store = createServerSession(messageClient(pending.promise, history.promise))
     const loading = store.sync("child")
 
@@ -1393,11 +1315,11 @@ describe("server session", () => {
   })
 
   test("preserves an unknown-parent part removal across pages", async () => {
-    const initial = deferredResponse()
-    const history = deferredResponse()
+    const initial = deferredPage()
+    const history = deferredPage()
     const latest = userMessage("message-2", { time: { created: 2 } })
     const older = userMessage("message-1")
-    const part = textPart(older.id)
+    const part = userTextPart(older.id)
     const store = createServerSession(messageClient(initial.promise, history.promise))
     const loading = store.sync("child")
 
@@ -1416,7 +1338,7 @@ describe("server session", () => {
 
   test("clears orphaned parts when a refresh drops a message", async () => {
     const message = userMessage("message")
-    const part = textPart(message.id, { text: "stale" })
+    const part = userTextPart(message.id, "stale")
     const store = createServerSession(messageClient(response([{ info: message, parts: [part] }]), response()))
     await store.sync("child")
     store.apply({
@@ -1472,5 +1394,181 @@ describe("server session", () => {
 
     expect(ctx.store.data.message.active?.map((message) => message.id)).toEqual(["message"])
     expect(ctx.store.data.session_status["session-0"]).toBeUndefined()
+  })
+})
+
+describe("server session V2 events", () => {
+  const created = (store: ReturnType<typeof createServerSession>, sessionID = "root") =>
+    store.apply({
+      type: "session.created",
+      properties: {
+        sessionID,
+        info: { ...session(sessionID), agent: "build", model: { id: "model", providerID: "provider" } },
+      },
+    })
+
+  test("merges session.next.updated title patches", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    ctx.store.apply({
+      type: "session.next.updated",
+      properties: { timestamp: 99, sessionID: "root", title: "renamed" },
+    })
+
+    expect(ctx.store.get("root")).toMatchObject({ title: "renamed", time: { created: 1, updated: 99 } })
+  })
+
+  test("evicts session caches on session.next.updated archived", () => {
+    const ctx = setup({})
+    created(ctx.store)
+    ctx.store.apply({
+      type: "message.updated",
+      properties: { info: userMessage("message-1", { sessionID: "root" }) },
+    })
+
+    ctx.store.apply({
+      type: "session.next.updated",
+      properties: { timestamp: 99, sessionID: "root", archived: 100 },
+    })
+
+    expect(ctx.store.get("root")?.time.archived).toBe(100)
+    expect(ctx.store.data.message.root).toBeUndefined()
+  })
+
+  test("maps session.next.retried to retry status", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    ctx.store.apply({
+      type: "session.next.retried",
+      properties: { timestamp: 50, sessionID: "root", attempt: 2, error: { message: "boom" } },
+    })
+
+    expect(ctx.store.data.session_status.root).toEqual({ type: "retry", attempt: 2, message: "boom", next: 50 })
+  })
+
+  test("clears retry back to busy on session.next.step.started and stores the skeleton", () => {
+    const ctx = setup({})
+    created(ctx.store)
+    ctx.store.apply({
+      type: "session.next.retried",
+      properties: { timestamp: 50, sessionID: "root", attempt: 2, error: { message: "boom" } },
+    })
+
+    ctx.store.apply({
+      type: "session.next.step.started",
+      properties: {
+        timestamp: 60,
+        sessionID: "root",
+        assistantMessageID: "msg_a1",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    })
+
+    expect(ctx.store.data.session_status.root).toEqual({ type: "busy" })
+    expect(ctx.store.data.message.root?.[0]).toMatchObject({
+      id: "msg_a1",
+      role: "assistant",
+      parentID: "",
+      agent: "build",
+      modelID: "model",
+      providerID: "provider",
+    })
+  })
+
+  test("stages and clears revert on session.next.revert events", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    ctx.store.apply({
+      type: "session.next.revert.staged",
+      properties: { timestamp: 70, sessionID: "root", revert: { messageID: "msg_1", partID: "prt_1" } },
+    })
+
+    expect(ctx.store.get("root")?.revert).toEqual({ messageID: "msg_1", partID: "prt_1" })
+
+    ctx.store.apply({ type: "session.next.revert.cleared", properties: { timestamp: 71, sessionID: "root" } })
+
+    expect(ctx.store.get("root")?.revert).toBeUndefined()
+  })
+
+  test("stores prompted prompts through the translator", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    ctx.store.apply({
+      type: "session.next.prompted",
+      properties: {
+        timestamp: 10,
+        sessionID: "root",
+        messageID: "msg_u1",
+        prompt: { text: "hello" },
+        delivery: "steer",
+      },
+    })
+
+    expect(ctx.store.data.message.root?.[0]).toMatchObject({
+      id: "msg_u1",
+      role: "user",
+      agent: "build",
+      model: { providerID: "provider", modelID: "model" },
+    })
+    expect(ctx.store.data.part.msg_u1).toEqual([
+      { id: "msg_u1:text", sessionID: "root", messageID: "msg_u1", type: "text", text: "hello" },
+    ])
+  })
+
+  test("stores compaction as a synthetic user with a compaction part", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    ctx.store.apply({
+      type: "session.next.compaction.ended",
+      properties: {
+        timestamp: 20,
+        sessionID: "root",
+        messageID: "msg_c1",
+        reason: "auto",
+        text: "summary",
+        recent: "recent",
+      },
+    })
+
+    expect(ctx.store.data.message.root?.[0]).toMatchObject({ id: "msg_c1", role: "user" })
+    expect(ctx.store.data.part.msg_c1).toEqual([
+      { id: "msg_c1:compaction", sessionID: "root", messageID: "msg_c1", type: "compaction", auto: true },
+    ])
+  })
+
+  test("reconciles session_status from the active set", async () => {
+    const active = { data: { data: {} as Record<string, { type: "running" }> } }
+    const client = {
+      v2: {
+        session: {
+          get: async () => ({ data: undefined }),
+          messages: async () => response(),
+          diff: async () => ({ data: { data: [] } }),
+          todo: async () => ({ data: { data: [] } }),
+          active: async () => active,
+        },
+      },
+    } as unknown as OpenNovelClient
+    const store = createServerSession(client)
+    store.apply({ type: "session.status", properties: { sessionID: "busy", status: { type: "busy" } } })
+    store.apply({ type: "session.status", properties: { sessionID: "stale", status: { type: "busy" } } })
+    store.apply({
+      type: "session.next.retried",
+      properties: { timestamp: 50, sessionID: "retry", attempt: 1, error: { message: "boom" } },
+    })
+    active.data.data = { busy: { type: "running" }, retry: { type: "running" }, fresh: { type: "running" } }
+
+    await store.refreshActive()
+
+    expect(store.data.session_status.busy).toEqual({ type: "busy" })
+    expect(store.data.session_status.stale).toEqual({ type: "idle" })
+    expect(store.data.session_status.retry).toEqual({ type: "retry", attempt: 1, message: "boom", next: 50 })
+    expect(store.data.session_status.fresh).toEqual({ type: "busy" })
   })
 })

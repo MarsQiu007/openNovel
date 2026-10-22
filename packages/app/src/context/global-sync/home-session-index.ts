@@ -1,6 +1,7 @@
 import type { Event, Session, SessionV2Info, V2SessionListResponse } from "@opennovel-ai/sdk/v2/client"
 import type { QueryClient } from "@tanstack/solid-query"
 import { trimSessions } from "./session-trim"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { pathKey } from "@/utils/path-key"
 
 export const HOME_V2_SESSION_PAGE_LIMIT = 5_000
@@ -116,6 +117,27 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       }
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, { sequence: next.sequence, entries: [] })
     },
+    // session.next.updated 部分更新：title 合并 / archived 移除（基线不可回放，并发 refetch 会带新态覆盖）
+    patch(input: { sessionID: string; title?: string; archived?: number | null }) {
+      const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
+      if (!index) return
+      const position = index.sessions.findIndex((session) => session.id === input.sessionID)
+      if (position === -1) return
+      if (input.archived) {
+        queryClient.setQueryData<HomeSessionIndex>(indexKey, {
+          ...index,
+          sessions: index.sessions.toSpliced(position, 1),
+        })
+        return
+      }
+      if (input.title === undefined) return
+      const current = index.sessions[position]
+      if (!current) return
+      queryClient.setQueryData<HomeSessionIndex>(indexKey, {
+        ...index,
+        sessions: index.sessions.with(position, { ...current, title: input.title }),
+      })
+    },
     refresh(event: Event["type"]) {
       const result = homeSessionIndexRefresh(event, connected)
       connected = result.connected
@@ -133,7 +155,7 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
 export function parseHomeSessionIndex(sessions: SessionV2Info[]): Session[] {
   return sessions.flatMap((item) => {
     if (item.parentID || typeof item.time.archived === "number") return []
-    return [toLegacySummary(item)]
+    return [adaptInfo(item)]
   })
 }
 
@@ -152,23 +174,4 @@ export function applyHomeSessionEvent(sessions: Session[], event: HomeSessionEve
   if (event.type !== "session.created" && event.type !== "session.updated") return sessions
   if (index === -1) return [...sessions, info]
   return sessions.with(index, info)
-}
-
-function toLegacySummary(session: SessionV2Info): Session {
-  return {
-    id: session.id,
-    slug: session.id,
-    projectID: session.projectID,
-    workspaceID: session.location.workspaceID,
-    directory: session.location.directory,
-    path: session.subpath,
-    parentID: session.parentID,
-    cost: session.cost,
-    tokens: session.tokens,
-    title: session.title,
-    agent: session.agent,
-    model: session.model,
-    version: "",
-    time: session.time,
-  }
 }

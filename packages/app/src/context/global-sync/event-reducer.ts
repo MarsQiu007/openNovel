@@ -170,6 +170,28 @@ export function applyDirectoryEvent(input: {
       cleanupDroppedSessionCaches(input.store, input.setStore, trimmed, input.setSessionTodo)
       break
     }
+    case "session.next.updated": {
+      // V2 会话元数据部分更新：list 内合并 title；archived 移除行并回收缓存（archived:null 忽略）
+      const props = event.properties as { sessionID: string; title?: string; archived?: number | null }
+      const result = Binary.search(input.store.session, props.sessionID, (s) => s.id)
+      if (!result.found) break
+      if (props.archived) {
+        const parentID = input.store.session[result.index]?.parentID
+        input.setStore(
+          "session",
+          produce((draft) => {
+            draft.splice(result.index, 1)
+          }),
+        )
+        cleanupSessionCaches(input.setStore, props.sessionID, input.setSessionTodo)
+        if (parentID) break
+        input.setStore("sessionTotal", (value) => Math.max(0, value - 1))
+        break
+      }
+      if (props.title === undefined) break
+      input.setStore("session", result.index, "title", props.title)
+      break
+    }
     case "session.deleted": {
       const info = (event.properties as { info: Session }).info
       const result = Binary.search(input.store.session, info.id, (s) => s.id)
@@ -193,7 +215,7 @@ export function applyDirectoryEvent(input: {
     }
     case "todo.updated": {
       const props = event.properties as { sessionID: string; todos: Todo[] }
-      input.setStore("todo", props.sessionID, reconcile(props.todos, { key: "id" }))
+      input.setStore("todo", props.sessionID, reconcile(props.todos))
       input.setSessionTodo?.(props.sessionID, props.todos)
       break
     }

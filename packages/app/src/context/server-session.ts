@@ -1,11 +1,13 @@
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { retry } from "@opennovel-ai/core/util/retry"
 import type {
+  GlobalEvent,
   Message,
   OpenNovelClient,
   Part,
   PermissionRequest,
   QuestionRequest,
+  RevertState,
   Session,
   SessionStatus,
   SnapshotFileDiff,
@@ -16,6 +18,9 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { diffs as cleanDiffs, message as cleanMessage } from "@/utils/diffs"
 import { sessionNotFoundError } from "@/utils/server-errors"
 import { sessionChain } from "@/utils/session-route"
+import { adaptDiff, adaptInfo, adaptMessage, adaptMessages, adaptRevert } from "@/utils/v2-adapter"
+import type { AdaptContext } from "@/utils/v2-adapter"
+import { createV2Translator } from "./v2-translator"
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
@@ -104,6 +109,23 @@ function merge<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
   return [...items.values()].sort((x, y) => cmp(x.id, y.id))
 }
 
+// V2 投影的 assistant 不带 parentID，页首/事件边界的 assistant 先落空串；
+// 每次页面合并后按时间线把空 parentID 重锚到最近的前置 user（含合成 compaction-user）。
+function repairParentIDs(messages: Message[]) {
+  let lastUser = ""
+  let changed = false
+  const repaired = messages.map((message) => {
+    if (message.role === "user") {
+      lastUser = message.id
+      return message
+    }
+    if (message.parentID || !lastUser) return message
+    changed = true
+    return { ...message, parentID: lastUser }
+  })
+  return changed ? repaired : messages
+}
+
 function reconcileFetched<T extends { id: string }>(
   fetched: T[],
   current: readonly T[],
@@ -153,6 +175,34 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     },
   })
   const requests = new Map<string, Promise<Session>>()
+  const adaptContext = (sessionID: string): AdaptContext => {
+    const info = data.info[sessionID]
+    return {
+      sessionID,
+      directory: info?.directory ?? "",
+      agent: info?.agent ?? "",
+      model: info?.model
+        ? {
+            providerID: info.model.providerID,
+            modelID: info.model.id,
+            ...(info.model.variant === undefined ? {} : { variant: info.model.variant }),
+          }
+        : { providerID: "", modelID: "" },
+    }
+  }
+  const translator = createV2Translator({
+    context: (sessionID) => {
+      const info = data.info[sessionID]
+      if (!info) return
+      const base = adaptContext(sessionID)
+      return {
+        agent: base.agent,
+        model: base.model,
+        directory: base.directory,
+        lastUserID: (data.message[sessionID] ?? []).findLast((message) => message.role === "user")?.id,
+      }
+    },
+  })
   const inflight = new Map<string, Promise<void>>()
   const inflightDiff = new Map<string, Promise<void>>()
   const inflightTodo = new Map<string, Promise<void>>()
@@ -242,10 +292,11 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     const pending = requests.get(sessionID)
     if (pending) return pending
     const active = generation(sessionID)
-    const request = client.session.get({ sessionID }).then((result) => {
+    const request = client.v2.session.get({ sessionID }).then((result) => {
       if (!result.data) throw sessionNotFoundError(sessionID)
-      if (generations.get(sessionID) !== active) return result.data
-      return remember(result.data)
+      const info = adaptInfo(result.data.data)
+      if (generations.get(sessionID) !== active) return info
+      return remember(info)
     })
     requests.set(sessionID, request)
     const cleanup = () => {
@@ -418,6 +469,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     }
     sessionIDs.forEach((sessionID) => {
       generations.delete(sessionID)
+      translator.evict(sessionID)
       clearOptimistic(sessionID)
       requests.delete(sessionID)
       inflight.delete(sessionID)
@@ -471,32 +523,40 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       pickSessionCacheEvictions({ seen, keep: sessionID, limit: SESSION_CACHE_LIMIT, preserve: protectedSessions() }),
     )
 
+  // V2 分页：order desc 拉最新在前，反转为升序入 store；cursor.next 指向更旧方向
   const fetchMessages = async (sessionID: string, limit: number, before?: string, onAttempt?: () => void) => {
     const response = await (options?.retry ?? retry)(() => {
       onAttempt?.()
-      return client.session.messages({ sessionID, limit, before })
+      return client.v2.session.messages({
+        sessionID,
+        limit,
+        order: "desc",
+        ...(before === undefined ? {} : { cursor: before }),
+      })
     })
-    const items = (response.data ?? []).filter((item) => !!item?.info?.id)
+    const adapted = adaptMessages([...(response.data?.data ?? [])].reverse(), adaptContext(sessionID))
     return {
-      session: items.map((item) => cleanMessage(item.info)).sort((a, b) => cmp(a.id, b.id)),
-      part: items.map((item) => ({
-        id: item.info.id,
-        part: item.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
+      session: adapted.session.map((message) => cleanMessage(message)).sort((a, b) => cmp(a.id, b.id)),
+      part: adapted.part.map((item) => ({
+        id: item.id,
+        part: item.part.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
       })),
-      cursor: response.response?.headers.get("x-next-cursor") ?? undefined,
-      complete: !response.response?.headers.get("x-next-cursor"),
+      cursor: response.data?.cursor.next ?? undefined,
+      complete: !response.data?.cursor.next,
     }
   }
 
   const fetchMessage = async (sessionID: string, messageID: string, onAttempt?: () => void) => {
     const response = await (options?.retry ?? retry)(() => {
       onAttempt?.()
-      return client.session.message({ sessionID, messageID })
+      return client.v2.session.message({ sessionID, messageID })
     })
-    if (!response.data?.info?.id) throw new Error(`Message not found: ${messageID}`)
+    if (!response.data) throw new Error(`Message not found: ${messageID}`)
+    const adapted = adaptMessage(response.data.data, adaptContext(sessionID))
+    if (!adapted) throw new Error(`Message not found: ${messageID}`)
     return {
-      message: cleanMessage(response.data.info),
-      parts: response.data.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
+      message: cleanMessage(adapted.info),
+      parts: adapted.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
     }
   }
 
@@ -578,12 +638,14 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       if (!load?.clearedMessageParts.has(item.messageID)) confirmOptimistic(sessionID, item.messageID, item.parts)
     })
     const touchedMessages = new Set([...(load?.touchedMessages ?? []), ...(removedMessages.get(sessionID) ?? [])])
-    const messages = reconcileFetched(merged.session, data.message[sessionID] ?? [], {
-      touched: touchedMessages,
-      retained: load?.retainedMessages,
-      removed: load?.removedMessages,
-      preserveUnfetched,
-    })
+    const messages = repairParentIDs(
+      reconcileFetched(merged.session, data.message[sessionID] ?? [], {
+        touched: touchedMessages,
+        retained: load?.retainedMessages,
+        removed: load?.removedMessages,
+        preserveUnfetched,
+      }),
+    )
     batch(() => {
       const messageIDs = replaceMessages(sessionID, messages)
       replaceParts(sessionID, merged.part, messageIDs, load)
@@ -642,7 +704,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         const parentIDs = [
           ...new Set(
             page.session.flatMap((message) =>
-              message.role === "assistant" && !users.has(message.parentID) ? [message.parentID] : [],
+              message.role === "assistant" && message.parentID && !users.has(message.parentID)
+                ? [message.parentID]
+                : [],
             ),
           ),
         ]
@@ -727,6 +791,131 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     await runInflight(inflight, sessionID, () => loadMessages(sessionID, limit))
   }
 
+  const fetchDiff = (sessionID: string, options?: { force?: boolean }) => {
+    touch(sessionID)
+    if (data.session_diff[sessionID] !== undefined && !options?.force) return Promise.resolve()
+    return runInflight(inflightDiff, sessionID, () => {
+      const active = generation(sessionID)
+      return retry(() => client.v2.session.diff({ sessionID })).then((result) => {
+        if (generations.get(sessionID) !== active) return
+        setData("session_diff", sessionID, reconcile(cleanDiffs(adaptDiff(result.data?.data ?? [])), { key: "file" }))
+      })
+    })
+  }
+
+  // V2 事件入口：native case 直接落地，其余经翻译器产 V1 伪事件递归喂既有 apply。
+  // 返回 true 表示事件属于 V2 词汇（含被忽略的类型），不再进 V1 switch。
+  const applyV2 = (event: { type: string; properties?: unknown }): boolean => {
+    if (
+      !event.type.startsWith("session.next.") &&
+      !event.type.startsWith("permission.v2.") &&
+      !event.type.startsWith("question.v2.")
+    )
+      return false
+    switch (event.type) {
+      case "session.next.updated": {
+        const props = event.properties as {
+          timestamp: number
+          sessionID: string
+          title?: string
+          archived?: number | null
+        }
+        const current = data.info[props.sessionID]
+        if (current) {
+          const archived =
+            props.archived === undefined ? current.time.archived : props.archived === null ? undefined : props.archived
+          remember({
+            ...current,
+            title: props.title ?? current.title,
+            time: { ...current.time, updated: props.timestamp, ...(archived === undefined ? {} : { archived }) },
+          })
+        }
+        if (props.archived) evict([props.sessionID])
+        return true
+      }
+      case "session.next.retried": {
+        const props = event.properties as {
+          timestamp: number
+          sessionID: string
+          attempt: number
+          error: { message: string }
+        }
+        // V2 事件不携带下次重试时刻，用事件时间戳占位（UI 倒计时视为“正在重试”）
+        const status: SessionStatus = {
+          type: "retry",
+          attempt: props.attempt,
+          message: props.error.message,
+          next: props.timestamp,
+        }
+        setData("session_status", props.sessionID, reconcile(status))
+        return true
+      }
+      case "session.next.revert.staged": {
+        const props = event.properties as { sessionID: string; revert: RevertState }
+        const current = data.info[props.sessionID]
+        if (current) remember({ ...current, revert: adaptRevert(props.revert) })
+        return true
+      }
+      case "session.next.revert.cleared": {
+        const props = event.properties as { sessionID: string }
+        if (data.info[props.sessionID]?.revert)
+          setData(
+            "info",
+            props.sessionID,
+            produce((draft) => {
+              if (draft) delete draft.revert
+            }),
+          )
+        return true
+      }
+      case "session.next.revert.committed": {
+        const props = event.properties as { sessionID: string }
+        void sync(props.sessionID, { force: true }).catch(() => {})
+        return true
+      }
+      case "session.next.step.started": {
+        const props = event.properties as { sessionID: string }
+        if (data.session_status[props.sessionID]?.type === "retry")
+          setData("session_status", props.sessionID, reconcile({ type: "busy" } satisfies SessionStatus))
+        break
+      }
+      case "session.next.tool.success":
+      case "session.next.step.ended": {
+        const props = event.properties as { sessionID: string }
+        void fetchDiff(props.sessionID, { force: true })
+        break
+      }
+      case "session.next.agent.switched": {
+        const props = event.properties as { sessionID: string; agent: string }
+        const current = data.info[props.sessionID]
+        if (current) remember({ ...current, agent: props.agent })
+        return true
+      }
+      case "session.next.model.switched": {
+        const props = event.properties as { sessionID: string; model: { id: string; providerID: string; variant?: string } }
+        const current = data.info[props.sessionID]
+        if (current) remember({ ...current, model: props.model })
+        return true
+      }
+      // 无 app 消费面的词汇：prompt.admitted 由 prompted 覆盖；moved 由 global-sync 刷新；
+      // synthetic/shell/context/compaction 进度不渲染
+      case "session.next.moved":
+      case "session.next.prompt.admitted":
+      case "session.next.context.updated":
+      case "session.next.synthetic":
+      case "session.next.shell.started":
+      case "session.next.shell.ended":
+      case "session.next.compaction.started":
+      case "session.next.compaction.delta":
+      case "session.next.tool.input.started":
+      case "session.next.tool.input.delta":
+      case "session.next.tool.input.ended":
+        return true
+    }
+    for (const pseudo of translator.translate(event as GlobalEvent["payload"])) apply(pseudo)
+    return true
+  }
+
   const eventSessionID = (event: { type: string; properties?: unknown }) => {
     const properties = event.properties
     if (!properties || typeof properties !== "object") return
@@ -761,6 +950,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       )
         void resolve(eventID).catch(() => {})
     }
+    if (applyV2(event)) return
     switch (event.type) {
       case "session.created":
         remember((event.properties as { info: Session }).info)
@@ -788,7 +978,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       }
       case "todo.updated": {
         const props = event.properties as { sessionID: string; todos: Todo[] }
-        setData("todo", props.sessionID, reconcile(props.todos, { key: "id" }))
+        setData("todo", props.sessionID, reconcile(props.todos))
         return
       }
       case "session.status": {
@@ -1143,25 +1333,15 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         setData(produce((draft) => deleteMessageParts(draft, input.messageID)))
       },
     },
-    diff(sessionID: string, options?: { force?: boolean }) {
-      touch(sessionID)
-      if (data.session_diff[sessionID] !== undefined && !options?.force) return Promise.resolve()
-      return runInflight(inflightDiff, sessionID, () => {
-        const active = generation(sessionID)
-        return retry(() => client.session.diff({ sessionID })).then((result) => {
-          if (generations.get(sessionID) !== active) return
-          setData("session_diff", sessionID, reconcile(cleanDiffs(result.data), { key: "file" }))
-        })
-      })
-    },
+    diff: fetchDiff,
     todo(sessionID: string, options?: { force?: boolean }) {
       touch(sessionID)
       if (data.todo[sessionID] !== undefined && !options?.force) return Promise.resolve()
       return runInflight(inflightTodo, sessionID, () => {
         const active = generation(sessionID)
-        return retry(() => client.session.todo({ sessionID })).then((result) => {
+        return retry(() => client.v2.session.todo({ sessionID })).then((result) => {
           if (generations.get(sessionID) !== active) return
-          setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
+          setData("todo", sessionID, reconcile(result.data?.data ?? []))
         })
       })
     },
@@ -1191,6 +1371,29 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       const count = pinned.get(sessionID)
       if (!count || count === 1) pinned.delete(sessionID)
       if (count && count > 1) pinned.set(sessionID, count - 1)
+    },
+    // busy/idle 对账：V2 无 session.status 推送，改轮询 active 集合。
+    // active 且当前 idle/缺省→busy；不 active 且 busy/retry→idle；retry 且仍 active→保留 retry。
+    refreshActive() {
+      return client.v2.session
+        .active()
+        .then((result) => {
+          const active = new Set(Object.keys(result.data?.data ?? {}))
+          setData(
+            "session_status",
+            produce((draft) => {
+              for (const sessionID of new Set([...Object.keys(draft), ...active])) {
+                const current = draft[sessionID]
+                if (active.has(sessionID)) {
+                  if (!current || current.type === "idle") draft[sessionID] = { type: "busy" }
+                  continue
+                }
+                if (current?.type === "busy" || current?.type === "retry") draft[sessionID] = { type: "idle" }
+              }
+            }),
+          )
+        })
+        .catch(() => {})
     },
     apply,
   }

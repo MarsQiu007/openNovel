@@ -27,6 +27,7 @@ import {
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reducer"
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
+import { adaptInfo } from "@/utils/v2-adapter"
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
@@ -282,7 +283,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
           loadRootSessionsWithFallback({
             directory,
             limit,
-            list: (query) => serverSDK.client.session.list(query),
+            list: (query) =>
+              serverSDK.client.v2.session.list(query).then((result) => ({
+                data: (result.data?.data ?? []).map(adaptInfo),
+                hasMore: !!result.data?.cursor.next,
+              })),
           })
             .then((x) => {
               const nonArchived = (x.data ?? [])
@@ -371,6 +376,19 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     return promise
   }
 
+  // busy/idle 对账触发：session.next.* 事件 debounce + busy 期间定时轮询（onMount 处接线）
+  let activeTimer: ReturnType<typeof setTimeout> | undefined
+  const scheduleActiveRefresh = () => {
+    if (activeTimer) return
+    activeTimer = setTimeout(() => {
+      activeTimer = undefined
+      void session.refreshActive()
+    }, 400)
+  }
+  onCleanup(() => {
+    if (activeTimer) clearTimeout(activeTimer)
+  })
+
   const unsub = serverSDK.event.listen((e) => {
     const directory = e.name
     const key = directoryKey(directory)
@@ -378,8 +396,17 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
     session.apply(event)
+    if (event.type.startsWith("session.next.")) scheduleActiveRefresh()
     if (event.type === "session.created" || event.type === "session.updated" || event.type === "session.deleted") {
       homeSessions.apply(event)
+    }
+    if (event.type === "session.next.updated") {
+      const props = event.properties as { sessionID: string; title?: string; archived?: number | null }
+      homeSessions.patch({
+        sessionID: props.sessionID,
+        ...(props.title === undefined ? {} : { title: props.title }),
+        ...(props.archived === undefined ? {} : { archived: props.archived }),
+      })
     }
     homeSessions.refresh(event.type)
 
@@ -455,6 +482,12 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         void serverSDK.event.start()
       }, 0)
     }
+    // busy 期间定时对账 active 集合，兜底 SSE 断流期间的状态漂移
+    const activePoll = setInterval(() => {
+      const working = Object.values(session.data.session_status).some((status) => status?.type !== "idle")
+      if (working) void session.refreshActive()
+    }, 15_000)
+    onCleanup(() => clearInterval(activePoll))
   })
 
   const projectApi = {

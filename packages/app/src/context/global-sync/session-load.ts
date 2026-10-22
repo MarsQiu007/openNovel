@@ -6,7 +6,7 @@ export async function loadRootSessionsWithFallback(input: RootLoadArgs) {
     return {
       data: result.data,
       limit: input.limit,
-      limited: true,
+      limited: result.hasMore ?? true,
     } as const
   } catch {
     const result = await input.list({ directory: input.directory, roots: true })

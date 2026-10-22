@@ -2,13 +2,13 @@ import type {
   Config,
   OpenNovelClient,
   Path,
-  PermissionRequest,
   Project,
   ProviderAuthResponse,
-  QuestionRequest,
   ReferenceInfo,
   Session,
+  SessionStatus,
 } from "@opennovel-ai/sdk/v2/client"
+import { adaptInfo, adaptPermission, adaptQuestion } from "@/utils/v2-adapter"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@opennovel-ai/core/util/path"
 import { retry } from "@opennovel-ai/core/util/retry"
@@ -169,10 +169,10 @@ function warmSessions(input: {
   if (ids.length === 0) return Promise.resolve()
   return Promise.all(
     ids.map((sessionID) =>
-      retry(() => input.sdk.session.get({ sessionID })).then((x) => {
-        const session = x.data
+      retry(() => input.sdk.v2.session.get({ sessionID })).then((x) => {
+        const session = x.data?.data
         if (!session?.id) return
-        mergeSession(input.setStore, session)
+        mergeSession(input.setStore, adaptInfo(session))
       }),
     ),
   ).then(() => undefined)
@@ -244,31 +244,36 @@ export async function bootstrapDirectory(input: {
           .then((data) => input.setStore("agent", data)),
       () =>
         retry(() => input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))),
+      // busy/idle 播种：V2 无 session.status 端点，active 集合即全部 busy 会话
       () =>
         retry(() =>
-          input.sdk.session.status().then(async (x) => {
+          input.sdk.v2.session.active().then(async (x) => {
+            const active = new Set(Object.keys(x.data?.data ?? {}))
             if (!input.session) {
-              input.setStore("session_status", x.data!)
+              input.setStore(
+                "session_status",
+                Object.fromEntries([...active].map((sessionID) => [sessionID, { type: "busy" as const }])),
+              )
               return
             }
-            const statuses = x.data ?? {}
             input.session.set(
               "session_status",
               produce((draft) => {
                 for (const sessionID of Object.keys(draft)) {
-                  if (statuses[sessionID]) continue
+                  if (active.has(sessionID)) continue
                   if (input.session?.get(sessionID)?.directory === input.directory) delete draft[sessionID]
                 }
               }),
             )
-            for (const [sessionID, status] of Object.entries(statuses)) {
+            for (const sessionID of active) {
+              const status: SessionStatus = { type: "busy" }
               input.session.set("session_status", sessionID, reconcile(status))
             }
             // Warm session info only after seeding statuses so a stalled session
             // fetch cannot park busy indicators behind it, mirroring how live
-            // session.status events apply first and resolve info in the background.
+            // status updates apply first and resolve info in the background.
             await Promise.all(
-              Object.keys(statuses).map((sessionID) => input.session!.resolve(sessionID).catch(() => undefined)),
+              [...active].map((sessionID) => input.session!.resolve(sessionID).catch(() => undefined)),
             )
           }),
         ),
@@ -292,11 +297,10 @@ export async function bootstrapDirectory(input: {
       () => input.queryClient.fetchQuery(loadReferencesQuery(input.scope, input.directory, input.sdk)),
       () =>
         retry(() =>
-          input.sdk.permission.list().then((x) => {
-            const ids = (x.data ?? []).map((perm) => perm?.sessionID).filter((id): id is string => !!id)
-            const grouped = groupBySession(
-              (x.data ?? []).filter((perm): perm is PermissionRequest => !!perm?.id && !!perm.sessionID),
-            )
+          input.sdk.v2.permission.request.list({ location: { directory: input.directory } }).then((x) => {
+            const permissions = (x.data?.data ?? []).map(adaptPermission)
+            const ids = permissions.map((perm) => perm.sessionID)
+            const grouped = groupBySession(permissions)
             const warm = input.session
               ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
               : warmSessions({ ids, store: input.store, setStore: input.setStore, sdk: input.sdk })
@@ -323,9 +327,10 @@ export async function bootstrapDirectory(input: {
         ),
       () =>
         retry(() =>
-          input.sdk.question.list().then((x) => {
-            const ids = (x.data ?? []).map((question) => question?.sessionID).filter((id): id is string => !!id)
-            const grouped = groupBySession((x.data ?? []).filter((q): q is QuestionRequest => !!q?.id && !!q.sessionID))
+          input.sdk.v2.question.request.list({ location: { directory: input.directory } }).then((x) => {
+            const questions = (x.data?.data ?? []).map(adaptQuestion)
+            const ids = questions.map((question) => question.sessionID)
+            const grouped = groupBySession(questions)
             const warm = input.session
               ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
               : warmSessions({ ids, store: input.store, setStore: input.setStore, sdk: input.sdk })
