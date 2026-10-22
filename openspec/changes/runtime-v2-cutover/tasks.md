@@ -42,12 +42,12 @@
 - [x] **切换点**：迁移 dispatch prompt 文本（pipeline.ts 11 处 + director.ts 4 处 task→subagent 参数形状）+ permission map `task` 键更名 `subagent` + 删除 novel-writer-v2.ts 转换 shim；更新 agent-v2-registration.test 断言
 - [x] 删除 `opennovel/src/tool/task.ts` 与 promptOps 注入链（tool/registry.ts、session/prompt.ts、session/tools.ts 的 TaskPromptOps 引用）+ `agent/subagent-permissions.ts`
 - [x] 删除 `opennovel/src/background/job.ts` wrapper 及级联调用点（session/session.ts、run-state.ts、tool/registry.ts、server.ts、app-runtime.ts）；core `background-job.ts` 删旧方法面（extend/waitForPromotion/promote，list/cancel 以删除时全仓引用核实为准）
-- [ ] 摘除 novel-writer V1 入口：`opennovel/src/plugin/index.ts` internalPlugins 移除 + config hook 消费点摘除（先核实 auth 插件无 config hook 使用）；删 `plugin/src/novel-writer.ts` 本体与 `plugin/src/tool.ts`；宿主反向 import 改指深路径（sync-worker-composition/setting-review-inbox/setting-organization/novel-reader）
-- [ ] plugin / opennovel / core `bun typecheck` + oxlint + 受影响测试
+- [x] 摘除 novel-writer V1 入口：`opennovel/src/plugin/index.ts` internalPlugins 移除 + config hook 消费点摘除（auth 插件无 config hook 已核实）；删 `plugin/src/novel-writer.ts` 本体（`plugin/src/tool.ts` 因用户自定义工具/Hooks.tool 活契约保留，纠偏见 design §11-21）；宿主反向 import 改指深路径；23 个消费 V1 入口的测试文件改写为 V2 工具面装配；修复 `plugins` 键 legacy 解析冲突（ConfigV1.Info 放行，design §11-23）；删 HEAD 即 stale 的 `__verify__/verify-tools.ts`
+- [x] plugin / opennovel / core `bun typecheck` + oxlint + 受影响测试（plugin 全量 912 pass；opennovel test/plugin + test/novel + test/cli 受影响面绿；technique e2e 中间态归 F①，design §11-24）
 
 ## F. 收尾验证
 
-- [ ] 端到端验证写作流水线 V2 drain：director→pipeline→writer/auditor/reviser/observer/reflector 8 步全链 + review 模式审批闸门 + subagent 权限断言生效
+- [ ] 端到端验证写作流水线 V2 drain：director→pipeline→writer/auditor/reviser/observer/reflector 8 步全链 + review 模式审批闸门 + subagent 权限断言生效；含 technique e2e harness 迁移（driveTurn 改 SessionV2.prompt + SessionExecution.wait 的 V2 drain 装置，harness 已预埋 plugins 接线，design §11-24）
 - [ ] 全量回归：core / schema / plugin / server / client / opennovel / app 各包 `bun typecheck` + oxlint + 包内测试（既有 5s 超时 flake 按 memory 归因）
 - [ ] `openspec validate runtime-v2-cutover`；冲突核实结论补记 design §11
 - [ ] 用 `git log --grep "OpenSpec-Change: runtime-v2-cutover"` 收集实现提交写入下节
