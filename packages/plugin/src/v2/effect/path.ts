@@ -4,5 +4,5 @@ export interface Path {
   readonly cache: string
   readonly config: string
   readonly state: string
-  readonly temp: string
+  readonly tmp: string
 }

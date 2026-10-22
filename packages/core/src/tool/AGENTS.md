@@ -54,6 +54,6 @@ Producer capture limits are separate. For example, Bash keeps `AppProcess.maxOut
 
 ## Current Gaps
 
-- Plugin boot has not been redesigned to register canonical tools through `Tools.Service`; do not redesign it as part of leaf migrations.
+- Plugin boot registers canonical tools through `Tools.Service` via the V2 `ctx.tool` transform: the host bridge (`plugin/host.ts`) stages plugin tool specs, wraps them with canonical `Tool.make`, and registers the batch under the transform's scope (dispose reveals the previous registration). Plugin tool schemas are effect Schema codecs only — no zod/JSON-Schema adapters.
 - MCP and future Session-scoped registrations still need an explicit canonical registration design.
 - The public Session result shape currently exposes managed `outputPaths`; full storage encapsulation requires a future opaque managed-output reference design.

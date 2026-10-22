@@ -1,19 +1,35 @@
 export * as PluginHost from "./host"
 
-import type { PluginContext as Interface } from "@opennovel-ai/plugin/v2/effect"
-import { Effect, Option, Schema } from "effect"
+import type {
+  AnyToolSpec,
+  AskInput,
+  PluginContext as Interface,
+  SystemContextSource,
+  ToolEditor,
+} from "@opennovel-ai/plugin/v2/effect"
+import { ToolResult } from "@opennovel-ai/plugin/v2/effect"
+import { Effect, Exit, Option, Schema, Scope } from "effect"
 import { AgentV2 } from "../agent"
 import { AISDK } from "../aisdk"
 import { Catalog } from "../catalog"
 import { CommandV2 } from "../command"
 import { Credential } from "../credential"
+import { Global } from "../global"
 import { Integration } from "../integration"
+import { Location } from "../location"
 import { ModelV2 } from "../model"
+import { PermissionV2 } from "../permission"
 import { PluginV2 } from "../plugin"
 import { ProviderV2 } from "../provider"
 import { Reference } from "../reference"
 import type { DeepMutable } from "../schema"
+import { SessionSchema } from "../session/schema"
+import { SessionStore } from "../session/store"
 import { SkillV2 } from "../skill"
+import { SystemContext } from "../system-context/index"
+import { SystemContextRegistry } from "../system-context/registry"
+import { Tool } from "../tool/tool"
+import { Tools } from "../tool/tools"
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
 
@@ -30,12 +46,152 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const aisdk = yield* AISDK.Service
   const catalog = yield* Catalog.Service
   const commands = yield* CommandV2.Service
+  const globalPaths = yield* Global.Service
   const integration = yield* Integration.Service
+  const location = yield* Location.Service
+  const permission = yield* PermissionV2.Service
   const reference = yield* Reference.Service
+  const sessions = yield* SessionStore.Service
   const skill = yield* SkillV2.Service
+  const systemContexts = yield* SystemContextRegistry.Service
+  const tools = yield* Tools.Service
+
+  const askPermission = (input: AskInput, context: Tool.Context) =>
+    permission
+      .assert({
+        sessionID: context.sessionID,
+        action: input.permission,
+        resources: [...input.patterns],
+        save: [...input.always],
+        metadata: input.metadata,
+        source: { type: "tool", messageID: context.assistantMessageID, callID: context.toolCallID },
+        agent: context.agent,
+      })
+      .pipe(
+        Effect.catchTag("PermissionV2.CorrectedError", (error) => Effect.fail(new Error(error.feedback))),
+        Effect.catchTag("Session.NotFoundError", () => Effect.fail(new Error("Session not found"))),
+      )
+
+  const wrapTool = (spec: AnyToolSpec) => {
+    const tool = Tool.make({
+      description: spec.description,
+      input: spec.args,
+      output: ToolResult,
+      execute: (input, context) =>
+        Effect.tryPromise({
+          try: () =>
+            spec.execute(input, {
+              sessionID: context.sessionID,
+              agent: context.agent,
+              messageID: context.assistantMessageID,
+              directory: location.directory,
+              ask: (ask) => Effect.runPromise(askPermission(ask, context)),
+            }),
+          catch: (cause) => new Tool.Failure({ message: cause instanceof Error ? cause.message : String(cause) }),
+        }),
+      toModelOutput: ({ output }) => [{ type: "text" as const, text: typeof output === "string" ? output : output.output }],
+    })
+    return spec.permission ? Tool.withPermission(tool, spec.permission) : tool
+  }
+
+  const registerSource = (source: SystemContextSource<any>) =>
+    Effect.uninterruptible(
+      Effect.gen(function* () {
+        const key = SystemContext.Key.make(source.key)
+        const context = SystemContext.make({
+          key,
+          codec: source.codec,
+          load: source.load.pipe(Effect.map(Option.getOrElse(() => SystemContext.unavailable))),
+          baseline: source.baseline,
+          update: source.update,
+          ...(source.removed ? { removed: source.removed } : {}),
+        })
+        // 与 tool transform 同款子 scope：dispose 只摘除本次注册的源
+        const scope = yield* Scope.Scope
+        const child = yield* Scope.fork(scope)
+        yield* systemContexts.register({ key, load: Effect.succeed(context) }).pipe(Scope.provide(child))
+        let active = true
+        const dispose = Effect.uninterruptible(
+          Effect.suspend(() => {
+            if (!active) return Effect.void
+            active = false
+            return Scope.close(child, Exit.void)
+          }),
+        )
+        yield* Scope.addFinalizer(scope, dispose)
+        return { dispose }
+      }),
+    )
 
   return {
     options: {},
+    location: {
+      directory: location.directory,
+      project: { directory: location.project.directory },
+    },
+    paths: {
+      home: globalPaths.home,
+      data: globalPaths.data,
+      cache: globalPaths.cache,
+      config: globalPaths.config,
+      state: globalPaths.state,
+      tmp: globalPaths.tmp,
+    },
+    session: {
+      get: (id) =>
+        Effect.runPromise(
+          sessions.get(SessionSchema.ID.make(id)).pipe(
+            Effect.map((info) => info && { id: info.id as string, parentID: info.parentID as string | undefined }),
+          ),
+        ),
+    },
+    systemContext: {
+      register: registerSource,
+    },
+    tool: {
+      transform: (callback) =>
+        Effect.uninterruptible(
+          Effect.gen(function* () {
+            const staged = new Map<string, AnyToolSpec>()
+            const editor: ToolEditor = {
+              list: () => Array.from(staged.keys()),
+              get: (name) => staged.get(name),
+              add: (name, spec) => {
+                Effect.runSync(Tool.validateName(name))
+                staged.set(name, spec)
+              },
+              update: (name, spec) => {
+                if (!staged.has(name)) return
+                staged.set(name, spec)
+              },
+              remove: (name) => {
+                staged.delete(name)
+              },
+            }
+            yield* Effect.suspend(() => {
+              const result = callback(editor)
+              return Effect.isEffect(result) ? Effect.asVoid(result).pipe(Effect.orDie) : Effect.void
+            })
+            // 独立子 scope 承接整批注册：dispose 只摘除本次 transform 的工具，
+            // 露出注册表里的上一个同名注册（registry overlay 语义）。
+            const scope = yield* Scope.Scope
+            const child = yield* Scope.fork(scope)
+            yield* tools
+              .register(Object.fromEntries(Array.from(staged, ([name, spec]) => [name, wrapTool(spec)])))
+              .pipe(Effect.orDie, Scope.provide(child))
+            let active = true
+            const dispose = Effect.uninterruptible(
+              Effect.suspend(() => {
+                if (!active) return Effect.void
+                active = false
+                return Scope.close(child, Exit.void)
+              }),
+            )
+            yield* Scope.addFinalizer(scope, dispose)
+            return { dispose }
+          }),
+        ),
+    },
     agent: {
       reload: agents.reload,
       transform: (callback) =>

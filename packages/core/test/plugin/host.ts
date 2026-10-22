@@ -37,9 +37,30 @@ export function host(overrides: Overrides = {}): PluginContext {
         resolve: () => Effect.die("unused integration.connection.resolve"),
       },
     },
+    location: overrides.location ?? {
+      directory: "/project",
+      project: { directory: "/project" },
+    },
+    paths: overrides.paths ?? {
+      home: "/home",
+      data: "/data",
+      cache: "/cache",
+      config: "/config",
+      state: "/state",
+      tmp: "/tmp",
+    },
     plugin: overrides.plugin ?? {
       add: () => Effect.die("unused plugin.add"),
       remove: () => Effect.die("unused plugin.remove"),
+    },
+    session: overrides.session ?? {
+      get: () => Promise.reject(new Error("unused session.get")),
+    },
+    systemContext: overrides.systemContext ?? {
+      register: () => Effect.die("unused systemContext.register"),
+    },
+    tool: overrides.tool ?? {
+      transform: () => Effect.die("unused tool.transform"),
     },
     reference: overrides.reference ?? {
       transform: () => Effect.die("unused reference.transform"),

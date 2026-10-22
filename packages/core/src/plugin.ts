@@ -9,12 +9,18 @@ import { AISDK } from "./aisdk"
 import { Catalog } from "./catalog"
 import { CommandV2 } from "./command"
 import { EventV2 } from "./event"
+import { Global } from "./global"
 import { Integration } from "./integration"
 import { KeyedMutex } from "./effect/keyed-mutex"
+import { Location } from "./location"
+import { PermissionV2 } from "./permission"
 import { PluginHost } from "./plugin/host"
 import { Reference } from "./reference"
+import { SessionStore } from "./session/store"
 import { SkillV2 } from "./skill"
 import { State } from "./state"
+import { SystemContextRegistry } from "./system-context/registry"
+import { ToolRegistry } from "./tool/registry"
 
 export const ID = Plugin.ID
 export type ID = typeof ID.Type
@@ -160,8 +166,14 @@ export const node = makeLocationNode({
     AISDK.node,
     Catalog.node,
     CommandV2.node,
+    Global.node,
     Integration.node,
+    Location.node,
+    PermissionV2.node,
     Reference.node,
+    SessionStore.node,
     SkillV2.node,
+    SystemContextRegistry.node,
+    ToolRegistry.toolsNode,
   ],
 })
