@@ -658,6 +658,10 @@ import type {
   V2SessionContextResponses,
   V2SessionCreateErrors,
   V2SessionCreateResponses,
+  V2SessionDeleteErrors,
+  V2SessionDeleteResponses,
+  V2SessionDiffErrors,
+  V2SessionDiffResponses,
   V2SessionEventsErrors,
   V2SessionEventsResponse,
   V2SessionEventsResponses,
@@ -699,6 +703,8 @@ import type {
   V2SessionSwitchAgentResponses,
   V2SessionSwitchModelErrors,
   V2SessionSwitchModelResponses,
+  V2SessionTodoErrors,
+  V2SessionTodoResponses,
   V2SessionUpdateErrors,
   V2SessionUpdateResponses,
   V2SessionWaitErrors,
@@ -5818,6 +5824,25 @@ export class Session3 extends HeyApiClient {
   }
 
   /**
+   * Delete session
+   *
+   * Delete a session and its children. Publishes the durable session.deleted event. Deleting a missing session is a no-op.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).delete<V2SessionDeleteResponses, V2SessionDeleteErrors, ThrowOnError>({
+      url: "/api/session/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get session
    *
    * Retrieve a session by ID.
@@ -6032,6 +6057,44 @@ export class Session3 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * List session todos
+   *
+   * Retrieve the current todo list for a session.
+   */
+  public todo<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).get<V2SessionTodoResponses, V2SessionTodoErrors, ThrowOnError>({
+      url: "/api/session/{sessionID}/todo",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get session diff
+   *
+   * Retrieve the cumulative file diff of a session, from the first captured snapshot to the latest one.
+   */
+  public diff<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).get<V2SessionDiffResponses, V2SessionDiffErrors, ThrowOnError>({
+      url: "/api/session/{sessionID}/diff",
+      ...options,
+      ...params,
     })
   }
 

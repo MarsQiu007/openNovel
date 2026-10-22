@@ -51,6 +51,14 @@ export type CommandNotFoundError = {
 export const isCommandNotFoundError = (value: unknown): value is CommandNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "CommandNotFoundError"
 
+export type UnknownError = {
+  readonly _tag: "UnknownError"
+  readonly message: string
+  readonly ref?: string | undefined
+}
+export const isUnknownError = (value: unknown): value is UnknownError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "UnknownError"
+
 export type ServiceUnavailableError = {
   readonly _tag: "ServiceUnavailableError"
   readonly message: string
@@ -67,14 +75,6 @@ export type MessageNotFoundError = {
 }
 export const isMessageNotFoundError = (value: unknown): value is MessageNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "MessageNotFoundError"
-
-export type UnknownError = {
-  readonly _tag: "UnknownError"
-  readonly message: string
-  readonly ref?: string | undefined
-}
-export const isUnknownError = (value: unknown): value is UnknownError =>
-  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "UnknownError"
 
 export type ProviderNotFoundError = {
   readonly _tag: "ProviderNotFoundError"
@@ -690,6 +690,28 @@ export type SessionsUpdateOutput = {
       }>
     }
   }
+}["data"]
+
+export type SessionsDeleteInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsDeleteOutput = void
+
+export type SessionsTodoInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsTodoOutput = {
+  readonly data: ReadonlyArray<{ readonly content: string; readonly status: string; readonly priority: string }>
+}["data"]
+
+export type SessionsDiffInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsDiffOutput = {
+  readonly data: ReadonlyArray<{
+    readonly path: string
+    readonly status: "added" | "modified" | "deleted"
+    readonly additions: number
+    readonly deletions: number
+    readonly patch: string
+  }>
 }["data"]
 
 export type SessionsCompactInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }

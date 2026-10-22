@@ -244,6 +244,71 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         }),
       )
       .handle(
+        "session.delete",
+        Effect.fn(function* (ctx) {
+          yield* session.remove(ctx.params.sessionID)
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle(
+        "session.todo",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.todo(ctx.params.sessionID).pipe(
+              Effect.catchTag(
+                "Session.NotFoundError",
+                (error) =>
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
+        "session.diff",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.diff(ctx.params.sessionID).pipe(
+              Effect.catchTag(
+                "Session.NotFoundError",
+                (error) =>
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+              ),
+              Effect.catchTag("Snapshot.Error", (error) => {
+                const ref = `err_${crypto.randomUUID().slice(0, 8)}`
+                return Effect.logError("failed to compute session diff", { cause: error }).pipe(
+                  Effect.andThen(
+                    Effect.fail(
+                      new UnknownError({
+                        message: "Unexpected server error. Check server logs for details.",
+                        ref,
+                      }),
+                    ),
+                  ),
+                )
+              }),
+              Effect.catchTag("Session.MessageDecodeError", (error) => {
+                const ref = `err_${crypto.randomUUID().slice(0, 8)}`
+                return Effect.logError("failed to decode session message").pipe(
+                  Effect.annotateLogs({ ref, sessionID: error.sessionID, messageID: error.messageID }),
+                  Effect.andThen(
+                    Effect.fail(
+                      new UnknownError({ message: "Unexpected server error. Check server logs for details.", ref }),
+                    ),
+                  ),
+                )
+              }),
+            ),
+          }
+        }),
+      )
+      .handle(
         "session.compact",
         Effect.fn(function* (ctx) {
           yield* session.compact({ sessionID: ctx.params.sessionID }).pipe(

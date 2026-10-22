@@ -35,6 +35,9 @@ import { SessionEvent } from "./session/event"
 import { SessionInput } from "./session/input"
 import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
+import { SessionTodo } from "./session/todo"
+import { File } from "./file"
+import { ProviderV2 } from "./provider"
 import { Revert } from "@opennovel-ai/schema/revert"
 import { FSUtil } from "./fs-util"
 import { SessionDurable } from "@opennovel-ai/schema/durable-event-manifest"
@@ -201,6 +204,11 @@ export interface Interface {
     title?: string
     archived?: number | null
   }) => Effect.Effect<SessionSchema.Info, NotFoundError>
+  readonly remove: (sessionID: SessionSchema.ID) => Effect.Effect<void>
+  readonly todo: (sessionID: SessionSchema.ID) => Effect.Effect<readonly SessionTodo.Info[], NotFoundError>
+  readonly diff: (
+    sessionID: SessionSchema.ID,
+  ) => Effect.Effect<readonly File.Diff[], NotFoundError | MessageDecodeError | Snapshot.Error>
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | SessionRunner.RunError>
   readonly interrupt: (sessionID: SessionSchema.ID) => Effect.Effect<void>
@@ -549,6 +557,48 @@ const layer = Layer.effect(
         })
         return yield* result.get(input.sessionID)
       }),
+      remove: Effect.fn("V2Session.remove")(function* (sessionID) {
+        const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie)
+        // 幂等：会话已不存在时视为删除成功（对齐 V1 remove 语义）
+        if (!row) return
+        yield* result.interrupt(sessionID)
+        // parent_id 无 FK 级联，子会话必须显式递归删除
+        const kids = yield* store.list({ parentID: sessionID })
+        yield* Effect.forEach(kids, (kid) => result.remove(kid.id), { discard: true })
+        // 复用 V1 durable session.deleted 词汇（与 create 的 session.created 对称）：
+        // 全局事件流既有消费方零改动，projector 既有分支删 session 行并 FK 级联清理各会话表
+        yield* events.publish(
+          SessionV1.Event.Deleted,
+          { sessionID, info: legacyInfo(row) },
+          {
+            location: Location.Ref.make({
+              directory: AbsolutePath.make(row.directory),
+              workspaceID: row.workspace_id ? WorkspaceV2.ID.make(row.workspace_id) : undefined,
+            }),
+          },
+        )
+        yield* events.remove(sessionID)
+      }),
+      todo: Effect.fn("V2Session.todo")(function* (sessionID) {
+        const session = yield* result.get(sessionID)
+        return yield* SessionTodo.Service.use((todos) => todos.get(sessionID)).pipe(
+          Effect.provide(locations.get(session.location)),
+        )
+      }),
+      diff: Effect.fn("V2Session.diff")(function* (sessionID) {
+        const session = yield* result.get(sessionID)
+        const messages = yield* result.messages({ sessionID })
+        // 会话累计 diff：首个 assistant 的 snapshot.start → 最新 snapshot.end（runner 每步捕获）
+        const snapshots = messages.flatMap((message) =>
+          message.type === "assistant" && message.snapshot ? [message.snapshot] : [],
+        )
+        const from = snapshots.find((snapshot) => snapshot.start !== undefined)?.start
+        const to = snapshots.findLast((snapshot) => snapshot.end !== undefined)?.end
+        if (from === undefined || to === undefined) return []
+        return yield* Snapshot.Service.use((snapshot) =>
+          snapshot.diff({ from: Snapshot.ID.make(from), to: Snapshot.ID.make(to) }),
+        ).pipe(Effect.provide(locations.get(session.location)))
+      }),
       active: execution.active,
       resume: Effect.fn("V2Session.resume")(function* (sessionID) {
         yield* result.get(sessionID)
@@ -583,6 +633,49 @@ const layer = Layer.effect(
     return result
   }),
 )
+
+// session.deleted 事件 payload 需要 V1 SessionInfo（projector 只用 sessionID，
+// 但全局 SSE 会整体解码 data，字段必须合法）；revert/summary 与删除语义无关，省略。
+// 注意 optional 字段必须「缺 key」而非「key: undefined」——V1 optional 解码器
+// 拒绝显式 undefined，live payload 会原样送达严格解码方（事件监听、回放）。
+const legacyInfo = (row: typeof SessionTable.$inferSelect) =>
+  SessionV1.SessionInfo.make({
+    id: row.id,
+    slug: row.slug,
+    projectID: row.project_id,
+    directory: row.directory,
+    title: row.title,
+    version: row.version,
+    cost: row.cost,
+    tokens: {
+      input: row.tokens_input,
+      output: row.tokens_output,
+      reasoning: row.tokens_reasoning,
+      cache: { read: row.tokens_cache_read, write: row.tokens_cache_write },
+    },
+    time: {
+      created: row.time_created,
+      updated: row.time_updated,
+      ...(row.time_compacting === null ? {} : { compacting: row.time_compacting }),
+      ...(row.time_archived === null ? {} : { archived: row.time_archived }),
+    },
+    ...(row.workspace_id === null ? {} : { workspaceID: row.workspace_id }),
+    ...(row.parent_id === null ? {} : { parentID: row.parent_id }),
+    ...(row.path === null ? {} : { path: row.path }),
+    ...(row.agent === null ? {} : { agent: row.agent }),
+    ...(row.model === null
+      ? {}
+      : {
+          model: {
+            id: ModelV2.ID.make(row.model.id),
+            providerID: ProviderV2.ID.make(row.model.providerID),
+            ...(row.model.variant === undefined ? {} : { variant: row.model.variant }),
+          },
+        }),
+    ...(row.metadata === null ? {} : { metadata: row.metadata }),
+    ...(row.permission === null ? {} : { permission: row.permission }),
+    ...(row.share_url === null ? {} : { share: { url: row.share_url } }),
+  })
 
 const resolvePrompt = (input: PromptInput.Prompt) =>
   Prompt.make({

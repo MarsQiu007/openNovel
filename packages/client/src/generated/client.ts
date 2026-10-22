@@ -21,6 +21,12 @@ import type {
   SessionsCommandOutput,
   SessionsUpdateInput,
   SessionsUpdateOutput,
+  SessionsDeleteInput,
+  SessionsDeleteOutput,
+  SessionsTodoInput,
+  SessionsTodoOutput,
+  SessionsDiffInput,
+  SessionsDiffOutput,
   SessionsCompactInput,
   SessionsCompactOutput,
   SessionsWaitInput,
@@ -685,6 +691,39 @@ export function make(options: ClientOptions) {
             body: { title: input["title"], time: input["time"] },
             successStatus: 200,
             declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      delete: (input: SessionsDeleteInput, requestOptions?: RequestOptions) =>
+        request<SessionsDeleteOutput>(
+          {
+            method: "DELETE",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}`,
+            successStatus: 204,
+            declaredStatuses: [400, 404, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      todo: (input: SessionsTodoInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsTodoOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/todo`,
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      diff: (input: SessionsDiffInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsDiffOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/diff`,
+            successStatus: 200,
+            declaredStatuses: [404, 500, 400, 401],
             empty: false,
           },
           requestOptions,

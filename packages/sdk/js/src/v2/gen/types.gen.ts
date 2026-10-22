@@ -2733,6 +2733,12 @@ export type CommandNotFoundError = {
   message: string
 }
 
+export type UnknownError1 = {
+  _tag: "UnknownError"
+  message: string
+  ref?: string
+}
+
 export type ServiceUnavailableError = {
   _tag: "ServiceUnavailableError"
   message: string
@@ -2744,12 +2750,6 @@ export type MessageNotFoundError = {
   sessionID: string
   messageID: string
   message: string
-}
-
-export type UnknownError1 = {
-  _tag: "UnknownError"
-  message: string
-  ref?: string
 }
 
 export type SessionDurableEvent =
@@ -12769,6 +12769,41 @@ export type V2SessionActiveResponses = {
 
 export type V2SessionActiveResponse = V2SessionActiveResponses[keyof V2SessionActiveResponses]
 
+export type V2SessionDeleteData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}"
+}
+
+export type V2SessionDeleteErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+}
+
+export type V2SessionDeleteError = V2SessionDeleteErrors[keyof V2SessionDeleteErrors]
+
+export type V2SessionDeleteResponses = {
+  /**
+   * <No Content>
+   */
+  204: void
+}
+
+export type V2SessionDeleteResponse = V2SessionDeleteResponses[keyof V2SessionDeleteResponses]
+
 export type V2SessionGetData = {
   body?: never
   path: {
@@ -13013,6 +13048,84 @@ export type V2SessionCommandResponses = {
 }
 
 export type V2SessionCommandResponse = V2SessionCommandResponses[keyof V2SessionCommandResponses]
+
+export type V2SessionTodoData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/todo"
+}
+
+export type V2SessionTodoErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+}
+
+export type V2SessionTodoError = V2SessionTodoErrors[keyof V2SessionTodoErrors]
+
+export type V2SessionTodoResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<Todo>
+  }
+}
+
+export type V2SessionTodoResponse = V2SessionTodoResponses[keyof V2SessionTodoResponses]
+
+export type V2SessionDiffData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/diff"
+}
+
+export type V2SessionDiffErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+  /**
+   * UnknownError
+   */
+  500: UnknownError1
+}
+
+export type V2SessionDiffError = V2SessionDiffErrors[keyof V2SessionDiffErrors]
+
+export type V2SessionDiffResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: Array<FileDiff>
+  }
+}
+
+export type V2SessionDiffResponse = V2SessionDiffResponses[keyof V2SessionDiffResponses]
 
 export type V2SessionCompactData = {
   body?: never

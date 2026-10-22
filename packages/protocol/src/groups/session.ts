@@ -20,8 +20,9 @@ import {
 import { Agent } from "@opennovel-ai/schema/agent"
 import { Model } from "@opennovel-ai/schema/model"
 import { Location } from "@opennovel-ai/schema/location"
-import { Revert } from "@opennovel-ai/schema/revert"
+import { Revert, FileDiff } from "@opennovel-ai/schema/revert"
 import { SessionEvent } from "@opennovel-ai/schema/session-event"
+import { SessionTodo } from "@opennovel-ai/schema/session-todo"
 
 const SessionsQueryFields = {
   workspace: Workspace.ID.pipe(Schema.optional),
@@ -264,6 +265,52 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.update",
             summary: "Update session",
             description: "Update mutable session attributes such as title or archive timestamp.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.delete("session.delete", "/api/session/:sessionID", {
+        params: { sessionID: Session.ID },
+        success: HttpApiSchema.NoContent,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.delete",
+            summary: "Delete session",
+            description:
+              "Delete a session and its children. Publishes the durable session.deleted event. Deleting a missing session is a no-op.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.todo", "/api/session/:sessionID/todo", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.Array(SessionTodo.Info) }),
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.todo",
+            summary: "List session todos",
+            description: "Retrieve the current todo list for a session.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.diff", "/api/session/:sessionID/diff", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.Array(FileDiff) }),
+        error: [SessionNotFoundError, UnknownError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.diff",
+            summary: "Get session diff",
+            description:
+              "Retrieve the cumulative file diff of a session, from the first captured snapshot to the latest one.",
           }),
         ),
     )
