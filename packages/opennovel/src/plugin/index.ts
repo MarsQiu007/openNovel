@@ -20,7 +20,6 @@ import { AzureAuthPlugin } from "./azure"
 import { DigitalOceanAuthPlugin } from "./digitalocean"
 import { XaiAuthPlugin } from "./xai"
 import { SnowflakeCortexAuthPlugin } from "./snowflake-cortex"
-import { NovelWriterPlugin } from "@opennovel-ai/plugin/novel-writer"
 import { Effect, Layer, Context } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
@@ -83,7 +82,6 @@ function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
     DigitalOceanAuthPlugin,
     SnowflakeCortexAuthPlugin,
     XaiAuthPlugin,
-    NovelWriterPlugin,
   ]
 }
 
@@ -254,17 +252,6 @@ const layer = Layer.effect(
               // })
               return Effect.void
             }),
-          )
-        }
-
-        // Notify plugins of current config
-        for (const hook of hooks) {
-          yield* Effect.tryPromise({
-            try: () => Promise.resolve((hook as any).config?.(cfg)),
-            catch: errorMessage,
-          }).pipe(
-            Effect.tapError((error) => Effect.logError("plugin config hook failed", { error })),
-            Effect.ignore,
           )
         }
 

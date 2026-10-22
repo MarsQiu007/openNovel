@@ -6,7 +6,9 @@ import { describe, expect, test } from "bun:test"
 import { join } from "path"
 import { tmpdir } from "os"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
 import { wireNovelWriterV2 } from "../../src/cli/cmd/novel"
+import { ConfigParse } from "@/config/parse"
 
 const PLUGIN = "@opennovel-ai/plugin/novel-writer-v2"
 
@@ -26,6 +28,10 @@ describe("novel init 的 V2 接线", () => {
       const config = JSON.parse(readFileSync(join(dir, "opennovel.json"), "utf8"))
       expect(config.plugins).toEqual([PLUGIN])
       expect(config.experimental.subagent_depth).toBe(2)
+
+      // 回归：接线产物必须能通过 legacy 配置解析（plugins 键同文件双读，
+      // V1 schema 未放行时启动即 ConfigInvalidError）
+      expect(() => ConfigParse.schema(ConfigV1.Info, config, "opennovel.json")).not.toThrow()
     })
   })
 

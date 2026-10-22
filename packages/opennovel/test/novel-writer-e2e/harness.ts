@@ -1,8 +1,10 @@
 /**
  * 技法 agent 流程 e2e 驱动器：全节点会话栈 + TestLLMServer 假端点 + 回合驱动与断言工具。
  *
- * 节点清单镜像 test/session/prompt.test.ts 的 promptRoot（全量会话栈），
- * 但不设 disableDefaultPlugins——NovelWriterPlugin 经 Plugin.node 自动装载。
+ * 节点清单镜像 test/session/prompt.test.ts 的 promptRoot（全量会话栈）。
+ * novel-writer V2 插件经 providerCfg 写入的项目级 plugins 配置加载（同
+ * `opennovel novel init` 的 wireNovelWriterV2 接线），director 等写作 agent
+ * 与 88 工具全部由它注册。
  * provider 配置参照 httpapi-exercise 的 fakeLlmConfig：@ai-sdk/openai-compatible 指向假端点。
  */
 import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
@@ -158,7 +160,9 @@ export const it = testEffect(LayerNode.compile(root, replacements))
 type ConfigModel = NonNullable<NonNullable<NonNullable<ConfigV1.Info["provider"]>[string]>["models"]>[string]
 
 /** 实例 provider 配置：test/test-model 指向 TestLLMServer 假端点（同 httpapi-exercise fakeLlmConfig）。 */
-export function providerCfg(url: string): Partial<ConfigV1.Info> {
+export function providerCfg(
+  url: string,
+): Partial<ConfigV1.Info> & { plugins: string[]; experimental: { subagent_depth: number } } {
   const model = {
     id: "test-model",
     name: "Test Model",
@@ -174,6 +178,9 @@ export function providerCfg(url: string): Partial<ConfigV1.Info> {
   return {
     model: "test/test-model",
     small_model: "test/test-model",
+    // novel-writer V2 接线（镜像 wireNovelWriterV2）：插件入口 + subagent 深度
+    plugins: ["@opennovel-ai/plugin/novel-writer-v2"],
+    experimental: { subagent_depth: 2 },
     provider: {
       test: {
         name: "Test",
