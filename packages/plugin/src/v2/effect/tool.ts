@@ -38,6 +38,15 @@ export interface ToolSpec<A = unknown, I = unknown> {
 /** Heterogeneous staged tool, mirroring core's `Tool.AnyTool`. */
 export type AnyToolSpec = ToolSpec<any, any>
 
+/**
+ * Identity helper for authoring tool specs: the decoded field types of the
+ * `args` effect Schema codec flow into `execute`'s `args` parameter, keeping
+ * declarations fully inferred without explicit type annotations.
+ */
+export function defineTool<A, I>(spec: ToolSpec<A, I>): ToolSpec<A, I> {
+  return spec
+}
+
 export interface ToolEditor {
   list(): readonly string[]
   get(name: string): AnyToolSpec | undefined

@@ -8,11 +8,10 @@
  */
 import type { Plugin, PluginInput } from "./index.js"
 import { tool } from "./tool.js"
-import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
-import { eq, desc, and, asc, lt, sql, like, or } from "drizzle-orm"
+import { writeFileSync } from "fs"
+import { eq, desc, and, asc, sql, like, or } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
-import { join, dirname } from "path"
-import { assembleSnapshot, parseStyleRules, styleGuideRuleLines, type StoryArcSummary } from "./novel-writer/context.js"
+import { assembleSnapshot, parseStyleRules } from "./novel-writer/context.js"
 import { assembleWriterSnapshot, recallByQuery } from "./novel-writer/recall.js"
 import { readChapterOutline, validateStateDelta, persistStateDelta } from "./novel-writer/pipeline.js"
 import { normalizeStyleGuideData } from "./novel-writer/state-commit.js"
@@ -95,7 +94,6 @@ import {
   tagNovelSession,
   getNovelForSession,
   isNovelSession,
-  getDbPath,
   createChapterReview,
   listChapterReviews,
   deleteChapter,
@@ -114,12 +112,36 @@ import {
   readNovelConfig,
   readTechniqueInjection,
   getSoul,
-  type WritingMode,
-  type SetupMode,
 } from "./novel-writer/session-store.js"
 export { readTechniqueInjection }
 import { chooseSoul, fetchGlobalSoul } from "./novel-writer/soul.js"
 export { chooseSoul }
+import {
+  CHAPTER_LENGTH_TOLERANCE,
+  checkChapterLengthGate,
+  checkDuplicateRatio,
+  detectCoordinateLeak,
+  detectOutlineLabels,
+  getChapterLengthLimit,
+  getTargetWordCount,
+} from "./novel-writer/tools/chapter-guards.js"
+import {
+  loadNovelSnapshot,
+  renderModeSection,
+  renderSnapshotSection,
+  renderSoulSection,
+} from "./novel-writer/tools/context-render.js"
+import { computeParagraphDiff } from "./novel-writer/tools/paragraph-diff.js"
+import { readProjectConfig, writeProjectConfig } from "./novel-writer/tools/project-config.js"
+export { readProjectConfig, writeProjectConfig }
+import {
+  nextVersion,
+  projectDirFromCtx,
+  resolveCharRef,
+  resolveNovelId,
+  searchSnippet,
+  SETTING_ENTITY_TYPES,
+} from "./novel-writer/tools/shared.js"
 import {
   StoryArcTable,
   ArcBeatTable,
@@ -173,72 +195,17 @@ export { rebuildChapterDerivedData }
 
 export { tagNovelSession, getNovelForSession, isNovelSession }
 
-const SETTING_ENTITY_TYPES = [
-  "character",
-  "world_entry",
-  "plot_thread",
-  "foreshadowing",
-  "volume",
-  "relationship",
-]
-
-function projectDirFromCtx(directory?: string | null): string {
-  const dbPath = getDbPath(directory)
-  return join(dirname(dbPath), "..")
-}
-
 /**
  * 模式注入逻辑（项目级，与小说是否绑定无关）
  *
- * 从 .novel/config.json 读取 writing_mode / setup_mode，渲染成中文行为规则。
- * 注入位置在 system.transform 开头，先于小说上下文注入执行，
- * 这样后续 dispatch 的 subagent（writer/reviser/auditor/observer 等）也都能看到。
- *
- * 错误策略：读取失败时降级为默认 auto/auto，永不抛错。
+ * unshift 到 system[0] 位置，确保模式契约始终是 system prompt 的 header，
+ * 不会被后续注入的【小说写作上下文快照】等段落挤压到尾部、稀释优先级；
+ * 先于小说上下文注入执行，后续 dispatch 的 subagent（writer/reviser/auditor/observer 等）也都能看到。
+ * 渲染实现见 tools/context-render.ts（V2 SystemContext 源共用同一份）。
  */
 function injectModeContext(directory: string | null | undefined, system: string[]): void {
-  // projectDirFromCtx 会基于 directory 反推项目根；directory 为 null/undefined 时返回 process.cwd()
-  let projectDir: string
-  try {
-    projectDir = projectDirFromCtx(directory)
-  } catch {
-    return
-  }
-
-  let mode: { writing_mode: WritingMode; setup_mode: SetupMode }
-  try {
-    mode = readNovelConfig(projectDir)
-  } catch {
-    // 文件损坏等异常情况按默认配置走
-    mode = { writing_mode: "auto", setup_mode: "auto" }
-  }
-
-  const writingDesc =
-    mode.writing_mode === "review"
-      ? "每章完成后将章节状态置为 pending_review 并暂停，等用户在阅读页审批后再继续"
-      : "写完整章后自动置 final 并推进，无需人工审批"
-
-  const setupDesc =
-    mode.setup_mode === "interactive"
-      ? "新书初始化必须先与用户讨论并呈现完整方案（书名/类型/梗概/主要角色/世界观要点），用户明确确认后才可落库"
-      : "新书初始化无需确认，直接落库"
-
-  const lines: string[] = ["【写作模式与初始化模式（项目级，持久化）】", ""]
-  lines.push(`writing_mode: ${mode.writing_mode}`)
-  lines.push(`  行为：${writingDesc}。`)
-  lines.push(`setup_mode: ${mode.setup_mode}`)
-  lines.push(`  行为：${setupDesc}。`)
-  lines.push("")
-  lines.push("单次覆盖规则（仅作用于本次执行，不修改配置）：")
-  lines.push("- 用户本次指令明确说\"写完给我看 / 写完看看 / 写完等我审\" → 本章按 review 处理（review 模式时此覆盖为冗余但允许）")
-  lines.push("- 用户本次指令明确说\"直接写 / 直接发 / 不用看\" → 本章按 auto 处理（auto 模式时此覆盖为冗余但允许）")
-  lines.push("- 其余情况按配置模式执行")
-  lines.push("")
-  lines.push("模式切换：通过 update_project_config(target=\"novel\", field=\"writing_mode\"|\"setup_mode\", value=\"...\") 切换；切换后下次写作起生效，本次正在执行的流水线不重读。")
-
-  // unshift 到 system[0] 位置，确保模式契约始终是 system prompt 的 header，
-  // 不会被后续注入的【小说写作上下文快照】等段落挤压到尾部、稀释优先级
-  system.unshift(lines.join("\n"))
+  const section = renderModeSection(directory)
+  if (section) system.unshift(section)
 }
 
 /**
@@ -273,39 +240,18 @@ async function injectSoul(
   const globalSoul = await fetchGlobalSoul(client).catch(() => undefined)
   const soul = chooseSoul(novelSoul, globalSoul)
   if (!soul) return
-  system.splice(1, 0, `【灵魂】\n${soul}`)
+  system.splice(1, 0, renderSoulSection(soul))
 }
 
 /**
  * 系统提示注入逻辑。从 hook 中提取出来，便于 hook 层捕获 DB 异常后降级：
  * 小说库 schema 损坏等问题不应阻断整条消息，仅跳过上下文注入。
  */
-function formatActiveArcs(arcs: StoryArcSummary[]): string[] {
-  if (arcs.length === 0) return []
-  const typeLabel: Record<string, string> = { narrative: "主线", character: "角色弧", subplot: "支线" }
-  const beatLabel: Record<string, string> = {
-    setup: "开场", rising: "升温", turn: "转折", midpoint: "中点",
-    crisis: "危机", climax: "高潮", resolution: "结局", note: "备注",
-  }
-  const lines: string[] = ["【结构线/弧光 — 本章需推进】"]
-  for (const arc of arcs) {
-    const range =
-      arc.plannedStartChapter != null || arc.plannedEndChapter != null
-        ? `（规划 ${arc.plannedStartChapter ?? "?"}-${arc.plannedEndChapter ?? "?"} 章）`
-        : ""
-    const target = arc.targetCharacterName ? ` [角色:${arc.targetCharacterName}]` : ""
-    lines.push(`- [${typeLabel[arc.arcType] ?? arc.arcType}] ${arc.title}${target}${range}：${arc.summary || "（无摘要）"}`)
-    for (const b of arc.beats) {
-      const ch = b.chapterOrder != null ? `第${b.chapterOrder}章` : "未锚定章节"
-      const status = b.status === "drafted" || b.status === "reviewed" ? "已写" : "待写"
-      lines.push(`    · [${beatLabel[b.kind] ?? b.kind}/${status}] ${ch} ${b.label}${b.summary ? `：${b.summary}` : ""}`)
-    }
-  }
-  lines.push("（以上节点为当前章节窗口内的结构目标；待写节点请在正文中自然推进，已写节点注意承接，勿重复演出）")
-  lines.push("")
-  return lines
-}
-
+/**
+ * 系统提示注入逻辑。从 hook 中提取出来，便于 hook 层捕获 DB 异常后降级：
+ * 小说库 schema 损坏等问题不应阻断整条消息，仅跳过上下文注入。
+ * DB 组装与渲染实现见 tools/context-render.ts（V2 SystemContext 源共用同一份）。
+ */
 async function injectSystemContext(
   sessionId: string,
   directory: string | null | undefined,
@@ -315,115 +261,9 @@ async function injectSystemContext(
   // 已绑定会话直接复用；未绑定时若恰好只有一本小说则懒绑定到该会话。
   const novelId = await resolveSessionNovel(client, sessionId, directory)
   if (!novelId) return
-
-  // 查询当前最新章节序号
-  const db = getDb(directory)
-  const [latestChapter] = await db
-    .select()
-    .from(ChapterTable)
-    .where(eq(ChapterTable.novel_id, novelId))
-    .orderBy(desc(ChapterTable.order))
-    .limit(1)
-    .all()
-  const chapterNumber = latestChapter?.order ?? 0
-
-  // 组装上下文快照
-  const snapshot = await assembleWriterSnapshot(novelId, chapterNumber, directory)
+  const snapshot = await loadNovelSnapshot(novelId, directory)
   if (!snapshot) return
-
-  // 将快照序列化为文本注入 output.system
-  const lines: string[] = ["【小说写作上下文快照】"]
-  lines.push("")
-  lines.push(`【小说蓝图】\n书名：${snapshot.novelTitle}\n题材：${snapshot.genre}\n梗概：${snapshot.synopsis}`)
-  lines.push("")
-
-  if (snapshot.activeCharacters.length > 0) {
-    lines.push("【活跃角色】")
-    for (const c of snapshot.activeCharacters) {
-      lines.push(`- ${c.name}（${c.role}）${c.description ? `：${c.description}` : ""}`)
-      if (c.location || c.mood || c.summary) {
-        lines.push(`  位置：${c.location} | 情绪：${c.mood} | 状态：${c.summary}`)
-      }
-    }
-    lines.push("")
-  }
-
-  if (snapshot.departedCharacters.length > 0) {
-    lines.push(`【已退场角色】${snapshot.departedCharacters.join("、")}`)
-    lines.push("（后续章节不要再安排这些角色出场，但历史章节中的提及仍然有效）")
-    lines.push("")
-  }
-
-  if (snapshot.volumeSummary) {
-    lines.push(`【当前卷摘要】\n${snapshot.volumeSummary}`)
-    lines.push("")
-  }
-
-  if (snapshot.recentChapterSummaries.length > 0) {
-    lines.push("【最近章节摘要】")
-    for (const ch of snapshot.recentChapterSummaries) {
-      lines.push(`- 第${ch.chapterOrder}章 ${ch.chapterTitle}：${ch.summary}`)
-      if (ch.keyEvents.length > 0) {
-        lines.push(`  关键事件：${ch.keyEvents.join("、")}`)
-      }
-    }
-    lines.push("")
-  }
-
-  if (snapshot.plotThreads.length > 0) {
-    lines.push("【剧情线索】")
-    for (const t of snapshot.plotThreads) {
-      lines.push(`- ${t.title}（${t.status}）${t.description ? `：${t.description}` : ""}`)
-    }
-    lines.push("")
-  }
-
-  if (snapshot.foreshadowing.length > 0) {
-    lines.push("【伏笔】")
-    for (const f of snapshot.foreshadowing) {
-      lines.push(`- [${f.id}] ${f.content}（${f.state === "planted" ? "已埋设" : "已揭晓"}）`)
-    }
-    lines.push("")
-  }
-
-  lines.push(...formatActiveArcs(snapshot.activeArcs))
-
-  if (snapshot.styleGuide) {
-    lines.push("【风格指南】")
-    if (snapshot.styleGuide.tone) lines.push(`基调：${snapshot.styleGuide.tone}`)
-    if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
-    if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
-    lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
-    lines.push("")
-  }
-
-  if (snapshot.worldEntries.length > 0) {
-    const MAX_WORLD_TITLES = 50
-    lines.push("【世界观设定】")
-    const byCategory = new Map<string, string[]>()
-    for (const entry of snapshot.worldEntries.slice(0, MAX_WORLD_TITLES)) {
-      const key = entry.category || "未分类"
-      byCategory.set(key, [...(byCategory.get(key) ?? []), entry.title])
-    }
-    for (const [category, titles] of byCategory) {
-      lines.push(`${category}：${titles.join("、")}`)
-    }
-    if (snapshot.worldEntries.length > MAX_WORLD_TITLES) {
-      lines.push(`（共 ${snapshot.worldEntries.length} 条，仅列出前 ${MAX_WORLD_TITLES} 条标题）`)
-    }
-    lines.push('（以上为标题导览；需要某条设定的完整内容时，调用 check_novel_settings(scope="world") 查询）')
-    lines.push("")
-  }
-
-  if (snapshot.genreRules.length > 0) {
-    lines.push("【题材规则】")
-    for (const rule of snapshot.genreRules) {
-      lines.push(`- ${rule}`)
-    }
-    lines.push("")
-  }
-
-  system.push(lines.join("\n"))
+  system.push(renderSnapshotSection(snapshot))
 }
 
 /** 会话压缩时的小说上下文注入逻辑，同上支持 hook 层降级。 */
@@ -6077,667 +5917,3 @@ export default {
   id: "novel-writer",
   server: NovelWriterPlugin,
 } satisfies import("./index.js").PluginModule
-
-// ─── 工具内部辅助函数 ───
-
-/**
- * 计算下一个版本号。版本号从 1 起，按已有版本最大值 +1。
- */
-async function nextVersion(db: ReturnType<typeof getDb>, chapterId: string): Promise<number> {
-  const rows = await db
-    .select({ version: ChapterVersionTable.version })
-    .from(ChapterVersionTable)
-    .where(eq(ChapterVersionTable.chapter_id, chapterId))
-    .orderBy(desc(ChapterVersionTable.version))
-    .limit(1)
-    .all()
-  return (rows[0]?.version ?? 0) + 1
-}
-
-/**
- * 段落级 diff。用最长公共子序列（LCS）对齐两段按行/段切分的内容，
- * 输出 same / add / remove 三种操作的数组，供 diff_chapter_version 工具使用。
- *
- * - 同一段：标记 same（输出空格前缀）
- * - 仅旧版本有：标记 remove（- 前缀）
- * - 仅新版本有：标记 add（+ 前缀）
- *
- * 简化版：跳过 block move（顺序敏感），LCS 对齐保证相同段落不被误标 add/remove。
- * 对章节正文来说，正文很少整体 block move，常见模式是「保留大部分 + 改几段」，
- * 这种模式下 LCS 准确率足够。
- */
-type DiffOp = { kind: "same" | "add" | "remove"; text: string }
-
-function computeParagraphDiff(a: string[], b: string[]): DiffOp[] {
-  const m = a.length
-  const n = b.length
-  // 1) dp[i][j] = LCS length of a[0..i-1], b[0..j-1]
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
-      }
-    }
-  }
-  // 2) 反向回溯生成 diff
-  const out: DiffOp[] = []
-  let i = m
-  let j = n
-  while (i > 0 && j > 0) {
-    if (a[i - 1] === b[j - 1]) {
-      out.push({ kind: "same", text: a[i - 1] })
-      i--
-      j--
-    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
-      out.push({ kind: "remove", text: a[i - 1] })
-      i--
-    } else {
-      out.push({ kind: "add", text: b[j - 1] })
-      j--
-    }
-  }
-  while (i > 0) {
-    out.push({ kind: "remove", text: a[i - 1] })
-    i--
-  }
-  while (j > 0) {
-    out.push({ kind: "add", text: b[j - 1] })
-    j--
-  }
-  return out.reverse()
-}
-
-
-/**
- * 检测正文中误入的大纲/节拍标签。
- * 这些文字属于创作提纲，不应出现在读者可见正文中；命中则要求 writer 重写。
- */
-function detectOutlineLabels(text: string): string[] {
-  const beatLabels = ["开篇钩子", "发展推进", "高潮/转折", "结尾悬念", "场景概要", "出场角色", "字数预估"]
-  const samples: string[] = []
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line) continue
-    if (line.startsWith("【") && line.endsWith("】") && beatLabels.some((label) => line.includes(label))) {
-      samples.push(line.slice(0, 40))
-      continue
-    }
-    if (/^#{1,6}\s+/.test(line)) {
-      samples.push(line.slice(0, 40))
-      continue
-    }
-    if (/^场景[一二三四五六七八九十百千0-9]+/.test(line)) {
-      samples.push(line.slice(0, 40))
-      continue
-    }
-    // 短行的中文编号通常是提纲分节，不是小说正文；避免误杀长句叙事。
-    if (/^[一二三四五六七八九十百]+、/.test(line) && line.length <= 40) {
-      samples.push(line.slice(0, 40))
-      continue
-    }
-    if (beatLabels.includes(line)) samples.push(line)
-  }
-  return [...new Set(samples)].slice(0, 5)
-}
-
-/**
- * 检测正文中把书籍控制层坐标（第N章/第N卷）当作叙事时间使用的泄漏句式。
- * 仅拦截「记得在第N章」「在第N章的时候」等明确坐标复述，不拦截合法的书中书/元小说场景。
- */
-function detectCoordinateLeak(text: string): string[] {
-  const patterns = [
-    /记得在第\\d+章/g,
-    /在第\\d+章的时候/g,
-    /在第\\d+章发生了/g,
-  ]
-  const samples: string[] = []
-  for (const pattern of patterns) {
-    const matches = text.matchAll(pattern)
-    for (const m of matches) {
-      const start = Math.max(0, m.index! - 10)
-      const end = Math.min(text.length, m.index! + m[0].length + 10)
-      samples.push(text.slice(start, end).trim())
-      if (samples.length >= 5) return [...new Set(samples)]
-    }
-  }
-  return [...new Set(samples)].slice(0, 5)
-}
-
-/**
- * 读取目标字数下限：style_guide.rules.chapter_length，缺省 2500。
- * write_chapter/revise_chapter 用它做字数门禁——不达标拒绝写入。
- */
-/** 篇幅限制容差系数：启用时正文字数必须在目标 ±15% 区间内 */
-const CHAPTER_LENGTH_TOLERANCE = 0.15
-
-/** 读取书籍篇幅限制开关（style_guide.rules.chapter_length_limit === "true"） */
-async function getChapterLengthLimit(db: ReturnType<typeof getDb>, novelId: string): Promise<boolean> {
-  const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
-  return parseStyleRules(sg?.rules).chapter_length_limit === "true"
-}
-
-/** 章节字数门槛校验：通过返回 null；拒绝返回带 reason 的结果（too_short/too_long） */
-function checkChapterLengthGate(
-  toolName: string,
-  wordCount: number,
-  target: number,
-  limit: boolean,
-): { title: string; output: string; metadata: { rejected: true; reason: "too_short" | "too_long"; word_count: number; target: number; lower_bound: number; upper_bound: number | null } } | null {
-  const lowerBound = limit ? Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE)) : target
-  const upperBound = limit ? Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE)) : null
-  if (wordCount < lowerBound) {
-    const rangeText = limit ? `本章篇幅限制区间为 ${lowerBound}–${upperBound} 字` : `本章目标至少 ${target} 字，还差 ${target - wordCount} 字`
-    const actionText = toolName === "revise_chapter" ? "请在修订内容中补足字数后重新调用 revise_chapter" : "请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容"
-    return {
-      title: `${toolName}（字数不达标）`,
-      output: `字数不足：当前 ${wordCount} 字，${rangeText}。${actionText}。`,
-      metadata: { rejected: true, reason: "too_short", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
-    }
-  }
-  if (upperBound != null && wordCount > upperBound) {
-    return {
-      title: `${toolName}（字数超标）`,
-      output: `字数超标：当前 ${wordCount} 字，超出本章篇幅限制上限 ${upperBound} 字（目标 ${target} 的 +15%）。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白），不要砍剧情主线。`,
-      metadata: { rejected: true, reason: "too_long", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
-    }
-  }
-  return null
-}
-
-async function getTargetWordCount(db: ReturnType<typeof getDb>, novelId: string): Promise<number> {
-  const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
-  const raw = parseStyleRules(sg?.rules).chapter_length
-  const n = Number(raw)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 2500
-}
-
-/**
- * 检测文本与前文章节的重复度（两层检测，任一命中即视为重复）。
- *
- * 1. 50 字符窗口（步长 10 采样）：统计本章有多少比例的片段与所有前文章节
- *    字面完全相同——捕捉"照抄"级重复。
- * 2. 本章开头 300 字与每章前文开头的 6-gram Jaccard 相似度：捕捉"重演"级
- *    重复——AI 改写措辞重演同一场景（如议事厅对质）时，字面窗口不命中，
- *    但开头高频片段高度重合。正常续写的新章节开头与前文开头几乎不共享
- *    6-gram（实测 <0.01），而重演场景约 0.10。
- */
-async function checkDuplicateRatio(
-  db: ReturnType<typeof getDb>,
-  novelId: string,
-  content: string,
-  chapterOrder: number,
-): Promise<{ ratio: number; openingRatio: number; samples: string[]; duplicate: boolean }> {
-  const prevChapters = await db
-    .select({ order: ChapterTable.order, content: ChapterTable.content })
-    .from(ChapterTable)
-    .where(and(eq(ChapterTable.novel_id, novelId), lt(ChapterTable.order, chapterOrder)))
-    .all()
-  const prevContents = prevChapters.map((c) => c.content).filter((c) => c.length > 0)
-  if (prevContents.length === 0 || content.length < 50) {
-    return { ratio: 0, openingRatio: 0, samples: [], duplicate: false }
-  }
-
-  // 1) 50 字符窗口：照抄级重复
-  const windowSize = 50
-  const step = 10
-  const windows = new Set<string>()
-  for (let i = 0; i + windowSize <= content.length; i += step) {
-    windows.add(content.slice(i, i + windowSize))
-  }
-  const allPrev = prevContents.join("\n")
-  const matched: string[] = []
-  for (const w of windows) {
-    if (allPrev.includes(w)) matched.push(w)
-  }
-  const ratio = windows.size > 0 ? matched.length / windows.size : 0
-
-  // 2) 开头 300 字 6-gram Jaccard：场景重演级重复（取与前文章节开头的最大相似度）
-  const opening = content.slice(0, 300)
-  let openingRatio = 0
-  let bestMatchSample = ""
-  for (const pc of prevContents) {
-    const j = ngramJaccard6(opening, pc.slice(0, 300))
-    if (j > openingRatio) {
-      openingRatio = j
-      bestMatchSample = pc.slice(0, 30)
-    }
-  }
-
-  const duplicate = ratio > 0.15 || openingRatio > 0.05
-  const samples = duplicate
-    ? matched.length > 0
-      ? matched.slice(0, 3).map((w) => w.slice(0, 30) + "…")
-      : [bestMatchSample + "…"]
-    : []
-  return { ratio, openingRatio, samples, duplicate }
-}
-
-/** 6-gram 字符 Jaccard 相似度（用于开头场景重演检测） */
-function ngramJaccard6(a: string, b: string): number {
-  const set = (s: string) => {
-    const out = new Set<string>()
-    for (let i = 0; i + 6 <= s.length; i++) out.add(s.slice(i, i + 6))
-    return out
-  }
-  const A = set(a)
-  const B = set(b)
-  if (A.size === 0 || B.size === 0) return 0
-  let inter = 0
-  for (const x of A) {
-    if (B.has(x)) inter++
-  }
-  return inter / (A.size + B.size - inter)
-}
-
-/**
- * 校验并自动解析 novel_id。LLM agent 可能传入项目 slug 而非 UUID，
- * 此函数先在 novels 表中查找传入值；若不存在且库中恰好只有一本小说，则返回该小说 ID。
- */
-async function resolveNovelId(db: ReturnType<typeof getDb>, novelId: string): Promise<string> {
-  const match = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).limit(1).all()
-  if (match.length > 0) return novelId
-  const all = await db.select({ id: NovelTable.id }).from(NovelTable).limit(2).all()
-  if (all.length === 1) return all[0].id
-  return novelId
-}
-
-/**
- * 解析 relationship 中的角色引用。优先级：char_a_ref/char_b_ref -> char_a_id/char_b_id（UUID 或姓名）。
- * 姓名匹配到多个角色时报错（同名歧义），需用 ref 区分。
- */
-function resolveCharRef(
-  d: Record<string, unknown>,
-  prefix: "char_a" | "char_b",
-  refToId: Map<string, string>,
-  nameToIds: Map<string, string[]>,
-): { id: string } | { error: string } {
-  const ref = d[`${prefix}_ref`]
-  if (typeof ref === "string" && ref) {
-    const id = refToId.get(ref)
-    return id ? { id } : { error: `ref "${ref}" 未匹配到任何角色` }
-  }
-  const raw = d[`${prefix}_id`]
-  if (typeof raw === "string" && raw) {
-    if (raw.length === 36 && raw.includes("-")) return { id: raw }
-    const ids = nameToIds.get(raw)
-    if (ids && ids.length === 1) return { id: ids[0] }
-    if (ids && ids.length > 1) return { error: `姓名 "${raw}" 匹配到 ${ids.length} 个角色，存在歧义，请使用 ref` }
-    return { error: `姓名 "${raw}" 未匹配到任何角色` }
-  }
-  return { error: "未提供 ref 或 id" }
-}
-
-// ─── 项目配置工具辅助（check_project_config / update_project_config） ───
-
-const PROVIDER_MODEL_PATTERN = /^[\w.-]+\/[\w.-]+$/
-
-/** opennovel.json 中允许 agent 读取/修改的字段（白名单） */
-const OPENNOVEL_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "model", label: "默认模型" },
-  { key: "small_model", label: "小模型" },
-  { key: "default_agent", label: "默认 agent" },
-  { key: "username", label: "用户名" },
-  { key: "share", label: "分享策略" },
-  { key: "autoupdate", label: "自动更新" },
-  { key: "logLevel", label: "日志级别" },
-]
-
-/** .novel/config.json 中允许 agent 读取/修改的字段 */
-const NOVEL_CONFIG_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "name", label: "项目名称" },
-  { key: "created_at", label: "创建时间" },
-  { key: "version", label: "版本" },
-  { key: "writing_mode", label: "写作模式" },
-  { key: "setup_mode", label: "初始化模式" },
-  { key: "technique_injection", label: "技法注入" },
-]
-
-type FieldSpec = {
-  parseJson: boolean
-  validate: (value: unknown) => string | null
-}
-
-/** 校验函数：返回 null 表示通过，返回字符串表示错误原因 */
-const OPENNOVEL_FIELD_SPECS: Record<string, FieldSpec> = {
-  model: {
-    parseJson: false,
-    validate: (v) =>
-      typeof v === "string" && PROVIDER_MODEL_PATTERN.test(v)
-        ? null
-        : "必须是 'provider/model' 格式（如 anthropic/claude-sonnet-4-5）",
-  },
-  small_model: {
-    parseJson: false,
-    validate: (v) =>
-      typeof v === "string" && PROVIDER_MODEL_PATTERN.test(v)
-        ? null
-        : "必须是 'provider/model' 格式",
-  },
-  default_agent: {
-    parseJson: false,
-    validate: (v) => (typeof v === "string" && v.length > 0 ? null : "必须是非空字符串"),
-  },
-  username: {
-    parseJson: false,
-    validate: (v) => (typeof v === "string" ? null : "必须是字符串"),
-  },
-  share: {
-    parseJson: true,
-    validate: (v) =>
-      v === "manual" || v === "auto" || v === "disabled" ? null : "必须是 manual / auto / disabled 之一",
-  },
-  autoupdate: {
-    parseJson: true,
-    validate: (v) =>
-      typeof v === "boolean" || v === "notify" ? null : "必须是 true / false / \"notify\" 之一",
-  },
-  logLevel: {
-    parseJson: true,
-    validate: (v) =>
-      v === "DEBUG" || v === "INFO" || v === "WARN" || v === "ERROR"
-        ? null
-        : "必须是 DEBUG / INFO / WARN / ERROR 之一",
-  },
-}
-
-const NOVEL_CONFIG_FIELD_SPECS: Record<string, FieldSpec> = {
-  name: {
-    parseJson: false,
-    validate: (v) =>
-      typeof v === "string" && v.length > 0 && v.length <= 100 ? null : "必须是 1-100 字符的字符串",
-  },
-  version: {
-    parseJson: false,
-    validate: (v) =>
-      typeof v === "string" && /^\d+\.\d+\.\d+/.test(v) ? null : "必须是语义化版本字符串（如 1.0.0）",
-  },
-  writing_mode: {
-    parseJson: true,
-    validate: (v) => (v === "auto" || v === "review" ? null : "必须是 auto（自动）/ review（审核）之一"),
-  },
-  setup_mode: {
-    parseJson: true,
-    validate: (v) =>
-      v === "interactive" || v === "auto" ? null : "必须是 interactive（确认）/ auto（自动）之一",
-  },
-  technique_injection: {
-    parseJson: true,
-    validate: (v) => (typeof v === "boolean" ? null : "必须是 boolean（true 开启注入 / false 保持 shadow mode）"),
-  },
-}
-
-type ProjectConfigSpec = {
-  resolvePath: (projectDir: string) => string
-  fields: Record<string, FieldSpec>
-}
-
-const PROJECT_CONFIG_SPECS: Record<string, ProjectConfigSpec> = {
-  opennovel: {
-    resolvePath: (projectDir) => {
-      const found = findOpennovelConfig(projectDir)
-      return found ?? join(projectDir, "opennovel.json")
-    },
-    fields: OPENNOVEL_FIELD_SPECS,
-  },
-  novel: {
-    resolvePath: (projectDir) => join(projectDir, ".novel", "config.json"),
-    fields: NOVEL_CONFIG_FIELD_SPECS,
-  },
-}
-
-/**
- * 查找 opennovel 配置文件。查找顺序：
- * 1. 项目根目录 opennovel.jsonc / opennovel.json
- * 2. 项目根目录 .opennovel/opennovel.jsonc / .opennovel/opennovel.json
- * 3. 全局用户目录 ~/.config/opennovel/opennovel.jsonc / ~/.config/opennovel/opennovel.json
- *
- * 工具不读 .jsonc 注释（plugin 包不依赖 jsonc-parser），如果 .jsonc 含注释
- * 解析会失败，工具会报告并拒绝写入——让用户手工去掉注释或转纯 .json。
- */
-function findOpennovelConfig(projectDir: string): string | undefined {
-  const candidates: string[] = []
-  // 项目根目录
-  candidates.push(join(projectDir, "opennovel.jsonc"))
-  candidates.push(join(projectDir, "opennovel.json"))
-  // 项目级 .opennovel 子目录（openNovel 官方标准路径）
-  candidates.push(join(projectDir, ".opennovel", "opennovel.jsonc"))
-  candidates.push(join(projectDir, ".opennovel", "opennovel.json"))
-  // 全局用户目录
-  const home = process.env["HOME"] || process.env["USERPROFILE"]
-  if (home) {
-    candidates.push(join(home, ".config", "opennovel", "opennovel.jsonc"))
-    candidates.push(join(home, ".config", "opennovel", "opennovel.json"))
-  }
-  for (const path of candidates) {
-    if (existsSync(path)) return path
-  }
-  return undefined
-}
-
-function formatConfigValue(value: unknown): string {
-  if (value === undefined) return "（未设置）"
-  if (value === null) return "null"
-  if (typeof value === "string") return value.length > 80 ? value.slice(0, 80) + "…" : value
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
-/**
- * 读取项目配置（opennovel.json + .novel/config.json）白名单字段，组装展示文本。
- * 由 check_project_config 工具调用。文件不存在或 JSON 损坏时返回提示，不抛异常。
- */
-export function readProjectConfig(projectDir: string): {
-  title: string
-  output: string
-  metadata: {
-    opennovel_path: string | undefined
-    novel_config_path: string
-    novel_config_exists: boolean
-  }
-} {
-  const sections: string[] = []
-
-  const opennovelPath = findOpennovelConfig(projectDir)
-  if (opennovelPath) {
-    try {
-      const raw = readFileSync(opennovelPath, "utf-8")
-      const data = JSON.parse(raw) as Record<string, unknown>
-      sections.push(`## opennovel.json（${opennovelPath}）`)
-      let shown = 0
-      for (const field of OPENNOVEL_FIELDS) {
-        if (field.key in data) {
-          sections.push(`- ${field.label}：${formatConfigValue(data[field.key])}`)
-          shown++
-        }
-      }
-      if (shown === 0) sections.push("- （白名单字段均为空，使用默认值）")
-    } catch (err) {
-      sections.push(`## opennovel.json（解析失败）`)
-      sections.push(
-        `- ⚠ ${opennovelPath} 不是合法 JSON：${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  } else {
-    sections.push(`## opennovel.json（未找到）`)
-    sections.push("- 项目根目录没有 opennovel.json / opennovel.jsonc")
-  }
-
-  const novelConfigPath = join(projectDir, ".novel", "config.json")
-  sections.push("")
-  if (existsSync(novelConfigPath)) {
-    try {
-      const raw = readFileSync(novelConfigPath, "utf-8")
-      const data = JSON.parse(raw) as Record<string, unknown>
-      sections.push(`## .novel/config.json（${novelConfigPath}）`)
-      let shown = 0
-      for (const field of NOVEL_CONFIG_FIELDS) {
-        if (field.key in data) {
-          sections.push(`- ${field.label}：${formatConfigValue(data[field.key])}`)
-          shown++
-        }
-      }
-      if (shown === 0) sections.push("- （白名单字段均为空）")
-    } catch (err) {
-      sections.push(`## .novel/config.json（解析失败）`)
-      sections.push(
-        `- ⚠ ${novelConfigPath} 不是合法 JSON：${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  } else {
-    sections.push(`## .novel/config.json（未找到）`)
-    sections.push("- 项目未通过 initNovelProject 初始化")
-  }
-
-  return {
-    title: "check_project_config",
-    output: sections.join("\n"),
-    metadata: {
-      opennovel_path: opennovelPath,
-      novel_config_path: novelConfigPath,
-      novel_config_exists: existsSync(novelConfigPath),
-    },
-  }
-}
-
-
-/**
- * 更新项目配置白名单字段，写入前自动备份原文件。由 update_project_config 工具调用。
- * 拒绝写入白名单外的字段（防越权改 provider/mcp/permission 等敏感配置）。
- */
-export function writeProjectConfig(
-  projectDir: string,
-  target: "opennovel" | "novel",
-  field: string,
-  rawValue: string,
-): {
-  title: string
-  output: string
-  metadata?: {
-    target: string
-    field: string
-    old_value: unknown
-    new_value: unknown
-    file: string
-    had_original: boolean
-  }
-} {
-  const spec = PROJECT_CONFIG_SPECS[target]
-  if (!spec) {
-    return { title: "update_project_config", output: `不支持的 target：${target}` }
-  }
-  const fieldSpec = spec.fields[field]
-  if (!fieldSpec) {
-    const allowed = Object.keys(spec.fields).join("、")
-    return {
-      title: "update_project_config",
-      output: `target=${target} 不支持字段 "${field}"。允许的字段：${allowed}`,
-    }
-  }
-
-  let parsed: unknown
-  if (fieldSpec.parseJson) {
-    try {
-      parsed = JSON.parse(rawValue)
-    } catch {
-      return {
-        title: "update_project_config",
-        output: `字段 ${field} 需要合法的 JSON 字面量：${rawValue}`,
-      }
-    }
-  } else {
-    parsed = rawValue
-  }
-  const validationError = fieldSpec.validate(parsed)
-  if (validationError) {
-    return { title: "update_project_config", output: `字段 ${field} 校验失败：${validationError}` }
-  }
-
-  const filePath = spec.resolvePath(projectDir)
-  mkdirSync(dirname(filePath), { recursive: true })
-
-  let data: Record<string, unknown> = {}
-  let hadOriginal = false
-  if (existsSync(filePath)) {
-    try {
-      const raw = readFileSync(filePath, "utf-8")
-      data = JSON.parse(raw) as Record<string, unknown>
-      hadOriginal = true
-    } catch (err) {
-      return {
-        title: "update_project_config",
-        output: `${filePath} 不是合法 JSON，拒绝覆盖以防损坏：${err instanceof Error ? err.message : String(err)}`,
-      }
-    }
-  }
-
-  const oldValue = data[field]
-  data[field] = parsed
-
-  if (hadOriginal) {
-    try {
-      const backupPath = filePath + ".bak"
-      // 备份走 fsync — 断电时不留半截 .bak
-      const backupFd = openSync(backupPath, "w")
-      try {
-        writeSync(backupFd, readFileSync(filePath))
-        fsyncSync(backupFd)
-      } finally {
-        closeSync(backupFd)
-      }
-    } catch (err) {
-      return {
-        title: "update_project_config",
-        output: `备份原文件失败：${err instanceof Error ? err.message : String(err)}`,
-      }
-    }
-  }
-
-  try {
-    // 主文件走 fsync — 断电时不留半截 JSON，避免 user 配的 model / writing_mode 静默丢失
-    const fd = openSync(filePath, "w")
-    try {
-      writeSync(fd, JSON.stringify(data, null, 2) + "\n")
-      fsyncSync(fd)
-    } finally {
-      closeSync(fd)
-    }
-  } catch (err) {
-    return {
-      title: "update_project_config",
-      output: `写入失败：${err instanceof Error ? err.message : String(err)}`,
-    }
-  }
-
-  return {
-    title: "update_project_config",
-    output: [
-      `已更新 ${target}.${field}`,
-      `旧值：${formatConfigValue(oldValue)}`,
-      `新值：${formatConfigValue(parsed)}`,
-      `文件：${filePath}`,
-      hadOriginal ? `备份：${filePath}.bak` : "（首次写入，无备份）",
-    ].join("\n"),
-    metadata: {
-      target,
-      field,
-      old_value: oldValue,
-      new_value: parsed,
-      file: filePath,
-      had_original: hadOriginal,
-    },
-  }
-}
-
-function searchSnippet(text: string, query: string): string {
-  const index = text.toLowerCase().indexOf(query.toLowerCase())
-  if (index < 0) return text.slice(0, 100)
-  const start = Math.max(0, index - 50)
-  const end = Math.min(text.length, index + query.length + 50)
-  return `${start > 0 ? "..." : ""}${text.slice(start, end)}${end < text.length ? "..." : ""}`
-}
