@@ -98,17 +98,19 @@ describe("opennovel read-only commands (smoke)", () => {
     60_000,
   )
 
-  // `db path` prints the DB file location. Under harness isolation the DB
-  // resolves to SQLite's `:memory:` (no on-disk pollution between tests);
-  // in production it'd be a path under OPENNOVEL_TEST_HOME / XDG_DATA_HOME.
-  // Accept either form — both prove the resolver ran without crashing.
+  // `db path` prints the DB file location. The harness pins OPENNOVEL_DB to a
+  // file under the isolated home (shared across subprocesses, see cli-process
+  // isolatedEnv); in production it'd be a path under XDG_DATA_HOME, and tests
+  // that don't go through the harness may still resolve to `:memory:`.
+  // Accept all forms — each proves the resolver ran without crashing.
   cliIt.live(
     "db path: exits 0 and prints a path or :memory:",
     ({ opennovel }) =>
       Effect.gen(function* () {
         const r = yield* opennovel.spawn(["db", "path"])
         opennovel.expectExit(r, 0, "db path")
-        expect(r.stdout.trim()).toMatch(/^(:memory:|[/\\].+\.(db|sqlite|sqlite3))$/i)
+        // Windows absolute paths start with a drive letter, not / or \
+        expect(r.stdout.trim()).toMatch(/^(:memory:|([/\\]|[A-Za-z]:[/\\]).+\.(db|sqlite|sqlite3))$/i)
       }),
     60_000,
   )
