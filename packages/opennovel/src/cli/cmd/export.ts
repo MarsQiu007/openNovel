@@ -1,12 +1,19 @@
-import { Session } from "@/session/session"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
-import { MessageV2 } from "../../session/message-v2"
-import { SessionID } from "../../session/schema"
 import { effectCmd, fail } from "../effect-cmd"
 import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { EOL } from "os"
 import { Effect } from "effect"
+import { embeddedClient, listAllMessages, listAllSessions } from "../embedded-client"
+import { Filesystem } from "@/util/filesystem"
+import type {
+  LlmToolContent,
+  PromptFileAttachment,
+  SessionMessage,
+  SessionMessageAssistantTool,
+  SessionV2Info,
+} from "@opennovel-ai/sdk/v2"
+
+type ToolState = SessionMessageAssistantTool["state"]
 
 function redact(kind: string, id: string, value: string) {
   return value.trim() ? `[redacted:${kind}:${id}]` : value
@@ -17,205 +24,138 @@ function data(kind: string, id: string, value: Record<string, unknown> | undefin
   return Object.keys(value).length ? { redacted: `${kind}:${id}` } : value
 }
 
-function span(id: string, value: { value: string; start: number; end: number }) {
+function attachment(id: string, file: PromptFileAttachment): PromptFileAttachment {
   return {
-    ...value,
-    value: redact("file-text", id, value.value),
+    ...file,
+    uri: redact("file-url", id, file.uri),
+    name: file.name === undefined ? undefined : redact("file-name", id, file.name),
+    description: file.description === undefined ? undefined : redact("file-description", id, file.description),
+    source: !file.source ? file.source : { ...file.source, text: redact("file-text", id, file.source.text) },
   }
 }
 
-function diff(kind: string, diffs: { file?: string; patch?: string }[] | undefined) {
-  return diffs?.map((item, i) => ({
-    ...item,
-    file: item.file === undefined ? undefined : redact(`${kind}-file`, String(i), item.file),
-    patch: item.patch === undefined ? undefined : redact(`${kind}-patch`, String(i), item.patch),
-  }))
-}
-
-function source(part: SessionV1.FilePart) {
-  if (!part.source) return part.source
-  if (part.source.type === "symbol") {
+function toolContent(id: string, content: LlmToolContent[]): LlmToolContent[] {
+  return content.map((item, index) => {
+    if (item.type === "text") return { ...item, text: redact("tool-text", `${id}-${index}`, item.text) }
     return {
-      ...part.source,
-      path: redact("file-path", part.id, part.source.path),
-      name: redact("file-symbol", part.id, part.source.name),
-      text: span(part.id, part.source.text),
+      ...item,
+      uri: redact("tool-file", `${id}-${index}`, item.uri),
+      name: item.name === undefined ? undefined : redact("tool-file-name", `${id}-${index}`, item.name),
     }
-  }
-  if (part.source.type === "resource") {
-    return {
-      ...part.source,
-      clientName: redact("file-client", part.id, part.source.clientName),
-      uri: redact("file-uri", part.id, part.source.uri),
-      text: span(part.id, part.source.text),
-    }
-  }
-  return {
-    ...part.source,
-    path: redact("file-path", part.id, part.source.path),
-    text: span(part.id, part.source.text),
+  })
+}
+
+function toolState(id: string, state: ToolState): ToolState {
+  switch (state.status) {
+    case "pending":
+      return { ...state, input: redact("tool-input", id, state.input) }
+    case "running":
+      return {
+        ...state,
+        input: data("tool-input", id, state.input) ?? state.input,
+        structured: data("tool-structured", id, state.structured) ?? state.structured,
+        content: toolContent(id, state.content),
+      }
+    case "completed":
+      return {
+        ...state,
+        input: data("tool-input", id, state.input) ?? state.input,
+        structured: data("tool-structured", id, state.structured) ?? state.structured,
+        content: toolContent(id, state.content),
+        outputPaths: state.outputPaths?.map((item, index) => redact("tool-path", `${id}-${index}`, item)),
+        result: state.result === undefined ? undefined : { redacted: `tool-result:${id}` },
+        attachments: state.attachments?.map((file) => attachment(id, file)),
+      }
+    case "error":
+      return {
+        ...state,
+        input: data("tool-input", id, state.input) ?? state.input,
+        structured: data("tool-structured", id, state.structured) ?? state.structured,
+        content: toolContent(id, state.content),
+        error: { ...state.error, message: redact("tool-error", id, state.error.message) },
+        result: state.result === undefined ? undefined : { redacted: `tool-result:${id}` },
+      }
   }
 }
 
-function filepart(part: SessionV1.FilePart): SessionV1.FilePart {
-  return {
-    ...part,
-    url: redact("file-url", part.id, part.url),
-    filename: part.filename === undefined ? undefined : redact("file-name", part.id, part.filename),
-    source: source(part),
-  }
-}
-
-function part(part: SessionV1.Part): SessionV1.Part {
-  switch (part.type) {
-    case "text":
+function message(msg: SessionMessage): SessionMessage {
+  switch (msg.type) {
+    case "user":
       return {
-        ...part,
-        text: redact("text", part.id, part.text),
-        metadata: data("text-metadata", part.id, part.metadata),
+        ...msg,
+        text: redact("text", msg.id, msg.text),
+        files: msg.files?.map((file) => attachment(msg.id, file)),
+        agents: msg.agents?.map((agent) => ({
+          ...agent,
+          source: !agent.source
+            ? agent.source
+            : { ...agent.source, text: redact("agent-text", msg.id, agent.source.text) },
+        })),
       }
-    case "reasoning":
+    case "synthetic":
+    case "system":
+      return { ...msg, text: redact("text", msg.id, msg.text) }
+    case "shell":
       return {
-        ...part,
-        text: redact("reasoning", part.id, part.text),
-        metadata: data("reasoning-metadata", part.id, part.metadata),
+        ...msg,
+        command: redact("shell-command", msg.id, msg.command),
+        output: redact("shell-output", msg.id, msg.output),
       }
-    case "file":
-      return filepart(part)
-    case "subtask":
+    case "assistant":
       return {
-        ...part,
-        prompt: redact("subtask-prompt", part.id, part.prompt),
-        description: redact("subtask-description", part.id, part.description),
-        command: part.command === undefined ? undefined : redact("subtask-command", part.id, part.command),
-      }
-    case "tool":
-      return {
-        ...part,
-        metadata: data("tool-metadata", part.id, part.metadata),
-        state:
-          part.state.status === "pending"
-            ? {
-                ...part.state,
-                input: data("tool-input", part.id, part.state.input) ?? part.state.input,
-                raw: redact("tool-raw", part.id, part.state.raw),
-              }
-            : part.state.status === "running"
-              ? {
-                  ...part.state,
-                  input: data("tool-input", part.id, part.state.input) ?? part.state.input,
-                  title: part.state.title === undefined ? undefined : redact("tool-title", part.id, part.state.title),
-                  metadata: data("tool-state-metadata", part.id, part.state.metadata),
-                }
-              : part.state.status === "completed"
-                ? {
-                    ...part.state,
-                    input: data("tool-input", part.id, part.state.input) ?? part.state.input,
-                    output: redact("tool-output", part.id, part.state.output),
-                    title: redact("tool-title", part.id, part.state.title),
-                    metadata: data("tool-state-metadata", part.id, part.state.metadata) ?? part.state.metadata,
-                    attachments: part.state.attachments?.map(filepart),
-                  }
-                : {
-                    ...part.state,
-                    input: data("tool-input", part.id, part.state.input) ?? part.state.input,
-                    metadata: data("tool-state-metadata", part.id, part.state.metadata),
-                  },
-      }
-    case "patch":
-      return {
-        ...part,
-        hash: redact("patch", part.id, part.hash),
-        files: part.files.map((item: string, i: number) => redact("patch-file", `${part.id}-${i}`, item)),
-      }
-    case "snapshot":
-      return {
-        ...part,
-        snapshot: redact("snapshot", part.id, part.snapshot),
-      }
-    case "step-start":
-      return {
-        ...part,
-        snapshot: part.snapshot === undefined ? undefined : redact("snapshot", part.id, part.snapshot),
-      }
-    case "step-finish":
-      return {
-        ...part,
-        snapshot: part.snapshot === undefined ? undefined : redact("snapshot", part.id, part.snapshot),
-      }
-    case "agent":
-      return {
-        ...part,
-        source: !part.source
-          ? part.source
+        ...msg,
+        snapshot: !msg.snapshot
+          ? msg.snapshot
           : {
-              ...part.source,
-              value: redact("agent-source", part.id, part.source.value),
+              ...msg.snapshot,
+              start: msg.snapshot.start === undefined ? undefined : redact("snapshot", msg.id, msg.snapshot.start),
+              end: msg.snapshot.end === undefined ? undefined : redact("snapshot", msg.id, msg.snapshot.end),
+              files: msg.snapshot.files?.map((item, index) => redact("snapshot-file", `${msg.id}-${index}`, item)),
             },
+        content: msg.content.map((part) => {
+          if (part.type === "text") return { ...part, text: redact("text", part.id, part.text) }
+          if (part.type === "reasoning") {
+            // providerMetadata 含加密推理签名，sanitize 直接摘除（其值类型不允许占位符字符串）
+            return { ...part, text: redact("reasoning", part.id, part.text), providerMetadata: undefined }
+          }
+          return { ...part, state: toolState(part.id, part.state) }
+        }),
+      }
+    case "compaction":
+      return {
+        ...msg,
+        summary: redact("compaction-summary", msg.id, msg.summary),
+        recent: redact("compaction-recent", msg.id, msg.recent),
       }
     default:
-      return part
+      return msg
   }
 }
 
-const partFn = part
-
-function sanitize(data: { info: Session.Info; messages: SessionV1.WithParts[] }) {
+function sanitize(input: { info: SessionV2Info; messages: SessionMessage[] }) {
   return {
     info: {
-      ...data.info,
-      title: redact("session-title", data.info.id, data.info.title),
-      directory: redact("session-directory", data.info.id, data.info.directory),
-      summary: !data.info.summary
-        ? data.info.summary
+      ...input.info,
+      title: redact("session-title", input.info.id, input.info.title),
+      location: {
+        ...input.info.location,
+        directory: redact("session-directory", input.info.id, input.info.location.directory),
+      },
+      revert: !input.info.revert
+        ? input.info.revert
         : {
-            ...data.info.summary,
-            diffs: diff("session-diff", data.info.summary.diffs),
-          },
-      revert: !data.info.revert
-        ? data.info.revert
-        : {
-            ...data.info.revert,
+            ...input.info.revert,
             snapshot:
-              data.info.revert.snapshot === undefined
+              input.info.revert.snapshot === undefined
                 ? undefined
-                : redact("revert-snapshot", data.info.id, data.info.revert.snapshot),
+                : redact("revert-snapshot", input.info.id, input.info.revert.snapshot),
             diff:
-              data.info.revert.diff === undefined
+              input.info.revert.diff === undefined
                 ? undefined
-                : redact("revert-diff", data.info.id, data.info.revert.diff),
+                : redact("revert-diff", input.info.id, input.info.revert.diff),
           },
     },
-    messages: data.messages.map((msg) => ({
-      info:
-        msg.info.role === "user"
-          ? {
-              ...msg.info,
-              system: msg.info.system === undefined ? undefined : redact("system", msg.info.id, msg.info.system),
-              summary: !msg.info.summary
-                ? msg.info.summary
-                : {
-                    ...msg.info.summary,
-                    title:
-                      msg.info.summary.title === undefined
-                        ? undefined
-                        : redact("summary-title", msg.info.id, msg.info.summary.title),
-                    body:
-                      msg.info.summary.body === undefined
-                        ? undefined
-                        : redact("summary-body", msg.info.id, msg.info.summary.body),
-                    diffs: diff("message-diff", msg.info.summary.diffs),
-                  },
-            }
-          : {
-              ...msg.info,
-              path: {
-                cwd: redact("cwd", msg.info.id, msg.info.path.cwd),
-                root: redact("root", msg.info.id, msg.info.path.root),
-              },
-            },
-      parts: msg.parts.map(partFn),
-    })),
+    messages: input.messages.map(message),
   }
 }
 
@@ -238,15 +178,15 @@ export const ExportCommand = effectCmd({
 })
 
 const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; sanitize?: boolean }) {
-  const svc = yield* Session.Service
-  let sessionID = args.sessionID ? SessionID.make(args.sessionID) : undefined
+  const client = yield* Effect.promise(() => embeddedClient(Filesystem.resolve(process.cwd())))
+  let sessionID = args.sessionID
   process.stderr.write(`Exporting session: ${sessionID ?? "latest"}\n`)
 
   if (!sessionID) {
     UI.empty()
     prompts.intro("Export session", { output: process.stderr })
 
-    const sessions = yield* svc.list()
+    const sessions = yield* Effect.promise(() => listAllSessions(client))
 
     if (sessions.length === 0) {
       prompts.log.error("No sessions found", { output: process.stderr })
@@ -278,15 +218,18 @@ const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; 
     prompts.outro("Exporting session...", { output: process.stderr })
   }
 
-  // Match legacy try/catch — catches both typed failures and defects
-  // (Session.Service.get throws NotFoundError as a defect, not a typed E).
-  return yield* Effect.gen(function* () {
-    const sessionInfo = yield* svc.get(sessionID!)
-    const messages = yield* svc.messages({ sessionID: sessionInfo.id })
+  const id = sessionID
+  const sessionInfo = yield* Effect.promise(() =>
+    client.v2.session
+      .get({ sessionID: id })
+      .then((x) => x.data?.data)
+      .catch(() => undefined),
+  )
+  if (!sessionInfo) return yield* fail(`Session not found: ${id}`)
+  const messages = yield* Effect.promise(() => listAllMessages(client, id))
 
-    const exportData = { info: sessionInfo, messages }
+  const exportData = { info: sessionInfo, messages }
 
-    process.stdout.write(JSON.stringify(args.sanitize ? sanitize(exportData) : exportData, null, 2))
-    process.stdout.write(EOL)
-  }).pipe(Effect.catchCause(() => fail(`Session not found: ${sessionID!}`)))
+  process.stdout.write(JSON.stringify(args.sanitize ? sanitize(exportData) : exportData, null, 2))
+  process.stdout.write(EOL)
 })

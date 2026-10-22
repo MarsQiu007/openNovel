@@ -1,8 +1,7 @@
 import { Effect } from "effect"
 import { effectCmd } from "../effect-cmd"
-import { embeddedClient } from "../embedded-client"
+import { embeddedClient, listAllMessages, listAllSessions } from "../embedded-client"
 import { Filesystem } from "@/util/filesystem"
-import type { OpenNovelClient, SessionMessage, SessionV2Info } from "@opennovel-ai/sdk/v2"
 
 interface SessionStats {
   totalSessions: number
@@ -75,45 +74,6 @@ export const StatsCommand = effectCmd({
   }),
 })
 
-// V2 list 全量游标分页（服务端恒生成 next 游标，空页即到底）；
-// 不按 roots 过滤——V1 stats 统计的是含子会话的全部会话。
-async function listAllSessions(client: OpenNovelClient, project?: string): Promise<SessionV2Info[]> {
-  const sessions: SessionV2Info[] = []
-  let cursor: string | undefined
-  for (;;) {
-    const page = await client.v2.session.list({
-      limit: 50,
-      ...(project === undefined ? {} : { project }),
-      ...(cursor === undefined ? {} : { cursor }),
-    })
-    if (page.error) throw new Error(`Failed to list sessions: ${JSON.stringify(page.error)}`)
-    const items = page.data?.data ?? []
-    sessions.push(...items)
-    const next = page.data?.cursor.next
-    if (!next || items.length === 0) break
-    cursor = next
-  }
-  return sessions
-}
-
-// 读取失败的会话按空消息计（对齐 V1 容忍 NotFound 的行为）
-async function listAllMessages(client: OpenNovelClient, sessionID: string): Promise<SessionMessage[]> {
-  const messages: SessionMessage[] = []
-  let cursor: string | undefined
-  for (;;) {
-    const page = await client.v2.session
-      .messages({ sessionID, limit: 50, order: "asc", ...(cursor === undefined ? {} : { cursor }) })
-      .then((x) => x.data)
-      .catch(() => undefined)
-    const items = page?.data ?? []
-    messages.push(...items)
-    const next = page?.cursor.next
-    if (!next || items.length === 0) break
-    cursor = next
-  }
-  return messages
-}
-
 const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (days?: number, projectFilter?: string) {
   // 不带 directory：默认跨全部项目统计；--project ""（当前项目）经 location 端点解析项目 ID
   const client = yield* Effect.promise(() => embeddedClient())
@@ -126,6 +86,7 @@ const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (days?:
     if (!location) throw new Error("Failed to resolve current project")
     return location.project.id
   })
+  // 不按 roots 过滤——V1 stats 统计的是含子会话的全部会话
   const sessions = yield* Effect.promise(() => listAllSessions(client, project))
   const MS_IN_DAY = 24 * 60 * 60 * 1000
 
