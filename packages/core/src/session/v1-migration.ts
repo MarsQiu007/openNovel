@@ -706,30 +706,40 @@ export const run: Effect.Effect<void, never, Database.Service> = lock.withPermit
     const hasLegacy = yield* db
       .get<{ value: number }>(sql`SELECT 1 AS value FROM message LIMIT 1`)
       .pipe(Effect.orDie)
-    if (!hasLegacy) {
-      yield* anchor(db)
-      return
-    }
-    while (true) {
-      const cursor = yield* readCursor(db)
-      const next = yield* (cursor === undefined
-        ? db.get<{ session_id: string }>(
-            sql`SELECT session_id FROM message ORDER BY session_id DESC LIMIT 1`,
-          )
-        : db.get<{ session_id: string }>(
-            sql`SELECT session_id FROM message WHERE session_id < ${cursor} ORDER BY session_id DESC LIMIT 1`,
-          )
-      ).pipe(Effect.orDie)
-      if (!next) break
-      yield* db
-        .transaction((tx) => migrateSession(tx, next.session_id), { behavior: "immediate" })
-        .pipe(Effect.orDie)
-      yield* Effect.yieldNow
+    if (hasLegacy) {
+      while (true) {
+        const cursor = yield* readCursor(db)
+        const next = yield* (cursor === undefined
+          ? db.get<{ session_id: string }>(
+              sql`SELECT session_id FROM message ORDER BY session_id DESC LIMIT 1`,
+            )
+          : db.get<{ session_id: string }>(
+              sql`SELECT session_id FROM message WHERE session_id < ${cursor} ORDER BY session_id DESC LIMIT 1`,
+            )
+        ).pipe(Effect.orDie)
+        if (!next) break
+        yield* db
+          .transaction((tx) => migrateSession(tx, next.session_id), { behavior: "immediate" })
+          .pipe(Effect.orDie)
+        yield* Effect.yieldNow
+      }
     }
     yield* db
       .transaction(
         (tx) =>
           Effect.gen(function* () {
+            // 无消息会话不进主循环（游标取自 message 表），其 V1 事件行在此兜底清理；
+            // 被跳过的续聊会话（message 与 session_message 均有行）不受影响，保留兜底。
+            yield* tx
+              .delete(EventTable)
+              .where(
+                and(
+                  inArray(EventTable.type, [...V1_EVENT_TYPES]),
+                  sql`aggregate_id NOT IN (SELECT session_id FROM message)`,
+                  sql`aggregate_id NOT IN (SELECT session_id FROM session_message)`,
+                ),
+              )
+              .run()
             yield* tx.insert(DataMigrationTable).values({ name: ANCHOR, time_completed: Date.now() }).run()
             yield* tx.delete(KVTable).where(eq(KVTable.key, CURSOR_KEY)).run()
           }),
@@ -741,15 +751,6 @@ export const run: Effect.Effect<void, never, Database.Service> = lock.withPermit
     Effect.catchCause((cause) => Effect.logError("V1 session migration failed; will retry on next start", cause)),
   ),
 )
-
-function anchor(db: Db) {
-  return db
-    .insert(DataMigrationTable)
-    .values({ name: ANCHOR, time_completed: Date.now() })
-    .onConflictDoNothing()
-    .run()
-    .pipe(Effect.orDie)
-}
 
 function readCursor(db: Db) {
   return db

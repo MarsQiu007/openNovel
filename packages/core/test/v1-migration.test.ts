@@ -449,6 +449,18 @@ describe("V1Migration.run", () => {
           ])
           .run()
           .pipe(Effect.orDie)
+        // 无消息会话：不进主循环，V1 事件行走锚点事务的兜底清理
+        yield* seedSession(db, "ses_empty")
+        yield* db
+          .insert(EventSequenceTable)
+          .values({ aggregate_id: "ses_empty", seq: 0 })
+          .run()
+          .pipe(Effect.orDie)
+        yield* db
+          .insert(EventTable)
+          .values({ id: "evt_3" as never, aggregate_id: "ses_empty", seq: 0, type: "session.created.1", data: {} })
+          .run()
+          .pipe(Effect.orDie)
 
         yield* V1Migration.run
 
@@ -481,6 +493,13 @@ describe("V1Migration.run", () => {
           .all()
           .pipe(Effect.orDie)
         expect(events).toEqual([])
+        const emptyEvents = yield* db
+          .select()
+          .from(EventTable)
+          .where(eq(EventTable.aggregate_id, "ses_empty"))
+          .all()
+          .pipe(Effect.orDie)
+        expect(emptyEvents).toEqual([])
 
         const anchor = yield* db
           .select()
@@ -531,12 +550,30 @@ describe("V1Migration.run", () => {
           .run()
           .pipe(Effect.orDie)
 
+        yield* db
+          .insert(EventSequenceTable)
+          .values({ aggregate_id: "ses_b", seq: 0 })
+          .run()
+          .pipe(Effect.orDie)
+        yield* db
+          .insert(EventTable)
+          .values({ id: "evt_b" as never, aggregate_id: "ses_b", seq: 0, type: "session.created.1", data: {} })
+          .run()
+          .pipe(Effect.orDie)
+
         yield* V1Migration.run
 
-        // 既有 V2 行原样保留，V1 内容未混入
+        // 既有 V2 行原样保留，V1 内容未混入；V1 事件行保留兜底
         const rows = yield* migrated(db, "ses_b")
         expect(rows).toHaveLength(1)
         expect(rows[0].decoded).toMatchObject({ type: "user", text: "新内容" })
+        const events = yield* db
+          .select()
+          .from(EventTable)
+          .where(eq(EventTable.aggregate_id, "ses_b"))
+          .all()
+          .pipe(Effect.orDie)
+        expect(events).toHaveLength(1)
         // 锚点照常完成（其他会话不受影响）
         const anchor = yield* db
           .select()

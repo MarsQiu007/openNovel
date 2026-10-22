@@ -5,12 +5,12 @@
 
 ## G1 数据迁移层（core）
 
-- [ ] 1.1 新建 `core/src/session/v1-migration.ts`（bun/node 平台条件入口），自含冻结 V1 消息/part 形状子集（从 `schema/src/v1/session.ts` 机械复制，标注冻结契约）
-- [ ] 1.2 实现迁移流程：完成锚点短路（`data_migration` 插 `v1-session-migration`）→ `message` 表 DISTINCT session_id 游标（KV 断点）→ 每会话一事务（先删后插 `session_message`、水位续号写回、删 V1 event 行、`session` 汇总列回填、写游标）→ 完成插锚点；`Semaphore(1)`
-- [ ] 1.3 转换规则：User/Assistant/part 逐类型映射（content 项 id 合成、ToolState structured={}、错误塌缩 unknown、FileAttachment uri、Compaction.recent 必填）、工具名改写 `task→subagent`（参数 `subagent_type→agent`、`task_id→sessionID`）与 `filePath→path`
-- [ ] 1.4 移植上游 `v1-migration.test.ts` 测试模式并按 fork 形状差重写断言
-- [ ] 1.5 接线：`V1Migration.layer` forkScoped，opennovel server/runtime 在 Database 就绪后接线
-- [ ] 1.6 真实数据副本演练（本机 `opennovel-local.db` 复制件）：历史会话 V2 面可见、锚点短路、重复跑零变化——记录于 design §11
+- [x] 1.1 新建 `core/src/session/v1-migration.ts`（bun/node 平台条件入口），自含冻结 V1 消息/part 形状子集（从 `schema/src/v1/session.ts` 机械复制，标注冻结契约）
+- [x] 1.2 实现迁移流程：完成锚点短路（`data_migration` 插 `v1-session-migration`）→ `message` 表 DISTINCT session_id 游标（KV 断点）→ 每会话一事务（先删后插 `session_message`、水位续号写回、删 V1 event 行、`session` 汇总列回填、写游标）→ 完成插锚点；`Semaphore(1)`
+- [x] 1.3 转换规则：User/Assistant/part 逐类型映射（content 项 id 合成、ToolState structured={}、错误塌缩 unknown、FileAttachment uri、Compaction.recent 必填）、工具名改写 `task→subagent`（参数 `subagent_type→agent`、`task_id→sessionID`）与 `filePath→path`
+- [x] 1.4 移植上游 `v1-migration.test.ts` 测试模式并按 fork 形状差重写断言
+- [x] 1.5 接线：`V1Migration.layer` forkScoped，opennovel server/runtime 在 Database 就绪后接线
+- [x] 1.6 真实数据副本演练（本机 `opennovel.db` 复制件，393 会话/4129 message）：历史会话 V2 面可见（4142 行全量 decode 零失败）、锚点短路、重复跑零变化——记录于 design §11
 
 ## G2 V2 生命周期事件与 move 补全（schema+core+app）
 

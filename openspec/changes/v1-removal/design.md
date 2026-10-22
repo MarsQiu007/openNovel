@@ -160,3 +160,12 @@ core 提供 `V1Migration.layer`（forkScoped 立即后台跑）；opennovel serv
 ## 11. 落地核实
 
 （实现时填写：实际删除/改造清单与侦察结论的偏差、D13/D16/D18 核实结果、演练记录、全量回归数据。）
+
+### G1 数据迁移层（2026-10-23）
+
+- **真实数据副本演练**（本机 `opennovel.db` 复制件，393 会话 / 4129 message / 17218 part）：
+  - 迁移产出 4142 行 `session_message`（assistant 3449 / user 671 / synthetic 19 / compaction 3），**全量经 `SessionMessage.Message` decode 零失败**；每会话 seq 连续（0..N-1）零断裂；水位 ≥ 最大 seq 零违例。
+  - 锚点短路幂等：重跑行数零变化。原表不删行（4129 行保留）。
+  - 抽查最大会话（247 行）：user/reasoning/工具内容完整，content id 合成正确，agent/model/token 回填与 V1 源一致（源数据 cost 全 0，回填 0 属忠实）。
+- **偏差 1（设计外发现，已修）**：无消息会话不进主循环（游标取自 message 表），其 V1 事件行残留（真实库 3 会话 4 行）。已在锚点事务内加兜底清理（排除 message 与 session_message 均有行的续聊跳过会话），复跑残留归零。
+- **续聊冒烟口径**：全量 decode + 水位不变式（`event_sequence.seq ≥ max(session_message.seq)`，新事件 seq = 水位+1 不撞 `UNIQUE(session_id, seq)`）替代真实 LLM 续聊；`SessionContextEpoch` 懒初始化容忍无 epoch 行（§4.5）。
