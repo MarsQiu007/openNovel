@@ -143,4 +143,10 @@ app 事件消费（global-sync/server-sync 的 `session.created/updated` 等 V1 
 
 ## 11. 落地核实（实现时填写）
 
-（预留：实现中与本文档冲突的核实结论逐条补记于此。）
+（B 组完成时补记；后续组别的核实结论逐条追加。）
+
+1. **「搬移」落地为窗口期复制转换**：§3 所述工具从 `novel-writer.ts` 搬入 `novel-writer/tools/*`，实际执行为复制转换——V2 版（effect Schema）落 `tools/*`，V1 zod 版原样保留在 `novel-writer.ts` 直至 E 组删除，与 §10 窗口行为一致；共享 helper（chapter-guards/context-render/paragraph-diff/project-config/shared/session-novel）抽取到 `tools/` 并由 V1 入口回引，两份工具代码之间零逻辑重复。
+2. **会话感知的 SystemContext 观测机制（新增，本分叉原创）**：core `Source.load` 无会话参数，但注入源需按「会话→小说」绑定解析。落地为 `SystemContext.CurrentSessionID`（`Context.Reference<Option<string>>`，默认 none）+ context-epoch `initialize`/`prepare` 观测前 `Effect.provideService` 注入当前会话；plugin 契约 `SystemContextSource.load` 收 `LoadContext { sessionID?: string }`，host 桥负责 Reference→LoadContext 转换。effect 4.0.0-beta.83 无 FiberRef 模块，故用 Context.Reference 默认值语义承载。
+3. **fetchGlobalSoul 删除时点随 E 组**：tasks B④的「删 fetchGlobalSoul 的 clientV2 自调与 TTL 缓存」落地为 V2 路径直读 `ctx.paths.config/soul.md`（`readGlobalSoulFile`，与 server soul handler 同一文件）；V1 hook 仍依赖 clientV2 HTTP 版 fetchGlobalSoul（plugin 包 host-agnostic，无法自解析全局 config 路径），其实际删除随 E 组 `novel-writer.ts` 一并进行。
+4. **write_chapter 既有死代码逐字保留**：V1 源中 write_chapter 的 detectCoordinateLeak 校验块因缺少闭合花括号被嵌进 `if (outlineLeaks.length > 0) { … return }` 块内 return 之后，V1 中永不执行。为保持行为一致，V2 转换逐字保留该结构；修复会改变行为，应另起提案处理，不在本 change 顺手修。
+5. **readonly 解码产物的机械偏差**：effect Schema.Struct/Array 解码类型带 readonly 修饰，V1 函数体中「原地改写 args 字段」「可变数组入参」两类写法在 V2 不合法。统一处理：原地改写改为局部变量（语义等价）；可变数组入参在 schema 侧用官方组合子 `Schema.mutable(Schema.Array(...))` 放宽（运行时行为不变，与 core 既有用法一致）；`interface` 返回对象赋 `metadata: Record<string, unknown>` 处用 `{ ...result }` 展开。以上均为类型层对齐，无运行时语义变化。
