@@ -1,16 +1,18 @@
 # Proposal: v1-removal
 
-> v1-retirement-roadmap 第③格。前置：runtime-v2-cutover（第②格）已落地——产品无生产路径依赖 V1 运行时。本 change 清理历史数据与残留代码，V1 从仓库消失。
+> v1-retirement-roadmap 第③格。前置：runtime-v2-cutover（第②格）已归档——产品无生产路径依赖 V1 运行时。本格迁移历史会话数据、删除 V1 代码面，V1 从仓库消失。
 
 ## Why
 
-第②格后 V1 只剩两样东西：历史 V1 会话数据（V1 消息形状，V2 面读不了）与 `core/src/v1` 数据类型、`opennovel` V1 session 面的死代码。死代码留着会继续被误引用；历史数据不迁移则用户看不到自己已写的小说会话记录。已定案不做运行时只读兼容垫片——一次性数据迁移 + 删码。
+第②格后 V1 剩两类残留：**历史 V1 会话数据**（`message`/`part` 表，V2 面读不了——不迁移则用户看不到自己已写的小说会话记录）与 **V1 代码面**（`core/src/v1` 数据类型、`schema/src/v1`、`opennovel` legacy session 面及其 httpapi 端点组）。侦察确认这些面大多仍由活契约驱动（legacy 端点、workspace 控制面、share 面、config 文件兼容），不是死代码——留着会持续被误引用、阻塞 V2 面演进。已定案不做运行时只读兼容垫片：一次性数据迁移 + 删码。
 
 ## What Changes
 
-- **历史会话数据迁移**：上游 `v1-migration.bun.ts` 模式移植——V1 session / message / part 数据迁进 V2 存储（V2 session 表 + V2 消息形状），工具名在迁移中改写。fork 两代工具名基本同名（bash / apply_patch 均未跟随上游改名），实际改写项以 fork V1/V2 名称差全量核对为准（已知一项：`task` → `subagent`）；迁移幂等、可中断重跑
-- **V1 数据类型与代码删除**：删 `core/src/v1/`（config / permission / session 数据类型及 V2 对其的引用改造——V2 config 已在运行时切换后无 V1 引用，本格核清残余）、`opennovel` V1 session 面（prompt 循环、agent 系统、task 工具残留引用）
-- **迁移后验证**：历史会话在 V2 面可查看（消息 / 工具调用 / 父子关系完整），全仓 `bun typecheck` / test / CI 绿
+- **历史会话数据迁移**：移植上游 `v1-migration.bun.ts` 模式——`message`/`part` 迁进 `session_message`（V2 形状），`session` 汇总列回填，`event_sequence` 水位续号，V1 durable 事件行清理。迁移模块自含冻结 V1 形状子集；幂等（`data_migration` 锚点 + KV 游标断点）、可中断重跑；启动自动跑。工具名改写以 fork 全量核对为准（仅 `task→subagent`、`filePath→path`）；转换按 fork V2 形状差改造（见 design §2.4）
+- **V2 生命周期事件接班**：新增 `session.next.created`/`session.next.deleted` 替代 `SessionV1.Event.Created/Deleted` 兼容发布（create/remove 的投影机制本身）；补全 `SessionV2.move` 支撑 control-plane 改造
+- **V1 代码面删除**：`opennovel` legacy session 面（约 20 模块）+ ②格 §7.4 保留清单全部（V1 `/session/*` 等端点组、sync、workspace-routing、EventV2Bridge）；`core/src/v1` 目录消失（session/permission 删除、config 子树按下条冻结搬迁）与 `schema/src/v1`；share/import 面删除（上游托管外部服务 + V1 wire 契约，移植等于长期维护 V1 转换层）
+- **config 冻结而非删除**：V1 配置文件形状是活兼容契约（core migrate 路径、远端 provider 解码、opennovel 现役管线），`core/src/v1/config/` 整体搬迁至 `core/src/config/v1/`
+- **迁移后验证**：历史会话在 V2 面可查看（消息/工具调用/父子关系完整），真实数据副本演练，全仓 typecheck / test 绿
 
 ## Capabilities
 
@@ -26,13 +28,14 @@
 
 ## Impact
 
-- **受影响包**：`core`（v1 数据类型删除、迁移脚本）、`opennovel`（V1 面删除）、`app`（历史会话查看路径核对）
-- **数据兼容性**：V1 历史数据迁移后原表保留（不删行原则，仅代码不再读取）或按迁移脚本设计处理（design 阶段定）；迁移失败可重跑
+- **受影响包**：`core`（迁移层、v1 删除、生命周期事件）、`schema`（v1 删除、事件清单）、`opennovel`（legacy 面与端点删除、share/import 删除、control-plane 改造）、`app`（事件词汇切换、share 入口删除）、`client`/`sdk`（生成物重生）
+- **数据兼容性**：迁移幂等可重跑；`message`/`part`/share 物理表保留（不删行原则，代码定义删除，无 DROP 迁移）；迁移失败删锚点重来
 - **依赖关系**：前置 runtime-v2-cutover；上游参照 `v1-migration.bun.ts`（基线 `9d90d892dc`）
-- **风险**：数据迁移是本仓库首次对历史数据做形状转换——迁移脚本需在真实数据副本上演练后再上线
+- **风险**：本仓库首次对历史数据做形状转换——迁移需在真实数据副本上演练后再收尾（验收硬门槛）
 
 ## 非目标
 
-- 不改 V2 运行时行为（纯清理 + 迁移）
-- 不迁移非会话类 V1 数据（config 已在 V2 文件态，permission 规则随会话迁移或按 design 阶段结论处理）
+- 不改 V2 运行时行为（纯迁移 + 删码 + 事件接班）
+- 不迁移非会话类 V1 数据（config 走冻结；todo 表是 V2 活表不动）
 - 不做任何 V1 代码的只读兼容保留
+- 不把 opennovel 现役 config 管线 30+ 消费方全量切 core Config.Service（冻结契约即可，超出本格）
