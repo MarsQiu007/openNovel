@@ -92,23 +92,32 @@ V1 `experimental.chat.system.transform`（`novel-writer.ts:480-512`）三段注�
 | `components/prompt-input/submit.ts:84,155,236`（command / promptAsync / abort） | `POST /api/session/:id/command` / `prompt`（异步语义：客户端不等 drain）/ `interrupt` |
 | `pages/novel/session-switcher.tsx:75`、`workspace-data.ts:120,123,166`、`workspace-frame.tsx:742,809`（create/prompt/abort） | V2 create/prompt/interrupt |
 | `pages/session.tsx:1800`、`use-session-commands.tsx:319`（abort、summarize 等） | interrupt / compact |
-| `context/directory-sync.ts:126,136`（list/update） | V2 list；title 更新按需补端点（§6） |
-| `context/permission.tsx:238`（respond）+ 自动应答 | V2 `permission/reply`、`question/reply|reject` 端点；pending 来源从 V1 全局列表改为会话事件流中的 `Permission.Event.Asked`（durable） |
-| `context/global-sync/event-reducer.ts` 等事件消费 | V1 `session.*` 事件词汇 → V2 `session.next.*`（事件面随 SDK gen 对齐） |
+| `context/directory-sync.ts:126,136`（list/update） | V2 list；title 更新走 C 组新增 `session.update`（PATCH） |
+| `context/permission.tsx:238`（respond）+ 自动应答 | V2 `permission/reply`、`question/reply|reject` 端点；pending 对账切 V2 全局 `permission.request.list` / `question.request.list`（C 组既有面），事件流增量走 `Permission.Event.Asked`（durable） |
+| `context/global-sync/event-reducer.ts` 等事件消费 | V1 `session.*` 事件词汇 → V2 `session.next.*`（全局 SSE `client.v2.event.subscribe`） |
+| `experimental.session.list`（2 处搜索面） | V2 `session.list`（带 search 参数） |
+| share / unshare（message-timeline、use-session-commands、github.handler） | V2 会话无 V1 消息流同步源，share 入口对 V2 会话隐藏；share 服务留第③格 |
+| composer shell 模式（submit.ts:449） | V2 不实现 shell（§6），入口禁用，fast-follow |
+| revert / unrevert（5 处） | `revert.stage` / `revert.clear`；`revert.commit` 消费方不调（V2 runner 无自动 commit，已知差异记 §11） |
+| busy/idle（SSE `session.status` 消费点全集） | 轮询 `GET /api/session/active`（durable 事件触发 + busy 期间定时）；`session.next.retried` 推导重试态；usage-exceeded upsell 的 action 字段 V2 无对应，降级通用重试提示 |
 
-会话时间线消息读取（V1 `MessageV2.page`）映射到 V2 `history`/`context` 端点，实现时按页核对缺口。`map-view.tsx` 已走 V2（现存先例）。
+D 组侦察确认的三个端点缺口随 D0 补齐：`session.delete`（`SessionV2.remove` + durable `session.next.deleted` + DELETE 端点，app message-timeline 与 CLI `session delete` 共用；V1 remove 删不干净 V2 投影表）、`GET /api/session/:id/todo`（SessionTodo.get 只读）、`GET /api/session/:id/diff`（Snapshot.diff，语义=会话累计 diff：首个 snapshot.start → 最新）。会话列表事件口径：创建沿用 V1 durable `session.created`（V2 create 既有发布），更新 `session.next.updated`，删除新增 `session.next.deleted`。
+
+会话时间线渲染策略（定为方案 b）：store 层做 **V2→V1 消息适配器**——`SessionMessage.Message` union 适配为 V1 Message+Part 形状（assistant `content[]` → Text/Reasoning/Tool 伪 Part；`parentID` = 前最近 user；compaction → 合成 user 消息带 compaction part），timeline/session-ui/乐观层/导出链路零改动；system/synthetic/agent-switched/model-switched/shell 首版不渲染（跳过）。server-session.ts 双源对账层整体重写为 V2 durable 单源（首页 REST `session.messages` + SSE 增量，cursor 从 x-next-cursor 响应头改响应 body）。乐观更新简化：用 prompt/command 的 Admitted 回执构造乐观 user 消息，`session.next.prompted` 确认。
+
+prompt/command 的单次 agent/model/variant 覆盖：提交前与会话当前值比较，不同则先 `switchAgent`/`switchModel` 再提交（durable 事件进时间线）；command 的图片 parts 丢弃。`map-view.tsx` 已走 V2（现存先例）。
 
 ### 7.2 CLI / opennovel 进程内消费
 
 | 面 | 处置 |
 | --- | --- |
-| `cli/cmd/run.ts`（经 SDK 创建+prompt，:715-730 权限自动应答） | 切 V2 client：create → prompt → `wait` → 读尾消息；自动应答改 V2 reply 端点 |
-| `cli/cmd/session.ts`、`stats.ts`、`export.ts` | 读取面切 V2 Session/消息形状 |
-| `cli/cmd/import.ts`（直写 V1 行，share 导入） | 核实 share 服务死活后删除（死继承面） |
-| `control-plane/workspace.ts:158,583`（仅 cancel） | 改 `SessionV2.interrupt` |
+| `cli/cmd/run.ts`（经 SDK 创建+prompt，:715-730 权限自动应答） | 切 V2 client：create → prompt → `wait` → 读尾消息；自动应答改 V2 reply 端点；死代码 `createFreshSession`/`runMini` 不搬（切换时删除） |
+| `cli/cmd/session.ts`、`stats.ts`、`export.ts` | 读取面切 V2 Session/消息形状；`session delete` 走 D0 新增 DELETE 端点 |
+| `cli/cmd/import.ts`（直写 V1 行，share 导入） | **保留**：share 服务活跃（app 仍调用），导入面随 share 整体留第③格 |
+| `control-plane/workspace.ts:158,583`（仅 cancel） | 改 `SessionV2.interrupt`（`setWorkspace`/`remove` 等 SessionTable 直查面随第③格） |
 | `cli/cmd/debug/agent.handler.ts` | 改 V2 create 或随 debug 面裁剪 |
 | `cli/cmd/agent.ts`（agent 列表） | 改 AgentV2 面 |
-| `cli/cmd/attach.ts` | 核对实际会话调用面后切换（预期仅 web 入口，无 V1 依赖） |
+| `cli/cmd/attach.ts` | 已停用（打印停用信息 exit 1），不动 |
 
 ### 7.3 继承面删除（决策，依据见下）
 
@@ -158,3 +167,10 @@ app 事件消费（global-sync/server-sync 的 `session.created/updated` 等 V1 
 8. **新增 `session.next.updated` 事件与 `PATCH /api/session/:id` 端点**：C④ 逐页核对发现 app 两处写路径——title 重命名（titlebar-tab-nav）与归档（directory-sync `session.update({time:{archived}})`）——无 V2 对应面，故新增 durable `session.next.updated`（title?/archived? 条件字段）+ `SessionV2.update` + protocol `session.update` 端点；分页消息读取（server-session.ts）按 §7.1「映射到 V2 history/context」口径不新增端点，D 组切换时按页核对既有 `session.history`/`session.context` 端点是否够用。
 9. **OperationUnavailableError 词汇收缩**：wait/compact/command 落地后，V1 遗留的 OperationUnavailableError literals 从 `["move","shell","skill","switchAgent","wait","compact","command"]` 收缩为 `["move","shell","skill","switchAgent"]`；server 处理器同步删除相应 catch 分支。
 10. **Location.Ref key 形状陷阱（测试装置教训）**：LayerMap 按结构哈希 memoize location layer，effect Schema optional 字段「缺 key」与「key: undefined」结构不等价（`Ref.make({directory})` ≠ `Ref.make({directory, workspaceID: undefined})`），同一位置会被建成两份状态互不可见的 layer。app 内所有 Ref 均出自 `session/info.ts`（恒带 workspaceID 显式 key），形状一致无活体 bug；测试装置种 location 作用域状态时必须用 `session.get` 读出的 `info.location`，不得自建 Ref。曾在 lookup 内归一化 key 的修法无效（memoization key 是调用方传入的原对象），已回退。
+
+（D 组完成时补记。）
+
+11. **share 服务活跃，import 删除决策修订**：§7.2 原口径「核实 share 服务死活后删除 import」经 D 组侦察证伪——share 服务活着且 app 多处活跃调用（use-session-commands、message-timeline、仓根 github Action 脚本），故 import 保留至第③格随 share 面整体处置；导入的 V1 会话在 V2 读取面无消息投影，属已知窗口差异。app 侧对 V2 会话隐藏 share 入口（§7.1）。
+12. **V2 revert 无自动 commit**：grep 确认 runner 与 run-coordinator 内无 revert 调用点，V2 `revert.commit` 只能显式调用（端点既有）。V1「revert 后下一 prompt 自动固化」的语义在 V2 不存在，app 映射只接 stage/clear（§7.1），会话 staged 态跨 prompt 存续属已知行为差异。
+13. **V2 无 live `session.status` 事件**：ServerDefinitions 只含 durable 事件，busy/idle 权威源改为轮询 `GET /api/session/active`（§7.1）。`session.next.retried` durable 事件携带重试信息但无 V1 usage-exceeded upsell 的 action 字段，app 弹窗降级处理。
+14. **legacy SDK（hey-api）`NullOr` 类型丢失**：`V2SessionUpdateData.body.time.archived` 生成类型为 `archived?: number`（null 被丢），解除归档传 null 在类型层受阻；app 切换时按需绕法（类型断言或只归档不解除），不为此改 schema 面。
