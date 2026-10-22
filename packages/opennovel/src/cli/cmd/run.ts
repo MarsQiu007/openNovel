@@ -1,17 +1,13 @@
-import type { PermissionV1 } from "@opennovel-ai/core/v1/permission"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
-// CLI 入口点，处理 `opennovel run` 和 `opennovel --mini`。
+// CLI 入口点，处理 `opennovel run`。
 //
-// 支持三种模式：
-//   1. 非交互式（默认）：发送单条提示，将事件流输出到 stdout，
-//      并在会话空闲时退出。
-//   2. 交互式本地（`opennovel --mini`）：启动分栏页脚直连模式，
-//      使用进程内服务器（无外部 HTTP）。
-//   3. 交互式附加（`opennovel --mini --attach`）：连接到正在运行的
-//      opennovel 服务器并针对它运行交互模式。
+// 支持两种模式：
+//   1. 非交互式（默认）：V2 create → prompt → wait → 读尾消息，
+//      事件流输出到 stdout，drain 落定后退出。
+//   2. 附加（`--attach`）：连接到正在运行的 opennovel 服务器执行同一链路。
 //
 // 还支持 `--command` 执行斜杠命令、`--format json` 原始事件流、
-// `--continue` / `--session` 恢复会话，以及 `--fork` 在继续前派生会话。
+// `--continue` / `--session` 恢复会话。
 import type { Argv } from "yargs"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -21,18 +17,24 @@ import { UI } from "../ui"
 import { effectCmd } from "../effect-cmd"
 import { EOL } from "os"
 import { Filesystem } from "@/util/filesystem"
-import { createOpenNovelClient, type OpenNovelClient, type ToolPart } from "@opennovel-ai/sdk/v2"
+import {
+  createOpenNovelClient,
+  type ModelRef,
+  type OpenNovelClient,
+  type PromptInputFileAttachment,
+  type SessionMessage,
+  type SessionV2Info,
+} from "@opennovel-ai/sdk/v2"
 import { FormatError, FormatUnknownError } from "../error"
 
-type ModelInput = Parameters<OpenNovelClient["session"]["prompt"]>[0]["model"]
-
-function pick(value: string | undefined): ModelInput | undefined {
+function pick(value: string | undefined, variant: string | undefined): ModelRef | undefined {
   if (!value) return undefined
   const [providerID, ...rest] = value.split("/")
   return {
     providerID,
-    modelID: rest.join("/"),
-  } as ModelInput
+    id: rest.join("/"),
+    ...(variant === undefined ? {} : { variant }),
+  }
 }
 
 function resolveRunInput(value?: string, piped?: string): string | undefined {
@@ -47,25 +49,12 @@ function resolveRunInput(value?: string, piped?: string): string | undefined {
   return value + "\n" + piped
 }
 
-type FilePart = {
-  type: "file"
-  url: string
-  filename: string
-  mime: string
-}
-
 const ATTACH_FILE_MAX_BYTES = 10 * 1024 * 1024
 
 type Inline = {
   icon: string
   title: string
   description?: string
-}
-
-type SessionInfo = {
-  id: string
-  title?: string
-  directory?: string
 }
 
 function inline(info: Inline) {
@@ -77,18 +66,29 @@ function formatRunError(error: unknown) {
   return FormatError(error) ?? FormatUnknownError(error)
 }
 
-async function tool(part: ToolPart) {
-  inline({
-    icon: "\u2699",
-    title: part.tool,
-  })
+function printText(text: string) {
+  const value = text.trim()
+  if (!value) return
+  if (!process.stdout.isTTY) {
+    process.stdout.write(value + EOL)
+    return
+  }
+  UI.empty()
+  UI.println(value)
+  UI.empty()
 }
 
-async function toolError(part: ToolPart) {
-  inline({
-    icon: "✗",
-    title: `${part.tool} failed`,
-  })
+function printReasoning(text: string) {
+  const value = text.trim()
+  if (!value) return
+  const line = `Thinking: ${value}`
+  if (!process.stdout.isTTY) {
+    process.stdout.write(line + EOL)
+    return
+  }
+  UI.empty()
+  UI.println(`${UI.Style.TEXT_DIM}\x1b[3m${line}\x1b[0m${UI.Style.TEXT_NORMAL}`)
+  UI.empty()
 }
 
 export const RunCommand = effectCmd({
@@ -185,11 +185,6 @@ export const RunCommand = effectCmd({
         type: "boolean",
         describe: "show thinking blocks",
       })
-      .option("mini", {
-        type: "boolean",
-        hidden: true,
-        default: false,
-      })
       .option("replay", {
         type: "boolean",
         default: true,
@@ -229,15 +224,8 @@ export const RunCommand = effectCmd({
         describe: "enable direct interactive demo slash commands; pass one as the message to run it immediately",
       }),
   handler: Effect.fn("Cli.run")(function* (args) {
-    const { Agent } = yield* Effect.promise(() => import("@/agent/agent"))
-    const { RuntimeFlags } = yield* Effect.promise(() => import("@/effect/runtime-flags"))
-    const { InstanceRef } = yield* Effect.promise(() => import("@/effect/instance-ref"))
     const { ServerAuth } = yield* Effect.promise(() => import("@/server/auth"))
-    const agentSvc = yield* Agent.Service
-    const flags = yield* RuntimeFlags.Service
-    const localInstance = yield* InstanceRef
     yield* Effect.promise(async () => {
-      const rawMessage = [...args.message, ...(args["--"] || [])].join(" ")
       // interactive/tui 模式已停用
       const auto = args.auto || args.yolo || args["dangerously-skip-permissions"]
       const thinking = args.thinking ?? false
@@ -253,8 +241,12 @@ export const RunCommand = effectCmd({
       if (args.demo) {
         die("--demo 已停用（TUI 模式已移除）")
       }
-
-      const replay = args.replay === false ? false : args.replay || args["replay-limit"] !== undefined
+      if (args.fork) {
+        die("--fork 已停用（V2 无会话派生端点）")
+      }
+      if (args.share) {
+        die("--share 已停用（V2 无会话分享端点）")
+      }
 
       const root = Filesystem.resolve(process.env.PWD ?? process.cwd())
       const directory = (() => {
@@ -280,7 +272,7 @@ export const RunCommand = effectCmd({
         })
       }
 
-      const files: FilePart[] = []
+      const files: PromptInputFileAttachment[] = []
       if (args.file) {
         const list = Array.isArray(args.file) ? args.file : [args.file]
 
@@ -331,167 +323,24 @@ export const RunCommand = effectCmd({
               : detected
 
           files.push({
-            type: "file",
-            url: content ? `data:${mime};base64,${content.toString("base64")}` : pathToFileURL(resolvedPath).href,
-            filename: path.basename(resolvedPath),
-            mime,
+            uri: content ? `data:${mime};base64,${content.toString("base64")}` : pathToFileURL(resolvedPath).href,
+            name: path.basename(resolvedPath),
           })
         }
       }
 
       const piped = process.stdin.isTTY ? undefined : await Bun.stdin.text()
       message = resolveRunInput(message, piped) ?? ""
-      const initialInput = resolveRunInput(rawMessage, piped)
 
       if (message.trim().length === 0 && !args.command) {
         UI.error("You must provide a message or a command")
         process.exit(1)
       }
 
-      if (args.fork && !args.continue && !args.session) {
-        UI.error("--fork requires --continue or --session")
-        process.exit(1)
-      }
-
-      const rules: PermissionV1.Ruleset = [
-        {
-          permission: "question",
-          action: "deny",
-          pattern: "*",
-        },
-        {
-          permission: "plan_exit",
-          action: "deny",
-          pattern: "*",
-        },
-      ]
-
       function title() {
         if (args.title === undefined) return
         if (args.title !== "") return args.title
         return message.slice(0, 50) + (message.length > 50 ? "..." : "")
-      }
-
-      async function session(sdk: OpenNovelClient): Promise<SessionInfo | undefined> {
-        if (args.session) {
-          const current = await sdk.session
-            .get({
-              sessionID: args.session,
-            })
-            .catch(() => undefined)
-
-          if (!current?.data) {
-            UI.error("Session not found")
-            process.exit(1)
-          }
-
-          if (args.fork) {
-            const forked = await sdk.session.fork({
-              sessionID: args.session,
-            })
-            const id = forked.data?.id
-            if (!id) {
-              return
-            }
-
-            return {
-              id,
-              title: forked.data?.title ?? current.data.title,
-              directory: forked.data?.directory ?? current.data.directory,
-            }
-          }
-
-          return {
-            id: current.data.id,
-            title: current.data.title,
-            directory: current.data.directory,
-          }
-        }
-
-        const base = args.continue ? (await sdk.session.list()).data?.find((item) => !item.parentID) : undefined
-
-        if (base && args.fork) {
-          const forked = await sdk.session.fork({
-            sessionID: base.id,
-          })
-          const id = forked.data?.id
-          if (!id) {
-            return
-          }
-
-          return {
-            id,
-            title: forked.data?.title ?? base.title,
-            directory: forked.data?.directory ?? base.directory,
-          }
-        }
-
-        if (base) {
-          return {
-            id: base.id,
-            title: base.title,
-            directory: base.directory,
-          }
-        }
-
-        const name = title()
-        const result = await sdk.session.create({
-          title: name,
-          permission: [...rules],
-        })
-        const id = result.data?.id
-        if (!id) {
-          return
-        }
-
-        return {
-          id,
-          title: result.data?.title ?? name,
-          directory: result.data?.directory,
-        }
-      }
-
-      async function share(sdk: OpenNovelClient, sessionID: string) {
-        const cfg = await sdk.config.get()
-        if (!cfg.data) return
-        if (cfg.data.share !== "auto" && !flags.autoShare && !args.share) return
-        const res = await sdk.session.share({ sessionID }).catch((error) => {
-          if (error instanceof Error && error.message.includes("disabled")) {
-            UI.println(UI.Style.TEXT_DANGER_BOLD + "!  " + error.message)
-          }
-          return { error }
-        })
-        if (!res.error && "data" in res && res.data?.share?.url) {
-          UI.println(UI.Style.TEXT_INFO_BOLD + "~  " + res.data.share.url)
-        }
-      }
-
-      async function createFreshSession(
-        sdk: OpenNovelClient,
-        input: { agent: string | undefined; model: ModelInput | undefined; variant: string | undefined },
-      ): Promise<SessionInfo> {
-        const result = await sdk.session.create({
-          title: args.title !== undefined && args.title !== "" ? args.title : undefined,
-          agent: input.agent,
-          model: input.model
-            ? {
-                providerID: input.model.providerID,
-                id: input.model.modelID,
-                variant: input.variant,
-              }
-            : undefined,
-          permission: [...rules],
-        })
-        const id = result.data?.id
-        if (!id) {
-          throw new Error("Failed to create session")
-        }
-
-        void share(sdk, id).catch(() => {})
-        return {
-          id,
-          title: result.data?.title,
-        }
       }
 
       async function current(sdk: OpenNovelClient): Promise<string> {
@@ -511,13 +360,26 @@ export const RunCommand = effectCmd({
         process.exit(1)
       }
 
-      async function localAgent() {
+      // V2 会话的 agent 解析走 core AgentV2 注册表，本地与附加模式统一经 SDK 列表校验
+      async function pickAgent(client: OpenNovelClient) {
         if (!args.agent) return undefined
         const name = args.agent
 
-        const entry = await Effect.runPromise(
-          agentSvc.get(name).pipe(Effect.provideService(InstanceRef, localInstance)),
-        )
+        const agents = await client.v2.agent
+          .list()
+          .then((x) => x.data?.data ?? [])
+          .catch(() => undefined)
+
+        if (!agents) {
+          UI.println(
+            UI.Style.TEXT_WARNING_BOLD + "!",
+            UI.Style.TEXT_NORMAL,
+            `failed to list agents. Falling back to default agent`,
+          )
+          return undefined
+        }
+
+        const entry = agents.find((item) => item.id === name)
         if (!entry) {
           UI.println(
             UI.Style.TEXT_WARNING_BOLD + "!",
@@ -537,257 +399,279 @@ export const RunCommand = effectCmd({
         return name
       }
 
-      async function attachAgent(sdk: OpenNovelClient) {
-        if (!args.agent) return undefined
-        const name = args.agent
+      async function resolveSession(
+        client: OpenNovelClient,
+        cwd: string,
+        agent: string | undefined,
+        model: ModelRef | undefined,
+      ): Promise<SessionV2Info | undefined> {
+        if (args.session) {
+          const found = await client.v2.session
+            .get({ sessionID: args.session })
+            .then((x) => x.data?.data)
+            .catch(() => undefined)
+          if (!found) {
+            UI.error("Session not found")
+            process.exit(1)
+          }
+          return found
+        }
 
-        const modes = await sdk.app
-          .agents(undefined, { throwOnError: true })
-          .then((x) => x.data ?? [])
+        if (args.continue) {
+          const base = await client.v2.session
+            .list({ limit: 50 })
+            .then((x) => x.data?.data.find((item) => !item.parentID))
+            .catch(() => undefined)
+          if (base) return base
+        }
+
+        const created = await client.v2.session
+          .create({
+            location: { directory: cwd },
+            ...(agent === undefined ? {} : { agent }),
+            ...(model === undefined ? {} : { model }),
+          })
+          .then((x) => x.data?.data)
           .catch(() => undefined)
+        if (!created) return undefined
 
-        if (!modes) {
-          UI.println(
-            UI.Style.TEXT_WARNING_BOLD + "!",
-            UI.Style.TEXT_NORMAL,
-            `failed to list agents from ${args.attach}. Falling back to default agent`,
-          )
-          return undefined
+        const name = title()
+        if (name !== undefined) {
+          await client.v2.session.update({ sessionID: created.id, title: name }).catch(() => undefined)
         }
-
-        const agent = modes.find((a) => a.name === name)
-        if (!agent) {
-          UI.println(
-            UI.Style.TEXT_WARNING_BOLD + "!",
-            UI.Style.TEXT_NORMAL,
-            `agent "${name}" not found. Falling back to default agent`,
-          )
-          return undefined
-        }
-
-        if (agent.mode === "subagent") {
-          UI.println(
-            UI.Style.TEXT_WARNING_BOLD + "!",
-            UI.Style.TEXT_NORMAL,
-            `agent "${name}" is a subagent, not a primary agent. Falling back to default agent`,
-          )
-          return undefined
-        }
-
-        return name
+        return created
       }
 
-      async function pickAgent(sdk: OpenNovelClient) {
-        if (!args.agent) return undefined
-        if (args.attach) {
-          return attachAgent(sdk)
+      // wait 落定后 SSE 尾事件可能仍在途中：以投影消息为准补齐未打印的文本/推理段。
+      // sinceMessageID 找不到（不应发生）时放弃补齐，避免重印整段历史。
+      async function printTail(
+        client: OpenNovelClient,
+        sessionID: string,
+        sinceMessageID: string | undefined,
+        printed: ReadonlySet<string>,
+      ) {
+        const collected: SessionMessage[] = []
+        let cursor: string | undefined
+        let found = sinceMessageID === undefined
+        for (;;) {
+          const page = await client.v2.session
+            .messages({ sessionID, limit: 50, order: "desc", ...(cursor === undefined ? {} : { cursor }) })
+            .then((x) => x.data)
+            .catch(() => undefined)
+          const items = page?.data ?? []
+          if (items.length === 0) break
+          collected.push(...items)
+          if (items.some((item) => item.id === sinceMessageID)) {
+            found = true
+            break
+          }
+          const next = page?.cursor.next
+          if (!next) break
+          cursor = next
         }
+        if (!found) return
 
-        return localAgent()
+        const tail: SessionMessage[] = []
+        for (const item of collected) {
+          if (item.id === sinceMessageID) break
+          tail.push(item)
+        }
+        for (const item of tail.reverse()) {
+          if (item.type !== "assistant") continue
+          for (const part of item.content) {
+            if (part.type === "text" && !printed.has(`text:${part.id}`)) printText(part.text)
+            if (part.type === "reasoning" && thinking && !printed.has(`reasoning:${part.id}`)) {
+              printReasoning(part.text)
+            }
+          }
+        }
       }
 
       async function execute(sdk: OpenNovelClient) {
-        const sess = await session(sdk)
-        if (!sess?.id) {
-          UI.error("Session not found")
+        const cwd = args.attach ? (directory ?? (await current(sdk))) : (directory ?? root)
+        const client = args.attach ? attachSDK(cwd) : sdk
+
+        const agent = await pickAgent(client)
+        const model = pick(args.model, args.variant)
+
+        const sess = await resolveSession(client, cwd, agent, model)
+        if (!sess) {
+          UI.error("Failed to create session")
           process.exit(1)
         }
         const sessionID = sess.id
 
-        function emit(type: string, data: Record<string, unknown>) {
-          if (args.format === "json") {
-            process.stdout.write(
-              JSON.stringify({
-                type,
-                timestamp: Date.now(),
-                sessionID,
-                ...data,
-              }) + EOL,
-            )
-            return true
-          }
-          return false
+        // agent/model 是会话级状态：恢复会话与请求值不同则先切换（新建会话已在 create 时设定，比较自然短路）
+        if (agent && sess.agent !== agent) await client.v2.session.switchAgent({ sessionID, agent })
+        if (
+          model &&
+          (sess.model?.id !== model.id || sess.model.providerID !== model.providerID || sess.model.variant !== model.variant)
+        ) {
+          await client.v2.session.switchModel({ sessionID, model })
         }
 
-        // Consume one subscribed event stream for the active session and mirror it
-        // to stdout/UI. `client` is passed explicitly because attach mode may
-        // rebind the SDK to the session's directory after the subscription is
-        // created, and replies issued from inside the loop must use that client.
-        async function loop(client: OpenNovelClient, events: Awaited<ReturnType<typeof sdk.event.subscribe>>) {
+        function failRequest(error: unknown) {
+          if (args.format === "json") {
+            process.stdout.write(JSON.stringify({ type: "error", timestamp: Date.now(), sessionID, error }) + EOL)
+            return
+          }
+          UI.error(formatRunError(error))
+        }
+
+        const abort = new AbortController()
+        const events = await client.v2.event.subscribe({
+          signal: abort.signal,
+          onSseError: (error) => {
+            if (abort.signal.aborted) return
+            console.error(error)
+          },
+        })
+        const printed = new Set<string>()
+
+        // 消费全局 V2 事件流：权限/问题自动应答两种模式都做；
+        // json 模式原样输出会话事件，default 模式渲染文本/工具进度。
+        async function loop() {
+          const names = new Map<string, string>()
           const toggles = new Map<string, boolean>()
           let error: string | undefined
 
           for await (const event of events.stream) {
-            if (
-              event.type === "message.updated" &&
-              event.properties.sessionID === sessionID &&
-              event.properties.info.role === "assistant" &&
-              args.format !== "json" &&
-              toggles.get("start") !== true
-            ) {
+            if (!("sessionID" in event.data) || event.data.sessionID !== sessionID) continue
+
+            if (event.type === "permission.v2.asked") {
+              if (auto) {
+                await client.v2.session.permission.reply({ sessionID, requestID: event.data.id, reply: "once" })
+                continue
+              }
+              UI.println(
+                UI.Style.TEXT_WARNING_BOLD + "!",
+                UI.Style.TEXT_NORMAL +
+                  `permission requested: ${event.data.action} (${event.data.resources.join(", ")}); auto-rejecting`,
+              )
+              await client.v2.session.permission.reply({ sessionID, requestID: event.data.id, reply: "reject" })
+              continue
+            }
+
+            if (event.type === "question.v2.asked") {
+              UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL + `question requested; auto-rejecting`)
+              await client.v2.session.question.reject({ sessionID, requestID: event.data.id })
+              continue
+            }
+
+            if (args.format === "json") {
+              process.stdout.write(JSON.stringify(event) + EOL)
+              continue
+            }
+
+            if (event.type === "session.next.step.started") {
+              if (toggles.get("start") === true) continue
               UI.empty()
-              UI.println(`> ${event.properties.info.agent} · ${event.properties.info.modelID}`)
+              UI.println(`> ${event.data.agent} · ${event.data.model.id}`)
               UI.empty()
               toggles.set("start", true)
+              continue
             }
 
-            if (event.type === "message.part.updated") {
-              const part = event.properties.part
-              if (part.sessionID !== sessionID) continue
-
-              if (part.type === "tool" && (part.state.status === "completed" || part.state.status === "error")) {
-                if (emit("tool_use", { part })) continue
-                if (part.state.status === "completed") {
-                  await tool(part)
-                  continue
-                }
-                await toolError(part)
-                UI.error(part.state.error)
-              }
-
-              if (
-                part.type === "tool" &&
-                part.tool === "task" &&
-                part.state.status === "running" &&
-                args.format !== "json"
-              ) {
-                if (toggles.get(part.id) === true) continue
-                await tool(part)
-                toggles.set(part.id, true)
-              }
-
-              if (part.type === "step-start") {
-                if (emit("step_start", { part })) continue
-              }
-
-              if (part.type === "step-finish") {
-                if (emit("step_finish", { part })) continue
-              }
-
-              if (part.type === "text" && part.time?.end) {
-                if (emit("text", { part })) continue
-                const text = part.text.trim()
-                if (!text) continue
-                if (!process.stdout.isTTY) {
-                  process.stdout.write(text + EOL)
-                  continue
-                }
-                UI.empty()
-                UI.println(text)
-                UI.empty()
-              }
-
-              if (part.type === "reasoning" && part.time?.end && thinking) {
-                if (emit("reasoning", { part })) continue
-                const text = part.text.trim()
-                if (!text) continue
-                const line = `Thinking: ${text}`
-                if (process.stdout.isTTY) {
-                  UI.empty()
-                  UI.println(`${UI.Style.TEXT_DIM}\u001b[3m${line}\u001b[0m${UI.Style.TEXT_NORMAL}`)
-                  UI.empty()
-                  continue
-                }
-                process.stdout.write(line + EOL)
-              }
+            if (event.type === "session.next.tool.input.started") {
+              names.set(event.data.callID, event.data.name)
+              continue
             }
 
-            if (event.type === "session.error") {
-              const props = event.properties
-              if (props.sessionID !== sessionID || !props.error) continue
-              let err = String(props.error.name)
-              if ("data" in props.error && props.error.data && "message" in props.error.data) {
-                err = String(props.error.data.message)
-              }
-              error = error ? error + EOL + err : err
-              if (emit("error", { error: props.error })) continue
-              UI.error(err)
+            if (event.type === "session.next.tool.called") {
+              names.set(event.data.callID, event.data.tool)
+              if (event.data.tool !== "task" && event.data.tool !== "subagent") continue
+              if (toggles.get(event.data.callID) === true) continue
+              inline({ icon: "⚙", title: event.data.tool })
+              toggles.set(event.data.callID, true)
+              continue
             }
 
-            if (
-              event.type === "session.status" &&
-              event.properties.sessionID === sessionID &&
-              event.properties.status.type === "idle"
-            ) {
-              break
+            if (event.type === "session.next.tool.success") {
+              inline({ icon: "⚙", title: names.get(event.data.callID) ?? event.data.callID })
+              names.delete(event.data.callID)
+              continue
             }
 
-            if (event.type === "permission.asked") {
-              const permission = event.properties
-              if (permission.sessionID !== sessionID) continue
+            if (event.type === "session.next.tool.failed") {
+              inline({ icon: "✗", title: `${names.get(event.data.callID) ?? event.data.callID} failed` })
+              names.delete(event.data.callID)
+              UI.error(event.data.error.message)
+              continue
+            }
 
-              if (auto) {
-                await client.permission.reply({
-                  requestID: permission.id,
-                  reply: "once",
-                })
-              } else {
-                UI.println(
-                  UI.Style.TEXT_WARNING_BOLD + "!",
-                  UI.Style.TEXT_NORMAL +
-                    `permission requested: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
-                )
-                await client.permission.reply({
-                  requestID: permission.id,
-                  reply: "reject",
-                })
-              }
+            if (event.type === "session.next.text.ended") {
+              printed.add(`text:${event.data.textID}`)
+              printText(event.data.text)
+              continue
+            }
+
+            if (event.type === "session.next.reasoning.ended") {
+              printed.add(`reasoning:${event.data.reasoningID}`)
+              if (thinking) printReasoning(event.data.text)
+              continue
+            }
+
+            if (event.type === "session.next.step.failed") {
+              error = error ? error + EOL + event.data.error.message : event.data.error.message
+              UI.error(event.data.error.message)
+              continue
             }
           }
           return error
         }
-        const cwd = args.attach ? (directory ?? sess.directory ?? (await current(sdk))) : (directory ?? root)
-        const client = args.attach ? attachSDK(cwd) : sdk
 
-        // Validate agent if specified
-        const agent = await pickAgent(client)
-
-        await share(client, sessionID)
-
-        const events = await client.event.subscribe()
-        const completed = loop(client, events).catch((e) => {
+        const finished = loop().catch((e) => {
+          if (abort.signal.aborted) return undefined
           console.error(e)
           process.exitCode = 1
+          return undefined
         })
-        async function finish() {
-          if (args.attach) return
-          const error = await completed
-          if (error) process.exitCode = 1
-        }
 
+        let admittedID: string | undefined
         if (args.command) {
-          const result = await client.session.command({
+          const result = await client.v2.session.command({
             sessionID,
-            agent,
-            model: args.model,
             command: args.command,
             arguments: message,
-            variant: args.variant,
           })
           if (result.error) {
-            if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
+            failRequest(result.error)
             process.exitCode = 1
+            abort.abort()
+            await finished
             return
           }
-          await finish()
-          return
+          admittedID = result.data?.data.id
+        } else {
+          const result = await client.v2.session.prompt({
+            sessionID,
+            prompt: { text: message, ...(files.length === 0 ? {} : { files }) },
+          })
+          if (result.error) {
+            failRequest(result.error)
+            process.exitCode = 1
+            abort.abort()
+            await finished
+            return
+          }
+          admittedID = result.data?.data.id
         }
 
-        const model = pick(args.model)
-        const result = await client.session.prompt({
-          sessionID,
-          agent,
-          model,
-          variant: args.variant,
-          parts: [...files, { type: "text", text: message }],
-        })
-        if (result.error) {
-          if (!emit("error", { error: result.error })) UI.error(formatRunError(result.error))
+        // prompt 返回时 wake 已同步注册 drain，wait 必然挂到本次执行上（无早退竞态）
+        const settled = await client.v2.session.wait({ sessionID })
+        if (settled.error) {
+          failRequest(settled.error)
           process.exitCode = 1
+          abort.abort()
+          await finished
           return
         }
-        await finish()
-        return
+        if (args.format !== "json") await printTail(client, sessionID, admittedID, printed)
+        // json 模式以事件流为输出：wait 落定时尾部事件可能仍在 SSE 投递途中，留冲刷窗口再断流
+        if (args.format === "json") await new Promise((resolve) => setTimeout(resolve, 200))
+        abort.abort()
+        const error = await finished
+        if (error) process.exitCode = 1
       }
 
       if (args.attach) {
@@ -812,55 +696,3 @@ export const RunCommand = effectCmd({
     })
   }),
 })
-
-type MiniCommandInput = {
-  directory?: string
-  attach?: string
-  password?: string
-  username?: string
-  continue?: boolean
-  session?: string
-  fork?: boolean
-  model?: string
-  agent?: string
-  prompt?: string
-  replay?: boolean
-  replayLimit?: number
-  demo?: boolean
-}
-
-export async function runMini(input: MiniCommandInput) {
-  if (!RunCommand.handler) throw new Error("Mini command handler is unavailable")
-  await RunCommand.handler({
-    $0: "opennovel",
-    _: ["mini"],
-    message: input.prompt ? [input.prompt] : [],
-    command: undefined,
-    continue: input.continue,
-    session: input.session,
-    fork: input.fork,
-    share: undefined,
-    model: input.model,
-    agent: input.agent,
-    format: "default",
-    file: undefined,
-    title: undefined,
-    attach: input.attach,
-    password: input.password,
-    username: input.username,
-    dir: input.directory,
-    port: undefined,
-    variant: undefined,
-    thinking: undefined,
-    mini: true,
-    interactive: false,
-    replay: input.replay ?? true,
-    "replay-limit": input.replayLimit,
-    replayLimit: input.replayLimit,
-    auto: false,
-    yolo: false,
-    "dangerously-skip-permissions": false,
-    dangerouslySkipPermissions: false,
-    demo: input.demo ?? false,
-  })
-}

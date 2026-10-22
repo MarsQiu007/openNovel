@@ -65,6 +65,10 @@ function isolatedEnv(home: string, configJson: string): Record<string, string> {
   return {
     OPENNOVEL_TEST_HOME: home,
     HOME: home,
+    // Git Bash exports PWD into the environment; run.ts resolves the project
+    // root from `process.env.PWD ?? process.cwd()`, so a leaked PWD would bind
+    // the subprocess instance to the repo instead of the tmpdir.
+    PWD: home,
     XDG_CONFIG_HOME: path.join(home, ".config"),
     XDG_DATA_HOME: path.join(home, ".local/share"),
     XDG_STATE_HOME: path.join(home, ".local/state"),
