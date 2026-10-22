@@ -3,6 +3,7 @@ export * as ConfigV1 from "./config"
 import { Effect, Schema } from "effect"
 import { NonNegativeInt, PositiveInt, type DeepMutable } from "../../schema"
 import { ConfigExperimental } from "../../config/experimental"
+import { ConfigPlugin } from "../../config/plugin"
 import { ConfigReference } from "../../config/reference"
 import { ConfigAgentV1 } from "./agent"
 import { ConfigAttachmentV1 } from "./attachment"
@@ -79,6 +80,9 @@ export const Info = Schema.Struct({
       "Enable or disable snapshot tracking. When false, filesystem snapshots are not recorded and undoing or reverting will not undo/redo file changes. Defaults to true.",
   }),
   plugin: Schema.optional(Schema.mutable(Schema.Array(ConfigPluginV1.Spec))),
+  // V2 插件入口：权威消费方是 core 文档配置的 config-plugin 加载器；
+  // 此处仅放行 legacy 解析（opennovel.json 同文件双读），legacy 消费链不读取本键
+  plugins: Schema.optional(ConfigPlugin.Plugins),
   share: Schema.optional(Schema.Literals(["manual", "auto", "disabled"])).annotate({
     description:
       "Control sharing behavior:'manual' allows manual sharing via commands, 'auto' enables automatic sharing, 'disabled' disables all sharing",
