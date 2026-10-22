@@ -21,11 +21,11 @@
 
 ## C. V2 Session 面补齐
 
-- [ ] 实现 `SessionV2.wait`（等当前 drain 落定，无 drain 即返回），接通既有 `POST /api/session/:id/wait` 处理器；focused test（drain 中等待返回、空闲立即返回）
-- [ ] 实现 `SessionV2.command`：CommandV2 解析 + 模板展开 + durable admission + wake；补 protocol/server 端点；focused test（命令展开落库为用户消息并唤醒 drain）
-- [ ] 实现手动 `SessionV2.compact`：接通 runner 既有 SessionCompaction，事件 reason 增 `"manual"`；focused test（手动 compact 产生 Started/Ended 事件且 history 按 seq 截断）
-- [ ] 核对并补齐 app 切换所需其余端点（session title 更新、分页消息读取等，以 design §7.1 逐页核对结果为准）
-- [ ] `packages/client` 跑 `bun run generate` 重生成 SDK（禁手改 generated）；core / protocol / server / client `bun typecheck` + oxlint
+- [x] 实现 `SessionV2.wait`（等当前 drain 落定，无 drain 即返回），接通既有 `POST /api/session/:id/wait` 处理器；focused test（drain 中等待返回、空闲立即返回）
+- [x] 实现 `SessionV2.command`：CommandV2 解析 + 模板展开 + durable admission + wake；补 protocol/server 端点；focused test（命令展开落库为用户消息并唤醒 drain）
+- [x] 实现手动 `SessionV2.compact`：接通 runner 既有 SessionCompaction，事件 reason 增 `"manual"`；focused test（手动 compact 产生 Started/Ended 事件且 history 按 seq 截断）
+- [x] 核对并补齐 app 切换所需其余端点（session title 更新、分页消息读取等，以 design §7.1 逐页核对结果为准）
+- [x] `packages/client` 跑 `bun run generate` 重生成 SDK（禁手改 generated）；core / protocol / server / client `bun typecheck` + oxlint
 
 ## D. 消费方切换与继承面处置
 

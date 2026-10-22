@@ -56,6 +56,7 @@ import { ModelV2 } from "@opennovel-ai/core/model"
 import { Location } from "@opennovel-ai/core/location"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
+import * as TestClock from "effect/testing/TestClock"
 import { asc, eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
 
@@ -248,6 +249,7 @@ const execution = Layer.effect(
       resume: coordinator.run,
       wake: coordinator.wake,
       interrupt: coordinator.interrupt,
+      wait: coordinator.wait,
     })
   }),
 ).pipe(Layer.provide(runnerLayer))
@@ -1142,6 +1144,77 @@ describe("SessionRunnerLLM", () => {
         type: "compaction",
         summary: "## Objective\n- Preserve the updated task",
       })
+    }),
+  )
+
+  it.effect("manually compacts recorded history with reason manual", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      response = fragmentFixture("text", "text-earlier", ["Earlier answer"]).completeEvents
+      yield* session.prompt({
+        sessionID,
+        // 超出测试配置的 keep 窗口（1000 tokens）才会有 head 可压缩
+        prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      currentModel = compactModel
+      requests.length = 0
+      response = fragmentFixture("text", "text-manual-summary", ["## Objective\n- Manual summary"]).completeEvents
+      // 直驱 runner：SessionV2.compact 的 LocationServiceMap 路由会为假目录 "/project"
+      // 构建完整 location layer（lstat ENOENT）；routing  plumbing 已由 command 测试覆盖
+      const runner = yield* SessionRunner.Service
+      expect(yield* runner.compact({ sessionID })).toBe(true)
+
+      expect(requests).toHaveLength(1)
+      expect(userTexts(requests[0])[0]).toContain("Create a new anchored summary")
+      // history 按 compaction seq 截断：压缩消息取代先前全部消息
+      const context = yield* (yield* SessionStore.Service).context(sessionID)
+      expect(context.map((message) => message.type)).toEqual(["compaction"])
+      expect(context[0]).toMatchObject({ type: "compaction", summary: "## Objective\n- Manual summary" })
+
+      const { events } = yield* session.history({ sessionID, limit: 100 })
+      const compactionEvents = events.filter(
+        (event) => event.type === "session.next.compaction.started" || event.type === "session.next.compaction.ended",
+      )
+      expect(compactionEvents.map((event) => event.data.reason)).toEqual(["manual", "manual"])
+    }),
+  )
+
+  it.effect("waits for the active drain to settle and returns immediately while idle", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      // 空闲：无 drain，立即返回
+      yield* session.wait(sessionID)
+
+      const gate = yield* Deferred.make<void>()
+      const started = yield* Deferred.make<void>()
+      streamGate = gate
+      streamStarted = started
+      response = fragmentFixture("text", "text-wait", ["Done"]).completeEvents
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Wait for me" }), resume: false })
+      const running = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* Deferred.await(started)
+
+      const waiting = yield* session.wait(sessionID).pipe(Effect.forkChild)
+      // drain 在飞：等待不定案（TestClock 推进后仍应由 sleep 分支胜出）
+      const race = yield* Effect.raceFirst(
+        Fiber.join(waiting).pipe(Effect.as("settled" as const)),
+        Effect.sleep(1_000).pipe(Effect.as("waiting" as const)),
+      ).pipe(Effect.forkChild)
+      yield* TestClock.adjust(1_000)
+      expect(yield* Fiber.join(race)).toBe("waiting")
+
+      yield* Deferred.succeed(gate, undefined)
+      yield* Fiber.join(waiting)
+      yield* Fiber.join(running)
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user", text: "Wait for me" },
+        { type: "assistant" },
+      ])
     }),
   )
 

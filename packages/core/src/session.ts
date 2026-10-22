@@ -18,6 +18,7 @@ import { SessionMessageTable, SessionTable } from "./session/sql"
 import { SessionSchema } from "./session/schema"
 import { AbsolutePath, PositiveInt, RelativePath } from "./schema"
 import { AgentV2 } from "./agent"
+import { CommandV2 } from "./command"
 import { SessionV1 } from "./v1/session"
 import { InstallationVersion } from "./installation/version"
 import { Slug } from "./util/slug"
@@ -97,7 +98,16 @@ export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Ses
 export class OperationUnavailableError extends Schema.TaggedErrorClass<OperationUnavailableError>()(
   "Session.OperationUnavailableError",
   {
-    operation: Schema.Literals(["move", "shell", "skill", "switchAgent", "compact", "wait"]),
+    operation: Schema.Literals(["move", "shell", "skill", "switchAgent"]),
+  },
+) {}
+
+export class CommandNotFoundError extends Schema.TaggedErrorClass<CommandNotFoundError>()(
+  "Session.CommandNotFoundError",
+  {
+    sessionID: SessionSchema.ID,
+    command: Schema.String,
+    available: Schema.Array(Schema.String),
   },
 ) {}
 
@@ -110,7 +120,12 @@ export class PromptConflictError extends Schema.TaggedErrorClass<PromptConflictE
 export const MessageNotFoundError = SessionRevert.MessageNotFoundError
 export type MessageNotFoundError = SessionRevert.MessageNotFoundError
 
-export type Error = NotFoundError | MessageDecodeError | OperationUnavailableError | PromptConflictError
+export type Error =
+  | NotFoundError
+  | MessageDecodeError
+  | OperationUnavailableError
+  | PromptConflictError
+  | CommandNotFoundError
 
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<SessionSchema.Info[]>
@@ -172,8 +187,20 @@ export interface Interface {
     skill: string
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
-  readonly compact: (input: CompactInput) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
-  readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
+  readonly compact: (input: CompactInput) => Effect.Effect<void, NotFoundError>
+  readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
+  readonly command: (input: {
+    id?: SessionMessage.ID
+    sessionID: SessionSchema.ID
+    command: string
+    arguments?: string
+    resume?: boolean
+  }) => Effect.Effect<SessionInput.Admitted, NotFoundError | CommandNotFoundError | PromptConflictError>
+  readonly update: (input: {
+    sessionID: SessionSchema.ID
+    title?: string
+    archived?: number | null
+  }) => Effect.Effect<SessionSchema.Info, NotFoundError>
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | SessionRunner.RunError>
   readonly interrupt: (sessionID: SessionSchema.ID) => Effect.Effect<void>
@@ -464,12 +491,63 @@ const layer = Layer.effect(
         })
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
-        yield* result.get(input.sessionID)
-        return yield* new OperationUnavailableError({ operation: "compact" })
+        const session = yield* result.get(input.sessionID)
+        yield* SessionRunner.Service.use((runner) => runner.compact({ sessionID: session.id })).pipe(
+          Effect.provide(locations.get(session.location)),
+          Effect.orDie,
+        )
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)
-        return yield* new OperationUnavailableError({ operation: "wait" })
+        yield* execution.wait(sessionID)
+      }),
+      command: Effect.fn("V2Session.command")((input) =>
+        Effect.uninterruptible(
+          Effect.gen(function* () {
+            const session = yield* result.get(input.sessionID)
+            const commands = yield* CommandV2.Service.use((service) => service.list()).pipe(
+              Effect.provide(locations.get(session.location)),
+            )
+            const found = commands.find((command) => command.name === input.command)
+            if (!found)
+              return yield* new CommandNotFoundError({
+                sessionID: input.sessionID,
+                command: input.command,
+                available: commands.map((command) => command.name),
+              })
+            const prompt = Prompt.fromUserMessage({
+              text: CommandV2.expandTemplate(found.template, input.arguments ?? ""),
+            })
+            const messageID = input.id ?? SessionMessage.ID.create()
+            const expected = { sessionID: input.sessionID, messageID, prompt, delivery: "steer" as const }
+            const admitted = yield* SessionInput.admit(db, events, {
+              id: messageID,
+              sessionID: input.sessionID,
+              prompt,
+              delivery: "steer",
+            }).pipe(
+              Effect.catchDefect((defect) =>
+                defect instanceof SessionInput.LifecycleConflict
+                  ? new PromptConflictError({ sessionID: input.sessionID, messageID })
+                  : Effect.die(defect),
+              ),
+            )
+            if (!SessionInput.equivalent(admitted, expected))
+              return yield* new PromptConflictError({ sessionID: input.sessionID, messageID })
+            if (input.resume !== false) yield* execution.wake(admitted.sessionID)
+            return admitted
+          }),
+        ),
+      ),
+      update: Effect.fn("V2Session.update")(function* (input) {
+        yield* result.get(input.sessionID)
+        yield* events.publish(SessionEvent.Updated, {
+          sessionID: input.sessionID,
+          timestamp: yield* DateTime.now,
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.archived === undefined ? {} : { archived: input.archived }),
+        })
+        return yield* result.get(input.sessionID)
       }),
       active: execution.active,
       resume: Effect.fn("V2Session.resume")(function* (sessionID) {

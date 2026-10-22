@@ -405,8 +405,25 @@ const layer = Layer.effect(
       }
     })
 
+    // 手动 compact 与 runTurnAttempt 共用 epoch/模型/历史装载路径；request 仅用于
+    // 输出 token 预算估计，无在飞的 provider 请求，给最小形状
+    const compact = Effect.fn("SessionRunner.compact")(function* (input: { readonly sessionID: SessionSchema.ID }) {
+      const session = yield* getSession(input.sessionID)
+      if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
+        return yield* Effect.interrupt
+      const agent = yield* agents.select(session.agent)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent), session.id)
+      const system =
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
+      const model = yield* models.resolve(session)
+      const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
+      const request = LLM.request({ model, messages: [], tools: [] })
+      return yield* compaction.compactAfterOverflow({ sessionID: session.id, entries, model, request }, "manual")
+    })
+
     return Service.of({
       run,
+      compact,
     })
   }),
 )

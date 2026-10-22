@@ -4,11 +4,11 @@ import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { SessionsCursor } from "@opennovel-ai/protocol/groups/session"
 import {
+  CommandNotFoundError,
   ConflictError,
   InvalidCursorError,
   InvalidRequestError,
   MessageNotFoundError,
-  ServiceUnavailableError,
   SessionNotFoundError,
   UnknownError,
 } from "@opennovel-ai/protocol/errors"
@@ -180,6 +180,70 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         }),
       )
       .handle(
+        "session.command",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.command({
+              id: ctx.payload.id,
+              sessionID: ctx.params.sessionID,
+              command: ctx.payload.command,
+              arguments: ctx.payload.arguments,
+              resume: ctx.payload.resume,
+            }).pipe(
+              Effect.catchTag("Session.NotFoundError", (error) =>
+                Effect.fail(
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+                ),
+              ),
+              Effect.catchTag("Session.CommandNotFoundError", (error) =>
+                Effect.fail(
+                  new CommandNotFoundError({
+                    sessionID: error.sessionID,
+                    command: error.command,
+                    available: error.available,
+                    message:
+                      `Command not found: "${error.command}".` +
+                      (error.available.length ? ` Available commands: ${error.available.join(", ")}` : ""),
+                  }),
+                ),
+              ),
+              Effect.catchTag("Session.PromptConflictError", (error) =>
+                Effect.fail(
+                  new ConflictError({
+                    message: `Prompt message ID conflicts with an existing durable record: ${error.messageID}`,
+                    resource: error.messageID,
+                  }),
+                ),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
+        "session.update",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.update({
+              sessionID: ctx.params.sessionID,
+              title: ctx.payload.title,
+              archived: ctx.payload.time?.archived,
+            }).pipe(
+              Effect.catchTag("Session.NotFoundError", (error) =>
+                Effect.fail(
+                  new SessionNotFoundError({
+                    sessionID: error.sessionID,
+                    message: `Session not found: ${error.sessionID}`,
+                  }),
+                ),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
         "session.compact",
         Effect.fn(function* (ctx) {
           yield* session.compact({ sessionID: ctx.params.sessionID }).pipe(
@@ -188,14 +252,6 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 new SessionNotFoundError({
                   sessionID: error.sessionID,
                   message: `Session not found: ${error.sessionID}`,
-                }),
-              ),
-            ),
-            Effect.catchTag("Session.OperationUnavailableError", (error) =>
-              Effect.fail(
-                new ServiceUnavailableError({
-                  message: `Session ${error.operation} is not available yet`,
-                  service: `session.${error.operation}`,
                 }),
               ),
             ),
@@ -212,14 +268,6 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 new SessionNotFoundError({
                   sessionID: error.sessionID,
                   message: `Session not found: ${error.sessionID}`,
-                }),
-              ),
-            ),
-            Effect.catchTag("Session.OperationUnavailableError", (error) =>
-              Effect.fail(
-                new ServiceUnavailableError({
-                  message: `Session ${error.operation} is not available yet`,
-                  service: `session.${error.operation}`,
                 }),
               ),
             ),

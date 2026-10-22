@@ -22,6 +22,7 @@ const execution = Layer.succeed(
     active: Effect.sync(() => new Set<SessionV2.ID>()),
     resume: (sessionID) => Effect.sync(() => void wakeCalls.push(sessionID)),
     interrupt: () => Effect.void,
+    wait: () => Effect.void,
     wake: (sessionID) =>
       Effect.sync(() => {
         wakeCalls.push(sessionID)

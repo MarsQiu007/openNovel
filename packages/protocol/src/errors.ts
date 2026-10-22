@@ -71,6 +71,17 @@ export class MessageNotFoundError extends Schema.TaggedErrorClass<MessageNotFoun
   { httpApiStatus: 404 },
 ) {}
 
+export class CommandNotFoundError extends Schema.TaggedErrorClass<CommandNotFoundError>()(
+  "CommandNotFoundError",
+  {
+    sessionID: Schema.String,
+    command: Schema.String,
+    available: Schema.Array(Schema.String),
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
 export class InvalidCursorError extends Schema.TaggedErrorClass<InvalidCursorError>()(
   "InvalidCursorError",
   { message: Schema.String },

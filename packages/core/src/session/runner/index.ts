@@ -23,6 +23,11 @@ export interface Interface {
     readonly sessionID: SessionSchema.ID
     readonly force: boolean
   }) => Effect.Effect<void, RunError>
+  /**
+   * Manually compacts recorded history (Compaction events carry reason "manual").
+   * Resolves true when a summary replaced history; false when compaction was not applicable.
+   */
+  readonly compact: (input: { readonly sessionID: SessionSchema.ID }) => Effect.Effect<boolean, RunError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/v2/SessionRunner") {}

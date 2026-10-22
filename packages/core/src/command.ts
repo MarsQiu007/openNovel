@@ -8,6 +8,36 @@ import { State } from "./state"
 export const Info = Command.Info
 export type Info = Command.Info
 
+// 与 V1 SessionPrompt.command 一致的参数分词与占位符语义：
+// 引号字符串为单 token；$1..$N 逐一代入，最大序号占位符吞掉剩余全部参数；
+// $ARGUMENTS 代入原始串；模板无任何占位符且参数非空时追加到模板尾部。
+const argsRegex = /(?:"[^"]*"|'[^']*'|[^\s"']+)/g
+const placeholderRegex = /\$(\d+)/g
+const quoteTrimRegex = /^["']|["']$/g
+
+export function expandTemplate(template: string, input: string): string {
+  const args = (input.match(argsRegex) ?? []).map((arg) => arg.replace(quoteTrimRegex, ""))
+  const placeholders = template.match(placeholderRegex) ?? []
+  let last = 0
+  for (const item of placeholders) {
+    const value = Number(item.slice(1))
+    if (value > last) last = value
+  }
+  const withArgs = template.replaceAll(placeholderRegex, (_, index) => {
+    const position = Number(index)
+    const argIndex = position - 1
+    if (argIndex >= args.length) return ""
+    if (position === last) return args.slice(argIndex).join(" ")
+    return args[argIndex]
+  })
+  const usesArgumentsPlaceholder = template.includes("$ARGUMENTS")
+  let expanded = withArgs.replaceAll("$ARGUMENTS", input)
+  if (placeholders.length === 0 && !usesArgumentsPlaceholder && input.trim()) {
+    expanded = expanded + "\n\n" + input
+  }
+  return expanded.trim()
+}
+
 export type Data = {
   commands: Map<string, Types.DeepMutable<Info>>
 }

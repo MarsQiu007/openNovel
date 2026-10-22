@@ -34,6 +34,7 @@ const execution = Layer.succeed(
         ? Deferred.await(gate).pipe(Effect.andThen(Effect.sync(() => void wakeCalls.push(sessionID))))
         : Effect.sync(() => void wakeCalls.push(sessionID)),
     interrupt: () => Effect.void,
+    wait: () => Effect.void,
     wake: (sessionID) =>
       Effect.sync(() => {
         wakeCalls.push(sessionID)
