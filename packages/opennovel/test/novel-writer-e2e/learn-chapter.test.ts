@@ -15,11 +15,6 @@ const e2e = process.env.OPENNOVEL_TECHNIQUE_E2E === "1" ? it.live : it.live.skip
 
 
 
-type FakeLLM = {
-  toolMatch: (match: (hit: { body: Record<string, unknown> }) => boolean, name: string, input: unknown) => Effect.Effect<void>
-  textMatch: (match: (hit: { body: Record<string, unknown> }) => boolean, value: string) => Effect.Effect<void>
-}
-
 const bodyText = (hit: { body: Record<string, unknown> }) => JSON.stringify(hit.body)
 
 /**
@@ -63,7 +58,7 @@ e2e(
 
         const before1 = hitCount(llm)
         const turn1 = yield* driveTurn("来学习第 1 章的写作技巧")
-        expect(turn1.result.info.role).toBe("assistant")
+        expect(turn1.result?.type).toBe("assistant")
 
         // 3.1 读章调用=1 且参数为第 1 章；只入库 1 条
         const reads = toolCallsOf(llm, "read_chapter_content", before1)
@@ -76,10 +71,10 @@ e2e(
 
         // 第二轮：普通写作指令——director 派 @writer 走正常写作路径，无学习工具调用
         const chapterId = novel.chapters[0].id
-        yield* llm.toolMatch((hit) => bodyText(hit).includes("续写第 1 章的后续情节"), "task", {
+        yield* llm.toolMatch((hit) => bodyText(hit).includes("续写第 1 章的后续情节"), "subagent", {
           description: "续写第一章正文",
           prompt: `写作任务：将第一章正文重写为续写扩写版（章节标题：茶馆夜谈），写完调用 write_chapter 写入。chapter_id=${chapterId}`,
-          subagent_type: "writer",
+          agent: "writer",
         })
         yield* llm.toolMatch((hit) => bodyText(hit).includes("写作任务"), "write_chapter", {
           chapter_id: chapterId,
@@ -89,7 +84,7 @@ e2e(
 
         const before2 = hitCount(llm)
         const turn2 = yield* driveTurn("续写第 1 章的后续情节")
-        expect(turn2.result.info.role).toBe("assistant")
+        expect(turn2.result?.type).toBe("assistant")
 
         // 3.2 零 save_technique；写作工具调用存在且真正落库
         const writes = toolCallsOf(llm, "write_chapter", before2)

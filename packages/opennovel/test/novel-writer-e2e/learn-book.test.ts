@@ -90,7 +90,7 @@ e2e(
 
         const before1 = hitCount(llm)
         const turn = yield* driveTurn("来学习这本书籍的写作技巧")
-        expect(turn.result.info.role).toBe("assistant")
+        expect(turn.result?.type).toBe("assistant")
 
         // 2.1 脚本走通：save_technique 命中 3 次
         const saves = toolCallsOf(llm, "save_technique", before1)

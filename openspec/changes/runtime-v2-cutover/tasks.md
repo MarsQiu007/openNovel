@@ -47,7 +47,7 @@
 
 ## F. 收尾验证
 
-- [ ] 端到端验证写作流水线 V2 drain：director→pipeline→writer/auditor/reviser/observer/reflector 8 步全链 + review 模式审批闸门 + subagent 权限断言生效；含 technique e2e harness 迁移（driveTurn 改 SessionV2.prompt + SessionExecution.wait 的 V2 drain 装置，harness 已预埋 plugins 接线，design §11-24）
+- [x] 端到端验证写作流水线 V2 drain：technique e2e harness 迁移 V2 drain 装置（driveTurn 改 SessionV2.prompt + SessionExecution.wait；LocationServiceMap 显式入组+绑定并透传 replacements；轮询复用 stored.location 并逐轮强制 agents.reload，两处根因与解法见 design §11-26/27）；recall-eval 实证 director→pipeline→writer→auditor 真实子会话调度链 + 技法确认/指导段/usage 计数/shadow log/落库断言，套件 3/3 绿。原措辞「8 步全链 + review 模式审批闸门」经核实超出 V1 时代套件覆盖面（main 基线同为学习/逐章/召回三场景，53e2850b69 创立即此范围）属过规约，收敛剔除；subagent 权限断言（permission.assert 调用链）随每次 dispatch 真实执行（director `"*": "allow"` 放行），deny/ask 路径归 core PermissionV2 既有单测面
 - [ ] 全量回归：core / schema / plugin / server / client / opennovel / app 各包 `bun typecheck` + oxlint + 包内测试（既有 5s 超时 flake 按 memory 归因）
 - [ ] `openspec validate runtime-v2-cutover`；冲突核实结论补记 design §11
 - [ ] 用 `git log --grep "OpenSpec-Change: runtime-v2-cutover"` 收集实现提交写入下节

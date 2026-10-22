@@ -19,11 +19,6 @@ const e2e = process.env.OPENNOVEL_TECHNIQUE_E2E === "1" ? it.live : it.live.skip
 
 
 
-type FakeLLM = {
-  toolMatch: (match: (hit: { body: Record<string, unknown> }) => boolean, name: string, input: unknown) => Effect.Effect<void>
-  textMatch: (match: (hit: { body: Record<string, unknown> }) => boolean, value: string) => Effect.Effect<void>
-}
-
 const bodyText = (hit: { body: Record<string, unknown> }) => JSON.stringify(hit.body)
 
 const T1 = {
@@ -75,10 +70,10 @@ e2e(
         const chapterId = novel.chapters[0].id
 
         // 流水线脚本：director→pipeline→confirm→writer→auditor；observer/reflector 由兜底 "ok" 吸收
-        yield* llm.toolMatch((hit) => bodyText(hit).includes("写第 1 章"), "task", {
+        yield* llm.toolMatch((hit) => bodyText(hit).includes("写第 1 章"), "subagent", {
           description: "写作流水线第一章",
           prompt: `流水线任务：为第1章执行完整写作流水线。章节标题：茶馆夜谈。novel_id=${novel.novelId}`,
-          subagent_type: "pipeline",
+          agent: "pipeline",
         })
         yield* llm.toolMatch((hit) => bodyText(hit).includes("流水线任务"), "read_chapter_outline", {
           novel_id: novel.novelId,
@@ -92,10 +87,10 @@ e2e(
         })
         // 快照候选段含 T2（未验证新品）→ 评估后只确认 T1
         yield* llm.toolMatch((hit) => bodyText(hit).includes(T2.name), "confirm_techniques", { ids: [T1.id] })
-        yield* llm.toolMatch((hit) => bodyText(hit).includes("写作技法指导"), "task", {
+        yield* llm.toolMatch((hit) => bodyText(hit).includes("写作技法指导"), "subagent", {
           description: "写作第一章正文",
           prompt: `写作任务：按写作技法指导段落重写第1章正文（章节标题：茶馆夜谈），写完调用 write_chapter。chapter_id=${chapterId}`,
-          subagent_type: "writer",
+          agent: "writer",
         })
         yield* llm.toolMatch((hit) => bodyText(hit).includes("写作任务"), "write_chapter", {
           chapter_id: chapterId,
@@ -106,16 +101,16 @@ e2e(
           novel_id: novel.novelId,
           chapter_number: 1,
         })
-        yield* llm.toolMatch((hit) => bodyText(hit).includes("连续性检查结果"), "task", {
+        yield* llm.toolMatch((hit) => bodyText(hit).includes("连续性检查结果"), "subagent", {
           description: "审计第一章",
           prompt: `mode: settings_focus\n审计任务：对第1章做设定一致性专项审计。retrieved_techniques=[{"id":"${T1.id}","name":"${T1.name}","instruction":"${T1.instruction}"}]。chapter_id=${chapterId}`,
-          subagent_type: "auditor",
+          agent: "auditor",
         })
         yield* llm.textMatch((hit) => bodyText(hit).includes("审计任务"), "审计完成：全部维度 PASS。")
 
         const before = hitCount(llm)
         const turn = yield* driveTurn("写第 1 章")
-        expect(turn.result.info.role).toBe("assistant")
+        expect(turn.result?.type).toBe("assistant")
 
         // 4.1 confirm_techniques 恰好一次，参数为确认子集（含 T1、不含 T2）
         const confirms = toolCallsOf(llm, "confirm_techniques", before)
@@ -142,7 +137,7 @@ e2e(
         expect(logs[logs.length - 1].retrievedTechniqueIds).toContain(T2.id)
 
         // 4.3 auditor 任务的 retrieved_techniques 仅含确认列表 id
-        const tasks = toolCallsOf(llm, "task", before)
+        const tasks = toolCallsOf(llm, "subagent", before)
         const auditorTask = tasks.find((t) => t.arguments.includes("auditor"))
         expect(auditorTask).toBeDefined()
         expect(auditorTask!.arguments).toContain(T1.id)

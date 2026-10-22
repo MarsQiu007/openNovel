@@ -1,7 +1,12 @@
 /**
- * 技法 agent 流程 e2e 驱动器：全节点会话栈 + TestLLMServer 假端点 + 回合驱动与断言工具。
+ * 技法 agent 流程 e2e 驱动器（V2）：SessionV2 durable admission + SessionExecution
+ * 进程本地 drain + TestLLMServer 假端点。
  *
- * 节点清单镜像 test/session/prompt.test.ts 的 promptRoot（全量会话栈）。
+ * 组合镜像 core 测试范式（session-create.test.ts）与生产 server.ts：
+ * 全局节点 = Database/EventV2/SessionProjector/SessionStore/SessionV2 + TestLLMServer，
+ * SessionExecution 绑进程本地实现；LocationServiceMap 由 AppNodeBuilder 自动构建
+ * （buildLocationServiceMap，per-tmpdir location 服务：Config/AgentV2/PluginV2/
+ * ToolRegistry/SessionRunnerModel 等，hoist 的 global 节点经共享 memoMap 与根层同实例）。
  * novel-writer V2 插件经 providerCfg 写入的项目级 plugins 配置加载（同
  * `opennovel novel init` 的 wireNovelWriterV2 接线），director 等写作 agent
  * 与 88 工具全部由它注册。
@@ -10,152 +15,65 @@
 import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
 import { Effect, Layer } from "effect"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
-import { Agent as AgentSvc } from "@/agent/agent"
-import { BackgroundJob } from "@opennovel-ai/core/background-job"
-import { Command } from "@/command"
-import { Config } from "@/config/config"
-import { Database } from "@opennovel-ai/core/database/database"
-import { Env } from "@/env"
-import { EventV2Bridge } from "@/event-v2-bridge"
-import { Format } from "@/format"
-import { FSUtil } from "@opennovel-ai/core/fs-util"
-import { Git } from "@/git"
-import { Image } from "@/image/image"
-import { Instruction } from "@/session/instruction"
-import { LSP } from "@/lsp/lsp"
-import { LLM } from "@/session/llm"
-import { MCP } from "@/mcp"
-import { MessageV2 } from "@/session/message-v2"
-import { Permission } from "@/permission"
-import { Plugin } from "@/plugin"
-import { Provider as ProviderSvc } from "@/provider/provider"
-import { Question } from "@/question"
-import { Ripgrep } from "@opennovel-ai/core/ripgrep"
-import { Session } from "@/session/session"
-import { SessionCompaction } from "@/session/compaction"
-import { SessionProcessor } from "@/session/processor"
-import { SessionPrompt } from "@/session/prompt"
-import { SessionProjector } from "@opennovel-ai/core/session/projector"
-import { SessionRevert } from "@/session/revert"
-import { SessionRunState } from "@/session/run-state"
-import { SessionStatus } from "@/session/status"
-import { SessionSummary } from "@/session/summary"
-import { Skill } from "@/skill"
-import { Snapshot } from "@/snapshot"
-import { SystemPrompt } from "@/session/system"
-import { Todo } from "@/session/todo"
-import { ToolRegistry } from "@/tool/registry"
-import { Truncate } from "@/tool/truncate"
+import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
+import { makeGlobalNode } from "@opennovel-ai/core/effect/app-node"
+import { AgentV2 } from "@opennovel-ai/core/agent"
 import { CrossSpawnSpawner } from "@opennovel-ai/core/cross-spawn-spawner"
-import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Database } from "@opennovel-ai/core/database/database"
+import { EventV2 } from "@opennovel-ai/core/event"
+import { Location } from "@opennovel-ai/core/location"
+import { buildLocationServiceMap, LocationServiceMap } from "@opennovel-ai/core/location-services"
+import { ProjectV2 } from "@opennovel-ai/core/project"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
+import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionExecution } from "@opennovel-ai/core/session/execution"
+import { SessionExecutionLocal } from "@opennovel-ai/core/session/execution/local"
+import { SessionProjector } from "@opennovel-ai/core/session/projector"
+import { SessionStore } from "@opennovel-ai/core/session/store"
+import { requireInstance } from "../fixture/fixture"
 import { TestLLMServer } from "../lib/llm-server"
-import { testEffect } from "../lib/effect"
+import { pollWithTimeout, testEffect } from "../lib/effect"
 
-const summary = Layer.succeed(
-  SessionSummary.Service,
-  SessionSummary.Service.of({
-    summarize: () => Effect.void,
-    diff: () => Effect.succeed([]),
-    computeDiff: () => Effect.succeed([]),
+const projects = Layer.succeed(
+  ProjectV2.Service,
+  ProjectV2.Service.of({
+    resolve: (directory) => Effect.succeed({ id: ProjectV2.ID.global, directory }),
+    directories: () => Effect.succeed([]),
+    commit: () => Effect.void,
   }),
 )
-
-const lsp = Layer.succeed(
-  LSP.Service,
-  LSP.Service.of({
-    init: () => Effect.void,
-    status: () => Effect.succeed([]),
-    hasClients: () => Effect.succeed(false),
-    touchFile: () => Effect.void,
-    diagnostics: () => Effect.succeed({}),
-    hover: () => Effect.succeed(undefined),
-    definition: () => Effect.succeed([]),
-    references: () => Effect.succeed([]),
-    implementation: () => Effect.succeed([]),
-    documentSymbol: () => Effect.succeed([]),
-    workspaceSymbol: () => Effect.succeed([]),
-    prepareCallHierarchy: () => Effect.succeed([]),
-    incomingCalls: () => Effect.succeed([]),
-    outgoingCalls: () => Effect.succeed([]),
-  }),
-)
-
-const mcp = Layer.succeed(
-  MCP.Service,
-  MCP.Service.of({
-    status: () => Effect.succeed({}),
-    clients: () => Effect.succeed({}),
-    instructions: () => Effect.succeed([]),
-    tools: () => Effect.succeed({}),
-    prompts: () => Effect.succeed({}),
-    resources: () => Effect.succeed({}),
-    resourceTemplates: () => Effect.succeed({}),
-    add: () => Effect.succeed({ status: { status: "disabled" as const } }),
-    connect: () => Effect.void,
-    disconnect: () => Effect.void,
-    getPrompt: () => Effect.succeed(undefined),
-    readResource: () => Effect.succeed(undefined),
-    startAuth: () => Effect.die("unexpected MCP auth in novel-writer e2e"),
-    authenticate: () => Effect.die("unexpected MCP auth in novel-writer e2e"),
-    finishAuth: () => Effect.die("unexpected MCP auth in novel-writer e2e"),
-    removeAuth: () => Effect.void,
-    supportsOAuth: () => Effect.succeed(false),
-    hasStoredTokens: () => Effect.succeed(false),
-    getAuthStatus: () => Effect.succeed("not_authenticated" as const),
-  }),
-)
-
-const promptRoot = LayerNode.group([
-  SessionPrompt.node,
-  Session.node,
-  SessionProjector.node,
-  MessageV2.node,
-  Snapshot.node,
-  LLM.node,
-  Env.node,
-  AgentSvc.node,
-  Command.node,
-  Permission.node,
-  Plugin.node,
-  Config.node,
-  ProviderSvc.node,
-  LSP.node,
-  MCP.node,
-  FSUtil.node,
-  BackgroundJob.node,
-  SessionStatus.node,
-  SessionRunState.node,
-  Database.node,
-  EventV2Bridge.node,
-  Question.node,
-  Todo.node,
-  ToolRegistry.node,
-  Skill.node,
-  Git.node,
-  Ripgrep.node,
-  Format.node,
-  Truncate.node,
-  SessionProcessor.node,
-  Image.node,
-  SessionCompaction.node,
-  SessionRevert.node,
-  Instruction.node,
-  SystemPrompt.node,
-  CrossSpawnSpawner.node,
-  RuntimeFlags.node,
-])
 
 const testLLMServerNode = LayerNode.make({ service: TestLLMServer, layer: TestLLMServer.layer, deps: [] })
 
-const root = LayerNode.group([promptRoot, testLLMServerNode])
 const replacements = [
-  [SessionSummary.node, summary],
-  [LSP.node, lsp],
-  [MCP.node, mcp],
-  [RuntimeFlags.node, RuntimeFlags.layer({ experimentalEventSystem: true })],
-] as const
+  [ProjectV2.node, projects],
+  [SessionExecution.node, SessionExecutionLocal.node],
+] as LayerNode.Replacements
 
-export const it = testEffect(LayerNode.compile(root, replacements))
+// 显式构建 LSM 并同时入组+绑定（同 AppNodeBuilder 自动路径的结构，replacements
+// 同样透传进 per-location 构建）：入组让编译产物类型携带 LocationServiceMap.Service，
+// 绑定满足 SessionV2 的 unbound 依赖
+const locationServiceMapNode = makeGlobalNode({
+  service: LocationServiceMap.Service,
+  layer: buildLocationServiceMap(replacements),
+  deps: [],
+})
+
+export const it = testEffect(
+  AppNodeBuilder.build(
+    LayerNode.group([
+      Database.node,
+      EventV2.node,
+      SessionProjector.node,
+      SessionStore.node,
+      SessionV2.node,
+      CrossSpawnSpawner.node,
+      testLLMServerNode,
+      locationServiceMapNode,
+    ]),
+    [...replacements, [LocationServiceMap.node, locationServiceMapNode]],
+  ),
+)
 
 type ConfigModel = NonNullable<NonNullable<NonNullable<ConfigV1.Info["provider"]>[string]>["models"]>[string]
 
@@ -194,25 +112,44 @@ export function providerCfg(
   }
 }
 
-/** 发一条用户消息并跑完整个 agent 回合（director 代理）。 */
+/**
+ * 发一条用户消息并等 V2 drain 落定（director 代理，每回合新开会话）。
+ * 返回末尾 assistant 消息；drain 失败时 result 为 undefined（wait 不传播 drain 错误，
+ * 失败信号靠后续工具调用断言与运行日志定位）。
+ */
 export function driveTurn(message: string) {
   return Effect.gen(function* () {
-    const plugin = yield* Plugin.Service
-    yield* plugin.init()
-    const prompt = yield* SessionPrompt.Service
-    const sessions = yield* Session.Service
+    const instance = yield* requireInstance
+    const sessions = yield* SessionV2.Service
+    const maps = yield* LocationServiceMap.Service
     const session = yield* sessions.create({
       title: "技法e2e",
-      permission: [{ permission: "*", pattern: "*", action: "allow" as const }],
+      agent: AgentV2.ID.make("director"),
+      location: Location.Ref.make({ directory: AbsolutePath.make(instance.directory) }),
     })
-    yield* prompt.prompt({
-      sessionID: session.id,
-      agent: "director",
-      noReply: true,
-      parts: [{ type: "text", text: message }],
-    })
-    const result = yield* prompt.loop({ sessionID: session.id })
-    return { sessionID: session.id, result }
+    // 轮询必须复用会话行重建的 location（fromRow 恒带 workspaceID 显式键）——
+    // 自建 Ref 形状不同会被 LayerMap 建成另一份互不可见的 location 服务（§11-10）。
+    const stored = yield* sessions.get(session.id)
+    // 外部插件（config-plugin fork 装载 novel-writer-v2）的 agent transform 会
+    // 登记进已完成的外层 State.batch 的 reload 集合——无人触发即永不 materialize
+    // （design §11-16/18，server 端以 wait+reload 手动收口）。每轮轮询强制 reload
+    // 重建状态，等写作 agent 家族落进该 location 的 AgentV2 再发车。
+    yield* pollWithTimeout(
+      Effect.gen(function* () {
+        const agents = yield* AgentV2.Service
+        yield* agents.reload()
+        const registered = new Set((yield* agents.all()).map((agent) => agent.id))
+        return ["director", "pipeline", "writer", "auditor"].every((id) => registered.has(AgentV2.ID.make(id)))
+          ? (true as const)
+          : undefined
+      }).pipe(Effect.provide(maps.get(stored.location))),
+      "writing agents never materialized",
+      "30 seconds",
+    )
+    yield* sessions.prompt({ sessionID: session.id, prompt: { text: message } })
+    yield* sessions.wait(session.id)
+    const messages = yield* sessions.messages({ sessionID: session.id })
+    return { sessionID: session.id, result: messages.findLast((item) => item.type === "assistant") }
   })
 }
 
