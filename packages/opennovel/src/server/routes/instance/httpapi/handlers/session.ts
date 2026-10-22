@@ -1,6 +1,7 @@
 import { PermissionV1 } from "@opennovel-ai/core/v1/permission"
 import { Agent } from "@/agent/agent"
 import { SessionV1 } from "@opennovel-ai/core/v1/session"
+import { SessionV2 } from "@opennovel-ai/core/session"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Command } from "@/command"
 import { Permission } from "@/permission"
@@ -48,6 +49,7 @@ const tryParseJson = (text: string) =>
 export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", (handlers) =>
   Effect.gen(function* () {
     const session = yield* Session.Service
+    const sessionV2 = yield* SessionV2.Service
     const shareSvc = yield* SessionShare.Service
     const promptSvc = yield* SessionPrompt.Service
     const revertSvc = yield* SessionRevert.Service
@@ -230,7 +232,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     const abort = Effect.fn("SessionHttpApi.abort")(function* (ctx: { params: { sessionID: SessionID } }) {
-      yield* promptSvc.cancel(ctx.params.sessionID)
+      // 执行链已切 V2：中断走 SessionV2.interrupt（SessionExecution 进程内所有权链）。
+      // 端点唯一消费方是 ACP cancel，ACP 子系统随 D5 删除。
+      yield* sessionV2.interrupt(ctx.params.sessionID)
       return true
     })
 
