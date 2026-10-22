@@ -1,11 +1,8 @@
 import { Effect } from "effect"
 import { effectCmd } from "../effect-cmd"
-import { Session } from "@/session/session"
-import { NotFoundError } from "@/storage/storage"
-import { Database } from "@opennovel-ai/core/database/database"
-import { SessionTable } from "@opennovel-ai/core/session/sql"
-import { Project } from "@/project/project"
-import { InstanceRef } from "@/effect/instance-ref"
+import { embeddedClient } from "../embedded-client"
+import { Filesystem } from "@/util/filesystem"
+import type { OpenNovelClient, SessionMessage, SessionV2Info } from "@opennovel-ai/sdk/v2"
 
 interface SessionStats {
   totalSessions: number
@@ -67,9 +64,7 @@ export const StatsCommand = effectCmd({
         type: "string",
       }),
   handler: Effect.fn("Cli.stats")(function* (args) {
-    const ctx = yield* InstanceRef
-    if (!ctx) return
-    const stats = yield* aggregateSessionStats(args.days, args.project, ctx.project)
+    const stats = yield* aggregateSessionStats(args.days, args.project)
     let modelLimit: number | undefined
     if (args.models === true) {
       modelLimit = Infinity
@@ -80,18 +75,58 @@ export const StatsCommand = effectCmd({
   }),
 })
 
-const getAllSessions = Effect.fnUntraced(function* () {
-  const { db } = yield* Database.Service
-  return (yield* db.select().from(SessionTable).all().pipe(Effect.orDie)).map((row) => Session.fromRow(row))
-})
+// V2 list 全量游标分页（服务端恒生成 next 游标，空页即到底）；
+// 不按 roots 过滤——V1 stats 统计的是含子会话的全部会话。
+async function listAllSessions(client: OpenNovelClient, project?: string): Promise<SessionV2Info[]> {
+  const sessions: SessionV2Info[] = []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await client.v2.session.list({
+      limit: 50,
+      ...(project === undefined ? {} : { project }),
+      ...(cursor === undefined ? {} : { cursor }),
+    })
+    if (page.error) throw new Error(`Failed to list sessions: ${JSON.stringify(page.error)}`)
+    const items = page.data?.data ?? []
+    sessions.push(...items)
+    const next = page.data?.cursor.next
+    if (!next || items.length === 0) break
+    cursor = next
+  }
+  return sessions
+}
 
-const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (
-  days?: number,
-  projectFilter?: string,
-  currentProject?: Project.Info,
-) {
-  const svc = yield* Session.Service
-  const sessions = yield* getAllSessions()
+// 读取失败的会话按空消息计（对齐 V1 容忍 NotFound 的行为）
+async function listAllMessages(client: OpenNovelClient, sessionID: string): Promise<SessionMessage[]> {
+  const messages: SessionMessage[] = []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await client.v2.session
+      .messages({ sessionID, limit: 50, order: "asc", ...(cursor === undefined ? {} : { cursor }) })
+      .then((x) => x.data)
+      .catch(() => undefined)
+    const items = page?.data ?? []
+    messages.push(...items)
+    const next = page?.cursor.next
+    if (!next || items.length === 0) break
+    cursor = next
+  }
+  return messages
+}
+
+const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (days?: number, projectFilter?: string) {
+  // 不带 directory：默认跨全部项目统计；--project ""（当前项目）经 location 端点解析项目 ID
+  const client = yield* Effect.promise(() => embeddedClient())
+  const project = yield* Effect.promise(async () => {
+    if (projectFilter === undefined || projectFilter !== "") return projectFilter
+    const location = await client.v2.location
+      .get({ location: { directory: Filesystem.resolve(process.cwd()) } })
+      .then((x) => x.data)
+      .catch(() => undefined)
+    if (!location) throw new Error("Failed to resolve current project")
+    return location.project.id
+  })
+  const sessions = yield* Effect.promise(() => listAllSessions(client, project))
   const MS_IN_DAY = 24 * 60 * 60 * 1000
 
   const cutoffTime = (() => {
@@ -110,16 +145,7 @@ const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (
     return days
   })()
 
-  let filteredSessions = cutoffTime > 0 ? sessions.filter((session) => session.time.updated >= cutoffTime) : sessions
-
-  if (projectFilter !== undefined) {
-    if (projectFilter === "") {
-      if (!currentProject) throw new Error("currentProject required when projectFilter is empty string")
-      filteredSessions = filteredSessions.filter((session) => session.projectID === currentProject.id)
-    } else {
-      filteredSessions = filteredSessions.filter((session) => session.projectID === projectFilter)
-    }
-  }
+  const filteredSessions = cutoffTime > 0 ? sessions.filter((session) => session.time.updated >= cutoffTime) : sessions
 
   const stats: SessionStats = {
     totalSessions: filteredSessions.length,
@@ -163,15 +189,13 @@ const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (
   const results = yield* Effect.forEach(
     filteredSessions,
     (session) =>
-      Effect.gen(function* () {
-        const messages = yield* svc
-          .messages({ sessionID: session.id })
-          .pipe(Effect.catchIf(NotFoundError.isInstance, () => Effect.succeed([])))
+      Effect.promise(async () => {
+        const messages = await listAllMessages(client, session.id)
 
-        const sessionCost = session.cost ?? 0
-        const sessionTokens = session.tokens ?? { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
-        let sessionToolUsage: Record<string, number> = {}
-        let sessionModelUsage: Record<
+        const sessionCost = session.cost
+        const sessionTokens = session.tokens
+        const sessionToolUsage: Record<string, number> = {}
+        const sessionModelUsage: Record<
           string,
           {
             messages: number
@@ -181,30 +205,28 @@ const aggregateSessionStats = Effect.fn("Cli.stats.aggregate")(function* (
         > = {}
 
         for (const message of messages) {
-          if (message.info.role === "assistant") {
-            const modelKey = `${message.info.providerID}/${message.info.modelID}`
-            if (!sessionModelUsage[modelKey]) {
-              sessionModelUsage[modelKey] = {
-                messages: 0,
-                tokens: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-                cost: 0,
-              }
-            }
-            sessionModelUsage[modelKey].messages++
-            sessionModelUsage[modelKey].cost += message.info.cost || 0
-
-            if (message.info.tokens) {
-              sessionModelUsage[modelKey].tokens.input += message.info.tokens.input || 0
-              sessionModelUsage[modelKey].tokens.output +=
-                (message.info.tokens.output || 0) + (message.info.tokens.reasoning || 0)
-              sessionModelUsage[modelKey].tokens.cache.read += message.info.tokens.cache?.read || 0
-              sessionModelUsage[modelKey].tokens.cache.write += message.info.tokens.cache?.write || 0
+          if (message.type !== "assistant") continue
+          const modelKey = `${message.model.providerID}/${message.model.id}`
+          if (!sessionModelUsage[modelKey]) {
+            sessionModelUsage[modelKey] = {
+              messages: 0,
+              tokens: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+              cost: 0,
             }
           }
+          sessionModelUsage[modelKey].messages++
+          sessionModelUsage[modelKey].cost += message.cost || 0
 
-          for (const part of message.parts) {
-            if (part.type === "tool" && part.tool) {
-              sessionToolUsage[part.tool] = (sessionToolUsage[part.tool] || 0) + 1
+          if (message.tokens) {
+            sessionModelUsage[modelKey].tokens.input += message.tokens.input || 0
+            sessionModelUsage[modelKey].tokens.output += (message.tokens.output || 0) + (message.tokens.reasoning || 0)
+            sessionModelUsage[modelKey].tokens.cache.read += message.tokens.cache.read || 0
+            sessionModelUsage[modelKey].tokens.cache.write += message.tokens.cache.write || 0
+          }
+
+          for (const part of message.content) {
+            if (part.type === "tool") {
+              sessionToolUsage[part.name] = (sessionToolUsage[part.name] || 0) + 1
             }
           }
         }
