@@ -104,7 +104,7 @@ describe("SessionV2.history", () => {
 
       expect(first.hasMore).toBe(true)
       expect(second.hasMore).toBe(false)
-      expect(sequence).toEqual([1, 3, 4])
+      expect(sequence).toEqual([0, 1, 3, 4])
       expect(new Set(sequence).size).toBe(sequence.length)
     }),
   )
@@ -125,7 +125,7 @@ describe("SessionV2.history", () => {
       })
 
       expect(first.hasMore).toBe(true)
-      expect([...first.events, ...second.events].map((event) => event.durable?.seq)).toEqual([1, 2, 3])
+      expect([...first.events, ...second.events].map((event) => event.durable?.seq)).toEqual([0, 1, 2, 3])
       expect(second.hasMore).toBe(false)
     }),
   )
@@ -137,17 +137,17 @@ describe("SessionV2.history", () => {
       yield* session.switchAgent({ sessionID: created.id, agent: "one" })
       yield* session.switchAgent({ sessionID: created.id, agent: "two" })
 
-      const exact = yield* session.history({ sessionID: created.id, limit: 2 })
-      const oneMore = yield* session.history({ sessionID: created.id, limit: 1 })
+      const exact = yield* session.history({ sessionID: created.id, limit: 3 })
+      const oneMore = yield* session.history({ sessionID: created.id, limit: 2 })
       const exhausted = yield* session.history({
         sessionID: created.id,
         after: oneMore.events.at(-1)?.durable?.seq,
         limit: 1,
       })
 
-      expect(exact.events).toHaveLength(2)
+      expect(exact.events).toHaveLength(3)
       expect(exact.hasMore).toBe(false)
-      expect(oneMore.events).toHaveLength(1)
+      expect(oneMore.events).toHaveLength(2)
       expect(oneMore.hasMore).toBe(true)
       expect(exhausted.events).toHaveLength(1)
       expect(exhausted.hasMore).toBe(false)

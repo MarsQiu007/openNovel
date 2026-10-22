@@ -164,7 +164,7 @@ describe("SessionV2.create", () => {
     }),
   )
 
-  it.effect("persists creation through the existing legacy created event", () =>
+  it.effect("persists creation through the durable created event", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service
       const { db } = yield* Database.Service
@@ -172,7 +172,7 @@ describe("SessionV2.create", () => {
 
       expect(
         yield* db.select().from(EventTable).where(eq(EventTable.aggregate_id, created.id)).all().pipe(Effect.orDie),
-      ).toMatchObject([{ type: EventV2.versionedType(SessionV1.Event.Created.type, 1) }])
+      ).toMatchObject([{ type: EventV2.versionedType(SessionEvent.Created.type, 1) }])
     }),
   )
 
@@ -190,7 +190,7 @@ describe("SessionV2.create", () => {
     }),
   )
 
-  it.effect("omits legacy creation rows from the V2 Session event stream", () =>
+  it.effect("heads the V2 Session event stream with the created event", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service
       const events = yield* EventV2.Service
@@ -200,8 +200,9 @@ describe("SessionV2.create", () => {
       yield* SessionInput.promoteSteers(db, events, created.id, Number.MAX_SAFE_INTEGER)
 
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(2), Stream.runCollect)),
+        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(3), Stream.runCollect)),
       ).toMatchObject([
+        { durable: { seq: 0 }, type: "session.next.created" },
         { durable: { seq: 1 }, type: "session.next.prompt.admitted", data: { prompt: { text: "Hello" } } },
         { durable: { seq: 2 }, type: "session.next.prompted" },
       ])
@@ -286,7 +287,7 @@ describe("SessionV2.create", () => {
             .all()
             .pipe(Effect.orDie)).map((event) => [event.seq, event.type]),
         ).toEqual([
-          [0, EventV2.versionedType(SessionV1.Event.Created.type, 1)],
+          [0, EventV2.versionedType(SessionEvent.Created.type, 1)],
           [1, EventV2.versionedType(SessionEvent.PromptAdmitted.type, 1)],
           [2, EventV2.versionedType(SessionEvent.Prompted.type, 1)],
         ])
@@ -299,7 +300,7 @@ describe("SessionV2.create", () => {
       const session = yield* SessionV2.Service
       const event = yield* EventV2.Service
       const defect = new Error("unrelated projector defect")
-      yield* event.project(SessionV1.Event.Created, () => Effect.die(defect))
+      yield* event.project(SessionEvent.Created, () => Effect.die(defect))
 
       expect(yield* session.create({ id, location }).pipe(Effect.catchDefect(Effect.succeed))).toBe(defect)
     }),
@@ -331,7 +332,13 @@ describe("SessionV2.create", () => {
 
       expect(yield* session.get(created.id)).toMatchObject({ agent: "plan" })
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(1), Stream.runCollect)),
+        Array.from(
+          yield* session.events({ sessionID: created.id }).pipe(
+            Stream.filter((event) => event.type === "session.next.agent.switched"),
+            Stream.take(1),
+            Stream.runCollect,
+          ),
+        ),
       ).toMatchObject([{ type: "session.next.agent.switched", data: { agent: "plan" } }])
     }),
   )
@@ -364,7 +371,13 @@ describe("SessionV2.create", () => {
 
       expect(yield* session.get(created.id)).toMatchObject({ model })
       expect(
-        Array.from(yield* session.events({ sessionID: created.id }).pipe(Stream.take(1), Stream.runCollect)),
+        Array.from(
+          yield* session.events({ sessionID: created.id }).pipe(
+            Stream.filter((event) => event.type === "session.next.model.switched"),
+            Stream.take(1),
+            Stream.runCollect,
+          ),
+        ),
       ).toMatchObject([{ type: "session.next.model.switched", data: { model } }])
     }),
   )

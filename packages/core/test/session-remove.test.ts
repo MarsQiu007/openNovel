@@ -13,7 +13,6 @@ import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { SessionInputTable, SessionTable, TodoTable } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { SessionTodo } from "@opennovel-ai/core/session/todo"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
 import { eq } from "drizzle-orm"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
@@ -77,15 +76,16 @@ const todoRows = (sessionID: SessionV2.ID) =>
   )
 
 describe("SessionV2.remove", () => {
-  it.effect("publishes session.deleted, clears the row and cascades session-scoped tables", () =>
+  it.effect("publishes session.next.deleted, clears the row and cascades session-scoped tables", () =>
     Effect.gen(function* () {
       const { session, info } = yield* setup
       const events = yield* EventV2.Service
-      const deleted: SessionV1.SessionInfo[] = []
+      const deleted: SessionV2.ID[] = []
       yield* events.listen((event) =>
         Effect.sync(() => {
-          if (event.type !== "session.deleted") return
-          deleted.push(Schema.decodeUnknownSync(SessionV1.Event.Deleted.data)(event.data).info)
+          if (event.type !== "session.next.deleted") return
+          // 事件 payload 的 timestamp 是 DateTime 实例，只对所需字段做精确 decode
+          deleted.push(Schema.decodeUnknownSync(Schema.Struct({ sessionID: SessionV2.ID }))(event.data).sessionID)
         }),
       )
       yield* session.prompt({ sessionID: info.id, prompt: { text: "第一章大纲" }, resume: false })
@@ -103,8 +103,7 @@ describe("SessionV2.remove", () => {
 
       yield* session.remove(info.id)
 
-      expect(deleted.map((item) => item.id)).toEqual([info.id])
-      expect(deleted[0]?.title).toBe(info.title)
+      expect(deleted).toEqual([info.id])
       expect(interruptCalls).toEqual([info.id])
       const missing = yield* session.get(info.id).pipe(Effect.flip)
       expect(missing._tag).toBe("Session.NotFoundError")
