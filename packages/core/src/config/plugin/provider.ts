@@ -13,10 +13,12 @@ export const Plugin = define({
     yield* ctx.integration.transform(
       Effect.fn(function* (integrations) {
         const files = (yield* config.entries()).filter((entry): entry is Config.Document => entry.type === "document")
+        // V1 配置里 `env: []` 表示「不要求任何环境变量」；若照样建立 env 集成，
+        // 空 names 永远解析不出连接，会把 provider 挤出 catalog.available（迁移保真）。
         const configuredIntegrations = new Set(
           files.flatMap((file) =>
             Object.entries(file.info.providers ?? {}).flatMap(([id, provider]) =>
-              provider.env === undefined ? [] : [id],
+              provider.env === undefined || provider.env.length === 0 ? [] : [id],
             ),
           ),
         )
@@ -27,7 +29,7 @@ export const Plugin = define({
             integrations.update(integrationID, (integration) => {
               integration.name = item.name ?? integration.name
             })
-            if (item.env !== undefined) {
+            if (item.env !== undefined && item.env.length > 0) {
               integrations.method.update({
                 integrationID,
                 method: { type: "env", names: [...item.env] },

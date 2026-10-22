@@ -151,6 +151,38 @@ describe("ConfigProviderPlugin.Plugin", () => {
     }),
   )
 
+  // V1 迁移保真：`env: []` 表示「不要求环境变量」，若照样建立 env 集成，
+  // 空 names 解析不出连接，provider 会被 catalog.available 挤出。
+  it.effect("treats an empty env list as no env requirement", () =>
+    Effect.gen(function* () {
+      const catalog = yield* Catalog.Service
+      const integrations = yield* Integration.Service
+      const providerID = ProviderV2.ID.make("custom")
+      const config = Config.Service.of({
+        entries: () =>
+          Effect.succeed([
+            new Config.Document({
+              type: "document",
+              info: decode({
+                providers: {
+                  custom: {
+                    env: [],
+                    api: { type: "aisdk", package: "custom-sdk", url: "https://example.test" },
+                    models: { chat: { name: "Chat" } },
+                  },
+                },
+              }),
+            }),
+          ]),
+      })
+
+      yield* addPlugin(config)
+
+      expect(yield* integrations.get(Integration.ID.make("custom"))).toBeUndefined()
+      expect((yield* catalog.provider.available()).map((provider) => provider.id)).toContain(providerID)
+    }),
+  )
+
   it.effect("loads configured providers and applies later model overrides", () =>
     withEnv({ CUSTOM_API_KEY: "secret" }, () =>
       Effect.gen(function* () {
