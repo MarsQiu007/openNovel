@@ -32,7 +32,7 @@
 - [x] D0 补齐 V2 端点缺口：`SessionV2.remove` + DELETE `/api/session/:id`（删除词汇沿用 V1 durable `session.deleted`，design §11-15）；GET `/api/session/:id/todo`（SessionTodo.get）；GET `/api/session/:id/diff`（Snapshot.diff 会话累计 diff）；focused tests；`packages/client` `bun run generate` + legacy SDK `bun ./script/build.ts` 双重生
 - [x] 切换 app prompt 面：`submit.ts` 的 command/promptAsync/abort → V2 command/prompt（异步语义）/interrupt；session-switcher / workspace-data / workspace-frame / pages/session / use-session-commands 的 create/prompt/abort/summarize→compact 同步切换；composer shell 入口禁用；share 入口对 V2 会话隐藏
 - [x] 切换 app 读取面与事件面：`client.session.*` 读取点（含 directory-sync list、experimental.session.list）→ V2 端点；server-session.ts 双源对账重写为 V2 durable 单源 + V2→V1 消息适配器（timeline/session-ui/导出零改动）；事件消费从 V1 `session.*` 词汇切 V2 `session.next.*`（`client.v2.event.subscribe`）；permission/question 应答与 pending 对账切 V2 面；busy/idle 改轮询 `/api/session/active`
-- [ ] 切换 CLI `run`：V2 create → prompt → wait → 读尾消息；权限自动应答改 V2 reply 端点；删除死代码 createFreshSession/runMini
+- [x] 切换 CLI `run`：V2 create → prompt → wait → 读尾消息；权限自动应答改 V2 reply 端点；删除死代码 createFreshSession/runMini
 - [ ] 切换 CLI 读取类命令（session/stats/export，delete 走 D0 端点）与 control-plane cancel（→ `SessionV2.interrupt`）、debug/agent.handler、agent 列表（→ AgentV2 面）；attach 已停用不动
 - [ ] 删除 `github`/`pr` 命令（含 `github.handler.ts` 与 index.ts 注册）与 `acp` 子系统（3454 行 + 注册）；`import` 保留（share 活跃，随第③格，design §11-11）
 - [ ] app / opennovel `bun typecheck` + oxlint + 受影响测试
