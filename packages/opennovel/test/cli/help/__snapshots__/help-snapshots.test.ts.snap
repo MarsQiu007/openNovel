@@ -1,26 +1,5 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel acp --help 1`] = `
-"opennovel acp
-
-start ACP (Agent Client Protocol) server
-
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-      --port         port to listen on                                         [number] [default: 0]
-      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
-      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain  mDNS 服务的自定义域名 (默认: opennovel.local)
-                                                               [string] [default: "opennovel.local"]
-      --cors         additional domains to allow for CORS                      [array] [default: []]
-      --cwd          working directory [string] [default: "<HOME>"]"
-`;
-
 exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel mcp --help 1`] = `
 "opennovel mcp
 
@@ -312,39 +291,6 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github --help 1`] = `
-"opennovel github
-
-manage GitHub agent
-
-Commands:
-  opennovel github install  install the GitHub agent
-  opennovel github run      run the GitHub agent
-
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
-`;
-
-exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel pr --help 1`] = `
-"opennovel pr <number>
-
-获取并检出 GitHub PR 分支，然后运行 opennovel
-
-Positionals:
-  number  PR number to checkout                                                  [number] [required]
-
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
-`;
-
 exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel session --help 1`] = `
 "opennovel session
 
@@ -577,34 +523,6 @@ Options:
       --print-logs  print logs to stderr                                                   [boolean]
       --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
       --pure        run without external plugins                                           [boolean]"
-`;
-
-exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github install --help 1`] = `
-"opennovel github install
-
-install the GitHub agent
-
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
-`;
-
-exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel github run --help 1`] = `
-"opennovel github run
-
-run the GitHub agent
-
-Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --event       GitHub mock event to run the agent for                                  [string]
-      --token       GitHub personal access token (github_pat_********)                      [string]"
 `;
 
 exports[`opennovel CLI help-text snapshots every documented command emits stable help text: opennovel db path --help 1`] = `

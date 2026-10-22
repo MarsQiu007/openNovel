@@ -233,7 +233,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
 
     const abort = Effect.fn("SessionHttpApi.abort")(function* (ctx: { params: { sessionID: SessionID } }) {
       // 执行链已切 V2：中断走 SessionV2.interrupt（SessionExecution 进程内所有权链）。
-      // 端点唯一消费方是 ACP cancel，ACP 子系统随 D5 删除。
+      // 端点作为 SDK 兼容面保留（原唯一进程内消费方 ACP 已随 D5 删除）。
       yield* sessionV2.interrupt(ctx.params.sessionID)
       return true
     })
