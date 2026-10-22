@@ -233,7 +233,7 @@ async function injectSoul(
   sessionId: string,
   directory: string | null | undefined,
   system: string[],
-  client: Parameters<typeof fetchGlobalSoul>[0],
+  client: PluginInput["clientV2"],
 ) {
   const novelId = await resolveSessionNovel(client, sessionId, directory)
   const novelSoul = novelId ? (await getSoul(novelId, directory))?.content : undefined

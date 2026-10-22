@@ -1,6 +1,17 @@
-import type { PluginInput } from "../index.js"
+import { readFile } from "fs/promises"
+import { join } from "path"
 
-type PluginClient = PluginInput["clientV2"]
+/**
+ * clientV2 灵魂端点的最小结构类型（替代 import PluginInput：index.ts 引用 DOM 类型
+ * HeadersInit，被 core 等无 DOM lib 的宿主程序跨包引入时会报 TS2304）。
+ */
+type PluginClient = {
+  v2: {
+    soul: {
+      global(): Promise<{ data?: { content?: string } }>
+    }
+  }
+}
 
 /**
  * 合并规则（覆盖语义，严格二选一）：
@@ -29,4 +40,12 @@ export async function fetchGlobalSoul(client: PluginClient): Promise<string> {
   const value = result.data?.content ?? ""
   globalSoulCache = { value, at: now }
   return value
+}
+
+/**
+ * 直读全局灵魂文件（V2 路径）：与 server soul handler 同一文件
+ * `<config>/soul.md` 纯文本。读取失败（未设置等）返回空串——灵魂缺失不阻断会话。
+ */
+export async function readGlobalSoulFile(configDir: string): Promise<string> {
+  return (await readFile(join(configDir, "soul.md"), "utf8").catch(() => undefined)) ?? ""
 }

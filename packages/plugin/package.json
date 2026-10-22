@@ -21,6 +21,7 @@
     "./novel-writer-v2": "./src/novel-writer-v2.ts",
     "./novel-writer/cli": "./src/novel-writer/cli.ts",
     "./novel-writer/session-store": "./src/novel-writer/session-store.ts",
+    "./novel-writer/tools/index": "./src/novel-writer/tools/index.ts",
     "./novel-writer/setting-reorganization": "./src/novel-writer/setting-reorganization.ts",
     "./novel-writer/setting-review-whitelist": "./src/novel-writer/setting-review-whitelist.ts",
     "./novel-writer/setting-review-candidates": "./src/novel-writer/setting-review-candidates.ts",
