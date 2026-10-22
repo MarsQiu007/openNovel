@@ -273,7 +273,7 @@ describe("PluginHost tool domain", () => {
               .register({
                 key: "test/plugin-context",
                 codec: Schema.String,
-                load: Effect.succeed(Option.some("test-value")),
+                load: () => Effect.succeed(Option.some("test-value")),
                 baseline: (value) => `baseline:${value}`,
                 update: (_previous, value) => `update:${value}`,
               })
@@ -294,7 +294,7 @@ describe("PluginHost tool domain", () => {
               .register({
                 key: "test/unavailable-context",
                 codec: Schema.String,
-                load: Effect.succeed(Option.none()),
+                load: () => Effect.succeed(Option.none()),
                 baseline: (value) => `baseline:${value}`,
                 update: (_previous, value) => `update:${value}`,
               })

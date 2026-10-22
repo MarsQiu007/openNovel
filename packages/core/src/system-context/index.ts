@@ -1,6 +1,6 @@
 export * as SystemContext from "./index"
 
-import { Effect, Option, Schema } from "effect"
+import { Context, Effect, Option, Schema } from "effect"
 
 /**
  * Models privileged system context as independently refreshable typed sources.
@@ -27,6 +27,18 @@ export type Key = typeof Key.Type
 /** Indicates that a source could not be observed without treating it as removed. */
 export const unavailable = Symbol.for("@opennovel/SystemContext.Unavailable")
 export type Unavailable = typeof unavailable
+
+/**
+ * Reference carrying the session whose context epoch is currently observing
+ * sources. `SessionContextEpoch` provides it around observation so
+ * session-aware source loads (such as plugin-registered sources resolving a
+ * session-bound entity) see the requesting session's identity.
+ * `Option.none()` means the observation is not tied to a session.
+ */
+export const CurrentSessionID = Context.Reference<Option.Option<string>>(
+  "@opennovel/SystemContext.CurrentSessionID",
+  { defaultValue: () => Option.none() },
+)
 
 /** Defines one typed source before its value type is hidden by `make`. */
 export interface Source<A> {

@@ -101,7 +101,9 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
         const context = SystemContext.make({
           key,
           codec: source.codec,
-          load: source.load.pipe(Effect.map(Option.getOrElse(() => SystemContext.unavailable))),
+          load: Effect.flatMap(SystemContext.CurrentSessionID, (sessionID) =>
+            source.load({ sessionID: Option.getOrUndefined(sessionID) }),
+          ).pipe(Effect.map(Option.getOrElse(() => SystemContext.unavailable))),
           baseline: source.baseline,
           update: source.update,
           ...(source.removed ? { removed: source.removed } : {}),

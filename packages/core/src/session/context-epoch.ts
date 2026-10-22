@@ -1,7 +1,7 @@
 export * as SessionContextEpoch from "./context-epoch"
 
 import { eq } from "drizzle-orm"
-import { DateTime, Effect, Schema } from "effect"
+import { DateTime, Effect, Option, Schema } from "effect"
 import type { Database } from "../database/database"
 import { EventV2 } from "../event"
 import { SystemContext } from "../system-context/index"
@@ -25,7 +25,10 @@ export function initialize(
   context: Effect.Effect<SystemContext.SystemContext>,
   sessionID: SessionSchema.ID,
 ): Effect.Effect<Prepared | undefined, SystemContext.InitializationBlocked> {
-  return initializeOnce(db, context, sessionID).pipe(Effect.withSpan("SessionContextEpoch.initialize"))
+  return initializeOnce(db, context, sessionID).pipe(
+    Effect.provideService(SystemContext.CurrentSessionID, Option.some(sessionID)),
+    Effect.withSpan("SessionContextEpoch.initialize"),
+  )
 }
 
 export function prepare(
@@ -34,7 +37,10 @@ export function prepare(
   context: Effect.Effect<SystemContext.SystemContext>,
   sessionID: SessionSchema.ID,
 ): Effect.Effect<Prepared, SystemContext.InitializationBlocked | ContextSnapshotDecodeError> {
-  return prepareOnce(db, events, context, sessionID).pipe(Effect.withSpan("SessionContextEpoch.prepare"))
+  return prepareOnce(db, events, context, sessionID).pipe(
+    Effect.provideService(SystemContext.CurrentSessionID, Option.some(sessionID)),
+    Effect.withSpan("SessionContextEpoch.prepare"),
+  )
 }
 
 const prepareOnce = Effect.fnUntraced(function* (
