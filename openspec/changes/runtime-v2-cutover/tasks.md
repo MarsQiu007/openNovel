@@ -49,9 +49,38 @@
 
 - [x] 端到端验证写作流水线 V2 drain：technique e2e harness 迁移 V2 drain 装置（driveTurn 改 SessionV2.prompt + SessionExecution.wait；LocationServiceMap 显式入组+绑定并透传 replacements；轮询复用 stored.location 并逐轮强制 agents.reload，两处根因与解法见 design §11-26/27）；recall-eval 实证 director→pipeline→writer→auditor 真实子会话调度链 + 技法确认/指导段/usage 计数/shadow log/落库断言，套件 3/3 绿。原措辞「8 步全链 + review 模式审批闸门」经核实超出 V1 时代套件覆盖面（main 基线同为学习/逐章/召回三场景，53e2850b69 创立即此范围）属过规约，收敛剔除；subagent 权限断言（permission.assert 调用链）随每次 dispatch 真实执行（director `"*": "allow"` 放行），deny/ask 路径归 core PermissionV2 既有单测面
 - [x] 全量回归：core / schema / plugin / server / client / opennovel / app 各包 `bun typecheck`（7/7 绿）+ oxlint（全仓 0 errors）+ 包内测试（core 1148 / plugin 909 / server 150 / client 16 / opennovel 分片 4/4 共 2711 / technique e2e 3/3 全绿；app 26 fail/20 errors 精确命中 main 同因基线，design §11-20）；捕获并处置 E④/C 组漏改的 pinning 测试五处（config hook 爆炸半径四处 + 清单计数一处 + 503 窗口一处，design §11-28）
-- [ ] `openspec validate runtime-v2-cutover`；冲突核实结论补记 design §11
-- [ ] 用 `git log --grep "OpenSpec-Change: runtime-v2-cutover"` 收集实现提交写入下节
+- [x] `openspec validate runtime-v2-cutover`（valid；skip_specs 声明零 delta 符合预期）；冲突核实结论已逐条补记 design §11-21/23/24/25/26/27/28
+- [x] 用 `git log --grep "OpenSpec-Change: runtime-v2-cutover"` 收集实现提交写入下节
 
 ## Implementation Commits
 
-（实现完成后填写）
+（按时序；docs(openspec) 记录更新与提案建立提交按惯例不列入）
+
+- `bed0fee8c4` feat(plugin): V2 插件域扩展（tool/location/paths/session/systemContext）与宿主桥接
+- `ad2a6fa848` feat(core): 系统上下文源观测携带当前会话身份
+- `840e1ad025` refactor(plugin): 抽取 novel-writer 共享 helper 与 V2 defineTool
+- `f9ca614545` feat(plugin): novel-writer 88 工具全量 V2 转换与引导接线
+- `0b211eed9e` feat(core): V2 session 面补齐 wait/command/compact/update
+- `7aa636ffc9` chore(sdk): 重生成 legacy JS SDK 跟进 C 组端点
+- `470749a427` feat(core): V2 session 面补齐 delete/todo/diff 三端点
+- `a25f94a0fb` feat(app): V2 读取与事件面接线（adapter/translator/store 对账）
+- `aa791f24bb` feat(app): 会话写路径全面切 V2（提交/中断/归档/权限问答）
+- `d976fc2efb` fix(core): config-provider 空 env 列表不再建立 env 集成
+- `a1162ee48b` feat(opennovel): CLI run 切 V2 执行链
+- `28b6ab39d8` feat(opennovel): CLI session list/delete 切 V2 读取面
+- `742d4ecdd3` feat(opennovel): CLI stats 聚合切 V2 读取面
+- `cfc86647e9` feat(opennovel): CLI export 切 V2 读取面
+- `f689694ff5` feat(opennovel): CLI agent list 切 AgentV2 面
+- `4ab7116ce6` test(opennovel): db path 冒烟兼容盘符绝对路径
+- `af9803dc7e` feat(opennovel): control-plane abort 切 SessionV2.interrupt
+- `3fcbb574ad` feat(opennovel): debug agent 命令切 V2 面
+- `cc6607358d` feat(opennovel): 删除 github/pr 命令与 acp 子系统
+- `ea4d4df699` feat(core): 删除 BackgroundJob V1 wrapper 与旧方法面
+- `ee3e74df80` feat(plugin): task→subagent 切换点（dispatch 文本/权限键/shim 删除）
+- `af5a36e85e` feat(opennovel): 删除 V1 task 工具与 promptOps 注入链
+- `8f9d94280f` fix(core): legacy 配置放行 plugins 顶层键
+- `53ee7bad20` feat(plugin): 摘除 novel-writer V1 入口
+- `d7c593e6ec` feat(opennovel): 摘除 novel-writer V1 宿主装配
+- `8b15b7e48f` fix(core): V1 迁移透传 plugins 与 subagent_depth
+- `f4e1ebd58e` test(opennovel): technique e2e 迁移 V2 drain 装置
+- `48f8dbbf40` test(opennovel): 处置组内漏改的 pinning 测试（F② 全量回归）
