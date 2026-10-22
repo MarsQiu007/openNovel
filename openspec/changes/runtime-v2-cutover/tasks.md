@@ -35,7 +35,7 @@
 - [x] 切换 CLI `run`：V2 create → prompt → wait → 读尾消息；权限自动应答改 V2 reply 端点；删除死代码 createFreshSession/runMini
 - [x] 切换 CLI 读取类命令（session/stats/export，delete 走 D0 端点）与 control-plane cancel（→ `SessionV2.interrupt`）、debug/agent.handler、agent 列表（→ AgentV2 面）；attach 已停用不动
 - [x] 删除 `github`/`pr` 命令（含 `github.handler.ts` 与 index.ts 注册）与 `acp` 子系统（3454 行 + 注册）；`import` 保留（share 活跃，随第③格，design §11-11）
-- [ ] app / opennovel `bun typecheck` + oxlint + 受影响测试
+- [x] app / opennovel `bun typecheck` + oxlint + 受影响测试（app 26 fail/20 errors 为 main 基线同数同因的既有导出解析环境问题，design §11-20）
 
 ## E. V1 面定点删除（组 D 完成、V1 会话创建面归零后）
 
