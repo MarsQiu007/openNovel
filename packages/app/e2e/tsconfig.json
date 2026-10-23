@@ -17,6 +17,7 @@
     "./regression/session-list-path-loading.spec.ts",
     "./regression/session-timeline-collapse-state.spec.ts",
     "./regression/session-timeline-context-resize.spec.ts",
+    "./regression/session-transport-contract.spec.ts",
     "./regression/subagent-child-navigation.spec.ts",
     "./smoke/**/*.ts",
     "./utils/**/*.ts"
