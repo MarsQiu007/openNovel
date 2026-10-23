@@ -7,7 +7,6 @@ import { CrossSpawnSpawner } from "@opennovel-ai/core/cross-spawn-spawner"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { Effect } from "effect"
 import { Config } from "../../src/config/config"
-import { EventV2Bridge } from "../../src/event-v2-bridge"
 import { McpAuth } from "../../src/mcp/auth"
 import { MCP } from "../../src/mcp/index"
 import { McpOAuthCallback } from "../../src/mcp/oauth-callback"
@@ -16,7 +15,7 @@ import { testEffect } from "../lib/effect"
 
 const mcpTest = testEffect(
   LayerNode.compile(
-    LayerNode.group([MCP.node, McpAuth.node, EventV2Bridge.node, Config.node, CrossSpawnSpawner.node, FSUtil.node]),
+    LayerNode.group([MCP.node, McpAuth.node, Config.node, CrossSpawnSpawner.node, FSUtil.node]),
   ),
 )
 

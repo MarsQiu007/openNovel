@@ -5,7 +5,7 @@ import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { Deferred, Effect, Layer, Option } from "effect"
 import { Config } from "../../src/config/config"
-import { EventV2Bridge } from "../../src/event-v2-bridge"
+import { EventV2 } from "@opennovel-ai/core/event"
 import { McpAuth } from "../../src/mcp/auth"
 import { McpBrowser } from "../../src/mcp/browser"
 import { MCP } from "../../src/mcp/index"
@@ -32,7 +32,7 @@ const browserLayer = Layer.succeed(
 )
 
 const mcpTest = testEffect(
-  LayerNode.compile(LayerNode.group([MCP.node, McpAuth.node, EventV2Bridge.node, Config.node]), [
+  LayerNode.compile(LayerNode.group([MCP.node, McpAuth.node, Config.node, EventV2.node]), [
     [McpBrowser.node, browserLayer],
   ]),
 )
@@ -135,7 +135,7 @@ const trackBrowserOpen = (url: string, fail = false) =>
   })
 
 const trackBrowserOpenFailed = Effect.gen(function* () {
-  const events = yield* EventV2Bridge.Service
+  const events = yield* EventV2.Service
   const event = yield* Deferred.make<{ mcpName: string; url: string }>()
   const unsubscribe = yield* events.listen((evt) => {
     if (evt.type === MCP.BrowserOpenFailed.type)

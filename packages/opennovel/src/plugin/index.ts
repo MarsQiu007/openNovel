@@ -27,7 +27,7 @@ import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } fro
 import { registerAdapter } from "@/control-plane/adapters"
 import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { EventV2 } from "@opennovel-ai/core/event"
 import { InstallationChannel } from "@opennovel-ai/core/installation/version"
 
 // Third-party plugins are typed against the upstream @opencode-ai/plugin package,
@@ -125,7 +125,7 @@ async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput, hooks:
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
     const config = yield* Config.Service
     const flags = yield* RuntimeFlags.Service
 
@@ -313,7 +313,7 @@ const layer = Layer.effect(
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [EventV2Bridge.node, Config.node, RuntimeFlags.node],
+  deps: [EventV2.node, Config.node, RuntimeFlags.node],
 })
 
 export * as Plugin from "."

@@ -19,7 +19,7 @@ import { Location } from "@opennovel-ai/core/location"
 import { SessionTable } from "@opennovel-ai/core/session/sql"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { EventSequenceTable } from "@opennovel-ai/core/event/sql"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { GlobalEventBridge } from "@/effect/global-event-bridge"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideTmpdirInstance, requireInstance, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -53,7 +53,7 @@ const workspaceLayer = (experimentalWorkspaces: boolean) =>
       InstanceStore.node,
       Ripgrep.node,
       // GlobalBus 转发（sync 信封/raw 事件）仍由 bridge 承担，随 D15 另行裁撤
-      EventV2Bridge.node,
+      GlobalEventBridge.node,
     ]),
     [
       [SessionExecution.node, SessionExecutionLocal.node],

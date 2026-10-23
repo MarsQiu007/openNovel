@@ -17,7 +17,7 @@ import { SessionExecutionLocal } from "@opennovel-ai/core/session/execution/loca
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { Location } from "@opennovel-ai/core/location"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { GlobalEventBridge } from "@/effect/global-event-bridge"
 import { Database } from "@opennovel-ai/core/database/database"
 import { Ripgrep } from "@opennovel-ai/core/ripgrep"
 import { Server } from "../../src/server/server"
@@ -41,7 +41,7 @@ const appLayer = AppNodeBuilder.build(
     Database.node,
     Ripgrep.node,
     // GlobalBus 转发（sync 信封/raw 事件）仍由 bridge 承担，随 D15 另行裁撤
-    EventV2Bridge.node,
+    GlobalEventBridge.node,
   ]),
   [
     [InstanceStore.bootstrapNode, InstanceBootstrap.node],

@@ -24,7 +24,8 @@ import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { McpOAuthPendingProvider, McpOAuthProvider, OAUTH_CALLBACK_PATH } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { EventV2 } from "@opennovel-ai/core/event"
+import { publishRouted } from "@/effect/publish"
 import { TuiEvent } from "@/server/tui-event"
 import { Cause, Effect, Exit, Layer, Context, Schema, Stream } from "effect"
 import { EffectBridge } from "@/effect/bridge"
@@ -206,7 +207,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const auth = yield* McpAuth.Service
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
     const browser = yield* McpBrowser.Service
 
     type Transport = StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport
@@ -300,24 +301,22 @@ const layer = Layer.effect(
                   status: "needs_client_registration" as const,
                   error: "Server does not support dynamic client registration. Please provide clientId in config.",
                 }
-                return events
-                  .publish(TuiEvent.ToastShow, {
-                    title: "MCP Authentication Required",
-                    message: `Server "${key}" requires a pre-registered client ID. Add clientId to your config.`,
-                    variant: "warning",
-                    duration: 8000,
-                  })
+                return publishRouted(events, TuiEvent.ToastShow, {
+                  title: "MCP Authentication Required",
+                  message: `Server "${key}" requires a pre-registered client ID. Add clientId to your config.`,
+                  variant: "warning",
+                  duration: 8000,
+                })
                   .pipe(Effect.ignore, Effect.as(undefined))
               } else {
                 pendingOAuthTransports.set(key, { transport })
                 lastStatus = { status: "needs_auth" as const }
-                return events
-                  .publish(TuiEvent.ToastShow, {
-                    title: "MCP Authentication Required",
-                    message: `Server "${key}" requires authentication. Run: opennovel mcp auth ${key}`,
-                    variant: "warning",
-                    duration: 8000,
-                  })
+                return publishRouted(events, TuiEvent.ToastShow, {
+                  title: "MCP Authentication Required",
+                  message: `Server "${key}" requires authentication. Run: opennovel mcp auth ${key}`,
+                  variant: "warning",
+                  duration: 8000,
+                })
                   .pipe(Effect.ignore, Effect.as(undefined))
               }
             }
@@ -448,7 +447,7 @@ const layer = Layer.effect(
         s.status[name] = { status: "failed", error: "Connection closed" }
         bridge.fork(
           Effect.logWarning("MCP connection closed", { server: name }).pipe(
-            Effect.andThen(events.publish(ToolsChanged, { server: name })),
+            Effect.andThen(publishRouted(events, ToolsChanged, { server: name })),
             Effect.ignore,
           ),
         )
@@ -467,7 +466,7 @@ const layer = Layer.effect(
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
 
         s.defs[name] = listed
-        await bridge.promise(events.publish(ToolsChanged, { server: name }).pipe(Effect.ignore))
+        await bridge.promise(publishRouted(events, ToolsChanged, { server: name }).pipe(Effect.ignore))
       })
     }
 
@@ -914,7 +913,7 @@ const layer = Layer.effect(
         Effect.catch(() => {
           // 浏览器打不开就永远等不到回调：终止本次授权，让下面的 await 走失败与回收路径
           McpOAuthCallback.cancelPending(mcpName)
-          return events.publish(BrowserOpenFailed, { mcpName, url: result.authorizationUrl }).pipe(Effect.ignore)
+          return publishRouted(events, BrowserOpenFailed, { mcpName, url: result.authorizationUrl }).pipe(Effect.ignore)
         }),
       )
 
@@ -1018,7 +1017,7 @@ export type AuthStatus = "authenticated" | "expired" | "not_authenticated"
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [CrossSpawnSpawner.node, McpAuth.node, EventV2Bridge.node, Config.node, McpBrowser.node],
+  deps: [CrossSpawnSpawner.node, McpAuth.node, EventV2.node, Config.node, McpBrowser.node],
 })
 
 export * as MCP from "."

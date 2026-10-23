@@ -1,6 +1,7 @@
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { EventV2 } from "@opennovel-ai/core/event"
+import { publishRouted } from "@/effect/publish"
 import * as LSPClient from "./client"
 import path from "path"
 import { pathToFileURL, fileURLToPath } from "url"
@@ -140,7 +141,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* Config.Service
     const flags = yield* RuntimeFlags.Service
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("LSP.state")(function* (ctx) {
@@ -290,7 +291,7 @@ const layer = Layer.effect(
 
         return { result, updated }
       })
-      yield* Effect.forEach(Array.from({ length: clients.updated }), () => events.publish(Event.Updated, {}), {
+      yield* Effect.forEach(Array.from({ length: clients.updated }), () => publishRouted(events, Event.Updated, {}), {
         discard: true,
       })
       return clients.result
@@ -501,7 +502,7 @@ export * as Diagnostic from "./diagnostic"
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [Config.node, RuntimeFlags.node, FSUtil.node, EventV2Bridge.node],
+  deps: [Config.node, RuntimeFlags.node, FSUtil.node, EventV2.node],
 })
 
 export * as LSP from "./lsp"

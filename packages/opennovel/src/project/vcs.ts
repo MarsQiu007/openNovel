@@ -4,7 +4,7 @@ import { formatPatch, structuredPatch } from "diff"
 import { InstanceState } from "@/effect/instance-state"
 import { Watcher } from "@opennovel-ai/core/filesystem/watcher"
 import { Git } from "@/git"
-import { EventV2Bridge } from "@/event-v2-bridge"
+import { publishRouted } from "@/effect/publish"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { VcsEvent } from "@opennovel-ai/schema/vcs-event"
 
@@ -298,11 +298,11 @@ interface State {
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/Vcs") {}
 
-const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = Layer.effect(
+const layer: Layer.Layer<Service, never, Git.Service | EventV2.Service> = Layer.effect(
   Service,
   Effect.gen(function* () {
     const git = yield* Git.Service
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
     const scope = yield* Scope.Scope
 
     const state = yield* InstanceState.make<State>(
@@ -328,7 +328,7 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
             const next = yield* get()
             if (next !== value.current) {
               value.current = next
-              yield* events.publish(Event.BranchUpdated, { branch: next })
+              yield* publishRouted(events, Event.BranchUpdated, { branch: next })
             }
           })
         })
@@ -421,6 +421,6 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
   }),
 )
 
-export const node = LayerNode.make({ service: Service, layer: layer, deps: [Git.node, EventV2Bridge.node] })
+export const node = LayerNode.make({ service: Service, layer: layer, deps: [Git.node, EventV2.node] })
 
 export * as Vcs from "./vcs"

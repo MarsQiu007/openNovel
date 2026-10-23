@@ -29,9 +29,9 @@ import { Installation } from "@/installation"
 import { Npm } from "@opennovel-ai/core/npm"
 import { memoMap } from "@opennovel-ai/core/effect/memo-map"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { AppNodeBuilderV1 } from "./app-node-builder-v1"
+import { GlobalEventBridge } from "@/effect/global-event-bridge"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { V1Migration } from "@opennovel-ai/core/session/v1-migration"
 
@@ -54,8 +54,8 @@ export const AppLayer = AppNodeBuilderV1.build(
     Skill.node,
     Discovery.node,
     SessionProjector.node,
+    GlobalEventBridge.node,
     RuntimeFlags.node,
-    EventV2Bridge.node,
     LSP.node,
     MCP.node,
     McpAuth.node,

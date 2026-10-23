@@ -12,7 +12,7 @@ import { InstanceBootstrap } from "../../src/project/bootstrap"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
 import { Vcs } from "../../src/project/vcs"
-import { EventV2Bridge } from "../../src/event-v2-bridge"
+import { GlobalEventBridge } from "../../src/effect/global-event-bridge"
 
 export const workspaceLayerWithRuntimeFlags = (overrides: Partial<RuntimeFlags.Info>) =>
   AppNodeBuilder.build(
@@ -23,7 +23,7 @@ export const workspaceLayerWithRuntimeFlags = (overrides: Partial<RuntimeFlags.I
       Project.node,
       Vcs.node,
       Database.node,
-      EventV2Bridge.node,
+      GlobalEventBridge.node,
       FSUtil.node,
       InstanceStore.node,
     ]),

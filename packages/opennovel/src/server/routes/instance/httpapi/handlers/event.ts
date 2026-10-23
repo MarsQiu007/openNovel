@@ -1,4 +1,3 @@
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { GlobalBus } from "@/bus/global"
 import { EventV2 } from "@opennovel-ai/core/event"
@@ -88,7 +87,7 @@ function eventResponse(events: EventV2.Interface) {
 
 export const eventHandlers = HttpApiBuilder.group(EventApi, "event", (handlers) =>
   Effect.gen(function* () {
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
     return handlers.handleRaw(
       "subscribe",
       Effect.fn("EventHttpApi.subscribe")(function* () {

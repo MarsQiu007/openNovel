@@ -9,7 +9,6 @@ import { Auth } from "@/auth"
 import { Config } from "@/config/config"
 import { Workspace } from "@/control-plane/workspace"
 import { Env } from "@/env"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { Format } from "@/format"
 import { Git } from "@/git"
 import { Installation } from "@/installation"
@@ -38,6 +37,7 @@ import { Global } from "@opennovel-ai/core/global"
 import { AppNodeBuilderV1 } from "@/effect/app-node-builder-v1"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { httpClient, llmClient } from "@opennovel-ai/core/effect/app-node-platform"
+import { GlobalEventBridge } from "@/effect/global-event-bridge"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { Npm } from "@opennovel-ai/core/npm"
@@ -209,9 +209,9 @@ const app = LayerNode.group([
   Discovery.node,
   PermissionSaved.node,
   SessionProjector.node,
+  GlobalEventBridge.node,
   SessionV2.node,
   RuntimeFlags.node,
-  EventV2Bridge.node,
   LSP.node,
   MCP.node,
   McpAuth.node,

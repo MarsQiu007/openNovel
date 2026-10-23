@@ -12,7 +12,8 @@ import {
   TestInstance,
   tmpdirScoped,
 } from "../fixture/fixture"
-import { EventV2Bridge } from "../../src/event-v2-bridge"
+import { EventV2 } from "@opennovel-ai/core/event"
+import { publishRouted } from "@/effect/publish"
 import { Watcher } from "@opennovel-ai/core/filesystem/watcher"
 import { Git } from "../../src/git"
 import { Vcs } from "@/project/vcs"
@@ -25,7 +26,7 @@ import { testEffect } from "../lib/effect"
 const weird = process.platform === "win32" ? "space file.txt" : "tab\tfile.txt"
 
 const layer = LayerNode.compile(
-  LayerNode.group([Vcs.node, Git.node, EventV2Bridge.node, FSUtil.node, CrossSpawnSpawner.node]),
+  LayerNode.group([Vcs.node, Git.node, FSUtil.node, CrossSpawnSpawner.node, EventV2.node]),
 )
 const it = testEffect(layer)
 const worktreeIt = testEffect(Layer.mergeAll(layer, testInstanceStoreLayer))
@@ -52,7 +53,7 @@ const init = Effect.fn("VcsTest.init")(function* () {
 })
 
 const nextBranchUpdate = Effect.fn("VcsTest.nextBranchUpdate")(function* () {
-  const events = yield* EventV2Bridge.Service
+  const events = yield* EventV2.Service
   const updated = yield* Deferred.make<string | undefined>()
 
   const off = yield* events.listen((event) => {
@@ -69,9 +70,9 @@ const publishHeadChangeUntil = Effect.fn("VcsTest.publishHeadChangeUntil")(funct
   pending: Deferred.Deferred<string | undefined>,
   head: string,
 ) {
-  const events = yield* EventV2Bridge.Service
+  const events = yield* EventV2.Service
   for (let i = 0; i < 50; i++) {
-    yield* events.publish(Watcher.Event.Updated, { file: head, event: "change" })
+    yield* publishRouted(events, Watcher.Event.Updated, { file: head, event: "change" })
     if (yield* Deferred.isDone(pending)) return
     yield* Effect.sleep("10 millis")
   }

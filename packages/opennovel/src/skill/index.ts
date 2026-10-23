@@ -2,7 +2,6 @@ import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import path from "path"
 import { Effect, Layer, Context, Schema } from "effect"
 import { NamedError } from "@opennovel-ai/core/util/error"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { Global } from "@opennovel-ai/core/global"
 import { SkillPlugin } from "@opennovel-ai/core/plugin/skill"
@@ -99,7 +98,7 @@ export interface Interface {
   readonly dirs: () => Effect.Effect<string[]>
 }
 
-const add = Effect.fnUntraced(function* (state: State, match: string, events: EventV2Bridge.Service["Service"]) {
+const add = Effect.fnUntraced(function* (state: State, match: string) {
   const md = yield* Effect.tryPromise({
     try: () => ConfigMarkdown.parse(match),
     catch: (err) => err,
@@ -227,12 +226,8 @@ const discoverSkills = Effect.fnUntraced(function* (
   }
 })
 
-const loadSkills = Effect.fnUntraced(function* (
-  state: State,
-  discovered: DiscoveryState,
-  events: EventV2Bridge.Service["Service"],
-) {
-  yield* Effect.forEach(discovered.matches, (match) => add(state, match, events), {
+const loadSkills = Effect.fnUntraced(function* (state: State, discovered: DiscoveryState) {
+  yield* Effect.forEach(discovered.matches, (match) => add(state, match), {
     concurrency: "unbounded",
     discard: true,
   })
@@ -247,7 +242,6 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const discovery = yield* Discovery.Service
     const config = yield* Config.Service
-    const events = yield* EventV2Bridge.Service
     const fsys = yield* FSUtil.Service
     const global = yield* Global.Service
     const flags = yield* RuntimeFlags.Service
@@ -276,7 +270,7 @@ const layer = Layer.effect(
           location: "<built-in>",
           content: CUSTOMIZE_OPENNOVEL_SKILL_BODY,
         }
-        yield* loadSkills(s, yield* InstanceState.get(discovered), events)
+        yield* loadSkills(s, yield* InstanceState.get(discovered))
         return s
       }),
     )
@@ -336,7 +330,7 @@ export function fmt(list: Info[], opts: { verbose: boolean }) {
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [Discovery.node, Config.node, EventV2Bridge.node, FSUtil.node, Global.node, RuntimeFlags.node],
+  deps: [Discovery.node, Config.node, FSUtil.node, Global.node, RuntimeFlags.node],
 })
 
 export * as Skill from "."
