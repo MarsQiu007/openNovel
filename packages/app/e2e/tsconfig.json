@@ -13,7 +13,9 @@
     "./reproduction/timeline-suspense/**/*.tsx",
     "../src/pages/session/timeline/observe-element-offset.ts",
     "./regression/new-session-panel-corner.spec.ts",
+    "./regression/session-list-path-loading.spec.ts",
     "./regression/session-timeline-context-resize.spec.ts",
+    "./smoke/**/*.ts",
     "./utils/**/*.ts"
   ]
 }

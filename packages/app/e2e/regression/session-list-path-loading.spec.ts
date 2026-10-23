@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { fixture, pageMessages } from "../smoke/session-timeline.fixture"
+import { fixture } from "../smoke/session-timeline.fixture"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { expectAppVisible } from "../utils/waits"
 
@@ -9,7 +9,6 @@ test("shows loaded sessions before the directory path request resolves", async (
     provider: fixture.provider,
     directory: fixture.directory,
     project: fixture.project,
-    pageMessages,
   })
 
   let releasePath!: () => void

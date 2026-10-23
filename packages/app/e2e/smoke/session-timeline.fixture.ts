@@ -1,3 +1,23 @@
+// V2 wire 版 smoke 时间线 fixture（e2e-v2-mock Wave 2.1）：消息经 v2-fixture 工厂
+// 构造并过 Effect Schema 严格校验。排序对齐消费端事实——store 对消息与 part 均按
+// id 字典序排序（server-session.ts），故消息 id 设计为字典序==时序（_a 用户在前、
+// _b 助手在后），期望 part 序列按 id 排序推导（与 store 渲染序一致）。
+import type {
+  SessionMessageAssistantReasoning,
+  SessionMessageAssistantText,
+  SessionMessageAssistantTool,
+} from "@opennovel-ai/sdk/v2/client"
+import {
+  v2AssistantMessage,
+  v2Reasoning,
+  v2Text,
+  v2Tool,
+  v2ToolCompleted,
+  v2UserMessage,
+  validateV2Timeline,
+  type V2FixtureMessage,
+} from "../utils/v2-fixture"
+
 const words = [
   "alpha",
   "bravo",
@@ -21,16 +41,12 @@ const words = [
   "vector",
 ]
 
-const serverKey = "http://127.0.0.1:4096"
 const sourceID = "ses_smoke_source"
 const targetID = "ses_smoke_target"
 const directory = "C:/OpenNovel/SmokeProject"
 const projectID = "proj_smoke_timeline"
-const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
-
-type MessageInfo = Record<string, unknown> & { id: string; role: "user" | "assistant" }
-type MessagePart = Record<string, unknown> & { id: string; type: string; text?: string; tool?: string }
-type Message = { info: MessageInfo; parts: MessagePart[] }
+const model = { id: "claude-opus-4-6", providerID: "opennovel", variant: "max" }
+const epoch = 1_700_000_000_000
 
 function lorem(seed: number, length: number) {
   let out = ""
@@ -48,79 +64,38 @@ function id(prefix: string, value: number) {
   return `${prefix}_smoke_${String(value).padStart(4, "0")}`
 }
 
-function userMessage(sessionID: string, index: number, textLength: number, diffs: unknown[] = []): Message {
-  const messageID = id("msg_user", index)
-  return {
-    info: {
-      id: messageID,
-      sessionID,
-      role: "user",
-      time: { created: 1700000000000 + index * 10_000 },
-      summary: { diffs },
-      agent: "build",
-      model,
-    },
-    parts: [
-      {
-        id: id("prt_user_text", index),
-        sessionID,
-        messageID,
-        type: "text",
-        text: lorem(index, textLength),
-      },
-    ],
-  }
+// 字典序==时序：同一回合内用户消息（_a）排在助手消息（_b）前
+function userMessageID(index: number) {
+  return `${id("msg", index)}_a`
 }
 
-function assistantMessage(sessionID: string, index: number, parentID: string, parts: MessagePart[]): Message {
-  const messageID = id("msg_assistant", index)
-  return {
-    info: {
-      id: messageID,
-      sessionID,
-      role: "assistant",
-      time: { created: 1700000000000 + index * 10_000 + 1_000, completed: 1700000000000 + index * 10_000 + 8_000 },
-      parentID,
-      modelID: model.modelID,
-      providerID: model.providerID,
-      mode: "build",
-      agent: "build",
-      path: { cwd: directory, root: directory },
-      cost: 0.01,
-      tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-      variant: "max",
-      finish: "stop",
-    },
-    parts: parts.map((part) => ({
-      ...part,
-      sessionID,
-      messageID,
-    })),
-  }
+function assistantMessageID(index: number) {
+  return `${id("msg", index)}_b`
 }
 
-function textPart(index: number, partIndex: number, length: number): MessagePart {
-  return { id: id(`prt_text_${partIndex}`, index), type: "text", text: lorem(index * 13 + partIndex, length) }
+function textContent(index: number, partIndex: number, length: number): SessionMessageAssistantText {
+  return v2Text(lorem(index * 13 + partIndex, length), id(`prt_text_${partIndex}`, index))
 }
 
-function reasoningPart(index: number, partIndex: number, length: number): MessagePart {
-  return {
+function reasoningContent(index: number, partIndex: number, length: number): SessionMessageAssistantReasoning {
+  return v2Reasoning(lorem(index * 19 + partIndex, length), {
     id: id(`prt_reasoning_${partIndex}`, index),
-    type: "reasoning",
-    text: lorem(index * 19 + partIndex, length),
-    time: { start: 1700000000000 + index * 10_000, end: 1700000000000 + index * 10_000 + 500 },
-  }
+    created: epoch + index * 10_000,
+    completed: epoch + index * 10_000 + 500,
+  })
 }
 
-function toolPart(
+function toolContent(
   index: number,
   partIndex: number,
   tool: string,
   input: Record<string, unknown>,
   outputLength = 160,
-): MessagePart {
-  const metadata =
-    tool === "apply_patch"
+): SessionMessageAssistantTool {
+  // structured 整体透传为视图模型 metadata（v2-adapter）；title 由 adapter 的 structuredTitle 读取
+  const structured: Record<string, unknown> = {
+    title: tool === "bash" ? input.command : input.filePath || input.path || input.pattern || "completed",
+    ...(tool === "apply_patch"
       ? { files: [patchFile(index, "update"), patchFile(index + 1, index % 2 === 0 ? "add" : "delete")] }
       : tool === "edit" || tool === "write"
         ? {
@@ -130,21 +105,20 @@ function toolPart(
           }
         : tool === "question"
           ? { answers: [["Proceed"], ["Keep sample output"]] }
-          : {}
-  return {
-    id: id(`prt_tool_${tool}_${partIndex}`, index),
-    type: "tool",
-    callID: id("call", index * 10 + partIndex),
-    tool,
-    state: {
-      status: "completed",
-      input,
-      output: lorem(index * 23 + partIndex, outputLength),
-      title: tool === "bash" ? input.command : input.filePath || input.path || input.pattern || "completed",
-      metadata,
-      time: { start: 1700000000000 + index * 10_000, end: 1700000000000 + index * 10_000 + 400 },
-    },
+          : {}),
   }
+  return v2Tool({
+    name: tool,
+    id: id(`prt_tool_${tool}_${partIndex}`, index),
+    created: epoch + index * 10_000,
+    ran: epoch + index * 10_000,
+    completed: epoch + index * 10_000 + 400,
+    state: v2ToolCompleted({
+      input,
+      structured,
+      content: [{ type: "text", text: lorem(index * 23 + partIndex, outputLength) }],
+    }),
+  })
 }
 
 function patchFile(seed: number, type: "add" | "update" | "delete") {
@@ -180,33 +154,37 @@ function code(seed: number, lines: number) {
   )
 }
 
-function turn(index: number): Message[] {
-  const diff = index % 9 === 0 ? [fileDiff(`src/generated/summary-${index}.ts`, index)] : []
-  const user = userMessage(targetID, index, 100 + (index % 4) * 80, diff)
-  const parts = [
-    ...(index % 5 === 0 ? [reasoningPart(index, 0, 420)] : []),
+function turn(index: number): V2FixtureMessage[] {
+  // V1 fixture 的用户 summary.diffs 在 V2 wire 无对应面（adapter 不产出），冒烟断言亦不覆盖，整体丢弃
+  const user = v2UserMessage({
+    id: userMessageID(index),
+    text: lorem(index, 100 + (index % 4) * 80),
+    created: epoch + index * 10_000,
+  })
+  const content: Array<SessionMessageAssistantText | SessionMessageAssistantReasoning | SessionMessageAssistantTool> = [
+    ...(index % 5 === 0 ? [reasoningContent(index, 0, 420)] : []),
     ...(index % 3 === 0
       ? [
-          toolPart(index, 0, "read", { filePath: `src/generated/file-${index}.ts`, offset: 0, limit: 80 }, 220),
-          toolPart(index, 5, "glob", { path: directory, pattern: `**/*sample-${index}*.ts` }, 140),
-          toolPart(index, 1, "grep", { path: directory, pattern: `sample-${index}`, include: "*.ts" }, 180),
-          toolPart(index, 6, "list", { path: `src/generated/${index}` }, 120),
+          toolContent(index, 0, "read", { filePath: `src/generated/file-${index}.ts`, offset: 0, limit: 80 }, 220),
+          toolContent(index, 5, "glob", { path: directory, pattern: `**/*sample-${index}*.ts` }, 140),
+          toolContent(index, 1, "grep", { path: directory, pattern: `sample-${index}`, include: "*.ts" }, 180),
+          toolContent(index, 6, "list", { path: `src/generated/${index}` }, 120),
         ]
       : []),
-    textPart(index, 2, 160 + (index % 6) * 90),
-    ...(index % 4 === 0 ? [toolPart(index, 3, "edit", { filePath: `src/generated/file-${index}.ts` }, 700)] : []),
+    textContent(index, 2, 160 + (index % 6) * 90),
+    ...(index % 4 === 0 ? [toolContent(index, 3, "edit", { filePath: `src/generated/file-${index}.ts` }, 700)] : []),
     ...(index % 6 === 0
-      ? [toolPart(index, 7, "write", { filePath: `src/generated/write-${index}.ts`, content: code(index, 28) }, 560)]
+      ? [toolContent(index, 7, "write", { filePath: `src/generated/write-${index}.ts`, content: code(index, 28) }, 560)]
       : []),
     ...(index % 8 === 0
-      ? [toolPart(index, 8, "apply_patch", { files: [`src/generated/patch-${index}.ts`] }, 620)]
+      ? [toolContent(index, 8, "apply_patch", { files: [`src/generated/patch-${index}.ts`] }, 620)]
       : []),
-    ...(index % 7 === 0 ? [toolPart(index, 4, "bash", { command: "bun typecheck" }, 620)] : []),
-    ...(index % 10 === 0 ? [toolPart(index, 9, "webfetch", { url: "https://example.com/docs/sample" }, 120)] : []),
-    ...(index % 11 === 0 ? [toolPart(index, 10, "websearch", { query: "sample movement notes" }, 240)] : []),
+    ...(index % 7 === 0 ? [toolContent(index, 4, "bash", { command: "bun typecheck" }, 620)] : []),
+    ...(index % 10 === 0 ? [toolContent(index, 9, "webfetch", { url: "https://example.com/docs/sample" }, 120)] : []),
+    ...(index % 11 === 0 ? [toolContent(index, 10, "websearch", { query: "sample movement notes" }, 240)] : []),
     ...(index % 13 === 0
       ? [
-          toolPart(
+          toolContent(
             index,
             11,
             "question",
@@ -216,32 +194,53 @@ function turn(index: number): Message[] {
         ]
       : []),
     ...(index % 17 === 0
-      ? [toolPart(index, 12, "task", { description: "Inspect generated fixture", subagent_type: "explore" }, 160)]
+      ? [toolContent(index, 12, "task", { description: "Inspect generated fixture", subagent_type: "explore" }, 160)]
       : []),
   ]
-  return [user, assistantMessage(targetID, index, user.info.id, parts)]
+  return [
+    user,
+    v2AssistantMessage({
+      id: assistantMessageID(index),
+      created: epoch + index * 10_000 + 1_000,
+      completed: epoch + index * 10_000 + 8_000,
+      model,
+      agent: "build",
+      cost: 0.01,
+      tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
+      finish: "stop",
+      content,
+    }),
+  ]
 }
 
 const targetMessages = Array.from({ length: 72 }, (_, index) => turn(index)).flat()
 const sourceMessages = Array.from({ length: 12 }, (_, index) => [
-  userMessage(sourceID, index + 1000, 120),
-  assistantMessage(sourceID, index + 1000, id("msg_user", index + 1000), [textPart(index + 1000, 0, 240)]),
+  v2UserMessage({ id: userMessageID(index + 1000), text: lorem(index + 1000, 120), created: epoch + index * 10_000 }),
+  v2AssistantMessage({
+    id: assistantMessageID(index + 1000),
+    created: epoch + index * 10_000 + 1_000,
+    completed: epoch + index * 10_000 + 8_000,
+    model,
+    agent: "build",
+    content: [textContent(index + 1000, 0, 240)],
+  }),
 ]).flat()
 
-function renderable(part: MessagePart) {
-  if (part.type === "tool" && part.tool === "todowrite") return false
-  if (part.type === "text") return !!part.text.trim()
-  if (part.type === "reasoning") return !!part.text.trim()
-  return part.type !== "step-start" && part.type !== "step-finish" && part.type !== "patch"
-}
+validateV2Timeline(targetMessages)
+validateV2Timeline(sourceMessages)
 
-function orderedParts(message: Message) {
-  return message.parts.slice().sort((a, b) => a.id.localeCompare(b.id))
+/** 期望的 part id 序列：store 按 id 字典序渲染（server-session.ts 排序），与用户文本 part 的适配 id（`${message.id}:text`）对齐 */
+function expectedPartIDs(message: V2FixtureMessage): string[] {
+  if (message.type === "user") return message.text.trim() ? [`${message.id}:text`] : []
+  if (message.type !== "assistant") return []
+  return message.content
+    .filter((item) => item.type === "tool" || !!item.text.trim())
+    .map((item) => item.id)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
 export const fixture = {
   directory,
-  serverKey,
   project: {
     id: projectID,
     worktree: directory,
@@ -283,33 +282,16 @@ export const fixture = {
   ],
   sourceID,
   targetID,
-  messages: { [sourceID]: sourceMessages, [targetID]: targetMessages },
+  v2Messages: { [sourceID]: sourceMessages, [targetID]: targetMessages } as Record<string, V2FixtureMessage[]>,
   expected: {
     sourceTitle: "Uncommitted changes inquiry",
     targetTitle: "Example Game: sample jump movement & sample physics analysis",
     targetMessageIDs: targetMessages
-      .filter((message) => message.info.role === "user")
-      .map((message) => message.info.id),
-    targetPartIDs: targetMessages.flatMap((message) =>
-      orderedParts(message)
-        .filter(renderable)
-        .map((part) => part.id),
-    ),
-    expandedShellPartID: targetMessages.flatMap((message) => message.parts).find((part) => part.tool === "bash")!.id,
+      .filter((message) => message.type === "user")
+      .map((message) => message.id),
+    targetPartIDs: targetMessages.flatMap(expectedPartIDs),
+    expandedShellPartID: targetMessages
+      .flatMap((message) => (message.type === "assistant" ? message.content : []))
+      .find((item) => item.type === "tool" && item.name === "bash")!.id,
   },
-}
-
-export function pageMessages(sessionID: string, limit: number, before?: string) {
-  const messages = fixture.messages[sessionID as keyof typeof fixture.messages] ?? []
-  const end = before
-    ? Math.max(
-        0,
-        messages.findIndex((message) => message.info.id === before),
-      )
-    : messages.length
-  const start = Math.max(0, end - limit)
-  return {
-    items: messages.slice(start, end),
-    cursor: start > 0 ? messages[start]!.info.id : undefined,
-  }
 }

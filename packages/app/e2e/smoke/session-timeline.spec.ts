@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { fixture, pageMessages } from "./session-timeline.fixture"
+import { fixture } from "./session-timeline.fixture"
 import { trackPageErrors, expectNoSmokeErrors } from "../utils/errors"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
@@ -35,15 +35,15 @@ test.describe("smoke: session timeline", () => {
   test.setTimeout(240_000)
 
   test("keeps the visible message fixed while prepending history", async ({ page }) => {
-    const requests: { before?: string; phase: "start" | "end"; at: number }[] = []
+    const requests: { cursor?: string; phase: "start" | "end"; at: number }[] = []
     await mockOpenNovelServer(page, {
       sessions: fixture.sessions,
       provider: fixture.provider,
       directory: fixture.directory,
       project: fixture.project,
-      pageMessages,
-      messageDelay: 3_000,
-      onMessages: (input) => requests.push({ before: input.before, phase: input.phase, at: performance.now() }),
+      v2Messages: (sessionID) => fixture.v2Messages[sessionID] ?? [],
+      beforeV2MessagesResponse: () => new Promise((resolve) => setTimeout(resolve, 3_000)),
+      onV2Messages: (input) => requests.push({ cursor: input.cursor, phase: input.phase, at: performance.now() }),
     })
     await mockNovelWorkspaceAPIs(page, {
       directory: fixture.directory,
@@ -57,12 +57,12 @@ test.describe("smoke: session timeline", () => {
     const scroller = timelineScroller(page)
     await pointAtTimeline(page)
     const deadline = Date.now() + 120_000
-    while (!requests.some((request) => request.before && request.phase === "start")) {
+    while (!requests.some((request) => request.cursor && request.phase === "start")) {
       if (Date.now() >= deadline) throw new Error("Timed out scrolling to the history boundary")
       await page.mouse.wheel(0, -240)
       await page.waitForTimeout(20)
     }
-    expect(requests.some((request) => request.before && request.phase === "end")).toBe(false)
+    expect(requests.some((request) => request.cursor && request.phase === "end")).toBe(false)
     for (let index = 0; index < 12; index++) {
       await page.mouse.wheel(0, -120)
       await page.waitForTimeout(20)
@@ -91,9 +91,9 @@ test.describe("smoke: session timeline", () => {
         )
       }, keys)
     const before = await positions()
-    expect(requests.some((request) => request.before && request.phase === "end")).toBe(false)
+    expect(requests.some((request) => request.cursor && request.phase === "end")).toBe(false)
 
-    await expect.poll(() => requests.some((request) => request.before && request.phase === "end")).toBe(true)
+    await expect.poll(() => requests.some((request) => request.cursor && request.phase === "end")).toBe(true)
     await waitForTimelineStable(page)
     await expect.poll(positions).toEqual(before)
   })
@@ -104,7 +104,7 @@ test.describe("smoke: session timeline", () => {
       provider: fixture.provider,
       directory: fixture.directory,
       project: fixture.project,
-      pageMessages,
+      v2Messages: (sessionID) => fixture.v2Messages[sessionID] ?? [],
     })
     await mockNovelWorkspaceAPIs(page, {
       directory: fixture.directory,
@@ -136,7 +136,7 @@ test.describe("smoke: session timeline", () => {
       provider: fixture.provider,
       directory: fixture.directory,
       project: fixture.project,
-      pageMessages,
+      v2Messages: (sessionID) => fixture.v2Messages[sessionID] ?? [],
     })
     await mockNovelWorkspaceAPIs(page, {
       directory: fixture.directory,
