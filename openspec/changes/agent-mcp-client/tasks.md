@@ -27,9 +27,9 @@
 
 ## Wave 4 — 管理面改线与退役
 
-- [ ] 4.1 httpapi `handlers/mcp.ts` / `handlers/experimental.ts` 改调 core `Mcp.Service`（端点形状不变）；CLI `cli/cmd/mcp.ts` 改线
-- [ ] 4.2 删 `packages/opennovel/src/mcp/` 全目录；`app-runtime.ts` 移除 MCP/McpAuth 接线；`packages/opennovel/package.json` 移除 `@modelcontextprotocol/sdk` 与 `open` 依赖
-- [ ] 4.3 既有 `mcp-auth.json` 不迁移（格式未变，旧文件继续可读；design 否决项 3）
+- [x] 4.1 httpapi `handlers/mcp.ts` / `handlers/experimental.ts` 改调 core `Mcp.Service`（端点形状不变）；CLI `cli/cmd/mcp.ts` 改线。实现期增补：core OAuth 前置/状态失败收敛为 `Mcp.AuthError`（裸全局 `Error` 会把 catchTag tags 元组推断塌成 never 且破坏端点 error 契约），handler 边界按既有声明映射（authStart/authAuthenticate→UnsupportedOAuthError，authCallback→BadRequest）；`isV1` 补 V1 形状 mcp 段检测（mcp 键 V1/V2 同名不同形，直挂记录值带 `type` 即 V1）
+- [x] 4.2 删 `packages/opennovel/src/mcp/` 全目录；`app-runtime.ts` 移除旧 MCP 接线并接 core `McpAuth.node`；`packages/opennovel/package.json` 移除 `@modelcontextprotocol/sdk` 与 `open` 依赖；`test/mcp/` 旧测试九件与两件夹具随 V1 退役删除（端点测试 httpapi-mcp 保留并转绿）
+- [x] 4.3 既有 `mcp-auth.json` 不迁移（格式未变，旧文件继续可读；design 否决项 3）
 
 ## Wave 5 — 测试与守门
 

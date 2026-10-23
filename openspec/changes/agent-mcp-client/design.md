@@ -86,6 +86,7 @@ packages/core/src/mcp/
 - `Provider`（SDK `OAuthClientProvider` 实现）桥接 McpAuth：tokens/clientInfo/codeVerifier/oauthState 的读写与 URL 归属校验（`getForUrl`）；`PendingProvider` 在授权完成前把凭据留在内存，`commit()` 后才落盘（既有语义）
 - authorize 流程：起本地回调服务器（oauth-callback.ts，state CSRF 校验）→ 打开浏览器（browser.ts，失败发 `McpEvent.BrowserOpenFailed`）→ 收 code → 换 token → `PendingProvider.commit()` 落 McpAuth → 重连
 - 既有 `mcp-auth.json` 不迁移（格式未变；proposal 非目标指跨格式迁移）
+- 错误通道：core 化后 OAuth 方法的前置/状态失败（非 remote、显式禁用、URL 无效、state 不匹配、无在途流程）收敛为 `Mcp.AuthError` tagged error（否决裸全局 `Error`——破坏 httpapi 端点 error 契约推断）；handler 边界按端点既有声明映射——authStart/authAuthenticate 映 `UnsupportedOAuthError`（400），authCallback 映 `BadRequest`，wire 契约不变
 
 ### 退役与改线清单
 
