@@ -33,13 +33,22 @@
 
 ## Wave 5 — 测试与守门
 
-- [ ] 5.1 core `test/mcp.test.ts`：stdio 夹具服务器覆盖连接/状态机/工具注册/权限 deny 整工具消失/ToolsChanged 重注册
-- [ ] 5.2 注册桥单测：codec 转换（含回退）、命名规则、ToolFailure 映射、content 转换
-- [ ] 5.3 **守门**：`packages/schema`、`packages/core`、`packages/opennovel` `bun typecheck` 绿 + 测试全绿；`bun run test:httpapi` 绿；根目录 oxlint 0 errors
+- [x] 5.1 core `test/mcp.test.ts`：stdio 夹具服务器覆盖连接/状态机/工具注册/权限 deny 整工具消失/ToolsChanged 重注册
+- [x] 5.2 注册桥单测：codec 转换（含回退）、命名规则、ToolFailure 映射、content 转换
+- [x] 5.3 **守门**：`packages/schema`、`packages/core`、`packages/opennovel` `bun typecheck` 绿 + 测试全绿；`bun run test:httpapi` 绿；根目录 oxlint 0 errors
 
 ## Implementation Commits
 
-（实现完成后用 `git log --grep "OpenSpec-Change: agent-mcp-client"` 收集填写）
+- `4aa141f985` feat(core)：MCP 客户端 core 化与 V2 工具注册桥（Wave 1-3）
+- `ac8f041161` feat(opennovel)：MCP 管理面改接 core 服务并退役 V1 实现（Wave 4）
+- `2616f7e7e8` test(core)：MCP stdio 生命周期与注册桥测试（Wave 5）
+
+## 实施记录
+
+- 5.1 权限 deny 整工具消失与 ToolsChanged 重注册落在 `test/mcp-register.test.ts`（注册桥链路）；`test/mcp.test.ts` 覆盖连接/状态机/工具列表。
+- 5.2 以真实 stdio 夹具端到端覆盖（测试实际实现，不复刻逻辑）；`bad_schema` 夹具工具验证 codec 回退，碰撞用例覆盖命名规则。
+- 5.3 守门：schema/opennovel typecheck 绿；core typecheck 仅剩既有 `http-recorder` 红（分支前已归属）；core 全套 1187 pass / 0 fail；opennovel 全套 1674 pass，唯一失败为分支前已归属的 workspace-adapter 层图硬失败；`test:httpapi` pass=294 missing=0；根 oxlint 0 errors。
+- 旧 opennovel MCP 测试移植评估：lifecycle/catalog 语义已由新测试覆盖（连接生命周期、分页、容错）；OAuth 专项（oauth-callback/oauth-provider）按 design 裁定不在 Wave 5 范围。
 
 ## Workflow follow-up
 
