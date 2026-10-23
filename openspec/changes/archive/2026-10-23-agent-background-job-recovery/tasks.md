@@ -42,3 +42,4 @@
 ### 归档后收尾修复
 
 - `b437d79aed` test(core)：Wave 2 新增两个批量工具后，core 冒烟测试工具计数断言仍停留在 88，同步至 90（core 套件不在当时守门面内，归档后发现）
+- `4b4d12ae6` test(opennovel)：Wave 3 守门未含 test:httpapi，writing-batch 查询/取消两路由归档后演练套 missing=2，补 seeded 演练场景（running 状态读取与取消流转）
