@@ -110,6 +110,8 @@ export const reflectorAgent = {
     "*": "allow",
     // 浏览器工具族仅 research 代理可用（目录过滤与执行授权双保险）
     browser: "deny",
+    // code_mode 批量执行仅 director/pipeline 可用
+    code_mode: "deny",
   } as const,
   prompt: REFLECTOR_PROMPT,
   options: {} as Record<string, unknown>,

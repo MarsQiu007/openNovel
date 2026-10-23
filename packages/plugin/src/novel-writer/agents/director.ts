@@ -19,6 +19,8 @@ export const directorAgent = {
     "*": "allow",
     // 浏览器工具族仅 research 代理可用（目录过滤与执行授权双保险）
     browser: "deny",
+    // code_mode 批量脚本执行（全书称谓统一/格式批校/字数统计等批量操作）
+    code_mode: "allow",
     read: "allow",
     list: "allow",
     glob: "allow",

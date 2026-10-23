@@ -62,4 +62,28 @@ describe("novel-writer agent permissions", () => {
     expect(ideatorAgent.permission["*"]).toBe("deny")
     expect(researchAgent.permission.browser).toBe("allow")
   })
+
+  test("code_mode 仅 director/pipeline 放行，其余写作 agent 显式 deny 或通配覆盖", () => {
+    expect(directorAgent.permission.code_mode).toBe("allow")
+    expect(pipelineAgent.permission.code_mode).toBe("allow")
+    for (const agent of [
+      architectAgent,
+      auditorAgent,
+      librarianAgent,
+      observerAgent,
+      outlinerAgent,
+      reflectorAgent,
+      reviserAgent,
+      writerAgent,
+    ]) {
+      expect(agent.permission.code_mode, agent.name).toBe("deny")
+      expect(
+        Object.keys(agent.permission).indexOf("code_mode"),
+        agent.name,
+      ).toBeGreaterThan(Object.keys(agent.permission).indexOf("*"))
+    }
+    // ideator/research 通配 deny 已覆盖 code_mode，无需显式条目
+    expect(ideatorAgent.permission["*"]).toBe("deny")
+    expect(researchAgent.permission["*"]).toBe("deny")
+  })
 })

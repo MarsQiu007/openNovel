@@ -4,6 +4,7 @@ import { makeLocationNode } from "../effect/app-node"
 import { Layer } from "effect"
 import { BashTool } from "./bash"
 import { BrowserTool } from "./browser"
+import { CodeModeTool } from "./codemode"
 import { ApplyPatchTool } from "./apply-patch"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
@@ -27,7 +28,7 @@ import { WriteTool } from "./write"
  *
  * TODO: Port the remaining launch-follow-up leaves deliberately: edit fuzzy
  * parity, LSP,
- * repo_clone, repo_overview, plan_exit, and Rune/code mode. Keep MCP and plugin
+ * repo_clone, repo_overview, and plan_exit. Keep MCP and plugin
  * transforms separate from this static built-in list.
  */
 export const node = makeLocationNode({
@@ -37,6 +38,7 @@ export const node = makeLocationNode({
     ApplyPatchTool.node,
     BashTool.node,
     BrowserTool.node,
+    CodeModeTool.node,
     EditTool.node,
     GlobTool.node,
     GrepTool.node,

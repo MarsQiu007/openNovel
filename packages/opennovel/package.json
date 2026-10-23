@@ -86,7 +86,6 @@
     "@octokit/graphql": "9.0.2",
     "@octokit/rest": "catalog:",
     "@openauthjs/openauth": "catalog:",
-    "@opennovel-ai/codemode": "workspace:*",
     "@opennovel-ai/llm": "workspace:*",
     "@opennovel-ai/plugin": "workspace:*",
     "@opennovel-ai/protocol": "workspace:*",

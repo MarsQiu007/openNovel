@@ -22,6 +22,8 @@ export const pipelineAgent = {
     "*": "allow",
     // 浏览器工具族仅 research 代理可用（目录过滤与执行授权双保险）
     browser: "deny",
+    // code_mode 批量脚本执行（流水线内批量校验/统计）
+    code_mode: "allow",
     read: "allow",
     list: "allow",
     glob: "allow",
