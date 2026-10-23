@@ -38,3 +38,7 @@
 - `0df258447f` feat(novel-store): writing_batch 批量任务实体与 state-commit 幂等修复（Wave 1）
 - `34105b1f96` feat(plugin): 写作批量 begin/get 工具与断点续跑 prompt 语义（Wave 2）
 - `b5469527c4` feat(server): writing-batch 查询/放弃端点与工作台中断横幅（Wave 3）
+
+### 归档后收尾修复
+
+- `b437d79aed` test(core)：Wave 2 新增两个批量工具后，core 冒烟测试工具计数断言仍停留在 88，同步至 90（core 套件不在当时守门面内，归档后发现）
