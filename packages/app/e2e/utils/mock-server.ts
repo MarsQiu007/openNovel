@@ -28,6 +28,8 @@ export interface MockServerConfig {
   onV2Messages?: (input: { sessionID: string; cursor?: string; phase: "start" | "end" }) => void
   beforeV2MessagesResponse?: (input: { sessionID: string; cursor?: string }) => Promise<void>
   v2Todos?: (sessionID: string) => unknown[]
+  /** active 会话集合（busy 对账的唯一来源）：键为 sessionID，值不被消费；函数形态供测试中途翻转 busy/idle */
+  v2Active?: Record<string, unknown> | (() => Record<string, unknown>)
   v2Permissions?: unknown[] | (() => unknown[])
   v2Questions?: unknown[] | (() => unknown[])
   v2Diff?: unknown[]
@@ -92,7 +94,10 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
         cursor: {},
       })
     // app 启动固定读取面：空信封而非 404——smoke 断言把任何 404 资源错误计为失败
-    if (path === "/api/session/active") return json(route, { data: {} })
+    if (path === "/api/session/active")
+      return json(route, {
+        data: typeof config.v2Active === "function" ? config.v2Active() : (config.v2Active ?? {}),
+      })
     if (path === "/api/agent") return json(route, { data: [] })
     if (path === "/api/command") return json(route, { data: [] })
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: false })

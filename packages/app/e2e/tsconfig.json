@@ -14,6 +14,7 @@
     "../src/pages/session/timeline/observe-element-offset.ts",
     "./regression/new-session-panel-corner.spec.ts",
     "./regression/session-request-docks.spec.ts",
+    "./regression/session-streaming-projection.spec.ts",
     "./regression/session-list-path-loading.spec.ts",
     "./regression/session-timeline-collapse-state.spec.ts",
     "./regression/session-timeline-context-resize.spec.ts",
