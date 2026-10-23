@@ -167,19 +167,67 @@ export const techniqueTools = {
 
   confirm_techniques: defineTool({
     description:
-      "确认本轮注入 writer prompt 的技法最终列表（pipeline 召回评估后调用）。逐个递增使用计数，按 1000 token 预算裁剪后返回『写作技法指导』段落文本——把返回文本原样放进 writer dispatch prompt。",
+      "确认本轮注入 writer prompt 的技法最终列表（pipeline 召回评估后调用）。逐个递增使用计数并记录饱和度账本（按章使用分布），按 1000 token 预算裁剪后返回『写作技法指导』段落文本——把返回文本原样放进 writer dispatch prompt。",
     args: Schema.Struct({
       ids: Schema.mutable(Schema.Array(Schema.String)).annotate({ description: "确认注入的技法 ID 列表（默认不超过 3 条）" }),
+      chapter_number: Schema.optional(
+        Schema.Number.annotate({ description: "本轮起草的章节序号（记入饱和度账本按章分布；缺省只累计总量）" }),
+      ),
     }),
     async execute(args, ctx) {
       const { confirmTechniques } = await import("../technique-learn.js")
-      const { section, injected } = await confirmTechniques(args.ids, ctx.directory)
+      const { section, injected } = await confirmTechniques(args.ids, ctx.directory, args.chapter_number)
       const result = {
         title: "confirm_techniques",
         output: section === "" ? "（无有效技法 ID，本轮不注入写作技法指导）" : section,
         injected,
       }
       return result
+    },
+  }),
+
+  verify_technique: defineTool({
+    description:
+      "作者确认转正：把 unverified 技法显式流转为 verified（agent-memory-system 转正门槛——反馈积累只推置信度，状态流转必须经作者确认）。仅在作者明确表示认可该技法后调用；confirmed 后技法进入记忆注入的本书技巧卡候选。",
+    args: Schema.Struct({
+      technique_id: Schema.String.annotate({ description: "技法 ID（search_techniques 拿）" }),
+      library: Schema.Literals(["book", "global"]).annotate({
+        description: "技法来源库（与 search_techniques 结果标注一致）：book=本书库；global=全局通用库",
+      }),
+    }),
+    async execute(args, ctx) {
+      const { verifyTechnique } = await import("../technique-store.js")
+      const result = await verifyTechnique(args.technique_id, ctx.directory, args.library)
+      if (!result.ok) return { title: "verify_technique", output: `转正失败：${result.error}` }
+      return { title: "verify_technique", output: `技法 ${args.technique_id.slice(0, 8)} 已经作者确认转正（verified）` }
+    },
+  }),
+
+  promote_technique: defineTool({
+    description:
+      "技法固化：把 verified 技法晋升进分层规范文件（.novel/instructions/<layer>.md，全书层 book / 卷层 volume-<n>），固化后技法行 retired 留痕、不再进注入候选——规范通道接管（agent-instruction-layering）。仅在作者明确要求固化时调用；前提是技法已 verified（未转正先用 verify_technique 经作者确认）。",
+    args: Schema.Struct({
+      technique_id: Schema.String.annotate({ description: "技法 ID（search_techniques 拿）" }),
+      library: Schema.Literals(["book", "global"]).annotate({
+        description: "技法来源库（与 search_techniques 结果标注一致）：book=本书库；global=全局通用库",
+      }),
+      layer: Schema.optional(
+        Schema.String.annotate({ description: "目标规范层：book（默认，全书生效）或 volume-<n>（第 n 卷）" }),
+      ),
+    }),
+    async execute(args, ctx) {
+      const layer = args.layer ?? "book"
+      if (!/^(book|volume-\d+)$/.test(layer)) {
+        return { title: "promote_technique", output: `固化失败：layer 只能是 book 或 volume-<n>，收到 ${layer}` }
+      }
+      const { promoteTechniqueToSpec } = await import("../technique-learn.js")
+      const result = await promoteTechniqueToSpec(args.technique_id, ctx.directory, args.library, layer)
+      if (!result.ok) return { title: "promote_technique", output: `固化失败：${result.error}` }
+      return {
+        title: "promote_technique",
+        output: `技法 ${args.technique_id.slice(0, 8)} 已固化进 ${result.spec_path}（技法行 retired 留痕，后续经写作规范通道注入）`,
+        metadata: { technique_id: result.technique_id, spec_path: result.spec_path },
+      }
     },
   }),
 }

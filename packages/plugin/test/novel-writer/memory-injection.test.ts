@@ -180,6 +180,38 @@ describe("记忆注入组装器", () => {
     expect(built.payload.plannedSettings[0].id).toBe("we-bulk-000")
   }, 60000)
 
+  test("技巧账本卷级汇总：目标章所属卷内按章分布（卷N已用 X/Y 章，Wave 8）", async () => {
+    const store = await import("../../src/novel-writer/session-store.js")
+    const db = store.getDb(null)
+    const { inArray } = await import("drizzle-orm")
+
+    // 卷二 = ch-3..ch-5（ch-1/ch-2 属卷一，无卷行时 volume_id 留空）
+    db.insert(store.VolumeTable).values({ id: "vol-2", novel_id: NOVEL, title: "卷二", order: 2, created_at: 1 }).run()
+    db.update(store.ChapterTable).set({ volume_id: "vol-2" }).where(inArray(store.ChapterTable.id, ["ch-3", "ch-4", "ch-5"])).run()
+    db.insert(store.TechniqueTable).values({
+      id: "tech-vol", name: "卷级技法", principle: "p", instruction: "卷级技法写法", scene_types: "[]", level: "scene",
+      evidence: "[]", common_misuse: "", confidence: 0.8, status: "verified", scope: "general",
+      usage_count: 4, usage_ledger: JSON.stringify([{ chapter: 1, count: 1 }, { chapter: 3, count: 1 }, { chapter: 4, count: 2 }]),
+      novel_id: NOVEL, created_at: 1, updated_at: 1,
+    }).run()
+
+    const { buildMemoryInjection } = await import("../../src/novel-writer/session-store.js")
+    const built = await buildMemoryInjection(db, NOVEL, "ch-5")
+    const card = built?.payload.techniques.find((t) => t.id === "tech-vol")
+    // 卷内 ch-3/ch-4 两章用过（ch-1 属卷一不计），卷二共 3 章
+    expect(card?.ledgerSummary).toBe("卷2已用 2/3 章")
+
+    // 卷内无使用时回退近 14 章窗口口径
+    db.insert(store.TechniqueTable).values({
+      id: "tech-vol-fallback", name: "卷外技法", principle: "p", instruction: "卷外技法写法", scene_types: "[]", level: "scene",
+      evidence: "[]", common_misuse: "", confidence: 0.8, status: "verified", scope: "general",
+      usage_count: 1, usage_ledger: JSON.stringify([{ chapter: 1, count: 1 }]),
+      novel_id: NOVEL, created_at: 1, updated_at: 1,
+    }).run()
+    const rebuilt = await buildMemoryInjection(db, NOVEL, "ch-5")
+    expect(rebuilt?.payload.techniques.find((t) => t.id === "tech-vol-fallback")?.ledgerSummary).toBe("近14章已用 1 次")
+  }, 60000)
+
   test("物化快照确定性重建：同一输入必得同一注入包", async () => {
     const db = await seedFull()
     const store = await import("../../src/novel-writer/session-store.js")

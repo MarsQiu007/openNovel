@@ -353,3 +353,51 @@ describe("saveTechnique 证据规范化", () => {
     expect(await listTechniques(dir)).toHaveLength(0)
   })
 })
+
+// agent-memory-system Wave 8：晋升/固化通道（技巧经验 → 分层规范文件后 retired + promoted_from 留痕）
+describe("promoteTechniqueToSpec 固化通道", () => {
+  test("verified 技法固化进 book.md：追加规范段落、retired + promoted_from 留痕、重复固化幂等", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "learn-promote-"))
+    const entry = makeTechnique({ name: "固化技法甲", status: "verified", confidence: 0.9 })
+    await upsertTechnique(entry, dir, "book")
+
+    const { promoteTechniqueToSpec } = await import("../../src/novel-writer/technique-learn.js")
+    const first = await promoteTechniqueToSpec(entry.id, dir, "book")
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    expect(first.spec_path).toBe(".novel/instructions/book.md")
+
+    const spec = await Bun.file(join(dir, ".novel", "instructions", "book.md")).text()
+    expect(spec).toContain("## 技法：固化技法甲")
+    expect(spec).toContain(`- 指令：${entry.instruction}`)
+    expect(spec).toContain(`源技法 id=${entry.id}`)
+
+    const db = (await import("../../src/novel-writer/session-store.js")).getDb(dir)
+    const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+    expect(row.status).toBe("retired")
+    expect(row.promoted_from).toBe(".novel/instructions/book.md")
+
+    // 重复固化：规范段落不重复追加，但 retired 行不可再次流转（状态门槛拒绝）
+    const second = await promoteTechniqueToSpec(entry.id, dir, "book")
+    expect(second.ok).toBe(false)
+    const specAgain = await Bun.file(join(dir, ".novel", "instructions", "book.md")).text()
+    expect(specAgain.split("## 技法：固化技法甲").length).toBe(2)
+  })
+
+  test("unverified 技法不可固化（先过作者确认门槛），卷层落 volume-<n>.md", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "learn-promote-gate-"))
+    const pending = makeTechnique({ name: "未转正技法" })
+    await upsertTechnique(pending, dir, "book")
+    const { promoteTechniqueToSpec } = await import("../../src/novel-writer/technique-learn.js")
+    const blocked = await promoteTechniqueToSpec(pending.id, dir, "book")
+    expect(blocked.ok).toBe(false)
+    if (!blocked.ok) expect(blocked.error).toContain("verified")
+
+    const verifiedEntry = makeTechnique({ name: "卷二固化技法", status: "verified", confidence: 0.8 })
+    await upsertTechnique(verifiedEntry, dir, "book")
+    const promoted = await promoteTechniqueToSpec(verifiedEntry.id, dir, "book", "volume-2")
+    expect(promoted.ok).toBe(true)
+    const spec = await Bun.file(join(dir, ".novel", "instructions", "volume-2.md")).text()
+    expect(spec).toContain("## 技法：卷二固化技法")
+  })
+})

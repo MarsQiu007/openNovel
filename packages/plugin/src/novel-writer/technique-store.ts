@@ -230,18 +230,93 @@ export async function incrementTechniqueUsage(
   id: string,
   directory?: string | null,
   library: TechniqueLibrary = "book",
+  chapterOrder?: number,
 ): Promise<void> {
   const db = libDb(library, directory)
   const [row] = await db
-    .select({ usage_count: TechniqueTable.usage_count })
+    .select({ usage_count: TechniqueTable.usage_count, usage_ledger: TechniqueTable.usage_ledger })
     .from(TechniqueTable)
     .where(eq(TechniqueTable.id, id))
     .all()
   if (!row) return
+  // 饱和度账本（agent-memory-system §2.2）：usage_count 只有总量，防口口癖需要按章分布。
+  // 传入章序时合并同章条目（同章多次注入只累加 count），按章序升序落盘保证确定性。
+  const ledger = chapterOrder === undefined ? row.usage_ledger : mergeLedgerEntry(row.usage_ledger, chapterOrder)
   await db
     .update(TechniqueTable)
-    .set({ usage_count: row.usage_count + 1, last_used_at: Date.now() })
+    .set({ usage_count: row.usage_count + 1, last_used_at: Date.now(), usage_ledger: ledger })
     .where(eq(TechniqueTable.id, id))
+}
+
+/** 账本条目合并：同章 count+1，新章追加，按章序升序（与 memory-injection 的 parseUsageLedger 口径互逆） */
+function mergeLedgerEntry(raw: string, chapterOrder: number): string {
+  let entries: Array<{ chapter: number; count: number }> = []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      entries = parsed.flatMap((entry: unknown) => {
+        if (typeof entry !== "object" || entry === null) return []
+        if (!("chapter" in entry) || !("count" in entry)) return []
+        if (typeof entry.chapter !== "number" || typeof entry.count !== "number") return []
+        return [{ chapter: entry.chapter, count: entry.count }]
+      })
+    }
+  } catch {
+    entries = []
+  }
+  const existing = entries.find((entry) => entry.chapter === chapterOrder)
+  if (existing) existing.count += 1
+  else entries.push({ chapter: chapterOrder, count: 1 })
+  entries.sort((a, b) => a.chapter - b.chapter)
+  return JSON.stringify(entries)
+}
+
+/**
+ * 作者确认转正（agent-memory-system §2.2）：unverified → verified 必须经作者显式确认，
+ * 反馈积累只推 confidence，不再自动流转状态（对齐横切状态机 approved 的人工闸门语义）。
+ */
+export async function verifyTechnique(
+  id: string,
+  directory?: string | null,
+  library: TechniqueLibrary = "book",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = libDb(library, directory)
+  const [row] = await db
+    .select({ status: TechniqueTable.status, confidence: TechniqueTable.confidence })
+    .from(TechniqueTable)
+    .where(eq(TechniqueTable.id, id))
+    .all()
+  if (!row) return { ok: false, error: `技法不存在：${id.slice(0, 8)}` }
+  if (row.status === "verified") return { ok: false, error: "技法已是 verified，无需重复确认" }
+  if (row.status !== "unverified") return { ok: false, error: `技法当前状态为 ${row.status}，只有 unverified 可转正` }
+  await db.update(TechniqueTable).set({ status: "verified", updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
+  return { ok: true }
+}
+
+/**
+ * 晋升固化留痕（agent-memory-system §6 通道 3）：技巧经验固化进分层规范文件后，
+ * 技法行 status → retired（不删行），promoted_from 记录固化落点（规范文件路径）。
+ * 仅 verified 技法可固化（先过 8.2 的作者确认门槛）。
+ */
+export async function retireTechniqueAsPromoted(
+  id: string,
+  specPath: string,
+  directory?: string | null,
+  library: TechniqueLibrary = "book",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = libDb(library, directory)
+  const [row] = await db
+    .select({ status: TechniqueTable.status })
+    .from(TechniqueTable)
+    .where(eq(TechniqueTable.id, id))
+    .all()
+  if (!row) return { ok: false, error: `技法不存在：${id.slice(0, 8)}` }
+  if (row.status !== "verified") return { ok: false, error: `只有 verified 技法可固化（当前 ${row.status}），请先经作者确认转正` }
+  await db
+    .update(TechniqueTable)
+    .set({ status: "retired", promoted_from: specPath, updated_at: Date.now() })
+    .where(eq(TechniqueTable.id, id))
+  return { ok: true }
 }
 
 export async function recordFeedback(
@@ -303,12 +378,11 @@ export async function updateConfidenceFromFeedback(
     1,
     Math.max(0, (technique.confidence * priorWeight + avgScore * feedbacks.length) / (priorWeight + feedbacks.length)),
   )
-  const newStatus =
-    newConfidence >= 0.75 && feedbacks.length >= 5 ? "verified" : technique.status
-
+  // 反馈只推 confidence：unverified → verified 需作者显式确认（verifyTechnique），不自动流转
+  // （agent-memory-system §2.2 作者确认转正门槛）
   await db
     .update(TechniqueTable)
-    .set({ confidence: newConfidence, status: newStatus, updated_at: Date.now() })
+    .set({ confidence: newConfidence, updated_at: Date.now() })
     .where(eq(TechniqueTable.id, techniqueId))
 }
 

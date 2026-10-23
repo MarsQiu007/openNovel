@@ -49,7 +49,7 @@ export const LEVEL_CRITERIA = `层级回答"技法作用的最小文本单元"�
 - transition 过渡衔接级：段间/场景间/时间跳跃的接缝——转场钩子、时间跳跃缓冲、换场首句锚定。
 - paragraph 段落级：整段或跨句的宏观组织——详略安排、信息揭露顺序、一段内的推进节奏、情绪积累结构。
 判定顺序：先问"只作用于一句话吗"——是则 sentence；管对话轮次则 dialogue；管描写编排则 description；管接缝过渡则 transition；以上都不是、确为整段组织才用 paragraph。paragraph 是结构类技法的归口，不是缺省档——拿不准时回看技法指令描述的操作对象再定。`
-export type TechniqueStatus = "unverified" | "verified" | "shadow" | "archived"
+export type TechniqueStatus = "unverified" | "verified" | "shadow" | "archived" | "retired"
 /** 内容性质：general=通用写法（入全局库跨书共享）；adult=成人内容（留本书库） */
 export type TechniqueScope = "general" | "adult"
 /** 技法来源库：book=本书库；global=全局通用技法库 */

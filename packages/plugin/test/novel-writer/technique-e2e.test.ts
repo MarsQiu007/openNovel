@@ -99,7 +99,8 @@ describe("技法链路端到端", () => {
     let after = await queryTechniques({ sceneType: "dialogue", contextText: "" }, dir)
     expect(after.find((r) => r.entry.id === seeded.entry.id)!.entry.usageCount).toBe(1)
 
-    // 5. 模拟 auditor 反馈：提取技法 5 条高分反馈 → verified
+    // 5. 模拟 auditor 反馈：提取技法 5 条高分反馈 → 置信度上升，但状态不自动流转
+    //    （agent-memory-system §2.2 转正门槛：unverified → verified 需作者显式确认）
     for (let i = 0; i < 5; i++) {
       await recordFeedback(
         { techniqueId: extracted.entry.id, chapterId: "ch1", score: 0.9, wasUsed: true, comment: "", createdAt: Date.now() + i },
@@ -110,7 +111,13 @@ describe("技法链路端到端", () => {
     after = await queryTechniques({ sceneType: "dialogue", contextText: "" }, dir)
     const evolved = after.find((r) => r.entry.id === extracted.entry.id)!
     expect(evolved.entry.confidence).toBeGreaterThan(0.5)
-    expect(evolved.entry.status).toBe("verified")
+    expect(evolved.entry.status).toBe("unverified")
+
+    // 6. 作者显式确认转正 → verified
+    const { verifyTechnique } = await import("../../src/novel-writer/technique-store.js")
+    expect(await verifyTechnique(extracted.entry.id, dir)).toEqual({ ok: true })
+    after = await queryTechniques({ sceneType: "dialogue", contextText: "" }, dir)
+    expect(after.find((r) => r.entry.id === extracted.entry.id)!.entry.status).toBe("verified")
   })
 
   test("临时项目目录提取默认入库（CLI 等价路径）", async () => {

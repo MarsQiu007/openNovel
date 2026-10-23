@@ -8,9 +8,9 @@
  * 物化快照 memory_injection_snapshot 由章审批通过事件触发重建（Wave 6 挂钩），
  * 起草开始时一次读。读路径不兜底重算——快照缺失时返回 null，由调用方决定降级。
  *
- * 与 design 的两处实施偏差（记录在 tasks 实施记录）：
- * - design 写"当前卷 planned 设定"，但设定表无卷归属字段，取全书 planned 集合；
- * - 饱和度账本按"近 N 章"窗口汇总（design 示例的卷级口径待 Wave 8 账本写入方落地后细化）。
+ * 与 design 的实施偏差（记录在 tasks 实施记录）：
+ * - design 写"当前卷 planned 设定"，但设定表无卷归属字段，取全书 planned 集合。
+ * 饱和度账本汇总为卷级口径（"卷二已用 11/14 章"），无卷书稿回退近 N 章窗口。
  *
  * 本模块由 plugin 下沉至 novel-store：章审批通过（server 路由）与 update_chapter
  * 状态推进（plugin 工具）两条路径都要触发快照重建，存储层是双方唯一共同依赖
@@ -27,6 +27,7 @@ import {
   MemoryFactTable,
   MemoryInjectionSnapshotTable,
   TechniqueTable,
+  VolumeTable,
   WorldEntryTable,
   type Db,
 } from "./index.js"
@@ -348,7 +349,34 @@ function parseUsageLedger(raw: string): Array<{ chapter: number; count: number }
   }
 }
 
-async function buildTechniqueCards(db: Db, novelId: string, chapterOrder: number) {
+/** 卷级账本范围：目标章所属卷的卷序、章序区间与章数（无卷书稿为 null，回退近 N 章窗口） */
+interface VolumeLedgerRange {
+  volumeOrder: number
+  min: number
+  max: number
+  chapterCount: number
+}
+
+/** 饱和度账本汇总（design §5.1「断章悬念卷二已用 11/14 章」）：卷级优先 → 近 N 章窗口 → 历史累计 */
+function summarizeUsageLedger(
+  ledger: Array<{ chapter: number; count: number }>,
+  usageCount: number,
+  chapterOrder: number,
+  volumeRange: VolumeLedgerRange | null,
+): string {
+  if (volumeRange) {
+    const usedChapters = ledger.filter(
+      (entry) => entry.count > 0 && entry.chapter >= volumeRange.min && entry.chapter <= volumeRange.max,
+    ).length
+    if (usedChapters > 0) return `卷${volumeRange.volumeOrder}已用 ${usedChapters}/${volumeRange.chapterCount} 章`
+  }
+  const recentUses = ledger
+    .filter((entry) => chapterOrder - entry.chapter >= 0 && chapterOrder - entry.chapter <= TECHNIQUE_LEDGER_WINDOW)
+    .reduce((sum, entry) => sum + entry.count, 0)
+  return recentUses > 0 ? `近${TECHNIQUE_LEDGER_WINDOW}章已用 ${recentUses} 次` : `历史累计 ${usageCount} 次`
+}
+
+async function buildTechniqueCards(db: Db, novelId: string, chapterOrder: number, volumeId: string | null) {
   const rows = await db
     .select()
     .from(TechniqueTable)
@@ -359,13 +387,9 @@ async function buildTechniqueCards(db: Db, novelId: string, chapterOrder: number
       ),
     )
     .all()
+  const volumeRange = volumeId === null ? null : await resolveVolumeLedgerRange(db, novelId, volumeId)
   return rows.map((row): Weighted<MemoryTechniqueCard> => {
-    const ledger = parseUsageLedger(row.usage_ledger)
-    const recentUses = ledger
-      .filter((entry) => chapterOrder - entry.chapter >= 0 && chapterOrder - entry.chapter <= TECHNIQUE_LEDGER_WINDOW)
-      .reduce((sum, entry) => sum + entry.count, 0)
-    const ledgerSummary =
-      recentUses > 0 ? `近${TECHNIQUE_LEDGER_WINDOW}章已用 ${recentUses} 次` : `历史累计 ${row.usage_count} 次`
+    const ledgerSummary = summarizeUsageLedger(parseUsageLedger(row.usage_ledger), row.usage_count, chapterOrder, volumeRange)
     return {
       value: {
         id: row.id,
@@ -380,6 +404,24 @@ async function buildTechniqueCards(db: Db, novelId: string, chapterOrder: number
       tokens: estimateTokens(row.name + row.instruction + ledgerSummary),
     }
   })
+}
+
+/** 解析目标卷的活章范围（deleted 章不在本书表内——章表无软删，直接全量计） */
+async function resolveVolumeLedgerRange(db: Db, novelId: string, volumeId: string): Promise<VolumeLedgerRange | null> {
+  const [volume] = await db.select({ order: VolumeTable.order }).from(VolumeTable).where(eq(VolumeTable.id, volumeId)).all()
+  if (!volume) return null
+  const chapters = await db
+    .select({ order: ChapterTable.order })
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.volume_id, volumeId)))
+    .all()
+  if (chapters.length === 0) return null
+  return {
+    volumeOrder: volume.order,
+    min: Math.min(...chapters.map((c) => c.order)),
+    max: Math.max(...chapters.map((c) => c.order)),
+    chapterCount: chapters.length,
+  }
 }
 
 // ─── 对外入口 ───
@@ -399,7 +441,7 @@ export async function buildMemoryInjection(
   chapterId: string,
 ): Promise<BuiltMemoryInjection | null> {
   const [chapter] = await db
-    .select({ order: ChapterTable.order })
+    .select({ order: ChapterTable.order, volume_id: ChapterTable.volume_id })
     .from(ChapterTable)
     .where(and(eq(ChapterTable.id, chapterId), eq(ChapterTable.novel_id, novelId)))
     .limit(1)
@@ -411,7 +453,10 @@ export async function buildMemoryInjection(
   const foreshadows = pickWithinBudget(await buildForeshadowCards(db, novelId, chapterOrder), MEMORY_INJECTION_BUDGET.foreshadows)
   const recentFacts = pickWithinBudget(await buildRecentFactCards(db, novelId, chapterOrder), MEMORY_INJECTION_BUDGET.recentFacts)
   const plannedSettings = pickWithinBudget(await buildPlannedSettingCards(db, novelId), MEMORY_INJECTION_BUDGET.plannedSettings)
-  const techniques = pickWithinBudget(await buildTechniqueCards(db, novelId, chapterOrder), MEMORY_INJECTION_BUDGET.techniques)
+  const techniques = pickWithinBudget(
+    await buildTechniqueCards(db, novelId, chapterOrder, chapter.volume_id),
+    MEMORY_INJECTION_BUDGET.techniques,
+  )
 
   return {
     payload: {

@@ -18,6 +18,7 @@ import {
   incrementTechniqueUsage,
   findTechniquesByName,
   mergeTechniqueEvidence,
+  verifyTechnique,
 } from "../../src/novel-writer/technique-store.js"
 import { getGlobalDb, TechniqueTable, TechniqueFeedbackTable } from "../../src/novel-writer/session-store.js"
 
@@ -143,7 +144,7 @@ describe("technique store", () => {
     )
   })
 
-  test("positive feedback increases confidence", async () => {
+  test("positive feedback increases confidence but does not auto-verify（转正需作者确认）", async () => {
     const entry = makeTechnique()
     await upsertTechnique(entry, testDir)
     const base = Date.now()
@@ -157,7 +158,24 @@ describe("technique store", () => {
     const results = await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)
     const found = results.find((r) => r.entry.id === entry.id)
     expect(found?.entry.confidence).toBeGreaterThan(0.5)
-    expect(found?.entry.status).toBe("verified")
+    // agent-memory-system §2.2：反馈只推 confidence，状态流转走 verifyTechnique 作者确认
+    expect(found?.entry.status).toBe("unverified")
+    expect(await verifyTechnique(entry.id, testDir)).toEqual({ ok: true })
+    const verified = (await queryTechniques({ sceneType: "emotion_shift", contextText: "" }, testDir)).find(
+      (r) => r.entry.id === entry.id,
+    )
+    expect(verified?.entry.status).toBe("verified")
+  })
+
+  test("verifyTechnique 门槛：重复转正与非 unverified 状态报错", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    expect(await verifyTechnique(entry.id, testDir)).toEqual({ ok: true })
+    const again = await verifyTechnique(entry.id, testDir)
+    expect(again.ok).toBe(false)
+    if (!again.ok) expect(again.error).toContain("已是 verified")
+    const missing = await verifyTechnique("tech_nonexistent", testDir)
+    expect(missing.ok).toBe(false)
   })
 
   test("no feedback leaves confidence unchanged", async () => {
@@ -183,6 +201,31 @@ describe("incrementTechniqueUsage", () => {
 
   test("技法不存在时不抛异常", async () => {
     await expect(incrementTechniqueUsage("tech_nonexistent", testDir)).resolves.toBeUndefined()
+  })
+
+  test("带章序记录饱和度账本：同章合并计数、新章追加按章序升序", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    await incrementTechniqueUsage(entry.id, testDir, "book", 5)
+    await incrementTechniqueUsage(entry.id, testDir, "book", 2)
+    await incrementTechniqueUsage(entry.id, testDir, "book", 5)
+    const db = getDb(testDir)
+    const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+    expect(row.usage_count).toBe(3)
+    expect(JSON.parse(row.usage_ledger)).toEqual([
+      { chapter: 2, count: 1 },
+      { chapter: 5, count: 2 },
+    ])
+  })
+
+  test("缺省章序不动账本（只累计总量与最近使用时间）", async () => {
+    const entry = makeTechnique()
+    await upsertTechnique(entry, testDir)
+    await incrementTechniqueUsage(entry.id, testDir)
+    const db = getDb(testDir)
+    const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+    expect(row.usage_count).toBe(1)
+    expect(row.usage_ledger).toBe("[]")
   })
 })
 
@@ -555,7 +598,11 @@ describe("queryTechniques 双源合并", () => {
       const globalDb = getGlobalDb()
       const [row] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
       expect(row.confidence).toBeGreaterThan(0.75)
-      expect(row.status).toBe("verified")
+      // agent-memory-system §2.2：全局库同样不自动转正，作者确认后才 verified
+      expect(row.status).toBe("unverified")
+      expect(await verifyTechnique(entry.id, dir, "global")).toEqual({ ok: true })
+      const [confirmed] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
+      expect(confirmed.status).toBe("verified")
     })
   })
 

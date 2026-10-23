@@ -1,3 +1,5 @@
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs"
+import { join } from "path"
 import { filterTechniques } from "./technique-extract.js"
 import { normalizeTechniqueEvidence } from "./session-store.js"
 import { normalizeTechnique } from "./technique-normalize.js"
@@ -7,9 +9,10 @@ import {
   mergeTechniqueEvidence,
   listAllTechniques,
   incrementTechniqueUsage,
+  retireTechniqueAsPromoted,
 } from "./technique-store.js"
 import { applyP7Budget, formatTechniquesForPrompt } from "./technique-inject.js"
-import type { TechniqueEntry, TechniqueLevel, TechniqueScope, TechniqueStatus } from "./technique.js"
+import type { TechniqueEntry, TechniqueLevel, TechniqueLibrary, TechniqueScope, TechniqueStatus } from "./technique.js"
 
 export interface SaveTechniqueInput {
   name: string
@@ -115,6 +118,7 @@ export async function searchTechniques(
 export async function confirmTechniques(
   ids: string[],
   directory: string | null,
+  chapterOrder?: number,
 ): Promise<{ section: string; injected: number; injected_ids: string[] }> {
   const all = await listAllTechniques(directory)
   const picked = all
@@ -124,11 +128,57 @@ export async function confirmTechniques(
 
   const budgeted = applyP7Budget(picked)
   for (const t of budgeted) {
-    await incrementTechniqueUsage(t.entry.id, directory, t.library)
+    // 饱和度账本（agent-memory-system §2.2）：带章序记录按章使用分布
+    await incrementTechniqueUsage(t.entry.id, directory, t.library, chapterOrder)
   }
   return {
     section: formatTechniquesForPrompt(budgeted),
     injected: budgeted.length,
     injected_ids: budgeted.map((t) => t.entry.id),
   }
+}
+
+export type PromoteTechniqueResult =
+  | { ok: true; technique_id: string; spec_path: string }
+  | { ok: false; error: string }
+
+/**
+ * 晋升/固化通道（agent-memory-system §6 通道 3）：verified 技法固化进分层规范文件
+ * （agent-instruction-layering 领地：`<project>/.novel/instructions/<layer>.md`），
+ * 随后技法行 retired + promoted_from 留痕（不删行）。
+ * 重复调用安全：规范文件已含该技法段落时跳过追加；状态门槛（仅 verified 可固化）
+ * 使已 retired 的技法重复固化时报错，不会产生重复段落或状态回退。
+ */
+export async function promoteTechniqueToSpec(
+  id: string,
+  directory: string,
+  library: TechniqueLibrary,
+  layer = "book",
+): Promise<PromoteTechniqueResult> {
+  const all = await listAllTechniques(directory)
+  const found = all.find(({ entry }) => entry.id === id)
+  if (!found) return { ok: false, error: `技法不存在：${id.slice(0, 8)}` }
+  const entry = found.entry
+
+  const instructionsDir = join(directory, ".novel", "instructions")
+  const specPath = join(instructionsDir, `${layer}.md`)
+  const block = [
+    `## 技法：${entry.name}`,
+    "",
+    `- 原则：${entry.principle}`,
+    `- 指令：${entry.instruction}`,
+    ...(entry.commonMisuse ? [`- 常见误用：${entry.commonMisuse}`] : []),
+    "",
+    `（自技法库固化，源技法 id=${entry.id}，confidence=${entry.confidence.toFixed(2)}）`,
+    "",
+  ].join("\n")
+
+  // 先落规范文件，再流转状态机：文件写失败时技法保持 verified，不留半固化状态
+  mkdirSync(instructionsDir, { recursive: true })
+  const already = existsSync(specPath) && readFileSync(specPath, "utf-8").includes(`源技法 id=${entry.id}`)
+  if (!already) appendFileSync(specPath, (existsSync(specPath) ? "\n" : "") + block, "utf-8")
+
+  const retired = await retireTechniqueAsPromoted(entry.id, `.novel/instructions/${layer}.md`, directory, library)
+  if (!retired.ok) return { ok: false, error: retired.error }
+  return { ok: true, technique_id: entry.id, spec_path: `.novel/instructions/${layer}.md` }
 }
