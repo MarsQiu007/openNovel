@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenNovelServer } from "../utils/mock-server"
+import { mockOpenNovelServer, type MockServerConfig } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { installSseTransport } from "../utils/sse-transport"
 import { expectSessionTitle } from "../utils/waits"
@@ -11,6 +11,7 @@ const sessionID = "ses_request_docks"
 const title = "Request dock regression"
 
 test("shows a pending question dock", async ({ page }) => {
+  const replies: ReplyCapture[] = []
   await mockServer(page, {
     questions: [
       {
@@ -28,6 +29,7 @@ test("shows a pending question dock", async ({ page }) => {
         ],
       },
     ],
+    onReply: (input) => replies.push(input),
   })
 
   await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
@@ -43,7 +45,8 @@ test("shows a pending question dock", async ({ page }) => {
   const rejectRequests: string[] = []
   page.on("request", (request) => {
     if (request.method() !== "POST") return
-    if (new URL(request.url()).pathname === "/question/question-request/reject") rejectRequests.push(request.url())
+    if (new URL(request.url()).pathname === `/api/session/${sessionID}/question/question-request/reject`)
+      rejectRequests.push(request.url())
   })
 
   await question.locator('[data-component="icon-button"][data-icon="chevron-down"]').click()
@@ -64,25 +67,30 @@ test("shows a pending question dock", async ({ page }) => {
   expect(rejectRequests).toEqual([])
 
   await question.getByRole("radio", { name: /Minimal/ }).click()
-  const reply = page.waitForRequest(
-    (request) => request.method() === "POST" && new URL(request.url()).pathname === "/question/question-request/reply",
-  )
   await question.getByRole("button", { name: "Submit" }).click()
-  expect((await reply).postDataJSON()).toEqual({ answers: [["Minimal"]] })
+  await expect.poll(() => replies.length).toBe(1)
+  expect(replies[0]).toEqual({
+    kind: "question",
+    sessionID,
+    requestID: "question-request",
+    body: { answers: [["Minimal"]] },
+  })
 })
 
 test("shows a pending permission dock", async ({ page }) => {
+  const replies: ReplyCapture[] = []
   await mockServer(page, {
     permissions: [
       {
         id: "permission-request",
         sessionID,
-        permission: "bash",
-        patterns: ["git status", "git diff"],
+        action: "bash",
+        resources: ["git status", "git diff"],
+        save: [],
         metadata: {},
-        always: [],
       },
     ],
+    onReply: (input) => replies.push(input),
   })
 
   await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
@@ -95,11 +103,14 @@ test("shows a pending permission dock", async ({ page }) => {
   await expect(permission.locator('[data-slot="permission-footer-actions"] button')).toHaveCount(3)
   await expect(page.locator('[data-component="session-composer"]')).toHaveCount(0)
 
-  const reply = page.waitForRequest((request) => request.method() === "POST")
   await permission.getByRole("button", { name: "Allow once" }).click()
-  const request = await reply
-  expect(new URL(request.url()).pathname).toBe(`/session/${sessionID}/permissions/permission-request`)
-  expect(request.postDataJSON()).toEqual({ response: "once" })
+  await expect.poll(() => replies.length).toBe(1)
+  expect(replies[0]).toEqual({
+    kind: "permission",
+    sessionID,
+    requestID: "permission-request",
+    body: { reply: "once" },
+  })
 })
 
 test("restores the draft caret before typing after a request dock closes", async ({ page }) => {
@@ -133,7 +144,7 @@ test("restores the draft caret before typing after a request dock closes", async
   await transport.send({
     directory,
     payload: {
-      type: "question.asked",
+      type: "question.v2.asked",
       properties: {
         id: "question-caret",
         sessionID,
@@ -154,7 +165,7 @@ test("restores the draft caret before typing after a request dock closes", async
 
   await transport.send({
     directory,
-    payload: { type: "question.rejected", properties: { sessionID, requestID: "question-caret" } },
+    payload: { type: "question.v2.rejected", properties: { sessionID, requestID: "question-caret" } },
   })
   await expect(question).toHaveCount(0)
   await expect(editor).toBeVisible()
@@ -163,11 +174,14 @@ test("restores the draft caret before typing after a request dock closes", async
   await expect(editor).toHaveText(`${draft.slice(0, cursor)}x${draft.slice(cursor)}`)
 })
 
+type ReplyCapture = { kind: "question" | "permission"; sessionID: string; requestID: string; body: unknown }
+
 async function mockServer(
   page: Page,
   requests: {
     permissions?: unknown[] | (() => unknown[])
     questions?: unknown[] | (() => unknown[])
+    onReply?: MockServerConfig["onV2Reply"]
   },
 ) {
   await mockOpenNovelServer(page, {
@@ -208,9 +222,9 @@ async function mockServer(
         time: { created: 1700000000000, updated: 1700000000000 },
       },
     ],
-    pageMessages: () => ({ items: [] }),
-    permissions: requests.permissions,
-    questions: requests.questions,
+    v2Permissions: requests.permissions,
+    v2Questions: requests.questions,
+    onV2Reply: requests.onReply,
   })
   await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [sessionID] })
   await page.addInitScript(() => {
