@@ -10,14 +10,18 @@
  * 遵循 novel-writer.ts 的数据库访问模式（drizzle-orm/bun-sqlite + 本地表定义）。
  */
 
-import { eq, and, like, desc, lt, inArray } from "drizzle-orm"
+import { eq, and, like, desc, lt, inArray, sql } from "drizzle-orm"
 import {
   getDb,
   CharacterTable,
   CharacterStateTable,
+  ChapterTable,
+  EntityRefTable,
+  MemoryFactTable,
   PlotThreadTable,
   VolumeTable,
   VolumeSummaryTable,
+  WorldEntryTable,
 } from "./session-store.js"
 
 // ─── 导出类型 ───
@@ -197,4 +201,184 @@ export async function lookupPastVolumes(
     title: v.title,
     summary: summaryMap.get(v.id) ?? v.summary,
   }))
+}
+
+// ─── 记忆检索（agent-memory-system §5.2） ───
+
+/** 记忆事实摘要（检索召回返回单元） */
+export interface MemoryFactSummary {
+  id: string
+  factType: string
+  text: string
+  quote: string | null
+  status: string
+  chapterId: string | null
+  chapterOrder: number | null
+}
+
+/** memory_search 结构化过滤条件；limit 默认 3（librarian 纪律），可按需放宽 */
+export interface MemorySearchFilters {
+  factType?: string
+  status?: string
+  entityHint?: string
+  /** 章节序号范围（含边界） */
+  chapterFrom?: number
+  chapterTo?: number
+  limit?: number
+}
+
+/**
+ * 记忆全文检索：memory_fact_fts 全文（text + quote，trigram 分词）+ 结构化过滤。
+ *
+ * 章节摘要全文检索已由 recall_history 覆盖，本函数只查 memory_fact（避免双检索面）。
+ * 结果按章节序号降序（近因优先），limit 条。
+ */
+export async function memorySearch(
+  novelId: string,
+  query: string,
+  filters: MemorySearchFilters = {},
+  directory?: string | null,
+): Promise<MemoryFactSummary[]> {
+  const db = getDb(directory)
+  const limit = filters.limit ?? 3
+
+  // bun 驱动下 db.all(sql``) 同步返回数组
+  const hitRows = db.all(
+    sql`SELECT fact_id FROM memory_fact_fts WHERE memory_fact_fts MATCH ${query} AND novel_id = ${novelId}`,
+  )
+  const hits = hitRows.flatMap((row) =>
+    typeof row === "object" && row !== null && "fact_id" in row ? [String(row.fact_id)] : [],
+  )
+  if (hits.length === 0) return []
+
+  const conditions = [inArray(MemoryFactTable.id, hits), eq(MemoryFactTable.novel_id, novelId)]
+  if (filters.factType) conditions.push(eq(MemoryFactTable.fact_type, filters.factType))
+  if (filters.status) conditions.push(eq(MemoryFactTable.status, filters.status))
+  if (filters.entityHint) conditions.push(eq(MemoryFactTable.entity_hint, filters.entityHint))
+
+  const rows = await db
+    .select({
+      id: MemoryFactTable.id,
+      factType: MemoryFactTable.fact_type,
+      text: MemoryFactTable.text,
+      quote: MemoryFactTable.quote,
+      status: MemoryFactTable.status,
+      chapterId: MemoryFactTable.chapter_id,
+      chapterOrder: ChapterTable.order,
+    })
+    .from(MemoryFactTable)
+    .leftJoin(ChapterTable, eq(ChapterTable.id, MemoryFactTable.chapter_id))
+    .where(and(...conditions))
+    .all()
+
+  return rows
+    .filter(
+      (row) =>
+        (filters.chapterFrom === undefined || (row.chapterOrder !== null && row.chapterOrder >= filters.chapterFrom)) &&
+        (filters.chapterTo === undefined || (row.chapterOrder !== null && row.chapterOrder <= filters.chapterTo)),
+    )
+    .sort((a, b) => (b.chapterOrder ?? 0) - (a.chapterOrder ?? 0) || (a.id < b.id ? -1 : 1))
+    .slice(0, limit)
+}
+
+/** 实体全史（memory_lookup 返回单元） */
+export interface MemoryEntityHistory {
+  entityId: string
+  /** 实体形态：character / world_entry / hint_only（仅记忆事实提及） */
+  kind: "character" | "world_entry" | "hint_only"
+  title: string
+  /** 关联记忆事实（entity_hint 命中，按章节降序） */
+  facts: MemoryFactSummary[]
+  /** 出现章节（entity_refs 引用 + 角色状态记录，按章节序号升序） */
+  appearances: Array<{ chapterId: string; chapterOrder: number; source: string }>
+}
+
+/**
+ * 实体全史查询：回答"某实体在哪几章出现过、关联哪些记忆事实"。
+ *
+ * entityId 兼容角色 ID / 世界观条目 ID / entity_hint 提示串；三个数据源合并：
+ * characters/world_entries 本体、memory_fact（entity_hint）、entity_refs（章节引用）。
+ */
+export async function memoryLookup(
+  novelId: string,
+  entityId: string,
+  limit = 10,
+  directory?: string | null,
+): Promise<MemoryEntityHistory | null> {
+  const db = getDb(directory)
+
+  const [character] = await db
+    .select()
+    .from(CharacterTable)
+    .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, entityId)))
+    .limit(1)
+    .all()
+  const [entry] = character
+    ? []
+    : await db
+        .select()
+        .from(WorldEntryTable)
+        .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.id, entityId)))
+        .limit(1)
+        .all()
+  const kind = character ? "character" : entry ? "world_entry" : "hint_only"
+  const title = character?.name ?? entry?.title ?? entityId
+
+  const facts = await db
+    .select({
+      id: MemoryFactTable.id,
+      factType: MemoryFactTable.fact_type,
+      text: MemoryFactTable.text,
+      quote: MemoryFactTable.quote,
+      status: MemoryFactTable.status,
+      chapterId: MemoryFactTable.chapter_id,
+      chapterOrder: ChapterTable.order,
+    })
+    .from(MemoryFactTable)
+    .leftJoin(ChapterTable, eq(ChapterTable.id, MemoryFactTable.chapter_id))
+    .where(and(eq(MemoryFactTable.novel_id, novelId), eq(MemoryFactTable.entity_hint, entityId)))
+    .all()
+
+  // 出现章节：entity_refs 中 chapter 来源的引用 + 角色的状态记录章
+  const appearances = new Map<string, { chapterId: string; chapterOrder: number; source: string }>()
+  const refs = await db
+    .select({ chapterId: EntityRefTable.source_id, chapterOrder: ChapterTable.order, field: EntityRefTable.ref_field })
+    .from(EntityRefTable)
+    .innerJoin(ChapterTable, eq(ChapterTable.id, EntityRefTable.source_id))
+    .where(
+      and(
+        eq(EntityRefTable.novel_id, novelId),
+        eq(EntityRefTable.target_id, entityId),
+        eq(EntityRefTable.source_type, "chapter"),
+      ),
+    )
+    .all()
+  for (const ref of refs) {
+    appearances.set(ref.chapterId, { chapterId: ref.chapterId, chapterOrder: ref.chapterOrder, source: ref.field || "reference" })
+  }
+  if (character) {
+    const states = await db
+      .select({ chapterId: CharacterStateTable.chapter_id, chapterOrder: ChapterTable.order })
+      .from(CharacterStateTable)
+      .innerJoin(ChapterTable, eq(ChapterTable.id, CharacterStateTable.chapter_id))
+      .where(eq(CharacterStateTable.character_id, character.id))
+      .all()
+    for (const state of states) {
+      if (!appearances.has(state.chapterId)) {
+        appearances.set(state.chapterId, { chapterId: state.chapterId, chapterOrder: state.chapterOrder, source: "character_state" })
+      }
+    }
+  }
+
+  if (!character && !entry && facts.length === 0 && appearances.size === 0) return null
+
+  return {
+    entityId,
+    kind,
+    title,
+    facts: facts
+      .sort((a, b) => (b.chapterOrder ?? 0) - (a.chapterOrder ?? 0) || (a.id < b.id ? -1 : 1))
+      .slice(0, limit),
+    appearances: [...appearances.values()].sort((a, b) => a.chapterOrder - b.chapterOrder).slice(0, limit),
+  }
 }

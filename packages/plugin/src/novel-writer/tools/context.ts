@@ -2,7 +2,7 @@
  * context 域写作工具（V2 版）。从 novel-writer.ts 机械转换，窗口期 V1 入口保留同名 zod 版；execute 函数体与 V1 逐字一致。
  */
 import { Schema } from "effect"
-import { lookupClosedThreads, lookupDormantCharacters, lookupPastVolumes } from "../archive.js"
+import { lookupClosedThreads, lookupDormantCharacters, lookupPastVolumes, memoryLookup, memorySearch } from "../archive.js"
 import { getHookStats } from "../hook-rotation.js"
 import { assembleWriterSnapshot, recallByQuery } from "../recall.js"
 import { performVolumeRollup } from "../rollup.js"
@@ -135,6 +135,76 @@ export const contextTools = {
         title: "lookup_past_volumes",
         output: results.map((r) => `- ${r.title}：${r.summary}`).join("\n"),
         metadata: { count: results.length },
+      }
+    },
+  }),
+  memory_search: defineTool({
+    description:
+      "记忆全文检索。对记忆事实库（observer 提取的逐字引句事实）做全文搜索，支持按事实类型/状态/实体提示/章节范围过滤，默认返回 3 条（limit 可放宽）。供 librarian 检索召回使用；章节摘要检索请用 recall_history。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+      query: Schema.String.annotate({ description: "全文检索关键词（3 字以上效果最佳）" }),
+      fact_type: Schema.optional(Schema.String.annotate({ description: "事实类型过滤（如 timeline）" })),
+      status: Schema.optional(Schema.String.annotate({ description: "状态过滤（pending/reviewed/approved/stale/retired）" })),
+      entity_hint: Schema.optional(Schema.String.annotate({ description: "关联实体提示过滤" })),
+      chapter_from: Schema.optional(Schema.Number.annotate({ description: "章节序号下限（含）" })),
+      chapter_to: Schema.optional(Schema.Number.annotate({ description: "章节序号上限（含）" })),
+      limit: Schema.optional(Schema.Number.annotate({ description: "最多返回条数，默认 3" })),
+    }),
+    async execute(args, ctx) {
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const results = await memorySearch(
+        novelId,
+        args.query,
+        {
+          factType: args.fact_type,
+          status: args.status,
+          entityHint: args.entity_hint,
+          chapterFrom: args.chapter_from,
+          chapterTo: args.chapter_to,
+          limit: args.limit,
+        },
+        ctx.directory,
+      )
+      if (results.length === 0) {
+        return { title: "memory_search", output: `未找到匹配「${args.query}」的记忆事实` }
+      }
+      const lines = results.map((r) => {
+        const where = r.chapterOrder === null ? "章节未知" : `第${r.chapterOrder}章`
+        const quote = r.quote ? `\n  引句：${r.quote}` : ""
+        return `- [${r.status}] ${where} ${r.text}${quote}`
+      })
+      return { title: "memory_search", output: lines.join("\n"), metadata: { count: results.length } }
+    },
+  }),
+  memory_lookup: defineTool({
+    description:
+      "实体全史查询。回答「某实体在哪几章出现过、关联哪些记忆事实」：合并角色/世界观本体、记忆事实（entity_hint）与章节引用。供 librarian 检索召回使用。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+      entity_id: Schema.String.annotate({ description: "实体 ID（角色/世界观条目 ID 或 entity_hint 提示串）" }),
+      limit: Schema.optional(Schema.Number.annotate({ description: "事实与出现章节各自最多返回条数，默认 10" })),
+    }),
+    async execute(args, ctx) {
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const history = await memoryLookup(novelId, args.entity_id, args.limit ?? 10, ctx.directory)
+      if (!history) {
+        return { title: "memory_lookup", output: `未找到实体「${args.entity_id}」的任何记录` }
+      }
+      const lines = [`实体「${history.title}」（${history.kind}）全史：`]
+      if (history.appearances.length > 0) {
+        lines.push(`出现章节：${history.appearances.map((a) => `第${a.chapterOrder}章`).join("、")}`)
+      }
+      for (const fact of history.facts) {
+        const where = fact.chapterOrder === null ? "章节未知" : `第${fact.chapterOrder}章`
+        lines.push(`- [${fact.status}] ${where} ${fact.text}`)
+      }
+      return {
+        title: "memory_lookup",
+        output: lines.join("\n"),
+        metadata: { facts: history.facts.length, appearances: history.appearances.length },
       }
     },
   }),

@@ -1,16 +1,15 @@
 /**
  * 小说世界百科查询 agent 配置 — W6-T8
  *
- * 模式：subagent，由 director 调度，用于查询小说世界百科（休眠角色、已关闭线索、历史卷摘要）。
- * 底层查询由 archive.ts 的 lookupDormantCharacters、lookupClosedThreads、lookupPastVolumes 实现，
- * 以 lookup_dormant_characters / lookup_closed_threads / lookup_past_volumes 工具形式暴露。
- * 每次查询最多返回 3 条记录，仅返回摘要信息。
+ * 模式：subagent，由 director 调度，用于查询小说世界百科（休眠角色、已关闭线索、历史卷摘要、记忆事实）。
+ * 底层查询由 archive.ts 实现，以 lookup_* / memory_search / memory_lookup 工具形式暴露。
+ * 每次查询默认最多返回 3 条记录（memory_* 可放宽 limit），仅返回摘要信息。
  */
 
 export const librarianAgent = {
   name: "librarian",
   description:
-    "世界百科查询 agent。查询小说世界数据库中的休眠角色、已关闭线索和历史卷摘要，每次最多返回 3 条记录，仅返回摘要信息。",
+    "世界百科查询 agent。查询小说世界数据库中的休眠角色、已关闭线索、历史卷摘要与记忆事实（全文检索/实体全史），每次默认最多返回 3 条记录，仅返回摘要信息。",
   mode: "subagent" as const,
   category: "memory" as const,
   permission: {
@@ -27,6 +26,8 @@ export const librarianAgent = {
     lookup_dormant_characters: "allow",
     lookup_closed_threads: "allow",
     lookup_past_volumes: "allow",
+    memory_search: "allow",
+    memory_lookup: "allow",
   } as const,
   prompt: `你是一个小说世界百科查询助手（Librarian）。你的职责是根据用户查询意图，检索小说世界数据库中的相关信息，每次最多返回 3 条记录，仅返回摘要信息。
 
@@ -52,6 +53,18 @@ export const librarianAgent = {
 - 返回类型：VolumeSummary[]，每条包含 id（卷 ID）、title（卷标题）、summary（卷摘要）
 - 限制：最多返回 3 条记录（按卷号降序排列，最近的优先返回）
 
+### 4. memory_search — 记忆全文检索
+- 用途：对记忆事实库（observer 从正文提取的逐字引句事实）做全文搜索
+- 参数：novel_id、query（关键词，3 字以上效果最佳）；可选过滤 fact_type / status / entity_hint / chapter_from / chapter_to / limit
+- 返回：事实条目列表，每条含状态、章节位置、事实陈述与原文引句
+- 限制：默认最多 3 条；确需更多时用 limit 参数放宽，并在输出中说明
+- 分工：章节摘要级检索用 recall_history，逐字引句级事实检索用本工具
+
+### 5. memory_lookup — 实体全史查询
+- 用途：回答"某实体在哪几章出现过、关联哪些记忆事实"
+- 参数：novel_id、entity_id（角色/世界观条目 ID 或记忆事实的 entity_hint）、可选 limit
+- 返回：实体形态、出现章节列表（升序）、关联记忆事实（按章节降序）
+
 ## 工作原则
 
 1. 根据用户查询意图，选择最合适的查询功能。如果用户查询意图不明确，可以询问用户需要哪种类型的查询。
@@ -65,6 +78,8 @@ export const librarianAgent = {
 - 用户询问"休眠角色""不活跃角色""退场角色"→ 调用 lookup_dormant_characters
 - 用户询问"已关闭线索""已完结线索""已回收伏笔"→ 调用 lookup_closed_threads
 - 用户询问"历史卷""前几卷摘要""卷回顾"→ 调用 lookup_past_volumes
+- 用户询问具体事实细节（"原文怎么写的""哪章提到过 X"）→ 调用 memory_search
+- 用户询问实体轨迹（"银瞳症在哪几章出现过""X 的时间线"）→ 调用 memory_lookup
 - 用户提供模糊查询（如"帮我查一下"）→ 询问用户需要查询哪种类型的信息
 
 ## 输出格式

@@ -475,8 +475,12 @@ export async function readMemoryInjectionSnapshot(
   try {
     const parsed: unknown = JSON.parse(row.payload)
     if (typeof parsed !== "object" || parsed === null) return null
-    const sections = ["characters", "foreshadows", "recentFacts", "plannedSettings", "techniques"] as const
-    if (!sections.every((key) => key in parsed && Array.isArray(parsed[key]))) return null
+    // 逐段 in 窄化（闭包内 in 不传播，无法合并为 every 回调）
+    if (!("characters" in parsed && Array.isArray(parsed.characters))) return null
+    if (!("foreshadows" in parsed && Array.isArray(parsed.foreshadows))) return null
+    if (!("recentFacts" in parsed && Array.isArray(parsed.recentFacts))) return null
+    if (!("plannedSettings" in parsed && Array.isArray(parsed.plannedSettings))) return null
+    if (!("techniques" in parsed && Array.isArray(parsed.techniques))) return null
     return parsed as MemoryInjectionPayload
   } catch {
     return null
