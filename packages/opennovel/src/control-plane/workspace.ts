@@ -11,7 +11,6 @@ import { Project } from "@/project/project"
 import { GlobalBus } from "@/bus/global"
 import { Auth } from "@/auth"
 import { EventV2 } from "@opennovel-ai/core/event"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { EventSequenceTable, EventTable } from "@opennovel-ai/core/event/sql"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -21,11 +20,9 @@ import { WorkspaceTable } from "@opennovel-ai/core/control-plane/workspace.sql"
 import { getAdapter, registeredAdapters } from "./adapters"
 import { type Target, type WorkspaceInfo, WorkspaceInfo as WorkspaceInfoSchema } from "./types"
 import { WorkspaceV2 } from "@opennovel-ai/core/workspace"
-import { Session } from "@/session/session"
-import { SessionPrompt } from "@/session/prompt"
+import { SessionV2 } from "@opennovel-ai/core/session"
+import { Location } from "@opennovel-ai/core/location"
 import { SessionTable } from "@opennovel-ai/core/session/sql"
-import { SessionID } from "@/session/schema"
-import { NotFoundError } from "@/storage/storage"
 import { errorData } from "@/util/error"
 import { waitEvent } from "./util"
 import { WorkspaceRef } from "@/effect/instance-ref"
@@ -70,7 +67,7 @@ export type CreateInput = Schema.Schema.Type<typeof CreateInput>
 
 export const SessionWarpInput = Schema.Struct({
   workspaceID: Schema.NullOr(WorkspaceV2.ID),
-  sessionID: SessionID,
+  sessionID: SessionV2.ID,
   copyChanges: Schema.optional(Schema.Boolean),
 })
 export type SessionWarpInput = Schema.Schema.Type<typeof SessionWarpInput>
@@ -93,7 +90,7 @@ export class SessionEventsNotFoundError extends Schema.TaggedErrorClass<SessionE
   "WorkspaceSessionEventsNotFoundError",
   {
     message: Schema.String,
-    sessionID: SessionID,
+    sessionID: SessionV2.ID,
   },
 ) {}
 
@@ -102,7 +99,7 @@ export class SessionWarpHttpError extends Schema.TaggedErrorClass<SessionWarpHtt
   {
     message: Schema.String,
     workspaceID: WorkspaceV2.ID,
-    sessionID: SessionID,
+    sessionID: SessionV2.ID,
     status: Schema.Number,
     body: Schema.String,
   },
@@ -123,6 +120,7 @@ type SessionWarpError =
   | WorkspaceNotFoundError
   | SessionEventsNotFoundError
   | SessionWarpHttpError
+  | SessionV2.NotFoundError
   | Vcs.PatchApplyError
   | HttpClientError.HttpClientError
 type WaitForSyncError = SyncTimeoutError | SyncAbortedError
@@ -154,10 +152,9 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const auth = yield* Auth.Service
-    const session = yield* Session.Service
-    const prompt = yield* SessionPrompt.Service
+    const session = yield* SessionV2.Service
     const http = yield* HttpClient.HttpClient
-    const events = yield* EventV2Bridge.Service
+    const events = yield* EventV2.Service
     const vcs = yield* Vcs.Service
     const flags = yield* RuntimeFlags.Service
     const fs = yield* FSUtil.Service
@@ -580,7 +577,7 @@ const layer = Layer.effect(
               ),
             )
           } else {
-            yield* prompt.cancel(input.sessionID)
+            yield* session.interrupt(input.sessionID)
           }
         }
 
@@ -592,6 +589,20 @@ const layer = Layer.effect(
         const claimSequence = Effect.fnUntraced(function* () {
           if (!previous) return
           yield* events.claim(input.sessionID, input.workspaceID ?? previous.projectID)
+        })
+
+        // V2 绑定：Moved 事件投影 workspace_id（legacy setWorkspace 的接替）。
+        // directory/subpath 传现值保持不变，仅改写 workspace 归属。
+        const bind = Effect.fnUntraced(function* (workspaceID: WorkspaceV2.ID | undefined) {
+          const info = yield* session.get(input.sessionID)
+          yield* session.move({
+            sessionID: input.sessionID,
+            location: Location.Ref.make({
+              directory: info.location.directory,
+              ...(workspaceID ? { workspaceID } : {}),
+            }),
+            ...(info.subpath === undefined ? {} : { subdirectory: info.subpath }),
+          })
         })
 
         const sourcePatch =
@@ -626,7 +637,7 @@ const layer = Layer.effect(
 
         if (input.workspaceID === null) {
           yield* claimSequence()
-          yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: undefined })
+          yield* bind(undefined)
 
           return
         }
@@ -643,7 +654,7 @@ const layer = Layer.effect(
 
         if (target.type === "local") {
           yield* claimSequence()
-          yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: input.workspaceID })
+          yield* bind(input.workspaceID)
 
           return
         }
@@ -716,7 +727,7 @@ const layer = Layer.effect(
         }
 
         yield* claimSequence()
-        yield* session.setWorkspace({ sessionID: input.sessionID, workspaceID: input.workspaceID })
+        yield* bind(input.workspaceID)
       })
     })
 
@@ -798,10 +809,10 @@ const layer = Layer.effect(
         .all()
         .pipe(Effect.orDie)
       const sessionIDs = new Set(sessions.map((sessionInfo) => sessionInfo.id))
+      // V2 remove 幂等且递归子会话，无需 legacy 的 NotFoundError 豁免
       yield* Effect.forEach(
         sessions.filter((sessionInfo) => !sessionInfo.parentID || !sessionIDs.has(sessionInfo.parentID)),
-        (sessionInfo) =>
-          session.remove(sessionInfo.id).pipe(Effect.catchIf(NotFoundError.isInstance, () => Effect.void)),
+        (sessionInfo) => session.remove(sessionInfo.id),
         { discard: true },
       )
 
@@ -959,10 +970,9 @@ export const node = LayerNode.make({
   layer: layer,
   deps: [
     Auth.node,
-    Session.node,
-    SessionPrompt.node,
+    SessionV2.node,
     httpClient,
-    EventV2Bridge.node,
+    EventV2.node,
     Vcs.node,
     RuntimeFlags.node,
     FSUtil.node,

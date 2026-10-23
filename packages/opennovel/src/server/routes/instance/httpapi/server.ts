@@ -233,6 +233,7 @@ const app = LayerNode.group([
   Todo.node,
   Session.node,
   SessionProjector.node,
+  SessionV2.node,
   SessionStatus.node,
   RuntimeFlags.node,
   EventV2Bridge.node,
@@ -305,12 +306,6 @@ export function createRoutes(options?: RouteOptions): Layer.Layer<never, EffectC
     Layer.provide(sessionLocationLayer),
     Layer.provide(locationLayer),
     Layer.provide(PtyEnvironment.layer),
-    Layer.provide(
-      AppNodeBuilderV1.build(SessionV2.node, [
-        [LocationServiceMap.node, locationServiceMapV2],
-        [SessionExecution.node, SessionExecutionLocal.node],
-      ]),
-    ),
     // 崩溃恢复 inert until called：组合处显式调用一次（层构建即服务进程启动时）
     Layer.provide(
       Layer.effectDiscard(
@@ -329,7 +324,14 @@ export function createRoutes(options?: RouteOptions): Layer.Layer<never, EffectC
     ),
     Layer.provide(locationServiceMapV2),
 
-    Layer.provide(AppNodeBuilderV1.build(app)),
+    // SessionV2/SessionExecution 随 app 图构建（Workspace 等组内服务直接消费），
+    // 绑共享 LocationServiceMap，全进程同一 SessionV2 实例对路由与组内服务可见。
+    Layer.provide(
+      AppNodeBuilderV1.build(app, [
+        [LocationServiceMap.node, locationServiceMapV2],
+        [SessionExecution.node, SessionExecutionLocal.node],
+      ]),
+    ),
     // Must stay last: layers provided later in this pipe build beneath earlier ones,
     // so Observability must come after every service graph. Otherwise eagerly forked
     // fibers (e.g. the ModelsDev background refresh) capture Effect's default stdout
