@@ -37,6 +37,7 @@ import {
   VolumeTable,
   ChapterTable,
   DescriptionHistoryTable,
+  MemoryFactTable,
   PendingSettingTable,
   WorldEntryConflictTable,
   requireNormalizedStyleRules,
@@ -478,6 +479,32 @@ function resetChapterScopedState(
     .delete(WorldEntryConflictTable)
     .where(and(eq(WorldEntryConflictTable.source_chapter_id, chapterId), eq(WorldEntryConflictTable.resolved, 0)))
     .run()
+  // 清理本章 observer 产生的未决 memory_fact（含 FTS 索引，先删索引再删行）；
+  // 已 reviewed/approved 的事实不随重跑回退
+  const pendingFacts = db
+    .select({ id: MemoryFactTable.id })
+    .from(MemoryFactTable)
+    .where(
+      and(
+        eq(MemoryFactTable.chapter_id, chapterId),
+        eq(MemoryFactTable.status, "pending"),
+        eq(MemoryFactTable.created_by, "observer"),
+      ),
+    )
+    .all()
+  for (const fact of pendingFacts) {
+    db.run(sql`DELETE FROM memory_fact_fts WHERE fact_id = ${fact.id}`)
+  }
+  db
+    .delete(MemoryFactTable)
+    .where(
+      and(
+        eq(MemoryFactTable.chapter_id, chapterId),
+        eq(MemoryFactTable.status, "pending"),
+        eq(MemoryFactTable.created_by, "observer"),
+      ),
+    )
+    .run()
   // 清理本章摘要的 FTS 索引（applyToMaterializedView 会重建）
   db.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
 }
@@ -488,7 +515,7 @@ function resetChapterScopedState(
  * 将 fact_type 映射到对应的物化视图表，根据 action 执行 INSERT / UPDATE / DELETE。
  * character 类型会同时更新 characters 和 character_states 两张表。
  * tension 类型按章节号覆盖写入 tension_log。
- * timeline 和 location 类型仅记录日志，不更新物化视图。
+ * timeline 类型落 memory_fact（status=pending），location 按 importance 分流。
  */
 function applyToMaterializedView(
   db: ReturnType<typeof getDb> | Tx,
@@ -1027,11 +1054,41 @@ function applyToMaterializedView(
       break
     }
 
-    case "timeline":
+    case "timeline": {
+      // timeline 升级为 memory_fact 表归宿（agent-memory-system §2.1，替换原"仅记录日志"）：
+      // status=pending 等待审计校准，出处引句作校准与 diff 失效锚点
+      if (action !== "create") break
+      const event = String(data.event ?? "").trim()
+      if (!event) break
+      const timestamp = String(data.timestamp ?? "").trim()
+      const provenance = extractQuoteProvenance(data)
+      const text = timestamp ? `[${timestamp}] ${event}` : event
+      const factId = crypto.randomUUID()
+      db
+        .insert(MemoryFactTable)
+        .values({
+          id: factId,
+          novel_id: novelId,
+          chapter_id: chapterId,
+          fact_type: "timeline",
+          quote: provenance.quote ?? null,
+          quote_span: provenance.quoteSpan ?? null,
+          entity_hint: entity_id,
+          text,
+          status: "pending",
+          created_by: "observer",
+        })
+        .run()
+      // FTS 应用级同步（仓库惯例，见 syncChapterSummaryFts）
+      db.run(
+        sql`INSERT INTO memory_fact_fts (novel_id, fact_id, text, quote) VALUES (${novelId}, ${factId}, ${text}, ${provenance.quote ?? ""})`,
+      )
+      break
+    }
+
     case "location":
-      // timeline: 仅记录日志，不更新物化视图
       // location: 按 importance 分流；importance≥2 入 WorldEntryTable(category=地点)；1 入候选区；0 丢弃
-      if (fact_type === "location" && action === "create") {
+      if (action === "create") {
         const importance = getEntryImportance(data)
         if (importance === 0) {
           report.discarded++
