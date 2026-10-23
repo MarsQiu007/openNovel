@@ -1,5 +1,5 @@
 import { Glob } from "@opennovel-ai/core/util/glob"
-import { ConfigPluginV1 } from "@opennovel-ai/core/v1/config/plugin"
+import { ConfigPluginV1 } from "@opennovel-ai/core/config/v1/plugin"
 import { pathToFileURL } from "url"
 import { isPathPluginSpec, parsePluginSpecifier, resolvePathPluginTarget } from "@/plugin/shared"
 import { errorMessage } from "@/util/error"

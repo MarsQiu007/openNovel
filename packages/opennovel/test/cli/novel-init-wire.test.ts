@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test"
 import { join } from "path"
 import { tmpdir } from "os"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import { wireNovelWriterV2 } from "../../src/cli/cmd/novel"
 import { ConfigParse } from "@/config/parse"
 

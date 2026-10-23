@@ -3,7 +3,7 @@ export * as ConfigVariable from "./variable"
 import path from "path"
 import os from "os"
 import { Filesystem } from "@/util/filesystem"
-import { InvalidError } from "@opennovel-ai/core/v1/config/error"
+import { InvalidError } from "@opennovel-ai/core/config/v1/error"
 
 type ParseSource =
   | {

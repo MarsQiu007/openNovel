@@ -1,5 +1,5 @@
 import { NamedError } from "@opennovel-ai/core/util/error"
-import { ConfigErrorV1 } from "@opennovel-ai/core/v1/config/error"
+import { ConfigErrorV1 } from "@opennovel-ai/core/config/v1/error"
 import { Cause, Effect } from "effect"
 import { HttpRouter, HttpServerError, HttpServerRespondable, HttpServerResponse } from "effect/unstable/http"
 

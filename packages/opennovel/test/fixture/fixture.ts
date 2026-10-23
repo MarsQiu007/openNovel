@@ -1,5 +1,5 @@
 import { $ } from "bun"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import * as fs from "fs/promises"
 import os from "os"
 import path from "path"

@@ -12,7 +12,7 @@
  * 与 88 工具全部由它注册。
  * provider 配置参照 httpapi-exercise 的 fakeLlmConfig：@ai-sdk/openai-compatible 指向假端点。
  */
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import { Effect, Layer } from "effect"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"

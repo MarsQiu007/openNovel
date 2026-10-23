@@ -1,5 +1,5 @@
 import type { Duration, Effect } from "effect"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import type { Project } from "../../../src/project/project"
 import type { Worktree } from "../../../src/worktree"
 import type { SessionV2 } from "@opennovel-ai/core/session"

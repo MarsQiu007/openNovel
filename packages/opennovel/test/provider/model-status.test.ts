@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Schema } from "effect"
-import { ConfigProviderV1 } from "@opennovel-ai/core/v1/config/provider"
+import { ConfigProviderV1 } from "@opennovel-ai/core/config/v1/provider"
 import { CatalogModelStatus, ModelStatus } from "@/provider/model-status"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { Provider } from "@/provider/provider"

@@ -1,5 +1,5 @@
 import { MCP } from "@/mcp"
-import { ConfigMCPV1 } from "@opennovel-ai/core/v1/config/mcp"
+import { ConfigMCPV1 } from "@opennovel-ai/core/config/v1/mcp"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { McpServerNotFoundError } from "../errors"

@@ -3,7 +3,7 @@ export * as ConfigParse from "./parse"
 import { type ParseError as JsoncParseError, parse as parseJsoncImpl, printParseErrorCode } from "jsonc-parser"
 import { Cause, Exit, Schema as EffectSchema, SchemaIssue } from "effect"
 import type { DeepMutable } from "@opennovel-ai/core/schema"
-import { InvalidError, JsonError } from "@opennovel-ai/core/v1/config/error"
+import { InvalidError, JsonError } from "@opennovel-ai/core/config/v1/error"
 
 export function jsonc(text: string, filepath: string): unknown {
   const errors: JsoncParseError[] = []

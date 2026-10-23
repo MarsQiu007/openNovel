@@ -1,5 +1,5 @@
 import { afterEach, describe, expect } from "bun:test"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import { Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { HttpServer } from "effect/unstable/http"

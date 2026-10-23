@@ -3,9 +3,9 @@ export * as ConfigCommand from "./command"
 import path from "path"
 import { Cause, Exit, Schema } from "effect"
 import { Glob } from "@opennovel-ai/core/util/glob"
-import { ConfigCommandV1 } from "@opennovel-ai/core/v1/config/command"
+import { ConfigCommandV1 } from "@opennovel-ai/core/config/v1/command"
 import { configEntryNameFromPath } from "./entry-name"
-import { InvalidError } from "@opennovel-ai/core/v1/config/error"
+import { InvalidError } from "@opennovel-ai/core/config/v1/error"
 import * as ConfigMarkdown from "./markdown"
 
 const decodeInfo = Schema.decodeUnknownExit(ConfigCommandV1.Info)

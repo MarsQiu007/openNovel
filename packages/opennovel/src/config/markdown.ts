@@ -1,5 +1,5 @@
 import { Filesystem } from "@/util/filesystem"
-import { FrontmatterError } from "@opennovel-ai/core/v1/config/error"
+import { FrontmatterError } from "@opennovel-ai/core/config/v1/error"
 import { ConfigMarkdown as ConfigMarkdownCore } from "@opennovel-ai/core/config/markdown"
 
 export const FILE_REGEX = /(?<![\w`])@(\.?[^\s`,.]*(?:\.[^\s`,.]+)*)/g

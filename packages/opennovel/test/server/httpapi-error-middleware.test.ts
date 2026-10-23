@@ -1,7 +1,7 @@
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { NamedError } from "@opennovel-ai/core/util/error"
 import { describe, expect } from "bun:test"
-import { ConfigErrorV1 } from "@opennovel-ai/core/v1/config/error"
+import { ConfigErrorV1 } from "@opennovel-ai/core/config/v1/error"
 import { Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpRouter } from "effect/unstable/http"
 import { errorLayer } from "../../src/server/routes/instance/httpapi/middleware/error"

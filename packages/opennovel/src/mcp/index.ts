@@ -1,7 +1,7 @@
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import { serviceUse } from "@opennovel-ai/core/effect/service-use"
 import { Client, type ClientOptions } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
@@ -16,7 +16,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { Config } from "@/config/config"
-import { ConfigMCPV1 } from "@opennovel-ai/core/v1/config/mcp"
+import { ConfigMCPV1 } from "@opennovel-ai/core/config/v1/mcp"
 import { NamedError } from "@opennovel-ai/core/util/error"
 import { InstallationVersion } from "@opennovel-ai/core/installation/version"
 import { withTimeout } from "@/util/timeout"

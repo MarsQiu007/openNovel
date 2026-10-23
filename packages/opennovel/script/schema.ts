@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { Config } from "@/config/config"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
+import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
 import { Schema } from "effect"
 
 type JsonSchema = Record<string, unknown>

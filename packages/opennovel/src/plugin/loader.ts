@@ -9,7 +9,7 @@ import {
   type PluginSource,
 } from "./shared"
 import { ConfigPlugin } from "@/config/plugin"
-import { ConfigPluginV1 } from "@opennovel-ai/core/v1/config/plugin"
+import { ConfigPluginV1 } from "@opennovel-ai/core/config/v1/plugin"
 import { InstallationVersion } from "@opennovel-ai/core/installation/version"
 
 export namespace PluginLoader {
