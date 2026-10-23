@@ -87,6 +87,18 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 
 ## 8 步流程
 
+### 步骤 0：断点续跑自检
+
+进入流程前先判定本章是否处于半完成残骸状态（批量写作中断续跑时常见）：用 \`list_chapters\` 查本章 status，必要时用 \`read_chapter_content\` 确认正文是否为空，按下表入步——
+
+| 章状态 | 判定 | 入口 |
+|---|---|---|
+| content 为空（status=outline） | 未写或写作中崩 | 正常走步骤 1-8 |
+| content 非空且 status=draft | 写作完成但审计/状态提交前中断 | 跳过写作段（步骤 1-3），直接以已有正文进入 audit 段（步骤 4）续跑 |
+| status=revised / pending_review / final | 已写待审或已完成 | 视为完成：停止本次流程，向 director 报告「本章已处于 <status>，无需重写」，由 director 推进下一章 |
+
+不要对已有正文的章重复写作；判定拿不准时以「不覆盖已有正文」为安全侧。
+
 ### 步骤 1：plan - 读取章节大纲
 调用 \`read_chapter_outline\` 工具，传入 novel_id 和 chapter_number。
 - 失败（章节不存在）-> 通过 subagent 工具 dispatch @outliner 子 agent（agent: "outliner"，prompt 传入 novel_id、chapter_number，指示其生成创作意图并调用 generate_chapter_outline 持久化本章大纲），然后重试一次；仍失败 -> 停止，报告"第X章大纲生成失败，需人工介入"

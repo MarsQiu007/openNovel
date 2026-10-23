@@ -6,6 +6,8 @@ import { and, asc, eq, sql } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { defineTool } from "../../v2/effect/tool.js"
 import {
+  advanceWritingBatch,
+  beginWritingBatch,
   ChapterReviewTable,
   ChapterSummaryTable,
   ChapterTable,
@@ -16,13 +18,16 @@ import {
   EntityRefTable,
   ForeshadowingTable,
   getDb,
+  getWritingBatch,
   HookRotationTable,
   NovelStateLogTable,
+  NovelTable,
   PendingUpdateTable,
   readNovelConfig,
   TensionLogTable,
   updateChapter,
   WorldEntryTable,
+  writingBatchCompleted,
 } from "../session-store.js"
 import { scanReferences } from "../state-commit.js"
 import { detectKinshipEntityDrift, loadCharacterBindingView } from "../drift-guards.js"
@@ -272,18 +277,84 @@ export const chapterTools = {
       }
     },
   }),
+  begin_writing_batch: defineTool({
+    description:
+      "登记批量写作任务。连续多章批量写作的首步：持久化批量意图（起始章/总数/发起会话），供崩溃中断后的断点续跑与进度查询。同书新批量整体替换旧记录。单章写作不要调用。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+      start_chapter: Schema.Number.annotate({ description: "批量起始章节序号（从 1 开始）" }),
+      total: Schema.Number.annotate({ description: "批量总章数" }),
+    }),
+    execute: async (args, ctx) => {
+      if (!Number.isInteger(args.start_chapter) || args.start_chapter < 1)
+        return { title: "begin_writing_batch", output: `起始章序号无效：${args.start_chapter}（须为 ≥1 的整数）` }
+      if (!Number.isInteger(args.total) || args.total < 1)
+        return { title: "begin_writing_batch", output: `批量总章数无效：${args.total}（须为 ≥1 的整数）` }
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const [novel] = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
+      if (!novel) return { title: "begin_writing_batch", output: `小说不存在：${args.novel_id}` }
+      await beginWritingBatch(
+        { novelId, sessionId: ctx.sessionID, startChapter: args.start_chapter, total: args.total },
+        ctx.directory,
+      )
+      return {
+        title: "begin_writing_batch",
+        output: `已登记批量写作：第${args.start_chapter}章起共${args.total}章。每章完成后由 advance_chapter 自动推进持久化进度；中断后可按持久化进度续跑。`,
+        metadata: { novel_id: novelId, start_chapter: args.start_chapter, total: args.total },
+      }
+    },
+  }),
+  get_writing_batch: defineTool({
+    description:
+      "查询批量写作任务进度。返回批量记录（起始章/总数/已完成/状态/发起会话），供断点续跑判定与进度汇报；无批量任务时明确返回空。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+    }),
+    execute: async (args, ctx) => {
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const batch = await getWritingBatch(novelId, ctx.directory)
+      if (!batch) return { title: "get_writing_batch", output: "当前没有批量写作任务记录。" }
+      const statusLabel =
+        batch.status === "running"
+          ? "进行中"
+          : batch.status === "completed"
+            ? "已完成"
+            : batch.status === "cancelled"
+              ? "已放弃"
+              : batch.status
+      return {
+        title: "get_writing_batch",
+        output: `批量写作任务：第${batch.start_chapter}章起共${batch.total}章，已完成${writingBatchCompleted(batch)}章，状态：${statusLabel}。`,
+        metadata: {
+          novel_id: batch.novel_id,
+          session_id: batch.session_id,
+          start_chapter: batch.start_chapter,
+          total: batch.total,
+          completed: writingBatchCompleted(batch),
+          status: batch.status,
+        },
+      }
+    },
+  }),
   advance_chapter: defineTool({
     description:
-      "推进到下一章。返回下一章序号，流水线步骤8（next）。卷级汇总在新卷首章生成大纲时由 generate_chapter_outline 自动触发，本工具不负责。",
+      "推进到下一章。返回下一章序号，流水线步骤8（next）。批量写作时同步推进持久化批量进度（单调、重跑幂等；无 running 批量的单章写作静默跳过）。卷级汇总在新卷首章生成大纲时由 generate_chapter_outline 自动触发，本工具不负责。",
     args: Schema.Struct({
       novel_id: Schema.String.annotate({ description: "小说 ID" }),
       chapter_number: Schema.Number.annotate({ description: "当前章节序号" }),
     }),
-    execute: async (args) => {
+    execute: async (args, ctx) => {
       const nextChapter = args.chapter_number + 1
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      await advanceWritingBatch(novelId, args.chapter_number, ctx.directory)
+      const batch = await getWritingBatch(novelId, ctx.directory)
+      const progress = batch && batch.status !== "cancelled" ? `（批量进度 ${writingBatchCompleted(batch)}/${batch.total}）` : ""
       return {
         title: "advance_chapter",
-        output: `流水线完成，下一章为第${nextChapter}章`,
+        output: `流水线完成，下一章为第${nextChapter}章${progress}`,
         metadata: { next_chapter: nextChapter },
       }
     },

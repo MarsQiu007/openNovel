@@ -11,12 +11,12 @@
 
 ## Wave 2 — 插件工具与 prompt 续跑语义
 
-- [ ] 2.1 新增 `begin_writing_batch` 工具（upsert running 记录；session_id 取自 `createNovelWriterTools({session})` 上下文），注册进 `tools/index.ts` 工厂并在 director agent 权限映射加 `begin_writing_batch: "allow"`（`agents/director.ts`，对齐 `pipeline.ts:40` 的既有模式）
-- [ ] 2.2 `advance_chapter` 落库改造：签名不变，`last_completed_chapter` 单调 max 推进 + 末章转 completed（幂等）
-- [ ] 2.3 director prompt 批量节改写（`director.ts:168-177`）：批量首步必调 begin、逐章 dispatch 前 `list_chapters` 核对、续跑请求按记录定断点
-- [ ] 2.4 pipeline prompt 新增断点续跑自检段（design D4 三态表：空 content 全步 / draft 有正文从 audit 续 / pending_review+ 跳过）
-- [ ] 2.5 plugin 测试：begin 落库与会话绑定解析、advance 幂等（同章重复调用不重复推进）
-- [ ] 2.6 **守门**：`packages/plugin` typecheck + 测试绿
+- [x] 2.1 新增 `begin_writing_batch` 工具（upsert running 记录；session_id 取自 ToolContext.sessionID），经 `chapterTools` 静态对象随工厂注册（tools/index.ts 展开无需改动）并在 director agent 权限映射加 `begin_writing_batch: "allow"` / `get_writing_batch: "allow"`（`agents/director.ts`，对齐 `pipeline.ts:40` 的既有模式）
+- [x] 2.2 `advance_chapter` 落库改造：签名不变，`last_completed_chapter` 单调 max 推进 + 末章转 completed（幂等），输出追加批量进度后缀
+- [x] 2.3 director prompt 批量节改写（`director.ts` 连续多章批量写作节）：批量首步必调 begin、逐章 dispatch 前 `list_chapters` 核对、续跑请求按记录定断点
+- [x] 2.4 pipeline prompt 新增「步骤 0：断点续跑自检」段（design D4 三态表：空 content 全步 / draft 有正文从 audit 续 / revised+ 跳过）
+- [x] 2.5 plugin 测试：`writing-batch-tools.test.ts` 6 例（begin 落库与会话绑定/替换/校验、advance 幂等推进/末章 completed/无批量静默跳过）；`multi-chapter-batch.test.ts` 断言同步新契约
+- [x] 2.6 **守门**：`packages/plugin` typecheck 绿 + 916/916 测试绿
 
 ## Wave 3 — server/app 中断可见性
 
