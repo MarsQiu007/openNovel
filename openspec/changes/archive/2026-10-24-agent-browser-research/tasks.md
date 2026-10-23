@@ -14,6 +14,10 @@
 
 - `99f20b7c40` feat(core): 受控只读浏览器工具族与 research 外部调研 agent
 
+### 归档后收尾修复
+
+- `ff380acbd5` fix(core): 修正 tool-browser 测试 stateText 类型标注（ToolResultValue.value 为 unknown；守门时 tsgo 增量缓存掩盖，干净树上 typecheck 红）
+
 ## Workflow follow-up
 
-（归档后如有回归修复在此补充）
+归档后收尾修复 1 个（见 Implementation Commits 子小节）。
