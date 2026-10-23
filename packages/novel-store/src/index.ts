@@ -528,6 +528,10 @@ export const WorldEntryConflictTable = sqliteTable(
     resolution_note: text().notNull().default(""),
     /** 处理时间（resolution_kind 落定时写入） */
     resolved_at: integer(),
+    /** 矛盾另一方的记忆事实 ID（memory_fact；检测时能定位到具体事实时填写，agent-memory-system §4） */
+    opposing_fact_id: text(),
+    /** 两方向影响成本对比缓存（agent-memory-system §4）：方向 A 动 N 张卡 / 方向 B 受影响章节清单 */
+    impact_json: text().notNull().default("{}"),
     created_at: integer()
       .notNull()
       .$default(() => Date.now()),
@@ -904,7 +908,7 @@ CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT N
 CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, review_note text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS pending_settings_novel_idx ON pending_settings(novel_id, status);
 CREATE INDEX IF NOT EXISTS pending_settings_title_idx ON pending_settings(novel_id, display_title);
-CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, resolution_kind text DEFAULT '' NOT NULL, resolution_note text DEFAULT '' NOT NULL, resolved_at integer, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS world_entry_conflicts (id text PRIMARY KEY, novel_id text NOT NULL, world_entry_id text NOT NULL, conflict_kind text DEFAULT 'semantic_conflict' NOT NULL, source text DEFAULT 'observer' NOT NULL, source_chapter_id text, conflict_note text DEFAULT '' NOT NULL, resolved integer DEFAULT 0 NOT NULL, resolution_kind text DEFAULT '' NOT NULL, resolution_note text DEFAULT '' NOT NULL, resolved_at integer, opposing_fact_id text, impact_json text DEFAULT '{}' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE TABLE IF NOT EXISTS staged_changes (id text PRIMARY KEY, novel_id text NOT NULL, source text DEFAULT 'agent' NOT NULL, kind text DEFAULT 'update' NOT NULL, entity_type text DEFAULT 'world_entry' NOT NULL, entry_ids text DEFAULT '[]' NOT NULL, before_json text DEFAULT '{}' NOT NULL, after_json text DEFAULT '{}' NOT NULL, reason text DEFAULT '' NOT NULL, evidence_json text DEFAULT '{}' NOT NULL, status text DEFAULT 'pending' NOT NULL, review_note text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS staged_changes_novel_idx ON staged_changes(novel_id, status);
 CREATE INDEX IF NOT EXISTS world_entry_conflicts_novel_idx ON world_entry_conflicts(novel_id, resolved);
@@ -3682,6 +3686,7 @@ export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
 export * from "./memory-injection.js"
 export * from "./memory-lifecycle.js"
+export * from "./conflict-impact.js"
 export * from "./upgrade.js"
 export * from "./sync-error-classifier.js"
 export * from "./style-rules.js"

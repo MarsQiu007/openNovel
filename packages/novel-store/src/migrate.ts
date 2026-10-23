@@ -101,6 +101,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
  * characters / world_entries 补落文状态列（存量行默认 established——observer 提取自
  * 已写正文，误标 planned 会永久滞留提醒，误标 established 只是少提醒）；
  * techniques 补 usage_ledger / promoted_from / novel_id（书库与全局库同构，全局库 novel_id 恒 NULL）。
+ * world_entry_conflicts 补冲突单扩展列（§4：矛盾另一方事实 + 两方向成本对比缓存）。
  * memory_fact / memory_injection_snapshot / memory_fact_fts 新表由 CREATE_TABLES_SQL 直建。
  */
 function migrateMemoryColumns(exec: ExecFn, query: QueryFn): void {
@@ -112,6 +113,8 @@ function migrateMemoryColumns(exec: ExecFn, query: QueryFn): void {
     { table: "techniques", column: "usage_ledger", ddl: "ALTER TABLE techniques ADD COLUMN usage_ledger text NOT NULL DEFAULT '[]'" },
     { table: "techniques", column: "promoted_from", ddl: "ALTER TABLE techniques ADD COLUMN promoted_from text" },
     { table: "techniques", column: "novel_id", ddl: "ALTER TABLE techniques ADD COLUMN novel_id text" },
+    { table: "world_entry_conflicts", column: "opposing_fact_id", ddl: "ALTER TABLE world_entry_conflicts ADD COLUMN opposing_fact_id text" },
+    { table: "world_entry_conflicts", column: "impact_json", ddl: "ALTER TABLE world_entry_conflicts ADD COLUMN impact_json text NOT NULL DEFAULT '{}'" },
   ]
   for (const { table, column, ddl } of targets) {
     try {

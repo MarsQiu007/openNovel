@@ -152,6 +152,13 @@ describe("commitState 可靠性", () => {
     expect(pending).toHaveLength(1)
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0].conflict_kind).toBe("number_inconsistency")
+    // 冲突单随附两方向成本对比缓存（agent-memory-system Wave 7 §4）
+    const impact = JSON.parse(conflicts[0].impact_json) as {
+      directionA: { cards: number }
+      directionB: { chapters: unknown[] }
+    }
+    expect(impact.directionA.cards).toBeGreaterThanOrEqual(1)
+    expect(Array.isArray(impact.directionB.chapters)).toBe(true)
     expect(ftsRows).toHaveLength(1)
     expect(ftsRows[0].body).toContain("黑市拍卖")
     // 状态日志同为章级「一章一份」（agent-background-job-recovery D5）：reset 先清本章旧行

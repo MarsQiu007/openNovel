@@ -995,7 +995,7 @@ export const ReviewInboxCandidateOperationResult = Schema.Struct({
 export interface ReviewInboxCandidateOperationResult extends Schema.Schema.Type<typeof ReviewInboxCandidateOperationResult> {}
 
 export const ReviewInboxConflictResolveInput = Schema.Struct({
-  action: Schema.Literals(["update_entry", "keep_current"]),
+  action: Schema.Literals(["update_entry", "keep_current", "revise_chapters"]),
   content: optional(Schema.String),
   note: optional(Schema.String),
   source: optional(Schema.Literals(["agent", "user"])),
@@ -1005,8 +1005,10 @@ export interface ReviewInboxConflictResolveInput extends Schema.Schema.Type<type
 export const ReviewInboxConflictResolveResult = Schema.Struct({
   ok: Schema.Boolean,
   conflictId: optional(Schema.String),
-  action: optional(Schema.Literals(["update_entry", "keep_current"])),
+  action: optional(Schema.Literals(["update_entry", "keep_current", "revise_chapters"])),
   stagedChangeId: optional(Schema.String),
+  /** revise_chapters：生成的回改任务 ID 清单（写作门禁 pending_updates） */
+  rewriteTasks: optional(Schema.Array(Schema.String)),
   error: optional(Schema.String),
 }).annotate({ identifier: "Novel.ReviewInboxConflictResolveResult" })
 export interface ReviewInboxConflictResolveResult extends Schema.Schema.Type<typeof ReviewInboxConflictResolveResult> {}

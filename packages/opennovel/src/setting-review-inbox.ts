@@ -205,7 +205,13 @@ export function createSettingReviewInboxService(): SettingReviewInboxService {
         source: input.source,
       })
       if (!result.ok) return { ok: false, error: result.error }
-      return { ok: true, conflictId: result.conflict_id, action: result.action, stagedChangeId: result.staged_change_id }
+      return {
+        ok: true,
+        conflictId: result.conflict_id,
+        action: result.action,
+        stagedChangeId: result.staged_change_id,
+        rewriteTasks: result.rewrite_tasks,
+      }
     },
 
     async acceptStaged(novelID, directory, stagedID, input: ReviewInboxStagedAcceptInput) {

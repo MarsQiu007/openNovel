@@ -202,7 +202,7 @@ export const pendingTools = {
 
   list_conflicts: defineTool({
     description:
-      "列出世界观冲突标注（observer 提取的 world_entry 冲突，与设定收件箱同源）。冲突不污染设定正文，处理前先读本工具了解冲突点，再用 resolve_conflict 处理：按正文更新生成暂存草案，或保留现状忽略。",
+      "列出世界观冲突标注（observer 提取的 world_entry 冲突，与设定收件箱同源）。冲突不污染设定正文，每条随附两方向影响成本对比（顺正文改设定动 N 张卡 / 逆设定改正文涉及哪些章节）。处理前先读本工具了解冲突点与代价，再用 resolve_conflict 处理：按正文更新生成暂存草案、逆设定改正文生成回改任务清单，或保留现状忽略。",
     args: Schema.Struct({
       novel_id: Schema.String.annotate({ description: "小说 ID" }),
       status: Schema.optional(
@@ -236,6 +236,12 @@ export const pendingTools = {
         lines.push(
           `\n[${r.id.slice(0, 8)}] ${time} | ${r.conflict_kind} | 条目：${r.entry_title ?? `${r.world_entry_id.slice(0, 8)}（条目缺失）`}\n  冲突说明：${r.conflict_note}`,
         )
+        if (r.impact) {
+          const chapters = r.impact.directionB.chapters.map((c) => `第${c.order}章`).join("、")
+          lines.push(
+            `  成本对比：顺正文改设定动 ${r.impact.directionA.cards} 张卡；逆设定改正文涉及 ${r.impact.directionB.chapters.length} 章${chapters ? `（${chapters}）` : ""}`,
+          )
+        }
         if (r.resolved === 1) {
           lines.push(`  处理留痕：${r.resolution_kind || "已处理"}${r.resolution_note ? `（${r.resolution_note}）` : ""}`)
         }
@@ -252,6 +258,7 @@ export const pendingTools = {
             entry_title: r.entry_title,
             conflict_kind: r.conflict_kind,
             conflict_note: r.conflict_note,
+            impact: r.impact,
             resolved: r.resolved,
             resolution_kind: r.resolution_kind,
             resolution_note: r.resolution_note,
@@ -265,11 +272,11 @@ export const pendingTools = {
 
   resolve_conflict: defineTool({
     description:
-      "处理一条世界观冲突。action=update_entry 按你提供的草案正文生成暂存变更（进入设定收件箱，用户接受后才写入正式设定）；action=keep_current 保留现状并忽略该冲突（留痕处理方式与备注）。处理语义与设定收件箱一致：按正文更新时草案内容必须通过设定文本格式校验（纯文本、空行分段、无 Markdown）。",
+      "处理一条世界观冲突（两方向成本见 list_conflicts 的成本对比）。action=update_entry（顺正文改设定）按你提供的草案正文生成暂存变更，进入设定收件箱，用户接受后才写入正式设定；action=revise_chapters（逆设定改正文）为受影响章节生成回改任务清单（写作门禁 pending_updates），后续章节修订时逐章消化；action=keep_current 保留现状并忽略该冲突（留痕处理方式与备注）。处理语义与设定收件箱一致：按正文更新时草案内容必须通过设定文本格式校验（纯文本、空行分段、无 Markdown）。原则：已写正文 > 设定，系统摆成本、作者定方向。",
     args: Schema.Struct({
       conflict_id: Schema.String.annotate({ description: "冲突 ID（list_conflicts 拿）" }),
-      action: Schema.Literals(["update_entry", "keep_current"]).annotate({
-        description: "处理方式：update_entry 按正文更新 / keep_current 保留现状",
+      action: Schema.Literals(["update_entry", "revise_chapters", "keep_current"]).annotate({
+        description: "处理方式：update_entry 顺正文改设定 / revise_chapters 逆设定改正文 / keep_current 保留现状",
       }),
       content: Schema.optional(Schema.String.annotate({ description: "update_entry 必填：修正后的条目正文草案" })),
       note: Schema.optional(Schema.String.annotate({ description: "处理备注（记录处理理由，可追溯）" })),
@@ -290,6 +297,18 @@ export const pendingTools = {
           title: "resolve_conflict",
           output: "已保留现状并忽略该冲突（可在 list_conflicts status=resolved 复查处理留痕）",
           metadata: { conflict_id: result.conflict_id, action: result.action, note: args.note ?? "" },
+        }
+      }
+      if (result.action === "revise_chapters") {
+        return {
+          title: "resolve_conflict",
+          output: `已按设定方向生成 ${result.rewrite_tasks?.length ?? 0} 条回改任务（写作门禁 pending_updates），后续修订受影响章节时逐条消化；向用户说明需要回改的章节范围。`,
+          metadata: {
+            conflict_id: result.conflict_id,
+            action: result.action,
+            rewrite_tasks: result.rewrite_tasks ?? [],
+            note: args.note ?? "",
+          },
         }
       }
       return {

@@ -6631,25 +6631,25 @@ export type ServerNovelConflictResolveInput = {
     readonly library?: ("book" | "global" | "all") | undefined
   }["library"]
   readonly action: {
-    readonly action: "update_entry" | "keep_current"
+    readonly action: "update_entry" | "keep_current" | "revise_chapters"
     readonly content?: string
     readonly note?: string
     readonly source?: "agent" | "user"
   }["action"]
   readonly content?: {
-    readonly action: "update_entry" | "keep_current"
+    readonly action: "update_entry" | "keep_current" | "revise_chapters"
     readonly content?: string
     readonly note?: string
     readonly source?: "agent" | "user"
   }["content"]
   readonly note?: {
-    readonly action: "update_entry" | "keep_current"
+    readonly action: "update_entry" | "keep_current" | "revise_chapters"
     readonly content?: string
     readonly note?: string
     readonly source?: "agent" | "user"
   }["note"]
   readonly source?: {
-    readonly action: "update_entry" | "keep_current"
+    readonly action: "update_entry" | "keep_current" | "revise_chapters"
     readonly content?: string
     readonly note?: string
     readonly source?: "agent" | "user"
@@ -6659,8 +6659,9 @@ export type ServerNovelConflictResolveInput = {
 export type ServerNovelConflictResolveOutput = {
   readonly ok: boolean
   readonly conflictId?: string
-  readonly action?: "update_entry" | "keep_current"
+  readonly action?: "update_entry" | "keep_current" | "revise_chapters"
   readonly stagedChangeId?: string
+  readonly rewriteTasks?: ReadonlyArray<string>
   readonly error?: string
 }
 

@@ -99,6 +99,9 @@ describe("记忆系统数据层", () => {
     expect(hasColumn("techniques", "usage_ledger")).toBe(true)
     expect(hasColumn("techniques", "promoted_from")).toBe(true)
     expect(hasColumn("techniques", "novel_id")).toBe(true)
+    // 冲突单扩展列（Wave 7）：旧库无此表时由 CREATE_TABLES_SQL 带新列直建
+    expect(hasColumn("world_entry_conflicts", "opposing_fact_id")).toBe(true)
+    expect(hasColumn("world_entry_conflicts", "impact_json")).toBe(true)
     expect(tableExists("memory_fact")).toBe(true)
     expect(tableExists("memory_fact_fts")).toBe(true)
     expect(tableExists("memory_injection_snapshot")).toBe(true)

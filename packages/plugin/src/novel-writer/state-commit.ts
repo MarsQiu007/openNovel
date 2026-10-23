@@ -10,7 +10,7 @@
  * - FACT_TYPES — 10 种事实类型常量
  */
 
-import { scanEntityReferences, withTransaction } from "@opennovel-ai/novel-store"
+import { scanEntityReferences, withTransaction, buildConflictImpact } from "@opennovel-ai/novel-store"
 import type { Tx } from "@opennovel-ai/novel-store"
 
 export const scanReferences = scanEntityReferences
@@ -202,6 +202,9 @@ function recordConflict(
   conflictKind: "number_inconsistency" | "synonym_drift" | "semantic_conflict" = "semantic_conflict",
 ): string {
   const id = crypto.randomUUID()
+  // 冲突单随附两方向影响成本对比（agent-memory-system §4）：创建时现算缓存，
+  // 裁决时双方卡片与代价直接可读，不必重查
+  const impact = buildConflictImpact(db, novelId, worldEntryId)
   db
     .insert(WorldEntryConflictTable)
     .values({
@@ -213,6 +216,7 @@ function recordConflict(
       source_chapter_id: sourceChapterId,
       conflict_note: conflictNote,
       resolved: 0,
+      impact_json: JSON.stringify(impact),
     } as any)
     .run()
   return id
