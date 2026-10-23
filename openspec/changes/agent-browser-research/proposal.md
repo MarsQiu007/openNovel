@@ -6,11 +6,11 @@
 
 ## What Changes
 
-- 引入受控浏览器执行环境（方向候选：Playwright——fork 已依赖 `@playwright/test`，基础设施现成；或更轻的只读渲染方案），待讨论定案
-- 新增浏览器工具族：导航、页面状态读取（可交互元素清单）、点击/输入、内容提取（正文 markdown 化）
-- 只读约束：默认禁止提交表单、登录、写操作——调研工具不做账号行为
-- 会话内浏览器状态生命周期（开、用、关），不跨会话持久
-- 与 subagent 协同点：research 子代理的执行引擎
+- 引入受控浏览器执行环境：**定案 Playwright**——`playwright-core` 已在 bun.lock（`@playwright/test` catalog 1.60.0 的传递依赖），core 新增 catalog 运行时依赖即可，零新增版本线
+- core 新增浏览器工具族（`browser_navigate` / `browser_state` / `browser_click` / `browser_type` / `browser_extract` / `browser_close`）：导航、页面状态读取（可交互元素清单）、点击/输入、正文 markdown 化提取、显式关闭
+- 只读约束落在网络层：页面内非 GET/HEAD 请求一律拦截中止，表单提交/登录写操作物理不可达，不依赖提示词自觉
+- 会话级浏览器状态生命周期：BrowserContext 按 sessionID 隔离（cookie/存储不跨会话），懒启动、显式关闭或随 Location 终结回收
+- plugin 新增 research 子代理（category `research`，槽位已预留未占用），deny-heavy 权限 map 仅放行 websearch/webfetch/browser；director 提示词补 `dispatch @research` 协议
 
 ## Capabilities
 
@@ -26,15 +26,17 @@
 
 ## Impact
 
-- **受影响包**：`core`（浏览器工具族、运行时生命周期）、`desktop`（无头浏览器进程托管与资源回收）、`permission`（导航域白名单策略）
+- **受影响包**：`core`（`src/tool/browser.ts` 工具族 + 会话级浏览器生命周期）、`plugin`（research agent + 注册面 + 其余 agent 权限 map 补 `browser: "deny"`）
+- **desktop**：**零改动**（重裁定）——浏览器是 core 派生的无头 Chromium 子进程，随宿主进程与 Layer 终结回收；与 Electron 内嵌 Chromium 是独立进程，无共存冲突
+- **permission**：域名白名单走既有 PermissionV2 规则（action `browser` + resource URL 通配，`permission.ts` findLast 语义），不建新机制
 - **数据兼容性**：不涉及数据库
-- **依赖关系**：无硬前置；与 agent-task-subagent 协同（research 子代理）
-- **新增依赖**：复用现有 `@playwright/test`（含 playwright-core），或补 `playwright` 运行时包——版本一致性已在 upstream-port-first-batch 处理过
-- **优先级理由**：价值真实但外围；技术风险主要是桌面端进程管理（Electron 内嵌 Chromium 与 Playwright 浏览器的共存）
+- **依赖关系**：与 agent-task-subagent 协同（research 子代理由 director 调度）
+- **新增依赖**：`playwright-core`（catalog 1.60.0，与 `@playwright/test` 同版本线）
+- **优先级理由**：价值真实但外围；主要风险是测试环境浏览器二进制可得性（本机 ms-playwright 缓存已含 chromium-1217/1223/1243）
 
 ## 非目标
 
-- 不做账号登录与身份保持（调研只读）
+- 不做账号登录与身份保持（网络层拦截写请求，且 BrowserContext 不跨会话持久）
 - 不做浏览器自动化测试能力（那是 @playwright/test 的既有职责）
 - 不做截图的视觉理解（纯结构化提取，先不做多模态）
 - 不做并行多标签页（单页面会话，简单可靠优先）
