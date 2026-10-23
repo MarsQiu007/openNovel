@@ -45,10 +45,20 @@
 
 ## G6 生成物与收尾
 
-- [ ] 6.1 `packages/client` `bun run generate` + `packages/sdk/js/script/build.ts` 重生
-- [ ] 6.2 全量回归：各包 `bun typecheck`、仓库根 `bunx oxlint`（0 errors）、`bun test` 4/4 全量
-- [ ] 6.3 design §11 落地核实补齐；`openspec validate v1-removal`
+- [x] 6.1 `packages/client` `bun run generate` + `packages/sdk/js/script/build.ts` 重生
+- [x] 6.2 全量回归：各包 `bun typecheck`、仓库根 `bunx oxlint`（0 errors）、`bun test` 4/4 全量
+- [x] 6.3 design §11 落地核实补齐；`openspec validate v1-removal`
 
 ## Implementation Commits
 
-（归档前用 `git log --grep "OpenSpec-Change: v1-removal" --format="%h %s"` 收集填写。）
+（`git log --grep "OpenSpec-Change: v1-removal" --format="%h %s"` 收集，docs(openspec) 记录提交除外。）
+
+- G1 数据迁移层：`82e0f0c449` feat(core): V1 会话数据迁移层；`0c4a83a86d` fix(core): 迁移兜底清理无消息会话的 V1 事件行
+- G2 V2 生命周期事件：`82b29ed7a2` feat(core): V2 生命周期事件接班与 SessionV2.move；`b4a042402c` test(core): session 测试切换 V2 生命周期事件词汇；`e26d6b4b53` docs(protocol): session.delete 描述同步 session.next.deleted 事件名
+- G3.1 端点裁撤：`cddc4d57ca` feat(opennovel): 裁撤 V1 端点面与 legacy 路由耦合
+- G3.3 control-plane（Wave A）：`75f7d4effe` refactor(opennovel): control-plane 切 V2 会话面与事件原生面
+- G4 share/import（Wave B）：`92ca8d95fa` feat(opennovel): 删除 share/import 面（opncd.ai 外部依赖 + V1 wire）
+- G3.2/G3.4/G3.5（Wave C）：`d215246ab5` feat(opennovel): 裁撤 legacy /agent /command /experimental/tool 端点并切 V2 面；`d2f53d2286` refactor(opennovel): 调用方脱离 V1 事件/权限/消息面；`94392d6ae3` feat(opennovel): 删除 legacy session/tool/agent/permission/question/command 树
+- G3.6 event-v2-bridge（Wave E）：`e33913d20e` feat(opennovel): 删除 event-v2-bridge 并落地 EventV2 位置附加与 GlobalEventBridge re-home
+- G5 config 冻结与 V1 删除：`87f528abbf` refactor(core): 冻结 config 管线搬迁 core/src/v1/config 至 core/src/config/v1；`cdf9c4f0d2` refactor(core): 删除 core 与 schema 的 V1 残余并收敛事件 manifest
+- G6 生成物与收尾：`794fe08581` refactor(sdk): 重生 client/SDK 生成物并冻结 V1 视图模型契约
