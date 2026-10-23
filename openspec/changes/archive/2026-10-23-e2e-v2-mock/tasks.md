@@ -34,7 +34,7 @@
 
 - [x] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: e2e-v2-mock"`）
 - [x] 4.2 `openspec validate e2e-v2-mock --strict` 绿（skip_specs：零 delta 合规）
-- [ ] 4.3 归档（`npx openspec archive e2e-v2-mock --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
+- [x] 4.3 归档（`npx openspec archive e2e-v2-mock --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
 
 ## Implementation Commits
 
