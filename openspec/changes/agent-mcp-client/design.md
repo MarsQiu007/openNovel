@@ -36,15 +36,17 @@
 | --- | --- | --- |
 | A. 改造既有实现原地 V2 化 | opennovel/src/mcp 补注册桥 + 切 V2 config | **否决**：架构位错（V2 工具体系在 core，builtins.ts 预留注释与 tool/AGENTS.md Current Gaps 都指向 core 内 scoped 注册）；在冻结的 ConfigV1 消费面上加新功能是技术债加深；InstanceState 与 core Location 双状态体系并存 |
 | B. 全量移植上游五文件 | core/src/mcp 移植 2304 行 + 引 @modelcontextprotocol/client@2.0 | **否决**：与既有 SDK 1.31 双 SDK 并存（冗余铁律）；1875 行已验证连接代码（含 335b9eff31 等实战修复：outputSchema 容错、分页游标去重）整体作废换未验证移植 |
-| **C. 混合（选定）** | core 新建 Location node：连接语义沿既有 SDK 1.31 代码提升，架构语义（注册桥/Credential OAuth/会话恢复）移植上游 | 单一 SDK、复用已验证代码、架构位正确、注册桥补齐 Current Gaps |
+| **C. 混合（选定）** | core 新建 Location node：连接语义沿既有 SDK 1.31 代码提升，架构语义（scoped 注册桥/KeyedMutex 生命周期锁/连接即列工具）移植上游 | 单一 SDK、复用已验证代码、架构位正确、注册桥补齐 Current Gaps |
 
 ### 否决项汇总
 
 1. 双 SDK 并存（@modelcontextprotocol/client@2.0 + 既有 /sdk@1.31）——见路线 B。
 2. elicitation 开启——fork 无 Form 服务；QuestionV2 是选项式提问，与 elicitation 任意 JSON Schema 表单语义不匹；既有实现从未声明该 capability（`opennovel/src/mcp/index.ts:45`），保持关闭无回归。
-3. 既有 `mcp-auth.json` 凭据自动迁移——键映射（name+url → `mcp_<sha1>` Integration ID）+ 双写窗口成本高于「重新授权一次」。
+3. 既有 `mcp-auth.json` 凭据自动迁移——键映射与双写窗口成本高于「重新授权一次」；core 化后存储路径与格式不变，旧文件继续可读，无需迁移。
 4. SSE 传输移除——既有实现支持 `SSEClientTransport`，SDK 1.31 自带，保留零成本且保兼容（上游仅 StreamableHTTP 不支持 SSE）。
 5. sampling/tasks/roots 之外的新 capability——roots 既有已声明（`index.ts:47`），保留；sampling/tasks 维持关闭。
+6. OAuth 凭据落 Credential/Integration（核实点 7 的初判，实现期推翻）——`Credential.OAuth` 仅 `{refresh, access, expires, metadata}` 四字段，MCP OAuth 需要持久化的 `clientInfo`（动态注册产物）/`codeVerifier`/`oauthState` 塞不下；`Integration.authorize` 是 UI 驱动的授权回调模式，与 MCP 自驱动（连接时 401 → 自动走授权流）不匹。裁定为既有 `McpAuth` 文件存储随客户端 core 化（见 OAuth 设计节）。
+7. 上游 `recovering`（会话过期重连重试一次）与 `endpointLoads`（共享端点串行化）——V1 从未有过这两个增强，不属回归项；前者依赖上游 client@2.0 的会话语义，后者场景（同端点并发 OAuth 动态注册）在既有实现中以 PendingProvider 串行授权规避。留作后续增强候选，不进本 change。
 
 ## 设计
 
@@ -52,9 +54,13 @@
 
 ```
 packages/core/src/mcp/
-  index.ts      — Mcp.Service / layer / configured() Location node（连接生命周期、状态机、读取面）
-  catalog.ts    — 分页/容错目录语义（移植 opennovel mcp/catalog.ts，删 convertTool 死代码）
-  oauth.ts      — OAuth provider + 回调服务器 + 浏览器打开（移植 oauth-provider/oauth-callback/browser 语义，凭据落 Credential）
+  index.ts          — Mcp.Service / layer / configured() Location node（连接生命周期、状态机、读取面、OAuth 编排）
+  catalog.ts        — 分页/容错目录语义（移植 opennovel mcp/catalog.ts，删 convertTool 死代码）
+  auth.ts           — McpAuth 全局 node：mcp-auth.json 文件凭据存储（EffectFlock + .bak 备份，沿既有语义）
+  oauth-provider.ts — SDK OAuthClientProvider 实现 + PendingProvider（授权完成前不落盘）
+  oauth-callback.ts — 本地回调服务器（state CSRF 校验、5 分钟超时、空转自停）
+  browser.ts        — McpBrowser 全局 node：打开浏览器 + 失败探测
+  register.ts       — McpRegister Location node：工具注册桥（见下节）
 ```
 
 `packages/schema/src/mcp.ts` 新建：`Status`（connected/disabled/failed/needs_auth/needs_client_registration，沿既有 `index.ts:84-99` 五态）、`ServerInfo` 等共享类型（httpapi 端点形状不变的需要）。`mcp-event.ts` 已有不动。
@@ -65,20 +71,21 @@ packages/core/src/mcp/
 
 - 连接管理：`servers()`（状态清单）、`add(name, config)`、`connect(name)`、`disconnect(name)`、`remove(name)`
 - 目录读取：`tools()`、`prompts()`/`prompt(...)`、`resources(...)`/`resourceTemplates(...)`/`readResource(...)`、`instructions()`
-- OAuth（httpapi/CLI 改线所需）：`startAuth`/`authenticate`/`finishAuth`/`removeAuth`/`supportsOAuth`/`hasStoredTokens`/`getAuthStatus`——语义沿既有，存储落 Credential/Integration
+- OAuth（httpapi/CLI 改线所需）：`startAuth`/`authenticate`/`finishAuth`/`removeAuth`/`supportsOAuth`/`hasStoredTokens`/`getAuthStatus`——语义沿既有，存储落 McpAuth（见 OAuth 设计节）
 
-### 工具注册桥（`core/src/tool/mcp.ts` 或 mcp/register.ts）
+### 工具注册桥（`core/src/mcp/register.ts`）
 
-- `McpTool` Location node（deps: Mcp.node + Tools/PermissionV2 node）；启动时 `mcp.tools()` 全量注册，订阅 `McpEvent.ToolsChanged` 重注册（关旧子 scope、开新子 scope 注册全量，沿 registry「closing reveals next」语义）
-- 每个 MCP 工具 → `Tool.make`：input codec = `Schema.make(SchemaRepresentation.fromJsonSchemaDocument(JsonSchema.fromSchemaDraft2020_12(inputSchema)).ast)`（转换失败回退 `Schema.Unknown` + 描述附注）；output codec 同理（无 outputSchema 时 `Schema.Unknown`）
-- execute：`PermissionV2.assert({ action: "mcp_<server>_<tool>", resources: ["*"], save: ["*"], ... })` → `mcp.callTool` → isError/异常映射 `ToolFailure` → content 转换沿上游 `tool/mcp.ts:146-161` 语义（文本直通；`ReadToolFileSystem.MEDIA_MIMES` 媒体内联；文本资源解码；二进制存 ToolOutputStore）
-- `Tool.withPermission(tool, action)` 声明目录过滤面（deny+resource"*" 时整工具从目录消失）
+- `McpRegister` Location node（deps: Mcp.node + ToolRegistry.node + PermissionV2.node + EventV2.node）；启动时 `mcp.tools()` 全量注册，订阅 `McpEvent.ToolsChanged` 经 100ms debounce 重注册（关旧子 scope、开新子 scope 注册全量，沿 registry「closing reveals next」语义；先注册新批再关旧，目录无空窗）
+- 每个 MCP 工具 → `Tool.make`：input codec = `SchemaRepresentation.toSchema(SchemaRepresentation.fromJsonSchemaDocument(JsonSchema.fromSchemaDraft2020_12 | fromSchemaDraft07(inputSchema)))`（核实点 13 的 `.ast` + `Schema.make` 写法在 beta.83 不存在，对位为 `toSchema`；转换失败回退 `Schema.Unknown` 交给服务器端校验）；output/structured 均 `Schema.Unknown`，`toStructuredOutput` 取 value、`toModelOutput` 取 content
+- 命名：registry 工具名沿用 `McpCatalog.toolName`（`sanitize(server)_sanitize(tool)`，无 `mcp_` 前缀），适配 `Tool.validateName`（字母开头/≤64 字符：数字开头补 `mcp_` 前缀、超长截断、截断撞名追加序号）；权限 action 恒为 `mcp_<server>_<tool>`（`Tool.withPermission` 声明目录过滤面，deny+resource"*" 时整工具从目录消失）
+- execute：`PermissionV2.assert({ action: "mcp_<server>_<tool>", resources: ["*"], save: ["*"], ... })` → `mcp.callTool` → isError/异常映射 `ToolFailure` → content 转换（fork 适配上游 `tool/mcp.ts:146-161` 语义：文本直通；`ReadTool.SUPPORTED_IMAGE_MIMES`——jpeg/png/gif/webp，对位上游 MEDIA_MIMES——内联为 file content；文本资源解码内联；**二进制无 ToolOutputStore.save 对位，降级为占位文本**（标注 uri/mime/字节数）；audio 同理降级）
 
 ### OAuth 设计
 
-- 每个 `type: "remote"` 且 `oauth !== false` 的服务器注册为 Integration（ID = `mcp_` + sha1(name + "\0" + url).slice(0,16)，沿上游 `index.ts:181-187` 键设计：同 url 不同名不共享凭据）
-- authorize 流程：起本地回调服务器（移植 oauth-callback 语义）→ 打开浏览器（移植 browser.ts 语义，失败发 `McpEvent.BrowserOpenFailed`）→ 收 code → 换 token → 存 Credential（`Credential.Event.Switched` 驱动重连，沿上游 `index.ts:593-598`）
-- 既有 `mcp-auth.json` 退役不迁移（重新授权一次；proposal 非目标）
+- 凭据存储：**McpAuth 全局 node（`mcp-auth.json` + EffectFlock + `.bak` 备份）随客户端 core 化**，否决 Credential/Integration（理由见否决项 6）。存储路径与文件格式不变，旧凭据文件继续可读
+- `Provider`（SDK `OAuthClientProvider` 实现）桥接 McpAuth：tokens/clientInfo/codeVerifier/oauthState 的读写与 URL 归属校验（`getForUrl`）；`PendingProvider` 在授权完成前把凭据留在内存，`commit()` 后才落盘（既有语义）
+- authorize 流程：起本地回调服务器（oauth-callback.ts，state CSRF 校验）→ 打开浏览器（browser.ts，失败发 `McpEvent.BrowserOpenFailed`）→ 收 code → 换 token → `PendingProvider.commit()` 落 McpAuth → 重连
+- 既有 `mcp-auth.json` 不迁移（格式未变；proposal 非目标指跨格式迁移）
 
 ### 退役与改线清单
 
