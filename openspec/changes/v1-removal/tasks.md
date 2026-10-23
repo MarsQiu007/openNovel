@@ -24,10 +24,10 @@
 ## G3 opennovel legacy 面删除
 
 - [x] 3.1 端点裁撤：session（V1 部分）/permission/question/tui/sync 组、workspace-routing middleware、experimental 的 session 部分及对应 handlers
-- [ ] 3.2 删 `src/session/` legacy 模块（逐一核实，V2 复用的保留）、`src/agent/` legacy registry、`src/tool/` legacy 注册表、`src/permission/`、`src/question/`、command 的 LegacyEvent 发布
+- [x] 3.2 删 `src/session/` legacy 模块（逐一核实，V2 复用的保留）、`src/agent/` legacy registry、`src/tool/` legacy 注册表、`src/permission/`、`src/question/`、command 的 LegacyEvent 发布
 - [x] 3.3 `control-plane/workspace.ts` 改造：Session→SessionV2（remove/move）、SessionPrompt.cancel→interrupt、EventV2Bridge→EventV2 原生
-- [ ] 3.4 其余调用方改造：app-runtime/bootstrap 接线、plugin/skill/image/lsp/mcp/project/cli run；auth 插件活路径核实（D16）
-- [ ] 3.5 pin 已删面的测试随删；保留套件改 V2 装置
+- [x] 3.4 其余调用方改造：app-runtime/bootstrap 接线、plugin/skill/image/lsp/mcp/project/cli run；auth 插件活路径核实（D16）
+- [x] 3.5 pin 已删面的测试随删；保留套件改 V2 装置
 
 ## G4 share/import 删除
 

@@ -194,3 +194,13 @@ core 提供 `V1Migration.layer`（forkScoped 立即后台跑）；opennovel serv
 - **D13 核实结果**：`cli/cmd/export.ts` 已全走 V2 面（`@opennovel-ai/sdk/v2` + `v2.session.list`/messages 分页），零 share/V1 依赖，无需处置。
 - **偏差 6（app 调用点已清零）**：侦察称「app 四处 share 调用点」，核实现状 app 侧零 share API 调用——仅剩 i18n 文案键（按约定不动 locale 文件）与两处复制链接 toast（`session.share.copy.copied`，语义是复制会话链接非 share API）。分享端点路由在 G3.1 已随 V1 组裁撤。
 - **回归**：opennovel+core typecheck 双绿、oxlint 0 errors；`bun test test/project test/cli test/server/httpapi-instance-context` 138 pass / 2 fail——help 快照系真实回归（import 命令残留 TOP_LEVEL 与快照，已随删修复，复跑绿）；instance-bootstrap 5.1s 超时隔离复跑 4/4 绿，属全量负载下既有 flake 形状。
+
+### G3.2/G3.4/G3.5 legacy 树删除（2026-10-23，Wave C）
+
+- **C1 端点裁撤**（d215246ab5）：裁撤 legacy `/agent`、`/command`、`/experimental/tool` 端点并切 V2 面；exercise 删 tool 场景后 292/292 全绿。
+- **C2 调用方脱离 V1 事件/权限/消息面**（d2f53d2286）：plugin（错误处理脱离 Session/NamedError，catch 简化为 logError）、skill（裁撤随 Permission 面失效的 `available`）、session/system 标注过渡、project 删 init/setInitialized/initState（EventV2Bridge 依赖边随解）、copilot 合成附件占位文本冻结副本、validate-session 走 SessionV2.ID。
+- **C3 六树删除**（94392d6ae3，165 文件 +96/-40633）：`src/session/`、`src/tool/`、`src/agent/`、`src/permission/`、`src/question/`、`src/command/` 整树及对应 pin 测试目录；两枢纽（app-runtime/server）各裁 17 个 legacy 节点（保留 SessionProjector/V1Migration/SessionV2/EventV2/PermissionSaved）；`cli/cmd/agent.ts` 仅留 V2 list（删 create 子命令）；errors.ts 删 5 个零消费错误类；exercise 种子改走 HTTP 面（POST /api/session，与场景请求命中同一 SessionV2 实例）；httpapi-workspace 测试补 SessionV2/SessionExecution 绑定与显式 location createSession。
+- **D16 核实结果（auth 插件活路径）**：活路径 = `provider/auth.ts` 消费 plugin hooks 的 `auth.provider` 条目（AuthHook），plugin/index.ts 的 PluginInput/applyPlugin 宿主面保留；auth 插件（gitlab/poe）不消费已删的 V1 session/permission/question host 面。SDK `Hooks` 里 V1 形状的 `chat.message`/`event` hook 其 opennovel 侧消费方（session processor）已随删，SDK 类型残留属 G5 core/schema V1 删除范畴。
+- **偏差 7（过度删除教训一——`agent list` 本就是 V2 面）**：初版连 `cli agent list`（embeddedClient + `v2.agent.list`，纯 V2 路径）一并删除，「cli agent (V2)」与 read-only smoke 失败暴露；恢复文件仅删 create 子命令，index.ts 注册与 help 快照按原位恢复。
+- **偏差 8（过度删除教训二——models-api.json 是全局 fixture）**：provider 测试稳定失败（models-dev 数据源缺失），二分归因定位 `test/preload.ts` 的 `OPENNOVEL_MODELS_PATH` 指向随 tool 树删除的 fixture；该 fixture 是全测试套共享的 ModelsDev 数据源而非 legacy pin，迁至 `test/fixtures/models-api.json` 后 provider 97/97 全绿。**教训：git rm 整目录前先 grep 目录内文件名的仓内引用。**
+- **回归**：opennovel typecheck 绿、oxlint 0 errors；exercise 292/292；触及面 428/428；help 快照 25 快照绿；全量套件 1739 pass / 31 skip / 1 fail / 1 error（1771 tests / 150 files）——唯一 fail+error 为「Unhandled error between tests: Unbound layer node @opennovel/v2/SessionExecution」（workspace-adapter 测试后 between-tests 抛出），HEAD（C2）基线同组合复现同等失败，按归因铁律归属既有负载 flake，不改代码。
