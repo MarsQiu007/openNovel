@@ -1,16 +1,13 @@
 import { Account } from "@/account/account"
-import { Agent } from "@/agent/agent"
 import { Config } from "@/config/config"
 import { InstanceState } from "@/effect/instance-state"
 import { MCP } from "@/mcp"
 import { Project } from "@/project/project"
-import { ToolJsonSchema } from "@/tool/json-schema"
-import { ToolRegistry } from "@/tool/registry"
 import { Worktree } from "@/worktree"
 import { Effect, Option } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { ConsoleSwitchPayload, ToolListQuery, WorktreeApiError } from "../groups/experimental"
+import { ConsoleSwitchPayload, WorktreeApiError } from "../groups/experimental"
 
 function mapWorktreeError<A, R>(self: Effect.Effect<A, Worktree.Error, R>) {
   return self.pipe(
@@ -21,11 +18,9 @@ function mapWorktreeError<A, R>(self: Effect.Effect<A, Worktree.Error, R>) {
 export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "experimental", (handlers) =>
   Effect.gen(function* () {
     const account = yield* Account.Service
-    const agents = yield* Agent.Service
     const config = yield* Config.Service
     const mcp = yield* MCP.Service
     const project = yield* Project.Service
-    const registry = yield* ToolRegistry.Service
     const worktreeSvc = yield* Worktree.Service
 
     const getConsole = Effect.fn("ExperimentalHttpApi.console")(function* () {
@@ -79,23 +74,6 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return true
     })
 
-    const tool = Effect.fn("ExperimentalHttpApi.tool")(function* (ctx: { query: typeof ToolListQuery.Type }) {
-      const list = yield* registry.tools({
-        providerID: ctx.query.provider,
-        modelID: ctx.query.model,
-        agent: yield* agents.defaultInfo(),
-      })
-      return list.map((item) => ({
-        id: item.id,
-        description: item.description,
-        parameters: ToolJsonSchema.fromTool(item),
-      }))
-    })
-
-    const toolIDs = Effect.fn("ExperimentalHttpApi.toolIDs")(function* () {
-      return yield* registry.ids()
-    })
-
     const worktree = Effect.fn("ExperimentalHttpApi.worktree")(function* () {
       const ctx = yield* InstanceState.context
       return yield* project.sandboxes(ctx.project.id)
@@ -131,8 +109,6 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("console", getConsole)
       .handle("consoleOrgs", listConsoleOrgs)
       .handle("consoleSwitch", switchConsole)
-      .handle("tool", tool)
-      .handle("toolIDs", toolIDs)
       .handle("worktree", worktree)
       .handle("worktreeCreate", worktreeCreate)
       .handle("worktreeRemove", worktreeRemove)

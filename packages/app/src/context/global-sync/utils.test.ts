@@ -1,36 +1,32 @@
 import { describe, expect, test } from "bun:test"
-import type { Agent } from "@opennovel-ai/sdk/v2/client"
-import { directoryKey, normalizeAgentList } from "./utils"
+import type { AgentV2Info } from "@opennovel-ai/sdk/v2/client"
+import { directoryKey, mapAgent } from "./utils"
 
-const agent = (name = "build") =>
+const agent = (id = "build") =>
   ({
-    name,
+    id,
     mode: "primary",
-    permission: {},
-    options: {},
-  }) as Agent
+    hidden: false,
+    permissions: [],
+    request: { headers: {}, body: {} },
+  }) as AgentV2Info
 
-describe("normalizeAgentList", () => {
-  test("keeps array payloads", () => {
-    expect(normalizeAgentList([agent("build"), agent("docs")])).toEqual([agent("build"), agent("docs")])
+describe("mapAgent", () => {
+  test("maps id to name and carries display fields", () => {
+    expect(mapAgent(agent("build"))).toEqual({ name: "build", mode: "primary", hidden: false })
   })
 
-  test("wraps a single agent payload", () => {
-    expect(normalizeAgentList(agent("docs"))).toEqual([agent("docs")])
-  })
-
-  test("extracts agents from keyed objects", () => {
+  test("maps V2 model ref id to modelID", () => {
     expect(
-      normalizeAgentList({
-        build: agent("build"),
-        docs: agent("docs"),
-      }),
-    ).toEqual([agent("build"), agent("docs")])
-  })
-
-  test("drops invalid payloads", () => {
-    expect(normalizeAgentList({ name: "AbortError" })).toEqual([])
-    expect(normalizeAgentList([{ name: "build" }, agent("docs")])).toEqual([agent("docs")])
+      mapAgent({ ...agent(), model: { id: "gpt-5", providerID: "openai" }, description: "desc", category: "internal" }),
+    ).toEqual({
+      name: "build",
+      mode: "primary",
+      hidden: false,
+      description: "desc",
+      category: "internal",
+      model: { providerID: "openai", modelID: "gpt-5" },
+    })
   })
 })
 

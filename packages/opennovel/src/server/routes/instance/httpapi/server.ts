@@ -54,7 +54,7 @@ import { Database } from "@opennovel-ai/core/database/database"
 import { Global } from "@opennovel-ai/core/global"
 import { AppNodeBuilderV1 } from "@/effect/app-node-builder-v1"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
-import { httpClient } from "@opennovel-ai/core/effect/app-node-platform"
+import { httpClient, llmClient } from "@opennovel-ai/core/effect/app-node-platform"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { Npm } from "@opennovel-ai/core/npm"
@@ -257,6 +257,7 @@ const app = LayerNode.group([
   Installation.node,
   InstanceStore.node,
   httpClient,
+  llmClient,
   EventV2.node,
   ProjectV2.node,
   ProjectCopy.node,

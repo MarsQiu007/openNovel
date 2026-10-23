@@ -16,7 +16,7 @@ import { batch } from "solid-js"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
 import type { ServerSession } from "../server-session"
-import { cmp, normalizeAgentList, normalizeProviderList } from "./utils"
+import { cmp, mapAgent, mapCommand, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
@@ -187,7 +187,7 @@ export const loadProvidersQuery = (scope: ServerScope, directory: string | null,
 export const loadAgentsQuery = (scope: ServerScope, directory: string | null, sdk: OpenNovelClient) =>
   queryOptions({
     queryKey: [scope, directory, "agents"],
-    queryFn: () => retry(() => sdk.app.agents().then((x) => normalizeAgentList(x.data))),
+    queryFn: () => retry(() => sdk.v2.agent.list().then((x) => (x.data?.data ?? []).map(mapAgent))),
   })
 
 export const loadPathQuery = (scope: ServerScope, directory: string | null, sdk: OpenNovelClient) =>
@@ -293,7 +293,11 @@ export async function bootstrapDirectory(input: {
             if (next) input.vcsCache.setStore("value", next)
           }),
         ),
-      input.mcp && (() => retry(() => input.sdk.command.list().then((x) => input.setStore("command", x.data ?? [])))),
+      input.mcp &&
+        (() =>
+          retry(() =>
+            input.sdk.v2.command.list().then((x) => input.setStore("command", (x.data?.data ?? []).map(mapCommand))),
+          )),
       () => input.queryClient.fetchQuery(loadReferencesQuery(input.scope, input.directory, input.sdk)),
       () =>
         retry(() =>

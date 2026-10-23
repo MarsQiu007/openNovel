@@ -1,62 +1,61 @@
-import { Agent } from "@/agent/agent"
-import { Provider } from "@/provider/provider"
-import { LLM } from "@/session/llm"
-import { MessageID, SessionID } from "@/session/schema"
+import * as InstanceState from "@/effect/instance-state"
+import { Catalog } from "@opennovel-ai/core/catalog"
+import { Integration } from "@opennovel-ai/core/integration"
+import { Location } from "@opennovel-ai/core/location"
+import { LocationServiceMap } from "@opennovel-ai/core/location-services"
+import { ModelV2 } from "@opennovel-ai/core/model"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
+import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
 import { Slug } from "@opennovel-ai/core/util/slug"
-import { LLMEvent } from "@opennovel-ai/llm"
-import { Effect, Stream } from "effect"
+import { LLM, LLMClient } from "@opennovel-ai/llm"
+import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 
-const COPY_NAME_AGENT: Agent.Info = {
-  name: "project-copy-name",
-  mode: "primary",
-  permission: [],
-  options: {},
-  native: true,
-  prompt: "",
-}
-
 export const projectCopyHandlers = HttpApiBuilder.group(InstanceHttpApi, "projectCopyName", (handlers) =>
   Effect.gen(function* () {
-    const llm = yield* LLM.Service
-    const provider = yield* Provider.Service
+    const locations = yield* LocationServiceMap.Service
+    const llm = yield* LLMClient.Service
+
+    // Catalog/Integration 是位置树成员（LocationServiceMap 按 ref 构建），
+    // 组构建期不可直取；请求内按实例目录 provide（与 fileHandlers 同模式）。
+    const generate = Effect.fnUntraced(function* (text: string) {
+      const catalog = yield* Catalog.Service
+      const integrations = yield* Integration.Service
+      // V2 选型：默认模型优先、同 provider 小模型更佳；均不支持 native 路由时
+      // 回退 catalog 首个可流式模型（与 SessionRunnerModel.supported 口径一致）。
+      const available = yield* catalog.model.available()
+      const preferred = yield* catalog.model.default()
+      const small = preferred ? yield* catalog.model.small(preferred.providerID) : undefined
+      const info = [small, preferred, ...available].find(
+        (model): model is ModelV2.Info => model !== undefined && SessionRunnerModel.supported(model),
+      )
+      if (!info) return Slug.create()
+      const provider = yield* catalog.provider.get(info.providerID)
+      const connection = yield* integrations.connection.active(
+        provider?.integrationID ?? Integration.ID.make(info.providerID),
+      )
+      const credential = connection ? yield* integrations.connection.resolve(connection) : undefined
+      const model = yield* SessionRunnerModel.fromCatalogModel(info, credential)
+      const response = yield* llm.generate(
+        LLM.request({
+          model,
+          system: [],
+          tools: [],
+          prompt: `Generate a short 2-3 word name that describes this task:\n${text}`,
+        }),
+      )
+      const output = response.text.trim()
+      return output ? slugify(output.split(/\s+/).slice(0, 3).join(" ")) : Slug.create()
+    })
 
     const generateName = Effect.fn("ProjectCopyHttpApi.generateName")(function* (context: string | undefined) {
       const text = context?.trim()
       if (!text) return Slug.create()
-      const fallback = yield* provider.defaultModel().pipe(Effect.catch(() => Effect.succeed(undefined)))
-      if (!fallback) return Slug.create()
-      const model =
-        (yield* provider.getSmallModel(fallback.providerID)) ??
-        (yield* provider.getModel(fallback.providerID, fallback.modelID))
-      const sessionID = SessionID.descending()
-      const result = yield* llm
-        .stream({
-          agent: COPY_NAME_AGENT,
-          user: {
-            id: MessageID.ascending(),
-            sessionID,
-            role: "user",
-            time: { created: Date.now() },
-            agent: COPY_NAME_AGENT.name,
-            model: { providerID: model.providerID, modelID: model.id },
-          },
-          system: [],
-          small: true,
-          tools: {},
-          model,
-          sessionID,
-          retries: 2,
-          messages: [{ role: "user", content: `Generate a short 2-3 word name that describes this task:\n${text}` }],
-        })
-        .pipe(
-          Stream.filter(LLMEvent.is.textDelta),
-          Stream.map((event) => event.text),
-          Stream.mkString,
-        )
-      const output = result.trim()
-      return output ? slugify(output.split(/\s+/).slice(0, 3).join(" ")) : Slug.create()
+      const ctx = yield* InstanceState.context
+      return yield* generate(text).pipe(
+        Effect.provide(locations.get(Location.Ref.make({ directory: AbsolutePath.make(ctx.directory) }))),
+      )
     })
 
     return handlers.handle("generateName", (ctx) =>

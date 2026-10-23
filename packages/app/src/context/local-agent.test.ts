@@ -3,11 +3,15 @@ import { hasCustomAgent, resolveAgent } from "./local-agent"
 
 describe("hasCustomAgent", () => {
   test("detects explicitly custom agents", () => {
-    expect(hasCustomAgent([{ native: true }, { native: false }])).toBe(true)
+    expect(hasCustomAgent([{ category: "internal" }, { category: "novel" }])).toBe(true)
   })
 
-  test("ignores built-in and unclassified agents", () => {
-    expect(hasCustomAgent([{ native: true }, {}])).toBe(false)
+  test("ignores built-in agents", () => {
+    expect(hasCustomAgent([{ category: "internal" }])).toBe(false)
+  })
+
+  test("treats unclassified agents as custom", () => {
+    expect(hasCustomAgent([{ category: "internal" }, {}])).toBe(true)
   })
 })
 

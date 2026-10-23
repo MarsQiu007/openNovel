@@ -1,5 +1,6 @@
-export function hasCustomAgent(items: Array<{ native?: boolean }>) {
-  return items.some((item) => item.native === false)
+// V2 无 native 标志：内置 agent 以 category "internal" 标记（core agent 插件注册）。
+export function hasCustomAgent(items: Array<{ category?: string }>) {
+  return items.some((item) => item.category !== "internal")
 }
 
 export function resolveAgent<T extends { name: string }>(items: T[], name?: string) {

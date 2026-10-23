@@ -167,23 +167,6 @@ const scenarios: Scenario[] = [
     .inProject({ git: false })
     .at((ctx) => ({ path: "/vcs/apply", headers: ctx.headers(), body: { patch: "" } }))
     .status(400, undefined, "status"),
-  http.protected.get("/command", "command.list").json(200, array, "status"),
-  // 实例 /agent 走 legacy Agent 注册表（src/agent）：默认位（无 default_agent 配置时
-  // 回退 build）置顶 + 字母序。d7c593e6ec 摘除 V1 宿主装配后写作 agent 不再进该面；
-  // 端点本身随 G3.2 legacy registry 删除时接线 AgentV2 或裁撤，此处只钉现行形状契约。
-  http.protected.get("/agent", "app.agents").json(
-    200,
-    (body) => {
-      array(body)
-      const agents = body
-        .map((item) => (isRecord(item) ? item.name : undefined))
-        .filter((name): name is string => typeof name === "string")
-      check(agents.length > 0, "agent list should not be empty")
-      check(agents[0] === "build", "default agent should be listed first")
-      check(agents.includes("build"), "agent list should include the build agent")
-    },
-    "status",
-  ),
   http.protected.get("/skill", "app.skills").json(200, array, "status"),
   http.protected.get("/lsp", "lsp.status").json(200, array),
   http.protected.get("/formatter", "formatter.status").json(200, array),
@@ -526,14 +509,6 @@ const scenarios: Scenario[] = [
       body: {},
     }))
     .status(400),
-  http.protected
-    .get("/experimental/tool", "tool.list")
-    .at((ctx) => ({
-      path: `/experimental/tool?${new URLSearchParams({ provider: "opennovel", model: "test" })}`,
-      headers: ctx.headers(),
-    }))
-    .json(200, array, "status"),
-  http.protected.get("/experimental/tool/ids", "tool.ids").json(200, array),
   http.protected.get("/experimental/worktree", "worktree.list").json(200, array),
   http.protected
     .post("/experimental/worktree", "worktree.create")

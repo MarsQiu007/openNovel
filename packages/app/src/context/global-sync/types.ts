@@ -1,6 +1,4 @@
 import type {
-  Agent,
-  Command,
   Config,
   LspStatus,
   McpResource,
@@ -18,6 +16,7 @@ import type {
   VcsInfo,
 } from "@opennovel-ai/sdk/v2/client"
 import { NormalizedProviderListResponse } from "@opennovel-ai/session-ui/context"
+import type { Agent, Command } from "./utils"
 import type { Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
 

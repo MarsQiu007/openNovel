@@ -29,6 +29,7 @@ import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reduc
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
 import { adaptCreated, adaptInfo } from "@/utils/v2-adapter"
 import { trimSessions } from "./global-sync/session-trim"
+import { mapCommand } from "./global-sync/utils"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
 import { formatServerError } from "@/utils/server-errors"
@@ -227,8 +228,8 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     onMcp: (directory, setStore) => {
       void retry(() =>
         sdkFor(directory)
-          .command.list()
-          .then((x) => setStore("command", x.data ?? [])),
+          .v2.command.list()
+          .then((x) => setStore("command", (x.data?.data ?? []).map(mapCommand))),
       ).catch((err) => {
         showToast({
           variant: "error",

@@ -125,12 +125,10 @@ describe("experimental HttpApi", () => {
       Effect.gen(function* () {
         const tmp = yield* TestInstance
         const directory = tmp.directory
-        const [consoleState, consoleOrgs, toolList, toolIDs, worktrees, resources] = yield* Effect.all(
+        const [consoleState, consoleOrgs, worktrees, resources] = yield* Effect.all(
           [
             request(ExperimentalPaths.console, directory),
             request(ExperimentalPaths.consoleOrgs, directory),
-            request(`${ExperimentalPaths.tool}?provider=opennovel&model=gpt-5`, directory),
-            request(ExperimentalPaths.toolIDs, directory),
             request(ExperimentalPaths.worktree, directory),
             request(ExperimentalPaths.resource, directory),
           ],
@@ -145,18 +143,6 @@ describe("experimental HttpApi", () => {
 
         expect(consoleOrgs.status).toBe(200)
         expect(yield* json(consoleOrgs)).toEqual({ orgs: [] })
-
-        expect(toolList.status).toBe(200)
-        expect(yield* json<unknown[]>(toolList)).toContainEqual(
-          expect.objectContaining({
-            id: "bash",
-            description: expect.any(String),
-            parameters: expect.any(Object),
-          }),
-        )
-
-        expect(toolIDs.status).toBe(200)
-        expect(yield* json(toolIDs)).toContain("bash")
 
         expect(worktrees.status).toBe(200)
         expect(yield* json(worktrees)).toEqual([])

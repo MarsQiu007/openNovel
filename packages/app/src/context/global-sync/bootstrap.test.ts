@@ -62,19 +62,21 @@ describe("bootstrapDirectory", () => {
         provider,
       },
       sdk: {
-        app: { agents: async () => ({ data: [{ name: "build", mode: "primary" }] }) },
         config: { get: async () => ({ data: {} }) },
         session: { status: async () => ({ data: {} }) },
         vcs: { get: async () => ({ data: undefined }) },
-        command: {
-          list: async () => {
-            mcpReads.push("command")
-            return { data: [] }
-          },
-        },
         permission: { list: async () => ({ data: [] }) },
         question: { list: async () => ({ data: [] }) },
-        v2: { reference: { list: async () => ({ data: { data: [] } }) } },
+        v2: {
+          agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
+          command: {
+            list: async () => {
+              mcpReads.push("command")
+              return { data: { data: [] } }
+            },
+          },
+          reference: { list: async () => ({ data: { data: [] } }) },
+        },
         mcp: {
           status: async () => {
             mcpReads.push("status")
@@ -103,17 +105,19 @@ describe("bootstrapDirectory", () => {
     const [store, setStore] = directoryState()
     const stalled = Promise.withResolvers<never>()
     const client = {
-      app: { agents: async () => ({ data: [{ name: "build", mode: "primary" }] }) },
       config: { get: async () => ({ data: {} }) },
       session: {
         status: async () => ({ data: { ses_busy: { type: "busy" } } }),
         get: () => stalled.promise,
       },
       vcs: { get: async () => ({ data: undefined }) },
-      command: { list: async () => ({ data: [] }) },
       permission: { list: async () => ({ data: [] }) },
       question: { list: async () => ({ data: [] }) },
-      v2: { reference: { list: async () => ({ data: { data: [] } }) } },
+      v2: {
+        agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
+        command: { list: async () => ({ data: { data: [] } }) },
+        reference: { list: async () => ({ data: { data: [] } }) },
+      },
       mcp: { status: async () => ({ data: {} }) },
       provider: { list: async () => ({ data: { all: [], connected: [], default: {} } }) },
     } as unknown as OpenNovelClient

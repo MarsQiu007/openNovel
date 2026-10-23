@@ -7,14 +7,8 @@ import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
-import {
-  WorkspaceRoutingMiddleware,
-  WorkspaceRoutingQuery,
-  WorkspaceRoutingQueryFields,
-} from "../middleware/workspace-routing"
+import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 import { described } from "./metadata"
-import { ProviderV2 } from "@opennovel-ai/core/provider"
-import { ModelV2 } from "@opennovel-ai/core/model"
 
 const ConsoleStateResponse = Schema.Struct({
   consoleManagedProviders: Schema.mutable(Schema.Array(Schema.String)),
@@ -40,19 +34,6 @@ export const ConsoleSwitchPayload = Schema.Struct({
   orgID: OrgID,
 })
 
-const ToolIDs = Schema.Array(Schema.String).annotate({ identifier: "ToolIDs" })
-const ToolListItem = Schema.Struct({
-  id: Schema.String,
-  description: Schema.String,
-  parameters: Schema.Unknown,
-}).annotate({ identifier: "ToolListItem" })
-const ToolList = Schema.Array(ToolListItem).annotate({ identifier: "ToolList" })
-export const ToolListQuery = Schema.Struct({
-  ...WorkspaceRoutingQueryFields,
-  provider: ProviderV2.ID,
-  model: ModelV2.ID,
-})
-
 const WorktreeList = Schema.Array(Schema.String)
 const WorktreeErrorName = Schema.Union([
   Schema.Literal("WorktreeNotGitError"),
@@ -74,8 +55,6 @@ export const ExperimentalPaths = {
   console: "/experimental/console",
   consoleOrgs: "/experimental/console/orgs",
   consoleSwitch: "/experimental/console/switch",
-  tool: "/experimental/tool",
-  toolIDs: "/experimental/tool/ids",
   worktree: "/experimental/worktree",
   worktreeReset: "/experimental/worktree/reset",
   resource: "/experimental/resource",
@@ -117,30 +96,6 @@ export const ExperimentalApi = HttpApi.make("experimental")
             identifier: "experimental.console.switchOrg",
             summary: "Switch active Console org",
             description: "Persist a new active Console account/org selection for the current local OpenNovel state.",
-          }),
-        ),
-        HttpApiEndpoint.get("tool", ExperimentalPaths.tool, {
-          query: ToolListQuery,
-          success: described(ToolList, "Tools"),
-          error: HttpApiError.BadRequest,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "tool.list",
-            summary: "List tools",
-            description:
-              "Get a list of available tools with their JSON schema parameters for a specific provider and model combination.",
-          }),
-        ),
-        HttpApiEndpoint.get("toolIDs", ExperimentalPaths.toolIDs, {
-          query: WorkspaceRoutingQuery,
-          success: described(ToolIDs, "Tool IDs"),
-          error: HttpApiError.BadRequest,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "tool.ids",
-            summary: "List tool IDs",
-            description:
-              "Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.",
           }),
         ),
         HttpApiEndpoint.get("worktree", ExperimentalPaths.worktree, {

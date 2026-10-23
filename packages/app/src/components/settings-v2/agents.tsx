@@ -9,9 +9,8 @@ import { useLanguage } from "@/context/language"
 import { useModels } from "@/context/models"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
-import { normalizeAgentList } from "@/context/global-sync/utils"
+import { mapAgent, type Agent } from "@/context/global-sync/utils"
 import { showToast } from "@/utils/toast"
-import type { Agent } from "@opennovel-ai/sdk/v2/client"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
@@ -42,9 +41,9 @@ export const SettingsAgentsV2: Component = () => {
   const agentsQuery = createQuery(() => ({
     queryKey: ["settings", serverSdk().url, "agents"],
     queryFn: async () => {
-      const result = await serverSdk().client.app.agents()
+      const result = await serverSdk().client.v2.agent.list()
       // 隐藏内置工具型 agent（compaction / summary / title），它们不暴露给用户配置。
-      return normalizeAgentList(result.data).filter((agent) => !agent.hidden)
+      return (result.data?.data ?? []).map(mapAgent).filter((agent) => !agent.hidden)
     },
   }))
 

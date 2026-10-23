@@ -10,7 +10,6 @@ import {
   FindFileQuery,
   FindTextQuery,
 } from "../../src/server/routes/instance/httpapi/groups/file"
-import { ExperimentalPaths, ToolListQuery } from "../../src/server/routes/instance/httpapi/groups/experimental"
 import { InstancePaths, VcsDiffQuery } from "../../src/server/routes/instance/httpapi/groups/instance"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
 import { PtyPaths } from "../../src/server/routes/instance/httpapi/groups/pty"
@@ -39,7 +38,6 @@ const openApiDriftRoutes = [
   { method: "get", path: FilePaths.findFile, query: FindFileQuery },
   { method: "get", path: FilePaths.findText, query: FindTextQuery },
   { method: "get", path: FilePaths.list, query: FileQuery },
-  { method: "get", path: ExperimentalPaths.tool, query: ToolListQuery },
   { method: "get", path: InstancePaths.vcsDiff, query: VcsDiffQuery },
   { method: "get", path: "/api/session/:sessionID/message", query: SessionMessagesQuery },
 ] satisfies Array<{ method: Method; path: string; query: QuerySchema }>
