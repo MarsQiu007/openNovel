@@ -15,6 +15,8 @@ import { Integration } from "./integration"
 import { Location } from "./location"
 import { LocationMutation } from "./location-mutation"
 import { LocationServiceMap } from "./location-service-map"
+import { Mcp } from "./mcp"
+import { McpRegister } from "./mcp/register"
 import { PermissionV2 } from "./permission"
 import { PluginV2 } from "./plugin"
 import { PluginInternal } from "./plugin/internal"
@@ -75,6 +77,8 @@ export const locationServices = LayerNode.group([
   QuestionV2.node,
   ReadToolFileSystem.node,
   BuiltInTools.node,
+  Mcp.node,
+  McpRegister.node,
   SessionRunnerModel.node,
   Snapshot.node,
   SessionRunnerLLM.node,
