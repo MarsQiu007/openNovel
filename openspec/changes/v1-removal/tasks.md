@@ -37,11 +37,11 @@
 
 ## G5 config 冻结与 core/schema V1 删除
 
-- [ ] 5.1 `core/src/v1/config/` → `core/src/config/v1/` 机械搬迁；core migrate 路径、远端 provider 解码（`plugin/provider/opennovel.ts`）、opennovel 管线（30+ 消费方）、`opennovel/script/schema.ts`（config JSON schema 生成）import 统一改新路径
-- [ ] 5.2 删 `core/src/v1/session.ts`、`core/src/v1/permission.ts`；sql.ts 删 `MessageTable`/`PartTable`、permission 列类型改注（D18）
-- [ ] 5.3 projector 删 V1 分支；`core/src/session.ts` 删 SessionV1 兼容发布与 import
-- [ ] 5.4 删 `schema/src/v1/` 四文件 + 三转发壳；durable/live manifest 收敛、`Latest.size` 更新
-- [ ] 5.5 drizzle 快照核实：无 DROP TABLE 产出
+- [x] 5.1 `core/src/v1/config/` → `core/src/config/v1/` 机械搬迁；core migrate 路径、远端 provider 解码（`plugin/provider/opennovel.ts`）、opennovel 管线（30+ 消费方）、`opennovel/script/schema.ts`（config JSON schema 生成）import 统一改新路径
+- [x] 5.2 删 `core/src/v1/session.ts`、`core/src/v1/permission.ts`；sql.ts 删 `MessageTable`/`PartTable`、permission 列类型改注（D18）
+- [x] 5.3 projector 删 V1 分支；`core/src/session.ts` 删 SessionV1 兼容发布与 import
+- [x] 5.4 删 `schema/src/v1/` 四文件 + 三转发壳；durable/live manifest 收敛、`Latest.size` 更新
+- [x] 5.5 drizzle 快照核实：无 DROP TABLE 产出
 
 ## G6 生成物与收尾
 
