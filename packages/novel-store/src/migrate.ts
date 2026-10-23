@@ -92,6 +92,38 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateChapterContentFingerprint(exec, query)
   migrateChapterWordCount(exec, query)
   migrateReviewTrail(exec, query)
+  migrateMemoryColumns(exec, query)
+}
+
+/**
+ * 记忆系统加列（agent-memory-system §2.2/§2.3，幂等）。
+ *
+ * characters / world_entries 补落文状态列（存量行默认 established——observer 提取自
+ * 已写正文，误标 planned 会永久滞留提醒，误标 established 只是少提醒）；
+ * techniques 补 usage_ledger / promoted_from / novel_id（书库与全局库同构，全局库 novel_id 恒 NULL）。
+ * memory_fact / memory_injection_snapshot / memory_fact_fts 新表由 CREATE_TABLES_SQL 直建。
+ */
+function migrateMemoryColumns(exec: ExecFn, query: QueryFn): void {
+  const targets: Array<{ table: string; column: string; ddl: string }> = [
+    { table: "characters", column: "establishment", ddl: "ALTER TABLE characters ADD COLUMN establishment text NOT NULL DEFAULT 'established'" },
+    { table: "characters", column: "established_chapter_id", ddl: "ALTER TABLE characters ADD COLUMN established_chapter_id text" },
+    { table: "world_entries", column: "establishment", ddl: "ALTER TABLE world_entries ADD COLUMN establishment text NOT NULL DEFAULT 'established'" },
+    { table: "world_entries", column: "established_chapter_id", ddl: "ALTER TABLE world_entries ADD COLUMN established_chapter_id text" },
+    { table: "techniques", column: "usage_ledger", ddl: "ALTER TABLE techniques ADD COLUMN usage_ledger text NOT NULL DEFAULT '[]'" },
+    { table: "techniques", column: "promoted_from", ddl: "ALTER TABLE techniques ADD COLUMN promoted_from text" },
+    { table: "techniques", column: "novel_id", ddl: "ALTER TABLE techniques ADD COLUMN novel_id text" },
+  ]
+  for (const { table, column, ddl } of targets) {
+    try {
+      const result = query(`PRAGMA table_info(${table})`)
+      const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+      if (cols.length > 0 && !cols.some((c) => c.name === column)) {
+        exec(ddl)
+      }
+    } catch {
+      // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+    }
+  }
 }
 
 /**

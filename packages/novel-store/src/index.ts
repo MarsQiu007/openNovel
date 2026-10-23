@@ -8,7 +8,7 @@
  * 不持有任何 hook 或 tool 注册逻辑。
  */
 import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
@@ -62,6 +62,10 @@ export const CharacterTable = sqliteTable("characters", {
   role: text().notNull().default(""),
   description: text().notNull().default(""),
   status: text().notNull().default("active"),
+  /** 落文状态（agent-memory-system §2.3）：planned=设定未落文 | established=已落文 */
+  establishment: text().notNull().default("established"),
+  /** 落文章节（establishment=established 时记录） */
+  established_chapter_id: text(),
   created_at: integer()
     .notNull()
     .$default(() => Date.now()),
@@ -177,6 +181,10 @@ export const WorldEntryTable = sqliteTable("world_entries", {
   category: text().notNull().default(""),
   title: text().notNull(),
   content: text().notNull().default(""),
+  /** 落文状态（agent-memory-system §2.3）：planned=设定未落文 | established=已落文 */
+  establishment: text().notNull().default("established"),
+  /** 落文章节（establishment=established 时记录） */
+  established_chapter_id: text(),
   created_at: integer()
     .notNull()
     .$default(() => Date.now()),
@@ -420,6 +428,74 @@ export const PendingSettingTable = sqliteTable(
     index("pending_settings_novel_idx").on(table.novel_id, table.status),
     index("pending_settings_title_idx").on(table.novel_id, table.display_title),
   ],
+)
+
+/**
+ * 自由事实表（agent-memory-system，design §2.1）— 既有 StateDelta 管线的补全层。
+ *
+ * 只承接无实体归宿的 delta：timeline 类型（原仅记日志）、importance=1 的非实体长尾、
+ * 作者手记（created_by=author）。实体事实（角色/关系/世界观/伏笔）的归宿仍是既有表，
+ * 本表永不重复存实体事实。
+ *
+ * 出处强制：无出处（chapter_id + quote）的卡不应存在；status 横切状态机
+ * pending → reviewed → approved → stale → retired（retired 不删行，留痕）。
+ * FTS 检索走 memory_fact_fts 虚表，由写入方应用级同步（同 chapter_summary_fts 惯例）。
+ */
+export const MemoryFactTable = sqliteTable(
+  "memory_fact",
+  {
+    id: text().primaryKey(),
+    novel_id: text().notNull(),
+    /** 出处章（observer 提取来源；作者手记可空） */
+    chapter_id: text(),
+    /** 复用 StateDelta FactType，主要为 timeline */
+    fact_type: text().notNull(),
+    /** 原文引句（逐字，校准锚点） */
+    quote: text(),
+    /** 引句定位（偏移区间） */
+    quote_span: text(),
+    /** 关联实体提示（可空，后续合并升级用） */
+    entity_hint: text(),
+    /** 结构化事实陈述（保留原文语态，不改写归一） */
+    text: text().notNull(),
+    /** pending | reviewed | approved | stale | retired */
+    status: text().notNull().default("pending"),
+    /** 0-100；来源分级：作者裁决 > 审计校准 > observer 登记 */
+    confidence: integer().notNull().default(50),
+    /** 独立支撑章数 */
+    proof_count: integer().notNull().default(1),
+    /** observer | author */
+    created_by: text().notNull().default("observer"),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [
+    index("memory_fact_novel_idx").on(table.novel_id, table.status),
+    index("memory_fact_chapter_idx").on(table.chapter_id),
+  ],
+)
+
+/**
+ * 物化注入包（design §2.4）— 章审批通过时为「下一章」预计算的五件套序列化结果，
+ * 起草开始时一次数据库读。同一输入必得同一注入包（确定性，可测试）。
+ */
+export const MemoryInjectionSnapshotTable = sqliteTable(
+  "memory_injection_snapshot",
+  {
+    novel_id: text().notNull(),
+    chapter_id: text().notNull(),
+    /** 五件套序列化结果（JSON） */
+    payload: text().notNull().default("{}"),
+    budget_used: integer().notNull().default(0),
+    built_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [primaryKey({ columns: [table.novel_id, table.chapter_id] })],
 )
 
 /**
@@ -737,6 +813,12 @@ export const TechniqueTable = sqliteTable("techniques", {
   embedding: text(),
   usage_count: integer().notNull().default(0),
   last_used_at: integer(),
+  /** 饱和度账本（agent-memory-system §2.2）：近期按卷/章的使用分布 JSON */
+  usage_ledger: text().notNull().default("[]"),
+  /** 晋升来源留痕：本条目由哪条技巧固化而来（retired 不删行） */
+  promoted_from: text(),
+  /** 书级归属（书库内多书分域；NULL=库级遗留行，对所有书可见）。全局库恒 NULL */
+  novel_id: text(),
   created_at: integer().notNull().$default(() => Date.now()),
   updated_at: integer().notNull().$default(() => Date.now()),
 }, (table) => [
@@ -785,9 +867,9 @@ export function getDbPath(directory?: string | null): string {
   return join(base, ".novel", "novel.db")
 }
 
-/** 全局通用技法库表结构：与书库 techniques 同构但无 novel 级外键（跨书共享，不绑定具体书）。 */
+/** 全局通用技法库表结构：与书库 techniques 同构但无 novel 级外键（跨书共享，不绑定具体书；novel_id 列恒 NULL）。 */
 const GLOBAL_TECHNIQUE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, created_at integer NOT NULL, updated_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, usage_ledger text DEFAULT '[]' NOT NULL, promoted_from text, novel_id text, created_at integer NOT NULL, updated_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS technique_status_idx ON techniques(status);
 CREATE INDEX IF NOT EXISTS technique_level_idx ON techniques(level);
 CREATE TABLE IF NOT EXISTS technique_feedback (id text PRIMARY KEY, technique_id text NOT NULL, chapter_id text NOT NULL, score real NOT NULL, was_used integer DEFAULT 0 NOT NULL, comment text DEFAULT '' NOT NULL, created_at integer NOT NULL);
@@ -804,7 +886,7 @@ CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
-CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, establishment text DEFAULT 'established' NOT NULL, established_chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text NOT NULL, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_summaries (id text PRIMARY KEY, chapter_id text NOT NULL, summary text DEFAULT '' NOT NULL, key_events text DEFAULT '[]' NOT NULL, char_changes text DEFAULT '[]' NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS foreshadowing (id text PRIMARY KEY, novel_id text NOT NULL, planted_chapter_id text, resolved_chapter_id text, content text NOT NULL, state text DEFAULT 'planted' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (planted_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL, FOREIGN KEY (resolved_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
@@ -817,7 +899,7 @@ CREATE TABLE IF NOT EXISTS soul (id text PRIMARY KEY, novel_id text NOT NULL, co
 CREATE TABLE IF NOT EXISTS volume_summaries (id text PRIMARY KEY, volume_id text NOT NULL, summary text DEFAULT '' NOT NULL, char_active text DEFAULT '[]' NOT NULL, char_dormant text DEFAULT '[]' NOT NULL, threads_open text DEFAULT '[]' NOT NULL, threads_closed text DEFAULT '[]' NOT NULL, FOREIGN KEY (volume_id) REFERENCES volumes(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS segment_summaries (id text PRIMARY KEY, novel_id text NOT NULL, start_chapter integer NOT NULL, end_chapter integer NOT NULL, summary text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE UNIQUE INDEX IF NOT EXISTS segment_summaries_novel_start_idx ON segment_summaries(novel_id, start_chapter);
-CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS world_entries (id text PRIMARY KEY, novel_id text NOT NULL, category text DEFAULT '' NOT NULL, title text NOT NULL, content text DEFAULT '' NOT NULL, establishment text DEFAULT 'established' NOT NULL, established_chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS tension_log (id text PRIMARY KEY, novel_id text NOT NULL, chapter_number integer NOT NULL, level real NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS pending_settings (id text PRIMARY KEY, novel_id text NOT NULL, candidate_type text NOT NULL, source_chapter_id text, suggested_entity_id text DEFAULT '' NOT NULL, payload_json text DEFAULT '{}' NOT NULL, importance integer DEFAULT 1 NOT NULL, type_strength text DEFAULT '' NOT NULL, display_title text DEFAULT '' NOT NULL, status text DEFAULT 'pending' NOT NULL, merged_into text DEFAULT '' NOT NULL, review_note text DEFAULT '' NOT NULL, created_at integer NOT NULL, resolved_at integer, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (source_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS pending_settings_novel_idx ON pending_settings(novel_id, status);
@@ -867,7 +949,7 @@ JOIN chapters c ON c.id = s.chapter_id
 WHERE NOT EXISTS (
   SELECT 1 FROM chapter_summary_fts f WHERE f.novel_id = c.novel_id AND f.chapter_id = s.chapter_id
 );
-CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, created_at integer NOT NULL, updated_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, usage_ledger text DEFAULT '[]' NOT NULL, promoted_from text, novel_id text, created_at integer NOT NULL, updated_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS technique_status_idx ON techniques(status);
 CREATE INDEX IF NOT EXISTS technique_level_idx ON techniques(level);
 CREATE TABLE IF NOT EXISTS technique_feedback (id text PRIMARY KEY, technique_id text NOT NULL, chapter_id text NOT NULL, score real NOT NULL, was_used integer DEFAULT 0 NOT NULL, comment text DEFAULT '' NOT NULL, created_at integer NOT NULL);
@@ -905,6 +987,21 @@ CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id te
 CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
 CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);
 CREATE TABLE IF NOT EXISTS writing_batch (novel_id text PRIMARY KEY, session_id text NOT NULL, start_chapter integer NOT NULL, total integer NOT NULL, last_completed_chapter integer, status text DEFAULT 'running' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);`
+
+// agent-memory-system §2.1/§2.4：自由事实补全层 + 物化注入包。
+// FTS 同步沿用仓库惯例走应用级（写入点显式 delete+insert，见 state-commit），此处只做存量回填。
+CREATE_TABLES_SQL += `
+CREATE TABLE IF NOT EXISTS memory_fact (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, fact_type text NOT NULL, quote text, quote_span text, entity_hint text, text text NOT NULL, status text DEFAULT 'pending' NOT NULL, confidence integer DEFAULT 50 NOT NULL, proof_count integer DEFAULT 1 NOT NULL, created_by text DEFAULT 'observer' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE INDEX IF NOT EXISTS memory_fact_novel_idx ON memory_fact(novel_id, status);
+CREATE INDEX IF NOT EXISTS memory_fact_chapter_idx ON memory_fact(chapter_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fact_fts USING fts5(novel_id UNINDEXED, fact_id UNINDEXED, text, quote, tokenize = 'trigram');
+INSERT INTO memory_fact_fts(novel_id, fact_id, text, quote)
+SELECT f.novel_id, f.id, f.text, COALESCE(f.quote, '')
+FROM memory_fact f
+WHERE NOT EXISTS (
+  SELECT 1 FROM memory_fact_fts t WHERE t.fact_id = f.id
+);
+CREATE TABLE IF NOT EXISTS memory_injection_snapshot (novel_id text NOT NULL, chapter_id text NOT NULL, payload text DEFAULT '{}' NOT NULL, budget_used integer DEFAULT 0 NOT NULL, built_at integer NOT NULL, PRIMARY KEY (novel_id, chapter_id), FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);`
 
 // ─── DB 连接缓存 ───
 
