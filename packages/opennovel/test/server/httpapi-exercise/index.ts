@@ -36,6 +36,7 @@ import { disposeApps } from "./backend"
 import { runtime } from "./runtime"
 import { type Scenario, type ScenarioContext } from "./types"
 import {
+  beginWritingBatch,
   createCharacterMapPin,
   createWorldMap,
   createWorldMapFeature,
@@ -1148,6 +1149,22 @@ function seedNovel(ctx: ScenarioContext, title = "种子小说") {
     Effect.map(createNovel(novelDirectory(ctx), { title, genre: "玄幻", synopsis: "种子简介" }), (novel) => ({
       novelID: novel.id,
     })),
+  )
+}
+
+// sessionId 用随机 UUID（非活跃会话），interrupted 派生为 true 的 running 批量
+function seedWritingBatch(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx)
+      yield* Effect.promise(() =>
+        beginWritingBatch(
+          { novelId: novelID, sessionId: crypto.randomUUID(), startChapter: 1, total: 3 },
+          novelDirectory(ctx),
+        ),
+      )
+      return { novelID }
+    }),
   )
 }
 
@@ -2499,6 +2516,31 @@ function novelScenarios(): Scenario[] {
       .at((ctx) => ({ path: "/api/novel/mode", headers: ctx.headers(), body: { writing_mode: "review" } }))
       .json(200, (body) => object(body)),
     http.protected.get("/api/novel/session-bindings", "v2.novel.session-bindings").json(200, (body) => array(body)),
+    http.protected
+      .get("/api/novel/{novelID}/writing-batch", "v2.novel.writing-batch")
+      .seeded((ctx) => seedWritingBatch(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/writing-batch", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.status === "running", "seeded batch should be running")
+        check(typeof record.interrupted === "boolean", "interrupted should be derived at query time")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/writing-batch/cancel", "v2.novel.writing-batch-cancel")
+      .mutating()
+      .seeded((ctx) => seedWritingBatch(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/writing-batch/cancel", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        check((body as Record<string, unknown>).status === "cancelled", "cancel should mark the batch cancelled")
+      }),
     http.protected
       .get("/api/novel/{novelID}/arcs", "v2.novel.arcs")
       .at((ctx) => ({ path: route("/api/novel/{novelID}/arcs", { novelID: "nov_missing" }), headers: ctx.headers() }))
