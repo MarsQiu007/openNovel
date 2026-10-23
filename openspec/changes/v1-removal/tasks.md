@@ -14,16 +14,16 @@
 
 ## G2 V2 生命周期事件与 move 补全（schema+core+app）
 
-- [ ] 2.1 `session.next.created` / `session.next.deleted` durable 事件定义（V2 形状 payload）
-- [ ] 2.2 projector 新分支（Created→SessionTable 插入含 WorkspaceTable.time_used；Deleted→删除）
-- [ ] 2.3 `SessionV2.create`/`remove` 改发新词汇，删 `legacyInfo`；保留 `SessionAlreadyProjected` 竞态语义
-- [ ] 2.4 `SessionV2.move` 实现（发布 `SessionEvent.Moved`）；`OperationUnavailableError` 词表清理
-- [ ] 2.5 app reducer 改消费新词汇（`event-reducer.ts`、`server-session.ts`、`server-sync.tsx`），删 `session.updated`（V1）分支
-- [ ] 2.6 `EventManifest.Latest` 加新事件、计数更新；protocol 文档串同步（`packages/protocol/src/groups/session.ts:282` 提及 `session.deleted`）
+- [x] 2.1 `session.next.created` / `session.next.deleted` durable 事件定义（V2 形状 payload）
+- [x] 2.2 projector 新分支（Created→SessionTable 插入含 WorkspaceTable.time_used；Deleted→删除）
+- [x] 2.3 `SessionV2.create`/`remove` 改发新词汇，删 `legacyInfo`；保留 `SessionAlreadyProjected` 竞态语义
+- [x] 2.4 `SessionV2.move` 实现（发布 `SessionEvent.Moved`）；`OperationUnavailableError` 词表清理
+- [x] 2.5 app reducer 改消费新词汇（`event-reducer.ts`、`server-session.ts`、`server-sync.tsx`），删 `session.updated`（V1）分支
+- [x] 2.6 `EventManifest.Latest` 加新事件、计数更新；protocol 文档串同步（`packages/protocol/src/groups/session.ts:282` 提及 `session.deleted`）
 
 ## G3 opennovel legacy 面删除
 
-- [ ] 3.1 端点裁撤：session（V1 部分）/permission/question/tui/sync 组、workspace-routing middleware、experimental 的 session 部分及对应 handlers
+- [x] 3.1 端点裁撤：session（V1 部分）/permission/question/tui/sync 组、workspace-routing middleware、experimental 的 session 部分及对应 handlers
 - [ ] 3.2 删 `src/session/` legacy 模块（逐一核实，V2 复用的保留）、`src/agent/` legacy registry、`src/tool/` legacy 注册表、`src/permission/`、`src/question/`、command 的 LegacyEvent 发布
 - [ ] 3.3 `control-plane/workspace.ts` 改造：Session→SessionV2（remove/move）、SessionPrompt.cancel→interrupt、EventV2Bridge→EventV2 原生
 - [ ] 3.4 其余调用方改造：app-runtime/bootstrap 接线、plugin/skill/image/lsp/mcp/project/cli run；auth 插件活路径核实（D16）

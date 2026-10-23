@@ -169,3 +169,13 @@ core 提供 `V1Migration.layer`（forkScoped 立即后台跑）；opennovel serv
   - 抽查最大会话（247 行）：user/reasoning/工具内容完整，content id 合成正确，agent/model/token 回填与 V1 源一致（源数据 cost 全 0，回填 0 属忠实）。
 - **偏差 1（设计外发现，已修）**：无消息会话不进主循环（游标取自 message 表），其 V1 事件行残留（真实库 3 会话 4 行）。已在锚点事务内加兜底清理（排除 message 与 session_message 均有行的续聊跳过会话），复跑残留归零。
 - **续聊冒烟口径**：全量 decode + 水位不变式（`event_sequence.seq ≥ max(session_message.seq)`，新事件 seq = 水位+1 不撞 `UNIQUE(session_id, seq)`）替代真实 LLM 续聊；`SessionContextEpoch` 懒初始化容忍无 epoch 行（§4.5）。
+
+### G3.1 端点裁撤（2026-10-23）
+
+- **裁撤清单**：V1 session/permission/question/tui/sync 五个路由组与对应 handlers（含 session-errors）；workspace-routing middleware 保留但解除 V1 依赖；experimental 组删 session 部分。`cli/tui/validate-session.ts` 改走 `v2.session.get`。
+- **测试面**：删 9 个 V1 pin 套件（httpapi-session/sync/promptasync-context/schema-error-body/session-actions/session-diff-missing-patch/session-messages/session-select/negative-tokens-regression）；`httpapi-sdk.test.ts` 大改（删 5 个 V1 parity 用例、4 个改写 V2 流程，13/13 绿）。
+- **偏差 2（既有红归因，钉现行契约）**：exercise `app.agents` 在 HEAD 已红。实例 `GET /agent` 走 legacy Agent 注册表（`src/agent`，默认位置顶+字母序），d7c593e6ec（runtime-v2-cutover）摘除 novel-writer V1 宿主装配（internalPlugins 移除 + config hook 消费循环删除）后写作 agent 不再进该面；V2 插件（config `plugins` 接线的 novel-writer-v2）只注册进 AgentV2，不喂 legacy 注册表。处置：断言改为现行形状契约（默认位 build 置顶、含 build），端点本体随 G3.2 legacy registry 删除时接线 AgentV2 或裁撤。
+- **偏差 3（死场景删除）**：exercise `/experimental/capabilities` 场景断言的路由在 c8380f682b（agent-task-subagent）已删，场景系 Initial commit 遗留未随删，处置=删场景。
+- **偏差 4（既有覆盖债补齐）**：11 条 missing 场景系既有债（v2.session delete/todo/diff 来自 470749a427、setting-images 六端点来自 e0f1d75059、v2.session update/command 从未覆盖），本次补齐 5 个 v2.session + 6 个 setting-images 场景，三模式 missing=0。
+- **V2 config→catalog 实战陷阱**（写进 `httpapi-sdk.test.ts` 注释）：V2 catalog 只认 `providers`（复数）键下 ConfigV2 provider 形状（`api`/`request`），V1 的 `npm`/`options` 字段被 schema 静默丢弃；catalog 由插件异步填充，测试须轮询 `v2.model.list` 等 test 模型可见再 prompt；session create 缺省 location 是 `process.cwd()`，list 按 directory 过滤时须显式传 `location`。
+- **全量回归**：exercise 三模式 296/296（missing=0 extra=0）；`bun test` 2641 pass / 4 fail——4 例全属已立案 flake 家族（tool.shell ×3，隔离 65/65 两轮绿；read-only smoke 5s 超时轮换），首轮 2 例真实回归（httpapi-event/httpapi-v2-location 的 create 空 body 缺省 location 落 process.cwd()）已修并隔离复绿；typecheck 绿、oxlint 0 errors。
