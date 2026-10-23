@@ -74,7 +74,7 @@ async function seedNovel() {
 }
 
 describe("commitState 可靠性", () => {
-  test("同章重复提交不会翻倍候选、冲突、摘要和 FTS", async () => {
+  test("同章重复提交不会翻倍候选、冲突、摘要、日志和 FTS", async () => {
     const db = await seedNovel()
     const {
       ChapterSummaryTable,
@@ -154,29 +154,22 @@ describe("commitState 可靠性", () => {
     expect(conflicts[0].conflict_kind).toBe("number_inconsistency")
     expect(ftsRows).toHaveLength(1)
     expect(ftsRows[0].body).toContain("黑市拍卖")
-    expect(logs).toHaveLength(6)
+    // 状态日志同为章级「一章一份」（agent-background-job-recovery D5）：reset 先清本章旧行
+    expect(logs).toHaveLength(3)
   })
 
   test("中途失败时回滚日志、物化视图和 FTS", async () => {
     const db = await seedNovel()
     const {
       ChapterSummaryTable,
-      CharacterTable,
       NovelStateLogTable,
     } = await import("../../src/novel-writer/session-store.js")
     const { commitState } = await import("../../src/novel-writer/state-commit.js")
 
-    db.insert(CharacterTable).values({
-      id: "char-dup",
-      novel_id: NOVEL,
-      name: "重复角色",
-      role: "",
-      description: "原始描述",
-      status: "active",
-    }).run()
-
     const logsBefore = db.select().from(NovelStateLogTable).all().length
 
+    // 失败注入：chapter_summary 指向不存在章节，物化视图写入触发外键约束
+    // （角色重复主键注入已随 agent-background-job-recovery D5 的幂等修复失效）
     await expect(
       commitState(NOVEL, CHAPTER, [
         {
@@ -186,24 +179,22 @@ describe("commitState 可靠性", () => {
           data: { chapter_id: CHAPTER, summary: "应被回滚", key_events: [] },
         },
         {
-          fact_type: "character",
+          fact_type: "chapter_summary",
           action: "create",
-          entity_id: "char-dup",
-          data: { name: "重复角色", role: "主角", description: "不应写入" },
+          entity_id: "cs-rollback-2",
+          data: { chapter_id: "ch-nonexistent", summary: "触发外键失败", key_events: [] },
         },
       ]),
     ).rejects.toThrow()
 
     const logsAfter = db.select().from(NovelStateLogTable).all().length
     const summaries = db.select().from(ChapterSummaryTable).all()
-    const character = db.select().from(CharacterTable).where(eq(CharacterTable.id, "char-dup")).all()[0]
     const ftsCount = db.all(
       sql`SELECT count(*) as count FROM chapter_summary_fts WHERE novel_id = ${NOVEL}`,
     ) as Array<{ count: number }>
 
     expect(logsAfter).toBe(logsBefore)
     expect(summaries).toHaveLength(0)
-    expect(character.description).toBe("原始描述")
     expect(ftsCount[0].count).toBe(0)
   })
 })

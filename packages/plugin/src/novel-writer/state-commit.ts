@@ -51,7 +51,7 @@ import {
   type CharacterBindingView,
 } from "./drift-guards.js"
 import { dirname, join } from "path"
-import { mkdirSync, appendFileSync } from "fs"
+import { mkdirSync, appendFileSync, existsSync, readFileSync, writeFileSync } from "fs"
 
 // ─── 10 种事实类型 ───
 
@@ -236,6 +236,17 @@ function appendToMarkdown(novelId: string, chapterId: string, entries: StateDelt
 
   const content = lines.join("\n")
   const logPath = join(getNovelDir(novelDir), "state-log.md")
+  // 同章重跑幂等：剔除本章旧段落（「> 章节：<id>」锚定）后再追加新段落
+  if (chapterId && existsSync(logPath)) {
+    const existing = readFileSync(logPath, "utf-8")
+    if (existing.includes(`> 章节：${chapterId}`)) {
+      const kept = existing
+        .split(/(?=^## )/m)
+        .filter((block) => !block.includes(`> 章节：${chapterId}`))
+      writeFileSync(logPath, kept.join("") + content, "utf-8")
+      return
+    }
+  }
   appendFileSync(logPath, content, "utf-8")
 }
 
@@ -417,11 +428,12 @@ function getChapterOrder(db: ReturnType<typeof getDb> | Tx, chapterId: string): 
 }
 
 /**
- * 清理某章归属的快照数据，供重跑章节时幂等替换。
+ * 清理某章归属的快照数据与状态日志行，供重跑章节时幂等替换。
  *
  * 删除范围：character_states（本章所有角色状态）、chapter_summaries（本章摘要）、
- * tension_logs（本章张力记录，按 chapter_number 定位）。entity_refs 在 scanReferences
- * 写入时自行先删后插，不在此处理。
+ * tension_logs（本章张力记录，按 chapter_number 定位）、novel_state_log（本章状态
+ * 日志行——必须在本次提交重新 append 之前调用，否则会把新行一并删掉）。
+ * entity_refs 在 scanReferences 写入时自行先删后插，不在此处理。
  */
 function resetChapterScopedState(
   db: ReturnType<typeof getDb> | Tx,
@@ -429,6 +441,7 @@ function resetChapterScopedState(
   chapterId: string,
 ): void {
   if (!chapterId) return
+  db.delete(NovelStateLogTable).where(eq(NovelStateLogTable.chapter_id, chapterId)).run()
   db.delete(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, chapterId)).run()
   db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
   const order = getChapterOrder(db, chapterId)
@@ -530,14 +543,18 @@ function applyToMaterializedView(
           break
         }
         if (resolvedId === entity_id) {
-          // 角色不存在，插入基本信息
-          db.insert(CharacterTable).values({
-            id: entity_id,
-            novel_id: novelId,
-            name: String(data.name ?? ""),
-            role: String(data.role ?? ""),
-            description: String(data.description ?? ""),
-          } as any).run()
+          // 角色不存在才插入基本信息；同章重跑时角色行已在（reset 只清章级状态，
+          // characters 是书级实体），跳过插入保持幂等
+          const exists = db.select({ id: CharacterTable.id }).from(CharacterTable).where(eq(CharacterTable.id, entity_id)).get()
+          if (!exists) {
+            db.insert(CharacterTable).values({
+              id: entity_id,
+              novel_id: novelId,
+              name: String(data.name ?? ""),
+              role: String(data.role ?? ""),
+              description: String(data.description ?? ""),
+            } as any).run()
+          }
           // 插入初始角色状态
           insertCharacterStateRow(db, entity_id, chapterId, data, null)
         } else {
@@ -1128,7 +1145,10 @@ export async function commitStateWithReport(
   // 核心写操作包在统一事务入口内（ORM 同步回调事务）：任一步失败整体回滚，杜绝半更新状态。
   // Markdown 审计日志在事务提交后追加（文件系统无法回滚，且仅为旁路记录）。
   withTransaction(db, (tx) => {
-    // 1. 写入 append-only 日志
+    // 1. 重跑章节时先清理本章归属的快照数据与状态日志行，保证"一章一份"语义幂等
+    resetChapterScopedState(tx, novelId, chapterId)
+
+    // 2. 写入状态日志（章级：reset 已删除本章旧行，重跑不重复追加）
     for (const entry of validated) {
       const logId = crypto.randomUUID()
       tx.insert(NovelStateLogTable)
@@ -1143,9 +1163,6 @@ export async function commitStateWithReport(
         .run()
       report.count++
     }
-
-    // 2. 重跑章节时先清理本章归属的快照数据，保证"一章一份"语义幂等
-    resetChapterScopedState(tx, novelId, chapterId)
 
     // 3. 更新物化视图
     for (const entry of validated) {
@@ -2124,9 +2141,11 @@ function updateStorySpine(
   }
   spineEntry += "\n"
 
-  // 追加到 story_spine
+  // 写入 story_spine：同章条目锚点内替换（重跑幂等），否则追加。
+  // 条目以「第N章：」开头、到下一个「第M章：」或文末为一个块。
   const [novel] = db.select({ story_spine: NovelTable.story_spine }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
   const current = novel?.story_spine ?? ""
-  const updated = current + spineEntry
+  const block = new RegExp(`第${chapterOrder}章：[\\s\\S]*?(?=第\\d+章：|$)`)
+  const updated = block.test(current) ? current.replace(block, spineEntry) : current + spineEntry
   db.update(NovelTable).set({ story_spine: updated }).where(eq(NovelTable.id, novelId)).run()
 }

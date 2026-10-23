@@ -4,10 +4,10 @@
 
 ## Wave 1 — novel-store 批量实体与幂等修复
 
-- [ ] 1.1 新增 `writing_batch` 表（design D2 字段：novel_id PK / session_id / start_chapter / total / last_completed_chapter / status / created_at / updated_at，snake_case）与 CRUD 面（upsert running、单调 advance、completed 派生、cancel）
-- [ ] 1.2 state-commit 幂等修复三处：`novel_state_log` 章级重置进 `resetChapterScopedState` 事务、`story_spine` 按章去重、`.novel/state-log.md` 同章锚点替换（design D5）
-- [ ] 1.3 novel-store 单测：批量 CRUD/单调推进/派生/单批量约束 + 同章两次 commit 无重复行（三处）
-- [ ] 1.4 **守门**：`packages/novel-store` typecheck + 测试绿
+- [x] 1.1 新增 `writing_batch` 表（design D2 字段：novel_id PK / session_id / start_chapter / total / last_completed_chapter / status / created_at / updated_at，snake_case）与 CRUD 面（upsert running、单调 advance、completed 派生、cancel；含区间外章节不推进守卫）
+- [x] 1.2 state-commit 幂等修复四处：`novel_state_log` 章级重置进 `resetChapterScopedState`（事务顺序调为 reset→日志写入）、`story_spine` 同章锚点替换、`.novel/state-log.md` 同章段落替换、character create 重跑撞书级主键改存在即跳过（测试暴露的第四处，design D5.4）
+- [x] 1.3 单测：novel-store `writing-batch.test.ts` 9 例（CRUD/单调推进/派生/区间守卫/终态不可逆）+ plugin `state-commit-idempotency.test.ts`（同章两次 commit 三处无重复）；reliability 既有两例同步对齐新语义（日志章级一份 6→3、回滚失败注入换 FK 路径）
+- [x] 1.4 **守门**：`packages/novel-store` typecheck + 231/231 绿；`packages/plugin` typecheck + 910/910 绿
 
 ## Wave 2 — 插件工具与 prompt 续跑语义
 

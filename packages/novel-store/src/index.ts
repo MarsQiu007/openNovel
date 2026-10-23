@@ -10,7 +10,7 @@
 import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
-import { withTransaction } from "./tx.js"
+import { withTransaction, type Tx } from "./tx.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
 import { Option, Schema } from "effect"
 import { TechniqueEvidence } from "@opennovel-ai/schema/technique"
@@ -903,7 +903,8 @@ CREATE INDEX IF NOT EXISTS upgrade_run_chapter_run_idx ON upgrade_run_chapter(ru
 CREATE INDEX IF NOT EXISTS upgrade_run_chapter_chapter_idx ON upgrade_run_chapter(chapter_id);
 CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, chapter_order integer, content text NOT NULL, kind text NOT NULL DEFAULT 'chapter', source_fingerprint text, status text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
-CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);`
+CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);
+CREATE TABLE IF NOT EXISTS writing_batch (novel_id text PRIMARY KEY, session_id text NOT NULL, start_chapter integer NOT NULL, total integer NOT NULL, last_completed_chapter integer, status text DEFAULT 'running' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);`
 
 // ─── DB 连接缓存 ───
 
@@ -3467,6 +3468,118 @@ export const StorySpineEntryTable = sqliteTable(
     index("story_spine_entries_chapter_idx").on(table.novel_id, table.chapter_id),
   ],
 )
+
+/** 写作批量任务（agent-background-job-recovery）：一本书同时至多一个批量写作任务的持久化进度指针。 */
+export const WritingBatchTable = sqliteTable("writing_batch", {
+  novel_id: text().primaryKey(),
+  session_id: text().notNull(),
+  start_chapter: integer().notNull(),
+  total: integer().notNull(),
+  last_completed_chapter: integer(),
+  status: text().notNull().default("running"),
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+})
+
+// ─── 写作批量任务 ───
+
+export type WritingBatch = typeof WritingBatchTable.$inferSelect
+
+/** 已完成章数（派生自单调完成指针；中断判定在 server 层按会话活跃性派生，不落库）。 */
+export function writingBatchCompleted(batch: WritingBatch): number {
+  if (batch.last_completed_chapter === null) return 0
+  return Math.min(batch.last_completed_chapter - batch.start_chapter + 1, batch.total)
+}
+
+export async function getWritingBatch(
+  novelId: string,
+  directory?: string | null,
+): Promise<WritingBatch | undefined> {
+  return getDb(directory).select().from(WritingBatchTable).where(eq(WritingBatchTable.novel_id, novelId)).get()
+}
+
+/** 开启批量写作（组合形态）：同书新批量整体替换旧记录（含 completed/cancelled 终态）。 */
+export function beginWritingBatchTx(
+  tx: Tx,
+  input: { novelId: string; sessionId: string; startChapter: number; total: number },
+): void {
+  const now = Date.now()
+  tx.insert(WritingBatchTable)
+    .values({
+      novel_id: input.novelId,
+      session_id: input.sessionId,
+      start_chapter: input.startChapter,
+      total: input.total,
+      status: "running",
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: WritingBatchTable.novel_id,
+      set: {
+        session_id: input.sessionId,
+        start_chapter: input.startChapter,
+        total: input.total,
+        last_completed_chapter: null,
+        status: "running",
+        updated_at: now,
+      },
+    })
+    .run()
+}
+
+/** 开启批量写作（自包形态）。 */
+export async function beginWritingBatch(
+  input: { novelId: string; sessionId: string; startChapter: number; total: number },
+  directory?: string | null,
+): Promise<void> {
+  withTransaction(getDb(directory), (tx) => beginWritingBatchTx(tx, input))
+}
+
+/** 章节完成推进（组合形态）：单调 max 更新完成指针，末章到达即转 completed。 */
+export function advanceWritingBatchTx(tx: Tx, novelId: string, chapterNumber: number): void {
+  const batch = tx.select().from(WritingBatchTable).where(eq(WritingBatchTable.novel_id, novelId)).get()
+  // 单章写作同样走 advance_chapter：无 running 批量时静默跳过
+  if (!batch || batch.status !== "running") return
+  // 批量区间外的章节完成不推进指针（如批量进行中另起单章写区间外章节）
+  if (chapterNumber < batch.start_chapter || chapterNumber > batch.start_chapter + batch.total - 1) return
+  const last = Math.max(batch.last_completed_chapter ?? batch.start_chapter - 1, chapterNumber)
+  tx.update(WritingBatchTable)
+    .set({
+      last_completed_chapter: last,
+      status: last >= batch.start_chapter + batch.total - 1 ? "completed" : "running",
+      updated_at: Date.now(),
+    })
+    .where(eq(WritingBatchTable.novel_id, novelId))
+    .run()
+}
+
+/** 章节完成推进（自包形态）。 */
+export async function advanceWritingBatch(
+  novelId: string,
+  chapterNumber: number,
+  directory?: string | null,
+): Promise<void> {
+  withTransaction(getDb(directory), (tx) => advanceWritingBatchTx(tx, novelId, chapterNumber))
+}
+
+/** 放弃批量（组合形态）：仅 running 可取消，终态不可逆。 */
+export function cancelWritingBatchTx(tx: Tx, novelId: string): void {
+  tx.update(WritingBatchTable)
+    .set({ status: "cancelled", updated_at: Date.now() })
+    .where(and(eq(WritingBatchTable.novel_id, novelId), eq(WritingBatchTable.status, "running")))
+    .run()
+}
+
+/** 放弃批量（自包形态）。 */
+export async function cancelWritingBatch(novelId: string, directory?: string | null): Promise<void> {
+  withTransaction(getDb(directory), (tx) => cancelWritingBatchTx(tx, novelId))
+}
+
 export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
 export * from "./entity-refs.js"

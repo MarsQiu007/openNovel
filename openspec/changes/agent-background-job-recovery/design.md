@@ -92,11 +92,12 @@ pipeline prompt 新增「断点续跑自检」段：dispatch 章先查 `list_cha
 
 `content` 非空判定用既有 `read_chapter_content`；不再引入新查询工具。状态语义以 live 值域为准，不复活 chapter-status 死代码（§1.4）。
 
-### D5 幂等修复三处（章节可重跑前置）
+### D5 幂等修复（章节可重跑前置）
 
-1. `novel_state_log`：`resetChapterScopedState`（`state-commit.ts:426-452`）同事务删除本章旧日志行（本章维度列缺失则先补列，实现时按现有行结构定）。
-2. `story_spine`：追加前按章去重——同章条目已存在则跳过（`state-commit.ts:2127-2131`）。
-3. `.novel/state-log.md`：同章段落锚点内替换，不再纯 append（`state-commit.ts:214-240`）。
+1. `novel_state_log`：章级删除并入 `resetChapterScopedState`，事务内顺序调整为 reset → 日志写入（`state-commit.ts:1130-1148`）。
+2. `story_spine`：同章条目锚点内替换（`第N章：` 到下一章标记或文末为一块），不再纯追加。
+3. `.novel/state-log.md`：同章段落锚点（`> 章节：<id>`）替换，不再纯 append。
+4. **（实现期发现，测试暴露）**character create 路径重跑撞 characters 主键：reset 只清章级状态、characters 是书级实体，同章重跑时角色行已存在仍走插入分支。修复为「存在则跳过插入」，章级角色状态行仍按 reset 后重建。
 
 ### D6 可见性：`server.novel` 查询面 + 工作台中断横幅
 
