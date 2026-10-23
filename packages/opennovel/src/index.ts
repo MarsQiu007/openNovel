@@ -16,7 +16,6 @@ import { DebugCommand } from "./cli/cmd/debug"
 import { StatsCommand } from "./cli/cmd/stats"
 import { McpCommand } from "./cli/cmd/mcp"
 import { ExportCommand } from "./cli/cmd/export"
-import { ImportCommand } from "./cli/cmd/import"
 import { AttachCommand } from "./cli/cmd/attach"
 import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
@@ -90,7 +89,6 @@ const cli = yargs(args)
   .command(ModelsCommand)
   .command(StatsCommand)
   .command(ExportCommand)
-  .command(ImportCommand)
   .command(SessionCommand)
   .command(PluginCommand)
   .command(NovelCommand)

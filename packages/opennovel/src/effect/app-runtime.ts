@@ -43,8 +43,6 @@ import { Project } from "@/project/project"
 import { Vcs } from "@/project/vcs"
 import { Worktree } from "@/worktree"
 import { Installation } from "@/installation"
-import { ShareNext } from "@/share/share-next"
-import { SessionShare } from "@/share/session"
 import { Npm } from "@opennovel-ai/core/npm"
 import { memoMap } from "@opennovel-ai/core/effect/memo-map"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -101,8 +99,6 @@ export const AppLayer = AppNodeBuilderV1.build(
     Vcs.node,
     Worktree.node,
     Installation.node,
-    ShareNext.node,
-    SessionShare.node,
   ]),
 ).pipe(Layer.provideMerge(AppNodeBuilderV1.build(Ripgrep.node)), Layer.provideMerge(Observability.layer))
 
