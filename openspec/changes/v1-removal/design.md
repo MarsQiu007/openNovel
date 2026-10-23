@@ -187,3 +187,10 @@ core 提供 `V1Migration.layer`（forkScoped 立即后台跑）；opennovel serv
 - **AppLayer 摘除 `Workspace.node`**：CLI 无 Workspace.Service 消费方；SessionV2 不进 AppLayer（保持 V1 面直到后续 wave）。
 - **偏差 5（D15 推迟）**：D15「随 D12/D13 删除 event-v2-bridge.ts」与现实冲突——bridge 的 GlobalBus sync 信封桥接是 workspace 同步传输（/global/event SSE）承重墙，且 lsp/mcp/vcs/project/plugin/skill 的 publish 依赖其 location 附加（否则 /api/event 的 location 过滤器丢事件）。处置：D15 推迟到独立 Wave E，删除前须把桥接功能 re-home（handlers/global.ts 直订 EventV2）并将 publish 消费方切 EventV2+location 附加；fixture/测试暂保留 bridge 节点并注释说明。
 - **回归**：typecheck 绿、oxlint 0 errors；`bun test test/control-plane + httpapi-instance-context + httpapi-workspace-routing` 50 pass / 2 fail——2 例超时属既有 flake（httpapi-instance-context "falls back to the raw directory when URI decoding fails" 5s 超时，HEAD 基线 stash 复现同等失败，与本 diff 无关，已录入 flake 家族）。
+
+### G4 share/import 删除（2026-10-23，Wave B）
+
+- **删除清单**：`src/share/`（share-next/session）、`cli/cmd/import.ts` 及 index.ts 注册、`core/src/share/sql.ts`（SessionShareTable 代码定义；物理表由 `schema.gen.ts`/`20260127222353_familiar_lady_ursula.ts` 保留，无 DROP 产出）、`storage/schema.ts` re-export、两枢纽（app-runtime/server）与 bootstrap/bootstrap-runtime 的 ShareNext/SessionShare 节点接线、`test/share/`、`test/cli/import.test.ts`、help 快照 import 条目。
+- **D13 核实结果**：`cli/cmd/export.ts` 已全走 V2 面（`@opennovel-ai/sdk/v2` + `v2.session.list`/messages 分页），零 share/V1 依赖，无需处置。
+- **偏差 6（app 调用点已清零）**：侦察称「app 四处 share 调用点」，核实现状 app 侧零 share API 调用——仅剩 i18n 文案键（按约定不动 locale 文件）与两处复制链接 toast（`session.share.copy.copied`，语义是复制会话链接非 share API）。分享端点路由在 G3.1 已随 V1 组裁撤。
+- **回归**：opennovel+core typecheck 双绿、oxlint 0 errors；`bun test test/project test/cli test/server/httpapi-instance-context` 138 pass / 2 fail——help 快照系真实回归（import 命令残留 TOP_LEVEL 与快照，已随删修复，复跑绿）；instance-bootstrap 5.1s 超时隔离复跑 4/4 绿，属全量负载下既有 flake 形状。

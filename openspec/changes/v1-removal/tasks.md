@@ -31,8 +31,8 @@
 
 ## G4 share/import 删除
 
-- [ ] 4.1 删 `src/share/`、`cli/cmd/import.ts`、app 四处 share 调用点
-- [ ] 4.2 `SessionShareTable` 代码定义删除（物理表保留）；`cli/cmd/export.ts` 数据源核实与处置（D13）
+- [x] 4.1 删 `src/share/`、`cli/cmd/import.ts`、app 四处 share 调用点
+- [x] 4.2 `SessionShareTable` 代码定义删除（物理表保留）；`cli/cmd/export.ts` 数据源核实与处置（D13）
 
 ## G5 config 冻结与 core/schema V1 删除
 
