@@ -4,7 +4,6 @@ import { EventV2 } from "@opennovel-ai/core/event"
 import { Event } from "@opennovel-ai/schema/event"
 import { Session } from "@opennovel-ai/schema/session"
 import { SessionEvent } from "@opennovel-ai/schema/session-event"
-import { SessionV1 } from "@opennovel-ai/schema/session-v1"
 import { Database } from "@opennovel-ai/core/database/database"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
@@ -72,11 +71,17 @@ const VersionedMessage = EventV2.define({
   },
 })
 
-const DurableMessage = SessionV1.Event.MessageRemoved
-const durableData = (sessionID: Session.ID, text: string) => ({
+// replay/durable 流的解码走 DurableEventManifest 注册表，测试定义不在其中，
+// 因此 durable 用例统一借已注册的 SessionEvent.Updated（aggregate=sessionID）。
+// durableData 为解码形状（publish 入参与断言用）；durableSerialized 为编码形状
+//（replay 信封承载的存储 JSON，timestamp 是毫秒）。
+const DurableMessage = SessionEvent.Updated
+const durableData = (sessionID: Session.ID, title: string) => ({
   sessionID,
-  messageID: SessionV1.MessageID.ascending(`msg_${text}`),
+  timestamp: DateTime.makeUnsafe(0),
+  title,
 })
+const durableSerialized = (sessionID: Session.ID, title: string) => ({ sessionID, timestamp: 0, title })
 
 const it = testEffect(
   AppNodeBuilder.build(LayerNode.group([Database.node, EventV2.node, Location.node]), [[Location.node, locationLayer]]),
@@ -553,7 +558,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "hello"),
+        data: durableSerialized(aggregateID, "hello"),
       })
 
       expect(received[0]?.type).toBe(DurableMessage.type)
@@ -572,7 +577,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "replayed"),
+        data: durableSerialized(aggregateID, "replayed"),
       })
       const rows = yield* db
         .select()
@@ -608,7 +613,7 @@ describe("EventV2", () => {
             type: EventV2.versionedType(DurableMessage.type, 1),
             seq: 1,
             aggregateID: envelopeAggregateID,
-            data: durableData(payloadAggregateID, "replayed"),
+            data: durableSerialized(payloadAggregateID, "replayed"),
           })
           .pipe(Effect.exit)
         const rows = yield* db
@@ -641,7 +646,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "first"),
+        data: durableSerialized(aggregateID, "first"),
       })
       const exit = yield* events
         .replay({
@@ -649,7 +654,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 5,
           aggregateID,
-          data: durableData(aggregateID, "bad"),
+          data: durableSerialized(aggregateID, "bad"),
         })
         .pipe(Effect.exit)
 
@@ -707,14 +712,14 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 0,
           aggregateID,
-          data: durableData(aggregateID, "one"),
+          data: durableSerialized(aggregateID, "one"),
         },
         {
           id: EventV2.ID.create(),
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "two"),
+          data: durableSerialized(aggregateID, "two"),
         },
       ])
 
@@ -734,14 +739,14 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 0,
           aggregateID,
-          data: durableData(aggregateID, "one"),
+          data: durableSerialized(aggregateID, "one"),
         },
         {
           id: EventV2.ID.create(),
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "two"),
+          data: durableSerialized(aggregateID, "two"),
         },
       ])
       const two = yield* events.replayAll([
@@ -750,14 +755,14 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 2,
           aggregateID,
-          data: durableData(aggregateID, "three"),
+          data: durableSerialized(aggregateID, "three"),
         },
         {
           id: EventV2.ID.create(),
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 3,
           aggregateID,
-          data: durableData(aggregateID, "four"),
+          data: durableSerialized(aggregateID, "four"),
         },
       ])
       const rows = yield* db
@@ -792,7 +797,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "ignored"),
+          data: durableSerialized(aggregateID, "ignored"),
         },
         { ownerID: "owner-b" },
       )
@@ -811,7 +816,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "owned"),
+        data: durableSerialized(aggregateID, "owned"),
       }
       yield* events.replay(replayed, { ownerID: "owner-a" })
 
@@ -832,7 +837,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: published.durable!.seq,
         aggregateID,
-        data: published.data,
+        data: durableSerialized(aggregateID, "owned"),
       }
 
       yield* events.replay(replayed, { ownerID: "owner-a", strictOwner: true })
@@ -846,7 +851,7 @@ describe("EventV2", () => {
       expect(row?.ownerID).toBe("owner-a")
       const exit = yield* events
         .replay(
-          { ...replayed, id: EventV2.ID.create(), seq: 1, data: durableData(aggregateID, "conflict") },
+          { ...replayed, id: EventV2.ID.create(), seq: 1, data: durableSerialized(aggregateID, "conflict") },
           { ownerID: "owner-b", strictOwner: true },
         )
         .pipe(Effect.exit)
@@ -866,7 +871,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 0,
           aggregateID,
-          data: durableData(aggregateID, "owned"),
+          data: durableSerialized(aggregateID, "owned"),
         },
         { ownerID: "owner-1" },
       )
@@ -894,7 +899,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "claimed"),
+          data: durableSerialized(aggregateID, "claimed"),
         },
         { ownerID: "owner-1" },
       )
@@ -904,7 +909,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 2,
           aggregateID,
-          data: durableData(aggregateID, "fenced"),
+          data: durableSerialized(aggregateID, "fenced"),
         },
         { ownerID: "owner-2" },
       )
@@ -936,7 +941,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 0,
           aggregateID,
-          data: durableData(aggregateID, "claimed"),
+          data: durableSerialized(aggregateID, "claimed"),
         },
         { ownerID: "owner-1" },
       )
@@ -948,7 +953,7 @@ describe("EventV2", () => {
             type: EventV2.versionedType(DurableMessage.type, 1),
             seq: 1,
             aggregateID,
-            data: durableData(aggregateID, "conflict"),
+            data: durableSerialized(aggregateID, "conflict"),
           },
           { ownerID: "owner-2", strictOwner: true },
         )
@@ -969,13 +974,15 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "replayed"),
+        data: durableSerialized(aggregateID, "replayed"),
       }
 
       yield* events.replay(replayed, { publish: true })
       yield* events.replay(replayed, { publish: true })
 
-      expect(received).toMatchObject([{ id: replayed.id, durable: { seq: 0, version: 1 }, data: replayed.data }])
+      expect(received).toMatchObject([
+        { id: replayed.id, durable: { seq: 0, version: 1 }, data: durableData(aggregateID, "replayed") },
+      ])
     }),
   )
 
@@ -989,13 +996,13 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "original"),
+        data: durableSerialized(aggregateID, "original"),
       }
       yield* events.listen((event) => Effect.sync(() => received.push(event)))
       yield* events.replay(replayed, { publish: true })
 
       const exit = yield* events
-        .replay({ ...replayed, data: durableData(aggregateID, "divergent") }, { publish: true })
+        .replay({ ...replayed, data: durableSerialized(aggregateID, "divergent") }, { publish: true })
         .pipe(Effect.exit)
 
       expect(String(exit)).toContain("Replay diverged")
@@ -1013,7 +1020,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "first"),
+        data: durableSerialized(aggregateID, "first"),
       })
 
       const exit = yield* events
@@ -1022,7 +1029,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "second"),
+          data: durableSerialized(aggregateID, "second"),
         })
         .pipe(Effect.exit)
 
@@ -1044,7 +1051,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 0,
           aggregateID,
-          data: durableData(aggregateID, "first"),
+          data: durableSerialized(aggregateID, "first"),
         },
         { ownerID: "owner-1" },
       )
@@ -1054,7 +1061,7 @@ describe("EventV2", () => {
           type: EventV2.versionedType(DurableMessage.type, 1),
           seq: 1,
           aggregateID,
-          data: durableData(aggregateID, "ignored"),
+          data: durableSerialized(aggregateID, "ignored"),
         },
         { ownerID: "owner-2", publish: true },
       )
@@ -1115,7 +1122,7 @@ describe("EventV2", () => {
         type: EventV2.versionedType(DurableMessage.type, 1),
         seq: 0,
         aggregateID,
-        data: durableData(aggregateID, "replayed"),
+        data: durableSerialized(aggregateID, "replayed"),
       })
 
       expect(received[0]?.data).toEqual(durableData(aggregateID, "replayed"))

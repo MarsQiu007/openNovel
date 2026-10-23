@@ -10,7 +10,6 @@ import { AgentAttachment, FileAttachment, Prompt, Source } from "@opennovel-ai/s
 import { Provider } from "@opennovel-ai/schema/provider"
 import { Project } from "@opennovel-ai/schema/project"
 import { ProjectDirectories } from "@opennovel-ai/schema/project-directories"
-import { PermissionV1 } from "@opennovel-ai/schema/permission-v1"
 import { Session } from "@opennovel-ai/schema/session"
 import { SessionInput } from "@opennovel-ai/schema/session-input"
 import { SessionMessage } from "@opennovel-ai/schema/session-message"
@@ -41,7 +40,6 @@ test("Core reuses the canonical shared schemas", async () => {
     coreLocation,
     coreLLM,
     corePermission,
-    corePermissionV1,
     coreProjectCopy,
     corePty,
     coreProject,
@@ -63,7 +61,6 @@ test("Core reuses the canonical shared schemas", async () => {
     import("@opennovel-ai/core/location"),
     import("@opennovel-ai/llm"),
     import("@opennovel-ai/core/permission"),
-    import("@opennovel-ai/core/v1/permission"),
     import("@opennovel-ai/core/project/copy"),
     import("@opennovel-ai/core/pty"),
     import("@opennovel-ai/core/project/schema"),
@@ -127,7 +124,6 @@ test("Core reuses the canonical shared schemas", async () => {
     [corePermission.Effect, Permission.Effect],
     [corePermission.Rule, Permission.Rule],
     [corePermission.Ruleset, Permission.Ruleset],
-    [corePermissionV1.Event, PermissionV1.Event],
     [coreProjectCopy.Event, ProjectDirectories.Event],
     [PluginV2.ID, Plugin.ID],
     [PluginV2.Event, Plugin.Event],

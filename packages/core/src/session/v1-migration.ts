@@ -12,6 +12,7 @@ import { KVTable } from "../kv/sql"
 import { SessionMessage } from "./message"
 import { SessionSchema } from "./schema"
 import { SessionMessageTable, SessionTable } from "./sql"
+import type { Ruleset } from "@opennovel-ai/schema/permission"
 
 // ============================================================================
 // 冻结 V1 契约——仅迁移使用，禁止新引用
@@ -22,20 +23,29 @@ import { SessionMessageTable, SessionTable } from "./sql"
 // 因此表结构定义必须与既有数据库布局保持一致。
 // ============================================================================
 
-const V1MessageTable = sqliteTable("message", {
+// 导出供测试播种 V1 存量数据（与迁移读取同一份冻结布局）
+export const V1MessageTable = sqliteTable("message", {
   id: text().primaryKey(),
   session_id: text().notNull(),
-  time_created: integer().notNull(),
-  time_updated: integer().notNull(),
+  time_created: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  time_updated: integer()
+    .notNull()
+    .$onUpdate(() => Date.now()),
   data: text().notNull(),
 })
 
-const V1PartTable = sqliteTable("part", {
+export const V1PartTable = sqliteTable("part", {
   id: text().primaryKey(),
   message_id: text().notNull(),
   session_id: text().notNull(),
-  time_created: integer().notNull(),
-  time_updated: integer().notNull(),
+  time_created: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  time_updated: integer()
+    .notNull()
+    .$onUpdate(() => Date.now()),
   data: text().notNull(),
 })
 
@@ -684,6 +694,25 @@ function serializeRecent(messages: ReadonlyArray<MessageItem>, parts: PartMap) {
 // Run（完成锚点 data_migration + KV 游标断点；每会话一事务；Semaphore(1)）
 // ============================================================================
 
+// D18：V1 规则 {permission, pattern, action} 与 V2 规则 {action, resource, effect}
+// 形状不兼容，迁移回填时将存量 SessionTable.permission 归一到 V2 形状；
+// 无法识别的条目丢弃（会话级 permission 是提示性配置，丢失不阻断迁移）。
+function normalizePermission(value: unknown): Ruleset | null {
+  if (!Array.isArray(value)) return null
+  const rules = value.flatMap((rule): Ruleset => {
+    if (typeof rule !== "object" || rule === null) return []
+    const record = rule as Record<string, unknown>
+    if (typeof record.permission === "string" && typeof record.pattern === "string") {
+      if (record.action !== "allow" && record.action !== "deny" && record.action !== "ask") return []
+      return [{ action: record.permission, resource: record.pattern, effect: record.action }]
+    }
+    if (typeof record.action !== "string" || typeof record.resource !== "string") return []
+    if (record.effect !== "allow" && record.effect !== "deny" && record.effect !== "ask") return []
+    return [{ action: record.action, resource: record.resource, effect: record.effect }]
+  })
+  return rules.length === 0 ? null : rules
+}
+
 const ANCHOR = "v1-session-migration"
 const CURSOR_KEY = "migration.v1-sessions"
 
@@ -790,6 +819,7 @@ const migrateSession = Effect.fnUntraced(function* (tx: Tx, sessionID: string) {
       id: SessionTable.id,
       agent: SessionTable.agent,
       model: SessionTable.model,
+      permission: SessionTable.permission,
       time_updated: SessionTable.time_updated,
     })
     .from(SessionTable)
@@ -831,7 +861,7 @@ const migrateSession = Effect.fnUntraced(function* (tx: Tx, sessionID: string) {
   )
   yield* tx
     .update(SessionTable)
-    .set({ ...transformed.session, time_updated: session.time_updated })
+    .set({ ...transformed.session, permission: normalizePermission(session.permission), time_updated: session.time_updated })
     .where(eq(SessionTable.id, SessionSchema.ID.make(sessionID)))
     .run()
     .pipe(Effect.orDie)

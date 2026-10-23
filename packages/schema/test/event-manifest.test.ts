@@ -4,27 +4,14 @@ import { EventManifest } from "../src/event-manifest"
 import { IdeEvent } from "../src/ide-event"
 import { SessionEvent } from "../src/session-event"
 import { SessionTodo } from "../src/session-todo"
-import { SessionV1 } from "../src/session-v1"
 import { WorkspaceEvent } from "../src/workspace-event"
 
 describe("public event manifest", () => {
   test("owns the complete public event surface", () => {
-    expect(EventManifest.ServerDefinitions.length).toBe(61)
-    expect(EventManifest.Definitions.length).toBe(91)
-    expect(SessionV1.Event.Definitions).toEqual([
-      SessionV1.Event.Created,
-      SessionV1.Event.Updated,
-      SessionV1.Event.Deleted,
-      SessionV1.Event.MessageUpdated,
-      SessionV1.Event.MessageRemoved,
-      SessionV1.Event.PartUpdated,
-      SessionV1.Event.PartRemoved,
-      SessionV1.Event.PartDelta,
-      SessionV1.Event.Diff,
-      SessionV1.Event.Error,
-    ])
-    expect(EventManifest.Latest.size).toBe(91)
-    expect(EventManifest.Durable.size).toBe(38)
+    expect(EventManifest.ServerDefinitions.length).toBe(54)
+    expect(EventManifest.Definitions.length).toBe(75)
+    expect(EventManifest.Latest.size).toBe(75)
+    expect(EventManifest.Durable.size).toBe(31)
   })
 
   test("uses canonical definitions for current public events", () => {
@@ -42,12 +29,6 @@ describe("public event manifest", () => {
     expect(Reference.Event.Definitions).toEqual([Reference.Event.Updated])
     expect(EventManifest.Latest.has("ide.installed")).toBe(false)
     expect(IdeEvent.Definitions).toEqual([IdeEvent.Installed])
-    const positions = [SessionV1.Event.PartDelta, SessionV1.Event.Diff, SessionV1.Event.Error].map((definition) =>
-      EventManifest.Definitions.indexOf(definition),
-    )
-    expect(positions.every((position) => position > -1)).toBe(true)
-    expect(positions[0]).toBeLessThan(positions[1])
-    expect(positions[1]).toBeLessThan(positions[2])
     expect(EventManifest.Durable.has("session.next.step.ended.1")).toBe(false)
     expect(EventManifest.Durable.get("session.next.step.ended.2")).toBe(SessionEvent.Step.Ended)
   })

@@ -64,7 +64,7 @@ describe("SessionV2 write-side extensions", () => {
       yield* Database.Service.use(({ db }) =>
         db
           .update(SessionTable)
-          .set({ metadata: { team: "writing" }, permission: [{ permission: "edit", pattern: "*", action: "deny" }] })
+          .set({ metadata: { team: "writing" }, permission: [{ action: "edit", resource: "*", effect: "deny" }] })
           .where(eq(SessionTable.id, parent.id))
           .run()
           .pipe(Effect.orDie),
@@ -77,7 +77,7 @@ describe("SessionV2 write-side extensions", () => {
 
       const row = yield* sessionRow(child.id)
       expect(row?.metadata).toEqual({ team: "writing" })
-      expect(row?.permission).toEqual([{ permission: "edit", pattern: "*", action: "deny" }])
+      expect(row?.permission).toEqual([{ action: "edit", resource: "*", effect: "deny" }])
     }),
   )
 

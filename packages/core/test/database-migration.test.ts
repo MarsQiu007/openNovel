@@ -4,7 +4,7 @@ import { fileURLToPath } from "url"
 import path from "path"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { EffectDrizzleSqlite } from "@opennovel-ai/effect-drizzle-sqlite"
-import { Effect, Layer } from "effect"
+import { DateTime, Effect, Layer } from "effect"
 import { eq, inArray, sql } from "drizzle-orm"
 import { DatabaseMigration } from "@opennovel-ai/core/database/migration"
 import { migrations } from "@opennovel-ai/core/database/migration.gen"
@@ -27,7 +27,7 @@ import sessionMetadataMigration from "@opennovel-ai/core/database/migration/2026
 import type { SqlClient as SqlClientService } from "effect/unstable/sql/SqlClient"
 import { Database } from "@opennovel-ai/core/database/database"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
+import { SessionEvent } from "@opennovel-ai/core/session/event"
 import { tmpdir } from "./fixture/tmpdir"
 
 const run = <A, E>(effect: Effect.Effect<A, E, SqlClientService>) =>
@@ -270,20 +270,14 @@ describe("DatabaseMigration", () => {
         yield* DatabaseMigration.applyOnly(db, [simplifySessionInputMigration])
 
         const database = Layer.succeed(Database.Service, { db })
-        yield* EventV2.Service.use((service) =>
-          service.publish(SessionV1.Event.Updated, {
+        yield* Effect.gen(function* () {
+          const events = yield* EventV2.Service
+          yield* events.publish(SessionEvent.Updated, {
             sessionID: SessionSchema.ID.make("session"),
-            info: {
-              id: SessionSchema.ID.make("session"),
-              slug: "session",
-              projectID: ProjectV2.ID.global,
-              directory: "/project",
-              title: "After",
-              version: "test",
-              time: { created: 1, updated: 2 },
-            },
-          }),
-        ).pipe(
+            timestamp: yield* DateTime.now,
+            title: "After",
+          })
+        }).pipe(
           Effect.provide(
             AppNodeBuilder.build(LayerNode.group([EventV2.node, SessionProjector.node]), [[Database.node, database]]),
           ),
@@ -313,7 +307,7 @@ describe("DatabaseMigration", () => {
           sessionMessages: 0,
           contextEpochs: 0,
           seq: 0,
-          eventType: "session.updated.1",
+          eventType: "session.next.updated.1",
         })
       }),
     )

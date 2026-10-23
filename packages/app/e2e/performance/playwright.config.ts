@@ -7,9 +7,8 @@ process.env.OPENNOVEL_PERFORMANCE_RUN_ID ??= `${new Date().toISOString().replace
 export default {
   ...config,
   testDir: ".",
-  // 收集边界：unit/** 与 **/*.test.ts 为 bun test 风格文件（Playwright 直接收集会因 bun:test 失败）；
-  // timeline-stability 有独立 config 与 test:stability 脚本，不属本套件范围。
-  testIgnore: ["unit/**", "**/*.test.ts", "timeline-stability/**"],
+  // 收集边界：unit/** 与 **/*.test.ts 为 bun test 风格文件（Playwright 直接收集会因 bun:test 失败）。
+  testIgnore: ["unit/**", "**/*.test.ts"],
   outputDir: "../test-results/performance",
   fullyParallel: false,
   workers: 1,

@@ -7,7 +7,7 @@ import { EventSequenceTable, EventTable } from "@opennovel-ai/core/event/sql"
 import { ProjectTable } from "@opennovel-ai/core/project/sql"
 import { SessionMessage } from "@opennovel-ai/core/session/message"
 import { SessionSchema } from "@opennovel-ai/core/session/schema"
-import { MessageTable, PartTable, SessionMessageTable, SessionTable } from "@opennovel-ai/core/session/sql"
+import { SessionMessageTable, SessionTable } from "@opennovel-ai/core/session/sql"
 import { V1Migration } from "@opennovel-ai/core/session/v1-migration"
 
 const decodeV2 = Schema.decodeUnknownSync(SessionMessage.Message)
@@ -82,12 +82,12 @@ function seedThread(
     (entry) =>
       Effect.gen(function* () {
         yield* db
-          .insert(MessageTable)
+          .insert(V1Migration.V1MessageTable)
           .values({
-            id: entry.id as never,
+            id: entry.id,
             session_id: SessionSchema.ID.make(sessionID),
             time_created: entry.created,
-            data: entry.message as never,
+            data: JSON.stringify(entry.message),
           })
           .run()
           .pipe(Effect.orDie)
@@ -95,13 +95,13 @@ function seedThread(
           entry.parts.map((part, partIndex) => ({ ...part, id: `prt_${sessionID}_${entry.index}_${partIndex}` })),
           (part) =>
             db
-              .insert(PartTable)
+              .insert(V1Migration.V1PartTable)
               .values({
-                id: part.id as never,
-                message_id: entry.id as never,
+                id: part.id,
+                message_id: entry.id,
                 session_id: SessionSchema.ID.make(sessionID),
                 time_created: entry.created,
-                data: part as never,
+                data: JSON.stringify(part),
               })
               .run()
               .pipe(Effect.orDie),

@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import path from "path"
-import { Effect, Layer, Stream } from "effect"
+import { DateTime, Effect, Layer, Stream } from "effect"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { asc, eq } from "drizzle-orm"
 import { Database } from "@opennovel-ai/core/database/database"
@@ -15,7 +15,6 @@ import { ProjectTable } from "@opennovel-ai/core/project/sql"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
 import { Prompt } from "@opennovel-ai/core/session/prompt"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
@@ -144,23 +143,15 @@ describe("SessionV2.create", () => {
       const session = yield* SessionV2.Service
       const events = yield* EventV2.Service
       const input = { id, location }
-      const created = yield* session.create(input)
+      yield* session.create(input)
 
-      yield* events.publish(SessionV1.Event.Updated, {
+      yield* events.publish(SessionEvent.Updated, {
         sessionID: id,
-        info: SessionV1.SessionInfo.make({
-          id,
-          slug: "updated",
-          version: "test",
-          projectID: created.projectID,
-          directory: created.location.directory,
-          title: "updated",
-          agent: "build",
-          time: { created: 0, updated: 1 },
-        }),
+        timestamp: yield* DateTime.now,
+        title: "updated",
       })
 
-      expect(yield* session.create(input)).toMatchObject({ id, agent: "build" })
+      expect(yield* session.create(input)).toMatchObject({ id, title: "updated" })
     }),
   )
 

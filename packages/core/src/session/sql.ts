@@ -5,19 +5,16 @@ import type { SessionMessage } from "./message"
 import type { Prompt } from "./prompt"
 import type { SessionInput } from "./input"
 import type { Snapshot } from "../snapshot"
-import { PermissionV1 } from "../v1/permission"
 import { ProjectV2 } from "../project"
 import type { SessionSchema } from "./schema"
-import type { MessageID, PartID, SessionV1 } from "../v1/session"
 import { WorkspaceV2 } from "../workspace"
 import { Timestamps } from "../database/schema.sql"
 import type { SystemContext } from "../system-context/index"
 import { AgentV2 } from "../agent"
 import type { Revert } from "@opennovel-ai/schema/revert"
+import type { Ruleset } from "@opennovel-ai/schema/permission"
 
 type SessionMessageData = Omit<(typeof SessionMessage.Message)["Encoded"], "type" | "id">
-type V1MessageData = Omit<SessionV1.Info, "id" | "sessionID">
-type V1PartData = Omit<SessionV1.Part, "id" | "sessionID" | "messageID">
 
 export const SessionTable = sqliteTable(
   "session",
@@ -47,7 +44,7 @@ export const SessionTable = sqliteTable(
     tokens_cache_read: integer().notNull().default(0),
     tokens_cache_write: integer().notNull().default(0),
     revert: text({ mode: "json" }).$type<Revert.State>(),
-    permission: text({ mode: "json" }).$type<PermissionV1.Ruleset>(),
+    permission: text({ mode: "json" }).$type<Ruleset>(),
     agent: text(),
     model: text({ mode: "json" }).$type<{
       id: string
@@ -65,38 +62,9 @@ export const SessionTable = sqliteTable(
   ],
 )
 
-export const MessageTable = sqliteTable(
-  "message",
-  {
-    id: text().$type<MessageID>().primaryKey(),
-    session_id: text()
-      .$type<SessionSchema.ID>()
-      .notNull()
-      .references(() => SessionTable.id, { onDelete: "cascade" }),
-    ...Timestamps,
-    data: text({ mode: "json" }).notNull().$type<V1MessageData>(),
-  },
-  (table) => [index("message_session_time_created_id_idx").on(table.session_id, table.time_created, table.id)],
-)
-
-export const PartTable = sqliteTable(
-  "part",
-  {
-    id: text().$type<PartID>().primaryKey(),
-    message_id: text()
-      .$type<MessageID>()
-      .notNull()
-      .references(() => MessageTable.id, { onDelete: "cascade" }),
-    session_id: text().$type<SessionSchema.ID>().notNull(),
-    ...Timestamps,
-    data: text({ mode: "json" }).notNull().$type<V1PartData>(),
-  },
-  (table) => [
-    index("part_message_id_id_idx").on(table.message_id, table.id),
-    index("part_session_idx").on(table.session_id),
-  ],
-)
-
+// 物理表 message/part 随 G5 从代码定义中移除（drizzle 快照手工维护，D8：
+// 存量库表保留，由 v1-migration 的内联冻结副本读取）。代码侧读写一律走
+// SessionMessageTable。
 export const TodoTable = sqliteTable(
   "todo",
   {

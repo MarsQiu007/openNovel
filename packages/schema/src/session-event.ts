@@ -8,7 +8,7 @@ import { Delivery } from "./session-delivery"
 import { Model } from "./model"
 import { AbsolutePath, DateTimeUtcFromMillis, NonNegativeInt, RelativePath } from "./schema"
 import { FileAttachment, Prompt } from "./prompt"
-import { PermissionV1 } from "./permission-v1"
+import { Permission } from "./permission"
 import { ProjectID } from "./project-id"
 import { SessionID } from "./session-id"
 import { WorkspaceID } from "./workspace-id"
@@ -71,7 +71,7 @@ export const Created = Event.define({
     model: Model.Ref.pipe(optional),
     version: Schema.String,
     metadata: Schema.Record(Schema.String, Schema.Unknown).pipe(optional),
-    permission: PermissionV1.Ruleset.pipe(optional),
+    permission: Permission.Ruleset.pipe(optional),
   },
 })
 export type Created = typeof Created.Type

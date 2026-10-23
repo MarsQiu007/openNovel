@@ -6,7 +6,7 @@ export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 // V2 面适配：/api/agent 的 AgentV2Info（id 命名、permissions 为 V2 规则集）与
 // /api/command 的 CommandV2Info 映射为应用消费的最小形状；legacy /agent、/command
-// 端点已裁撤（PermissionV1 内嵌无法保留 legacy wire）。
+// 端点已裁撤（legacy wire 内嵌 V1 权限形状，无法保留）。
 export type Agent = {
   name: string
   description?: string
