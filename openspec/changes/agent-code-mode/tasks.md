@@ -1,29 +1,28 @@
 # Tasks: agent-code-mode
 
-> 四波实现：解释器包移植 → core 集成层 → plugin 权限面 → 测试守门。移植源为上游基线快照 9d90d892dc（packages/codemode 整体；core/src/codemode 仅语义参照，集成层自写）。依据与否决项见 design.md。
+> 四波实现：依赖接线 → core 集成层 → plugin 权限面 → 测试守门。无上游代码移植（fork 自 Initial commit 已携带解释器包，见 design.md 核实点 1-4）。
 
-## Wave 1 — 解释器包移植（`@opennovel-ai/codemode`）
+## Wave 1 — 依赖接线
 
-- [ ] 1.1 复制上游 `packages/codemode/src/`（排除 `src/openapi/` 与 index.ts 的 OpenAPI 导出）、`test/`（排除 openapi.test.ts 与 fixtures/openapi-*，保留 test262 套件与 LICENSE 文件）、AGENTS.md/README.md/interpreter-support.md
-- [ ] 1.2 package.json 按 fork 模板改写（`@opennovel-ai/codemode`、acorn 8.15.0 + effect catalog:、fork repository）；根 package.json catalog 补 acorn 条目；tsconfig 对齐 fork 小包先例；`bun install` 同步
-- [ ] 1.3 `packages/codemode` 目录下 `bun typecheck` 绿、`bun test` 全绿（含 test262）；解释器逻辑零改写
+- [ ] 1.1 `packages/core/package.json` 加 `"@opennovel-ai/codemode": "workspace:*"`；`packages/opennovel/package.json` 移除自 Initial commit 携带的同名死依赖声明（全仓无源码引用）；`bun install` 同步
+- [ ] 1.2 既有包回归基线：`packages/codemode` `bun typecheck` 绿 + `bun test` 263/263 绿（零改动确认）
 
 ## Wave 2 — core 集成层（`packages/core/src/tool/codemode.ts`）
 
-- [ ] 2.1 `code_mode` 工具：Tool.make + `Tool.withPermission(tool, "code_mode")` + makeLocationNode 注册（对齐 browser.ts 先例）；execute 前置 permission.assert；inventory 按调用方 ruleset 过滤（whollyDisabled 语义）并排除自身
-- [ ] 2.2 嵌套调用桥：沙箱 `tools.<name>(input)` → 合成 Tool.Context（toolCallID 派生 `${callID}#${n}`）调工具 execute；返回值文本化 + 调用清单（名称/状态）入输出
-- [ ] 2.3 ExecutionLimits timeoutMs 60_000；不安装 fetch 扩展；工具描述按并存模式改写（含 search 发现指引）
-- [ ] 2.4 `builtins.ts` 注册 codemode node；`location-layer.test.ts` 目录断言同步
+- [ ] 2.1 `code_mode` 工具：Tool.make + `Tool.withPermission(tool, "code_mode")` + makeLocationNode（deps ToolRegistry/PermissionV2/AgentV2）；execute 前置 permission.assert；inventory = `registry.materialize(agent ruleset)` 排除自身
+- [ ] 2.2 嵌套调用桥：inventory definition → codemode Tool.make（JsonSchema 签名面），run 经 `mat.settle` 合成 ToolCall（id 派生 `${toolCallID}#${n}`）；settlement error 上浮为脚本可见失败；成功返回 structured ?? 文本
+- [ ] 2.3 `CodeMode.make({ tools, limits: { timeoutMs: 60_000 } })`；Result 数据型映射输出（value/toolCalls/诊断）；工具描述含 tools.* 约定与 `$codemode.search` 指引
+- [ ] 2.4 `builtins.ts` 注册 codemode node；`location-layer.test.ts` 目录断言同步 +1
 
 ## Wave 3 — plugin 权限面
 
-- [ ] 3.1 director/pipeline 的 permission map 补 `code_mode: "allow"`；其余 `"*": "allow"` 写作 agent 补 `code_mode: "deny"`（`"*": "deny"` 的只读 agent 由通配覆盖）
+- [ ] 3.1 director/pipeline 的 permission map 补 `code_mode: "allow"`；其余 `"*": "allow"` 写作 agent 补 `code_mode: "deny"`（deny 置于通配之后）；`"*": "deny"` 的只读 agent（ideator/research）由通配覆盖
 - [ ] 3.2 agent-permissions.test.ts 补 code_mode 隔离断言（对齐 browser 族断言先例）
 
-## Wave 4 — 守门
+## Wave 4 — 测试与守门
 
-- [ ] 4.1 core `test/tool-codemode.test.ts`：只读工具调用/写操作过权限断言/deny 工具不进 inventory/limits 中止/返回值 JSON 化/deny 时工具本体消失
-- [ ] 4.2 `packages/codemode`、`packages/core`、`packages/plugin` `bun typecheck` 绿 + 测试全绿；根目录 oxlint 0 errors
+- [ ] 4.1 core `test/tool-codemode.test.ts`：只读工具调用与聚合/写操作经工具自身断言上浮/deny 工具不进 inventory/timeoutMs 中止/返回值与 toolCalls 清单/deny 时 code_mode 本体消失
+- [ ] 4.2 **守门**：`packages/codemode`、`packages/core`、`packages/plugin` `bun typecheck` 绿 + 测试全绿；根目录 oxlint 0 errors
 
 ## Implementation Commits
 
