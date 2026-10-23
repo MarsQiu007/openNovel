@@ -21,6 +21,12 @@ export type NovelWorkspaceMockInput = {
   boundSessionIDs?: string[]
   /** 章节列表条数；>0 时补章节详情 mock（编辑器字数统计依赖 content 字段，缺省会崩） */
   chapterCount?: number
+  /** 批量写作任务（GET /api/novel/:id/writing-batch 返回体，null 表示无记录）；函数形态供测试中途翻转（如放弃后置 cancelled） */
+  writingBatch?: () => unknown | null
+  /** 批量放弃 POST（/writing-batch/cancel）捕获，供 spec 断言与状态翻转 */
+  onWritingBatchCancel?: (novelID: string) => void
+  /** 会话 prompt POST（/api/session/:id/prompt）捕获，供 spec 断言续跑指令 */
+  onSessionPrompt?: (input: { sessionID: string; body: { prompt?: { text?: string } } }) => void
 }
 
 /**
@@ -81,10 +87,22 @@ export async function mockNovelWorkspaceAPIs(page: Page, input: NovelWorkspaceMo
           novelTitle: title,
         })),
       )
+    if (path === `/api/novel/${input.novelID}/writing-batch` && method === "GET")
+      return json(route, input.writingBatch?.() ?? null)
+    if (path === `/api/novel/${input.novelID}/writing-batch/cancel` && method === "POST") {
+      input.onWritingBatchCancel?.(input.novelID)
+      return json(route, input.writingBatch?.() ?? null)
+    }
     if (path.endsWith("/annotations")) return json(route, [])
     return json(route, [])
   })
   await page.route(/\/api\/sync\/run/, async (route) => json(route, { results: [] }))
+  await page.route(/\/api\/session\/[^/]+\/prompt$/, async (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as { prompt?: { text?: string } }
+    const sessionID = new URL(route.request().url()).pathname.split("/").at(-2)!
+    input.onSessionPrompt?.({ sessionID, body })
+    return json(route, { data: { admittedSeq: 1, id: "msg_e2e_prompt", sessionID, prompt: body.prompt } })
+  })
 }
 
 function json(route: Route, body: unknown) {

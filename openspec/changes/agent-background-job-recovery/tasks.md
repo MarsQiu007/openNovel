@@ -20,12 +20,12 @@
 
 ## Wave 3 — server/app 中断可见性
 
-- [ ] 3.1 `packages/server/src/handlers/novel.ts` 新增 writing-batch 查询端点（记录 + interrupted 派生：running 且 session_id 不活跃）与 cancel 写面
-- [ ] 3.2 `packages/client` 跑 `bun run generate` 重生 SDK（不手改 `src/generated*`）
-- [ ] 3.3 app `BatchRecoveryBanner`（UpgradeBanner 同款纯函数状态机 + workspace-frame 顶部挂载）：interrupted 显示「批量写作中断：已完成 M/N 章 [续跑] [放弃]」；续跑向 session_id 会话发 V2 prompt「继续批量写作」；放弃走 cancel 面
-- [ ] 3.4 i18n zh/en 新增横幅文案键（只增不改）
-- [ ] 3.5 app e2e（V2 mock）：横幅出现（running + 会话不活跃）、续跑点击断言 prompt 发送、放弃后横幅消失；spec 加入 e2e tsconfig include
-- [ ] 3.6 **守门**：`packages/app` 等受影响包 typecheck + 根 oxlint 0 errors + 新 e2e spec 绿
+- [x] 3.1 writing-batch 查询端点 + cancel 写面：schema 增 `WritingBatch` DTO，protocol 增 `GET /:novelID/writing-batch`（NullOr，interrupted 派生：running 且 session_id 不在 SessionV2.active）与 `POST /:novelID/writing-batch/cancel`（无 running 批量时报错），server handler 接线
+- [x] 3.2 `packages/client` 跑 `bun run generate` 重生 SDK（generated/generated-effect 三文件，未手改）
+- [x] 3.3 app `BatchRecoveryBanner`（`resolveBatchBannerState` 纯函数 + workspace-frame 顶部挂载，novelID 取路由参数——既有 mock detail 返回数组形，`data.novel!.id` 不可靠）：续跑向 session_id 发 V2 prompt「继续批量写作」并跳转该会话；放弃走 cancel；附纯函数单测
+- [x] 3.4 i18n zh/en/zht 新增 6 个 `novel.batchRecovery.*` 键（只增不改，parity 测试绿）
+- [x] 3.5 app e2e `batch-recovery-banner.spec.ts` 4 例（横幅出现/活跃不显示/续跑 prompt 断言+跳转/放弃消失；locale 钉 zh）；mock 基建 `novel-workspace.ts` 增 writingBatch/cancel/prompt 捕获；`./novel/**/*.spec.ts` 已在 e2e tsconfig glob 内无需改
+- [x] 3.6 **守门**：app/client/server/protocol/schema typecheck 全绿 + 根 oxlint 0 errors + server 150/150 + 新 e2e 4/4 绿
 
 ## 收尾
 

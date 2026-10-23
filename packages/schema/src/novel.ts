@@ -445,6 +445,19 @@ export const SessionBinding = Schema.Struct({
 }).annotate({ identifier: "Novel.SessionBinding" })
 export interface SessionBinding extends Schema.Schema.Type<typeof SessionBinding> {}
 
+export const WritingBatch = Schema.Struct({
+  novelId: Schema.String,
+  sessionId: Schema.String,
+  startChapter: PositiveInt,
+  total: PositiveInt,
+  completed: NonNegativeInt,
+  status: Schema.Literals(["running", "completed", "cancelled"]),
+  interrupted: Schema.Boolean,
+  createdAt: NonNegativeInt,
+  updatedAt: NonNegativeInt,
+}).annotate({ identifier: "Novel.WritingBatch" })
+export interface WritingBatch extends Schema.Schema.Type<typeof WritingBatch> {}
+
 export const CreateChapterInput = Schema.Struct({
   title: Schema.String,
   volumeId: optional(Schema.String),

@@ -46,6 +46,7 @@ import {
   UpdateTensionPointInput,
   UpdateVolumeInput,
   UpdateWorldEntryInput,
+  WritingBatch,
   WorldMap,
   WorldMapAggregate,
   WorldMapFeature,
@@ -244,6 +245,39 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           summary: "List session-novel bindings",
           description:
             "List all session-to-novel bindings in a directory. Declared before /:novelID to avoid route swallowing.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.writing-batch", `${root}/:novelID/writing-batch`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: Schema.NullOr(WritingBatch),
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.writing-batch",
+          summary: "Writing batch progress",
+          description:
+            "Get the persisted writing-batch record for a novel, with the interrupted flag derived at query time (running batch whose owning session is inactive).",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.writing-batch-cancel", `${root}/:novelID/writing-batch/cancel`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: WritingBatch,
+      error: NovelNotFoundError,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.writing-batch-cancel",
+          summary: "Cancel writing batch",
+          description: "Mark the running writing batch as cancelled (abandon). Fails when no running batch exists.",
         }),
       ),
   )

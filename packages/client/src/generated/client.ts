@@ -130,6 +130,10 @@ import type {
   ServerNovelForSessionOutput,
   ServerNovelSessionBindingsInput,
   ServerNovelSessionBindingsOutput,
+  ServerNovelWritingBatchInput,
+  ServerNovelWritingBatchOutput,
+  ServerNovelWritingBatchCancelInput,
+  ServerNovelWritingBatchCancelOutput,
   ServerNovelDetailInput,
   ServerNovelDetailOutput,
   ServerNovelVolumesInput,
@@ -1393,6 +1397,30 @@ export function make(options: ClientOptions) {
             query: { location: input?.["location"], library: input?.["library"] },
             successStatus: 200,
             declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "writing-batch": (input: ServerNovelWritingBatchInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelWritingBatchOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/writing-batch`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "writing-batch-cancel": (input: ServerNovelWritingBatchCancelInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelWritingBatchCancelOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/writing-batch/cancel`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,

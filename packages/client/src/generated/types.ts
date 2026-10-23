@@ -3385,6 +3385,54 @@ export type ServerNovelSessionBindingsOutput = ReadonlyArray<{
   readonly novelTitle: string
 }>
 
+export type ServerNovelWritingBatchInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelWritingBatchOutput = {
+  readonly novelId: string
+  readonly sessionId: string
+  readonly startChapter: number
+  readonly total: number
+  readonly completed: number
+  readonly status: "running" | "completed" | "cancelled"
+  readonly interrupted: boolean
+  readonly createdAt: number
+  readonly updatedAt: number
+} | null
+
+export type ServerNovelWritingBatchCancelInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelWritingBatchCancelOutput = {
+  readonly novelId: string
+  readonly sessionId: string
+  readonly startChapter: number
+  readonly total: number
+  readonly completed: number
+  readonly status: "running" | "completed" | "cancelled"
+  readonly interrupted: boolean
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
 export type ServerNovelDetailInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {

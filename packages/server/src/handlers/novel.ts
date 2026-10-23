@@ -170,8 +170,13 @@ import {
   resolveChapterOutline,
   resolveMasterOutline,
   resolveVolumeOutline,
+  getWritingBatch,
+  cancelWritingBatch,
+  writingBatchCompleted,
+  WritingBatchTable,
   withTransaction,
 } from "@opennovel-ai/novel-store"
+import { SessionV2 } from "@opennovel-ai/core/session"
 import { and, eq, asc, desc, isNull, like, or, inArray, ne } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
 import { rm } from "fs/promises"
@@ -769,6 +774,54 @@ export function novelForSession(sessionID: string, directory: string) {
 
 export function listSessionBindings(directory: string) {
   return Effect.promise(() => listSessionNovelBindings(directory))
+}
+
+// ─── 批量写作任务（agent-background-job-recovery D6）───
+
+function toWritingBatch(row: typeof WritingBatchTable.$inferSelect, interrupted: boolean) {
+  return {
+    novelId: row.novel_id,
+    sessionId: row.session_id,
+    startChapter: row.start_chapter,
+    total: row.total,
+    completed: writingBatchCompleted(row),
+    status: row.status as "running" | "completed" | "cancelled",
+    interrupted,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+/** interrupted 查询期派生：running 且发起会话不在活跃集合（不落库，避免启动扫描）。 */
+export function writingBatchProgress(novelID: string, directory: string, activeSessions: ReadonlySet<string>) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const batch = yield* Effect.promise(() => getWritingBatch(novelID, directory))
+    if (!batch) return null
+    return toWritingBatch(batch, batch.status === "running" && !activeSessions.has(batch.session_id))
+  })
+}
+
+export function cancelWritingBatchEndpoint(novelID: string, directory: string) {
+  return Effect.gen(function* () {
+    const db = getDb(directory)
+    const novel = db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    const batch = yield* Effect.promise(() => getWritingBatch(novelID, directory))
+    if (!batch || batch.status !== "running") {
+      yield* Effect.fail(
+        new NovelNotFoundError({
+          name: "NovelNotFoundError",
+          data: { message: `No running writing batch for novel: ${novelID}`, novelId: novelID },
+        }),
+      )
+    }
+    yield* Effect.promise(() => cancelWritingBatch(novelID, directory))
+    const updated = yield* Effect.promise(() => getWritingBatch(novelID, directory))
+    return toWritingBatch(updated!, false)
+  })
 }
 
 export function novelDetail(novelID: string, directory: string) {
@@ -2380,6 +2433,20 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* listSessionBindings(location.directory)
+        }),
+      )
+      .handle("novel.writing-batch", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          const session = yield* SessionV2.Service
+          const active = yield* session.active
+          return yield* writingBatchProgress(ctx.params.novelID, location.directory, active)
+        }),
+      )
+      .handle("novel.writing-batch-cancel", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* cancelWritingBatchEndpoint(ctx.params.novelID, location.directory)
         }),
       )
       .handle("novel.detail", (ctx) =>

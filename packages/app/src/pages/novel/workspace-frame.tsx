@@ -15,6 +15,7 @@ import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import UpgradeBanner from "./upgrade-banner"
+import BatchRecoveryBanner from "./batch-recovery-banner"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { SegmentedControlV2, SegmentedControlItemV2 } from "@opennovel-ai/ui/v2/segmented-control-v2"
@@ -898,6 +899,9 @@ export default function NovelWorkspaceFrame() {
 
           {/* 派生数据升级横幅：有待执行任务或执行中时展示，不阻塞现有操作 */}
           <UpgradeBanner novelID={data.novel!.id} />
+
+          {/* 批量写作中断横幅：批量 running 且发起会话不活跃时展示续跑/放弃入口；novelID 取路由参数（与查询族一致） */}
+          <BatchRecoveryBanner dir={params.dir!} novelID={novelID()} />
 
           {/* Pipeline status bar — shown when a bound session is active */}
           <Show when={novelActivity()}>

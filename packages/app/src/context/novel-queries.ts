@@ -191,6 +191,8 @@ export const novelKeys = {
     ["novel", "upgrade-status", directory, novelID] as const,
   "upgrade-progress": (directory: string, novelID: string) =>
     ["novel", "upgrade-progress", directory, novelID] as const,
+  "writing-batch": (directory: string, novelID: string) =>
+    ["novel", "writing-batch", directory, novelID] as const,
   "review-inbox-counts": (directory: string, novelID: string) =>
     ["novel", "review-inbox-counts", directory, novelID] as const,
   "review-inbox-items": (directory: string, novelID: string, source: string, limit: number) =>
@@ -623,6 +625,40 @@ export function useUpgradeProgress(novelID: Accessor<string>) {
       if (!data) return false
       const hasActiveRun = data.total > 0
       return hasActiveRun ? 5000 : false
+    },
+  }))
+}
+
+/** 批量写作任务进度（agent-background-job-recovery D6）：interrupted 由服务端查询期派生。 */
+export function useWritingBatch(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["writing-batch"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["writing-batch"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+    // running 批量的 interrupted 依赖会话活性：轮询保持横幅与会话状态对账
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 10_000 : false),
+  }))
+}
+
+export function useCancelWritingBatch() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: { novelID: string }) =>
+      client()["server.novel"]["writing-batch-cancel"]({
+        novelID: input.novelID,
+        location: { directory: sdk().directory },
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: novelKeys["writing-batch"](sdk().directory, variables.novelID) })
     },
   }))
 }
