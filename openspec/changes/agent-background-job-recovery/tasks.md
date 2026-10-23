@@ -29,10 +29,12 @@
 
 ## 收尾
 
-- [ ] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: agent-background-job-recovery"`）
+- [x] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: agent-background-job-recovery"`）
 - [ ] 4.2 `openspec validate agent-background-job-recovery --strict` 绿
 - [ ] 4.3 归档（`npx openspec archive agent-background-job-recovery --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
 
 ## Implementation Commits
 
-（执行中按波次补记）
+- `0df258447f` feat(novel-store): writing_batch 批量任务实体与 state-commit 幂等修复（Wave 1）
+- `34105b1f96` feat(plugin): 写作批量 begin/get 工具与断点续跑 prompt 语义（Wave 2）
+- `b5469527c4` feat(server): writing-batch 查询/放弃端点与工作台中断横幅（Wave 3）
