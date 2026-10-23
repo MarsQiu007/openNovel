@@ -21,6 +21,8 @@ export interface MockServerConfig {
   project: unknown
   /** 会话列表；可传函数以支持会后变更（如归档后从 /api/session 列表消失） */
   sessions: MockSession[] | (() => MockSession[])
+  /** 列表覆盖：/api/session 列表用它而单条 GET/PATCH 仍解析 sessions（如子代理从列表缺席） */
+  sessionList?: MockSession[] | (() => MockSession[])
   /** V2 消息历史（升序）；/api/session/{id}/message 分页与 /{mid} 单条共用它 */
   v2Messages?: (sessionID: string) => SessionMessage[]
   onV2Messages?: (input: { sessionID: string; cursor?: string; phase: "start" | "end" }) => void
@@ -86,7 +88,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     }
     if (path === "/api/session")
       return json(route, {
-        data: currentSessions(config, createdSessions).map((session) => v2Session(session, config.directory)),
+        data: currentSessionList(config, createdSessions).map((session) => v2Session(session, config.directory)),
         cursor: {},
       })
     // app 启动固定读取面：空信封而非 404——smoke 断言把任何 404 资源错误计为失败
@@ -203,9 +205,16 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
   })
 }
 
-/** 读取会话列表当前值（支持函数形态以便测试内变更后重查；含 POST 懒创建的会话） */
+/** 读取会话集合当前值（支持函数形态以便测试内变更后重查；含 POST 懒创建的会话） */
 function currentSessions(config: MockServerConfig, created: MockSession[] = []): MockSession[] {
   const base = typeof config.sessions === "function" ? config.sessions() : config.sessions
+  return [...base, ...created]
+}
+
+/** 列表视图的会话集合：sessionList 覆盖优先，单条 GET/PATCH 不走这里 */
+function currentSessionList(config: MockServerConfig, created: MockSession[] = []): MockSession[] {
+  if (config.sessionList === undefined) return currentSessions(config, created)
+  const base = typeof config.sessionList === "function" ? config.sessionList() : config.sessionList
   return [...base, ...created]
 }
 

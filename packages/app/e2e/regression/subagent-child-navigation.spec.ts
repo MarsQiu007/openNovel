@@ -3,6 +3,15 @@ import { expect, test, type Page } from "@playwright/test"
 import { mockOpenNovelServer, type MockSession } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectSessionTitle } from "../utils/waits"
+import {
+  v2AssistantMessage,
+  v2Event,
+  v2Tool,
+  v2ToolCompleted,
+  v2UserMessage,
+  type V2FixtureMessage,
+  type V2SseFrame,
+} from "../utils/v2-fixture"
 
 // 子代理会话导航（session-direct-nav）：工作台内时间线卡片链接由链接提供层
 // 直接生成为书内会话地址（/:dir/novel/:novelID/session/:id），点击一步直达、
@@ -20,7 +29,7 @@ const childTitle = "Subagent child session"
 const taskDescription = "Inspect child navigation"
 const grandchildTaskDescription = "Inspect grandchild navigation"
 
-type EventPayload = { directory: string; payload: Record<string, unknown> }
+type EventPayload = V2SseFrame
 
 type SetupOptions = {
   events?: () => EventPayload[]
@@ -28,7 +37,7 @@ type SetupOptions = {
   boundSessionIDs?: string[]
   /** 服务端会话配置；默认父 + 子（会话列表覆盖始终只返回父） */
   sessions?: MockSession[]
-  pageMessages?: (sessionID: string) => { items: unknown[] }
+  v2Messages?: (sessionID: string) => V2FixtureMessage[]
 }
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -58,9 +67,8 @@ test("grandchild subagent walks the ancestor chain through an unbound middle par
   await setup(page, {
     boundSessionIDs: [parentID],
     sessions: [session(parentID, parentTitle, 1700000000000), childSession(), grandchildSession()],
-    pageMessages: (sessionID) => ({
-      items: sessionID === parentID ? parentMessages() : sessionID === childID ? childMessages() : [],
-    }),
+    v2Messages: (sessionID) =>
+      sessionID === parentID ? parentMessages() : sessionID === childID ? childMessages() : [],
   })
   await openChildFromParent(page)
   await expectSessionTitle(page, taskDescription)
@@ -95,10 +103,7 @@ test("shows the not found fallback when the viewed session is deleted", async ({
   await openChildFromParent(page)
   await expectSessionTitle(page, taskDescription)
 
-  events.push({
-    directory,
-    payload: { type: "session.deleted", properties: { info: childSession() } },
-  })
+  events.push(v2Event(directory, "session.next.deleted", { timestamp: 1700000003000, sessionID: childID }))
 
   await expect(page.getByText("This session cannot be found")).toBeVisible()
   await expect(page.getByRole("button", { name: "Close Tab" })).toBeVisible()
@@ -130,23 +135,13 @@ async function setup(page: Page, options: SetupOptions = {}) {
       default: { providerID: "opennovel", modelID: "claude-opus-4-6" },
     },
     sessions: options.sessions ?? [session(parentID, parentTitle, 1700000000000), childSession()],
-    pageMessages:
-      options.pageMessages ?? ((sessionID) => ({ items: sessionID === parentID ? parentMessages() : [] })),
+    // The child session resolves via GET /api/session/:id but is absent from the session
+    // list, matching a subagent session that has not been loaded into the list cache yet.
+    sessionList: () => [session(parentID, parentTitle, 1700000000000)],
+    v2Messages: options.v2Messages ?? ((sessionID) => (sessionID === parentID ? parentMessages() : [])),
     events: options.events,
     eventRetry: options.events ? 16 : undefined,
   })
-  // The child session resolves via /session/:id but is absent from the /session list,
-  // matching a subagent session that has not been loaded into the list cache yet.
-  await page.route(
-    (url) => url.pathname === "/session" && url.port === (process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"),
-    (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { "access-control-allow-origin": "*" },
-        body: JSON.stringify([session(parentID, parentTitle, 1700000000000)]),
-      }),
-  )
   await mockNovelWorkspaceAPIs(page, {
     directory,
     novelID,
@@ -226,124 +221,71 @@ function grandchildSession() {
   return session(grandchildID, "Subagent grandchild session", 1700000002000, { parentID: childID })
 }
 
-function parentMessages() {
-  const userID = "msg_user_0001"
-  const assistantID = "msg_assistant_0001"
+const tokens = { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } }
+const modelRef = { id: "claude-opus-4-6", providerID: "opennovel" }
+
+/** task 工具内容：structured.sessionId 驱动子会话卡片链接，structured.title 供卡片标题 */
+function taskToolContent(input: { id: string; description: string; childSessionID: string; output: string; at: number }) {
+  return v2Tool({
+    name: "task",
+    id: input.id,
+    created: input.at,
+    ran: input.at,
+    completed: input.at + 1000,
+    state: v2ToolCompleted({
+      input: { description: input.description, subagent_type: "explore" },
+      structured: { title: input.description, sessionId: input.childSessionID },
+      content: [{ type: "text", text: input.output }],
+    }),
+  })
+}
+
+function parentMessages(): V2FixtureMessage[] {
   return [
-    {
-      info: {
-        id: userID,
-        sessionID: parentID,
-        role: "user",
-        time: { created: 1700000000000 },
-        agent: "build",
-        model: { providerID: "opennovel", modelID: "claude-opus-4-6" },
-      },
-      parts: [
-        {
-          id: "prt_user_text_0001",
-          sessionID: parentID,
-          messageID: userID,
-          type: "text",
-          text: "Delegate work to a subagent",
-        },
-      ],
-    },
-    {
-      info: {
-        id: assistantID,
-        sessionID: parentID,
-        role: "assistant",
-        time: { created: 1700000001000, completed: 1700000002000 },
-        parentID: userID,
-        modelID: "claude-opus-4-6",
-        providerID: "opennovel",
-        mode: "build",
-        agent: "build",
-        path: { cwd: directory, root: directory },
-        cost: 0.01,
-        tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-        finish: "stop",
-      },
-      parts: [
-        {
+    v2UserMessage({ id: "msg_user_0001", text: "Delegate work to a subagent", created: 1700000000000 }),
+    v2AssistantMessage({
+      id: "msg_assistant_0001",
+      created: 1700000001000,
+      completed: 1700000002000,
+      model: modelRef,
+      agent: "build",
+      cost: 0.01,
+      tokens,
+      finish: "stop",
+      content: [
+        taskToolContent({
           id: "prt_tool_task_0001",
-          sessionID: parentID,
-          messageID: assistantID,
-          type: "tool",
-          callID: "call_task_0001",
-          tool: "task",
-          state: {
-            status: "completed",
-            input: { description: taskDescription, subagent_type: "explore" },
-            output: "Subagent finished",
-            title: taskDescription,
-            metadata: { sessionId: childID },
-            time: { start: 1700000001000, end: 1700000002000 },
-          },
-        },
+          description: taskDescription,
+          childSessionID: childID,
+          output: "Subagent finished",
+          at: 1700000001000,
+        }),
       ],
-    },
+    }),
   ]
 }
 
-function childMessages() {
-  const userID = "msg_user_child_0001"
-  const assistantID = "msg_assistant_child_0001"
+function childMessages(): V2FixtureMessage[] {
   return [
-    {
-      info: {
-        id: userID,
-        sessionID: childID,
-        role: "user",
-        time: { created: 1700000001000 },
-        agent: "build",
-        model: { providerID: "opennovel", modelID: "claude-opus-4-6" },
-      },
-      parts: [
-        {
-          id: "prt_user_child_text_0001",
-          sessionID: childID,
-          messageID: userID,
-          type: "text",
-          text: "Delegate further to a nested subagent",
-        },
-      ],
-    },
-    {
-      info: {
-        id: assistantID,
-        sessionID: childID,
-        role: "assistant",
-        time: { created: 1700000001100, completed: 1700000001200 },
-        parentID: userID,
-        modelID: "claude-opus-4-6",
-        providerID: "opennovel",
-        mode: "build",
-        agent: "build",
-        path: { cwd: directory, root: directory },
-        cost: 0.01,
-        tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-        finish: "stop",
-      },
-      parts: [
-        {
+    v2UserMessage({ id: "msg_user_child_0001", text: "Delegate further to a nested subagent", created: 1700000001000 }),
+    v2AssistantMessage({
+      id: "msg_assistant_child_0001",
+      created: 1700000001100,
+      completed: 1700000001200,
+      model: modelRef,
+      agent: "build",
+      cost: 0.01,
+      tokens,
+      finish: "stop",
+      content: [
+        taskToolContent({
           id: "prt_tool_task_child_0001",
-          sessionID: childID,
-          messageID: assistantID,
-          type: "tool",
-          callID: "call_task_child_0001",
-          tool: "task",
-          state: {
-            status: "completed",
-            input: { description: grandchildTaskDescription, subagent_type: "explore" },
-            output: "Nested subagent finished",
-            title: grandchildTaskDescription,
-            metadata: { sessionId: grandchildID },
-            time: { start: 1700000001100, end: 1700000001200 },
-          },
-        },
+          description: grandchildTaskDescription,
+          childSessionID: grandchildID,
+          output: "Nested subagent finished",
+          at: 1700000001100,
+        }),
       ],
-    },
+    }),
   ]
 }
