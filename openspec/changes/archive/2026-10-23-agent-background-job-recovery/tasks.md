@@ -30,8 +30,8 @@
 ## 收尾
 
 - [x] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: agent-background-job-recovery"`）
-- [ ] 4.2 `openspec validate agent-background-job-recovery --strict` 绿
-- [ ] 4.3 归档（`npx openspec archive agent-background-job-recovery --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
+- [x] 4.2 `openspec validate agent-background-job-recovery --strict` 绿
+- [x] 4.3 归档（`npx openspec archive agent-background-job-recovery --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
 
 ## Implementation Commits
 
