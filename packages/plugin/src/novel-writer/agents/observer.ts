@@ -310,6 +310,8 @@ export const observerAgent = {
   category: "memory" as const,
   permission: {
     "*": "allow",
+    // 浏览器工具族仅 research 代理可用（目录过滤与执行授权双保险）
+    browser: "deny",
     read: "allow",
     list: "allow",
     glob: "allow",

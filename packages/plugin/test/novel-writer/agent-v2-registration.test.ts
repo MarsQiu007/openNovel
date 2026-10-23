@@ -23,6 +23,7 @@ const WRITING_AGENTS = [
   "outliner",
   "librarian",
   "ideator",
+  "research",
 ] as const
 
 function fakeDraft() {
@@ -62,7 +63,7 @@ describe("novel-writer V2 入口", () => {
     expect(typeof novelWriterV2.effect).toBe("function")
   })
 
-  test("注册 11 个写作 agent 并设置 director 为默认", () => {
+  test("注册 12 个写作 agent 并设置 director 为默认", () => {
     const { draft, selected } = fakeDraft()
     registerWritingAgents(draft)
     const ids = draft.list().map((agent) => agent.id)
@@ -80,6 +81,11 @@ describe("novel-writer V2 入口", () => {
     const writer = draft.get("writer")
     expect(writer?.mode).toBe("subagent")
     expect(writer?.category).toBe("creation")
+
+    const research = draft.get("research")
+    expect(research?.mode).toBe("subagent")
+    expect(research?.category).toBe("research")
+    expect(research?.permissions).toContainEqual({ action: "browser", resource: "*", effect: "allow" })
   })
 
   test("禁用 build/plan 内置 agent，其余内置不受影响", () => {

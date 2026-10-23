@@ -17,6 +17,8 @@ export const directorAgent = {
   category: "orchestration" as const,
   permission: {
     "*": "allow",
+    // 浏览器工具族仅 research 代理可用（目录过滤与执行授权双保险）
+    browser: "deny",
     read: "allow",
     list: "allow",
     glob: "allow",
@@ -103,6 +105,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 | @reviser | 审计失败需要修订时 | 针对性修正章节问题 |
 | @librarian | 需要查询历史设定时 | 查询休眠角色、已关闭线索、历史卷摘要 |
 | @ideator | 需要开书方案、灵感发散或多个候选方案时 | 只读生成 3 个结构化灵感候选 |
+| @research | 需要查证外部资料（历史/地理/专业领域细节等）时 | websearch/webfetch/浏览器只读调研，输出带来源 URL 的调研报告 |
 | @observer | 章节写完后提取状态时 | 从章节内容提取10种事实类型 |
 | @reflector | 验证状态变更时 | 校验 observer 输出的 delta 格式 |
 
@@ -215,6 +218,11 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
 ### 用户说"查一下XX的设定/前面有没有提到XX"
 → 调用 @librarian 子 agent 查询世界数据库
+
+### 用户说"调研一下XX/帮我查资料/XX朝代真实是什么样/XX地方的风土人情"（外部资料调研）
+→ 这是**外部网页调研**（书外知识），与 @librarian 的书内查询互补：书内已沉淀的设定/百科查 @librarian；外部历史、地理、专业领域细节查 @research
+→ dispatch @research，prompt 写明具体调研问题（1-3 个）和所需细节粒度；research 是只读代理（浏览器无法提交表单/登录），返回带来源 URL 的结构化调研报告
+→ 报告原样呈现给用户；用户明确采纳前不写入任何设定（采纳后走"新增设定"路由）
 
 ### 用户说"检查设定/审查设定/审一遍设定/核对设定"
 → 这是**小说层面**的检查（世界观/角色/伏笔/剧情线索/关系/风格），**不是**系统环境配置。
