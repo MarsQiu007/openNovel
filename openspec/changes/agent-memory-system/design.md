@@ -185,11 +185,11 @@ librarian 已有三个查询工具（`lookup_dormant_characters` / `lookup_close
 
 ## 7. 与其他 change 的协同边界
 
-- **agent-instruction-layering**：规范（作者写的、稳定、分层文件）与记忆（增长的、agent 沉淀）注入通道独立，互不吞并；技巧固化的落点在对方。
-- **agent-task-subagent**：审校子代理的干净上下文 = 设定集 + 目标章节 + 技巧卡；审校产出的评审事件是技巧层的上游来源；librarian 是记忆检索的现成调度通道。
+- **agent-instruction-layering**（已归档 2026-10-23）：规范（作者写的、稳定、分层文件）与记忆（增长的、agent 沉淀）注入通道独立，互不吞并；技巧固化的落点在对方。
+- **agent-task-subagent**（已归档 2026-10-22）：审校子代理的干净上下文 = 设定集 + 目标章节 + 技巧卡；审校产出的评审事件是技巧层的上游来源；librarian 是记忆检索的现成调度通道。
 - **agent-task-subagent 落地核实（2026-10-21 步骤 10）**：librarian 已注册 V2 宿主（category=memory，`novel-writer-v2.ts`），且与 V1 hook 同源消费 permission map；§5.2 的 `memory_search`/`memory_lookup` 扩展落点（agents/librarian.ts 对象 + archive.ts）权限单源已就绪。注意「writer/auditor 不直接持检索工具」是注入纪律（dispatch prompt 层）而非权限层——writer/auditor 等 10 个 agent 的 `"*": "allow"` 通配在两代宿主都会放行新工具，仅 ideator 是 deny-heavy 白名单；纪律约束在提示词协议与快照组装中执行。
 - **38 维审计**：本变更不改审计维度；审计是记忆校准的执行者之一（reviewed 状态的生产者）。
-- **v1-retirement-roadmap**：本变更的工具注册与流水线挂钩在哪个运行时落地，遵循路线图的迁移排序，不双轨新增 V1 功能。
+- **v1-retirement-roadmap**（已归档 2026-10-23，V1 已全线退役）：迁移排序约束随之失效——本变更的工具注册与流水线挂钩**直接落 V2 宿主**，无 V1 双轨问题。
 - 文风统计基线：语料现算的 computed metric，存书级元数据，**不进记忆**（记卡必漂移）。
 
 ## 8. 迁移与实施顺序（tasks 阶段细化）
