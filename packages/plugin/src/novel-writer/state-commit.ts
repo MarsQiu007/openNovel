@@ -87,6 +87,24 @@ const StateDeltaEntrySchema = z.object({
   data: z.record(z.string(), z.unknown()).describe("变更数据"),
 })
 
+/**
+ * 出处字段（agent-memory-system §0）：observer 对可能触发 WARN/FAIL 的事实
+ * 在 data 中携带原文引句（quote，逐字）与定位区间（quote_span），供 commitState
+ * 落 memory_fact 时校准锚点。data 是开放 record，旧 delta 无出处字段照常解码。
+ */
+export interface QuoteProvenance {
+  quote?: string
+  quoteSpan?: string
+}
+
+/** 从 delta data 提取出处字段；无出处或类型不符时返回空对象 */
+export function extractQuoteProvenance(data: Record<string, unknown>): QuoteProvenance {
+  return {
+    ...(typeof data.quote === "string" && data.quote ? { quote: data.quote } : {}),
+    ...(typeof data.quote_span === "string" && data.quote_span ? { quoteSpan: data.quote_span } : {}),
+  }
+}
+
 /** 状态变更 delta 数组 */
 export const StateDeltaSchema = z.array(StateDeltaEntrySchema)
 
