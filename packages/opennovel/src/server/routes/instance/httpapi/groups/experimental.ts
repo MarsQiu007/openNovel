@@ -1,5 +1,4 @@
 import { AccountID, OrgID } from "@/account/schema"
-import { MCP } from "@/mcp"
 
 import { Worktree } from "@/worktree"
 import { NonNegativeInt } from "@opennovel-ai/core/schema"
@@ -9,6 +8,15 @@ import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 import { described } from "./metadata"
+
+// MCP 资源 wire 契约（原 @/mcp 的 MCP.Resource，随 V1 客户端退役内联至此）
+const McpResource = Schema.Struct({
+  name: Schema.String,
+  uri: Schema.String,
+  description: Schema.optional(Schema.String),
+  mimeType: Schema.optional(Schema.String),
+  client: Schema.String,
+}).annotate({ identifier: "McpResource" })
 
 const ConsoleStateResponse = Schema.Struct({
   consoleManagedProviders: Schema.mutable(Schema.Array(Schema.String)),
@@ -148,7 +156,7 @@ export const ExperimentalApi = HttpApi.make("experimental")
         ),
         HttpApiEndpoint.get("resource", ExperimentalPaths.resource, {
           query: WorkspaceRoutingQuery,
-          success: described(Schema.Record(Schema.String, MCP.Resource), "MCP resources"),
+          success: described(Schema.Record(Schema.String, McpResource), "MCP resources"),
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "experimental.resource.list",

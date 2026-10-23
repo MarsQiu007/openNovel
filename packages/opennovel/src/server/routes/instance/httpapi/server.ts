@@ -13,8 +13,6 @@ import { Format } from "@/format"
 import { Git } from "@/git"
 import { Installation } from "@/installation"
 import { LSP } from "@/lsp/lsp"
-import { MCP } from "@/mcp"
-import { McpAuth } from "@/mcp/auth"
 import { Plugin } from "@/plugin"
 import { PluginPtyEnvironment } from "@/plugin/pty-environment"
 import { SettingOrganizationLayer } from "@/setting-organization"
@@ -213,8 +211,6 @@ const app = LayerNode.group([
   SessionV2.node,
   RuntimeFlags.node,
   LSP.node,
-  MCP.node,
-  McpAuth.node,
   Format.node,
   Project.node,
   Vcs.node,

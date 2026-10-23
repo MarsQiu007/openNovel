@@ -1,4 +1,4 @@
-import { MCP } from "@/mcp"
+import { Mcp } from "@opennovel-ai/schema/mcp"
 import { ConfigMCPV1 } from "@opennovel-ai/core/config/v1/mcp"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -13,7 +13,7 @@ export const AddPayload = Schema.Struct({
   config: ConfigMCPV1.Info,
 })
 
-export const StatusMap = Schema.Record(Schema.String, MCP.Status)
+export const StatusMap = Schema.Record(Schema.String, Mcp.Status)
 export const AuthStartResponse = Schema.Struct({
   authorizationUrl: Schema.String,
   oauthState: Schema.String,
@@ -44,7 +44,7 @@ export const McpApi = HttpApi.make("mcp")
       .add(
         HttpApiEndpoint.get("status", McpPaths.status, {
           query: WorkspaceRoutingQuery,
-          success: described(Schema.Record(Schema.String, MCP.Status), "MCP server status"),
+          success: described(Schema.Record(Schema.String, Mcp.Status), "MCP server status"),
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "mcp.status",
@@ -80,7 +80,7 @@ export const McpApi = HttpApi.make("mcp")
           params: { name: Schema.String },
           query: WorkspaceRoutingQuery,
           payload: AuthCallbackPayload,
-          success: described(MCP.Status, "OAuth authentication completed"),
+          success: described(Mcp.Status, "OAuth authentication completed"),
           error: [HttpApiError.BadRequest, McpServerNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
@@ -93,7 +93,7 @@ export const McpApi = HttpApi.make("mcp")
         HttpApiEndpoint.post("authAuthenticate", McpPaths.authAuthenticate, {
           params: { name: Schema.String },
           query: WorkspaceRoutingQuery,
-          success: described(MCP.Status, "OAuth authentication completed"),
+          success: described(Mcp.Status, "OAuth authentication completed"),
           error: [UnsupportedOAuthError, McpServerNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({

@@ -56,6 +56,11 @@ export class ToolCallError extends Schema.TaggedErrorClass<ToolCallError>()("MCP
   message: Schema.String,
 }) {}
 
+// OAuth 流程的前置/状态失败（非 remote、显式禁用、URL 无效、state 不匹配、无在途流程）
+export class AuthError extends Schema.TaggedErrorClass<AuthError>()("MCP.AuthError", {
+  message: Schema.String,
+}) {}
+
 export interface ServerInstructions {
   name: string
   instructions: string
@@ -96,12 +101,12 @@ export interface Interface {
   readonly disconnect: (name: string) => Effect.Effect<void, NotFoundError>
   readonly startAuth: (
     mcpName: string,
-  ) => Effect.Effect<{ authorizationUrl: string; oauthState: string; client?: Client }, NotFoundError | Error>
+  ) => Effect.Effect<{ authorizationUrl: string; oauthState: string; client?: Client }, NotFoundError | AuthError>
   readonly authenticate: (
     mcpName: string,
     onAuthorization?: (authorizationUrl: string) => void,
-  ) => Effect.Effect<Status, NotFoundError | Error>
-  readonly finishAuth: (mcpName: string, authorizationCode: string) => Effect.Effect<Status, NotFoundError | Error>
+  ) => Effect.Effect<Status, NotFoundError | AuthError>
+  readonly finishAuth: (mcpName: string, authorizationCode: string) => Effect.Effect<Status, NotFoundError | AuthError>
   readonly removeAuth: (mcpName: string) => Effect.Effect<void>
   readonly supportsOAuth: (mcpName: string) => Effect.Effect<boolean, NotFoundError>
   readonly hasStoredTokens: (mcpName: string) => Effect.Effect<boolean>
@@ -667,11 +672,11 @@ const layer = Layer.effect(
 
     const startAuth = Effect.fn("MCP.startAuth")(function* (mcpName: string) {
       const mcpConfig = yield* requireMcpConfig(mcpName)
-      if (mcpConfig.type !== "remote") return yield* Effect.fail(new Error(`MCP server ${mcpName} is not a remote server`))
+      if (mcpConfig.type !== "remote") return yield* new AuthError({ message: `MCP server ${mcpName} is not a remote server` })
       if (mcpConfig.oauth === false)
-        return yield* Effect.fail(new Error(`MCP server ${mcpName} has OAuth explicitly disabled`))
+        return yield* new AuthError({ message: `MCP server ${mcpName} has OAuth explicitly disabled` })
       const url = remoteURL(mcpConfig.url)
-      if (!url) return yield* Effect.fail(new Error(`Invalid MCP URL for "${mcpName}"`))
+      if (!url) return yield* new AuthError({ message: `Invalid MCP URL for "${mcpName}"` })
 
       // 同一 server 重复发起授权会覆盖在途流程：先取消旧的回调等待并回收旧 transport
       McpOAuthCallback.cancelPending(mcpName)
@@ -802,7 +807,7 @@ const layer = Layer.effect(
       const storedState = yield* auth.getOAuthState(mcpName)
       if (storedState !== result.oauthState) {
         yield* auth.clearOAuthState(mcpName)
-        return yield* Effect.fail(new Error("OAuth state mismatch - potential CSRF attack"))
+        return yield* new AuthError({ message: "OAuth state mismatch - potential CSRF attack" })
       }
       yield* auth.clearOAuthState(mcpName)
       return yield* finishAuth(mcpName, code)
@@ -811,7 +816,7 @@ const layer = Layer.effect(
     const finishAuth = Effect.fn("MCP.finishAuth")(function* (mcpName: string, authorizationCode: string) {
       yield* requireMcpConfig(mcpName)
       const pending = pendingOAuthTransports.get(mcpName)
-      if (!pending) return yield* Effect.fail(new Error(`No pending OAuth flow for MCP server: ${mcpName}`))
+      if (!pending) return yield* new AuthError({ message: `No pending OAuth flow for MCP server: ${mcpName}` })
 
       const error = yield* Effect.tryPromise({
         try: () => pending.transport.finishAuth(authorizationCode),

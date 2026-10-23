@@ -1,10 +1,13 @@
 import { Account } from "@/account/account"
 import { Config } from "@/config/config"
 import { InstanceState } from "@/effect/instance-state"
-import { MCP } from "@/mcp"
+import { LocationServiceMap, locationServiceMapLayer } from "@opennovel-ai/core/location-services"
+import { Location } from "@opennovel-ai/core/location"
+import { Mcp } from "@opennovel-ai/core/mcp"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { Project } from "@/project/project"
 import { Worktree } from "@/worktree"
-import { Effect, Option } from "effect"
+import { Effect, Layer, Option } from "effect"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { ConsoleSwitchPayload, WorktreeApiError } from "../groups/experimental"
@@ -19,7 +22,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
   Effect.gen(function* () {
     const account = yield* Account.Service
     const config = yield* Config.Service
-    const mcp = yield* MCP.Service
+    const locations = yield* LocationServiceMap.Service
     const project = yield* Project.Service
     const worktreeSvc = yield* Worktree.Service
 
@@ -102,7 +105,11 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
     })
 
     const resource = Effect.fn("ExperimentalHttpApi.resource")(function* () {
-      return yield* mcp.resources()
+      return yield* Mcp.Service.use((mcp) => mcp.resources()).pipe(
+        Effect.provide(
+          locations.get(Location.Ref.make({ directory: AbsolutePath.make((yield* InstanceState.context).directory) })),
+        ),
+      )
     })
 
     return handlers
@@ -115,4 +122,4 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("worktreeReset", worktreeReset)
       .handle("resource", resource)
   }),
-)
+).pipe(Layer.provide(locationServiceMapLayer))

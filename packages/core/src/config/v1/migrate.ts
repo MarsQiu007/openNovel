@@ -29,7 +29,13 @@ const keys = new Set([
 
 export function isV1(input: unknown) {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return false
-  return Object.keys(input).some((key) => keys.has(key))
+  const record = input as Record<string, unknown>
+  if (Object.keys(record).some((key) => keys.has(key))) return true
+  // mcp 段 V1/V2 共用键名但形状不同：V1 是服务器直挂记录（每个值带 type 字面量），
+  // V2 是 {servers, timeout} 包装。其余 V1 键均已改名，唯独 mcp 需要看值形状判别。
+  const mcp = record.mcp
+  if (typeof mcp !== "object" || mcp === null || Array.isArray(mcp)) return false
+  return Object.values(mcp).some((value) => typeof value === "object" && value !== null && "type" in value)
 }
 
 export function migrate(info: typeof ConfigV1.Info.Type) {
@@ -143,7 +149,7 @@ function mcp(info: typeof ConfigV1.Info.Type) {
   return { timeout: timeout === undefined ? undefined : { request: timeout }, servers }
 }
 
-function migrateMcp(info: ConfigMCPV1.Info) {
+export function migrateMcp(info: ConfigMCPV1.Info) {
   const disabled = info.enabled === undefined ? undefined : !info.enabled
   if (info.type === "local")
     return {

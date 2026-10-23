@@ -8,9 +8,12 @@ import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
-import { MCP } from "../../mcp"
-import { McpAuth } from "../../mcp/auth"
-import { McpOAuthProvider } from "../../mcp/oauth-provider"
+import { Mcp } from "@opennovel-ai/core/mcp"
+import { McpAuth } from "@opennovel-ai/core/mcp/auth"
+import { McpOAuthProvider } from "@opennovel-ai/core/mcp/oauth-provider"
+import { LocationServiceMap, locationServiceMapLayer } from "@opennovel-ai/core/location-services"
+import { Location } from "@opennovel-ai/core/location"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { Config } from "@/config/config"
 import { ConfigMCPV1 } from "@opennovel-ai/core/config/v1/mcp"
 import { InstanceRef } from "@/effect/instance-ref"
@@ -21,7 +24,15 @@ import { modify, applyEdits } from "jsonc-parser"
 import { Filesystem } from "@/util/filesystem"
 import { Effect } from "effect"
 
-function getAuthStatusIcon(status: MCP.AuthStatus): string {
+// core Mcp 是 Location 域服务：CLI handler 内按当前项目目录 provide location layer
+function withLocation<A, E, R>(effect: Effect.Effect<A, E, R>, directory: string) {
+  return effect.pipe(
+    Effect.provide(LocationServiceMap.Service.get(Location.Ref.make({ directory: AbsolutePath.make(directory) }))),
+    Effect.provide(locationServiceMapLayer),
+  )
+}
+
+function getAuthStatusIcon(status: Mcp.AuthStatus): string {
   switch (status) {
     case "authenticated":
       return "✓"
@@ -32,7 +43,7 @@ function getAuthStatusIcon(status: MCP.AuthStatus): string {
   }
 }
 
-function getAuthStatusText(status: MCP.AuthStatus): string {
+function getAuthStatusText(status: Mcp.AuthStatus): string {
   switch (status) {
     case "authenticated":
       return "authenticated"
@@ -68,7 +79,7 @@ function oauthServers(config: ConfigV1.Info) {
 function listState() {
   return Effect.gen(function* () {
     const cfg = yield* Config.Service
-    const mcp = yield* MCP.Service
+    const mcp = yield* Mcp.Service
     const config = yield* cfg.get()
     const statuses = yield* mcp.status()
     const stored = yield* Effect.all(
@@ -82,7 +93,7 @@ function listState() {
 function authState() {
   return Effect.gen(function* () {
     const cfg = yield* Config.Service
-    const mcp = yield* MCP.Service
+    const mcp = yield* Mcp.Service
     const config = yield* cfg.get()
     const auth = yield* Effect.all(
       Object.fromEntries(oauthServers(config).map(([name]) => [name, mcp.getAuthStatus(name)])),
@@ -114,7 +125,9 @@ export const McpListCommand = effectCmd({
     UI.empty()
     prompts.intro("MCP Servers")
 
-    const { config, statuses, stored } = yield* listState()
+    const ctx = yield* InstanceRef
+    if (!ctx) return yield* Effect.die("InstanceRef not provided")
+    const { config, statuses, stored } = yield* withLocation(listState(), ctx.directory)
     const servers = configuredServers(config)
 
     if (servers.length === 0) {
@@ -181,7 +194,9 @@ export const McpAuthCommand = effectCmd({
     UI.empty()
     prompts.intro("MCP OAuth Authentication")
 
-    const { config, auth } = yield* authState()
+    const ctx = yield* InstanceRef
+    if (!ctx) return yield* Effect.die("InstanceRef not provided")
+    const { config, auth } = yield* withLocation(authState(), ctx.directory)
     const mcpServers = config.mcp ?? {}
     const servers = oauthServers(config)
 
@@ -238,7 +253,8 @@ export const McpAuthCommand = effectCmd({
     }
 
     // Check if already authenticated
-    const authStatus = auth[serverName] ?? (yield* MCP.Service.use((mcp) => mcp.getAuthStatus(serverName)))
+    const authStatus =
+      auth[serverName] ?? (yield* withLocation(Mcp.Service.use((mcp) => mcp.getAuthStatus(serverName)), ctx.directory))
     if (authStatus === "authenticated") {
       const confirm = yield* Effect.promise(() =>
         prompts.confirm({
@@ -256,12 +272,15 @@ export const McpAuthCommand = effectCmd({
     const spinner = prompts.spinner()
     spinner.start("Starting OAuth flow...")
 
-    yield* MCP.Service.use((mcp) =>
-      mcp.authenticate(serverName, (url) => {
-        spinner.stop("Authorize in your browser:")
-        prompts.log.info(url)
-        spinner.start("Waiting for authorization...")
-      }),
+    yield* withLocation(
+      Mcp.Service.use((mcp) =>
+        mcp.authenticate(serverName, (url) => {
+          spinner.stop("Authorize in your browser:")
+          prompts.log.info(url)
+          spinner.start("Waiting for authorization...")
+        }),
+      ),
+      ctx.directory,
     ).pipe(
       Effect.tap((status) =>
         Effect.sync(() => {
@@ -311,7 +330,9 @@ export const McpAuthListCommand = effectCmd({
     UI.empty()
     prompts.intro("MCP OAuth Status")
 
-    const { config, auth } = yield* authState()
+    const ctx = yield* InstanceRef
+    if (!ctx) return yield* Effect.die("InstanceRef not provided")
+    const { config, auth } = yield* withLocation(authState(), ctx.directory)
     const servers = oauthServers(config)
 
     if (servers.length === 0) {
@@ -345,7 +366,9 @@ export const McpLogoutCommand = effectCmd({
     UI.empty()
     prompts.intro("MCP OAuth Logout")
 
-    const credentials = yield* McpAuth.Service.use((auth) => auth.all())
+    const ctx = yield* InstanceRef
+    if (!ctx) return yield* Effect.die("InstanceRef not provided")
+    const credentials = yield* withLocation(McpAuth.Service.use((auth) => auth.all()), ctx.directory)
     const serverNames = Object.keys(credentials)
 
     if (serverNames.length === 0) {
@@ -385,7 +408,7 @@ export const McpLogoutCommand = effectCmd({
       return
     }
 
-    yield* MCP.Service.use((mcp) => mcp.removeAuth(serverName))
+    yield* withLocation(Mcp.Service.use((mcp) => mcp.removeAuth(serverName)), ctx.directory)
     prompts.log.success(`Removed OAuth credentials for ${serverName}`)
     prompts.outro("Done")
   }),
@@ -669,14 +692,20 @@ export const McpDebugCommand = effectCmd({
       demandOption: true,
     }),
   handler: Effect.fn("Cli.mcp.debug")(function* (args) {
+    const ctx = yield* InstanceRef
+    if (!ctx) return yield* Effect.die("InstanceRef not provided")
     const config = yield* Config.Service.use((cfg) => cfg.get())
-    const mcp = yield* MCP.Service
-    const auth = yield* McpAuth.Service
+    const auth = yield* withLocation(
+      Effect.gen(function* () {
+        return yield* McpAuth.Service
+      }),
+      ctx.directory,
+    )
     const serverConfig = config.mcp?.[args.name]
     const authInfo =
       serverConfig && isMcpRemote(serverConfig) && serverConfig.oauth !== false
         ? yield* Effect.all({
-            authStatus: mcp.getAuthStatus(args.name),
+            authStatus: withLocation(Mcp.Service.use((mcp) => mcp.getAuthStatus(args.name)), ctx.directory),
             entry: auth.get(args.name),
           })
         : undefined
@@ -768,7 +797,7 @@ export const McpDebugCommand = effectCmd({
 
           // Try to discover OAuth metadata
           const oauthConfig = typeof serverConfig.oauth === "object" ? serverConfig.oauth : undefined
-          const authProvider = new McpOAuthProvider(
+          const authProvider = new McpOAuthProvider.Provider(
             serverName,
             serverConfig.url,
             {

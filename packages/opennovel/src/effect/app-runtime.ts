@@ -18,8 +18,7 @@ import { ProviderAuth } from "@/provider/auth"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
 import { LSP } from "@/lsp/lsp"
-import { MCP } from "@/mcp"
-import { McpAuth } from "@/mcp/auth"
+import { McpAuth } from "@opennovel-ai/core/mcp/auth"
 import { Format } from "@/format"
 import { InstanceStore } from "@/project/instance-store"
 import { Project } from "@/project/project"
@@ -57,7 +56,6 @@ export const AppLayer = AppNodeBuilderV1.build(
     GlobalEventBridge.node,
     RuntimeFlags.node,
     LSP.node,
-    MCP.node,
     McpAuth.node,
     Format.node,
     InstanceStore.node,

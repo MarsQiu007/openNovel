@@ -18,6 +18,7 @@
   "exports": {
     "./effect/layer-node": "./src/effect/layer-node.ts",
     "./effect/app-node": "./src/effect/app-node.ts",
+    "./mcp": "./src/mcp/index.ts",
     "./session/runner": "./src/session/runner/index.ts",
     "./system-context": "./src/system-context/index.ts",
     "./sync": "./src/sync/index.ts",
