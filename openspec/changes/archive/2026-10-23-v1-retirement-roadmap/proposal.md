@@ -21,9 +21,11 @@ fork 的产品功能面 100% 跑在 V1 运行时上：12 个写作子代理经 V
 
 ### 2. 迁移排序（激进串行：3 格，各格独立 change，格间硬依赖 ①→②→③）
 
-1. **agent-task-subagent**（进行中）——V2 能力落位：subagent 工具 / Job 三件套 / KV / 崩溃恢复 / Session 写侧 / 12 agent 原生注册 / 拆 V1 实验后台
-2. **runtime-v2-cutover**——产品运行时硬切换：plugin 工具注册 V2 化、novel-writer 全量引导、会话创建面与流水线迁 V2 drain；V1 task 与 `BackgroundJob` 旧面在本格死亡（`agent-background-job-recovery` 与本格合流）
-3. **v1-removal**——历史 V1 会话数据一次性迁移进 V2 存储（`v1-migration.bun.ts` 模式），随后删 `core/src/v1` 与 `opennovel` V1 session 面
+1. **agent-task-subagent**（已归档 2026-10-22）——V2 能力落位：subagent 工具 / Job 三件套 / KV / 崩溃恢复 / Session 写侧 / 12 agent 原生注册 / 拆 V1 实验后台
+2. **runtime-v2-cutover**（已归档 2026-10-23）——产品运行时硬切换：plugin 工具注册 V2 化、novel-writer 全量引导、会话创建面与流水线迁 V2 drain；V1 task 与 `BackgroundJob` 旧面在本格死亡（`agent-background-job-recovery` 与本格合流）
+3. **v1-removal**（已归档 2026-10-23）——历史 V1 会话数据一次性迁移进 V2 存储（`v1-migration.bun.ts` 模式），随后删 `core/src/v1` 与 `opennovel` V1 session 面
+
+> 收尾状态（2026-10-23）：三格全部归档；两项跟进闭合——event-v2-bridge 删除（偏差 5 的 Wave E）已在 v1-removal G3.6 内完成（`e33913d20e`），app e2e V2 mock 重建经独立提案 `e2e-v2-mock` 完成（已归档 2026-10-23）。退休判据三条均达成。
 
 > 各格范围、影响与适配点的细节归各 change 的 proposal / design，本文件只做排序与状态索引，不重复格内内容。
 
