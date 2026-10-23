@@ -28,6 +28,7 @@
 - [x] 3.3 `control-plane/workspace.ts` 改造：Session→SessionV2（remove/move）、SessionPrompt.cancel→interrupt、EventV2Bridge→EventV2 原生
 - [x] 3.4 其余调用方改造：app-runtime/bootstrap 接线、plugin/skill/image/lsp/mcp/project/cli run；auth 插件活路径核实（D16）
 - [x] 3.5 pin 已删面的测试随删；保留套件改 V2 装置
+- [x] 3.6 `event-v2-bridge.ts` 删除（D15）：publish 消费方切 `EventV2.Service` + 位置附加助手；GlobalBus sync 信封桥接 re-home 为服务图节点
 
 ## G4 share/import 删除
 

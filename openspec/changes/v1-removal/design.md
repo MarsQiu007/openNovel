@@ -204,3 +204,11 @@ core 提供 `V1Migration.layer`（forkScoped 立即后台跑）；opennovel serv
 - **偏差 7（过度删除教训一——`agent list` 本就是 V2 面）**：初版连 `cli agent list`（embeddedClient + `v2.agent.list`，纯 V2 路径）一并删除，「cli agent (V2)」与 read-only smoke 失败暴露；恢复文件仅删 create 子命令，index.ts 注册与 help 快照按原位恢复。
 - **偏差 8（过度删除教训二——models-api.json 是全局 fixture）**：provider 测试稳定失败（models-dev 数据源缺失），二分归因定位 `test/preload.ts` 的 `OPENNOVEL_MODELS_PATH` 指向随 tool 树删除的 fixture；该 fixture 是全测试套共享的 ModelsDev 数据源而非 legacy pin，迁至 `test/fixtures/models-api.json` 后 provider 97/97 全绿。**教训：git rm 整目录前先 grep 目录内文件名的仓内引用。**
 - **回归**：opennovel typecheck 绿、oxlint 0 errors；exercise 292/292；触及面 428/428；help 快照 25 快照绿；全量套件 1739 pass / 31 skip / 1 fail / 1 error（1771 tests / 150 files）——唯一 fail+error 为「Unhandled error between tests: Unbound layer node @opennovel/v2/SessionExecution」（workspace-adapter 测试后 between-tests 抛出），HEAD（C2）基线同组合复现同等失败，按归因铁律归属既有负载 flake，不改代码。
+
+### G3.6 event-v2-bridge 删除（2026-10-23，Wave E，D15 落地）
+
+- **删除清单**：`src/event-v2-bridge.ts` 及其在两枢纽（app-runtime/server）与七个测试 fixture/套件中的节点接线。
+- **发布方向**（新 `src/effect/publish.ts` 的 `publishRouted`）：EventV2.publish 原生仅从 `Location.Service` 取位置，opennovel 实例上下文里的发布方经助手从 `InstanceRef`/`WorkspaceRef` 补全 `directory`/`workspaceID`（`Location.Ref` 形状；原桥接附带 `Location.Info.project`，全仓零 `event.location.project` 消费方，随删）。lsp（`Event.Updated`）、mcp（`TuiEvent.ToastShow`×2/`ToolsChanged`×2/`BrowserOpenFailed`）、vcs（`Event.BranchUpdated`）切 `EventV2.Service` + `publishRouted`。
+- **监听方向**：plugin（事件钩子按 `event.location.directory` 过滤）、handlers/event（/api/event SSE 的 location 过滤）直切 `EventV2.Service`；skill 的 events 参数系 C3 后死参，随删。
+- **偏差 9（re-home 位置修正——桥必须在服务图而非请求处理器）**：初版按原设计把 GlobalBus sync 信封桥接内联进 handlers/global.ts 构建期，control-plane 测试「sync history … in workspace context」5001ms 超时暴露——`Workspace.remove` 的 `waitUntilSynced` 是**进程内 GlobalBus 消费方**（等 sync 信封作唤醒信号），不走 /global/event，测试层图不含 globalHandlers 时桥不存在。修正：桥抽出为 `src/effect/global-event-bridge.ts` 的 `GlobalEventBridge.node`（`Layer.effectDiscard` 注册监听，deps `[EventV2.node]`），挂 server.ts app group 与 app-runtime AppLayer（保持原 EventV2Bridge.node 的组合覆盖面），control-plane/fixture/httpapi-workspace 测试组列该节点。handlers/global.ts 保持纯 SSE 消费。
+- **回归**：opennovel typecheck 绿、oxlint 0 errors；exercise 292/292；受影响 25 文件 261 pass / 1 fail / 1 error——唯一 fail+error 为已归属的 between-tests Unbound SessionExecution（HEAD 基线同现）；全量套件结果见 G6 收尾。
