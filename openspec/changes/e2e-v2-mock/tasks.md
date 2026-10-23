@@ -32,10 +32,20 @@
 
 ## 收尾
 
-- [ ] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: e2e-v2-mock"`）
+- [x] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: e2e-v2-mock"`）
 - [ ] 4.2 `openspec validate e2e-v2-mock --strict` 绿
 - [ ] 4.3 归档（`npx openspec archive e2e-v2-mock --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
 
 ## Implementation Commits
 
-（执行中按波次补记）
+- `90c7f2ea10` test(app): 重建 e2e mock 基建为 V2 wire（Wave 1）
+- `081927c2ea` test(app): smoke 时间线 spec 切 V2 fixture 与 cursor 分页（Wave 2.1）
+- `007dba265d` test(app): collapse-state spec 切 V2 播种与事件（Wave 2.2）
+- `5360ea345a` test(app): context-resize spec 切 V2 播种与工具结算事件（Wave 2.3）
+- `52d45d1005` test(app): subagent-child-navigation spec 切 V2 播种与 sessionList（Wave 2.4）
+- `dc70a3d989` test(app): request-docks spec 切 V2 请求信封与回复捕获（Wave 2.5）
+- `399449e841` test(app): 新建 session-transport-contract spec（Wave 3.1）
+- `94ef4324a2` test(app): 新建 session-streaming-projection spec（Wave 3.2）
+- `a215a3f667` test(app): 新建 session-history-pagination spec（Wave 3.3）
+
+（Wave 2.6 转换已含在 Wave 1 基建提交内，无独立实现提交；两次勾选记录提交不计入。）
