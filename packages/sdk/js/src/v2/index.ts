@@ -5,8 +5,6 @@ import { createOpenNovelClient } from "./client.js"
 import { createOpenNovelServer } from "./server.js"
 import type { ServerOptions } from "./server.js"
 
-export * as data from "./data.js"
-
 export async function createOpenNovel(options?: ServerOptions) {
   const server = await createOpenNovelServer({
     ...options,

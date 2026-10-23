@@ -20,6 +20,7 @@ import {
   autoRespondsPermission,
   sessionAutoAccept,
 } from "./permission-auto-respond"
+import { adaptPermission } from "@/utils/v2-adapter"
 
 type PermissionRespondFn = (input: {
   sessionID: string
@@ -309,8 +310,8 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
 
   const handlePermission = (e: PermissionEvent) => {
     const event = e.details
-    if (event?.type !== "permission.asked") return
-    void respondPending(event.properties, e.name)
+    if (event?.type !== "permission.v2.asked") return
+    void respondPending(adaptPermission(event.properties), e.name)
   }
 
   const unsubscribe = input.sdk.event.listen((event) => {
@@ -337,14 +338,13 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
       }),
     )
 
-    input.sdk.client.permission
-      .list({ directory })
+    input.sdk.client.v2.permission.request
+      .list({ location: { directory } })
       .then((x) => {
         if (meta.disposed) return
         if (!isAutoAcceptingDirectory(directory)) return
-        for (const perm of x.data ?? []) {
-          if (!perm?.id) continue
-          void respondPending(perm, directory, () => isAutoAcceptingDirectory(directory))
+        for (const item of x.data?.data ?? []) {
+          void respondPending(adaptPermission(item), directory, () => isAutoAcceptingDirectory(directory))
         }
       })
       .catch(() => undefined)
@@ -371,16 +371,15 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
       }),
     )
 
-    input.sdk.client.permission
-      .list({ directory })
+    input.sdk.client.v2.permission.request
+      .list({ location: { directory } })
       .then((x) => {
         if (meta.disposed) return
         if (enableVersion.get(key) !== version) return
         if (!isAutoAccepting(sessionID, directory)) return
-        for (const perm of x.data ?? []) {
-          if (!perm?.id) continue
+        for (const item of x.data?.data ?? []) {
           void respondPending(
-            perm,
+            adaptPermission(item),
             directory,
             () => enableVersion.get(key) === version && isAutoAccepting(sessionID, directory),
           )

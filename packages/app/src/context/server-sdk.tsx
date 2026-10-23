@@ -17,11 +17,11 @@ const isAbortError = (error: unknown) =>
 const isStreamClosed = (error: unknown, signal?: AbortSignal) => isAbortError(error) || signal?.aborted === true
 type QueuedServerEvent = { directory: string; payload: Event }
 
+// 高频快照事件按 key 只留最新一条（tool.progress 是完整状态快照，丢弃中间帧安全）。
 const coalescedKey = (event: QueuedServerEvent) => {
   if (event.payload.type === "lsp.updated") return `lsp.updated:${event.directory}`
-  if (event.payload.type === "message.part.updated") {
-    const part = event.payload.properties.part
-    return `message.part.updated:${event.directory}:${part.messageID}:${part.id}`
+  if (event.payload.type === "session.next.tool.progress") {
+    return `session.next.tool.progress:${event.directory}:${event.payload.properties.callID}`
   }
   return undefined
 }
@@ -37,36 +37,60 @@ export function enqueueServerEvent(queue: QueuedServerEvent[], event: QueuedServ
   return true
 }
 
+type DeltaEvent = Extract<
+  Event,
+  { type: "session.next.text.delta" | "session.next.reasoning.delta" | "session.next.tool.input.delta" }
+>
+
+const asDelta = (payload: Event): DeltaEvent | undefined => {
+  switch (payload.type) {
+    case "session.next.text.delta":
+    case "session.next.reasoning.delta":
+    case "session.next.tool.input.delta":
+      return payload
+    default:
+      return
+  }
+}
+
+const deltaPartID = (payload: DeltaEvent) => {
+  switch (payload.type) {
+    case "session.next.text.delta":
+      return payload.properties.textID
+    case "session.next.reasoning.delta":
+      return payload.properties.reasoningID
+    case "session.next.tool.input.delta":
+      return payload.properties.callID
+  }
+}
+
+// 相邻的同 part 流式增量合并为一条（delta 字符串拼接），降低 flush 频次。
 export function coalesceServerEvents(events: QueuedServerEvent[]) {
   const output: QueuedServerEvent[] = []
   events.forEach((event) => {
-    if (event.payload.type !== "message.part.delta") {
+    const delta = asDelta(event.payload)
+    if (!delta) {
       output.push(event)
       return
     }
-    const props = event.payload.properties
     const previous = output[output.length - 1]
+    const previousDelta = previous ? asDelta(previous.payload) : undefined
     if (
       !previous ||
-      previous.payload.type !== "message.part.delta" ||
+      !previousDelta ||
+      previousDelta.type !== delta.type ||
       previous.directory !== event.directory ||
-      previous.payload.properties.messageID !== props.messageID ||
-      previous.payload.properties.partID !== props.partID ||
-      previous.payload.properties.field !== props.field
+      deltaPartID(previousDelta) !== deltaPartID(delta)
     ) {
-      output.push({
-        directory: event.directory,
-        payload: { ...event.payload, properties: { ...props } },
-      })
+      output.push(event)
       return
     }
-    output[output.length - 1] = {
-      directory: event.directory,
-      payload: {
-        ...event.payload,
-        properties: { ...props, delta: previous.payload.properties.delta + props.delta },
-      },
-    }
+    // 已核实同 type 同 part，形状一致，仅拼接 delta 字段
+    const merged = {
+      ...delta,
+      properties: { ...delta.properties, delta: previousDelta.properties.delta + delta.properties.delta },
+    } as DeltaEvent
+    output[output.length - 1] = { directory: event.directory, payload: merged }
   })
   return output
 }

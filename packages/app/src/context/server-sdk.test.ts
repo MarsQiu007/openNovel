@@ -15,15 +15,25 @@ describe("resumeStreamAfterPageShow", () => {
 })
 
 describe("coalesceServerEvents", () => {
-  const delta = (value: string, field = "text", partID = "part") => ({
+  const delta = (value: string, textID = "text") => ({
     directory: "/repo",
     payload: {
-      type: "message.part.delta",
-      properties: { messageID: "msg", partID, field, delta: value },
+      id: "",
+      type: "session.next.text.delta",
+      properties: { timestamp: 0, sessionID: "session", assistantMessageID: "msg", textID, delta: value },
     } as Event,
   })
 
-  test("merges adjacent deltas for the same field", () => {
+  const reasoning = (value: string) => ({
+    directory: "/repo",
+    payload: {
+      id: "",
+      type: "session.next.reasoning.delta",
+      properties: { timestamp: 0, sessionID: "session", assistantMessageID: "msg", reasoningID: "reasoning", delta: value },
+    } as Event,
+  })
+
+  test("merges adjacent deltas for the same part", () => {
     const first = delta("hello ")
     const second = delta("world")
     first.payload.id = "first"
@@ -34,24 +44,24 @@ describe("coalesceServerEvents", () => {
     expect(result[0]?.payload).toMatchObject({ id: "second", properties: { delta: "hello world" } })
   })
 
-  test("preserves event boundaries and distinct fields", () => {
+  test("preserves event boundaries and distinct delta streams", () => {
     const status = {
       directory: "/repo",
       payload: { type: "session.status", properties: { sessionID: "ses", status: { type: "idle" } } } as Event,
     }
-    const result = coalesceServerEvents([delta("a"), delta("b", "metadata"), status, delta("c")])
+    const result = coalesceServerEvents([delta("a"), reasoning("b"), status, delta("c")])
 
     expect(result.map((event) => event.payload.type)).toEqual([
-      "message.part.delta",
-      "message.part.delta",
+      "session.next.text.delta",
+      "session.next.reasoning.delta",
       "session.status",
-      "message.part.delta",
+      "session.next.text.delta",
     ])
   })
 
   test("preserves event ID order across interleaved deltas", () => {
     const first = delta("a")
-    const other = delta("b", "text", "other")
+    const other = delta("b", "other")
     const last = delta("c")
     first.payload.id = "1"
     other.payload.id = "2"
@@ -64,42 +74,50 @@ describe("coalesceServerEvents", () => {
 })
 
 describe("enqueueServerEvent", () => {
-  const partUpdated = (text: string) =>
+  const progress = (title: string) =>
     ({
-      type: "message.part.updated",
+      id: "",
+      type: "session.next.tool.progress",
       properties: {
+        timestamp: 0,
         sessionID: "session",
-        part: { id: "part", sessionID: "session", messageID: "message", type: "text", text },
+        assistantMessageID: "message",
+        callID: "call",
+        structured: { title },
+        content: [],
       },
     }) as Event
 
-  test("preserves part updates across message remove and re-add barriers", () => {
+  const textDelta = (value: string) =>
+    ({
+      id: "",
+      type: "session.next.text.delta",
+      properties: { timestamp: 0, sessionID: "session", assistantMessageID: "message", textID: "text", delta: value },
+    }) as Event
+
+  test("preserves progress snapshots across event barriers", () => {
     const events: Array<{ directory: string; payload: Event }> = []
     const enqueue = (payload: Event) => enqueueServerEvent(events, { directory: "/repo", payload })
 
-    enqueue(partUpdated("old"))
-    enqueue({ type: "message.removed", properties: { sessionID: "session", messageID: "message" } } as Event)
+    enqueue(progress("old"))
+    enqueue(textDelta("x"))
     enqueue({
-      type: "message.updated",
+      type: "session.next.step.started",
       properties: {
+        timestamp: 1,
         sessionID: "session",
-        info: {
-          id: "message",
-          sessionID: "session",
-          role: "user",
-          time: { created: 1 },
-          agent: "build",
-          model: { providerID: "provider", modelID: "model" },
-        },
+        assistantMessageID: "message",
+        agent: "build",
+        model: { providerID: "provider", id: "model" },
       },
     } as Event)
-    enqueue(partUpdated("new"))
+    enqueue(progress("new"))
 
     expect(events.map((event) => event.payload.type)).toEqual([
-      "message.part.updated",
-      "message.removed",
-      "message.updated",
-      "message.part.updated",
+      "session.next.tool.progress",
+      "session.next.text.delta",
+      "session.next.step.started",
+      "session.next.tool.progress",
     ])
   })
 
@@ -107,16 +125,13 @@ describe("enqueueServerEvent", () => {
     const events: Array<{ directory: string; payload: Event }> = []
     const enqueue = (payload: Event) => enqueueServerEvent(events, { directory: "/repo", payload })
 
-    enqueue(partUpdated("a"))
-    enqueue(partUpdated("ab"))
-    enqueue({
-      type: "message.part.delta",
-      properties: { sessionID: "session", messageID: "message", partID: "part", field: "text", delta: "c" },
-    } as Event)
+    enqueue(progress("a"))
+    enqueue(progress("ab"))
+    enqueue(textDelta("c"))
 
     const result = coalesceServerEvents(events)
-    expect(result.map((event) => event.payload.type)).toEqual(["message.part.updated", "message.part.delta"])
-    expect(result[0]?.payload).toMatchObject({ properties: { part: { text: "ab" } } })
+    expect(result.map((event) => event.payload.type)).toEqual(["session.next.tool.progress", "session.next.text.delta"])
+    expect(result[0]?.payload).toMatchObject({ properties: { structured: { title: "ab" } } })
     expect(result[1]?.payload).toMatchObject({ properties: { delta: "c" } })
   })
 
@@ -124,17 +139,17 @@ describe("enqueueServerEvent", () => {
     const events: Array<{ directory: string; payload: Event }> = []
     const enqueue = (payload: Event) => enqueueServerEvent(events, { directory: "/repo", payload })
 
-    enqueue(partUpdated("old"))
+    enqueue(progress("old"))
     enqueue({
       type: "session.next.deleted",
       properties: { timestamp: 1, sessionID: "session" },
     } as Event)
-    enqueue(partUpdated("new"))
+    enqueue(progress("new"))
 
     expect(events.map((event) => event.payload.type)).toEqual([
-      "message.part.updated",
+      "session.next.tool.progress",
       "session.next.deleted",
-      "message.part.updated",
+      "session.next.tool.progress",
     ])
   })
 

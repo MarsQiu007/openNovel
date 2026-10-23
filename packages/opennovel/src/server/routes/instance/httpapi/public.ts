@@ -274,8 +274,6 @@ function applyLegacySchemaOverrides(spec: OpenApiSpec) {
   const model = schemas.ProviderConfig?.properties?.models?.additionalProperties
   const variants = typeof model === "object" ? model.properties?.variants?.additionalProperties : undefined
   if (variants && typeof variants === "object") variants.additionalProperties = {}
-  const syncInfo = schemas.SyncEventSessionUpdated?.properties?.data?.properties?.info
-  if (syncInfo?.properties) makePropertiesNullable(syncInfo.properties)
 }
 
 function normalizeComponentDescriptions(spec: OpenApiSpec) {
@@ -286,20 +284,6 @@ function normalizeComponentDescriptions(spec: OpenApiSpec) {
       continue
     }
     delete schema.description
-  }
-}
-
-function makePropertiesNullable(properties: Record<string, OpenApiSchema>) {
-  for (const [key, value] of Object.entries(properties)) {
-    if (key === "share" && value.properties?.url) {
-      value.properties.url = nullable(value.properties.url)
-      continue
-    }
-    if (key === "time" && value.properties) {
-      makePropertiesNullable(value.properties)
-      continue
-    }
-    properties[key] = nullable(value)
   }
 }
 

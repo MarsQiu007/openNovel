@@ -9,7 +9,7 @@ import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { decode64 } from "@/utils/base64"
-import { EventSessionError } from "@opennovel-ai/sdk/v2"
+import type { SessionErrorUnknown } from "@opennovel-ai/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
 import { useGlobal } from "./global"
@@ -32,7 +32,7 @@ type TurnCompleteNotification = NotificationBase & {
 
 type ErrorNotification = NotificationBase & {
   type: "error"
-  error: EventSessionError["properties"]["error"]
+  error?: SessionErrorUnknown
 }
 
 export type Notification = TurnCompleteNotification | ErrorNotification
@@ -353,9 +353,10 @@ function createServerNotificationState(input: {
     })
   }
 
+  // V1 session.error 已随 legacy wire 裁撤；step.failed 是现存最接近的会话级失败信号。
   const handleSessionError = (
     directory: string,
-    event: { properties: { sessionID?: string; error?: EventSessionError["properties"]["error"] } },
+    event: { properties: { sessionID?: string; error?: SessionErrorUnknown } },
     time: number,
   ) => {
     const sessionID = event.properties.sessionID
@@ -376,9 +377,7 @@ function createServerNotificationState(input: {
         session: sessionID ?? "global",
         error,
       })
-      const description =
-        session?.title ??
-        (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
+      const description = session?.title ?? error?.message ?? language.t("notification.session.error.fallbackDescription")
       const href = sessionID ? `/${base64Encode(directory)}/session/${sessionID}` : `/${base64Encode(directory)}`
       if (settings.notifications.errors()) {
         void platform.notify(language.t("notification.session.error.title"), description, href)
@@ -388,7 +387,7 @@ function createServerNotificationState(input: {
 
   const unsub = serverSDK().event.listen((e) => {
     const event = e.details
-    if (event.type !== "session.idle" && event.type !== "session.error") return
+    if (event.type !== "session.idle" && event.type !== "session.next.step.failed") return
 
     const directory = e.name
     const time = Date.now()

@@ -46,7 +46,7 @@ export function createNovelInvalidator(input: {
  * Subscribes to directory SSE events and invalidates novel query keys.
  *
  * - `session.status` for a session bound to this novel → immediate broad invalidation
- * - `message.part.updated` for a bound session → 5s debounce then broad invalidate
+ * - V2 内容进展事件（text.delta/tool.success/step.ended）for a bound session → 5s debounce then broad invalidate
  * - Active (busy/retry) bound sessions → 15s polling broad invalidation
  * - 单章正文/版本/批注不在实时失效范围内，挂载时自行刷新
  *
@@ -85,7 +85,7 @@ export function useNovelLiveInvalidation(directory: Accessor<string>, novelID: A
     on(novelID, () => void refreshBindings(), { defer: true }),
   )
 
-  // ---- message.part.updated: 5s debounce ----
+  // ---- 内容进展事件: 5s debounce ----
 
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -142,9 +142,13 @@ export function useNovelLiveInvalidation(directory: Accessor<string>, novelID: A
       return
     }
 
-    if (event.type === "message.part.updated") {
-      const { sessionID } = event.properties
-      if (sessionID && boundSessionIds.has(sessionID)) {
+    // V1 message.part.updated 已裁撤；以 V2 内容进展事件（流式文本/工具结算/step 完成）替代。
+    if (
+      event.type === "session.next.text.delta" ||
+      event.type === "session.next.tool.success" ||
+      event.type === "session.next.step.ended"
+    ) {
+      if (boundSessionIds.has(event.properties.sessionID)) {
         scheduleDebouncedInvalidate()
       }
     }

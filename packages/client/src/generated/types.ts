@@ -937,9 +937,9 @@ export type SessionsHistoryOutput = {
           readonly version: string
           readonly metadata?: { readonly [x: string]: JsonValue }
           readonly permission?: ReadonlyArray<{
-            readonly permission: string
-            readonly pattern: string
-            readonly action: "allow" | "deny" | "ask"
+            readonly action: string
+            readonly resource: string
+            readonly effect: "allow" | "deny" | "ask"
           }>
         }
       }
@@ -1443,9 +1443,9 @@ export type SessionsEventsOutput =
         readonly version: string
         readonly metadata?: { readonly [x: string]: unknown }
         readonly permission?: ReadonlyArray<{
-          readonly permission: string
-          readonly pattern: string
-          readonly action: "allow" | "deny" | "ask"
+          readonly action: string
+          readonly resource: string
+          readonly effect: "allow" | "deny" | "ask"
         }>
       }
     }

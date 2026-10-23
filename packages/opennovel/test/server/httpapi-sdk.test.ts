@@ -516,9 +516,7 @@ describe("HttpApi SDK", () => {
         const fileStatus = yield* capture(() => sdk.file.status())
         const findFiles = yield* capture(() => sdk.find.files({ query: "hello", limit: 10 }))
         const findText = yield* capture(() => sdk.find.text({ pattern: "sdk-parity" }))
-        const agents = yield* capture(() => sdk.app.agents())
         const skills = yield* capture(() => sdk.app.skills())
-        const tools = yield* capture(() => sdk.tool.ids())
         const vcs = yield* capture(() => sdk.vcs.get())
         const formatter = yield* capture(() => sdk.formatter.status())
         const lsp = yield* capture(() => sdk.lsp.status())
@@ -535,9 +533,7 @@ describe("HttpApi SDK", () => {
             fileStatus,
             findFiles,
             findText,
-            agents,
             skills,
-            tools,
             vcs,
             formatter,
             lsp,

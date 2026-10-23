@@ -84,16 +84,16 @@ describe("PublicApi OpenAPI v2 errors", () => {
     )
   })
 
-  test("documents nested legacy global sync events", () => {
+  test("documents nested durable global sync events", () => {
     const spec = OpenApi.fromApi(PublicApi) as OpenApiSpec
-    const schema = spec.components.schemas.SyncEventSessionCreated
+    const schema = spec.components.schemas.SyncEventSessionNextCreated
 
     expect(schema?.required).toEqual(["type", "id", "syncEvent"])
     expect(schema?.properties?.type?.enum).toEqual(["sync"])
     expect(schema?.properties?.syncEvent).toMatchObject({
       required: ["type", "id", "seq", "aggregateID", "data"],
       properties: {
-        type: { enum: ["session.created.1"] },
+        type: { enum: ["session.next.created.1"] },
         id: { type: "string" },
         seq: { type: "number" },
         aggregateID: { type: "string" },

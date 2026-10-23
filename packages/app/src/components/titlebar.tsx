@@ -1,15 +1,4 @@
-import {
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-  For,
-  Match,
-  onMount,
-  Show,
-  Switch,
-  untrack,
-} from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, onMount, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { base64Decode, base64Encode } from "@opennovel-ai/core/util/encode"
@@ -266,21 +255,6 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
             const tabs = useTabs()
             const tabsStore = tabs.store
             const tabsStoreActions = tabs
-            const [session] = createResource(
-              () => {
-                const route = layout.route()
-                if (route.type !== "session") return undefined
-                const conn = global.servers
-                  .list()
-                  .find((item) => ServerConnection.key(item) === (route.server ?? server.key))
-                return conn ? { route, sdk: global.ensureServerCtx(conn).sdk } : undefined
-              },
-              ({ route, sdk }) =>
-                sdk.client.session
-                  .get({ sessionID: route.sessionId })
-                  .then((x) => x.data)
-                  .catch(() => {}),
-            )
 
             const matchRoute = (route: LayoutRoute) => {
               if (route.type !== "novel") return
