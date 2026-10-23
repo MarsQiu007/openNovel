@@ -25,10 +25,10 @@
 
 ## Wave 3 — 独失覆盖重建（去重后）
 
-- [ ] 3.1 新建 `e2e/regression/session-transport-contract.spec.ts`（7 用例：连接复用/burst/split 多字节/heartbeat/close 重连/error 重连/Last-Event-ID/fetch 穿透；payload 用 V2 text.delta 链）
-- [ ] 3.2 新建 `e2e/regression/session-streaming-projection.spec.ts`（流式回合/reasoning 矩阵/工具四态与 9 族错误卡/question dismissed 区分/websearch provider 标签/重复投递幂等/context 组归并/turn 结构）
-- [ ] 3.3 新建 `e2e/regression/session-history-pagination.spec.ts`（两阶段请求序列/cursor 形状/父消息补拉恰好一次/挂起期间 SSE 锚点零位移）
-- [ ] 3.4 **守门**：3 个新 spec 绿 + 全量 e2e 绿 + `bun typecheck` + oxlint
+- [x] 3.1 新建 `e2e/regression/session-transport-contract.spec.ts`（8 用例：连接复用/burst/split 多字节/heartbeat/close 重连/error 重连/Last-Event-ID/fetch 穿透；payload 用 V2 text.delta 链）（8/8 绿）
+- [x] 3.2 新建 `e2e/regression/session-streaming-projection.spec.ts`（流式回合/reasoning 7 Profile 矩阵/工具四态与 9 族错误卡/question dismissed 区分/websearch provider 标签/重复投递幂等/context 组归并与折叠保持/turn 结构；busy 走 /api/session/active 对账，mock 新增 v2Active）（15/15 绿）
+- [x] 3.3 新建 `e2e/regression/session-history-pagination.spec.ts`（两阶段请求序列 limit 20→200/cursor 形状/父消息补拉经 prepend 重锚恰一次（单条 GET 零调用）/挂起期间 SSE 锚点零位移；onV2Messages 捕获新增 limit）（2/2 绿）
+- [x] 3.4 **守门**：3 个新 spec 绿（transport 8/8、streaming 15/15、pagination 2/2）+ 全量 e2e 109 过 3 败（3 败恰为 1.8 已立案的 HEAD 基线失败：annotation-execute、novel.spec chat panel、remote-session-settings，本波 diff 不触及其运行时）+ `bun typecheck` 绿 + oxlint 0 errors
 
 ## 收尾
 
