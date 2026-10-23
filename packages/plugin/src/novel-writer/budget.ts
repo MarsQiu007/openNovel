@@ -220,6 +220,41 @@ function applyP3Budget(packet: ContextPacket): void {
  * 策略：固定行永不丢弃（规则超长不影响基调视角时态）；规则截断时置
  * styleGuideTruncated，渲染层据此提示查询完整规则。
  */
+/**
+ * P4b 预算裁剪：分层写作规范共享 1K 预算，近层（章/卷）优先完整保留，
+ * 超限时从远层（book.md）开始整层截断；最近一层自身超限时按字符截断。
+ *
+ * P4b 字段：instructions
+ * 策略：截断发生时置 instructionsTruncated，渲染层据此提示查阅完整规范。
+ */
+function applyInstructionsBudget(packet: ContextPacket): void {
+  const INSTRUCTIONS_BUDGET = 1000 // 1K tokens
+  packet.instructionsTruncated = false
+  if (packet.instructions.length === 0) return
+  const layerTokens = (layer: (typeof packet.instructions)[number]) => estimateTokens(layer.path + layer.content)
+  const kept: typeof packet.instructions = []
+  let used = 0
+  let truncated = false
+  // 近→远逐层争取预算；放不下的远层整层截断
+  for (const layer of [...packet.instructions].reverse()) {
+    const tokens = layerTokens(layer)
+    if (used + tokens <= INSTRUCTIONS_BUDGET) {
+      kept.unshift(layer)
+      used += tokens
+      continue
+    }
+    truncated = true
+    if (kept.length === 0) {
+      // 最近一层自身超预算：按字符截断保留（1 token ≈ 1.5 中文字符）
+      const contentBudget = Math.max(0, (INSTRUCTIONS_BUDGET - estimateTokens(layer.path)) * 1.5)
+      kept.unshift({ ...layer, content: layer.content.slice(0, Math.floor(contentBudget)) })
+    }
+    break
+  }
+  packet.instructions = kept
+  packet.instructionsTruncated = truncated
+}
+
 function applyP4Budget(packet: ContextPacket): void {
   const P4_BUDGET = 1000 // 1K tokens
   packet.styleGuideTruncated = false
@@ -325,6 +360,7 @@ function applyChapterOutlineBudget(packet: ContextPacket): void {
  * - P2 卷+3章摘要（2K）：volumeSummary, recentChapterSummaries
  * - P3 线索+伏笔（2K）：plotThreads, foreshadowing
  * - P4 归档（1K）：styleGuide, genreRules
+ * - P4b 分层写作规范（1K，近层优先）：instructions
  * - P5 设定（2K）：worldEntries, worldEntryIndex, volumeList, relationships
  * - P6 召回历史（2.5K）：recalledHistory
  *
@@ -350,6 +386,7 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
     relationships: [...packet.relationships],
     protectedRelationships: [...(packet.protectedRelationships ?? [])],
     styleGuide: packet.styleGuide ? { ...packet.styleGuide } : null,
+    instructions: [...(packet.instructions ?? [])],
   }
 
   // P0: 蓝图 - 1K tokens
@@ -372,6 +409,9 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
 
   // P4: 归档 - 1K tokens
   applyP4Budget(result)
+
+  // P4b: 分层写作规范 - 1K tokens（近层优先）
+  applyInstructionsBudget(result)
 
   // P5: 世界观硬约束 - 2K tokens
   applyP5Budget(result)

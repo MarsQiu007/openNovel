@@ -17,6 +17,7 @@ import type { ProtectedRelationship } from "./relationship-context.js"
 import type { CharacterBindingView } from "./drift-guards.js"
 import { formatTechniquesForShadow } from "./technique-inject.js"
 import { ensureSegmentSummaries, listSegmentSummaries } from "./segment-rollup.js"
+import { discoverInstructions, type InstructionLayer } from "./instructions.js"
 import {
   getDb,
   NovelTable,
@@ -49,6 +50,28 @@ export function parseStyleRules(rules: unknown): Record<string, string> {
 /** 风格规则被预算截断时的提示（快照工具输出与会话级注入共用）。 */
 export const STYLE_GUIDE_TRUNCATED_HINT =
   '（风格规则超出快照预算，已截断；完整规则可通过 check_novel_settings(scope="style_guide") 查询）'
+
+/** 分层写作规范被预算截断时的提示（快照工具输出与会话级注入共用）。 */
+export const INSTRUCTIONS_TRUNCATED_HINT =
+  "（写作规范超出快照预算，已截断远层、保留近层；完整规范见 .novel/instructions/ 目录下对应文件）"
+
+/**
+ * 渲染分层写作规范行（含截断/降级提示）：快照工具输出与会话级注入共用；
+ * 规范为空时不产生规范段。远→近逐层注入，近者自然优先。
+ */
+export function instructionLines(instructions: InstructionLayer[], truncated: boolean): string[] {
+  const lines: string[] = []
+  for (const layer of instructions) {
+    if (layer.degraded) {
+      lines.push(`（规范文件读取失败，已跳过：${layer.path}）`)
+      continue
+    }
+    lines.push(`Instructions from: ${layer.path}`)
+    lines.push(layer.content)
+  }
+  if (truncated) lines.push(INSTRUCTIONS_TRUNCATED_HINT)
+  return lines
+}
 
 /**
  * 渲染风格规则行（含截断提示）：快照工具输出与会话级注入共用；
@@ -291,6 +314,11 @@ export type ContextPacket = {
   genreRules: string[]
   /** P4: 风格规则超出预算被截断时置为 true（渲染层附完整规则查询提示） */
   styleGuideTruncated: boolean
+
+  /** P4b: 书稿分层写作规范（远→近序，近者优先；读取失败的层以 degraded 标记） */
+  instructions: InstructionLayer[]
+  /** P4b: 规范超出预算被截断远层时置为 true（渲染层附提示） */
+  instructionsTruncated: boolean
 
   /** P5: 世界观硬约束（writer 创作的权威来源，仅核心相关条目，已裁剪） */
   worldEntries: WorldEntrySummary[]
@@ -695,6 +723,16 @@ export async function assembleSnapshot(
     genreRules,
     styleGuideTruncated: false,
 
+    // P4b: 书稿分层写作规范（远→近序；卷号取当前章所属卷，无卷书稿只有 book/chapter 两层）
+    instructions: discoverInstructions(
+      directory,
+      currentChapter?.volume_id
+        ? (volumeList.find((v) => v.id === currentChapter.volume_id)?.order ?? null)
+        : null,
+      chapterNumber,
+    ),
+    instructionsTruncated: false,
+
     // P5: 世界观硬约束
     worldEntries: worldEntries.map((w) => ({
       id: w.id,
@@ -851,6 +889,14 @@ export function formatSnapshotToolOutput(
       `风格：基调=${snapshot.styleGuide.tone ?? "无"} 视角=${snapshot.styleGuide.pov ?? "无"} 时态=${snapshot.styleGuide.tense ?? "无"}`,
     )
     lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
+  }
+  // ── P4b: 书稿分层写作规范（全书 → 卷 → 章，近者优先） ──
+  // 与 protectedRelationships 同例：历史测试构造的 packet 可能缺该字段，运行时兜底空数组
+  const instructions = snapshot.instructions ?? []
+  if (instructions.length > 0 || snapshot.instructionsTruncated) {
+    lines.push("")
+    lines.push("═══ 写作规范（分层：全书 → 卷 → 章，近者优先）═══")
+    lines.push(...instructionLines(instructions, snapshot.instructionsTruncated ?? false))
   }
   // ── P5: 世界观硬约束（writer 必须严格遵守的权威来源） ──
   if (snapshot.worldEntries.length > 0) {

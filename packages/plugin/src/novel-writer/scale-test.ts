@@ -214,6 +214,9 @@ function generateMockData(chapterCount: number): ContextPacket {
       "节奏要张弛有度，高潮和铺垫交替",
     ],
     styleGuideTruncated: false,
+    // 预算规模测试不构造写作规范层（P4b 预算由 instructions 单测覆盖）
+    instructions: [],
+    instructionsTruncated: false,
     worldEntries,
     worldEntryIndex: [],
     recalledHistory,

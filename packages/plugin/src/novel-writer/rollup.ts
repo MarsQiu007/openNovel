@@ -435,6 +435,10 @@ export async function getEffectiveContext(
     genreRules,
     styleGuideTruncated: false,
 
+    // 章 rollup 场景不注入写作规范（P4b 仅服务写作快照主链路）
+    instructions: [],
+    instructionsTruncated: false,
+
     worldEntries: [],
     volumeList: [],
     relationships: [],

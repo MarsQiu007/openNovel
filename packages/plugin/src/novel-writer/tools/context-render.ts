@@ -6,7 +6,7 @@
  * 注入文本一致。
  */
 import { desc, eq } from "drizzle-orm"
-import { styleGuideRuleLines } from "../context.js"
+import { instructionLines, styleGuideRuleLines } from "../context.js"
 import { assembleWriterSnapshot } from "../recall.js"
 import { ChapterTable, getDb, readNovelConfig, type SetupMode, type WritingMode } from "../session-store.js"
 import { formatActiveArcs, projectDirFromCtx } from "./shared.js"
@@ -150,6 +150,12 @@ export function renderSnapshotSection(snapshot: WriterSnapshot): string {
     if (snapshot.styleGuide.pov) lines.push(`视角：${snapshot.styleGuide.pov}`)
     if (snapshot.styleGuide.tense) lines.push(`时态：${snapshot.styleGuide.tense}`)
     lines.push(...styleGuideRuleLines(snapshot.styleGuide, snapshot.styleGuideTruncated))
+    lines.push("")
+  }
+
+  if (snapshot.instructions.length > 0 || snapshot.instructionsTruncated) {
+    lines.push("【写作规范】（分层：全书 → 卷 → 章，近者优先）")
+    lines.push(...instructionLines(snapshot.instructions, snapshot.instructionsTruncated))
     lines.push("")
   }
 
