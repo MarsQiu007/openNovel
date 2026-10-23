@@ -3,7 +3,8 @@
 Effect Schema-first LLM core: canonical request/event/response model (`src/schema/`),
 route-based provider execution (`src/route/`, `src/protocols/`, `src/providers/`), and
 a typed one-call tool dispatcher. Independent of session concerns — session auth,
-permissions, plugins, and runtime selection belong in `packages/opennovel/src/session/llm.ts`.
+permissions, plugins, and runtime selection belong in `packages/core/src/session/`'s
+runner layer.
 
 ## Effect
 
@@ -28,12 +29,11 @@ This package is an Effect Schema-first LLM core. The Schema classes in `src/sche
 
 Primary in-repo integration point:
 
-- `packages/opennovel/src/session/llm.ts` is the session-owned orchestration layer that decides whether a request uses AI SDK or this package's native route runtime.
-- `packages/opennovel/src/session/llm/native-request.ts` is the lowering adapter from opennovel's session/AI SDK-shaped data into this package's `LLMRequest` model.
-- `packages/opennovel/src/session/llm/native-runtime.ts` is the execution adapter that calls raw `LLMClient.stream(request)` and bridges one provider turn of opennovel tool calls through this package's typed dispatcher.
-- `packages/opennovel/src/session/llm/ai-sdk.ts` keeps the default AI SDK path compatible by converting AI SDK stream parts into this package's shared `LLMEvent`s.
+- `packages/core/src/session/runner/llm.ts` is the session-owned orchestration layer and the only session-side caller — it builds each `LLM.request` explicitly and runs exactly one `llm.stream(request)` provider turn, with tool execution and continuation kept on the runner side.
+- Its sibling modules lower session data into this package's model: `runner/to-llm-message.ts` (history → canonical messages), `runner/model.ts` (model resolution), and `runner/publish-llm-event.ts` (LLMEvent → session event bridge).
+- `packages/core/src/session/compaction.ts` reuses the same client for compaction turns.
 
-Keep this package independent of session concerns. Session auth, permissions, plugins, telemetry headers, and runtime selection belong in `packages/opennovel/src/session/llm.ts` and its local adapters.
+Keep this package independent of session concerns. Session auth, permissions, plugins, telemetry headers, and runtime selection belong in `packages/core/src/session/`'s runner layer, not here.
 
 ### Request Flow
 
