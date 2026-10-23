@@ -2,7 +2,7 @@ import type { Duration, Effect } from "effect"
 import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
 import type { Project } from "../../../src/project/project"
 import type { Worktree } from "../../../src/worktree"
-import type { SessionID } from "../../../src/session/schema"
+import type { SessionV2 } from "@opennovel-ai/core/session"
 
 export const OpenApiMethods = ["get", "post", "put", "delete", "patch"] as const
 export const Methods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const
@@ -52,7 +52,7 @@ export type ScenarioContext = {
   directory: string | undefined
   headers: (extra?: Record<string, string>) => Record<string, string>
   file: (name: string, content: string) => Effect.Effect<void>
-  session: (input?: { title?: string; parentID?: SessionID }) => Effect.Effect<SessionInfo>
+  session: (input?: { title?: string; parentID?: SessionV2.ID }) => Effect.Effect<SessionInfo>
   project: () => Effect.Effect<Project.Info>
   worktree: (input?: { name?: string }) => Effect.Effect<Worktree.Info>
   worktreeRemove: (directory: string) => Effect.Effect<void>
@@ -108,4 +108,4 @@ export type Result =
   | { status: "fail"; scenario: ActiveScenario; message: string }
   | { status: "skip"; scenario: TodoScenario }
 
-export type SessionInfo = { id: SessionID; title: string; parentID?: SessionID }
+export type SessionInfo = { id: SessionV2.ID; title: string; parentID?: SessionV2.ID }

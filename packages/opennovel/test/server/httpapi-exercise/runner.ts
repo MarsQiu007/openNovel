@@ -1,6 +1,6 @@
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Cause, Duration, Effect, Layer, Scope } from "effect"
-import { call, callAuthProbe } from "./backend"
+import { call, callAuthProbe, seedSession } from "./backend"
 import { original } from "./environment"
 import { resetExerciseDatabase } from "./reset"
 import { runtime } from "./runtime"
@@ -136,8 +136,7 @@ function withContext<A, E>(
             Effect.promise(() => {
               return Bun.write(`${directory()}/${name}`, content)
             }).pipe(Effect.asVoid),
-          session: (input) =>
-            run(modules.Session.Service.use((svc) => svc.create({ title: input?.title, parentID: input?.parentID }))),
+          session: (input) => seedSession(base, input),
           project: () =>
             Effect.sync(() => {
               if (!instance) throw new Error("scenario needs a project directory")

@@ -5,9 +5,7 @@ import * as Socket from "effect/unstable/socket/Socket"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import * as Observability from "@opennovel-ai/core/observability"
 import { Account } from "@/account/account"
-import { Agent } from "@/agent/agent"
 import { Auth } from "@/auth"
-import { Command } from "@/command"
 import { Config } from "@/config/config"
 import { Workspace } from "@/control-plane/workspace"
 import { Env } from "@/env"
@@ -18,7 +16,6 @@ import { Installation } from "@/installation"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
-import { Permission } from "@/permission"
 import { Plugin } from "@/plugin"
 import { PluginPtyEnvironment } from "@/plugin/pty-environment"
 import { SettingOrganizationLayer } from "@/setting-organization"
@@ -28,24 +25,10 @@ import { Project } from "@/project/project"
 import { Vcs } from "@/project/vcs"
 import { ProviderAuth } from "@/provider/auth"
 import { Provider } from "@/provider/provider"
-import { Question } from "@/question"
-import { SessionCompaction } from "@/session/compaction"
-import { Instruction } from "@/session/instruction"
-import { LLM } from "@/session/llm"
-import { SessionProcessor } from "@/session/processor"
-import { SessionPrompt } from "@/session/prompt"
-import { SessionRevert } from "@/session/revert"
-import { SessionRunState } from "@/session/run-state"
-import { Session } from "@/session/session"
-import { SessionStatus } from "@/session/status"
-import { SessionSummary } from "@/session/summary"
-import { Todo } from "@/session/todo"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
 import { Snapshot } from "@/snapshot"
 import { Storage } from "@/storage/storage"
-import { ToolRegistry } from "@/tool/registry"
-import { Truncate } from "@/tool/truncate"
 import { Worktree } from "@/worktree"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { MoveSession } from "@opennovel-ai/core/control-plane/move-session"
@@ -222,33 +205,16 @@ const app = LayerNode.group([
   ModelsDev.node,
   Provider.node,
   ProviderAuth.node,
-  Agent.node,
   Skill.node,
   Discovery.node,
-  Question.node,
-  Permission.node,
   PermissionSaved.node,
-  Todo.node,
-  Session.node,
   SessionProjector.node,
   SessionV2.node,
-  SessionStatus.node,
   RuntimeFlags.node,
   EventV2Bridge.node,
-  SessionRunState.node,
-  SessionProcessor.node,
-  SessionCompaction.node,
-  SessionRevert.node,
-  SessionSummary.node,
-  SessionPrompt.node,
-  Instruction.node,
-  LLM.node,
   LSP.node,
   MCP.node,
   McpAuth.node,
-  Command.node,
-  Truncate.node,
-  ToolRegistry.node,
   Format.node,
   Project.node,
   Vcs.node,

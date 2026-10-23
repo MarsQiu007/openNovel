@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { Effect } from "effect"
 import * as DateTime from "effect/DateTime"
-import { SessionID } from "../../src/session/schema"
+import { SessionV2 } from "@opennovel-ai/core/session"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { ModelV2 } from "@opennovel-ai/core/model"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
@@ -11,7 +11,7 @@ import { SessionMessage } from "@opennovel-ai/core/session/message"
 
 test("step snapshots carry over to assistant messages", () => {
   const state: SessionMessageUpdater.MemoryState = { messages: [] }
-  const sessionID = SessionID.make("session")
+  const sessionID = SessionV2.ID.make("session")
   const assistantMessageID = SessionMessage.ID.create()
 
   Effect.runSync(
@@ -64,7 +64,7 @@ test("step snapshots carry over to assistant messages", () => {
 
 test("text ended populates assistant text content", () => {
   const state: SessionMessageUpdater.MemoryState = { messages: [] }
-  const sessionID = SessionID.make("session")
+  const sessionID = SessionV2.ID.make("session")
   const assistantMessageID = SessionMessage.ID.create()
 
   Effect.runSync(
@@ -119,7 +119,7 @@ test("text ended populates assistant text content", () => {
 
 test("tool completion stores completed timestamp", () => {
   const state: SessionMessageUpdater.MemoryState = { messages: [] }
-  const sessionID = SessionID.make("session")
+  const sessionID = SessionV2.ID.make("session")
   const callID = "call"
   const assistantMessageID = SessionMessage.ID.create()
 
@@ -201,7 +201,7 @@ test("tool completion stores completed timestamp", () => {
 
 test("compaction events reduce to compaction message only when completed", () => {
   const state: SessionMessageUpdater.MemoryState = { messages: [] }
-  const sessionID = SessionID.make("session")
+  const sessionID = SessionV2.ID.make("session")
   const id = EventV2.ID.create()
   const compactionID = SessionMessage.ID.create()
 

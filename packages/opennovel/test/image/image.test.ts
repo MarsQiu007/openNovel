@@ -3,7 +3,8 @@ import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { Cause, Effect, Exit } from "effect"
 import { Image } from "@/image/image"
 import { Config } from "@/config/config"
-import { MessageID, PartID, SessionID } from "@/session/schema"
+import { SessionV1 } from "@opennovel-ai/core/v1/session"
+import { SessionV2 } from "@opennovel-ai/core/session"
 import path from "node:path"
 import { TestConfig } from "../fixture/config"
 import { testEffect } from "../lib/effect"
@@ -17,9 +18,9 @@ const tiny = testEffect(
 
 function part(mime: string, data: string) {
   return {
-    id: PartID.ascending(),
-    messageID: MessageID.ascending(),
-    sessionID: SessionID.make("ses_test"),
+    id: SessionV1.PartID.make("prt_test"),
+    messageID: SessionV1.MessageID.make("msg_test"),
+    sessionID: SessionV2.ID.make("ses_test"),
     type: "file" as const,
     mime,
     url: `data:${mime};base64,${data}`,

@@ -20,10 +20,12 @@ the HTTP server bootstrap. Both the TUI and the `serve` command start from
 ## Source Layout
 
 - `src/index.ts` — CLI entrypoint (interactive TUI / `serve` / run command).
-- `src/session/` — session runtime: prompt admission, provider turns, `session/llm/*`
-  adapters that choose between AI SDK and the native `@opennovel-ai/llm` route runtime.
-- `src/agent/`, `src/command/`, `src/skill/` — agent definitions, slash commands, skills.
-- `src/tool/` — built-in tool implementations and the tool registry.
+- Session runtime, agents, tools, permissions, and slash commands are V2-only and live
+  in `@opennovel-ai/core` (`core/src/session/`, `core/src/agent/`, plugin-registered
+  built-ins). The legacy `src/session/`, `src/agent/`, `src/tool/`, `src/permission/`,
+  `src/question/`, and `src/command/` trees were removed (v1-removal); do not reintroduce
+  V1 session modules here.
+- `src/skill/` — skill discovery and loading.
 - `src/provider/`, `src/auth/`, `src/account/` — provider catalog, auth, accounts.
 - `src/plugin/` — plugin loading and lifecycle (hooks, tools, permissions).
 - `src/server/` — server bootstrap wiring around `@opennovel-ai/server`.
@@ -69,8 +71,8 @@ same file — they remain inaccessible to consumers (they are not projected by
 
 - If the module is `foo/index.ts` (single-namespace directory), use `"."` for
   the self-reexport source rather than `"./index"`.
-- For directories with several independent modules (e.g. `src/session/`,
-  `src/config/`), keep each sibling as its own file with its own self-reexport,
+- For directories with several independent modules (e.g. `src/config/`,
+  `src/provider/`), keep each sibling as its own file with its own self-reexport,
   and do not add a barrel `index.ts`. Barrels in multi-sibling directories force
   every import through the barrel to evaluate every sibling, which defeats
   tree-shaking and slows module load.

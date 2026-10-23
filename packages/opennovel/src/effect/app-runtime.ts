@@ -15,28 +15,11 @@ import { Plugin } from "@/plugin"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { ProviderAuth } from "@/provider/auth"
-import { Agent } from "@/agent/agent"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
-import { Question } from "@/question"
-import { Permission } from "@/permission"
-import { Todo } from "@/session/todo"
-import { Session } from "@/session/session"
-import { SessionStatus } from "@/session/status"
-import { SessionRunState } from "@/session/run-state"
-import { SessionProcessor } from "@/session/processor"
-import { SessionCompaction } from "@/session/compaction"
-import { SessionRevert } from "@/session/revert"
-import { SessionSummary } from "@/session/summary"
-import { SessionPrompt } from "@/session/prompt"
-import { Instruction } from "@/session/instruction"
-import { LLM } from "@/session/llm"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
-import { Command } from "@/command"
-import { Truncate } from "@/tool/truncate"
-import { ToolRegistry } from "@/tool/registry"
 import { Format } from "@/format"
 import { InstanceStore } from "@/project/instance-store"
 import { Project } from "@/project/project"
@@ -68,31 +51,14 @@ export const AppLayer = AppNodeBuilderV1.build(
     ModelsDev.node,
     Provider.node,
     ProviderAuth.node,
-    Agent.node,
     Skill.node,
     Discovery.node,
-    Question.node,
-    Permission.node,
-    Todo.node,
-    Session.node,
     SessionProjector.node,
-    SessionStatus.node,
     RuntimeFlags.node,
     EventV2Bridge.node,
-    SessionRunState.node,
-    SessionProcessor.node,
-    SessionCompaction.node,
-    SessionRevert.node,
-    SessionSummary.node,
-    SessionPrompt.node,
-    Instruction.node,
-    LLM.node,
     LSP.node,
     MCP.node,
     McpAuth.node,
-    Command.node,
-    Truncate.node,
-    ToolRegistry.node,
     Format.node,
     InstanceStore.node,
     Project.node,

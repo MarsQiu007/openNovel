@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { SessionEvent } from "@opennovel-ai/core/session/event"
 import { EventManifest as SchemaEventManifest } from "@opennovel-ai/schema/event-manifest"
-import { Todo } from "@/session/todo"
+import { SessionTodo } from "@opennovel-ai/core/session/todo"
 import { EventManifest } from "@/event-manifest"
 
 describe("public event manifest", () => {
@@ -12,7 +12,7 @@ describe("public event manifest", () => {
     expect(EventManifest.Latest.size).toBe(91)
     expect(EventManifest.Latest.get("session.next.step.ended")).toBe(SessionEvent.Step.Ended)
     expect(EventManifest.Latest.get("session.next.updated")).toBe(SessionEvent.Updated)
-    expect(EventManifest.Latest.get("todo.updated")).toBe(Todo.Event.Updated)
+    expect(EventManifest.Latest.get("todo.updated")).toBe(SessionTodo.Event.Updated)
     expect(EventManifest.Latest.has("ide.installed")).toBe(false)
     expect(EventManifest.Latest.has("server.connected")).toBe(true)
     expect(EventManifest.Latest.has("global.disposed")).toBe(true)

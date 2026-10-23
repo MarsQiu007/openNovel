@@ -97,49 +97,6 @@ export class SessionNotFoundError extends Schema.TaggedErrorClass<SessionNotFoun
   { httpApiStatus: 404 },
 ) {}
 
-export class MessageNotFoundError extends Schema.TaggedErrorClass<MessageNotFoundError>()(
-  "MessageNotFoundError",
-  {
-    sessionID: Schema.String,
-    messageID: Schema.String,
-    message: Schema.String,
-  },
-  { httpApiStatus: 404 },
-) {}
-
-export class InvalidCursorError extends Schema.TaggedErrorClass<InvalidCursorError>()(
-  "InvalidCursorError",
-  { message: Schema.String },
-  { httpApiStatus: 400 },
-) {}
-
-export class SessionBusyError extends Schema.TaggedErrorClass<SessionBusyError>()(
-  "SessionBusyError",
-  {
-    sessionID: Schema.String,
-    message: Schema.String,
-  },
-  { httpApiStatus: 409 },
-) {}
-
-export class QuestionNotFoundError extends Schema.TaggedErrorClass<QuestionNotFoundError>()(
-  "QuestionNotFoundError",
-  {
-    requestID: Schema.String,
-    message: Schema.String,
-  },
-  { httpApiStatus: 404 },
-) {}
-
-export class PermissionNotFoundError extends Schema.TaggedErrorClass<PermissionNotFoundError>()(
-  "PermissionNotFoundError",
-  {
-    requestID: Schema.String,
-    message: Schema.String,
-  },
-  { httpApiStatus: 404 },
-) {}
-
 export class McpServerNotFoundError extends Schema.TaggedErrorClass<McpServerNotFoundError>()(
   "McpServerNotFoundError",
   {

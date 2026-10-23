@@ -5,7 +5,6 @@ export type Runtime = {
   memoMap: import("effect").Layer.MemoMap
   InstanceRef: (typeof import("../../../src/effect/instance-ref"))["InstanceRef"]
   InstanceStore: (typeof import("../../../src/project/instance-store"))["InstanceStore"]
-  Session: (typeof import("../../../src/session/session"))["Session"]
   Worktree: (typeof import("../../../src/worktree"))["Worktree"]
   tmpdir: (typeof import("../../fixture/fixture"))["tmpdir"]
 }
@@ -20,7 +19,6 @@ export function runtime() {
     const { Layer } = await import("effect")
     const instanceRef = await import("../../../src/effect/instance-ref")
     const instanceStore = await import("../../../src/project/instance-store")
-    const session = await import("../../../src/session/session")
     const worktree = await import("../../../src/worktree")
     const fixture = await import("../../fixture/fixture")
     return {
@@ -30,7 +28,6 @@ export function runtime() {
       memoMap: Layer.makeMemoMapUnsafe(),
       InstanceRef: instanceRef.InstanceRef,
       InstanceStore: instanceStore.InstanceStore,
-      Session: session.Session,
       Worktree: worktree.Worktree,
       tmpdir: fixture.tmpdir,
     }

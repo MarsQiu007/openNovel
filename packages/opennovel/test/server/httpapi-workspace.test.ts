@@ -11,7 +11,13 @@ import type { WorkspaceAdapter } from "../../src/control-plane/types"
 import { Workspace } from "../../src/control-plane/workspace"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
 import { EventPaths } from "../../src/server/routes/instance/httpapi/groups/event"
-import { Session } from "@/session/session"
+import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionExecution } from "@opennovel-ai/core/session/execution"
+import { SessionExecutionLocal } from "@opennovel-ai/core/session/execution/local"
+import { SessionProjector } from "@opennovel-ai/core/session/projector"
+import { Location } from "@opennovel-ai/core/location"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
+import { EventV2Bridge } from "@/event-v2-bridge"
 import { Database } from "@opennovel-ai/core/database/database"
 import { Ripgrep } from "@opennovel-ai/core/ripgrep"
 import { Server } from "../../src/server/server"
@@ -26,10 +32,31 @@ import { httpApiLayer, requestInDirectory } from "./httpapi-layer"
 
 const originalWorkspaces = Flag.OPENNOVEL_EXPERIMENTAL_WORKSPACES
 const appLayer = AppNodeBuilder.build(
-  LayerNode.group([Project.node, Session.node, Workspace.node, InstanceStore.node, Database.node, Ripgrep.node]),
-  [[InstanceStore.bootstrapNode, InstanceBootstrap.node]],
+  LayerNode.group([
+    Project.node,
+    SessionV2.node,
+    SessionProjector.node,
+    Workspace.node,
+    InstanceStore.node,
+    Database.node,
+    Ripgrep.node,
+    // GlobalBus 转发（sync 信封/raw 事件）仍由 bridge 承担，随 D15 另行裁撤
+    EventV2Bridge.node,
+  ]),
+  [
+    [InstanceStore.bootstrapNode, InstanceBootstrap.node],
+    [SessionExecution.node, SessionExecutionLocal.node],
+  ],
 )
 const it = testEffect(Layer.mergeAll(appLayer, httpApiLayer))
+
+
+// V2 会话创建：显式 location 落在本实例目录（create 缺省 location 是 process.cwd()）
+function createSession(directory: string) {
+  return SessionV2.Service.use((session) =>
+    session.create({ location: Location.Ref.make({ directory: AbsolutePath.make(directory) }) }),
+  )
+}
 
 function request(path: string, directory: string, init: RequestInit = {}) {
   return requestInDirectory(path, directory, init)
@@ -216,7 +243,7 @@ describe("workspace HttpApi", () => {
       const workspace = (yield* created.json) as Workspace.Info
       expect(workspace).toMatchObject({ type: "local-test", name: "local-test" })
 
-      const session = yield* Session.use.create({}).pipe(provideInstance(dir))
+      const session = yield* createSession(dir)
       const warped = yield* request(WorkspacePaths.warp, dir, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -261,7 +288,7 @@ describe("workspace HttpApi", () => {
   it.live("returns a declared not found error when warping into a missing workspace", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
-      const session = yield* Session.use.create({}).pipe(provideInstance(dir))
+      const session = yield* createSession(dir)
       const workspaceID = WorkspaceV2.ID.ascending("wrk_missing_warp")
 
       const response = yield* request(WorkspacePaths.warp, dir, {

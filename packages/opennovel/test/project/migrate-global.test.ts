@@ -6,7 +6,7 @@ import { SessionTable } from "@opennovel-ai/core/session/sql"
 import { ProjectTable } from "@opennovel-ai/core/project/sql"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { ProjectV2 } from "@opennovel-ai/core/project"
-import { SessionID } from "../../src/session/schema"
+import { SessionSchema } from "@opennovel-ai/core/session/schema"
 import { $ } from "bun"
 import { tmpdirScoped } from "../fixture/fixture"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
@@ -18,10 +18,10 @@ const it = testEffect(LayerNode.compile(LayerNode.group([Project.node, Database.
 
 function legacySessionID() {
   // Global-session migration covers persisted IDs from before prefixed session IDs.
-  return crypto.randomUUID() as SessionID
+  return crypto.randomUUID() as SessionSchema.ID
 }
 
-function seed(opts: { id: SessionID; dir: string; project: ProjectV2.ID }) {
+function seed(opts: { id: SessionSchema.ID; dir: string; project: ProjectV2.ID }) {
   const now = Date.now()
   return Database.Service.use(({ db }) =>
     db

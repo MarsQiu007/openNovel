@@ -2,7 +2,7 @@ import { ConfigProvider, Effect, Layer } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { parse } from "./assertions"
 import { runtime, type Runtime } from "./runtime"
-import type { ActiveScenario, BackendApp, CallResult, CaptureMode, SeededContext } from "./types"
+import type { ActiveScenario, BackendApp, CallResult, CaptureMode, ScenarioContext, SeededContext, SessionInfo } from "./types"
 
 type CallOptions = {
   auth?: {
@@ -74,6 +74,26 @@ function app(modules: Runtime, options: CallOptions) {
         modules.HttpApiApp.context,
       )
     },
+  })
+}
+
+
+// V2 会话种子走 HTTP 面：与场景后续请求命中同一个 SessionV2 实例（AppLayer 不再托管会话服务）。
+export function seedSession(ctx: ScenarioContext, input?: { title?: string; parentID?: string }) {
+  return Effect.promise(async () => {
+    const response = await app(await runtime(), {}).request(
+      new Request(new URL("/api/session", "http://localhost"), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...ctx.headers() },
+        body: JSON.stringify({
+          ...(input?.title === undefined ? {} : { title: input.title }),
+          ...(input?.parentID === undefined ? {} : { parentID: input.parentID }),
+        }),
+      }),
+    )
+    if (response.status !== 200) throw new Error(`session seed failed with status ${response.status}`)
+    const body = (await response.json()) as { data: SessionInfo }
+    return body.data
   })
 }
 
