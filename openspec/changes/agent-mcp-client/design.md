@@ -1,13 +1,98 @@
 # Design: agent-mcp-client
 
-> 草案种子的衔接核实（2026-10-21，agent-task-subagent 步骤 10）：本设计记录 MCP 工具对写作子代理的生效路径与例外。
+> 穷尽式核实（2026-10-24）：原草案前提是「fork 无 MCP 实现，移植上游 `core/src/mcp/` 五文件」。核实发现 fork 已有完整客户端（前提级事实冲突），路线重裁为「既有实现 core 化 + 补 V2 注册桥 + 退役 V1 遗物」。以下全部核实点给出 file:line 证据。
 
-## 与 agent-task-subagent 落地后的衔接
+## 核实点
 
-- **「MCP 工具自动对子代理可用」的前提已成立**：subagent 工具已落地（前台 block + 后台 job 两路径），子会话工具面与父会话同源（同一 tool registry 的 scoped 动态注册）；MCP 工具挂入 registry 后无需为子代理做额外接线
-- **权限生效路径与例外（11 个写作 agent 的 permission map 行为）**：
-  - `"*": "allow"` 型（director/pipeline/writer/observer/reflector/auditor/reviser/outliner/librarian/architect）：MCP 动态工具被通配规则放行——符合预期（生态工具即插即用）
-  - `"*": "deny"` + 显式白名单型（ideator，只读代理）：MCP 工具默认拒绝——符合其只读边界；若未来需要接入检索类 MCP 服务器，在 ideator 的 permission map 显式加 action 即可（单源，两代宿主同生效）
-- **elicitation 对接**：服务器追问走现有 `question` 审批闸门；子代理会话内的 question 行为与父会话一致，无需本提案处理
-- **架构位已预留**：`tool/builtins.ts` 的「Dynamic MCP and plugin tools later use separate scoped canonical registrations」注释仍是有效落点指引；V2 侧动态工具注册沿 scoped canonical 面，不进静态 built-ins 列表
-- **配置面已存在**：V2 config schema 已有 `mcp` 段（`core/src/config/mcp.ts`，local/remote 双传输 + oauth + timeout + disabled），本提案的客户端实现直接消费该段，不新增 schema
+### A. fork 现状（推翻原前提）
+
+1. **既有完整 MCP 客户端**：`packages/opennovel/src/mcp/` —— `index.ts`（1023 行，连接管理/状态机/OAuth 编排）、`auth.ts`（179 行，`mcp-auth.json` 文件凭据存储）、`oauth-provider.ts`（265 行）、`oauth-callback.ts`（200 行，本地回调服务器）、`browser.ts`（37 行，打开浏览器）、`catalog.ts`（171 行，分页/容错目录）。基于 `@modelcontextprotocol/sdk@1.31.0`（`packages/opennovel/package.json`、`bun.lock` 已锁 npmmirror）。近期活跃：`335b9eff31 fix(opennovel): opennovel 批次第 4 组（mcp 授权与手动编辑同步）`。
+2. **工具未接 V2 registry（核心缺口）**：`Mcp.Interface.tools()`（`opennovel/src/mcp/index.ts:169`）返回 `Record<string, McpTool>`（原生形态，注释自述「consumers adapt it to their own tool format」），全仓 grep 无消费方；V1 挂接桥 `catalog.ts:42 convertTool`（转 AI SDK `dynamicTool`）已无消费方——V1 工具面随 v1-removal 拆除后，MCP 工具处于「连得上但 agent 看不见」状态。`packages/core/src/tool/AGENTS.md` Current Gaps 明记：「MCP and future Session-scoped registrations still need an explicit canonical registration design」。
+3. **配置双面与迁移管线**：既有实现消费 `ConfigMCPV1`（`core/src/config/v1/mcp.ts`）；V2 `ConfigMCP`（`core/src/config/mcp.ts:43-48`：`Server = Local | Remote`，含 command/cwd/environment/headers/oauth/disabled/timeout）无消费方；`core/src/config/v1/migrate.ts:135` 已有 mcp 段 V1→V2 迁移（servers + timeout.request）。配置面零新增工作。
+4. **管理面消费方**（退役改线清单）：httpapi mcp 组（`server/routes/instance/httpapi/groups/mcp.ts:41-132`：status/add/authStart/authCallback/authAuthenticate/authRemove/connect/disconnect）+ `handlers/mcp.ts` + `handlers/experimental.ts:22`（resources）+ CLI `opennovel mcp` 命令组（`cli/cmd/mcp.ts`，673+ 行：list/add/remove/auth*）。TUI 与 desktop 包无 mcp 引用（grep 证实）。
+5. **工具命名规则**：`McpCatalog.toolName`（`catalog.ts:118-120`）= `sanitize(server)_sanitize(tool)`（非法字符转 `_`），与上游 `tool/mcp.ts:20-21` 的 namespace/name 规则一致——沿用。
+6. **事件面已有**：`packages/schema/src/mcp-event.ts` 定义 `McpEvent.ToolsChanged` / `McpEvent.BrowserOpenFailed`（Event.define 形态），既有实现经 `EventV2` + `publishRouted` 发布。
+
+### B. core 对位服务（全部存在，无需新建基础件）
+
+7. **凭据/集成**：`core/src/credential.ts:49` `Credential.Service`（全局 DB 存储，`Value = OAuth | Key`，按 integrationID 归组）；`core/src/integration.ts:140` `Integration.Service extends State.Transformable<Draft>`（oauth/key/env method + authorize 回调）——上游 `mcp/index.ts:176-215`「remote 服务器注册为 Integration、token 存 Credential」语义可直接落地。
+8. **状态代数**：`core/src/state.ts` `State.Transformable<DraftApi>`（transform/reload/draft/finalize）——与上游 `State.create({name, initial, editor, notify})` 同构（API 名差异：draft↔editor、finalize↔notify）。
+9. **事件发布**：`core/src/event.ts:127` `EventV2.Interface.publish`——core 内 MCP node 可直接发布 `McpEvent.ToolsChanged`，无需上游 `Bus`。
+10. **进程 spawn**：`core/src/cross-spawn-spawner`（既有实现已在用）+ effect beta.83 `effect/unstable/process`（`ChildProcess`/`ChildProcessSpawner`，实测 exports 含 `./unstable/process`）。
+11. **权限**：`PermissionV2.assert`（codemode.ts 先例：action/resources/save/metadata/sessionID/agent/source）；工具目录面 `Tool.withPermission` + `whollyDisabled`（registry.ts:149，deny+resource"*" 整工具消失）。
+12. **注册面**：`Tools.Service.register(record)`（`core/src/tool/tools.ts:7`）返回 `Effect<void, RegistrationError, Scope>`——scoped 批注册；registry 语义「closing any registration removes only that registration and reveals the next active one」（tool/AGENTS.md Registration 节）支持「ToolsChanged → 关旧 scope 开新 scope 重注册全量」。`registry.materialize` 每轮 LLM 请求现算（`session/runner/llm.ts:203`），动态注册下一轮自然生效。
+13. **JSON Schema → effect codec 官方路径**：effect beta.83 `SchemaRepresentation.fromJsonSchemaDocument`（`SchemaRepresentation.d.ts:1912`，draft 2020-12 → Document）+ `Schema.make`（`Schema.d.ts:1475`）——与上游 `tool/runtime.ts:102-107` 同款用法。反向（codec → definition JSON Schema）fork `tool/tool.ts:180 toJsonSchema` 已有。MCP 工具 schema 双向闭环成立。
+14. **opennovel 消费 core Location 服务路径**：httpapi handler 可直接 `yield* Location.Service`（`handlers/file.ts:72` 先例）——core 化的 `Mcp.Service` 经同一路径被 handlers/CLI 消费，无需 facade 层。
+
+### C. 上游移植源（仅取架构语义）
+
+15. 上游 `core/src/mcp/` 五文件 2304 行 + `tool/mcp.ts` 167 行，基于 `@modelcontextprotocol/client@2.0.0` + effect 4.0.1。API 差异（agent-code-mode design 已实测记录）：`Schema.TaggedError`（fork 对位 `Schema.TaggedErrorClass`，`tool/tool.ts:32` 先例）、`effect/process`（fork 对位 `effect/unstable/process`）、`ToJsonSchemaOptions.onExcessProperty`（fork 对位 `additionalProperties`）。
+16. 上游值得移植的架构语义：Location-scoped node（`configured()` deps: Location/Integration/Credential 等）；`recovering`（会话过期重连并重试一次，`index.ts:350-365`）；`whenLive`（迟到回调防陈旧提交，`index.ts:328-336`）；KeyedMutex 每服务器生命周期锁 + `endpointLoads` 共享端点启动串行化；连接即列工具（失败标 failed 不留静默空目录，`index.ts:437-447`）；`Credential.Event.Switched` 驱动 OAuth 重连（`index.ts:593-598`）。
+17. 上游 `tool/mcp.ts` 注册桥语义：execute 内 permission.assert（action=`mcp_<server>_<tool>`）→ callTool → `ToolFailure` 映射 → content 转换（文本直通；read 工具认可的媒体内联 data URI；其余文本资源解码内联；二进制存 ToolOutput 返回路径，`tool/mcp.ts:146-161`）。
+
+## 路线裁定
+
+| 路线 | 内容 | 裁定 |
+| --- | --- | --- |
+| A. 改造既有实现原地 V2 化 | opennovel/src/mcp 补注册桥 + 切 V2 config | **否决**：架构位错（V2 工具体系在 core，builtins.ts 预留注释与 tool/AGENTS.md Current Gaps 都指向 core 内 scoped 注册）；在冻结的 ConfigV1 消费面上加新功能是技术债加深；InstanceState 与 core Location 双状态体系并存 |
+| B. 全量移植上游五文件 | core/src/mcp 移植 2304 行 + 引 @modelcontextprotocol/client@2.0 | **否决**：与既有 SDK 1.31 双 SDK 并存（冗余铁律）；1875 行已验证连接代码（含 335b9eff31 等实战修复：outputSchema 容错、分页游标去重）整体作废换未验证移植 |
+| **C. 混合（选定）** | core 新建 Location node：连接语义沿既有 SDK 1.31 代码提升，架构语义（注册桥/Credential OAuth/会话恢复）移植上游 | 单一 SDK、复用已验证代码、架构位正确、注册桥补齐 Current Gaps |
+
+### 否决项汇总
+
+1. 双 SDK 并存（@modelcontextprotocol/client@2.0 + 既有 /sdk@1.31）——见路线 B。
+2. elicitation 开启——fork 无 Form 服务；QuestionV2 是选项式提问，与 elicitation 任意 JSON Schema 表单语义不匹；既有实现从未声明该 capability（`opennovel/src/mcp/index.ts:45`），保持关闭无回归。
+3. 既有 `mcp-auth.json` 凭据自动迁移——键映射（name+url → `mcp_<sha1>` Integration ID）+ 双写窗口成本高于「重新授权一次」。
+4. SSE 传输移除——既有实现支持 `SSEClientTransport`，SDK 1.31 自带，保留零成本且保兼容（上游仅 StreamableHTTP 不支持 SSE）。
+5. sampling/tasks/roots 之外的新 capability——roots 既有已声明（`index.ts:47`），保留；sampling/tasks 维持关闭。
+
+## 设计
+
+### 模块布局（core 新建）
+
+```
+packages/core/src/mcp/
+  index.ts      — Mcp.Service / layer / configured() Location node（连接生命周期、状态机、读取面）
+  catalog.ts    — 分页/容错目录语义（移植 opennovel mcp/catalog.ts，删 convertTool 死代码）
+  oauth.ts      — OAuth provider + 回调服务器 + 浏览器打开（移植 oauth-provider/oauth-callback/browser 语义，凭据落 Credential）
+```
+
+`packages/schema/src/mcp.ts` 新建：`Status`（connected/disabled/failed/needs_auth/needs_client_registration，沿既有 `index.ts:84-99` 五态）、`ServerInfo` 等共享类型（httpapi 端点形状不变的需要）。`mcp-event.ts` 已有不动。
+
+### Mcp.Service 接口
+
+上游 Interface 子集 + 既有管理面方法的并集：
+
+- 连接管理：`servers()`（状态清单）、`add(name, config)`、`connect(name)`、`disconnect(name)`、`remove(name)`
+- 目录读取：`tools()`、`prompts()`/`prompt(...)`、`resources(...)`/`resourceTemplates(...)`/`readResource(...)`、`instructions()`
+- OAuth（httpapi/CLI 改线所需）：`startAuth`/`authenticate`/`finishAuth`/`removeAuth`/`supportsOAuth`/`hasStoredTokens`/`getAuthStatus`——语义沿既有，存储落 Credential/Integration
+
+### 工具注册桥（`core/src/tool/mcp.ts` 或 mcp/register.ts）
+
+- `McpTool` Location node（deps: Mcp.node + Tools/PermissionV2 node）；启动时 `mcp.tools()` 全量注册，订阅 `McpEvent.ToolsChanged` 重注册（关旧子 scope、开新子 scope 注册全量，沿 registry「closing reveals next」语义）
+- 每个 MCP 工具 → `Tool.make`：input codec = `Schema.make(SchemaRepresentation.fromJsonSchemaDocument(JsonSchema.fromSchemaDraft2020_12(inputSchema)).ast)`（转换失败回退 `Schema.Unknown` + 描述附注）；output codec 同理（无 outputSchema 时 `Schema.Unknown`）
+- execute：`PermissionV2.assert({ action: "mcp_<server>_<tool>", resources: ["*"], save: ["*"], ... })` → `mcp.callTool` → isError/异常映射 `ToolFailure` → content 转换沿上游 `tool/mcp.ts:146-161` 语义（文本直通；`ReadToolFileSystem.MEDIA_MIMES` 媒体内联；文本资源解码；二进制存 ToolOutputStore）
+- `Tool.withPermission(tool, action)` 声明目录过滤面（deny+resource"*" 时整工具从目录消失）
+
+### OAuth 设计
+
+- 每个 `type: "remote"` 且 `oauth !== false` 的服务器注册为 Integration（ID = `mcp_` + sha1(name + "\0" + url).slice(0,16)，沿上游 `index.ts:181-187` 键设计：同 url 不同名不共享凭据）
+- authorize 流程：起本地回调服务器（移植 oauth-callback 语义）→ 打开浏览器（移植 browser.ts 语义，失败发 `McpEvent.BrowserOpenFailed`）→ 收 code → 换 token → 存 Credential（`Credential.Event.Switched` 驱动重连，沿上游 `index.ts:593-598`）
+- 既有 `mcp-auth.json` 退役不迁移（重新授权一次；proposal 非目标）
+
+### 退役与改线清单
+
+- 删 `packages/opennovel/src/mcp/` 全目录（index/auth/oauth-provider/oauth-callback/browser/catalog）
+- `handlers/mcp.ts` / `handlers/experimental.ts` / `cli/cmd/mcp.ts` 改调 core `Mcp.Service`（`yield*` core 服务，file.ts:72 先例）；端点/命令形状不变
+- `opennovel/src/effect/app-runtime.ts` 移除 MCP/McpAuth node 接线；`packages/opennovel/package.json` 的 `@modelcontextprotocol/sdk` 依赖移至 `packages/core`
+- `location-layer.test.ts` 目录断言无需变（MCP 工具是动态注册，不进静态 built-ins 列表）；补注册桥测试
+
+### 写作 agent 权限面
+
+沿用 design 既有衔接核实（2026-10-21）结论：`"*": "allow"` 型 agent 通配放行（生态工具即插即用）；`"*": "deny"` + 白名单型（ideator/research）默认拒绝，需要时显式加 action。无需逐 agent 改配置。
+
+### 测试
+
+- core `test/mcp.test.ts`：stdio 夹具服务器（SDK 1.31 server 端或 node 脚本）覆盖连接/状态机/工具注册/权限 deny 消失/重注册
+- 注册桥单测：JSON Schema → codec 转换（含回退）、命名规则、ToolFailure 映射、content 转换
+- httpapi/CLI 改线后既有测试复跑（`bun run test:httpapi`）
