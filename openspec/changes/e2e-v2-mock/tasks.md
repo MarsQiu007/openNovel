@@ -16,7 +16,7 @@
 ## Wave 2 — 复活 6 个 CI 死 spec
 
 - [x] 2.1 改造 smoke/session-timeline（fixture 315 行 V1 字面量 → v2-fixture 工厂；分页断言改 cursor 协议）。消息 id 设计为字典序==时序（`_a`/`_b` 后缀）对齐 store 排序；用户 summary.diffs 无 V2 对应面整体丢弃；session-list-path-loading 同步摘除 pageMessages 引用；smoke 纳入 e2e tsconfig include（11/11 绿）
-- [ ] 2.2 改造 session-timeline-collapse-state（播种切 v2Messages；事件切 `session.next.*` 词汇）
+- [x] 2.2 改造 session-timeline-collapse-state（播种切 v2Messages；事件切 `session.next.*` 词汇：文本流入 = text.started/ended，completed 工具结构化更新 = tool.called→tool.success 重放对，part id==callID 原位更新）（3/3 绿）
 - [ ] 2.3 改造 session-timeline-context-resize（播种切 v2Messages；context 组 part 经 v2ToolContent）
 - [ ] 2.4 改造 subagent-child-navigation（task part 用 `structured.sessionId`；删自注册 V1 路由，改靠 `/api/session` 列表 parentID）
 - [ ] 2.5 改造 session-request-docks（test1/2 播种切 `/api/question|permission/request` 信封、回复断言切 `POST /api/session/{id}/question|permission/{requestID}/reply`；test3 SSE 切 `question.v2.*` 词汇）

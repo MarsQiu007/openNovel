@@ -1,7 +1,17 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
+import type { SessionMessageAssistantTool } from "@opennovel-ai/sdk/v2/client"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
+import {
+  v2AssistantMessage,
+  v2Event,
+  v2Tool,
+  v2ToolCompleted,
+  v2UserMessage,
+  type V2FixtureMessage,
+  type V2SseFrame,
+} from "../utils/v2-fixture"
 
 const directory = "C:/OpenNovel/TimelineStateRegression"
 const novelID = "novel_timeline_state_regression"
@@ -14,10 +24,7 @@ const textPartID = "prt_9999_text"
 const title = "Timeline collapse state regression"
 const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
 
-type EventPayload = {
-  directory: string
-  payload: Record<string, unknown>
-}
+type EventPayload = V2SseFrame
 
 declare global {
   interface Window {
@@ -28,78 +35,83 @@ declare global {
   }
 }
 
-const userMessage = {
-  info: {
-    id: userMessageID,
-    sessionID,
-    role: "user",
-    time: { created: 1700000000000 },
-    summary: { diffs: [] },
-    agent: "build",
-    model,
-  },
-  parts: [
-    {
-      id: "prt_user_text",
-      sessionID,
-      messageID: userMessageID,
-      type: "text",
-      text: "Please edit the file.",
-    },
-  ],
-}
+const userMessage = v2UserMessage({ id: userMessageID, text: "Please edit the file.", created: 1700000000000 })
 
-const editPart = {
-  id: editPartID,
-  sessionID,
-  messageID: assistantMessageID,
-  type: "tool",
-  callID: "call_edit_regression",
-  tool: "edit",
-  state: {
-    status: "completed",
-    input: { filePath: "src/regression.ts" },
-    output: "Edited src/regression.ts",
+/** edit 工具的 structured（adapter 整体透传为视图模型 metadata；title 供 structuredTitle 读取） */
+function editStructured(input?: { additions?: number; before?: string; after?: string }) {
+  return {
     title: "src/regression.ts",
-    metadata: {
-      filediff: {
-        file: "src/regression.ts",
-        additions: 1,
-        deletions: 1,
-        before: "export const value = 'before'\n",
-        after: "export const value = 'after'\n",
-      },
-      diff: "diff --git a/src/regression.ts b/src/regression.ts\n-export const value = 'before'\n+export const value = 'after'\n",
+    filediff: {
+      file: "src/regression.ts",
+      additions: input?.additions ?? 1,
+      deletions: 1,
+      before: input?.before ?? "export const value = 'before'\n",
+      after: input?.after ?? "export const value = 'after'\n",
     },
-    time: { start: 1700000001000, end: 1700000002000 },
-  },
+    diff: "diff --git a/src/regression.ts b/src/regression.ts\n-export const value = 'before'\n+export const value = 'after'\n",
+  }
 }
 
-const streamedTextPart = {
-  id: textPartID,
-  sessionID,
-  messageID: assistantMessageID,
-  type: "text",
-  text: "Streaming added a later assistant text part.",
+function editToolContent(input?: { additions?: number; before?: string; after?: string }): SessionMessageAssistantTool {
+  return v2Tool({
+    name: "edit",
+    id: editPartID,
+    created: 1700000001000,
+    ran: 1700000001000,
+    completed: 1700000002000,
+    state: v2ToolCompleted({
+      input: { filePath: "src/regression.ts" },
+      structured: editStructured(input),
+      content: [{ type: "text", text: "Edited src/regression.ts" }],
+    }),
+  })
 }
 
-const assistantMessage = {
-  info: {
+const streamedText = "Streaming added a later assistant text part."
+
+function assistantMessage(content: SessionMessageAssistantTool[] = [editToolContent()]) {
+  return v2AssistantMessage({
     id: assistantMessageID,
-    sessionID,
-    role: "assistant",
-    time: { created: 1700000001000 },
-    parentID: userMessageID,
-    modelID: model.modelID,
-    providerID: model.providerID,
-    mode: "build",
+    created: 1700000001000,
+    model: { id: model.modelID, providerID: model.providerID, variant: model.variant },
     agent: "build",
-    path: { cwd: directory, root: directory },
     cost: 0.01,
     tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-    variant: "max",
-  },
-  parts: [editPart],
+    content,
+  })
+}
+
+let eventClock = 1700000003000
+const nextEventTime = () => (eventClock += 1000)
+
+/** 后续文本 part 流入既有 assistant 消息（V1 message.part.updated 的 V2 对应：text.started → text.ended） */
+function textStreamEvents(): EventPayload[] {
+  const base = { sessionID, assistantMessageID, textID: textPartID }
+  return [
+    v2Event(directory, "session.next.text.started", { ...base, timestamp: nextEventTime() }),
+    v2Event(directory, "session.next.text.ended", { ...base, timestamp: nextEventTime(), text: streamedText }),
+  ]
+}
+
+/** 既有 completed 工具的结构化数据更新（V2 对应面：重放 tool.called → tool.success，part id == callID 原位更新） */
+function editReplayEvents(additions: number): EventPayload[] {
+  const base = { sessionID, assistantMessageID, callID: editPartID }
+  return [
+    v2Event(directory, "session.next.tool.called", {
+      ...base,
+      timestamp: nextEventTime(),
+      tool: "edit",
+      input: { filePath: "src/regression.ts" },
+      provider: { executed: false },
+    }),
+    v2Event(directory, "session.next.tool.success", {
+      ...base,
+      timestamp: nextEventTime(),
+      structured: editStructured({ additions }),
+      content: [{ type: "text", text: "Edited src/regression.ts" }],
+      provider: { executed: false },
+    }),
+  ]
 }
 
 test.describe("regression: session timeline local row state", () => {
@@ -121,13 +133,7 @@ test.describe("regression: session timeline local row state", () => {
     await wrapper.locator('[data-slot="collapsible-trigger"]').first().click()
     await expectExpanded(wrapper, false)
 
-    events.push({
-      directory,
-      payload: {
-        type: "message.part.updated",
-        properties: { part: streamedTextPart },
-      },
-    })
+    events.push(...textStreamEvents())
 
     await expect(page.locator(`[data-timeline-part-id="${textPartID}"]`).first()).toBeVisible({ timeout: 10_000 })
 
@@ -153,13 +159,7 @@ test.describe("regression: session timeline local row state", () => {
     await expectAppVisible(file)
     await markDiffProbe(page)
 
-    events.push({
-      directory,
-      payload: {
-        type: "message.part.updated",
-        properties: { part: streamedTextPart },
-      },
-    })
+    events.push(...textStreamEvents())
 
     await expect(page.locator(`[data-timeline-part-id="${textPartID}"]`).first()).toBeVisible({ timeout: 10_000 })
     const siblingProbe = await readDiffProbe(page)
@@ -173,13 +173,7 @@ test.describe("regression: session timeline local row state", () => {
     })
 
     await markDiffProbe(page)
-    events.push({
-      directory,
-      payload: {
-        type: "message.part.updated",
-        properties: { part: editPartWithAdditions(2) },
-      },
-    })
+    events.push(...editReplayEvents(2))
 
     await expect(wrapper.locator('[data-slot="diff-changes-additions"]').filter({ hasText: "+2" }).first()).toBeVisible(
       { timeout: 10_000 },
@@ -202,23 +196,8 @@ test.describe("regression: session timeline local row state", () => {
         result.replace(`export const value${index} = ${index}`, `export const value${index} = compute(${index})`),
       lines,
     )
-    const part = {
-      ...editPart,
-      state: {
-        ...editPart.state,
-        metadata: {
-          ...editPart.state.metadata,
-          filediff: {
-            file: "src/regression.ts",
-            additions: 1,
-            deletions: 1,
-            before: lines,
-            after,
-          },
-        },
-      },
-    }
-    await mockServer(page, events, [userMessage, { ...assistantMessage, parts: [part] }])
+    const part = editToolContent({ before: lines, after })
+    await mockServer(page, events, [userMessage, assistantMessage([part])])
     await configurePage(page)
 
     await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
@@ -362,22 +341,6 @@ async function readDiffProbe(page: Page) {
     })
 }
 
-function editPartWithAdditions(additions: number) {
-  return {
-    ...editPart,
-    state: {
-      ...editPart.state,
-      metadata: {
-        ...editPart.state.metadata,
-        filediff: {
-          ...editPart.state.metadata.filediff,
-          additions,
-        },
-      },
-    },
-  }
-}
-
 function readExpanded(element: Element) {
   const trigger = element.querySelector('[data-slot="collapsible-trigger"]')
   const aria = trigger?.getAttribute("aria-expanded")
@@ -392,13 +355,17 @@ function readExpanded(element: Element) {
   return !!content && content.getBoundingClientRect().height > 0
 }
 
-async function mockServer(page: Page, events: EventPayload[], messages = [userMessage, assistantMessage]) {
+async function mockServer(
+  page: Page,
+  events: EventPayload[],
+  messages: V2FixtureMessage[] = [userMessage, assistantMessage()],
+) {
   await mockOpenNovelServer(page, {
     directory,
     project: project(),
     provider: provider(),
     sessions: [session()],
-    pageMessages: () => ({ items: messages }),
+    v2Messages: () => messages,
     events: () => events.splice(0, 1),
     eventRetry: 16,
   })
