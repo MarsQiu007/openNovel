@@ -4,7 +4,9 @@ import { InstallationVersion } from "@opennovel-ai/core/installation/version"
 import { iife } from "@/util/iife"
 import { setTimeout as sleep } from "node:timers/promises"
 import { CopilotModels } from "./models"
-import { MessageV2 } from "@/session/message-v2"
+// V1 合成附件占位文本的冻结副本：legacy message-v2 已裁撤，
+// 该字符串用于识别既有会话中的合成附件消息，wire 匹配不可变。
+const SYNTHETIC_ATTACHMENT_PROMPT = "Attached media from tool result:"
 
 const CLIENT_ID = "Ov23li8tweQw6odWQebz"
 const API_VERSION = "2026-06-01"
@@ -38,11 +40,11 @@ function imgMsg(msg: any): boolean {
   // Handle the 3 api formats
 
   const content = msg.content
-  if (typeof content === "string") return content === MessageV2.SYNTHETIC_ATTACHMENT_PROMPT
+  if (typeof content === "string") return content === SYNTHETIC_ATTACHMENT_PROMPT
   if (!Array.isArray(content)) return false
   return content.some(
     (part: any) =>
-      (part?.type === "text" || part?.type === "input_text") && part.text === MessageV2.SYNTHETIC_ATTACHMENT_PROMPT,
+      (part?.type === "text" || part?.type === "input_text") && part.text === SYNTHETIC_ATTACHMENT_PROMPT,
   )
 }
 

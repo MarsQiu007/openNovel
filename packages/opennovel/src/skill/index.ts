@@ -2,12 +2,10 @@ import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import path from "path"
 import { Effect, Layer, Context, Schema } from "effect"
 import { NamedError } from "@opennovel-ai/core/util/error"
-import type { Agent } from "@/agent/agent"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { Global } from "@opennovel-ai/core/global"
 import { SkillPlugin } from "@opennovel-ai/core/plugin/skill"
-import { Permission } from "@/permission"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { Config } from "@/config/config"
 import { FrontmatterError } from "@opennovel-ai/core/v1/config/error"
@@ -99,7 +97,6 @@ export interface Interface {
   readonly require: (name: string) => Effect.Effect<Info, NotFoundError>
   readonly all: () => Effect.Effect<Info[]>
   readonly dirs: () => Effect.Effect<string[]>
-  readonly available: (agent?: Agent.Info) => Effect.Effect<Info[]>
 }
 
 const add = Effect.fnUntraced(function* (state: State, match: string, events: EventV2Bridge.Service["Service"]) {
@@ -307,14 +304,7 @@ const layer = Layer.effect(
       return (yield* InstanceState.get(discovered)).dirs
     })
 
-    const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info) {
-      const s = yield* InstanceState.get(state)
-      const list = Object.values(s.skills).toSorted((a, b) => a.name.localeCompare(b.name))
-      if (!agent) return list
-      return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
-    })
-
-    return Service.of({ get, require, all, dirs, available })
+    return Service.of({ get, require, all, dirs })
   }),
 )
 

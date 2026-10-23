@@ -8,8 +8,6 @@ import { WorkspaceTable } from "@opennovel-ai/core/control-plane/workspace.sql"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { GlobalBus } from "@/bus/global"
 import { which } from "@opennovel-ai/core/util/which"
-import { Command } from "@/command"
-import { InstanceState } from "@/effect/instance-state"
 import { Effect, Layer, Scope, Context, Stream, Types, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
@@ -19,8 +17,6 @@ import { CrossSpawnSpawner } from "@opennovel-ai/core/cross-spawn-spawner"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { serviceUse } from "@opennovel-ai/core/effect/service-use"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
-import { EventV2 } from "@opennovel-ai/core/event"
 import { Project } from "@opennovel-ai/schema/project"
 
 export const Info = Project.Info
@@ -81,19 +77,12 @@ export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Pro
 // ---------------------------------------------------------------------------
 
 export interface Interface {
-  /**
-   * Per-instance setup. Subscribes to the `/init` slash command for the
-   * current instance and stamps the project's initialized timestamp when it
-   * fires. Subscription lifetime is tied to the per-instance state scope.
-   */
-  readonly init: () => Effect.Effect<void>
   readonly fromDirectory: (directory: string) => Effect.Effect<{ project: Info; sandbox: string }>
   readonly discover: (input: Info) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Info[]>
   readonly get: (id: ProjectV2.ID) => Effect.Effect<Info | undefined>
   readonly update: (input: UpdateInput) => Effect.Effect<Info, NotFoundError>
   readonly initGit: (input: { directory: string; project: Info }) => Effect.Effect<Info>
-  readonly setInitialized: (id: ProjectV2.ID) => Effect.Effect<void>
   readonly sandboxes: (id: ProjectV2.ID) => Effect.Effect<string[]>
   readonly addSandbox: (id: ProjectV2.ID, directory: string) => Effect.Effect<void>
   readonly removeSandbox: (id: ProjectV2.ID, directory: string) => Effect.Effect<void>
@@ -110,7 +99,6 @@ const layer = Layer.effect(
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const projectV2 = yield* ProjectV2.Service
     const projectDirectories = yield* ProjectDirectories.Service
-    const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
     const { db } = yield* Database.Service
 
@@ -374,31 +362,6 @@ const layer = Layer.effect(
       return project
     })
 
-    const setInitialized = Effect.fn("Project.setInitialized")(function* (id: ProjectV2.ID) {
-      yield* db
-        .update(ProjectTable)
-        .set({ time_initialized: Date.now() })
-        .where(eq(ProjectTable.id, id))
-        .run()
-        .pipe(Effect.orDie)
-    })
-
-    const initState = yield* InstanceState.make(
-      Effect.fn("Project.initState")(function* (ctx) {
-        const unsubscribe = yield* events.listen((event) => {
-          if (event.type !== Command.Event.Executed.type || event.location?.directory !== ctx.directory)
-            return Effect.void
-          const data = event.data as EventV2.Data<typeof Command.Event.Executed>
-          return data.name === Command.Default.INIT ? setInitialized(ctx.project.id) : Effect.void
-        })
-        yield* Effect.addFinalizer(() => unsubscribe)
-      }),
-    )
-
-    const init = Effect.fn("Project.init")(function* () {
-      yield* InstanceState.get(initState)
-    })
-
     const sandboxes = Effect.fn("Project.sandboxes")(function* (id: ProjectV2.ID) {
       const row = yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get().pipe(Effect.orDie)
       if (!row) return []
@@ -463,14 +426,12 @@ const layer = Layer.effect(
     })
 
     return Service.of({
-      init,
       fromDirectory,
       discover,
       list,
       get,
       update,
       initGit,
-      setInitialized,
       sandboxes,
       addSandbox,
       removeSandbox,
@@ -489,7 +450,6 @@ export const node = LayerNode.make({
     CrossSpawnSpawner.node,
     ProjectV2.node,
     ProjectDirectories.node,
-    EventV2Bridge.node,
     RuntimeFlags.node,
     Database.node,
   ],

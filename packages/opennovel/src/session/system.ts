@@ -105,7 +105,8 @@ const layer = Layer.effect(
       skills: Effect.fn("SystemPrompt.skills")(function* (agent: Agent.Info) {
         if (Permission.disabled(["skill"], agent.permission).has("skill")) return
 
-        const list = yield* skill.available(agent)
+        // legacy 过渡：Skill.available(agent) 已随 Permission 面裁撤，C3 连本模块一并删除
+        const list = yield* skill.all()
 
         return [
           "Skills provide specialized instructions and workflows for specific tasks.",

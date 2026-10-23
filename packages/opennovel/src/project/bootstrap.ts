@@ -23,7 +23,8 @@ const layer = Layer.effect(
     const format = yield* Format.Service
     const lsp = yield* LSP.Service
     const plugin = yield* Plugin.Service
-    const project = yield* Project.Service
+    // Project 无实例初始化工作（init 监听器随 V1 command 面裁撤），仍 yield 保持层构建期依赖边
+    yield* Project.Service
     const snapshot = yield* Snapshot.Service
     const vcs = yield* Vcs.Service
 
@@ -37,7 +38,7 @@ const layer = Layer.effect(
       // Each service self-manages its own slow work via Effect.forkScoped against
       // its per-instance state scope. We just await materialization here.
       yield* Effect.forEach(
-        [lsp, format, vcs, snapshot, project],
+        [lsp, format, vcs, snapshot],
         (s) => s.init().pipe(Effect.catchCause((cause) => Effect.logWarning("init failed", { cause }))),
         { concurrency: "unbounded", discard: true },
       ).pipe(Effect.withSpan("InstanceBootstrap.init"))

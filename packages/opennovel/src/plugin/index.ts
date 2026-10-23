@@ -10,8 +10,6 @@ import { Config } from "@/config/config"
 import { createOpenNovelClient } from "@opennovel-ai/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./openai/codex"
-import { Session } from "@/session/session"
-import { NamedError } from "@opennovel-ai/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
 import { PoeAuthPlugin } from "opencode-poe-auth"
@@ -136,8 +134,9 @@ const layer = Layer.effect(
         const hooks: Hooks[] = []
         const bridge = yield* EffectBridge.make()
 
-        function publishPluginError(message: string) {
-          bridge.fork(events.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() }))
+        // V1 的 Session.Event.Error 面已裁撤；插件加载失败降为实例内日志
+        function logPluginError(message: string) {
+          bridge.fork(Effect.logError("plugin load failed", { message }))
         }
 
         const { Server } = yield* Effect.promise(() => import("../server/server"))
@@ -211,21 +210,21 @@ const layer = Layer.effect(
 
                 if (stage === "install") {
                   const parsed = parsePluginSpecifier(spec)
-                  publishPluginError(`Failed to install plugin ${parsed.pkg}@${parsed.version}: ${message}`)
+                  logPluginError(`Failed to install plugin ${parsed.pkg}@${parsed.version}: ${message}`)
                   return
                 }
 
                 if (stage === "compatibility") {
-                  publishPluginError(`Plugin ${spec} skipped: ${message}`)
+                  logPluginError(`Plugin ${spec} skipped: ${message}`)
                   return
                 }
 
                 if (stage === "entry") {
-                  publishPluginError(`Failed to load plugin ${spec}: ${message}`)
+                  logPluginError(`Failed to load plugin ${spec}: ${message}`)
                   return
                 }
 
-                publishPluginError(`Failed to load plugin ${spec}: ${message}`)
+                logPluginError(`Failed to load plugin ${spec}: ${message}`)
               },
             },
           }),
@@ -243,15 +242,7 @@ const layer = Layer.effect(
             },
           }).pipe(
             Effect.tapError((error) => Effect.logError("failed to load plugin", { path: load.spec, error })),
-            Effect.catch(() => {
-              // TODO: make proper events for this
-              // events.publish(Session.Event.Error, {
-              //   error: new NamedError.Unknown({
-              //     message: `Failed to load plugin ${load.spec}: ${message}`,
-              //   }).toObject(),
-              // })
-              return Effect.void
-            }),
+            Effect.catch(() => Effect.void),
           )
         }
 

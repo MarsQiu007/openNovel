@@ -659,23 +659,6 @@ describe("Project.list and Project.get", () => {
   )
 })
 
-describe("Project.setInitialized", () => {
-  it.live("sets time_initialized on project", () =>
-    Effect.gen(function* () {
-      const project = yield* Project.Service
-      const tmp = yield* tmpdirScoped({ git: true })
-      const result = yield* project.fromDirectory(tmp)
-
-      expect(result.project.time.initialized).toBeUndefined()
-
-      yield* project.setInitialized(result.project.id)
-
-      const updated = yield* project.get(result.project.id)
-      expect(updated?.time.initialized).toBeDefined()
-    }),
-  )
-})
-
 describe("Project.addSandbox and Project.removeSandbox", () => {
   it.live("addSandbox adds directory and removeSandbox removes it", () =>
     Effect.gen(function* () {

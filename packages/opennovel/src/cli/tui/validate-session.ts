@@ -1,8 +1,8 @@
 import { createOpenNovelClient } from "@opennovel-ai/sdk/v2"
-import { SessionID } from "@/session/schema"
+import { SessionV2 } from "@opennovel-ai/core/session"
 import { Schema } from "effect"
 
-const decodeSessionID = Schema.decodeUnknownSync(SessionID)
+const decodeSessionID = Schema.decodeUnknownSync(SessionV2.ID)
 
 export async function validateSession(input: {
   url: string
@@ -13,7 +13,7 @@ export async function validateSession(input: {
 }) {
   if (!input.sessionID) return
 
-  let sessionID: SessionID
+  let sessionID: Schema.Schema.Type<typeof SessionV2.ID>
   try {
     sessionID = decodeSessionID(input.sessionID)
   } catch (error) {
