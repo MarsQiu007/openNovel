@@ -216,7 +216,6 @@ test("create blank draft, place and edit, reject duplicate pin", async ({ page }
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-map-editor", directory },
-    pageMessages: () => ({ items: [] }),
   })
   const fixture: EditorFixture = {
     active: null,
@@ -289,7 +288,6 @@ test("drag a placed feature to save a new coordinate", async ({ page }) => {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-map-drag", directory },
-    pageMessages: () => ({ items: [] }),
   })
   const fixture: EditorFixture = {
     active: null,
@@ -339,7 +337,6 @@ test("derive a draft from active map", async ({ page }) => {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-map-derive", directory },
-    pageMessages: () => ({ items: [] }),
   })
   const fixture: EditorFixture = {
     active: structuredClone(activeAggregate),

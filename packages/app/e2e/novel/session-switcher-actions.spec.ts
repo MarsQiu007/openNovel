@@ -33,8 +33,9 @@ async function setupWorkspace(page: Page) {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-switcher-actions", directory },
-    pageMessages: () => ({ items: [] }),
-    onArchive: (sessionID) => archived.add(sessionID),
+    onV2SessionUpdate: (sessionID, body) => {
+      if (body.time?.archived) archived.add(sessionID)
+    },
   })
   await mockNovelWorkspaceAPIs(page, {
     directory,

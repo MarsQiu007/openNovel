@@ -91,7 +91,6 @@ async function setup(page: Page) {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-book-routing", directory },
-    pageMessages: () => ({ items: [] }),
   })
   await mockNovelWorkspaceAPIs(page, { directory, novelID, boundSessionIDs: [boundID] })
   await page.addInitScript((directory) => {

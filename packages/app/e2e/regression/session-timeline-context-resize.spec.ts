@@ -325,7 +325,7 @@ async function mockServer(
     project: project(),
     provider: provider(),
     sessions: [session()],
-    pageMessages: () => ({ items: fixtureMessages }),
+    // TODO(e2e-v2-mock Wave 2)：fixtureMessages 切 v2Messages（V1 形状消息待整体转换）
     events: () => events.splice(0, 1),
     eventRetry: 50,
   })

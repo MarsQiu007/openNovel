@@ -96,7 +96,6 @@ test.describe("novel-live", () => {
       provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
       directory,
       project: { id: "proj-novel-e2e", directory },
-      pageMessages: () => ({ items: [] }),
     })
 
     // Mock novel API endpoints — registered after mockOpenNovelServer so they
@@ -198,7 +197,6 @@ test.describe("novel-live", () => {
       provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
       directory,
       project: { id: "proj-novel-e2e", directory },
-      pageMessages: () => ({ items: [] }),
     })
 
     // Return 500 for all novel API calls

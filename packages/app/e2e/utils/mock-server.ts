@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test"
+import type { SessionMessage } from "@opennovel-ai/sdk/v2/client"
 
 const emptyList = new Set([
   "/skill",
@@ -20,24 +21,24 @@ export interface MockServerConfig {
   project: unknown
   /** 会话列表；可传函数以支持会后变更（如归档后从 /api/session 列表消失） */
   sessions: MockSession[] | (() => MockSession[])
-  pageMessages: (sessionId: string, limit: number, before?: string) => { items: unknown[]; cursor?: string }
-  vcsDiff?: unknown[]
-  messageDelay?: number
-  beforeMessagesResponse?: (input: { sessionID: string; before?: string }) => Promise<void>
-  onMessages?: (input: { sessionID: string; before?: string; phase: "start" | "end" }) => void
-  message?: (sessionID: string, messageID: string) => unknown
-  onMessage?: (input: { sessionID: string; messageID: string }) => void
+  /** V2 消息历史（升序）；/api/session/{id}/message 分页与 /{mid} 单条共用它 */
+  v2Messages?: (sessionID: string) => SessionMessage[]
+  onV2Messages?: (input: { sessionID: string; cursor?: string; phase: "start" | "end" }) => void
+  beforeV2MessagesResponse?: (input: { sessionID: string; cursor?: string }) => Promise<void>
+  v2Todos?: (sessionID: string) => unknown[]
+  v2Permissions?: unknown[] | (() => unknown[])
+  v2Questions?: unknown[] | (() => unknown[])
+  v2Diff?: unknown[]
+  /** PATCH /api/session/{id}（归档/改题）时回调，供测试更新会话列表状态 */
+  onV2SessionUpdate?: (sessionID: string, body: { title?: string; time?: { archived?: number | null } }) => void
+  /** question/permission 回复 POST 捕获，供 spec 断言请求体 */
+  onV2Reply?: (input: { kind: "question" | "permission"; sessionID: string; requestID: string; body: unknown }) => void
   events?: () => unknown[]
   eventRetry?: number
-  todos?: (sessionID: string) => unknown[]
-  permissions?: unknown[] | (() => unknown[])
-  questions?: unknown[] | (() => unknown[])
+  vcsDiff?: unknown[]
   fileList?: (path: string) => unknown | Promise<unknown>
   fileContent?: (path: string) => unknown | Promise<unknown>
   findFiles?: (input: { query: string; dirs?: string; limit?: number }) => unknown
-  sessionStatus?: unknown
-  /** 会话归档（PATCH /session/:id { time.archived }）时回调，供测试更新会话列表状态 */
-  onArchive?: (sessionID: string) => void
 }
 
 export async function mockOpenNovelServer(page: Page, config: MockServerConfig) {
@@ -49,6 +50,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
   })
   const cursors = new Map<string, string>()
   let nextCursor = 0
+  const createdSessions: MockSession[] = []
   const staticRoutes: Record<string, unknown> = {
     "/provider": config.provider,
     "/path": {
@@ -60,9 +62,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     },
     "/project": [config.project],
     "/project/current": config.project,
-    "/agent": [{ name: "build", mode: "primary" }],
     "/vcs": { branch: "main", default_branch: "main" },
-    "/session": () => currentSessions(config),
   }
 
   await page.route("**/*", async (route) => {
@@ -74,19 +74,36 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (url.port !== targetPort && url.port !== appPort) return route.fallback()
 
     const path = url.pathname
+    const method = route.request().method()
     if (path === "/global/event" || path === "/event") return sse(route, config.events?.(), config.eventRetry)
     if (path === "/global/health") return json(route, { healthy: true })
+    if (path === "/api/session" && method === "POST") {
+      // 懒创建流（如 novel journey）：登记进会话列表，后续 GET /api/session/{id} 才能命中
+      const body = (route.request().postDataJSON() ?? {}) as MockSession
+      const session = { title: body.id ?? "session", ...body, id: body.id ?? `ses_mock_${++nextCursor}` }
+      createdSessions.push(session)
+      return json(route, { data: v2Session(session, config.directory) })
+    }
     if (path === "/api/session")
       return json(route, {
-        data: currentSessions(config).map((session) => v2Session(session, config.directory)),
+        data: currentSessions(config, createdSessions).map((session) => v2Session(session, config.directory)),
         cursor: {},
       })
+    // app 启动固定读取面：空信封而非 404——smoke 断言把任何 404 资源错误计为失败
+    if (path === "/api/session/active") return json(route, { data: {} })
+    if (path === "/api/agent") return json(route, { data: [] })
+    if (path === "/api/command") return json(route, { data: [] })
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: false })
-    if (path === "/permission")
-      return json(route, typeof config.permissions === "function" ? config.permissions() : (config.permissions ?? []))
-    if (path === "/question")
-      return json(route, typeof config.questions === "function" ? config.questions() : (config.questions ?? []))
-    if (path === "/session/status") return json(route, config.sessionStatus ?? {})
+    if (path === "/api/permission/request")
+      return json(route, {
+        location: { directory: config.directory },
+        data: typeof config.v2Permissions === "function" ? config.v2Permissions() : (config.v2Permissions ?? []),
+      })
+    if (path === "/api/question/request")
+      return json(route, {
+        location: { directory: config.directory },
+        data: typeof config.v2Questions === "function" ? config.v2Questions() : (config.v2Questions ?? []),
+      })
     if (path === "/vcs/diff" && config.vcsDiff) return json(route, config.vcsDiff)
     if (path === "/file" && config.fileList)
       return json(route, await config.fileList(url.searchParams.get("path") ?? ""))
@@ -115,62 +132,81 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
     if (path === "/api/sync/run") return json(route, { results: [] })
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
-    if (path in staticRoutes) {
-      const value = staticRoutes[path]
-      return json(route, typeof value === "function" ? (value as () => unknown)() : value)
-    }
-
-    const sessionMatch = path.match(/^\/session\/([^/]+)$/)
-    if (sessionMatch) {
-      if (route.request().method() === "PATCH") {
-        const body = route.request().postDataJSON() as { time?: { archived?: number } } | undefined
-        if (body?.time?.archived) config.onArchive?.(sessionMatch[1]!)
-      }
-      const session = currentSessions(config).find((s) => s.id === sessionMatch[1])
-      return json(route, session ?? {})
-    }
+    if (path in staticRoutes) return json(route, staticRoutes[path])
 
     const projectMatch = path.match(/^\/project\/([^/]+)$/)
     if (projectMatch) return json(route, config.project)
 
-    const messageMatch = path.match(/^\/session\/([^/]+)\/message\/([^/]+)$/)
-    if (messageMatch) {
-      config.onMessage?.({ sessionID: messageMatch[1]!, messageID: messageMatch[2]! })
-      if (config.messageDelay !== undefined) await new Promise((resolve) => setTimeout(resolve, config.messageDelay))
-      const message = config.message?.(messageMatch[1]!, messageMatch[2]!)
-      if (message === undefined) return json(route, { error: "Message not found" }, undefined, 404)
-      return json(route, message)
+    const replyMatch = path.match(/^\/api\/session\/([^/]+)\/(question|permission)\/([^/]+)\/reply$/)
+    if (replyMatch && method === "POST") {
+      config.onV2Reply?.({
+        kind: replyMatch[2] as "question" | "permission",
+        sessionID: replyMatch[1]!,
+        requestID: replyMatch[3]!,
+        body: route.request().postDataJSON(),
+      })
+      return json(route, { data: {} })
     }
 
-    const todoMatch = path.match(/^\/session\/([^/]+)\/todo$/)
-    if (todoMatch) return json(route, config.todos?.(todoMatch[1]!) ?? [])
-    if (/^\/session\/[^/]+\/(children|diff)$/.test(path)) return json(route, [])
+    const messageMatch = path.match(/^\/api\/session\/([^/]+)\/message\/([^/]+)$/)
+    if (messageMatch) {
+      const message = (config.v2Messages?.(messageMatch[1]!) ?? []).find((item) => item.id === messageMatch[2])
+      if (!message) return json(route, { error: "Message not found" }, undefined, 404)
+      return json(route, { data: message })
+    }
 
-    const messagesMatch = path.match(/^\/session\/([^/]+)\/message$/)
+    const messagesMatch = path.match(/^\/api\/session\/([^/]+)\/message$/)
     if (messagesMatch) {
-      const token = url.searchParams.get("before") ?? undefined
+      const sessionID = messagesMatch[1]!
+      const token = url.searchParams.get("cursor") ?? undefined
       const before = token ? cursors.get(token) : undefined
       if (token && !before) return json(route, { error: "Invalid cursor" }, undefined, 400)
-      config.onMessages?.({ sessionID: messagesMatch[1], before, phase: "start" })
-      await config.beforeMessagesResponse?.({ sessionID: messagesMatch[1]!, before })
-      if (config.messageDelay !== undefined) await new Promise((resolve) => setTimeout(resolve, config.messageDelay))
+      config.onV2Messages?.({ sessionID, cursor: before, phase: "start" })
+      await config.beforeV2MessagesResponse?.({ sessionID, cursor: before })
+      const all = config.v2Messages?.(sessionID) ?? []
+      const ordered = url.searchParams.get("order") === "desc" ? [...all].reverse() : all
+      const start = before ? ordered.findIndex((item) => item.id === before) + 1 : 0
       const limit = Number(url.searchParams.get("limit") ?? 80)
-      const pageData = config.pageMessages(messagesMatch[1], limit, before)
-      config.onMessages?.({ sessionID: messagesMatch[1], before, phase: "end" })
-      if (!pageData.cursor) return json(route, pageData.items)
-      const cursor = `cursor_${++nextCursor}`
-      cursors.set(cursor, pageData.cursor)
-      return json(route, pageData.items, { "x-next-cursor": cursor })
+      const pageItems = ordered.slice(start, start + limit)
+      const last = pageItems[pageItems.length - 1]
+      const hasMore = start + limit < ordered.length && last !== undefined
+      const cursor = hasMore ? `cursor_${++nextCursor}` : undefined
+      if (cursor && last) cursors.set(cursor, last.id)
+      config.onV2Messages?.({ sessionID, cursor: before, phase: "end" })
+      return json(route, { data: pageItems, cursor: cursor ? { next: cursor } : {} })
     }
 
-    if (url.port === targetPort && targetPort !== appPort) return json(route, {})
+    const todoMatch = path.match(/^\/api\/session\/([^/]+)\/todo$/)
+    if (todoMatch) return json(route, { data: config.v2Todos?.(todoMatch[1]!) ?? [] })
+
+    const diffMatch = path.match(/^\/api\/session\/([^/]+)\/diff$/)
+    if (diffMatch) return json(route, { data: config.v2Diff ?? [] })
+
+    const sessionMatch = path.match(/^\/api\/session\/([^/]+)$/)
+    if (sessionMatch) {
+      const sessionID = sessionMatch[1]!
+      if (method === "PATCH") {
+        const body = route.request().postDataJSON() as { title?: string; time?: { archived?: number | null } }
+        config.onV2SessionUpdate?.(sessionID, body)
+        const session = currentSessions(config, createdSessions).find((item) => item.id === sessionID)
+        return json(route, { data: v2Session(session ?? { id: sessionID }, config.directory) })
+      }
+      const session = currentSessions(config, createdSessions).find((item) => item.id === sessionID)
+      if (!session) return json(route, { error: "Session not found" }, undefined, 404)
+      return json(route, { data: v2Session(session, config.directory) })
+    }
+
+    // 显式 404：未 mock 的 server 路由不再返回 {} 静默吞错（消息两路由与 x.data! 消费者已在上游覆盖）
+    if (url.port === targetPort && targetPort !== appPort)
+      return json(route, { error: "Not mocked", path }, undefined, 404)
     return route.fallback()
   })
 }
 
-/** 读取会话列表当前值（支持函数形态以便测试内变更后重查） */
-function currentSessions(config: MockServerConfig): MockSession[] {
-  return typeof config.sessions === "function" ? config.sessions() : config.sessions
+/** 读取会话列表当前值（支持函数形态以便测试内变更后重查；含 POST 懒创建的会话） */
+function currentSessions(config: MockServerConfig, created: MockSession[] = []): MockSession[] {
+  const base = typeof config.sessions === "function" ? config.sessions() : config.sessions
+  return [...base, ...created]
 }
 
 function v2Session(session: { id: string } & Record<string, unknown>, fallbackDirectory: string) {

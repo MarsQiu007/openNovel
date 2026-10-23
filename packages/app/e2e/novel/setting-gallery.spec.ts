@@ -69,7 +69,6 @@ test("条目画廊主路径：上传 → 网格 → 说明与排序 → 删除�
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-gallery", directory },
-    pageMessages: () => ({ items: [] }),
   })
 
   const state = setupGalleryState()

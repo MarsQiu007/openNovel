@@ -4,23 +4,24 @@
 
 ## Wave 1 — mock 基建 V2 化
 
-- [ ] 1.1 新建 `e2e/utils/v2-fixture.ts`：V2 消息工厂（user/assistant/compaction/text/reasoning/tool 四态/history）+ 事件工厂（信封 + 最小 6 帧序列）+ fixture 自检（重复 ID、parentID 链、tool 归属）
-- [ ] 1.2 接入运行时校验：消息经 `@opennovel-ai/schema/session-message`、事件 properties 经 `@opennovel-ai/schema/session-event` 解码（`errors: "all"` + 严格 excess property）
-- [ ] 1.3 新建 `e2e/utils/v2-fixture.spec.ts` 自检单测（`@playwright/test` 纯 node 断言：合法构造通过/畸形抛错/自检拒绝）——**不得用 `.test.ts` 扩展名**（Playwright 默认 testMatch 会收集并炸 bun:test 导入）
-- [ ] 1.4 重写 mock-server.ts 路由面：新增 `/api/session/{id}/message[/{mid}]`（desc/cursor 信封，cursor 对象必带）、`/api/session/{id}`、`/api/session/{id}/diff`、`/api/session/{id}/todo`、`/api/permission/request`、`/api/question/request`、`POST /api/session/{id}/question|permission/{requestID}/reply`（捕获请求体）
-- [ ] 1.5 删除 mock-server.ts 确证死的路由（`/session` V1 系列含 `/session/status`、`/permission`、`/question`、`/agent`）与死 config 字段（pageMessages/message/onMessages/onMessage/messageDelay/beforeMessagesResponse/onArchive/todos/sessionStatus），新增 v2Messages/onV2Messages/beforeV2MessagesResponse/v2Todos/v2Permissions/v2Questions/v2Diff；**保留** `/provider`、`/path`、`/project/current`、`/config`、`/vcs*`、`/file*`、`/find/file` 等活消费路由
-- [ ] 1.6 catch-all 从 `{}` 改显式 404
-- [ ] 1.7 移除 9 个活 spec 的死参数（pageMessages、sessionStatus 等）；全请求面审计：grep `client.v2.*`/`sdk.*` 调用点，确认每个路由要么有 mock、要么属 404 容忍清单（design §3.1）
-- [ ] 1.8 **守门**：`packages/app` 下 `bun typecheck` + 根 oxlint 0 errors + 全量 e2e 复跑——9 个活 spec 不回归（验证 404 化论证）
+- [x] 1.1 新建 `e2e/utils/v2-fixture.ts`：V2 消息工厂（user/assistant/compaction/text/reasoning/tool 四态/history）+ 事件工厂（信封 + 最小 6 帧序列）+ fixture 自检（重复 ID、parentID 链、tool 归属）
+- [x] 1.2 接入运行时校验：消息经 `@opennovel-ai/schema/session-message`、事件 properties 经 `@opennovel-ai/schema/session-event` 解码（`errors: "all"` + 严格 excess property）
+- [x] 1.3 新建 `e2e/utils/v2-fixture.spec.ts` 自检单测（`@playwright/test` 纯 node 断言：合法构造通过/畸形抛错/自检拒绝）——**不得用 `.test.ts` 扩展名**（Playwright 默认 testMatch 会收集并炸 bun:test 导入）（7/7 绿）
+- [x] 1.4 重写 mock-server.ts 路由面：新增 `/api/session/{id}/message[/{mid}]`（desc/cursor 信封，cursor 对象必带）、`/api/session/{id}`（GET + PATCH，PATCH 触发 onV2SessionUpdate）、`/api/session/{id}/diff`、`/api/session/{id}/todo`、`/api/permission/request`、`/api/question/request`、`POST /api/session/{id}/question|permission/{requestID}/reply`（捕获请求体）
+- [x] 1.5 删除 mock-server.ts 确证死的路由（`/session` V1 系列含 `/session/status`、`/permission`、`/question`、`/agent`）与死 config 字段（pageMessages/message/onMessages/onMessage/messageDelay/beforeMessagesResponse/onArchive/todos/sessionStatus），新增 v2Messages/onV2Messages/beforeV2MessagesResponse/v2Todos/v2Permissions/v2Questions/v2Diff/onV2SessionUpdate；**保留** `/provider`、`/path`、`/project/current`、`/config`、`/vcs*`、`/file*`、`/find/file` 等活消费路由
+- [x] 1.6 catch-all 从 `{}` 改显式 404
+- [x] 1.7 移除活 spec 的死参数（pageMessages ×18、onArchive→onV2SessionUpdate；sessionStatus 已无引用）；全请求面审计通过（25 个 V2 调用面：messages/message/get/diff/todo/list/update/reply 有 mock，其余 404 容忍；`x.data!` 消费面路由全保留）
+- [x] 1.8 **守门**：`packages/app` 下 `bun typecheck` + 根 oxlint 0 errors + 全量 e2e 复跑——9 个活 spec 不回归（验证 404 化论证）。首跑 16 败归因 13 真回归（404 console 噪音/bootstrap 固定读面/懒创建 POST，见 design §8.1）修复后全量 69 过 18 败：15 败恰为 Wave 2 排期的 5 个死 spec，3 败与 HEAD 基线一致（annotation-execute、novel.spec chat panel、remote-session-settings）
 
-## Wave 2 — 复活 5 个 CI 死 spec
+## Wave 2 — 复活 6 个 CI 死 spec
 
 - [ ] 2.1 改造 smoke/session-timeline（fixture 315 行 V1 字面量 → v2-fixture 工厂；分页断言改 cursor 协议）
 - [ ] 2.2 改造 session-timeline-collapse-state（播种切 v2Messages；事件切 `session.next.*` 词汇）
 - [ ] 2.3 改造 session-timeline-context-resize（播种切 v2Messages；context 组 part 经 v2ToolContent）
 - [ ] 2.4 改造 subagent-child-navigation（task part 用 `structured.sessionId`；删自注册 V1 路由，改靠 `/api/session` 列表 parentID）
 - [ ] 2.5 改造 session-request-docks（test1/2 播种切 `/api/question|permission/request` 信封、回复断言切 `POST /api/session/{id}/question|permission/{requestID}/reply`；test3 SSE 切 `question.v2.*` 词汇）
-- [ ] 2.6 **守门**：5 个复活 spec 全绿 + `bun typecheck` + oxlint
+- [ ] 2.6 改造 novel/session-switcher-actions（onArchive 死参数改 onV2SessionUpdate、pageMessages 死参数移除；验证 2 个 archive 用例经 `PATCH /api/session/{id}` 链路转绿）
+- [ ] 2.7 **守门**：6 个复活 spec 全绿 + `bun typecheck` + oxlint
 
 ## Wave 3 — 独失覆盖重建（去重后）
 

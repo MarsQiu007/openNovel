@@ -75,7 +75,6 @@ async function openWorkspaceSession(
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-subagent-switcher", directory },
-    pageMessages: () => ({ items: [] }),
   })
   await page.route(/\/api\/novel/, async (route) => {
     const path = new URL(route.request().url()).pathname

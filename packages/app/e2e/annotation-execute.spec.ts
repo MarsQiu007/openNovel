@@ -148,7 +148,6 @@ test.describe("annotation execute flow", () => {
       provider: { id: "opennovel", model: "gpt-test", provider: "opennovel" },
       directory,
       project: { id: "project-annotation", directory },
-      pageMessages: () => ({ items: [] }),
     })
     await mockNovelApi(page)
 

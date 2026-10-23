@@ -29,6 +29,7 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 | regression/session-timeline-context-resize.spec.ts | 死 | 同上 |
 | regression/subagent-child-navigation.spec.ts | 死 | 子会话标题派生自父会话 task part；另自注册 V1 `/session/:id` 路由 |
 | regression/session-request-docks.spec.ts | 半死 | test1/2 靠 `/question`、`/permission` 列表播种 dock → 空；test3 走 SSE `question.asked` 伪事件（apply 仍处理 V1 词汇）可能仍绿 |
+| novel/session-switcher-actions.spec.ts | 半死 | 标题/菜单断言活；archive 用例（:67,:89）死——归档走 `client.v2.session.update`（`PATCH /api/session/{id}`，session-switcher.tsx:103），mock 无此路由且 `onArchive` 挂 V1 死路由永不触发 |
 | 其余 9 个 regression + novel 10 + 顶层 4 + reproduction 2 | 活 | 断言不依赖消息；TypeError 被吞后优雅降级 |
 | performance/timeline/* | 死（不进 CI） | CI `testIgnore: performance/**` |
 
@@ -43,7 +44,7 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 三波串行（Wave 2/3 依赖 Wave 1 的 fixture 与路由面）：
 
 - **Wave 1 — mock 基建 V2 化**：路由面 + fixture 工厂 + 校验防线 + catch-all 404 化 + 死参数清理。守门：全量 e2e 复跑，9 个活 spec 不回归。
-- **Wave 2 — 复活 5 个 CI 死 spec**：fixture/事件切 V2，断言骨架保留。守门：5 spec 全绿。
+- **Wave 2 — 复活 6 个 CI 死 spec**：fixture/事件切 V2，断言骨架保留。守门：6 spec 全绿。
 - **Wave 3 — 独失覆盖重建**：transport-contract / streaming-projection / history-pagination 三个新 spec。守门：新增覆盖绿 + 全量 e2e 绿。
 
 事件注入机制二选一（均幸存，按需选用）：mock-server `events` 一次性队列（`/global/event` 静态 SSE，简单 spec）；`installSseTransport`（fetch 劫持、可编程流：send/burst/split/heartbeat/close/error + 连接与 ack 台账，传输契约与流式 spec）。
@@ -57,6 +58,7 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 - `GET /api/session/{id}/message`：query `limit`/`order`/`cursor`；mock 内部存升序数组，`order=desc` 反转后切片；响应 `{data, cursor: {next?}}`——**必须带 `cursor` 对象**，否则 app 在 `response.data?.cursor.next` 抛 TypeError。cursor 沿用现存不透明 token 模式（`cursor_N` Map 换回 messageID，无效游标 400）。
 - `GET /api/session/{id}/message/{mid}`：命中 `{data: SessionMessage}`；未命中 404（`MessageNotFoundError` 形状）——app 对父消息补拉走此路由，404 记 tombstone 是正常路径。
 - `GET /api/session/{id}`：`{data: SessionV2Info}`（复用现存 `v2Session()` 投影）。
+- `PATCH /api/session/{id}`：归档/改题走此路由（`client.v2.session.update`，body `{title?, time?}`）；触发 `config.onV2SessionUpdate?.(sessionID, body)` 回调（session-switcher-actions 的 archive 用例靠它更新会话列表），返回 `{data: <更新后 v2Session>}`。
 - `GET /api/session/{id}/diff` → `{data: []}`；`GET /api/session/{id}/todo` → `{data: []}`（可配置）。
 - `GET /api/permission/request` → `{location, data: PermissionV2Request[]}`；`GET /api/question/request` → `{location, data: QuestionV2Request[]}`（可配置）。
 - `POST /api/session/{id}/question/{requestID}/reply`、`POST /api/session/{id}/permission/{requestID}/reply`：捕获请求体供 spec 断言（request-docks test1/2 的回复断言切 V2 路由后依赖），返回 200 空体。
@@ -72,8 +74,8 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 ### 3.2 config 字段更替
 
 死字段（挂 V1 死路由）：`pageMessages`/`message`/`onMessages`/`onMessage`（单条消息回调，挂 `/session/:id/message/:mid`）/`messageDelay`/`beforeMessagesResponse`/`onArchive`/`todos`（挂 `/session/:id/todo`）/`sessionStatus`（`/session/status` 已死，bootstrap.ts:247 注释确认 V2 无此端点；review-terminal-stacked 的该 config 是死参数）。`onMessage` 无 V2 替代（V2 单条路由只服务父消息补拉的 404/tombstone 语义，无需回调）；`todos` 由 `v2Todos` 接班。
-新字段：`v2Messages: SessionMessage[]`（升序）、`onV2Messages(phase: "start"|"end")`、`beforeV2MessagesResponse`（挂起钩子）、`v2Todos`/`v2Permissions`/`v2Questions`/`v2Diff`。
-9 个活 spec 的死参数（pageMessages、sessionStatus 等）顺手移除。
+新字段：`v2Messages: (sessionID) => SessionMessage[]`（升序）、`onV2Messages(phase: "start"|"end")`、`beforeV2MessagesResponse`（挂起钩子）、`v2Todos`/`v2Permissions`/`v2Questions`/`v2Diff`、`onV2SessionUpdate(sessionID, body)`（归档/改题回调，接班 onArchive）。
+9 个活 spec 的死参数（pageMessages、sessionStatus、onArchive 等）顺手移除。
 
 ### 3.3 v2-fixture 工厂与校验防线（新建 `e2e/utils/v2-fixture.ts`）
 
@@ -94,7 +96,7 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 
 自检单测：`e2e/utils/v2-fixture.spec.ts`，用 `@playwright/test` 写纯 node 断言（不用 page fixture）——合法构造通过/畸形抛错/自检拒绝重复 ID。Playwright 默认 testMatch 会收集 `e2e/**/*.spec.ts` 并进 CI（比被删 fixture.test.ts 的本地 bun test 更强）；**不能写成 `.test.ts`**——根 playwright.config 无 testMatch 覆盖，默认 pattern 同样匹配 `**/*.test.ts`，bun:test 导入在 Playwright 下即炸。
 
-## 4. Wave 2：复活 5 个 CI 死 spec
+## 4. Wave 2：复活 6 个 CI 死 spec
 
 逐一改造（断言骨架保留，模板取 git 历史/转储）：
 
@@ -103,6 +105,7 @@ app 消息拉取自 runtime-v2-cutover 起全部走 V2（`server-session.ts:527-
 3. **session-timeline-context-resize**（378 行）：播种切 `v2Messages`；context 组 part（read/glob/grep/list）经 v2ToolContent 构造。
 4. **subagent-child-navigation**：父会话 task part 用 `v2ToolContent`（completed，`structured: {sessionId: <childID>}`，tool 名 `"task"`）；删除自注册的 V1 `/session/:id` 路由，改靠 `/api/session` 列表（`v2Session` 投影已带 parentID）。
 5. **session-request-docks**：test1/2 播种改 `/api/question/request`、`/api/permission/request`（`{location, data}` 信封）；回复断言同步切 V2——test1 的 `POST /question/question-request/reply` body `{answers}` 改 `POST /api/session/{id}/question/{requestID}/reply`，test2 的 `POST /session/{id}/permissions/{rid}` body `{response:"once"}` 改 `POST /api/session/{id}/permission/{requestID}/reply`（body 形状以 SDK gen 为准，mock 兜住这两个 POST 并捕获请求体）；test3 的 SSE `question.asked`/`question.rejected` 改 `question.v2.asked`/`question.v2.rejected`（对齐生产 wire 词汇；apply 兼容 V1 词汇但 server 不再发送）。
+6. **novel/session-switcher-actions**（archive 用例）：`onArchive` 死参数改 `onV2SessionUpdate`（归档走 `PATCH /api/session/{id}`，Wave 1 已兜）；`pageMessages` 死参数移除。标题/菜单断言不动。
 
 ## 5. Wave 3：独失覆盖重建（去重后）
 
@@ -154,10 +157,16 @@ adapter 硬约束（fixture 必须满足，缺字段直接抛 TypeError）：ass
 
 - 每波完成：`packages/app` 下 `bun typecheck` + 根 oxlint 0 errors；对应范围 e2e 复跑绿。
 - Wave 1 守门：全量 e2e（`bun run test:e2e:local`，packages/app 下）——9 个活 spec 不回归（catch-all 404 化论证的实证）。
-- Wave 2 守门：5 个复活 spec 全绿。
+- Wave 2 守门：6 个复活 spec 全绿。
 - Wave 3 守门：3 个新 spec 绿 + 全量 e2e 绿。
 - 收尾：tasks.md 勾选与 Implementation Commits、`openspec validate e2e-v2-mock --strict`、归档。
 
 ## 8. 偏差记录（执行中补）
 
 （执行过程中与设计冲突的现实，逐条记录于此。）
+
+### 8.1 「404 容忍」清单对带 console-smoke 断言的 spec 不成立（Wave 1 守门）
+
+- **现实**：1.8 守门首跑 16 败（13 真回归 + 3 baseline-equal）。归因两类：① catch-all 显式 404 让浏览器产生 `Failed to load resource 404` console 噪音，凡带 `trackPageErrors`/`expectNoSmokeErrors` 类断言的 spec（drawer ×2、isolated-graph ×4、novel-live ×2）全灭；② app bootstrap 固定读面（`/api/agent`、`/api/command`、`/api/session/active`）404 直接报 "Failed to finish bootstrap instance"（workspace-pane-width ×4）；③ 懒创建流 `POST /api/session` 未 mock → `waitForURL` 超时（novel.spec journey）。
+- **修复**：启动固定读面改发空信封（`{data:{}}` / `{data:[]}`）；新增 `POST /api/session` 懒创建路由并登记进会话列表（`createdSessions` 并入 `currentSessions`，GET `/api/session/{id}` 与 PATCH 均可命中）。
+- **教训固化**：审查时的「未 mock 路由 404 容忍」论证只对无 smoke 断言的 spec 成立；**app 启动固定读面必须给空信封而非 404**；journey 类 spec 的懒创建写路径（POST）必须 mock。修后 13 回归全绿，残余 3 败与 HEAD 基线完全一致（annotation-execute、novel.spec chat panel、remote-session-settings，疑似本机环境既有问题）。

@@ -112,7 +112,6 @@ test("renders map, hover details, draft switch and promote confirmation", async 
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-map", directory },
-    pageMessages: () => ({ items: [] }),
   })
 
   const json = (route: import("@playwright/test").Route, body: unknown) =>
@@ -182,7 +181,6 @@ test("shows empty state when no maps exist", async ({ page }) => {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-map-empty", directory },
-    pageMessages: () => ({ items: [] }),
   })
   const json = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) })

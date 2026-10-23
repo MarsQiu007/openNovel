@@ -119,7 +119,6 @@ async function setupMocks(page: Page) {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-novel-e2e", directory },
-    pageMessages: () => ({ items: [] }),
   })
 
   await page.route("**/api/novel/**", async (route) => {

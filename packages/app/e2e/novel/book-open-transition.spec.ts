@@ -251,7 +251,6 @@ async function setup(page: Page, books: BookSpec[]) {
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-book-transition", directory },
-    pageMessages: () => ({ items: [] }),
   })
   for (const book of books) {
     await mockNovelWorkspaceAPIs(page, {

@@ -148,7 +148,6 @@ test("review inbox: badge decrement on candidate accept, staged accept leaves tr
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-inbox-e2e", directory },
-    pageMessages: () => ({ items: [] }),
   })
   await mockNovelWorkspaceAPIs(page, { directory, novelID })
   await setupInboxRoutes(page, state)

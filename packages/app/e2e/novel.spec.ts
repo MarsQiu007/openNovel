@@ -158,7 +158,6 @@ test.describe("novel journey", () => {
       provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
       directory,
       project: { id: "proj-novel-e2e", directory },
-      pageMessages: () => ({ items: [] }),
     })
 
     // Mock novel API endpoints
@@ -517,7 +516,6 @@ test.describe("novel journey", () => {
       provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
       directory,
       project: { id: "proj-novel-e2e", directory },
-      pageMessages: () => ({ items: [] }),
     })
 
     await page.route(/\/api\/novel/, async (route) => {
