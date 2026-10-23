@@ -1,0 +1,40 @@
+# Tasks: e2e-v2-mock
+
+> 三波串行（Wave 2/3 依赖 Wave 1 基建）。每波完成立即勾选并过守门。被删资产模板：`git show cdf9c4f0d2^:<path>` 或 `.agent_tmp/deleted-e2e/`。
+
+## Wave 1 — mock 基建 V2 化
+
+- [ ] 1.1 新建 `e2e/utils/v2-fixture.ts`：V2 消息工厂（user/assistant/compaction/text/reasoning/tool 四态/history）+ 事件工厂（信封 + 最小 6 帧序列）+ fixture 自检（重复 ID、parentID 链、tool 归属）
+- [ ] 1.2 接入运行时校验：消息经 `@opennovel-ai/schema/session-message`、事件 properties 经 `@opennovel-ai/schema/session-event` 解码（`errors: "all"` + 严格 excess property）
+- [ ] 1.3 新建 `e2e/utils/v2-fixture.spec.ts` 自检单测（`@playwright/test` 纯 node 断言：合法构造通过/畸形抛错/自检拒绝）——**不得用 `.test.ts` 扩展名**（Playwright 默认 testMatch 会收集并炸 bun:test 导入）
+- [ ] 1.4 重写 mock-server.ts 路由面：新增 `/api/session/{id}/message[/{mid}]`（desc/cursor 信封，cursor 对象必带）、`/api/session/{id}`、`/api/session/{id}/diff`、`/api/session/{id}/todo`、`/api/permission/request`、`/api/question/request`、`POST /api/session/{id}/question|permission/{requestID}/reply`（捕获请求体）
+- [ ] 1.5 删除 mock-server.ts 确证死的路由（`/session` V1 系列含 `/session/status`、`/permission`、`/question`、`/agent`）与死 config 字段（pageMessages/message/onMessages/onMessage/messageDelay/beforeMessagesResponse/onArchive/todos/sessionStatus），新增 v2Messages/onV2Messages/beforeV2MessagesResponse/v2Todos/v2Permissions/v2Questions/v2Diff；**保留** `/provider`、`/path`、`/project/current`、`/config`、`/vcs*`、`/file*`、`/find/file` 等活消费路由
+- [ ] 1.6 catch-all 从 `{}` 改显式 404
+- [ ] 1.7 移除 9 个活 spec 的死参数（pageMessages、sessionStatus 等）；全请求面审计：grep `client.v2.*`/`sdk.*` 调用点，确认每个路由要么有 mock、要么属 404 容忍清单（design §3.1）
+- [ ] 1.8 **守门**：`packages/app` 下 `bun typecheck` + 根 oxlint 0 errors + 全量 e2e 复跑——9 个活 spec 不回归（验证 404 化论证）
+
+## Wave 2 — 复活 5 个 CI 死 spec
+
+- [ ] 2.1 改造 smoke/session-timeline（fixture 315 行 V1 字面量 → v2-fixture 工厂；分页断言改 cursor 协议）
+- [ ] 2.2 改造 session-timeline-collapse-state（播种切 v2Messages；事件切 `session.next.*` 词汇）
+- [ ] 2.3 改造 session-timeline-context-resize（播种切 v2Messages；context 组 part 经 v2ToolContent）
+- [ ] 2.4 改造 subagent-child-navigation（task part 用 `structured.sessionId`；删自注册 V1 路由，改靠 `/api/session` 列表 parentID）
+- [ ] 2.5 改造 session-request-docks（test1/2 播种切 `/api/question|permission/request` 信封、回复断言切 `POST /api/session/{id}/question|permission/{requestID}/reply`；test3 SSE 切 `question.v2.*` 词汇）
+- [ ] 2.6 **守门**：5 个复活 spec 全绿 + `bun typecheck` + oxlint
+
+## Wave 3 — 独失覆盖重建（去重后）
+
+- [ ] 3.1 新建 `e2e/regression/session-transport-contract.spec.ts`（7 用例：连接复用/burst/split 多字节/heartbeat/close 重连/error 重连/Last-Event-ID/fetch 穿透；payload 用 V2 text.delta 链）
+- [ ] 3.2 新建 `e2e/regression/session-streaming-projection.spec.ts`（流式回合/reasoning 矩阵/工具四态与 9 族错误卡/question dismissed 区分/websearch provider 标签/重复投递幂等/context 组归并/turn 结构）
+- [ ] 3.3 新建 `e2e/regression/session-history-pagination.spec.ts`（两阶段请求序列/cursor 形状/父消息补拉恰好一次/挂起期间 SSE 锚点零位移）
+- [ ] 3.4 **守门**：3 个新 spec 绿 + 全量 e2e 绿 + `bun typecheck` + oxlint
+
+## 收尾
+
+- [ ] 4.1 更新 tasks.md 勾选与 Implementation Commits（`git log --grep "OpenSpec-Change: e2e-v2-mock"`）
+- [ ] 4.2 `openspec validate e2e-v2-mock --strict` 绿
+- [ ] 4.3 归档（`npx openspec archive e2e-v2-mock --yes`，确认无残留）并 ff 合入 main（不推送，推送时机由用户定）
+
+## Implementation Commits
+
+（执行中按波次补记）
