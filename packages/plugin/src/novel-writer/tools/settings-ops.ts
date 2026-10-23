@@ -16,6 +16,7 @@ import {
   getDb,
   PlotThreadTable,
   RelationshipTable,
+  retireFactsForEntity,
   updateForeshadowing,
   updatePlotThread,
   updateRelationship,
@@ -519,9 +520,31 @@ export const settingsOpsTools = {
     }),
     async execute(args, ctx) {
       const db = getDb(ctx.directory)
-      await resolveNovelId(db, args.novel_id)
+      const novelId = await resolveNovelId(db, args.novel_id)
       const type = args.entity_type
       const id = args.entity_id
+
+      // 记忆生命周期（agent-memory-system §3）：设定被删 → 关联事实 retired（留痕不删行）。
+      // entity_hint 可能存实体 id 或名字（observer 未解析的原始引用），删除前先取出两种匹配键。
+      async function entityHintKeys(): Promise<string[]> {
+        if (type === "character") {
+          const row = await db
+            .select({ name: CharacterTable.name })
+            .from(CharacterTable)
+            .where(eq(CharacterTable.id, id))
+            .get()
+          return row ? [id, row.name] : [id]
+        }
+        if (type === "world_entry") {
+          const row = await db
+            .select({ title: WorldEntryTable.title })
+            .from(WorldEntryTable)
+            .where(eq(WorldEntryTable.id, id))
+            .get()
+          return row ? [id, row.title] : [id]
+        }
+        return []
+      }
 
       async function exists(): Promise<boolean> {
         if (type === "character")
@@ -563,6 +586,7 @@ export const settingsOpsTools = {
         if (!(await exists())) {
           return { title: "delete_setting", output: `记录不存在：${type} ${id.slice(0, 8)}，未执行删除` }
         }
+        const hintKeys = await entityHintKeys()
         if (type === "character") await deleteCharacter(id, ctx.directory)
         else if (type === "world_entry") await deleteWorldEntry(id, ctx.directory)
         else if (type === "plot_thread") await deletePlotThread(id, ctx.directory)
@@ -570,10 +594,11 @@ export const settingsOpsTools = {
         else if (type === "volume") await deleteVolume(id, ctx.directory)
         else if (type === "relationship") await deleteRelationship(id, ctx.directory)
         else return { title: "delete_setting", output: `不支持的实体类型：${type}` }
+        const retiredFacts = hintKeys.reduce((n, key) => n + retireFactsForEntity(db, novelId, key), 0)
         return {
           title: "delete_setting",
           output: `已删除 ${type} ${id.slice(0, 8)}`,
-          metadata: { entity_type: type, entity_id: id },
+          metadata: { entity_type: type, entity_id: id, retired_facts: retiredFacts },
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)

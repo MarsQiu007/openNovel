@@ -20,10 +20,12 @@ import {
   getDb,
   getWritingBatch,
   HookRotationTable,
+  invalidateChapterFactsByQuote,
   NovelStateLogTable,
   NovelTable,
   PendingUpdateTable,
   readNovelConfig,
+  rebuildNextChapterSnapshot,
   TensionLogTable,
   updateChapter,
   WorldEntryTable,
@@ -158,6 +160,9 @@ export const chapterTools = {
 
       await scanReferences(db, chapter.novel_id, "chapter", args.chapter_id, "content", args.content)
 
+      // 记忆生命周期（agent-memory-system §3）：正文变更后，逐字引句已不在新正文中的事实 → stale
+      const staleFacts = invalidateChapterFactsByQuote(db, chapter.novel_id, args.chapter_id, args.content)
+
       const driftWarning =
         kinshipFindings.length > 0
           ? `
@@ -169,6 +174,7 @@ export const chapterTools = {
         metadata: {
           chapter_id: args.chapter_id,
           word_count: wordCount,
+          stale_facts: staleFacts.length,
           audit_prompts:
             kinshipFindings.length > 0
               ? kinshipFindings.map((finding) => `${finding.message} 原文证据：${finding.evidence}`)
@@ -270,10 +276,13 @@ export const chapterTools = {
 
       await scanReferences(db, chapter.novel_id, "chapter", args.chapter_id, "content", args.revision)
 
+      // 记忆生命周期：修订正文后同样做引句失效判定
+      const staleFacts = invalidateChapterFactsByQuote(db, chapter.novel_id, args.chapter_id, args.revision)
+
       return {
         title: "revise_chapter",
         output: `已修订第${chapter.order}章「${chapter.title}」：${wordCount}字（${limit ? `目标 ${target}±15%（${Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE))}–${Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE))} 字）` : `目标≥${target}字`}）`,
-        metadata: { chapter_id: args.chapter_id, word_count: wordCount },
+        metadata: { chapter_id: args.chapter_id, word_count: wordCount, stale_facts: staleFacts.length },
       }
     },
   }),
@@ -470,6 +479,11 @@ export const chapterTools = {
       }
 
       const updated = await updateChapter(args.chapter_id, fields, ctx.directory)
+      // 记忆生命周期（agent-memory-system §2.4）：章定稿即审批通过（auto 模式路径），
+      // 为下一章预计算注入快照；review 模式的审批入口在 server submitApproval
+      if (args.status === "final" || args.status === "published") {
+        await rebuildNextChapterSnapshot(db, chapter.novel_id, args.chapter_id)
+      }
       return {
         title: "update_chapter",
         output: `已更新第${updated.order}章「${updated.title}」状态=${updated.status}`,

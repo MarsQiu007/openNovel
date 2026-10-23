@@ -111,7 +111,7 @@ async function seedFull() {
 describe("记忆注入组装器", () => {
   test("五件套按来源与窗口正确取舍", async () => {
     const db = await seedFull()
-    const { buildMemoryInjection } = await import("../../src/novel-writer/memory-injection.js")
+    const { buildMemoryInjection } = await import("../../src/novel-writer/session-store.js")
 
     const built = await buildMemoryInjection(db, NOVEL, "ch-5")
     expect(built).not.toBeNull()
@@ -159,7 +159,7 @@ describe("记忆注入组装器", () => {
   test("预算截断：超预算段按权重舍弃且总量受控", async () => {
     const store = await import("../../src/novel-writer/session-store.js")
     const db = store.getDb(null)
-    const { MEMORY_INJECTION_BUDGET, buildMemoryInjection } = await import("../../src/novel-writer/memory-injection.js")
+    const { MEMORY_INJECTION_BUDGET, buildMemoryInjection } = await import("../../src/novel-writer/session-store.js")
 
     // 造 30 条同权重 planned 设定（score 并列 → id 升序决胜），总量必超 600 tokens 段预算
     for (let i = 0; i < 30; i++) {
@@ -184,7 +184,7 @@ describe("记忆注入组装器", () => {
     const db = await seedFull()
     const store = await import("../../src/novel-writer/session-store.js")
     const { rebuildMemoryInjectionSnapshot, readMemoryInjectionSnapshot, buildMemoryInjection } = await import(
-      "../../src/novel-writer/memory-injection.js"
+      "../../src/novel-writer/session-store.js"
     )
 
     expect(await rebuildMemoryInjectionSnapshot(db, NOVEL, "ch-5")).toBe(true)

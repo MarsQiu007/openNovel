@@ -3,16 +3,19 @@
  * execute 函数体与 V1 逐字一致。
  */
 import { Schema } from "effect"
+import { eq } from "drizzle-orm"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "../continuity-check.js"
 import {
+  ChapterTable,
   createChapterReview,
   createEditorialReport,
   createVolumeReview,
   getDb,
   listChapterReviews,
   listStructureForEditor,
+  markChapterFactsReviewed,
 } from "../session-store.js"
 import { checkStructure } from "../structure.js"
 import { resolveSessionNovel } from "./session-novel.js"
@@ -100,10 +103,20 @@ export function createReviewTools(deps: { session: SessionDomain }) {
           },
           ctx.directory,
         )
+        // 记忆生命周期（agent-memory-system §3）：审计证据链落库即 reviewed 生产者，
+        // 本章 observer 提取的未决事实 pending → reviewed
+        const db = getDb(ctx.directory)
+        const [chapterRow] = await db
+          .select({ novel_id: ChapterTable.novel_id })
+          .from(ChapterTable)
+          .where(eq(ChapterTable.id, args.chapter_id))
+          .limit(1)
+          .all()
+        const reviewedFacts = chapterRow ? markChapterFactsReviewed(db, chapterRow.novel_id, args.chapter_id) : 0
         return {
           title: "submit_chapter_review",
           output: `评审已提交：第 ${review.round} 轮，总体 ${args.overall}（PASS ${review.pass_count}，WARN ${review.warn_count}，FAIL ${review.fail_count}）`,
-          metadata: { review_id: review.id, round: review.round },
+          metadata: { review_id: review.id, round: review.round, reviewed_facts: reviewedFacts },
         }
       },
     }),

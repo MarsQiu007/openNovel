@@ -3680,6 +3680,8 @@ export async function cancelWritingBatch(novelId: string, directory?: string | n
 export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
 export * from "./entity-refs.js"
+export * from "./memory-injection.js"
+export * from "./memory-lifecycle.js"
 export * from "./upgrade.js"
 export * from "./sync-error-classifier.js"
 export * from "./style-rules.js"

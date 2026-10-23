@@ -175,6 +175,9 @@ import {
   writingBatchCompleted,
   WritingBatchTable,
   withTransaction,
+  invalidateChapterFactsByQuote,
+  markChapterFactsReviewed,
+  rebuildNextChapterSnapshot,
 } from "@opennovel-ai/novel-store"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { and, eq, asc, desc, isNull, like, or, inArray, ne } from "drizzle-orm"
@@ -1027,6 +1030,8 @@ export function updateChapterContent(
     yield* Effect.promise(() =>
       markDerivedStale(novelID, chapterID, computeFingerprint(input.content), directory),
     )
+    // 记忆生命周期（agent-memory-system §3）：编辑器保存后，引句已不在正文中的事实 → stale
+    yield* Effect.sync(() => invalidateChapterFactsByQuote(db, novelID, chapterID, input.content))
     const updated = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).get()
     return toChapter(updated!)
   })
@@ -1049,6 +1054,12 @@ export function submitApproval(novelID: string, chapterID: string, input: Approv
         directory,
       ),
     )
+    // 记忆生命周期（agent-memory-system §2.4/§3）：审批通过 → 本章未决事实 reviewed +
+    // 为下一章预计算注入快照（下一章不存在时 no-op）
+    if (input.action === "approve") {
+      yield* Effect.sync(() => markChapterFactsReviewed(db, novelID, chapterID))
+      yield* Effect.promise(() => rebuildNextChapterSnapshot(db, novelID, chapterID))
+    }
     const updated = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).get()
     return toChapter(updated!)
   })

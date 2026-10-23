@@ -41,6 +41,7 @@ import {
   PendingSettingTable,
   WorldEntryConflictTable,
   requireNormalizedStyleRules,
+  retireFactsForEntityTx,
 } from "./session-store.js"
 import { validateWorldCategory } from "./world-category.js"
 import { applyImpact } from "./setting-impact.js"
@@ -644,6 +645,9 @@ function applyToMaterializedView(
         }
       } else if (action === "delete") {
         db.delete(CharacterTable).where(eq(CharacterTable.id, resolvedId)).run()
+        // 记忆生命周期（agent-memory-system §3）：设定被删 → 关联事实 retired（留痕不删行）
+        retireFactsForEntityTx(db, novelId, resolvedId)
+        if (typeof data.name === "string" && data.name.length > 0) retireFactsForEntityTx(db, novelId, data.name)
       }
       break
     }
@@ -956,6 +960,9 @@ function applyToMaterializedView(
         }
       } else if (action === "delete") {
         db.delete(WorldEntryTable).where(eq(WorldEntryTable.id, entity_id)).run()
+        // 记忆生命周期（agent-memory-system §3）：设定被删 → 关联事实 retired（留痕不删行）
+        retireFactsForEntityTx(db, novelId, entity_id)
+        if (typeof data.title === "string" && data.title.length > 0) retireFactsForEntityTx(db, novelId, data.title)
       }
       break
     }
@@ -1953,6 +1960,14 @@ export async function deduplicateCharacters(
         .where(
           and(eq(PendingUpdateTable.trigger_type, "character"), inArray(PendingUpdateTable.trigger_id, removedIds)),
         )
+        .run()
+
+      // 记忆事实（agent-memory-system §3）：合并语义下事实归属延续——
+      // entity_hint 改指保留行，而非退休留痕
+      await db
+        .update(MemoryFactTable)
+        .set({ entity_hint: keptId, updated_at: Date.now() })
+        .where(inArray(MemoryFactTable.entity_hint, removedIds))
         .run()
 
       await db.delete(CharacterTable).where(inArray(CharacterTable.id, removedIds)).run()
