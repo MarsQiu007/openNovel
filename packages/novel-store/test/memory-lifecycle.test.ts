@@ -3,13 +3,28 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { ChapterTable, closeDb, getDb, MemoryFactTable, MemoryInjectionSnapshotTable, NovelTable } from "../src/index.js"
 import {
+  ChapterTable,
+  CharacterTable,
+  closeDb,
+  getDb,
+  MemoryFactTable,
+  MemoryInjectionSnapshotTable,
+  NovelTable,
+  TechniqueTable,
+  WorldEntryTable,
+} from "../src/index.js"
+import {
+  buildMaintenanceReport,
+  consolidateChapterFacts,
+  consolidateChapterFactsTx,
   invalidateChapterFactsByQuote,
   markChapterFactsReviewed,
+  PLANNED_STALL_CHAPTER_THRESHOLD,
   rebuildNextChapterSnapshot,
   retireFactsForEntity,
 } from "../src/memory-lifecycle.js"
+import { withTransaction } from "../src/tx.js"
 
 // agent-memory-system Wave 6：生命周期状态机流转（pending→reviewed / stale / retired）与审批预计算。
 
@@ -129,5 +144,111 @@ describe("记忆生命周期", () => {
     // 末章（ch-3 之后无章节）与缺失章：no-op
     expect(await rebuildNextChapterSnapshot(db, "novel-1", "ch-3")).toBe(false)
     expect(await rebuildNextChapterSnapshot(db, "novel-1", "ch-missing")).toBe(false)
+  })
+
+  // ─── Wave 9：§6 整理与维护 ───────────────────────────────────────────────
+
+  test("事件驱动整理：规范化文本相同的卡合并，高确认级别者优先保留", () => {
+    // 同组三张卡：空白差异应被规范化折叠；approved > reviewed > pending
+    seedFact("f-dup-pending", { text: "三日后抵达断魂崖", status: "pending", entity_hint: "林天" })
+    seedFact("f-dup-approved", { text: "三日后 抵达断魂崖 ", status: "approved", entity_hint: "林天" })
+    seedFact("f-dup-reviewed", { text: "三日后抵达断魂崖", status: "reviewed", entity_hint: "林天" })
+    // 不并：不同实体提示 / 不同事实类型 / 不同文本
+    seedFact("f-other-hint", { text: "三日后抵达断魂崖", entity_hint: "路人" })
+    seedFact("f-other-type", { text: "三日后抵达断魂崖", fact_type: "setting", entity_hint: "林天" })
+    seedFact("f-other-text", { text: "五日后抵达断魂崖", entity_hint: "林天" })
+    // retired 终态不参与分组
+    seedFact("f-retired-dup", { text: "三日后抵达断魂崖", status: "retired", entity_hint: "林天" })
+
+    const db = getDb(projectDir)
+    const merged = consolidateChapterFacts(db, "novel-1", "ch-1")
+    expect(merged).toEqual([{ kept: "f-dup-approved", retired: expect.arrayContaining(["f-dup-pending", "f-dup-reviewed"]) }])
+
+    expect(factStatus("f-dup-approved")).toBe("approved")
+    expect(factStatus("f-dup-pending")).toBe("retired")
+    expect(factStatus("f-dup-reviewed")).toBe("retired")
+    // 留痕可撤销：被并卡指向保留卡，行不删除
+    const retiredRow = db
+      .select({ retired_into: MemoryFactTable.retired_into })
+      .from(MemoryFactTable)
+      .where(eq(MemoryFactTable.id, "f-dup-pending"))
+      .get()
+    expect(retiredRow?.retired_into).toBe("f-dup-approved")
+    expect(db.select({ id: MemoryFactTable.id }).from(MemoryFactTable).all()).toHaveLength(7)
+
+    // 不并的三张卡与原 retired 不动
+    expect(factStatus("f-other-hint")).toBe("pending")
+    expect(factStatus("f-other-type")).toBe("pending")
+    expect(factStatus("f-other-text")).toBe("pending")
+    expect(factStatus("f-retired-dup")).toBe("retired")
+
+    // 幂等：再次整理无重复组
+    expect(consolidateChapterFacts(db, "novel-1", "ch-1")).toEqual([])
+  })
+
+  test("事件驱动整理：同状态按创建时间/id 确定性决胜，Tx 组合形态可嵌外层事务", () => {
+    seedFact("f-late", { text: "同文事实", created_at: 2 })
+    seedFact("f-early", { text: "同文事实", created_at: 1 })
+
+    const db = getDb(projectDir)
+    const merged = withTransaction(db, (tx) => consolidateChapterFactsTx(tx, "novel-1", "ch-1"))
+    expect(merged).toEqual([{ kept: "f-early", retired: ["f-late"] }])
+    expect(factStatus("f-late")).toBe("retired")
+  })
+
+  test("定时兜底报告：僵尸卡 + planned 滞留分界 + retired 归档统计（报告制不删行）", () => {
+    // 僵尸卡：stale（带章 / 无章）与 approved（不计入）
+    seedFact("f-stale-1", { status: "stale", chapter_id: "ch-2", text: "失效事实一" })
+    seedFact("f-stale-2", { status: "stale", chapter_id: null, text: "失效事实二" })
+    seedFact("f-ok", { status: "approved" })
+    // retired 归档：事实 1 张 + 技巧 1 条
+    seedFact("f-retired", { status: "retired" })
+    const db = getDb(projectDir)
+    db.insert(TechniqueTable)
+      .values({
+        id: "tech-retired",
+        name: "已固化技法",
+        principle: "p",
+        instruction: "i",
+        level: "scene",
+        status: "retired",
+        novel_id: "novel-1",
+        created_at: 1,
+        updated_at: 1,
+      })
+      .run()
+
+    // planned：老设定（创建后新增章数达阈值 → 滞留）与新设定（未达阈值）
+    db.insert(CharacterTable)
+      .values({ id: "char-old", novel_id: "novel-1", name: "老设定角色", establishment: "planned", created_at: 1 })
+      .run()
+    db.insert(WorldEntryTable)
+      .values({ id: "we-new", novel_id: "novel-1", category: "物品", title: "新设定", establishment: "planned", created_at: 1000 })
+      .run()
+    // 既有三章 created_at=1（与老设定同时，不计入）；补阈值数量级的新章
+    for (let i = 0; i < PLANNED_STALL_CHAPTER_THRESHOLD; i++) {
+      db.insert(ChapterTable)
+        .values({ id: `ch-new-${i}`, novel_id: "novel-1", title: `新章${i}`, order: 100 + i, created_at: 2, updated_at: 2 })
+        .run()
+    }
+
+    const report = buildMaintenanceReport(db, "novel-1")
+
+    expect(report.zombieFacts.map((z) => z.id)).toEqual(["f-stale-1", "f-stale-2"])
+    expect(report.zombieFacts[0].chapterOrder).toBe(2)
+    expect(report.zombieFacts[1].chapterOrder).toBeNull()
+
+    const oldChar = report.planned.find((p) => p.id === "char-old")
+    expect(oldChar).toMatchObject({ kind: "character", title: "老设定角色", chaptersSince: PLANNED_STALL_CHAPTER_THRESHOLD, stalled: true })
+    const newEntry = report.planned.find((p) => p.id === "we-new")
+    expect(newEntry).toMatchObject({ kind: "world_entry", chaptersSince: 0, stalled: false })
+    // 滞留者优先
+    expect(report.planned[0].id).toBe("char-old")
+
+    expect(report.retiredStats).toEqual({ facts: 1, techniques: 1 })
+
+    // 报告制：只读不删，所有行保持原状
+    expect(factStatus("f-stale-1")).toBe("stale")
+    expect(db.select({ id: MemoryFactTable.id }).from(MemoryFactTable).all()).toHaveLength(4)
   })
 })

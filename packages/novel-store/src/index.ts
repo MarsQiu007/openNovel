@@ -460,6 +460,8 @@ export const MemoryFactTable = sqliteTable(
     text: text().notNull(),
     /** pending | reviewed | approved | stale | retired */
     status: text().notNull().default("pending"),
+    /** 整理合并去向（§6 自动可撤销留痕）：被并卡指向保留卡 ID，撤销时据此还原 */
+    retired_into: text(),
     /** 0-100；来源分级：作者裁决 > 审计校准 > observer 登记 */
     confidence: integer().notNull().default(50),
     /** 独立支撑章数 */
@@ -995,7 +997,7 @@ CREATE TABLE IF NOT EXISTS writing_batch (novel_id text PRIMARY KEY, session_id 
 // agent-memory-system §2.1/§2.4：自由事实补全层 + 物化注入包。
 // FTS 同步沿用仓库惯例走应用级（写入点显式 delete+insert，见 state-commit），此处只做存量回填。
 CREATE_TABLES_SQL += `
-CREATE TABLE IF NOT EXISTS memory_fact (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, fact_type text NOT NULL, quote text, quote_span text, entity_hint text, text text NOT NULL, status text DEFAULT 'pending' NOT NULL, confidence integer DEFAULT 50 NOT NULL, proof_count integer DEFAULT 1 NOT NULL, created_by text DEFAULT 'observer' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
+CREATE TABLE IF NOT EXISTS memory_fact (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, fact_type text NOT NULL, quote text, quote_span text, entity_hint text, text text NOT NULL, status text DEFAULT 'pending' NOT NULL, retired_into text, confidence integer DEFAULT 50 NOT NULL, proof_count integer DEFAULT 1 NOT NULL, created_by text DEFAULT 'observer' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS memory_fact_novel_idx ON memory_fact(novel_id, status);
 CREATE INDEX IF NOT EXISTS memory_fact_chapter_idx ON memory_fact(chapter_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_fact_fts USING fts5(novel_id UNINDEXED, fact_id UNINDEXED, text, quote, tokenize = 'trigram');

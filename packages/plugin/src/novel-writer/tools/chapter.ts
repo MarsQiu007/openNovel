@@ -14,6 +14,7 @@ import {
   ChapterVersionTable,
   CharacterStateTable,
   CharacterTable,
+  consolidateChapterFacts,
   deleteChapter,
   EntityRefTable,
   ForeshadowingTable,
@@ -479,15 +480,20 @@ export const chapterTools = {
       }
 
       const updated = await updateChapter(args.chapter_id, fields, ctx.directory)
-      // 记忆生命周期（agent-memory-system §2.4）：章定稿即审批通过（auto 模式路径），
-      // 为下一章预计算注入快照；review 模式的审批入口在 server submitApproval
-      if (args.status === "final" || args.status === "published") {
-        await rebuildNextChapterSnapshot(db, chapter.novel_id, args.chapter_id)
-      }
+      // 记忆生命周期（agent-memory-system §2.4/§6）：章定稿即审批通过（auto 模式路径），
+      // 本章相关卡去重合并（自动可撤销）+ 为下一章预计算注入快照；review 模式的审批入口
+      // 在 server submitApproval。整理先于快照重建，保证注入包反映合并结果
+      const approved = args.status === "final" || args.status === "published"
+      const consolidated = approved
+        ? consolidateChapterFacts(db, chapter.novel_id, args.chapter_id).reduce((n, g) => n + g.retired.length, 0)
+        : 0
+      if (approved) await rebuildNextChapterSnapshot(db, chapter.novel_id, args.chapter_id)
       return {
         title: "update_chapter",
-        output: `已更新第${updated.order}章「${updated.title}」状态=${updated.status}`,
-        metadata: { chapter_id: updated.id, title: updated.title, status: updated.status },
+        output:
+          `已更新第${updated.order}章「${updated.title}」状态=${updated.status}` +
+          (consolidated > 0 ? `；整理合并了 ${consolidated} 张重复记忆卡（retired 留痕可撤销）` : ""),
+        metadata: { chapter_id: updated.id, title: updated.title, status: updated.status, consolidated_facts: consolidated },
       }
     },
   }),

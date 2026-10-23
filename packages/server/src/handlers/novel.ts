@@ -177,6 +177,7 @@ import {
   withTransaction,
   invalidateChapterFactsByQuote,
   markChapterFactsReviewed,
+  consolidateChapterFacts,
   rebuildNextChapterSnapshot,
 } from "@opennovel-ai/novel-store"
 import { SessionV2 } from "@opennovel-ai/core/session"
@@ -1054,10 +1055,12 @@ export function submitApproval(novelID: string, chapterID: string, input: Approv
         directory,
       ),
     )
-    // 记忆生命周期（agent-memory-system §2.4/§3）：审批通过 → 本章未决事实 reviewed +
-    // 为下一章预计算注入快照（下一章不存在时 no-op）
+    // 记忆生命周期（agent-memory-system §2.4/§3/§6）：审批通过 → 本章未决事实 reviewed +
+    // 本章相关卡去重合并（自动可撤销，retired_into 留痕）+ 为下一章预计算注入快照
+    // （下一章不存在时 no-op）；整理先于快照重建，保证注入包反映合并结果
     if (input.action === "approve") {
       yield* Effect.sync(() => markChapterFactsReviewed(db, novelID, chapterID))
+      yield* Effect.sync(() => consolidateChapterFacts(db, novelID, chapterID))
       yield* Effect.promise(() => rebuildNextChapterSnapshot(db, novelID, chapterID))
     }
     const updated = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).get()

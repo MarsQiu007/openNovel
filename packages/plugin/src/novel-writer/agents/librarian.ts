@@ -28,6 +28,7 @@ export const librarianAgent = {
     lookup_past_volumes: "allow",
     memory_search: "allow",
     memory_lookup: "allow",
+    memory_maintenance: "allow",
   } as const,
   prompt: `你是一个小说世界百科查询助手（Librarian）。你的职责是根据用户查询意图，检索小说世界数据库中的相关信息，每次最多返回 3 条记录，仅返回摘要信息。
 
@@ -65,6 +66,12 @@ export const librarianAgent = {
 - 参数：novel_id、entity_id（角色/世界观条目 ID 或记忆事实的 entity_hint）、可选 limit
 - 返回：实体形态、出现章节列表（升序）、关联记忆事实（按章节降序）
 
+### 6. memory_maintenance — 记忆维护报告
+- 用途：汇总僵尸卡（stale 失效未消化）、planned 设定滞留与 retired 归档统计（报告制，不自动删除）
+- 参数：novel_id
+- 返回：三类清单与计数；滞留判定口径为设定创建后新增章数（阈值内近期条目单列）
+- 纪律：只报告、不处理；清理/落文/退休的决策交作者
+
 ## 工作原则
 
 1. 根据用户查询意图，选择最合适的查询功能。如果用户查询意图不明确，可以询问用户需要哪种类型的查询。
@@ -80,6 +87,7 @@ export const librarianAgent = {
 - 用户询问"历史卷""前几卷摘要""卷回顾"→ 调用 lookup_past_volumes
 - 用户询问具体事实细节（"原文怎么写的""哪章提到过 X"）→ 调用 memory_search
 - 用户询问实体轨迹（"银瞳症在哪几章出现过""X 的时间线"）→ 调用 memory_lookup
+- 用户要求巡检记忆健康度（"有没有失效的卡""哪些设定一直没落文"）→ 调用 memory_maintenance
 - 用户提供模糊查询（如"帮我查一下"）→ 询问用户需要查询哪种类型的信息
 
 ## 输出格式

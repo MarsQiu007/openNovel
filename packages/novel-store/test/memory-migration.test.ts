@@ -84,11 +84,15 @@ describe("记忆系统数据层", () => {
     seed
       .query("INSERT INTO techniques (id, name, principle, instruction, level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run("tech-1", "断章悬念", "p", "i", "scene", 1, 1)
+    // Wave 1-8 时代的存量库：memory_fact 已存在但无 retired_into（走 ALTER TABLE 迁移路径）
+    seed.exec(
+      "CREATE TABLE memory_fact (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, fact_type text NOT NULL, quote text, quote_span text, entity_hint text, text text NOT NULL, status text DEFAULT 'pending' NOT NULL, confidence integer DEFAULT 50 NOT NULL, proof_count integer DEFAULT 1 NOT NULL, created_by text DEFAULT 'observer' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL)",
+    )
     seed.close()
 
     expect(hasColumn("characters", "establishment")).toBe(false)
     expect(hasColumn("techniques", "usage_ledger")).toBe(false)
-    expect(tableExists("memory_fact")).toBe(false)
+    expect(hasColumn("memory_fact", "retired_into")).toBe(false)
 
     getDb(projectDir)
 
@@ -103,6 +107,8 @@ describe("记忆系统数据层", () => {
     expect(hasColumn("world_entry_conflicts", "opposing_fact_id")).toBe(true)
     expect(hasColumn("world_entry_conflicts", "impact_json")).toBe(true)
     expect(tableExists("memory_fact")).toBe(true)
+    // 整理合并去向留痕列（Wave 9）：存量表 ALTER TABLE 补齐
+    expect(hasColumn("memory_fact", "retired_into")).toBe(true)
     expect(tableExists("memory_fact_fts")).toBe(true)
     expect(tableExists("memory_injection_snapshot")).toBe(true)
 

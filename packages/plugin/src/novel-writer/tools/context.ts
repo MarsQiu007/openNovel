@@ -6,7 +6,7 @@ import { lookupClosedThreads, lookupDormantCharacters, lookupPastVolumes, memory
 import { getHookStats } from "../hook-rotation.js"
 import { assembleWriterSnapshot, recallByQuery } from "../recall.js"
 import { performVolumeRollup } from "../rollup.js"
-import { getDb } from "../session-store.js"
+import { buildMaintenanceReport, getDb, PLANNED_STALL_CHAPTER_THRESHOLD } from "../session-store.js"
 import { defineTool } from "../../v2/effect/tool.js"
 import { resolveNovelId } from "./shared.js"
 
@@ -205,6 +205,42 @@ export const contextTools = {
         title: "memory_lookup",
         output: lines.join("\n"),
         metadata: { facts: history.facts.length, appearances: history.appearances.length },
+      }
+    },
+  }),
+  memory_maintenance: defineTool({
+    description:
+      "记忆维护报告（agent-memory-system §6 定时兜底，报告制不自动删）。汇总本书的僵尸卡（stale 失效未消化）、planned 设定滞留（创建后新增章数达阈值）与 retired 归档统计，供作者决定后续处理。供 librarian 定期巡检使用。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+    }),
+    async execute(args, ctx) {
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const report = buildMaintenanceReport(db, novelId)
+      const stalled = report.planned.filter((p) => p.stalled)
+      const lines = ["记忆维护报告（报告制，不自动删除）："]
+      lines.push(`- 僵尸卡（失效未消化）：${report.zombieFacts.length} 张`)
+      for (const z of report.zombieFacts.slice(0, 10)) {
+        lines.push(`  - ${z.chapterOrder === null ? "章节未知" : `第${z.chapterOrder}章`} ${z.text.slice(0, 60)}`)
+      }
+      if (report.zombieFacts.length > 10) lines.push(`  … 另有 ${report.zombieFacts.length - 10} 张，可用 memory_search status=stale 检索`)
+      lines.push(`- planned 设定滞留（创建后已新增 ≥${PLANNED_STALL_CHAPTER_THRESHOLD} 章）：${stalled.length} 条`)
+      for (const p of stalled.slice(0, 10)) {
+        lines.push(`  - [${p.kind === "character" ? "角色" : "设定"}] ${p.title}（创建后已写 ${p.chaptersSince} 章仍未落文）`)
+      }
+      lines.push(`- planned 设定（近期）：${report.planned.length - stalled.length} 条`)
+      lines.push(`- retired 归档：记忆事实 ${report.retiredStats.facts} 张 / 技巧 ${report.retiredStats.techniques} 条`)
+      return {
+        title: "memory_maintenance",
+        output: lines.join("\n"),
+        metadata: {
+          zombie_facts: report.zombieFacts.length,
+          planned_stalled: stalled.length,
+          planned_total: report.planned.length,
+          retired_facts: report.retiredStats.facts,
+          retired_techniques: report.retiredStats.techniques,
+        },
       }
     },
   }),
