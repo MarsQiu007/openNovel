@@ -20,9 +20,9 @@ const it = testEffect(PluginTestLayer)
 const stubTools = createNovelWriterTools({ session: { get: () => Promise.resolve(undefined) } })
 
 describe("novel-writer V2 入口", () => {
-  it.effect("boot 后 88 工具可见、director 为默认 agent、非小说目录零注入", () =>
+  it.effect("boot 后 90 工具可见、director 为默认 agent、非小说目录零注入", () =>
     Effect.gen(function* () {
-      expect(Object.keys(stubTools)).toHaveLength(88)
+      expect(Object.keys(stubTools)).toHaveLength(90)
 
       const plugins = yield* PluginV2.Service
       yield* plugins.add(PluginV2.ID.make("novel-writer"), novelWriterV2.effect)
