@@ -1,7 +1,19 @@
 import { expect, test, type Page } from "@playwright/test"
+import type { SessionMessageAssistantTool } from "@opennovel-ai/sdk/v2/client"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
+import {
+  v2AssistantMessage,
+  v2Event,
+  v2Text,
+  v2Tool,
+  v2ToolCompleted,
+  v2ToolRunning,
+  v2UserMessage,
+  type V2FixtureMessage,
+  type V2SseFrame,
+} from "../utils/v2-fixture"
 import {
   analyzeVisualObservations,
   defineVisualRegions,
@@ -18,11 +30,6 @@ const title = "Context resize regression"
 const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
 const contextIDs = ["prt_0100_read", "prt_0101_glob", "prt_0102_grep", "prt_0103_list"]
 const followingTextID = "prt_0104_text"
-
-type Message = {
-  info: Record<string, unknown> & { id: string; role: "user" | "assistant" }
-  parts: Record<string, unknown>[]
-}
 
 const messages = [...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(), ...turn(10, true)]
 
@@ -47,7 +54,7 @@ test.describe("regression: session timeline context group resize", () => {
   })
 
   test("paints a stable exploring to explored transition", async ({ page }) => {
-    const events: { directory: string; payload: Record<string, unknown> }[] = []
+    const events: V2SseFrame[] = []
     await page.setViewportSize({ width: 1400, height: 900 })
     await mockServer(page, events, [
       ...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(),
@@ -77,25 +84,18 @@ test.describe("regression: session timeline context group resize", () => {
     })
     await startVisualProbe(page, regions)
     for (const [index, delay] of [120, 350, 80, 500].entries()) {
-      events.push({
-        directory,
-        payload: {
-          type: "message.part.updated",
-          properties: {
-            part: contextTool(
-              contextIDs[index]!,
-              id("msg_assistant", 10),
-              ["read", "glob", "grep", "list"][index]!,
-              [
-                { filePath: "src/recent-a.ts" },
-                { path: directory, pattern: "**/*.ts" },
-                { path: directory, pattern: "Explored" },
-                { path: "src" },
-              ][index]!,
-            ),
-          },
-        },
-      })
+      events.push(
+        ...toolCompleteEvents(
+          contextIDs[index]!,
+          ["read", "glob", "grep", "list"][index]!,
+          [
+            { filePath: "src/recent-a.ts" },
+            { path: directory, pattern: "**/*.ts" },
+            { path: directory, pattern: "Explored" },
+            { path: "src" },
+          ][index]!,
+        ),
+      )
       await page.waitForTimeout(delay)
     }
 
@@ -218,114 +218,81 @@ async function sampleExpansion(page: Page) {
   )
 }
 
-function turn(index: number, target: boolean, status: "running" | "completed" = "completed"): Message[] {
-  const userID = id("msg_user", index)
+function turn(index: number, target: boolean, status: "running" | "completed" = "completed"): V2FixtureMessage[] {
   const assistantID = id("msg_assistant", index)
+  const content = target
+    ? [
+        contextTool(contextIDs[0]!, "read", { filePath: "src/recent-a.ts", offset: 0, limit: 120 }, status),
+        contextTool(contextIDs[1]!, "glob", { path: directory, pattern: "**/*.ts" }, status),
+        contextTool(contextIDs[2]!, "grep", { path: directory, pattern: "Explored", include: "*.ts" }, status),
+        contextTool(contextIDs[3]!, "list", { path: "src" }, status),
+        v2Text("This assistant text is immediately after the explored context group.", followingTextID),
+      ]
+    : [v2Text(`Assistant filler ${index}. ${"filler ".repeat(60)}`, id("prt_text", index))]
   return [
-    {
-      info: {
-        id: userID,
-        sessionID,
-        role: "user",
-        time: { created: 1700000000000 + index * 10_000 },
-        summary: { diffs: [] },
-        agent: "build",
-        model,
-      },
-      parts: [{ id: id("prt_user", index), sessionID, messageID: userID, type: "text", text: `User message ${index}` }],
-    },
-    {
-      info: {
-        id: assistantID,
-        sessionID,
-        role: "assistant",
-        time: { created: 1700000000000 + index * 10_000 + 1_000, completed: 1700000000000 + index * 10_000 + 2_000 },
-        parentID: userID,
-        modelID: model.modelID,
-        providerID: model.providerID,
-        mode: "build",
-        agent: "build",
-        path: { cwd: directory, root: directory },
-        cost: 0.01,
-        tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-        variant: "max",
-        finish: "stop",
-      },
-      parts: target
-        ? [
-            contextTool(
-              contextIDs[0]!,
-              assistantID,
-              "read",
-              { filePath: "src/recent-a.ts", offset: 0, limit: 120 },
-              status,
-            ),
-            contextTool(contextIDs[1]!, assistantID, "glob", { path: directory, pattern: "**/*.ts" }, status),
-            contextTool(
-              contextIDs[2]!,
-              assistantID,
-              "grep",
-              { path: directory, pattern: "Explored", include: "*.ts" },
-              status,
-            ),
-            contextTool(contextIDs[3]!, assistantID, "list", { path: "src" }, status),
-            {
-              id: followingTextID,
-              sessionID,
-              messageID: assistantID,
-              type: "text",
-              text: "This assistant text is immediately after the explored context group.",
-            },
-          ]
-        : [
-            {
-              id: id("prt_text", index),
-              sessionID,
-              messageID: assistantID,
-              type: "text",
-              text: `Assistant filler ${index}. ${"filler ".repeat(60)}`,
-            },
-          ],
-    },
+    v2UserMessage({ id: id("msg_user", index), text: `User message ${index}`, created: 1700000000000 + index * 10_000 }),
+    v2AssistantMessage({
+      id: assistantID,
+      created: 1700000000000 + index * 10_000 + 1_000,
+      completed: 1700000000000 + index * 10_000 + 2_000,
+      model: { id: model.modelID, providerID: model.providerID, variant: model.variant },
+      agent: "build",
+      cost: 0.01,
+      tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
+      finish: "stop",
+      content,
+    }),
   ]
 }
 
 function contextTool(
   partID: string,
-  messageID: string,
   tool: string,
   input: Record<string, unknown>,
   status: "running" | "completed" = "completed",
-) {
-  return {
+): SessionMessageAssistantTool {
+  const structured = { title: input.filePath || input.path || input.pattern || "completed" }
+  const content = [{ type: "text" as const, text: `Completed ${tool}.\n${"detail line\n".repeat(8)}` }]
+  return v2Tool({
+    name: tool,
     id: partID,
-    sessionID,
-    messageID,
-    type: "tool",
-    callID: `call_${partID}`,
-    tool,
-    state: {
-      status,
-      input,
-      output: `Completed ${tool}.\n${"detail line\n".repeat(8)}`,
-      title: input.filePath || input.path || input.pattern || "completed",
-      metadata: {},
-      time: { start: 1700000000000, end: 1700000000100 },
-    },
-  }
+    created: 1700000000000,
+    ran: 1700000000000,
+    ...(status === "completed" ? { completed: 1700000000100 } : {}),
+    state: status === "completed" ? v2ToolCompleted({ input, structured, content }) : v2ToolRunning({ input, structured, content }),
+  })
 }
 
-async function mockServer(
-  page: Page,
-  events: { directory: string; payload: Record<string, unknown> }[] = [],
-  fixtureMessages = messages,
-) {
+let eventClock = 1700000003000
+
+/** running 工具逐个结算（V2 对应面：tool.called → tool.success 重放对，part id==callID 原位更新） */
+function toolCompleteEvents(callID: string, tool: string, input: Record<string, unknown>): V2SseFrame[] {
+  const base = { sessionID, assistantMessageID: id("msg_assistant", 10), callID }
+  return [
+    v2Event(directory, "session.next.tool.called", {
+      ...base,
+      timestamp: (eventClock += 1000),
+      tool,
+      input,
+      provider: { executed: false },
+    }),
+    v2Event(directory, "session.next.tool.success", {
+      ...base,
+      timestamp: (eventClock += 1000),
+      structured: { title: input.filePath || input.path || input.pattern || "completed" },
+      content: [{ type: "text", text: `Completed ${tool}.\n${"detail line\n".repeat(8)}` }],
+      provider: { executed: false },
+    }),
+  ]
+}
+
+async function mockServer(page: Page, events: V2SseFrame[] = [], fixtureMessages = messages) {
   await mockOpenNovelServer(page, {
     directory,
     project: project(),
     provider: provider(),
     sessions: [session()],
-    // TODO(e2e-v2-mock Wave 2)：fixtureMessages 切 v2Messages（V1 形状消息待整体转换）
+    v2Messages: () => fixtureMessages,
     events: () => events.splice(0, 1),
     eventRetry: 50,
   })
