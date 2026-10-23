@@ -20,8 +20,8 @@
 - [x] 2.3 改造 session-timeline-context-resize（播种切 v2Messages；context 组 part 经 v2Tool/v2ToolRunning/v2ToolCompleted；running→completed 结算走 tool.called→tool.success 重放对）（2/2 绿）
 - [x] 2.4 改造 subagent-child-navigation（task part 用 `structured.sessionId`；删自注册 V1 路由，改靠 `/api/session` 列表 parentID——mock-server 新增 sessionList 列表覆盖，单条 GET/PATCH 仍解析 sessions）（5/5 绿）
 - [x] 2.5 改造 session-request-docks（test1/2 播种切 `/api/question|permission/request` 信封——permission 字面量转 V2 Request 形状 action/resources/save；回复断言改 mock onV2Reply 捕获，question 体 `{answers}` 不变、permission 体 `{response}`→`{reply}`；test3 SSE 切 `question.v2.asked/rejected` 词汇）（3/3 绿）
-- [ ] 2.6 改造 novel/session-switcher-actions（onArchive 死参数改 onV2SessionUpdate、pageMessages 死参数移除；验证 2 个 archive 用例经 `PATCH /api/session/{id}` 链路转绿）
-- [ ] 2.7 **守门**：6 个复活 spec 全绿 + `bun typecheck` + oxlint
+- [x] 2.6 改造 novel/session-switcher-actions（onArchive 死参数改 onV2SessionUpdate、pageMessages 死参数移除——Wave 1 已完成转换；复跑验证 archive 用例经 `PATCH /api/session/{id}` 链路转绿）（3/3 绿）
+- [x] 2.7 **守门**：6 个复活 spec 全绿（19/19）+ `bun typecheck` 绿 + oxlint 0 errors
 
 ## Wave 3 — 独失覆盖重建（去重后）
 
