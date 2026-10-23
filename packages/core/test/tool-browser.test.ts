@@ -162,7 +162,7 @@ describe("BrowserTool 页面交互（headless Chromium 集成）", () => {
 
       const state = yield* executeTool(registry, call(BrowserTool.stateName, {}))
       expect(state.type).toBe("text")
-      const stateText = state.type === "text" ? state.value : ""
+      const stateText = state.type === "text" ? String(state.value) : ""
       const refMatch = stateText.match(/\[(\d+)\] <button> 下一页/)
       expect(refMatch).not.toBeNull()
 
@@ -181,7 +181,7 @@ describe("BrowserTool 页面交互（headless Chromium 集成）", () => {
       const registry = yield* ToolRegistry.Service
       yield* executeTool(registry, call(BrowserTool.navigateName, { url: url("/search") }))
       const state = yield* executeTool(registry, call(BrowserTool.stateName, {}))
-      const stateText = state.type === "text" ? state.value : ""
+      const stateText = state.type === "text" ? String(state.value) : ""
       const inputRef = stateText.match(/\[(\d+)\] <input> 站内搜索/)
       const buttonRef = stateText.match(/\[(\d+)\] <button> 搜索/)
       expect(inputRef).not.toBeNull()
@@ -202,7 +202,7 @@ describe("BrowserTool 页面交互（headless Chromium 集成）", () => {
       const registry = yield* ToolRegistry.Service
       yield* executeTool(registry, call(BrowserTool.navigateName, { url: url("/form") }))
       const state = yield* executeTool(registry, call(BrowserTool.stateName, {}))
-      const stateText = state.type === "text" ? state.value : ""
+      const stateText = state.type === "text" ? String(state.value) : ""
       const submitRef = stateText.match(/\[(\d+)\] <button> 提交/)
       expect(submitRef).not.toBeNull()
 
