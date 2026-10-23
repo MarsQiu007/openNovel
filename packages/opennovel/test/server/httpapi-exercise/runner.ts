@@ -1,19 +1,10 @@
 import { Flag } from "@opennovel-ai/core/flag/flag"
-import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
 import { Cause, Duration, Effect, Layer, Scope } from "effect"
-import { TestLLMServer } from "../../lib/llm-server"
-import type { Config } from "../../../src/config/config"
-
-import type { MessageV2 } from "../../../src/session/message-v2"
-import { MessageID, PartID } from "../../../src/session/schema"
 import { call, callAuthProbe } from "./backend"
 import { original } from "./environment"
 import { resetExerciseDatabase } from "./reset"
 import { runtime } from "./runtime"
-import type { ActiveScenario, Options, ProjectOptions, Result, Scenario, ScenarioContext, SeededContext } from "./types"
-import { ProviderV2 } from "@opennovel-ai/core/provider"
-import { ModelV2 } from "@opennovel-ai/core/model"
+import type { ActiveScenario, Options, Result, Scenario, ScenarioContext, SeededContext } from "./types"
 
 export function runScenario(options: Options) {
   return (scenario: Scenario) => {
@@ -83,13 +74,14 @@ function withContext<A, E>(
   return Effect.acquireRelease(
     Effect.gen(function* () {
       yield* trace(options, scenario, `${label} context acquire start`)
-      const llm = scenario.project?.llm ? yield* TestLLMServer : undefined
       const project = scenario.project
       const dir = project
-        ? yield* Effect.promise(async () => (await runtime()).tmpdir(projectOptions(project, llm?.url)))
+        ? yield* Effect.promise(async () =>
+            (await runtime()).tmpdir({ git: project.git, config: project.config }),
+          )
         : undefined
       yield* trace(options, scenario, `${label} context acquire done`)
-      return { dir, llm }
+      return { dir }
     }),
     (ctx) =>
       Effect.gen(function* () {
@@ -134,10 +126,6 @@ function withContext<A, E>(
           if (!context.dir?.path) throw new Error("scenario needs a project directory")
           return context.dir.path
         }
-        const llm = () => {
-          if (!context.llm) throw new Error("scenario needs fake LLM")
-          return context.llm
-        }
         const base: ScenarioContext = {
           directory: context.dir?.path,
           headers: (extra) => ({
@@ -150,54 +138,14 @@ function withContext<A, E>(
             }).pipe(Effect.asVoid),
           session: (input) =>
             run(modules.Session.Service.use((svc) => svc.create({ title: input?.title, parentID: input?.parentID }))),
-          sessionGet: (sessionID) =>
-            run(modules.Session.Service.use((svc) => svc.get(sessionID))).pipe(
-              Effect.catchCause(() => Effect.succeed(undefined)),
-            ),
           project: () =>
             Effect.sync(() => {
               if (!instance) throw new Error("scenario needs a project directory")
               return instance.project
             }),
-          message: (sessionID, input) =>
-            Effect.gen(function* () {
-              const info: SessionV1.User = {
-                id: MessageID.ascending(),
-                sessionID,
-                role: "user",
-                time: { created: Date.now() },
-                agent: "build",
-                model: {
-                  providerID: ProviderV2.ID.opennovel,
-                  modelID: ModelV2.ID.make("test"),
-                },
-              }
-              const part: SessionV1.TextPart = {
-                id: PartID.ascending(),
-                sessionID,
-                messageID: info.id,
-                type: "text",
-                text: input?.text ?? "hello",
-              }
-              yield* run(
-                modules.Session.Service.use((svc) =>
-                  Effect.gen(function* () {
-                    yield* svc.updateMessage(info)
-                    yield* svc.updatePart(part)
-                  }),
-                ),
-              )
-              return { info, part }
-            }),
-          messages: (sessionID) =>
-            run(modules.Session.Service.use((svc) => svc.messages({ sessionID }).pipe(Effect.orDie))),
-          todos: (sessionID, todos) => run(modules.Todo.Service.use((svc) => svc.update({ sessionID, todos }))),
           worktree: (input) => run(modules.Worktree.Service.use((svc) => svc.create(input).pipe(Effect.orDie))),
           worktreeRemove: (directory) =>
             run(modules.Worktree.Service.use((svc) => svc.remove({ directory })).pipe(Effect.ignore)),
-          llmText: (value) => Effect.suspend(() => llm().text(value)),
-          llmWait: (count) => Effect.suspend(() => llm().wait(count)),
-          tuiRequest: (request) => Effect.sync(() => modules.Tui.submitTuiRequest(request)),
         }
         yield* trace(options, scenario, `${label} seed start`)
         const state = yield* scenario.seed(base)
@@ -206,7 +154,7 @@ function withContext<A, E>(
         const result = yield* use({ ...base, state })
         yield* trace(options, scenario, `${label} use done`)
         return result
-      }).pipe(Effect.ensuring(context.llm ? context.llm.reset : Effect.void)),
+      }),
     ),
   )
 }
@@ -216,58 +164,6 @@ function trace(options: Options, scenario: ActiveScenario, phase: string) {
     if (!options.trace) return
     console.log(`[trace] ${scenario.name}: ${phase}`)
   })
-}
-
-function projectOptions(
-  project: ProjectOptions,
-  llmUrl: string | undefined,
-): { git?: boolean; config?: Partial<ConfigV1.Info> } {
-  if (!project.llm || !llmUrl) return { git: project.git, config: project.config }
-  const fake = fakeLlmConfig(llmUrl)
-  return {
-    git: project.git,
-    config: {
-      ...fake,
-      ...project.config,
-      provider: {
-        ...fake.provider,
-        ...project.config?.provider,
-      },
-    },
-  }
-}
-
-function fakeLlmConfig(url: string): Partial<ConfigV1.Info> {
-  return {
-    model: "test/test-model",
-    small_model: "test/test-model",
-    provider: {
-      test: {
-        name: "Test",
-        id: "test",
-        env: [],
-        npm: "@ai-sdk/openai-compatible",
-        models: {
-          "test-model": {
-            id: "test-model",
-            name: "Test Model",
-            attachment: false,
-            reasoning: false,
-            temperature: false,
-            tool_call: true,
-            release_date: "2025-01-01",
-            limit: { context: 100000, output: 10000 },
-            cost: { input: 0, output: 0 },
-            options: {},
-          },
-        },
-        options: {
-          apiKey: "test-key",
-          baseURL: url,
-        },
-      },
-    },
-  }
 }
 
 const resetState = Effect.promise(async () => {

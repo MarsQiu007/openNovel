@@ -22,7 +22,6 @@ import { Workspace } from "../../src/control-plane/workspace"
 import { WorkspaceTable } from "@opennovel-ai/core/control-plane/workspace.sql"
 import { Database } from "@opennovel-ai/core/database/database"
 import { Project } from "../../src/project/project"
-import { Session } from "../../src/session/session"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
 import {
   NovelTable,
@@ -238,7 +237,6 @@ const ProbeApi = HttpApi.make("workspace-routing-probe").add(
     .add(
       HttpApiEndpoint.get("get", "/probe", { query: WorkspaceRoutingQuery, success: ProbeResult }),
       HttpApiEndpoint.patch("patch", "/probe", { query: WorkspaceRoutingQuery, success: Schema.Boolean }),
-      HttpApiEndpoint.get("session", "/session", { query: WorkspaceRoutingQuery, success: ProbeResult }),
       HttpApiEndpoint.get("workspace", WorkspacePaths.list, {
         query: WorkspaceRoutingQuery,
         success: ProbeResult,
@@ -256,7 +254,6 @@ const probeHandlers = HttpApiBuilder.group(ProbeApi, "probe", (handlers) =>
   handlers
     .handle("get", () => routeContextResponse)
     .handle("patch", () => Effect.succeed(false))
-    .handle("session", () => routeContextResponse)
     .handle("workspace", () => routeContextResponse),
 )
 
@@ -267,7 +264,6 @@ afterEach(() => {
 const serveProbe = HttpApiBuilder.layer(ProbeApi).pipe(
   Layer.provide(probeHandlers),
   Layer.provide(workspaceRoutingTestLayer),
-  Layer.provide(Layer.mock(Session.Service)({})),
   HttpRouter.serve,
   Layer.build,
 )
@@ -391,7 +387,6 @@ describe("HttpApi workspace routing middleware", () => {
         Layer.provide(probeHandlers),
         Layer.provide(workspaceRoutingTestLayer),
         Layer.provide(Layer.succeed(Workspace.Service, workspace)),
-        Layer.provide(Layer.mock(Session.Service)({})),
         HttpRouter.serve,
         Layer.build,
       )
@@ -468,29 +463,6 @@ describe("HttpApi workspace routing middleware", () => {
 
       expect(response.status).toBe(500)
       expect(yield* response.text).toBe(`Workspace not found: ${workspaceID}`)
-    }),
-  )
-
-  it.live("keeps control-plane routes local even when workspace is selected", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped({ git: true })
-      const project = yield* Project.use.fromDirectory(dir)
-
-      const workspaceDir = path.join(dir, ".workspace-local")
-      const workspace = yield* createLocalWorkspace({
-        projectID: project.project.id,
-        type: "control-plane-target",
-        directory: workspaceDir,
-      })
-
-      // GET /session is a control-plane route: it lists sessions for the main
-      // process and should not be redirected into the selected workspace target.
-      yield* serveProbe
-
-      const response = yield* HttpClient.get(`/session?workspace=${workspace.id}`)
-
-      expect(response.status).toBe(200)
-      expect(yield* response.json).toEqual({ directory: process.cwd(), workspaceID: workspace.id })
     }),
   )
 

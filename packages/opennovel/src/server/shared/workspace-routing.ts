@@ -1,12 +1,6 @@
-import { SessionID } from "@/session/schema"
-
 type Rule = { method?: string; path: string; exact?: boolean; action: "local" | "forward" }
 
-const RULES: Array<Rule> = [
-  { path: "/experimental/workspace", action: "local" },
-  { path: "/session/status", action: "forward" },
-  { method: "GET", path: "/session", action: "local" },
-]
+const RULES: Array<Rule> = [{ path: "/experimental/workspace", action: "local" }]
 
 export function isLocalWorkspaceRoute(method: string, path: string) {
   for (const rule of RULES) {
@@ -15,17 +9,6 @@ export function isLocalWorkspaceRoute(method: string, path: string) {
     if (match) return rule.action === "local"
   }
   return false
-}
-
-export function getWorkspaceRouteSessionID(url: URL) {
-  if (url.pathname === "/session/status") return null
-
-  const id =
-    url.pathname.match(/^\/session\/([^/]+)(?:\/|$)/)?.[1] ??
-    url.pathname.match(/^\/experimental\/session\/([^/]+)\/background$/)?.[1]
-  if (!id) return null
-
-  return SessionID.make(id)
 }
 
 export function workspaceProxyURL(target: string | URL, requestURL: URL) {

@@ -19,9 +19,8 @@
  */
 import { Effect } from "effect"
 import { OpenApi } from "effect/unstable/httpapi"
-import { TestLLMServer } from "../../lib/llm-server"
 import path from "path"
-import { array, boolean, check, isRecord, message, object, stable } from "./assertions"
+import { array, check, isRecord, message, object } from "./assertions"
 import { controlledPtyInput, http, route } from "./dsl"
 import {
   cleanupExercisePaths,
@@ -43,6 +42,7 @@ import {
   getDb,
   PendingSettingTable,
   StagedChangeTable,
+  uploadSettingImage,
   WorldEntryConflictTable,
 } from "@opennovel-ai/novel-store"
 import {
@@ -168,6 +168,9 @@ const scenarios: Scenario[] = [
     .at((ctx) => ({ path: "/vcs/apply", headers: ctx.headers(), body: { patch: "" } }))
     .status(400, undefined, "status"),
   http.protected.get("/command", "command.list").json(200, array, "status"),
+  // 实例 /agent 走 legacy Agent 注册表（src/agent）：默认位（无 default_agent 配置时
+  // 回退 build）置顶 + 字母序。d7c593e6ec 摘除 V1 宿主装配后写作 agent 不再进该面；
+  // 端点本身随 G3.2 legacy registry 删除时接线 AgentV2 或裁撤，此处只钉现行形状契约。
   http.protected.get("/agent", "app.agents").json(
     200,
     (body) => {
@@ -175,10 +178,9 @@ const scenarios: Scenario[] = [
       const agents = body
         .map((item) => (isRecord(item) ? item.name : undefined))
         .filter((name): name is string => typeof name === "string")
-      check(agents[0] === "director", "novel-writer plugin should make director the default agent")
-      check(agents.includes("director"), "novel-writer plugin should register director")
-      check(!agents.includes("build"), "novel-writer plugin should disable the build agent")
-      check(!agents.includes("plan"), "novel-writer plugin should disable the plan agent")
+      check(agents.length > 0, "agent list should not be empty")
+      check(agents[0] === "build", "default agent should be listed first")
+      check(agents.includes("build"), "agent list should include the build agent")
     },
     "status",
   ),
@@ -320,47 +322,6 @@ const scenarios: Scenario[] = [
       body: { method: "bad" },
     }))
     .status(400),
-  http.protected.get("/permission", "permission.list").json(200, array),
-  http.protected
-    .post("/permission/{requestID}/reply", "permission.reply.invalid")
-    .at((ctx) => ({
-      path: route("/permission/{requestID}/reply", { requestID: "per_httpapi" }),
-      headers: ctx.headers(),
-      body: { reply: "bad" },
-    }))
-    .status(400),
-  http.protected
-    .post("/permission/{requestID}/reply", "permission.reply")
-    .at((ctx) => ({
-      path: route("/permission/{requestID}/reply", { requestID: "per_httpapi" }),
-      headers: ctx.headers(),
-      body: { reply: "once" },
-    }))
-    .json(404, object, "status"),
-  http.protected.get("/question", "question.list").json(200, array),
-  http.protected
-    .post("/question/{requestID}/reply", "question.reply.invalid")
-    .at((ctx) => ({
-      path: route("/question/{requestID}/reply", { requestID: "que_httpapi_reply" }),
-      headers: ctx.headers(),
-      body: { answers: "Yes" },
-    }))
-    .status(400),
-  http.protected
-    .post("/question/{requestID}/reply", "question.reply")
-    .at((ctx) => ({
-      path: route("/question/{requestID}/reply", { requestID: "que_httpapi_reply" }),
-      headers: ctx.headers(),
-      body: { answers: [["Yes"]] },
-    }))
-    .json(404, object, "status"),
-  http.protected
-    .post("/question/{requestID}/reject", "question.reject")
-    .at((ctx) => ({
-      path: route("/question/{requestID}/reject", { requestID: "que_httpapi_reject" }),
-      headers: ctx.headers(),
-    }))
-    .json(404, object, "status"),
   http.protected
     .get("/file", "file.list")
     .seeded((ctx) => ctx.file("hello.txt", "hello\n"))
@@ -615,45 +576,7 @@ const scenarios: Scenario[] = [
         yield* ctx.worktreeRemove(ctx.state.directory)
       }),
     ),
-  http.protected
-    .get("/experimental/session", "experimental.session.list")
-    .at((ctx) => ({ path: "/experimental/session?roots=false&archived=false", headers: ctx.headers() }))
-    .json(200, array),
-  http.protected.get("/experimental/capabilities", "experimental.capabilities.get").json(200, (body) => {
-    check(typeof body === "object" && body !== null, "capabilities should be an object")
-    check("backgroundSubagents" in body, "capabilities should report background subagents")
-  }),
-  http.protected
-    .post("/experimental/session/{sessionID}/background", "experimental.session.background")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Background route owner" }))
-    .at((ctx) => ({
-      path: route("/experimental/session/{sessionID}/background", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => {
-      check(body === false, "background route should be a no-op without running subagents")
-    }),
   http.protected.get("/experimental/resource", "experimental.resource.list").json(),
-  http.protected
-    .post("/sync/history", "sync.history.list")
-    .at((ctx) => ({ path: "/sync/history", headers: ctx.headers(), body: {} }))
-    .json(200, array),
-  http.protected
-    .post("/sync/replay", "sync.replay")
-    .at((ctx) => ({ path: "/sync/replay", headers: ctx.headers(), body: { directory: ctx.directory, events: [] } }))
-    .status(400),
-  http.protected
-    .post("/sync/steal", "sync.steal.invalid")
-    .at((ctx) => ({ path: "/sync/steal", headers: ctx.headers(), body: {} }))
-    .status(400, undefined, "status"),
-  http.protected
-    .post("/sync/start", "sync.start")
-    .mutating()
-    .preserveDatabase()
-    .json(200, (body) => {
-      check(body === true, "sync start should return true when no workspace sessions exist")
-    }),
   http.protected
     .post("/instance/dispose", "instance.dispose")
     .mutating()
@@ -1191,593 +1114,46 @@ const scenarios: Scenario[] = [
     }))
     .status(404, undefined, "status"),
   http.protected
-    .get("/session", "session.list")
-    .seeded((ctx) => ctx.session({ title: "List me" }))
-    .at((ctx) => ({ path: "/session?roots=true", headers: ctx.headers() }))
-    .json(200, (body, ctx) => {
-      array(body)
-      check(
-        body.some((item) => isRecord(item) && item.id === ctx.state.id && item.title === "List me"),
-        "seeded session should be listed",
-      )
-    }),
-  http.protected
-    .get("/session/status", "session.status")
-    .seeded((ctx) => ctx.session({ title: "Status session" }))
-    .json(200, object),
-  http.protected
-    .post("/session", "session.create")
-    .mutating()
-    .at((ctx) => ({ path: "/session", headers: ctx.headers(), body: { title: "Created session" } }))
-    .json(
-      200,
-      (body, ctx) => {
-        object(body)
-        check(body.title === "Created session", "created session should use requested title")
-        check(body.directory === ctx.directory, "created session should use scenario directory")
-      },
-      "status",
-    ),
-  http.protected
-    .get("/session/{sessionID}", "session.get")
-    .seeded((ctx) => ctx.session({ title: "Get me" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(200, (body, ctx) => {
-      object(body)
-      check(body.id === ctx.state.id, "should return requested session")
-      check(body.title === "Get me", "should preserve seeded title")
-    }),
-  http.protected
-    .get("/session/{sessionID}", "session.get.missing")
+    .patch("/api/session/{sessionID}", "v2.session.update")
+    .seeded((ctx) => ctx.session({ title: "Update session" }))
     .at((ctx) => ({
-      path: route("/session/{sessionID}", { sessionID: "ses_httpapi_missing" }),
+      path: route("/api/session/{sessionID}", { sessionID: ctx.state.id }),
+      headers: { ...ctx.headers(), "content-type": "application/json" },
+      body: { title: "renamed session" },
+    }))
+    .json(200, data(object)),
+  http.protected
+    .delete("/api/session/{sessionID}", "v2.session.delete")
+    .seeded((ctx) => ctx.session({ title: "Delete session" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
     }))
-    .status(404),
+    .status(204, undefined, "none"),
   http.protected
-    .patch("/session/{sessionID}", "session.update")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Before rename" }))
+    .get("/api/session/{sessionID}/todo", "v2.session.todo")
+    .seeded((ctx) => ctx.session({ title: "Todo session" }))
     .at((ctx) => ({
-      path: route("/session/{sessionID}", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: { title: "After rename" },
-    }))
-    .json(
-      200,
-      (body) => {
-        object(body)
-        check(body.title === "After rename", "updated session should use new title")
-      },
-      "status",
-    ),
-  http.protected
-    .patch("/session/{sessionID}", "session.update.invalid")
-    .mutating()
-    .at((ctx) => ({
-      path: route("/session/{sessionID}", { sessionID: "ses_httpapi_missing" }),
-      headers: ctx.headers(),
-      body: { title: 1 },
-    }))
-    .status(400),
-  http.protected
-    .delete("/session/{sessionID}", "session.delete")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Delete me" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .jsonEffect(200, (body, ctx) =>
-      Effect.gen(function* () {
-        check(body === true, "delete should return true")
-        check((yield* ctx.sessionGet(ctx.state.id)) === undefined, "deleted session should not remain in storage")
-      }),
-    ),
-  http.protected
-    .get("/session/{sessionID}/children", "session.children")
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const parent = yield* ctx.session({ title: "Parent" })
-        const child = yield* ctx.session({ title: "Child", parentID: parent.id })
-        return { parent, child }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/children", { sessionID: ctx.state.parent.id }),
+      path: route("/api/session/{sessionID}/todo", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
     }))
-    .json(200, (body, ctx) => {
-      array(body)
-      check(
-        body.some((item) => isRecord(item) && item.id === ctx.state.child.id && item.parentID === ctx.state.parent.id),
-        "children should include seeded child",
-      )
-    }),
+    .json(200, data(array)),
   http.protected
-    .get("/session/{sessionID}/todo", "session.todo")
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Todo session" })
-        const todos = [{ content: "cover session todo", status: "pending" as const, priority: "high" as const }]
-        yield* ctx.todos(session.id, todos)
-        return { session, todos }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/todo", { sessionID: ctx.state.session.id }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body, ctx) => {
-      check(stable(body) === stable(ctx.state.todos), "todos should match seeded state")
-    }),
-  http.protected
-    .get("/session/{sessionID}/diff", "session.diff")
+    .get("/api/session/{sessionID}/diff", "v2.session.diff")
     .seeded((ctx) => ctx.session({ title: "Diff session" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}/diff", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(200, array),
-  http.protected
-    .get("/session/{sessionID}/message", "session.messages")
-    .seeded((ctx) => ctx.session({ title: "Messages session" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}/message", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(200, (body) => {
-      array(body)
-      check(body.length === 0, "new session should have no messages")
-    }),
-  http.protected
-    .get("/session/{sessionID}/message/{messageID}", "session.message")
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Message get session" })
-        const message = yield* ctx.message(session.id, { text: "read me" })
-        return { session, message }
-      }),
-    )
     .at((ctx) => ({
-      path: route("/session/{sessionID}/message/{messageID}", {
-        sessionID: ctx.state.session.id,
-        messageID: ctx.state.message.info.id,
-      }),
+      path: route("/api/session/{sessionID}/diff", { sessionID: ctx.state.id }),
       headers: ctx.headers(),
     }))
-    .json(200, (body, ctx) => {
-      object(body)
-      check(isRecord(body.info) && body.info.id === ctx.state.message.info.id, "should return requested message")
-      check(
-        Array.isArray(body.parts) && body.parts.some((part) => isRecord(part) && part.id === ctx.state.message.part.id),
-        "message should include seeded part",
-      )
-    }),
+    .json(200, data(array)),
   http.protected
-    .patch("/session/{sessionID}/message/{messageID}/part/{partID}", "part.update")
-    .mutating()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Part update session" })
-        const message = yield* ctx.message(session.id, { text: "before" })
-        return { session, message }
-      }),
-    )
+    .post("/api/session/{sessionID}/command", "v2.session.command")
     .at((ctx) => ({
-      path: route("/session/{sessionID}/message/{messageID}/part/{partID}", {
-        sessionID: ctx.state.session.id,
-        messageID: ctx.state.message.info.id,
-        partID: ctx.state.message.part.id,
-      }),
-      headers: ctx.headers(),
-      body: { ...ctx.state.message.part, text: "after" },
+      path: route("/api/session/{sessionID}/command", { sessionID: "ses_httpapi_missing" }),
+      headers: { ...ctx.headers(), "content-type": "application/json" },
+      body: { command: "missing", resume: false },
     }))
-    .json(
-      200,
-      (body) => {
-        object(body)
-        check(body.type === "text" && body.text === "after", "updated part should be returned")
-      },
-      "status",
-    ),
-  http.protected
-    .delete("/session/{sessionID}/message/{messageID}/part/{partID}", "part.delete")
-    .mutating()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Part delete session" })
-        const message = yield* ctx.message(session.id, { text: "delete part" })
-        return { session, message }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/message/{messageID}/part/{partID}", {
-        sessionID: ctx.state.session.id,
-        messageID: ctx.state.message.info.id,
-        partID: ctx.state.message.part.id,
-      }),
-      headers: ctx.headers(),
-    }))
-    .jsonEffect(200, (body, ctx) =>
-      Effect.gen(function* () {
-        check(body === true, "delete part should return true")
-        const messages = yield* ctx.messages(ctx.state.session.id)
-        check(messages[0]?.parts.length === 0, "deleted part should not remain on message")
-      }),
-    ),
-  http.protected
-    .delete("/session/{sessionID}/message/{messageID}", "session.deleteMessage")
-    .mutating()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Message delete session" })
-        const message = yield* ctx.message(session.id, { text: "delete message" })
-        return { session, message }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/message/{messageID}", {
-        sessionID: ctx.state.session.id,
-        messageID: ctx.state.message.info.id,
-      }),
-      headers: ctx.headers(),
-    }))
-    .jsonEffect(200, (body, ctx) =>
-      Effect.gen(function* () {
-        check(body === true, "delete message should return true")
-        check((yield* ctx.messages(ctx.state.session.id)).length === 0, "deleted message should not remain")
-      }),
-    ),
-  http.protected
-    .post("/session/{sessionID}/fork", "session.fork")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Fork source" }))
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/fork", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: {},
-    }))
-    .json(
-      200,
-      (body) => {
-        object(body)
-        check(typeof body.id === "string", "fork should return a session")
-      },
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/abort", "session.abort")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Abort session" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}/abort", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(200, (body) => {
-      check(body === true, "abort should return true")
-    }),
-  http.protected
-    .post("/session/{sessionID}/abort", "session.abort.missing")
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/abort", { sessionID: "ses_httpapi_missing" }),
-      headers: ctx.headers(),
-    }))
-    .json(200, (body) => {
-      check(body === true, "missing session abort should remain a no-op success")
-    }),
-  http.protected
-    .post("/session/{sessionID}/init", "session.init")
-    .preserveDatabase()
-    .withLlm()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Init session" })
-        const message = yield* ctx.message(session.id, { text: "initialize" })
-        yield* ctx.llmText("initialized")
-        yield* ctx.llmText("initialized")
-        return { session, message }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/init", { sessionID: ctx.state.session.id }),
-      headers: ctx.headers(),
-      body: { providerID: "test", modelID: "test-model", messageID: ctx.state.message.info.id },
-    }))
-    .jsonEffect(200, (body, ctx) =>
-      Effect.gen(function* () {
-        check(body === true, "init should return true")
-        yield* ctx.llmWait(1)
-      }),
-    ),
-  http.protected
-    .post("/session/{sessionID}/message", "session.prompt")
-    .preserveDatabase()
-    .withLlm()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "LLM prompt session" })
-        yield* ctx.llmText("fake assistant")
-        yield* ctx.llmText("fake assistant")
-        return session
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/message", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: {
-        agent: "director",
-        model: { providerID: "test", modelID: "test-model" },
-        parts: [{ type: "text", text: "hello llm" }],
-      },
-    }))
-    .jsonEffect(
-      200,
-      (body, ctx) =>
-        Effect.gen(function* () {
-          object(body)
-          check(isRecord(body.info) && body.info.role === "assistant", "prompt should return assistant message")
-          check(isRecord(body.info) && body.info.agent === "director", "prompt should honor the requested plugin agent")
-          check(
-            Array.isArray(body.parts) && body.parts.some((part) => isRecord(part) && part.text === "fake assistant"),
-            "assistant message should use fake LLM text",
-          )
-          yield* ctx.llmWait(1)
-        }),
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/prompt_async", "session.prompt_async")
-    .preserveDatabase()
-    .withLlm()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Async prompt session" })
-        yield* ctx.llmText("fake async assistant")
-        yield* ctx.llmText("fake async assistant")
-        return session
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/prompt_async", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: {
-        agent: "director",
-        model: { providerID: "test", modelID: "test-model" },
-        parts: [{ type: "text", text: "hello async" }],
-      },
-    }))
-    .status(204, (ctx) =>
-      Effect.gen(function* () {
-        yield* ctx.llmWait(1)
-      }),
-    ),
-  http.protected
-    .post("/session/{sessionID}/command", "session.command")
-    .preserveDatabase()
-    .withLlm()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Command session" })
-        yield* ctx.llmText("command done")
-        yield* ctx.llmText("command done")
-        return session
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/command", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: { command: "init", arguments: "", model: "test/test-model" },
-    }))
-    .jsonEffect(
-      200,
-      (body, ctx) =>
-        Effect.gen(function* () {
-          object(body)
-          check(isRecord(body.info) && body.info.role === "assistant", "command should return assistant message")
-          check(isRecord(body.info) && body.info.agent === "director", "command should use the plugin default agent")
-          yield* ctx.llmWait(1)
-        }),
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/shell", "session.shell")
-    .preserveDatabase()
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Shell session" }))
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/shell", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: { agent: "director", model: { providerID: "test", modelID: "test-model" }, command: "printf shell-ok" },
-    }))
-    .json(
-      200,
-      (body) => {
-        object(body)
-        check(isRecord(body.info) && body.info.role === "assistant", "shell should return assistant message")
-        check(isRecord(body.info) && body.info.agent === "director", "shell should honor the requested plugin agent")
-        check(
-          Array.isArray(body.parts) && body.parts.some((part) => isRecord(part) && part.type === "tool"),
-          "shell should return a tool part",
-        )
-      },
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/summarize", "session.summarize")
-    .preserveDatabase()
-    .withLlm()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Summarize session" })
-        yield* ctx.message(session.id, { text: "summarize this work" })
-        const summary = [
-          "## Objective",
-          "- Exercise session summarize.",
-          "",
-          "## Important Details",
-          "- Use fake LLM.",
-          "- Keep route local.",
-          "- Test fixture: test/server/httpapi-exercise/index.ts.",
-          "",
-          "## Work State",
-          "- Completed: Summary generated.",
-          "- Active: (none)",
-          "- Blocked: (none)",
-          "",
-          "## Next Move",
-          "1. (none)",
-        ].join("\n")
-        yield* ctx.llmText(summary)
-        yield* ctx.llmText(summary)
-        return session
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/summarize", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-      body: { providerID: "test", modelID: "test-model", auto: false },
-    }))
-    .jsonEffect(
-      200,
-      (body, ctx) =>
-        Effect.gen(function* () {
-          check(body === true, "summarize should return true")
-          const messages = yield* ctx.messages(ctx.state.id)
-          check(
-            messages.some((message) => message.info.role === "assistant" && message.info.summary === true),
-            "summarize should create a summary assistant message",
-          )
-          yield* ctx.llmWait(1)
-        }),
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/revert", "session.revert")
-    .mutating()
-    .seeded((ctx) =>
-      Effect.gen(function* () {
-        const session = yield* ctx.session({ title: "Revert session" })
-        const message = yield* ctx.message(session.id, { text: "revert me" })
-        return { session, message }
-      }),
-    )
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/revert", { sessionID: ctx.state.session.id }),
-      headers: ctx.headers(),
-      body: { messageID: ctx.state.message.info.id },
-    }))
-    .json(
-      200,
-      (body, ctx) => {
-        object(body)
-        check(body.id === ctx.state.session.id, "revert should return the session")
-        check(
-          isRecord(body.revert) && body.revert.messageID === ctx.state.message.info.id,
-          "revert should record reverted message",
-        )
-      },
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/unrevert", "session.unrevert")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Unrevert session" }))
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/unrevert", { sessionID: ctx.state.id }),
-      headers: ctx.headers(),
-    }))
-    .json(
-      200,
-      (body, ctx) => {
-        object(body)
-        check(body.id === ctx.state.id, "unrevert should return the session")
-      },
-      "status",
-    ),
-  http.protected
-    .post("/session/{sessionID}/permissions/{permissionID}", "permission.respond")
-    .seeded((ctx) => ctx.session({ title: "Deprecated permission session" }))
-    .at((ctx) => ({
-      path: route("/session/{sessionID}/permissions/{permissionID}", {
-        sessionID: ctx.state.id,
-        permissionID: "per_httpapi_deprecated",
-      }),
-      headers: ctx.headers(),
-      body: { response: "once" },
-    }))
-    .json(404, object, "status"),
-  http.protected
-    .post("/session/{sessionID}/share", "session.share")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Share session" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}/share", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(
-      200,
-      (body, ctx) => {
-        object(body)
-        check(body.id === ctx.state.id, "share should return the session")
-      },
-      "status",
-    ),
-  http.protected
-    .delete("/session/{sessionID}/share", "session.unshare")
-    .mutating()
-    .seeded((ctx) => ctx.session({ title: "Unshare session" }))
-    .at((ctx) => ({ path: route("/session/{sessionID}/share", { sessionID: ctx.state.id }), headers: ctx.headers() }))
-    .json(
-      200,
-      (body, ctx) => {
-        object(body)
-        check(body.id === ctx.state.id, "unshare should return the session")
-      },
-      "status",
-    ),
-  http.protected
-    .post("/tui/append-prompt", "tui.appendPrompt")
-    .at((ctx) => ({ path: "/tui/append-prompt", headers: ctx.headers(), body: { text: "hello" } }))
-    .json(200, boolean, "status"),
-  http.protected
-    .post("/tui/select-session", "tui.selectSession.invalid")
-    .at((ctx) => ({ path: "/tui/select-session", headers: ctx.headers(), body: { sessionID: "invalid" } }))
-    .status(400),
-  http.protected.post("/tui/open-help", "tui.openHelp").json(200, boolean, "status"),
-  http.protected.post("/tui/open-sessions", "tui.openSessions").json(200, boolean, "status"),
-  http.protected.post("/tui/open-themes", "tui.openThemes").json(200, boolean, "status"),
-  http.protected.post("/tui/open-models", "tui.openModels").json(200, boolean, "status"),
-  http.protected.post("/tui/submit-prompt", "tui.submitPrompt").json(200, boolean, "status"),
-  http.protected.post("/tui/clear-prompt", "tui.clearPrompt").json(200, boolean, "status"),
-  http.protected
-    .post("/tui/execute-command", "tui.executeCommand")
-    .at((ctx) => ({ path: "/tui/execute-command", headers: ctx.headers(), body: { command: "agent_cycle" } }))
-    .json(200, boolean, "status"),
-  http.protected
-    .post("/tui/show-toast", "tui.showToast")
-    .at((ctx) => ({
-      path: "/tui/show-toast",
-      headers: ctx.headers(),
-      body: { title: "Exercise", message: "covered", variant: "info", duration: 1000 },
-    }))
-    .json(200, boolean, "status"),
-  http.protected
-    .post("/tui/publish", "tui.publish")
-    .at((ctx) => ({
-      path: "/tui/publish",
-      headers: ctx.headers(),
-      body: { type: "tui.prompt.append", properties: { text: "published" } },
-    }))
-    .json(200, boolean, "status"),
-  http.protected
-    .post("/tui/select-session", "tui.selectSession")
-    .seeded((ctx) => ctx.session({ title: "TUI select" }))
-    .at((ctx) => ({ path: "/tui/select-session", headers: ctx.headers(), body: { sessionID: ctx.state.id } }))
-    .json(200, boolean, "status"),
-  http.protected
-    .post("/tui/control/response", "tui.control.response")
-    .at((ctx) => ({ path: "/tui/control/response", headers: ctx.headers(), body: { ok: true } }))
-    .json(200, boolean, "status"),
-  http.protected
-    .get("/tui/control/next", "tui.control.next")
-    .mutating()
-    .seeded((ctx) => ctx.tuiRequest({ path: "/tui/exercise", body: { text: "queued" } }))
-    .json(
-      200,
-      (body) => {
-        object(body)
-        check(body.path === "/tui/exercise", "control next should return queued path")
-        object(body.body)
-        check(body.body.text === "queued", "control next should return queued body")
-      },
-      "status",
-    ),
+    .status(404, undefined, "status"),
   http.protected
     .post("/global/upgrade", "global.upgrade")
     .global()
@@ -1994,6 +1370,36 @@ function seedWorldEntry(ctx: ScenarioContext) {
       const { novelID } = yield* seedNovel(ctx)
       const entry = yield* createWorldEntry(novelID, { category: "势力", title: "青云门" }, novelDirectory(ctx))
       return { novelID, entryID: entry.id }
+    }),
+  )
+}
+
+// 1x1 透明 PNG 的 data URL，满足设定图片上传的解码校验。
+const SETTING_IMAGE_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+function seedSettingImageOwner(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx)
+      const entry = yield* createWorldEntry(novelID, { category: "势力", title: "青云门" }, novelDirectory(ctx))
+      return { novelID, ownerID: entry.id }
+    }),
+  )
+}
+
+function seedSettingImage(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const state = yield* seedSettingImageOwner(ctx)
+      const image = yield* Effect.promise(() =>
+        uploadSettingImage(
+          state.novelID,
+          { ownerType: "world_entry", ownerId: state.ownerID, filename: "gate.png", dataUrl: SETTING_IMAGE_DATA_URL },
+          novelDirectory(ctx),
+        ),
+      )
+      return { ...state, imageID: image.id }
     }),
   )
 }
@@ -3602,6 +3008,75 @@ function novelScenarios(): Scenario[] {
       .at((ctx) => ({ path: "/api/soul/global", headers: ctx.headers(), body: { content: "演练全局灵魂" } }))
       .json(200, (body) => object(body)),
     http.protected
+      .post("/api/novel/{novelID}/setting-images", "v2.novel.setting-images.upload")
+      .seeded((ctx) => seedSettingImageOwner(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-images", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: {
+          ownerType: "world_entry",
+          ownerId: ctx.state.ownerID,
+          filename: "gate.png",
+          dataUrl: SETTING_IMAGE_DATA_URL,
+        },
+      }))
+      .json(200, isObject),
+    http.protected
+      .get("/api/novel/{novelID}/setting-images", "v2.novel.setting-images.image-list")
+      .seeded((ctx) => seedSettingImage(ctx))
+      .at((ctx) => ({
+        path: `${route("/api/novel/{novelID}/setting-images", { novelID: ctx.state.novelID })}?${new URLSearchParams({ ownerType: "world_entry", ownerId: ctx.state.ownerID })}`,
+        headers: ctx.headers(),
+      }))
+      .json(200, isObject),
+    http.protected
+      .get("/api/novel/{novelID}/setting-images/{imageID}", "v2.novel.setting-images.read")
+      .seeded((ctx) => seedSettingImage(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-images/{imageID}", {
+          novelID: ctx.state.novelID,
+          imageID: ctx.state.imageID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isObject),
+    http.protected
+      .patch("/api/novel/{novelID}/setting-images/{imageID}", "v2.novel.setting-images.update-note")
+      .seeded((ctx) => seedSettingImage(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-images/{imageID}", {
+          novelID: ctx.state.novelID,
+          imageID: ctx.state.imageID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { note: "山门正景" },
+      }))
+      .json(200, isObject),
+    http.protected
+      .post("/api/novel/{novelID}/setting-images/reorder", "v2.novel.setting-images.reorder")
+      .seeded((ctx) => seedSettingImage(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-images/reorder", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { ownerType: "world_entry", ownerId: ctx.state.ownerID, orderedIds: [ctx.state.imageID] },
+      }))
+      .json(200, isObject),
+    http.protected
+      .delete("/api/novel/{novelID}/setting-images/{imageID}", "v2.novel.setting-images.remove")
+      .seeded((ctx) => seedSettingImage(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/setting-images/{imageID}", {
+          novelID: ctx.state.novelID,
+          imageID: ctx.state.imageID,
+        }),
+        headers: ctx.headers(),
+      }))
+      .json(200, isDeleted),
+    http.protected
       .get("/api/sync/status", "v2.sync.status")
       .global()
       .json(200, (body) => object(body)),
@@ -3653,14 +3128,6 @@ function novelScenarios(): Scenario[] {
   ]
 }
 
-const llmScenarios = new Set([
-  "session.init",
-  "session.prompt",
-  "session.prompt_async",
-  "session.command",
-  "session.summarize",
-])
-
 const main = Effect.gen(function* () {
   yield* Effect.addFinalizer(() => Effect.promise(() => disposeApps()).pipe(Effect.andThen(cleanupExercisePaths)))
   const options = parseOptions(Bun.argv.slice(2))
@@ -3669,12 +3136,6 @@ const main = Effect.gen(function* () {
   const selected = selectedScenarios(options, scenarios)
   const missing = effectRoutes.filter((route) => !scenarios.some((scenario) => route === routeKey(scenario)))
   const extra = scenarios.filter((scenario) => !effectRoutes.includes(routeKey(scenario)))
-
-  for (const scenario of scenarios) {
-    if (scenario.kind === "active" && llmScenarios.has(scenario.name) && !scenario.project?.llm) {
-      return yield* Effect.fail(new Error(`${scenario.name} must use TestLLMServer via .withLlm()`))
-    }
-  }
 
   printHeader(options, effectRoutes, selected, missing, extra, {
     database: exerciseDatabasePath,
@@ -3704,7 +3165,7 @@ const main = Effect.gen(function* () {
   return undefined
 })
 
-Effect.runPromise(main.pipe(Effect.provide(TestLLMServer.layer), Effect.scoped)).then(
+Effect.runPromise(main.pipe(Effect.scoped)).then(
   () => process.exit(0),
   (error: unknown) => {
     console.error(`${color.red}${message(error)}${color.reset}`)

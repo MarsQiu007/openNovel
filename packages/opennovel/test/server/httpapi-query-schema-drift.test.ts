@@ -3,7 +3,6 @@ import { Effect, Schema } from "effect"
 import { OpenApi } from "effect/unstable/httpapi"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Server } from "../../src/server/server"
-import { SessionID } from "../../src/session/schema"
 import { PublicApi } from "../../src/server/routes/instance/httpapi/public"
 import {
   FilePaths,
@@ -11,21 +10,12 @@ import {
   FindFileQuery,
   FindTextQuery,
 } from "../../src/server/routes/instance/httpapi/groups/file"
-import {
-  ExperimentalPaths,
-  SessionListQuery as ExperimentalSessionListQuery,
-  ToolListQuery,
-} from "../../src/server/routes/instance/httpapi/groups/experimental"
+import { ExperimentalPaths, ToolListQuery } from "../../src/server/routes/instance/httpapi/groups/experimental"
 import { InstancePaths, VcsDiffQuery } from "../../src/server/routes/instance/httpapi/groups/instance"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
-import {
-  ListQuery as SessionListQuery,
-  MessagesQuery,
-  SessionPaths,
-} from "../../src/server/routes/instance/httpapi/groups/session"
 import { PtyPaths } from "../../src/server/routes/instance/httpapi/groups/pty"
 import { SessionMessagesQuery } from "@opennovel-ai/protocol/groups/message"
-import { QueryBoolean, QueryBooleanOpenApi } from "../../src/server/routes/instance/httpapi/groups/query"
+import { QueryBoolean } from "../../src/server/routes/instance/httpapi/groups/query"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
 import { it } from "../lib/effect"
@@ -46,50 +36,20 @@ type OpenApiParameter = { readonly name: string; readonly in: string; readonly s
 type OpenApiOperation = { readonly parameters?: readonly OpenApiParameter[] }
 
 const openApiDriftRoutes = [
-  { method: "get", path: SessionPaths.list, query: SessionListQuery },
-  { method: "get", path: SessionPaths.messages, query: MessagesQuery },
   { method: "get", path: FilePaths.findFile, query: FindFileQuery },
   { method: "get", path: FilePaths.findText, query: FindTextQuery },
   { method: "get", path: FilePaths.list, query: FileQuery },
-  { method: "get", path: ExperimentalPaths.session, query: ExperimentalSessionListQuery },
   { method: "get", path: ExperimentalPaths.tool, query: ToolListQuery },
   { method: "get", path: InstancePaths.vcsDiff, query: VcsDiffQuery },
   { method: "get", path: "/api/session/:sessionID/message", query: SessionMessagesQuery },
 ] satisfies Array<{ method: Method; path: string; query: QuerySchema }>
 
 const numericSdkQueryParams = [
-  { method: "get", path: ExperimentalPaths.session, name: "start", schema: { type: "number" } },
-  { method: "get", path: ExperimentalPaths.session, name: "cursor", schema: { type: "number" } },
-  { method: "get", path: ExperimentalPaths.session, name: "limit", schema: { type: "number" } },
   { method: "get", path: FilePaths.findFile, name: "limit", schema: { type: "integer", minimum: 1, maximum: 200 } },
-  { method: "get", path: SessionPaths.list, name: "start", schema: { type: "number" } },
-  { method: "get", path: SessionPaths.list, name: "limit", schema: { type: "number" } },
-  {
-    method: "get",
-    path: SessionPaths.messages,
-    name: "limit",
-    schema: { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
-  },
   { method: "get", path: "/api/session/:sessionID/message", name: "limit", schema: { type: "number" } },
 ] satisfies Array<{ method: Method; path: string; name: string; schema: OpenApiSchema }>
 
-const booleanSdkQueryParams = [
-  { method: "get", path: ExperimentalPaths.session, name: "roots" },
-  { method: "get", path: ExperimentalPaths.session, name: "archived" },
-  { method: "get", path: SessionPaths.list, name: "roots" },
-] satisfies Array<{ method: Method; path: string; name: string }>
-
-const queryParamPatterns = [
-  { method: "get", path: SessionPaths.diff, name: "messageID", pattern: "^msg" },
-] satisfies Array<{ method: Method; path: string; name: string; pattern: string }>
-
 const pathParamPatterns = [
-  { method: "get", path: SessionPaths.get, name: "sessionID", pattern: "^ses" },
-  { method: "get", path: SessionPaths.message, name: "messageID", pattern: "^msg" },
-  { method: "patch", path: SessionPaths.updatePart, name: "partID", pattern: "^prt" },
-  { method: "post", path: SessionPaths.permissions, name: "permissionID", pattern: "^per" },
-  { method: "post", path: "/permission/:requestID/reply", name: "requestID", pattern: "^per" },
-  { method: "post", path: "/question/:requestID/reply", name: "requestID", pattern: "^que" },
   { method: "put", path: PtyPaths.update, name: "ptyID", pattern: "^pty" },
   { method: "delete", path: WorkspacePaths.remove, name: "id", pattern: "^wrk" },
 ] satisfies Array<{ method: Method; path: string; name: string; pattern: string }>
@@ -200,18 +160,6 @@ describe("httpapi query schema drift", () => {
           `${expected.method.toUpperCase()} ${expected.path} ${expected.name}`,
         ).toEqual(expected.schema)
       }
-      for (const expected of booleanSdkQueryParams) {
-        expect(
-          queryParameter(spec.paths[openApiPath(expected.path)]?.[expected.method], expected.name)?.schema,
-          `${expected.method.toUpperCase()} ${expected.path} ${expected.name}`,
-        ).toEqual(QueryBooleanOpenApi)
-      }
-      for (const expected of queryParamPatterns) {
-        expect(
-          queryParameter(spec.paths[openApiPath(expected.path)]?.[expected.method], expected.name)?.schema,
-          `${expected.method.toUpperCase()} ${expected.path} ${expected.name}`,
-        ).toEqual({ type: "string", pattern: expected.pattern })
-      }
       for (const expected of pathParamPatterns) {
         expect(
           pathParameter(spec.paths[openApiPath(expected.path)]?.[expected.method], expected.name)?.schema,
@@ -241,28 +189,6 @@ describe("httpapi query schema drift", () => {
   )
 
   it.live(
-    "session list accepts directory and workspace",
-    withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
-      Effect.gen(function* () {
-        const url = `/session?${routingParams(tmp.path)}`
-        const response = yield* request(url)
-        expectNotSchemaRejection(response.status, url)
-      }),
-    ),
-  )
-
-  it.live(
-    "session messages accepts directory and workspace",
-    withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
-      Effect.gen(function* () {
-        const url = `/session/${SessionID.descending()}/message?limit=80&${routingParams(tmp.path)}`
-        const response = yield* request(url)
-        expectNotSchemaRejection(response.status, url)
-      }),
-    ),
-  )
-
-  it.live(
     "file find/file accepts directory and workspace",
     withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
       Effect.gen(function* () {
@@ -289,17 +215,6 @@ describe("httpapi query schema drift", () => {
     withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
       Effect.gen(function* () {
         const url = `/file?path=foo&${routingParams(tmp.path)}`
-        const response = yield* request(url)
-        expectNotSchemaRejection(response.status, url)
-      }),
-    ),
-  )
-
-  it.live(
-    "experimental session list accepts directory and workspace",
-    withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
-      Effect.gen(function* () {
-        const url = `/experimental/session?${routingParams(tmp.path)}`
         const response = yield* request(url)
         expectNotSchemaRejection(response.status, url)
       }),

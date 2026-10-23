@@ -94,15 +94,10 @@ import { fileHandlers } from "./handlers/file"
 import { globalHandlers } from "./handlers/global"
 import { instanceHandlers } from "./handlers/instance"
 import { mcpHandlers } from "./handlers/mcp"
-import { permissionHandlers } from "./handlers/permission"
 import { projectHandlers } from "./handlers/project"
 import { projectCopyHandlers } from "./handlers/project-copy"
 import { providerHandlers } from "./handlers/provider"
 import { ptyConnectHandlers, ptyHandlers } from "./handlers/pty"
-import { questionHandlers } from "./handlers/question"
-import { sessionHandlers } from "./handlers/session"
-import { syncHandlers } from "./handlers/sync"
-import { tuiHandlers } from "./handlers/tui"
 import { handlers } from "@opennovel-ai/server/handlers"
 import { buildLocationServiceMap, LocationServiceMap } from "@opennovel-ai/core/location-services"
 import { layer as locationLayer } from "@opennovel-ai/server/location"
@@ -166,12 +161,7 @@ const instanceApiRoutes = HttpApiBuilder.layer(InstanceHttpApi).pipe(
     projectHandlers,
     projectCopyHandlers,
     ptyHandlers,
-    questionHandlers,
-    permissionHandlers,
     providerHandlers,
-    sessionHandlers,
-    syncHandlers,
-    tuiHandlers,
     workspaceHandlers,
   ]),
 )

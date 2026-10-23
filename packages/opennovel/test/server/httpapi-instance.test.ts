@@ -1,4 +1,3 @@
-import { PermissionV1 } from "@opennovel-ai/core/v1/permission"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { describe, expect } from "bun:test"
@@ -8,9 +7,7 @@ import * as Socket from "effect/unstable/socket/Socket"
 import { WorkspaceV2 } from "@opennovel-ai/core/workspace"
 import { ControlPaths } from "../../src/server/routes/instance/httpapi/groups/control"
 import { InstancePaths } from "../../src/server/routes/instance/httpapi/groups/instance"
-import { SessionPaths } from "../../src/server/routes/instance/httpapi/groups/session"
 import { ProjectV2 } from "@opennovel-ai/core/project"
-import { QuestionID } from "../../src/question/schema"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { HEADER as FenceHeader } from "../../src/server/shared/fence"
 import { resetDatabase } from "../fixture/db"
@@ -67,7 +64,7 @@ describe("instance HttpApi", () => {
         info: expect.any(Object),
         paths: expect.objectContaining({
           "/global/health": expect.any(Object),
-          "/session": expect.any(Object),
+          "/api/session/{sessionID}": expect.any(Object),
         }),
       })
     }),
@@ -84,9 +81,9 @@ describe("instance HttpApi", () => {
       )
 
       const dir = yield* tmpdirScoped({ git: true })
-      const response = yield* HttpClientRequest.post(SessionPaths.create).pipe(
+      const response = yield* HttpClientRequest.post("/api/session").pipe(
         directoryHeader(dir),
-        HttpClientRequest.bodyJson({ title: "fenced" }),
+        HttpClientRequest.bodyJson({ location: { directory: dir } }),
         Effect.flatMap(HttpClient.execute),
       )
 
@@ -117,92 +114,6 @@ describe("instance HttpApi", () => {
       expect(read.headers[FenceHeader]).toBeUndefined()
       expect(log.status).toBe(200)
       expect(log.headers[FenceHeader]).toBeUndefined()
-    }),
-  )
-
-  it.live("rejects malformed permission and question request ids", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped({ git: true })
-      const request = (path: string, init?: RequestInit) =>
-        Effect.promise(() =>
-          HttpApiApp.webHandler().handler(
-            new Request(`http://localhost${path}`, {
-              ...init,
-              headers: { "x-opennovel-directory": dir, "content-type": "application/json", ...init?.headers },
-            }),
-            handlerContext,
-          ),
-        )
-      const [permission, questionReply, questionReject] = yield* Effect.all(
-        [
-          request("/permission/invalid-permission-id/reply", {
-            method: "POST",
-            body: JSON.stringify({ reply: "once" }),
-          }),
-          request("/question/invalid-question-id/reply", {
-            method: "POST",
-            body: JSON.stringify({ answers: [["Yes"]] }),
-          }),
-          request("/question/invalid-question-id/reject", { method: "POST" }),
-        ],
-        { concurrency: "unbounded" },
-      )
-
-      expect(permission.status).toBe(400)
-      expect(questionReply.status).toBe(400)
-      expect(questionReject.status).toBe(400)
-    }),
-  )
-
-  it.live("returns typed not found bodies for missing permission and question requests", () =>
-    Effect.gen(function* () {
-      const dir = yield* tmpdirScoped({ git: true })
-      const request = (path: string, init?: RequestInit) =>
-        Effect.promise(() =>
-          HttpApiApp.webHandler().handler(
-            new Request(`http://localhost${path}`, {
-              ...init,
-              headers: { "x-opennovel-directory": dir, "content-type": "application/json", ...init?.headers },
-            }),
-            handlerContext,
-          ),
-        )
-      const permissionID = PermissionV1.ID.ascending()
-      const questionReplyID = QuestionID.ascending()
-      const questionRejectID = QuestionID.ascending()
-      const [permission, questionReply, questionReject] = yield* Effect.all(
-        [
-          request(`/permission/${permissionID}/reply`, {
-            method: "POST",
-            body: JSON.stringify({ reply: "once" }),
-          }),
-          request(`/question/${questionReplyID}/reply`, {
-            method: "POST",
-            body: JSON.stringify({ answers: [["Yes"]] }),
-          }),
-          request(`/question/${questionRejectID}/reject`, { method: "POST" }),
-        ],
-        { concurrency: "unbounded" },
-      )
-
-      expect(permission.status).toBe(404)
-      expect(yield* Effect.promise(() => permission.json())).toEqual({
-        _tag: "PermissionNotFoundError",
-        requestID: permissionID,
-        message: `Permission request not found: ${permissionID}`,
-      })
-      expect(questionReply.status).toBe(404)
-      expect(yield* Effect.promise(() => questionReply.json())).toEqual({
-        _tag: "QuestionNotFoundError",
-        requestID: questionReplyID,
-        message: `Question request not found: ${questionReplyID}`,
-      })
-      expect(questionReject.status).toBe(404)
-      expect(yield* Effect.promise(() => questionReject.json())).toEqual({
-        _tag: "QuestionNotFoundError",
-        requestID: questionRejectID,
-        message: `Question request not found: ${questionRejectID}`,
-      })
     }),
   )
 

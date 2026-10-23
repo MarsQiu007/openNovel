@@ -1,7 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { ConfigV1 } from "@opennovel-ai/core/v1/config/config"
-import { SessionV1 } from "@opennovel-ai/core/v1/session"
-import { Deferred, Effect, Layer } from "effect"
+import { Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { HttpServer } from "effect/unstable/http"
 import { ChildProcessSpawner } from "effect/unstable/process"
@@ -13,8 +12,6 @@ import { Flag } from "@opennovel-ai/core/flag/flag"
 import { createOpenNovelClient } from "@opennovel-ai/sdk/v2"
 import { InstanceBootstrap } from "../../src/project/bootstrap"
 import { InstanceStore } from "../../src/project/instance-store"
-import { MessageID, PartID, SessionID } from "../../src/session/schema"
-import { MessageV2 } from "../../src/session/message-v2"
 
 import type { Config } from "@/config/config"
 import { Session as SessionNs } from "@/session/session"
@@ -24,10 +21,7 @@ import { validateSession } from "../../src/cli/tui/validate-session"
 import path from "path"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
-import { awaitWithTimeout, pollWithTimeout, testEffect } from "../lib/effect"
-import { testProviderConfig } from "../lib/test-provider"
-import { ProviderV2 } from "@opennovel-ai/core/provider"
-import { ModelV2 } from "@opennovel-ai/core/model"
+import { pollWithTimeout, testEffect } from "../lib/effect"
 import { Database } from "@opennovel-ai/core/database/database"
 import { httpApiLayer } from "./httpapi-layer"
 
@@ -175,24 +169,6 @@ function statuses(input: Record<string, Captured>) {
   return Object.fromEntries(Object.entries(input).map(([key, value]) => [key, value.status]))
 }
 
-function firstPartText(value: unknown) {
-  return record(array(record(value).parts)[0]).text
-}
-
-function sessionTitles(value: unknown) {
-  return array(value)
-    .map((item) => record(item).title)
-    .filter((title): title is string => typeof title === "string")
-    .sort()
-}
-
-function resetState() {
-  return Effect.promise(async () => {
-    await disposeAllInstances()
-    await resetDatabase()
-  })
-}
-
 function httpapi<A, E>(name: string, effect: Effect.Effect<A, E, TestScope>) {
   it.live(name, effect)
 }
@@ -248,10 +224,46 @@ function withStandardProject<A, E>(
   return withProject(serverPath, { setup: writeStandardFiles }, run)
 }
 
+// V2 catalog 只认 ConfigV2 provider 形状（api/request）；V1 的 npm/options 字段
+// 在解析时被丢弃，provider 永远不会进入 catalog.available。
+function testProviderConfigV2(llmUrl: string) {
+  return {
+    formatter: false,
+    lsp: false,
+    providers: {
+      test: {
+        name: "Test",
+        api: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: llmUrl },
+        request: { body: { apiKey: "test-key" } },
+        models: {
+          "test-model": {
+            name: "Test Model",
+            limit: { context: 100_000, output: 10_000 },
+          },
+        },
+      },
+    },
+  } as unknown as Partial<ConfigV1.Info>
+}
+
+// Location 插件在 runtime 启动时异步填充 catalog，等 test/test-model 可见后再 prompt。
+function awaitTestModel(sdk: Sdk) {
+  return pollWithTimeout(
+    call(() => sdk.v2.model.list()).pipe(
+      Effect.map((result) =>
+        result.data?.data.some((model) => model.providerID === "test" && model.id === "test-model")
+          ? true
+          : undefined,
+      ),
+    ),
+    "test provider model was not loaded into the catalog",
+  )
+}
+
 function withFakeLlm<A, E>(serverPath: ServerPath, run: (input: LlmProjectFixture) => Effect.Effect<A, E, TestScope>) {
   return Effect.gen(function* () {
     const llm = yield* TestLLMServer
-    return yield* withProject(serverPath, { config: testProviderConfig(llm.url) }, (input) => run({ ...input, llm }))
+    return yield* withProject(serverPath, { config: testProviderConfigV2(llm.url) }, (input) => run({ ...input, llm }))
   }).pipe(Effect.provide(TestLLMServer.layer))
 }
 
@@ -265,7 +277,7 @@ function withFakeLlmProject<A, E>(
     return yield* withProject(
       serverPath,
       {
-        config: testProviderConfig(llm.url),
+        config: testProviderConfigV2(llm.url),
         setup: options.setup,
       },
       (input) => run({ ...input, llm }),
@@ -293,36 +305,6 @@ description: A project skill visible to REST API prompts.
 
 # Project REST Skill
 `,
-    ),
-  )
-}
-
-function seedMessage(directory: string, sessionID: string) {
-  const id = SessionID.make(sessionID)
-  return InstanceStore.Service.use((store) =>
-    store.provide(
-      { directory },
-      SessionNs.Service.use((svc) =>
-        Effect.gen(function* () {
-          const message = yield* svc.updateMessage({
-            id: MessageID.ascending(),
-            sessionID: id,
-            role: "user",
-            time: { created: Date.now() },
-            agent: "test",
-            model: { providerID: ProviderV2.ID.make("test"), modelID: ModelV2.ID.make("test") },
-            tools: {},
-          } satisfies SessionV1.User)
-          const part = yield* svc.updatePart({
-            id: PartID.ascending(),
-            sessionID: id,
-            messageID: message.id,
-            type: "text",
-            text: "seeded message",
-          })
-          return { message, part }
-        }),
-      ),
     ),
   )
 }
@@ -356,18 +338,21 @@ describe("HttpApi SDK", () => {
   httpapiInstance(
     "uses the generated SDK for safe instance routes",
     { serverPath: "raw", git: false, setup: writeStandardFiles },
-    ({ sdk }) =>
+    ({ sdk, directory }) =>
       Effect.gen(function* () {
         const file = yield* call(() => sdk.file.read({ path: "hello.txt" }))
-        const session = yield* call(() => sdk.session.create({ title: "sdk" }))
-        const listed = yield* call(() => sdk.session.list({ roots: true, limit: 10 }))
+        const session = yield* call(() => sdk.v2.session.create({ agent: "build", location: { directory } }))
+        const listed = yield* call(() => sdk.v2.session.list({ roots: true, limit: 10 }))
+
+        // bun 的 toMatchObject 会把非对称匹配器写回被测对象，先取 id 再断言。
+        const sessionID = session.data?.data.id
 
         expect(file.response!.status).toBe(200)
         expect(file.data).toMatchObject({ content: "hello" })
         expect(session.response!.status).toBe(200)
-        expect(session.data).toMatchObject({ title: "sdk" })
+        expect(typeof sessionID).toBe("string")
         expect(listed.response!.status).toBe(200)
-        expect(listed.data?.map((item) => item.id)).toContain(session.data?.id)
+        expect(listed.data?.data.map((item) => item.id)).toContain(sessionID)
 
         yield* Effect.all([
           expectStatus(() => sdk.project.current(), 200),
@@ -449,21 +434,23 @@ describe("HttpApi SDK", () => {
       Effect.gen(function* () {
         const sessionID = "ses_missing"
         const expected = {
-          name: "NotFoundError",
-          data: { message: `Session not found: ${sessionID}` },
+          _tag: "SessionNotFoundError",
+          sessionID,
+          message: `Session not found: ${sessionID}`,
         }
-        const missing = yield* capture(() => sdk.session.get({ sessionID }))
-        const thrown = yield* captureThrown(() => sdk.session.get({ sessionID }, { throwOnError: true }))
+        const missing = yield* capture(() => sdk.v2.session.get({ sessionID }))
+        const thrown = yield* captureThrown(() => sdk.v2.session.get({ sessionID }, { throwOnError: true }))
 
         // Result-tuple path: error body is preserved as-is so existing
-        // consumers reading `result.error.name` / `JSON.stringify(error)`
+        // consumers reading `result.error` / `JSON.stringify(error)`
         // keep working byte-for-byte.
+        expect(missing.status).toBe(404)
         expect(missing.error).toEqual(expected)
         // throwOnError path: SDK wraps the body in a real Error with the
         // server's message, with the original parsed body preserved under
         // `.cause.body`.
         expect(thrown).toBeInstanceOf(Error)
-        expect((thrown as Error).message).toBe(expected.data.message)
+        expect((thrown as Error).message).toBe(expected.message)
         expect(((thrown as Error).cause as { body: unknown }).body).toEqual(expected)
         return {
           status: missing.status,
@@ -570,241 +557,36 @@ describe("HttpApi SDK", () => {
     ),
   )
 
-  serverPathParity("matches generated SDK session lifecycle routes", (serverPath) =>
-    withStandardProject(serverPath, ({ sdk }) =>
-      Effect.gen(function* () {
-        const parent = yield* capture(() => sdk.session.create({ title: "parent" }))
-        const parentID = String(record(parent.data).id)
-        const child = yield* capture(() => sdk.session.create({ title: "child", parentID }))
-        const childID = String(record(child.data).id)
-        const get = yield* capture(() => sdk.session.get({ sessionID: parentID }))
-        const update = yield* capture(() => sdk.session.update({ sessionID: parentID, title: "renamed" }))
-        const roots = yield* capture(() => sdk.session.list({ roots: true, limit: 10 }))
-        const all = yield* capture(() => sdk.session.list({ roots: false, limit: 10 }))
-        const children = yield* capture(() => sdk.session.children({ sessionID: parentID }))
-        const todo = yield* capture(() => sdk.session.todo({ sessionID: parentID }))
-        const status = yield* capture(() => sdk.session.status())
-        const messages = yield* capture(() => sdk.session.messages({ sessionID: parentID }))
-        const missingGet = yield* capture(() => sdk.session.get({ sessionID: "ses_missing" }))
-        const missingMessages = yield* capture(() => sdk.session.messages({ sessionID: "ses_missing", limit: 2 }))
-        const invalidCursor = yield* capture(() =>
-          sdk.session.messages({ sessionID: parentID, limit: 2, before: "bad" }),
-        )
-        const deleted = yield* capture(() => sdk.session.delete({ sessionID: childID }))
-        const getDeleted = yield* capture(() => sdk.session.get({ sessionID: childID }))
-
-        return {
-          statuses: statuses({
-            parent,
-            child,
-            get,
-            update,
-            roots,
-            all,
-            children,
-            todo,
-            status,
-            messages,
-            missingGet,
-            missingMessages,
-            invalidCursor,
-            deleted,
-            getDeleted,
-          }),
-          getTitle: record(get.data).title,
-          updatedTitle: record(update.data).title,
-          rootTitles: sessionTitles(roots.data),
-          allTitles: sessionTitles(all.data),
-          childCount: array(children.data).length,
-          todoCount: array(todo.data).length,
-          messageCount: array(messages.data).length,
-        }
-      }),
-    ),
-  )
-
-  serverPathParity("matches generated SDK session message and part routes", (serverPath) =>
-    withStandardProject(serverPath, ({ sdk, directory }) =>
-      Effect.gen(function* () {
-        const session = yield* capture(() => sdk.session.create({ title: "messages" }))
-        const sessionID = String(record(session.data).id)
-        const seeded = yield* seedMessage(directory, sessionID)
-        const list = yield* capture(() => sdk.session.messages({ sessionID }))
-        const page = yield* capture(() => sdk.session.messages({ sessionID, limit: 1 }))
-        const message = yield* capture(() => sdk.session.message({ sessionID, messageID: seeded.message.id }))
-        const partUpdate = yield* capture(() =>
-          sdk.part.update({
-            sessionID,
-            messageID: seeded.message.id,
-            partID: seeded.part.id,
-            part: { ...seeded.part, text: "updated message" } as NonNullable<
-              Parameters<Sdk["part"]["update"]>[0]["part"]
-            >,
-          }),
-        )
-        const updated = yield* capture(() => sdk.session.message({ sessionID, messageID: seeded.message.id }))
-        const partDelete = yield* capture(() =>
-          sdk.part.delete({ sessionID, messageID: seeded.message.id, partID: seeded.part.id }),
-        )
-        const withoutPart = yield* capture(() => sdk.session.message({ sessionID, messageID: seeded.message.id }))
-        const deleteMessage = yield* capture(() =>
-          sdk.session.deleteMessage({ sessionID, messageID: seeded.message.id }),
-        )
-        const missingMessage = yield* capture(() => sdk.session.message({ sessionID, messageID: seeded.message.id }))
-
-        return {
-          statuses: statuses({
-            session,
-            list,
-            page,
-            message,
-            partUpdate,
-            updated,
-            partDelete,
-            withoutPart,
-            deleteMessage,
-            missingMessage,
-          }),
-          listCount: array(list.data).length,
-          pageCount: array(page.data).length,
-          initialText: firstPartText(message.data),
-          updatedText: firstPartText(updated.data),
-          partCountAfterDelete: array(record(withoutPart.data).parts).length,
-        }
-      }),
-    ),
-  )
-
-  // Regression: EventV2 must publish on the same ProjectBus the /event handler
-  // subscribes to, AND the /event stream must forward handler ALS/context into the
-  // body-pump fiber. Drives the full SDK → /event → Session.updatePart → sync.run →
-  // bus.publish → SDK subscriber path. Goes red if either the publisher uses a
-  // different bus instance (Bug 2 / pre-#27825) or the stream loses context (Bug 1 /
-  // pre-#27425).
-  serverPathParity("streams sync-backed part updates to /event subscribers", (serverPath) =>
-    withStandardProject(serverPath, ({ sdk, directory }) =>
-      Effect.gen(function* () {
-        const session = yield* capture(() => sdk.session.create({ title: "sync-backed part event" }))
-        const sessionID = String(record(session.data).id)
-        const seeded = yield* seedMessage(directory, sessionID)
-
-        const controller = new AbortController()
-        yield* Effect.addFinalizer(() => Effect.sync(() => controller.abort()))
-        const events = yield* call(() => sdk.event.subscribe(undefined, { signal: controller.signal }))
-        yield* Effect.addFinalizer(() =>
-          call(async () => void (await events.stream.return?.(undefined))).pipe(Effect.ignore),
-        )
-
-        const ready = yield* Deferred.make<void>()
-        const received = yield* Deferred.make<unknown>()
-
-        yield* call(async () => {
-          for await (const event of events.stream) {
-            const payload = record(event).payload ?? event
-            const type = record(payload).type
-            if (type === "server.connected") {
-              Deferred.doneUnsafe(ready, Effect.void)
-              continue
-            }
-            if (type === MessageV2.Event.PartUpdated.type) {
-              Deferred.doneUnsafe(received, Effect.succeed(payload))
-              return
-            }
-          }
-        }).pipe(Effect.forkScoped)
-
-        yield* awaitWithTimeout(Deferred.await(ready), "timed out waiting for /event server.connected", "2 seconds")
-
-        const updated = yield* capture(() =>
-          sdk.part.update({
-            sessionID,
-            messageID: seeded.message.id,
-            partID: seeded.part.id,
-            part: { ...seeded.part, text: "updated via sync" } as NonNullable<
-              Parameters<Sdk["part"]["update"]>[0]["part"]
-            >,
-          }),
-        )
-        expect(updated.status).toBe(200)
-
-        const event = yield* awaitWithTimeout(
-          Deferred.await(received),
-          "timed out waiting for message.part.updated bus payload over /event",
-          "5 seconds",
-        )
-        const properties = record(record(event).properties)
-        expect(record(properties.part)).toMatchObject({ id: seeded.part.id, type: "text" })
-        return { type: record(event).type, partType: record(properties.part).type }
-      }),
-    ),
-  )
-
-  serverPathParity("matches generated SDK prompt no-reply routes", (serverPath) =>
-    withStandardProject(serverPath, ({ sdk }) =>
-      Effect.gen(function* () {
-        const session = yield* capture(() => sdk.session.create({ title: "prompt" }))
-        const sessionID = String(record(session.data).id)
-        const prompt = yield* capture(() =>
-          sdk.session.prompt({
-            sessionID,
-            agent: "build",
-            noReply: true,
-            parts: [{ type: "text", text: "hello" }],
-          }),
-        )
-        const asyncPrompt = yield* capture(() =>
-          sdk.session.promptAsync({
-            sessionID,
-            agent: "build",
-            noReply: true,
-            parts: [{ type: "text", text: "async hello" }],
-          }),
-        )
-        const messages = yield* capture(() => sdk.session.messages({ sessionID }))
-
-        return {
-          statuses: statuses({ session, prompt, asyncPrompt, messages }),
-          promptRole: record(record(prompt.data).info).role,
-          messageCount: array(messages.data).length,
-          messageTexts: array(messages.data)
-            .flatMap((item) => array(record(item).parts))
-            .map((part) => record(part).text)
-            .filter((text): text is string => typeof text === "string")
-            .sort(),
-        }
-      }),
-    ),
-  )
-
   serverPathParity("matches generated SDK prompt streaming through fake LLM", (serverPath) =>
-    withFakeLlm(serverPath, ({ sdk, llm }) =>
+    withFakeLlm(serverPath, ({ sdk, llm, directory }) =>
       Effect.gen(function* () {
         yield* llm.text("fake world", { usage: { input: 11, output: 7 } })
+        yield* awaitTestModel(sdk)
         const session = yield* capture(() =>
-          sdk.session.create({
-            title: "llm prompt",
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-          }),
-        )
-        const sessionID = String(record(session.data).id)
-        const prompt = yield* capture(() =>
-          sdk.session.prompt({
-            sessionID,
+          sdk.v2.session.create({
             agent: "build",
-            model: { providerID: "test", modelID: "test-model" },
-            parts: [{ type: "text", text: "hello llm" }],
+            model: { id: "test-model", providerID: "test" },
+            location: { directory },
           }),
         )
-        const messages = yield* capture(() => sdk.session.messages({ sessionID }))
+        const sessionID = String(record(record(session.data).data).id)
+        const prompt = yield* capture(() => sdk.v2.session.prompt({ sessionID, prompt: { text: "hello llm" } }))
+        const waited = yield* capture(() => sdk.v2.session.wait({ sessionID }))
+        const messages = yield* capture(() => sdk.v2.session.messages({ sessionID }))
         const inputs = yield* llm.inputs
 
+        expect(session.status).toBe(200)
+        expect(prompt.status).toBe(200)
+        expect(waited.status).toBe(204)
+        expect(messages.status).toBe(200)
+        expect(inputs.length).toBe(1)
+        expect(inputs[0]?.model).toBe("test-model")
+        expect(JSON.stringify(messages.data)).toContain("fake world")
+        expect(JSON.stringify(messages.data)).toContain("hello llm")
         return {
           statuses: statuses({ session, prompt, messages }),
           calls: inputs.length,
           requestedModel: inputs[0]?.model,
-          responseText: JSON.stringify(prompt.data).includes("fake world"),
-          persistedText: JSON.stringify(messages.data).includes("fake world"),
-          userText: JSON.stringify(messages.data).includes("hello llm"),
         }
       }),
     ),
@@ -812,80 +594,28 @@ describe("HttpApi SDK", () => {
 
   httpapi(
     "includes project skills in REST API prompt context",
-    withFakeLlmProject("default", { setup: writeProjectSkill }, ({ sdk, llm }) =>
+    withFakeLlmProject("default", { setup: writeProjectSkill }, ({ sdk, llm, directory }) =>
       Effect.gen(function* () {
         yield* llm.text("skill context ok", { usage: { input: 11, output: 7 } })
+        yield* awaitTestModel(sdk)
         const session = yield* capture(() =>
-          sdk.session.create({
-            title: "project skill prompt",
-            permission: [{ permission: "*", pattern: "*", action: "allow" }],
-          }),
-        )
-        const sessionID = String(record(session.data).id)
-        const prompt = yield* capture(() =>
-          sdk.session.prompt({
-            sessionID,
+          sdk.v2.session.create({
             agent: "build",
-            model: { providerID: "test", modelID: "test-model" },
-            parts: [{ type: "text", text: "hello skill context" }],
+            model: { id: "test-model", providerID: "test" },
+            location: { directory },
           }),
         )
+        const sessionID = String(record(record(session.data).data).id)
+        const prompt = yield* capture(() =>
+          sdk.v2.session.prompt({ sessionID, prompt: { text: "hello skill context" } }),
+        )
+        const waited = yield* capture(() => sdk.v2.session.wait({ sessionID }))
         const inputs = yield* llm.inputs
 
         expect(session.status).toBe(200)
         expect(prompt.status).toBe(200)
+        expect(waited.status).toBe(204)
         expect(JSON.stringify(inputs[0])).toContain("project-rest-skill")
-      }),
-    ),
-  )
-
-  serverPathParity("matches generated SDK TUI validation and command routes", (serverPath) =>
-    withStandardProject(serverPath, ({ sdk }) =>
-      Effect.gen(function* () {
-        const session = yield* capture(() => sdk.session.create({ title: "tui" }))
-        const sessionID = String(record(session.data).id)
-        const appendPrompt = yield* capture(() => sdk.tui.appendPrompt({ text: "hello" }))
-        const openHelp = yield* capture(() => sdk.tui.openHelp())
-        const openSessions = yield* capture(() => sdk.tui.openSessions())
-        const openThemes = yield* capture(() => sdk.tui.openThemes())
-        const openModels = yield* capture(() => sdk.tui.openModels())
-        const submitPrompt = yield* capture(() => sdk.tui.submitPrompt())
-        const clearPrompt = yield* capture(() => sdk.tui.clearPrompt())
-        const executeCommand = yield* capture(() => sdk.tui.executeCommand({ command: "session_new" }))
-        const showToast = yield* capture(() => sdk.tui.showToast({ title: "SDK", message: "hello", variant: "info" }))
-        const selectSession = yield* capture(() => sdk.tui.selectSession({ sessionID }))
-        const missingSession = yield* capture(() => sdk.tui.selectSession({ sessionID: "ses_missing" }))
-        const invalidSession = yield* capture(() => sdk.tui.selectSession({ sessionID: "invalid_session_id" }))
-
-        return {
-          statuses: statuses({
-            session,
-            appendPrompt,
-            openHelp,
-            openSessions,
-            openThemes,
-            openModels,
-            submitPrompt,
-            clearPrompt,
-            executeCommand,
-            showToast,
-            selectSession,
-            missingSession,
-            invalidSession,
-          }),
-          data: {
-            appendPrompt: appendPrompt.data,
-            openHelp: openHelp.data,
-            openSessions: openSessions.data,
-            openThemes: openThemes.data,
-            openModels: openModels.data,
-            submitPrompt: submitPrompt.data,
-            clearPrompt: clearPrompt.data,
-            executeCommand: executeCommand.data,
-            showToast: showToast.data,
-            selectSession: selectSession.data,
-          },
-        }
       }),
     ),
   )

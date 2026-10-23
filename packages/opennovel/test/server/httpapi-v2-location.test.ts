@@ -114,10 +114,15 @@ describe("v2 location HttpApi", () => {
     expect(connected.type).toBe("server.connected")
     expect(connected.location).toBeUndefined()
 
-    const created = await request("/session", publisher.path, { method: "POST" })
+    const created = await request("/api/session", publisher.path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // create 缺省 location 是 process.cwd()，事件 location 须落在 publisher 目录
+      body: JSON.stringify({ location: { directory: publisher.path } }),
+    })
     expect(created.status).toBe(200)
-    expect(await readEventType(reader, "session.created")).toMatchObject({
-      type: "session.created",
+    expect(await readEventType(reader, "session.next.created")).toMatchObject({
+      type: "session.next.created",
       location: { directory: publisher.path },
       data: { sessionID: expect.any(String) },
     })

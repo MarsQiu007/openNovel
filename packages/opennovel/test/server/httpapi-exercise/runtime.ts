@@ -6,10 +6,7 @@ export type Runtime = {
   InstanceRef: (typeof import("../../../src/effect/instance-ref"))["InstanceRef"]
   InstanceStore: (typeof import("../../../src/project/instance-store"))["InstanceStore"]
   Session: (typeof import("../../../src/session/session"))["Session"]
-  Todo: (typeof import("../../../src/session/todo"))["Todo"]
   Worktree: (typeof import("../../../src/worktree"))["Worktree"]
-  Project: (typeof import("../../../src/project/project"))["Project"]
-  Tui: typeof import("../../../src/server/shared/tui-control")
   tmpdir: (typeof import("../../fixture/fixture"))["tmpdir"]
 }
 
@@ -24,10 +21,7 @@ export function runtime() {
     const instanceRef = await import("../../../src/effect/instance-ref")
     const instanceStore = await import("../../../src/project/instance-store")
     const session = await import("../../../src/session/session")
-    const todo = await import("../../../src/session/todo")
     const worktree = await import("../../../src/worktree")
-    const project = await import("../../../src/project/project")
-    const tui = await import("../../../src/server/shared/tui-control")
     const fixture = await import("../../fixture/fixture")
     return {
       PublicApi: publicApi.PublicApi,
@@ -37,10 +31,7 @@ export function runtime() {
       InstanceRef: instanceRef.InstanceRef,
       InstanceStore: instanceStore.InstanceStore,
       Session: session.Session,
-      Todo: todo.Todo,
       Worktree: worktree.Worktree,
-      Project: project.Project,
-      Tui: tui,
       tmpdir: fixture.tmpdir,
     }
   })())

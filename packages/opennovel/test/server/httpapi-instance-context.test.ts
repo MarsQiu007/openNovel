@@ -12,7 +12,6 @@ import type { WorkspaceAdapter } from "../../src/control-plane/types"
 import { Workspace } from "../../src/control-plane/workspace"
 import { InstanceRef, WorkspaceRef } from "../../src/effect/instance-ref"
 import { Project } from "../../src/project/project"
-import { Session } from "../../src/session/session"
 import { disposeMiddleware, markInstanceForDisposal } from "../../src/server/routes/instance/httpapi/lifecycle"
 import {
   InstanceContextMiddleware,
@@ -99,7 +98,10 @@ const ProbeApi = HttpApi.make("instance-context-probe").add(
   HttpApiGroup.make("probe")
     .add(
       HttpApiEndpoint.get("get", "/probe", { query: WorkspaceRoutingQuery, success: ProbeResult }),
-      HttpApiEndpoint.get("session", "/session", { query: WorkspaceRoutingQuery, success: ProbeResult }),
+      HttpApiEndpoint.get("controlPlane", "/experimental/workspace", {
+        query: WorkspaceRoutingQuery,
+        success: ProbeResult,
+      }),
       HttpApiEndpoint.post("dispose", "/dispose-probe", {
         query: WorkspaceRoutingQuery,
         success: Schema.Boolean,
@@ -112,7 +114,7 @@ const ProbeApi = HttpApi.make("instance-context-probe").add(
 const probeHandlers = HttpApiBuilder.group(ProbeApi, "probe", (handlers) =>
   handlers
     .handle("get", () => probeInstanceContext)
-    .handle("session", () => probeInstanceContext)
+    .handle("controlPlane", () => probeInstanceContext)
     .handle(
       "dispose",
       Effect.fn("InstanceContextProbe.dispose")(function* () {
@@ -127,7 +129,6 @@ const probeHandlers = HttpApiBuilder.group(ProbeApi, "probe", (handlers) =>
 const probeRoutes = HttpApiBuilder.layer(ProbeApi).pipe(
   Layer.provide(probeHandlers),
   Layer.provide(instanceContextTestLayer),
-  Layer.provide(Layer.mock(Session.Service)({})),
 )
 
 const serveProbe = () => probeRoutes.pipe(HttpRouter.serve, Layer.build)
@@ -186,7 +187,7 @@ describe("HttpApi instance context middleware", () => {
       })
       yield* serveProbe()
 
-      const response = yield* HttpClientRequest.get(`/session?workspace=${workspace.id}`).pipe(
+      const response = yield* HttpClientRequest.get(`/experimental/workspace?workspace=${workspace.id}`).pipe(
         HttpClientRequest.setHeader("x-opennovel-directory", dir),
         HttpClient.execute,
       )
@@ -293,13 +294,13 @@ describe("HttpApi instance context middleware", () => {
         type: "instance-context-fixed-workspace-control-plane",
         directory: workspaceDir,
       })
-      // /session is matched by isLocalWorkspaceRoute, so shouldStayOnControlPlane
-      // is true. Combined with the env override, the route must stay Local with
-      // the configured workspace id (not divert to the requested workspace's
-      // local directory).
+      // /experimental/workspace is matched by isLocalWorkspaceRoute, so
+      // shouldStayOnControlPlane is true. Combined with the env override, the
+      // route must stay Local with the configured workspace id (not divert to
+      // the requested workspace's local directory).
       yield* serveProbe()
 
-      const response = yield* HttpClientRequest.get(`/session?workspace=${workspace.id}`).pipe(
+      const response = yield* HttpClientRequest.get(`/experimental/workspace?workspace=${workspace.id}`).pipe(
         HttpClientRequest.setHeader("x-opennovel-directory", dir),
         HttpClient.execute,
       )

@@ -1,8 +1,6 @@
 import { AccountID, OrgID } from "@/account/schema"
 import { MCP } from "@/mcp"
 
-import { Session } from "@/session/session"
-import { SessionID } from "@/session/schema"
 import { Worktree } from "@/worktree"
 import { NonNegativeInt } from "@opennovel-ai/core/schema"
 import { Schema } from "effect"
@@ -15,7 +13,6 @@ import {
   WorkspaceRoutingQueryFields,
 } from "../middleware/workspace-routing"
 import { described } from "./metadata"
-import { QueryBoolean } from "./query"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { ModelV2 } from "@opennovel-ai/core/model"
 
@@ -73,16 +70,6 @@ export class WorktreeApiError extends Schema.ErrorClass<WorktreeApiError>("Workt
   },
   { httpApiStatus: 400 },
 ) {}
-export const SessionListQuery = Schema.Struct({
-  ...WorkspaceRoutingQueryFields,
-  roots: Schema.optional(QueryBoolean),
-  start: Schema.optional(Schema.NumberFromString),
-  cursor: Schema.optional(Schema.NumberFromString),
-  search: Schema.optional(Schema.String),
-  limit: Schema.optional(Schema.NumberFromString),
-  archived: Schema.optional(QueryBoolean),
-})
-
 export const ExperimentalPaths = {
   console: "/experimental/console",
   consoleOrgs: "/experimental/console/orgs",
@@ -91,7 +78,6 @@ export const ExperimentalPaths = {
   toolIDs: "/experimental/tool/ids",
   worktree: "/experimental/worktree",
   worktreeReset: "/experimental/worktree/reset",
-  session: "/experimental/session",
   resource: "/experimental/resource",
 } as const
 
@@ -203,17 +189,6 @@ export const ExperimentalApi = HttpApi.make("experimental")
             identifier: "worktree.reset",
             summary: "Reset worktree",
             description: "Reset a worktree branch to the primary default branch.",
-          }),
-        ),
-        HttpApiEndpoint.get("session", ExperimentalPaths.session, {
-          query: SessionListQuery,
-          success: described(Schema.Array(Session.GlobalInfo), "List of sessions"),
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "experimental.session.list",
-            summary: "List sessions",
-            description:
-              "Get a list of all OpenNovel sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
           }),
         ),
         HttpApiEndpoint.get("resource", ExperimentalPaths.resource, {

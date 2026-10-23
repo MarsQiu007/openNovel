@@ -42,10 +42,6 @@ class ScenarioBuilder<S = undefined> {
     return this.clone({ project })
   }
 
-  withLlm() {
-    return this.clone({ project: { ...(this.state.project ?? { git: true }), llm: true } })
-  }
-
   at(request: BuilderState<S>["request"]) {
     return this.clone({ request })
   }

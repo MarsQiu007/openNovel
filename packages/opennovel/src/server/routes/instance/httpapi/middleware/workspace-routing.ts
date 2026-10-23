@@ -3,11 +3,9 @@ import type { Target } from "@/control-plane/types"
 import { Workspace } from "@/control-plane/workspace"
 import { WorkspaceAdapterRuntime } from "@/control-plane/workspace-adapter-runtime"
 import { registerSyncDirectory } from "@/novel/manual-edit-sync-worker"
-import { Session } from "@/session/session"
 import { HttpApiProxy } from "./proxy"
 import * as Fence from "@/server/shared/fence"
-import { getWorkspaceRouteSessionID, isLocalWorkspaceRoute, workspaceProxyURL } from "@/server/shared/workspace-routing"
-import { NotFoundError } from "@/storage/storage"
+import { isLocalWorkspaceRoute, workspaceProxyURL } from "@/server/shared/workspace-routing"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { Context, Data, Effect, Layer, Option, Schema } from "effect"
 import { HttpClient, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -55,7 +53,6 @@ export class WorkspaceRoutingMiddleware extends HttpApiMiddleware.Service<
   WorkspaceRoutingMiddleware,
   {
     provides: WorkspaceRouteContext
-    requires: Session.Service
   }
 >()("@opennovel/ExperimentalHttpApiWorkspaceRouting") {}
 
@@ -67,16 +64,12 @@ function configuredWorkspaceID(): WorkspaceV2.ID | undefined {
   return Flag.OPENNOVEL_WORKSPACE_ID ? WorkspaceV2.ID.make(Flag.OPENNOVEL_WORKSPACE_ID) : undefined
 }
 
-function selectedWorkspaceID(url: URL, sessionWorkspaceID?: WorkspaceV2.ID): WorkspaceV2.ID | undefined {
+function selectedWorkspaceID(url: URL): WorkspaceV2.ID | undefined {
   const workspaceParam = url.searchParams.get("workspace")
-  return sessionWorkspaceID ?? (workspaceParam ? WorkspaceV2.ID.make(workspaceParam) : undefined)
+  return workspaceParam ? WorkspaceV2.ID.make(workspaceParam) : undefined
 }
 
-function selectedV2WorkspaceID(
-  url: URL,
-  sessionWorkspaceID?: WorkspaceV2.ID,
-): WorkspaceV2.ID | typeof InvalidWorkspaceID | undefined {
-  if (sessionWorkspaceID) return sessionWorkspaceID
+function selectedV2WorkspaceID(url: URL): WorkspaceV2.ID | typeof InvalidWorkspaceID | undefined {
   const workspaceParam = url.searchParams.get("workspace")
   if (!workspaceParam) return undefined
   const workspaceID = Schema.decodeUnknownOption(WorkspaceV2.ID)(workspaceParam)
@@ -160,14 +153,13 @@ function planWorkspaceRequest(
 
 function planRequest(
   request: HttpServerRequest.HttpServerRequest,
-  session?: Session.Info,
 ): Effect.Effect<RequestPlan, never, Workspace.Service> {
   return Effect.gen(function* () {
     const url = requestURL(request)
     const envWorkspaceID = configuredWorkspaceID()
     const workspaceID = url.pathname.startsWith("/api/")
-      ? selectedV2WorkspaceID(url, session?.workspaceID)
-      : selectedWorkspaceID(url, session?.workspaceID)
+      ? selectedV2WorkspaceID(url)
+      : selectedWorkspaceID(url)
     if (workspaceID === InvalidWorkspaceID) return RequestPlan.InvalidWorkspace()
     const workspace = yield* resolveWorkspace(workspaceID, envWorkspaceID)
 
@@ -180,7 +172,7 @@ function planRequest(
     }
 
     return RequestPlan.Local({
-      directory: session?.directory || defaultDirectory(request, url),
+      directory: defaultDirectory(request, url),
       workspaceID: envWorkspaceID ?? workspaceID,
     })
   })
@@ -220,21 +212,11 @@ function routeHttpApiWorkspace<E>(
 ): Effect.Effect<
   HttpServerResponse.HttpServerResponse,
   E,
-  Session.Service | Workspace.Service | HttpServerRequest.HttpServerRequest | Socket.WebSocketConstructor
+  Workspace.Service | HttpServerRequest.HttpServerRequest | Socket.WebSocketConstructor
 > {
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
-    const sessionID = getWorkspaceRouteSessionID(requestURL(request))
-    const session = sessionID
-      ? yield* Session.Service.use((svc) => svc.get(sessionID)).pipe(
-          Effect.catchIf(
-            (error): error is NotFoundError => NotFoundError.isInstance(error),
-            () => Effect.succeed(undefined),
-          ),
-          Effect.catchDefect(() => Effect.succeed(undefined)),
-        )
-      : undefined
-    const plan = yield* planRequest(request, session)
+    const plan = yield* planRequest(request)
     return yield* routeWorkspace(client, effect, plan)
   })
 }

@@ -85,9 +85,14 @@ describe("event HttpApi", () => {
         const { reader } = yield* openEventStream(directory)
         expect(yield* readEvent(reader)).toMatchObject({ type: "server.connected", properties: {} })
 
-        const created = yield* requestInDirectory("/session", directory, { method: "POST" })
+        const created = yield* requestInDirectory("/api/session", directory, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          // create 缺省 location 是 process.cwd()，事件须落在本实例目录
+          body: JSON.stringify({ location: { directory } }),
+        })
         expect(created.status).toBe(200)
-        expect(yield* readEvent(reader)).toMatchObject({ type: "session.created" })
+        expect(yield* readEvent(reader)).toMatchObject({ type: "session.next.created" })
       }),
     { git: true, config: { formatter: false, lsp: false } },
   )
