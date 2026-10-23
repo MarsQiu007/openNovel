@@ -25,7 +25,7 @@ export interface MockServerConfig {
   sessionList?: MockSession[] | (() => MockSession[])
   /** V2 消息历史（升序）；/api/session/{id}/message 分页与 /{mid} 单条共用它 */
   v2Messages?: (sessionID: string) => SessionMessage[]
-  onV2Messages?: (input: { sessionID: string; cursor?: string; phase: "start" | "end" }) => void
+  onV2Messages?: (input: { sessionID: string; cursor?: string; limit: number; phase: "start" | "end" }) => void
   beforeV2MessagesResponse?: (input: { sessionID: string; cursor?: string }) => Promise<void>
   v2Todos?: (sessionID: string) => unknown[]
   /** active 会话集合（busy 对账的唯一来源）：键为 sessionID，值不被消费；函数形态供测试中途翻转 busy/idle */
@@ -168,18 +168,18 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
       const token = url.searchParams.get("cursor") ?? undefined
       const before = token ? cursors.get(token) : undefined
       if (token && !before) return json(route, { error: "Invalid cursor" }, undefined, 400)
-      config.onV2Messages?.({ sessionID, cursor: before, phase: "start" })
+      const limit = Number(url.searchParams.get("limit") ?? 80)
+      config.onV2Messages?.({ sessionID, cursor: before, limit, phase: "start" })
       await config.beforeV2MessagesResponse?.({ sessionID, cursor: before })
       const all = config.v2Messages?.(sessionID) ?? []
       const ordered = url.searchParams.get("order") === "desc" ? [...all].reverse() : all
       const start = before ? ordered.findIndex((item) => item.id === before) + 1 : 0
-      const limit = Number(url.searchParams.get("limit") ?? 80)
       const pageItems = ordered.slice(start, start + limit)
       const last = pageItems[pageItems.length - 1]
       const hasMore = start + limit < ordered.length && last !== undefined
       const cursor = hasMore ? `cursor_${++nextCursor}` : undefined
       if (cursor && last) cursors.set(cursor, last.id)
-      config.onV2Messages?.({ sessionID, cursor: before, phase: "end" })
+      config.onV2Messages?.({ sessionID, cursor: before, limit, phase: "end" })
       return json(route, { data: pageItems, cursor: cursor ? { next: cursor } : {} })
     }
 
