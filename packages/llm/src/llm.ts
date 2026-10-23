@@ -10,6 +10,7 @@ import {
   LLMResponse,
   Message,
   type ModelInput as SchemaModelInput,
+  RetryOptions,
   SystemPart,
   ToolChoice,
   ToolDefinition,
@@ -30,7 +31,7 @@ export type ToolResultInput = Parameters<typeof ToolResultPart.make>[0]
 /** Input accepted by `LLM.request`, normalized into the canonical `LLMRequest` class. */
 export type RequestInput = Omit<
   ConstructorParameters<typeof LLMRequest>[0],
-  "system" | "messages" | "tools" | "toolChoice" | "generation" | "http" | "providerOptions"
+  "system" | "messages" | "tools" | "toolChoice" | "generation" | "http" | "providerOptions" | "retry"
 > & {
   readonly system?: string | SystemPart | ReadonlyArray<SystemPart>
   readonly prompt?: string | ContentPart | ReadonlyArray<ContentPart>
@@ -40,6 +41,7 @@ export type RequestInput = Omit<
   readonly generation?: GenerationOptions.Input
   readonly providerOptions?: ConstructorParameters<typeof LLMRequest>[0]["providerOptions"]
   readonly http?: HttpOptions.Input
+  readonly retry?: RetryOptions.Input
 }
 
 export const generate = LLMClient.generate
@@ -60,6 +62,7 @@ export const request = (input: RequestInput) => {
     generation: requestGeneration,
     providerOptions: requestProviderOptions,
     http: requestHttp,
+    retry: requestRetry,
     ...rest
   } = input
   return new LLMRequest({
@@ -71,6 +74,7 @@ export const request = (input: RequestInput) => {
     generation: requestGeneration === undefined ? undefined : GenerationOptions.make(requestGeneration),
     providerOptions: requestProviderOptions,
     http: requestHttp === undefined ? undefined : HttpOptions.make(requestHttp),
+    retry: requestRetry === undefined ? undefined : RetryOptions.make(requestRetry),
   })
 }
 

@@ -19,24 +19,54 @@ import {
   ProviderInternalReason,
   QuotaExceededReason,
   RateLimitReason,
+  RetryOptions,
   TransportReason,
   UnknownProviderReason,
 } from "../schema"
 import { isContextOverflow } from "../provider-error"
 
+export interface ExecuteOptions {
+  /** Per-call retry policy override; unset fields fall back to the defaults. */
+  readonly retry?: RetryOptions.Input | undefined
+}
+
 export interface Interface {
   readonly execute: (
     request: HttpClientRequest.HttpClientRequest,
+    options?: ExecuteOptions,
   ) => Effect.Effect<HttpClientResponse.HttpClientResponse, LLMError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/LLM/RequestExecutor") {}
 
 const BODY_LIMIT = 16_384
-const MAX_RETRIES = 2
-const BASE_DELAY_MS = 500
-const MAX_DELAY_MS = 10_000
 const REDACTED = "<redacted>"
+
+// Default call-level retry policy, aligned with upstream model-retry.ts
+// semantics: exponential from 2s capped at 10s per gap for up to 10 retries,
+// Retry-After honored up to 15 minutes, timeout attempts capped at 3 so a
+// dead provider cannot hold a call for the full general allowance.
+const DEFAULT_RETRY = {
+  maxRetries: 10,
+  baseDelayMs: 2_000,
+  maxDelayMs: 10_000,
+  retryAfterMaxMs: 900_000,
+  maxTimeoutRetries: 3,
+} as const
+
+type ResolvedRetry = { readonly [K in keyof typeof DEFAULT_RETRY]: number }
+
+const resolveRetry = (input: RetryOptions.Input | undefined): ResolvedRetry => {
+  if (input === undefined) return DEFAULT_RETRY
+  const options = RetryOptions.make(input)
+  return {
+    maxRetries: options.maxRetries ?? DEFAULT_RETRY.maxRetries,
+    baseDelayMs: options.baseDelayMs ?? DEFAULT_RETRY.baseDelayMs,
+    maxDelayMs: options.maxDelayMs ?? DEFAULT_RETRY.maxDelayMs,
+    retryAfterMaxMs: options.retryAfterMaxMs ?? DEFAULT_RETRY.retryAfterMaxMs,
+    maxTimeoutRetries: options.maxTimeoutRetries ?? DEFAULT_RETRY.maxTimeoutRetries,
+  }
+}
 
 // One source of truth for what counts as a sensitive name across headers,
 // URL query keys, and field names embedded inside request/response bodies.
@@ -342,24 +372,59 @@ const toHttpError = (redactedNames: ReadonlyArray<string | RegExp>) => (error: u
   })
 }
 
-const retryDelay = (error: LLMError, attempt: number) => {
-  if (error.retryAfterMs !== undefined) return Effect.succeed(Math.min(error.retryAfterMs, MAX_DELAY_MS))
+// The provider's explicit Retry-After is authoritative guidance: use it as the
+// whole delay (capped by policy.retryAfterMaxMs) instead of stacking jittered
+// backoff on top. Backoff applies only when the header is absent.
+const retryDelay = (error: LLMError, attempt: number, policy: ResolvedRetry) => {
+  if (error.retryAfterMs !== undefined) return Effect.succeed(Math.min(error.retryAfterMs, policy.retryAfterMaxMs))
   return Random.nextBetween(
-    Math.min(BASE_DELAY_MS * 2 ** attempt * 0.8, MAX_DELAY_MS),
-    Math.min(BASE_DELAY_MS * 2 ** attempt * 1.2, MAX_DELAY_MS),
+    Math.min(policy.baseDelayMs * 2 ** attempt * 0.8, policy.maxDelayMs),
+    Math.min(policy.baseDelayMs * 2 ** attempt * 1.2, policy.maxDelayMs),
   ).pipe(Effect.map((delay) => Math.round(delay)))
+}
+
+// A provider's explicit `x-should-retry` response header overrides the local
+// reason classification in both directions.
+const shouldRetry = (error: LLMError) => {
+  const http = "http" in error.reason ? error.reason.http : undefined
+  const override = http?.response?.headers["x-should-retry"]
+  if (override === "true") return true
+  if (override === "false") return false
+  return error.retryable
+}
+
+const isTimeout = (error: LLMError) => error.reason._tag === "Transport" && error.reason.kind === "Timeout"
+
+const withAttempts = (error: LLMError, attempts: number) => {
+  if (attempts <= 1) return error
+  return new LLMError({ module: error.module, method: error.method, reason: error.reason, attempts })
 }
 
 const retryStatusFailures = <A, R>(
   effect: Effect.Effect<A, LLMError, R>,
-  retries = MAX_RETRIES,
-  attempt = 0,
+  policy: ResolvedRetry,
+  retries: number,
+  attempt: number,
+  timeouts: number,
 ): Effect.Effect<A, LLMError, R> =>
   Effect.catchTag(effect, "LLM.Error", (error): Effect.Effect<A, LLMError, R> => {
-    if (!error.retryable || retries <= 0) return Effect.fail(error)
-    return retryDelay(error, attempt).pipe(
+    const timeout = isTimeout(error)
+    if (!shouldRetry(error) || retries <= 0 || (timeout && timeouts >= policy.maxTimeoutRetries)) {
+      return Effect.fail(withAttempts(error, attempt + 1))
+    }
+    return retryDelay(error, attempt, policy).pipe(
+      Effect.tap((delay) =>
+        Effect.logWarning("LLM request failed; scheduling retry").pipe(
+          Effect.annotateLogs({
+            attempt: attempt + 1,
+            delayMs: delay,
+            reason: error.reason._tag,
+            requestId: "http" in error.reason ? error.reason.http?.requestId : undefined,
+          }),
+        ),
+      ),
       Effect.flatMap((delay) => Effect.sleep(delay)),
-      Effect.flatMap(() => retryStatusFailures(effect, retries - 1, attempt + 1)),
+      Effect.flatMap(() => retryStatusFailures(effect, policy, retries - 1, attempt + 1, timeouts + (timeout ? 1 : 0))),
     )
   })
 
@@ -375,7 +440,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           .pipe(Effect.mapError(toHttpError(redactedNames)), Effect.flatMap(statusError(request, redactedNames)))
       })
     return Service.of({
-      execute: (request) => retryStatusFailures(executeOnce(request)),
+      execute: (request, options) => {
+        const policy = resolveRetry(options?.retry)
+        return retryStatusFailures(executeOnce(request), policy, policy.maxRetries, 0, 0)
+      },
     })
   }),
 )

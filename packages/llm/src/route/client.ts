@@ -21,9 +21,11 @@ import {
   LLMError as LLMErrorClass,
   PreparedRequest,
   ProviderID,
+  RetryOptions,
   mergeGenerationOptions,
   mergeHttpOptions,
   mergeProviderOptions,
+  mergeRetryOptions,
 } from "../schema"
 
 export interface RouteBody<Body> {
@@ -70,6 +72,7 @@ export interface RouteDefaults {
   readonly generation?: GenerationOptions
   readonly providerOptions?: ProviderOptions
   readonly http?: HttpOptions
+  readonly retry?: RetryOptions
 }
 
 export interface RouteDefaultsInput {
@@ -78,6 +81,7 @@ export interface RouteDefaultsInput {
   readonly generation?: GenerationOptions.Input
   readonly providerOptions?: ProviderOptions
   readonly http?: HttpOptions.Input
+  readonly retry?: RetryOptions.Input
 }
 
 export interface RoutePatch<Body, Prepared> extends RouteDefaultsInput {
@@ -116,6 +120,7 @@ const mergeRouteDefaults = (base: RouteDefaults | undefined, patch: RouteDefault
       httpOptions(patch.http),
       headers === undefined ? undefined : new HttpOptions({ headers }),
     ),
+    retry: mergeRetryOptions(base?.retry, patch.retry === undefined ? undefined : RetryOptions.make(patch.retry)),
   }
 }
 
@@ -176,6 +181,7 @@ const resolveRequestOptions = (request: LLMRequest) => {
       request.providerOptions,
     ),
     http: mergeHttpOptions(routeDefaults.http, modelDefaults?.http, request.http),
+    retry: mergeRetryOptions(routeDefaults.retry, modelDefaults?.retry, request.retry),
   })
 }
 

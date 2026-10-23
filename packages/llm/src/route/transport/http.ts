@@ -130,7 +130,7 @@ export const httpJson = <Body, Frame>(input: HttpJsonInput<Body, Frame>): HttpJs
   frames: (prepared, request, runtime) =>
     Stream.unwrap(
       runtime.http
-        .execute(prepared.request)
+        .execute(prepared.request, { retry: request.retry })
         .pipe(
           Effect.map((response) =>
             prepared.framing.frame(

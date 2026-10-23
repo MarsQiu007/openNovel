@@ -1,7 +1,15 @@
 import { Schema } from "effect"
 import { ToolContent, ToolFileContent, ToolTextContent } from "@opennovel-ai/schema/llm"
 import { JsonSchema, MessageRole, ProviderMetadata } from "./ids"
-import { CacheHint, CachePolicy, GenerationOptions, HttpOptions, ModelSchema, ProviderOptions } from "./options"
+import {
+  CacheHint,
+  CachePolicy,
+  GenerationOptions,
+  HttpOptions,
+  ModelSchema,
+  ProviderOptions,
+  RetryOptions,
+} from "./options"
 import { isRecord } from "../utils/record"
 
 const systemPartSchema = Schema.Struct({
@@ -280,6 +288,7 @@ export class LLMRequest extends Schema.Class<LLMRequest>("LLM.Request")({
   http: Schema.optional(HttpOptions),
   responseFormat: Schema.optional(ResponseFormat),
   cache: Schema.optional(CachePolicy),
+  retry: Schema.optional(RetryOptions),
   metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
@@ -298,6 +307,7 @@ export namespace LLMRequest {
     http: request.http,
     responseFormat: request.responseFormat,
     cache: request.cache,
+    retry: request.retry,
     metadata: request.metadata,
   })
 

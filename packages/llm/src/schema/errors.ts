@@ -126,8 +126,11 @@ export class TransportReason extends Schema.Class<TransportReason>("LLM.Error.Tr
   url: Schema.optional(Schema.String),
   http: Schema.optional(HttpContext),
 }) {
+  // Transient transport failures (connection reset, timeout) may succeed when
+  // sent again; the executor caps timeout attempts separately so a dead
+  // provider cannot hold a call for the full general allowance.
   get retryable() {
-    return false
+    return true
   }
 }
 
@@ -152,8 +155,11 @@ export class UnknownProviderReason extends Schema.Class<UnknownProviderReason>("
   providerMetadata: Schema.optional(ProviderMetadata),
   http: Schema.optional(HttpContext),
 }) {
+  // Unrecognized failures retry: classification records affirmative
+  // deterministic evidence, and transient failures are exactly the ones that
+  // arrive in shapes no classifier anticipates.
   get retryable() {
-    return false
+    return true
   }
 }
 
@@ -175,6 +181,8 @@ export class LLMError extends Schema.TaggedErrorClass<LLMError>()("LLM.Error", {
   module: Schema.String,
   method: Schema.String,
   reason: LLMErrorReason,
+  /** Total attempts made when the failure surfaced after call-level retries. */
+  attempts: Schema.optional(Schema.Number),
 }) {
   override readonly cause = this.reason
 
@@ -187,7 +195,9 @@ export class LLMError extends Schema.TaggedErrorClass<LLMError>()("LLM.Error", {
   }
 
   override get message() {
-    return `${this.module}.${this.method}: ${this.reason.message}`
+    const base = `${this.module}.${this.method}: ${this.reason.message}`
+    if (this.attempts === undefined || this.attempts <= 1) return base
+    return `${base} (failed after ${this.attempts} attempts)`
   }
 }
 

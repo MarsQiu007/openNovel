@@ -134,11 +134,47 @@ export namespace ModelLimits {
     input instanceof ModelLimits ? input : new ModelLimits(input ?? {})
 }
 
+// Call-level retry policy for one provider request. All fields optional;
+// unset fields resolve to the executor defaults (aligned with upstream
+// model-retry.ts semantics: exponential 2s capped at 10s per gap, up to 10
+// retries, Retry-After honored up to 15 minutes, timeout attempts capped at 3).
+export class RetryOptions extends Schema.Class<RetryOptions>("LLM.RetryOptions")({
+  maxRetries: Schema.optional(Schema.Number),
+  baseDelayMs: Schema.optional(Schema.Number),
+  maxDelayMs: Schema.optional(Schema.Number),
+  retryAfterMaxMs: Schema.optional(Schema.Number),
+  maxTimeoutRetries: Schema.optional(Schema.Number),
+}) {}
+
+export namespace RetryOptions {
+  export type Input = RetryOptions | ConstructorParameters<typeof RetryOptions>[0]
+
+  /** Normalize retry option input into the canonical `RetryOptions` class. */
+  export const make = (input: Input) => (input instanceof RetryOptions ? input : new RetryOptions(input))
+}
+
+const latestRetry = <Key extends "maxRetries" | "baseDelayMs" | "maxDelayMs" | "retryAfterMaxMs" | "maxTimeoutRetries">(
+  items: ReadonlyArray<RetryOptions | undefined>,
+  key: Key,
+) => items.findLast((item) => item?.[key] !== undefined)?.[key]
+
+export const mergeRetryOptions = (...items: ReadonlyArray<RetryOptions | undefined>): RetryOptions | undefined => {
+  const result = new RetryOptions({
+    maxRetries: latestRetry(items, "maxRetries"),
+    baseDelayMs: latestRetry(items, "baseDelayMs"),
+    maxDelayMs: latestRetry(items, "maxDelayMs"),
+    retryAfterMaxMs: latestRetry(items, "retryAfterMaxMs"),
+    maxTimeoutRetries: latestRetry(items, "maxTimeoutRetries"),
+  })
+  return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
 export class ModelDefaults extends Schema.Class<ModelDefaults>("LLM.ModelDefaults")({
   limits: Schema.optional(ModelLimits),
   generation: Schema.optional(GenerationOptions),
   providerOptions: Schema.optional(ProviderOptions),
   http: Schema.optional(HttpOptions),
+  retry: Schema.optional(RetryOptions),
 }) {}
 
 export namespace ModelDefaults {
@@ -149,6 +185,7 @@ export namespace ModelDefaults {
         readonly generation?: GenerationOptions.Input
         readonly providerOptions?: ProviderOptions
         readonly http?: HttpOptions.Input
+        readonly retry?: RetryOptions.Input
       }
 
   /** Normalize selected-model request defaults without applying precedence. */
@@ -159,6 +196,7 @@ export namespace ModelDefaults {
       generation: input.generation === undefined ? undefined : GenerationOptions.make(input.generation),
       providerOptions: input.providerOptions,
       http: input.http === undefined ? undefined : HttpOptions.make(input.http),
+      retry: input.retry === undefined ? undefined : RetryOptions.make(input.retry),
     })
   }
 }

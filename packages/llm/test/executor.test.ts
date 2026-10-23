@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
-import { Effect, Fiber, Layer, Random, Ref } from "effect"
+import { Cause, Effect, Fiber, Layer, Random, Ref } from "effect"
 import * as TestClock from "effect/testing/TestClock"
-import { Headers, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { Headers, HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { LLM, LLMError } from "../src"
 import { LLMClient, RequestExecutor } from "../src/route"
 import * as OpenAIChat from "../src/protocols/openai-chat"
@@ -18,6 +18,11 @@ const secretRequest = HttpClientRequest.post("https://provider.test/v1/chat?api_
   HttpClientRequest.setHeaders(Headers.fromInput({ authorization: "Bearer header-secret-456" })),
 )
 
+// Web Response bodies are single-read: clone per attempt so retry budgets
+// larger than the scripted array still see the final body.
+const scripted = (responses: ReadonlyArray<Response>, index: number) =>
+  (responses[index] ?? responses[responses.length - 1]).clone()
+
 const responsesLayer = (responses: ReadonlyArray<Response>) =>
   RequestExecutor.layer.pipe(
     Layer.provide(
@@ -29,7 +34,7 @@ const responsesLayer = (responses: ReadonlyArray<Response>) =>
             HttpClient.make((request) =>
               Effect.gen(function* () {
                 const index = yield* Ref.getAndUpdate(cursor, (value) => value + 1)
-                return HttpClientResponse.fromWeb(request, responses[index] ?? responses[responses.length - 1])
+                return HttpClientResponse.fromWeb(request, scripted(responses, index))
               }),
             ),
           )
@@ -50,7 +55,7 @@ const countedResponsesLayer = (attempts: Ref.Ref<number>, responses: ReadonlyArr
               Effect.gen(function* () {
                 yield* Ref.update(attempts, (value) => value + 1)
                 const index = yield* Ref.getAndUpdate(cursor, (value) => value + 1)
-                return HttpClientResponse.fromWeb(request, responses[index] ?? responses[responses.length - 1])
+                return HttpClientResponse.fromWeb(request, scripted(responses, index))
               }),
             ),
           )
@@ -63,6 +68,35 @@ const randomMidpoint = {
   nextDoubleUnsafe: () => 0.5,
   nextIntUnsafe: () => 0,
 }
+
+// A client whose first calls fail in the error channel (transport/timeout)
+// before serving `ok`; `fail` returns undefined once failures are exhausted.
+const flakyLayer = (
+  attempts: Ref.Ref<number>,
+  fail: (request: HttpClientRequest.HttpClientRequest, index: number) => HttpClientError.HttpClientError | undefined,
+  ok: Response = new Response("ok", { status: 200 }),
+) =>
+  RequestExecutor.layer.pipe(
+    Layer.provide(
+      Layer.unwrap(
+        Effect.gen(function* () {
+          const cursor = yield* Ref.make(0)
+          return Layer.succeed(
+            HttpClient.HttpClient,
+            HttpClient.make((request) =>
+              Effect.gen(function* () {
+                yield* Ref.update(attempts, (value) => value + 1)
+                const index = yield* Ref.getAndUpdate(cursor, (value) => value + 1)
+                const failure = fail(request, index)
+                if (failure !== undefined) return yield* Effect.fail(failure)
+                return HttpClientResponse.fromWeb(request, ok.clone())
+              }),
+            ),
+          )
+        }),
+      ),
+    ),
+  )
 
 const expectLLMError = (error: unknown) => {
   expect(error).toBeInstanceOf(LLMError)
@@ -390,7 +424,9 @@ describe("RequestExecutor", () => {
       const attempts = yield* Ref.make(0)
       return yield* Effect.gen(function* () {
         const executor = yield* RequestExecutor.Service
-        const fiber = yield* executor.execute(request).pipe(Effect.flip, Effect.forkChild)
+        const fiber = yield* executor
+          .execute(request, { retry: { maxRetries: 2, baseDelayMs: 500 } })
+          .pipe(Effect.flip, Effect.forkChild)
 
         yield* Effect.yieldNow
         expect(yield* Ref.get(attempts)).toBe(1)
@@ -423,6 +459,200 @@ describe("RequestExecutor", () => {
         ),
       )
     }).pipe(Effect.provideService(Random.Random, randomMidpoint)),
+  )
+
+  it.effect("retries transient transport failures before succeeding", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      return yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const response = yield* executor.execute(request, { retry: { baseDelayMs: 0, maxDelayMs: 0 } })
+
+        expect(response.status).toBe(200)
+        expect(yield* Ref.get(attempts)).toBe(2)
+      }).pipe(
+        Effect.provide(
+          flakyLayer(attempts, (req, index) =>
+            index === 0
+              ? new HttpClientError.HttpClientError({
+                  reason: new HttpClientError.TransportError({ request: req, description: "connection reset" }),
+                })
+              : undefined,
+          ),
+        ),
+      )
+    }),
+  )
+
+  it.effect("caps timeout retries below the general allowance", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      return yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const error = yield* executor
+          .execute(request, { retry: { baseDelayMs: 0, maxDelayMs: 0, maxRetries: 10 } })
+          .pipe(Effect.flip)
+
+        expectLLMError(error)
+        expect(error.reason).toMatchObject({ _tag: "Transport", kind: "Timeout" })
+        expect(error.attempts).toBe(4)
+        expect(error.message).toContain("failed after 4 attempts")
+        expect(yield* Ref.get(attempts)).toBe(4)
+      }).pipe(
+        // The real client surfaces timeouts as loosely-typed Cause.TimeoutError
+        // failures; the cast mirrors that runtime path.
+        Effect.provide(
+          flakyLayer(
+            attempts,
+            () => new Cause.TimeoutError("request timed out") as unknown as HttpClientError.HttpClientError,
+          ),
+        ),
+      )
+    }),
+  )
+
+  it.effect("retries unrecognized provider failures", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      return yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const response = yield* executor.execute(request, { retry: { baseDelayMs: 0 } })
+
+        expect(response.status).toBe(200)
+        expect(yield* Ref.get(attempts)).toBe(2)
+      }).pipe(
+        Effect.provide(
+          countedResponsesLayer(attempts, [new Response("odd", { status: 418 }), new Response("ok", { status: 200 })]),
+        ),
+      )
+    }),
+  )
+
+  it.effect("honors the x-should-retry response header in both directions", () =>
+    Effect.gen(function* () {
+      const retryAttempts = yield* Ref.make(0)
+      const forced = yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        return yield* executor.execute(request, { retry: { baseDelayMs: 0 } })
+      }).pipe(
+        Effect.provide(
+          countedResponsesLayer(retryAttempts, [
+            new Response("bad", { status: 400, headers: { "x-should-retry": "true" } }),
+            new Response("ok", { status: 200 }),
+          ]),
+        ),
+      )
+      expect(forced.status).toBe(200)
+      expect(yield* Ref.get(retryAttempts)).toBe(2)
+
+      const vetoAttempts = yield* Ref.make(0)
+      const vetoed = yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        return yield* executor.execute(request, { retry: { baseDelayMs: 0 } }).pipe(Effect.flip)
+      }).pipe(
+        Effect.provide(
+          countedResponsesLayer(vetoAttempts, [
+            new Response("busy", { status: 503, headers: { "x-should-retry": "false", "retry-after-ms": "0" } }),
+            new Response("ok", { status: 200 }),
+          ]),
+        ),
+      )
+      expectLLMError(vetoed)
+      expect(vetoed.reason).toMatchObject({ _tag: "ProviderInternal", status: 503 })
+      expect(yield* Ref.get(vetoAttempts)).toBe(1)
+    }),
+  )
+
+  it.effect("caps Retry-After at the policy ceiling", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      return yield* Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const fiber = yield* executor.execute(request).pipe(Effect.forkChild)
+
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* TestClock.adjust(899_999)
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* TestClock.adjust(1)
+        const response = yield* Fiber.join(fiber)
+
+        expect(response.status).toBe(200)
+        expect(yield* Ref.get(attempts)).toBe(2)
+      }).pipe(
+        Effect.provide(
+          countedResponsesLayer(attempts, [
+            new Response("busy", { status: 503, headers: { "retry-after": "7200" } }),
+            new Response("ok", { status: 200 }),
+          ]),
+        ),
+      )
+    }),
+  )
+
+  it.effect("reports the attempt count when retries are exhausted", () =>
+    Effect.gen(function* () {
+      const executor = yield* RequestExecutor.Service
+      const error = yield* executor.execute(request, { retry: { maxRetries: 2 } }).pipe(Effect.flip)
+
+      expectLLMError(error)
+      expect(error.attempts).toBe(3)
+      expect(error.message).toContain("failed after 3 attempts")
+    }).pipe(
+      Effect.provide(responsesLayer([new Response("busy", { status: 503, headers: { "retry-after-ms": "0" } })])),
+    ),
+  )
+
+  it.effect("applies route-level retry defaults through LLMClient", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      const model = OpenAIChat.route
+        .with({ endpoint: { baseURL: "https://api.openai.test/v1" }, retry: { maxRetries: 0 } })
+        .model({ id: "gpt-4o-mini" })
+      const error = yield* LLMClient.generate(LLM.request({ model, prompt: "Say hello." })).pipe(
+        Effect.provide(
+          dynamicResponse((input) =>
+            Ref.update(attempts, (value) => value + 1).pipe(
+              Effect.as(input.respond("busy", { status: 503, headers: { "retry-after-ms": "0" } })),
+            ),
+          ),
+        ),
+        Effect.flip,
+      )
+
+      expectLLMError(error)
+      expect(error.reason).toMatchObject({ _tag: "ProviderInternal" })
+      expect(yield* Ref.get(attempts)).toBe(1)
+    }),
+  )
+
+  it.effect("request-level retry options override route defaults", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0)
+      const model = OpenAIChat.route
+        .with({ endpoint: { baseURL: "https://api.openai.test/v1" }, retry: { maxRetries: 0 } })
+        .model({ id: "gpt-4o-mini" })
+      const error = yield* LLMClient.generate(
+        LLM.request({ model, prompt: "Say hello.", retry: { maxRetries: 1 } }),
+      ).pipe(
+        Effect.provide(
+          dynamicResponse((input) =>
+            Ref.update(attempts, (value) => value + 1).pipe(
+              Effect.as(input.respond("busy", { status: 503, headers: { "retry-after-ms": "0" } })),
+            ),
+          ),
+        ),
+        Effect.flip,
+      )
+
+      expectLLMError(error)
+      expect(error.reason).toMatchObject({ _tag: "ProviderInternal" })
+      expect(error.attempts).toBe(2)
+      expect(yield* Ref.get(attempts)).toBe(2)
+    }),
   )
 
   it.effect("does not retry after a successful response reaches stream parsing", () =>
