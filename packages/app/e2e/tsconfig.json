@@ -8,6 +8,8 @@
   "include": [
     "./novel.spec.ts",
     "./novel/**/*.spec.ts",
+    "./performance/timeline-stability/**/*.spec.ts",
+    "./performance/timeline-stability/fixture.ts",
     "./performance/unit/visual-stability.test.ts",
     "./reproduction/timeline-suspense/**/*.ts",
     "./reproduction/timeline-suspense/**/*.tsx",
