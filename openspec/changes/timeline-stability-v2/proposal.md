@@ -4,12 +4,12 @@
 
 ## Why
 
-V1 退休提交 cdf9c4f0d2 删除了 `packages/app/e2e/performance/timeline-stability/` 全套（13 spec / 43 test + fixture.ts 583 行 + 专用 playwright.config + README），理由是 fixture 深绑 V1 wire（`SessionV1.WithParts`/`{info, parts}` 对、六类 `message.*`/`session.status` 事件）。但两块资产幸存且至今健康：
+V1 退休提交 cdf9c4f0d2 删除了 `packages/app/e2e/performance/timeline-stability/` 全套（13 spec / 44 test + fixture.ts 583 行 + 专用 playwright.config + README），理由是 fixture 深绑 V1 wire（`SessionV1.WithParts`/`{info, parts}` 对、六类 `message.*`/`session.status` 事件）。但两块资产幸存且至今健康：
 
 - **视觉预言机基建零损失**：`e2e/utils/visual-stability/` 9 模块（probe/analyzer/invariant/regions/reporter 等约 750 行）+ `sse-transport.ts`（持久受控 SSE 连接 + probe marker 注入）+ `unit/visual-stability.test.ts`（23/23 绿，2026-10-24 实测）。它们与 wire 无关，删除的只是驱动它们的数据面。
 - **契约语义仍有效**：README 的六层契约（Projection / Local state / Interaction / Layout continuity / Reducer hardening / Oracle contract）描述的是时间线渲染的持久不变量（语义锚保持、底锚保持、相邻行有序不重叠、折叠态保持、无采样空白、行身份保持、滚动归属一致），不随 V1/V2 wire 改变。
 
-现状是预言机空转：`test:stability` 只剩 unit 半边，生产代码（server-session 事件翻译、虚拟滚动、折叠态、底锚逻辑）的视觉回归无任何守门。侦察（逐 spec 盘点 + 投影层 file:line 核实）确认 V2 wire 足以诚实驱动除一个子场景外的全部 43 个测试（详见 design.md 的映射表与删减清单）。
+现状是预言机空转：`test:stability` 只剩 unit 半边，生产代码（server-session 事件翻译、虚拟滚动、折叠态、底锚逻辑）的视觉回归无任何守门。侦察（逐 spec 盘点 + 投影层 file:line 核实）确认 V2 wire 足以诚实驱动除一个子场景外的全部 44 个测试（权威计数含数据驱动循环展开；「43」为提案期漏数，执行段对账修正；详见 design.md 的映射表与删减清单）。
 
 ## What Changes
 
@@ -42,7 +42,7 @@ V1 退休提交 cdf9c4f0d2 删除了 `packages/app/e2e/performance/timeline-stab
 - **依赖关系**：前置 e2e-v2-mock（V2 mock 键齐备：`v2Messages`/`v2Active`/`v2Diff`/`v2Questions`/`v2Todos`）与 perf-benchmark-v2（已验证的 V2 流式帧驱动模式：`session.next.*` + `v2Event` + `installSseTransport`）；被删 V1 形态对照在 git 历史（`git show cdf9c4f0d2^:packages/app/e2e/performance/timeline-stability/<path>`）。
 - **风险**：
   - 「revert.committed 强制重拉驱动中间插删」依赖 `applyMessagePage`/`replaceParts` 的 reconcile 语义（已核实 file:line，但首次实测若语义不符，按 design.md 的降级预案改写该子场景，不回退到伪造 V1 事件）。
-  - 42 个测试在 CPU 节流（原套件 cpuRate 4）下串行跑的时长未知，实施时若个别场景超时按 performance/AGENTS.md「稳定性优先」调事件量而非放松断言。
+  - 43 个测试在 CPU 节流（原套件 cpuRate 4）下串行跑的时长未知，实施时若个别场景超时按 performance/AGENTS.md「稳定性优先」调事件量而非放松断言。
 
 ## 非目标
 

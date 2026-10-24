@@ -40,7 +40,7 @@
 
 ## Goals / Non-Goals
 
-Goals：13 个 spec 文件（42 个 test，原 43 减 DiffSummary）在 V2 wire 下重建并通过；fixture 单一数据面（无 V1 残留形状）；四条接线恢复（见 proposal）。
+Goals：13 个场景 spec 文件（43 个 test，原 44 减 DiffSummary；提案期把 V1 误计为 43，权威计数含数据驱动循环展开后为 44）在 V2 wire 下重建并通过，另加套件内 fixture 自检 spec（8 tests，收集总数 51）；fixture 单一数据面（无 V1 残留形状）；四条接线恢复（见 proposal）。
 
 Non-Goals：见 proposal.md「非目标」。设计层补充：不为还原 V1 语义而在 mock/fixture 里发明 V2 server 不会发的事件组合（如绕过 `step.started` 直接 `text.delta`）——帧序列必须满足翻译器的有状态前提（calls 表/assistants 骨架/reasoningStarts 计时）。
 
@@ -80,9 +80,9 @@ transition-matrix 的「中间 part 插删」「message.removed 逐条」、cont
 
 降级预案：若实测发现 reconcile 在特定时序下不删（如 delta 累加保护 `preserveDelta`），该子场景改写为「新会话冷装载差异页」形态（两次 goto 之间改 mock），仍断言同一不变量；仍不可行才删减并记依据。禁止回退到发 V1 事件。
 
-### D6：fixture 自检并入 v2-fixture.spec.ts，不复活 bun:test 文件
+### D6：fixture 自检为套件内 Playwright 风格 spec，不复活 bun:test 文件
 
-被删 `fixture.test.ts`（bun:test，68 行）的四组运行时断言 + 编译期 `@ts-expect-error` 区块，改写后并入现存 `e2e/utils/v2-fixture.spec.ts`（Playwright 风格，已测 v2-fixture 工厂与 `validateV2Timeline`）。新增断言针对 D3 的序列生成器（帧序合法、ID 确定性、四态互斥编译期）。理由：消除双跑测器形态（performance/AGENTS.md「简单性优先」），且自检对象已从「V1 形状」变为「V2 工厂 + 序列生成器」。
+被删 `fixture.test.ts`（bun:test，68 行）不复活；自检改写为套件内 `fixture.spec.ts`（`@playwright/test` 纯 node 断言，同现存 `e2e/utils/v2-fixture.spec.ts` 的形态），随套件 config 收集运行（webServer 本就为其余 spec 启动，零额外成本）。断言针对 D3 的序列生成器（帧序合法、delta 重组还原、四态互斥）与种子工厂（ID 确定性、过 `validateV2Timeline`）。实施修正：初稿曾计划并入 `v2-fixture.spec.ts`，但 utils 反向 import performance 套件是坏边（依赖方向应保持 套件 → utils），故放套件内。
 
 ### D7：套件配置与接线按原样恢复
 
@@ -97,7 +97,7 @@ README.md 以被删版为底，契约清单与六层分层原样保留，增补�
 
 ## Risks / Trade-offs
 
-- [42 个视觉探针测试在 CPU 节流下串行执行，总时长可能达数十分钟] → 套件本就地手动/按需运行（不进 CI）；单测超时按场景事件量调节（performance/AGENTS.md 稳定性优先），不设机器阈值。
+- [43 个视觉探针测试在 CPU 节流下串行执行，总时长可能达数十分钟] → 套件本就地手动/按需运行（不进 CI）；单测超时按场景事件量调节（performance/AGENTS.md 稳定性优先），不设机器阈值。
 - [revert.committed 驱动插删是首次使用的通路，reconcile 保护逻辑（preserveDelta/carriedDeltaParts）可能拦截预期删除] → D5 降级预案；实施任务的第一个测试场景就是它，尽早暴露。
 - [`setBusy` 依赖 server-sync 400ms debounce，探针采样窗口可能抓到对账前中间态] → 断言用 `expect.poll` 等终态而非瞬时态；visual invariant 的 perMarker 窗口从对账后一帧起算（marker 打在触发事件之后）。
 - [恢复-改写可能带回已失效假设（如 V1 的初始 busy 推导「末条 assistant 无 completed ⇒ busy」）] → V2 初始 busy 由 `v2Active` 显式供给，改写时逐 spec 核对初始状态来源（侦察已确认 12 处 status 使用集中在 lifecycle/tools/transition-matrix）。
