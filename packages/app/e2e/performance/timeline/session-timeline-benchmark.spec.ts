@@ -19,6 +19,9 @@ type TimelineStreamOptions = {
   newLayoutDesigns?: boolean
   reviewDiffs?: boolean
   reviewPane?: boolean
+  /** 覆盖流式 delta 量（默认见 TIMELINE_DELTA_COUNT）；pane open 场景挂载 72 个 diff 文件，
+   * 每 delta 的布局失效范围更大，实测劣化模式下需单独降量收敛（D8） */
+  deltaCount?: number
 }
 
 type ReviewPaneSample = {
@@ -64,7 +67,7 @@ benchmark.describe("performance: session timeline streaming", () => {
 
   benchmark("streams assistant text in v2 with review pane open", async ({ page, report }) => {
     benchmark.setTimeout(streamCompletionTimeoutMs + 60_000)
-    const result = await runTimelineStreamBenchmark(page, { newLayoutDesigns: true, reviewPane: true })
+    const result = await runTimelineStreamBenchmark(page, { newLayoutDesigns: true, reviewPane: true, deltaCount: 12 })
     report(result.metrics, result.context)
   })
 })
@@ -117,7 +120,7 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
   // 延迟/rAF 间隙采集）不变。
   const completionTimeoutMs = streamCompletionTimeoutMs
   const cpuThrottle = Number(process.env.TIMELINE_CPU_THROTTLE ?? 30)
-  const deltaCount = Number(process.env.TIMELINE_DELTA_COUNT ?? 20)
+  const deltaCount = options.deltaCount ?? Number(process.env.TIMELINE_DELTA_COUNT ?? 20)
   const historyTurns = Number(process.env.TIMELINE_HISTORY_TURNS ?? 320)
   const eventBatch = Number(process.env.TIMELINE_EVENT_BATCH ?? 1)
   const minimal = process.env.TIMELINE_MINIMAL === "1"
