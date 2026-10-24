@@ -18,8 +18,8 @@
 
 ## 4. session-ui 与消毒器
 
-- [ ] 4.1 删 `session-turn.tsx` 的 `SummaryDiff`/`summaryDiff`/`emptyDiffs`/`diffs` memo/`MAX_FILES`/`showAll`/`expanded`/`overflow`/`visible`/`toggleAll` 及 diffs 折叠 UI 段；删 `message-nav.tsx` 的 `DiffChanges` 角标与 `summary?.title` 回落；stories 同步去 summary fixture。验证：`cd packages/session-ui && bun typecheck` 绿。
-- [ ] 4.2 删 `utils/diffs.ts` 的 `message()` 与 `object()`（若仅 message 用），`server-session.ts:539,558,1001` 与 `global-sync/event-reducer.ts:216` 的 `cleanMessage` 调用点改为直接用原值；`diffs.ts` 相关测试同步删 message 分支用例。验证：`cd packages/app && bun typecheck` 绿、`bun test`（app 单测）无新增失败（基线 27 fail jsxDEV 既有红）。
+- [x] 4.1 删 `session-turn.tsx` 的 `SummaryDiff`/`summaryDiff`/`emptyDiffs`/`diffs` memo/`MAX_FILES`/`showAll`/`expanded`/`overflow`/`visible`/`toggleAll` 及 diffs 折叠 UI 段；删 `message-nav.tsx` 的 `DiffChanges` 角标与 `summary?.title` 回落；stories 核实无 summary fixture（剩余 summary 命中均为 tool-count-summary 活链）。验证：`cd packages/session-ui && bunx tsgo -b --force` 绿。
+- [x] 4.2 删 `utils/diffs.ts` 的 `message()`（`object()` 保留——diffs() 也在用），`server-session.ts:539,558,1001` 与 `global-sync/event-reducer.ts:216` 的 `cleanMessage`/`clean` 调用点改为直接用原值；`diffs.test.ts` 删 message 分支用例。验证：`bunx tsgo -b --force` 绿；`bun test`（app 单测）663 pass / 27 fail = 基线，无新增失败。
 
 ## 5. 守门与收官
 

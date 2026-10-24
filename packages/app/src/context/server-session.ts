@@ -15,7 +15,7 @@ import type {
 } from "@opennovel-ai/sdk/v2/client"
 import { batch } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
-import { diffs as cleanDiffs, message as cleanMessage } from "@/utils/diffs"
+import { diffs as cleanDiffs } from "@/utils/diffs"
 import { sessionNotFoundError } from "@/utils/server-errors"
 import { sessionChain } from "@/utils/session-route"
 import { adaptCreated, adaptDiff, adaptInfo, adaptMessage, adaptMessages, adaptRevert } from "@/utils/v2-adapter"
@@ -536,7 +536,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     })
     const adapted = adaptMessages([...(response.data?.data ?? [])].reverse(), adaptContext(sessionID))
     return {
-      session: adapted.session.map((message) => cleanMessage(message)).sort((a, b) => cmp(a.id, b.id)),
+      session: [...adapted.session].sort((a, b) => cmp(a.id, b.id)),
       part: adapted.part.map((item) => ({
         id: item.id,
         part: item.part.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
@@ -555,7 +555,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     const adapted = adaptMessage(response.data.data, adaptContext(sessionID))
     if (!adapted) throw new Error(`Message not found: ${messageID}`)
     return {
-      message: cleanMessage(adapted.info),
+      message: adapted.info,
       parts: adapted.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
     }
   }
@@ -998,7 +998,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         return
       }
       case "message.updated": {
-        const info = cleanMessage((event.properties as { info: Message }).info)
+        const info = (event.properties as { info: Message }).info
         const load = messageLoads.get(info.sessionID)
         load?.touchedMessages.add(info.id)
         load?.removedMessages.delete(info.id)

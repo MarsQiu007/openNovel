@@ -15,7 +15,7 @@ import type { State, VcsCache } from "./types"
 import { adaptCreated } from "@/utils/v2-adapter"
 import { trimSessions } from "./session-trim"
 import { dropSessionCaches } from "./session-cache"
-import { diffs as list, message as clean } from "@/utils/diffs"
+import { diffs as list } from "@/utils/diffs"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const SESSION_CONTENT_EVENTS = new Set([
@@ -213,7 +213,7 @@ export function applyDirectoryEvent(input: {
       break
     }
     case "message.updated": {
-      const info = clean((event.properties as { info: Message }).info)
+      const info = (event.properties as { info: Message }).info
       const messages = input.store.message[info.sessionID]
       if (!messages) {
         input.setStore("message", info.sessionID, [info])
