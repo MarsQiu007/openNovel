@@ -88,7 +88,7 @@ export type LocalProject = Partial<Project> & { worktree: string; expanded: bool
 export type HomeProjectSelection = { server: ServerConnection.Key; directory?: string }
 
 export type ReviewDiffStyle = "unified" | "split"
-export type ReviewChangeMode = "git" | "branch" | "turn"
+export type ReviewChangeMode = "git" | "branch"
 export type ReviewPanelSource = "context-button" | "other"
 
 const sessionPath = (key: string) => {

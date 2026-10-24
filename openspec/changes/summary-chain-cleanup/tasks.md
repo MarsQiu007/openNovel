@@ -13,7 +13,7 @@
 
 ## 3. review「turn」模式链
 
-- [ ] 3.1 删 `session.tsx` 的 `turnDiffs`、`ChangeMode` 的 `"turn"`、`changesOptions` 的 `list.push("turn")`、`reviewDiffs`/`reviewEmpty`/`reviewEmptyV2` 的 turn 分支；nogit 引导提为默认空态（D2）；`layout.tsx` 的 `ReviewChangeMode` 删 `"turn"`。验证：`bun typecheck` 绿；人工核对 `session.tsx` 不再有 turn 字样。
+- [x] 3.1 删 `session.tsx` 的 `turnDiffs`、`ChangeMode` 的 `"turn"`、`changesOptions` 的 `list.push("turn")`、`reviewDiffs`/`reviewEmpty`/`reviewEmptyV2` 的 turn 分支；nogit 引导提为默认空态（D2，`reviewEmpty`/`reviewEmptyV2` 首判 `nogit()`，`reviewReady` 对 nogit 直接 true——否则 side-panel changes 页签对禁用查询 perpetual loading）；`layout.tsx` 的 `ReviewChangeMode` 删 `"turn"`。验证：`bunx tsgo -b --force` 绿（剩余仅 diffs.ts ×3 属任务 4.2）；session.tsx 已无 turn 字样（lastUserMessage 为 timeline 合法用途）。
 - [ ] 3.2 手测或 e2e 既有用例覆盖 review 面板：git 项目模式切换正常、nogit 项目空态呈现 git 初始化引导。验证：既有 e2e 守门套件相关用例不新增红。
 
 ## 4. session-ui 与消毒器

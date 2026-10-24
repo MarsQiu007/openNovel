@@ -105,7 +105,7 @@ type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
 const emptyFollowups: FollowupItem[] = []
 
-type ChangeMode = "git" | "branch" | "turn"
+type ChangeMode = "git" | "branch"
 type VcsMode = "git" | "branch"
 
 const sessionViewState = () => ({
@@ -593,7 +593,6 @@ export default function Page() {
     return open
   }, desktopReviewOpen())
 
-  const turnDiffs = createMemo(() => list(lastUserMessage()?.summary?.diffs))
   const nogit = createMemo(() => {
     const project = sync().project
     return !!project && project.vcs !== "git"
@@ -606,7 +605,6 @@ export default function Page() {
     if (project?.vcs === "git" && vcs?.branch && vcs?.default_branch && vcs.branch !== vcs.default_branch) {
       list.push("branch")
     }
-    list.push("turn")
     return list
   })
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
@@ -648,7 +646,7 @@ export default function Page() {
     if (reviewMode() === "git" || reviewMode() === "branch")
       // avoids suspense
       return vcsQuery.isFetched ? (vcsQuery.data ?? []) : []
-    return turnDiffs()
+    return []
   }
   const activeReviewFile = () => {
     const diffs = reviewDiffs()
@@ -659,8 +657,8 @@ export default function Page() {
   const reviewCount = () => reviewDiffs().length
   const hasReview = () => reviewCount() > 0
   const reviewReady = () => {
-    if (reviewMode() === "git" || reviewMode() === "branch") return !vcsQuery.isPending
-    return true
+    if (nogit()) return true
+    return !vcsQuery.isPending
   }
   const loadReviewDiff = async (file: string, version?: number): Promise<VcsFileDiff | undefined> => {
     const mode = vcsMode()
@@ -1102,8 +1100,7 @@ export default function Page() {
 
   const changesLabel = (option: ChangeMode) => {
     if (option === "git") return language.t("ui.sessionReview.title.git")
-    if (option === "branch") return language.t("ui.sessionReview.title.branch")
-    return language.t("ui.sessionReview.title.lastTurn")
+    return language.t("ui.sessionReview.title.branch")
   }
 
   const changesTitle = () => {
@@ -1165,35 +1162,22 @@ export default function Page() {
   )
 
   const reviewEmptyText = createMemo(() => {
-    if (reviewMode() === "git") return language.t("session.review.noUncommittedChanges")
     if (reviewMode() === "branch") return language.t("session.review.noBranchChanges")
-    return language.t("session.review.noChanges")
+    return language.t("session.review.noUncommittedChanges")
   })
 
   const reviewEmpty = (input: { loadingClass: string; emptyClass: string }) => {
-    if (reviewMode() === "git" || reviewMode() === "branch") {
-      if (!reviewReady()) return <div class={input.loadingClass}>{language.t("session.review.loadingChanges")}</div>
-      return empty(reviewEmptyText())
-    }
-
-    if (reviewMode() === "turn") {
-      if (nogit()) return createGit(input)
-      return empty(reviewEmptyText())
-    }
-
-    return (
-      <div class={input.emptyClass}>
-        <div class="text-14-regular text-text-weak max-w-56">{reviewEmptyText()}</div>
-      </div>
-    )
+    // nogit 项目没有可用模式（options 为空），git 初始化引导提为默认空态（D2）
+    if (nogit()) return createGit(input)
+    if (!reviewReady()) return <div class={input.loadingClass}>{language.t("session.review.loadingChanges")}</div>
+    return empty(reviewEmptyText())
   }
 
   const reviewEmptyV2 = () => {
-    if ((reviewMode() === "git" || reviewMode() === "branch") && !reviewReady()) {
+    // 与 reviewEmpty 一致：nogit 默认空态为 git 初始化引导
+    if (nogit()) return <SessionReviewEmptyNoGitV2 pending={gitMutation.isPending} onInitGit={initGit} />
+    if (!reviewReady()) {
       return <div class="px-6 py-4 text-text-weak">{language.t("session.review.loadingChanges")}</div>
-    }
-    if (reviewMode() === "turn" && nogit()) {
-      return <SessionReviewEmptyNoGitV2 pending={gitMutation.isPending} onInitGit={initGit} />
     }
     return <SessionReviewEmptyChangesV2 />
   }
