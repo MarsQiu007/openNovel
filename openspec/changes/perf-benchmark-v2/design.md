@@ -75,7 +75,7 @@ V2 下 turn 级 `summary.diffs` 在 adapter 层已不合成（session.tsx:596 �
 
 全量首跑暴露三处「V1 时代默认值/断言在 V2 运行时不成立」，均以实测数据为依据重基线（不改生产代码）：
 
-1. **流式 delta 默认量 160 → 20、完成窗口 420s → 900s**（`TIMELINE_DELTA_COUNT`/`TIMELINE_COMPLETION_TIMEOUT_MS`）。实测 V2 运行时下每个 delta 应用约 0.1s CPU（320 turns 规模，CDP CPU profile 热点在虚拟滚动器的行重测区域），30× 节流下典型 2-3s 墙钟/事件；且吞吐呈双峰——同参数、同浏览器会话内相邻两个同形态场景一个 104s 完成、一个 420s 超时，劣化模式实测达 27s/事件（26 倍方差）。160 deltas 在典型模式也需 8 分钟以上；降为 20 + 900s 窗口后典型约 1 分钟、劣化模式约 9 分钟，两种模式都收敛。测量形态不变（30× 节流 + 320 turns + 每 delta 应用延迟/rAF 间隙照常采集）。**每 delta 的虚拟滚动器重测成本与吞吐双峰是否构成 V2 运行时回归，留作后续生产侧排查提案**——本提案按「不改生产代码」边界只让套件可运行。
+1. **流式 delta 默认量 160 → 20、完成窗口 420s → 900s**（`TIMELINE_DELTA_COUNT`/`TIMELINE_COMPLETION_TIMEOUT_MS`，四个场景的测试超时与完成等待共用单一常量来源）。实测 V2 运行时下每个 delta 应用约 0.1s CPU（320 turns 规模，CDP CPU profile 热点在虚拟滚动器的行重测区域），30× 节流下典型 2-3s 墙钟/事件；且吞吐呈双峰——同参数、同浏览器会话内相邻两个同形态场景一个 104s 完成、一个 420s 超时，劣化模式实测达 27s/事件（26 倍方差）。160 deltas 在典型模式也需 8 分钟以上；降为 20 + 900s 窗口后典型约 1 分钟、劣化模式约 9 分钟，两种模式都收敛。**pane open 场景单独降量到 12**（`TimelineStreamOptions.deltaCount` 覆盖）：pane 挂载 72 个 diff 文件使每 delta 布局失效范围更大，劣化模式实测 20 deltas 需 >900s，12 deltas 实测 552s 收敛。测量形态不变（30× 节流 + 320 turns + 每 delta 应用延迟/rAF 间隙照常采集）。**每 delta 的虚拟滚动器重测成本与吞吐双峰是否构成 V2 运行时回归，留作后续生产侧排查提案**——本提案按「不改生产代码」边界只让套件可运行。
 2. **staging 断言重述为「review 不得先于内容」**。`session.tsx` 的 `deferRender` 闩锁在同一帧放行内容区与检视面板（:568-571 释放、:1287-1294 共用门闩），mock 下两条数据通路即时返回，V2 不再存在「内容严格先于 review」的过渡窗口（实测 transitions 仅 `[{false,false},{true,true}]` 同帧）。断言改为 `firstReviewMs >= firstContentMs`（同帧放行可接受，review-first 闪现不可接受），transitions 照常采集。
 3. **`waitForStableGeometry` 的 `expect.poll` 显式 60s 窗口**。默认 10s 在 30× 节流下只剩约 0.3s CPU，不足以完成大时间线的滚动锚定与布局收敛（小规模节流复跑实测超时）。
 
