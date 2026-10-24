@@ -1045,6 +1045,105 @@ export const ReviewInboxBatchResult = Schema.Struct({
 }).annotate({ identifier: "Novel.ReviewInboxBatchResult" })
 export interface ReviewInboxBatchResult extends Schema.Schema.Type<typeof ReviewInboxBatchResult> {}
 
+// ─── 记忆卡（memory-panel）：memory_fact 作者侧列表 / 手记 / 流转契约 ───
+
+export const MemoryFactStatus = Schema.Literals(["pending", "reviewed", "approved", "stale", "retired"])
+export type MemoryFactStatus = typeof MemoryFactStatus.Type
+
+export const MemoryFactItem = Schema.Struct({
+  id: Schema.String,
+  factType: Schema.String,
+  entityHint: Schema.NullOr(Schema.String),
+  /** 结构化事实陈述（保留原文语态） */
+  text: Schema.String,
+  /** 原文引句（逐字校准锚点，可空） */
+  quote: Schema.NullOr(Schema.String),
+  chapterId: Schema.NullOr(Schema.String),
+  /** 出处章序（leftJoin chapters；章已删或无出处为 null），用于「第 N 章」展示 */
+  chapterOrder: Schema.NullOr(Schema.Int),
+  status: MemoryFactStatus,
+  /** 整理合并去向（被并卡指向保留卡 ID；撤销合并依据，见 memory-lifecycle §6） */
+  retiredInto: Schema.NullOr(Schema.String),
+  confidence: Schema.Int,
+  proofCount: Schema.Int,
+  /** observer | author */
+  createdBy: Schema.String,
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
+}).annotate({ identifier: "Novel.MemoryFactItem" })
+export interface MemoryFactItem extends Schema.Schema.Type<typeof MemoryFactItem> {}
+
+export const MemoryFactCounts = Schema.Struct({
+  pending: Schema.Int,
+  reviewed: Schema.Int,
+  stale: Schema.Int,
+  /** 待办合计（pending+reviewed+stale），设定树徽标口径 */
+  total: Schema.Int,
+}).annotate({ identifier: "Novel.MemoryFactCounts" })
+export interface MemoryFactCounts extends Schema.Schema.Type<typeof MemoryFactCounts> {}
+
+export const MemoryFactListResult = Schema.Struct({
+  items: Schema.Array(MemoryFactItem),
+  total: Schema.Int,
+  counts: MemoryFactCounts,
+}).annotate({ identifier: "Novel.MemoryFactListResult" })
+export interface MemoryFactListResult extends Schema.Schema.Type<typeof MemoryFactListResult> {}
+
+export const MemoryFactCreateInput = Schema.Struct({
+  /** 事实陈述（必填；手记 created_by=author，缺省 fact_type="note"） */
+  text: Schema.NonEmptyString,
+  factType: optional(Schema.String),
+  entityHint: optional(Schema.String),
+  /** 可选出处锚点：引句 + 章节（server 校验章节归属本书） */
+  quote: optional(Schema.String),
+  chapterId: optional(Schema.String),
+}).annotate({ identifier: "Novel.MemoryFactCreateInput" })
+export interface MemoryFactCreateInput extends Schema.Schema.Type<typeof MemoryFactCreateInput> {}
+
+export const MemoryFactEditInput = Schema.Struct({
+  /** 修正事实陈述；变更时同步 memory_fact_fts（DELETE+INSERT） */
+  text: optional(Schema.NonEmptyString),
+  /** 修正关联实体提示（合并升级通道关联键）；null 清除 */
+  entityHint: optional(Schema.NullOr(Schema.String)),
+}).annotate({ identifier: "Novel.MemoryFactEditInput" })
+export interface MemoryFactEditInput extends Schema.Schema.Type<typeof MemoryFactEditInput> {}
+
+export const MemoryFactOperationResult = Schema.Struct({
+  ok: Schema.Boolean,
+  factId: optional(Schema.String),
+  status: optional(MemoryFactStatus),
+  error: optional(Schema.String),
+}).annotate({ identifier: "Novel.MemoryFactOperationResult" })
+export interface MemoryFactOperationResult extends Schema.Schema.Type<typeof MemoryFactOperationResult> {}
+
+export const MemoryMaintenanceZombieFact = Schema.Struct({
+  id: Schema.String,
+  chapterOrder: Schema.NullOr(Schema.Int),
+  text: Schema.String,
+}).annotate({ identifier: "Novel.MemoryMaintenanceZombieFact" })
+export interface MemoryMaintenanceZombieFact extends Schema.Schema.Type<typeof MemoryMaintenanceZombieFact> {}
+
+export const MemoryMaintenancePlannedItem = Schema.Struct({
+  kind: Schema.Literals(["character", "world_entry"]),
+  id: Schema.String,
+  title: Schema.String,
+  /** 创建后新增章数（章数口径贴合写作进度） */
+  chaptersSince: Schema.Int,
+  stalled: Schema.Boolean,
+}).annotate({ identifier: "Novel.MemoryMaintenancePlannedItem" })
+export interface MemoryMaintenancePlannedItem extends Schema.Schema.Type<typeof MemoryMaintenancePlannedItem> {}
+
+export const MemoryMaintenanceReport = Schema.Struct({
+  /** 僵尸卡：stale（失效未消化），按章序升序 */
+  zombieFacts: Schema.Array(MemoryMaintenanceZombieFact),
+  /** planned 设定滞留：按 chaptersSince 降序 */
+  planned: Schema.Array(MemoryMaintenancePlannedItem),
+  retiredStats: Schema.Struct({ facts: Schema.Int, techniques: Schema.Int }),
+  /** planned 滞留阈值（章数），供界面插值展示而非硬编码 */
+  stalledThreshold: Schema.Int,
+}).annotate({ identifier: "Novel.MemoryMaintenanceReport" })
+export interface MemoryMaintenanceReport extends Schema.Schema.Type<typeof MemoryMaintenanceReport> {}
+
 export const UpsertCanvasLayoutInput = Schema.Struct({
   layout: CanvasLayout,
 }).annotate({ identifier: "Novel.UpsertCanvasLayoutInput" })

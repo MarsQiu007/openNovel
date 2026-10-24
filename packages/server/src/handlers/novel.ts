@@ -5,6 +5,16 @@ import { countWords } from "@opennovel-ai/schema/schema"
 import { buildNovelExport } from "./novel-export"
 import { SettingOrganization } from "../setting-organization"
 import { SettingReviewInbox, type ReviewInboxListQuery } from "../setting-review-inbox"
+import {
+  approveMemoryFact,
+  createMemoryFact,
+  editMemoryFact,
+  listMemoryFacts,
+  memoryFactCounts,
+  memoryMaintenance,
+  retireMemoryFact,
+  unmergeMemoryFact,
+} from "../memory-facts"
 import { resolveAnnotationTarget, resolveAnnotationTargetType, type AnnotationTargetField } from "../annotation-targets"
 import type {
   SaveBookMetaInput,
@@ -3191,6 +3201,61 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* reviewInboxBatch(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.memory-facts.fact-list", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* listMemoryFacts(ctx.params.novelID, location.directory, {
+            status: ctx.query.status,
+            factType: ctx.query.factType,
+            chapterId: ctx.query.chapterId,
+            q: ctx.query.q,
+            limit: ctx.query.limit,
+            offset: ctx.query.offset,
+          })
+        }),
+      )
+      .handle("novel.memory-facts.fact-counts", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* memoryFactCounts(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.memory-maintenance", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* memoryMaintenance(ctx.params.novelID, location.directory)
+        }),
+      )
+      .handle("novel.memory-facts.fact-create", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* createMemoryFact(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.memory-facts.fact-edit", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* editMemoryFact(ctx.params.novelID, location.directory, ctx.params.factID, ctx.payload)
+        }),
+      )
+      .handle("novel.memory-facts.fact-approve", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* approveMemoryFact(ctx.params.novelID, location.directory, ctx.params.factID)
+        }),
+      )
+      .handle("novel.memory-facts.fact-retire", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* retireMemoryFact(ctx.params.novelID, location.directory, ctx.params.factID)
+        }),
+      )
+      .handle("novel.memory-facts.fact-unmerge", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* unmergeMemoryFact(ctx.params.novelID, location.directory, ctx.params.factID)
         }),
       )
       .handle("novel.setting-images.image-list", (ctx) =>

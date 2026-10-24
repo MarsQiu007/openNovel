@@ -98,6 +98,13 @@ import {
   ReviewInboxStagedResolveResult,
   ReviewInboxBatchInput,
   ReviewInboxBatchResult,
+  MemoryFactStatus,
+  MemoryFactListResult,
+  MemoryFactCounts,
+  MemoryFactCreateInput,
+  MemoryFactEditInput,
+  MemoryFactOperationResult,
+  MemoryMaintenanceReport,
   SettingImage,
   SettingImageOwnerType,
   SettingImageListResult,
@@ -1437,6 +1444,145 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.review-inbox.batch",
           summary: "Run setting review batch",
           description: "Split a compiled organization plan: whitelist fixes execute immediately, the rest stage into the inbox.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.memory-facts.fact-list", `${root}/:novelID/memory-facts`, {
+      params: { novelID: Schema.String },
+      query: Schema.Struct({
+        ...LocationQuery.fields,
+        status: MemoryFactStatus.pipe(Schema.optional),
+        factType: Schema.String.pipe(Schema.optional),
+        chapterId: Schema.String.pipe(Schema.optional),
+        /** 关键词：走 memory_fact_fts（trigram FTS5）匹配 text/quote */
+        q: Schema.String.pipe(Schema.optional),
+        limit: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
+        offset: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
+      }),
+      success: MemoryFactListResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.list",
+          summary: "List memory facts",
+          description: "List memory facts with status/fact-type/chapter/keyword filters and pagination.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.memory-facts.fact-counts", `${root}/:novelID/memory-facts/counts`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: MemoryFactCounts,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.counts",
+          summary: "Get memory fact badge counts",
+          description: "Todo counts (pending + reviewed + stale) for the settings tree badge.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.memory-maintenance", `${root}/:novelID/memory-maintenance`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      success: MemoryMaintenanceReport,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-maintenance",
+          summary: "Get memory maintenance report",
+          description: "Read-only report: zombie (stale) facts, stalled planned settings, retired archive stats.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.memory-facts.fact-create", `${root}/:novelID/memory-facts`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: MemoryFactCreateInput,
+      success: MemoryFactOperationResult,
+      error: [NovelNotFoundError, ChapterNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.create",
+          summary: "Register author note memory fact",
+          description: "Create an author note card (created_by=author, default fact_type=note) entering the pending lifecycle.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.memory-facts.fact-edit", `${root}/:novelID/memory-facts/:factID/edit`, {
+      params: { novelID: Schema.String, factID: Schema.String },
+      query: LocationQuery,
+      payload: MemoryFactEditInput,
+      success: MemoryFactOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.edit",
+          summary: "Edit memory fact text or entity hint",
+          description: "Author correction of fact text / entity hint; text changes re-sync the FTS index.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.memory-facts.fact-approve", `${root}/:novelID/memory-facts/:factID/approve`, {
+      params: { novelID: Schema.String, factID: Schema.String },
+      query: LocationQuery,
+      success: MemoryFactOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.approve",
+          summary: "Approve memory fact",
+          description: "Author approval is the highest confirmation level: pending/reviewed go straight to approved.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.memory-facts.fact-retire", `${root}/:novelID/memory-facts/:factID/retire`, {
+      params: { novelID: Schema.String, factID: Schema.String },
+      query: LocationQuery,
+      success: MemoryFactOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.retire",
+          summary: "Retire memory fact",
+          description: "Retire keeps the row (no delete); retired cards are hidden by default and have no restore path.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.memory-facts.fact-unmerge", `${root}/:novelID/memory-facts/:factID/unmerge`, {
+      params: { novelID: Schema.String, factID: Schema.String },
+      query: LocationQuery,
+      success: MemoryFactOperationResult,
+      error: [NovelNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.memory-facts.unmerge",
+          summary: "Undo consolidation merge",
+          description: "Restore a card retired by consolidation (retired_into set) back to pending, clearing the merge marker.",
         }),
       ),
   )

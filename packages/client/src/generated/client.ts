@@ -314,6 +314,22 @@ import type {
   ServerNovelStagedRejectOutput,
   ServerNovelBatchInput,
   ServerNovelBatchOutput,
+  ServerNovelFactListInput,
+  ServerNovelFactListOutput,
+  ServerNovelFactCountsInput,
+  ServerNovelFactCountsOutput,
+  ServerNovelMemoryMaintenanceInput,
+  ServerNovelMemoryMaintenanceOutput,
+  ServerNovelFactCreateInput,
+  ServerNovelFactCreateOutput,
+  ServerNovelFactEditInput,
+  ServerNovelFactEditOutput,
+  ServerNovelFactApproveInput,
+  ServerNovelFactApproveOutput,
+  ServerNovelFactRetireInput,
+  ServerNovelFactRetireOutput,
+  ServerNovelFactUnmergeInput,
+  ServerNovelFactUnmergeOutput,
   ServerNovelCanvasLayoutInput,
   ServerNovelCanvasLayoutOutput,
   ServerNovelUpsertCanvasLayoutInput,
@@ -2669,6 +2685,119 @@ export function make(options: ClientOptions) {
             path: `/api/novel/${encodeURIComponent(input.novelID)}/review-inbox/batch`,
             query: { location: input["location"], library: input["library"] },
             body: { planJson: input["planJson"], source: input["source"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-list": (input: ServerNovelFactListInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactListOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts`,
+            query: {
+              location: input["location"],
+              library: input["library"],
+              status: input["status"],
+              factType: input["factType"],
+              chapterId: input["chapterId"],
+              q: input["q"],
+              limit: input["limit"],
+              offset: input["offset"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-counts": (input: ServerNovelFactCountsInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactCountsOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts/counts`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "memory-maintenance": (input: ServerNovelMemoryMaintenanceInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelMemoryMaintenanceOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-maintenance`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-create": (input: ServerNovelFactCreateInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactCreateOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts`,
+            query: { location: input["location"], library: input["library"] },
+            body: {
+              text: input["text"],
+              factType: input["factType"],
+              entityHint: input["entityHint"],
+              quote: input["quote"],
+              chapterId: input["chapterId"],
+            },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-edit": (input: ServerNovelFactEditInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactEditOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts/${encodeURIComponent(input.factID)}/edit`,
+            query: { location: input["location"], library: input["library"] },
+            body: { text: input["text"], entityHint: input["entityHint"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-approve": (input: ServerNovelFactApproveInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactApproveOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts/${encodeURIComponent(input.factID)}/approve`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-retire": (input: ServerNovelFactRetireInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactRetireOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts/${encodeURIComponent(input.factID)}/retire`,
+            query: { location: input["location"], library: input["library"] },
+            successStatus: 200,
+            declaredStatuses: [404, 503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "fact-unmerge": (input: ServerNovelFactUnmergeInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelFactUnmergeOutput>(
+          {
+            method: "POST",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/memory-facts/${encodeURIComponent(input.factID)}/unmerge`,
+            query: { location: input["location"], library: input["library"] },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],
             empty: false,

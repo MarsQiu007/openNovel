@@ -6792,6 +6792,300 @@ export type ServerNovelBatchOutput = {
   readonly errors: ReadonlyArray<string>
 }
 
+export type ServerNovelFactListInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["library"]
+  readonly status?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["status"]
+  readonly factType?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["factType"]
+  readonly chapterId?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["chapterId"]
+  readonly q?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["q"]
+  readonly limit?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["limit"]
+  readonly offset?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired" | undefined
+    readonly factType?: string | undefined
+    readonly chapterId?: string | undefined
+    readonly q?: string | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+  }["offset"]
+}
+
+export type ServerNovelFactListOutput = {
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly factType: string
+    readonly entityHint: string | null
+    readonly text: string
+    readonly quote: string | null
+    readonly chapterId: string | null
+    readonly chapterOrder: number | null
+    readonly status: "pending" | "reviewed" | "approved" | "stale" | "retired"
+    readonly retiredInto: string | null
+    readonly confidence: number
+    readonly proofCount: number
+    readonly createdBy: string
+    readonly createdAt: number
+    readonly updatedAt: number
+  }>
+  readonly total: number
+  readonly counts: {
+    readonly pending: number
+    readonly reviewed: number
+    readonly stale: number
+    readonly total: number
+  }
+}
+
+export type ServerNovelFactCountsInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelFactCountsOutput = {
+  readonly pending: number
+  readonly reviewed: number
+  readonly stale: number
+  readonly total: number
+}
+
+export type ServerNovelMemoryMaintenanceInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelMemoryMaintenanceOutput = {
+  readonly zombieFacts: ReadonlyArray<{
+    readonly id: string
+    readonly chapterOrder: number | null
+    readonly text: string
+  }>
+  readonly planned: ReadonlyArray<{
+    readonly kind: "character" | "world_entry"
+    readonly id: string
+    readonly title: string
+    readonly chaptersSince: number
+    readonly stalled: boolean
+  }>
+  readonly retiredStats: { readonly facts: number; readonly techniques: number }
+  readonly stalledThreshold: number
+}
+
+export type ServerNovelFactCreateInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly text: {
+    readonly text: string
+    readonly factType?: string
+    readonly entityHint?: string
+    readonly quote?: string
+    readonly chapterId?: string
+  }["text"]
+  readonly factType?: {
+    readonly text: string
+    readonly factType?: string
+    readonly entityHint?: string
+    readonly quote?: string
+    readonly chapterId?: string
+  }["factType"]
+  readonly entityHint?: {
+    readonly text: string
+    readonly factType?: string
+    readonly entityHint?: string
+    readonly quote?: string
+    readonly chapterId?: string
+  }["entityHint"]
+  readonly quote?: {
+    readonly text: string
+    readonly factType?: string
+    readonly entityHint?: string
+    readonly quote?: string
+    readonly chapterId?: string
+  }["quote"]
+  readonly chapterId?: {
+    readonly text: string
+    readonly factType?: string
+    readonly entityHint?: string
+    readonly quote?: string
+    readonly chapterId?: string
+  }["chapterId"]
+}
+
+export type ServerNovelFactCreateOutput = {
+  readonly ok: boolean
+  readonly factId?: string
+  readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  readonly error?: string
+}
+
+export type ServerNovelFactEditInput = {
+  readonly novelID: { readonly novelID: string; readonly factID: string }["novelID"]
+  readonly factID: { readonly novelID: string; readonly factID: string }["factID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly text?: { readonly text?: string; readonly entityHint?: string | null }["text"]
+  readonly entityHint?: { readonly text?: string; readonly entityHint?: string | null }["entityHint"]
+}
+
+export type ServerNovelFactEditOutput = {
+  readonly ok: boolean
+  readonly factId?: string
+  readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  readonly error?: string
+}
+
+export type ServerNovelFactApproveInput = {
+  readonly novelID: { readonly novelID: string; readonly factID: string }["novelID"]
+  readonly factID: { readonly novelID: string; readonly factID: string }["factID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelFactApproveOutput = {
+  readonly ok: boolean
+  readonly factId?: string
+  readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  readonly error?: string
+}
+
+export type ServerNovelFactRetireInput = {
+  readonly novelID: { readonly novelID: string; readonly factID: string }["novelID"]
+  readonly factID: { readonly novelID: string; readonly factID: string }["factID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelFactRetireOutput = {
+  readonly ok: boolean
+  readonly factId?: string
+  readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  readonly error?: string
+}
+
+export type ServerNovelFactUnmergeInput = {
+  readonly novelID: { readonly novelID: string; readonly factID: string }["novelID"]
+  readonly factID: { readonly novelID: string; readonly factID: string }["factID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+}
+
+export type ServerNovelFactUnmergeOutput = {
+  readonly ok: boolean
+  readonly factId?: string
+  readonly status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  readonly error?: string
+}
+
 export type ServerNovelCanvasLayoutInput = {
   readonly novelID: { readonly novelID: string }["novelID"]
   readonly location?: {
