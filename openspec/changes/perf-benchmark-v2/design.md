@@ -40,17 +40,24 @@ beforeV2MessagesResponse: async (input) => { ...; await new Promise((resolve) =>
 
 不为此给 mock-server 加回内建延迟键——单点使用，内联即可（AGENTS.md：不预提取单次 helper）。
 
-### D4：parent-hydration 的单条 GET 用 v2Messages 容纳 + page.route 观察层计数
+### D4：parent-hydration 场景按 V2 现实重述——父消息不水合，容错渲染
 
-- `message(sessionID, messageID) => user` 死键删除；父 user 消息并入目标会话 `v2Messages` 列表**最旧位置**。candidate 模式下深分页被 `beforeV2MessagesResponse` 闸门挡住（仅放行首页），父消息不会经列表页加载，app 仍走单条 GET 水合——`parent` 请求计数语义保留。
-- `onMessage` 死键无 V2 对应（mock 不单设单条 GET 回调）：在 spec 内注册 `page.route("**/api/session/*/message/*")` 观察层，计数后 `route.fallback()` 交回 mock 处理器。不扩 mock-server config（保持基建不膨胀）。
-- 裸 `page.route("**/session/{targetID}")` fulfill 的 session 对象补 `{data: ...}` 信封（V2 app 消费 `response.data`）。
+**实施期依据修正**（依据优先于直觉）：读 `server-session.ts:112-124`（`repairParentIDs`）与 `v2-adapter.ts:368-380`（`adaptMessages`）确认——V2 投影的 assistant 不带 parentID，页首/事件边界的 assistant 落空串并「由时间线容错」；`loadMessages` 的父消息单条 GET 循环只在 assistant 携带指向未加载 user 的非空 parentID 时触发，而 V2 适配层从不产生这种状态。**V2 已按设计移除父消息水合路径**，V1 的 candidate 模式（深分页闸门 + parent 计数断言）测的是已不存在的行为。
+
+因此本 spec 重述为：冷点击切入「页首跨页孤儿 turn」会话（24 条 assistant 超过首页 20，父 user 落更旧分页），测量首帧正确渲染指标；**断言 parent 单条 GET 计数为 0**，固化 V2 设计事实。具体落地：
+
+- `message`/`onMessage` 死键删除；父 user 消息并入目标会话 `v2Messages` 列表最旧位置（25 条中仅它不在首页）。
+- 父消息单条 GET 用 `page.route("**/api/session/{targetID}/message/*")` 观察层计数 + `route.fallback()` 交回 mock（mock 不单设单条 GET 回调，不扩 config）。
+- `messageDelay: 50` 语义内联进 `beforeV2MessagesResponse`（D3）。
+- 裸 `page.route("**/session/{targetID}")` fulfill **删除**：改用 mock 现成的 `sessionList` 覆盖键（目标会话从列表缺席、单条 GET 仍解析 sessions，子代理先例），不再需要手补 `{data}` 信封。
+- mode（natural/candidate）机制与环境变量删除——两种模式在 V2 下收敛为同一流程。
 
 ### D5：turnDiffs 场景改由 v2Diff 供给，语义重述为会话级 diff 数据成本
 
 V2 下 turn 级 `summary.diffs` 在 adapter 层已不合成（session.tsx:596 的 `turnDiffs` 恒空）；会话级 diff 的真实数据通路是 `GET /api/session/{id}/diff` → `session_diff` store → 检视面。因此：
 
-- `setupTimelineBenchmark` 的 `turnDiffs` 选项删除，调用侧 `reviewDiffs: true` 改传 `v2Diff: diffs`。
+- `setupTimelineBenchmark` 的 `turnDiffs` 选项删除，调用侧 `reviewDiffs: true` 改传 `v2Diff`（FileDiff 契约为 `{path, ...}`，`createReviewDiffs` 的 `file` 键在调用侧映射）。
+- stress fixture 的 turn 级 `summary.diffs` 生成（index%9）同步删除——同一通路在 V2 不存在。
 - spec 注释同步重述：该场景测量的是「会话级 diff 数据挂载下的时间线流式渲染成本」。场景完成性断言与指标采集口径不变（performance/AGENTS.md：只断言场景完成与指标采集，不设机器相关阈值）。
 - `vcsDiff`（git 模式 `/vcs/diff`）路径不受影响，原样保留。
 
