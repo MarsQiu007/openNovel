@@ -32,8 +32,13 @@
 - aaeee2c6e2 refactor(app): review 面板移除恒空的 turn 变更模式
 - 0e74b42424 refactor(session-ui,app): 清理 summary 死分支与消毒器 message()
 
+### 归档后收尾修复
+
+- 88e87ed200 fix(app): 还原 server-session/event-reducer 行尾为 LF——0e74b42424 用 python text mode 重写两文件时 LF 被写成 CRLF，产生 1835 行纯行尾噪音 diff，归档合并后发现并还原
+
 ## Workflow follow-up
 
 - `openspec validate summary-chain-cleanup`（skip_specs，零 delta 提示属预期）
 - `npx openspec archive summary-chain-cleanup --yes` 归档，确认是纯 rename 无残留
 - 合并前工作树干净，`git merge --ff-only summary-chain-cleanup` 合入 main，删除本地分支（不推送）
+- 归档后发现行尾噪音 diff，补 88e87ed200 收尾修复（见上节），typecheck 复验绿
