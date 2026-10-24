@@ -163,8 +163,12 @@ export async function setupTimelineBenchmark(
       })
     },
     async waitForStableGeometry() {
+      // 显式 60s 窗口（perf-benchmark-v2 D8）：默认 10s 在 30× CPU 节流下只剩约 0.3s
+      // CPU，不足以完成大时间线的滚动锚定与布局收敛
       await expect
-        .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop))
+        .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop), {
+          timeout: 60_000,
+        })
         .toBeLessThanOrEqual(1)
       await page.waitForFunction((partID) => {
         const root = [...document.querySelectorAll<HTMLElement>(".scroll-view__viewport")].find((element) =>

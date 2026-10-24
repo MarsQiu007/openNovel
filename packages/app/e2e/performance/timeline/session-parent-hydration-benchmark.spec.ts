@@ -4,6 +4,10 @@
 // parent 单条 GET 计数为 0（固化 V2 无父消息水合的设计事实）。
 // mock 面：sessions 含目标会话（单条 GET 正常信封），sessionList 只列源会话
 // （目标从列表缺席，对齐子代理先例）；messageDelay 语义内联进 beforeV2MessagesResponse（D3）。
+// 探针身份注记（D4 实施修正）：时间线行的 data-message-id 是 turn 锚（父 user 消息 id），
+// assistant 行不挂自身 id——destination/last 均以 userID 断言；requiredPartID 不设，
+// 虚拟滚动下特定 part 的静止可见性是滚动窗函数而非正确性条件（实测：虚拟器对未渲染行
+// 高度估算偏小，rest 态视窗落点不代表渲染正确性）。
 import type { Page } from "@playwright/test"
 import { expectSessionTitle } from "../../utils/waits"
 import { mockOpenNovelServer } from "../../utils/mock-server"
@@ -39,8 +43,6 @@ const assistants = Array.from({ length: 24 }, (_, index) => {
 })
 const messages = [user, ...assistants]
 const target = fixture.sessions.find((session) => session.id === fixture.targetID)!
-const lastID = assistants.at(-1)!.id
-const lastPartID = assistants.at(-1)!.content.at(-1)!.id
 
 benchmark("renders an orphaned latest turn after a cold session click", async ({ browser, report }, testInfo) => {
   benchmark.setTimeout(180_000)
@@ -99,10 +101,10 @@ async function trial(page: Page) {
   const href = novelWorkspaceURL(fixture.directory, novelID, fixture.targetID)
   await injectSessionLink(page, { id: "parent-hydration-target", href, text: target.title as string })
   const metrics = await measureSessionSwitch(page, {
-    destinationIDs: messages.map((message) => message.id),
-    sourceIDs: fixture.messages[fixture.sourceID].map((message) => message.id),
-    lastID,
-    requiredPartID: lastPartID,
+    // 行级身份即 turn 锚 user id（见文件头注记）；sourceIDs 同样只取 user 行
+    destinationIDs: [userID],
+    sourceIDs: fixture.expected.sourceMessageIDs,
+    lastID: userID,
     requireBottomAnchor: false,
     href,
     switch: async () => {

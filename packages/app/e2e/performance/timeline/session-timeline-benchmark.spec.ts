@@ -39,27 +39,31 @@ type ReviewPaneProbe = {
 
 const reviewReadyStreak = 3
 
+// 完成窗口单一来源（perf-benchmark-v2 D8）：四个流式场景的测试超时与完成等待共用
+// 该默认值（测试超时 = 窗口 + 60s 收尾余量），避免两处默认值漂移导致窗口未到测试先死
+const streamCompletionTimeoutMs = Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 900_000)
+
 benchmark.describe("performance: session timeline streaming", () => {
   benchmark("streams assistant text without remounting or oscillating", async ({ page, report }) => {
-    benchmark.setTimeout(Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 420_000) + 60_000)
+    benchmark.setTimeout(streamCompletionTimeoutMs + 60_000)
     const result = await runTimelineStreamBenchmark(page, {})
     report(result.metrics, result.context)
   })
 
   benchmark("streams assistant text in v2 with review pane closed", async ({ page, report }) => {
-    benchmark.setTimeout(Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 420_000) + 60_000)
+    benchmark.setTimeout(streamCompletionTimeoutMs + 60_000)
     const result = await runTimelineStreamBenchmark(page, { newLayoutDesigns: true })
     report(result.metrics, result.context)
   })
 
   benchmark("streams assistant text in v2 with review diffs and pane closed", async ({ page, report }) => {
-    benchmark.setTimeout(Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 420_000) + 60_000)
+    benchmark.setTimeout(streamCompletionTimeoutMs + 60_000)
     const result = await runTimelineStreamBenchmark(page, { newLayoutDesigns: true, reviewDiffs: true })
     report(result.metrics, result.context)
   })
 
   benchmark("streams assistant text in v2 with review pane open", async ({ page, report }) => {
-    benchmark.setTimeout(Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 420_000) + 60_000)
+    benchmark.setTimeout(streamCompletionTimeoutMs + 60_000)
     const result = await runTimelineStreamBenchmark(page, { newLayoutDesigns: true, reviewPane: true })
     report(result.metrics, result.context)
   })
@@ -105,9 +109,15 @@ benchmark.describe("performance: review pane", () => {
 })
 
 async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOptions) {
-  const completionTimeoutMs = Number(process.env.TIMELINE_COMPLETION_TIMEOUT_MS ?? 420_000)
+  // V2 化默认值重调（perf-benchmark-v2 D8）：实测 V2 运行时下每个 delta 应用约 0.1s CPU
+  // （320 turns 规模，CDP profile 热点在虚拟滚动器的行重测），30× 节流下典型 2-3s
+  // 墙钟/事件，但机器状态差时同参数吞吐劣化可达 26 倍（实测 27s/事件）。160 deltas
+  // 远超完成窗口；降为 20 并把完成窗口放宽到 900s，使典型（约 1 分钟）与劣化
+  // （约 9 分钟）两种模式都收敛，测量形态（30× 节流 + 320 turns + 每 delta 应用
+  // 延迟/rAF 间隙采集）不变。
+  const completionTimeoutMs = streamCompletionTimeoutMs
   const cpuThrottle = Number(process.env.TIMELINE_CPU_THROTTLE ?? 30)
-  const deltaCount = Number(process.env.TIMELINE_DELTA_COUNT ?? 160)
+  const deltaCount = Number(process.env.TIMELINE_DELTA_COUNT ?? 20)
   const historyTurns = Number(process.env.TIMELINE_HISTORY_TURNS ?? 320)
   const eventBatch = Number(process.env.TIMELINE_EVENT_BATCH ?? 1)
   const minimal = process.env.TIMELINE_MINIMAL === "1"

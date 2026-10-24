@@ -20,7 +20,13 @@ benchmark.describe("performance: session open staging", () => {
     await setup(page)
     const result = await collectStagingProbe(page)
     report(result)
-    expect(result.contentBeforeReview).toBe(true)
+    // V2 化断言重述（perf-benchmark-v2 D8）：session.tsx 的 deferRender 闩锁在同一帧
+    // 同时放行内容区与检视面板（session.tsx:568-571 释放、1287-1294 共用门闩），mock 下
+    // 两条数据通路又都即时返回，因此不再存在「内容严格先于 review」的过渡窗口——
+    // 行为保证相应退化为「review 不得先于内容」（同帧放行可接受，review-first 闪现不可接受）。
+    expect(result.firstContentMs).not.toBeNull()
+    expect(result.firstReviewMs).not.toBeNull()
+    expect(result.firstReviewMs!).toBeGreaterThanOrEqual(result.firstContentMs!)
     await expect(page.locator('[data-component="session-review-v2"]')).toBeVisible()
   })
 })
