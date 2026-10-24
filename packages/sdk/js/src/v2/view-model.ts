@@ -23,16 +23,6 @@ export type SnapshotFileDiff = {
   status?: "added" | "deleted" | "modified"
 }
 
-export type PermissionAction = "allow" | "deny" | "ask"
-
-export type PermissionRule = {
-  permission: string
-  pattern: string
-  action: PermissionAction
-}
-
-export type PermissionRuleset = Array<PermissionRule>
-
 export type Session = {
   id: string
   slug: string
@@ -71,7 +61,6 @@ export type Session = {
     compacting?: number
     archived?: number
   }
-  permission?: PermissionRuleset
   revert?: {
     messageID: string
     partID?: string
@@ -80,21 +69,9 @@ export type Session = {
   }
 }
 
-export type OutputFormatText = {
-  type: "text"
-}
-
 export type JsonSchema = {
   [key: string]: unknown
 }
-
-export type OutputFormatJsonSchema = {
-  type: "json_schema"
-  schema: JsonSchema
-  retryCount?: number
-}
-
-export type OutputFormat = OutputFormatText | OutputFormatJsonSchema
 
 export type UserMessage = {
   id: string
@@ -103,7 +80,6 @@ export type UserMessage = {
   time: {
     created: number
   }
-  format?: OutputFormat
   agent: string
   model: {
     providerID: string
@@ -352,11 +328,6 @@ export type QuestionInfo = {
   custom?: boolean
 }
 
-export type QuestionTool = {
-  messageID: string
-  callID: string
-}
-
 export type QuestionAnswer = Array<string>
 
 export type QuestionRequest = {
@@ -366,7 +337,6 @@ export type QuestionRequest = {
    * Questions to ask
    */
   questions: Array<QuestionInfo>
-  tool?: QuestionTool
 }
 
 export type PermissionRequest = {

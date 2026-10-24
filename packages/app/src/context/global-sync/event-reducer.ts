@@ -17,6 +17,8 @@ import { trimSessions } from "./session-trim"
 import { dropSessionCaches } from "./session-cache"
 import { diffs as list } from "@/utils/diffs"
 
+// wire 侧残留 part type 的运行时防御：view-model Part 词汇已不含这三类
+//（view-model-cleanup），但乐观 part/事件流仍可能带入，统一在此丢弃
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const SESSION_CONTENT_EVENTS = new Set([
   "session.diff",

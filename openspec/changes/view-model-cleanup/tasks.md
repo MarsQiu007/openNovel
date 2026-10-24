@@ -8,16 +8,16 @@
 
 ## 2. 字段与类型同链删（D1）
 
-- [ ] 2.1 删 UserMessage.format 字段 + OutputFormatText/OutputFormatJsonSchema/OutputFormat 三类型（JsonSchema 保留）；删 Session.permission 字段 + PermissionAction/PermissionRule/PermissionRuleset 三类型；删 QuestionRequest.tool 字段 + QuestionTool 类型。验证：typecheck 绿。
-- [ ] 2.2 删 adapter 构造点：adaptQuestion 不再 spread tool（v2-adapter.ts:128）；确认 adaptUser/adaptInfo 无 format/permission 构造（审计已证，仅需复查 typecheck 无残留引用）。验证：typecheck 绿。
+- [x] 2.1 删 UserMessage.format 字段 + OutputFormatText/OutputFormatJsonSchema/OutputFormat 三类型（JsonSchema 保留）；删 Session.permission 字段 + PermissionAction/PermissionRule/PermissionRuleset 三类型；删 QuestionRequest.tool 字段 + QuestionTool 类型。验证：typecheck 绿。
+- [x] 2.2 删 adapter 构造点：adaptQuestion 不再 spread tool（v2-adapter.ts:128）；确认 adaptUser/adaptInfo 无 format/permission 构造（审计已证，仅需复查 typecheck 无残留引用）。验证：typecheck 绿。
 
 ## 3. SKIP_PARTS 注记（D3）
 
-- [ ] 3.1 在 event-reducer.ts:20 / server-session.ts:28 / sync.tsx:7 三处 SKIP_PARTS 加注释：patch/step-start/step-finish 类型成员已删，此过滤对应 wire 侧残留 part type 的运行时防御。不改过滤行为。验证：三处文件 typecheck 绿。
+- [x] 3.1 在 event-reducer.ts:20 / server-session.ts:28 / sync.tsx:7 三处 SKIP_PARTS 加注释：patch/step-start/step-finish 类型成员已删，此过滤对应 wire 侧残留 part type 的运行时防御。不改过滤行为。验证：app typecheck 绿。
 
 ## 4. 残留字面量
 
-- [ ] 4.1 layout.tsx:766 reviewMode 校验删 `\|\| mode === "turn"`。验证：typecheck 绿；grep `"turn"` 仅剩小说 beat kind 活链。
+- [x] 4.1 layout.tsx:766 reviewMode 校验删 `|| mode === "turn"`。验证：typecheck 绿；grep `"turn"` 仅剩小说 beat kind 活链（turn_scan_status=1 零命中）。
 
 ## 5. 守门与收官
 

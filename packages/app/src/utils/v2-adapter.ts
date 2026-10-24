@@ -125,7 +125,6 @@ export function adaptQuestion(request: QuestionV2Request): QuestionRequest {
     id: request.id,
     sessionID: request.sessionID,
     questions: request.questions,
-    ...(request.tool === undefined ? {} : { tool: request.tool }),
   }
 }
 

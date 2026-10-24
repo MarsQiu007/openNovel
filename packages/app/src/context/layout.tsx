@@ -763,7 +763,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const s = createMemo(() => store.sessionView[key()] ?? { scroll: {} })
         const reviewMode = createMemo(() => {
           const mode = s().reviewMode
-          if (mode === "git" || mode === "branch" || mode === "turn") return mode
+          if (mode === "git" || mode === "branch") return mode
         })
         const reviewFile = createMemo(() => {
           const file = s().reviewFile

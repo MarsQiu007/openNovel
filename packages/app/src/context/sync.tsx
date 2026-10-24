@@ -4,6 +4,8 @@ import { useServerSync } from "./server-sync"
 import { useSDK } from "./sdk"
 import type { Message, Part } from "@opennovel-ai/sdk/v2/client"
 
+// wire 侧残留 part type 的运行时防御：view-model Part 词汇已不含这三类
+//（view-model-cleanup），但乐观 part/事件流仍可能带入，统一在此丢弃
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 
 function sortParts(parts: Part[]) {
