@@ -21,12 +21,14 @@
 
 ## 5. 守门与收官
 
-- [x] 5.1 全量守门：app/session-ui/enterprise/sdk-js `bunx tsgo -b --force` 绿；repo root `bun x oxlint` 0 errors 且 warnings ≤ 基线；app 单测失败数 ≤ 基线 27；session-ui 组件测试 73/73。验证：各命令输出记录进实施注记。（守门输出：四包 tsgo --force 全绿；oxlint 5713 warnings / 0 errors——main 同口径复测同为 5713，5712→5713 漂移来自未跟踪文件内容变化，非本分支引入，零新增告警；app 单测 663 pass / 27 fail = 基线（归因：新增 1 红为 v2-adapter.test.ts adaptQuestion 用例期望 tool 透传，属本提案删除的预期联动，已同步修测试）；session-ui 组件测试 73 pass / 0 fail。e2e 守门结果待补）
-- [ ] 5.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: view-model-cleanup" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate view-model-cleanup` 通过。
+- [x] 5.1 全量守门：app/session-ui/enterprise/sdk-js `bunx tsgo -b --force` 绿；repo root `bun x oxlint` 0 errors 且 warnings ≤ 基线；app 单测失败数 ≤ 基线 27；session-ui 组件测试 73/73。验证：各命令输出记录进实施注记。（守门输出：四包 tsgo --force 全绿；oxlint 5713 warnings / 0 errors——main 同口径复测同为 5713，5712→5713 漂移来自未跟踪文件内容变化，非本分支引入，零新增告警；app 单测 663 pass / 27 fail = 基线（归因：新增 1 红为 v2-adapter.test.ts adaptQuestion 用例期望 tool 透传，属本提案删除的预期联动，已同步修测试）；session-ui 组件测试 73 pass / 0 fail；e2e `test:e2e:local` 114 passed / 3 failed，3 红与基线逐一同名（annotation-execute.spec.ts:141 / novel.spec.ts:504 / regression/remote-session-settings.spec.ts:18））
+- [x] 5.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: view-model-cleanup" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate view-model-cleanup` 通过。
 
 ## Implementation Commits
 
-（收官时回填）
+- e97a20d501 refactor(sdk,app): 清理 view-model 死 union 成员（error/Part/FilePartSource）
+- 3d81d91f6c refactor(sdk,app): view-model 死字段同链删与 turn 残留清除
+- 44491169f0 test(app): 同步 adaptQuestion 用例去除 tool 透传期望
 
 ## Workflow follow-up
 
