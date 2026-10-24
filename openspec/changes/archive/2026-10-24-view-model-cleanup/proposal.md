@@ -2,7 +2,7 @@
 
 ## Why
 
-V1 退休后 view-model.ts（冻结的 V1 形状视图模型契约）成为 app/session-ui 的唯一读取词汇。穷尽式消费审计发现其中残留 **21 个死类型 + 3 个死字段**：V2 wire 无对应形状、v2-adapter 不构造、消费端零类型级/字段级消费。它们与 summary-chain-cleanup 清除的三字段同性质——冻结契约里的冗余词汇，违反「无冗余内容」铁律。趁契约冻结前清账，避免后续开发者误读词汇表。
+V1 退休后 view-model.ts（冻结的 V1 形状视图模型契约）成为 app/session-ui 的唯一读取词汇。穷尽式消费审计发现其中残留 **20 个死类型 + 3 个死字段**：V2 wire 无对应形状、v2-adapter 不构造、消费端零类型级/字段级消费。它们与 summary-chain-cleanup 清除的三字段同性质——冻结契约里的冗余词汇，违反「无冗余内容」铁律。趁契约冻结前清账，避免后续开发者误读词汇表。（审计初判 21 类型，执行期经编译器带路确认 ResourceSource 实为 prompt-input MCP 附件的构造产物，予以保留，最终删除 20——见 design.md 误判修正表。）
 
 ## What Changes
 
