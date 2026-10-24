@@ -71,10 +71,20 @@ V2 下 turn 级 `summary.diffs` 在 adapter 层已不合成（session.tsx:596 �
 
 `session-timeline-stress.fixture.ts` 的 `pageMessages` 函数与导出删除；`fixture.messages` 改存单体 `SessionMessage[]` 升序全量，`timeline-test-helpers.ts` 的 `mockStressTimeline` 改传 `v2Messages: (sessionID) => fixture.messages[sessionID] ?? []`、`onV2Messages: input?.onMessages`（入参类型同步改 `cursor`）。三个消费 spec（first-navigation / home-tab-navigation / session-tab-flash）的 `.info.id` 访问改 `.id`。
 
+### D8：实施期重基线——流式默认参数、staging 断言与几何等待窗口
+
+全量首跑暴露三处「V1 时代默认值/断言在 V2 运行时不成立」，均以实测数据为依据重基线（不改生产代码）：
+
+1. **流式 delta 默认量 160 → 20、完成窗口 420s → 900s**（`TIMELINE_DELTA_COUNT`/`TIMELINE_COMPLETION_TIMEOUT_MS`）。实测 V2 运行时下每个 delta 应用约 0.1s CPU（320 turns 规模，CDP CPU profile 热点在虚拟滚动器的行重测区域），30× 节流下典型 2-3s 墙钟/事件；且吞吐呈双峰——同参数、同浏览器会话内相邻两个同形态场景一个 104s 完成、一个 420s 超时，劣化模式实测达 27s/事件（26 倍方差）。160 deltas 在典型模式也需 8 分钟以上；降为 20 + 900s 窗口后典型约 1 分钟、劣化模式约 9 分钟，两种模式都收敛。测量形态不变（30× 节流 + 320 turns + 每 delta 应用延迟/rAF 间隙照常采集）。**每 delta 的虚拟滚动器重测成本与吞吐双峰是否构成 V2 运行时回归，留作后续生产侧排查提案**——本提案按「不改生产代码」边界只让套件可运行。
+2. **staging 断言重述为「review 不得先于内容」**。`session.tsx` 的 `deferRender` 闩锁在同一帧放行内容区与检视面板（:568-571 释放、:1287-1294 共用门闩），mock 下两条数据通路即时返回，V2 不再存在「内容严格先于 review」的过渡窗口（实测 transitions 仅 `[{false,false},{true,true}]` 同帧）。断言改为 `firstReviewMs >= firstContentMs`（同帧放行可接受，review-first 闪现不可接受），transitions 照常采集。
+3. **`waitForStableGeometry` 的 `expect.poll` 显式 60s 窗口**。默认 10s 在 30× 节流下只剩约 0.3s CPU，不足以完成大时间线的滚动锚定与布局收敛（小规模节流复跑实测超时）。
+
+另补 D4 实施事实：时间线行的 `data-message-id` 是 **turn 锚（父 user 消息 id）**，assistant 行不挂自身 id（DOM dump 实证）；parent-hydration 探针的 destination/last 因此以 userID 断言，`requiredPartID` 不设——虚拟滚动下特定 part 的静止可见性是滚动窗函数（虚拟器对未渲染行高度估算偏小），不是正确性条件。另实测确认 app 在首页无 user 消息时会自动续拉更旧分页（`isTimelineReady` 要求含 user），孤儿 turn 场景下自动补齐父 user，全程无单条父消息 GET。
+
 ## 不做
 
-- 不动 probe/metrics/harness（纯 DOM 探针，零 API 依赖，侦察已核实）。
-- 不改 benchmark 采样指标、阈值与环境变量开关（`TIMELINE_*`/`REVIEW_PANE_*`）。
+- 不动 probe/metrics/harness 的采集口径（纯 DOM 探针，零 API 依赖，侦察已核实）；scenario 控制面的等待窗口与默认值重基线见 D8。
+- 不改 benchmark 采样指标与阈值断言的测量语义；`TIMELINE_*`/`REVIEW_PANE_*` 环境变量开关全部保留（仅 `TIMELINE_DELTA_COUNT` 默认值按 D8 重基线）。
 - 不恢复 messageDelay 内建键、不为单条 GET 加 mock 回调键。
 - 不把套件接入 CI；不重建 timeline-stability 套件。
 

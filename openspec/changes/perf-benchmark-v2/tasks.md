@@ -14,6 +14,7 @@
 
 - [x] 重写 `unit/mock-server.test.ts` 为 V2 门闩语义（D6：`/api` 前缀 URL、V2 键、事件序列断言同形）
 - [x] 在 packages/app 跑 `bun test ./e2e/performance/unit`，转绿
+- [x] 全量首跑失败归因与修复（D8/D4 实施事实）：流式 `TIMELINE_DELTA_COUNT` 默认 160→20 + `TIMELINE_COMPLETION_TIMEOUT_MS` 默认 420s→900s（吞吐双峰实测）；staging 断言重述为 review 不先于内容；`waitForStableGeometry` 显式 60s；parent-hydration 探针身份改 turn 锚 userID
 - [ ] 逐一跑通 6 个 benchmark spec（`bunx playwright test --config e2e/performance/playwright.config.ts`），确认场景完成 + 指标采集断言通过
 - [ ] 在 packages/app 跑全量 `bun run test:e2e`，确认 regression/smoke 活 spec 零波及
 - [ ] 仓库根 `bunx oxlint` 0 errors
