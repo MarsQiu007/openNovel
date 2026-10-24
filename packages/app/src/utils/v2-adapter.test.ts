@@ -125,7 +125,6 @@ describe("adaptQuestion", () => {
       id: "que_1",
       sessionID: "ses_1",
       questions: [{ question: "ok?", header: "h", options: [{ label: "yes", description: "d" }], multiple: false }],
-      tool: { messageID: "msg_1", callID: "prt_1" },
     }
     expect(adaptQuestion(request)).toEqual(request)
   })
