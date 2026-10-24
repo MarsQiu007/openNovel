@@ -23,12 +23,14 @@
 
 ## 5. 守门与收官
 
-- [ ] 5.1 全量守门：`packages/app`、`packages/session-ui`、`packages/enterprise`、`packages/sdk/js` typecheck 绿；repo root `bun x oxlint` 0 errors 且 warnings 不超基线 5715；e2e 守门套件失败数不超 main 基线 3 个既有红。验证：各命令输出记录进实施注记。
-- [ ] 5.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: summary-chain-cleanup" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate summary-chain-cleanup` 通过。
+- [x] 5.1 全量守门：`packages/app`、`packages/session-ui`、`packages/enterprise`、`packages/sdk/js` typecheck 绿；repo root `bun x oxlint` 0 errors 且 warnings 不超基线 5715；e2e 守门套件失败数不超 main 基线 3 个既有红。验证：各命令输出记录进实施注记。（守门输出：app/session-ui/enterprise/sdk-js `bunx tsgo -b --force` 全绿；oxlint 5712 warnings / 0 errors ≤ 基线 5715；app 单测 663 pass / 27 fail = 基线；session-ui 组件测试 73 pass / 0 fail；e2e `test:e2e:local` 114 passed / 3 failed，3 红与基线逐一同名（annotation-execute.spec.ts:141 / novel.spec.ts:504 / regression/remote-session-settings.spec.ts:18）；enterprise 零 summary 引用。）
+- [x] 5.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: summary-chain-cleanup" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate summary-chain-cleanup` 通过。
 
 ## Implementation Commits
 
-（收官时回填）
+- 6589d20591 refactor(app,sdk): 清理 V1 summary 死链的时间线 DiffSummary 行
+- aaeee2c6e2 refactor(app): review 面板移除恒空的 turn 变更模式
+- 0e74b42424 refactor(session-ui,app): 清理 summary 死分支与消毒器 message()
 
 ## Workflow follow-up
 
