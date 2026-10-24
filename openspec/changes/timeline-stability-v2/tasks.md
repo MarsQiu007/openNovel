@@ -36,12 +36,16 @@
 
 ## 7. 守门与收官
 
-- [ ] 7.1 全量守门：`cd packages/app && bun typecheck` 绿；repo root `bun x oxlint` 0 errors（warnings 不超基线 5715）；`bun run test:stability` 全绿；`bun run test:bench` 两步全绿且无新增收集；e2e 守门套件（`bunx playwright test` 默认 config）失败数不超 main 基线 3 个既有红（annotation-execute/remote-session-settings/novel journey chat panel）。验证：各命令输出记录进实施注记。
-- [ ] 7.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: timeline-stability-v2" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate timeline-stability-v2` 通过。
+- [x] 7.1 全量守门：`cd packages/app && bun typecheck` 绿；repo root `bun x oxlint` 0 errors（warnings 不超基线 5715）；`bun run test:stability` 全绿；`bun run test:bench` 两步全绿且无新增收集；e2e 守门套件（`bunx playwright test` 默认 config）失败数不超 main 基线 3 个既有红（annotation-execute/remote-session-settings/novel journey chat panel）。验证：各命令输出记录进实施注记。（实施注记：typecheck / typecheck:e2e 绿；oxlint 曾超基线 32（本套件新增文件的 type-assertion 告警），清零后回到 0 errors / 5715；test:stability = unit 23 pass + 套件 51 passed；test:bench = unit 40 pass + bench 14 passed（14.4m）；e2e 守门 114 passed / 3 failed，3 红与基线逐一同名命中；context-matrix 删首成员用例随全套件两轮全绿，一次性抖动未复现）
+- [x] 7.2 收官：勾选本文件全部任务；`git log --grep "OpenSpec-Change: timeline-stability-v2" --format="%h %s"` 收集实现提交写入 `## Implementation Commits`；`openspec validate timeline-stability-v2` 通过。
 
 ## Implementation Commits
 
-（收官时回填）
+- 250b1c6dc9 test(app): timeline-stability 套件 fixture 与 10 个 spec 完成 V2 化
+- 369b7d4c2e test(app): adverse 矩阵 V2 化与窄容器场景改走 railWidth
+- 687bed0ecd test(app): 恢复 timeline-stability 套件四处接线
+- 6c231bbc0d docs(app): timeline-stability README 恢复并补 V2 迁移注记
+- 0f4bd35eac test(app): timeline-stability 套件清零 lint 告警
 
 ## Workflow follow-up
 
