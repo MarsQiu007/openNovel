@@ -55,11 +55,13 @@ test("detects root opacity when probing descendant opacity", async ({ page }) =>
   })
   await startVisualProbe(page, regions)
   await row.evaluate((element) => {
-    ;(element as HTMLElement).style.opacity = "0"
+    if (!(element instanceof HTMLElement)) return
+    element.style.opacity = "0"
   })
   await page.waitForTimeout(50)
   await row.evaluate((element) => {
-    ;(element as HTMLElement).style.opacity = "1"
+    if (!(element instanceof HTMLElement)) return
+    element.style.opacity = "1"
   })
   await page.waitForTimeout(50)
   const trace = await stopVisualProbe<keyof typeof regions>(page)

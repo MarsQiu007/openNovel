@@ -70,21 +70,21 @@ test.describe("timeline visual lifecycle stability", () => {
     const output = (id: string, text: string) => ({ title: `echo ${id}`, command: `echo ${id}`, output: text })
     await startVisualProbe(page, regions)
     await timeline.sendAll([
-      { frame: toolSuccess(ids[0]!, { structured: output(ids[0]!, ""), content: [] }), delay: 180 },
-      { frame: toolProgress(ids[2]!, output(ids[2]!, lines(10))), delay: 70 },
-      { frame: toolProgress(ids[1]!, output(ids[1]!, lines(2))), delay: 110 },
-      { frame: toolProgress(ids[2]!, output(ids[2]!, lines(25))), delay: 80 },
+      { frame: toolSuccess(ids[0], { structured: output(ids[0], ""), content: [] }), delay: 180 },
+      { frame: toolProgress(ids[2], output(ids[2], lines(10))), delay: 70 },
+      { frame: toolProgress(ids[1], output(ids[1], lines(2))), delay: 110 },
+      { frame: toolProgress(ids[2], output(ids[2], lines(25))), delay: 80 },
       {
-        frame: toolSuccess(ids[1]!, {
-          structured: output(ids[1]!, lines(2)),
+        frame: toolSuccess(ids[1], {
+          structured: output(ids[1], lines(2)),
           content: [{ type: "text", text: lines(2) }],
         }),
         delay: 260,
       },
-      { frame: toolProgress(ids[2]!, output(ids[2]!, lines(50))), delay: 100 },
+      { frame: toolProgress(ids[2], output(ids[2], lines(50))), delay: 100 },
       {
-        frame: toolSuccess(ids[2]!, {
-          structured: output(ids[2]!, lines(50)),
+        frame: toolSuccess(ids[2], {
+          structured: output(ids[2], lines(50)),
           content: [{ type: "text", text: lines(50) }],
         }),
         delay: 450,

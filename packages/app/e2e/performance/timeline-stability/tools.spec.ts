@@ -74,8 +74,7 @@ test.describe("timeline tool state stability", () => {
     for (const [index, id] of ids.entries()) {
       await timeline.send(toolCalled(`prt_state_${id}`, names[id], inputs[id]), [80, 240, 100, 360, 140][index])
     }
-    for (const [index, id] of ["skill", "webfetch", "custom", "task", "websearch"].entries()) {
-      const key = id as (typeof ids)[number]
+    for (const [index, key] of (["skill", "webfetch", "custom", "task", "websearch"] as const).entries()) {
       const structured = key === "task" ? { sessionId: childID } : key === "websearch" ? { provider: "exa" } : {}
       const output = key === "websearch" ? "Result https://example.com/result" : "Completed"
       await timeline.send(
@@ -123,7 +122,7 @@ test.describe("timeline tool state stability", () => {
       { path: "src" },
     ]
     const context = ids.map((id, index) =>
-      v2Tool({ id, name: tools[index]!, state: v2ToolPending(inputs[index]!) }),
+      v2Tool({ id, name: tools[index], state: v2ToolPending(inputs[index]) }),
     )
     const timeline = await setupTimeline(page, {
       messages: [
@@ -152,12 +151,12 @@ test.describe("timeline tool state stability", () => {
     })
     await startVisualProbe(page, regions)
     for (const [index, delay] of [90, 260, 70, 380].entries()) {
-      await timeline.send(toolCalled(ids[index]!, tools[index]!, inputs[index]!), delay)
+      await timeline.send(toolCalled(ids[index], tools[index], inputs[index]), delay)
     }
-    await timeline.send(toolSuccess(ids[1]!), 130)
-    await timeline.send(toolSuccess(ids[3]!), 210)
-    await timeline.send(toolFailed(ids[0]!, "Read interrupted"), 110)
-    await timeline.send(toolSuccess(ids[2]!), 250)
+    await timeline.send(toolSuccess(ids[1]), 130)
+    await timeline.send(toolSuccess(ids[3]), 210)
+    await timeline.send(toolFailed(ids[0], "Read interrupted"), 110)
+    await timeline.send(toolSuccess(ids[2]), 250)
     await expect(group.locator('[data-component="tool-status-title"]')).toHaveAttribute("aria-label", "Explored")
     timeline.setBusy(false)
     await timeline.send(sessionUpdated(), 700)

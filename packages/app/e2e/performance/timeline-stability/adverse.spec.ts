@@ -215,12 +215,12 @@ test.describe("timeline adverse visual stability", () => {
             }),
           }),
           v2Tool({
-            id: contextIDs[0]!,
+            id: contextIDs[0],
             name: "read",
             state: v2ToolCompleted({ input: { filePath: "src/a.ts" } }),
           }),
           v2Tool({
-            id: contextIDs[1]!,
+            id: contextIDs[1],
             name: "glob",
             state: v2ToolCompleted({ input: { path: ".", pattern: "**/*.ts" } }),
           }),
