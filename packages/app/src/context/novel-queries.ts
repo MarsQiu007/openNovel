@@ -4,7 +4,13 @@ import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
 import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
-import type { AnnotationExecutionSnapshot, ExportFormat, ReviewInboxSource, SettingImageOwnerType } from "@opennovel-ai/schema/novel"
+import type {
+  AnnotationExecutionSnapshot,
+  ExportFormat,
+  MemoryFactStatus,
+  ReviewInboxSource,
+  SettingImageOwnerType,
+} from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
 import { adaptInfo } from "@/utils/v2-adapter"
 
@@ -197,6 +203,12 @@ export const novelKeys = {
     ["novel", "review-inbox-counts", directory, novelID] as const,
   "review-inbox-items": (directory: string, novelID: string, source: string, limit: number) =>
     ["novel", "review-inbox-items", directory, novelID, source, limit] as const,
+  "memory-fact-counts": (directory: string, novelID: string) =>
+    ["novel", "memory-fact-counts", directory, novelID] as const,
+  "memory-fact-items": (directory: string, novelID: string, filter: string, limit: number) =>
+    ["novel", "memory-fact-items", directory, novelID, filter, limit] as const,
+  "memory-maintenance": (directory: string, novelID: string) =>
+    ["novel", "memory-maintenance", directory, novelID] as const,
   "setting-images": (directory: string, novelID: string, ownerType: string, ownerID: string) =>
     ["novel", "setting-images", directory, novelID, ownerType, ownerID] as const,
   "setting-image-content": (directory: string, novelID: string, imageID: string) =>
@@ -2394,6 +2406,72 @@ export function useReviewInboxItems(
         source: source() ?? undefined,
         limit: limit(),
         offset: 0,
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+// ─── 记忆卡（memory-panel）───
+
+/** 记忆面板列表过滤（spec：状态 / 事实类型 / 所属章节 / 关键词） */
+export interface MemoryFactListFilter {
+  status: MemoryFactStatus | null
+  factType: string
+  chapterId: string | null
+  q: string
+}
+
+export function useMemoryFactCounts(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["memory-fact-counts"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["fact-counts"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useMemoryFactItems(novelID: Accessor<string>, filter: Accessor<MemoryFactListFilter>, limit: Accessor<number>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["memory-fact-items"](
+      sdk().directory,
+      novelID(),
+      `${filter().status ?? "all"}|${filter().factType}|${filter().chapterId ?? ""}|${filter().q}`,
+      limit(),
+    ),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["fact-list"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+        status: filter().status ?? undefined,
+        factType: filter().factType === "" ? undefined : filter().factType,
+        chapterId: filter().chapterId ?? undefined,
+        q: filter().q === "" ? undefined : filter().q,
+        limit: limit(),
+        offset: 0,
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useMemoryMaintenance(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["memory-maintenance"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["memory-maintenance"]({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
       }),
     enabled: !!novelID(),
   }))

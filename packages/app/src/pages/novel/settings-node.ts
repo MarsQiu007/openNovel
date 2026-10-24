@@ -15,6 +15,7 @@ export type SettingsNode =
   | { kind: "soul" }
   | { kind: "techniques" }
   | { kind: "organization" }
+  | { kind: "memory" }
   | { kind: "characters" }
   | { kind: "character"; characterId: string }
 
@@ -71,6 +72,7 @@ export function parseSettingsNode(raw: string | null | undefined): SettingsNode 
     case "soul":
     case "techniques":
     case "organization":
+    case "memory":
     case "characters":
       return { kind: raw }
     default:

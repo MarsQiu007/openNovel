@@ -9,7 +9,7 @@
  */
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { useCreateWorldEntry, useCharacters, useReviewInboxCounts, useWorldEntries } from "@/context/novel-queries"
+import { useCreateWorldEntry, useCharacters, useMemoryFactCounts, useReviewInboxCounts, useWorldEntries } from "@/context/novel-queries"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -32,6 +32,8 @@ export function SettingsTree(props: SettingsTreeProps) {
   const createWorld = useCreateWorldEntry()
   // 「整理」节点待审徽标：计数 query 随收件箱操作失效联动，清零后不显示
   const inboxCounts = useReviewInboxCounts(props.novelID)
+  // 「记忆」节点待办徽标（pending+reviewed+stale），同收件箱失效联动
+  const memoryCounts = useMemoryFactCounts(props.novelID)
 
   const [search, setSearch] = createSignal("")
   // 分类子组收纳为内存态（不持久化；一级板块收纳由父级按书记忆）
@@ -312,6 +314,12 @@ export function SettingsTree(props: SettingsTreeProps) {
             active={isSelected({ kind: "organization" })}
             onClick={() => props.onSelect({ kind: "organization" })}
             badge={inboxCounts.data?.total}
+          />
+          <NodeRow
+            label={language.t("novel.settings.tree.memory")}
+            active={isSelected({ kind: "memory" })}
+            onClick={() => props.onSelect({ kind: "memory" })}
+            badge={memoryCounts.data?.total}
           />
         </Show>
 

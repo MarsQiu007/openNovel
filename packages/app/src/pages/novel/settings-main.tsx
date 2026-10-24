@@ -23,6 +23,7 @@ import { WorldEntryDetail } from "./world-entry-detail"
 import { StyleGuideEditor } from "./style-guide-editor"
 import { NovelSoulEditor } from "./novel-soul-editor"
 import { SettingReviewInboxPanel } from "./setting-review-inbox"
+import { MemoryPanel } from "./memory-panel"
 import { SettingGallery } from "./setting-gallery"
 import { PanelForeshadow } from "./panel-foreshadow"
 import PanelTechniques from "./panel-techniques"
@@ -141,6 +142,9 @@ export function SettingsMain(props: SettingsMainProps) {
         </Show>
         <Show when={kindIs("organization")}>
           <SettingReviewInboxPanel novelID={props.novelID} />
+        </Show>
+        <Show when={kindIs("memory")}>
+          <MemoryPanel novelID={props.novelID} />
         </Show>
 
         {/* —— 世界观板块 root：列表 / 地图 —— */}
