@@ -1,10 +1,9 @@
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
 import { AssistantMessage, Part, SessionStatus, UserMessage } from "@opennovel-ai/sdk/v2"
 import { groupParts, renderable, type PartGroup } from "@opennovel-ai/session-ui/message-part"
-import { TimelineRow, type SummaryDiff } from "./timeline-row"
-import { uniqueSummaryDiffs } from "./summary-diffs"
+import { TimelineRow } from "./timeline-row"
 
-export { TimelineRow, type SummaryDiff } from "./timeline-row"
+export { TimelineRow } from "./timeline-row"
 
 export type TimelineRowMap = {
   TurnGap: { userMessageID: string }
@@ -26,7 +25,6 @@ export type TimelineRowMap = {
   }
   Thinking: { userMessageID: string; reasoningHeading?: string }
   Retry: { userMessageID: string }
-  DiffSummary: { userMessageID: string; diffs: SummaryDiff[] }
   Error: { userMessageID: string; text: string }
 }
 
@@ -137,16 +135,6 @@ export namespace Timeline {
     }
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
-
-    const diffs = uniqueSummaryDiffs(userMessage.summary?.diffs)
-    if (diffs.length > 0 && (status === "idle" || !isActive)) {
-      rows.push(
-        new TimelineRow.DiffSummary({
-          userMessageID: userMessage.id,
-          diffs,
-        }),
-      )
-    }
 
     if (error) {
       const data = error.data?.message

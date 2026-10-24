@@ -1,8 +1,5 @@
-import type { SnapshotFileDiff } from "@opennovel-ai/sdk/v2"
 import type { PartGroup } from "@opennovel-ai/session-ui/message-part"
 import { Data, Equal } from "effect"
-
-export type SummaryDiff = SnapshotFileDiff & { file: string }
 
 export namespace TimelineRow {
   export class TurnGap extends Data.TaggedClass("TurnGap")<{
@@ -28,10 +25,6 @@ export namespace TimelineRow {
     userMessageID: string
     reasoningHeading?: string
   }> {}
-  export class DiffSummary extends Data.TaggedClass("DiffSummary")<{
-    userMessageID: string
-    diffs: SummaryDiff[]
-  }> {}
   export class Error extends Data.TaggedClass("Error")<{
     userMessageID: string
     text: string
@@ -47,7 +40,6 @@ export namespace TimelineRow {
     | TurnDivider
     | AssistantPart
     | Thinking
-    | DiffSummary
     | Error
     | Retry
 
@@ -65,8 +57,6 @@ export namespace TimelineRow {
         return `assistant-part:${row.userMessageID}:${row.group.key}`
       case "Thinking":
         return `thinking:${row.userMessageID}`
-      case "DiffSummary":
-        return `diff-summary:${row.userMessageID}`
       case "Error":
         return `error:${row.userMessageID}`
       case "Retry":

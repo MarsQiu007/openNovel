@@ -4,12 +4,12 @@
 
 ## 1. 类型层先行（编译器带路）
 
-- [ ] 1.1 删 `packages/sdk/js/src/v2/view-model.ts` 的 `UserMessage.summary`、`Session.summary`、`AssistantMessage.summary` 三字段（design.md D4）。验证：`cd packages/app && bun typecheck` 与 `cd packages/session-ui && bun typecheck` 的报错清单恰好等于已知消费点（rows.ts/session.tsx/session-turn.tsx/message-nav.tsx/diffs.ts），无意外命中。
+- [x] 1.1 删 `packages/sdk/js/src/v2/view-model.ts` 的 `UserMessage.summary`、`Session.summary`、`AssistantMessage.summary` 三字段（design.md D4）。验证：`cd packages/app && bun typecheck` 与 `cd packages/session-ui && bun typecheck` 的报错清单恰好等于已知消费点（rows.ts/session.tsx/session-turn.tsx/message-nav.tsx/diffs.ts），无意外命中。（注：`tsgo -b` 有增量缓存，需 `--force` 才能看到跨包类型变化；守门用 `bunx tsgo -b --force`）
 
 ## 2. app 时间线 DiffSummary 链
 
-- [ ] 2.1 删 `rows.ts` 的 DiffSummary 行类型条目与入列分支（含 `uniqueSummaryDiffs` import），删 `timeline/summary-diffs.ts` 整文件，删 `timeline-row.ts` 的 DiffSummary 类/联合成员/key case。验证：typecheck 剩余报错只剩 message-timeline.tsx 的渲染 case。
-- [ ] 2.2 删 `message-timeline.tsx` 的 `TimelineDiffSummaryRow` 组件与 `case "DiffSummary"` 分支（含只被该组件使用的 import/state）。验证：`cd packages/app && bun typecheck` 时间线相关报错清零。
+- [x] 2.1 删 `rows.ts` 的 DiffSummary 行类型条目与入列分支（含 `uniqueSummaryDiffs` import），删 `timeline/summary-diffs.ts` 整文件（含其测试 `summary-diffs.test.ts`），删 `timeline-row.ts` 的 DiffSummary 类/联合成员/key case。验证：typecheck 剩余报错只剩 message-timeline.tsx 的渲染 case。
+- [x] 2.2 删 `message-timeline.tsx` 的 `TimelineDiffSummaryRow` 组件与 `case "DiffSummary"` 分支（含只被该组件使用的 import：Dynamic/Accordion/DiffChanges/StickyAccordionHeader/getDirectory/normalize/useFileComponent/SummaryDiff）。验证：`cd packages/app && bunx tsgo -b --force` 时间线相关报错清零（剩余仅 session.tsx:596 与 diffs.ts ×3，与预测一致）。
 
 ## 3. review「turn」模式链
 

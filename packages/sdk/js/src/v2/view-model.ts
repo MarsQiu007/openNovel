@@ -51,12 +51,6 @@ export type Session = {
   directory: string
   path?: string
   parentID?: string
-  summary?: {
-    additions: number
-    deletions: number
-    files: number
-    diffs?: Array<SnapshotFileDiff>
-  }
   cost?: number
   tokens?: {
     input: number
@@ -120,11 +114,6 @@ export type UserMessage = {
     created: number
   }
   format?: OutputFormat
-  summary?: {
-    title?: string
-    body?: string
-    diffs: Array<SnapshotFileDiff>
-  }
   agent: string
   model: {
     providerID: string
@@ -216,7 +205,6 @@ export type AssistantMessage = {
     cwd: string
     root: string
   }
-  summary?: boolean
   cost: number
   tokens: {
     total?: number
