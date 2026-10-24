@@ -49,6 +49,8 @@ export async function setupTimeline(
     seedHistory?: boolean
     /** 初始 busy（v2Active 是否含本会话）；省略按 idle */
     active?: boolean
+    /** 工作台右栏（对话面板）设定宽度，默认 1100；窄栏场景可调小（下限 320） */
+    railWidth?: number
     /** GET /api/session/{id}/diff 兜底（tool.success/step.ended 会触发 fetchDiff） */
     diffs?: unknown[]
   } = {},
@@ -106,13 +108,16 @@ export async function setupTimeline(
       mobile: false,
     })
   }
-  await page.addInitScript(() => {
-    // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
-    localStorage.setItem(
-      "opennovel.global.dat:novel.workspace.layout.v1",
-      JSON.stringify({ railPanel: "chat", railWidth: 1100 }),
-    )
-  })
+  await page.addInitScript(
+    ({ railWidth }) => {
+      // 会话页嵌在书籍工作台右栏：拉宽对话面板以接近旧独立页的可用视区
+      localStorage.setItem(
+        "opennovel.global.dat:novel.workspace.layout.v1",
+        JSON.stringify({ railPanel: "chat", railWidth }),
+      )
+    },
+    { railWidth: input.railWidth ?? 1100 },
+  )
   await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
