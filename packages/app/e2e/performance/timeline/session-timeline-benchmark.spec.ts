@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test"
 import { benchmark, benchmarkDiagnostics, expect } from "../benchmark"
 import {
   buildInitialStreamEvent,
+  buildStreamCloseEvents,
   buildStreamDeltaEvents,
   setupTimelineBenchmark,
   textPartID,
@@ -117,9 +118,18 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
     historyTurns,
     eventBatch,
     newLayoutDesigns: options.newLayoutDesigns,
-    // Turn diffs exercise timeline data cost; the pane-open scenario serves the same
-    // diffs through the default git mode so it works across review implementations.
-    turnDiffs: options.reviewDiffs ? diffs : undefined,
+    // V2 下 turn 级 summary.diffs 在 adapter 层已无通路；会话级 diff（/api/session/{id}/diff）
+    // 是等价的数据成本通路。pane-open 场景走默认 git 模式（/vcs/diff）以跨检视实现通用。
+    // FileDiff 契约为 {path, status, additions, deletions, patch}，createReviewDiffs 的 file 键在此映射
+    v2Diff: options.reviewDiffs
+      ? diffs.map((diff) => ({
+          path: diff.file,
+          status: diff.status,
+          additions: diff.additions,
+          deletions: diff.deletions,
+          patch: diff.patch,
+        }))
+      : undefined,
     vcsDiff: options.reviewPane ? diffs : undefined,
   })
 
@@ -159,6 +169,8 @@ async function runTimelineStreamBenchmark(page: Page, options: TimelineStreamOpt
     navigations: benchmarkDiagnostics(page).navigations,
   })
   const delivered = deltas.length - fixture.transport.pendingCount()
+  // 收尾帧在指标采集后投递：结束在制回合（触发 diff 拉取），又不摊薄 deliveredDeltas 口径
+  fixture.transport.enqueue(buildStreamCloseEvents(deltaCount))
   await profile.stop()
 
   const result = {

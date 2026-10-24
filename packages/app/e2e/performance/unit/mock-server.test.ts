@@ -1,3 +1,8 @@
+// V2 化（perf-benchmark-v2，design D6）：V1 路径/配置键（messageDelay、beforeMessagesResponse、
+// onMessages、pageMessages）已随 V2 mock 重写删除；本用例改验 V2 门闩语义——
+// beforeV2MessagesResponse 闸门持有期间响应不出，释放后按
+// onV2Messages(start) → beforeV2MessagesResponse → v2Messages → onV2Messages(end) → fulfill 序完成；
+// 延迟不再内建（无 messageDelay 键），由闸门回调内自睡实现。
 import { expect, test } from "bun:test"
 import type { Page, Route } from "@playwright/test"
 import { mockOpenNovelServer } from "../../utils/mock-server"
@@ -19,20 +24,20 @@ test("applies message latency after a list response gate is released", async () 
     directory: "C:/OpenNovel",
     project: {},
     sessions: [{ id: "session" }],
-    messageDelay: 25,
-    beforeMessagesResponse: () => {
+    beforeV2MessagesResponse: async () => {
       events.push("before")
-      return gate.promise
+      await gate.promise
+      await new Promise((resolve) => setTimeout(resolve, 25))
     },
-    onMessages: (request) => events.push(request.phase),
-    pageMessages: () => {
+    onV2Messages: (request) => events.push(request.phase),
+    v2Messages: () => {
       events.push("page")
-      return { items: [] }
+      return []
     },
   })
 
   const response = handler!({
-    request: () => ({ url: () => "http://127.0.0.1:4096/session/session/message" }),
+    request: () => ({ url: () => "http://127.0.0.1:4096/api/session/session/message", method: () => "GET" }),
     fulfill: () => {
       events.push("fulfill")
       return Promise.resolve()

@@ -1,3 +1,17 @@
+// V2 化（perf-benchmark-v2）：消息从 {info, parts} 对改单体 SessionMessage（v2-fixture 工厂，
+// 确定性 ID 保留）；手写 pageMessages 分页删除——V2 mock 服务端自持不透明 cursor 分页，
+// fixture 只供升序全量列表。turn 级 summary.diffs 在 V2 adapter 无通路（D5），不再生成。
+import {
+  v2AssistantMessage,
+  v2Reasoning,
+  v2Text,
+  v2Tool,
+  v2ToolCompleted,
+  v2UserMessage,
+  validateV2Timeline,
+  type V2FixtureMessage,
+} from "../../utils/v2-fixture"
+
 const words = [
   "alpha",
   "bravo",
@@ -27,11 +41,7 @@ const childID = "ses_smoke_child"
 const directory = "C:/OpenNovel/SmokeProject"
 const novelID = "novel_smoke_timeline"
 const projectID = "proj_smoke_timeline"
-const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
-
-type MessageInfo = Record<string, unknown> & { id: string; role: "user" | "assistant" }
-type MessagePart = Record<string, unknown> & { id: string; type: string; text?: string; tool?: string }
-type Message = { info: MessageInfo; parts: MessagePart[] }
+const model = { id: "claude-opus-4-6", providerID: "opennovel" }
 
 function lorem(seed: number, length: number) {
   let out = ""
@@ -49,58 +59,31 @@ function id(prefix: string, value: number) {
   return `${prefix}_smoke_${String(value).padStart(4, "0")}`
 }
 
-function userMessage(sessionID: string, index: number, textLength: number, diffs: unknown[] = []): Message {
-  const messageID = id("msg_user", index)
-  return {
-    info: {
-      id: messageID,
-      sessionID,
-      role: "user",
-      time: { created: 1700000000000 + index * 10_000 },
-      summary: { diffs },
-      agent: "build",
-      model,
-    },
-    parts: [
-      {
-        id: id("prt_user_text", index),
-        sessionID,
-        messageID,
-        type: "text",
-        text: lorem(index, textLength),
-      },
-    ],
-  }
+function userMessage(index: number, textLength: number) {
+  return v2UserMessage({
+    id: id("msg_user", index),
+    text: lorem(index, textLength),
+    created: 1700000000000 + index * 10_000,
+  })
 }
 
-function assistantMessage(sessionID: string, index: number, parentID: string, parts: MessagePart[]): Message {
-  const messageID = id("msg_assistant", index)
-  return {
-    info: {
-      id: messageID,
-      sessionID,
-      role: "assistant",
-      time: { created: 1700000000000 + index * 10_000 + 1_000, completed: 1700000000000 + index * 10_000 + 8_000 },
-      parentID,
-      modelID: model.modelID,
-      providerID: model.providerID,
-      mode: "build",
-      agent: "build",
-      path: { cwd: directory, root: directory },
-      cost: 0.01,
-      tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-      variant: "max",
-      finish: "stop",
-    },
-    parts: parts.map((part) => ({
-      ...part,
-      sessionID,
-      messageID,
-    })),
-  }
+type AssistantContent = Parameters<typeof v2AssistantMessage>[0]["content"]
+
+function assistantMessage(index: number, content: AssistantContent) {
+  return v2AssistantMessage({
+    id: id("msg_assistant", index),
+    created: 1700000000000 + index * 10_000 + 1_000,
+    completed: 1700000000000 + index * 10_000 + 8_000,
+    agent: "build",
+    model,
+    cost: 0.01,
+    tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
+    finish: "stop",
+    content,
+  })
 }
 
-function textPart(index: number, partIndex: number, length: number): MessagePart {
+function textPart(index: number, partIndex: number, length: number) {
   const prose = lorem(index * 13 + partIndex, length)
   const text =
     index % 12 === 0
@@ -110,16 +93,15 @@ function textPart(index: number, partIndex: number, length: number): MessagePart
         : index % 7 === 0
           ? `${prose}\n\nThe wrapped inline value is \`${lorem(index, 180)}\`.`
           : prose
-  return { id: id(`prt_text_${partIndex}`, index), type: "text", text }
+  return v2Text(text, id(`prt_text_${partIndex}`, index))
 }
 
-function reasoningPart(index: number, partIndex: number, length: number): MessagePart {
-  return {
+function reasoningPart(index: number, partIndex: number, length: number) {
+  return v2Reasoning(lorem(index * 19 + partIndex, length), {
     id: id(`prt_reasoning_${partIndex}`, index),
-    type: "reasoning",
-    text: lorem(index * 19 + partIndex, length),
-    time: { start: 1700000000000 + index * 10_000, end: 1700000000000 + index * 10_000 + 500 },
-  }
+    created: 1700000000000 + index * 10_000,
+    completed: 1700000000000 + index * 10_000 + 500,
+  })
 }
 
 function toolPart(
@@ -129,7 +111,7 @@ function toolPart(
   input: Record<string, unknown>,
   outputLength = 160,
   metadataOverride?: Record<string, unknown>,
-): MessagePart {
+) {
   const metadata =
     metadataOverride ??
     (tool === "apply_patch"
@@ -143,20 +125,22 @@ function toolPart(
         : tool === "question"
           ? { answers: [["Proceed"], ["Keep sample output"]] }
           : {})
-  return {
+  // V2 工具态：V1 state.title 并入 structured（adapter 从 structured.title 取标题），
+  // V1 state.metadata 整体等于 structured（透传为视图模型 metadata），output 走 content 文本
+  return v2Tool({
     id: id(`prt_tool_${tool}_${partIndex}`, index),
-    type: "tool",
-    callID: id("call", index * 10 + partIndex),
-    tool,
-    state: {
-      status: "completed",
+    name: tool,
+    created: 1700000000000 + index * 10_000,
+    completed: 1700000000000 + index * 10_000 + 400,
+    state: v2ToolCompleted({
       input,
-      output: lorem(index * 23 + partIndex, outputLength),
-      title: tool === "bash" ? "Verify generated output" : input.filePath || input.path || input.pattern || "completed",
-      metadata,
-      time: { start: 1700000000000 + index * 10_000, end: 1700000000000 + index * 10_000 + 400 },
-    },
-  }
+      structured: {
+        ...metadata,
+        title: tool === "bash" ? "Verify generated output" : input.filePath || input.path || input.pattern || "completed",
+      },
+      content: [{ type: "text", text: lorem(index * 23 + partIndex, outputLength) }],
+    }),
+  })
 }
 
 function patchFile(seed: number, type: "add" | "update" | "delete") {
@@ -201,10 +185,9 @@ function code(seed: number, lines: number, width = 32) {
   ).join("\n")
 }
 
-function turn(index: number): Message[] {
-  const diff = index % 9 === 0 ? [fileDiff(`src/generated/summary-${index}.ts`, index)] : []
-  const user = userMessage(targetID, index, 100 + (index % 4) * 80, diff)
-  const parts = [
+function turn(index: number): V2FixtureMessage[] {
+  const user = userMessage(index, 100 + (index % 4) * 80)
+  const content = [
     ...(index % 5 === 0 ? [reasoningPart(index, 0, 420)] : []),
     ...(index % 3 === 0
       ? [
@@ -242,13 +225,13 @@ function turn(index: number): Message[] {
       ? [toolPart(index, 12, "task", { description: "Inspect generated fixture", subagent_type: "explore" }, 160)]
       : []),
   ]
-  return [user, assistantMessage(targetID, index, user.info.id, parts)]
+  return [user, assistantMessage(index, content)]
 }
 
 const targetMessages = Array.from({ length: 72 }, (_, index) => turn(index)).flat()
 const sourceMessages = Array.from({ length: 12 }, (_, index) => [
-  userMessage(sourceID, index + 1000, 120),
-  assistantMessage(sourceID, index + 1000, id("msg_user", index + 1000), [
+  userMessage(index + 1000, 120),
+  assistantMessage(index + 1000, [
     textPart(index + 1000, 0, 240),
     ...(index === 11
       ? [
@@ -265,20 +248,11 @@ const sourceMessages = Array.from({ length: 12 }, (_, index) => [
   ]),
 ]).flat()
 const childMessages = Array.from({ length: 4 }, (_, index) => [
-  userMessage(childID, index + 2000, 120),
-  assistantMessage(childID, index + 2000, id("msg_user", index + 2000), [textPart(index + 2000, 0, 240)]),
+  userMessage(index + 2000, 120),
+  assistantMessage(index + 2000, [textPart(index + 2000, 0, 240)]),
 ]).flat()
 
-function renderable(part: MessagePart) {
-  if (part.type === "tool" && part.tool === "todowrite") return false
-  if (part.type === "text") return !!part.text.trim()
-  if (part.type === "reasoning") return !!part.text.trim()
-  return part.type !== "step-start" && part.type !== "step-finish" && part.type !== "patch"
-}
-
-function orderedParts(message: Message) {
-  return message.parts.slice().sort((a, b) => a.id.localeCompare(b.id))
-}
+for (const messages of [targetMessages, sourceMessages, childMessages]) validateV2Timeline(messages)
 
 export const fixture = {
   directory,
@@ -341,31 +315,11 @@ export const fixture = {
     targetTitle: "Example Game: sample jump movement & sample physics analysis",
     childTitle: "Inspect child navigation",
     sourceMessageIDs: sourceMessages
-      .filter((message) => message.info.role === "user")
-      .map((message) => message.info.id),
+      .filter((message) => message.type === "user")
+      .map((message) => message.id),
     targetMessageIDs: targetMessages
-      .filter((message) => message.info.role === "user")
-      .map((message) => message.info.id),
-    childMessageIDs: childMessages.filter((message) => message.info.role === "user").map((message) => message.info.id),
-    targetPartIDs: targetMessages.flatMap((message) =>
-      orderedParts(message)
-        .filter(renderable)
-        .map((part) => part.id),
-    ),
+      .filter((message) => message.type === "user")
+      .map((message) => message.id),
+    childMessageIDs: childMessages.filter((message) => message.type === "user").map((message) => message.id),
   },
-}
-
-export function pageMessages(sessionID: string, limit: number, before?: string) {
-  const messages = fixture.messages[sessionID as keyof typeof fixture.messages] ?? []
-  const end = before
-    ? Math.max(
-        0,
-        messages.findIndex((message) => message.info.id === before),
-      )
-    : messages.length
-  const start = Math.max(0, end - limit)
-  return {
-    items: messages.slice(start, end),
-    cursor: start > 0 ? messages[start]!.info.id : undefined,
-  }
 }

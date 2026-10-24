@@ -1,7 +1,22 @@
+// V2 化（perf-benchmark-v2）：消息从 {info, parts} 对改单体 SessionMessage（v2-fixture 工厂，
+// 确定性 ID 保留）；pageMessages → v2Messages（分页由 V2 mock 服务端自持）；SSE 注入从
+// message.part.updated/delta 换 session.next.* 帧（v2Event 严格校验）。turn 级 summary.diffs
+// 在 V2 adapter 无通路（design D5），turnDiffs 选项删除，会话级 diff 走 v2Diff。
 import type { Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../../utils/novel-workspace"
 import { expectAppVisible, expectSessionTitle } from "../../utils/waits"
+import {
+  v2AssistantMessage,
+  v2Event,
+  v2Reasoning,
+  v2Text,
+  v2Tool,
+  v2ToolCompleted,
+  v2UserMessage,
+  validateV2Timeline,
+  type V2SseFrame,
+} from "../../utils/v2-fixture"
 import { expect } from "../benchmark"
 
 const directory = "C:/OpenNovel/TimelineStateRegression"
@@ -13,47 +28,25 @@ const assistantMessageID = "msg_assistant_regression"
 const editPartID = "prt_0001_edit"
 export const textPartID = "prt_9999_text"
 const title = "Timeline collapse state regression"
-const model = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
+const providerModel = { providerID: "opennovel", modelID: "claude-opus-4-6", variant: "max" }
+const model = { id: providerModel.modelID, providerID: providerModel.providerID }
+const tokens = { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } }
 
-type EventPayload = {
-  directory: string
-  payload: Record<string, unknown>
-}
+const userMessage = v2UserMessage({
+  id: userMessageID,
+  text: "Please edit the file.",
+  created: 1700000000000,
+})
 
-const userMessage = {
-  info: {
-    id: userMessageID,
-    sessionID,
-    role: "user",
-    time: { created: 1700000000000 },
-    summary: { diffs: [] },
-    agent: "build",
-    model,
-  },
-  parts: [
-    {
-      id: "prt_user_text",
-      sessionID,
-      messageID: userMessageID,
-      type: "text",
-      text: "Please edit the file.",
-    },
-  ],
-}
-
-const editPart = {
+const editPart = v2Tool({
   id: editPartID,
-  sessionID,
-  messageID: assistantMessageID,
-  type: "tool",
-  callID: "call_edit_regression",
-  tool: "edit",
-  state: {
-    status: "completed",
+  name: "edit",
+  created: 1700000001000,
+  completed: 1700000002000,
+  state: v2ToolCompleted({
     input: { filePath: "src/regression.ts" },
-    output: "Edited src/regression.ts",
-    title: "src/regression.ts",
-    metadata: {
+    structured: {
+      title: "src/regression.ts",
       filediff: {
         file: "src/regression.ts",
         additions: 1,
@@ -63,36 +56,20 @@ const editPart = {
       },
       diff: "diff --git a/src/regression.ts b/src/regression.ts\n-export const value = 'before'\n+export const value = 'after'\n",
     },
-    time: { start: 1700000001000, end: 1700000002000 },
-  },
-}
+    content: [{ type: "text", text: "Edited src/regression.ts" }],
+  }),
+})
 
-const streamedTextPart = {
-  id: textPartID,
-  sessionID,
-  messageID: assistantMessageID,
-  type: "text",
-  text: "Streaming added a later assistant text part.",
-}
-
-const assistantMessage = {
-  info: {
-    id: assistantMessageID,
-    sessionID,
-    role: "assistant",
-    time: { created: 1700000001000 },
-    parentID: userMessageID,
-    modelID: model.modelID,
-    providerID: model.providerID,
-    mode: "build",
-    agent: "build",
-    path: { cwd: directory, root: directory },
-    cost: 0.01,
-    tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-    variant: "max",
-  },
-  parts: [editPart],
-}
+// 在制回合：无 completed/finish，流式帧（buildInitialStreamEvent 等）向它追加 textPartID 部分
+const assistantMessage = v2AssistantMessage({
+  id: assistantMessageID,
+  created: 1700000001000,
+  agent: "build",
+  model,
+  cost: 0.01,
+  tokens,
+  content: [editPart],
+})
 
 export async function setupTimelineBenchmark(
   page: Page,
@@ -101,31 +78,26 @@ export async function setupTimelineBenchmark(
     eventBatch: number
     newLayoutDesigns?: boolean
     vcsDiff?: unknown[]
-    turnDiffs?: unknown[]
+    /** 会话级 diff（GET /api/session/{id}/diff）；turn 级 summary.diffs 的 V2 等价数据通路 */
+    v2Diff?: unknown[]
     /** 覆盖默认视口（1366×768）；窄视口下书籍工作台右栏会被三区保底宽度钳制 */
     viewport?: { width: number; height: number }
     /** 书籍工作台右栏宽度（默认 1100），实际渲染宽度受视口与主区保底钳制 */
     railWidth?: number
   },
 ) {
-  const events: EventPayload[] = []
+  const events: V2SseFrame[] = []
   let eventBatch = options.eventBatch
-  const currentUserMessage = options.turnDiffs
-    ? { ...userMessage, info: { ...userMessage.info, summary: { diffs: options.turnDiffs } } }
-    : userMessage
+  const history = Array.from({ length: options.historyTurns }, (_, index) => performanceTurn(index)).flat()
+  validateV2Timeline([...history, userMessage, assistantMessage])
   await mockOpenNovelServer(page, {
     directory,
     project: project(),
     provider: provider(),
     sessions: [session()],
     vcsDiff: options.vcsDiff,
-    pageMessages: () => ({
-      items: [
-        ...Array.from({ length: options.historyTurns }, (_, index) => performanceTurn(index)).flat(),
-        currentUserMessage,
-        assistantMessage,
-      ],
-    }),
+    v2Diff: options.v2Diff,
+    v2Messages: () => [...history, userMessage, assistantMessage],
     events: () => events.splice(0, eventBatch),
     eventRetry: 16,
   })
@@ -175,7 +147,7 @@ export async function setupTimelineBenchmark(
     scroller,
     text,
     transport: {
-      enqueue(payload: EventPayload | EventPayload[]) {
+      enqueue(payload: V2SseFrame | V2SseFrame[]) {
         events.push(...(Array.isArray(payload) ? payload : [payload]))
       },
       pendingCount() {
@@ -212,34 +184,42 @@ export async function setupTimelineBenchmark(
   }
 }
 
-export function buildInitialStreamEvent(deltaCount: number): EventPayload {
-  return {
-    directory,
-    payload: {
-      type: "message.part.updated",
-      properties: {
-        part: {
-          ...streamedTextPart,
-          text: `Streaming${streamChunk(0, deltaCount + 1)}\n\n\`\`\`ts\nconst initial = true\n\`\`\``,
-        },
-      },
-    },
-  }
+/** 向在制回合追加流式文本的开口帧：step.started → text.started → 首个 delta（含 "Implementation plan"） */
+export function buildInitialStreamEvent(deltaCount: number): V2SseFrame[] {
+  return [
+    streamEvent("session.next.step.started", 0, { agent: "build", model }),
+    streamEvent("session.next.text.started", 1, { textID: textPartID }),
+    streamEvent("session.next.text.delta", 2, { textID: textPartID, delta: streamChunk(0, deltaCount + 1) }),
+  ]
 }
 
-export function buildStreamDeltaEvents(deltaCount: number): EventPayload[] {
-  return Array.from({ length: deltaCount }, (_, index) => ({
-    directory,
-    payload: {
-      type: "message.part.delta",
-      properties: {
-        messageID: assistantMessageID,
-        partID: textPartID,
-        field: "text",
-        delta: streamChunk(index + 1, deltaCount + 1),
-      },
-    },
-  }))
+/** 增量 delta 帧（index 1..deltaCount）；末块含 "benchmark-complete" 完成标记 */
+export function buildStreamDeltaEvents(deltaCount: number): V2SseFrame[] {
+  return Array.from({ length: deltaCount }, (_, index) =>
+    streamEvent("session.next.text.delta", index + 3, {
+      textID: textPartID,
+      delta: streamChunk(index + 1, deltaCount + 1),
+    }),
+  )
+}
+
+/** 收尾帧：text.ended（完整文本）→ step.ended。指标采集后再投递，避免 closing 帧摊薄 deliveredDeltas 口径 */
+export function buildStreamCloseEvents(deltaCount: number): V2SseFrame[] {
+  const full = Array.from({ length: deltaCount + 1 }, (_, index) => streamChunk(index, deltaCount + 1)).join("")
+  return [
+    streamEvent("session.next.text.ended", deltaCount + 3, { textID: textPartID, text: full }),
+    streamEvent("session.next.step.ended", deltaCount + 4, { finish: "stop", cost: 0, tokens }),
+  ]
+}
+
+// 帧序 offset 唯一且递增（initial 0-2 / deltas 3..deltaCount+2 / close deltaCount+3..+4），时间戳直接派生
+function streamEvent(type: string, offset: number, extra: Record<string, unknown>): V2SseFrame {
+  return v2Event(directory, type, {
+    timestamp: 1700000003000 + offset * 1_000,
+    sessionID,
+    assistantMessageID,
+    ...extra,
+  })
 }
 
 function performanceTurn(index: number) {
@@ -248,85 +228,64 @@ function performanceTurn(index: number) {
   const assistantID = `msg_0000_${suffix}_b_assistant`
   const before = historicalSource(index, false)
   const after = historicalSource(index, true)
-  const parts = [
+  const content = [
     ...(index % 5 === 0
       ? [
-          {
+          v2Reasoning(`Reviewing the existing implementation. ${"constraint analysis ".repeat(20)}`, {
             id: `prt_0000_${suffix}_reasoning`,
-            sessionID,
-            messageID: assistantID,
-            type: "reasoning",
-            text: `Reviewing the existing implementation. ${"constraint analysis ".repeat(20)}`,
-            time: { start: 1690000001000 + index * 2_000, end: 1690000001200 + index * 2_000 },
-          },
+            created: 1690000001000 + index * 2_000,
+            completed: 1690000001200 + index * 2_000,
+          }),
         ]
       : []),
-    {
-      id: `prt_0000_${suffix}_assistant`,
-      sessionID,
-      messageID: assistantID,
-      type: "text",
-      text: historicalMarkdown(index),
-    },
+    v2Text(historicalMarkdown(index), `prt_0000_${suffix}_assistant`),
     ...(index % 8 === 0
       ? [
-          {
+          v2Tool({
             id: `prt_0000_${suffix}_edit`,
-            sessionID,
-            messageID: assistantID,
-            type: "tool",
-            callID: `call_0000_${suffix}_edit`,
-            tool: "edit",
-            state: {
-              status: "completed",
+            name: "edit",
+            created: 1690000001200 + index * 2_000,
+            completed: 1690000001400 + index * 2_000,
+            state: v2ToolCompleted({
               input: { filePath: `src/history-${index}.ts` },
-              output: `Edited src/history-${index}.ts`,
-              title: `src/history-${index}.ts`,
-              metadata: {
+              structured: {
+                title: `src/history-${index}.ts`,
                 filediff: { file: `src/history-${index}.ts`, additions: 48, deletions: 48, before, after },
               },
-              time: { start: 1690000001200 + index * 2_000, end: 1690000001400 + index * 2_000 },
-            },
-          },
+              content: [{ type: "text", text: `Edited src/history-${index}.ts` }],
+            }),
+          }),
         ]
       : []),
     ...(index % 12 === 0
       ? [
-          {
+          v2Tool({
             id: `prt_0000_${suffix}_write`,
-            sessionID,
-            messageID: assistantID,
-            type: "tool",
-            callID: `call_0000_${suffix}_write`,
-            tool: "write",
-            state: {
-              status: "completed",
+            name: "write",
+            created: 1690000001400 + index * 2_000,
+            completed: 1690000001500 + index * 2_000,
+            state: v2ToolCompleted({
               input: { filePath: `src/generated-${index}.tsx`, content: after },
-              output: `Wrote src/generated-${index}.tsx`,
-              title: `src/generated-${index}.tsx`,
-              metadata: {
+              structured: {
+                title: `src/generated-${index}.tsx`,
                 filediff: { file: `src/generated-${index}.tsx`, additions: 32, deletions: 0, before: "", after },
               },
-              time: { start: 1690000001400 + index * 2_000, end: 1690000001500 + index * 2_000 },
-            },
-          },
+              content: [{ type: "text", text: `Wrote src/generated-${index}.tsx` }],
+            }),
+          }),
         ]
       : []),
     ...(index % 16 === 0
       ? [
-          {
+          v2Tool({
             id: `prt_0000_${suffix}_patch`,
-            sessionID,
-            messageID: assistantID,
-            type: "tool",
-            callID: `call_0000_${suffix}_patch`,
-            tool: "apply_patch",
-            state: {
-              status: "completed",
+            name: "apply_patch",
+            created: 1690000001500 + index * 2_000,
+            completed: 1690000001700 + index * 2_000,
+            state: v2ToolCompleted({
               input: { patchText: realisticPatch(index) },
-              output: "Success. Updated src/components/SessionCard.tsx",
-              title: "src/components/SessionCard.tsx",
-              metadata: {
+              structured: {
+                title: "src/components/SessionCard.tsx",
                 files: [
                   {
                     filePath: "src/components/SessionCard.tsx",
@@ -340,52 +299,29 @@ function performanceTurn(index: number) {
                   },
                 ],
               },
-              time: { start: 1690000001500 + index * 2_000, end: 1690000001700 + index * 2_000 },
-            },
-          },
+              content: [{ type: "text", text: "Success. Updated src/components/SessionCard.tsx" }],
+            }),
+          }),
         ]
       : []),
   ]
   return [
-    {
-      info: {
-        id: userID,
-        sessionID,
-        role: "user",
-        time: { created: 1690000000000 + index * 2_000 },
-        summary: { diffs: [] },
-        agent: "build",
-        model,
-      },
-      parts: [
-        {
-          id: `prt_0000_${suffix}_user`,
-          sessionID,
-          messageID: userID,
-          type: "text",
-          text: `Historical prompt ${index}`,
-        },
-      ],
-    },
-    {
-      info: {
-        id: assistantID,
-        sessionID,
-        role: "assistant",
-        time: { created: 1690000001000 + index * 2_000, completed: 1690000001500 + index * 2_000 },
-        parentID: userID,
-        modelID: model.modelID,
-        providerID: model.providerID,
-        mode: "build",
-        agent: "build",
-        path: { cwd: directory, root: directory },
-        cost: 0.01,
-        tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
-        variant: "max",
-        finish: "stop",
-      },
-      parts,
-    },
+    v2UserMessage({
+      id: userID,
+      text: `Historical prompt ${index}`,
+      created: 1690000000000 + index * 2_000,
+    }),
+    v2AssistantMessage({
+      id: assistantID,
+      created: 1690000001000 + index * 2_000,
+      completed: 1690000001500 + index * 2_000,
+      agent: "build",
+      model,
+      cost: 0.01,
+      tokens,
+      finish: "stop",
+      content,
+    }),
   ]
 }
 

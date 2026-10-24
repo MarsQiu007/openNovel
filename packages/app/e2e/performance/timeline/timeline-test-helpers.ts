@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { mockOpenNovelServer } from "../../utils/mock-server"
-import { fixture, pageMessages } from "./session-timeline-stress.fixture"
+import { fixture } from "./session-timeline-stress.fixture"
 
 export async function installTimelineSettings(page: Page) {
   await page.addInitScript(() => {
@@ -18,20 +18,14 @@ export async function installTimelineSettings(page: Page) {
   })
 }
 
-export function mockStressTimeline(
-  page: Page,
-  input?: {
-    onMessages?: (input: { sessionID: string; before?: string; phase: "start" | "end" }) => void
-    vcsDiff?: unknown[]
-  },
-) {
+// V2 化（perf-benchmark-v2）：分页由 V2 mock 服务端自持（不透明 cursor），fixture 只供升序全量。
+export function mockStressTimeline(page: Page, input?: { vcsDiff?: unknown[] }) {
   return mockOpenNovelServer(page, {
     sessions: fixture.sessions,
     provider: fixture.provider,
     directory: fixture.directory,
     project: fixture.project,
-    pageMessages,
-    onMessages: input?.onMessages,
+    v2Messages: (sessionID) => fixture.messages[sessionID as keyof typeof fixture.messages] ?? [],
     vcsDiff: input?.vcsDiff,
   })
 }
