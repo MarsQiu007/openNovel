@@ -29,6 +29,7 @@ import {
   exerciseDatabasePath,
   exerciseGlobalRoot,
 } from "./environment"
+import { sql } from "drizzle-orm"
 import { color, printHeader, printResults } from "./report"
 import { coverageResult, parseOptions, routeKey, routeKeys, selectedScenarios } from "./routing"
 import { runScenario } from "./runner"
@@ -41,6 +42,8 @@ import {
   createWorldMap,
   createWorldMapFeature,
   getDb,
+  ChapterTable,
+  MemoryFactTable,
   PendingSettingTable,
   StagedChangeTable,
   uploadSettingImage,
@@ -1559,6 +1562,53 @@ function seedReviewInbox(ctx: ScenarioContext, candidateCount = 1) {
   )
 }
 
+/** 记忆卡种子：一章 + 三卡（pending 可流转 / stale 僵尸卡 / retired 带合并留痕可撤销），FTS 行应用级同步 */
+function seedMemoryFacts(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx, "记忆卡小说")
+      const rows = yield* Effect.try({
+        try: () => {
+          const db = getDb(novelDirectory(ctx))
+          const now = Date.now()
+          const chapterID = crypto.randomUUID()
+          db.insert(ChapterTable)
+            .values({ id: chapterID, novel_id: novelID, title: "第一章", order: 1, created_at: now, updated_at: now })
+            .run()
+          const insertFact = (id: string, status: string, retiredInto: string | null = null) => {
+            db.insert(MemoryFactTable)
+              .values({
+                id,
+                novel_id: novelID,
+                chapter_id: chapterID,
+                fact_type: "timeline",
+                text: `记忆事实 ${id}`,
+                status,
+                retired_into: retiredInto,
+                created_by: "observer",
+                created_at: now,
+                updated_at: now,
+              })
+              .run()
+            db.run(
+              sql`INSERT INTO memory_fact_fts (novel_id, fact_id, text, quote) VALUES (${novelID}, ${id}, ${`记忆事实 ${id}`}, '')`,
+            )
+          }
+          const pendingID = crypto.randomUUID()
+          const staleID = crypto.randomUUID()
+          const mergedID = crypto.randomUUID()
+          insertFact(pendingID, "pending")
+          insertFact(staleID, "stale")
+          insertFact(mergedID, "retired", pendingID)
+          return { chapterID, pendingID, staleID, mergedID }
+        },
+        catch: (error) => new Error(`记忆卡种子写入失败：${String(error)}`),
+      })
+      return { novelID, ...rows }
+    }),
+  )
+}
+
 function novelScenarios(): Scenario[] {
   const jsonHeaders = (ctx: ScenarioContext) => ({ ...ctx.headers(), "content-type": "application/json" })
   const isObject = (body: unknown) => object(body)
@@ -2507,6 +2557,132 @@ function novelScenarios(): Scenario[] {
         check(record.ok === true, "批处理应成功拆分计划")
         check(record.autoExecuted === 1, "纯格式修订应命中白名单直接执行")
         check((record.stagedIds as unknown[]).length === 0, "白名单操作不应产生暂存草案")
+      }),
+    // 记忆卡端点组（agent-memory-ui）：列表/计数/维护报告/手记/单卡流转
+    http.protected
+      .get("/api/novel/{novelID}/memory-facts", "novel.memory-facts.fact-list")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body, ctx) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        array(record.items)
+        check((record.items as unknown[]).length === 3, "列表应返回三张种子卡")
+        const counts = record.counts as Record<string, number>
+        check(counts.pending === 1 && counts.stale === 1, "计数应与种子一致")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/memory-facts/counts", "novel.memory-facts.fact-counts")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts/counts", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const counts = body as Record<string, number>
+        check(counts.pending === 1 && counts.reviewed === 0 && counts.stale === 1, "分状态计数应与种子一致")
+        check(counts.total === 2, "待办总数应为 pending+reviewed+stale")
+      }),
+    http.protected
+      .get("/api/novel/{novelID}/memory-maintenance", "novel.memory-maintenance")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-maintenance", { novelID: ctx.state.novelID }),
+        headers: ctx.headers(),
+      }))
+      .json(200, (body, ctx) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        const zombies = record.zombieFacts as Array<Record<string, unknown>>
+        check(zombies.length === 1 && zombies[0]!.id === ctx.state.staleID, "僵尸卡清单应含 stale 种子卡")
+        check(record.stalledThreshold === 10, "滞留阈值应透传")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/memory-facts", "novel.memory-facts.fact-create")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { text: "主角的真实身份是前朝遗孤", chapterId: ctx.state.chapterID, quote: "他摸了摸那块旧玉佩" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true && record.status === "pending", "手记创建应落 pending")
+        check(typeof record.factId === "string", "应返回新卡 ID")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/memory-facts/{factID}/edit", "novel.memory-facts.fact-edit")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts/{factID}/edit", {
+          novelID: ctx.state.novelID,
+          factID: ctx.state.pendingID,
+        }),
+        headers: jsonHeaders(ctx),
+        body: { text: "沈辞获得青冥剑", entityHint: "沈辞" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true, "编辑应成功")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/memory-facts/{factID}/approve", "novel.memory-facts.fact-approve")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts/{factID}/approve", {
+          novelID: ctx.state.novelID,
+          factID: ctx.state.pendingID,
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true && record.status === "approved", "pending 卡批准应直达 approved")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/memory-facts/{factID}/retire", "novel.memory-facts.fact-retire")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts/{factID}/retire", {
+          novelID: ctx.state.novelID,
+          factID: ctx.state.pendingID,
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true && record.status === "retired", "作废应留痕转 retired")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/memory-facts/{factID}/unmerge", "novel.memory-facts.fact-unmerge")
+      .seeded((ctx) => seedMemoryFacts(ctx))
+      .mutating()
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/memory-facts/{factID}/unmerge", {
+          novelID: ctx.state.novelID,
+          factID: ctx.state.mergedID,
+        }),
+        headers: ctx.headers(),
+        body: {},
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        check(record.ok === true && record.status === "pending", "带留痕被并卡撤销合并应回 pending")
       }),
     // 覆盖新增的结构评审、技法、云盘同步与全局灵魂路由。
     http.protected.get("/api/novel/mode", "v2.novelMode.get").json(200, (body) => object(body)),
