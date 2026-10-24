@@ -2,20 +2,10 @@
 // V1 wire 已随 legacy 路由裁撤，以下类型不再是协议形状——生成器不会再产出它们。
 // 它们是 app/session-ui/plugin-tui 的内部视图模型词汇：app 的 v2-adapter 在
 // SDK 边界把 V2 投影/事件转换成这些形状，组件层继续消费。
-// 机械复制自重生前的 gen/types.gen.ts（源头已随重生消失）；RevertState/Range
-// 在 V2 wire 中仍存活且形状一致，直接从 gen 引用避免重复。ProviderAuthError/
-// UnknownError 的 V2 wire 形状已变（_tag 词汇），此处保留 V1 形状并在
-// client.ts 显式 re-export 压过 gen 同名导出。
+// 机械复制自重生前的 gen/types.gen.ts（源头已随重生消失）；Session.revert 与
+// gen RevertState 形状一致故 inline 未重复。UnknownError 的 V2 wire 形状已变
+//（_tag 词汇），此处保留 V1 形状并在 client.ts 显式 re-export 压过 gen 同名导出。
 // 禁止扩展字段；新功能一律走 V2 类型。
-import type { Range } from "./gen/types.gen.js"
-
-export type ProviderAuthError = {
-  name: "ProviderAuthError"
-  data: {
-    providerID: string
-    message: string
-  }
-}
 
 export type UnknownError = {
   name: "UnknownError"
@@ -126,56 +116,10 @@ export type UserMessage = {
   }
 }
 
-export type MessageOutputLengthError = {
-  name: "MessageOutputLengthError"
-  data: {
-    [key: string]: unknown
-  }
-}
-
 export type MessageAbortedError = {
   name: "MessageAbortedError"
   data: {
     message: string
-  }
-}
-
-export type StructuredOutputError = {
-  name: "StructuredOutputError"
-  data: {
-    message: string
-    retries: number
-  }
-}
-
-export type ContextOverflowError = {
-  name: "ContextOverflowError"
-  data: {
-    message: string
-    responseBody?: string
-  }
-}
-
-export type ContentFilterError = {
-  name: "ContentFilterError"
-  data: {
-    message: string
-  }
-}
-
-export type ApiError = {
-  name: "APIError"
-  data: {
-    message: string
-    statusCode?: number
-    isRetryable: boolean
-    responseHeaders?: {
-      [key: string]: string
-    }
-    responseBody?: string
-    metadata?: {
-      [key: string]: string
-    }
   }
 }
 
@@ -187,15 +131,7 @@ export type AssistantMessage = {
     created: number
     completed?: number
   }
-  error?:
-    | ProviderAuthError
-    | UnknownError
-    | MessageOutputLengthError
-    | MessageAbortedError
-    | StructuredOutputError
-    | ContextOverflowError
-    | ContentFilterError
-    | ApiError
+  error?: MessageAbortedError | UnknownError
   parentID: string
   modelID: string
   providerID: string
@@ -240,21 +176,6 @@ export type TextPart = {
   }
 }
 
-export type SubtaskPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "subtask"
-  prompt: string
-  description: string
-  agent: string
-  model?: {
-    providerID: string
-    modelID: string
-  }
-  command?: string
-}
-
 export type ReasoningPart = {
   id: string
   sessionID: string
@@ -282,15 +203,6 @@ export type FileSource = {
   path: string
 }
 
-export type SymbolSource = {
-  text: FilePartSourceText
-  type: "symbol"
-  path: string
-  range: Range
-  name: string
-  kind: number
-}
-
 export type ResourceSource = {
   text: FilePartSourceText
   type: "resource"
@@ -298,7 +210,7 @@ export type ResourceSource = {
   uri: string
 }
 
-export type FilePartSource = FileSource | SymbolSource | ResourceSource
+export type FilePartSource = FileSource | ResourceSource
 
 export type FilePart = {
   id: string
@@ -381,51 +293,6 @@ export type ToolPart = {
   }
 }
 
-export type StepStartPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "step-start"
-  snapshot?: string
-}
-
-export type StepFinishPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "step-finish"
-  reason: string
-  snapshot?: string
-  cost: number
-  tokens: {
-    total?: number
-    input: number
-    output: number
-    reasoning: number
-    cache: {
-      read: number
-      write: number
-    }
-  }
-}
-
-export type SnapshotPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "snapshot"
-  snapshot: string
-}
-
-export type PatchPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "patch"
-  hash: string
-  files: Array<string>
-}
-
 export type AgentPart = {
   id: string
   sessionID: string
@@ -436,18 +303,6 @@ export type AgentPart = {
     value: string
     start: number
     end: number
-  }
-}
-
-export type RetryPart = {
-  id: string
-  sessionID: string
-  messageID: string
-  type: "retry"
-  attempt: number
-  error: ApiError
-  time: {
-    created: number
   }
 }
 
@@ -463,16 +318,10 @@ export type CompactionPart = {
 
 export type Part =
   | TextPart
-  | SubtaskPart
   | ReasoningPart
   | FilePart
   | ToolPart
-  | StepStartPart
-  | StepFinishPart
-  | SnapshotPart
-  | PatchPart
   | AgentPart
-  | RetryPart
   | CompactionPart
 
 export type QuestionOption = {

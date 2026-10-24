@@ -10,6 +10,7 @@
 |---|---|
 | UnknownError 判死 | `v2-adapter.ts:230` adaptAssistant 把 wire error 统一映射 `{ name: "UnknownError", data: { message } }`——union 成员被构造，删了赋值处即编译错 |
 | FileSource 判死 | `v2-adapter.ts:156` adaptAttachment 构造 `source: { type: "file" as const, path, text }` |
+| ResourceSource 判死（执行期编译器带路捕获） | `prompt-input.tsx:566,606,868` 与 `prompt-input-v2.tsx:328` 构造 MCP resource 附件的 `type: "resource"` source（写入方向）；SymbolSource 仍确死（`type: "symbol"` 全仓零命中） |
 | QuestionOption 判死 | `session-question-dock.tsx:93,156` 读 `options[].label/description`——字段级消费实锤，保留 |
 
 同理确认「标注-only 但字段活」的保留项：`FilePartSourceText`（`build-request-parts.ts:237` 读 `source.text.start/end/value`、`session-context-breakdown.ts:18` 读 `source?.text.value.length`）、`QuestionOption`（同上）。
@@ -19,8 +20,8 @@
 | 族 | 死项 | 生产者核查 | 消费者核查 |
 |---|---|---|---|
 | error ×6 | ProviderAuthError / MessageOutputLengthError / StructuredOutputError / ContextOverflowError / ContentFilterError / ApiError | adaptAssistant 只构造 UnknownError 一种 | 字符串 narrow 零命中（`"ContentFilterError"` 等全仓零 grep）；`error?.name` 消费仅 `=== "MessageAbortedError"`（rows.ts:49）与 `!== "MessageAbortedError"`（session-turn.tsx） |
-| Part ×6 | StepStartPart / StepFinishPart / SnapshotPart / PatchPart / RetryPart / SubtaskPart | adaptAssistant parts 只构造 text/reasoning/tool；adaptUser 只构造 text/file/agent；adaptCompaction → adaptUser + compactionPart | `"snapshot"`/`"subtask"`/`"retry"` 在 app/ui 全仓零命中；SKIP_PARTS 仅含 patch/step-start/step-finish 且是 `Set<string>.has()` 运行时不 narrow |
-| FilePartSource ×2 | SymbolSource / ResourceSource | adaptAttachment 只构造 `type: "file"` | `source.type === "symbol"/"resource"` narrow 零命中（prompt-input 的 resource 命中是 reference 域，无关） |
+| Part ×6 | StepStartPart / StepFinishPart / SnapshotPart / PatchPart / RetryPart / SubtaskPart | adaptAssistant parts 只构造 text/reasoning/tool；adaptUser 只构造 text/file/agent；adaptCompaction → adaptUser + compactionPart | `"snapshot"`/`"subtask"`/`"retry"` 在 app/ui 全仓零命中；SKIP_PARTS 仅含 patch/step-start/step-finish 且是 `Set<string>.has()` 运行时不 narrow（server-session.test.ts:1133 构造 step-start 即该防御的测试覆盖，类型删除后测试改 unknown 中间量模拟 wire 残留） |
+| FilePartSource ×1 | SymbolSource | adaptAttachment 只构造 `type: "file"` | `type: "symbol"` 全仓零命中；连带删 Range 死 import |
 | OutputFormat ×3+字段 | OutputFormatText / OutputFormatJsonSchema / OutputFormat / UserMessage.format | adaptUser 不构造 format | `.format` 消费全为 i18n/usd 误命中 |
 | Permission ×3+字段 | PermissionAction / PermissionRule / PermissionRuleset / Session.permission | adaptInfo 不构造 permission 字段 | `session.permission` 字段级读取零命中；bootstrap 读的是 store 顶层 `permission` 键（PermissionRequest[] 独立活链） |
 | Question | QuestionTool / QuestionRequest.tool | adaptQuestion 构造 tool（adapter 128） | `request.tool.messageID/callID` 零读取 |

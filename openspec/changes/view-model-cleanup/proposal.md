@@ -10,7 +10,7 @@ V1 退休后 view-model.ts（冻结的 V1 形状视图模型契约）成为 app/
 
 1. **error union 成员 ×6**：`ProviderAuthError`、`MessageOutputLengthError`、`StructuredOutputError`、`ContextOverflowError`、`ContentFilterError`、`ApiError`——`AssistantMessage.error` union 缩为 `MessageAbortedError | UnknownError`（保留者：UnknownError 是 adaptAssistant 对 wire error 的唯一映射出口；MessageAbortedError 被 rows.ts narrow 消费）。
 2. **Part union 成员 ×6**：`StepStartPart`、`StepFinishPart`、`SnapshotPart`、`PatchPart`、`RetryPart`、`SubtaskPart`——`Part` union 缩为 `TextPart | ReasoningPart | FilePart | ToolPart | AgentPart | CompactionPart`。v2-adapter 只构造 text/reasoning/tool/file/agent/compaction 六种；三处 `SKIP_PARTS` 对 `"patch"/"step-start"/"step-finish"` 的运行时过滤保留（防御残留，非本提案范围）。
-3. **FilePartSource 成员 ×2**：`SymbolSource`、`ResourceSource`——union 缩为 `FileSource`（adaptAttachment 只构造 `type: "file"`；Symbol/Resource 零构造零 narrow）。
+3. **FilePartSource 成员 ×1**：`SymbolSource`——`FilePartSource` 缩为 `FileSource | ResourceSource`（adaptAttachment 只构造 `type: "file"`；SymbolSource 零构造零 narrow。ResourceSource 经编译器带路确认存活——prompt-input 的 MCP 资源附件构造它）。
 4. **OutputFormat 族 ×3 + 字段**：`OutputFormatText`、`OutputFormatJsonSchema`、`OutputFormat`、`UserMessage.format`——adaptUser 不构造 format，全仓零消费（`JsonSchema` 有独立消费，保留）。
 5. **Permission 族 ×3 + 字段**：`PermissionAction`、`PermissionRule`、`PermissionRuleset`、`Session.permission`——adaptInfo 不构造该字段，字段零消费；store 顶层 `permission` 键（PermissionRequest[]）是独立活链，不受影响。
 6. **Question 链**：`QuestionTool` 类型 + `QuestionRequest.tool` 字段——adaptQuestion 构造了 tool 但消费端零读取。

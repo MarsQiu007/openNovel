@@ -1130,7 +1130,9 @@ describe("server session", () => {
 
   test("does not cache skipped optimistic parts", () => {
     const message = userMessage("message")
-    const part = { id: "part", sessionID: "child", messageID: message.id, type: "step-start" as const }
+    // 模拟 wire 侧残留 part type：SKIP_PARTS 的防御对象，已超出 view-model Part 词汇
+    const wire: unknown = { id: "part", sessionID: "child", messageID: message.id, type: "step-start" }
+    const part = wire as Part
     const store = setup({ child: session("child") }).store
 
     store.optimistic.add({ sessionID: "child", message, parts: [part] })

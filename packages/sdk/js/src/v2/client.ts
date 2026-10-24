@@ -2,7 +2,7 @@ export * from "./gen/types.gen.js"
 export * from "./view-model.js"
 // 与 gen 的 V2 wire 同名类型冲突时，视图模型（V1 形状）为本路径的契约；
 // V2 wire 形状仍可经 "@opennovel-ai/sdk/v2/types" 取得。
-export type { ProviderAuthError, UnknownError } from "./view-model.js"
+export type { UnknownError } from "./view-model.js"
 export type { FileSystemEntry as LocationFileSystemEntry } from "./gen/types.gen.js"
 
 import { createClient } from "./gen/client/client.gen.js"

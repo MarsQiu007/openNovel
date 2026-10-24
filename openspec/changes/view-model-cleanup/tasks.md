@@ -4,7 +4,7 @@
 
 ## 1. 类型层先行（编译器带路）
 
-- [ ] 1.1 删 view-model.ts 的 error union 六成员（ProviderAuthError/MessageOutputLengthError/StructuredOutputError/ContextOverflowError/ContentFilterError/ApiError），AssistantMessage.error 缩为 `MessageAbortedError | UnknownError`；删 Part union 六成员（StepStartPart/StepFinishPart/SnapshotPart/PatchPart/RetryPart/SubtaskPart）；删 FilePartSource 的 SymbolSource/ResourceSource（FilePartSource 缩为 FileSource）。验证：`cd packages/app && bunx tsgo -b --force` 与 `cd packages/session-ui && bunx tsgo -b --force`，若有遗漏消费点，never 收窄报错清单即为补删清单；预期零意外（审计已核三级消费为零）。
+- [x] 1.1 删 view-model.ts 的 error union 六成员（ProviderAuthError/MessageOutputLengthError/StructuredOutputError/ContextOverflowError/ContentFilterError/ApiError），AssistantMessage.error 缩为 `MessageAbortedError | UnknownError`；删 Part union 六成员（StepStartPart/StepFinishPart/SnapshotPart/PatchPart/RetryPart/SubtaskPart）；删 FilePartSource 的 SymbolSource（FilePartSource 缩为 FileSource | ResourceSource——ResourceSource 经编译器带路发现 prompt-input MCP 附件构造为活，SymbolSource 确死，连带删 Range 死 import 与 client.ts 的 ProviderAuthError 压过 re-export）。验证：`bunx tsgo -b --force` 四包绿；server-session.test.ts 的 step-start 构造改 `unknown` 中间量（SKIP_PARTS 防御域的 wire 残留模拟，不产生断言告警）。
 
 ## 2. 字段与类型同链删（D1）
 
