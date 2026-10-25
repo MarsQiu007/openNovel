@@ -87,7 +87,7 @@ export const Plugin = define({
         effect: (host) => plugin.effect({ ...host, options: ref.options ?? {} }),
       })
     })
-    const guard = (ref: (typeof configured)[number], effect: Effect.Effect<void, unknown, never>) =>
+    const guard = (ref: (typeof configured)[number], effect: Effect.Effect<void, unknown>) =>
       effect.pipe(
         Effect.tapCause((cause) =>
           Effect.logWarning("failed to load external plugin", { package: ref.package, cause }),

@@ -124,14 +124,14 @@ function patch(text: string, path: Array<string | number>, value: unknown, inser
 
 function pluginSpec(item: unknown) {
   if (typeof item === "string") return item
-  if (!Array.isArray(item)) return
-  if (typeof item[0] !== "string") return
+  if (!Array.isArray(item)) return undefined
+  if (typeof item[0] !== "string") return undefined
   return item[0]
 }
 
 function pluginPackage(item: unknown) {
   if (typeof item === "string") return item
-  if (!isRecord(item) || typeof item.package !== "string") return
+  if (!isRecord(item) || typeof item.package !== "string") return undefined
   return item.package
 }
 
