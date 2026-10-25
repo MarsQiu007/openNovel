@@ -18,6 +18,12 @@ export const AgentHandler = HttpApiBuilder.group(Api, "server.agent", (handlers)
       yield* plugins.wait(PluginV2.ID.make("config-agent")).pipe(
         Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.void }),
       )
+      // config-plugin 的第一方/文件路径外部插件随其 effect 同步装载（core
+      // config/plugin/external）：wait 返回即代表这些插件的 agent transform 已注册，
+      // 首查花名册不缺员；registry 第三方保持 fork 最终一致，不就绪兜底同左。
+      yield* plugins.wait(PluginV2.ID.make("config-plugin")).pipe(
+        Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.void }),
+      )
       const agents = yield* AgentV2.Service
       yield* agents.reload()
       return yield* response(agents.all())
