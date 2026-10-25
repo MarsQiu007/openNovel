@@ -18,7 +18,9 @@ const result = await Bun.build({
   outdir: "./dist/node",
   format: "esm",
   sourcemap: "linked",
-  external: ["jsonc-parser", "@lydell/node-pty"],
+  // chromium-bidi：playwright-core 的 BiDi-over-CDP 惰性 require，上游未声明依赖；
+  // 我们的浏览器工具只走纯 CDP 启动，该代码路径永不执行，标记 external 跳过硬性解析
+  external: ["jsonc-parser", "@lydell/node-pty", "chromium-bidi"],
   define: {
     OPENNOVEL_MODELS_DEV: generated.modelsData,
     OPENNOVEL_CHANNEL: `'${Script.channel}'`,

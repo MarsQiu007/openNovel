@@ -163,7 +163,9 @@ for (const item of targets) {
     conditions: ["bun", "node"],
     tsconfig: "./tsconfig.json",
     plugins: [plugin],
-    external: ["node-gyp"],
+    // chromium-bidi：playwright-core 的 BiDi-over-CDP 惰性 require，上游未声明依赖；
+    // 浏览器工具只走纯 CDP 启动，该代码路径永不执行，标记 external 跳过硬性解析
+    external: ["node-gyp", "chromium-bidi"],
     format: "esm",
     minify: true,
     sourcemap: sourcemapsFlag ? "linked" : "none",
