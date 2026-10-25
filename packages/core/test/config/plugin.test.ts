@@ -1,5 +1,5 @@
 import path from "path"
-import { describe, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { Effect, Schema } from "effect"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "@opennovel-ai/core/config"
@@ -332,4 +332,23 @@ const waitForAgent = Effect.fnUntraced(function* (agents: AgentV2.Interface, id:
     yield* Effect.sleep("10 millis")
   }
   return yield* Effect.die(`Timed out waiting for agent ${id}`)
+})
+
+describe("bundledEntry 构建映射查找", () => {
+  const base = "file:///D:/app/dist/node/node.js"
+
+  test("命中：以宿主 import.meta.url 为基拼 chunk 文件 URL", () => {
+    const href = ConfigExternalPlugin.bundledEntry("@opennovel-ai/plugin/novel-writer-v2", base, {
+      "@opennovel-ai/plugin/novel-writer-v2": "./plugin-bundle/novel-writer-v2.js",
+    })
+    expect(href).toBe("file:///D:/app/dist/node/plugin-bundle/novel-writer-v2.js")
+  })
+
+  test("未收录：返回 undefined（调用方回退 import.meta.resolve）", () => {
+    expect(ConfigExternalPlugin.bundledEntry("@opennovel-ai/plugin/other", base, {})).toBeUndefined()
+  })
+
+  test("无注入环境：typeof 守卫返回 undefined 不抛错", () => {
+    expect(ConfigExternalPlugin.bundledEntry("@opennovel-ai/plugin/novel-writer-v2", base)).toBeUndefined()
+  })
 })

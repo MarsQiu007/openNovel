@@ -109,10 +109,29 @@ export const Plugin = define({
 }),
 })
 
-function resolveHostEntry(pkg: string) {
-try {
-  return import.meta.resolve(pkg)
-} catch {
-  return undefined
+// 构建期注入的第一方插件映射（包 id → 与宿主 bundle 同 outdir 的 chunk 相对路径）。
+// 桌面 sidecar / 其他纯 Node 宿主无法动态 import TS 源码，必须经打包 chunk 装载；
+// 无注入环境（bun 直跑、测试）typeof 守卫回退 import.meta.resolve。先例：models-dev.ts。
+declare const OPENNOVEL_BUNDLED_PLUGINS: Record<string, string> | undefined
+
+/** 构建映射查找：命中返回 chunk 文件 URL，未命中/无注入返回 undefined（调用方回退）。
+ *  map 可显式传入（测试）；缺省读构建注入的 OPENNOVEL_BUNDLED_PLUGINS。 */
+export function bundledEntry(pkg: string, baseHref: string, map?: Record<string, string>) {
+  const table =
+    map ?? (typeof OPENNOVEL_BUNDLED_PLUGINS === "undefined" ? undefined : OPENNOVEL_BUNDLED_PLUGINS)
+  if (table === undefined) return undefined
+  const chunk = table[pkg]
+  if (chunk === undefined) return undefined
+  return new URL(chunk, baseHref).href
 }
+
+function resolveHostEntry(pkg: string) {
+  // 打包宿主优先：chunk 与 node.js 同 outdir，import.meta.url 为基拼绝对文件 URL
+  const bundled = bundledEntry(pkg, import.meta.url)
+  if (bundled) return bundled
+  try {
+    return import.meta.resolve(pkg)
+  } catch {
+    return undefined
+  }
 }
