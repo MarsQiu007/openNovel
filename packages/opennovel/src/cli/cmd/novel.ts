@@ -1,16 +1,22 @@
 import type { Argv } from "yargs"
 import { Effect } from "effect"
 import { generateText } from "ai"
-import { join } from "path"
+import path from "path"
 import { existsSync, readFileSync, writeFileSync } from "fs"
+import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
+import { ConfigMigrateV1 } from "@opennovel-ai/core/config/v1/migrate"
 import { effectCmd, fail, CliError } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opennovel-ai/core/flag/flag"
 import { GENRES, runTechniqueExtraction, importSeedTechniques, importExtractedTechniques, relevelTechniques } from "@opennovel-ai/plugin/novel-writer/cli"
+import { isRecord } from "@/util/record"
 import { Provider } from "@/provider/provider"
 
-/** novel-writer V2 插件入口（npm 子路径），novel 项目 opennovel.json 的 plugins 配置指向它 */
-const NOVEL_WRITER_V2_PLUGIN = "@opennovel-ai/plugin/novel-writer-v2"
+/**
+ * novel-writer V2 插件入口（npm 子路径），novel 项目配置的 plugins 指向它。
+ * 常量与死段判定单一来源：core 的 ConfigMigrateV1（V1 迁移与 CLI 接线共用）。
+ */
+const NOVEL_WRITER_V2_PLUGIN = ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN
 
 /**
  * 小说项目初始化命令 — `opennovel init`
@@ -34,31 +40,99 @@ const InitCommand = effectCmd({
 })
 
 /**
- * novel 项目 V2 接线 — 把 novel-writer V2 插件入口与 subagent_depth 写入项目级
- * opennovel.json。已有配置做键级合并，其余键原样保留；文件不是有效 JSON（如 jsonc）
- * 时跳过并提示。幂等，重复 init 不产生重复条目。
+ * novel 项目 V2 接线 — 把 novel-writer V2 插件入口与 subagent_depth 写入项目配置。
+ * 按配置加载器的发现规则就近定位目标：自 init 目录上溯至项目根（存在 .git 即为根，
+ * 目录或文件皆算），每级 .opennovel/ 内的 opennovel.jsonc|json 优先于根级同名文件；
+ * 全不命中则在项目根新建 opennovel.json。jsonc-parser 定点补丁保留注释与格式，
+ * 同时清除指向已摘除 V1 入口的 plugin 死段（classifyPluginSpec 同一来源）。幂等。
  */
 export function wireNovelWriterV2(directory: string) {
-  const filepath = join(directory, "opennovel.json")
-  let config: Record<string, unknown> = {}
-  if (existsSync(filepath)) {
-    try {
-      config = asRecord(JSON.parse(readFileSync(filepath, "utf8"))) ?? {}
-    } catch {
-      console.log("opennovel.json 不是有效 JSON，跳过 novel-writer V2 接线（请手工补充 plugins 配置）")
-      return
-    }
+  const target = findConfigTarget(directory)
+  const source = existsSync(target) ? readFileSync(target, "utf8") : ""
+  const text = source.trim() ? source : "{}\n"
+  const errors: ParseError[] = []
+  const data: unknown = parseJsonc(text, errors, { allowTrailingComma: true })
+  if (errors.length) {
+    console.log(`${target} 不是有效 JSON/JSONC，跳过 novel-writer V2 接线（请手工补充 plugins 配置）`)
+    return
   }
-  const plugins = Array.isArray(config.plugins) ? config.plugins : []
-  if (!plugins.includes(NOVEL_WRITER_V2_PLUGIN)) config.plugins = [...plugins, NOVEL_WRITER_V2_PLUGIN]
-  const experimental = asRecord(config.experimental) ?? {}
-  experimental.subagent_depth = 2
-  config.experimental = experimental
-  writeFileSync(filepath, JSON.stringify(config, null, 2) + "\n")
+
+  let next = text
+  const plugin = isRecord(data) && Array.isArray(data.plugin) ? data.plugin : undefined
+  if (plugin) {
+    const classified = (item: unknown) => {
+      const spec = pluginSpec(item)
+      return spec !== undefined && ConfigMigrateV1.classifyPluginSpec(spec) !== undefined
+    }
+    // 自尾向头剔除死段（索引不因前序删除而漂移）；剔空则删除 plugin 键
+    for (let i = plugin.length - 1; i >= 0; i--) {
+      if (classified(plugin[i])) next = patch(next, ["plugin", i], undefined)
+    }
+    if (plugin.every(classified)) next = patch(next, ["plugin"], undefined)
+  }
+
+  const plugins = isRecord(data) && Array.isArray(data.plugins) ? data.plugins : undefined
+  const present = (plugins ?? []).some((item) => pluginPackage(item) === NOVEL_WRITER_V2_PLUGIN)
+  if (!present) {
+    next = plugins
+      ? patch(next, ["plugins", plugins.length], NOVEL_WRITER_V2_PLUGIN, true)
+      : patch(next, ["plugins"], [NOVEL_WRITER_V2_PLUGIN])
+  }
+
+  next = patch(next, ["experimental", "subagent_depth"], 2)
+  writeFileSync(target, next)
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value instanceof Object && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+function findConfigTarget(directory: string) {
+  const start = path.resolve(directory)
+  const root = projectRoot(start)
+  let current = start
+  while (true) {
+    for (const candidate of [
+      path.join(current, ".opennovel", "opennovel.jsonc"),
+      path.join(current, ".opennovel", "opennovel.json"),
+      path.join(current, "opennovel.jsonc"),
+      path.join(current, "opennovel.json"),
+    ]) {
+      if (existsSync(candidate)) return candidate
+    }
+    if (current === root) return path.join(root, "opennovel.json")
+    current = path.dirname(current)
+  }
+}
+
+function projectRoot(start: string) {
+  let current = start
+  while (true) {
+    // .git 目录或文件（worktree 为文件）皆视为仓库根
+    if (existsSync(path.join(current, ".git"))) return current
+    const parent = path.dirname(current)
+    if (parent === current) return start
+    current = parent
+  }
+}
+
+function patch(text: string, path: Array<string | number>, value: unknown, insert = false) {
+  return applyEdits(
+    text,
+    modify(text, path, value, {
+      formattingOptions: { tabSize: 2, insertSpaces: true },
+      isArrayInsertion: insert,
+    }),
+  )
+}
+
+function pluginSpec(item: unknown) {
+  if (typeof item === "string") return item
+  if (!Array.isArray(item)) return
+  if (typeof item[0] !== "string") return
+  return item[0]
+}
+
+function pluginPackage(item: unknown) {
+  if (typeof item === "string") return item
+  if (!isRecord(item) || typeof item.package !== "string") return
+  return item.package
 }
 
 /**
