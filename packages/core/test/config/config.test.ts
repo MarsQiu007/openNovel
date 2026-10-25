@@ -143,6 +143,42 @@ describe("Config", () => {
     }),
   )
 
+  it.effect("redirects removed first-party V1 novel-writer plugin entries to the V2 package id", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        plugin: [
+          "@opennovel-ai/plugin/novel-writer",
+          "./packages/plugin/src/novel-writer.ts",
+          ["D:\\repo\\packages\\plugin\\src\\novel-writer.ts", {}],
+          "file:///repo/packages/plugin/src/novel-writer.ts",
+          "./packages/plugin/src/novel-writer/tui.tsx",
+          "opennovel-helicone-session",
+          ["@my-org/audit-plugin", { endpoint: "https://audit.example.com" }],
+        ],
+      })
+
+      expect(migrated.plugins).toEqual([
+        "@opennovel-ai/plugin/novel-writer-v2",
+        "opennovel-helicone-session",
+        { package: "@my-org/audit-plugin", options: { endpoint: "https://audit.example.com" } },
+      ])
+    }),
+  )
+
+  it.effect("merges V1 plugin entries with V2 plugins, V2 declarations win", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        plugin: ["./packages/plugin/src/novel-writer.ts", "@my-org/audit-plugin"],
+        plugins: [{ package: "@my-org/audit-plugin", options: { endpoint: "https://x.example.com" } }],
+      })
+
+      expect(migrated.plugins).toEqual([
+        { package: "@my-org/audit-plugin", options: { endpoint: "https://x.example.com" } },
+        "@opennovel-ai/plugin/novel-writer-v2",
+      ])
+    }),
+  )
+
   it.live("returns an empty configuration when directory files do not exist", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),

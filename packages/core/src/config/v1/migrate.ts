@@ -4,8 +4,24 @@ import { ConfigV1 } from "./config"
 import { ConfigAgentV1 } from "./agent"
 import { ConfigMCPV1 } from "./mcp"
 import { ConfigPermissionV1 } from "./permission"
+import { ConfigPluginV1 } from "./plugin"
 import { ConfigProviderV1 } from "./provider"
 import { ConfigProviderOptionsV1 } from "./provider-options"
+import { ConfigPlugin } from "../plugin"
+
+export const NOVEL_WRITER_V2_PLUGIN = "@opennovel-ai/plugin/novel-writer-v2"
+
+// 已摘除的第一方 V1 novel-writer 入口识别：包 id 或以 plugin/src/novel-writer.ts 结尾的路径
+// （\ 归一为 /、剥 file:// 后判断，覆盖 ./ 相对、绝对与 file:// spellings）重定向到 V2 包 id；
+// V1 的 TUI 副入口（novel-writer/tui.tsx）在服务端无等价物，丢弃。
+export function classifyPluginSpec(spec: string): "redirect" | "drop" | undefined {
+  const normalized = spec.replaceAll("\\", "/")
+  if (normalized === "@opennovel-ai/plugin/novel-writer") return "redirect"
+  const filepath = normalized.startsWith("file://") ? normalized.slice("file://".length) : normalized
+  if (filepath.endsWith("novel-writer/tui.tsx")) return "drop"
+  if (filepath.endsWith("plugin/src/novel-writer.ts")) return "redirect"
+  return undefined
+}
 
 const keys = new Set([
   "logLevel",
@@ -76,13 +92,35 @@ export function migrate(info: typeof ConfigV1.Info.Type) {
     commands: info.command,
     instructions: info.instructions,
     references: info.references ?? info.reference,
-    plugins:
-      info.plugin?.map((plugin) =>
-        typeof plugin === "string" ? plugin : { package: plugin[0], options: plugin[1] },
-      ) ?? info.plugins,
+    plugins: plugins(info),
     experimental: Object.keys(experimental).length ? experimental : undefined,
     providers: providers(info.provider),
   }
+}
+
+// V1 plugin 与 V2 plugins 取并集：旧行为 plugin 非空时整体吞掉 plugins，cutover 窗口期
+// 用户手工补的 V2 条目会被静默丢弃；同 package 去重且 V2 侧声明优先。
+function plugins(info: typeof ConfigV1.Info.Type) {
+  const seen = new Set<string>()
+  const merged: ConfigPlugin.Plugin[] = []
+  const push = (item: ConfigPlugin.Plugin) => {
+    const pkg = typeof item === "string" ? item : item.package
+    if (seen.has(pkg)) return
+    seen.add(pkg)
+    merged.push(item)
+  }
+  for (const item of info.plugins ?? []) push(item)
+  for (const entry of info.plugin ?? []) {
+    const spec = typeof entry === "string" ? entry : entry[0]
+    const classification = classifyPluginSpec(spec)
+    if (classification === "drop") continue
+    if (classification === "redirect") {
+      push(NOVEL_WRITER_V2_PLUGIN)
+      continue
+    }
+    push(typeof entry === "string" ? entry : { package: spec, options: entry[1] })
+  }
+  return merged.length ? merged : undefined
 }
 
 function permissions(info?: ConfigPermissionV1.Info, tools?: Readonly<Record<string, boolean>>) {
