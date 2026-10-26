@@ -2,9 +2,20 @@ import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "electron-vite"
 import appPlugin from "@opennovel-ai/app/vite"
 import { resolveProductChannel } from "./scripts/channel"
+import { bundledPlugins } from "../opennovel/script/bundled-plugins"
 import * as fs from "node:fs/promises"
 
 const OPENNOVEL_SERVER_DIST = "../opennovel/dist/node"
+
+// 桌面主构建把第一方插件 wrapper 作为同构建附加 input：与 sidecar.js 共享
+// rollup code splitting，chunk 落位 out/main/plugin-bundle/<name>.js，与构建
+// 注入的映射值（以 sidecar.js 的 import.meta.url 为基）精确对应。
+const bundledPluginInputs = Object.fromEntries(
+  Object.entries(bundledPlugins).map(([pkg, item]) => [
+    item.chunk.replace(/^\.\//, "").replace(/\.js$/, ""),
+    "../opennovel/" + item.wrapper.replace(/^\.\//, ""),
+  ]),
+)
 
 const channel = resolveProductChannel(process.env.OPENNOVEL_CHANNEL)
 
@@ -34,7 +45,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: "src/main/index.ts", sidecar: "src/main/sidecar.ts" },
+        input: { index: "src/main/index.ts", sidecar: "src/main/sidecar.ts", ...bundledPluginInputs },
         // Keep this identical to electron-vite's Node 20.11+ shim. Its regex insertion can
         // corrupt bundled TypeScript, while a Rollup banner places the shim safely.
         output: {
