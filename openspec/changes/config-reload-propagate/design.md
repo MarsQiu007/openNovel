@@ -33,13 +33,13 @@
 
 **备选**：在 `configUpdate` handler 单独调 `locations.invalidate(...)`，不动 lifecycle 函数——被否，因为这会让 `dispose` handler 与 `configUpdate` handler 行为分叉（前者仍漏失效），后续维护者需记两份清理清单。
 
-### D2：枚举活跃 location ref 走 `InstanceStore`，需补一个枚举方法
+### D2：枚举活跃 location ref 走 `LocationMiddleware` 维护的注册表，不走 `InstanceStore`
 
-**选择**：在 `InstanceStore.Interface` 增加 `directories(): Effect.Effect<string[]>` 方法，实现为 `Effect.sync(() => [...cache.keys()])`；`disposeAllInstancesAndEmitGlobalDisposed` 先 `store.disposeAll()` 拿 `store.directories()`，逐个 `locations.invalidate(Location.Ref.make({ directory: AbsolutePath.make(dir) }))`。
+**选择**：在 `packages/server/src/location.ts` 模块级维护 `knownRefs: Set<Location.Ref>`；`LocationMiddleware` 每次解析请求 ref 时登记（按 directory+workspaceID 序列化 key 去重）；导出 `invalidateAllKnownLocations(): Effect.Effect<Location.Ref[], never, LocationServiceMap.Service>` 逐个调 `locations.invalidate(ref)`；`disposeAllInstancesAndEmitGlobalDisposed` 在 `disposeAll` 成功后调用它。
 
-**理由**：`LocationServiceMap` 是 effect LayerMap，未暴露 `entries` / `keys` 等枚举 API（只暴露 `get` / `invalidate`）；活跃 directory 集合 `InstanceStore` 的 `cache` Map 已经持有（key 即 directory），加一个只读快照方法成本一行。
+**理由**：实测发现 `agent.list` 经 `LocationMiddleware` 直达 `LocationServiceMap.get(ref)`，**不经过 `InstanceStore.load`**，所以 PATCH 时 `InstanceStore.cache` 是空的，从它拿 directory 集合拿不到任何 key。LocationMiddleware 是所有 location 层查询的唯一入口，从这里登记能确保覆盖所有活跃 location。
 
-**注意**：若存在「location 层已构建但 instance 未启动」的窗口（理论上 `LocationServiceMap.get` 先于 `InstanceStore.get` 被调），该 location 的层会漏失效。但触发本函数的入口是「全局配置变更」，下一查必然先经 `InstanceStore` 启动 instance 才会用到 location 层，失效时机仍先于使用时机，故无实际漏洞。
+**注意**：`Location.Ref` 的相等性由 `directory + workspaceID` 决定；Set 内用对象 identity 去重会重复，所以用序列化 key 去重。
 
 **备选**：为 core `LocationServiceMap` 包一层「全局失效」helper（遍历 `LayerMap.invalidate`）——被否，effect LayerMap 不暴露枚举能力，封装也是空壳。
 
