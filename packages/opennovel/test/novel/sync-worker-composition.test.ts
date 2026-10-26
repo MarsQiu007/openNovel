@@ -64,7 +64,6 @@ function createTestStore(directory: string): InstanceStore.Interface {
     dispose: () => Effect.void,
     disposeDirectory: () => Effect.void,
     disposeAll: () => Effect.void,
-    directories: () => Effect.succeed([]),
     provide: (_input, effect) => effect,
   }
 }
