@@ -108,9 +108,10 @@ export const SettingsAgentsV2: Component = () => {
           },
         },
       })
-      // 全局 config 更新会异步销毁并重建实例；刷新智能体列表确认新值已落盘。
+      // 全局 config 更新会异步销毁并重建实例；invalidateQueries 触发 agentsQuery
+      // refetch 确认新值已落盘。不再显式 refetch：options 在 PATCH 后变化可能
+      // 导致 Kobalte 重建 collection，把打开中的下拉框关掉（一闪而逝）。
       await queryClient.invalidateQueries({ queryKey: ["settings"] })
-      await agentsQuery.refetch()
     },
     onSuccess: (_data, variables) => {
       setPending((current) => {
@@ -213,7 +214,7 @@ export const SettingsAgentsV2: Component = () => {
                     value={(o) => o.value}
                     label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
                     groupBy={(o) => (o.follow ? "" : o.providerName)}
-                    disabled={saveMutation.isPending}
+                    disabled={saveMutation.isPending && pending()[agent.name] !== undefined}
                     onSelect={(o) => onSelect(agent, o)}
                   />
                 </SettingsRowV2>
