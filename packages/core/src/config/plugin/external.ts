@@ -114,15 +114,21 @@ export const Plugin = define({
 // 无注入环境（bun 直跑、测试）typeof 守卫回退 import.meta.resolve。先例：models-dev.ts。
 declare const OPENNOVEL_BUNDLED_PLUGINS: Record<string, string> | undefined
 
+// 桌面 electron-vite 主构建把共享 chunk 拆到 chunks/ 子目录，import.meta.url 深度为 1；
+// 注入 "../" 回到 out/main/ 根再拼映射值。dist/node 平铺布局无注入 → 空串 → 原行为。
+declare const OPENNOVEL_BUNDLED_BASE: string | undefined
+
 /** 构建映射查找：命中返回 chunk 文件 URL，未命中/无注入返回 undefined（调用方回退）。
- *  map 可显式传入（测试）；缺省读构建注入的 OPENNOVEL_BUNDLED_PLUGINS。 */
+ *  map 可显式传入（测试）；缺省读构建注入的 OPENNOVEL_BUNDLED_PLUGINS。
+ *  chunk 相对路径先拼 OPENNOVEL_BUNDLED_BASE（桌面 chunks/ 子目录修正），无注入为空串。 */
 export function bundledEntry(pkg: string, baseHref: string, map?: Record<string, string>) {
   const table =
     map ?? (typeof OPENNOVEL_BUNDLED_PLUGINS === "undefined" ? undefined : OPENNOVEL_BUNDLED_PLUGINS)
   if (table === undefined) return undefined
   const chunk = table[pkg]
   if (chunk === undefined) return undefined
-  return new URL(chunk, baseHref).href
+  const base = typeof OPENNOVEL_BUNDLED_BASE === "undefined" ? "" : OPENNOVEL_BUNDLED_BASE
+  return new URL(base + chunk, baseHref).href
 }
 
 function resolveHostEntry(pkg: string) {

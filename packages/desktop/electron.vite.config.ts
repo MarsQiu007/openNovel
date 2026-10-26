@@ -42,6 +42,9 @@ export default defineConfig({
   main: {
     define: {
       "import.meta.env.OPENNOVEL_CHANNEL": JSON.stringify(channel),
+      // 共享 chunk 落位 chunks/ 子目录，bundledEntry 内 import.meta.url 深度为 1；
+      // 注入 "../" 使映射值解析回到 out/main/ 根下的 plugin-bundle/<name>.js
+      OPENNOVEL_BUNDLED_BASE: JSON.stringify("../"),
     },
     build: {
       rollupOptions: {
