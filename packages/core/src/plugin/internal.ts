@@ -22,6 +22,7 @@ import { Integration } from "../integration"
 import { Location } from "../location"
 import { ModelsDev } from "../models-dev"
 import { Npm } from "../npm"
+import { PluginBoot } from "../plugin/boot"
 import { PluginV2 } from "../plugin"
 import { Reference } from "../reference"
 import { SkillV2 } from "../skill"
@@ -60,16 +61,9 @@ export function define<R>(plugin: Plugin<R>) {
   return plugin
 }
 
-// catalog 批处理提交完成后重新注册的就绪信号插件（PluginV2.layer 构建时已默认
-// 注册过，此处先移除再于批末重注册）：SessionRunnerModel 在模型解析前等待它，
-// 保证读到已提交的 catalog 数据（State.batch 的 reload 在批末才执行，等待插件
-// active 不足以保证数据可见）。
-const BootReadyPlugin = define({
-  id: PluginV2.bootReadyID,
-  effect: Effect.fn(function* () {
-    yield* Scope.Scope
-  }),
-})
+// catalog 批处理提交完成后经 PluginBoot 放行：SessionRunnerModel 在模型解析前
+// 等待它，保证读到已提交的 catalog 数据（State.batch 的 reload 在批末才执行，
+// 等待插件 active 不足以保证数据可见）。
 
 const layer = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -89,6 +83,7 @@ const layer = Layer.effectDiscard(
     const http = yield* HttpClient.HttpClient
     const skill = yield* SkillV2.Service
     const reference = yield* Reference.Service
+    const pluginBoot = yield* PluginBoot.Service
     const add = <R>(input: Plugin<R>) => {
       const loaded = {
         id: input.id,
@@ -116,10 +111,9 @@ const layer = Layer.effectDiscard(
       return plugin.add(PluginV2.ID.make(loaded.id), loaded.effect)
     }
 
-    // 层构建期先撤掉 PluginV2.layer 默认注册的放行信号：此后直到 catalog 批
-    // 提交前，模型解析的等待会真正阻塞。remove 与 fork 都发生在层构建期，
-    // 早于任何可能调用 resolve 的 drain。
-    yield* plugin.remove(PluginV2.bootReadyID)
+    // 层构建期收窄放行门：此后直到 catalog 批提交前，模型解析的等待会真正
+    // 阻塞。arm 与 fork 都发生在层构建期，早于任何可能调用 resolve 的 drain。
+    yield* pluginBoot.arm
     // 整体 fork：引导不阻塞层构建；内部先提交 catalog 批并放行就绪信号，
     // 再注册其余内置插件。catalog 相关插件均为纯 transform（models-dev 走已
     // 缓存数据），可快速完成；config-skill/config-external 等含网络加载，放在
@@ -134,9 +128,9 @@ const layer = Layer.effectDiscard(
         }),
       ).pipe(
         Effect.withSpan("PluginInternal.boot"),
-        // 无论批处理成败都放行信号：失败的插件不会再生效，等待方继续走
+        // 无论批处理成败都放行：失败的插件不会再生效，等待方继续走
         // 正常的解析错误路径，而不是永远挂起。
-        Effect.onExit(() => add(BootReadyPlugin).pipe(Effect.ignoreCause)),
+        Effect.onExit(() => pluginBoot.release),
       )
       yield* State.batch(
         Effect.gen(function* () {
@@ -165,6 +159,7 @@ export const node = makeLocationNode({
   deps: [
     Catalog.node,
     CommandV2.node,
+    PluginBoot.node,
     PluginV2.node,
     Integration.node,
     AgentV2.node,

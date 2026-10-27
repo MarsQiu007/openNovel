@@ -12,8 +12,7 @@ import { Catalog } from "../../catalog"
 import { Credential } from "../../credential"
 import { Integration } from "../../integration"
 import { ModelV2 } from "../../model"
-import { PluginInternal } from "../../plugin/internal"
-import { PluginV2 } from "../../plugin"
+import { PluginBoot } from "../../plugin/boot"
 import { ProviderV2 } from "../../provider"
 import { SessionSchema } from "../schema"
 
@@ -186,14 +185,13 @@ export const locationLayer = Layer.effect(
   Effect.gen(function* () {
     const catalog = yield* Catalog.Service
     const integrations = yield* Integration.Service
-    const plugin = yield* PluginV2.Service
+    const pluginBoot = yield* PluginBoot.Service
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session) {
         // 内置插件的 catalog 注册在层启动后异步进行（PluginInternal.boot fork），且
         // State.batch 的 reload 在批末才提交，等待插件 active 不足以保证数据可见。
-        // 解析前等待 catalog 批的就绪信号；信号失败落定时容忍，继续走下方正常
-        // 解析错误路径。
-        yield* plugin.wait(PluginV2.bootReadyID).pipe(Effect.ignoreCause)
+        // 解析前等待引导门放行（无 PluginInternal 的层图默认立即通过）。
+        yield* pluginBoot.ready
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const available = yield* catalog.model.available()
         const defaultModel = session.model ? undefined : yield* catalog.model.default()
@@ -230,5 +228,5 @@ export const locationLayer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer: locationLayer,
-  deps: [Catalog.node, Integration.node, PluginV2.node],
+  deps: [Catalog.node, Integration.node, PluginBoot.node],
 })

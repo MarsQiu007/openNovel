@@ -26,15 +26,6 @@ export const ID = Plugin.ID
 export type ID = typeof ID.Type
 export const Event = Plugin.Event
 
-// 就绪信号插件：层图内没有 PluginInternal 引导（最小测试/嵌入场景）时的默认
-// 放行信号，PluginV2.layer 构建时注册；PluginInternal 在场时会在层构建期先
-// 移除它，待自己的 catalog 批提交后重新注册，等待方那时才放行。
-export const bootReadyID = ID.make("catalog-boot")
-
-const bootReadyEffect = Effect.fn("Plugin.bootReady")(function* () {
-  yield* Scope.Scope
-})
-
 export interface Interface {
   readonly add: (id: ID, effect: PluginRuntime["effect"]) => Effect.Effect<void>
   readonly remove: (id: ID) => Effect.Effect<void>
@@ -152,7 +143,6 @@ const layer = Layer.effect(
       remove,
       wait,
     })
-    yield* add(bootReadyID, bootReadyEffect)
     host = yield* PluginHost.make(service)
     return service
   }),
