@@ -55,6 +55,7 @@ import { useTheme, type ColorScheme } from "@opennovel-ai/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
+import { DialogUpdaterConfirm } from "@/components/dialog-updater-confirm"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { useDirectoryPicker } from "@/components/directory-picker"
@@ -165,7 +166,11 @@ export default function LegacyLayout(props: ParentProps) {
     if (state?.status !== "ready") return
     return state.version
   }
-  const installUpdate = () => void platform.updater?.install()
+  const installUpdate = () => {
+    const state = platform.updater?.state()
+    if (state?.status !== "ready") return
+    dialog.show(() => <DialogUpdaterConfirm version={state.version} onConfirm={() => void platform.updater?.install()} />)
+  }
   const titlebarUpdate: TitlebarUpdate = {
     version: updateVersion,
     installing: () => platform.updater?.state().status === "installing",

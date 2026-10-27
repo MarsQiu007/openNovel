@@ -48,6 +48,7 @@ import { registerWslIpcHandlers } from "./wsl/ipc"
 import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
+import { getStore } from "./store"
 
 const APP_NAMES: Record<string, string> = {
   dev: "OpenNovel Dev",
@@ -300,7 +301,8 @@ const main = Effect.gen(function* () {
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
   })
   registerWslIpcHandlers(wslServers)
-  void updater.start()
+  const checkUpdatesOnStartup = getStore().get("checkUpdatesOnStartup") !== false
+  if (checkUpdatesOnStartup) void updater.start()
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
   updateTimer.unref()
   app.once("will-quit", () => clearInterval(updateTimer))

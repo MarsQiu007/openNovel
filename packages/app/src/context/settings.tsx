@@ -23,6 +23,7 @@ export interface Settings {
   general: {
     autoSave: boolean
     releaseNotes: boolean
+    checkUpdatesOnStartup: boolean
     followup: "queue" | "steer"
     showFileTree: boolean
     showNavigation: boolean
@@ -174,6 +175,7 @@ const defaultSettings: Settings = {
   general: {
     autoSave: true,
     releaseNotes: true,
+    checkUpdatesOnStartup: true,
     followup: "steer",
     showFileTree: false,
     showNavigation: false,
@@ -343,6 +345,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         releaseNotes: withFallback(() => store.general?.releaseNotes, defaultSettings.general.releaseNotes),
         setReleaseNotes(value: boolean) {
           setStore("general", "releaseNotes", value)
+        },
+        checkUpdatesOnStartup: withFallback(
+          () => store.general?.checkUpdatesOnStartup,
+          defaultSettings.general.checkUpdatesOnStartup,
+        ),
+        setCheckUpdatesOnStartup(value: boolean) {
+          setStore("general", "checkUpdatesOnStartup", value)
         },
         followup: withFallback(
           () => (store.general?.followup === "queue" ? "steer" : store.general?.followup),

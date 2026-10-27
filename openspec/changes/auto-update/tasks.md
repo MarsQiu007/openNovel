@@ -12,21 +12,21 @@
 
 ## 3. 设置面板「启动时检查更新」开关
 
-- [ ] 3.1 `packages/app/src/components/settings-v2/general.tsx`：在 UpdatesSection 加「启动时检查更新」开关（i18n key 已存在：`settings.updates.row.startup.*`），状态存到 `settings.general.checkUpdatesOnStartup`；验证 `bun typecheck` 通过
-- [ ] 3.2 `packages/desktop/src/main/index.ts`：启动时从 `electron-store` 读 `checkUpdatesOnStartup`，为 `false` 时跳过 `updater.start()`；验证 `bun typecheck`（在 `packages/desktop`）通过
-- [ ] 3.3 `packages/desktop/src/main/ipc.ts` + `preload`：加 IPC channel 让 renderer 写入开关状态时同步到 main 进程的 `electron-store`；验证 `bun typecheck` 通过
+- [ ] 3.1 `packages/app/src/context/global-sync/` 相关文件：在 `settings.general` 配置结构中新增 `checkUpdatesOnStartup: boolean` 字段（默认 `true`），确保 electron-store 跨进程同步；验证 `bun typecheck` 通过
+- [ ] 3.2 `packages/app/src/components/settings-v2/general.tsx`：在 UpdatesSection 加「启动时检查更新」开关（i18n key 已存在：`settings.updates.row.startup.*`），状态绑定到 `settings.general.checkUpdatesOnStartup`；验证 `bun typecheck` 通过
+- [ ] 3.3 `packages/desktop/src/main/index.ts`：启动时从 `electron-store` 读 `checkUpdatesOnStartup`，为 `false` 时跳过 `updater.start()`；验证 `bun typecheck`（在 `packages/desktop`）通过
+- [ ] 3.4 `packages/desktop/src/main/ipc.ts` + `preload`：加 IPC channel 让 renderer 写入开关状态时同步到 main 进程的 `electron-store`；验证 `bun typecheck` 通过
 
 ## 4. i18n 文案
 
-- [ ] 4.1 `packages/app/src/i18n/zh.ts`：补「启动时检查更新」开关相关文案（若 `settings.updates.row.startup.*` 已存在则复用）；验证 `bun typecheck` 通过
-- [ ] 4.2 `packages/app/src/i18n/en.ts` 和 `packages/app/src/i18n/zht.ts`：同步补文案
+- [ ] 4.1 `packages/app/src/i18n/zh.ts`、`en.ts`、`zht.ts`：确认 `settings.updates.row.startup.title/description` 三语已存在（经 grep 确认已有），无需新增；若 typecheck 报缺失则补齐
 
 ## 5. 集成验证
 
 - [ ] 5.1 在 `packages/desktop` 跑 `bun typecheck` 通过
 - [ ] 5.2 在 `packages/app` 跑 `bun typecheck` 通过
 - [ ] 5.3 在 `packages/ui` 跑 `bun typecheck` 通过（若第 2 步涉及 ui 包改动）
-- [ ] 5.4 手动验证：启动 dev 桌面 app，模拟 `ready` 状态（手动设 electron-store），确认 titlebar 圆点显示、点击可触发安装流程
+- [ ] 5.4 手动验证：启动 dev 桌面 app，在 DevTools Console 执行 `require("electron").ipcRenderer.send("updater:simulate-ready", { version: "9.9.9" })`（或等效手段）模拟 `ready` 状态，确认 titlebar 圆点显示、点击弹出确认对话框、确认后触发安装流程
 
 ## Workflow follow-up
 

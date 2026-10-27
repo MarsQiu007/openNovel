@@ -685,6 +685,18 @@ export const SettingsGeneralV2: Component<{
         </SettingsRowV2>
 
         <SettingsRowV2
+          title={language.t("settings.updates.row.startup.title")}
+          description={language.t("settings.updates.row.startup.description")}
+        >
+          <div data-action="settings-check-updates-startup">
+            <Switch
+              checked={settings.general.checkUpdatesOnStartup()}
+              onChange={(checked) => settings.general.setCheckUpdatesOnStartup(checked)}
+            />
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2
           title={language.t("settings.updates.row.check.title")}
           description={language.t("settings.updates.row.check.description")}
         >

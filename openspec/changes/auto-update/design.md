@@ -36,7 +36,13 @@
 
 **理由**：这两个标志是 electron-updater 的内置语义，`true` 时行为完全符合需求（自动下载、退出时自动安装）。无需新增代码逻辑，改默认值即可。
 
-**注意**：`autoDownload: true` 时 electron-updater 内部会在 `checkForUpdates` 返回 `update-available` 后自动调 `downloadUpdate`，与 `updater-controller.ts` 的 `check()` 流程兼容——`controller.check()` 里的 `downloadUpdate()` 调用会成为 no-op（因为已在下载），需要验证 controller 状态机不因此卡死。
+**注意 1（autoDownload 幂等性）**：`autoDownload: true` 时 electron-updater 内部会在 `update-available` 事件后自动调 `downloadUpdate`。controller `check()` 里 `await input.backend.downloadUpdate()`（`updater-controller.ts:53`）会**同时再调一次**。
+
+**已验证**：electron-updater@6.8.9 `AppUpdater.js:442-444` 有守卫 `if (this.downloadPromise != null) return this.downloadPromise`——`downloadUpdate()` 幂等，controller 的显式调用会返回同一 Promise，不会重复下载。状态机安全。
+
+**注意 2（autoInstallOnAppQuit 与 controller.install() 的交互）**：`autoInstallOnAppQuit: true` 意味着用户正常退出时 electron-updater 的 `before-quit` 钩子自动调 `install()`。controller 的 `install()` 方法（`updater-controller.ts:79-93`）也会调 `quitAndInstall()`。用户通过圆点确认重启时，`install()` 调 `quitAndInstall()` 会立即触发退出，之后 `before-quit` 钩子**再次**调 `install()`。
+
+**已验证**：electron-updater@6.8.9 `BaseUpdater.js:43-46` 有守卫 `if (this.quitAndInstallCalled) return false`，且 `BaseUpdater.js:75-77` 在 `quitAndInstallCalled` 为 `true` 时跳过退出安装——**已内置幂等**，无需额外守卫。
 
 **风险缓解**：electron-updater 的 `downloadUpdate` 在已在下载时返回相同的 Promise（不会重复下载），controller 里的 `await input.backend.downloadUpdate()` 会正常 resolve。状态机从 `downloading` 进入 `ready` 由 `update-downloaded` 事件触发，controller 里已通过 `persistence.set` 持久化。
 
@@ -60,9 +66,13 @@
 
 **接线**：desktop main 启动时读 config（通过 sidecar 或独立存储），决定是否调 `updater.start()`。目前 `index.ts:303` 是无条件调 `updater.start()`，需要改为条件判断。
 
+**明确语义**：开关只控制**启动时的立即检查**（`updater.start()` 触发的首次 `check()`）。定时检查（`index.ts:304` 的 `setInterval`）**不受开关控制**，无论开关状态都会每 10 分钟执行一次。这与 spec 中「定时检查仍生效」一致。
+
 **注意**：desktop main 不直接访问 `serverSync`（它在 renderer）。启动时检查的开关需要通过 electron-store 或环境变量传给 main。
 
 **简化**：把开关状态通过 `electron-store` 存到 main 进程的 store，renderer 设置面板写入时通过 IPC 同步到 main。这与现有 `electron-store` 用法一致。
+
+**新增字段**：`settings.general.checkUpdatesOnStartup` 在 `global-sync` 配置中**不存在**（目前 `settings.general` 只有 `releaseNotes`），需要新增。
 
 ### D4：圆点点击后的确认对话框用现有 dialog 系统
 
@@ -79,6 +89,7 @@
 - **风险**：`autoInstallOnAppQuit: true` 时，用户退出可能延迟（应用更新需要时间）。→ 缓解：electron-updater 的 quitAndInstall 在 `before-quit` 钩子中执行，通常 < 5s，可接受。
 - **风险**：`autoDownload: true` 增加网络流量（每次检查到新版本都下载）。→ 缓解：检查频率 10 分钟，下载仅在发现新版本时发生，流量可忽略。
 - **风险**：titlebar 圆点可能遮挡其他 UI。→ 缓解：圆点直径 8px，绝对定位在 titlebar 右侧，z-index 低，不影响其他元素交互。
+- **风险**：`autoInstallOnAppQuit: true` 时 electron-updater 在 `before-quit` 自动调 `install()`，若用户已通过圆点点击触发 `controller.install()`（内部也调 `quitAndInstall()`），可能导致**重复调用**。→ 已验证：electron-updater `BaseUpdater.js:43-46` 内置 `quitAndInstallCalled` 守卫，重复调用直接 return false，无需额外处理。
 
 ## Migration Plan
 

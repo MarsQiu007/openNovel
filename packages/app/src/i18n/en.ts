@@ -489,6 +489,10 @@ export const dict = {
   "dialog.releaseNotes.action.next": "Next",
   "dialog.releaseNotes.action.hideFuture": "Don't show these in the future",
   "dialog.releaseNotes.media.alt": "Release preview",
+  "dialog.updaterConfirm.title": "Restart to Install Update",
+  "dialog.updaterConfirm.description": "Version {{version}} has been downloaded. The update will be installed after restart.",
+  "dialog.updaterConfirm.action.cancel": "Later",
+  "dialog.updaterConfirm.action.confirm": "Restart Now",
 
   "context.breakdown.title": "Context Breakdown",
   "context.breakdown.note": 'Approximate breakdown of input tokens. "Other" includes tool definitions and overhead.',

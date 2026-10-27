@@ -4,13 +4,16 @@ import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
+import { DialogUpdaterConfirm } from "@/components/dialog-updater-confirm"
 import { usePlatform } from "@/context/platform"
+import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { setNavigate } from "@/utils/notification-click"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
   const navigate = useNavigate()
+  const dialog = useDialog()
   setNavigate(navigate)
   const [state, setState] = createStore({ debugTools: true })
 
@@ -23,7 +26,11 @@ export default function NewLayout(props: ParentProps) {
       return state.version
     },
     installing: () => platform.updater?.state().status === "installing",
-    install: () => void platform.updater?.install(),
+    install: () => {
+      const state = platform.updater?.state()
+      if (state?.status !== "ready") return
+      dialog.show(() => <DialogUpdaterConfirm version={state.version} onConfirm={() => void platform.updater?.install()} />)
+    },
   }
 
   return (
