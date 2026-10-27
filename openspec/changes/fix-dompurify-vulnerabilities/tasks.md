@@ -2,15 +2,19 @@
 
 ## 1. 升级 dompurify
 
-- [ ] 1.1 `packages/ui/package.json`：`dompurify` 从 `3.4.16` 改为 `3.4.17`
-- [ ] 1.2 `packages/session-ui/package.json`：`dompurify` 从 `3.4.16` 改为 `3.4.17`
-- [ ] 1.3 运行 `bun install` 更新 lockfile
+- [x] 1.1 `packages/ui/package.json`：`dompurify` 从 `3.4.16` 改为 `3.4.17`
+- [x] 1.2 `packages/session-ui/package.json`：`dompurify` 从 `3.4.16` 改为 `3.4.17`
+- [x] 1.3 运行 `bun install` 更新 lockfile
 
 ## 2. 验证
 
-- [ ] 2.1 在 `packages/ui` 跑 `bun typecheck` 通过
-- [ ] 2.2 在 `packages/session-ui` 跑 `bun typecheck` 通过
-- [ ] 2.3 在 `packages/app` 跑 `bun typecheck` 通过（依赖 ui/session-ui）
+- [x] 2.1 在 `packages/ui` 跑 `bun typecheck` 通过
+- [x] 2.2 在 `packages/session-ui` 跑 `bun typecheck` 通过
+- [x] 2.3 在 `packages/app` 跑 `bun typecheck` 通过（依赖 ui/session-ui）
+
+## Implementation Commits
+
+- `6747806610` fix(ui,session-ui): 升级 dompurify 3.4.16 → 3.4.17 修复 3 个安全漏洞
 
 ## Workflow follow-up
 
