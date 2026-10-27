@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer, type MockSession } from "../utils/mock-server"
+import { installSseTransport, type SseTransport } from "../utils/sse-transport"
+import { v2Event, type V2SseFrame } from "../utils/v2-fixture"
 import { APP_READY_TIMEOUT } from "../utils/waits"
 
 const directory = "/home/user/SubagentSwitcher"
@@ -68,13 +70,18 @@ function grandchildSession(): MockSession {
 async function openWorkspaceSession(
   page: Page,
   sessionID: string,
-  options?: { sessions?: MockSession[]; boundSessionIDs?: string[] },
+  options?: {
+    sessions?: MockSession[]
+    boundSessionIDs?: string[]
+    v2Active?: Record<string, unknown> | (() => Record<string, unknown>)
+  },
 ) {
   await mockOpenNovelServer(page, {
     sessions: options?.sessions ?? [mainSession(), childSession()],
     provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
     directory,
     project: { id: "proj-subagent-switcher", directory },
+    v2Active: options?.v2Active,
   })
   await page.route(/\/api\/novel/, async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -141,17 +148,22 @@ async function openSwitcherMenu(page: Page) {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test("switcher nests subagent sessions collapsed and opens them in-book", async ({ page }) => {
+test("switcher shows subagent sessions expanded by default and opens them in-book", async ({ page }) => {
   await openWorkspaceSession(page, mainID)
 
   const menu = await openSwitcherMenu(page)
-  // 顶层只列主会话，子代理默认折叠不可见
+  // 默认展开：打开下拉即见主会话与子代理，无需先点展开控件
   await expect(menu.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
-  await expect(menu.getByRole("menuitemradio")).toHaveCount(1)
-  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toHaveCount(0)
+  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(2)
   await expect(menu.locator('[data-action="novel-switcher-toggle-children"]')).toHaveCount(1)
 
-  // 展开后子项可见，与主会话视觉区分（分支图标 + 斜体弱化 + 缩进）
+  // 手动收起保持收起
+  await menu.locator('[data-action="novel-switcher-toggle-children"]').click()
+  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toHaveCount(0)
+  await expect(menu.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
+
+  // 再次展开：子项可见，与主会话视觉区分（分支图标 + 斜体弱化 + 缩进）
   await menu.locator('[data-action="novel-switcher-toggle-children"]').click()
   const child = menu.getByRole("menuitemradio", { name: childTitle })
   await expect(child).toHaveCount(1)
@@ -164,36 +176,42 @@ test("switcher nests subagent sessions collapsed and opens them in-book", async 
   await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${childID}$`), { timeout: 15_000 })
   await expect(page.getByText("Subagent sessions cannot be prompted.")).toBeVisible()
 
-  // 当前打开子会话时切换器触发器显示子会话标题，且下拉自动展开父收纳
+  // 当前打开子会话时切换器触发器显示子会话标题；重开后下拉保持展开
   const trigger2 = page.getByRole("button", { name: "Novel sessions" })
   await expect(trigger2).toContainText(childTitle)
-  // 选中导航后下拉可能保持展开（切换器既有行为，主会话切换相同），先收起再重开
   await page.keyboard.press("Escape")
   const reopened = await openSwitcherMenu(page)
   await expect(reopened.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
   await expect(reopened.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
+
+  // 活动位置不被手动收起遮挡：当前会话在主会话子树中，点击收起控件不隐藏活动条目
+  await reopened.locator('[data-action="novel-switcher-toggle-children"]').click()
+  await expect(reopened.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+  await expect(reopened.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
 })
 
-test("switcher nests grandchildren and lists subagents without own binding rows", async ({ page }) => {
-  // 仅主会话持有绑定行：子代理（含孙级）自身无绑定行，仍应照常收录并嵌套收纳
+test("switcher shows nested grandchildren expanded by default and lists subagents without own binding rows", async ({ page }) => {
+  // 仅主会话持有绑定行：子代理（含孙级）自身无绑定行，仍应照常收录并嵌套展示
   await openWorkspaceSession(page, mainID, {
     sessions: [mainSession(), childSession(), grandchildSession()],
     boundSessionIDs: [mainID],
   })
 
   const menu = await openSwitcherMenu(page)
+  // 默认展开到孙级：两级子代理均无需手动展开
   await expect(menu.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
-  await expect(menu.getByRole("menuitemradio")).toHaveCount(1)
-  await expect(menu.locator('[data-action="novel-switcher-toggle-children"]')).toHaveCount(1)
-
-  // 展开主会话：一级子代理可见，孙级仍折叠（子代理行出现自己的展开控件）
-  await menu.locator('[data-action="novel-switcher-toggle-children"]').first().click()
   await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
-  await expect(menu.getByRole("menuitemradio", { name: grandchildTitle })).toHaveCount(0)
+  await expect(menu.getByRole("menuitemradio", { name: grandchildTitle })).toBeVisible()
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(3)
   const toggles = menu.locator('[data-action="novel-switcher-toggle-children"]')
   await expect(toggles).toHaveCount(2)
 
-  // 展开一级子代理：孙级可见，嵌套缩进递增
+  // 手动收起一级子代理：孙级隐藏，子代理行保留
+  await toggles.nth(1).click()
+  await expect(menu.getByRole("menuitemradio", { name: grandchildTitle })).toHaveCount(0)
+  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+
+  // 重新展开：孙级可见，嵌套缩进递增且与主会话视觉区分
   await toggles.nth(1).click()
   const grandchild = menu.getByRole("menuitemradio", { name: grandchildTitle })
   await expect(grandchild).toBeVisible()
@@ -205,11 +223,44 @@ test("switcher nests grandchildren and lists subagents without own binding rows"
   await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${grandchildID}$`), { timeout: 15_000 })
   await expect(page.getByText("Subagent sessions cannot be prompted.")).toBeVisible()
 
-  // 当前打开孙级：触发器显示孙级标题，重开后祖先链自动展开（无需手动展开两级）
+  // 当前打开孙级：触发器显示孙级标题，重开后祖先链展开（孙级与父级均可见）
   const trigger = page.getByRole("button", { name: "Novel sessions" })
   await expect(trigger).toContainText(grandchildTitle)
   await page.keyboard.press("Escape")
   const reopened = await openSwitcherMenu(page)
   await expect(reopened.getByRole("menuitemradio", { name: grandchildTitle })).toBeVisible()
   await expect(reopened.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+})
+
+test("switcher marks running subagents and clears the indicator when they finish", async ({ page }) => {
+  // busy/idle 在 V2 无状态推送：v2Active 闭包翻转 + session.next.* 事件触发的 active 对账
+  let childBusy = true
+  const transport = await installSseTransport<V2SseFrame>(page, {
+    server: `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`,
+    retry: 20,
+  })
+  await openWorkspaceSession(page, mainID, {
+    v2Active: () => ({ [mainID]: { busy: true }, ...(childBusy ? { [childID]: { busy: true } } : {}) }),
+  })
+
+  const menu = await openSwitcherMenu(page)
+  // 运行中的子代理带行内指示；主会话运行不显示（指示是子代理专属标记）
+  const dots = menu.locator('[data-action="novel-switcher-working-dot"]')
+  await expect(dots).toHaveCount(1)
+  await expect(menu.getByRole("menuitemradio", { name: childTitle }).locator('[data-action="novel-switcher-working-dot"]')).toBeVisible()
+
+  // 子代理结束：指示消失，无需刷新页面
+  childBusy = false
+  await transport.send(
+    v2Event(directory, "session.next.step.ended", {
+      timestamp: Date.now(),
+      sessionID: childID,
+      assistantMessageID: "msg_sub_switcher_end",
+      finish: "stop",
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    }),
+  )
+  await expect(dots).toHaveCount(0)
+  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
 })

@@ -86,6 +86,32 @@ export function sessionSwitcherTrigger(input: {
 }
 
 /**
+ * 切换器子代理节点展开判定（subagent-session-visibility）：默认展开，手动收起保持收起，
+ * 但当前打开会话所在的祖先链强制展开——手动收起不得遮挡活动位置。
+ */
+export function switcherChildrenVisible(input: { collapsed: boolean; containsActive: boolean }): boolean {
+  return !input.collapsed || input.containsActive
+}
+
+/**
+ * 子代理条目运行指示的展示判定（subagent-session-visibility）：仅子代理层级且运行中
+ * （busy/retry，非 idle）显示，主会话条目不显示——运行指示是子代理专属标记。
+ */
+export function switcherWorkingDot(input: { depth: number; working: boolean }): boolean {
+  return input.depth > 0 && input.working
+}
+
+/** 切换器节点结构（NovelSessionOption/NovelChildSessionOption 的递归最小形状）。 */
+type SwitcherNode = { sessionID: string; children: readonly SwitcherNode[] }
+
+/** 节点及其后代中是否包含当前打开的会话（祖先链强制展开的判定输入）。 */
+export function switcherNodeContainsActive(node: SwitcherNode, activeSessionID: string | undefined): boolean {
+  return (
+    node.sessionID === activeSessionID || node.children.some((child) => switcherNodeContainsActive(child, activeSessionID))
+  )
+}
+
+/**
  * 用批量绑定接口拿到该书的第一个未归档绑定会话（避免逐会话 N+1 查询）。
  * 写作流兜底与 cancelGeneration 使用；对话面板的常规切换走 useBoundNovelSessions。
  */

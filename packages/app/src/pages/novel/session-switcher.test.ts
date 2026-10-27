@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { flattenNovelSessionOptions, type NovelSessionOption } from "@/context/novel-queries"
-import { sessionSwitcherTrigger } from "./workspace-data"
+import {
+  sessionSwitcherTrigger,
+  switcherChildrenVisible,
+  switcherNodeContainsActive,
+  switcherWorkingDot,
+} from "./workspace-data"
 
 const baseInput = {
   paramsID: undefined,
@@ -90,5 +95,55 @@ describe("sessionSwitcherTrigger", () => {
       sessions: [{ sessionID: "s1", title: "第一章草稿" }],
     })
     expect(result).toEqual({ label: "会话列表加载失败", disabled: true, showRetry: true })
+  })
+})
+
+describe("switcherChildrenVisible（子代理默认展开语义）", () => {
+  test("默认展开：无手动收起记录即可见", () => {
+    expect(switcherChildrenVisible({ collapsed: false, containsActive: false })).toBe(true)
+  })
+
+  test("手动收起后保持收起", () => {
+    expect(switcherChildrenVisible({ collapsed: true, containsActive: false })).toBe(false)
+  })
+
+  test("祖先链含当前会话：手动收起不遮挡活动位置", () => {
+    expect(switcherChildrenVisible({ collapsed: true, containsActive: true })).toBe(true)
+  })
+})
+
+describe("switcherNodeContainsActive（活动祖先链判定）", () => {
+  const tree = {
+    sessionID: "main",
+    children: [
+      { sessionID: "child", children: [{ sessionID: "grand", children: [] }] },
+      { sessionID: "sibling", children: [] },
+    ],
+  }
+
+  test("当前会话在深层后代中命中", () => {
+    expect(switcherNodeContainsActive(tree, "grand")).toBe(true)
+    expect(switcherNodeContainsActive(tree, "child")).toBe(true)
+  })
+
+  test("当前会话不在该子树时为否", () => {
+    expect(switcherNodeContainsActive(tree, "other")).toBe(false)
+    expect(switcherNodeContainsActive(tree, undefined)).toBe(false)
+  })
+})
+
+describe("switcherWorkingDot（子代理运行指示三态）", () => {
+  test("运行中（busy）：子代理层级显示，主会话层级不显示", () => {
+    expect(switcherWorkingDot({ depth: 1, working: true })).toBe(true)
+    expect(switcherWorkingDot({ depth: 0, working: true })).toBe(false)
+  })
+
+  test("空闲（idle）：不显示", () => {
+    expect(switcherWorkingDot({ depth: 1, working: false })).toBe(false)
+  })
+
+  test("结束（回到 idle）：指示消失", () => {
+    expect(switcherWorkingDot({ depth: 1, working: true })).toBe(true)
+    expect(switcherWorkingDot({ depth: 1, working: false })).toBe(false)
   })
 })

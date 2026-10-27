@@ -17,6 +17,7 @@ import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
 import {
   flattenNovelSessionOptions,
   useBindSession,
@@ -26,6 +27,7 @@ import {
   type NovelSessionBinding,
   type NovelSessionOption,
 } from "@/context/novel-queries"
+import { switcherChildrenVisible, switcherNodeContainsActive, switcherWorkingDot } from "./workspace-data"
 import { archiveSessionCascade, exportSessionJson } from "@/pages/novel-sessions"
 import { useConfirmDelete } from "./confirm-dialog"
 import { collectDescendants } from "@/utils/session-descendants"
@@ -39,13 +41,17 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const navigate = useNavigate()
   const params = useParams()
   const sdk = useSDK()
+  const sync = useSync()
   const queryClient = useQueryClient()
   const confirm = useConfirmDelete()
   const bindSession = useBindSession()
   const sessions = useBoundNovelSessions(() => props.novelID)
   const [creating, setCreating] = createSignal(false)
-  // 子代理收纳展开态（按节点会话 ID 记录手动展开/收起）；当前打开会话的祖先链始终自动展开
-  const [childrenExpanded, setChildrenExpanded] = createSignal<Record<string, boolean>>({})
+  // 子代理收纳态（subagent-session-visibility）：默认展开，按节点会话 ID 记录手动收起；
+  // 当前打开会话的祖先链始终强制展开（见 SwitcherSessionEntry 的 containsActive）
+  const [childrenCollapsed, setChildrenCollapsed] = createSignal<Record<string, boolean>>({})
+  // 运行指示与活跃横条同源：全局同步 store 的会话运行状态（busy/retry）
+  const isWorking = (sessionID: string) => !!sync().data.session_working(sessionID)
 
   const trigger = () =>
     sessionSwitcherTrigger({
@@ -163,10 +169,11 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
                         option={option}
                         depth={0}
                         activeSessionID={params.id}
-                        isExpanded={(sessionID) => !!childrenExpanded()[sessionID]}
+                        isCollapsed={(sessionID) => !!childrenCollapsed()[sessionID]}
                         onToggleChildren={(sessionID) =>
-                          setChildrenExpanded((prev) => ({ ...prev, [sessionID]: !prev[sessionID] }))
+                          setChildrenCollapsed((prev) => ({ ...prev, [sessionID]: !prev[sessionID] }))
                         }
+                        isWorking={isWorking}
                         actions={{ archive: archiveSession, export: exportSession }}
                       />
                     )}
@@ -232,10 +239,10 @@ function toSwitcherSessionList(
 
 /**
  * 切换器下拉的单个会话条目（递归组件）：节点 = 展开控件（有子节点时）+ 选择项 + 行内
- * 动作菜单；子节点递归渲染并按深度递增缩进（分支图标 + 斜体弱化，与主会话视觉区分），
- * 任意层级可展开/收纳。当前打开会话的祖先链自动展开，保证活动项可见；展开态按会话 ID
- * 记录。动作菜单承接已退役列表页的会话管理动作：归档（子代理级联）与导出会话 JSON；
- * hover/focus 显现，键盘可 Tab 到达（拖动条目的选中语义不受影响）。
+ * 动作菜单；子节点默认展开（subagent-session-visibility），手动收起保持，当前打开会话
+ * 的祖先链强制展开；子条目按深度递增缩进（分支图标 + 斜体弱化，与主会话视觉区分），
+ * 运行中的子代理条目带行内运行指示。动作菜单承接已退役列表页的会话管理动作：归档
+ * （子代理级联）与导出会话 JSON；hover/focus 显现，键盘可 Tab 到达（拖动条目的选中语义不受影响）。
  */
 type SwitcherSessionActions = {
   archive: (input: { sessionID: string; title: string }) => void
@@ -246,15 +253,23 @@ function SwitcherSessionEntry(props: {
   option: NovelSessionOption | NovelChildSessionOption
   depth: number
   activeSessionID: string | undefined
-  isExpanded: (sessionID: string) => boolean
+  isCollapsed: (sessionID: string) => boolean
   onToggleChildren: (sessionID: string) => void
+  isWorking: (sessionID: string) => boolean
   actions: SwitcherSessionActions
 }) {
   const language = useLanguage()
-  const containsActive = (node: NovelChildSessionOption): boolean =>
-    node.sessionID === props.activeSessionID || node.children.some(containsActive)
-  const showChildren = () => props.isExpanded(props.option.sessionID) || props.option.children.some(containsActive)
   const label = () => sessionTitle(props.option.title) ?? props.option.title
+  const working = () => switcherWorkingDot({ depth: props.depth, working: props.isWorking(props.option.sessionID) })
+  // 强制展开的判定是「活跃会话在本节点的严格后代中」：节点自身被打开时其子代理
+  // 仍可手动收起（spec「手动收起后保持收起」），只有当前会话藏在本节点子树里时收起才失效
+  const showChildren = () =>
+    switcherChildrenVisible({
+      collapsed: props.isCollapsed(props.option.sessionID),
+      containsActive: props.option.children.some((child) =>
+        switcherNodeContainsActive(child, props.activeSessionID),
+      ),
+    })
   return (
     <>
       <div
@@ -286,6 +301,13 @@ function SwitcherSessionEntry(props: {
           value={props.option.sessionID}
           class={props.depth > 0 ? "min-w-0 flex-1 pl-10" : "min-w-0 flex-1"}
         >
+          <Show when={working()}>
+            <span
+              data-action="novel-switcher-working-dot"
+              class="mr-1 size-1.5 shrink-0 rounded-full bg-v2-state-fg-success animate-pulse"
+              aria-label="运行中"
+            />
+          </Show>
           <Show when={props.depth > 0}>
             <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
           </Show>
@@ -302,8 +324,9 @@ function SwitcherSessionEntry(props: {
               option={child}
               depth={props.depth + 1}
               activeSessionID={props.activeSessionID}
-              isExpanded={props.isExpanded}
+              isCollapsed={props.isCollapsed}
               onToggleChildren={props.onToggleChildren}
+              isWorking={props.isWorking}
               actions={props.actions}
             />
           )}
