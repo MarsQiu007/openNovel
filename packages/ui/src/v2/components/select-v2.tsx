@@ -115,7 +115,30 @@ export function SelectV2<T>(props: SelectV2Props<T>) {
 
   onCleanup(stop)
 
-  const grouped = createMemo(() => groupOptions(local.options, local.groupBy))
+  const grouped = createMemo(
+    () => groupOptions(local.options, local.groupBy),
+    undefined,
+    {
+      // 内容相同时复用上次引用：options 数组引用变化（如 PATCH 后 serverSync
+      // 数据刷新）不应触发 Kobalte 重建 collection 把打开中的下拉框关掉。
+      equals: (a, b) => {
+        if (a === b) return true
+        if (a.length !== b.length) return false
+        for (let i = 0; i < a.length; i++) {
+          const ga = a[i]!
+          const gb = b[i]!
+          if (ga.category !== gb.category || ga.options.length !== gb.options.length) return false
+          for (let j = 0; j < ga.options.length; j++) {
+            const oa = ga.options[j]!
+            const ob = gb.options[j]!
+            // option 是对象，比较 value/keyFor 结果而不是引用
+            if (oa !== ob && keyFor(oa) !== keyFor(ob)) return false
+          }
+        }
+        return true
+      },
+    },
+  )
 
   return (
     <Kobalte<T, { category: string; options: T[] }>
