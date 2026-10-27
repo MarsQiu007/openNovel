@@ -2,6 +2,8 @@ import { afterEach, describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { Npm } from "@opennovel-ai/core/npm"
 import { Ripgrep } from "@opennovel-ai/core/ripgrep"
+import { SessionExecution } from "@opennovel-ai/core/session/execution"
+import { SessionExecutionLocal } from "@opennovel-ai/core/session/execution/local"
 import path from "path"
 import { pathToFileURL } from "url"
 import { Auth } from "../../src/auth"
@@ -28,6 +30,9 @@ const it = testEffect(
     [Npm.node, NpmTest.noop],
     [InstanceStore.bootstrapNode, noopBootstrapLayer],
     [RuntimeFlags.node, RuntimeFlags.layer({ disableDefaultPlugins: true, experimentalWorkspaces: true })],
+    // Workspace 依赖全局 SessionV2，后者引用 unbound 的 SessionExecution；
+    // 测试图与生产图一致绑定本地实现。
+    [SessionExecution.node, SessionExecutionLocal.node],
   ]),
 )
 
