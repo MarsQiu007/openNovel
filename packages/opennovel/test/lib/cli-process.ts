@@ -192,14 +192,6 @@ export function withCliFixture<A, E>(
     // 不读 OPENNOVEL_CONFIG_CONTENT；写盘让 V2 执行链能解析 test/test-model。
     yield* Effect.promise(() => Bun.write(path.join(home, ".config", "opennovel", "opennovel.json"), configJson))
 
-    // 调试：CI 中探明子进程为何未加载 test provider 配置
-    const configPath = path.join(home, ".config", "opennovel", "opennovel.json")
-    const configExists = yield* Effect.promise(() => Bun.file(configPath).exists())
-    console.log(`[cli-process debug] home=${home}`)
-    console.log(`[cli-process debug] configPath=${configExists ? "exists" : "MISSING"}`)
-    console.log(`[cli-process debug] XDG_CONFIG_HOME=${env.XDG_CONFIG_HOME}`)
-    console.log(`[cli-process debug] OPENNOVEL_TEST_HOME=${env.OPENNOVEL_TEST_HOME}`)
-
     const spawn = Effect.fn("opennovel.spawn")(function* (args: string[], opts?: SpawnOpts) {
       const start = Date.now()
       const timeoutMs = opts?.timeoutMs ?? 30_000
