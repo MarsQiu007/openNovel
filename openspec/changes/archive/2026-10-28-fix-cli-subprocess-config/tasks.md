@@ -14,7 +14,7 @@
 - [x] 10. 修复批重组回归：httpapi-sdk 首跑暴露 skills 在 release 后才
         注册（692f 拆批引入），纯 transform 插件回归 catalog 批、仅
         defer config-external（fa24b12f4，见 design.md）
-- [ ] 11. 收集实施提交，更新 tasks.md，归档提案
+- [x] 11. 收集实施提交，更新 tasks.md，归档提案
 
 ## 根因
 
