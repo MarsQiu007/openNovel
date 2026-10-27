@@ -114,14 +114,23 @@ const layer = Layer.effectDiscard(
     // 层构建期收窄放行门：此后直到 catalog 批提交前，模型解析的等待会真正
     // 阻塞。arm 与 fork 都发生在层构建期，早于任何可能调用 resolve 的 drain。
     yield* pluginBoot.arm
-    // 整体 fork：引导不阻塞层构建；内部先提交 catalog 批并放行就绪信号，
-    // 再注册其余内置插件。catalog 相关插件均为纯 transform（models-dev 走已
-    // 缓存数据），可快速完成；config-skill/config-external 等含网络加载，放在
-    // 信号之后注册，不阻塞模型解析。
+    // 整体 fork：引导不阻塞层构建；内部先提交 catalog 批并放行就绪门，
+    // 再注册网络型插件。catalog 批成员均为纯本地 transform（models-dev 走
+    // 已缓存数据；config-skill 只声明 skill source，URL 下载发生在消费侧
+    // materialize），批末 reload 一次提交——等待方放行时 models/providers/
+    // agents/commands/skills 全部可见。仅 config-external（npm registry
+    // 安装）是网络型，保持 defer，不阻塞门放行。
     yield* Effect.gen(function* () {
       yield* State.batch(
         Effect.gen(function* () {
+          yield* add(ConfigReferencePlugin.Plugin)
+          yield* add(AgentPlugin.Plugin)
+          yield* add(CommandPlugin.Plugin)
+          yield* add(SkillPlugin.Plugin)
           yield* add(ModelsDevPlugin)
+          yield* add(ConfigAgentPlugin.Plugin)
+          yield* add(ConfigCommandPlugin.Plugin)
+          yield* add(ConfigSkillPlugin.Plugin)
           for (const item of ProviderPlugins) yield* add(item)
           yield* add(ConfigProviderPlugin.Plugin)
           yield* add(VariantPlugin.Plugin)
@@ -134,13 +143,6 @@ const layer = Layer.effectDiscard(
       )
       yield* State.batch(
         Effect.gen(function* () {
-          yield* add(ConfigReferencePlugin.Plugin)
-          yield* add(AgentPlugin.Plugin)
-          yield* add(CommandPlugin.Plugin)
-          yield* add(SkillPlugin.Plugin)
-          yield* add(ConfigAgentPlugin.Plugin)
-          yield* add(ConfigCommandPlugin.Plugin)
-          yield* add(ConfigSkillPlugin.Plugin)
           yield* add(ConfigExternalPlugin.Plugin)
         }),
       ).pipe(Effect.withSpan("PluginInternal.deferred"))
