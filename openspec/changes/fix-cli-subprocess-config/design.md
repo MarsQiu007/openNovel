@@ -3,7 +3,8 @@
 ## 背景
 
 Linux CI 上 4 个 cli 子进程测试（export/run × 2/stats）失败：子进程模型解析
-回退 vivgrid 默认模型 401。本地（Windows + bun 1.4.3）全部通过，无法直接复现。
+回退 vivgrid 默认模型 401，或直接零输出退出 0。本地（Windows + bun 1.4.3）
+全部通过，无法直接复现。
 
 ## 配置链路
 
@@ -28,31 +29,51 @@ Linux CI 上 4 个 cli 子进程测试（export/run × 2/stats）失败：子进
    **教训：模块顶层探针连 stderr 也不能写，core 里任何探针都要走文件。**
 4. 三个 debug 提交收官后已全部移除。
 
-## CI 失败形态时间线（gh run 对照）
+## 根因（最终）
 
-| 提交 | 调试 | 钉住 | export 会话内容 |
-|---|---|---|---|
-| `46b8de3ab4`（基线） | 无 | 无 | 助手行 `vivgrid/gpt-5.6-luna` + 401 |
-| `9d8a32cbe2` | catalog-avail | 无 | 同上（401） |
-| `5d71e2a2ab` | + global/provider | 无 | **无助手行**，`time.updated == created` |
-| `c1b8de3ab4` | 同上 | 有 | 无助手行 |
+启动竞态，与配置目录无关：
 
-两种表象同源：子进程内 test provider 未进入 catalog。
-- 回退 401 行 = catalog 里有内置默认（vivgrid），解析失败走 fallback 后请求 401
-- 无助手行 = catalog 全空 → `model.default` 为 undefined → runner 解析抛错 →
-  drain 静默结束 → CLI 退出 0、零事件、零输出（run 测试的「空 stdout」贯穿始终）
+- `PluginInternal.boot`（`plugin/internal.ts`）用
+  `Effect.forkScoped({ startImmediately: true })` 异步注册内置插件，
+  server 即刻服务
+- `State.batch`（`state.ts`）的语义是「批内 transform 只攒 reload，
+  批末统一 materialize」——插件 active ≠ catalog 数据可见
 
-## 修复
+CI 慢机上 drain 的模型解析落在提交之前，两种形态同源：
 
-`c1b8de3ab4`：`isolatedEnv` 显式设 `OPENNOVEL_CONFIG_DIR=home/.config/opennovel`。
-`Flag.OPENNOVEL_CONFIG_DIR` 是动态 env getter，`global.ts make()` 里
-`Flag.OPENNOVEL_CONFIG_DIR ?? Path.config` 优先级高于 xdg-basedir 的
-模块级缓存值 `Path.config`，绕开子进程模块加载时的解析差异。
+- 批末 reload 中途读取 → models-dev 已提交（vivgrid 在）、
+  config-provider 未提交（test provider 不在）→ 回退默认 → 401 行
+- 更早读取 → catalog 全空 → `ModelUnavailableError` → drain 静默结束 →
+  退出 0、零输出（「无助手行」）
 
-`2c3028ff9c`：移除全部调试日志，保留钉住，单独验证。
+本地 500ms/1500ms 引导延迟（`Effect.sleep` 插在 fork 批前）完整复现两种
+形态，证实根因。钉住 `OPENNOVEL_CONFIG_DIR`（`c1b8de3ab4`）经
+`cross-spawn-spawner.ts` 的 extendEnv 验证是 no-op，无害保留。
+
+## 修复（`692f2e8f71`）
+
+三层就绪信号，复用既有 `PluginV2.wait(id)` waiter/Deferred 模式：
+
+1. `PluginV2.layer` 构建时默认注册 `catalog-boot` 信号插件——最小层图
+   （无 PluginInternal 引导的测试/嵌入场景）里等待方立即放行，不挂死
+2. `PluginInternal` 层构建期先 `remove` 默认信号，再 fork 引导：
+   - catalog 批（models-dev、provider 系列、config-provider、variant，
+     均为纯 transform）先行，`Effect.onExit` 里无论批处理成败都重注册
+     信号（失败的插件不会再生效，等待方走正常解析错误路径而非挂起）
+   - 网络型插件（config-skill 下载、config-external 安装）移到信号
+     之后注册，不阻塞模型解析
+3. `SessionRunnerModel.resolve` 读 catalog 前 `plugin.wait(bootReadyID)`
+   （`Effect.ignoreCause` 容忍失败落定）；`node` deps 增加 `PluginV2.node`
+
+时序保证：remove 与 fork 都在层构建期完成，窗口早于任何可调用 resolve
+的 drain；批末 re-add 在批末 reload 全部执行之后，等待放行时数据必然
+已提交。
 
 ## 验证
 
-- 本地 `bun test test/cli/`：49 个测试全部通过（含钉住 + 移除调试后）
-- CI：2c3028ff9c 的 run 待确认；若仍失败，export 会话内容可区分
-  「回退 401」还是「catalog 全空」，再定后续方向
+- 本地延迟复现：1500ms 延迟下 `bun test test/cli/` 49 用例全过
+  （修复前同条件复现 CI 两种形态）；移除延迟后同样全过
+- core 全量（XDG 隔离）、core/opennovel typecheck 通过
+- `location-layer.test.ts` 的「rejects unavailable」用例原本依赖竞态
+  （boot 提交前 catalog 为空才有 ModelUnavailableError）；修复后等待
+  提交再解析，测试在隔离环境下确定性通过
