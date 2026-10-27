@@ -208,14 +208,8 @@ const layer = Layer.effect(
         }),
 
         available: Effect.fn("CatalogV2.model.available")(function* () {
-          const provResult = yield* result.provider.available()
-          console.error(`[catalog-avail] provider.available result=${provResult.map((p) => p.id).join(",")}`)
-          const providers = new Set(provResult.map((provider) => provider.id))
-          const all = yield* result.model.all()
-          console.error(`[catalog-avail] model.all=${all.map((m) => `${m.providerID}/${m.id}:${m.enabled}`).join(",")}`)
-          const filtered = all.filter((model) => providers.has(model.providerID) && model.enabled)
-          console.error(`[catalog-avail] model.available=${filtered.map((m) => `${m.providerID}/${m.id}`).join(",")}`)
-          return filtered
+          const providers = new Set((yield* result.provider.available()).map((provider) => provider.id))
+          return (yield* result.model.all()).filter((model) => providers.has(model.providerID) && model.enabled)
         }),
 
         default: Effect.fn("CatalogV2.model.default")(function* () {

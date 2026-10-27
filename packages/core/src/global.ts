@@ -13,8 +13,6 @@ const cache = path.join(xdgCache!, app)
 const config = path.join(xdgConfig!, app)
 const state = path.join(xdgState!, app)
 const tmp = path.join(os.tmpdir(), app)
-// 调试：确认子进程读到的 xdgConfig 路径（写 stderr 避免污染 stdout）
-console.error(`[global.ts debug] xdgConfig=${xdgConfig} config=${config} XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME} OPENNOVEL_CONFIG_DIR=${process.env.OPENNOVEL_CONFIG_DIR}`)
 
 const paths = {
   get home() {
