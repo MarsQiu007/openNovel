@@ -7,7 +7,11 @@
 - [x] 5. 移除全部调试日志，单独提交验证
 - [x] 6. 定位真正根因（启动竞态）并实施修复（692f2e8f71，见 design.md）
 - [x] 7. 推送，确认 CI 中 export/run/stats × 4 全部通过
-- [ ] 8. 收集实施提交，更新 tasks.md，归档提案
+- [x] 8. CI 第三轮暴露 opennovel#test 挂 workspace-adapter（Unbound
+       SessionExecution）：归因为 v1-removal 同期提交 12457855d1 的旧伤，
+       测试图补绑定修复（4fed136487，记在该 change 名下收尾）
+- [x] 9. 信号插件方案换成零依赖 PluginBoot 门（0d32bbc24，见 design.md）
+- [ ] 10. 收集实施提交，更新 tasks.md，归档提案
 
 ## 根因
 
@@ -29,18 +33,20 @@
 
 本地快机永远赢得竞态，故该测试层（2026-10-27 引入）在 CI 从未绿过。
 
-修复（692f2e8f71）：三层信号——`PluginV2.layer` 默认注册
-`catalog-boot` 就绪信号（最小层图立即放行）；`PluginInternal` 层构建期
-先移除默认信号，fork 引导时 catalog 相关插件（纯 transform）先行一批、
-批末重注册信号，网络型插件（config-skill/config-external）移到信号
-之后；`SessionRunnerModel.resolve` 读 catalog 前等待信号。
+修复（692f2e8f71 信号插件，0d32bbc24 换 PluginBoot 门，见 design.md）：
+零依赖 `PluginBoot` 门服务——`PluginInternal` 层构建期 arm 收窄放行门，
+catalog 批结束时无论成败 release（批末 reload 全部执行完才放行），
+网络型插件（config-skill/config-external）移到批后注册；
+`SessionRunnerModel.resolve` 读 catalog 前等待门放行。最小层图（无
+PluginInternal 引导）默认 latch 已 succeed，立即放行不挂死。
 
 ## 验证
 
 - 本地以 1500ms 引导延迟复现 CI 两种失败形态（run json 只收到
   prompted / step.started 后 step.failed 401），修复后延迟与正常场景
   下 `bun test test/cli/` 49 用例全过
-- core 全量（XDG 隔离）、core/opennovel typecheck 通过
+- core 全量（XDG 隔离）1194 通过；opennovel 全量 1679 通过；
+  core/opennovel typecheck 通过
 
 ## 排查教训（沉淀）
 
@@ -56,9 +62,15 @@
 5. core 全量测试本地须用 `XDG_CONFIG_HOME` 等临时目录隔离：真实全局
    配置会让外部插件发现注册一堆工具、config-provider 把用户 provider
    注册进测试 location，两类断言全歪（与 httpapi 练习的 CWD 污染同源）。
+6. CI 失败归因先核对提交进 main 的时间线与各自 change 归属：并行
+   change 的提交在 CI 上交叠时，按「最近改过相关文件」直觉归因会
+   张冠李戴——workspace-adapter 的 Unbound 一度误归因给 692f2e8f71，
+   实际是 10 分钟前进入 main 的 v1-removal 提交 12457855d1 引入。
+   决定性证据是检出嫌疑提交及其父提交分别复跑：父绿子红即实锤。
 
 ## 实施提交
 
 - `c1b8de3ab4` fix(opennovel): cli 子进程测试显式钉住 OPENNOVEL_CONFIG_DIR
 - `2c3028ff9c` fix(core): 移除 cli 子进程测试的调试日志
 - `692f2e8f71` fix(core): 模型解析等待内置插件 catalog 引导完成
+- `0d32bbc24` fix(core): 模型解析等待插件引导门放行
