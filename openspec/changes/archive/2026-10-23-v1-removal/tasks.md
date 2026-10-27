@@ -62,3 +62,7 @@
 - G3.6 event-v2-bridge（Wave E）：`e33913d20e` feat(opennovel): 删除 event-v2-bridge 并落地 EventV2 位置附加与 GlobalEventBridge re-home
 - G5 config 冻结与 V1 删除：`87f528abbf` refactor(core): 冻结 config 管线搬迁 core/src/v1/config 至 core/src/config/v1；`cdf9c4f0d2` refactor(core): 删除 core 与 schema 的 V1 残余并收敛事件 manifest
 - G6 生成物与收尾：`794fe08581` refactor(sdk): 重生 client/SDK 生成物并冻结 V1 视图模型契约
+
+### 归档后收尾修复
+
+- `4fed136487` test(opennovel): workspace-adapter 层图补 SessionExecution 绑定——G3.3 让 Workspace 依赖全局 SessionV2（后者引用 unbound 的 SessionExecution.node），测试图缺生产图 buildLocationServiceMap 里的绑定，opennovel#test 自 2026-10-27 该提交进入 main 起编译期即抛 Unbound layer node
