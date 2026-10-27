@@ -209,16 +209,6 @@ export default {
         );
       `)
       yield* tx.run(`
-        CREATE TABLE \`message\` (
-          \`id\` text PRIMARY KEY,
-          \`session_id\` text NOT NULL,
-          \`time_created\` integer NOT NULL,
-          \`time_updated\` integer NOT NULL,
-          \`data\` text NOT NULL,
-          CONSTRAINT \`fk_message_session_id_session_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session\`(\`id\`) ON DELETE CASCADE
-        );
-      `)
-      yield* tx.run(`
         CREATE TABLE \`novel_state_log\` (
           \`id\` text PRIMARY KEY,
           \`novel_id\` text NOT NULL,
@@ -242,17 +232,6 @@ export default {
           \`status\` text DEFAULT 'draft' NOT NULL,
           \`story_spine\` text,
           \`content_nature\` text DEFAULT 'general' NOT NULL
-        );
-      `)
-      yield* tx.run(`
-        CREATE TABLE \`part\` (
-          \`id\` text PRIMARY KEY,
-          \`message_id\` text NOT NULL,
-          \`session_id\` text NOT NULL,
-          \`time_created\` integer NOT NULL,
-          \`time_updated\` integer NOT NULL,
-          \`data\` text NOT NULL,
-          CONSTRAINT \`fk_part_message_id_message_id_fk\` FOREIGN KEY (\`message_id\`) REFERENCES \`message\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`
@@ -416,17 +395,6 @@ export default {
           CONSTRAINT \`fk_world_entries_novel_id_novels_id_fk\` FOREIGN KEY (\`novel_id\`) REFERENCES \`novels\`(\`id\`) ON DELETE CASCADE
         );
       `)
-      yield* tx.run(`
-        CREATE TABLE \`session_share\` (
-          \`session_id\` text PRIMARY KEY,
-          \`id\` text NOT NULL,
-          \`secret\` text NOT NULL,
-          \`url\` text NOT NULL,
-          \`time_created\` integer NOT NULL,
-          \`time_updated\` integer NOT NULL,
-          CONSTRAINT \`fk_session_share_session_id_session_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session\`(\`id\`) ON DELETE CASCADE
-        );
-      `)
       yield* tx.run(`CREATE UNIQUE INDEX \`event_aggregate_seq_idx\` ON \`event\` (\`aggregate_id\`,\`seq\`);`)
       yield* tx.run(`CREATE INDEX \`event_aggregate_type_seq_idx\` ON \`event\` (\`aggregate_id\`,\`type\`,\`seq\`);`)
       yield* tx.run(
@@ -445,17 +413,12 @@ export default {
       yield* tx.run(`CREATE INDEX \`characters_novel_id_idx\` ON \`characters\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`foreshadowing_novel_id_idx\` ON \`foreshadowing\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`foreshadowing_state_idx\` ON \`foreshadowing\` (\`state\`);`)
-      yield* tx.run(
-        `CREATE INDEX \`message_session_time_created_id_idx\` ON \`message\` (\`session_id\`,\`time_created\`,\`id\`);`,
-      )
       yield* tx.run(`CREATE INDEX \`novel_state_log_novel_id_idx\` ON \`novel_state_log\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`novel_state_log_chapter_id_idx\` ON \`novel_state_log\` (\`chapter_id\`);`)
       yield* tx.run(
         `CREATE INDEX \`novel_state_log_fact_type_idx\` ON \`novel_state_log\` (\`novel_id\`,\`fact_type\`);`,
       )
       yield* tx.run(`CREATE INDEX \`novels_status_idx\` ON \`novels\` (\`status\`);`)
-      yield* tx.run(`CREATE INDEX \`part_message_id_id_idx\` ON \`part\` (\`message_id\`,\`id\`);`)
-      yield* tx.run(`CREATE INDEX \`part_session_idx\` ON \`part\` (\`session_id\`);`)
       yield* tx.run(`CREATE INDEX \`plot_threads_novel_id_idx\` ON \`plot_threads\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`plot_threads_status_idx\` ON \`plot_threads\` (\`status\`);`)
       yield* tx.run(`CREATE INDEX \`relationships_novel_id_idx\` ON \`relationships\` (\`novel_id\`);`)
