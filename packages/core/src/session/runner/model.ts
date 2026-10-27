@@ -188,6 +188,9 @@ export const locationLayer = Layer.effect(
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session) {
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const available = yield* catalog.model.available()
+        // 调试：CI 探明模型解析
+        console.log(`[runner-model debug] session.model=${JSON.stringify(session.model)}`)
+        console.log(`[runner-model debug] available=${available.map((m) => `${m.providerID}/${m.id}`).join(",")}`)
         const defaultModel = session.model ? undefined : yield* catalog.model.default()
         let selected = session.model
           ? available.find((model) => model.providerID === session.model?.providerID && model.id === session.model.id)
@@ -199,6 +202,7 @@ export const locationLayer = Layer.effect(
           const fallbackModel = defaultModel && supported(defaultModel) ? defaultModel : available.find(supported)
           if (fallbackModel) selected = fallbackModel
         }
+        console.log(`[runner-model debug] selected=${selected ? `${selected.providerID}/${selected.id}` : "undefined"}`)
         if (!selected && session.model)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,
