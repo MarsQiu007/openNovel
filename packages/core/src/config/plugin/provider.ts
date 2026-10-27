@@ -44,6 +44,10 @@ export const Plugin = define({
       Effect.fn(function* (catalog) {
         const entries = yield* config.entries()
         const files = entries.filter((entry): entry is Config.Document => entry.type === "document")
+        // 调试：确认子进程读到的配置文件
+        for (const file of files) {
+          console.error(`[config-provider debug] file=${file.path} providers=${Object.keys(file.info.providers ?? {}).join(",")}`)
+        }
         const configuredDefault = Config.latest(entries, "model")
         if (configuredDefault !== undefined) {
           const model = ModelV2.parse(configuredDefault)
