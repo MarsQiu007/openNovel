@@ -24,7 +24,7 @@ export default Runtime.handler(
         console.log(`server listening on ${HttpServer.formatAddress(address)}`)
         return yield* Effect.never
       }),
-    )
+    ) as Effect.Effect<void, unknown, Daemon.Service>
   }),
 )
 

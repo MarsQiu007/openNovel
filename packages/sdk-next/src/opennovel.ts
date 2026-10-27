@@ -36,9 +36,11 @@ export const create = Effect.fn("OpenNovel.create")(function* () {
     ),
     (web) => Effect.promise(web.dispose),
   )
-  const fetch = Object.assign((input: RequestInfo | URL, init?: RequestInit) => web.handler(new Request(input, init)), {
-    preconnect: () => undefined,
-  }) satisfies typeof globalThis.fetch
+  const handler = web.handler as (request: globalThis.Request) => Promise<Response>
+  const fetch = Object.assign(
+    (input: RequestInfo | URL, init?: RequestInit) => handler(new globalThis.Request(input, init)),
+    { preconnect: () => undefined },
+  ) satisfies typeof globalThis.fetch
   const client = yield* OpenNovel.make({ baseUrl: "http://opennovel.local" }).pipe(
     Effect.provide(FetchHttpClient.layer),
     Effect.provideService(FetchHttpClient.Fetch, fetch),

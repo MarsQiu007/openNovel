@@ -110,7 +110,9 @@ export const recordingLayer = (
           return redactor.request({
             method: web.method,
             url: web.url,
-            headers: Object.fromEntries(web.headers.entries()),
+            headers: Object.fromEntries(
+              (web.headers as unknown as { entries(): IterableIterator<[string, string]> }).entries(),
+            ),
             body: yield* Effect.promise(() => web.text()),
           })
         })

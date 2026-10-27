@@ -125,7 +125,7 @@ describe("memory-facts HTTP 业务实现", () => {
     expect(row).toMatchObject({ created_by: "author", fact_type: "note", status: "pending", chapter_id: chapterId })
 
     const hits = await Effect.runPromise(listMemoryFacts(novelId, projectDir, { q: "前朝遗孤" }))
-    expect(hits.items.map((i) => i.id)).toEqual([created.factId])
+    expect(hits.items.map((i) => i.id)).toEqual([created.factId!])
   })
 
   test("手记创建：章节不属本书返回 ChapterNotFoundError", async () => {
