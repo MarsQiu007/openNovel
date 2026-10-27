@@ -120,7 +120,7 @@ describe("bootstrapDirectory", () => {
         agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
         command: { list: async () => ({ data: { data: [] } }) },
         reference: { list: async () => ({ data: { data: [] } }) },
-        session: { active: async () => ({ data: { data: {} } }) },
+        session: { active: async () => ({ data: { data: { ses_busy: true } } }) },
         permission: { request: { list: async () => ({ data: { data: [] } }) } },
         question: { request: { list: async () => ({ data: { data: [] } }) } },
       },

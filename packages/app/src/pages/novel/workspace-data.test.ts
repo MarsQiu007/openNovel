@@ -42,8 +42,8 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
             if (opts.failAt === "create") throw new Error("create failed")
             return { data: { data: { id: "s-new" } } }
           },
-          prompt: async (args: { sessionID: string; parts: { type: string; text: string }[] }) => {
-            calls.push(`prompt:${args.sessionID}:${args.parts[0]?.text}`)
+          prompt: async (args: { sessionID: string; prompt: { text: string } }) => {
+            calls.push(`prompt:${args.sessionID}:${args.prompt.text}`)
             return {}
           },
         },
