@@ -44,6 +44,18 @@ export const Plugin = define({
       Effect.fn(function* (catalog) {
         const entries = yield* config.entries()
         const files = entries.filter((entry): entry is Config.Document => entry.type === "document")
+        // 调试：CI 探明 provider 配置加载
+        for (const file of files) {
+          const providerKeys = Object.keys(file.info.providers ?? {})
+          if (providerKeys.length > 0) {
+            console.log(`[config-provider debug] file=${file.path} providers=${providerKeys.join(",")}`)
+            const test = file.info.providers?.["test"]
+            if (test) {
+              console.log(`[config-provider debug] test.api=${JSON.stringify(test.api)}`)
+              console.log(`[config-provider debug] test.request=${JSON.stringify(test.request)}`)
+            }
+          }
+        }
         const configuredDefault = Config.latest(entries, "model")
         if (configuredDefault !== undefined) {
           const model = ModelV2.parse(configuredDefault)
