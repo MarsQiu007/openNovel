@@ -14,6 +14,15 @@ const config = path.join(xdgConfig!, app)
 const state = path.join(xdgState!, app)
 const tmp = path.join(os.tmpdir(), app)
 
+// 调试：CI 中探明子进程全局配置目录解析
+if (process.env.OPENNOVEL_TEST_HOME) {
+  console.log(`[global.ts debug] xdgConfig=${xdgConfig}`)
+  console.log(`[global.ts debug] config=${config}`)
+  console.log(`[global.ts debug] OPENNOVEL_TEST_HOME=${process.env.OPENNOVEL_TEST_HOME}`)
+  console.log(`[global.ts debug] XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME}`)
+  console.log(`[global.ts debug] HOME=${process.env.HOME}`)
+}
+
 const paths = {
   get home() {
     return process.env.OPENNOVEL_TEST_HOME ?? os.homedir()
