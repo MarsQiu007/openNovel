@@ -87,12 +87,29 @@ succeed——无引导方（最小测试/嵌入层图）立即放行，不挂死
 挂在 `State.batch` 的 onExit 上，批末 reload 全部执行完后才放行，
 等待方读到的 catalog 数据必然已提交。
 
+### 批重组回归（attempt 3 暴露，`fa24b12f4` 修复）
+
+初版把 config-skill 等与网络型插件一起移到 release 之后的 deferred
+批，CI 首跑 httpapi-sdk 即挂：REST prompt context 断言
+`project-rest-skill` 缺席——`awaitTestModel` 轮询 test-model 可见
+（= catalog 批提交 = 门 release），skills 却在 release 后才注册。
+原版单批注册全部插件，skill 与 model 同一次批末提交，不存在此窗口。
+
+核查注册成本后重组：config-skill/config-agent/config-command/
+config-reference 均为纯本地 transform（config-skill 只声明 skill
+source，URL 下载发生在消费侧 materialize），全部回归 catalog 批
+（保持原版相对顺序）；唯一网络型是 config-external（npm registry
+安装），保持 defer。门放行时 models/providers/agents/commands/
+skills 同批可见，恢复原版语义。
+
 ## 验证
 
 - 本地延迟复现：1500ms 延迟下 `bun test test/cli/` 49 用例全过
   （修复前同条件复现 CI 两种形态）；移除延迟后同样全过
-- core 全量（XDG 隔离）1194 通过；opennovel 全量 1679 通过
+- core 全量（XDG 隔离）1201 通过；opennovel 全量 1710 通过
   （含 workspace-adapter 补绑定修复后）；core/opennovel typecheck 干净
+- 批重组后：httpapi-sdk 本地 3 轮全绿；1500ms 批内延迟下 cli 全量
+  49 + httpapi-sdk 13 全过（skills 与 models 同批可见）
 - `location-layer.test.ts` 的「rejects unavailable」用例原本依赖竞态
   （boot 提交前 catalog 为空才有 ModelUnavailableError）；修复后等待
   提交再解析，测试在隔离环境下确定性通过

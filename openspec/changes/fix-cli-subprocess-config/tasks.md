@@ -11,7 +11,10 @@
        SessionExecution）：归因为 v1-removal 同期提交 12457855d1 的旧伤，
        测试图补绑定修复（4fed136487，记在该 change 名下收尾）
 - [x] 9. 信号插件方案换成零依赖 PluginBoot 门（0d32bbc24，见 design.md）
-- [ ] 10. 收集实施提交，更新 tasks.md，归档提案
+- [x] 10. 修复批重组回归：httpapi-sdk 首跑暴露 skills 在 release 后才
+        注册（692f 拆批引入），纯 transform 插件回归 catalog 批、仅
+        defer config-external（fa24b12f4，见 design.md）
+- [ ] 11. 收集实施提交，更新 tasks.md，归档提案
 
 ## 根因
 
@@ -67,6 +70,11 @@ PluginInternal 引导）默认 latch 已 succeed，立即放行不挂死。
    张冠李戴——workspace-adapter 的 Unbound 一度误归因给 692f2e8f71，
    实际是 10 分钟前进入 main 的 v1-removal 提交 12457855d1 引入。
    决定性证据是检出嫌疑提交及其父提交分别复跑：父绿子红即实锤。
+7. 拆批前先核查全部消费方依赖的可见性集合：把插件移出 catalog 批
+   等于推迟其数据对「放行即读」消费方的可见性——config-skill 移到
+   deferred 批后 httpapi-sdk 首跑即挂（awaitTestModel 等 test-model
+   放行时 skills 尚未注册）。纯 transform 一律留批内，只 defer 真
+   网络型（config-external）。
 
 ## 实施提交
 
@@ -74,3 +82,4 @@ PluginInternal 引导）默认 latch 已 succeed，立即放行不挂死。
 - `2c3028ff9c` fix(core): 移除 cli 子进程测试的调试日志
 - `692f2e8f71` fix(core): 模型解析等待内置插件 catalog 引导完成
 - `0d32bbc24` fix(core): 模型解析等待插件引导门放行
+- `fa24b12f4` fix(core): 纯 transform 插件回归 catalog 批，仅 defer config-external
