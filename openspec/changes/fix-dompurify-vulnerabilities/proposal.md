@@ -6,9 +6,9 @@ Dependabot 在 `packages/ui` 和 `packages/session-ui` 中检测到 dompurify 3 
 
 | # | 严重度 | GHSA | 摘要 |
 |---|--------|------|------|
-| 78 | **critical** | GHSA-pcvr-42fw-5jfr | SAFE_FOR_TEMPLATES bypass: split template expressions survive in attached shadow root content |
-| 79 | **high** | GHSA-vhxf-7vqr-m22g | IN_PLACE: hook that removes parent/sibling leaves detached subtree's event handlers armed |
-| 80 | **low** | GHSA-mmhx-hmjr-r674 | SMIL attributeName=href guard skipped when PARSER_MEDIA_TYPE=application/xhtml+xml |
+| 80 | **critical** | GHSA-cg2g-xh64-v4q7 | SAFE_FOR_TEMPLATES bypass: split template expressions survive in attached shadow root content |
+| 79 | **high** | GHSA-mrv2-3pqr-j5jr | IN_PLACE: hook that removes parent/sibling leaves detached subtree's event handlers armed |
+| 78 | **low** | GHSA-c6gr-qvv4-5v3f | SMIL attributeName=href guard skipped when PARSER_MEDIA_TYPE=application/xhtml+xml |
 
 当前版本 `3.4.16` 在漏洞范围 `<= 3.4.16` 内，需升级到 `>= 3.4.17` 修复。
 

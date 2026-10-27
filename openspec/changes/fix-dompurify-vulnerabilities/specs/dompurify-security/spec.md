@@ -9,9 +9,9 @@
 ### Requirement: dompurify 版本不低于 3.4.17
 
 `packages/ui` 和 `packages/session-ui` 的 `dompurify` 依赖版本 SHALL 不低于 `3.4.17`，以修复以下已知漏洞：
-- GHSA-pcvr-42fw-5jfr（critical）：SAFE_FOR_TEMPLATES bypass
-- GHSA-vhxf-7vqr-m22g（high）：IN_PLACE hook 残留事件处理器
-- GHSA-mmhx-hmjr-r674（low）：SMIL attributeName=href guard 跳过
+- GHSA-cg2g-xh64-v4q7（critical）：SAFE_FOR_TEMPLATES bypass
+- GHSA-mrv2-3pqr-j5jr（high）：IN_PLACE hook 残留事件处理器
+- GHSA-c6gr-qvv4-5v3f（low）：SMIL attributeName=href guard 跳过
 
 #### Scenario: 升级后版本检查
 
