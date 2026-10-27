@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/function",
-  "version": "0.0.12",
+  "version": "0.1.0",
   "$schema": "https://json.schemastore.org/package.json",
   "private": true,
   "type": "module",
