@@ -51,7 +51,7 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   // 当前打开会话的祖先链始终强制展开（见 SwitcherSessionEntry 的 containsActive）
   const [childrenCollapsed, setChildrenCollapsed] = createSignal<Record<string, boolean>>({})
   // 运行指示与活跃横条同源：全局同步 store 的会话运行状态（busy/retry）
-  const isWorking = (sessionID: string) => !!sync().data.session_working(sessionID)
+  const isWorking = (sessionID: string) => sync().data.session_working(sessionID)
 
   const trigger = () =>
     sessionSwitcherTrigger({
@@ -169,7 +169,7 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
                         option={option}
                         depth={0}
                         activeSessionID={params.id}
-                        isCollapsed={(sessionID) => !!childrenCollapsed()[sessionID]}
+                        isCollapsed={(sessionID) => childrenCollapsed()[sessionID] ?? false}
                         onToggleChildren={(sessionID) =>
                           setChildrenCollapsed((prev) => ({ ...prev, [sessionID]: !prev[sessionID] }))
                         }

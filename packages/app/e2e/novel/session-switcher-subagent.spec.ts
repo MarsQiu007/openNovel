@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer, type MockSession } from "../utils/mock-server"
-import { installSseTransport, type SseTransport } from "../utils/sse-transport"
+import { installSseTransport } from "../utils/sse-transport"
 import { v2Event, type V2SseFrame } from "../utils/v2-fixture"
 import { APP_READY_TIMEOUT } from "../utils/waits"
 

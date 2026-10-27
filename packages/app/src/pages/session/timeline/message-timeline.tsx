@@ -213,7 +213,7 @@ export function MessageTimeline(props: {
       .map((item) => ({ id: item.id, title: item.title }))
   })
   const activeSubagentList = createMemo(() =>
-    activeSubagentEntries({ children: directChildren(), working: (id) => !!sync().data.session_working(id) }),
+    activeSubagentEntries({ children: directChildren(), working: (id) => sync().data.session_working(id) }),
   )
   const getMsgParts = (msgId: string) => sync().data.part[msgId] ?? emptyParts
   const getMsgPart = (messageID: string, partID: string) => getMsgParts(messageID).find((part) => part.id === partID)
