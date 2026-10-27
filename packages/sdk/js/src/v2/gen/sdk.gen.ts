@@ -122,6 +122,8 @@ import type {
   NovelCreateWorldMapInput,
   NovelExportFormat,
   NovelManualEditSyncRetryInput,
+  NovelMemoryFactCreateInput,
+  NovelMemoryFactEditInput,
   NovelMoveChapterInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
@@ -361,6 +363,22 @@ import type {
   V2NovelForSessionResponses,
   V2NovelListErrors,
   V2NovelListResponses,
+  V2NovelMemoryFactsApproveErrors,
+  V2NovelMemoryFactsApproveResponses,
+  V2NovelMemoryFactsCountsErrors,
+  V2NovelMemoryFactsCountsResponses,
+  V2NovelMemoryFactsCreateErrors,
+  V2NovelMemoryFactsCreateResponses,
+  V2NovelMemoryFactsEditErrors,
+  V2NovelMemoryFactsEditResponses,
+  V2NovelMemoryFactsListErrors,
+  V2NovelMemoryFactsListResponses,
+  V2NovelMemoryFactsRetireErrors,
+  V2NovelMemoryFactsRetireResponses,
+  V2NovelMemoryFactsUnmergeErrors,
+  V2NovelMemoryFactsUnmergeResponses,
+  V2NovelMemoryMaintenanceErrors,
+  V2NovelMemoryMaintenanceResponses,
   V2NovelModeGetErrors,
   V2NovelModeGetResponses,
   V2NovelModeSetErrors,
@@ -493,6 +511,10 @@ import type {
   V2NovelVolumesResponses,
   V2NovelWorldEntriesErrors,
   V2NovelWorldEntriesResponses,
+  V2NovelWritingBatchCancelErrors,
+  V2NovelWritingBatchCancelResponses,
+  V2NovelWritingBatchErrors,
+  V2NovelWritingBatchResponses,
   V2PermissionRequestListErrors,
   V2PermissionRequestListResponses,
   V2PermissionSavedListErrors,
@@ -5927,6 +5949,315 @@ export class ReviewInbox extends HeyApiClient {
   }
 }
 
+export class MemoryFacts extends HeyApiClient {
+  /**
+   * List memory facts
+   *
+   * List memory facts with status/fact-type/chapter/keyword filters and pagination.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+      factType?: string
+      chapterId?: string
+      q?: string
+      limit?: string
+      offset?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { in: "query", key: "status" },
+            { in: "query", key: "factType" },
+            { in: "query", key: "chapterId" },
+            { in: "query", key: "q" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "offset" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelMemoryFactsListResponses,
+      V2NovelMemoryFactsListErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Register author note memory fact
+   *
+   * Create an author note card (created_by=author, default fact_type=note) entering the pending lifecycle.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelMemoryFactCreateInput: NovelMemoryFactCreateInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelMemoryFactCreateInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelMemoryFactsCreateResponses,
+      V2NovelMemoryFactsCreateErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get memory fact badge counts
+   *
+   * Todo counts (pending + reviewed + stale) for the settings tree badge.
+   */
+  public counts<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelMemoryFactsCountsResponses,
+      V2NovelMemoryFactsCountsErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts/counts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Edit memory fact text or entity hint
+   *
+   * Author correction of fact text / entity hint; text changes re-sync the FTS index.
+   */
+  public edit<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      factID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelMemoryFactEditInput: NovelMemoryFactEditInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "factID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelMemoryFactEditInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelMemoryFactsEditResponses,
+      V2NovelMemoryFactsEditErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts/{factID}/edit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Approve memory fact
+   *
+   * Author approval is the highest confirmation level: pending/reviewed go straight to approved.
+   */
+  public approve<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      factID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "factID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelMemoryFactsApproveResponses,
+      V2NovelMemoryFactsApproveErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts/{factID}/approve",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Retire memory fact
+   *
+   * Retire keeps the row (no delete); retired cards are hidden by default and have no restore path.
+   */
+  public retire<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      factID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "factID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelMemoryFactsRetireResponses,
+      V2NovelMemoryFactsRetireErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts/{factID}/retire",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Undo consolidation merge
+   *
+   * Restore a card retired by consolidation (retired_into set) back to pending, clearing the merge marker.
+   */
+  public unmerge<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      factID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "path", key: "factID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelMemoryFactsUnmergeResponses,
+      V2NovelMemoryFactsUnmergeErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-facts/{factID}/unmerge",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class SettingImages extends HeyApiClient {
   /**
    * List setting images
@@ -6335,6 +6666,80 @@ export class Novel extends HeyApiClient {
       ThrowOnError
     >({
       url: "/api/novel/session-bindings",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Writing batch progress
+   *
+   * Get the persisted writing-batch record for a novel, with the interrupted flag derived at query time (running batch whose owning session is inactive).
+   */
+  public writingBatch<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelWritingBatchResponses, V2NovelWritingBatchErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/writing-batch",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Cancel writing batch
+   *
+   * Mark the running writing batch as cancelled (abandon). Fails when no running batch exists.
+   */
+  public writingBatchCancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelWritingBatchCancelResponses,
+      V2NovelWritingBatchCancelErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/writing-batch/cancel",
       ...options,
       ...params,
     })
@@ -9478,6 +9883,45 @@ export class Novel extends HeyApiClient {
   }
 
   /**
+   * Get memory maintenance report
+   *
+   * Read-only report: zombie (stale) facts, stalled planned settings, retired archive stats.
+   */
+  public memoryMaintenance<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      V2NovelMemoryMaintenanceResponses,
+      V2NovelMemoryMaintenanceErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/memory-maintenance",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get canvas layout
    */
   public canvasLayout<ThrowOnError extends boolean = false>(
@@ -10368,6 +10812,11 @@ export class Novel extends HeyApiClient {
   private _reviewInbox?: ReviewInbox
   get reviewInbox(): ReviewInbox {
     return (this._reviewInbox ??= new ReviewInbox({ client: this.client }))
+  }
+
+  private _memoryFacts?: MemoryFacts
+  get memoryFacts(): MemoryFacts {
+    return (this._memoryFacts ??= new MemoryFacts({ client: this.client }))
   }
 
   private _settingImages?: SettingImages

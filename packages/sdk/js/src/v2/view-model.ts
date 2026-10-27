@@ -292,13 +292,7 @@ export type CompactionPart = {
   tail_start_id?: string
 }
 
-export type Part =
-  | TextPart
-  | ReasoningPart
-  | FilePart
-  | ToolPart
-  | AgentPart
-  | CompactionPart
+export type Part = TextPart | ReasoningPart | FilePart | ToolPart | AgentPart | CompactionPart
 
 export type QuestionOption = {
   /**

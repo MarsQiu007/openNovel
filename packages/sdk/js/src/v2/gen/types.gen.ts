@@ -5005,6 +5005,18 @@ export type NovelSessionBinding = {
   novelTitle: string
 }
 
+export type NovelWritingBatch = {
+  novelId: string
+  sessionId: string
+  startChapter: number
+  total: number
+  completed: number
+  status: "running" | "completed" | "cancelled"
+  interrupted: boolean
+  createdAt: number
+  updatedAt: number
+}
+
 export type NovelStyleGuide = {
   id: string
   novelId: string
@@ -5758,7 +5770,7 @@ export type NovelReviewInboxCandidateMergeInput = {
 }
 
 export type NovelReviewInboxConflictResolveInput = {
-  action: "update_entry" | "keep_current"
+  action: "update_entry" | "keep_current" | "revise_chapters"
   content?: string
   note?: string
   source?: "agent" | "user"
@@ -5767,8 +5779,9 @@ export type NovelReviewInboxConflictResolveInput = {
 export type NovelReviewInboxConflictResolveResult = {
   ok: boolean
   conflictId?: string
-  action?: "update_entry" | "keep_current"
+  action?: "update_entry" | "keep_current" | "revise_chapters"
   stagedChangeId?: string
+  rewriteTasks?: Array<string>
   error?: string
 }
 
@@ -5799,6 +5812,80 @@ export type NovelReviewInboxBatchResult = {
   supersededIds: Array<string>
   execution?: NovelSettingOrganizationApplyResult
   errors: Array<string>
+}
+
+export type NovelMemoryFactItem = {
+  id: string
+  factType: string
+  entityHint: string
+  text: string
+  quote: string
+  chapterId: string
+  chapterOrder: number
+  status: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  retiredInto: string
+  confidence: number
+  proofCount: number
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type NovelMemoryFactCounts = {
+  pending: number
+  reviewed: number
+  stale: number
+  total: number
+}
+
+export type NovelMemoryFactListResult = {
+  items: Array<NovelMemoryFactItem>
+  total: number
+  counts: NovelMemoryFactCounts
+}
+
+export type NovelMemoryMaintenanceZombieFact = {
+  id: string
+  chapterOrder: number
+  text: string
+}
+
+export type NovelMemoryMaintenancePlannedItem = {
+  kind: "character" | "world_entry"
+  id: string
+  title: string
+  chaptersSince: number
+  stalled: boolean
+}
+
+export type NovelMemoryMaintenanceReport = {
+  zombieFacts: Array<NovelMemoryMaintenanceZombieFact>
+  planned: Array<NovelMemoryMaintenancePlannedItem>
+  retiredStats: {
+    facts: number
+    techniques: number
+  }
+  stalledThreshold: number
+}
+
+export type NovelMemoryFactCreateInput = {
+  text: string
+  factType?: string
+  entityHint?: string
+  quote?: string
+  chapterId?: string
+}
+
+export type NovelMemoryFactOperationResult = {
+  ok: boolean
+  factId?: string
+  status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+  error?: string
+}
+
+export type NovelMemoryFactEditInput = {
+  text?: string
+  entityHint?: string
 }
 
 export type NovelCanvasLayout = {
@@ -12016,6 +12103,89 @@ export type V2NovelSessionBindingsResponses = {
 
 export type V2NovelSessionBindingsResponse = V2NovelSessionBindingsResponses[keyof V2NovelSessionBindingsResponses]
 
+export type V2NovelWritingBatchData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/writing-batch"
+}
+
+export type V2NovelWritingBatchErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelWritingBatchError = V2NovelWritingBatchErrors[keyof V2NovelWritingBatchErrors]
+
+export type V2NovelWritingBatchResponses = {
+  /**
+   * Success
+   */
+  200: NovelWritingBatch
+}
+
+export type V2NovelWritingBatchResponse = V2NovelWritingBatchResponses[keyof V2NovelWritingBatchResponses]
+
+export type V2NovelWritingBatchCancelData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/writing-batch/cancel"
+}
+
+export type V2NovelWritingBatchCancelErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+}
+
+export type V2NovelWritingBatchCancelError = V2NovelWritingBatchCancelErrors[keyof V2NovelWritingBatchCancelErrors]
+
+export type V2NovelWritingBatchCancelResponses = {
+  /**
+   * Novel.WritingBatch
+   */
+  200: NovelWritingBatch
+}
+
+export type V2NovelWritingBatchCancelResponse =
+  V2NovelWritingBatchCancelResponses[keyof V2NovelWritingBatchCancelResponses]
+
 export type V2NovelDeleteData = {
   body?: never
   path: {
@@ -15868,6 +16038,382 @@ export type V2NovelReviewInboxBatchResponses = {
 }
 
 export type V2NovelReviewInboxBatchResponse = V2NovelReviewInboxBatchResponses[keyof V2NovelReviewInboxBatchResponses]
+
+export type V2NovelMemoryFactsListData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+    status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
+    factType?: string
+    chapterId?: string
+    q?: string
+    limit?: string
+    offset?: string
+  }
+  url: "/api/novel/{novelID}/memory-facts"
+}
+
+export type V2NovelMemoryFactsListErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsListError = V2NovelMemoryFactsListErrors[keyof V2NovelMemoryFactsListErrors]
+
+export type V2NovelMemoryFactsListResponses = {
+  /**
+   * Novel.MemoryFactListResult
+   */
+  200: NovelMemoryFactListResult
+}
+
+export type V2NovelMemoryFactsListResponse = V2NovelMemoryFactsListResponses[keyof V2NovelMemoryFactsListResponses]
+
+export type V2NovelMemoryFactsCreateData = {
+  body: NovelMemoryFactCreateInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts"
+}
+
+export type V2NovelMemoryFactsCreateErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError | ChapterNotFoundError
+   */
+  404: NovelNotFoundError | ChapterNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsCreateError = V2NovelMemoryFactsCreateErrors[keyof V2NovelMemoryFactsCreateErrors]
+
+export type V2NovelMemoryFactsCreateResponses = {
+  /**
+   * Novel.MemoryFactOperationResult
+   */
+  200: NovelMemoryFactOperationResult
+}
+
+export type V2NovelMemoryFactsCreateResponse =
+  V2NovelMemoryFactsCreateResponses[keyof V2NovelMemoryFactsCreateResponses]
+
+export type V2NovelMemoryFactsCountsData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts/counts"
+}
+
+export type V2NovelMemoryFactsCountsErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsCountsError = V2NovelMemoryFactsCountsErrors[keyof V2NovelMemoryFactsCountsErrors]
+
+export type V2NovelMemoryFactsCountsResponses = {
+  /**
+   * Novel.MemoryFactCounts
+   */
+  200: NovelMemoryFactCounts
+}
+
+export type V2NovelMemoryFactsCountsResponse =
+  V2NovelMemoryFactsCountsResponses[keyof V2NovelMemoryFactsCountsResponses]
+
+export type V2NovelMemoryMaintenanceData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-maintenance"
+}
+
+export type V2NovelMemoryMaintenanceErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryMaintenanceError = V2NovelMemoryMaintenanceErrors[keyof V2NovelMemoryMaintenanceErrors]
+
+export type V2NovelMemoryMaintenanceResponses = {
+  /**
+   * Novel.MemoryMaintenanceReport
+   */
+  200: NovelMemoryMaintenanceReport
+}
+
+export type V2NovelMemoryMaintenanceResponse =
+  V2NovelMemoryMaintenanceResponses[keyof V2NovelMemoryMaintenanceResponses]
+
+export type V2NovelMemoryFactsEditData = {
+  body: NovelMemoryFactEditInput
+  path: {
+    novelID: string
+    factID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts/{factID}/edit"
+}
+
+export type V2NovelMemoryFactsEditErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsEditError = V2NovelMemoryFactsEditErrors[keyof V2NovelMemoryFactsEditErrors]
+
+export type V2NovelMemoryFactsEditResponses = {
+  /**
+   * Novel.MemoryFactOperationResult
+   */
+  200: NovelMemoryFactOperationResult
+}
+
+export type V2NovelMemoryFactsEditResponse = V2NovelMemoryFactsEditResponses[keyof V2NovelMemoryFactsEditResponses]
+
+export type V2NovelMemoryFactsApproveData = {
+  body?: never
+  path: {
+    novelID: string
+    factID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts/{factID}/approve"
+}
+
+export type V2NovelMemoryFactsApproveErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsApproveError = V2NovelMemoryFactsApproveErrors[keyof V2NovelMemoryFactsApproveErrors]
+
+export type V2NovelMemoryFactsApproveResponses = {
+  /**
+   * Novel.MemoryFactOperationResult
+   */
+  200: NovelMemoryFactOperationResult
+}
+
+export type V2NovelMemoryFactsApproveResponse =
+  V2NovelMemoryFactsApproveResponses[keyof V2NovelMemoryFactsApproveResponses]
+
+export type V2NovelMemoryFactsRetireData = {
+  body?: never
+  path: {
+    novelID: string
+    factID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts/{factID}/retire"
+}
+
+export type V2NovelMemoryFactsRetireErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsRetireError = V2NovelMemoryFactsRetireErrors[keyof V2NovelMemoryFactsRetireErrors]
+
+export type V2NovelMemoryFactsRetireResponses = {
+  /**
+   * Novel.MemoryFactOperationResult
+   */
+  200: NovelMemoryFactOperationResult
+}
+
+export type V2NovelMemoryFactsRetireResponse =
+  V2NovelMemoryFactsRetireResponses[keyof V2NovelMemoryFactsRetireResponses]
+
+export type V2NovelMemoryFactsUnmergeData = {
+  body?: never
+  path: {
+    novelID: string
+    factID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/{novelID}/memory-facts/{factID}/unmerge"
+}
+
+export type V2NovelMemoryFactsUnmergeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * NovelNotFoundError
+   */
+  404: NovelNotFoundError
+  /**
+   * ServiceUnavailableError
+   */
+  503: ServiceUnavailableError
+}
+
+export type V2NovelMemoryFactsUnmergeError = V2NovelMemoryFactsUnmergeErrors[keyof V2NovelMemoryFactsUnmergeErrors]
+
+export type V2NovelMemoryFactsUnmergeResponses = {
+  /**
+   * Novel.MemoryFactOperationResult
+   */
+  200: NovelMemoryFactOperationResult
+}
+
+export type V2NovelMemoryFactsUnmergeResponse =
+  V2NovelMemoryFactsUnmergeResponses[keyof V2NovelMemoryFactsUnmergeResponses]
 
 export type V2NovelCanvasLayoutData = {
   body?: never
