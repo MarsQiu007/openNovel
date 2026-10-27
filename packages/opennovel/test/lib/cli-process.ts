@@ -78,6 +78,11 @@ function isolatedEnv(home: string, configJson: string): Record<string, string> {
     // 钉到 home 下的文件路径，子进程间共享且与宿主机隔离。
     OPENNOVEL_DB: path.join(home, ".local/share/opennovel/opennovel-test.db"),
     OPENNOVEL_CONFIG_CONTENT: configJson,
+    // 显式钉住全局配置目录，绕过 xdg-basedir 在子进程模块加载时的缓存行为。
+    // 不写这项时，Linux CI 上子进程的 global.config 可能解析到 preload 的
+    // XDG_CONFIG_HOME（而非此处隔离的 home/.config），导致 test provider 配置
+    // 读不到，模型解析回退到 vivgrid 默认模型而失败。
+    OPENNOVEL_CONFIG_DIR: path.join(home, ".config", "opennovel"),
     OPENNOVEL_DISABLE_PROJECT_CONFIG: "1",
     OPENNOVEL_PURE: "1",
     OPENNOVEL_DISABLE_AUTOUPDATE: "1",
