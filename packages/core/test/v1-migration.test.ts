@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Schema } from "effect"
-import { asc, eq } from "drizzle-orm"
+import { asc, eq, sql } from "drizzle-orm"
 import { Database } from "@opennovel-ai/core/database/database"
 import { DataMigrationTable } from "@opennovel-ai/core/data-migration.sql"
 import { EventSequenceTable, EventTable } from "@opennovel-ai/core/event/sql"
@@ -20,9 +20,35 @@ const run = <A, E>(effect: Effect.Effect<A, E, Database.Service>) =>
     Effect.gen(function* () {
       const database = yield* Database.Service
       yield* seedProject(database.db)
+      yield* seedV1Tables(database.db)
       return yield* effect
     }),
   )
+
+// v1-removal G5 后新 schema 不再含 message/part 表；测试需手动建表播种 V1 存量
+function seedV1Tables(db: Database.Interface["db"]) {
+  return Effect.gen(function* () {
+    yield* db
+      .run(sql`CREATE TABLE IF NOT EXISTS \`message\` (
+        \`id\` TEXT PRIMARY KEY,
+        \`session_id\` TEXT NOT NULL,
+        \`time_created\` INTEGER NOT NULL DEFAULT (unixepoch()),
+        \`time_updated\` INTEGER NOT NULL DEFAULT (unixepoch()),
+        \`data\` TEXT NOT NULL
+      )`)
+      .pipe(Effect.orDie)
+    yield* db
+      .run(sql`CREATE TABLE IF NOT EXISTS \`part\` (
+        \`id\` TEXT PRIMARY KEY,
+        \`message_id\` TEXT NOT NULL,
+        \`session_id\` TEXT NOT NULL,
+        \`time_created\` INTEGER NOT NULL DEFAULT (unixepoch()),
+        \`time_updated\` INTEGER NOT NULL DEFAULT (unixepoch()),
+        \`data\` TEXT NOT NULL
+      )`)
+      .pipe(Effect.orDie)
+  })
+}
 
 function seedProject(db: Database.Interface["db"]) {
   return db

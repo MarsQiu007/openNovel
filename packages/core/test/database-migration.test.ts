@@ -238,6 +238,13 @@ describe("DatabaseMigration", () => {
         const db = yield* makeDb
         yield* db.run(sql`PRAGMA foreign_keys = ON`)
         yield* DatabaseMigration.apply(db)
+        // v1-removal G5 后新 schema 不再含 message/part 表；本测试验证 V1 存量保留需手动建表
+        yield* db.run(
+          sql`CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)`,
+        )
+        yield* db.run(
+          sql`CREATE TABLE part (id text PRIMARY KEY, message_id text NOT NULL, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)`,
+        )
         yield* db.run(
           sql`INSERT INTO project (id, worktree, time_created, time_updated, sandboxes) VALUES ('global', '/project', 1, 1, '[]')`,
         )
