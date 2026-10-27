@@ -60,8 +60,10 @@ import { useTabs } from "@/context/tabs"
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { findNovelSessionNode, useBoundNovelSessions } from "@/context/novel-queries"
 import { getModelFallback } from "@/context/model-variant"
 import { sessionTitle } from "@/utils/session-title"
+import { ActiveSubagentBar, activeSubagentEntries } from "./active-subagent-bar"
 import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
@@ -196,6 +198,23 @@ export function MessageTimeline(props: {
     return sync().data.message[id] ?? emptyMessages
   })
   const parentTitle = createMemo(() => sessionTitle(parent()?.title) ?? language.t("command.session.new"))
+  // 活跃子代理横条（subagent-session-visibility）：直接子代理集合 × 运行判定（busy/retry）。
+  // 书内上下文取绑定会话树第一层（可靠全集）；非书内回退全局同步窗口（trim 后可能不全，尽力而为）。
+  const boundSessions = useBoundNovelSessions(() => params.novelID ?? "")
+  const directChildren = createMemo(() => {
+    const id = sessionID()
+    if (!id) return []
+    if (params.novelID) {
+      const node = findNovelSessionNode(boundSessions.data ?? [], id)
+      return (node?.children ?? []).map((child) => ({ id: child.sessionID, title: child.title }))
+    }
+    return (sync().data.session ?? [])
+      .filter((item) => item.parentID === id && !item.time.archived)
+      .map((item) => ({ id: item.id, title: item.title }))
+  })
+  const activeSubagentList = createMemo(() =>
+    activeSubagentEntries({ children: directChildren(), working: (id) => !!sync().data.session_working(id) }),
+  )
   const getMsgParts = (msgId: string) => sync().data.part[msgId] ?? emptyParts
   const getMsgPart = (messageID: string, partID: string) => getMsgParts(messageID).find((part) => part.id === partID)
   const childTaskDescription = createMemo(() => {
@@ -808,6 +827,17 @@ export function MessageTimeline(props: {
     )
   }
 
+  // 横条条目导航：书内带 novelID 路由，首页走会话路由（与 navigateParent 同一套分支）
+  const navigateSubagent = (id: string) => {
+    if (params.novelID) {
+      navigate(`/${params.dir}/novel/${params.novelID}/session/${id}`)
+      return
+    }
+    navigate(
+      params.serverKey ? sessionHref(requireServerKey(params.serverKey), id) : legacySessionHref(sdk().directory, id),
+    )
+  }
+
   function DialogDeleteSession(props: { sessionID: string }) {
     const name = createMemo(
       () => sessionTitle(sync().session.get(props.sessionID)?.title) ?? language.t("command.session.new"),
@@ -1209,7 +1239,8 @@ export function MessageTimeline(props: {
   }
 
   return (
-    <div class="relative w-full h-full min-w-0">
+    <div class="relative flex w-full h-full min-w-0 flex-col">
+      <ActiveSubagentBar entries={activeSubagentList()} onSelect={navigateSubagent} />
       <div
         class="absolute left-1/2 -translate-x-1/2 z-[60] pointer-events-none transition-all duration-200 ease-out"
         classList={{
@@ -1274,7 +1305,7 @@ export function MessageTimeline(props: {
         onKeyDown={handleListKeyDown}
         onScroll={handleListScroll}
         onClick={props.onAutoScrollInteraction}
-        class="relative min-w-0 w-full h-full"
+        class="relative min-h-0 min-w-0 w-full flex-1"
         style={{
           "--sticky-accordion-top": showHeader() ? "48px" : "0px",
         }}

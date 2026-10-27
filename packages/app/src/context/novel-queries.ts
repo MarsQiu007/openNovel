@@ -76,6 +76,19 @@ export function flattenNovelSessionOptions(options: readonly NovelSessionOption[
   return nodes
 }
 
+/** 在绑定会话树中定位指定会话节点（含主会话与任意层级子代理），未命中返回 undefined。 */
+export function findNovelSessionNode(
+  options: readonly NovelSessionOption[],
+  sessionID: string,
+): NovelSessionOption | NovelChildSessionOption | undefined {
+  for (const option of options) {
+    if (option.sessionID === sessionID) return option
+    const hit = findNovelSessionNode(option.children, sessionID)
+    if (hit) return hit
+  }
+  return undefined
+}
+
 /**
  * 未选中会话时的自动回跳目标（subagent-session-binding D5）：记忆会话在含后代的完整
  * 集合内查找，命中（任意层级，含子代理）即恢复；未命中回落到最近活跃（time.updated

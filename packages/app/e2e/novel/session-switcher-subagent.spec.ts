@@ -249,7 +249,22 @@ test("switcher marks running subagents and clears the indicator when they finish
   await expect(dots).toHaveCount(1)
   await expect(menu.getByRole("menuitemradio", { name: childTitle }).locator('[data-action="novel-switcher-working-dot"]')).toBeVisible()
 
-  // 子代理结束：指示消失，无需刷新页面
+  // 时间线上方横条同步出现：列出运行中子代理（标题 + 运行指示）
+  const bar = page.locator('[data-action="active-subagent-bar"]')
+  const entry = page.locator('[data-action="active-subagent-entry"]')
+  await expect(bar).toBeVisible()
+  await expect(entry).toHaveCount(1)
+  await expect(entry).toContainText(childTitle)
+
+  // 收起下拉后点击横条条目：进入子会话查看输出
+  await page.keyboard.press("Escape")
+  await entry.click()
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${childID}$`), { timeout: 15_000 })
+  await expect(page.getByText("Subagent sessions cannot be prompted.")).toBeVisible()
+  // 子会话无直接子代理：不渲染横条
+  await expect(page.locator('[data-action="active-subagent-bar"]')).toHaveCount(0)
+
+  // 子代理结束：指示消失（无需刷新），切回主会话后横条整体消失
   childBusy = false
   await transport.send(
     v2Event(directory, "session.next.step.ended", {
@@ -261,6 +276,9 @@ test("switcher marks running subagents and clears the indicator when they finish
       tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     }),
   )
-  await expect(dots).toHaveCount(0)
-  await expect(menu.getByRole("menuitemradio", { name: childTitle })).toBeVisible()
+  const reopened = await openSwitcherMenu(page)
+  await expect(reopened.locator('[data-action="novel-switcher-working-dot"]')).toHaveCount(0)
+  await reopened.getByRole("menuitemradio", { name: mainTitle }).click()
+  await expect(page).toHaveURL(new RegExp(`/novel/${novelID}/session/${mainID}$`), { timeout: 15_000 })
+  await expect(page.locator('[data-action="active-subagent-bar"]')).toHaveCount(0)
 })
