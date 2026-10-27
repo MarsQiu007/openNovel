@@ -515,7 +515,7 @@ const layer = Layer.effect(
       }
       const { timeout } = yield* configured()
       const requestTimeout = entry.config.timeout?.request ?? timeout?.request ?? DEFAULT_TIMEOUT
-      return yield* Effect.tryPromise({
+      const result = yield* Effect.tryPromise({
         try: () =>
           client.callTool({ name: input.name, arguments: input.args ?? {} }, CallToolResultSchema, {
             resetTimeoutOnProgress: true,
@@ -530,6 +530,7 @@ const layer = Layer.effect(
             message: `MCP tool "${input.name}" on server "${input.server}" failed: ${error instanceof Error ? error.message : String(error)}`,
           }),
       })
+      return result as CallToolResult
     })
 
     function collectFromConnected<T extends { name: string }>(
