@@ -2,13 +2,17 @@
 
 ## 1. 升级 electron
 
-- [ ] 1.1 `packages/desktop/package.json`：`electron` 从 `42.11.8` 改为 `42.11.16`
-- [ ] 1.2 运行 `bun install` 更新 lockfile
+- [x] 1.1 `packages/desktop/package.json`：`electron` 从 `42.11.8` 改为 `42.11.16`
+- [x] 1.2 运行 `bun install` 更新 lockfile
 
 ## 2. 验证
 
-- [ ] 2.1 在 `packages/desktop` 跑 `bun typecheck` 通过
-- [ ] 2.2 确认 electron-updater 无 peerDependencies 限制（已确认：空对象 `{}`）
+- [x] 2.1 在 `packages/desktop` 跑 `bun typecheck` 通过
+- [x] 2.2 确认 electron-updater 无 peerDependencies 限制（已确认：空对象 `{}`）
+
+## Implementation Commits
+
+- `cc69ff1d2` fix(desktop): 升级 electron 42.11.8 → 42.11.16 修复 2 个安全漏洞
 
 ## Workflow follow-up
 
