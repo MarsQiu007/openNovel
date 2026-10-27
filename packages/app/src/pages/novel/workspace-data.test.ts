@@ -32,9 +32,11 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
           list: async (args?: unknown) => {
             listArgs.push(args)
             return {
-              data: opts.sessions ?? (opts.boundSessionID
-                ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
-                : []),
+              data: {
+                data: opts.sessions ?? (opts.boundSessionID
+                  ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
+                  : []),
+              },
             }
           },
           create: async () => {
