@@ -76,6 +76,7 @@ describe("bootstrapDirectory", () => {
             },
           },
           reference: { list: async () => ({ data: { data: [] } }) },
+          session: { active: async () => ({ data: { data: {} } }) },
         },
         mcp: {
           status: async () => {
@@ -117,6 +118,7 @@ describe("bootstrapDirectory", () => {
         agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
         command: { list: async () => ({ data: { data: [] } }) },
         reference: { list: async () => ({ data: { data: [] } }) },
+        session: { active: async () => ({ data: { data: {} } }) },
       },
       mcp: { status: async () => ({ data: {} }) },
       provider: { list: async () => ({ data: { all: [], connected: [], default: {} } }) },

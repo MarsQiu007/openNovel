@@ -27,23 +27,25 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
   const sdk = (() => ({
     directory: "dir-1",
     client: {
-      session: {
-        list: async (args?: unknown) => {
-          listArgs.push(args)
-          return {
-            data: opts.sessions ?? (opts.boundSessionID
-              ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
-              : []),
-          }
-        },
-        create: async () => {
-          calls.push("create")
-          if (opts.failAt === "create") throw new Error("create failed")
-          return { data: { id: "s-new" } }
-        },
-        prompt: async (args: { sessionID: string; parts: { type: string; text: string }[] }) => {
-          calls.push(`prompt:${args.sessionID}:${args.parts[0]?.text}`)
-          return {}
+      v2: {
+        session: {
+          list: async (args?: unknown) => {
+            listArgs.push(args)
+            return {
+              data: opts.sessions ?? (opts.boundSessionID
+                ? [{ id: opts.boundSessionID, parentID: null, time: { archived: false } }]
+                : []),
+            }
+          },
+          create: async () => {
+            calls.push("create")
+            if (opts.failAt === "create") throw new Error("create failed")
+            return { data: { id: "s-new" } }
+          },
+          prompt: async (args: { sessionID: string; parts: { type: string; text: string }[] }) => {
+            calls.push(`prompt:${args.sessionID}:${args.parts[0]?.text}`)
+            return {}
+          },
         },
       },
     },
