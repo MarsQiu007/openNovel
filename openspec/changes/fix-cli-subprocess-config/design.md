@@ -1,28 +1,58 @@
 # 设计
 
-## 根因探明
+## 背景
 
-### 配置链路
+Linux CI 上 4 个 cli 子进程测试（export/run × 2/stats）失败：子进程模型解析
+回退 vivgrid 默认模型 401。本地（Windows + bun 1.4.3）全部通过，无法直接复现。
 
-1. `cli-process.ts` 写入 `home/.config/opennovel/opennovel.json`（test provider 配置）
-2. 子进程通过 `Bun.spawn` 启动，`env` 中设 `XDG_CONFIG_HOME=home/.config`
-3. core `global.ts` 第 13 行 `const config = path.join(xdgConfig!, app)` 计算全局配置目录
-4. `xdg-basedir` 在**模块加载时**读 `env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')`
-5. core `config.ts` 第 173 行 `globalDirectory = AbsolutePath.make(global.config)` 加载全局配置
+## 配置链路
 
-### 可疑点
+1. `cli-process.ts` 的 `isolatedEnv` 设 `XDG_CONFIG_HOME=home/.config`，
+   并把 test provider 配置写盘到 `home/.config/opennovel/opennovel.json`
+   （`OPENNOVEL_CONFIG_CONTENT` 同内容兜底）
+2. core `global.ts` 在模块加载时经 `xdg-basedir` 解析并**缓存** config 目录
+3. V1 `provider` 配置经 `config/v1/migrate.ts` 迁移为 V2 `providers`，
+   由 config-provider 插件注册进 CatalogV2
+4. `provider.available` 过滤：`disabled` / `request.body.apiKey` /
+   integration connections / 无 integration
 
-- `xdg-basedir` 的 `os.homedir()` 在 Linux 上读 `HOME` 环境变量
-- bun 1.3.14（CI）vs bun 1.4.3（本地）可能对模块加载顺序或环境变量传递有不同行为
-- `test/preload.ts` 设置了 `XDG_CONFIG_HOME`，`cli-process.ts` 的 `isolatedEnv` 覆盖它，但 `extendEnv: true` 的合并顺序是否正确？
+## 调试历程（含教训）
 
-### 修复方向
+1. 首轮探针用 `console.log`（写 stdout）→ 污染 `--format json` 的逐行 JSON
+   输出，`parseJsonEvents` 报 SyntaxError。
+   **教训：子进程测试的探针只能写 stderr 或文件，绝不能写 stdout。**
+2. 换 `console.error`（写 stderr）后探明：config 加载正常（providers=test），
+   但 `catalog.model.available()` 为空。
+3. `global.ts` 模块顶层的 `console.error` 反过来打爆了断言子进程 stderr
+   为空的测试（effect-flock、help-text snapshots，确定性失败）。
+   **教训：模块顶层探针连 stderr 也不能写，core 里任何探针都要走文件。**
+4. 三个 debug 提交收官后已全部移除。
 
-1. **首选**：在 `cli-process.ts` 中加调试日志，CI 中打印子进程实际读到的 `global.config` 路径和配置文件内容
-2. **可能修复**：确保 `isolatedEnv` 中的 `XDG_CONFIG_HOME` 在子进程模块加载前生效
-3. **备选**：在 `global.ts` 中改用 `Path.home` 派生 config 路径（而非依赖 `xdg-basedir` 的模块级缓存）
+## CI 失败形态时间线（gh run 对照）
+
+| 提交 | 调试 | 钉住 | export 会话内容 |
+|---|---|---|---|
+| `46b8de3ab4`（基线） | 无 | 无 | 助手行 `vivgrid/gpt-5.6-luna` + 401 |
+| `9d8a32cbe2` | catalog-avail | 无 | 同上（401） |
+| `5d71e2a2ab` | + global/provider | 无 | **无助手行**，`time.updated == created` |
+| `c1b8de3ab4` | 同上 | 有 | 无助手行 |
+
+两种表象同源：子进程内 test provider 未进入 catalog。
+- 回退 401 行 = catalog 里有内置默认（vivgrid），解析失败走 fallback 后请求 401
+- 无助手行 = catalog 全空 → `model.default` 为 undefined → runner 解析抛错 →
+  drain 静默结束 → CLI 退出 0、零事件、零输出（run 测试的「空 stdout」贯穿始终）
+
+## 修复
+
+`c1b8de3ab4`：`isolatedEnv` 显式设 `OPENNOVEL_CONFIG_DIR=home/.config/opennovel`。
+`Flag.OPENNOVEL_CONFIG_DIR` 是动态 env getter，`global.ts make()` 里
+`Flag.OPENNOVEL_CONFIG_DIR ?? Path.config` 优先级高于 xdg-basedir 的
+模块级缓存值 `Path.config`，绕开子进程模块加载时的解析差异。
+
+`2c3028ff9c`：移除全部调试日志，保留钉住，单独验证。
 
 ## 验证
 
-- CI 中 4 个 cli 子进程测试通过
-- 本地测试不回退
+- 本地 `bun test test/cli/`：49 个测试全部通过（含钉住 + 移除调试后）
+- CI：2c3028ff9c 的 run 待确认；若仍失败，export 会话内容可区分
+  「回退 401」还是「catalog 全空」，再定后续方向
