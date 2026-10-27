@@ -40,7 +40,7 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
           create: async () => {
             calls.push("create")
             if (opts.failAt === "create") throw new Error("create failed")
-            return { data: { id: "s-new" } }
+            return { data: { data: { id: "s-new" } } }
           },
           prompt: async (args: { sessionID: string; parts: { type: string; text: string }[] }) => {
             calls.push(`prompt:${args.sessionID}:${args.parts[0]?.text}`)

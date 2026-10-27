@@ -77,6 +77,8 @@ describe("bootstrapDirectory", () => {
           },
           reference: { list: async () => ({ data: { data: [] } }) },
           session: { active: async () => ({ data: { data: {} } }) },
+          permission: { request: { list: async () => ({ data: { data: [] } }) } },
+          question: { request: { list: async () => ({ data: { data: [] } }) } },
         },
         mcp: {
           status: async () => {
@@ -119,6 +121,8 @@ describe("bootstrapDirectory", () => {
         command: { list: async () => ({ data: { data: [] } }) },
         reference: { list: async () => ({ data: { data: [] } }) },
         session: { active: async () => ({ data: { data: {} } }) },
+        permission: { request: { list: async () => ({ data: { data: [] } }) } },
+        question: { request: { list: async () => ({ data: { data: [] } }) } },
       },
       mcp: { status: async () => ({ data: {} }) },
       provider: { list: async () => ({ data: { all: [], connected: [], default: {} } }) },
