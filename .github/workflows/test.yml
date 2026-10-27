@@ -91,6 +91,7 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Install Playwright browsers
+        working-directory: packages/core
         run: bunx playwright install chromium
 
       - name: Run unit tests
