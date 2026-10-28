@@ -25,6 +25,7 @@ import {
   partDefaultOpen,
   type UserActions,
 } from "@opennovel-ai/session-ui/message-part"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 import { FileIcon } from "@opennovel-ai/ui/file-icon"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { IconButton } from "@opennovel-ai/ui/icon-button"
@@ -960,11 +961,15 @@ export function MessageTimeline(props: {
       if (group.type !== "part") return
       return getMsgPart(group.ref.messageID, group.ref.partID)
     })
+    const openKey = createMemo(() => {
+      const item = part()
+      return item ? partAccumKey(item.messageID, item.id) : ""
+    })
     const defaultOpen = createMemo(() => {
       const item = part()
       if (!item) return undefined
-      // 思考块默认展开度取「显示推理摘要」设置；工具卡沿用各自设置
-      if (item.type === "reasoning") return settings.general.showReasoningSummaries()
+      // 摘要可见性只控制流式展示，不让已完成 reasoning 默认展开。
+      if (item.type === "reasoning") return undefined
       return partDefaultOpen(item, settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
     })
 
@@ -980,8 +985,8 @@ export function MessageTimeline(props: {
                 turnDurationMs={turnDurationMs(row().userMessageID)}
                 useV2Actions={settings.general.newLayoutDesigns()}
                 defaultOpen={defaultOpen()}
-                toolOpen={toolOpen[part().id] ?? defaultOpen()}
-                onToolOpenChange={(open) => setToolOpen(part().id, open)}
+                toolOpen={toolOpen[openKey()] ?? defaultOpen()}
+                onToolOpenChange={(open) => setToolOpen(openKey(), open)}
                 deferToolContent
                 virtualizeDiff={false}
                 onContentRendered={onSizeChange}

@@ -68,6 +68,7 @@ import {
   readPartText,
   renderablePart,
   reasoningHeadingText,
+  reasoningPartStreaming,
   reasoningTriggerText,
   resolveCollapsibleOpen,
 } from "./message-part-text"
@@ -1768,9 +1769,13 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   const data = useData()
   const part = () => props.part as ReasoningPart
-  const streaming = createMemo(
-    () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
-  )
+  const streaming = createMemo(() => {
+    if (props.message.role !== "assistant") return false
+    return reasoningPartStreaming({
+      partEnd: part().time.end,
+      messageCompleted: (props.message as AssistantMessage).time.completed,
+    })
+  })
   const text = () => readPartText(data.store.part_text_accum_delta, part())
   const [localOpen, setLocalOpen] = createSignal(false)
   const open = () =>

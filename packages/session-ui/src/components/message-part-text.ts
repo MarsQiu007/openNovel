@@ -66,6 +66,11 @@ export function reasoningTriggerText(text: string) {
   return value.length > 80 ? `${value.slice(0, 80)}…` : value
 }
 
+// 单段 reasoning 结束即可收纳；旧数据缺少 part.end 时回退到消息完成态。
+export function reasoningPartStreaming(input: { partEnd?: number; messageCompleted?: number }) {
+  return typeof input.partEnd !== "number" && typeof input.messageCompleted !== "number"
+}
+
 // 块级展开状态解析：受控 toolOpen 优先，其次 defaultOpen，未受控时取本地信号（默认收起）。
 export function resolveCollapsibleOpen(input: { toolOpen?: boolean; defaultOpen?: boolean; local?: boolean }) {
   if (input.toolOpen !== undefined) return input.toolOpen

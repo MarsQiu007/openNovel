@@ -3,6 +3,7 @@ import {
   readPartText,
   renderablePart,
   reasoningHeadingText,
+  reasoningPartStreaming,
   reasoningTriggerText,
   resolveCollapsibleOpen,
 } from "./message-part-text"
@@ -101,6 +102,20 @@ describe("reasoningTriggerText", () => {
 
   test("空文本返回 undefined", () => {
     expect(reasoningTriggerText("")).toBeUndefined()
+  })
+})
+
+describe("reasoningPartStreaming", () => {
+  test("part 与消息均未结束时保持流式", () => {
+    expect(reasoningPartStreaming({})).toBe(true)
+  })
+
+  test("消息未完成但当前 part 已结束时停止流式", () => {
+    expect(reasoningPartStreaming({ partEnd: 200 })).toBe(false)
+  })
+
+  test("旧数据缺少 part.end 时按消息完成态停止流式", () => {
+    expect(reasoningPartStreaming({ messageCompleted: 300 })).toBe(false)
   })
 })
 
