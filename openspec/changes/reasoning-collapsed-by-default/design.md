@@ -38,7 +38,7 @@ session-ui `renderable()` 的 reasoning 分支从 `showReasoningSummaries && !!p
 
 ### D3：标题提取收敛为 session-ui 单一导出
 
-把四级回退提取器收敛为 `message-part.tsx` 导出的纯函数 `reasoningHeadingText(text)`，`ReasoningPartDisplay` 触发器、`session-turn.tsx`、app `rows.ts` 三处共用；并补第五级回退——无标题形状时取首行剥离 markdown 标记后截断（触发器不允许空文案；app 微光行对 undefined 不渲染文本的既有行为不变）。已出场字符清理逻辑（反引号/链接/强调符）随函数迁移。
+四级回退提取器收敛为 `message-part.tsx` 导出的纯函数 `reasoningHeadingText(text)`（实现落在同包纯逻辑模块 `message-part-text.ts`，message-part.tsx 转出口），`ReasoningPartDisplay` 触发器、`session-turn.tsx`、app `rows.ts` 三处共用；触发器侧另用 `reasoningTriggerText(text)` 包一层第五级回退——无标题形状时取首行剥离 markdown 标记后截断（触发器不允许空文案；微光行继续直接用 `reasoningHeadingText` 的 undefined 语义，不渲染文本的既有行为不变，避免把思考正文提前暴露在流式标题位）。已出场字符清理逻辑（反引号/链接/强调符）随函数迁移。
 
 ### D4：设置语义重定义，不迁移、不改文案
 
