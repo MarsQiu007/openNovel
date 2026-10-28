@@ -23,11 +23,13 @@
 - [x] 4.2 在 packages/app 与 packages/session-ui 分别运行 `bun typecheck`，对全部改动文件运行 oxlint 并消除新增告警
 - [ ] 4.3 重建 packages/desktop 并检查真实会话页的暗色/亮色、宽栏/书内右栏、长会话滚动、工具展开和流式生成；保存关键状态截图，按目标逐项核对内容轴、溢出、遮挡与视觉层级
   - 已完成桌面重建、暗色/亮色、832px 宽栏、书内窄栏、长会话滚动、历史顶部与工具展开验收；当前没有正在流式生成的会话，遵守不发送新提示词的约束，保留流式实页验收。
+  - 已在真实书内会话验收 V2 子代理卡片：显示 Outliner 图标与调用描述，点击进入对应的 `ses_e7db67cc9ffeU2MosbZUKJzbdm` 子会话，并通过“返回主会话”回到原主会话。
 
 ## Implementation Commits
 
 - `271917884b` `feat(app): 重构会话阅读与悬浮输入展示`
 - `704d28a1ce` `fix(app): 修复思考段折叠与状态隔离`
+- `65e651527e` `fix(session-ui): 适配 V2 子代理卡片`
 
 ## Workflow follow-up
 
