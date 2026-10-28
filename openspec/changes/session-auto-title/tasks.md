@@ -14,6 +14,7 @@
 
 - [x] 3.1 在 `SessionRunner.run` drain 尾部（llm.ts `while (shouldRun)` 退出后）挂载：仅占位标题会话执行命名，经 `V2Session.update({ title })` 写回；非占位直接跳过；`bun typecheck` 通过
 - [x] 3.2 集成向单测：占位会话 drain 后标题被写回且经 `SessionEvent.Updated` 可见；非占位会话（用户改题/创建传题）drain 后标题不变；成功命名后再次 drain 不重复生成；从 packages/core 跑通
+- [x] 3.3 书内 `bound-sessions` 查询监听绑定会话的 `session.next.updated` 并即时失效，覆盖自动标题写回后顶部与下拉列表仍显示旧占位标题的回归；从 packages/app 跑通 `novel-live` 与 context 套件
 
 ## 4. 容错
 
@@ -27,6 +28,7 @@
 ## Implementation Commits
 
 - `3fada5efe3` feat(core): 首次对话后自动生成会话标题
+- `4faf550757` fix(app): 自动标题写回后刷新书内会话列表
 
 ## Workflow follow-up
 
