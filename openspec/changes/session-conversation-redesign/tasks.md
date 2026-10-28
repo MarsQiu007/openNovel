@@ -27,6 +27,7 @@
 ## Implementation Commits
 
 - `271917884b` `feat(app): 重构会话阅读与悬浮输入展示`
+- `704d28a1ce` `fix(app): 修复思考段折叠与状态隔离`
 
 ## Workflow follow-up
 
