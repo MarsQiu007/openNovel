@@ -41,6 +41,8 @@ core 侧判定函数匹配 `^(New session|Child session) - <ISO 时间戳>$`（�
 
 生成请求：system 直接复用 `plugin/agent.ts` 导出的 `PROMPT_TITLE` 常量（title agent 注册与本生成入口共享同一事实源，无需经 AgentV2 再解析 hidden agent），用户输入 = 首条用户消息文本（截断 4000 字符）+ 首个助手正文（截断 2000 字符）；`maxTokens = 128`；模型 = `models.resolve(session)`。备选「接入 small_model 配置」被否（见 Non-Goals）。
 
+标题请求显式传 `providerOptions.openai.reasoningEffort = "none"`，不让推理消耗标题输出预算。OpenAI Chat 的 `max_tokens` 同时覆盖 reasoning 与可见正文；真实 GLM 重放中，原请求以 `finish = length` 结束，128 个输出 token 中 127 个用于 reasoning，正文为空；保持 128 token 不变、仅关闭推理后以 `finish = stop` 返回正常标题。因此不能用盲目增大 token 上限替代该约束。
+
 ### D4：输出清洗后写回，空结果放弃
 
 取生成文本首个非空行，去包围引号与首尾空白，超长截断为 80 字符加省略号；清洗后为空则放弃命名。写回直接发布既有 `SessionEvent.Updated`，由 projector 落库并广播；与 `V2Session.update({ title })` 使用同一事件链，但不反向依赖 SessionV2，也不直接写库或新增事件。

@@ -9,6 +9,7 @@
 
 - [x] 2.1 实现一次有界 `llm.stream` 标题生成：system 取 title agent 系统提示（AgentV2 服务读取优先，select 不含 hidden agent 则在 `plugin/agent.ts` 导出 `PROMPT_TITLE` 复用），输入为首条用户消息（截断）+ 首个助手正文（截断），maxTokens 小值，模型 `models.resolve(session)`；`bun typecheck` 通过
 - [x] 2.2 单测覆盖生成调用：请求形状（system/输入截断/maxTokens）、清洗后标题、空输出放弃；从 packages/core 跑通
+- [x] 2.3 标题请求显式关闭 OpenAI Chat 推理，避免 reasoning 与正文共享 128 token 预算时输出空标题；补请求选项回归断言，并用真实 GLM 请求验证关闭推理后正常返回标题
 
 ## 3. run 尾部挂载与写回
 
@@ -29,6 +30,7 @@
 
 - `3fada5efe3` feat(core): 首次对话后自动生成会话标题
 - `4faf550757` fix(app): 自动标题写回后刷新书内会话列表
+- `e9c044ec5a` fix(core): 标题生成禁用推理避免空输出
 
 ## Workflow follow-up
 
