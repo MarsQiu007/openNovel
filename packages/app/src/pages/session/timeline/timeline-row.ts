@@ -69,8 +69,13 @@ export namespace TimelineRow {
   }
 }
 
-// reasoning 成行策略：所属助手消息流式中（未完成）且设置关闭时不成行——保持「思考中」微光行语义；
-// 设置开启或消息完成后成行。空正文始终不成行。
-export function reasoningPartRenderable(input: { text?: string; messageCompleted: boolean; showReasoning: boolean }) {
-  return (input.showReasoning || input.messageCompleted) && !!input.text?.trim()
+// reasoning 成行策略：单段或整条消息完成后成行并默认折叠；仍在流式生成时由设置控制正文可见性。
+// 空正文始终不成行。
+export function reasoningPartRenderable(input: {
+  text?: string
+  partCompleted: boolean
+  messageCompleted: boolean
+  showReasoning: boolean
+}) {
+  return (input.showReasoning || input.partCompleted || input.messageCompleted) && !!input.text?.trim()
 }

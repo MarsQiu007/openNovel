@@ -56,6 +56,7 @@ export namespace Timeline {
           part.type === "reasoning"
             ? reasoningPartRenderable({
                 text: part.text,
+                partCompleted: typeof part.time.end === "number",
                 messageCompleted: typeof message.time.completed === "number",
                 showReasoning,
               })
