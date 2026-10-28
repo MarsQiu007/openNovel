@@ -68,3 +68,9 @@ export namespace TimelineRow {
     return Equal.equals(a, b)
   }
 }
+
+// reasoning 成行策略：所属助手消息流式中（未完成）且设置关闭时不成行——保持「思考中」微光行语义；
+// 设置开启或消息完成后成行。空正文始终不成行。
+export function reasoningPartRenderable(input: { text?: string; messageCompleted: boolean; showReasoning: boolean }) {
+  return (input.showReasoning || input.messageCompleted) && !!input.text?.trim()
+}

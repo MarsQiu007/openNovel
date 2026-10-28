@@ -963,7 +963,9 @@ export function MessageTimeline(props: {
     })
     const defaultOpen = createMemo(() => {
       const item = part()
-      if (!item) return
+      if (!item) return undefined
+      // 思考块默认展开度取「显示推理摘要」设置；工具卡沿用各自设置
+      if (item.type === "reasoning") return settings.general.showReasoningSummaries()
       return partDefaultOpen(item, settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
     })
 

@@ -77,7 +77,7 @@ const reasoningProfiles = [
     reasoning: "## Inspecting stability",
     other: false,
     thinking: true,
-    body: false,
+    body: true,
   },
   {
     name: "summaries off with visible tool",
@@ -85,7 +85,7 @@ const reasoningProfiles = [
     reasoning: "## Inspecting stability",
     other: true,
     thinking: true,
-    body: false,
+    body: true,
   },
   { name: "summaries on no content", summaries: true, reasoning: "", other: false, thinking: true, body: false },
   { name: "summaries on blank reasoning", summaries: true, reasoning: "   ", other: false, thinking: true, body: false },
@@ -130,10 +130,71 @@ for (const [index, profile] of reasoningProfiles.entries()) {
 
     await expect(page.locator('[data-timeline-row="Thinking"]')).toHaveCount(profile.thinking ? 1 : 0)
     await expect(page.locator(`[data-timeline-part-id="${reasoningID}"]`)).toHaveCount(profile.body ? 1 : 0)
-    if (!profile.summaries && profile.reasoning.trim())
-      await expect(page.getByText("Inspecting stability", { exact: true })).toBeVisible()
+    // 消息已完成：思考标题收敛到折叠块触发器（微光行的渐显标题来自流式正文缺失时才为 undefined）
+    if (profile.reasoning.trim())
+      await expect(
+        page.locator(`[data-timeline-part-id="${reasoningID}"] [data-slot="reasoning-part-trigger-text"]`),
+      ).toHaveText("Inspecting stability")
   })
 }
+
+test("collapses completed reasoning with trigger and toggles open/closed", async ({ page }) => {
+  await setup(page, {
+    messages: [
+      userMessage(),
+      assistantMessage([
+        v2Reasoning("## Inspecting stability\nSome reasoning body", { id: "prt_reasoning_collapsed" }),
+        v2Text("Answer body"),
+      ]),
+    ],
+  })
+
+  const block = page.locator('[data-timeline-part-id="prt_reasoning_collapsed"]')
+  await expect(block).toBeVisible()
+  await expect(block.locator('[data-slot="reasoning-part-trigger-text"]')).toHaveText("Inspecting stability")
+  await expect(block.locator('[data-component="markdown"]')).toBeHidden()
+
+  await block.locator('[data-slot="collapsible-trigger"]').click()
+  await expect(block.locator('[data-component="markdown"]')).toBeVisible()
+  await expect(block.locator('[data-component="markdown"]')).toContainText("Some reasoning body")
+
+  await block.locator('[data-slot="collapsible-trigger"]').click()
+  await expect(block.locator('[data-component="markdown"]')).toBeHidden()
+})
+
+test("falls back to truncated first line when completed reasoning has no heading", async ({ page }) => {
+  await setup(page, {
+    messages: [
+      userMessage(),
+      assistantMessage([
+        v2Reasoning("Just plain thoughts without heading\nsecond line", { id: "prt_reasoning_plain" }),
+        v2Text("Answer body"),
+      ]),
+    ],
+  })
+
+  await expect(
+    page.locator('[data-timeline-part-id="prt_reasoning_plain"] [data-slot="reasoning-part-trigger-text"]'),
+  ).toHaveText("Just plain thoughts without heading")
+})
+
+test("expands completed reasoning by default when summaries setting is on", async ({ page }) => {
+  await setup(page, {
+    messages: [
+      userMessage(),
+      assistantMessage([
+        v2Reasoning("## Inspecting stability\nSome reasoning body", { id: "prt_reasoning_expanded" }),
+        v2Text("Answer body"),
+      ]),
+    ],
+    showReasoningSummaries: true,
+  })
+
+  const block = page.locator('[data-timeline-part-id="prt_reasoning_expanded"]')
+  await expect(block.locator('[data-slot="reasoning-part-trigger-text"]')).toHaveText("Inspecting stability")
+  await expect(block.locator('[data-component="markdown"]')).toBeVisible()
+  await expect(block.locator('[data-component="markdown"]')).toContainText("Some reasoning body")
+})
 
 test("renders tool four states with one error card", async ({ page }) => {
   await setup(page, {
