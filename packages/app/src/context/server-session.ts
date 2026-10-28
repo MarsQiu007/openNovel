@@ -1,5 +1,6 @@
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { retry } from "@opennovel-ai/core/util/retry"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 import type {
   GlobalEvent,
   Message,
@@ -219,8 +220,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     messageID: string,
   ) => {
     for (const part of cache.part[messageID] ?? []) {
-      delete cache.part_text_accum_delta[part.id]
-      deltaBases.delete(part.id)
+      const key = partAccumKey(part.messageID, part.id)
+      delete cache.part_text_accum_delta[key]
+      deltaBases.delete(key)
     }
     delete cache.part[messageID]
   }
@@ -466,8 +468,8 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
   const evict = (sessionIDs: string[]) => {
     if (sessionIDs.length === 0) return
     const evicted = new Set(sessionIDs)
-    for (const [partID, item] of deltaBases) {
-      if (evicted.has(item.sessionID)) deltaBases.delete(partID)
+    for (const [key, item] of deltaBases) {
+      if (evicted.has(item.sessionID)) deltaBases.delete(key)
     }
     sessionIDs.forEach((sessionID) => {
       generations.delete(sessionID)
@@ -589,8 +591,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       const pending = pendingParts.get(sessionID)?.get(item.id)
       const touched = new Set([...(load?.touchedParts.get(item.id) ?? []), ...(pending ?? [])])
       for (const part of fetched) {
-        const accumulated = data.part_text_accum_delta[part.id]
-        const base = deltaBases.get(part.id)?.base
+        const key = partAccumKey(part.messageID, part.id)
+        const accumulated = data.part_text_accum_delta[key]
+        const base = deltaBases.get(key)?.base
         const preserveDelta =
           base !== undefined &&
           accumulated !== undefined &&
@@ -617,8 +620,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         produce((draft) => {
           for (const part of data.part[item.id] ?? []) {
             if (!partIDs.has(part.id) || !touched.has(part.id)) {
-              delete draft[part.id]
-              deltaBases.delete(part.id)
+              const key = partAccumKey(part.messageID, part.id)
+              delete draft[key]
+              deltaBases.delete(key)
             }
           }
         }),
@@ -1095,12 +1099,13 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         const optimistic = load?.optimisticParts.get(part.messageID)
         optimistic?.delete(part.id)
         if (optimistic?.size === 0) load?.optimisticParts.delete(part.messageID)
-        deltaBases.delete(part.id)
+        const accumKey = partAccumKey(part.messageID, part.id)
+        deltaBases.delete(accumKey)
         trackPartChange(part.sessionID, part.messageID, part.id)
         confirmOptimisticPart(part.sessionID, part.messageID, part)
         setData(
           "part_text_accum_delta",
-          produce((draft) => void delete draft[part.id]),
+          produce((draft) => void delete draft[accumKey]),
         )
         const parts = data.part[part.messageID]
         if (!parts) {
@@ -1142,10 +1147,11 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         }
         trackPartChange(props.sessionID, props.messageID, props.partID)
         clearOptimisticPart(props.sessionID, props.messageID, props.partID)
+        const accumKey = partAccumKey(props.messageID, props.partID)
         setData(
           produce((draft) => {
-            delete draft.part_text_accum_delta[props.partID]
-            deltaBases.delete(props.partID)
+            delete draft.part_text_accum_delta[accumKey]
+            deltaBases.delete(accumKey)
             const parts = draft.part[props.messageID]
             if (!parts) return
             const result = Binary.search(parts, props.partID, (part) => part.id)
@@ -1179,11 +1185,12 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         }
         const field = props.field as keyof (typeof parts)[number]
         const current = parts[result.index]?.[field]
-        if (!deltaBases.has(props.partID) && typeof current === "string")
-          deltaBases.set(props.partID, { base: current, sessionID: props.sessionID })
+        const accumKey = partAccumKey(props.messageID, props.partID)
+        if (!deltaBases.has(accumKey) && typeof current === "string")
+          deltaBases.set(accumKey, { base: current, sessionID: props.sessionID })
         setData(
           "part_text_accum_delta",
-          props.partID,
+          accumKey,
           (value) => (value ?? (typeof current === "string" ? current : "")) + props.delta,
         )
         setData(
@@ -1314,8 +1321,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
           "part_text_accum_delta",
           produce((draft) => {
             for (const part of [...(data.part[input.message.id] ?? []), ...parts]) {
-              delete draft[part.id]
-              deltaBases.delete(part.id)
+              const key = partAccumKey(part.messageID, part.id)
+              delete draft[key]
+              deltaBases.delete(key)
             }
           }),
         )
@@ -1331,8 +1339,9 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
           setData(
             produce((draft) => {
               for (const part of item.parts) {
-                delete draft.part_text_accum_delta[part.id]
-                deltaBases.delete(part.id)
+                const key = partAccumKey(part.messageID, part.id)
+                delete draft.part_text_accum_delta[key]
+                deltaBases.delete(key)
               }
               const parts = draft.part[input.messageID]
               if (!parts) return

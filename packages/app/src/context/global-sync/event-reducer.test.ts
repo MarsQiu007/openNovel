@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message, Part, PermissionRequest, Project, QuestionRequest, Session } from "@opennovel-ai/sdk/v2/client"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./event-reducer"
@@ -163,8 +164,36 @@ describe("applyDirectoryEvent", () => {
       loadLsp() {},
     })
 
-    expect(store.part_text_accum_delta.part).toBe("existing appended")
+    expect(store.part_text_accum_delta[partAccumKey("message", "part")]).toBe("existing appended")
     expect((store.part.message?.[0] as { text: string }).text).toBe("existing appended")
+  })
+
+  test("isolates delta accumulation for same-ID parts across messages", () => {
+    // 流水线 assistant 消息的 part ID 是索引式（text-0），跨消息同名是常态
+    const first = { ...textPart("text-0", "session", "message1"), text: "A" }
+    const second = { ...textPart("text-0", "session", "message2"), text: "B" }
+    const [store, setStore] = createStore(
+      baseState({ part: { message1: [first], message2: [second] } }),
+    )
+    const ctx = { store, setStore, push() {}, directory: "/tmp", loadLsp() {} }
+    const delta = (messageID: string) =>
+      applyDirectoryEvent({
+        event: {
+          type: "message.part.delta",
+          properties: { messageID, partID: "text-0", field: "text", delta: "-1" },
+        },
+        ...ctx,
+      })
+
+    delta("message1")
+    delta("message2")
+
+    expect(store.part_text_accum_delta[partAccumKey("message1", "text-0")]).toBe("A-1")
+    expect(store.part_text_accum_delta[partAccumKey("message2", "text-0")]).toBe("B-1")
+    const firstText = store.part.message1?.[0]
+    const secondText = store.part.message2?.[0]
+    expect(firstText?.type === "text" ? firstText.text : undefined).toBe("A-1")
+    expect(secondText?.type === "text" ? secondText.text : undefined).toBe("B-1")
   })
 
   test("preserves a Home-specific retained session limit", () => {

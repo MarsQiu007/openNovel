@@ -7,6 +7,7 @@ import type {
   SnapshotFileDiff,
   Todo,
 } from "@opennovel-ai/sdk/v2/client"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 
 export const SESSION_CACHE_LIMIT = 40
 
@@ -29,7 +30,7 @@ export function dropSessionCaches(store: SessionCache, sessionIDs: Iterable<stri
     const parts = store.part[key]
     if (!parts?.some((part) => stale.has(part?.sessionID ?? ""))) continue
     for (const part of parts) {
-      delete store.part_text_accum_delta[part.id]
+      delete store.part_text_accum_delta[partAccumKey(part.messageID, part.id)]
     }
     delete store.part[key]
   }

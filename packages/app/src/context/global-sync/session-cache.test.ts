@@ -48,14 +48,14 @@ describe("app session cache", () => {
       part: { msg_1: [part("prt_1", "ses_1", "msg_1")] },
       permission: { ses_1: [] as PermissionRequest[] },
       question: { ses_1: [] as QuestionRequest[] },
-      part_text_accum_delta: { prt_1: "streamed text" },
+      part_text_accum_delta: { "msg_1:prt_1": "streamed text" },
     }
 
     dropSessionCaches(store, ["ses_1"])
 
     expect(store.message.ses_1).toBeUndefined()
     expect(store.part.msg_1).toBeUndefined()
-    expect(store.part_text_accum_delta.prt_1).toBeUndefined()
+    expect(store.part_text_accum_delta["msg_1:prt_1"]).toBeUndefined()
     expect(store.todo.ses_1).toBeUndefined()
     expect(store.session_diff.ses_1).toBeUndefined()
     expect(store.session_status.ses_1).toBeUndefined()

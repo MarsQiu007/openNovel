@@ -79,7 +79,8 @@ export type State = {
     [messageID: string]: Part[]
   }
   part_text_accum_delta: {
-    [partID: string]: string
+    // 键为「消息 + part」复合键（partAccumKey），part ID 不保证跨消息唯一
+    [accumKey: string]: string
   }
 }
 

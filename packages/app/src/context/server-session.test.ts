@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { retry } from "@opennovel-ai/core/util/retry"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 import type {
   Message,
   OpenNovelClient,
@@ -682,7 +683,7 @@ describe("server session", () => {
     store.optimistic.remove({ sessionID: "child", messageID: message.id })
 
     expect(store.data.part[message.id]).toBeUndefined()
-    expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
   })
 
   test("does not remove content confirmed by a message event", () => {
@@ -759,7 +760,7 @@ describe("server session", () => {
     await loading
 
     expect(store.data.part[message.id]).toEqual([kept])
-    expect(store.data.part_text_accum_delta[removed.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(removed.messageID, removed.id)]).toBeUndefined()
   })
 
   test("clears a stale delta buffer when a refresh replaces its part", async () => {
@@ -778,7 +779,7 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(store.data.part[message.id]).toEqual([fetched])
-    expect(store.data.part_text_accum_delta[stale.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(stale.messageID, stale.id)]).toBeUndefined()
   })
 
   test("preserves a non-durable delta received before refresh", async () => {
@@ -796,7 +797,7 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(store.data.part[message.id]).toEqual([{ ...part, text: "stale delta" }])
-    expect(store.data.part_text_accum_delta[part.id]).toBe("stale delta")
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBe("stale delta")
   })
 
   test("accepts fetched text that intentionally replaces an accumulated prefix", async () => {
@@ -815,7 +816,7 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(store.data.part[message.id]).toEqual([fetched])
-    expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
   })
 
   test("preserves an unpersisted delta suffix after partial server catch-up", async () => {
@@ -834,7 +835,7 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(store.data.part[message.id]).toEqual([{ ...part, text: "abc" }])
-    expect(store.data.part_text_accum_delta[part.id]).toBe("abc")
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBe("abc")
   })
 
   test("clears delta state after exact server catch-up", async () => {
@@ -853,7 +854,56 @@ describe("server session", () => {
     await store.sync("child", { force: true })
 
     expect(store.data.part[message.id]).toEqual([fetched])
-    expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
+  })
+
+  test("isolates delta accumulation for same-ID parts across messages", () => {
+    // 流水线 assistant 消息的 part ID 是索引式（text-0），跨消息同名是常态
+    const first = assistantMessage("message1", "root")
+    const second = assistantMessage("message2", first.id)
+    const partA = textPart(first.id, { id: "text-0", text: "A" })
+    const partB = textPart(second.id, { id: "text-0", text: "B" })
+    const store = setup({ child: session("child") }).store
+    store.apply({ type: "message.updated", properties: { info: first } })
+    store.apply({ type: "message.updated", properties: { info: second } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: partA, time: 1 } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: partB, time: 1 } })
+
+    store.apply({
+      type: "message.part.delta",
+      properties: { sessionID: "child", messageID: first.id, partID: "text-0", field: "text", delta: "-1" },
+    })
+    store.apply({
+      type: "message.part.delta",
+      properties: { sessionID: "child", messageID: second.id, partID: "text-0", field: "text", delta: "-2" },
+    })
+
+    expect(store.data.part_text_accum_delta[partAccumKey(first.id, "text-0")]).toBe("A-1")
+    expect(store.data.part_text_accum_delta[partAccumKey(second.id, "text-0")]).toBe("B-2")
+  })
+
+  test("keeps a streaming message's delta state when another message's part updates", () => {
+    const first = assistantMessage("message1", "root")
+    const second = assistantMessage("message2", first.id)
+    const partA = textPart(first.id, { id: "text-0", text: "A" })
+    const partB = textPart(second.id, { id: "text-0", text: "B" })
+    const store = setup({ child: session("child") }).store
+    store.apply({ type: "message.updated", properties: { info: first } })
+    store.apply({ type: "message.updated", properties: { info: second } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: partA, time: 1 } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: partB, time: 1 } })
+    store.apply({
+      type: "message.part.delta",
+      properties: { sessionID: "child", messageID: first.id, partID: "text-0", field: "text", delta: "-1" },
+    })
+
+    // 第二条消息的最终 part 状态到达：只清它自己的增量状态，第一条的流式桶必须保留
+    const finalB = textPart(second.id, { id: "text-0", text: "B" })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: finalB, time: 2 } })
+
+    expect(store.data.part_text_accum_delta[partAccumKey(first.id, "text-0")]).toBe("A-1")
+    expect(store.data.part_text_accum_delta[partAccumKey(second.id, "text-0")]).toBeUndefined()
+    expect(store.data.part[second.id]).toEqual([finalB])
   })
 
   test("uses the successful retry response over events from a failed attempt", async () => {
@@ -985,7 +1035,7 @@ describe("server session", () => {
     await loading
 
     expect(store.data.part[message.id]).toBeUndefined()
-    expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
   })
 
   test("clears load-owned orphan parts when all retries fail", async () => {
@@ -1153,8 +1203,8 @@ describe("server session", () => {
 
     store.optimistic.add({ sessionID: "child", message, parts: [optimistic] })
 
-    expect(store.data.part_text_accum_delta[stale.id]).toBeUndefined()
-    expect(store.data.part_text_accum_delta[optimistic.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(stale.messageID, stale.id)]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(optimistic.messageID, optimistic.id)]).toBeUndefined()
   })
 
   test("preserves removals during history prepend", async () => {
@@ -1345,7 +1395,7 @@ describe("server session", () => {
 
     expect(store.data.message.child).toEqual([])
     expect(store.data.part[message.id]).toBeUndefined()
-    expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
+    expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
   })
 
   test("applies events without a directory store", () => {

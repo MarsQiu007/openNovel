@@ -1,4 +1,5 @@
 import { Binary } from "@opennovel-ai/core/util/binary"
+import { partAccumKey } from "@opennovel-ai/session-ui/message-part-text"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type {
   Message,
@@ -247,7 +248,7 @@ export function applyDirectoryEvent(input: {
           const parts = draft.part[props.messageID]
           if (parts) {
             for (const part of parts) {
-              delete draft.part_text_accum_delta[part.id]
+              delete draft.part_text_accum_delta[partAccumKey(part.messageID, part.id)]
             }
           }
           delete draft.part[props.messageID]
@@ -260,7 +261,7 @@ export function applyDirectoryEvent(input: {
       if (SKIP_PARTS.has(part.type)) break
       input.setStore(
         produce((draft) => {
-          delete draft.part_text_accum_delta[part.id]
+          delete draft.part_text_accum_delta[partAccumKey(part.messageID, part.id)]
         }),
       )
       const parts = input.store.part[part.messageID]
@@ -286,7 +287,7 @@ export function applyDirectoryEvent(input: {
       const props = event.properties as { messageID: string; partID: string }
       input.setStore(
         produce((draft) => {
-          delete draft.part_text_accum_delta[props.partID]
+          delete draft.part_text_accum_delta[partAccumKey(props.messageID, props.partID)]
         }),
       )
       const parts = input.store.part[props.messageID]
@@ -316,7 +317,7 @@ export function applyDirectoryEvent(input: {
       const current = parts[result.index]?.[field]
       input.setStore(
         "part_text_accum_delta",
-        props.partID,
+        partAccumKey(props.messageID, props.partID),
         (existing) => (existing ?? (typeof current === "string" ? current : "")) + props.delta,
       )
       input.setStore(
