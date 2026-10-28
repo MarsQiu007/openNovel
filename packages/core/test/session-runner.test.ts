@@ -48,6 +48,7 @@ import {
   SessionTable,
 } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
+import { SessionTitle } from "@opennovel-ai/core/session/title"
 import { SystemContext } from "@opennovel-ai/core/system-context"
 import { SystemContextRegistry } from "@opennovel-ai/core/system-context/registry"
 import { SkillGuidance } from "@opennovel-ai/core/skill/guidance"
@@ -226,10 +227,21 @@ const config = Layer.succeed(
       ]),
   }),
 )
+const titleEnsures: string[] = []
+const titleFake = Layer.succeed(
+  SessionTitle.Service,
+  SessionTitle.Service.of({
+    ensure: (id) => {
+      titleEnsures.push(id)
+      return Effect.void
+    },
+  }),
+)
 const runnerLayer = AppNodeBuilder.build(SessionRunnerLLM.node, [
   [Snapshot.node, Snapshot.noopLayer],
   [LayerNodePlatform.llmClient, client],
   [SessionRunnerModel.node, models],
+  [SessionTitle.node, titleFake],
   [SystemContextRegistry.node, systemContext],
   [Location.node, Location.boundNode({ directory: AbsolutePath.make("/project") })],
   [SkillGuidance.node, skillGuidance],
@@ -280,6 +292,7 @@ const it = testEffect(
       [LayerNodePlatform.llmClient, client],
       [PermissionV2.node, permission],
       [SessionRunnerModel.node, models],
+      [SessionTitle.node, titleFake],
       [SystemContextRegistry.node, systemContext],
       [Location.node, Location.boundNode({ directory: AbsolutePath.make("/project") })],
       [SkillGuidance.node, skillGuidance],
@@ -314,6 +327,7 @@ const insertSession = (id: SessionV2.ID) =>
 const setup = Effect.gen(function* () {
   const { db } = yield* Database.Service
   response = []
+  titleEnsures.length = 0
   systemBaseline = "Initial context"
   systemRemoved = false
   systemUnavailable = false
@@ -557,6 +571,20 @@ const verifyPartialFlushOnInterruption = (kind: FragmentKind) =>
   })
 
 describe("SessionRunnerLLM", () => {
+  it.effect("ensures auto title after the drain completes", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Hello" }), resume: false })
+
+      yield* session.resume(sessionID)
+
+      expect(titleEnsures).toContain(sessionID)
+      // requests 为模块级共享且 setup 不重置：本用例产生的请求不能泄漏给后续用例
+      requests.length = 0
+    }),
+  )
+
   it.effect("advertises and executes a globally attached application tool", () =>
     Effect.gen(function* () {
       yield* setup

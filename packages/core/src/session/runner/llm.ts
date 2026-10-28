@@ -31,6 +31,7 @@ import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
+import { SessionTitle } from "../title"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
@@ -99,6 +100,7 @@ const layer = Layer.effect(
     const tools = yield* ToolRegistry.Service
     const models = yield* SessionRunnerModel.Service
     const store = yield* SessionStore.Service
+    const title = yield* SessionTitle.Service
     const location = yield* Location.Service
     const systemContext = yield* SystemContextRegistry.Service
     const skillGuidance = yield* SkillGuidance.Service
@@ -403,6 +405,8 @@ const layer = Layer.effect(
         shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
         promotion = shouldRun ? "queue" : undefined
       }
+      // drain 完成后对默认占位标题做一次有界自动命名（ensure 内部全静默，不影响 run 语义）
+      yield* title.ensure(input.sessionID)
     })
 
     // 手动 compact 与 runTurnAttempt 共用 epoch/模型/历史装载路径；request 仅用于
@@ -438,6 +442,7 @@ export const node = makeLocationNode({
     ToolRegistry.node,
     SessionRunnerModel.node,
     SessionStore.node,
+    SessionTitle.node,
     Location.node,
     SystemContextRegistry.node,
     SkillGuidance.node,

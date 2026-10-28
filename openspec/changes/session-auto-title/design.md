@@ -39,20 +39,24 @@ core 侧判定函数匹配 `^(New session|Child session) - <ISO 时间戳>$`（�
 
 ### D3：一次有界 `llm.stream` 生成，模型用会话模型
 
-生成请求：system = title agent 的系统提示（优先经 AgentV2 服务读取 title agent；若其 select 不含 hidden agent，则在 `plugin/agent.ts` 导出 `PROMPT_TITLE` 常量复用，保持单一事实源），用户输入 = 首条用户消息文本（截断约 4000 字符）+ 首个助手正文（截断，提升命名准确性）；`maxTokens` 设小值（约 128）；模型 = `models.resolve(session)`。备选「接入 small_model 配置」被否（见 Non-Goals）。
+生成请求：system 直接复用 `plugin/agent.ts` 导出的 `PROMPT_TITLE` 常量（title agent 注册与本生成入口共享同一事实源，无需经 AgentV2 再解析 hidden agent），用户输入 = 首条用户消息文本（截断 4000 字符）+ 首个助手正文（截断 2000 字符）；`maxTokens = 128`；模型 = `models.resolve(session)`。备选「接入 small_model 配置」被否（见 Non-Goals）。
 
 ### D4：输出清洗后写回，空结果放弃
 
-取生成文本首行，去包围引号与首尾空白，超长截断（约 80 字符）；清洗后为空则放弃命名。写回仅调 `V2Session.update({ sessionID, title })`，不直接写库、不发自定义事件。
+取生成文本首个非空行，去包围引号与首尾空白，超长截断为 80 字符加省略号；清洗后为空则放弃命名。写回直接发布既有 `SessionEvent.Updated`，由 projector 落库并广播；与 `V2Session.update({ title })` 使用同一事件链，但不反向依赖 SessionV2，也不直接写库或新增事件。
 
 ### D5：run 尾部顺序有界执行，全错误静默
 
 命名是 drain 尾部的一次顺序调用：仅在占位会话的首次 drain 后发生，maxTokens 小，时延可接受；避免引入 fork 后台任务的生命周期问题（run 结束后 fork 任务被中断/泄漏的边界）。整个命名过程包裹为「任何错误 → 记日志 → 返回」，不改变 run 的返回与错误语义。备选「fire-and-forget fork」被否——runner 的 drain 无持久身份，fork 出的命名任务缺少明确的生命周期归属。
 
+### D6：命名能力封装为 `SessionTitle.Service`
+
+runner 只依赖 `ensure(sessionID)`，生成、数据源读取、清洗和事件写回封装在 `session/title.ts`。该服务作为 Location node 接入 runner 依赖图：runner 既有测试可替换为记录调用的 fake，避免自动命名额外消费 fake LLM 响应；独立集成测试则组装真实 `SessionTitle.node`，覆盖真实请求、落库写回与容错。
+
 ## Risks / Trade-offs
 
 - [首次 drain 尾部增加一次 LLM 调用的时延与费用] → 仅触发一次、maxTokens 小、无工具循环；后续 drain 零开销（标题非占位即跳过）。
-- [title agent 的 select 可能不含 hidden agent] → D3 已给主备路径（服务读取优先，导出常量兜底），实现时以代码现状为准。
+- [title agent 的 hidden 配置与直接生成入口可能漂移] → 两者复用同一 `PROMPT_TITLE` 导出；自动命名不发工具请求，不依赖 agent select。
 - [生成标题语言与质量依赖会话模型] → 与上游缺省行为一致；语言/质量优化另立 change，不在本范围。
 - [老占位会话补偿命名可能让「故意保留占位」的用户标题被改] → 占位标题本质是机器生成的无信息字符串，上游同样会自动命名；可接受。
 
