@@ -3,7 +3,7 @@ import { createStore } from "solid-js/store"
 import { PromptInputV2, type PromptInputV2PersistedState, type PromptInputV2Suggestion } from "."
 import { createPromptInputV2Controller } from "./interaction"
 import { createPromptInputV2Store } from "./store"
-import { createEffect } from "solid-js"
+import { onCleanup, onMount } from "solid-js"
 
 const agents = [
   { id: "build", label: "Build" },
@@ -104,7 +104,17 @@ const commandSuggestions: PromptInputV2Suggestion[] = [
   },
 ]
 
-function ControlledPromptInput() {
+function ControlledPromptInput(props: { initialText?: string; withAttachment?: boolean }) {
+  const previous = document.body.getAttribute("data-new-layout")
+  onMount(() => document.body.setAttribute("data-new-layout", ""))
+  onCleanup(() => {
+    if (previous === null) {
+      document.body.removeAttribute("data-new-layout")
+      return
+    }
+    document.body.setAttribute("data-new-layout", previous)
+  })
+
   // Agent choice is a persisted user/workspace preference in v1, not part of PromptStore.
   const [preferences, setPreferences] = createStore({ agent: "build" })
 
@@ -115,14 +125,18 @@ function ControlledPromptInput() {
   // This matches the v1 PromptStore and can use the same persistence boundary.
   const state = createStore<PromptInputV2PersistedState>({
     prompt: [
-      { type: "text", content: "", start: 0, end: 0 },
-      {
-        type: "image",
-        id: "attachment-1",
-        filename: "requirements.md",
-        mime: "text/markdown",
-        dataUrl: "data:text/markdown;base64,IyBSZXF1aXJlbWVudHM=",
-      },
+      { type: "text", content: props.initialText ?? "", start: 0, end: 0 },
+      ...(props.withAttachment === false
+        ? []
+        : [
+            {
+              type: "image" as const,
+              id: "attachment-1",
+              filename: "requirements.md",
+              mime: "text/markdown",
+              dataUrl: "data:text/markdown;base64,IyBSZXF1aXJlbWVudHM=",
+            },
+          ]),
     ],
     cursor: 0,
     model: { providerID: "anthropic", modelID: "claude-sonnet", variant: null },
@@ -204,8 +218,8 @@ function ControlledPromptInput() {
   }
 
   return (
-    <div class="mx-auto flex max-w-[760px] flex-col gap-4 pt-32">
-      <PromptInputV2 controller={controller} />
+    <div data-session-conversation="composer" class="mx-auto flex max-w-[760px] flex-col gap-4 px-4 pt-32">
+      <PromptInputV2 controller={controller} appearance="conversation" />
     </div>
   )
 }
@@ -218,4 +232,19 @@ export default {
 
 export const ControlledComposition = {
   render: () => <ControlledPromptInput />,
+}
+
+export const Empty = {
+  render: () => <ControlledPromptInput withAttachment={false} />,
+}
+
+export const Multiline = {
+  render: () => (
+    <ControlledPromptInput
+      withAttachment={false}
+      initialText={
+        "整理第二章的场景目标与人物动机。\n保留上一章结尾的悬念。\n检查伏笔是否自然承接，并在完成后给出简短摘要。"
+      }
+    />
+  ),
 }

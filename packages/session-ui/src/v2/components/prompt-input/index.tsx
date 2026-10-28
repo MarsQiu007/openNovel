@@ -37,6 +37,7 @@ export type PromptInputV2Props = {
   disabled?: boolean
   readOnly?: boolean
   borderUnderlay?: boolean
+  appearance?: "default" | "conversation"
   class?: string
   modelControl?: JSX.Element
   attachKeybind?: string[]
@@ -106,9 +107,12 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        class="group/prompt-input relative min-h-[96px] w-full rounded-xl bg-v2-background-bg-base"
+        data-appearance={props.appearance}
+        class="group/prompt-input relative min-h-[96px] w-full bg-v2-background-bg-base"
         classList={{
-          "shadow-[var(--v2-elevation-raised)]": !props.borderUnderlay,
+          "rounded-xl": props.appearance !== "conversation",
+          "rounded-[18px] border border-v2-border-border-base": props.appearance === "conversation",
+          "shadow-[var(--v2-elevation-raised)]": !props.borderUnderlay && props.appearance !== "conversation",
           "border border-v2-icon-icon-info border-dashed": state.drag === "active",
         }}
         onSubmit={(event) => {
@@ -121,7 +125,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDrop={props.controller.onDrop}
       >
         <Show when={state.drag === "active"}>
-          <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-xl bg-v2-background-bg-base/90 text-v2-text-text-base">
+          <div class="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-[inherit] bg-v2-background-bg-base/90 text-v2-text-text-base">
             Drop files to attach
           </div>
         </Show>
@@ -190,7 +194,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </Show>
         </div>
 
-        <div class="flex h-11 items-center px-2">
+        <div data-slot="prompt-input-v2-controls" class="flex h-11 items-center px-2">
           <div
             class="flex min-w-0 flex-1 items-center gap-1"
             aria-hidden={state.mode === "shell"}

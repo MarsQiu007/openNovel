@@ -301,8 +301,7 @@ export function MessageTimeline(props: {
       .sort((a, b) => a.rect.top - b.rect.top)[0]
     if (!anchor) return
     if (!anchor.element.dataset.timelineKey) return
-    const start = virtualizer.measurementsCache.find((item) => item?.key === anchor.element.dataset.timelineKey)
-      ?.start
+    const start = virtualizer.measurementsCache.find((item) => item?.key === anchor.element.dataset.timelineKey)?.start
     if (start === undefined) return
     prependAnchor = { key: anchor.element.dataset.timelineKey, start, scrollTop: root.scrollTop }
   }
@@ -405,9 +404,9 @@ export function MessageTimeline(props: {
       const active = id ? (messageLastRowIndex().get(id) ?? -1) : -1
       const indexes = defaultRangeExtractor({ ...range, overscan: renderOverscan() })
       return filterVirtualIndexes(
-        [...new Set([...resizePinnedIndexes, ...prependPinnedIndexes(), ...indexes, ...(active < 0 ? [] : [active])])].sort(
-          (a, b) => a - b,
-        ),
+        [
+          ...new Set([...resizePinnedIndexes, ...prependPinnedIndexes(), ...indexes, ...(active < 0 ? [] : [active])]),
+        ].sort((a, b) => a - b),
         range.count,
       )
     },
@@ -1011,7 +1010,8 @@ export function MessageTimeline(props: {
         data-timeline-row={input.row()._tag}
         classList={{
           "min-w-0 w-full max-w-full": true,
-          "md:max-w-200 2xl:max-w-[1000px]": props.centered,
+          "md:max-w-200 2xl:max-w-[1000px]": props.centered && !settings.general.newLayoutDesigns(),
+          "md:max-w-[832px]": props.centered && settings.general.newLayoutDesigns(),
           "md:mx-auto": props.centered,
           "pt-3": previousAssistantPart(),
         }}
@@ -1026,7 +1026,13 @@ export function MessageTimeline(props: {
   const renderTimelineRow = (row: Accessor<TimelineRow.TimelineRow>, onSizeChange?: () => void) => {
     switch (row()._tag) {
       case "TurnGap":
-        return <div data-timeline-row="TurnGap" aria-hidden="true" class="h-6" />
+        return (
+          <div
+            data-timeline-row="TurnGap"
+            aria-hidden="true"
+            classList={{ "h-10": settings.general.newLayoutDesigns(), "h-6": !settings.general.newLayoutDesigns() }}
+          />
+        )
       case "CommentStrip": {
         const commentStripRow = row as Accessor<TimelineRowByTag<"CommentStrip">>
         const comments = createMemo(() =>
@@ -1241,7 +1247,7 @@ export function MessageTimeline(props: {
   }
 
   return (
-    <div class="relative flex w-full h-full min-w-0 flex-col">
+    <div data-session-conversation="timeline" class="relative flex w-full h-full min-w-0 flex-col">
       <ActiveSubagentBar entries={activeSubagentList()} onSelect={navigateSubagent} />
       <div
         class="absolute left-1/2 -translate-x-1/2 z-[60] pointer-events-none transition-all duration-200 ease-out"
@@ -1554,7 +1560,6 @@ export function MessageTimeline(props: {
                           </MenuV2.Portal>
                         </MenuV2>
                       </Show>
-
                     </Show>
                   </div>
                 )}

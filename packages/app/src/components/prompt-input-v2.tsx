@@ -59,6 +59,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       <PromptInputV2
         controller={props.controller}
         borderUnderlay={props.borderUnderlay}
+        appearance="conversation"
         class={props.class}
         attachKeybind={command.keybindParts("file.attach")}
         attachShortcut={command.keybind("file.attach")}

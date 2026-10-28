@@ -24,16 +24,20 @@ export function SessionComposerRegion(props: {
     <div
       ref={controller.setDockRef}
       data-component="session-prompt-dock"
+      data-session-conversation="composer"
       classList={{
-        "w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none": true,
-        "bg-v2-background-bg-base": settings.general.newLayoutDesigns(),
-        "bg-background-stronger": !settings.general.newLayoutDesigns(),
+        "w-full shrink-0 flex flex-col justify-center items-center pointer-events-none": true,
+        "pb-4": settings.general.newLayoutDesigns(),
+        "pb-3 bg-background-stronger": !settings.general.newLayoutDesigns(),
       }}
     >
       <div
         classList={{
-          "w-full px-3 pointer-events-auto": true,
-          "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered(),
+          "w-full pointer-events-auto": true,
+          "px-3": !settings.general.newLayoutDesigns(),
+          "px-4 md:px-5": settings.general.newLayoutDesigns(),
+          "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered() && !settings.general.newLayoutDesigns(),
+          "md:max-w-[832px] md:mx-auto": controller.centered() && settings.general.newLayoutDesigns(),
         }}
       >
         <Show when={controller.state.questionRequest()} keyed>
