@@ -30,8 +30,8 @@
 
 ## Implementation Commits
 
-- 7e61612160 fix(session-ui): 流式增量读取按消息+part 复合键
-- d0332a4486 fix(app): 流式增量桶与基线表改用消息+part 复合键
+- 366af56100 fix(session-ui): 流式增量读取按消息+part 复合键
+- c1a38df4b4 fix(app): 流式增量桶与基线表改用消息+part 复合键
 
 ## Workflow follow-up
 
