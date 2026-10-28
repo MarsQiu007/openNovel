@@ -24,7 +24,7 @@
 
 - 不接入 `small_model` 配置（无现成解析入口，另立增强；上游缺省回退同样是会话模型）。
 - 不改 `PROMPT_TITLE` 文案、不做标题语言强制（生成语言由模型跟随输入）。
-- 不做「每次对话后重新命名」「手动触发重新命名」；不改 app 前端。
+- 不做「每次对话后重新命名」「手动触发重新命名」；不重构 app 会话数据流。
 - 不做异步 fork 的后台任务框架（见 D5，采用 run 尾部顺序有界执行）。
 
 ## Decisions
@@ -44,6 +44,8 @@ core 侧判定函数匹配 `^(New session|Child session) - <ISO 时间戳>$`（�
 ### D4：输出清洗后写回，空结果放弃
 
 取生成文本首个非空行，去包围引号与首尾空白，超长截断为 80 字符加省略号；清洗后为空则放弃命名。写回直接发布既有 `SessionEvent.Updated`，由 projector 落库并广播；与 `V2Session.update({ title })` 使用同一事件链，但不反向依赖 SessionV2，也不直接写库或新增事件。
+
+书内切换器使用独立的 `bound-sessions` 查询，而非 global-sync 的 session store；仅在通用事件 reducer 合并标题不足以刷新该列表。`useNovelLiveInvalidation` 对绑定会话的 `session.next.updated` 立即失效当前小说查询，保证标题写回后顶部触发器与下拉列表同步刷新；其他会话的更新不扩大失效范围。
 
 ### D5：run 尾部顺序有界执行，全错误静默
 

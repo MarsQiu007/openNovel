@@ -7,7 +7,7 @@
 ## What Changes
 
 - V2 runner 在会话 drain 完成后，对标题仍为默认占位（`New session - ...` / `Child session - ...`）的会话执行一次自动命名：用 title agent 的系统提示对首条用户消息（及首个助手正文）做一次有界 LLM 生成，清洗输出后写回标题。
-- 写回复用既有链路 `V2Session.update({ title })` → `SessionEvent.Updated` → projector 落库 + 前端事件，无协议变更。
+- 写回复用既有 `SessionEvent.Updated` → projector 落库 + 前端事件，无协议变更；书内会话切换器监听该更新事件并即时失效 `bound-sessions` 查询，避免数据库已命名但列表仍显示旧占位标题。
 - 非默认标题（用户改题、创建时显式传题）不被覆盖；成功命名后不再重复触发；生成失败静默保留原标题，绝不影响对话主流程。
 - 老的占位会话在下次对话时自然补偿命名，无需迁移。
 
@@ -24,5 +24,6 @@
 ## Impact
 
 - **packages/core**：`src/session/runner/llm.ts`（run drain 尾部挂载）、`src/session/`（自动命名模块：占位判定、生成调用、输出清洗）、`src/session/runner/model.ts`（复用会话模型解析）、`src/session.ts`（复用 V2Session.update）、`src/plugin/agent.ts`（title agent 系统提示的读取/导出）。相应单测。
-- **不涉及**：协议 / schema / client 生成代码 / app / session-ui（前端经既有 `session.updated` 事件链自动刷新标题，无需改动）；数据库无 schema 变更、无迁移。
+- **packages/app**：`src/context/novel-live.ts` 监听绑定会话的 `session.next.updated`，即时刷新书内 `bound-sessions` 查询；补事件路由回归测试。
+- **不涉及**：协议 / schema / client 生成代码 / session-ui；数据库无 schema 变更、无迁移。
 - **模型与成本**：每次自动命名是一次额外的有界 LLM 调用（仅占位标题会话的首次对话后触发一次），使用会话当前模型；`small_model` 配置接入不在本 change。

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { QueryClient } from "@tanstack/solid-query"
 import { createSignal } from "solid-js"
-import { createNovelInvalidator, isNovelLiveKey } from "./novel-live"
+import { createNovelInvalidator, isNovelLiveKey, shouldInvalidateNovelSessionUpdate } from "./novel-live"
 
 const directory = "C:/Novels/Live"
 
@@ -22,6 +22,22 @@ describe("isNovelLiveKey", () => {
     expect(isNovelLiveKey(["novel", "detail", "C:/Other", "book-a"], directory, "book-a")).toBe(false)
     expect(isNovelLiveKey(["novel", "detail", directory, "book-b"], directory, "book-a")).toBe(false)
     expect(isNovelLiveKey(["session", directory, "book-a"], directory, "book-a")).toBe(false)
+  })
+})
+
+describe("shouldInvalidateNovelSessionUpdate", () => {
+  test("绑定会话的标题更新立即失效书内会话列表", () => {
+    const bound = new Set(["ses-bound"])
+    const updated = { type: "session.next.updated", properties: { sessionID: "ses-bound", title: "撰写" } }
+
+    expect(shouldInvalidateNovelSessionUpdate(updated, bound)).toBe(true)
+    expect(shouldInvalidateNovelSessionUpdate(updated, new Set(["ses-other"]))).toBe(false)
+    expect(
+      shouldInvalidateNovelSessionUpdate(
+        { type: "session.next.text.delta", properties: { sessionID: "ses-bound" } },
+        bound,
+      ),
+    ).toBe(false)
   })
 })
 

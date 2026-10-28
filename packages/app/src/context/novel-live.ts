@@ -26,6 +26,14 @@ export function isNovelLiveKey(queryKey: readonly unknown[], directory: string, 
   )
 }
 
+/** 绑定会话的元数据更新（尤其自动标题）需要立即刷新 bound-sessions，不能等内容轮询兜底。 */
+export function shouldInvalidateNovelSessionUpdate(
+  event: { readonly type: string; readonly properties: { readonly sessionID: string } },
+  boundSessionIds: ReadonlySet<string>,
+) {
+  return event.type === "session.next.updated" && boundSessionIds.has(event.properties.sessionID)
+}
+
 /**
  * 构造"失效当前小说作用域"的执行器（book-open-transition D5）。
  * 工作台在书与书之间切换时组件不重挂（单 Route 仅 params 变化），作用域必须经 accessor
@@ -45,6 +53,7 @@ export function createNovelInvalidator(input: {
 /**
  * Subscribes to directory SSE events and invalidates novel query keys.
  *
+ * - `session.next.updated` for a bound session → immediate broad invalidation（标题等元数据写回）
  * - `session.status` for a session bound to this novel → immediate broad invalidation
  * - V2 内容进展事件（text.delta/tool.success/step.ended）for a bound session → 5s debounce then broad invalidate
  * - Active (busy/retry) bound sessions → 15s polling broad invalidation
@@ -124,6 +133,11 @@ export function useNovelLiveInvalidation(directory: Accessor<string>, novelID: A
   // ---- SSE subscription ----
 
   const unsub = sdk.event.on(directory(), (event: Event) => {
+    if (event.type === "session.next.updated") {
+      if (shouldInvalidateNovelSessionUpdate(event, boundSessionIds)) void invalidateNovel()
+      return
+    }
+
     if (event.type === "session.status") {
       const { sessionID, status } = event.properties
       // Refresh bindings if we don't know this session yet (may be newly bound)
