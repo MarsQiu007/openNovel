@@ -194,7 +194,11 @@ const layer = Layer.effect(
           promoted += Number(yield* SessionInput.promoteNextQueued(db, events, session.id))
           promoted += yield* SessionInput.promoteSteers(db, events, session.id, cutoff)
         }
-        if (promoted > 0) currentStep = 1
+        if (promoted > 0) {
+          currentStep = 1
+          // 首条用户输入已可见，但正文工作尚未开始；先命名，避免长任务或中断让标题一直停留在占位值
+          yield* title.ensure(sessionID)
+        }
       }
       const system =
         initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
@@ -405,8 +409,6 @@ const layer = Layer.effect(
         shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
         promotion = shouldRun ? "queue" : undefined
       }
-      // drain 完成后对默认占位标题做一次有界自动命名（ensure 内部全静默，不影响 run 语义）
-      yield* title.ensure(input.sessionID)
     })
 
     // 手动 compact 与 runTurnAttempt 共用 epoch/模型/历史装载路径；request 仅用于

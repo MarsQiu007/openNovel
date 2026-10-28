@@ -228,11 +228,13 @@ const config = Layer.succeed(
   }),
 )
 const titleEnsures: string[] = []
+const titleEnsureRequestCounts: number[] = []
 const titleFake = Layer.succeed(
   SessionTitle.Service,
   SessionTitle.Service.of({
     ensure: (id) => {
       titleEnsures.push(id)
+      titleEnsureRequestCounts.push(requests.length)
       return Effect.void
     },
   }),
@@ -328,6 +330,7 @@ const setup = Effect.gen(function* () {
   const { db } = yield* Database.Service
   response = []
   titleEnsures.length = 0
+  titleEnsureRequestCounts.length = 0
   systemBaseline = "Initial context"
   systemRemoved = false
   systemUnavailable = false
@@ -571,7 +574,7 @@ const verifyPartialFlushOnInterruption = (kind: FragmentKind) =>
   })
 
 describe("SessionRunnerLLM", () => {
-  it.effect("ensures auto title after the drain completes", () =>
+  it.effect("ensures auto title after promoting user input and before provider work", () =>
     Effect.gen(function* () {
       yield* setup
       const session = yield* SessionV2.Service
@@ -579,7 +582,9 @@ describe("SessionRunnerLLM", () => {
 
       yield* session.resume(sessionID)
 
-      expect(titleEnsures).toContain(sessionID)
+      expect(titleEnsures).toEqual([sessionID])
+      expect(titleEnsureRequestCounts).toEqual([0])
+      expect(requests.length).toBe(1)
       // requests 为模块级共享且 setup 不重置：本用例产生的请求不能泄漏给后续用例
       requests.length = 0
     }),
