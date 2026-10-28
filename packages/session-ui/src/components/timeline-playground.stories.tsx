@@ -2052,7 +2052,6 @@ function Playground() {
                           messageID={msg.id}
                           messages={state.messages}
                           active={false}
-                          showReasoningSummaries={true}
                           shellToolDefaultOpen={true}
                           editToolDefaultOpen={true}
                           classes={{

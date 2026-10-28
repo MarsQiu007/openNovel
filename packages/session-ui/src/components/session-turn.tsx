@@ -4,7 +4,7 @@ import { useData } from "../context"
 
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { createMemo, ParentProps, Show } from "solid-js"
-import { AssistantParts, Message, MessageDivider, PART_MAPPING, type UserActions } from "./message-part"
+import { AssistantParts, Message, MessageDivider, PART_MAPPING, reasoningHeadingText, type UserActions } from "./message-part"
 import { Card } from "@opennovel-ai/ui/card"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { TextShimmer } from "@opennovel-ai/ui/text-shimmer"
@@ -92,42 +92,6 @@ function partState(part: PartType, showReasoningSummaries: boolean) {
   }
   if (PART_MAPPING[part.type]) return "visible" as const
   return
-}
-
-function clean(value: string) {
-  return value
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_~]+/g, "")
-    .trim()
-}
-
-function heading(text: string) {
-  const markdown = text.replace(/\r\n?/g, "\n")
-
-  const html = markdown.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i)
-  if (html?.[1]) {
-    const value = clean(html[1].replace(/<[^>]+>/g, " "))
-    if (value) return value
-  }
-
-  const atx = markdown.match(/^\s{0,3}#{1,6}[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/m)
-  if (atx?.[1]) {
-    const value = clean(atx[1])
-    if (value) return value
-  }
-
-  const setext = markdown.match(/^([^\n]+)\n(?:=+|-+)\s*$/m)
-  if (setext?.[1]) {
-    const value = clean(setext[1])
-    if (value) return value
-  }
-
-  const strong = markdown.match(/^\s*(?:\*\*|__)(.+?)(?:\*\*|__)\s*$/m)
-  if (strong?.[1]) {
-    const value = clean(strong[1])
-    if (value) return value
-  }
 }
 
 export function SessionTurn(
@@ -308,7 +272,7 @@ export function SessionTurn(
           visible++
         }
         if (part.type === "reasoning" && part.text) {
-          const h = heading(part.text)
+          const h = reasoningHeadingText(part.text)
           if (h) reason = h
         }
       }
@@ -361,7 +325,6 @@ export function SessionTurn(
                     showAssistantCopyPartID={assistantCopyPartID()}
                     turnDurationMs={turnDurationMs()}
                     working={working()}
-                    showReasoningSummaries={showReasoningSummaries()}
                     shellToolDefaultOpen={props.shellToolDefaultOpen}
                     editToolDefaultOpen={props.editToolDefaultOpen}
                   />

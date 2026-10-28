@@ -64,7 +64,13 @@ import { patchFiles } from "./apply-patch-file"
 import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind, typeLabel } from "./message-file"
-import { readPartText } from "./message-part-text"
+import {
+  readPartText,
+  renderablePart,
+  reasoningHeadingText,
+  reasoningTriggerText,
+  resolveCollapsibleOpen,
+} from "./message-part-text"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
 
 async function writeClipboard(text: string): Promise<boolean> {
@@ -168,7 +174,6 @@ export interface MessageProps {
   parts: PartType[]
   actions?: UserActions
   showAssistantCopyPartID?: string | null
-  showReasoningSummaries?: boolean
   useV2Actions?: boolean
   comments?: UserMessageComment[]
 }
@@ -717,15 +722,10 @@ function index<T extends { id: string }>(items: readonly T[]) {
   return new Map(items.map((item) => [item.id, item] as const))
 }
 
-export function renderable(part: PartType, showReasoningSummaries = true) {
-  if (part.type === "tool") {
-    if (HIDDEN_TOOLS.has(part.tool)) return false
-    if (part.tool === "question") return part.state.status !== "pending" && part.state.status !== "running"
-    return true
-  }
-  if (part.type === "text") return !!part.text?.trim()
-  if (part.type === "reasoning") return showReasoningSummaries && !!part.text?.trim()
-  return !!PART_MAPPING[part.type]
+export { reasoningHeadingText, reasoningTriggerText } from "./message-part-text"
+
+export function renderable(part: PartType) {
+  return renderablePart(part, (type) => !!PART_MAPPING[type])
 }
 
 function toolDefaultOpen(tool: string, shell = false, edit = false) {
@@ -744,7 +744,6 @@ export function AssistantParts(props: {
   turnDurationMs?: number
   useV2Actions?: boolean
   working?: boolean
-  showReasoningSummaries?: boolean
   shellToolDefaultOpen?: boolean
   editToolDefaultOpen?: boolean
 }) {
@@ -764,7 +763,7 @@ export function AssistantParts(props: {
       groupParts(
         props.messages.flatMap((message) =>
           list(data.store.part?.[message.id], emptyParts)
-            .filter((part) => renderable(part, props.showReasoningSummaries ?? true))
+            .filter((part) => renderable(part))
             .map((part) => ({
               messageID: message.id,
               part,
@@ -970,7 +969,6 @@ export function Message(props: MessageProps) {
             message={assistantMessage() as AssistantMessage}
             parts={props.parts}
             showAssistantCopyPartID={props.showAssistantCopyPartID}
-            showReasoningSummaries={props.showReasoningSummaries}
             useV2Actions={props.useV2Actions}
           />
         )}
@@ -983,7 +981,6 @@ export function AssistantMessageDisplay(props: {
   message: AssistantMessage
   parts: PartType[]
   showAssistantCopyPartID?: string | null
-  showReasoningSummaries?: boolean
   useV2Actions?: boolean
 }) {
   const emptyTools: ToolPart[] = []
@@ -992,7 +989,7 @@ export function AssistantMessageDisplay(props: {
     () =>
       groupParts(
         props.parts
-          .filter((part) => renderable(part, props.showReasoningSummaries ?? true))
+          .filter((part) => renderable(part))
           .map((part) => ({
             messageID: props.message.id,
             part,
@@ -1767,6 +1764,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
   )
 }
 
+// 块级展开状态解析：受控 toolOpen 优先，其次 defaultOpen，未受控时取本地信号（默认收起）。
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   const data = useData()
   const part = () => props.part as ReasoningPart
@@ -1774,12 +1772,31 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
+  const [localOpen, setLocalOpen] = createSignal(false)
+  const open = () =>
+    resolveCollapsibleOpen({ toolOpen: props.toolOpen, defaultOpen: props.defaultOpen, local: localOpen() })
+  const handleOpenChange = (value: boolean) => {
+    if (props.toolOpen === undefined && props.defaultOpen === undefined) setLocalOpen(value)
+    props.onToolOpenChange?.(value)
+  }
+  const heading = createMemo(() => reasoningTriggerText(text()))
 
   return (
     <Show when={text()}>
       <div data-component="reasoning-part" data-timeline-part-id={part().id}>
-        <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+        <Show
+          when={!streaming()}
+          fallback={<PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />}
+        >
+          <Collapsible open={open()} onOpenChange={handleOpenChange} variant="ghost" class="reasoning-collapsible">
+            <Collapsible.Trigger>
+              <span data-slot="reasoning-part-trigger-text">{heading()}</span>
+              <Collapsible.Arrow />
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <Markdown text={text()} cacheKey={part().id} streaming={false} />
+            </Collapsible.Content>
+          </Collapsible>
         </Show>
       </div>
     </Show>

@@ -310,6 +310,34 @@
       }
     }
   }
+
+  .reasoning-collapsible {
+    width: 100%;
+  }
+
+  [data-slot="collapsible-trigger"] {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-height: 24px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  [data-slot="reasoning-part-trigger-text"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--v2-text-text-muted);
+  }
+
+  [data-slot="collapsible-arrow"] {
+    color: var(--icon-weaker);
+    cursor: pointer;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
