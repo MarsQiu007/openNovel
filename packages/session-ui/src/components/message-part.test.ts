@@ -8,28 +8,42 @@ import {
 } from "./message-part-text"
 
 describe("readPartText", () => {
+  const part = (input: { id: string; text?: string; messageID?: string }) => ({
+    messageID: "msg_1",
+    ...input,
+  })
+
   test("returns empty string when accum is undefined and part text is undefined", () => {
-    expect(readPartText(undefined, { id: "part_1" })).toBe("")
+    expect(readPartText(undefined, part({ id: "part_1" }))).toBe("")
   })
 
   test("returns trimmed part text when accum is undefined", () => {
-    expect(readPartText(undefined, { id: "part_1", text: "  hello  " })).toBe("hello")
+    expect(readPartText(undefined, part({ id: "part_1", text: "  hello  " }))).toBe("hello")
   })
 
   test("prefers accum value over part text when accum has a hit", () => {
-    expect(readPartText({ part_1: "  from accum  " }, { id: "part_1", text: "from part" })).toBe("from accum")
+    expect(readPartText({ "msg_1:part_1": "  from accum  " }, part({ id: "part_1", text: "from part" }))).toBe(
+      "from accum",
+    )
   })
 
   test("falls back to part text when accum misses", () => {
-    expect(readPartText({ other_part: "ignored" }, { id: "part_1", text: "  from part  " })).toBe("from part")
+    expect(readPartText({ other_part: "ignored" }, part({ id: "part_1", text: "  from part  " }))).toBe("from part")
   })
 
   test("returns empty string for whitespace-only text", () => {
-    expect(readPartText(undefined, { id: "part_1", text: "   \n\t  " })).toBe("")
+    expect(readPartText(undefined, part({ id: "part_1", text: "   \n\t  " }))).toBe("")
   })
 
   test("trims leading and trailing whitespace", () => {
-    expect(readPartText(undefined, { id: "part_1", text: "\n  body  \n" })).toBe("body")
+    expect(readPartText(undefined, part({ id: "part_1", text: "\n  body  \n" }))).toBe("body")
+  })
+
+  test("同 id 不同 messageID 互不命中", () => {
+    const accum = { "msg_1:text-0": "消息一的文本" }
+    expect(readPartText(accum, part({ messageID: "msg_2", id: "text-0", text: "消息二的文本" }))).toBe("消息二的文本")
+    expect(readPartText({ "msg_2:text-0": "消息二的文本" }, part({ id: "text-0" }))).toBe("")
+    expect(readPartText(accum, part({ id: "text-0" }))).toBe("消息一的文本")
   })
 })
 

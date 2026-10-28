@@ -1,5 +1,13 @@
-export function readPartText(accum: Record<string, string> | undefined, part: { id: string; text?: string }): string {
-  return (accum?.[part.id] ?? part.text ?? "").trim()
+// part ID 不保证跨消息唯一（流水线会产出索引式 ID），流式增量桶与基线表一律以「消息 + part」复合键寻址。
+export function partAccumKey(messageID: string, partID: string) {
+  return `${messageID}:${partID}`
+}
+
+export function readPartText(
+  accum: Record<string, string> | undefined,
+  part: { messageID: string; id: string; text?: string },
+): string {
+  return (accum?.[partAccumKey(part.messageID, part.id)] ?? part.text ?? "").trim()
 }
 
 function cleanMarkdown(value: string) {
