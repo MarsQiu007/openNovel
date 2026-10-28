@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import {
+  isTaskTool,
   readPartText,
   renderablePart,
   reasoningHeadingText,
   reasoningPartStreaming,
   reasoningTriggerText,
   resolveCollapsibleOpen,
+  taskAgentName,
+  taskSessionID,
 } from "./message-part-text"
 
 describe("readPartText", () => {
@@ -145,6 +148,34 @@ describe("renderablePart", () => {
     expect(renderablePart(part({ type: "text", text: "hi" }), hasComponent)).toBe(true)
     expect(renderablePart(part({ type: "text", text: "  " }), hasComponent)).toBe(false)
     expect(renderablePart(part({ type: "compaction" }), hasComponent)).toBe(true)
+  })
+})
+
+describe("子代理工具兼容", () => {
+  test("V1 task 与 V2 subagent 都使用专用卡片", () => {
+    expect(isTaskTool("task")).toBe(true)
+    expect(isTaskTool("subagent")).toBe(true)
+    expect(isTaskTool("bash")).toBe(false)
+  })
+
+  test("V2 使用 input.agent 解析代理名", () => {
+    expect(taskAgentName({ agent: "outliner" })).toBe("outliner")
+  })
+
+  test("V1 回退 input.subagent_type", () => {
+    expect(taskAgentName({ subagent_type: "explore" })).toBe("explore")
+  })
+
+  test("V2 agent 优先于遗留字段", () => {
+    expect(taskAgentName({ agent: "outliner", subagent_type: "explore" })).toBe("outliner")
+  })
+
+  test("V2 使用 metadata.sessionID 定位子会话", () => {
+    expect(taskSessionID({ sessionID: "ses_child" })).toBe("ses_child")
+  })
+
+  test("V1 回退 metadata.sessionId", () => {
+    expect(taskSessionID({ sessionId: "ses_legacy" })).toBe("ses_legacy")
   })
 })
 

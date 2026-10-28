@@ -78,6 +78,21 @@ export function resolveCollapsibleOpen(input: { toolOpen?: boolean; defaultOpen?
   return input.local ?? false
 }
 
+export function isTaskTool(tool: string) {
+  return tool === "task" || tool === "subagent"
+}
+
+// V2 将 subagent_type/sessionId 分别迁移为 agent/sessionID，旧会话仍保留原字段。
+export function taskAgentName(input: Record<string, unknown>) {
+  const value = typeof input.agent === "string" && input.agent ? input.agent : input.subagent_type
+  return typeof value === "string" && value ? value : undefined
+}
+
+export function taskSessionID(metadata: Record<string, unknown>) {
+  const value = typeof metadata.sessionID === "string" && metadata.sessionID ? metadata.sessionID : metadata.sessionId
+  return typeof value === "string" && value ? value : undefined
+}
+
 const HIDDEN_TOOLS = new Set(["todowrite"])
 
 // part 是否可渲染的类型级判定（纯策略）；组件注册表的查询由调用方注入。

@@ -65,12 +65,15 @@ import { animate } from "motion"
 import { useLocation } from "@solidjs/router"
 import { attached, inline, kind, typeLabel } from "./message-file"
 import {
+  isTaskTool,
   readPartText,
   renderablePart,
   reasoningHeadingText,
   reasoningPartStreaming,
   reasoningTriggerText,
   resolveCollapsibleOpen,
+  taskAgentName,
+  taskSessionID,
 } from "./message-part-text"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
 
@@ -515,11 +518,10 @@ export function getToolInfo(
         title: webSearchProviderLabel(metadata?.provider),
         subtitle: input.query,
       }
-    case "task": {
-      const type =
-        typeof input.subagent_type === "string" && input.subagent_type
-          ? input.subagent_type[0]!.toUpperCase() + input.subagent_type.slice(1)
-          : undefined
+    case "task":
+    case "subagent": {
+      const raw = taskAgentName(input)
+      const type = raw ? raw[0].toUpperCase() + raw.slice(1) : undefined
       return {
         icon: "task",
         title: agentTitle(i18n, type),
@@ -611,7 +613,7 @@ function taskSession(
   const parentID = currentSession(path)
   if (!parentID) return
   const description = typeof input.description === "string" ? input.description : ""
-  const agent = taskAgent(input.subagent_type, agents).name
+  const agent = taskAgent(taskAgentName(input), agents).name
   return (sessions ?? [])
     .filter((session) => session.parentID === parentID && !session.time?.archived)
     .filter((session) => (description ? session.title.startsWith(description) : true))
@@ -1565,16 +1567,15 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
   const taskId = createMemo(() => {
-    if (part().tool !== "task") return
-    const value = partMetadata().sessionId
-    if (typeof value === "string" && value) return value
+    if (!isTaskTool(part().tool)) return
+    return taskSessionID(partMetadata())
   })
   const taskHref = createMemo(() => {
-    if (part().tool !== "task") return
+    if (!isTaskTool(part().tool)) return
     return sessionLink(taskId(), useLocation().pathname, data.sessionHref)
   })
   const taskSubtitle = createMemo(() => {
-    if (part().tool !== "task") return undefined
+    if (!isTaskTool(part().tool)) return undefined
     const value = input().description
     if (typeof value === "string" && value) return value
     return taskId()
@@ -2016,11 +2017,11 @@ ToolRegistry.register({
     const i18n = useI18n()
     const location = useLocation()
     const childSessionId = createMemo(() => {
-      const value = props.metadata.sessionId
-      if (typeof value === "string" && value) return value
+      const value = taskSessionID(props.metadata)
+      if (value) return value
       return taskSession(props.input, location.pathname, data.store.session, data.store.agent)
     })
-    const agent = createMemo(() => taskAgent(props.input.subagent_type, data.store.agent))
+    const agent = createMemo(() => taskAgent(taskAgentName(props.input), data.store.agent))
     const title = createMemo(() => agent().name ?? i18n.t("ui.tool.agent.default"))
     const tone = createMemo(() => agent().color)
     const v2Tone = createMemo(() => agent().v2Color)
@@ -2154,6 +2155,11 @@ ToolRegistry.register({
       />
     )
   },
+})
+
+ToolRegistry.register({
+  name: "subagent",
+  render: ToolRegistry.render("task"),
 })
 
 ToolRegistry.register({
