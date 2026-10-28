@@ -11,10 +11,10 @@
 - [x] 2.2 单测覆盖生成调用：请求形状（system/输入截断/maxTokens）、清洗后标题、空输出放弃；从 packages/core 跑通
 - [x] 2.3 标题请求显式关闭 OpenAI Chat 推理，避免 reasoning 与正文共享 128 token 预算时输出空标题；补请求选项回归断言，并用真实 GLM 请求验证关闭推理后正常返回标题
 
-## 3. run 尾部挂载与写回
+## 3. 输入提升后提前命名与写回
 
-- [x] 3.1 在 `SessionRunner.run` drain 尾部（llm.ts `while (shouldRun)` 退出后）挂载：仅占位标题会话执行命名，经 `V2Session.update({ title })` 写回；非占位直接跳过；`bun typecheck` 通过
-- [x] 3.2 集成向单测：占位会话 drain 后标题被写回且经 `SessionEvent.Updated` 可见；非占位会话（用户改题/创建传题）drain 后标题不变；成功命名后再次 drain 不重复生成；从 packages/core 跑通
+- [x] 3.1 在 `runTurnAttempt` 确认新用户输入已提升为可见消息后、正文 `llm.stream` 前挂载：仅占位标题会话执行命名，经 `SessionEvent.Updated` 写回；非占位直接跳过；`bun typecheck` 通过
+- [x] 3.2 集成向单测：命名发生在首个正文模型请求前，占位会话标题经 `SessionEvent.Updated` 可见；非占位会话（用户改题/创建传题）标题不变；成功命名后再次输入不重复生成；从 packages/core 跑通
 - [x] 3.3 书内 `bound-sessions` 查询监听绑定会话的 `session.next.updated` 并即时失效，覆盖自动标题写回后顶部与下拉列表仍显示旧占位标题的回归；从 packages/app 跑通 `novel-live` 与 context 套件
 
 ## 4. 容错
@@ -31,9 +31,10 @@
 - `3fada5efe3` feat(core): 首次对话后自动生成会话标题
 - `4faf550757` fix(app): 自动标题写回后刷新书内会话列表
 - `e9c044ec5a` fix(core): 标题生成禁用推理避免空输出
+- `16f95140aa` fix(core): 首条输入后在正文工作前生成标题
 
 ## Workflow follow-up
 
 - 归档流程：实现提交（含 `OpenSpec-Change: session-auto-title` footer）→ 收集提交写入本文件 `Implementation Commits` → 单独提交记录更新 → validate → 同步主 specs → `npx openspec archive --yes` → 合并推送 → 清理分支
 - 后续增强（另立 change）：`small_model` 配置接入（需按 `"provider/model"` 字符串的模型解析入口）；标题语言/质量调优；手动重新命名入口
-- 用户侧验收：新建会话发出首条消息，对话完成后会话列表与页内标题自动变为内容相关标题；老占位会话下次对话后同样被命名
+- 用户侧验收：新建会话发出首条消息，正文工作开始前会话列表与页内标题自动变为内容相关标题；长任务或后续中断不影响已生成标题；老占位会话下次输入时同样被命名
