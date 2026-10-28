@@ -101,6 +101,7 @@ const layer = Layer.effect(
             system: PROMPT_TITLE,
             messages: [Message.user(source)],
             tools: [],
+            providerOptions: { openai: { reasoningEffort: "none" } },
             generation: { maxTokens: TITLE_OUTPUT_TOKENS },
           }),
         )

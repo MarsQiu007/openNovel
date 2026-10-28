@@ -163,6 +163,7 @@ describe("SessionTitle.ensure", () => {
       expect(requests.length).toBe(1)
       expect(JSON.stringify(requests[0]?.system)).toContain("title generator")
       expect(requests[0]?.generation?.maxTokens).toBe(128)
+      expect(requests[0]?.providerOptions?.openai?.reasoningEffort).toBe("none")
       expect(JSON.stringify(requests[0]?.messages)).toContain("帮我写一个星际航行的故事")
     }),
   )
