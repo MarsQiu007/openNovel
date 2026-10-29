@@ -4,6 +4,7 @@ import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, onCleanup, onMount } from "solid-js"
 import { createSdkForServer } from "@/utils/server"
+import { normalizeEventTimestamp } from "@/utils/server-event"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
@@ -218,7 +219,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             streamErrorLogged = false
             if (event.payload.type !== "sync") {
               const directory = event.directory ?? "global"
-              const payload = event.payload as Event
+              const payload = normalizeEventTimestamp(event.payload as Event)
               if (enqueueServerEvent(queue, { directory, payload })) schedule()
             }
 
