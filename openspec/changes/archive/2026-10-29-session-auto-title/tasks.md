@@ -33,6 +33,10 @@
 - `e9c044ec5a` fix(core): 标题生成禁用推理避免空输出
 - `16f95140aa` fix(core): 首条输入后在正文工作前生成标题
 
+### 归档后收尾修复
+
+- `ceab12574f` test(opennovel): 标题请求识别对齐自动标题提示词——自动标题上线后 TestLLMServer.isTitleRequest 仍匹配 legacy 旧串，title 请求被当普通请求消费掉 `llm.text` 入队回复，用户 prompt 拿到兜底 "ok"，cli run (V2) 两用例双平台确定性红；改匹配 PROMPT_TITLE 稳定开头，cli 全套 49 测试转绿
+
 ## Workflow follow-up
 
 - 归档流程：实现提交（含 `OpenSpec-Change: session-auto-title` footer）→ 收集提交写入本文件 `Implementation Commits` → 单独提交记录更新 → validate → 同步主 specs → `npx openspec archive --yes` → 合并推送 → 清理分支
