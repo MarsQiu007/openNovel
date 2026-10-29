@@ -48,6 +48,15 @@
 - **WHEN** 某 provider 在凭据库中已有 API key，随后 OAuth 流程再次保存该 provider 的 OAuth 类型条目
 - **THEN** 凭据库中该 provider 的凭据保持不变，OAuth token 刷新不会清空或覆盖它
 
+### Requirement: 仅旧版存储有 key 的 provider 参与模型可用性判定
+
+模型可用性判定在 Integration 凭据库中该 provider 没有任何凭据时，SHALL 把旧版凭据存储中该 provider 的 API key 条目视为已连接；旧版存储中的 OAuth 或 wellknown 类型条目 SHALL NOT 影响可用性。该判定 SHALL NOT 写入凭据库或发布连接更新事件。
+
+#### Scenario: 升级后存量 provider 仍可选中并发起会话
+
+- **WHEN** 某 provider 仅在旧版凭据存储中存有 API key（凭据库为空），用户打开模型选择并选择其模型发起 V2 会话
+- **THEN** 该 provider 及其模型出现在可用模型中，会话解析到该 key 并在请求中携带 Authorization 头
+
 ### Requirement: 凭据库未命中时运行时回退旧版凭据存储
 
 V2 会话运行时解析 provider 的 key 时，若 Integration 凭据库中该 provider 没有任何凭据，系统 SHALL 回退到旧版凭据存储中该 provider 的 API key 条目完成解析；回退命中后系统 SHALL 将该 key 写入 Integration 凭据库，使后续解析直接命中凭据库。若凭据库中已有该 provider 的凭据，则 SHALL 以凭据库为准，不再读取旧版存储。

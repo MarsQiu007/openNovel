@@ -53,7 +53,19 @@
 - **为什么需要锁**：`Credential.create` 是 DELETE+INSERT 新 ID；若两个并发冷启动都判定库空并各自 create，后一次会删除前一次刚创建的连接 ID，先返回的 `connection` 在随后的 `resolve` 中按 ID 查不到凭据，请求会静默不带 Authorization。锁内复核后并发调用共享第一次修复结果，消除该进程内竞态。跨进程（workspace 子进程共享全局库）仍有极窄的同值替换竞态，接受为兼容层残余风险：下一轮解析会重新命中库并恢复。
 - 备选方案：在 `model.ts` 的 `locationLayer.resolve` 里做纯兜底（不写库）。被否——两库永久分裂、legacy 读取逻辑与会话运行耦合、其他调用方不受益；且连接类型没有「内存凭据」变体，无法不落库就返回凭据。
 
-### D3：无契约变更，SDK 不再生成
+### D3：模型可用性判定接入旧版存储（只读，不写库）
+
+`Catalog.provider.available` 现状是「有凭据连接、有环境变量连接、或有 `request.body.apiKey` 才算可用」。仅存在 auth.json 的存量 provider 会因此被过滤出 `catalog.model.available`：模型选择器不展示它，已保存的会话模型在 `SessionRunnerModel.resolve` 里也匹配不到 `available`，会静默回退到其他 provider。这样 D2 的懒修复永远没有触发机会，存量免迁移承诺失效（隔离运行已复现：无环境变量时请求被回退到其他 provider）。
+
+- `LegacyAuth.parseAll(data)`：纯函数，遍历顶层条目，只保留能按 `{ type: "api", key }` 解码的项，返回 `Record<providerID, Credential.Key>`；非对象返回 `{}`。
+- `LegacyAuth.readAll(file = ...)`：与 `read` 共享 `load`（`OPENNOVEL_AUTH_CONTENT` 优先，非法/缺失回落文件），返回 `parseAll` 结果。
+- `Integration.connection.legacy()`：返回旧版存储中带 API key 的 integration ID 集合；只读，不创建凭据、不发布事件。
+- `Catalog.provider.available`：在原有三条判定之后追加一条——`legacy.has(provider.integrationID ?? provider.id)` 即视为可用。
+- **为什么不在可用性判定里顺手修复**：可用性查询是高频只读路径（模型列表、picker 刷新），在里面写库和发布事件会造成意外副作用与刷新回环；修复仍集中在 `connection.active`，二者职责分离。
+- **为什么不做进程内缓存**：测试与 `OPENNOVEL_AUTH_CONTENT` 注入需要在同进程内看到环境变化；旧版文件通常只有几 KB，每次可用性查询读一次可接受。
+- 备选方案：新增启动迁移把所有 auth.json 条目写进凭据库。被否——会给从未使用 V2 的 provider 也写入行，且与 D2 的「首次使用才收敛」语义不一致。
+
+### D4：无契约变更，SDK 不再生成
 
 `PUT /auth/:providerID`、`Integration` HttpApi、Connection 联合类型全部不变；`packages/client` 无需 `bun run generate`，`packages/app` 无改动（设置弹窗仍走原契约）。
 
@@ -65,10 +77,11 @@
 - [保存 oauth/wellknown 条目时库中旧 API key 仍保留（类型切换不收敛）] → 已在 Non-Goals 明确；`remove` 仍能清干净，OAuth token 刷新不会被误清库。
 - [`Auth.set` 新增失败面（credential 库不可用）] → 有意为之：保存失败对用户可见可重试，优于静默写裂；文件已写而库未写时由 D2 兜底自愈。
 - [auth.json 非原子写与 core 并发读取] → 读取可能短暂解析失败并回落 env/无凭据，下一次解析恢复，不抛出。
+- [可用性判定每次查询都读一次 auth.json] → 文件很小且仅在模型/凭据刷新时调用；不做缓存是为了让测试与 `OPENNOVEL_AUTH_CONTENT` 注入即时生效。文件损坏时等同于无旧版条目，provider 回到原判定逻辑。
 
 ## Migration Plan
 
-无离线迁移步骤：升级后首次保存触发双写（D1），首次会话触发懒修复（D2），存量 auth.json 数据逐步收敛。双写失败留下的「文件已更新、库未更新」中间态由 D2 兜底在下次会话修复。回滚直接 revert 提交即可，两库中多出的数据对旧版本无害（文件侧旧版本正常消费，库侧旧版本忽略）。
+无离线迁移步骤：升级后首次保存触发双写（D1），仅旧版存储有 key 的 provider 由可用性判定（D3）继续可见，首次会话触发懒修复（D2），存量 auth.json 数据逐步收敛。双写失败留下的「文件已更新、库未更新」中间态由 D2 兜底在下次会话修复。回滚直接 revert 提交即可，两库中多出的数据对旧版本无害（文件侧旧版本正常消费，库侧旧版本忽略）。
 
 ## Open Questions
 

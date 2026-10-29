@@ -23,6 +23,7 @@ TDD 顺序：每节先写失败测试并确认失败原因正确，再写最小�
   - (f) 并发冷启动：凭据库空 + legacy api key，两个 `fork` 并发调用 `active` → 两者 `resolve` 均得到 key，且凭据库只有一行
   - 验证：`cd packages/core && bun test test/integration.test.ts` 先红后绿
 - [x] 2.2 实现 `connection.active`：库空时进入 `KeyedMutex.makeUnsafe<ID>()` 的 per-integration 锁，锁内重新 `list` 复核并读取 legacy，命中则 `credentials.create({integrationID, label:"default", value})` 后发布 `Event.ConnectionUpdated` 与 `Event.Updated`，返回新建连接；legacy 未命中再回落 env；`Integration.node` 依赖增加 `FSUtil.node`。验证：2.1 用例全部转绿且 `cd packages/core && bun typecheck` 通过
+- [x] 2.3 模型可用性判定接入旧版存储（不写库）：先补用例（RED）——`LegacyAuth.parseAll`/`readAll` 的过滤与 env 优先级；`Integration.connection.legacy()` 返回带 API key 的 integration 集合（oauth 条目不计）；`Catalog.provider.available` 把仅旧版有 API key 的 provider 视为可用、旧版只有 oauth 条目的不算。再实现 `parseAll`/`readAll`、`connection.legacy` 与 `provider.available` 的 `legacy` 判定。验证：`cd packages/core && bun test test/integration/legacy-auth.test.ts test/integration.test.ts test/catalog.test.ts` 转绿且 `bun typecheck` 通过
 
 ## 3. opennovel：Auth 服务双写
 
@@ -40,11 +41,11 @@ TDD 顺序：每节先写失败测试并确认失败原因正确，再写最小�
 ## 4. 质量门与集成验证
 
 - [x] 4.1 `cd packages/core && bun typecheck`、`cd packages/opennovel && bun typecheck` 通过；根目录 `bun run lint` 对改动文件无新增告警
-- [ ] 4.2 手工验收（桌面端，不得读取真实 `auth.json` 内容，只观察请求与库行）：
-  - (a) 存量兜底：升级后重启桌面端，对仅在 auth.json 有 key 的 provider 发起 V2 会话 → 请求带 Authorization（不再报「Header中未收到Authorization参数」），且 credential 表出现该 provider 行
-  - (b) 双写：设置界面为新自定义 provider 保存 key → credential 表同步出现对应行；再保存第二个 key → 库中仍一行且为新 key
-  - (c) 移除：移除该 key → auth.json 与 credential 表两侧均无该条目，新会话不再带 Authorization
-  - (d) 非 API 类型：保存 oauth 条目不影响该 provider 库中既有 API key 行
+- [x] 4.2 运行时验收（隔离数据目录与临时库，仅使用自造 key，不读取真实 `auth.json`）：
+  - (a) 存量兜底：隔离 CLI（`run --dir <temp workspace> --model requesty/xai/grok-4`，`OPENNOVEL_MODELS_PATH` 指向把 `requesty.api` 改到本地 mock 的 fixture，无 `REQUESTY_API_KEY`）→ mock 收到 `authorization: "Bearer verify-legacy-key"`，临时库出现 `integration_id=requesty / label=default` 行，进程退出码 0 且无 drain 失败；修复可用性判定前同一命令会静默回退到其他 provider（远端 401），证明桥接必要
+  - (b) 双写：隔离 server + `PUT /auth/verify-provider`（api key-one）→ 凭据库一行；再 PUT key-two → 仍一行且值为 key-two；`auth.json` 同步为最新条目
+  - (c) 移除：`DELETE /auth/verify-provider` → 凭据库该 provider 零行，`auth.json` 中该 provider 键消失（写入方为最新 oauth 条目时同样清空，登出语义）
+  - (d) 非 API 类型：在已有 API key 行后 PUT 该 provider 的 oauth 条目 → 库中 API key 行保持不变
 
 ## Workflow follow-up
 

@@ -7,6 +7,7 @@ V2 会话运行时解析 provider key 只认 Integration 凭据库（credential 
 ## What Changes
 
 - V2 会话的 provider key 解析增加兜底：凭据库未命中时回退读取旧版凭据存储（auth.json）中同 provider 的 API key 条目，首次命中即把该 key 懒修复写入凭据库（进程内按 provider 串行，避免并发复制造成连接 ID 失效），存量安装无需迁移即可认证。
+- 模型可用性判定接入旧版凭据存储：仅 auth.json 有 key 的 provider 在模型选择与会话解析中被视为已连接，否则该 provider 会被过滤，懒修复没有触发机会，存量用户实际无法选中该模型。
 - 旧版 Auth 服务的 set/remove 增加双写：对 `{type:"api"}` 条目同步写入 Integration 凭据库中 integration_id 等于 providerID 的凭据；移除任意类型的既有条目时同步清空该 provider 在凭据库中的全部凭据（含 OAuth 行），使设置界面、CLI、插件 OAuth 回调等所有现有写入方自动收敛到「两库一致」，登出后不会从凭据库复活。
 - 解析优先级明确为：凭据库 > 旧版凭据存储 > 环境变量方法（保持凭据库为单一事实源，旧版存储只作兼容兜底）。
 
@@ -22,7 +23,7 @@ V2 会话运行时解析 provider key 只认 Integration 凭据库（credential 
 
 ## Impact
 
-- **packages/core**：Integration 服务（`src/integration.ts`）的 connection 解析增加旧版凭据存储兜底；新增 `src/integration/legacy-auth.ts` 做受控读取与解析（仅取 `{type:"api"}` 条目合成 key 凭据，oauth/wellknown 与畸形条目返回空）；兜底命中后懒修复写入凭据库并发布连接更新事件。
+- **packages/core**：Integration 服务（`src/integration.ts`）的 connection 解析增加旧版凭据存储兜底；新增 `src/integration/legacy-auth.ts` 做受控读取与解析（仅取 `{type:"api"}` 条目合成 key 凭据，oauth/wellknown 与畸形条目返回空）；兜底命中后懒修复写入凭据库并发布连接更新事件。Catalog 的 provider 可用性判定把「仅旧版存储有 key」也算作已连接（只读，不写库）。
 - **packages/opennovel**：Auth 服务（`src/auth/index.ts`）set 对 API key 条目双写 `Credential.create`，remove 清空该 provider 在凭据库中的凭据；layer 依赖增加全局 Credential 节点。
 - **packages/app**：无改动（设置弹窗仍走既有 `PUT /auth/:providerID` 契约）。
 - **packages/schema / packages/protocol**：无契约变更，无需重新生成 SDK。
