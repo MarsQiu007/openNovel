@@ -36,6 +36,7 @@
 ### 归档后收尾修复
 
 - `ceab12574f` test(opennovel): 标题请求识别对齐自动标题提示词——自动标题上线后 TestLLMServer.isTitleRequest 仍匹配 legacy 旧串，title 请求被当普通请求消费掉 `llm.text` 入队回复，用户 prompt 拿到兜底 "ok"，cli run (V2) 两用例双平台确定性红；改匹配 PROMPT_TITLE 稳定开头，cli 全套 49 测试转绿
+- `f30299786b` test(opennovel): SDK 断言过滤自动标题请求——16f95140aa 让 title 请求先于正文发出，httpapi-sdk 两个用例的 `llm.inputs` 首元素断言在 title 先到时误判；导出 isTitleRequest 供断言过滤，只对正文请求断言
 
 ## Workflow follow-up
 
