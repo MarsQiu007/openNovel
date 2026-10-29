@@ -39,6 +39,11 @@
 - `709740ee56` `fix(app): 保持消息 part 的时间线顺序`
 - `8a811a0db8` `fix(app): 统一 SSE 事件时间戳为毫秒`
 
+### 归档后收尾修复
+
+- `52254937b4` fix(session-ui): 展开态工具卡放开裁切恢复粘性头部——redesign 给 .tool-collapsible 加的 overflow:hidden 让卡片自身成为 sticky 就近 scrollport，edit/write/apply-patch 展开态粘性头部失效，e2e session-timeline-collapse-state:191 红
+- `31e225e694` test(app): smoke 时间线期望顺序跟随 content 到达序——smoke fixture 的 expectedPartIDs 仍按 709740ee56 移除的「store 按 id 字典序排序」旧语义 sort，导致整文件红
+
 ## Workflow follow-up
 
 - 实现提交写入 `OpenSpec-Change: session-conversation-redesign` footer，并登记到 `Implementation Commits`
