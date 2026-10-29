@@ -36,15 +36,14 @@ function refKey(ref: Location.Ref): string {
   return `${ref.workspaceID ?? ""}::${ref.directory}`
 }
 
-function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
-  const query = new URL(request.url, "http://localhost").searchParams
-  const workspaceID = query.get("location[workspace]") || request.headers["x-opennovel-workspace"]
-  const directory =
-    query.get("location[directory]") ||
-    (request.headers["x-opennovel-directory"] ? decode(request.headers["x-opennovel-directory"]) : process.cwd())
+// Location.Ref 是普通 struct（无字段级 Equal），LocationServiceMap 的 LayerMap
+// 按 ref 对象 identity 分桶：同一 directory 必须复用同一 ref 对象，否则每个
+// 请求都会在 LayerMap 里新建一棵独立的 location 层树（全新 AgentV2 State、
+// 重跑插件 boot 批，且 60 分钟 TTL 内不回收）。
+export function sharedRef(directory: string, workspaceID: WorkspaceV2.ID | undefined): Location.Ref {
   const result = Location.Ref.make({
     directory: AbsolutePath.make(directory),
-    workspaceID: workspaceID ? WorkspaceV2.ID.make(workspaceID) : undefined,
+    workspaceID,
   })
   // 用序列化 key 去重，避免同一 ref 因对象 identity 不同被重复记录
   const key = refKey(result)
@@ -53,6 +52,18 @@ function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
   }
   knownRefs.add(result)
   return result
+}
+
+function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
+  const query = new URL(request.url, "http://localhost").searchParams
+  const workspaceID = query.get("location[workspace]") || request.headers["x-opennovel-workspace"]
+  const directory =
+    query.get("location[directory]") ||
+    (request.headers["x-opennovel-directory"] ? decode(request.headers["x-opennovel-directory"]) : process.cwd())
+  return sharedRef(
+    directory,
+    workspaceID ? WorkspaceV2.ID.make(workspaceID) : undefined,
+  )
 }
 
 function decode(input: string) {

@@ -108,7 +108,10 @@ export const SessionsQuery = Schema.Struct({
   cursor: SessionsQueryCursor.pipe(Schema.optional),
 }).annotate({ identifier: "SessionsQuery" })
 
-export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLocationMiddleware: Context.Key<I, S>) =>
+export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, IL extends HttpApiMiddleware.AnyId, SL>(
+  locationMiddleware: Context.Key<IL, SL>,
+  sessionLocationMiddleware: Context.Key<I, S>,
+) =>
   HttpApiGroup.make("server.session")
     .add(
       HttpApiEndpoint.get("session.list", "/api/session", {
@@ -139,13 +142,18 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           location: Location.Ref.pipe(Schema.optional),
         }),
         success: Schema.Struct({ data: Session.Info }),
-      }).annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.session.create",
-          summary: "Create session",
-          description: "Create a session at the requested location.",
-        }),
-      ),
+      })
+        // create 的 location 回退依赖请求解析的 Location（directory 头/查询参数），
+        // 必须经 locationMiddleware 提供服务；否则 session 表 directory 固定为
+        // server 进程 CWD，session 系后续请求全部解析到 CWD instance。
+        .middleware(locationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.create",
+            summary: "Create session",
+            description: "Create a session at the requested location.",
+          }),
+        ),
     )
     .add(
       HttpApiEndpoint.get("session.active", "/api/session/active", {

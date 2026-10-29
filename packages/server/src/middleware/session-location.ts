@@ -1,7 +1,5 @@
 import { Database } from "@opennovel-ai/core/database/database"
 import { LocationServiceMap } from "@opennovel-ai/core/location-services"
-import { Location } from "@opennovel-ai/core/location"
-import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { SessionTable } from "@opennovel-ai/core/session/sql"
 import { WorkspaceV2 } from "@opennovel-ai/core/workspace"
@@ -10,7 +8,7 @@ import { Effect, Layer, Schema } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { HttpApiMiddleware } from "effect/unstable/httpapi"
 import { InvalidRequestError, SessionNotFoundError } from "@opennovel-ai/protocol/errors"
-import type { LocationServices } from "../location"
+import { sharedRef, type LocationServices } from "../location"
 
 export class SessionLocationMiddleware extends HttpApiMiddleware.Service<
   SessionLocationMiddleware,
@@ -51,13 +49,16 @@ export const sessionLocationLayer = Layer.effect(
             message: `Session not found: ${sessionID}`,
           })
 
+        // 复用 sharedRef 的去重：session 系请求若每次新建 Ref 对象，LayerMap 会按
+        // 对象 identity 逐请求新建 location 层树（与 LocationMiddleware 的树分裂，
+        // AgentV2 registry/插件 boot 状态互不相通）。
         return yield* effect.pipe(
           Effect.provide(
             locations.get(
-              Location.Ref.make({
-                directory: AbsolutePath.make(row.directory),
-                workspaceID: row.workspaceID ? WorkspaceV2.ID.make(row.workspaceID) : undefined,
-              }),
+              sharedRef(
+                row.directory,
+                row.workspaceID ? WorkspaceV2.ID.make(row.workspaceID) : undefined,
+              ),
             ),
           ),
         )

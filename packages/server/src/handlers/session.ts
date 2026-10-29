@@ -1,3 +1,4 @@
+import { Location } from "@opennovel-ai/core/location"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
@@ -12,7 +13,6 @@ import {
   SessionNotFoundError,
   UnknownError,
 } from "@opennovel-ai/protocol/errors"
-import { AbsolutePath } from "@opennovel-ai/core/schema"
 
 const DefaultSessionsLimit = 50
 const DefaultSessionHistoryLimit = 50
@@ -68,12 +68,17 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.create",
         Effect.fn(function* (ctx) {
+          // 回退用请求解析的 location（LocationMiddleware 按 directory 头/查询解析），
+          // 而不是 process.cwd()：否则 session 表的 directory 列固定为 server 进程
+          // CWD，session 系后续请求经 SessionLocationMiddleware 全部落到 CWD instance
+          // （agent registry/插件 boot 与请求头声明的 location 完全脱节）。
+          const location = yield* Location.Service
           return {
             data: yield* session.create({
               id: ctx.payload.id,
               agent: ctx.payload.agent,
               model: ctx.payload.model,
-              location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) },
+              location: ctx.payload.location ?? { directory: location.directory },
             }).pipe(
               Effect.catchTag(
                 "Session.NotFoundError",
