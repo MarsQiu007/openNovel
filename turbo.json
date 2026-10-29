@@ -1,7 +1,7 @@
 {
   "$schema": "https://v2-8-13.turborepo.dev/schema.json",
   "globalEnv": ["CI", "OPENNOVEL_DISABLE_SHARE"],
-  "globalPassThroughEnv": ["CI", "OPENNOVEL_DISABLE_SHARE"],
+  "globalPassThroughEnv": ["CI", "OPENNOVEL_DISABLE_SHARE", "OPENNOVEL_TEST_SKIP_HEADLESS_BROWSER"],
   "tasks": {
     "typecheck": {},
     "build": {
