@@ -98,6 +98,9 @@ jobs:
         run: GITHUB_ACTIONS=false bun turbo test
         env:
           OPENNOVEL_EXPERIMENTAL_DISABLE_FILEWATCHER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
+          # Windows runner 上 headless Chromium launch 稳定挂死（180s 超时），仅 runner 跳过
+          # 浏览器集成套件；Linux CI 与本地开发机不受影响。见 tool-browser.test.ts 同名注释。
+          OPENNOVEL_TEST_SKIP_HEADLESS_BROWSER: ${{ runner.os == 'Windows' && 'true' || 'false' }}
 
       - name: Check generated client
         if: runner.os == 'Linux'

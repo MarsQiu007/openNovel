@@ -105,6 +105,11 @@ afterAll(() => server.stop(true))
 const url = (path: string) => new URL(path, server.url).toString()
 const SLOW = { timeout: 60_000 }
 
+// Windows CI runner 上 headless Chromium launch 稳定挂死（playwright 默认 180s 超时，
+// 本地 Windows 与 Linux CI 均正常），与 pty/httpapi 的 gating 先例一致：runner 上跳过
+// 浏览器集成套件，其余环境全量运行。
+const describeInteractive = process.env.OPENNOVEL_TEST_SKIP_HEADLESS_BROWSER === "true" ? describe.skip : describe
+
 describe("BrowserTool 只读约束与输入校验", () => {
   it.effect("非 http/https 协议在权限断言前拒绝", () =>
     Effect.gen(function* () {
@@ -136,7 +141,7 @@ describe("BrowserTool 只读约束与输入校验", () => {
   )
 })
 
-describe("BrowserTool 页面交互（headless Chromium 集成）", () => {
+describeInteractive("BrowserTool 页面交互（headless Chromium 集成）", () => {
   it.live("JS 渲染页面的内容提取（webfetch 拿不到的注入内容）", () =>
     Effect.gen(function* () {
       assertions = []
