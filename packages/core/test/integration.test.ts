@@ -375,6 +375,19 @@ describe("Integration", () => {
     ),
   )
 
+  it.effect("reports integrations present in the legacy auth store", () =>
+    withAuthContent(
+      JSON.stringify({
+        "legacy-api": { type: "api", key: "secret" },
+        "legacy-oauth": { type: "oauth", access: "a", refresh: "r", expires: 1 },
+      }),
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        expect(yield* integrations.connection.legacy()).toEqual(new Set([Integration.ID.make("legacy-api")]))
+      }),
+    ),
+  )
+
   it.effect("falls back to env methods when the legacy auth store has no entry", () =>
     Effect.acquireUseRelease(
       Effect.sync(() => {

@@ -68,6 +68,26 @@ describe("LegacyAuth.parse", () => {
   })
 })
 
+describe("LegacyAuth.parseAll", () => {
+  test("keeps only valid api key entries", () => {
+    expect(
+      LegacyAuth.parseAll({
+        zhipu: { type: "api", key: "secret" },
+        oauth: { type: "oauth", access: "a", refresh: "r", expires: 1 },
+        wellknown: { type: "wellknown", key: "TOKEN", token: "abc" },
+        broken: { type: "api" },
+      }),
+    ).toEqual({ zhipu: Credential.Key.make({ type: "key", key: "secret" }) })
+  })
+
+  test("treats non object payloads as empty", () => {
+    expect(LegacyAuth.parseAll(undefined)).toEqual({})
+    expect(LegacyAuth.parseAll(null)).toEqual({})
+    expect(LegacyAuth.parseAll([])).toEqual({})
+    expect(LegacyAuth.parseAll("secret")).toEqual({})
+  })
+})
+
 describe("LegacyAuth.parseFile", () => {
   it.effect("reads a key from an existing file", () =>
     Effect.gen(function* () {
@@ -88,6 +108,30 @@ describe("LegacyAuth.parseFile", () => {
     Effect.gen(function* () {
       yield* writeRaw("broken.json", "{")
       expect(yield* LegacyAuth.parseFile(file("broken.json"), "zhipu")).toBeUndefined()
+    }),
+  )
+})
+
+describe("LegacyAuth.readAll", () => {
+  it.effect("reads every api key entry from OPENNOVEL_AUTH_CONTENT", () =>
+    Effect.gen(function* () {
+      process.env.OPENNOVEL_AUTH_CONTENT = JSON.stringify({
+        zhipu: { type: "api", key: "secret" },
+        oauth: { type: "oauth", access: "a", refresh: "r", expires: 1 },
+      })
+      expect(yield* LegacyAuth.readAll(file("unused.json"))).toEqual({
+        zhipu: Credential.Key.make({ type: "key", key: "secret" }),
+      })
+    }),
+  )
+
+  it.effect("falls back to the file when OPENNOVEL_AUTH_CONTENT is unset", () =>
+    Effect.gen(function* () {
+      delete process.env.OPENNOVEL_AUTH_CONTENT
+      yield* write("all.json", { zhipu: { type: "api", key: "from-file" } })
+      expect(yield* LegacyAuth.readAll(file("all.json"))).toEqual({
+        zhipu: Credential.Key.make({ type: "key", key: "from-file" }),
+      })
     }),
   )
 })

@@ -68,10 +68,15 @@ const layer = Layer.effect(
     const policy = yield* Policy.Service
     const integrations = yield* Integration.Service
 
-    const available = (provider: ProviderV2.Info, integration: Integration.Info | undefined) => {
+    const available = (
+      provider: ProviderV2.Info,
+      integration: Integration.Info | undefined,
+      legacy: ReadonlySet<Integration.ID>,
+    ) => {
       if (provider.disabled) return false
       if (typeof provider.request.body.apiKey === "string") return true
       if (integration?.connections.length) return true
+      if (legacy.has(provider.integrationID ?? Integration.ID.make(provider.id))) return true
       return provider.integrationID === undefined && !integration
     }
 
@@ -183,8 +188,11 @@ const layer = Layer.effect(
 
         available: Effect.fn("CatalogV2.provider.available")(function* () {
           const active = new Map((yield* integrations.list()).map((integration) => [integration.id, integration]))
+          // 存量安装的 key 还只在 auth.json 里；不把这类 provider 视为可用的话，
+          // 模型选择与 V2 会话解析都会看不到它，懒修复永远没有触发机会。
+          const legacy = yield* integrations.connection.legacy()
           return (yield* result.provider.all()).filter((provider) =>
-            available(provider, active.get(provider.integrationID ?? Integration.ID.make(provider.id))),
+            available(provider, active.get(provider.integrationID ?? Integration.ID.make(provider.id)), legacy),
           )
         }),
       },

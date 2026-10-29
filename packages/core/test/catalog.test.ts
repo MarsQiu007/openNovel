@@ -29,6 +29,21 @@ const catalogLayer = AppNodeBuilder.build(
 )
 const it = testEffect(catalogLayer)
 
+const withAuthContent = <A, E, R>(content: string, effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const previous = process.env.OPENNOVEL_AUTH_CONTENT
+      process.env.OPENNOVEL_AUTH_CONTENT = content
+      return previous
+    }),
+    () => effect,
+    (previous) =>
+      Effect.sync(() => {
+        if (previous === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+        else process.env.OPENNOVEL_AUTH_CONTENT = previous
+      }),
+  )
+
 describe("CatalogV2", () => {
   it.effect("publishes an updated event after catalog changes", () =>
     Effect.gen(function* () {
@@ -99,6 +114,37 @@ describe("CatalogV2", () => {
 
       expect((yield* catalog.provider.available()).map((provider) => provider.id)).toEqual([providerID])
     }).pipe(Effect.provide(localCatalogLayer))
+  })
+
+  it.effect("treats legacy api keys as available connections", () => {
+    const localCatalogLayer = Layer.fresh(
+      AppNodeBuilder.build(LayerNode.group([Catalog.node, Credential.node, Integration.node]), [
+        [Location.node, locationLayer],
+      ]),
+    )
+
+    return withAuthContent(
+      JSON.stringify({
+        "legacy-api": { type: "api", key: "secret" },
+        "legacy-oauth": { type: "oauth", access: "a", refresh: "r", expires: 1 },
+      }),
+      Effect.gen(function* () {
+        const catalog = yield* Catalog.Service
+        const integrations = yield* Integration.Service
+        yield* integrations.transform((editor) => {
+          editor.update(Integration.ID.make("legacy-api"), () => {})
+          editor.update(Integration.ID.make("legacy-oauth"), () => {})
+        })
+        yield* catalog.transform((editor) => {
+          editor.provider.update(ProviderV2.ID.make("legacy-api"), () => {})
+          editor.provider.update(ProviderV2.ID.make("legacy-oauth"), () => {})
+        })
+
+        expect((yield* catalog.provider.available()).map((provider) => provider.id)).toEqual([
+          ProviderV2.ID.make("legacy-api"),
+        ])
+      }).pipe(Effect.provide(localCatalogLayer)),
+    )
   })
 
   it.effect("projects environment connections without a catalog plugin", () =>

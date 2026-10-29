@@ -149,6 +149,8 @@ export interface Interface extends State.Transformable<Draft> {
   readonly connection: {
     /** Returns the active connection for one integration. */
     readonly active: (id: ID) => Effect.Effect<IntegrationConnection.Info | undefined>
+    /** Returns integration IDs that have an API key in the legacy auth store. */
+    readonly legacy: () => Effect.Effect<ReadonlySet<ID>>
     /** Resolves a connection into usable credential material. */
     readonly resolve: (
       connection: IntegrationConnection.Info,
@@ -428,6 +430,10 @@ export const locationLayer = Layer.effect(
               return { type: "credential" as const, id: credential.id, label: credential.label }
             }),
           )
+        }),
+        legacy: Effect.fn("Integration.connection.legacy")(function* () {
+          const entries = yield* LegacyAuth.readAll().pipe(Effect.provideService(FSUtil.Service, fsys))
+          return new Set(Object.keys(entries).map((id) => ID.make(id)))
         }),
         resolve: Effect.fn("Integration.connection.resolve")(function* (connection) {
           if (connection.type === "env") {
