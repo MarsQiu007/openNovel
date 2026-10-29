@@ -12,23 +12,40 @@ const EventData = Schema.Struct({
   properties: Schema.Record(Schema.String, Schema.Any),
 })
 
-const readEvent = (reader: Queue.Dequeue<Uint8Array>) =>
-  Effect.gen(function* () {
-    const value = yield* Queue.take(reader).pipe(
-      Effect.timeoutOrElse({
-        duration: "5 seconds",
-        orElse: () => Effect.fail(new Error("timed out waiting for event")),
-      }),
-    )
-    return Schema.decodeUnknownSync(EventData)(JSON.parse(new TextDecoder().decode(value).replace(/^data: /, "")))
+// SSE 按帧（空行分隔）交付而非按 chunk：插件 boot 批的事件会同 tick 涌入并合并
+// 进同一个 chunk，读取端必须自行缓冲分帧，不能假设一个 chunk 恰好是一个 event。
+const readEvent = (reader: Queue.Dequeue<string>, type?: string) => {
+  const decode = (frame: string) =>
+    Schema.decodeUnknownSync(EventData)(JSON.parse(frame.replace(/^data: /, "")))
+  const take = Queue.take(reader).pipe(
+    Effect.timeoutOrElse({
+      duration: "5 seconds",
+      orElse: () => Effect.fail(new Error("timed out waiting for event")),
+    }),
+  )
+  if (type === undefined) return Effect.map(take, decode)
+  return Effect.gen(function* () {
+    while (true) {
+      const event = decode(yield* take)
+      if (event.type === type) return event
+    }
   })
+}
 
 const openEventStream = (directory: string) =>
   Effect.gen(function* () {
     const response = yield* requestInDirectory(EventPaths.event, directory)
-    const reader = yield* Queue.unbounded<Uint8Array>()
+    const reader = yield* Queue.unbounded<string>()
+    let buffer = ""
     yield* response.stream.pipe(
-      Stream.runForEach((value) => Queue.offer(reader, value)),
+      Stream.map((value) => {
+        buffer += new TextDecoder().decode(value)
+        const frames = buffer.split("\n\n")
+        buffer = frames.pop() ?? ""
+        return frames
+      }),
+      Stream.flattenIterable,
+      Stream.runForEach((frame) => Queue.offer(reader, frame)),
       Effect.forkScoped,
     )
     return { response, reader }
@@ -88,11 +105,12 @@ describe("event HttpApi", () => {
         const created = yield* requestInDirectory("/api/session", directory, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          // create 缺省 location 是 process.cwd()，事件须落在本实例目录
+          // 显式声明 location，确保 create 落在本实例（缺省回退为请求解析的 location）
           body: JSON.stringify({ location: { directory } }),
         })
         expect(created.status).toBe(200)
-        expect(yield* readEvent(reader)).toMatchObject({ type: "session.next.created" })
+        // 订阅可能落在插件 boot 批进行中，先收到的是 boot 事件，跳过直到目标事件
+        expect(yield* readEvent(reader, "session.next.created")).toMatchObject({ type: "session.next.created" })
       }),
     { git: true, config: { formatter: false, lsp: false } },
   )
