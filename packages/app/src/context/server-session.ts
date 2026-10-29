@@ -77,13 +77,13 @@ function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) {
     if (!result.found) session.splice(result.index, 0, item.message)
     const current = part.get(item.message.id)
     const confirmed = result.found
-      ? item.parts.filter((part) => Binary.search(current ?? [], part.id, (value) => value.id).found)
+      ? item.parts.filter((part) => (current ?? []).some((value) => value.id === part.id))
       : []
     if (result.found) observed.push({ messageID: item.message.id, parts: confirmed })
     part.set(
       item.message.id,
-      merge(
-        result.found ? (current ?? []) : merge(item.confirmedParts ?? [], current ?? []),
+      mergeOrdered(
+        result.found ? (current ?? []) : mergeOrdered(item.confirmedParts ?? [], current ?? []),
         item.parts.filter((part) => !confirmed.includes(part)),
       ),
     )
@@ -112,6 +112,13 @@ function merge<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
   return [...items.values()].sort((x, y) => cmp(x.id, y.id))
 }
 
+// Part ID 只用于身份匹配，不代表时间线顺序；已有项原位更新，新项按到达顺序追加。
+function mergeOrdered<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
+  const items = new Map(a.map((item) => [item.id, item] as const))
+  for (const item of b) items.set(item.id, item)
+  return [...items.values()]
+}
+
 // V2 投影的 assistant 不带 parentID，页首/事件边界的 assistant 先落空串；
 // 每次页面合并后按时间线把空 parentID 重锚到最近的前置 user（含合成 compaction-user）。
 function repairParentIDs(messages: Message[]) {
@@ -137,6 +144,7 @@ function reconcileFetched<T extends { id: string }>(
     retained?: ReadonlySet<string>
     removed?: ReadonlySet<string>
     preserveUnfetched?: boolean | ((item: T) => boolean)
+    preserveOrder?: boolean
   } = {},
 ) {
   const result = new Map(fetched.map((item) => [item.id, item]))
@@ -159,7 +167,8 @@ function reconcileFetched<T extends { id: string }>(
     if (!item) result.delete(id)
   }
   for (const id of options.removed ?? emptyIDs) result.delete(id)
-  return [...result.values()].sort((a, b) => cmp(a.id, b.id))
+  const items = [...result.values()]
+  return options.preserveOrder ? items : items.sort((a, b) => cmp(a.id, b.id))
 }
 
 export function createServerSession(client: OpenNovelClient, options?: { retry?: typeof retry }) {
@@ -373,7 +382,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     items.set(messageID, {
       ...item,
       parts,
-      confirmedParts: merge(item.confirmedParts ?? [], [part]),
+      confirmedParts: mergeOrdered(item.confirmedParts ?? [], [part]),
       confirmedMessage: true,
     })
   }
@@ -391,7 +400,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     items.set(messageID, {
       ...item,
       parts,
-      confirmedParts: merge(item.confirmedParts ?? [], confirmedParts),
+      confirmedParts: mergeOrdered(item.confirmedParts ?? [], confirmedParts),
       confirmedMessage: true,
     })
   }
@@ -543,7 +552,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       session: [...adapted.session].sort((a, b) => cmp(a.id, b.id)),
       part: adapted.part.map((item) => ({
         id: item.id,
-        part: item.part.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
+        part: item.part.filter((part) => !!part?.id),
       })),
       cursor: response.data?.cursor.next ?? undefined,
       complete: !response.data?.cursor.next,
@@ -560,7 +569,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     if (!adapted) throw new Error(`Message not found: ${messageID}`)
     return {
       message: adapted.info,
-      parts: adapted.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
+      parts: adapted.parts.filter((part) => !!part?.id),
     }
   }
 
@@ -608,7 +617,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       for (const partID of load?.carriedDeltaParts.get(item.id) ?? []) {
         if (!fetchedIDs.has(partID)) touched.delete(partID)
       }
-      const parts = reconcileFetched(fetched, data.part[item.id] ?? [], { touched })
+      const parts = reconcileFetched(fetched, data.part[item.id] ?? [], { touched, preserveOrder: true })
       if (!parts.length) {
         orphanParts.get(sessionID)?.delete(item.id)
         setData(produce((draft) => deleteMessageParts(draft, item.id)))
@@ -1112,14 +1121,12 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
           setData("part", part.messageID, [part])
           return
         }
-        const result = Binary.search(parts, part.id, (item) => item.id)
-        if (result.found) setData("part", part.messageID, result.index, reconcile(part))
-        if (!result.found)
-          setData("part", part.messageID, (value = []) => {
-            const next = value.slice()
-            next.splice(result.index, 0, part)
-            return next
-          })
+        const index = parts.findIndex((item) => item.id === part.id)
+        if (index === -1) {
+          setData("part", part.messageID, (value = []) => [...value, part])
+          return
+        }
+        setData("part", part.messageID, index, reconcile(part))
         return
       }
       case "message.part.removed": {
@@ -1154,8 +1161,8 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
             deltaBases.delete(accumKey)
             const parts = draft.part[props.messageID]
             if (!parts) return
-            const result = Binary.search(parts, props.partID, (part) => part.id)
-            if (result.found) parts.splice(result.index, 1)
+            const index = parts.findIndex((part) => part.id === props.partID)
+            if (index !== -1) parts.splice(index, 1)
             if (parts.length === 0) delete draft.part[props.messageID]
           }),
         )
@@ -1171,8 +1178,8 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         }
         const parts = data.part[props.messageID]
         if (!parts) return
-        const result = Binary.search(parts, props.partID, (part) => part.id)
-        if (!result.found) return
+        const index = parts.findIndex((part) => part.id === props.partID)
+        if (index === -1) return
         trackPartChange(props.sessionID, props.messageID, props.partID)
         const load = messageLoads.get(props.sessionID)
         if (load) {
@@ -1184,7 +1191,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
           if (carried?.size === 0) load.carriedDeltaParts.delete(props.messageID)
         }
         const field = props.field as keyof (typeof parts)[number]
-        const current = parts[result.index]?.[field]
+        const current = parts[index]?.[field]
         const accumKey = partAccumKey(props.messageID, props.partID)
         if (!deltaBases.has(accumKey) && typeof current === "string")
           deltaBases.set(accumKey, { base: current, sessionID: props.sessionID })
@@ -1198,7 +1205,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
           props.messageID,
           produce((draft) => {
             if (!draft) return
-            const part = draft[result.index]
+            const part = draft[index]
             const field = props.field as keyof typeof part
             ;(part[field] as string) = ((part[field] as string | undefined) ?? "") + props.delta
           }),
@@ -1296,9 +1303,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     },
     optimistic: {
       add(input: { sessionID: string; message: Message; parts: Part[] }) {
-        const parts = input.parts
-          .filter((part) => !!part?.id && !SKIP_PARTS.has(part.type))
-          .sort((a, b) => cmp(a.id, b.id))
+        const parts = input.parts.filter((part) => !!part?.id && !SKIP_PARTS.has(part.type))
         const load = messageLoads.get(input.sessionID)
         if (load?.clearedMessageParts.has(input.message.id)) {
           const touched = load.touchedParts.get(input.message.id) ?? new Set<string>()

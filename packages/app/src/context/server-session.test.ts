@@ -42,6 +42,8 @@ const v2Session = (id: string, parentID?: string): SessionV2Info => ({
 type UserMessage = Extract<Message, { role: "user" }>
 type AssistantMessage = Extract<Message, { role: "assistant" }>
 type TextPart = Extract<Part, { type: "text" }>
+type ReasoningPart = Extract<Part, { type: "reasoning" }>
+type ToolPart = Extract<Part, { type: "tool" }>
 type Page = { data: { data: SessionMessage[]; cursor: { next?: string } } }
 
 const userMessage = (id: string, input: Partial<UserMessage> = {}): UserMessage => ({
@@ -79,6 +81,27 @@ const textPart = (messageID: string, input: Partial<TextPart> = {}): TextPart =>
   ...input,
 })
 
+const reasoningPart = (messageID: string, input: Partial<ReasoningPart> = {}): ReasoningPart => ({
+  id: "reasoning-0",
+  sessionID: "child",
+  messageID,
+  type: "reasoning",
+  text: "thinking",
+  time: { start: 1 },
+  ...input,
+})
+
+const toolPart = (messageID: string, input: Partial<ToolPart> = {}): ToolPart => ({
+  id: "call-1",
+  sessionID: "child",
+  messageID,
+  type: "tool",
+  callID: "call-1",
+  tool: "read",
+  state: { status: "running", input: {}, time: { start: 2 } },
+  ...input,
+})
+
 // 拉取的 user 文本会被适配器合成为 `${messageID}:text` part，断言统一用这个 id
 const userTextPart = (messageID: string, text = "text"): TextPart => ({
   id: `${messageID}:text`,
@@ -109,6 +132,17 @@ function wireOne(info: Message, parts: Part[]): SessionMessage {
       ...(info.variant === undefined ? {} : { variant: info.variant }),
     },
     content: parts.map((part) => {
+      if (part.type === "reasoning") {
+        return {
+          type: "reasoning" as const,
+          id: part.id,
+          text: part.text,
+          time: {
+            created: part.time.start,
+            ...(part.time.end === undefined ? {} : { completed: part.time.end }),
+          },
+        }
+      }
       if (part.type !== "text") throw new Error(`unsupported part type in wire: ${part.type}`)
       return { type: "text" as const, id: part.id, text: part.text }
     }),
@@ -855,6 +889,43 @@ describe("server session", () => {
 
     expect(store.data.part[message.id]).toEqual([fetched])
     expect(store.data.part_text_accum_delta[partAccumKey(part.messageID, part.id)]).toBeUndefined()
+  })
+
+  test("preserves live part event order instead of sorting by ID", () => {
+    const message = assistantMessage("message1", "root", { time: { created: 1 } })
+    const reasoning = reasoningPart(message.id)
+    const tool = toolPart(message.id)
+    const store = setup({ child: session("child") }).store
+    store.apply({ type: "message.updated", properties: { info: message } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: reasoning, time: 1 } })
+    store.apply({ type: "message.part.updated", properties: { sessionID: "child", part: tool, time: 2 } })
+
+    expect(store.data.part[message.id]?.map((part) => part.id)).toEqual(["reasoning-0", "call-1"])
+  })
+
+  test("preserves fetched content order and updates its completed reasoning in place", async () => {
+    const message = assistantMessage("message1", "root", { time: { created: 1 } })
+    const text = textPart(message.id, { id: "text-0" })
+    const reasoning = reasoningPart(message.id)
+    const client = messageClient(response([{ info: message, parts: [text, reasoning] }]))
+    const store = createServerSession(client)
+    await store.sync("child")
+
+    expect(store.data.part[message.id]?.map((part) => part.id)).toEqual(["text-0", "reasoning-0"])
+
+    store.apply({
+      type: "message.part.updated",
+      properties: {
+        sessionID: "child",
+        part: { ...reasoning, time: { start: 1, end: 3 } },
+        time: 3,
+      },
+    })
+
+    const parts = store.data.part[message.id]
+    expect(parts?.map((part) => part.id)).toEqual(["text-0", "reasoning-0"])
+    expect(parts?.filter((part) => part.id === reasoning.id)).toHaveLength(1)
+    expect(parts?.[1]).toMatchObject({ type: "reasoning", time: { start: 1, end: 3 } })
   })
 
   test("isolates delta accumulation for same-ID parts across messages", () => {
