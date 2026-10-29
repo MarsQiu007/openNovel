@@ -103,6 +103,13 @@ body[data-new-layout] [data-session-conversation="timeline"] {
       border-radius: 12px;
       background: var(--v2-background-bg-layer-01);
 
+      /* overflow:hidden 会把卡片自身变成 sticky 的就近 scrollport，edit/write/apply-patch
+         展开态的粘性头部（message-part.css）随之失效；展开时放开裁切让粘性头部重新
+         挂到真实滚动视口，收起态保留裁切维持圆角。 */
+      &:has(> [data-slot="collapsible-trigger"][aria-expanded="true"]) {
+        overflow: visible;
+      }
+
       > [data-slot="collapsible-trigger"] {
         width: 100%;
         min-width: 0;
