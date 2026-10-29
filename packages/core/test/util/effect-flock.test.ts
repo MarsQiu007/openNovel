@@ -62,16 +62,19 @@ function run(msg: Msg) {
           resolve({ code: code ?? 1, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
         })
       } catch (error) {
-        const err = error as { code?: string; pid?: number }
-        if (err.code === "EBADF" && attempt < 3) {
-          if (err.pid) {
+        // 不按错误形态过滤：spawn 同步抛错在本测试语境一律收割重试（瞬时抖动），耗尽后
+        // 原样抛出保留诊断。CI dump 里的 code 字段是格式化器由 errno 合成的，运行时
+        // .code 读不到（52cebaf725 轮实锤走了重抛分支），故不能用 .code === "EBADF" 判定
+        if (attempt < 3) {
+          const leaked = (error as { pid?: number }).pid
+          if (leaked) {
             try {
-              process.kill(err.pid, "SIGKILL")
+              process.kill(leaked, "SIGKILL")
             } catch {
               // 子进程已自行退出（ESRCH）
             }
           }
-          setTimeout(() => start(attempt + 1), 50)
+          setTimeout(() => start(attempt + 1), 100)
           return
         }
         throw error
