@@ -26,6 +26,15 @@
 - [x] 5.2 手工验收：跑一次写作流水线，验证 (a) 流式中「思考中」微光与标题渐显不变；(b) 完成后思考块默认收起、触发器显示思考标题；(c) 点击展开全文、再点收起、滚动往返后状态保持；(d) 开启「显示推理摘要」后完成态默认展开、流式 inline 不变
   - 2026-10-29：用户确认真实页面验收通过（流式微光与标题渐显、完成态默认收起与标题触发器、展开/收起及滚动往返状态保持、显示推理摘要时完成态默认展开）。
 
+## Implementation Commits
+
+- `bfc779a0c2` `feat(session-ui): 思考块完成态默认折叠并收敛思考标题提取`
+- `9749d38f8b` `feat(app): reasoning 完成态成行与折叠块设置挂载`
+
+### 归档后收尾修复
+
+- `a6bfde781a` fix(app): 思考块默认展开度接入摘要设置——message-timeline 对 reasoning part 硬编码 defaultOpen=undefined，违反本 change spec「设置开启默认展开」的 SHALL，e2e session-streaming-projection:181 自实现进入 main 起在开启设置时必红
+
 ## Workflow follow-up
 
 （归档阶段参考，不计入任务进度）
