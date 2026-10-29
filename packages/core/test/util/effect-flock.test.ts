@@ -338,8 +338,13 @@ describe("util.effect-flock", () => {
         const n = 16
 
         try {
+          // 错峰启动：bun 在同帧并发 spawn 突发下会同步抛 EBADF(epoll_ctl)（错误对象甚至
+          // 带已创建的 pid，重试会泄漏子进程多写一行 done）；按 25ms 摊开 spawn，互斥断言
+          // 由 worker 的 active(wx) 协议保证，不依赖 spawn 同时性。
           const out = await Promise.all(
-            Array.from({ length: n }, () => run({ key: "eflock:stress", dir, done, active, holdMs: 30 })),
+            Array.from({ length: n }, (_, i) =>
+              sleep(25 * i).then(() => run({ key: "eflock:stress", dir, done, active, holdMs: 30 })),
+            ),
           )
 
           expect(out.map((x) => x.code)).toEqual(Array.from({ length: n }, () => 0))
