@@ -48,14 +48,36 @@ const worker = path.join(import.meta.dir, "../fixture/effect-flock-worker.ts")
 
 function run(msg: Msg) {
   return new Promise<{ code: number; stdout: Buffer; stderr: Buffer }>((resolve) => {
-    const proc = spawn(process.execPath, [worker, JSON.stringify(msg)], { cwd: root })
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
-    proc.stdout?.on("data", (data) => stdout.push(Buffer.from(data)))
-    proc.stderr?.on("data", (data) => stderr.push(Buffer.from(data)))
-    proc.on("close", (code) => {
-      resolve({ code: code ?? 1, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
-    })
+    // bun 在 runner 上偶发于 spawn 时同步抛 EBADF(epoll_ctl)，此时子进程可能已创建
+    // （错误对象带 pid）：先收割泄漏子进程再重试，否则它会多写一行 done 破坏计数断言；
+    // 失败后同进程内后续 spawn 均正常，属瞬时抖动
+    const start = (attempt: number) => {
+      try {
+        const proc = spawn(process.execPath, [worker, JSON.stringify(msg)], { cwd: root })
+        proc.stdout?.on("data", (data) => stdout.push(Buffer.from(data)))
+        proc.stderr?.on("data", (data) => stderr.push(Buffer.from(data)))
+        proc.on("close", (code) => {
+          resolve({ code: code ?? 1, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
+        })
+      } catch (error) {
+        const err = error as { code?: string; pid?: number }
+        if (err.code === "EBADF" && attempt < 3) {
+          if (err.pid) {
+            try {
+              process.kill(err.pid, "SIGKILL")
+            } catch {
+              // 子进程已自行退出（ESRCH）
+            }
+          }
+          setTimeout(() => start(attempt + 1), 50)
+          return
+        }
+        throw error
+      }
+    }
+    start(0)
   })
 }
 
@@ -338,13 +360,8 @@ describe("util.effect-flock", () => {
         const n = 16
 
         try {
-          // 错峰启动：bun 在同帧并发 spawn 突发下会同步抛 EBADF(epoll_ctl)（错误对象甚至
-          // 带已创建的 pid，重试会泄漏子进程多写一行 done）；按 25ms 摊开 spawn，互斥断言
-          // 由 worker 的 active(wx) 协议保证，不依赖 spawn 同时性。
           const out = await Promise.all(
-            Array.from({ length: n }, (_, i) =>
-              sleep(25 * i).then(() => run({ key: "eflock:stress", dir, done, active, holdMs: 30 })),
-            ),
+            Array.from({ length: n }, () => run({ key: "eflock:stress", dir, done, active, holdMs: 30 })),
           )
 
           expect(out.map((x) => x.code)).toEqual(Array.from({ length: n }, () => 0))
