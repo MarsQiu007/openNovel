@@ -15,7 +15,7 @@ import { InstanceStore } from "../../src/project/instance-store"
 
 import type { Config } from "@/config/config"
 import { errorMessage } from "../../src/util/error"
-import { TestLLMServer } from "../lib/llm-server"
+import { isTitleRequest, TestLLMServer } from "../lib/llm-server"
 import { validateSession } from "../../src/cli/tui/validate-session"
 import path from "path"
 import { resetDatabase } from "../fixture/db"
@@ -568,13 +568,15 @@ describe("HttpApi SDK", () => {
         const waited = yield* capture(() => sdk.v2.session.wait({ sessionID }))
         const messages = yield* capture(() => sdk.v2.session.messages({ sessionID }))
         const inputs = yield* llm.inputs
+        // 自动标题生成先于用户 prompt 发 title 请求：断言只针对正文请求
+        const prompts = inputs.filter((body) => !isTitleRequest(body))
 
         expect(session.status).toBe(200)
         expect(prompt.status).toBe(200)
         expect(waited.status).toBe(204)
         expect(messages.status).toBe(200)
-        expect(inputs.length).toBe(1)
-        expect(inputs[0]?.model).toBe("test-model")
+        expect(prompts.length).toBe(1)
+        expect(prompts[0]?.model).toBe("test-model")
         expect(JSON.stringify(messages.data)).toContain("fake world")
         expect(JSON.stringify(messages.data)).toContain("hello llm")
         return {
@@ -605,11 +607,13 @@ describe("HttpApi SDK", () => {
         )
         const waited = yield* capture(() => sdk.v2.session.wait({ sessionID }))
         const inputs = yield* llm.inputs
+        // 自动标题生成先于用户 prompt 发 title 请求：断言只针对正文请求
+        const prompts = inputs.filter((body) => !isTitleRequest(body))
 
         expect(session.status).toBe(200)
         expect(prompt.status).toBe(200)
         expect(waited.status).toBe(204)
-        expect(JSON.stringify(inputs[0])).toContain("project-rest-skill")
+        expect(JSON.stringify(prompts[0])).toContain("project-rest-skill")
       }),
     ),
   )
