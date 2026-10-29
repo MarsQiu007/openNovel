@@ -97,7 +97,10 @@ function withContext<A, E>(
         yield* trace(options, scenario, `${label} runtime start`)
         const modules = yield* Effect.promise(() => runtime())
         const scope = yield* Scope.Scope
-        const app = yield* Layer.buildWithMemoMap(modules.AppLayer, modules.memoMap, scope)
+        // 每场景在独立 scope 上全新构建 AppLayer，并配独立 MemoMap：AppLayer 是模块级
+        // 单例，上一场景 scope 关闭后其层实例已 dispose，共享 MemoMap 会让本次构建命中
+        // 死实例（服务指向已关闭的资源）。
+        const app = yield* Layer.buildWithMemoMap(modules.AppLayer, Layer.makeMemoMapUnsafe(), scope)
         yield* trace(options, scenario, `${label} runtime done`)
         const path = context.dir?.path
         const instance = path

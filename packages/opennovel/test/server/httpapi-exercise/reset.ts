@@ -1,11 +1,11 @@
 /**
  * exercise 重置管线。
  *
- * 共享库同时被 core 层、novel-store 连接缓存、同步 worker 与模块级 AppRuntime 持有。
- * 模块级 AppRuntime（ManagedRuntime 单例）首次构建后即永久持有数据库连接：删除文件在
- * Windows 上必然 EBUSY，且在 Linux 上也会让各连接停留在不同代的 inode 上（原始抖动根因）。
- * 这里先静默可静默的持有者，再原地清空全部表（不删文件），让所有持有者始终看到同一文件的
- * 同一代 schema，随后按 core 先行顺序确定性重建并断言。
+ * 共享库同时被 core 层、novel-store 连接缓存、常驻 HTTP handler 层、同步 worker 与模块级
+ * AppRuntime 持有。模块级 AppRuntime（ManagedRuntime 单例）首次构建后即永久持有数据库连接：
+ * 删除文件在 Windows 上必然 EBUSY，且在 Linux 上也会让各连接停留在不同代的 inode 上（原始
+ * 抖动根因）。这里先静默可静默的持有者，再原地清空全部表（不删文件），让所有持有者始终看到
+ * 同一文件的同一代 schema，随后按 core 先行顺序确定性重建并断言。
  *
  * 详见 openspec/changes/httpapi-exercise-flake。
  */
@@ -55,10 +55,11 @@ export async function assertExerciseSchemaReady() {
 async function quiesceExerciseDatabase() {
   const { stopSyncWorker } = await import("../../../src/novel/manual-edit-sync-worker")
   const { closeDb } = await import("@opennovel-ai/novel-store")
-  const { disposeApps } = await import("./backend")
   stopSyncWorker()
-  await disposeApps()
   closeDb(null)
+  // 不 dispose HTTP handler 层（backend.appCache）：handler 树与 LocationServiceMap
+  // 的 location 层树进程内常驻，每场景重建只会徒增启动开销与层实例世代混乱；原地
+  // 清表语义下所有持有者透明看到新库，无需重建。
 }
 
 async function rebuildExerciseDatabase() {

@@ -64,7 +64,7 @@ function app(modules: Runtime, options: CallOptions) {
         ),
       ),
     ),
-    { disableLogger: true, memoMap: modules.memoMap },
+    { disableLogger: true, memoMap: Layer.makeMemoMapUnsafe() },
   )
   return (appCache[cacheKey] = {
     dispose: web.dispose,
