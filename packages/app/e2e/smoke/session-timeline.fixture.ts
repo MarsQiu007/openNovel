@@ -229,14 +229,11 @@ const sourceMessages = Array.from({ length: 12 }, (_, index) => [
 validateV2Timeline(targetMessages)
 validateV2Timeline(sourceMessages)
 
-/** 期望的 part id 序列：store 按 id 字典序渲染（server-session.ts 排序），与用户文本 part 的适配 id（`${message.id}:text`）对齐 */
+/** 期望的 part id 序列：时间线保持服务端 content 到达顺序（store 不再按 id 字典序排序），与用户文本 part 的适配 id（`${message.id}:text`）对齐 */
 function expectedPartIDs(message: V2FixtureMessage): string[] {
   if (message.type === "user") return message.text.trim() ? [`${message.id}:text`] : []
   if (message.type !== "assistant") return []
-  return message.content
-    .filter((item) => item.type === "tool" || !!item.text.trim())
-    .map((item) => item.id)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  return message.content.filter((item) => item.type === "tool" || !!item.text.trim()).map((item) => item.id)
 }
 
 export const fixture = {
