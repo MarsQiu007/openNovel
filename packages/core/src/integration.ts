@@ -1,6 +1,9 @@
 export * as Integration from "./integration"
 
 import { makeLocationNode } from "./effect/app-node"
+import { KeyedMutex } from "./effect/keyed-mutex"
+import { FSUtil } from "./fs-util"
+import { LegacyAuth } from "./integration/legacy-auth"
 import {
   Cause,
   Clock,
@@ -223,7 +226,11 @@ export const locationLayer = Layer.effect(
   Effect.gen(function* () {
     const credentials = yield* Credential.Service
     const events = yield* EventV2.Service
+    const fsys = yield* FSUtil.Service
     const scope = yield* Scope.Scope
+    // 旧版凭据懒修复是 DELETE+INSERT 新 ID 的写入；同一 integration 的并发冷启动必须串行，
+    // 否则后一次 create 会删除前一次刚返回的连接 ID。
+    const repairs = KeyedMutex.makeUnsafe<ID>()
     const attempts = SynchronizedRef.makeUnsafe(new Map<AttemptID, AttemptEntry>())
     const state = State.create<Data, Draft>({
       initial: () => ({ integrations: new Map<ID, Entry>() }),
@@ -398,7 +405,29 @@ export const locationLayer = Layer.effect(
       connection: {
         active: Effect.fn("Integration.connection.active")(function* (id) {
           const entry = state.get().integrations.get(id)
-          return resolveConnections(entry, yield* credentials.list(id))[0]
+          const saved = yield* credentials.list(id)
+          if (saved.length > 0) return resolveConnections(entry, saved)[0]
+
+          // 凭据库为空时先读旧版存储并懒修复；旧版存储优先于环境变量方法。
+          return yield* repairs.withLock(id)(
+            Effect.gen(function* () {
+              const current = state.get().integrations.get(id)
+              const stored = yield* credentials.list(id)
+              if (stored.length > 0) return resolveConnections(current, stored)[0]
+
+              const key = yield* LegacyAuth.read(id).pipe(Effect.provideService(FSUtil.Service, fsys))
+              if (!key) return resolveConnections(current, [])[0]
+
+              const credential = yield* credentials.create({
+                integrationID: id,
+                label: "default",
+                value: key,
+              })
+              yield* events.publish(Event.ConnectionUpdated, { integrationID: id })
+              yield* events.publish(Event.Updated, {})
+              return { type: "credential" as const, id: credential.id, label: credential.label }
+            }),
+          )
         }),
         resolve: Effect.fn("Integration.connection.resolve")(function* (connection) {
           if (connection.type === "env") {
@@ -535,4 +564,8 @@ export const locationLayer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer: locationLayer, deps: [Credential.node, EventV2.node] })
+export const node = makeLocationNode({
+  service: Service,
+  layer: locationLayer,
+  deps: [Credential.node, EventV2.node, FSUtil.node],
+})

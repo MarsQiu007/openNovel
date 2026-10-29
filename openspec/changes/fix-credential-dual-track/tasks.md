@@ -1,25 +1,50 @@
 # Tasks
 
-## 1. core：Integration 解析兜底与懒修复
+TDD 顺序：每节先写失败测试并确认失败原因正确，再写最小实现转绿。不得读取真实用户数据目录的 `auth.json`，测试只通过 `OPENNOVEL_AUTH_CONTENT` 临时文件注入。
 
-- [ ] 1.1 在 `packages/core/src/integration.ts` 的 `locationLayer` 中实现 legacy 凭据读取（`OPENNOVEL_AUTH_CONTENT` 环境变量优先，其次读 `Global.Path.data/auth.json`；仅提取 `{type:"api"}` 条目的 key 与 metadata 合成 `Credential.Key`，oauth/wellknown 返回空；文件缺失或解析失败视为无条目），验证：`cd packages/core && bun typecheck` 通过
-- [ ] 1.2 调整 `connection.active(id)`：凭据库中该 integration 无凭据且 legacy 命中时先 `credentials.create({integrationID: id, label: "default", value: key})` 再返回 credential 连接；legacy 未命中时维持既有 env 方法兜底不变，验证：新增单测覆盖以下用例且 `cd packages/core && bun test <对应测试文件>` 通过——(a) 库空 + legacy 有 api key → 返回该 key 且凭据库已写入；(b) 库有凭据 + legacy 也有 → 用库中 key 且未写库；(c) 库空 + legacy 仅 oauth 条目 → 解析为空；(d) 库空 + legacy 无条目 + env 方法存在 → 仍返回 env 连接
+## 1. core：测试隔离与旧版凭据读取模块
 
-## 2. opennovel：Auth 服务双写
+- [x] 1.1 在 `packages/core/test/preload.ts` 设置 `OPENNOVEL_AUTH_CONTENT="{}"`，使 core 测试默认不读取真实数据目录的 `auth.json`；用例需要时自行覆盖并恢复。验证：`cd packages/core && bun test test/integration.test.ts` 仍全绿
+- [x] 1.2 先写 `packages/core/test/integration/legacy-auth.test.ts`（RED，逐个确认失败原因是模块不存在/行为缺失）——`LayerNode.compile(FSUtil.node)` + `testEffect`，覆盖：
+  - `parse`：`{type:"api",key}` 命中并合成 `Credential.Key`；`metadata` 保留且非 api 的 `metadata` 形态不影响命中；oauth/wellknown/缺 key/`metadata` 畸形/顶层非对象/缺 provider 键均返回 undefined
+  - `parseFile`：临时文件命中；文件不存在返回 undefined；损坏 JSON 返回 undefined
+  - `read`：`OPENNOVEL_AUTH_CONTENT` 命中时优先于传入文件；env 非法 JSON 时回落文件；env 为合法 JSON 但条目类型非 api 时返回 undefined（不回落）
+  - 验证：`cd packages/core && bun test test/integration/legacy-auth.test.ts` 先红后绿
+- [x] 1.3 实现 `packages/core/src/integration/legacy-auth.ts`（`parse` / `parseFile` / `read`，`read` 接受默认文件路径参数），验证：1.2 用例全部转绿，且 `cd packages/core && bun typecheck` 通过
 
-- [ ] 2.1 在 `packages/opennovel/src/auth/index.ts` 的 `set` 中对 `{type:"api"}` 条目双写 `Credential.create`（integrationID 用规范化后的 key 经 `Integration.ID.make`，value 为 `{type:"key", key, metadata}`），Auth 的 LayerNode 依赖增加全局 `Credential.node`，验证：`cd packages/opennovel && bun typecheck` 通过
-- [ ] 2.2 在 `remove` 中对同一 key 执行 `Credential.list(norm)` 并逐条 `Credential.remove(id)`，oauth/wellknown 与未知 key 不受影响，验证：`cd packages/opennovel && bun typecheck` 通过
-- [ ] 2.3 将 credential 写/删失败映射为 `AuthError`（如「Failed to sync credential store」）使整个 `set`/`remove` 失败，验证：新增单测覆盖 mock Credential 失败时 set 返回失败、成功路径两侧均写入且可重复 set（第二次替换第一次）
+## 2. core：`connection.active` 兜底与懒修复
 
-## 3. 自动化测试落地
+- [x] 2.1 先在 `packages/core/test/integration.test.ts` 增加用例（RED，确认失败原因是 `active` 不读旧版存储）：
+  - (a) 凭据库空 + legacy api key → `active` 返回 credential 连接，`resolve` 得到该 key，`credentials.list(integrationID)` 恰有一行且 `label` 为 `"default"`，同时 `Event.ConnectionUpdated` 收到该 integration 的事件（按既有测试的 `subscribe` + `yieldNow` 模式）
+  - (b) 凭据库已有凭据 + legacy 有不同 key → 返回库中最新 key，凭据数不变且未重写
+  - (c) 凭据库空 + legacy 仅 oauth 条目 → `active` 为空
+  - (d) 凭据库空 + legacy 无条目 + 注册 env 方法且环境变量存在 → 仍返回 env 连接
+  - (e) 凭据库空 + legacy api key 与 env 方法同时存在 → 返回 credential 连接（旧版存储优先于环境变量）
+  - (f) 并发冷启动：凭据库空 + legacy api key，两个 `fork` 并发调用 `active` → 两者 `resolve` 均得到 key，且凭据库只有一行
+  - 验证：`cd packages/core && bun test test/integration.test.ts` 先红后绿
+- [x] 2.2 实现 `connection.active`：库空时进入 `KeyedMutex.makeUnsafe<ID>()` 的 per-integration 锁，锁内重新 `list` 复核并读取 legacy，命中则 `credentials.create({integrationID, label:"default", value})` 后发布 `Event.ConnectionUpdated` 与 `Event.Updated`，返回新建连接；legacy 未命中再回落 env；`Integration.node` 依赖增加 `FSUtil.node`。验证：2.1 用例全部转绿且 `cd packages/core && bun typecheck` 通过
 
-- [ ] 3.1 core 单测（1.2 所列用例 a-d）落盘并跑通，验证：`cd packages/core && bun test` 相关文件全绿
-- [ ] 3.2 opennovel Auth 双写/双删单测（2.1-2.3 行为）落盘并跑通，验证：`cd packages/opennovel && bun test test/auth/` 全绿（测试环境通过 layer mock 提供内存 Credential 服务，不触真实 opennovel.db）
+## 3. opennovel：Auth 服务双写
 
-## 4. 集成验证
+- [x] 3.1 先在 `packages/opennovel/test/auth/auth.test.ts` 增加用例（RED，确认失败原因是 `set`/`remove` 未同步凭据库）。成功路径用 `testEffect(LayerNode.compile(LayerNode.group([Auth.node, Credential.node])))` 以同时访问两个服务（Credential 的全局库位于测试临时数据目录，不触真实 opennovel.db）：
+  - (a) set api 条目后库中存在该 provider 一行，value 为 `Key{key, metadata}`
+  - (b) 两次 set 不同 api key → 库中仍一行且值为新 key
+  - (c) 先 set api 再 set 该 provider 的 oauth 条目 → 库中原 api 行保留（非 api 不写也不删）
+  - (d) remove api 条目 → auth.json 与库两侧均无该 provider
+  - (e) 预置 api 凭据后 remove 该 provider 的 oauth 条目 → 库被清空（登出语义）
+  - (f) remove 不存在的 provider → 库内容不变
+  - 失败映射（另建 `testEffect(LayerNode.compile(Auth.node, [[Credential.node, Layer.mock(Credential.Service)({ create: () => Effect.die(...) })]]))`）：set api 返回 `AuthError` 而非缺陷；`remove` 同样在 mock `list`/`remove` 缺陷时返回 `AuthError`（用 `Effect.exit` 断言 Failure 且 error 为 `AuthError`）
+  - 验证：`cd packages/opennovel && bun test test/auth/auth.test.ts` 先红后绿
+- [x] 3.2 实现 `set`/`remove` 双写：set 仅在 `type === "api"` 时规范化 key 后写库；remove 在确实移除了任意类型条目时清空该 provider 的全部凭据、未知 provider 不动库；credential 操作以 `Effect.catchCause` 映射为 `AuthError`；`Auth.node` 依赖增加 `Credential.node`。验证：3.1 用例全部转绿且 `cd packages/opennovel && bun typecheck` 通过
 
-- [ ] 4.1 质量门通过，验证：`cd packages/core && bun typecheck` 与 `cd packages/opennovel && bun typecheck` 均通过，根目录 `bun run lint` 对改动文件无新增告警
-- [ ] 4.2 手工验收存量兜底与双写收敛，验证：桌面端重启后 (a) 已在 auth.json 有 key 的 provider 发起 V2 会话，请求带 Authorization（不再报「Header中未收到Authorization参数」），且 opennovel.db 的 credential 表出现该 provider 行；(b) 设置界面为新自定义 provider 保存 key 后，credential 表同步出现对应行；(c) 移除该 key 后 auth.json 与 credential 表两侧均无该条目，新会话不再带 Authorization
+## 4. 质量门与集成验证
+
+- [x] 4.1 `cd packages/core && bun typecheck`、`cd packages/opennovel && bun typecheck` 通过；根目录 `bun run lint` 对改动文件无新增告警
+- [ ] 4.2 手工验收（桌面端，不得读取真实 `auth.json` 内容，只观察请求与库行）：
+  - (a) 存量兜底：升级后重启桌面端，对仅在 auth.json 有 key 的 provider 发起 V2 会话 → 请求带 Authorization（不再报「Header中未收到Authorization参数」），且 credential 表出现该 provider 行
+  - (b) 双写：设置界面为新自定义 provider 保存 key → credential 表同步出现对应行；再保存第二个 key → 库中仍一行且为新 key
+  - (c) 移除：移除该 key → auth.json 与 credential 表两侧均无该条目，新会话不再带 Authorization
+  - (d) 非 API 类型：保存 oauth 条目不影响该 provider 库中既有 API key 行
 
 ## Workflow follow-up
 

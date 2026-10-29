@@ -10,6 +10,21 @@ import { testEffect } from "./lib/effect"
 
 const it = testEffect(AppNodeBuilder.build(LayerNode.group([Integration.node, Credential.node, EventV2.node])))
 
+const withAuthContent = <A, E, R>(content: string, effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const previous = process.env.OPENNOVEL_AUTH_CONTENT
+      process.env.OPENNOVEL_AUTH_CONTENT = content
+      return previous
+    }),
+    () => effect,
+    (previous) =>
+      Effect.sync(() => {
+        if (previous === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+        else process.env.OPENNOVEL_AUTH_CONTENT = previous
+      }),
+  )
+
 describe("Integration", () => {
   it.effect("registers integrations through the editor", () =>
     Effect.gen(function* () {
@@ -288,6 +303,174 @@ describe("Integration", () => {
       expect(closed).toBe(true)
       expect(yield* credentials.list(integrationID)).toEqual([])
     }),
+  )
+
+  it.effect("repairs a missing credential from the legacy auth store", () =>
+    withAuthContent(
+      JSON.stringify({ "legacy-repair": { type: "api", key: "legacy-secret" } }),
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        const credentials = yield* Credential.Service
+        const events = yield* EventV2.Service
+        const integrationID = Integration.ID.make("legacy-repair")
+        const updated = yield* events
+          .subscribe(Integration.Event.ConnectionUpdated)
+          .pipe(Stream.take(1), Stream.runCollect, Effect.forkScoped)
+        yield* Effect.yieldNow
+
+        const connection = yield* integrations.connection.active(integrationID)
+        expect(connection?.type).toBe("credential")
+        if (connection?.type !== "credential") throw new Error("expected a credential connection")
+        expect(connection.label).toBe("default")
+        expect(yield* integrations.connection.resolve(connection)).toEqual(
+          Credential.Key.make({ type: "key", key: "legacy-secret" }),
+        )
+        expect(yield* credentials.list(integrationID)).toEqual([
+          expect.objectContaining({
+            integrationID,
+            label: "default",
+            value: Credential.Key.make({ type: "key", key: "legacy-secret" }),
+          }),
+        ])
+        expect((yield* Fiber.join(updated)).length).toBe(1)
+      }),
+    ),
+  )
+
+  it.effect("prefers stored credentials over the legacy auth store", () =>
+    withAuthContent(
+      JSON.stringify({ "legacy-stored": { type: "api", key: "legacy-secret" } }),
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        const credentials = yield* Credential.Service
+        const integrationID = Integration.ID.make("legacy-stored")
+        const stored = yield* credentials.create({
+          integrationID,
+          label: "Work",
+          value: Credential.Key.make({ type: "key", key: "stored-secret" }),
+        })
+
+        const connection = yield* integrations.connection.active(integrationID)
+        expect(connection).toEqual({ type: "credential", id: stored.id, label: "Work" })
+        if (connection?.type !== "credential") throw new Error("expected a credential connection")
+        expect(yield* integrations.connection.resolve(connection)).toEqual(
+          Credential.Key.make({ type: "key", key: "stored-secret" }),
+        )
+        expect(yield* credentials.list(integrationID)).toHaveLength(1)
+      }),
+    ),
+  )
+
+  it.effect("ignores legacy oauth entries", () =>
+    withAuthContent(
+      JSON.stringify({ "legacy-oauth": { type: "oauth", access: "a", refresh: "r", expires: 1 } }),
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        const credentials = yield* Credential.Service
+        const integrationID = Integration.ID.make("legacy-oauth")
+
+        expect(yield* integrations.connection.active(integrationID)).toBeUndefined()
+        expect(yield* credentials.list(integrationID)).toEqual([])
+      }),
+    ),
+  )
+
+  it.effect("falls back to env methods when the legacy auth store has no entry", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const previous = process.env.INTEGRATION_TEST_LEGACY_ENV_KEY
+        process.env.INTEGRATION_TEST_LEGACY_ENV_KEY = "env-secret"
+        return previous
+      }),
+      () =>
+        withAuthContent(
+          "{}",
+          Effect.gen(function* () {
+            const integrations = yield* Integration.Service
+            const integrationID = Integration.ID.make("legacy-env")
+            yield* integrations.transform((editor) =>
+              editor.method.update({
+                integrationID,
+                method: { type: "env", names: ["INTEGRATION_TEST_LEGACY_ENV_KEY"] },
+              }),
+            )
+
+            expect(yield* integrations.connection.active(integrationID)).toEqual({
+              type: "env",
+              name: "INTEGRATION_TEST_LEGACY_ENV_KEY",
+            })
+          }),
+        ),
+      (previous) =>
+        Effect.sync(() => {
+          if (previous === undefined) delete process.env.INTEGRATION_TEST_LEGACY_ENV_KEY
+          else process.env.INTEGRATION_TEST_LEGACY_ENV_KEY = previous
+        }),
+    ),
+  )
+
+  it.effect("prefers the legacy auth store over env methods", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const previous = process.env.INTEGRATION_TEST_LEGACY_ENV_PRIORITY
+        process.env.INTEGRATION_TEST_LEGACY_ENV_PRIORITY = "env-secret"
+        return previous
+      }),
+      () =>
+        withAuthContent(
+          JSON.stringify({ "legacy-priority": { type: "api", key: "legacy-secret" } }),
+          Effect.gen(function* () {
+            const integrations = yield* Integration.Service
+            const integrationID = Integration.ID.make("legacy-priority")
+            yield* integrations.transform((editor) =>
+              editor.method.update({
+                integrationID,
+                method: { type: "env", names: ["INTEGRATION_TEST_LEGACY_ENV_PRIORITY"] },
+              }),
+            )
+
+            const connection = yield* integrations.connection.active(integrationID)
+            expect(connection?.type).toBe("credential")
+            if (connection?.type !== "credential") throw new Error("expected a credential connection")
+            expect(yield* integrations.connection.resolve(connection)).toEqual(
+              Credential.Key.make({ type: "key", key: "legacy-secret" }),
+            )
+          }),
+        ),
+      (previous) =>
+        Effect.sync(() => {
+          if (previous === undefined) delete process.env.INTEGRATION_TEST_LEGACY_ENV_PRIORITY
+          else process.env.INTEGRATION_TEST_LEGACY_ENV_PRIORITY = previous
+        }),
+    ),
+  )
+
+  it.effect("shares one repair across concurrent cold starts", () =>
+    withAuthContent(
+      JSON.stringify({ "legacy-concurrent": { type: "api", key: "legacy-secret" } }),
+      Effect.gen(function* () {
+        const integrations = yield* Integration.Service
+        const credentials = yield* Credential.Service
+        const integrationID = Integration.ID.make("legacy-concurrent")
+        const [first, second] = yield* Effect.all(
+          [integrations.connection.active(integrationID), integrations.connection.active(integrationID)],
+          { concurrency: 2 },
+        )
+
+        expect(first?.type).toBe("credential")
+        expect(second?.type).toBe("credential")
+        if (first?.type !== "credential" || second?.type !== "credential") {
+          throw new Error("expected credential connections")
+        }
+        expect(yield* integrations.connection.resolve(first)).toEqual(
+          Credential.Key.make({ type: "key", key: "legacy-secret" }),
+        )
+        expect(yield* integrations.connection.resolve(second)).toEqual(
+          Credential.Key.make({ type: "key", key: "legacy-secret" }),
+        )
+        expect(yield* credentials.list(integrationID)).toHaveLength(1)
+      }),
+    ),
   )
 
   it.effect("projects credential and env connections", () => {
