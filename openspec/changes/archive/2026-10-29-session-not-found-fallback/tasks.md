@@ -26,6 +26,10 @@
 
 - `fdbe10e103` fix(app): 会话不存在时按面板兜底并清理失效会话记忆
 
+### 归档后收尾修复
+
+- `cba630b20d` test(app): persist 订阅测试迁入 browser 条件套件——fdbe10e103 把 persist.test.ts 放进 test:unit 套件，bun 测试解析 solid-js 走 node 条件命中 SSR 构建，persisted() 内 createResource 在非 hydrating 上下文必抛，该文件在 test:unit 下确定性红；按 test-browser 惯例迁入 --conditions=browser 套件
+
 ## Workflow follow-up
 
 - 实施提交带 `OpenSpec-Change: session-not-found-fallback` footer 并登记到 `Implementation Commits`。
