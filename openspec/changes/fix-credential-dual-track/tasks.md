@@ -47,6 +47,11 @@ TDD 顺序：每节先写失败测试并确认失败原因正确，再写最小�
   - (c) 移除：`DELETE /auth/verify-provider` → 凭据库该 provider 零行，`auth.json` 中该 provider 键消失（写入方为最新 oauth 条目时同样清空，登出语义）
   - (d) 非 API 类型：在已有 API key 行后 PUT 该 provider 的 oauth 条目 → 库中 API key 行保持不变
 
+## Implementation Commits
+
+- `304546ca7a` fix(credentials): 打通旧版凭据存储与凭据库双轨——Auth 双写、core 旧版读取与懒修复及单测
+- `e78367e4e9` fix(core): 让仅旧版存储有凭据的 provider 保持可用——可用性判定接入 auth.json 及单测
+
 ## Workflow follow-up
 
 （归档阶段参考，不计入任务进度）
