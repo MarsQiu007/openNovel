@@ -606,7 +606,9 @@ function hit(url: string, body: unknown) {
 
 function isTitleRequest(body: unknown): boolean {
   if (!body || typeof body !== "object") return false
-  return JSON.stringify(body).includes("Generate a title for this conversation")
+  // 匹配 PROMPT_TITLE 的稳定开头（core/src/plugin/agent.ts）：标题提示词文案
+  // 会被调整，匹配开头而不是长句，避免文案改动后 title 请求混进用户队列
+  return JSON.stringify(body).includes("You are a title generator")
 }
 
 namespace TestLLMServer {
