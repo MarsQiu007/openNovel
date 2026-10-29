@@ -975,8 +975,9 @@ export function MessageTimeline(props: {
     const defaultOpen = createMemo(() => {
       const item = part()
       if (!item) return undefined
-      // 摘要可见性只控制流式展示，不让已完成 reasoning 默认展开。
-      if (item.type === "reasoning") return undefined
+      // 思考块默认展开度取「显示推理摘要」设置（session-reasoning-display：设置开 = 完成态默认展开，
+      // 可手动收起且经 toolOpen store 跨虚拟滚动保持）；关闭时走未受控本地态（默认收起）。
+      if (item.type === "reasoning") return settings.general.showReasoningSummaries() || undefined
       return partDefaultOpen(item, settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
     })
 
