@@ -18,6 +18,17 @@
 - [x] 3.2 手工验收：跑一次写作流水线（director 派生子代理），验证：(a) 切换器默认展开且运行中子代理带指示；(b) 时间线上方横条实时出现/消失；(c) 点击横条与切换器条目均能进入子会话查看输出；(d) 子代理完成后指示消失、横条收起，历史仍可经切换器进入
   - 2026-10-29：用户确认真实页面验收通过（切换器默认展开与运行中指示、横条实时出现/消失、横条与切换器条目均可进入子会话、完成后指示消失且历史仍可进入）。
 
+## Implementation Commits
+
+- `bcb260ab80` feat(app): 切换器子代理默认展开并标注运行状态
+- `9de6e8d053` feat(app): 时间线上方活跃子代理横条
+- `085b5b8838` chore(app): 清理子代理可见性改动的 lint 新增告警
+
+### 归档后收尾修复
+
+- `6803f77562` fix(app): 截断工作台布局层 Suspense 迟到挂起的整树摘插——9de6e8d053 新挂的 bound-sessions 查询把布局顶层 Suspense 的迟到首挂窗口拉长到可观测，Solid 将整棵工作台子树同节点摘除再插回（组件不卸载），book-open-transition 把摘插误计为二次内容帧；session.sync 纯副作用从 createResource 改为 createEffect、promptReady 挂起就地用局部 Suspense 截断
+- `0963a8493e` test(app): e2e 对齐 V2 协议形状与切换器默认展开语义——e2e mock/断言未跟上 V2 协议（单条 GET `{ data }` 包装、`/api/session/:id/message` 分页、`/api/permission/request` 的 `location[directory]` 查询参数）与 bcb260ab80 的切换器默认展开语义，导致 novel.spec、annotation-execute、session-switcher-actions、remote-session-settings 与 book-open-transition 断言失效
+
 ## Workflow follow-up
 
 （归档阶段参考，不计入任务进度）
