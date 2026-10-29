@@ -65,7 +65,10 @@ async function readEvent(reader: AsyncIterator<typeof Event.Type>) {
 }
 
 async function readEventType(reader: AsyncIterator<typeof Event.Type>, type: string) {
-  for (let index = 0; index < 20; index++) {
+  // 固定次数预算会被订阅窗口内的 boot 批事件（plugin.added 等，可达 20+）耗尽；
+  // 用时间预算代替，等待语义不变。
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
     const event = await readEvent(reader)
     if (event.type === type) return event
   }
