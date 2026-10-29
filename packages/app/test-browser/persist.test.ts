@@ -1,11 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
 import { createComputed, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
-import { ServerScope } from "./server-scope"
+import { ServerScope } from "@/utils/server-scope"
 
-type PersistTestingType = typeof import("./persist").PersistTesting
-type PersistType = typeof import("./persist").Persist
-type RemovePersistedType = typeof import("./persist").removePersisted
+type PersistTestingType = typeof import("@/utils/persist").PersistTesting
+type PersistType = typeof import("@/utils/persist").Persist
+type RemovePersistedType = typeof import("@/utils/persist").removePersisted
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -49,7 +49,7 @@ class MemoryStorage implements Storage {
 
 const storage = new MemoryStorage()
 
-type PersistedType = typeof import("./persist").persisted
+type PersistedType = typeof import("@/utils/persist").persisted
 
 let persistTesting: PersistTestingType
 let Persist: PersistType
@@ -61,7 +61,7 @@ beforeAll(async () => {
     usePlatform: () => ({ platform: "web" }),
   }))
 
-  const mod = await import("./persist")
+  const mod = await import("@/utils/persist")
   persistTesting = mod.PersistTesting
   Persist = mod.Persist
   removePersisted = mod.removePersisted
