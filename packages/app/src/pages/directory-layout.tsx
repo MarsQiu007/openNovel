@@ -2,7 +2,7 @@ import { DataProvider } from "@opennovel-ai/session-ui/context"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { type Accessor, createEffect, createMemo, createResource, onCleanup, type ParentProps, Show } from "solid-js"
+import { type Accessor, createEffect, createMemo, onCleanup, type ParentProps, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { LocalProvider } from "@/context/local"
 import { SDKProvider } from "@/context/sdk"
@@ -44,13 +44,15 @@ export function DirectoryDataProvider(
     navigate(`/${base64Encode(next)}${path}${location.search}${location.hash}`, { replace: true })
   })
 
-  createResource(
-    () => params.id,
-    (id) =>
-      sync()
-        .session.sync(id)
-        .catch(() => {}),
-  )
+  // 会话同步是纯副作用（结果无人消费），不得用 createResource：其挂起会冒泡到布局层
+  // Suspense，把整个工作台子树从 DOM 摘除再插回（book-open-transition 首帧后的一次假卸载）。
+  createEffect(() => {
+    const id = params.id
+    if (!id) return
+    void sync()
+      .session.sync(id)
+      .catch(() => {})
+  })
 
   createEffect(() => {
     const sessionID = params.id

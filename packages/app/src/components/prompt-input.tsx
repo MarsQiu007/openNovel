@@ -5,6 +5,7 @@ import {
   on,
   Component,
   Show,
+  Suspense,
   onCleanup,
   createMemo,
   createSignal,
@@ -1386,6 +1387,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const providersLoading = () => props.controls.model.loading
   const providersShouldFadeIn = createMemo<boolean>((prev) => prev ?? providersLoading())
 
+  // promptReady 的挂起必须就地截断：若冒泡到外层布局的 Suspense，草稿 hydrate 完成时
+  // 会把整个工作台子树从 DOM 摘除再插回（book-open-transition 首帧后的一次假卸载）。
+  // 组件体本就先于该读取点执行完毕，这里从未真正延迟编辑器初始化，只渲染占位 null。
   const [promptReady] = createResource(
     () => prompt.ready.promise,
     (p) => p,
@@ -1398,7 +1402,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }
   return (
     <div class="relative size-full flex flex-col gap-0">
-      {(promptReady(), null)}
+      <Suspense fallback={null}>{(promptReady(), null)}</Suspense>
       <PromptPopover
         popover={store.popover}
         setSlashPopoverRef={(el) => (slashPopoverRef = el)}
