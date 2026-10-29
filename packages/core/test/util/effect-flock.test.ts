@@ -50,35 +50,47 @@ function run(msg: Msg) {
   return new Promise<{ code: number; stdout: Buffer; stderr: Buffer }>((resolve) => {
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
-    // bun 在 runner 上偶发于 spawn 时同步抛 EBADF(epoll_ctl)，此时子进程可能已创建
-    // （错误对象带 pid）：先收割泄漏子进程再重试，否则它会多写一行 done 破坏计数断言；
-    // 失败后同进程内后续 spawn 均正常，属瞬时抖动
+    // bun 在 runner 上偶发 spawn 失败（EBADF(epoll_ctl)，瞬时抖动，失败后同进程内后续
+    // spawn 均正常）。该失败经 ChildProcess 的 error 事件异步上报，try/catch 接不到且
+    // 无监听时会作为 uncaught 异常炸掉当前测试；收割已创建的泄漏子进程（错误对象带
+    // pid，多写一行 done 会破坏计数断言）后重试，耗尽则以退出码 1 收尾保留诊断
     const start = (attempt: number) => {
-      try {
-        const proc = spawn(process.execPath, [worker, JSON.stringify(msg)], { cwd: root })
-        proc.stdout?.on("data", (data) => stdout.push(Buffer.from(data)))
-        proc.stderr?.on("data", (data) => stderr.push(Buffer.from(data)))
-        proc.on("close", (code) => {
-          resolve({ code: code ?? 1, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
-        })
-      } catch (error) {
-        // 不按错误形态过滤：spawn 同步抛错在本测试语境一律收割重试（瞬时抖动），耗尽后
-        // 原样抛出保留诊断。CI dump 里的 code 字段是格式化器由 errno 合成的，运行时
-        // .code 读不到（52cebaf725 轮实锤走了重抛分支），故不能用 .code === "EBADF" 判定
-        if (attempt < 3) {
-          const leaked = (error as { pid?: number }).pid
-          if (leaked) {
-            try {
-              process.kill(leaked, "SIGKILL")
-            } catch {
-              // 子进程已自行退出（ESRCH）
-            }
+      const retry = (error: unknown) => {
+        if (attempt >= 3) return false
+        const leaked = (error as { pid?: number }).pid
+        if (leaked) {
+          try {
+            process.kill(leaked, "SIGKILL")
+          } catch {
+            // 子进程已自行退出（ESRCH）
           }
-          setTimeout(() => start(attempt + 1), 100)
-          return
         }
+        setTimeout(() => start(attempt + 1), 100)
+        return true
+      }
+      let proc: ReturnType<typeof spawn>
+      try {
+        proc = spawn(process.execPath, [worker, JSON.stringify(msg)], { cwd: root })
+      } catch (error) {
+        if (retry(error)) return
         throw error
       }
+      proc.stdout?.on("data", (data) => stdout.push(Buffer.from(data)))
+      proc.stderr?.on("data", (data) => stderr.push(Buffer.from(data)))
+      proc.on("error", (error) => {
+        if (retry(error)) {
+          proc.removeAllListeners("close")
+          return
+        }
+        resolve({
+          code: 1,
+          stdout: Buffer.concat(stdout),
+          stderr: Buffer.concat([...stderr, Buffer.from(String(error))]),
+        })
+      })
+      proc.on("close", (code) => {
+        resolve({ code: code ?? 1, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
+      })
     }
     start(0)
   })
