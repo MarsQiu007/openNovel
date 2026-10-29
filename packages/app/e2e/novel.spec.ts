@@ -571,23 +571,19 @@ test.describe("novel journey", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) }),
     )
 
-    // POST /session — 懒创建会话（SDK v2 路径，directory 为查询参数；GET 列表让位给
-    // mock server 处理）。注意正则匹配完整 URL（含查询串），不能 $ 锚定 pathname；
-    // 客户端会把响应体包装成 { data }，这里必须返回裸 session 对象
-    await page.route(/\/session(\?|$)/, async (route) => {
+    // 懒创建会话由共享 mock server 的 POST /api/session 处理（{ data } 包装、
+    // id 递增为 ses_mock_1，并登记进列表供回跳步骤的 GET 命中）。
+    // POST /api/session/:id/prompt — 记录首条消息文本
+    await page.route(/\/api\/session\/[^/]+\/prompt$/, async (route) => {
       if (route.request().method() !== "POST") return route.fallback()
-      const session = { id: "sess-001", title: "New session", time: { created: now, updated: now } }
-      sessions.push(session)
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(session) })
-    })
-
-    // POST /session/:id/message — session.prompt 的实际端点；记录首条消息文本
-    await page.route(/\/session\/[^/]+\/message(\?|$)/, async (route) => {
-      if (route.request().method() !== "POST") return route.fallback()
-      const body = route.request().postDataJSON() as { parts?: Array<{ type: string; text?: string }> }
-      const sessionID = new URL(route.request().url()).pathname.match(/\/session\/([^/]+)\/message/)?.[1]
-      prompts.push({ sessionID: sessionID ?? "", text: body.parts?.[0]?.text ?? "" })
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) })
+      const body = route.request().postDataJSON() as { prompt?: { text?: string } }
+      const sessionID = new URL(route.request().url()).pathname.match(/\/api\/session\/([^/]+)\/prompt/)?.[1]
+      prompts.push({ sessionID: sessionID ?? "", text: body.prompt?.text ?? "" })
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { admittedSeq: 1, id: "msg_e2e_prompt", sessionID, prompt: body.prompt } }),
+      })
     })
 
     // ── 新书空态：切换器常驻（占位禁用）+ 懒创建 composer + 建议 chip ──
@@ -601,13 +597,13 @@ test.describe("novel journey", () => {
 
     // ── 点击 chip：懒创建三步（create → bind → prompt 首条文本为"写下一章"）后进入会话 ──
     await chip.click()
-    await page.waitForURL(/\/session\/sess-001$/)
-    expect(prompts).toEqual([{ sessionID: "sess-001", text: "Write Next Chapter" }])
-    expect(bindings).toEqual([{ sessionID: "sess-001", novelID }])
+    await page.waitForURL(/\/session\/ses_mock_1$/)
+    expect(prompts).toEqual([{ sessionID: "ses_mock_1", text: "Write Next Chapter" }])
+    expect(bindings).toEqual([{ sessionID: "ses_mock_1", novelID }])
 
     // ── 老书自动回跳：重开工作台（无会话段路由）直达记忆的绑定会话，不再出现懒创建空态 ──
     await page.goto(workspaceURL, { waitUntil: "load" })
-    await page.waitForURL(/\/session\/sess-001$/)
+    await page.waitForURL(/\/session\/ses_mock_1$/)
     await expect(page.getByText("No sessions")).toHaveCount(0)
 
     expect(errors.filter((e) => !e.includes("ExperimentalWarning"))).toHaveLength(0)

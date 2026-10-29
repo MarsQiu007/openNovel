@@ -14,6 +14,10 @@ import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 // novel-workspace-content / novel-chat-empty 三类观测标记的出现 / 消失序列（附带出现
 // 时刻的地址与首帧快照）。断言「内容帧首次出现时地址已是最终会话地址」可同时捕捉
 // 「先开门再回跳」与「空态闪烁」两种退化形态。
+//
+// 「不重挂工作台」按 DOM 节点身份判定：布局层 Suspense 边界在边界内资源迟到首挂时
+// 会把同一内容子树从 DOM 摘除再插回（同节点，组件不卸载），这类摘插回归标记为
+// reattach，不计入内容帧次数；只有全新节点（真卸载重挂）才计为新内容帧。
 
 const directory = "/home/user/BookTransition"
 const dirBase = `/${base64Encode(directory)}`
@@ -40,7 +44,7 @@ const slotContent = "novel-workspace-content"
 const slotChatEmpty = "novel-chat-empty"
 
 type SlotSnapshot = { settingsTree: boolean; structurePanel: boolean }
-type SlotEvent = { slot: string; appear: boolean; url: string; snapshot?: SlotSnapshot }
+type SlotEvent = { slot: string; appear: boolean; url: string; reattach?: boolean; snapshot?: SlotSnapshot }
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -59,7 +63,7 @@ test("bookshelf entry reaches the bound session view without intermediate frames
   const events = await readSlotEvents(page)
   expect(events.filter((event) => event.slot === slotChatEmpty)).toHaveLength(0)
   // 每个内容帧都在地址定址到绑定会话后出现：不存在"先开门再回跳"的中间态
-  const contentEvents = appeared(events).filter((event) => event.slot === slotContent)
+  const contentEvents = appeared(events).filter((event) => event.slot === slotContent && !event.reattach)
   expect(contentEvents.length).toBeGreaterThan(0)
   for (const event of contentEvents) expect(new URL(event.url).pathname).toBe(sessionPath(bookA))
 })
@@ -95,7 +99,7 @@ test("first content frame restores left mode and rail panel", async ({ page }) =
   await expect(page).toHaveURL((url) => url.pathname === bookPath(soloBook.novelID))
 
   // 首个内容帧的快照即已恢复现场：不存在先默认态后补恢复的闪烁
-  const content = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent)
+  const content = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent && !event.reattach)
   expect(content).toHaveLength(1)
   expect(content[0]?.snapshot).toEqual({ settingsTree: true, structurePanel: true })
 })
@@ -121,7 +125,7 @@ test("first content frame restores reading progress and expanded panel address",
   expect(chapterDetailRequests[0]).toBe("ch-e2e-002")
   expect(chapterDetailRequests).not.toContain("ch-e2e-001")
 
-  const content = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent)
+  const content = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent && !event.reattach)
   expect(content).toHaveLength(1)
   const url = new URL(content[0]!.url)
   expect(url.pathname).toBe(bookPath(soloBook.novelID))
@@ -139,7 +143,7 @@ test("tab switch and tab close land on the adjacent book's session view directly
   await expectSessionTitle(page, bookA.boundTitle)
   const phase1 = await readSlotEvents(page)
   expect(phase1.filter((event) => event.slot === slotChatEmpty)).toHaveLength(0)
-  for (const event of appeared(phase1).filter((item) => item.slot === slotContent))
+  for (const event of appeared(phase1).filter((item) => item.slot === slotContent && !item.reattach))
     expect(new URL(event.url).pathname).toBe(sessionPath(bookA))
 
   // 阶段二：打开 B 后双标签并存（A 标签跨页面加载保留）
@@ -164,7 +168,7 @@ test("tab switch and tab close land on the adjacent book's session view directly
   // 两个入口的内容帧都在地址定址后出现：无懒创建空态、无"先默认后替换"
   const phase2 = await readSlotEvents(page)
   const contentPaths = appeared(phase2)
-    .filter((event) => event.slot === slotContent)
+    .filter((event) => event.slot === slotContent && !event.reattach)
     .map((event) => new URL(event.url).pathname)
   expect(contentPaths).toEqual([sessionPath(bookB), sessionPath(bookA), sessionPath(bookB)])
   expect(phase2.filter((event) => event.slot === slotChatEmpty)).toHaveLength(0)
@@ -195,7 +199,7 @@ test("bindings failure keeps the lazy empty state away and recovers by retry", a
   const events = await readSlotEvents(page)
   expect(events.filter((event) => event.slot === slotChatEmpty)).toHaveLength(0)
   const lastContent = appeared(events)
-    .filter((event) => event.slot === slotContent)
+    .filter((event) => event.slot === slotContent && !event.reattach)
     .at(-1)
   expect(lastContent && new URL(lastContent.url).pathname).toBe(sessionPath(bookA))
 })
@@ -222,7 +226,7 @@ test("session switch inside a book keeps the workspace mounted", async ({ page }
     { timeout: 15_000 },
   )
 
-  const contentEvents = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent)
+  const contentEvents = appeared(await readSlotEvents(page)).filter((event) => event.slot === slotContent && !event.reattach)
   expect(contentEvents).toHaveLength(1)
   expect(new URL(contentEvents[0]!.url).pathname).toBe(sessionPath(dual))
 })
@@ -290,14 +294,21 @@ async function observeSlots(page: Page) {
   await page.addInitScript((slots: string[]) => {
     const timeline: SlotEvent[] = []
     const present: Record<string, boolean> = {}
+    // DOM 身份追踪：同一节点消失后重现 = Suspense 边界的摘插回归（组件未卸载），
+    // 标记 reattach；只有全新节点才计为一次内容帧挂载
+    const seen = new WeakSet<Element>()
     const scan = () => {
       for (const slot of slots) {
-        const hit = !!document.querySelector(`[data-slot="${slot}"]`)
+        const el = document.querySelector(`[data-slot="${slot}"]`)
+        const hit = !!el
         if (hit === (present[slot] ?? false)) continue
         present[slot] = hit
+        const reattach = hit && seen.has(el!)
+        if (hit) seen.add(el!)
         timeline.push({
           slot,
           appear: hit,
+          reattach: reattach || undefined,
           url: location.href,
           snapshot:
             hit && slot === "novel-workspace-content"

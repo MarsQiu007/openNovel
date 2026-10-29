@@ -37,7 +37,7 @@ test("session settings use the remote server context", async ({ page }) => {
     .poll(() =>
       permissionRequests.some((request) => {
         const url = new URL(request)
-        return url.origin === serverB && url.searchParams.get("directory") === directoryB
+        return url.origin === serverB && url.searchParams.get("location[directory]") === directoryB
       }),
     )
     .toBe(true)
@@ -93,11 +93,14 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     if (url.pathname === "/global/event" || url.pathname === "/event") return sse(route)
     if (url.pathname === "/global/health") return json(route, { healthy: true })
     if (url.pathname === "/api/session") return json(route, { data: sessions.map(v2Session), cursor: {} })
+    if (/^\/api\/session\/[^/]+\/message$/.test(url.pathname)) return json(route, { data: [], cursor: {} })
+    if (/^\/api\/session\/[^/]+\/message\/[^/]+$/.test(url.pathname)) return json(route, { error: "Message not found" }, 404)
     if (url.pathname === "/experimental/capabilities") return json(route, { backgroundSubagents: false })
     const v2Match = url.pathname.match(/^\/api\/session\/([^/]+)$/)
     if (v2Match) {
       const found = sessions.find((item) => item.id === v2Match[1])
-      return json(route, found ? v2Session(found) : { name: "NotFoundError" }, found ? 200 : 404)
+      // V2 单条 success 是 { data: SessionV2Info } 包装，裸对象会让 adaptInfo 读到 undefined
+      return json(route, found ? { data: v2Session(found) } : { name: "NotFoundError" }, found ? 200 : 404)
     }
     if (url.pathname === "/session/status") return json(route, {})
     if (url.pathname === "/session") return json(route, sessions)
@@ -106,10 +109,12 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     if (/^\/session\/[^/]+$/.test(url.pathname)) return json(route, { name: "NotFoundError" }, 404)
     if (/^\/session\/[^/]+\/message$/.test(url.pathname)) return json(route, [])
     if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(url.pathname)) return json(route, [])
-    if (url.pathname === "/permission") {
+    if (url.pathname === "/api/permission/request") {
+      // auto-accept 开启后 enableDirectory 拉取挂起权限走 V2 端点（location[directory] 查询参数）
       permissionRequests.push(url.toString())
-      return json(route, [])
+      return json(route, { data: [], cursor: {} })
     }
+    if (url.pathname === "/permission") return json(route, [])
     if (["/skill", "/command", "/lsp", "/formatter", "/question", "/vcs/diff", "/pty/shells"].includes(url.pathname))
       return json(route, [])
     if (["/global/config", "/config", "/provider/auth", "/mcp"].includes(url.pathname)) return json(route, {})

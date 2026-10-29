@@ -151,13 +151,11 @@ test.describe("annotation execute flow", () => {
     })
     await mockNovelApi(page)
 
-    await page.route(/\/session(\?.*)?$/, async (route) => {
-      return json(route, [{ id: sessionID, parentID: null, time: { archived: false } }])
-    })
-
-    await page.route(new RegExp(`/session/${sessionID}/message(\\?.*)?$`), async (route) => {
+    // 会话列表由共享 mock server 以 sessions 配置服务；prompt 走 V2 端点捕获发送体
+    await page.route(new RegExp(`/api/session/${sessionID}/prompt$`), async (route) => {
       promptBody = route.request().postDataJSON()
-      return json(route, { data: { id: "input-1", sessionID, prompt: { text: "" } } })
+      const prompt = (promptBody as { prompt?: unknown } | null)?.prompt
+      return json(route, { data: { admittedSeq: 1, id: "msg_e2e_prompt", sessionID, prompt } })
     })
 
     await page.addInitScript(() => {

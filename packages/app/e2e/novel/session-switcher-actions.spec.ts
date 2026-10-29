@@ -103,9 +103,10 @@ test("archives a single child session from the switcher row actions", async ({ p
   const reopened = await openSwitcherMenu(page)
   await expect(reopened.getByRole("menuitemradio", { name: mainTitle })).toBeVisible()
   await expect(reopened.getByRole("menuitemradio", { name: childATitle })).toHaveCount(0)
-  // 父会话仍保留其余子代理（默认收起，展开后可见）
-  await reopened.locator('[data-action="novel-switcher-toggle-children"]').click()
+  // 父会话仍保留其余子代理（默认展开，重开切换器后直接可见）；手动收起后隐藏
   await expect(reopened.getByRole("menuitemradio", { name: childBTitle })).toBeVisible()
+  await reopened.locator('[data-action="novel-switcher-toggle-children"]').click()
+  await expect(reopened.getByRole("menuitemradio", { name: childBTitle })).toHaveCount(0)
 })
 
 test("exports a session JSON from the switcher row actions", async ({ page }) => {
