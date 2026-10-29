@@ -36,9 +36,11 @@ export function formatServerError(error: unknown, translate?: Translator, fallba
 }
 
 function unwrapNamedError(error: unknown): unknown {
-  if (error instanceof Error && error.cause && typeof error.cause === "object" && "body" in error.cause) {
-    return (error.cause as Record<string, unknown>).body
-  }
+  if (!(error instanceof Error) || !error.cause || typeof error.cause !== "object") return error
+  const cause = error.cause as Record<string, unknown>
+  if ("body" in cause) return cause.body
+  // Solid 的 castError 用 cause 承载非 Error 的抛错值，命名错误体可能直接落在这一层。
+  if (typeof cause._tag === "string") return cause
   return error
 }
 

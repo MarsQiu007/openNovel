@@ -108,6 +108,21 @@ export function resolveAutoAdoptTarget(input: {
 }
 
 /**
+ * 归属会话集合刷新后仍需保留的会话记忆（spec「删除当前打开会话的面板定位」）：记忆指向
+ * 的会话已不在集合（含后代的完整树）中时清除；集合仍在刷新时保持原值，避免把刚新建、
+ * 尚未进入列表的会话误清。回跳规则本身也会回落到有效会话，清记忆是为了不把死引用
+ * 长期留在按书存档里。
+ */
+export function settleRememberedSession(input: {
+  rememberedSessionID: string | undefined
+  sessions: readonly NovelSessionOption[]
+  fetching: boolean
+}): string | undefined {
+  if (!input.rememberedSessionID || input.fetching) return input.rememberedSessionID
+  return findNovelSessionNode(input.sessions, input.rememberedSessionID) ? input.rememberedSessionID : undefined
+}
+
+/**
  * 书内会话列表组合（subagent-session-binding D4）：主会话 = 该书绑定行 ∩ 会话列表 ∩
  * 未归档 ∩ 无父会话，按绑定顺序排列（首个即主线写作流 findBoundNovelSession 指向的会话）；
  * 随后从每个主会话出发按 parentID 广度挂接全部未归档后代（任意层级），后代不要求自身

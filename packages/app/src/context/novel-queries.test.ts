@@ -5,6 +5,7 @@ import {
   flattenNovelSessionOptions,
   loadBoundSessionsWithEmptyGuard,
   resolveAutoAdoptTarget,
+  settleRememberedSession,
   type NovelSessionBinding,
   type NovelSessionOption,
 } from "./novel-queries"
@@ -285,6 +286,76 @@ describe("resolveAutoAdoptTarget", () => {
         sessions: [],
         allSessions: [{ sessionID: "sub1", updatedAt: 50 }],
         rememberedSessionID: "sub1",
+      }),
+    ).toBeNull()
+  })
+})
+
+describe("settleRememberedSession", () => {
+  const options: NovelSessionOption[] = [
+    {
+      sessionID: "s1",
+      title: "主线",
+      updatedAt: 100,
+      children: [{ sessionID: "sub1", title: "子代理", updatedAt: 50, children: [] }],
+    },
+    { sessionID: "s2", title: "设定", updatedAt: 300, children: [] },
+  ]
+
+  test("记忆会话仍在归属集合中：保持不变", () => {
+    expect(settleRememberedSession({ rememberedSessionID: "s1", sessions: options, fetching: false })).toBe("s1")
+  })
+
+  test("记忆指向已删除会话：清除记忆（返回 undefined）", () => {
+    expect(
+      settleRememberedSession({ rememberedSessionID: "s-gone", sessions: options, fetching: false }),
+    ).toBeUndefined()
+  })
+
+  test("记忆指向仍挂接在树中的子代理：保持不变", () => {
+    expect(settleRememberedSession({ rememberedSessionID: "sub1", sessions: options, fetching: false })).toBe("sub1")
+  })
+
+  test("集合仍在刷新：暂不清除记忆，避免误清新会话", () => {
+    expect(settleRememberedSession({ rememberedSessionID: "s-gone", sessions: options, fetching: true })).toBe("s-gone")
+  })
+
+  test("无记忆：保持无记忆", () => {
+    expect(settleRememberedSession({ rememberedSessionID: undefined, sessions: options, fetching: false })).toBeUndefined()
+  })
+})
+
+describe("删除当前会话后的回跳定位", () => {
+  test("删除后仍有其他会话：刷新后的集合与清理后的记忆不选中被删除会话", () => {
+    const list = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1"), binding("s2")],
+      sessions: [session("s2")],
+    })
+    const remembered = settleRememberedSession({ rememberedSessionID: "s1", sessions: list, fetching: false })
+    expect(remembered).toBeUndefined()
+    expect(
+      resolveAutoAdoptTarget({
+        sessions: list,
+        allSessions: flattenNovelSessionOptions(list),
+        rememberedSessionID: remembered,
+      }),
+    ).toBe("s2")
+  })
+
+  test("删除最后一个会话：定位为空，保持懒创建空态", () => {
+    const list = boundNovelSessions({
+      novelID: "novel-1",
+      bindings: [binding("s1")],
+      sessions: [],
+    })
+    const remembered = settleRememberedSession({ rememberedSessionID: "s1", sessions: list, fetching: false })
+    expect(remembered).toBeUndefined()
+    expect(
+      resolveAutoAdoptTarget({
+        sessions: list,
+        allSessions: flattenNovelSessionOptions(list),
+        rememberedSessionID: remembered,
       }),
     ).toBeNull()
   })

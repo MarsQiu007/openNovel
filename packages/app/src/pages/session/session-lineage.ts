@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
-import { sessionNotFoundError } from "@/utils/server-errors"
+import { isSessionNotFoundError, sessionNotFoundError } from "@/utils/server-errors"
 
 type LineageStore<T> = { peek: (id: string) => T | undefined; resolve: (id: string) => Promise<unknown> }
 
@@ -46,7 +46,15 @@ export function createSessionLineage<T>(sessionID: () => string, lineage: () => 
           if (!stale) setStatus({ id, store, state: "settled" })
         })
         .catch((failure) => {
-          if (!stale) setStatus({ id, store, state: "failed", failure })
+          if (stale) return
+          // 服务端的会话缺失以命名错误体返回；归一为本地 not-found，边界才能稳定渲染
+          // “会话无法找到”兜底，而不是把 SDK 的错误包装当成通用故障。
+          setStatus({
+            id,
+            store,
+            state: "failed",
+            failure: isSessionNotFoundError(failure, id) ? sessionNotFoundError(id) : failure,
+          })
         })
     }),
   )

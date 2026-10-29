@@ -171,7 +171,7 @@ export function TargetSessionRouteContent() {
 }
 
 export function SessionRouteErrorBoundary(
-  props: ParentProps<{ sessionID?: string; serverKey?: ServerConnection.Key; padded?: boolean }>,
+  props: ParentProps<{ sessionID?: string; serverKey?: ServerConnection.Key; padded?: boolean; returnTo?: string }>,
 ) {
   const settings = useSettings()
   return (
@@ -180,7 +180,12 @@ export function SessionRouteErrorBoundary(
         settings.general.newLayoutDesigns() ? (
           <SessionRouteFrame padded={props.padded}>
             <SessionPanelFrame newLayout raised={!!props.sessionID}>
-              <SessionErrorFallback error={error} sessionID={props.sessionID} serverKey={props.serverKey} />
+              <SessionErrorFallback
+                error={error}
+                sessionID={props.sessionID}
+                serverKey={props.serverKey}
+                returnTo={props.returnTo}
+              />
             </SessionPanelFrame>
           </SessionRouteFrame>
         ) : (
@@ -193,7 +198,12 @@ export function SessionRouteErrorBoundary(
   )
 }
 
-function SessionErrorFallback(props: { error: unknown; sessionID?: string; serverKey?: ServerConnection.Key }) {
+function SessionErrorFallback(props: {
+  error: unknown
+  sessionID?: string
+  serverKey?: ServerConnection.Key
+  returnTo?: string
+}) {
   const language = useLanguage()
   const server = useServer()
   const navigate = useNavigate()
@@ -202,8 +212,9 @@ function SessionErrorFallback(props: { error: unknown; sessionID?: string; serve
     const conn = server.list.find((item) => ServerConnection.key(item) === key)
     return conn ? serverName(conn) : key
   })
+  // 书内工作台传入该书基础视图；独立会话路由缺省回首页。
   const closeTab = () => {
-    navigate("/")
+    navigate(props.returnTo ?? "/")
   }
   if (isCurrentSessionNotFoundError(props.error, props.sessionID)) {
     return (

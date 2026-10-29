@@ -34,6 +34,7 @@ import {
   useCharacters,
   useBoundNovelSessions,
   resolveAutoAdoptTarget,
+  settleRememberedSession,
   flattenNovelSessionOptions,
   novelKeys,
   type NovelSessionOption,
@@ -313,6 +314,21 @@ export default function NovelWorkspaceFrame() {
     return queryClient.getQueryState<NovelSessionOption[]>(
       novelKeys["bound-sessions"](sdk().directory, novelID()),
     )
+  })
+  // 会话记忆失效清理（spec「删除当前打开会话的面板定位」）：归属集合刷新后，若记忆指向的
+  // 会话已不在树中（被本端或其他客户端删除/解绑），清空该项——否则存档长期持有死引用。
+  // 刷新进行中保持记忆，避免把刚新建、尚未进入列表的会话误清。
+  createEffect(() => {
+    if (!perBookStateReady()) return
+    const remembered = perBookState[novelID()]?.sessionId
+    const state = boundSessionsForBook()
+    if (state?.status !== "success") return
+    const settled = settleRememberedSession({
+      rememberedSessionID: remembered,
+      sessions: state.data ?? [],
+      fetching: state.fetchStatus === "fetching",
+    })
+    if (settled !== remembered) setPerBookState(novelID(), { sessionId: settled })
   })
 
   /**
@@ -1233,7 +1249,10 @@ export default function NovelWorkspaceFrame() {
                       }
                     >
                       <div class="flex-1 min-h-0 overflow-y-auto">
-                        <SessionRouteErrorBoundary sessionID={params.id}>
+                        <SessionRouteErrorBoundary
+                          sessionID={params.id}
+                          returnTo={`/${params.dir}/novel/${novelID()}`}
+                        >
                           <WorkspaceSessionGate sessionID={() => params.id}>
                             <SessionPage />
                           </WorkspaceSessionGate>

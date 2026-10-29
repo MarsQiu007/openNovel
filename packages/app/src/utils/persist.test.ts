@@ -1,4 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
+import { createComputed, createRoot } from "solid-js"
+import { createStore } from "solid-js/store"
 import { ServerScope } from "./server-scope"
 
 type PersistTestingType = typeof import("./persist").PersistTesting
@@ -47,9 +49,12 @@ class MemoryStorage implements Storage {
 
 const storage = new MemoryStorage()
 
+type PersistedType = typeof import("./persist").persisted
+
 let persistTesting: PersistTestingType
 let Persist: PersistType
 let removePersisted: RemovePersistedType
+let persisted: PersistedType
 
 beforeAll(async () => {
   mock.module("@/context/platform", () => ({
@@ -60,6 +65,7 @@ beforeAll(async () => {
   persistTesting = mod.PersistTesting
   Persist = mod.Persist
   removePersisted = mod.removePersisted
+  persisted = mod.persisted
 })
 
 beforeEach(() => {
@@ -189,5 +195,31 @@ describe("persist localStorage resilience", () => {
 
   test("server global target cannot collide when scope and key contain colons", () => {
     expect(Persist.serverGlobal("a:b" as ServerScope, "c")).not.toEqual(Persist.serverGlobal("a" as ServerScope, "b:c"))
+  })
+})
+
+describe("persisted store subscriptions", () => {
+  test("writing inside a computation does not subscribe it to store writes", () => {
+    createRoot((dispose) => {
+      const [, setState] = persisted(
+        Persist.global("subscription.v1"),
+        createStore<Record<string, { sessionId?: string }>>({}),
+      )
+
+      let runs = 0
+      // 写入存档的 effect 只应依赖它自己读取的信号；持久化序列化过程不得把该 effect
+      // 订阅到整个 store，否则其他 effect 的写入会反向重跑它（写入回环的来源）。
+      createComputed(() => {
+        runs += 1
+        if (runs === 1) setState("book", { sessionId: "remembered" })
+      })
+
+      expect(runs).toBe(1)
+
+      setState("book", { sessionId: "other" })
+      expect(runs).toBe(1)
+
+      dispose()
+    })
   })
 })

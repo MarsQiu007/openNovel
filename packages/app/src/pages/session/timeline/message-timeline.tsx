@@ -799,7 +799,14 @@ export function MessageTimeline(props: {
       }
     }
 
-    navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
+    // 同归档：刷新书内会话切换器，移除已删除的绑定会话。书内删除当前会话时必须等刷新
+    // 落地再移除缓存并导航——工作台的自动回跳按刷新后的集合与清理后的记忆定址
+    // （spec「删除当前打开会话的面板定位」），否则会拿着仍含已删除会话的旧列表把用户
+    // 带回刚删掉的会话。刷新期间路由仍指向被删会话，同步缓存必须保留，否则 lineage
+    // 立刻落到未命中、弹出“会话无法找到”兜底——删除本身 MUST NOT 触发该兜底。
+    const refresh = queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
+    if (params.id === sessionID && params.novelID) await refresh
+    else void refresh
 
     sync().set(
       produce((draft) => {
@@ -810,8 +817,8 @@ export function MessageTimeline(props: {
     for (const id of removed) {
       sync().session.evict(id)
     }
-    // 同归档：刷新书内会话切换器，移除已删除的绑定会话
-    void queryClient.invalidateQueries({ queryKey: ["novel", "bound-sessions"] })
+
+    navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
     return true
   }
 

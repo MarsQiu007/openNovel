@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
-import { createRoot, createSignal } from "solid-js"
+import { ErrorBoundary, createRoot, createSignal } from "solid-js"
 import { createSessionLineage } from "@/pages/session/session-lineage"
+import { isLocalSessionNotFoundError } from "@/utils/server-errors"
 
 type Lineage = { session: { id: string; directory: string } }
 
@@ -225,6 +226,62 @@ test("throws not found when the settled session is deleted", async () => {
       fixture.remove("ses_a")
       current()
     }).toThrow("Session not found: ses_a")
+
+    dispose()
+  })
+})
+
+// Resolution failures from the server carry a named error body, not the local
+// message. The lineage must normalize a named not-found so the boundary shows
+// the session not found fallback instead of the generic error page.
+// Memos re-evaluate eagerly on status writes, so a failure for the viewed
+// session surfaces at the write site; the boundary is the component that sees
+// it (WorkspaceSessionGate renders inside SessionRouteErrorBoundary).
+function captureBoundary(fixture: ReturnType<typeof createFixture>) {
+  const seen: unknown[] = []
+  const boundary = ErrorBoundary({
+    get children() {
+      return createSessionLineage(
+        () => "ses_a",
+        () => fixture.lineage,
+      )
+    },
+    fallback: (error: unknown) => {
+      seen.push(error)
+    },
+  })
+  return { seen, boundary }
+}
+
+test("normalizes a named not-found resolve failure into the local not-found error", async () => {
+  await createRoot(async (dispose) => {
+    const fixture = createFixture()
+    const { seen } = captureBoundary(fixture)
+
+    await flush()
+    fixture.fail("ses_a", { _tag: "SessionNotFoundError", sessionID: "ses_a", message: "Session not found" })
+    await flush()
+
+    expect(isLocalSessionNotFoundError(seen[0], "ses_a")).toBe(true)
+
+    dispose()
+  })
+})
+
+// Other resolve failures (network, 5xx) are not session deletion; they must keep
+// the original error so the boundary still renders the generic error page.
+test("keeps the original error for non-not-found resolve failures", async () => {
+  await createRoot(async (dispose) => {
+    const fixture = createFixture()
+    const { seen } = captureBoundary(fixture)
+
+    const failure = new Error("network down")
+    await flush()
+    fixture.fail("ses_a", failure)
+    await flush()
+
+    expect(seen[0]).toBe(failure)
+    expect(isLocalSessionNotFoundError(seen[0], "ses_a")).toBe(false)
 
     dispose()
   })

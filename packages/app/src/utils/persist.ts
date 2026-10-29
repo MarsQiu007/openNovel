@@ -1,7 +1,7 @@
 import { Platform, usePlatform } from "@/context/platform"
 import { makePersisted, type AsyncStorage, type SyncStorage } from "@solid-primitives/storage"
 import { checksum } from "@opennovel-ai/core/util/encode"
-import { createResource, type Accessor } from "solid-js"
+import { createResource, untrack, type Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
 import { pathKey } from "@/utils/path-key"
 import { ScopedKey, ServerScope, type ServerScope as ServerScopeValue } from "@/utils/server-scope"
@@ -164,7 +164,8 @@ function write(storage: Storage, key: string, value: string) {
 }
 
 function snapshot(value: unknown) {
-  return JSON.parse(JSON.stringify(value)) as unknown
+  // 序列化遍历会产生 store 订阅：在 computation 内执行时不得把它算作依赖。
+  return untrack(() => JSON.parse(JSON.stringify(value))) as unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -623,7 +624,14 @@ export function persisted<T>(
     return api
   })()
 
-  const [state, setState, init] = makePersisted(store, { name: config.key, storage })
+  const [state, setState, init] = makePersisted(store, {
+    name: config.key,
+    storage,
+    // makePersisted 只 untrack 了 store 引用本身，序列化遍历仍在调用方的追踪上下文里跑，
+    // 会把在 effect 内写入存档的 computation 订阅到整个 store：其他 effect 再写同一 store
+    // 就会反向重跑它，形成写入回环。序列化不读取任何响应式依赖，必须整体 untrack。
+    serialize: (value) => untrack(() => JSON.stringify(value)),
+  })
 
   const isAsync = init instanceof Promise
   const [ready] = createResource(
