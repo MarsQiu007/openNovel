@@ -368,7 +368,8 @@ describe("util.effect-flock", () => {
         const proc = spawnWorker({ key: "eflock:crash", dir, ready, holdMs: 120_000 })
 
         try {
-          await waitForFile(ready, 5_000)
+          // 就绪窗口给足余量：runner 资源竞争下 worker（bun 启动 + effect 栈）可能远超 5s
+          await waitForFile(ready, 20_000)
           await stopWorker(proc)
 
           // Backdate lock files so they're past STALE_MS (60s)
@@ -387,6 +388,6 @@ describe("util.effect-flock", () => {
           await fs.rm(tmp, { recursive: true, force: true })
         }
       }),
-    30_000,
+    60_000,
   )
 })
