@@ -13,6 +13,10 @@
 
 - [x] 3.1 从 `packages/plugin` 目录运行 `bun typecheck`、oxlint 与 `bun test test/novel-writer/agent-dispatch-routing.test.ts`，全部通过且无新增告警。
 
+## Implementation Commits
+
+- 04290d817d feat(plugin): director prompt 加写作风格路由并静态校验
+
 ## Workflow follow-up
 
 - 归档前收集实现提交写入 `## Implementation Commits`，`openspec validate style-guide-pipeline --strict` 通过后按仓库归档流程执行。
