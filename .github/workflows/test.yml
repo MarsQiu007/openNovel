@@ -113,7 +113,14 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 30
         working-directory: packages/opennovel
-        run: bun run test:httpapi
+        # 输出经文件中转：spawn 的后代进程可能继承 stdout 管道写端，主进程退出后
+        # Actions 仍要等管道 EOF，summary 打完 step 还挂到 30 分钟超时；重定向后
+        # step 结束只取决于命令本身，尾部回显最后一屏保证日志可见性。
+        run: |
+          bun run test:httpapi > exercise.log 2>&1
+          code=$?
+          if [ $code -eq 0 ]; then tail -30 exercise.log; else tail -200 exercise.log; fi
+          exit $code
 
       - name: Run technique agent e2e gates
         # technique-agent-e2e：默认套件 env 门跳过（Windows unit 步 20min 上限内无时长余量），
