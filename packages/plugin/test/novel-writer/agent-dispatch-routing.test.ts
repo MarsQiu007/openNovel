@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from "bun:test"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
+import { ideatorAgent } from "../../src/novel-writer/agents/ideator.js"
 import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
 import { createWritingTools } from "./runtime-assembly-helpers.js"
 
@@ -60,5 +61,27 @@ describe("agent dispatch routing", () => {
     const description = createWritingTools().generate_chapter_outline.description
     expect(description).toContain("由大纲 agent 生成完整章纲")
     expect(description).not.toContain("director 根据小说设定生成")
+  })
+
+  test("风格路由：director 直改落库、不派 @architect、规范写约定路径", () => {
+    const prompt = directorAgent.prompt
+    expect(prompt).toContain("### 写作风格路由（生成 / 更新风格必走）")
+    // 路由归属：显式排除 @architect，覆盖调度表「卷纲等」的含糊措辞
+    expect(prompt).toContain("不 dispatch @architect")
+    // 触发词
+    expect(prompt).toContain("写作风格 / 文风 / 叙事规范")
+    // 前置读取：主动查询兜底，不依赖被动快照注入
+    expect(prompt).toContain('check_novel_settings(novel_id, scope="all")')
+    // 落库交付判据：未落库视为未完成
+    expect(prompt).toContain("落库完成才算交付")
+    // 规范文件路径约定
+    expect(prompt).toContain(".novel/instructions/book.md")
+    expect(prompt).toContain("不会被协写作消费")
+  })
+
+  test("风格落库权限：director allow、ideator deny", () => {
+    expect(directorAgent.permission.save_novel_settings).toBe("allow")
+    expect(directorAgent.permission.check_novel_settings).toBe("allow")
+    expect(ideatorAgent.permission.save_novel_settings).toBe("deny")
   })
 })
