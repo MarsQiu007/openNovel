@@ -1510,12 +1510,13 @@ type Endpoint18_49Input = {
   readonly name: Endpoint18_49Request["payload"]["name"]
   readonly role?: Endpoint18_49Request["payload"]["role"]
   readonly description?: Endpoint18_49Request["payload"]["description"]
+  readonly profile?: Endpoint18_49Request["payload"]["profile"]
 }
 const Endpoint18_49 = (raw: RawClient["server.novel"]) => (input: Endpoint18_49Input) =>
   raw["novel.create-character"]({
     params: { novelID: input["novelID"] },
     query: { location: input["location"], library: input["library"] },
-    payload: { name: input["name"], role: input["role"], description: input["description"] },
+    payload: { name: input["name"], role: input["role"], description: input["description"], profile: input["profile"] },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_50Request = Parameters<RawClient["server.novel"]["novel.update-character"]>[0]
@@ -1528,12 +1529,19 @@ type Endpoint18_50Input = {
   readonly role?: Endpoint18_50Request["payload"]["role"]
   readonly description?: Endpoint18_50Request["payload"]["description"]
   readonly status?: Endpoint18_50Request["payload"]["status"]
+  readonly profile?: Endpoint18_50Request["payload"]["profile"]
 }
 const Endpoint18_50 = (raw: RawClient["server.novel"]) => (input: Endpoint18_50Input) =>
   raw["novel.update-character"]({
     params: { novelID: input["novelID"], characterID: input["characterID"] },
     query: { location: input["location"], library: input["library"] },
-    payload: { name: input["name"], role: input["role"], description: input["description"], status: input["status"] },
+    payload: {
+      name: input["name"],
+      role: input["role"],
+      description: input["description"],
+      status: input["status"],
+      profile: input["profile"],
+    },
   }).pipe(Effect.mapError(mapClientError))
 
 type Endpoint18_51Request = Parameters<RawClient["server.novel"]["novel.delete-character"]>[0]

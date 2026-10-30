@@ -3694,6 +3694,14 @@ export type ServerNovelCharactersOutput = ReadonlyArray<{
   readonly role: string
   readonly description: string
   readonly status: string
+  readonly profile: {
+    readonly appearance?: string
+    readonly speech?: string
+    readonly tone?: string
+    readonly personality?: string
+    readonly mannerism?: string
+    readonly extensions?: { readonly [x: string]: string }
+  }
   readonly createdAt: number
 }>
 
@@ -4563,9 +4571,58 @@ export type ServerNovelCreateCharacterInput = {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
     readonly library?: ("book" | "global" | "all") | undefined
   }["library"]
-  readonly name: { readonly name: string; readonly role?: string; readonly description?: string }["name"]
-  readonly role?: { readonly name: string; readonly role?: string; readonly description?: string }["role"]
-  readonly description?: { readonly name: string; readonly role?: string; readonly description?: string }["description"]
+  readonly name: {
+    readonly name: string
+    readonly role?: string
+    readonly description?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
+  }["name"]
+  readonly role?: {
+    readonly name: string
+    readonly role?: string
+    readonly description?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
+  }["role"]
+  readonly description?: {
+    readonly name: string
+    readonly role?: string
+    readonly description?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
+  }["description"]
+  readonly profile?: {
+    readonly name: string
+    readonly role?: string
+    readonly description?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
+  }["profile"]
 }
 
 export type ServerNovelCreateCharacterOutput = {
@@ -4575,6 +4632,14 @@ export type ServerNovelCreateCharacterOutput = {
   readonly role: string
   readonly description: string
   readonly status: string
+  readonly profile: {
+    readonly appearance?: string
+    readonly speech?: string
+    readonly tone?: string
+    readonly personality?: string
+    readonly mannerism?: string
+    readonly extensions?: { readonly [x: string]: string }
+  }
   readonly createdAt: number
 }
 
@@ -4594,25 +4659,71 @@ export type ServerNovelUpdateCharacterInput = {
     readonly role?: string
     readonly description?: string
     readonly status?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
   }["name"]
   readonly role?: {
     readonly name?: string
     readonly role?: string
     readonly description?: string
     readonly status?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
   }["role"]
   readonly description?: {
     readonly name?: string
     readonly role?: string
     readonly description?: string
     readonly status?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
   }["description"]
   readonly status?: {
     readonly name?: string
     readonly role?: string
     readonly description?: string
     readonly status?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
   }["status"]
+  readonly profile?: {
+    readonly name?: string
+    readonly role?: string
+    readonly description?: string
+    readonly status?: string
+    readonly profile?: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
+  }["profile"]
 }
 
 export type ServerNovelUpdateCharacterOutput = {
@@ -4622,6 +4733,14 @@ export type ServerNovelUpdateCharacterOutput = {
   readonly role: string
   readonly description: string
   readonly status: string
+  readonly profile: {
+    readonly appearance?: string
+    readonly speech?: string
+    readonly tone?: string
+    readonly personality?: string
+    readonly mannerism?: string
+    readonly extensions?: { readonly [x: string]: string }
+  }
   readonly createdAt: number
 }
 
@@ -5015,6 +5134,14 @@ export type ServerNovelStructureOutput = {
     readonly role: string
     readonly description: string
     readonly status: string
+    readonly profile: {
+      readonly appearance?: string
+      readonly speech?: string
+      readonly tone?: string
+      readonly personality?: string
+      readonly mannerism?: string
+      readonly extensions?: { readonly [x: string]: string }
+    }
     readonly createdAt: number
   }>
 }

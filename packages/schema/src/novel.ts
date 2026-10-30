@@ -122,6 +122,17 @@ export const ChapterReview = Schema.Struct({
 }).annotate({ identifier: "Novel.ChapterReview" })
 export interface ChapterReview extends Schema.Schema.Type<typeof ChapterReview> {}
 
+/** 角色定制档案（character-profile）：结构化对象，空档案为空对象，杜绝双层 JSON 编码 */
+export const CharacterProfile = Schema.Struct({
+  appearance: optional(Schema.String),
+  speech: optional(Schema.String),
+  tone: optional(Schema.String),
+  personality: optional(Schema.String),
+  mannerism: optional(Schema.String),
+  extensions: optional(Schema.Record(Schema.String, Schema.String)),
+}).annotate({ identifier: "Novel.CharacterProfile" })
+export interface CharacterProfile extends Schema.Schema.Type<typeof CharacterProfile> {}
+
 export const Character = Schema.Struct({
   id: Schema.String,
   novelId: Schema.String,
@@ -129,6 +140,7 @@ export const Character = Schema.Struct({
   role: Schema.String,
   description: Schema.String,
   status: Schema.String,
+  profile: CharacterProfile,
   createdAt: Schema.Int,
 }).annotate({ identifier: "Novel.Character" })
 export interface Character extends Schema.Schema.Type<typeof Character> {}
@@ -477,6 +489,7 @@ export const CreateCharacterInput = Schema.Struct({
   name: Schema.String,
   role: optional(Schema.String),
   description: optional(Schema.String),
+  profile: optional(CharacterProfile),
 }).annotate({ identifier: "Novel.CreateCharacterInput" })
 export interface CreateCharacterInput extends Schema.Schema.Type<typeof CreateCharacterInput> {}
 
@@ -485,6 +498,7 @@ export const UpdateCharacterInput = Schema.Struct({
   role: optional(Schema.String),
   description: optional(Schema.String),
   status: optional(Schema.String),
+  profile: optional(CharacterProfile),
 }).annotate({ identifier: "Novel.UpdateCharacterInput" })
 export interface UpdateCharacterInput extends Schema.Schema.Type<typeof UpdateCharacterInput> {}
 

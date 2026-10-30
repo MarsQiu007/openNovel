@@ -64,6 +64,8 @@ import {
   UpgradeRunTable,
   UpgradeRunChapterTable,
   normalizeStyleRules,
+  parseCharacterProfile,
+  type CharacterProfile,
 } from "@opennovel-ai/novel-store"
 import {
   getDb,
@@ -304,6 +306,8 @@ function toCharacter(row: CharacterRow) {
     role: row.role,
     description: row.description,
     status: row.status,
+    // DB 存 JSON 字符串（空串=未建档），响应层还原为结构化对象（空对象）
+    profile: parseCharacterProfile(row.profile),
     createdAt: row.created_at,
   }
 }
@@ -704,8 +708,8 @@ type ApprovalInput = { action: "approve" | "reject"; comment?: string }
 type BindSessionInput = { sessionID: string }
 type CreateChapterInput = { title: string; volumeId?: string; order?: number }
 type UpdateNovelInput = { title?: string; synopsis?: string; genre?: string; contentNature?: "general" | "adult" }
-type CreateCharacterInput = { name: string; role?: string; description?: string }
-type UpdateCharacterInput = { name?: string; role?: string; description?: string; status?: string }
+type CreateCharacterInput = { name: string; role?: string; description?: string; profile?: CharacterProfile }
+type UpdateCharacterInput = { name?: string; role?: string; description?: string; status?: string; profile?: CharacterProfile }
 type CreateTensionPointInput = { chapterNumber: number; level: number }
 type UpdateTensionPointInput = { level?: number }
 type CreatePlotThreadInput = { title: string; priority?: string; description?: string }
@@ -1733,7 +1737,7 @@ export function createCharacter(novelID: string, input: CreateCharacterInput, di
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
     const row = yield* Effect.promise(() =>
-      storeCreateCharacter(novelID, input.name, input.role, input.description, directory),
+      storeCreateCharacter(novelID, input.name, input.role, input.description, input.profile, directory),
     )
     return toCharacter(row)
   })
