@@ -6,6 +6,7 @@ import { useSDK } from "./sdk"
 import { useServerSDK, type ServerSDK } from "./server-sdk"
 import type {
   AnnotationExecutionSnapshot,
+  CharacterProfile,
   ExportFormat,
   MemoryFactStatus,
   ReviewInboxSource,
@@ -1341,7 +1342,7 @@ export function useCreateCharacter() {
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
-    mutationFn: (input: { novelID: string; name: string; role?: string; description?: string }) => {
+    mutationFn: (input: { novelID: string; name: string; role?: string; description?: string; profile?: CharacterProfile }) => {
       const dir = sdk().directory
       return client()["server.novel"]["create-character"]({
         novelID: input.novelID,
@@ -1349,6 +1350,7 @@ export function useCreateCharacter() {
         name: input.name,
         role: input.role,
         description: input.description,
+        profile: input.profile,
       })
     },
     onSuccess: (_data, variables) => {
@@ -1371,6 +1373,7 @@ export function useUpdateCharacter() {
       role?: string
       description?: string
       status?: string
+      profile?: CharacterProfile
     }) => {
       const dir = sdk().directory
       return client()["server.novel"]["update-character"]({
@@ -1381,6 +1384,7 @@ export function useUpdateCharacter() {
         role: input.role,
         description: input.description,
         status: input.status,
+        profile: input.profile,
       })
     },
     onSuccess: (_data, variables) => {

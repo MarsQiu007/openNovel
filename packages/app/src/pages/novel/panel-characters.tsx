@@ -1,4 +1,5 @@
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
+import type { CharacterProfile } from "@opennovel-ai/schema/novel"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { SelectV2 } from "@opennovel-ai/ui/v2/select-v2"
 import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
@@ -32,6 +33,15 @@ function sanitize(html: string): string {
     .replace(/on\w+\s*=\s*'[^']*'/gi, "")
     .replace(/javascript:/gi, "")
 }
+
+/** 档案核心维度与展示顺序（character-profile）：编辑与只读渲染共用 */
+const PROFILE_DIMENSIONS = [
+  { key: "appearance", i18n: "novel.panel.characters.profile.appearance" },
+  { key: "speech", i18n: "novel.panel.characters.profile.speech" },
+  { key: "tone", i18n: "novel.panel.characters.profile.tone" },
+  { key: "personality", i18n: "novel.panel.characters.profile.personality" },
+  { key: "mannerism", i18n: "novel.panel.characters.profile.mannerism" },
+] as const
 
 export type PanelCharactersProps = {
   novelID: Accessor<string>
@@ -300,6 +310,7 @@ export function CharacterDetail(props: {
     role: string
     description: string
     status?: string
+    profile?: CharacterProfile
     createdAt?: number
   }
   characters: ReadonlyArray<{
@@ -328,6 +339,8 @@ export function CharacterDetail(props: {
   const [name, setName] = createSignal(props.character.name)
   const [role, setRole] = createSignal(props.character.role)
   const [description, setDescription] = createSignal(props.character.description)
+  const [profileDraft, setProfileDraft] = createSignal<CharacterProfile>({})
+  const [exts, setExts] = createSignal<Array<{ key: string; value: string }>>([])
   const updateChar = useUpdateCharacter()
   const deleteChar = useDeleteCharacter()
   const confirmDelete = useConfirmDelete()
@@ -340,17 +353,40 @@ export function CharacterDetail(props: {
     setName(props.character.name)
     setRole(props.character.role)
     setDescription(props.character.description)
+    setProfileDraft({ ...(props.character.profile ?? {}) })
+    setExts(Object.entries(props.character.profile?.extensions ?? {}).map(([key, value]) => ({ key, value })))
     setEditing(true)
   }
 
   const handleSave = async () => {
     if (!name().trim()) return
+    // 档案整包提交：清空的维度视为删除，与 manage_characters 整包语义一致；
+    // 局部用可变结构构建（schema 导出的 CharacterProfile 字段只读）
+    const profile: {
+      appearance?: string
+      speech?: string
+      tone?: string
+      personality?: string
+      mannerism?: string
+      extensions?: Record<string, string>
+    } = {}
+    for (const d of PROFILE_DIMENSIONS) {
+      const value = profileDraft()[d.key]?.trim()
+      if (value) profile[d.key] = value
+    }
+    const extensions: Record<string, string> = {}
+    for (const entry of exts()) {
+      const key = entry.key.trim()
+      if (key) extensions[key] = entry.value.trim()
+    }
+    if (Object.keys(extensions).length > 0) profile.extensions = extensions
     await updateChar.mutateAsync({
       novelID: props.novelID(),
       characterID: props.character.id,
       name: name().trim(),
       role: role().trim() || undefined,
       description: description().trim() || undefined,
+      profile,
     })
     setEditing(false)
   }
@@ -449,6 +485,9 @@ export function CharacterDetail(props: {
               />
             </div>
 
+            {/* Profile（character-profile）：有档案才渲染 */}
+            <ProfileReadonlySection profile={props.character.profile} language={props.language} />
+
             {/* Character states */}
             <StatesSection
               novelID={props.novelID}
@@ -527,6 +566,81 @@ export function CharacterDetail(props: {
               onInput={(e) => setDescription(e.currentTarget.value)}
             />
           </div>
+          {/* Profile 编辑（character-profile）：核心维度 + 扩展项，整包提交 */}
+          <div class="shrink-0">
+            <label class="block text-xs text-v2-text-text-muted mb-1">
+              {props.language.t("novel.panel.characters.profile")}
+            </label>
+            <div class="space-y-2">
+              <For each={PROFILE_DIMENSIONS}>
+                {(d) => (
+                  <TextareaV2
+                    fluid
+                    class="resize-none"
+                    rows={2}
+                    value={profileDraft()[d.key] ?? ""}
+                    onInput={(e) => setProfileDraft((p) => ({ ...p, [d.key]: e.currentTarget.value }))}
+                    placeholder={props.language.t(d.i18n)}
+                  />
+                )}
+              </For>
+            </div>
+          </div>
+          <div class="shrink-0">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs text-v2-text-text-muted">
+                {props.language.t("novel.panel.characters.profile.extensions")}
+              </label>
+              <ButtonV2
+                variant="ghost"
+                size="small"
+                title={props.language.t("novel.panel.characters.profile.addExtension")}
+                onClick={() => setExts((list) => [...list, { key: "", value: "" }])}
+              >
+                +
+              </ButtonV2>
+            </div>
+            <Show when={exts().length > 0}>
+              <div class="space-y-2">
+                <For each={exts()}>
+                  {(entry, index) => (
+                    <div class="flex items-center gap-2">
+                      <TextInputV2
+                        class="w-28 shrink-0"
+                        type="text"
+                        value={entry.key}
+                        onInput={(e) =>
+                          setExts((list) =>
+                            list.map((item, i) => (i === index() ? { ...item, key: e.currentTarget.value } : item)),
+                          )
+                        }
+                        placeholder={props.language.t("novel.panel.characters.profile.extensionKey")}
+                      />
+                      <TextInputV2
+                        fluid
+                        type="text"
+                        value={entry.value}
+                        onInput={(e) =>
+                          setExts((list) =>
+                            list.map((item, i) => (i === index() ? { ...item, value: e.currentTarget.value } : item)),
+                          )
+                        }
+                        placeholder={props.language.t("novel.panel.characters.profile.extensionValue")}
+                      />
+                      <ButtonV2
+                        variant="ghost"
+                        size="small"
+                        onClick={() => setExts((list) => list.filter((_, i) => i !== index()))}
+                        title={props.language.t("common.action.delete")}
+                      >
+                        ×
+                      </ButtonV2>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
           <div class="flex gap-2 shrink-0">
             <ButtonV2
               variant="contrast"
@@ -543,6 +657,42 @@ export function CharacterDetail(props: {
         </div>
       </Show>
     </div>
+  )
+}
+
+/** 档案只读展示（character-profile）：核心维度与扩展项有值才渲染 */
+function ProfileReadonlySection(props: {
+  profile?: CharacterProfile
+  language: ReturnType<typeof useLanguage>
+}) {
+  const dims = createMemo(() => PROFILE_DIMENSIONS.filter((d) => props.profile?.[d.key]))
+  const extEntries = createMemo(() => Object.entries(props.profile?.extensions ?? {}))
+  return (
+    <Show when={dims().length > 0 || extEntries().length > 0}>
+      <div class="px-4 py-4 border-b border-v2-border-border-base">
+        <h4 class="text-xs font-medium text-v2-text-text-muted uppercase tracking-wider mb-1.5">
+          {props.language.t("novel.panel.characters.profile")}
+        </h4>
+        <div class="space-y-1">
+          <For each={dims()}>
+            {(d) => (
+              <p class="text-sm text-v2-text-text-base leading-relaxed">
+                <span class="text-v2-text-text-muted">{props.language.t(d.i18n)}：</span>
+                {props.profile?.[d.key]}
+              </p>
+            )}
+          </For>
+          <For each={extEntries()}>
+            {([key, value]) => (
+              <p class="text-sm text-v2-text-text-base leading-relaxed">
+                <span class="text-v2-text-text-muted">{key}：</span>
+                {value}
+              </p>
+            )}
+          </For>
+        </div>
+      </div>
+    </Show>
   )
 }
 
