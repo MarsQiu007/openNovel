@@ -35,7 +35,10 @@ import {
   StoryArcTable,
   ArcBeatTable,
   normalizeStyleRules,
+  parseCharacterProfile,
+  type CharacterProfile,
 } from "./session-store.js"
+import { CHARACTER_PROFILE_DIMENSION_LABELS } from "./profile-ops.js"
 
 /**
  * 解析 style_guide.rules 为扁平字符串映射（委托 novel-store 共享归一化）。
@@ -98,12 +101,35 @@ export type ActiveCharacter = {
   role: string
   /** 角色描述 */
   description: string
+  /** 角色档案（character-profile）：容错解析后的结构，未建档为空对象/缺省 */
+  profile?: CharacterProfile
   /** 当前所在位置 */
   location: string
   /** 当前情绪 */
   mood: string
   /** 当前状态摘要 */
   summary: string
+}
+
+/**
+ * 活跃角色档案行（character-profile）：核心四维独立行 + 次要行（习惯动作/扩展项，
+ * 有值才渲染）；无档案返回空数组，调用方维持 `- 名字（role）：description` 原形态。
+ * 两个渲染面（formatSnapshotToolOutput / renderSnapshotSection）共用，保证一致。
+ */
+export function activeCharacterProfileLines(character: ActiveCharacter): string[] {
+  const profile = character.profile
+  if (!profile) return []
+  const lines: string[] = []
+  for (const dim of ["appearance", "speech", "tone", "personality"] as const) {
+    const value = profile[dim]
+    if (value) lines.push(`  ${CHARACTER_PROFILE_DIMENSION_LABELS[dim]}：${value}`)
+  }
+  if (profile.mannerism) lines.push(`  ${CHARACTER_PROFILE_DIMENSION_LABELS.mannerism}：${profile.mannerism}`)
+  const extEntries = Object.entries(profile.extensions ?? {})
+  if (extEntries.length > 0) {
+    lines.push(`  扩展：${extEntries.map(([key, value]) => `${key}=${value}`).join("；")}`)
+  }
+  return lines
 }
 
 /** 剧情线索摘要 */
@@ -554,6 +580,7 @@ export async function assembleSnapshot(
           name: char.name,
           role: char.role,
           description: char.description,
+          profile: parseCharacterProfile(char.profile),
           location: latestState.location,
           mood: latestState.mood,
           summary: latestState.summary,
@@ -812,6 +839,7 @@ export function formatSnapshotToolOutput(
     lines.push("活跃角色：")
     for (const c of snapshot.activeCharacters) {
       lines.push(`- ${c.name}（${c.role}）：${c.description}`)
+      lines.push(...activeCharacterProfileLines(c))
       if (c.location || c.mood) lines.push(`  位置：${c.location} | 情绪：${c.mood}`)
     }
   }

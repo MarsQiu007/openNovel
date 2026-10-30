@@ -65,6 +65,7 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 - name：姓名
 - role：角色定位（主角/重要配角/反派/导师等）
 - description：性格特质、核心动机、成长弧线、外貌特征、口头禅等
+- profile：可选角色档案对象（character-profile），逐维度结构化，值限字符串：appearance 身体特征 / speech 说话习惯 / tone 语气 / personality 个性 / mannerism 习惯动作 / extensions 自定义设定 KV（键为名称，如 武器风格/门派）。整包语义；主要角色尽量逐维产出，mannerism 仅在用户点名「习惯动作」时必填，未点名留空不编造
 
 ### type: "plot_thread"（剧情线索）
 - title：线索名称
@@ -106,6 +107,11 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 - 金手指：来源、核心能力、限制条件和代价（3问验证：来源是什么？有什么限制？使用需要付出什么代价？）。
 - 重要配角：至少3-5个，包括与主角的关系、作用（助力者/导师/对手/伙伴）、性格特点和成长弧线。
 - 反派：身份、动机、与主角的冲突根源、结局走向。
+
+**角色档案（character-profile）**
+- 主要角色（主角、重要配角、反派）的 character 条目必须带 profile 档案：appearance/speech/tone/personality 逐维产出，内容取自 creative brief 与角色设计，与 description 保持一致而非互相矛盾。
+- mannerism（习惯动作）：用户点名「习惯动作」时必填；未点名时留空，不强行编造。
+- 需要额外维度的自定义设定（如 武器风格/门派/称号）写入 profile.extensions，键为名称、值为字符串。
 
 **剧情弧线（结构线/弧光）**
 你必须为本书规划结构化的弧光，后续每章写作会自动注入相关弧光与节点，writer 据此推进剧情。规划时同时给出每条弧光的关键节点（beat）：

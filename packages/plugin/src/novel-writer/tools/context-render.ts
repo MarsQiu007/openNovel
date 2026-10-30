@@ -6,7 +6,7 @@
  * 注入文本一致。
  */
 import { desc, eq } from "drizzle-orm"
-import { instructionLines, styleGuideRuleLines } from "../context.js"
+import { activeCharacterProfileLines, instructionLines, styleGuideRuleLines } from "../context.js"
 import { assembleWriterSnapshot } from "../recall.js"
 import { ChapterTable, getDb, readNovelConfig, type SetupMode, type WritingMode } from "../session-store.js"
 import { formatActiveArcs, projectDirFromCtx } from "./shared.js"
@@ -97,6 +97,7 @@ export function renderSnapshotSection(snapshot: WriterSnapshot): string {
     lines.push("【活跃角色】")
     for (const c of snapshot.activeCharacters) {
       lines.push(`- ${c.name}（${c.role}）${c.description ? `：${c.description}` : ""}`)
+      lines.push(...activeCharacterProfileLines(c))
       if (c.location || c.mood || c.summary) {
         lines.push(`  位置：${c.location} | 情绪：${c.mood} | 状态：${c.summary}`)
       }

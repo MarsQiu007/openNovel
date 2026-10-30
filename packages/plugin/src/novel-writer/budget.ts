@@ -31,9 +31,24 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 1.5)
 }
 
-/** 估算活跃角色对象的 token 数量 */
+/** 估算活跃角色对象的 token 数量（含档案字段，character-profile） */
 function charTokens(char: ActiveCharacter): number {
-  return estimateTokens(char.name + char.role + char.description + char.location + char.mood + char.summary)
+  const profile = char.profile
+  const profileText = profile
+    ? [
+        profile.appearance,
+        profile.speech,
+        profile.tone,
+        profile.personality,
+        profile.mannerism,
+        ...Object.values(profile.extensions ?? {}),
+      ]
+        .filter((v): v is string => typeof v === "string")
+        .join("")
+    : ""
+  return estimateTokens(
+    char.name + char.role + char.description + char.location + char.mood + char.summary + profileText,
+  )
 }
 
 /** 估算章节摘要的 token 数量 */
