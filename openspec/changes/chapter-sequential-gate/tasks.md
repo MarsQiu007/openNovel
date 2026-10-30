@@ -17,6 +17,10 @@
 
   > 验证记录（2026-10-30）：`bun typecheck` 通过；`bun test test/novel-writer/` 全族 952 pass / 0 fail（其中 chapter-sequential-gate.test.ts 9 用例、agent-dispatch-routing.test.ts 11 用例）。`bunx oxlint` 改动文件 0 errors；警告相对 HEAD 基线 +1，为 `getFirstUnpassedChapter` 沿用文件内既有 32 处 drizzle `.all()` await 形态的同族 `await-thenable` warn（两 driver 均为同步，await 冗余但无害），非新增告警类别。spec 复核：新 spec 4 requirement / 8 scenario 与 multi-chapter-batch「违约写入尝试被工具拦截」scenario 均有实现行为或测试断言对应（拒绝消息状态字样断言已补强）。
 
+## Implementation Commits
+
+- 5e8a5cd024 feat(plugin): review 模式逐章串行门禁
+
 ## Workflow follow-up
 
 - 归档前收集实现提交写入 `## Implementation Commits`，`openspec validate chapter-sequential-gate --strict` 通过后按仓库归档流程执行。
