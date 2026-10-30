@@ -37,10 +37,12 @@ import { detectKinshipEntityDrift, loadCharacterBindingView } from "../drift-gua
 import {
   CHAPTER_LENGTH_TOLERANCE,
   checkChapterLengthGate,
+  checkChapterSequentialGate,
   checkDuplicateRatio,
   detectCoordinateLeak,
   detectOutlineLabels,
   getChapterLengthLimit,
+  getFirstUnpassedChapter,
   getTargetWordCount,
 } from "./chapter-guards.js"
 import { nextVersion, projectDirFromCtx, resolveNovelId } from "./shared.js"
@@ -78,6 +80,14 @@ export const chapterTools = {
           }
         }
       }
+
+      // 顺序门禁：review 模式逐章串行——前置章节未全部通过审批时，不得写后续章节正文
+      const firstUnpassed =
+        readNovelConfig(projectDirFromCtx(ctx.directory)).writing_mode === "review"
+          ? await getFirstUnpassedChapter(db, chapter.novel_id, chapter.order)
+          : null
+      const sequentialBlock = checkChapterSequentialGate("write_chapter", firstUnpassed)
+      if (sequentialBlock) return sequentialBlock
 
       const pendingCount = await db
         .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })
@@ -201,6 +211,14 @@ export const chapterTools = {
           title: "revise_chapter（参数错误）",
           output: "缺少 revision：请传入 chapter_id 和 revision（修订后的完整章节正文），正文参数名是 revision，不是 content。",
         }
+
+      // 顺序门禁：review 模式逐章串行——前置章节未全部通过审批时，不得修订后续章节正文
+      const firstUnpassed =
+        readNovelConfig(projectDirFromCtx(ctx.directory)).writing_mode === "review"
+          ? await getFirstUnpassedChapter(db, chapter.novel_id, chapter.order)
+          : null
+      const sequentialBlock = checkChapterSequentialGate("revise_chapter", firstUnpassed)
+      if (sequentialBlock) return sequentialBlock
 
       const pendingCount = await db
         .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })

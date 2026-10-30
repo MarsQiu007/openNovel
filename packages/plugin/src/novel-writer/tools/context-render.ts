@@ -39,7 +39,7 @@ export function renderModeSection(directory: string | null | undefined): string 
 
   const writingDesc =
     mode.writing_mode === "review"
-      ? "每章完成后将章节状态置为 pending_review 并暂停，等用户在阅读页审批后再继续"
+      ? "每章完成后将章节状态置为 pending_review 并暂停，等用户在阅读页审批后再继续；逐章串行：任何前置章节（序号更小）未通过审批（final/published）时，write_chapter / revise_chapter 会硬性拒绝后续章节的正文写入（sequential_blocked，不重试，先处理前置章节）"
       : "写完整章后自动置 final 并推进，无需人工审批"
 
   const setupDesc =
