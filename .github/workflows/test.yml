@@ -113,12 +113,13 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 30
         working-directory: packages/opennovel
-        # 输出经文件中转：spawn 的后代进程可能继承 stdout 管道写端，主进程退出后
-        # Actions 仍要等管道 EOF，summary 打完 step 还挂到 30 分钟超时；重定向后
-        # step 结束只取决于命令本身，尾部回显最后一屏保证日志可见性。
+        # 输出经文件中转 + 后台 watchdog：每分钟把 exercise.log 行数写进 step summary，
+        # 超时后仍可从行数曲线判断进程何时停滞（挂点取证）。
         run: |
+          ( while true; do echo "$(date -u +%T) lines=$(wc -l < exercise.log 2>/dev/null || echo 0)" >> "$GITHUB_STEP_SUMMARY"; sleep 60; done & echo $! > /tmp/watchdog.pid )
           bun run test:httpapi > exercise.log 2>&1
           code=$?
+          kill "$(cat /tmp/watchdog.pid)" 2>/dev/null || true
           if [ $code -eq 0 ]; then tail -30 exercise.log; else tail -200 exercise.log; fi
           exit $code
 
