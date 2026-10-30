@@ -10,7 +10,7 @@
  * - FACT_TYPES — 10 种事实类型常量
  */
 
-import { scanEntityReferences, withTransaction, buildConflictImpact } from "@opennovel-ai/novel-store"
+import { scanEntityReferences, withTransaction, buildConflictImpact, parseCharacterProfile, serializeCharacterProfile } from "@opennovel-ai/novel-store"
 import type { Tx } from "@opennovel-ai/novel-store"
 
 export const scanReferences = scanEntityReferences
@@ -1928,6 +1928,18 @@ export async function deduplicateCharacters(
           .filter((v, i, arr) => arr.indexOf(v) === i)
           .join("\n\n---\n\n")
         await db.update(CharacterTable).set({ description: combined }).where(eq(CharacterTable.id, keptId)).run()
+      }
+
+      // 档案合并：保留行档案优先，被删行填补缺失维度，避免去重静默丢档案
+      const removedWithProfile = group.filter((c) => c.id !== keptId && c.profile.length > 0)
+      if (removedWithProfile.length > 0) {
+        const mergedProfile = removedWithProfile
+          .map((c) => parseCharacterProfile(c.profile))
+          .reduce((acc, cur) => ({ ...cur, ...acc }), parseCharacterProfile(kept.profile))
+        const serialized = serializeCharacterProfile(mergedProfile)
+        if (serialized !== kept.profile) {
+          await db.update(CharacterTable).set({ profile: serialized }).where(eq(CharacterTable.id, keptId)).run()
+        }
       }
 
       await db

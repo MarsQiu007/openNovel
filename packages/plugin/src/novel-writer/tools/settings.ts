@@ -7,17 +7,22 @@ import { Schema } from "effect"
 import { parseStyleRules } from "../context.js"
 import {
   getDb,
+  CHARACTER_PROFILE_DIMENSIONS,
   CharacterTable,
   ForeshadowingTable,
   normalizeStyleRules,
+  parseCharacterProfile,
   PlotThreadTable,
   RelationshipTable,
+  serializeCharacterProfile,
   STYLE_RULES_FORMAT_HINT,
   StyleGuideTable,
   VolumeTable,
   WorldEntryTable,
+  type CharacterProfile,
 } from "../session-store.js"
 import { archiveDescription, normalizeStyleGuideData, scanReferences } from "../state-commit.js"
+import { CHARACTER_PROFILE_DIMENSION_LABELS, profileShapeError } from "../profile-ops.js"
 import { applyImpact, buildImpactReport, planImpact, type ImpactReport } from "../setting-impact.js"
 import { SETTING_TEXT_FIELDS } from "../setting-review-candidates.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
@@ -28,7 +33,7 @@ import { SETTING_ENTITY_TYPES, resolveCharRef, resolveNovelId, searchSnippet } f
 export const settingsTools = {
   save_novel_settings: defineTool({
     description:
-      '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则（扁平字符串映射：值需为标量，嵌套对象按 父.子 展平、数组按索引展平）}；character={name,role,description}；world_entry={category,title,content}；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
+      '批量保存小说设定到数据库。architect agent 专用：将世界观/伏笔/剧情线索/风格指南/角色/卷/关系等设定持久化。settings_json 为 JSON 数组，每项形如 {"type":"world_entry","data":{"title":"...","content":"..."}}。支持类型：character/world_entry/plot_thread/foreshadowing/style_guide/volume/relationship。style_guide 为单条覆盖写入（已存在则更新，否则插入）。character 先于 relationship 处理：character 可带 ref 字段（本地引用键），relationship 通过 char_a_ref/char_b_ref 引用已插入角色；也兼容 char_a_id/char_b_id 传 UUID 或姓名（同名歧义时需用 ref）。各类型 data 字段：style_guide={tone 基调,pov 视角,tense 时态,rules 写作规则（扁平字符串映射：值需为标量，嵌套对象按 父.子 展平、数组按索引展平）}；character={name,role,description,profile 可选档案对象（{appearance 身体特征,speech 说话习惯,tone 语气,personality 个性,mannerism 习惯动作,extensions 自定义KV}，值限字符串，整包替换语义）}；world_entry={category,title,content}；content 必须用 \\n\\n 按主题分段，每段约 80–220 字，任一段超过 600 字必须继续分段；plot_thread={title,description,status,priority}；foreshadowing={content,state,planted_chapter_id}；volume={title,summary,order}；relationship={char_a_ref/char_a_id,char_b_ref/char_b_id,type,description}。\n\n' + SETTING_TEXT_FORMAT_RULE,
     args: Schema.Struct({
       novel_id: Schema.String.annotate({ description: "小说 ID" }),
       settings_json: Schema.String.annotate({
@@ -83,6 +88,17 @@ export const settingsTools = {
         try {
           const d = s.data
           const name = String(d.name ?? "")
+          // 档案（character-profile）：data.profile 结构化对象，写入边界序列化一次；
+          // 校验失败报错该条但不带档案落库，不阻断同批其余设定
+          let profileJson: string | undefined
+          if (d.profile !== undefined) {
+            const profileError = profileShapeError(d.profile, "profile")
+            if (profileError) {
+              errors.push(`第${i}条（character「${name}」）：${profileError}`)
+            } else {
+              profileJson = serializeCharacterProfile(d.profile as CharacterProfile)
+            }
+          }
           const [existing] = await db
             .select({ id: CharacterTable.id, description: CharacterTable.description })
             .from(CharacterTable)
@@ -91,14 +107,17 @@ export const settingsTools = {
             .all()
 
           let id: string
+          const requestedDesc = String(d.description ?? "")
+          // 落库生效的描述：更新分支 description 缺省时保留原描述，
+          // 批量建档可能只补档案，不该把描述抹空并误触压缩拦截
+          const effectiveDesc = existing && d.description === undefined ? existing.description : requestedDesc
           if (existing) {
             id = existing.id
-            const newDesc = String(d.description ?? "")
             const oldDesc = existing.description
-            if (oldDesc !== newDesc) impactIntents.push({ entityType: "character", entityId: id, field: "description", oldValue: oldDesc, newValue: newDesc, reason: `角色「${name}」描述批量更新` })
-            if (oldDesc.length > 0 && newDesc.length < oldDesc.length * 0.5) {
+            if (oldDesc !== effectiveDesc) impactIntents.push({ entityType: "character", entityId: id, field: "description", oldValue: oldDesc, newValue: effectiveDesc, reason: `角色「${name}」描述批量更新` })
+            if (oldDesc.length > 0 && effectiveDesc.length < oldDesc.length * 0.5) {
               errors.push(
-                `角色「${name}」新描述(${newDesc.length}字)比旧描述(${oldDesc.length}字)短超过一半，已跳过更新保留原文`,
+                `角色「${name}」新描述(${effectiveDesc.length}字)比旧描述(${oldDesc.length}字)短超过一半，已跳过更新保留原文`,
               )
               count++
               const ref = d.ref ? String(d.ref) : ""
@@ -106,14 +125,15 @@ export const settingsTools = {
               if (name) nameToIds.set(name, [...(nameToIds.get(name) ?? []), id])
               continue
             }
-            if (oldDesc.length > 0 && newDesc.length < oldDesc.length) {
-              await archiveDescription(ctx.directory, novelId, "character", id, oldDesc, newDesc)
+            if (oldDesc.length > 0 && effectiveDesc.length < oldDesc.length) {
+              await archiveDescription(ctx.directory, novelId, "character", id, oldDesc, effectiveDesc)
             }
             await db
               .update(CharacterTable)
               .set({
                 role: String(d.role ?? ""),
-                description: newDesc,
+                description: effectiveDesc,
+                ...(profileJson !== undefined ? { profile: profileJson } : {}),
               })
               .where(eq(CharacterTable.id, id))
               .run()
@@ -126,7 +146,8 @@ export const settingsTools = {
                 novel_id: novelId,
                 name,
                 role: String(d.role ?? ""),
-                description: String(d.description ?? ""),
+                description: effectiveDesc,
+                ...(profileJson !== undefined ? { profile: profileJson } : {}),
               })
               .run()
           }
@@ -134,7 +155,7 @@ export const settingsTools = {
           const ref = d.ref ? String(d.ref) : ""
           if (ref) refToId.set(ref, id)
           if (name) nameToIds.set(name, [...(nameToIds.get(name) ?? []), id])
-          await scanReferences(db, novelId, "character", id, "description", String(d.description ?? ""))
+          await scanReferences(db, novelId, "character", id, "description", effectiveDesc)
         } catch (err) {
           errors.push(`第${i}条：${err instanceof Error ? err.message : String(err)}`)
         }
@@ -360,6 +381,14 @@ export const settingsTools = {
           for (const r of rows) {
             lines.push(`- [${r.id.slice(0, 8)}] ${r.name}（${r.role || "无角色"}）`)
             if (r.description) lines.push(`  ${r.description}`)
+            // 档案维度行（character-profile）：有档案才渲染，塑造闭环对 agent 可见
+            const profile = parseCharacterProfile(r.profile)
+            const dimTexts = CHARACTER_PROFILE_DIMENSIONS.flatMap((dim) =>
+              profile[dim] ? [`${CHARACTER_PROFILE_DIMENSION_LABELS[dim]}：${profile[dim]}`] : [],
+            )
+            if (dimTexts.length > 0) lines.push(`  档案：${dimTexts.join("；")}`)
+            const extTexts = Object.entries(profile.extensions ?? {}).map(([key, value]) => `${key}=${value}`)
+            if (extTexts.length > 0) lines.push(`  档案扩展：${extTexts.join("；")}`)
           }
           lines.push("")
         }

@@ -8,20 +8,33 @@ import { defineTool } from "../../v2/effect/tool.js"
 import { archiveDescription, deduplicateCharacters, scanReferences } from "../state-commit.js"
 import { applyImpact, buildImpactReport, planImpact, type ImpactReport } from "../setting-impact.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
-import { CharacterTable, getDb } from "../session-store.js"
+import { applyProfilePatch, applyProfileRemove, profileShapeError } from "../profile-ops.js"
+import { CharacterTable, getDb, parseCharacterProfile, serializeCharacterProfile, type CharacterProfile } from "../session-store.js"
 import { resolveNovelId } from "./shared.js"
 
 export const charactersTools = {
   manage_characters: defineTool({
     description:
-      "管理小说角色信息。可新增或更新角色（name/role/description/status）。character_id 为空时新增。status 可设为 'active'（活跃）或 'departed'（退场）；退场后后续章节不再安排出场，但历史章节提及仍然有效。主角不能设为 departed。\n\n" + SETTING_TEXT_FORMAT_RULE,
+      "管理小说角色信息。可新增或更新角色（name/role/description/status/profile）。character_id 为空时新增。status 可设为 'active'（活跃）或 'departed'（退场）；退场后后续章节不再安排出场，但历史章节提及仍然有效。主角不能设为 departed。\n\n档案塑造（character-profile）：update JSON 支持三种档案操作，一次只能传一种——profile 为整包替换（对象：appearance 身体特征/speech 说话习惯/tone 语气/personality 个性/mannerism 习惯动作/extensions 自定义 KV，值限字符串，未携带的维度视为删除）；profile_patch 为按维度补丁（核心维度整值覆盖，extensions 按键合并、空字符串值删除该扩展项）；profile_remove 为维度删除（如 [\"mannerism\"] 或 [\"extensions.武器风格\"]）。档案修改与 description 修改一样走设定影响面。\n\n" + SETTING_TEXT_FORMAT_RULE,
     args: Schema.Struct({
       character_id: Schema.String.annotate({ description: "角色 ID；传空字符串表示新增角色" }),
-      update: Schema.String.annotate({ description: "角色更新内容 JSON：{name?,role?,description?,status?,novel_id?}" }),
+      update: Schema.String.annotate({
+        description:
+          '角色更新内容 JSON：{name?,role?,description?,status?,novel_id?,profile?,profile_patch?,profile_remove?}；profile 整包 / profile_patch 按维度补丁 / profile_remove 维度删除三者互斥',
+      }),
     }),
     async execute(args, ctx) {
       const db = getDb(ctx.directory)
-      let patch: { name?: string; role?: string; description?: string; status?: string; novel_id?: string }
+      let patch: {
+        name?: string
+        role?: string
+        description?: string
+        status?: string
+        novel_id?: string
+        profile?: CharacterProfile
+        profile_patch?: CharacterProfile
+        profile_remove?: string[]
+      }
       try {
         patch = JSON.parse(args.update)
       } catch {
@@ -32,23 +45,56 @@ export const charactersTools = {
       const textError = settingTextFormatError(patch.description, "character", "description")
       if (textError) return { title: "manage_characters", output: `设定文本格式校验失败：${textError}` }
 
+      // 档案塑造输入校验：整包与补丁/删除互斥，key 白名单 + 值类型
+      if (patch.profile !== undefined && (patch.profile_patch !== undefined || patch.profile_remove !== undefined)) {
+        return { title: "manage_characters", output: "profile（整包替换）与 profile_patch / profile_remove 互斥，一次只能传一种档案操作" }
+      }
+      if (patch.profile !== undefined) {
+        const error = profileShapeError(patch.profile, "profile")
+        if (error) return { title: "manage_characters", output: error }
+      }
+      if (patch.profile_patch !== undefined) {
+        const error = profileShapeError(patch.profile_patch, "profile_patch")
+        if (error) return { title: "manage_characters", output: error }
+      }
+      if (patch.profile_remove !== undefined && !Array.isArray(patch.profile_remove)) {
+        return { title: "manage_characters", output: "profile_remove 必须是维度 key 数组，如 [\"mannerism\"]" }
+      }
+
+      // 基于基础档案应用塑造操作；无档案参数时不改动档案
+      function resolveProfileOperation(base: CharacterProfile): { profile?: CharacterProfile; error?: string } {
+        if (patch.profile !== undefined) return { profile: patch.profile }
+        if (patch.profile_patch === undefined && patch.profile_remove === undefined) return {}
+        let next = base
+        if (patch.profile_patch !== undefined) next = applyProfilePatch(next, patch.profile_patch)
+        if (patch.profile_remove !== undefined) {
+          const removed = applyProfileRemove(next, patch.profile_remove)
+          if (removed.error) return removed
+          next = removed.profile
+        }
+        return { profile: next }
+      }
+
       // 新增角色
       if (args.character_id.length === 0) {
         if (!patch.novel_id) return { title: "manage_characters", output: "新增角色需提供 novel_id" }
         if (!patch.name) return { title: "manage_characters", output: "新增角色需提供 name" }
 
         const [dup] = await db
-          .select({ id: CharacterTable.id })
+          .select({ id: CharacterTable.id, profile: CharacterTable.profile })
           .from(CharacterTable)
           .where(and(eq(CharacterTable.novel_id, patch.novel_id), eq(CharacterTable.name, patch.name)))
           .limit(1)
           .all()
         if (dup) {
+          const op = resolveProfileOperation(parseCharacterProfile(dup.profile))
+          if (op.error) return { title: "manage_characters", output: op.error }
           await db
             .update(CharacterTable)
             .set({
               role: patch.role ?? "",
               description: patch.description ?? "",
+              ...(op.profile !== undefined ? { profile: serializeCharacterProfile(op.profile) } : {}),
             })
             .where(eq(CharacterTable.id, dup.id))
             .run()
@@ -60,6 +106,8 @@ export const charactersTools = {
           }
         }
 
+        const op = resolveProfileOperation({})
+        if (op.error) return { title: "manage_characters", output: op.error }
         const id = crypto.randomUUID()
         await db
           .insert(CharacterTable)
@@ -69,6 +117,7 @@ export const charactersTools = {
             name: patch.name,
             role: patch.role ?? "",
             description: patch.description ?? "",
+            ...(op.profile !== undefined ? { profile: serializeCharacterProfile(op.profile) } : {}),
           })
           .run()
         return {
@@ -108,13 +157,17 @@ export const charactersTools = {
         }
       }
 
+      const op = resolveProfileOperation(parseCharacterProfile(existing.profile))
+      if (op.error) return { title: "manage_characters", output: op.error }
+      const newProfile = op.profile !== undefined ? serializeCharacterProfile(op.profile) : existing.profile
+
       await db
         .update(CharacterTable)
         .set({
           name: patch.name ?? existing.name,
           role: patch.role ?? existing.role,
           description: newDesc,
-          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(op.profile !== undefined ? { profile: newProfile } : {}),
         })
         .where(eq(CharacterTable.id, args.character_id))
         .run()
@@ -123,6 +176,7 @@ export const charactersTools = {
       if (patch.name !== undefined) changedFields.push("name")
       if (patch.role !== undefined) changedFields.push("role")
       if (patch.description !== undefined) changedFields.push("description")
+      if (op.profile !== undefined) changedFields.push("profile")
       await scanReferences(db, existing.novel_id, "character", args.character_id, "description", newDesc)
 
       let impact: ImpactReport | undefined
@@ -132,11 +186,12 @@ export const charactersTools = {
           entityType: "character",
           entityId: args.character_id,
           field: changedFields.join(", "),
-          oldValue: JSON.stringify({ name: existing.name, role: existing.role, description: existing.description }),
+          oldValue: JSON.stringify({ name: existing.name, role: existing.role, description: existing.description, profile: existing.profile }),
           newValue: JSON.stringify({
             name: patch.name ?? existing.name,
             role: patch.role ?? existing.role,
             description: newDesc,
+            profile: newProfile,
           }),
           reason: `角色「${existing.name}」更新（${changedFields.join(", ")}）`,
         }
