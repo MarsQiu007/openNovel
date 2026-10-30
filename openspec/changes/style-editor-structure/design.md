@@ -13,7 +13,7 @@
 
 ### D1：单文件重构 + 纯函数模型模块，行状态用 createStore
 
-`style-guide-editor.tsx` 内部重构：规则行状态为 `createStore` 的行数组（`{ key, value }[]`），分区分组是**纯派生视图**（编辑行数组按分区映射函数分组渲染），不做每分区独立 store——增删行只操作单数组，保存语义简单。解析（`Record → 行数组` 回填）、分组（行数组 → 分区视图）、校验（空键行检测）、序列化（行数组 → `Record`，含 `chapter_length_limit` 混入）抽为纯函数模块（如 `src/pages/novel/style-rules-model.ts`）。
+`style-guide-editor.tsx` 内部重构：规则行状态为 `createStore` 的行数组（`{ key, value }[]`），分区分组是**纯派生视图**（编辑行数组按分区映射函数分组渲染），不做每分区独立 store——增删行只操作单数组，保存语义简单。回填（`Record → 行数组`，排除 `chapter_length_limit`）、分组（行数组 → 分区视图）、校验（空键 / 重复键 / 保留键检测）、序列化（行数组 → `Record`，含 `chapter_length_limit` 混入）抽为纯函数模块（如 `src/pages/novel/style-rules-model.ts`）。
 
 理由：packages/app 单测**不可 import .tsx**（happy-dom worker 链约束），纯函数落 `.ts` 才可测；组件本体靠 typecheck + 既有 e2e 覆盖。
 
@@ -25,7 +25,7 @@
 
 ### D3：保存前置校验替代解析容错
 
-保存流程改为：序列化前校验每行（键非空；值允许为空串——清空值是合法意图），存在空键行则阻止提交、行内标示并 toast 提示；无问题行才 `Object.fromEntries` 落库。原「解析失败静默 filter」路径随文本域移除而消失。
+保存流程改为：序列化前校验每行——键非空（值允许为空串，清空值是合法意图）、键不与其他行重复（重复时 `Object.fromEntries` 会静默后者覆盖前者，与「不静默丢失」原则相悖）、键不为保留键 `chapter_length_limit`（该键由复选框独占承载，规则行输入会覆盖复选框值——现状 spread 顺序的潜伏缺陷，一并消除）。任一问题行存在则阻止提交、行内标示并 toast 提示；无问题行才落库。原「解析失败静默 filter」路径随文本域移除而消失。
 
 ### D4：文案硬编码中文，不动 i18n
 
@@ -33,7 +33,7 @@
 
 ### D5：API 与篇幅限制语义零改动
 
-不新增/修改端点，无 SDK 再生成；复选框回填排除 `chapter_length_limit`、保存混入 "true"/"false" 的现有行为原样保留（specs 的「篇幅限制承载不变」约束）。
+不新增/修改端点，无 SDK 再生成；复选框回填排除 `chapter_length_limit`、保存混入 "true"/"false" 的现有行为原样保留（specs 的「篇幅限制承载不变」约束），并按 D3 对规则行中的保留键输入做阻止处理。键名建议表 SHALL 不包含 `chapter_length_limit`。
 
 ## Risks / Trade-offs
 
