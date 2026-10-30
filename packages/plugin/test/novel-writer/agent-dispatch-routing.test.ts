@@ -6,9 +6,15 @@
  * 提示词或权限表回退到代劳写法时本文件必须失败。
  */
 import { describe, expect, test } from "bun:test"
+import { join } from "path"
+import { mkdirSync, rmSync, writeFileSync } from "fs"
+import { tmpdir } from "os"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { ideatorAgent } from "../../src/novel-writer/agents/ideator.js"
 import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
+import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
+import { writerAgent } from "../../src/novel-writer/agents/writer.js"
+import { renderModeSection } from "../../src/novel-writer/tools/context-render.js"
 import { createWritingTools } from "./runtime-assembly-helpers.js"
 
 describe("agent dispatch routing", () => {
@@ -83,5 +89,42 @@ describe("agent dispatch routing", () => {
     expect(directorAgent.permission.save_novel_settings).toBe("allow")
     expect(directorAgent.permission.check_novel_settings).toBe("allow")
     expect(ideatorAgent.permission.save_novel_settings).toBe("deny")
+  })
+})
+
+describe("chapter sequential gate wiring", () => {
+  test("writer 提示词含逐章串行约束段与不重试策略", () => {
+    const prompt = writerAgent.prompt
+    expect(prompt).toContain("【逐章串行（审核模式）】")
+    expect(prompt).toContain("final/published")
+    expect(prompt).toContain("sequential_blocked")
+    expect(prompt).toContain("不要重试")
+  })
+
+  test("写作快照模式段渲染 review 逐章串行约束", () => {
+    const dir = join(tmpdir(), `seq-gate-render-${Date.now()}`)
+    mkdirSync(join(dir, ".novel"), { recursive: true })
+    writeFileSync(join(dir, ".novel", "config.json"), JSON.stringify({ writing_mode: "review" }))
+    try {
+      const section = renderModeSection(dir)
+      expect(section).toContain("逐章串行")
+      expect(section).toContain("sequential_blocked")
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("write_chapter / revise_chapter 门禁调用点存在", async () => {
+    const source = await Bun.file(new URL("../../src/novel-writer/tools/chapter.ts", import.meta.url)).text()
+    // 两个正文写入工具各接线一次（import 行不带调用括号，不计入）
+    expect(source.match(/getFirstUnpassedChapter\(/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(source.match(/checkChapterSequentialGate\(/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(source).toContain('writing_mode === "review"')
+  })
+
+  test("pipeline 指示 sequential_blocked 不进 3 次重试循环", () => {
+    const prompt = pipelineAgent.prompt
+    expect(prompt).toContain("sequential_blocked")
+    expect(prompt).toContain("不进入上述 3 次重试循环")
   })
 })

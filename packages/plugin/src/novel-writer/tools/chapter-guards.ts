@@ -3,7 +3,7 @@
  *
  * 从 novel-writer.ts 原样搬入，V1/V2 双入口窗口期共用同一份实现。
  */
-import { and, eq, lt } from "drizzle-orm"
+import { and, eq, lt, notInArray } from "drizzle-orm"
 import { parseStyleRules } from "../context.js"
 import { ChapterTable, getDb, StyleGuideTable } from "../session-store.js"
 
@@ -108,6 +108,63 @@ export async function getTargetWordCount(db: ReturnType<typeof getDb>, novelId: 
   const raw = parseStyleRules(sg?.rules).chapter_length
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 2500
+}
+
+/** 视为「已通过审批」的章节终态（与 update_chapter 的 approved 判定一致）；其余状态均挡住后续章节 */
+const PASSED_CHAPTER_STATUSES = ["final", "published"] as const
+
+/**
+ * 顺序门禁查询：目标章节之前（order 更小）第一个未通过审批的章节。
+ * review 模式逐章串行约束的数据源；返回 null 表示前置全部通过（含目标章为第 1 章时无前置行）。
+ */
+export async function getFirstUnpassedChapter(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  order: number,
+): Promise<{ order: number; title: string; status: string } | null> {
+  const [row] = await db
+    .select({ order: ChapterTable.order, title: ChapterTable.title, status: ChapterTable.status })
+    .from(ChapterTable)
+    .where(
+      and(
+        eq(ChapterTable.novel_id, novelId),
+        lt(ChapterTable.order, order),
+        notInArray(ChapterTable.status, [...PASSED_CHAPTER_STATUSES]),
+      ),
+    )
+    .orderBy(ChapterTable.order)
+    .limit(1)
+    .all()
+  return row ?? null
+}
+
+/**
+ * 顺序门禁判定：前置存在未通过章节时组装拦截对象（只报最小 order 的第一个——
+ * 处理完它自然暴露下一个，消息保持简短）。firstUnpassed 为 null 表示放行。
+ */
+export function checkChapterSequentialGate(
+  toolName: string,
+  firstUnpassed: { order: number; title: string; status: string } | null,
+): {
+  title: string
+  output: string
+  metadata: { blocked: true; reason: "sequential_blocked"; blocked_by_order: number; blocked_by_title: string; blocked_by_status: string }
+} | null {
+  if (!firstUnpassed) return null
+  const actionText = toolName === "revise_chapter" ? "修订" : "写入"
+  return {
+    title: `${toolName}（前置章节未通过）`,
+    output:
+      `逐章串行约束：第 ${firstUnpassed.order} 章「${firstUnpassed.title}」当前状态为 ${firstUnpassed.status}，尚未通过审批，` +
+      `不能${actionText}后续章节正文。请先处理第 ${firstUnpassed.order} 章（在阅读页审批通过，或重写使其通过）后再试。`,
+    metadata: {
+      blocked: true,
+      reason: "sequential_blocked",
+      blocked_by_order: firstUnpassed.order,
+      blocked_by_title: firstUnpassed.title,
+      blocked_by_status: firstUnpassed.status,
+    },
+  }
 }
 
 /**
