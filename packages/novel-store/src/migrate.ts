@@ -93,6 +93,25 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   migrateChapterWordCount(exec, query)
   migrateReviewTrail(exec, query)
   migrateMemoryColumns(exec, query)
+  migrateCharacterProfile(exec, query)
+}
+
+/**
+ * 角色档案列（character-profile，幂等）。
+ *
+ * characters 补 profile JSON 档案列（存量行默认空串=未建档，结构见 ./profile.ts）；
+ * characters 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建。
+ */
+function migrateCharacterProfile(exec: ExecFn, query: QueryFn): void {
+  try {
+    const result = query("PRAGMA table_info(characters)")
+    const cols = Array.isArray(result) ? (result as Array<Record<string, unknown>>) : []
+    if (cols.length > 0 && !cols.some((c) => c.name === "profile")) {
+      exec("ALTER TABLE characters ADD COLUMN profile text DEFAULT '' NOT NULL")
+    }
+  } catch {
+    // 表不存在时跳过，CREATE_TABLES_SQL 会在新库中带该列创建
+  }
 }
 
 /**

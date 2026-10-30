@@ -12,6 +12,7 @@ import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
+import { serializeCharacterProfile, type CharacterProfile } from "./profile.js"
 import { Option, Schema } from "effect"
 import { TechniqueEvidence } from "@opennovel-ai/schema/technique"
 import { inspectEvidenceElement } from "./migrate.js"
@@ -61,6 +62,8 @@ export const CharacterTable = sqliteTable("characters", {
   name: text().notNull(),
   role: text().notNull().default(""),
   description: text().notNull().default(""),
+  /** 角色定制档案（character-profile）：JSON 字符串，空串=未建档，结构见 ./profile.ts */
+  profile: text().notNull().default(""),
   status: text().notNull().default("active"),
   /** 落文状态（agent-memory-system §2.3）：planned=设定未落文 | established=已落文 */
   establishment: text().notNull().default("established"),
@@ -892,7 +895,7 @@ CREATE TABLE IF NOT EXISTS chapters (id text PRIMARY KEY, novel_id text NOT NULL
 CREATE TABLE IF NOT EXISTS chapter_versions (id text PRIMARY KEY, chapter_id text NOT NULL, version integer NOT NULL, content text NOT NULL, word_count integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, created_by text NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_reviews (id text PRIMARY KEY, chapter_id text NOT NULL, round integer NOT NULL, source text NOT NULL, overall text NOT NULL, pass_count integer DEFAULT 0 NOT NULL, warn_count integer DEFAULT 0 NOT NULL, fail_count integer DEFAULT 0 NOT NULL, dimensions text DEFAULT '[]' NOT NULL, summary text DEFAULT '' NOT NULL, session_id text, created_at integer NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS chapter_reviews_chapter_idx ON chapter_reviews(chapter_id, round);
-CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, establishment text DEFAULT 'established' NOT NULL, established_chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS characters (id text PRIMARY KEY, novel_id text NOT NULL, name text NOT NULL, role text DEFAULT '' NOT NULL, description text DEFAULT '' NOT NULL, profile text DEFAULT '' NOT NULL, status text DEFAULT 'active' NOT NULL, establishment text DEFAULT 'established' NOT NULL, established_chapter_id text, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS character_states (id text PRIMARY KEY, character_id text NOT NULL, chapter_id text NOT NULL, active integer DEFAULT 1 NOT NULL, location text DEFAULT '' NOT NULL, mood text DEFAULT '' NOT NULL, summary text DEFAULT '' NOT NULL, FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS chapter_summaries (id text PRIMARY KEY, chapter_id text NOT NULL, summary text DEFAULT '' NOT NULL, key_events text DEFAULT '[]' NOT NULL, char_changes text DEFAULT '[]' NOT NULL, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS foreshadowing (id text PRIMARY KEY, novel_id text NOT NULL, planted_chapter_id text, resolved_chapter_id text, content text NOT NULL, state text DEFAULT 'planted' NOT NULL, created_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (planted_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL, FOREIGN KEY (resolved_chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
@@ -1619,6 +1622,10 @@ export * from "./approval.js"
 
 export * from "./mode.js"
 
+// ─── Character profile (character-profile) ───
+
+export * from "./profile.js"
+
 export async function createChapter(
   novelId: string,
   title: string,
@@ -1929,6 +1936,7 @@ export async function createCharacter(
   name: string,
   role?: string,
   description?: string,
+  profile?: CharacterProfile,
   directory?: string | null,
 ): Promise<typeof CharacterTable.$inferSelect> {
   const db = getDb(directory)
@@ -1942,6 +1950,7 @@ export async function createCharacter(
       name,
       role: role ?? "",
       description: description ?? "",
+      profile: serializeCharacterProfile(profile),
       created_at: now,
     })
     .run()
@@ -1950,7 +1959,7 @@ export async function createCharacter(
 
 export async function updateCharacter(
   characterId: string,
-  fields: { name?: string; role?: string; description?: string; status?: string },
+  fields: { name?: string; role?: string; description?: string; profile?: CharacterProfile; status?: string },
   directory?: string | null,
 ): Promise<typeof CharacterTable.$inferSelect> {
   const db = getDb(directory)
@@ -1958,6 +1967,7 @@ export async function updateCharacter(
   if (fields.name !== undefined) updates.name = fields.name
   if (fields.role !== undefined) updates.role = fields.role
   if (fields.description !== undefined) updates.description = fields.description
+  if (fields.profile !== undefined) updates.profile = serializeCharacterProfile(fields.profile)
   if (fields.status !== undefined) updates.status = fields.status
   await db.update(CharacterTable).set(updates).where(eq(CharacterTable.id, characterId)).run()
   return db.select().from(CharacterTable).where(eq(CharacterTable.id, characterId)).get()!
