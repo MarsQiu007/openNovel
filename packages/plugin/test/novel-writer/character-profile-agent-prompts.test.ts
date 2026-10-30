@@ -6,6 +6,7 @@
  */
 import { describe, expect, test } from "bun:test"
 import { architectAgent } from "../../src/novel-writer/agents/architect.js"
+import { auditorAgent } from "../../src/novel-writer/agents/auditor.js"
 import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 
 describe("architect 初始化建档指示（character-profile）", () => {
@@ -41,5 +42,30 @@ describe("writer 档案消费规则（character-profile）", () => {
   test("规则 20 人物一致性要求言行符合档案个性、外貌不与身体特征冲突", () => {
     expect(prompt).toContain("言行举止必须符合档案个性")
     expect(prompt).toContain("外貌描写不得与档案身体特征冲突")
+  })
+})
+
+describe("auditor 档案对照指示（character-profile-audit）", () => {
+  const prompt = auditorAgent.prompt
+
+  test("前置动作声明档案维度行是角色对照权威来源", () => {
+    expect(prompt).toContain("是角色外貌与言行对照的**权威来源**")
+    expect(prompt).toContain("档案非空的角色必须以档案逐维度对照正文")
+  })
+
+  test("维度 2 外貌描述引用档案 appearance 并给出 FAIL 判定规则", () => {
+    expect(prompt).toContain("**档案 appearance 非空时**")
+    expect(prompt).toContain("部位/方位冲突（如档案写左脸旧疤、正文写右脸）→ **直接 FAIL**")
+    expect(prompt).toContain("台词内角色的转述性提及不算矛盾")
+  })
+
+  test("维度 3 性格一致引用档案 speech/tone/personality 且动态情绪不算违规", () => {
+    expect(prompt).toContain("**档案 speech/tone/personality 非空时**")
+    expect(prompt).toContain("对话必须体现档案说话习惯与语气")
+    expect(prompt).toContain("角色动态情绪变化（章节间 mood 演进）不算档案违规")
+  })
+
+  test("轻量模式维度子集含角色连续性，档案对照指示随之生效", () => {
+    expect(prompt).toContain("+ 维度 1-5（角色连续性 5 维）")
   })
 })

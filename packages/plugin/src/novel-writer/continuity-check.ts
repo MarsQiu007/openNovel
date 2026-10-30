@@ -30,6 +30,7 @@ import {
 } from "./session-store.js"
 import { buildCharacterBindingView, detectKinshipEntityDrift } from "./drift-guards.js"
 import { selectProtectedRelationships } from "./relationship-context.js"
+import { parseCharacterProfile } from "./session-store.js"
 
 // ─── 类型定义 ───
 
@@ -268,43 +269,71 @@ function checkCharacterContinuity(ctx: CheckContext): ContinuityResult[] {
     })
   }
 
-  // 外貌描述：检查角色描述字段是否填充
-  const charsWithDesc = ctx.characters.filter((c) => c.description.length > 0)
-  const charsWithoutDesc = ctx.characters.length - charsWithDesc.length
-
-  if (ctx.characters.length === 0) {
+  // 外貌描述：档案矛盾比对优先（character-profile-audit），无档案矛盾回落到一期 description 填充率检查
+  const narrative = ctx.currentChapterContent ? stripQuotedSpeech(ctx.currentChapterContent) : ""
+  const appearanceIssues: string[] = []
+  if (narrative) {
+    for (const c of ctx.characters) {
+      const profile = parseCharacterProfile(c.profile)
+      if (!profile.appearance || !narrative.includes(c.name)) continue
+      const contradiction = findAppearanceContradiction(profile.appearance, narrative)
+      if (contradiction) appearanceIssues.push(`${c.name}（档案「${profile.appearance}」/ 正文「${contradiction}」）`)
+    }
+  }
+  if (appearanceIssues.length > 0) {
+    results.push({
+      dimension: "外貌描述",
+      status: "FAIL",
+      detail: `发现 ${appearanceIssues.length} 处正文与档案外貌矛盾：${appearanceIssues.join("；")}`,
+    })
+  } else if (ctx.characters.length === 0) {
     results.push({
       dimension: "外貌描述",
       status: "WARN",
       detail: "尚未创建任何角色，无法检查外貌描述",
     })
-  } else if (charsWithoutDesc > ctx.characters.length * 0.5) {
-    results.push({
-      dimension: "外貌描述",
-      status: "WARN",
-      detail: `${charsWithoutDesc}/${ctx.characters.length} 个角色缺少外貌描述，超过半数`,
-    })
-  } else if (charsWithoutDesc > 0) {
-    results.push({
-      dimension: "外貌描述",
-      status: "WARN",
-      detail: `${charsWithoutDesc}/${ctx.characters.length} 个角色缺少外貌描述`,
-    })
   } else {
-    results.push({
-      dimension: "外貌描述",
-      status: "PASS",
-      detail: `全部 ${ctx.characters.length} 个角色均有外貌描述`,
-    })
+    const charsWithDesc = ctx.characters.filter((c) => c.description.length > 0)
+    const charsWithoutDesc = ctx.characters.length - charsWithDesc.length
+    if (charsWithoutDesc > ctx.characters.length * 0.5) {
+      results.push({
+        dimension: "外貌描述",
+        status: "WARN",
+        detail: `${charsWithoutDesc}/${ctx.characters.length} 个角色缺少外貌描述，超过半数`,
+      })
+    } else if (charsWithoutDesc > 0) {
+      results.push({
+        dimension: "外貌描述",
+        status: "WARN",
+        detail: `${charsWithoutDesc}/${ctx.characters.length} 个角色缺少外貌描述`,
+      })
+    } else {
+      results.push({
+        dimension: "外貌描述",
+        status: "PASS",
+        detail: `全部 ${ctx.characters.length} 个角色均有外貌描述`,
+      })
+    }
   }
 
-  // 性格一致：检查角色状态中 mood 的一致性
+  // 性格一致：检查角色状态中 mood 的一致性 + 档案语癖子检查（character-profile-audit）
   const moodChanges = analyzeMoodConsistency(ctx)
+  const ticMissings = ctx.currentChapterContent ? findTicMissings(ctx, ctx.currentChapterContent) : []
+  const ticDetail =
+    ticMissings.length > 0
+      ? `；${ticMissings.length} 个角色台词未体现档案语癖：${ticMissings.join("；")}`
+      : ""
   if (moodChanges.rapidChanges > 0) {
     results.push({
       dimension: "性格一致",
       status: "WARN",
-      detail: `发现 ${moodChanges.rapidChanges} 处情绪突变（连续章节间情绪状态大幅变化），建议检查是否有合理原因`,
+      detail: `发现 ${moodChanges.rapidChanges} 处情绪突变（连续章节间情绪状态大幅变化），建议检查是否有合理原因${ticDetail}`,
+    })
+  } else if (ticMissings.length > 0) {
+    results.push({
+      dimension: "性格一致",
+      status: "WARN",
+      detail: `档案语癖未体现（情绪变化无异常${ticDetail}）`,
     })
   } else if (ctx.characterStates.length === 0) {
     results.push({
@@ -362,6 +391,89 @@ function checkCharacterContinuity(ctx: CheckContext): ContinuityResult[] {
   }
 
   return results
+}
+
+// ─── 档案矛盾比对辅助（character-profile-audit） ───
+
+/** 方位反义词对：档案特征与正文叙述的方位矛盾比对词表（否定类「无↔有」留扩展） */
+const ORIENTATION_OPPOSITES: ReadonlyArray<readonly [string, string]> = [
+  ["左", "右"],
+  ["上", "下"],
+  ["前", "后"],
+  ["内", "外"],
+]
+
+/** 剔除引号内台词（『』「」与弯/直引号成对剔除），仅保留叙述文本 */
+function stripQuotedSpeech(text: string): string {
+  return text.replace(/『[^』]*』|「[^」]*」|“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'/g, "")
+}
+
+/** 提取全部引号内台词文本（与 stripQuotedSpeech 对偶） */
+function extractQuotedSpeech(text: string): string {
+  return (text.match(/『[^』]*』|「[^」]*」|“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'/g) ?? []).join("")
+}
+
+/**
+ * 比对档案 appearance 与正文叙述的方位矛盾：档案短语含方位词 a、
+ * 正文同句含其反义 b 且不含 a（如档案「左脸旧疤」正文「右脸…旧疤」）→ 返回矛盾句。
+ */
+function findAppearanceContradiction(appearance: string, narrative: string): string | null {
+  const sentences = narrative.split(/[。！？!?\n]+/).filter((s) => s.trim().length > 0)
+  const phrases = appearance
+    .split(/[；;/，,、\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  for (const phrase of phrases) {
+    const orientations = ORIENTATION_OPPOSITES.filter(([a, b]) => phrase.includes(a) || phrase.includes(b))
+    if (orientations.length === 0) continue
+    const orientationChars = new Set(orientations.flat())
+    const core = [...phrase].filter((ch) => !orientationChars.has(ch)).join("")
+    const fragments: string[] = []
+    for (let i = 0; i + 2 <= core.length; i++) fragments.push(core.slice(i, i + 2))
+    if (fragments.length === 0) continue
+    for (const sentence of sentences) {
+      if (!fragments.some((f) => sentence.includes(f))) continue
+      for (const [a, b] of orientations) {
+        // 档案说 a 正文说 b（或反向），同句不含档案方位词则判矛盾；方位同现视为范围延伸不判
+        if (phrase.includes(a) && sentence.includes(b) && !sentence.includes(a)) return sentence.trim()
+        if (phrase.includes(b) && sentence.includes(a) && !sentence.includes(b)) return sentence.trim()
+      }
+    }
+  }
+  return null
+}
+
+/** 从档案 speech 抽取语癖线索：引号内容为强线索，无引号时按标点切分取长度 ≥2 的片段 */
+function speechCues(speech: string): string[] {
+  const quoted = (speech.match(/『[^』]*』|「[^」]*」|“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'/g) ?? [])
+    .map((m) => m.slice(1, -1).trim())
+    .filter(Boolean)
+  if (quoted.length > 0) return quoted
+  return speech
+    .split(/[；;/，,、。\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2)
+}
+
+/**
+ * 语癖子检查：档案 speech 非空且本章出场的角色，其全部台词均不含任何
+ * 语癖线索时返回角色名列表（宽松召回——台词按全文拼接不做说话人归属，
+ * 多人对话语癖互染时宁可漏报不误报，终判由 LLM 审计兜底）。
+ */
+function findTicMissings(ctx: CheckContext, content: string): string[] {
+  const dialogue = extractQuotedSpeech(content)
+  if (!dialogue) return []
+  const missings: string[] = []
+  for (const c of ctx.characters) {
+    const profile = parseCharacterProfile(c.profile)
+    if (!profile.speech || !content.includes(c.name)) continue
+    const cues = speechCues(profile.speech)
+    if (cues.length === 0) continue
+    if (cues.every((cue) => !dialogue.includes(cue))) {
+      missings.push(`${c.name}（语癖：${profile.speech}）`)
+    }
+  }
+  return missings
 }
 
 // ─── 关系连续性检查（4维） ───
