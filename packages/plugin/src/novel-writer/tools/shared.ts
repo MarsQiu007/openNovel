@@ -5,9 +5,8 @@
  * 共用同一份实现）；V2 工具（tools/ 下各域文件）同样从这里引用。
  */
 import { desc, eq } from "drizzle-orm"
-import { dirname, join } from "path"
 import type { StoryArcSummary } from "../context.js"
-import { ChapterVersionTable, getDb, getDbPath, NovelTable } from "../session-store.js"
+import { ChapterVersionTable, getDb, NovelTable } from "../session-store.js"
 
 export const SETTING_ENTITY_TYPES = [
   "character",
@@ -19,8 +18,10 @@ export const SETTING_ENTITY_TYPES = [
 ]
 
 export function projectDirFromCtx(directory?: string | null): string {
-  const dbPath = getDbPath(directory)
-  return join(dirname(dbPath), "..")
+  // 项目根只由 ctx.directory 决定，与 db 路径重定向（OPENNOVEL_DB）解耦：
+  // 旧实现经 db 路径反推（join(dirname(getDbPath(directory)), "..")），env 误设时
+  // 会静默读错项目根、配置读取降级默认值；无 env 时反推本就是恒等变换
+  return directory ?? process.cwd()
 }
 
 /**
