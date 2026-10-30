@@ -66,8 +66,8 @@
 三条写入路径产出同一档案结构，各自的实际工具面如下：
 
 - **UI 链路**（跨包，protocol 变更）：`Character` 响应与 `CreateCharacterInput` / `UpdateCharacterInput` 增加结构化档案字段（可选），server handler 透传给 novel-store CRUD helper（写入边界 stringify 一次），随后**从 `packages/client` 执行 `bun run generate` 再生生成物**（仓库约定，禁止手改 generated）。面板 `panel-characters.tsx` 编辑表单按档案结构逐项展开（核心维度文本框 + 扩展项列表增删改）。i18n 走 `novel.panel.characters.profile.*` 新增 key（zh/en 同步）——仓库「locale 文件不动」约束的立法意图是防止既有翻译被 AI 乱改，功能性新增 key 是正常演进路径；实施时如用户要求零 locale 改动可降级为面板内硬编码中文（面板已有少量硬编码先例），默认走 i18n。
-- **工具塑造**（`manage_characters`）：update 参数扩展 `profile`（整包）与 `profile_patch` / `profile_remove`（按维度 patch / 维度删除），维度 key 走白名单校验（D1）。沿用工具既有 pending_settings 影响面体系——档案修改是设定修改，影响面判定继承现状，不新增旁路。`deduplicate_characters` 机械合并时：保留行档案为空且被删行档案非空 → 继承被删行档案，避免去重静默丢档案。
-- **初始化批量落库**（`save_novel_settings` character 类型）：data 支持 `profile` 结构化字段（对象，字段同 D1 档案 JSON），插入与更新两条分支都落档案；architect 指示改为按 schema 逐维度产出；用户点名「习惯动作」时才必填 mannerism，未点名不强行编造。
+- **工具塑造**（`manage_characters`）：update 参数扩展 `profile`（整包）与 `profile_patch` / `profile_remove`（按维度 patch / 维度删除），维度 key 走白名单校验（D1）。沿用工具既有 pending_settings 影响面体系——档案修改是设定修改，影响面判定继承现状，不新增旁路。`deduplicate_characters` 机械合并时档案合并：保留行档案优先，被删行档案填补保留行缺失的维度（逐档 parse 后按维度覆盖归并再序列化，序列化结果不同才写库），避免去重静默丢档案。
+- **初始化批量落库**（`save_novel_settings` character 类型）：data 支持 `profile` 结构化字段（对象，字段同 D1 档案 JSON），插入与更新两条分支都落档案；档案为整包替换语义，档案 key 校验失败报错该条但不带档案落库（不阻断同批其余设定）；description 缺省时保留原描述（原实现会抹空并误触压缩拦截，「只补档案」的更新必须依赖此语义）；architect 指示改为按 schema 逐维度产出；用户点名「习惯动作」时才必填 mannerism，未点名不强行编造。
 - **agent 侧可见性**：`check_novel_settings(scope="characters")` 输出各角色档案维度行（director 审设定、architect 补建需要看到档案，否则塑造闭环在 agent 侧不可见）；`search_settings` 不搜档案字段、`recall_history` 无关（Non-Goal，控制范围）。
 
 ### D4 装配、渲染与 writer 规则
