@@ -14,6 +14,10 @@
 
 - [x] 3.1 从 `packages/app` 目录运行 `bun typecheck` 与改动相关单测，全部通过；`bunx oxlint` 对改动文件无新增告警。复核 `style-rules-pipeline` 修改后 requirement 的三个 scenario（历史嵌套/数组数据可读、展示与回存一致）均有对应实现行为或测试断言。
 
+## Implementation Commits
+
+- d34b65feb9 feat(app): 风格编辑器分区结构重构
+
 ## Workflow follow-up
 
 - 归档前收集实现提交写入 `## Implementation Commits`，`openspec validate style-editor-structure --strict` 通过后按仓库归档流程执行。
