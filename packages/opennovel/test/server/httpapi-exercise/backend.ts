@@ -47,7 +47,18 @@ const appCache: Partial<Record<string, CachedApp>> = {}
 export async function disposeApps() {
   const apps = Object.values(appCache)
   for (const key of Object.keys(appCache)) delete appCache[key]
-  await Promise.all(apps.flatMap((app) => (app === undefined ? [] : [app.dispose()])))
+  // CI linux 曾出现 effect 进程 summary 打印后挂满 30 分钟 step 超时（coverage/auth
+  // 进程同样走本函数却正常退出）。逐 app 打点定位挂点，60s 超时兜底保证进程能退出；
+  // 挂点根因（web.dispose 内某 finalizer 不返回）另行排查。
+  for (const app of apps) {
+    if (!app) continue
+    console.log(`[dispose] app start ${new Date().toISOString()}`)
+    await Promise.race([
+      app.dispose(),
+      Bun.sleep(60_000).then(() => console.log(`[dispose] app timed out after 60s ${new Date().toISOString()}`)),
+    ])
+  }
+  console.log(`[dispose] all apps done ${new Date().toISOString()}`)
 }
 
 function app(modules: Runtime, options: CallOptions) {
