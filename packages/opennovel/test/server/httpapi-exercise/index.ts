@@ -3360,7 +3360,12 @@ const main = Effect.gen(function* () {
 })
 
 Effect.runPromise(main.pipe(Effect.scoped)).then(
-  () => process.exit(0),
+  () => {
+    // 退出打点：区分「主进程未退出（scope 关闭挂起）」与「主进程已退出但后代进程
+    // 持有 stdout 管道写端导致 step 等 EOF 超时」两种形态。
+    console.log(`[exit] main resolved ${new Date().toISOString()}`)
+    process.exit(0)
+  },
   (error: unknown) => {
     console.error(`${color.red}${message(error)}${color.reset}`)
     process.exit(1)
