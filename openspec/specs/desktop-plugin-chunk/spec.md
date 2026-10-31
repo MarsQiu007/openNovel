@@ -1,7 +1,7 @@
 # desktop-plugin-chunk Specification
 
 ## Purpose
-TBD - created by archiving change desktop-plugin-chunk. Update Purpose after archive.
+定义桌面主构建产出插件 chunk 并保持加载清单单一来源零漂移：插件代码随主构建统一产出、清单自动生成，保证第一方插件加载映射与实际构建产物一致。
 
 ## Requirements
 

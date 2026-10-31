@@ -1,7 +1,7 @@
 # bundled-plugin-loading Specification
 
 ## Purpose
-TBD - created by archiving change bundled-plugin-loading. Update Purpose after archive.
+定义桌面端第一方插件的构建映射加载契约：插件 chunk 与宿主共享模块实例、加载映射清单唯一来源，保证插件代码在打包后仍与宿主运行时一致，避免重复模块实例与清单漂移。
 
 ## Requirements
 

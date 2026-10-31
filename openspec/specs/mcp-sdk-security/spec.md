@@ -1,7 +1,7 @@
 # mcp-sdk-security Specification
 
 ## Purpose
-定义 MCP SDK 安全升级后的系统行为——确保 MCP 客户端/服务端通信不受已知漏洞影响。
+定义 MCP 通信组件的安全版本基线约束：@modelcontextprotocol/sdk 版本不得低于 1.32.0，把上游安全修复固化为硬性下限，依赖升级与发版检查据此拦截不安全版本。
 
 ## Requirements
 

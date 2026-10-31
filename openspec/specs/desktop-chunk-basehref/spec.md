@@ -1,7 +1,7 @@
 # desktop-chunk-basehref Specification
 
 ## Purpose
-TBD - created by archiving change desktop-chunk-basehref. Update Purpose after archive.
+定义桌面构建产物部署在 chunks/ 子目录时的导入基修正行为：构建注入基前缀并修正动态导入解析，保证 Electron 渲染层从子目录加载 chunk 时模块路径不出错。
 
 ## Requirements
 

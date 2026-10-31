@@ -1,7 +1,7 @@
 # agent-desc-zh Specification
 
 ## Purpose
-TBD - created by archiving change agent-desc-zh. Update Purpose after archive.
+定义内置写作 agent 的 description 字段使用简体中文，保证调度界面与 director 分派表中各 agent 的摘要统一为中文可读，避免中英混排的展示漂移。
 
 ## Requirements
 

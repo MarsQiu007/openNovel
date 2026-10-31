@@ -1,7 +1,7 @@
 # electron-security Specification
 
 ## Purpose
-定义 electron 安全升级后的系统行为——确保桌面应用不受已知 Electron 漏洞影响。
+定义桌面壳的安全版本基线约束：Electron 版本不得低于 42.11.16，把上游安全修复固化为硬性下限，依赖升级与发版检查据此拦截不安全版本。
 
 ## Requirements
 
