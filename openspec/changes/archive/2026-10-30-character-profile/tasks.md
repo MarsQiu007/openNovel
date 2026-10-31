@@ -38,3 +38,4 @@
 ### 归档后收尾修复
 
 - f48ecfbbde fix(sdk): 补齐一期协议变更后的旧 SDK 生成物——task 2.4 只再生了 packages/client 生成物，遗漏旧 SDK 构建（./packages/sdk/js/script/build.ts），CI generate 工作流自归档推送起连续检出 packages/sdk 生成物漂移
+- 24913e8e6c fix(sdk): 补齐 openapi.json 的角色档案字段——f48ecfbbde 只跑了 build.ts（其 openapi.json 是临时文件用完即删），遗漏 script/generate.ts 第二步 `bun dev generate > ../sdk/openapi.json` 对 packages/sdk/openapi.json 的再生，CI generate 检出该文件仍缺 NovelCharacterProfile 与三处 profile 字段
