@@ -41840,6 +41840,33 @@
         "required": ["action"],
         "additionalProperties": false
       },
+      "NovelCharacterProfile": {
+        "type": "object",
+        "properties": {
+          "appearance": {
+            "type": "string"
+          },
+          "speech": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string"
+          },
+          "personality": {
+            "type": "string"
+          },
+          "mannerism": {
+            "type": "string"
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "NovelCharacter": {
         "type": "object",
         "properties": {
@@ -41861,11 +41888,14 @@
           "status": {
             "type": "string"
           },
+          "profile": {
+            "$ref": "#/components/schemas/NovelCharacterProfile"
+          },
           "createdAt": {
             "type": "integer"
           }
         },
-        "required": ["id", "novelId", "name", "role", "description", "status", "createdAt"],
+        "required": ["id", "novelId", "name", "role", "description", "status", "profile", "createdAt"],
         "additionalProperties": false
       },
       "NovelPlotThread": {
@@ -42562,6 +42592,9 @@
           },
           "description": {
             "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/NovelCharacterProfile"
           }
         },
         "required": ["name"],
@@ -42581,6 +42614,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/NovelCharacterProfile"
           }
         },
         "additionalProperties": false
