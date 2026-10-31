@@ -34,3 +34,7 @@
 - 0f277d0227 feat(schema): 角色档案协议字段与生成物再生
 - 1f5c8da616 feat(app): 角色档案面板逐维编辑与展示
 - f9a6048868 feat(plugin): 档案初始化指示与写作注入分字段渲染
+
+### 归档后收尾修复
+
+- f48ecfbbde fix(sdk): 补齐一期协议变更后的旧 SDK 生成物——task 2.4 只再生了 packages/client 生成物，遗漏旧 SDK 构建（./packages/sdk/js/script/build.ts），CI generate 工作流自归档推送起连续检出 packages/sdk 生成物漂移
