@@ -5123,6 +5123,17 @@ export type NovelApprovalInput = {
   comment?: string
 }
 
+export type NovelCharacterProfile = {
+  appearance?: string
+  speech?: string
+  tone?: string
+  personality?: string
+  mannerism?: string
+  extensions?: {
+    [key: string]: string
+  }
+}
+
 export type NovelCharacter = {
   id: string
   novelId: string
@@ -5130,6 +5141,7 @@ export type NovelCharacter = {
   role: string
   description: string
   status: string
+  profile: NovelCharacterProfile
   createdAt: number
 }
 
@@ -5365,6 +5377,7 @@ export type NovelCreateCharacterInput = {
   name: string
   role?: string
   description?: string
+  profile?: NovelCharacterProfile
 }
 
 export type NovelUpdateCharacterInput = {
@@ -5372,6 +5385,7 @@ export type NovelUpdateCharacterInput = {
   role?: string
   description?: string
   status?: string
+  profile?: NovelCharacterProfile
 }
 
 export type NovelCreateTensionPointInput = {
