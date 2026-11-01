@@ -105,6 +105,12 @@ const icons = {
   providers: `<path d="M10.0001 4.37562V2.875M13 4.37793V2.87793M7.00014 4.37793V2.875M10 17.1279V15.6279M13 17.1279V15.6279M7 17.1279V15.6279M15.625 13.0029H17.125M15.625 7.00293H17.125M15.625 10.0029H17.125M2.875 10.0029H4.375M2.875 13.0029H4.375M2.875 7.00293H4.375M4.375 4.37793H15.625V15.6279H4.375V4.37793ZM12.6241 10.0022C12.6241 11.4519 11.4488 12.6272 9.99908 12.6272C8.54934 12.6272 7.37408 11.4519 7.37408 10.0022C7.37408 8.55245 8.54934 7.3772 9.99908 7.3772C11.4488 7.3772 12.6241 8.55245 12.6241 10.0022Z" stroke="currentColor" stroke-linecap="square"/>`,
   models: `<path fill-rule="evenodd" clip-rule="evenodd" d="M17.5 10C12.2917 10 10 12.2917 10 17.5C10 12.2917 7.70833 10 2.5 10C7.70833 10 10 7.70833 10 2.5C10 7.70833 12.2917 10 17.5 10Z" stroke="currentColor"/>`,
   "arrow-undo-down": `<path d="M4.08333 11.0859L1.75 8.7526L4.08333 6.41927M2.33333 8.7526L12.5417 8.7526L12.5417 3.21094L7 3.21094" stroke="currentColor" stroke-width="1" stroke-linecap="square"/>`,
+  book: `<path d="M3.5 2.5H12.5V13.5H3.5V2.5Z" stroke="currentColor" stroke-miterlimit="10" stroke-linecap="square"/><path d="M5.5 2.5V13.5" stroke="currentColor" stroke-miterlimit="10"/><path d="M7.5 5.5H10.5" stroke="currentColor" stroke-linecap="round"/>`,
+  map: `<path d="M3 5L8 3L13 5L18 3V15L13 17L8 15L3 17V5Z" stroke="currentColor" stroke-linejoin="round"/><path d="M8 3V15M13 5V17" stroke="currentColor"/>`,
+  zap: `<path d="M10.75 2.5L4 11H9L8.25 17.5L15.5 9H10L10.75 2.5Z" stroke="currentColor" stroke-linejoin="round"/>`,
+  fire: `<path d="M10 2.5C11 5.5 14 7.5 14 11.5C14 14.8 12.2 17.5 10 17.5C7.8 17.5 6 14.8 6 11.5C6 9.2 7.3 7.6 8.5 6.5C8.6 8 9.2 9.4 10.5 10C9.6 7.6 9.5 5 10 2.5Z" stroke="currentColor" stroke-linejoin="round"/>`,
+  library: `<path d="M4.5 4H7V16H4.5V4ZM9 4H11.5V16H9V4ZM13.2 4.8L15.6 4.2L17.5 15.6L15.1 16.2L13.2 4.8Z" stroke="currentColor" stroke-linecap="square"/>`,
+  user: `<circle cx="10" cy="6.5" r="3" stroke="currentColor"/><path d="M4 17.5C4 14 6.5 12 10 12C13.5 12 16 14 16 17.5" stroke="currentColor"/>`,
 }
 
 const spriteID = "opennovel-icon-sprite"
@@ -112,7 +118,7 @@ const symbol = (name: keyof typeof icons) => `opennovel-icon-${name}`
 let spriteInserted = false
 
 function viewBox(name: keyof typeof icons) {
-  return name === "magnifying-glass" || name === "arrow-undo-down" || name === "subagent" ? "0 0 16 16" : "0 0 20 20"
+  return name === "magnifying-glass" || name === "arrow-undo-down" || name === "subagent" || name === "book" ? "0 0 16 16" : "0 0 20 20"
 }
 
 function ensureSprite() {
