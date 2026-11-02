@@ -390,10 +390,10 @@ describe("PermissionV2 judge integration", () => {
       state.judge = judgeGiving("allow")
       yield* setup()
       const events = yield* EventV2.Service
-      const judged = yield* Deferred.make<{ decision: string; model: string; mode: string }>()
+      const judged = yield* Deferred.make<(typeof PermissionV2.Event.Judged.Type)["data"]>()
       const unsubscribe = yield* events.listen((event) =>
         event.type === PermissionV2.Event.Judged.type
-          ? Deferred.succeed(judged, event.data as { decision: string; model: string; mode: string }).pipe(
+          ? Deferred.succeed(judged, Schema.decodeUnknownSync(PermissionV2.Event.Judged.data)(event.data)).pipe(
               Effect.asVoid,
             )
           : Effect.void,

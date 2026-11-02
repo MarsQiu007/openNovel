@@ -4,6 +4,7 @@ import { Button } from "@opennovel-ai/ui/button"
 import { DockPrompt } from "@opennovel-ai/session-ui/dock-prompt"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { useLanguage } from "@/context/language"
+import { usePermission } from "@/context/permission"
 
 export function SessionPermissionDock(props: {
   request: PermissionRequest
@@ -11,6 +12,13 @@ export function SessionPermissionDock(props: {
   onDecide: (response: "once" | "always" | "reject") => void
 }) {
   const language = useLanguage()
+  const permission = usePermission()
+
+  const judge = () => {
+    const callID = props.request.tool?.callID
+    if (!callID) return undefined
+    return permission.judgeSuggestion(props.request.sessionID, callID)
+  }
 
   const toolDescription = () => {
     const key = `settings.permissions.tool.${props.request.permission}.description`
@@ -22,6 +30,7 @@ export function SessionPermissionDock(props: {
   return (
     <DockPrompt
       kind="permission"
+      judge={judge()}
       header={
         <div data-slot="permission-row" data-variant="header">
           <span data-slot="permission-icon">

@@ -172,6 +172,9 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       isPermissionAllowAll(directory: string) {
         return selected().isPermissionAllowAll(directory)
       },
+      judgeSuggestion(sessionID: string, callID: string) {
+        return selected().judgeSuggestion(sessionID, callID)
+      },
     }
   },
 })
@@ -202,6 +205,28 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
       autoAccept: {} as Record<string, boolean>,
     }),
   )
+
+  // 裁判标注（shadow 建议）：按会话内存保留，不进持久化存储；key 为 `${sessionID}:${callID}`
+  const [judged, setJudged] = createStore<
+    Record<string, { mode: "judge-shadow" | "judge"; effect: "allow" | "deny"; reason?: string }>
+  >({})
+
+  function recordJudged(properties: {
+    sessionID: string
+    decision: "allow" | "deny" | "ask"
+    mode: "judge-shadow" | "judge"
+    reason?: string
+    source?: { type: "tool"; messageID: string; callID: string }
+  }) {
+    if (meta.disposed || !properties.source || properties.decision === "ask") return
+    setJudged({
+      [`${properties.sessionID}:${properties.source.callID}`]: {
+        mode: properties.mode,
+        effect: properties.decision,
+        reason: properties.reason,
+      },
+    })
+  }
 
   function enableConfiguredDirectory(directory: string) {
     if (meta.disposed || !ready()) return
@@ -310,6 +335,10 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
 
   const handlePermission = (e: PermissionEvent) => {
     const event = e.details
+    if (event?.type === "permission.v2.judged") {
+      recordJudged(event.properties)
+      return
+    }
     if (event?.type !== "permission.v2.asked") return
     void respondPending(adaptPermission(event.properties), e.name)
   }
@@ -446,6 +475,11 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
       if (meta.disposed) return false
       const [childStore] = input.sync.child(directory)
       return childStore.config.permission === "allow"
+    },
+    judgeSuggestion(sessionID: string, callID: string) {
+      const annotation = judged[`${sessionID}:${callID}`]
+      if (!annotation || annotation.mode !== "judge-shadow") return undefined
+      return { ...annotation, reason: annotation.reason }
     },
   }
 

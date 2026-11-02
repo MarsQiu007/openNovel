@@ -205,10 +205,10 @@ const layer = Layer.effect(
             action: input.action,
             resources: input.resources,
             decision: verdict.decision.effect,
-            reason: verdict.decision.reason,
+            ...(verdict.decision.reason === undefined ? {} : { reason: verdict.decision.reason }),
             model: verdict.model,
             mode: current,
-            source: input.source,
+            ...(input.source === undefined ? {} : { source: input.source }),
           })
           .pipe(EffectRuntime.catch(() => EffectRuntime.void))
         // 影子模式双轨：裁判只记录不闸门，请求仍弹人审
