@@ -11,6 +11,10 @@
 - `1c2ddf72a3` feat(app): 审批面板展示裁判建议标注
 - `cb98a6d71b` test(core): 清理裁判测试的弱类型断言
 
+### 归档后收尾修复
+
+- `910d5cc4e` test(opennovel): 修正事件清单最新类型计数断言——`packages/opennovel/test/event-manifest.test.ts` 硬编码 `Latest.size` 为 75，judged 事件入清单后应为 76（schema 侧同构断言已随提案更新，opennovel 侧遗漏）
+
 ## 1. Schema 契约与再生成
 
 - [x] 1.1 在 `packages/schema/src/permission.ts` 新增裁判决定类型（`Decision`：effect 三值 + 可选 reason）与 `permission.v2.judged` 审计事件（含 sessionID、action、resources、decision、reason、model、mode、source），并入 Event inventory
