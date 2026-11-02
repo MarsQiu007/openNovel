@@ -53,6 +53,7 @@ Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributi
 - 重跑（`gh run rerun <runid> --failed`）只作已知 flake 的止血，同一提交上限 3 次；连续红必须开 issue 立案。
 - 「tip 全绿」按 fetch 到的最新 `origin/main` 确认，不按本地旧 SHA。
 - 纯文档提交（过滤清单见 `docs/agents/ci-triage.md`）不触发任何工作流：推送后查不到该 SHA 的 run 属预期，不要误判漏跑，也不要手动补跑。
+- 推送功能性代码到 main 后必须检查远端工作流全部通过（generate / typecheck / test）才算收尾；纯文档提交可不检查。
 - 本地复现、推送不可达、时间预算与 flake 立案模板见 `docs/agents/ci-triage.md`。
 
 ## Style Guide
