@@ -49,3 +49,6 @@ openspec/changes/archive/.openspec-archive.lock
 
 # OpenHands 本地记忆目录（agent 自维护，同 .codex）
 .openhands/
+
+# Agent 临时工作目录（探针截图 / openspec instructions 缓存等一次性产物）
+.agent_tmp/
