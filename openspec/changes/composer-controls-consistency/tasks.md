@@ -30,13 +30,18 @@
 
 ## 5. 收尾验证与防冗余复查
 
-- [ ] 5.1 在 packages/app 与 packages/session-ui 分别运行 `bun typecheck`、`bun test`、`oxlint`（从仓库根按既定方式跑），全部通过
-- [ ] 5.2 按 config.yaml 新规则自查全量 diff：确认未引入同类并行实现、未消费 data 的查询通道、长期无人引用的新导出；发现相邻既有死代码在本次范围内顺手清理并记录
-  - 验证：复查结论写入提交信息或本文件备注
+- [x] 5.1 在 packages/app 与 packages/session-ui 分别运行 `bun typecheck`、`bun test`、`oxlint`（从仓库根按既定方式跑），全部通过
+  - 验证结论：typecheck 双包通过；session-ui 102 pass 0 fail；app 相关范围测试与 main 基线完全一致（fail 为 bun 1.4.3 既有环境问题）；oxlint 分支 5661 warnings/0 errors vs main 5668，净减 7 未新增
+- [x] 5.2 按 config.yaml 新规则自查全量 diff：确认未引入同类并行实现、未消费 data 的查询通道、长期无人引用的新导出；发现相邻既有死代码在本次范围内顺手清理并记录
+  - 验证结论：新增导出（controls_ready、view.pending）均被消费；占位组件未导出；顺手清理 bootstrap.test.ts 中无消费者的 agent mock（提交已注明）
 
 ## Implementation Commits
 
-（实现阶段填写：实现提交后运行 `git log --grep "OpenSpec-Change: composer-controls-consistency" --format="%h %s"` 收集）
+- a03208e18d refactor(app): 清理会话输入控件的死代码与冗余透传
+- 62e9e61abf refactor(app): agent 列表订阅化并统一控件栏就绪信号
+- fd638c41c4 feat(app): 会话控件栏加载占位与推理档位静态化
+- 281020bbfc chore(openspec): 沉淀实现期防同类/冗余/无用代码检查规则
+- 182066280e chore(app): 清理 bootstrap 测试中已无消费者的 agent mock
 
 ## Workflow follow-up
 
