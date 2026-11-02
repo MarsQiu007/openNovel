@@ -1167,6 +1167,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const variants = createMemo(() => ["default", ...props.controls.model.selection.variant.list()])
   // Check provider variants directly: `variants` also includes the UI-only default option.
   const showVariantControl = createMemo(() => props.controls.model.selection.variant.list().length > 0)
+  // 控件未就绪时的骨架占位：h-7 与控件栏行高一致，宽度取终态常见值近似，
+  // 加载过程不再整块摘除控件（垂直方向零跳动，水平仅近似）
+  const ControlSkeleton = () => (
+    <div class="h-7 w-28 shrink-0 animate-pulse rounded-md bg-surface-raised-base opacity-60" aria-hidden="true" />
+  )
   const accepting = createMemo(() => {
     const id = props.controls.session.id
     if (!id) return permission.isAutoAcceptingDirectory(sdk().directory)
@@ -1382,8 +1387,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }
 
   const agentsLoading = () => props.controls.agents.loading
-  const agentsShouldFadeIn = createMemo<boolean>((prev) => prev ?? agentsLoading())
   const providersLoading = () => props.controls.model.loading
+  // 两个 loading 同源于 child-store 的 controls_ready，这里取与只为语义防御
+  const controlsReady = () => !agentsLoading() && !providersLoading()
+  const agentsShouldFadeIn = createMemo<boolean>((prev) => prev ?? agentsLoading())
   const providersShouldFadeIn = createMemo<boolean>((prev) => prev ?? providersLoading())
 
   // promptReady 的挂起必须就地截断：若冒泡到外层布局的 Suspense，草稿 hydrate 完成时
@@ -1612,7 +1619,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </Button>
               </div>
               <div class="flex items-center gap-1.5 min-w-0 flex-1 h-7">
-                <Show when={!agentsLoading()}>
+                <Show when={controlsReady()} fallback={<ControlSkeleton />}>
                   <div
                     data-component="prompt-agent-control"
                     classList={{ "animate-in fade-in duration-300": agentsShouldFadeIn() }}
@@ -1640,7 +1647,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     </TooltipKeybind>
                   </div>
                 </Show>
-                <Show when={!providersLoading()}>
+                <Show when={controlsReady()} fallback={<ControlSkeleton />}>
                   <Show when={store.mode !== "shell"}>
                     <div
                       data-component="prompt-model-control"
@@ -1716,7 +1723,24 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </TooltipKeybind>
                       </Show>
                     </div>
-                    <Show when={showVariantControl()}>
+                    <Show
+                      when={showVariantControl()}
+                      fallback={
+                        <Show when={controlsReady()}>
+                          <Tooltip placement="top" gutter={4} value={language.t("model.tooltip.reasoning.none")}>
+                            <div
+                              data-component="prompt-variant-control"
+                              class="flex h-7 max-w-[160px] cursor-not-allowed items-center gap-1 px-2 opacity-50"
+                            >
+                              <span class="truncate text-13-regular text-text-base">
+                                {language.t("common.default")}
+                              </span>
+                              <Icon name="chevron-down" size="small" class="shrink-0" />
+                            </div>
+                          </Tooltip>
+                        </Show>
+                      }
+                    >
                       <div
                         data-component="prompt-variant-control"
                         classList={{ "animate-in fade-in duration-300": providersShouldFadeIn() }}

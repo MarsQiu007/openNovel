@@ -447,6 +447,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
     view: {
       placeholder: designPlaceholder,
+      pending: () => props.controls.agents.loading || props.controls.model.loading,
       agent:
         props.controls.agents.visible && props.controls.agents.options.length > 0
           ? {
@@ -486,6 +487,10 @@ function PromptInputV2ModelControl(props: {
   onUnpaidClick: () => void
 }) {
   const shouldAnimate = createMemo<boolean>((previous) => previous ?? props.loading)
+  // 加载占位与终态按钮同高（h-7），避免模型控件在加载过程中整块消失
+  const loadingPlaceholder = () => (
+    <div class="h-7 w-28 shrink-0 animate-pulse rounded-md bg-surface-raised-base opacity-60" aria-hidden="true" />
+  )
   const content = () => (
     <>
       <Show when={props.providerID}>
@@ -504,7 +509,7 @@ function PromptInputV2ModelControl(props: {
     </>
   )
   return (
-    <Show when={!props.loading}>
+    <Show when={!props.loading} fallback={loadingPlaceholder()}>
       <TooltipV2
         placement="top"
         gutter={4}

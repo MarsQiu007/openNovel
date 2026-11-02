@@ -28,6 +28,8 @@ export type PromptInputV2SelectControl = {
 
 export type PromptInputV2ViewConfig = {
   placeholder?: Accessor<string>
+  // 控件栏区域未就绪（代理/模型数据加载中）时为 true，宿主据此渲染占位而非摘掉控件
+  pending?: Accessor<boolean>
   add?: {
     onAttach: () => void
   }
