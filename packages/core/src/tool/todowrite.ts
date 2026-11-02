@@ -48,7 +48,14 @@ const layer = Layer.effectDiscard(
               })
               yield* todos.update({ sessionID: context.sessionID, todos: input.todos })
               return { todos: input.todos }
-            }).pipe(Effect.mapError(() => new ToolFailure({ message: "Unable to update todos" }))),
+            }).pipe(
+              Effect.mapError(
+                (error) =>
+                  error instanceof PermissionV2.CorrectedError
+                    ? error
+                    : new ToolFailure({ message: "Unable to update todos" }),
+              ),
+            ),
         }),
       })
       .pipe(Effect.orDie)

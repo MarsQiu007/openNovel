@@ -69,6 +69,10 @@ const registryLayer = Layer.effect(
         Effect.catchTag("LLM.ToolFailure", (failure) =>
           Effect.succeed({ result: { type: "error" as const, value: failure.message } }),
         ),
+        // 裁判拒绝与人审 reject 带理由的反馈在此统一翻译，一处覆盖全部工具（design D3）
+        Effect.catchTag("PermissionV2.CorrectedError", (error) =>
+          Effect.succeed({ result: { type: "error" as const, value: error.feedback } }),
+        ),
       )
       if ("result" in pending) return pending
       const output = pending.output

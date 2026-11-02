@@ -90,7 +90,12 @@ const layer = Layer.effectDiscard(
                   ),
                 )
             }).pipe(
-              Effect.mapError(() => new ToolFailure({ message: `Unable to find files matching ${input.pattern}` })),
+              Effect.mapError(
+                (error) =>
+                  error instanceof PermissionV2.CorrectedError
+                    ? error
+                    : new ToolFailure({ message: `Unable to find files matching ${input.pattern}` }),
+              ),
             ),
         }),
       })

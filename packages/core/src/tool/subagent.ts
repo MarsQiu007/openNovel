@@ -186,7 +186,12 @@ const layer = Layer.effectDiscard(
                   source: { type: "tool", messageID: context.assistantMessageID, callID: context.toolCallID },
                 })
                 .pipe(
-                  Effect.mapError((error) => new ToolFailure({ message: `Subagent denied: ${agent.id}`, error })),
+                  Effect.mapError(
+                    (error) =>
+                      error instanceof PermissionV2.CorrectedError
+                        ? error
+                        : new ToolFailure({ message: `Subagent denied: ${agent.id}`, error }),
+                  ),
                 )
 
               const existing =

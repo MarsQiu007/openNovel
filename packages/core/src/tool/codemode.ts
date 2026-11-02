@@ -137,7 +137,7 @@ const layer = Layer.effectDiscard(
                 return { ok: true, value: result.value, calls: records }
               }).pipe(
                 Effect.mapError((error) =>
-                  error instanceof ToolFailure
+                  error instanceof ToolFailure || error instanceof PermissionV2.CorrectedError
                     ? error
                     : new ToolFailure({
                         message: `${toolName}: ${error instanceof Error ? error.message : String(error)}`,

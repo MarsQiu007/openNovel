@@ -163,7 +163,8 @@ const tryPromise = <A>(evaluate: () => Promise<A>) =>
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(error)
 
-const failure = (tool: string) => (error: unknown) => new ToolFailure({ message: `${tool}: ${messageOf(error)}` })
+const failure = (tool: string) => (error: unknown) =>
+  error instanceof PermissionV2.CorrectedError ? error : new ToolFailure({ message: `${tool}: ${messageOf(error)}` })
 
 const source = (context: Tool.Context) =>
   ({

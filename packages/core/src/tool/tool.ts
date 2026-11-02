@@ -2,8 +2,9 @@ export * as Tool from "./tool"
 
 import { ToolDefinition, ToolFailure, ToolOutput, type ToolCall } from "@opennovel-ai/llm"
 import { Effect, JsonSchema, Schema } from "effect"
-import type { Permission } from "@opennovel-ai/schema/permission"
+import { Permission } from "@opennovel-ai/schema/permission"
 import type { AgentV2 } from "../agent"
+import type { PermissionV2 } from "../permission"
 import type { SessionMessage } from "../session/message"
 import type { SessionSchema } from "../session/schema"
 
@@ -60,7 +61,7 @@ type Config<
   readonly execute: (
     input: Schema.Schema.Type<Input>,
     context: Context,
-  ) => Effect.Effect<Schema.Schema.Type<Output>, ToolFailure>
+  ) => Effect.Effect<Schema.Schema.Type<Output>, ToolFailure | PermissionV2.CorrectedError>
   readonly toModelOutput?: (input: {
     readonly input: Schema.Schema.Type<Input>
     readonly output: Output["Encoded"]
@@ -71,7 +72,7 @@ type Runtime = {
   readonly permission?: string
   readonly describe?: (permissions: Permission.Ruleset) => Effect.Effect<string, never>
   readonly definition: (name: string) => ToolDefinition
-  readonly settle: (call: ToolCall, context: Context) => Effect.Effect<ToolOutput, ToolFailure>
+  readonly settle: (call: ToolCall, context: Context) => Effect.Effect<ToolOutput, ToolFailure | PermissionV2.CorrectedError>
 }
 
 const runtimes = new WeakMap<AnyTool, Runtime>()

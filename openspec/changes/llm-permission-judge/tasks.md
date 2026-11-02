@@ -15,8 +15,8 @@
   - 验证：`bun typecheck` 通过；`permission-policy.test.ts` 六用例覆盖 agent>项目>默认表优先级、默认表逐档、未列动作回落 ask、mode 缺省 ask 与 agent 覆盖（typecheck + 26 permission 相关用例全绿）
 - [x] 2.3 `permission.ts` 的 evaluateInput ask 出口接入裁判：模式 gate、策略分流、shadow 下照常创建人审 pending、judge 下 allow 直接放行、deny 抛 `CorrectedError({feedback: reason})`、每次裁判发布 Judged 事件、裁判 allow 不触碰 PermissionSaved
   - 验证：既有单测适配默认策略表后全绿（ask 流用例改用默认策略表外的 write 动作）；新增集成四用例——「显式 deny 规则不触发裁判调用」「shadow 模式裁判后仍弹人审且 Judged 事件落盘」「裁判连续放行同命令不写入 PermissionSaved」「裁判拒绝理由经 CorrectedError.feedback 回喂」均通过；core 全量 1252 用例通过，唯 `location-layer.test.ts` 的 models.dev 夹具隔离用例失败，已核实在干净树（仅分支提交、无工作区改动）同样失败且分支足迹不含 catalog/model/location 路径，归因环境固有失败，与本 change 无关
-- [ ] 2.4 在 `ToolRegistry.Materialization.settle` 统一翻译 `PermissionV2.CorrectedError` 为 `ToolFailure({ message: feedback })`（BlockedError 保持通用文案），修复内置工具把人审拒绝理由吞进通用错误的问题（design D3）
-  - 验证：core 单测断言 CorrectedError 的 feedback 出现在 ToolFailure message；人审 reject 带 message 路径同测一例
+- [x] 2.4 在 `ToolRegistry.Materialization.settle` 统一翻译 `PermissionV2.CorrectedError` 为 `ToolFailure({ message: feedback })`（BlockedError 保持通用文案），修复内置工具把人审拒绝理由吞进通用错误的问题（design D3）
+  - 验证：`tool-permission-feedback.test.ts` 三用例通过——人审 reject 带 message 经 settle 后 feedback 原样出现在失败文案；judge deny 理由同路到达；显式 deny 规则（BlockedError）仍走工具通用文案。12 个工具文件 96 用例全绿
 
 ## 3. 协议/UI 呈现
 

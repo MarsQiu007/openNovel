@@ -173,7 +173,14 @@ const layer = Layer.effectDiscard(
                 format: input.format,
                 output,
               }
-            }).pipe(Effect.mapError(() => new ToolFailure({ message: `Unable to fetch ${input.url}` }))),
+            }).pipe(
+              Effect.mapError(
+                (error) =>
+                  error instanceof PermissionV2.CorrectedError
+                    ? error
+                    : new ToolFailure({ message: `Unable to fetch ${input.url}` }),
+              ),
+            ),
         }),
       })
       .pipe(Effect.orDie)
