@@ -43,6 +43,10 @@
 - 281020bbfc chore(openspec): 沉淀实现期防同类/冗余/无用代码检查规则
 - 182066280e chore(app): 清理 bootstrap 测试中已无消费者的 agent mock
 
+### 归档后收尾修复
+
+- b87c13283f test(app): 修正 child-store 子 store 查询计数断言——62e9e61abf 新增常驻 agentsQuery 后 child-store.test.ts 硬编码计数未同步（实现期被本地 bun 1.4.3 环境问题掩盖，误判为基线一致），main 双 OS unit 任务红
+
 ## Workflow follow-up
 
 - 合并前：同步 main、fast-forward 合并、推送后删除功能分支并 `git fetch --prune`
