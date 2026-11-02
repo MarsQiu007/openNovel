@@ -261,7 +261,7 @@ function EgoGraph(props: {
   }
 
   return (
-    <div class="flex flex-col h-full min-h-0">
+    <div class="flex flex-col h-full min-h-0" data-slot="ego-graph">
       <div class="flex items-center justify-between px-4 py-2 border-b border-v2-border-border-base shrink-0">
         <div class="flex items-center gap-2 min-w-0">
           <span class="w-3 h-3 rounded-full shrink-0" style={{ background: roleColor(props.center.role) }} />

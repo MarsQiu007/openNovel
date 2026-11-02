@@ -181,7 +181,11 @@ test("ego graph for a character with zero direct relations should still render t
   await page.locator('button[data-slot="segmented-control-v2-item"]', { hasText: "Graph" }).click()
   await page.waitForTimeout(800)
 
-  const node = page.locator('svg g:has(> circle)', { hasText: "月影" }).first()
+  // keep-alive 后全局图面板常驻 hidden,需锚定到可见的 ego 面板再取中心节点
+  const node = page
+    .locator('[data-slot="ego-graph"]')
+    .locator('svg g:has(> circle)', { hasText: "月影" })
+    .first()
   await node.waitFor({ state: "visible", timeout: 15_000 })
   const box = await node.boundingBox()
   expect(box, "ego graph center node should render for character with no direct relations").not.toBeNull()

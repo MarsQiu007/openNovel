@@ -7,7 +7,7 @@
  * 六类挂接：条目详情 / 角色详情 + ego 图 / 世界观列表 + 地图 / 角色列表 + 关系图 /
  * 单页节点（书籍信息 / 伏笔 / 风格 / 灵魂 / 技法库 / 整理）。
  */
-import { type Accessor, createEffect, createMemo, createSignal, For, Show } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
 import { useCharacters, useNovelDetail, useUpdateNovel, useWorldEntries } from "@/context/novel-queries"
@@ -50,7 +50,10 @@ export type SettingsMainProps = {
   /** ego 图 / 关系图 / 列表内的深链跳转（选中其他角色或板块 root） */
   onSelectNode: (node: SettingsNode) => void
   onEntryDeleted: () => void
-  onExecute?: (args: { prompt: string; roundID: string }) => Promise<string | null | undefined> | string | null | undefined
+  onExecute?: (args: {
+    prompt: string
+    roundID: string
+  }) => Promise<string | null | undefined> | string | null | undefined
   onSessionFocused?: (sessionID: string | null | undefined) => void
 }
 
@@ -99,6 +102,163 @@ export function SettingsMain(props: SettingsMainProps) {
     if (id) props.onSelectNode({ kind: "character", characterId: id })
   }
 
+  // —— 中央区 keep-alive（settings-panel-keepalive design D1-D3）：面板首次激活后保持挂载，
+  // 切走 display:none 保留，再激活零重建零重载；visited 集合单调累积，activeKey 派生当前可见叶子
+  const activeKey = createMemo<string | null>(() => {
+    const node = props.node()
+    if (!node) return null
+    switch (node.kind) {
+      case "world":
+        return tab() === "map" ? "world:map" : "world:list"
+      case "world-entry":
+        return tab() === "gallery" ? "world-entry:gallery" : "world-entry:detail"
+      case "characters":
+        return tab() === "graph" ? "characters:graph" : "characters:list"
+      case "character":
+        if (tab() === "graph") return "character:graph"
+        if (tab() === "gallery") return "character:gallery"
+        return "character:detail"
+      default:
+        return node.kind
+    }
+  })
+  const [visited, setVisited] = createSignal<ReadonlySet<string>>(new Set())
+  createEffect(() => {
+    const key = activeKey()
+    if (key && !visited().has(key)) setVisited((prev) => new Set(prev).add(key))
+  })
+
+  const panels: Array<{ key: string; active: () => boolean; render: () => JSX.Element }> = [
+    { key: "book-info", active: () => kindIs("book-info"), render: () => <BookInfoForm novelID={props.novelID} /> },
+    {
+      key: "foreshadow",
+      active: () => kindIs("foreshadow"),
+      render: () => <PanelForeshadow novelID={props.novelID} selectedChapterId={() => null} chapters={[]} />,
+    },
+    { key: "style", active: () => kindIs("style"), render: () => <StyleGuideEditor novelID={props.novelID} /> },
+    { key: "soul", active: () => kindIs("soul"), render: () => <NovelSoulEditor novelID={props.novelID} /> },
+    {
+      key: "techniques",
+      active: () => kindIs("techniques"),
+      render: () => <PanelTechniques novelID={props.novelID()} />,
+    },
+    {
+      key: "organization",
+      active: () => kindIs("organization"),
+      render: () => <SettingReviewInboxPanel novelID={props.novelID} />,
+    },
+    { key: "memory", active: () => kindIs("memory"), render: () => <MemoryPanel novelID={props.novelID} /> },
+    {
+      key: "world:list",
+      active: () => kindIs("world") && tab() !== "map",
+      render: () => (
+        <WorldOverviewList
+          novelID={props.novelID}
+          onSelectEntry={(id) => props.onSelectNode({ kind: "world-entry", entryId: id })}
+        />
+      ),
+    },
+    {
+      key: "world:map",
+      active: () => kindIs("world") && tab() === "map",
+      render: () => <MapView novelID={props.novelID} />,
+    },
+    {
+      key: "world-entry:detail",
+      active: () => worldEntryId() !== null && tab() !== "gallery",
+      render: () => (
+        <WorldEntryDetail
+          novelID={props.novelID}
+          selectedEntryId={worldEntryId}
+          editing={() => tab() === "edit"}
+          onEditingChange={() => setTab("content")}
+          onEntryDeleted={props.onEntryDeleted}
+          onExecute={props.onExecute}
+          onSessionFocused={props.onSessionFocused}
+        />
+      ),
+    },
+    {
+      key: "world-entry:gallery",
+      active: () => tab() === "gallery" && worldEntryId() !== null,
+      render: () => (
+        <Show when={worldEntryId()} keyed>
+          {(id) => <SettingGallery novelID={props.novelID} ownerType="world_entry" ownerID={() => id} />}
+        </Show>
+      ),
+    },
+    {
+      key: "characters:list",
+      active: () => kindIs("characters") && tab() !== "graph",
+      render: () => (
+        <CharacterList
+          characters={characters()}
+          onSelect={(id) => props.onSelectNode({ kind: "character", characterId: id })}
+          onCreated={(id) => props.onSelectNode({ kind: "character", characterId: id })}
+          language={language}
+          novelID={props.novelID}
+          hideSearch
+        />
+      ),
+    },
+    {
+      key: "characters:graph",
+      active: () => kindIs("characters") && tab() === "graph",
+      render: () => (
+        <RelationsView
+          novelID={props.novelID}
+          selectedCharacterId={() => null}
+          onSelectCharacter={pickCharacter}
+          globalView={() => (tab() === "graph" ? "graph" : "list")}
+          onGlobalViewChange={(view) => setTab(view)}
+        />
+      ),
+    },
+    {
+      key: "character:detail",
+      active: () => characterId() !== null && tab() !== "graph" && tab() !== "gallery",
+      render: () => (
+        <Show when={characterId()} keyed>
+          {(id) => {
+            const character = characters().find((c) => c.id === id)
+            return (
+              <Show when={character} keyed>
+                {(current) => (
+                  <CharacterDetail
+                    character={current}
+                    characters={characters()}
+                    onBack={() => props.onSelectNode({ kind: "characters" })}
+                    language={language}
+                    novelID={props.novelID}
+                    selectedChapterId={() => null}
+                    editing={() => tab() === "edit"}
+                    onEditingChange={() => setTab("content")}
+                  />
+                )}
+              </Show>
+            )
+          }}
+        </Show>
+      ),
+    },
+    {
+      key: "character:graph",
+      active: () => characterId() !== null && tab() === "graph",
+      render: () => (
+        <RelationsView novelID={props.novelID} selectedCharacterId={characterId} onSelectCharacter={pickCharacter} />
+      ),
+    },
+    {
+      key: "character:gallery",
+      active: () => tab() === "gallery" && characterId() !== null,
+      render: () => (
+        <Show when={characterId()} keyed>
+          {(id) => <SettingGallery novelID={props.novelID} ownerType="character" ownerID={() => id} />}
+        </Show>
+      ),
+    },
+  ]
+
   return (
     <div class="flex flex-col flex-1 min-h-0">
       <Show when={tabs()}>
@@ -111,7 +271,9 @@ export function SettingsMain(props: SettingsMainProps) {
             }}
           >
             <For each={tabs()!}>
-              {(item) => <SegmentedControlItemV2 value={item}>{language.t(TAB_LABEL_KEYS[item])}</SegmentedControlItemV2>}
+              {(item) => (
+                <SegmentedControlItemV2 value={item}>{language.t(TAB_LABEL_KEYS[item])}</SegmentedControlItemV2>
+              )}
             </For>
           </SegmentedControlV2>
         </div>
@@ -124,120 +286,27 @@ export function SettingsMain(props: SettingsMainProps) {
           </div>
         </Show>
 
-        {/* —— 单页节点 —— */}
-        <Show when={kindIs("book-info")}>
-          <BookInfoForm novelID={props.novelID} />
-        </Show>
-        <Show when={kindIs("foreshadow")}>
-          <PanelForeshadow novelID={props.novelID} selectedChapterId={() => null} chapters={[]} />
-        </Show>
-        <Show when={kindIs("style")}>
-          <StyleGuideEditor novelID={props.novelID} />
-        </Show>
-        <Show when={kindIs("soul")}>
-          <NovelSoulEditor novelID={props.novelID} />
-        </Show>
-        <Show when={kindIs("techniques")}>
-          <PanelTechniques novelID={props.novelID()} />
-        </Show>
-        <Show when={kindIs("organization")}>
-          <SettingReviewInboxPanel novelID={props.novelID} />
-        </Show>
-        <Show when={kindIs("memory")}>
-          <MemoryPanel novelID={props.novelID} />
-        </Show>
-
-        {/* —— 世界观板块 root：列表 / 地图 —— */}
-        <Show when={kindIs("world")}>
-          <Show
-            when={tab() === "map"}
-            fallback={<WorldOverviewList novelID={props.novelID} onSelectEntry={(id) => props.onSelectNode({ kind: "world-entry", entryId: id })} />}
-          >
-            <MapView novelID={props.novelID} />
-          </Show>
-        </Show>
-
-        {/* —— 世界观条目：内容 / 编辑 / 画廊 —— */}
-        <Show when={worldEntryId() !== null && tab() !== "gallery"}>
-          <WorldEntryDetail
-            novelID={props.novelID}
-            selectedEntryId={worldEntryId}
-            editing={() => tab() === "edit"}
-            onEditingChange={() => setTab("content")}
-            onEntryDeleted={props.onEntryDeleted}
-            onExecute={props.onExecute}
-            onSessionFocused={props.onSessionFocused}
-          />
-        </Show>
-        <Show when={tab() === "gallery" ? worldEntryId() : null} keyed>
-          {(id) => <SettingGallery novelID={props.novelID} ownerType="world_entry" ownerID={() => id} />}
-        </Show>
-
-        {/* —— 角色板块 root：列表 / 关系图 —— */}
-        <Show when={kindIs("characters")}>
-          <Show
-            when={tab() === "graph"}
-            fallback={
-              <CharacterList
-                characters={characters()}
-                onSelect={(id) => props.onSelectNode({ kind: "character", characterId: id })}
-                onCreated={(id) => props.onSelectNode({ kind: "character", characterId: id })}
-                language={language}
-                novelID={props.novelID}
-                hideSearch
-              />
-            }
-          >
-            <RelationsView
-              novelID={props.novelID}
-              selectedCharacterId={() => null}
-              onSelectCharacter={pickCharacter}
-              globalView={() => (tab() === "graph" ? "graph" : "list")}
-              onGlobalViewChange={(view) => setTab(view)}
-            />
-          </Show>
-        </Show>
-
-        {/* —— 角色节点：内容 / 编辑 / 图（ego 关系图）/ 画廊 —— */}
-        <Show when={characterId() !== null && tab() !== "gallery"}>
-          <Show
-            when={tab() === "graph"}
-            fallback={
-              <Show when={characterId()} keyed>
-                {(id) => {
-                  const character = characters().find((c) => c.id === id)
-                  return (
-                    <Show when={character} keyed>
-                      {(current) => (
-                        <CharacterDetail
-                          character={current}
-                          characters={characters()}
-                          onBack={() => props.onSelectNode({ kind: "characters" })}
-                          language={language}
-                          novelID={props.novelID}
-                          selectedChapterId={() => null}
-                          editing={() => tab() === "edit"}
-                          onEditingChange={() => setTab("content")}
-                        />
-                      )}
-                    </Show>
-                  )
-                }}
-              </Show>
-            }
-          >
-            <RelationsView
-              novelID={props.novelID}
-              selectedCharacterId={characterId}
-              onSelectCharacter={pickCharacter}
-            />
-          </Show>
-        </Show>
-        <Show when={tab() === "gallery" ? characterId() : null} keyed>
-          {(id) => <SettingGallery novelID={props.novelID} ownerType="character" ownerID={() => id} />}
-        </Show>
+        {/* —— 面板 keep-alive 渲染（design D1）：首次激活后保持挂载，display:none 保留 —— */}
+        <For each={panels}>
+          {(panel) => (
+            <KeepAlive visited={visited().has(panel.key)} active={panel.active()}>
+              {panel.render()}
+            </KeepAlive>
+          )}
+        </For>
       </div>
     </div>
+  )
+}
+
+/** keep-alive 容器：首次激活后保持挂载，切走以 display:none 保留，再激活零重建零重载。 */
+function KeepAlive(props: { visited: boolean; active: boolean; children: JSX.Element }) {
+  return (
+    <Show when={props.visited}>
+      <div class="flex flex-col flex-1 min-h-0" style={{ display: props.active ? "" : "none" }}>
+        {props.children}
+      </div>
+    </Show>
   )
 }
 
@@ -343,9 +412,7 @@ function WorldOverviewList(props: { novelID: Accessor<string>; onSelectEntry: (i
         <Show
           when={groups().size > 0}
           fallback={
-            <p class="text-sm text-v2-text-text-muted px-4 py-8 text-center">
-              {language.t("novel.panel.world.empty")}
-            </p>
+            <p class="text-sm text-v2-text-text-muted px-4 py-8 text-center">{language.t("novel.panel.world.empty")}</p>
           }
         >
           <For each={Array.from(groups().entries())}>
