@@ -55,6 +55,9 @@ fork 现状（适配目标）：`ModelV2.Info.variants` 只有 `{id, headers, bo
 - 方言表中本来就是 HTTP 语义的键（`body.chat_template_kwargs`、`body.thinking`、`additionalModelRequestFields` 等）→ 维持原样进 `body` overlay。
 - 个别键在 fork llm 协议层已建模的（anthropic-messages 的 `thinking`，`llm/src/protocols/anthropic-messages.ts:168`）→ 优先走协议 schema 字段而非裸 body。
 
+- **实现期补充（载体键）**：fork 的 `ModelV2.Info.variants` schema 只有 headers/body，settings 负载无处存放。实现采用载体内键 `opennovel/providerOptions`：方言表把 SDK 语义键存进 `variant.body[carrier]`，`withVariant` 拆包时经 `Schema.decodeUnknownOption(ProviderOptions)` 解码（形状非法按缺省安全丢弃）注入 route defaults，载体内键不残留进 HTTP body overlay。
+- **实现期补充（能力核实结论）**：fork 协议层实际可消费的 providerOptions 面比上游窄——openai-responses 收 `{reasoningEffort, reasoningSummary, include}`（reasoningEffort 不含 `max`）；anthropic-messages 只建模 `thinking={type:"enabled",budgetTokens}`（adaptive/effort/关闭形态无类型化通道）。方言表按此收敛：openai 条目生成时滤除 `max`，anthropic 条目仅响应 `budget_tokens` support，不可表达的形态一律不生成（缺省安全）。
+
 - **理由**：双通道映射最大化复用 fork llm 的既有类型化协议；裸 body 仅用于协议层未建模的参数。
 - **替代方案**：全部 settings 平铺进 body——anthropic 的 `thinking` 等参数在 fork 的 anthropic-messages 协议已有类型化字段，裸 body 会绕开 schema 校验，放弃。
 
@@ -67,7 +70,9 @@ fork 现状（适配目标）：`ModelV2.Info.variants` 只有 `{id, headers, bo
 
 ### D5: GLM 硬编码删除，以移植表回归对拍
 
-删除 `core/src/plugin/variant.ts` 的 VariantPlugin 注册与文件。回归判定：models.dev 元数据中 zhipuai/glm-5.2 系列带 `reasoning_options`，移植后其 variants 由协议表（zai/openai-compatible 条目）生成；对拍验证生成的 variants 至少覆盖原硬编码的 high/max 两档（档位定义以上游为准，原硬编码的 `body.reasoning_effort` 拼写由 openai-compatible 协议条目的 `settings.reasoningEffort` 取代）。
+删除 `core/src/plugin/variant.ts` 的 VariantPlugin 注册与文件。回归判定：models.dev 元数据中 zhipuai/glm-5.2 系列带 `reasoning_options`，移植后其 variants 由协议表（openai-compatible 条目）生成；对拍验证生成的 variants 至少覆盖原硬编码的 high/max 两档（档位定义以上游为准，原硬编码的 `body.reasoning_effort` 拼写由 openai-compatible 协议条目的 body overlay 原样保留）。
+
+- **实现期补充（nativePackage 回落）**：真实 models.dev 数据（如 zhipuai 的 GLM）只在 provider 级声明 npm/api，模型级无 `provider` 字段；fork 旧 applyModel 只读模型级 npm，导致这类模型一律落成 `native`——旧 GLM 硬编码因此生产从未生效（用户"推理控制几乎不可见"的根因之一）。实现按上游 `nativePackage(provider, model)` 语义补上 provider 级 npm/api 回落。
 
 ## Risks / Trade-offs
 
