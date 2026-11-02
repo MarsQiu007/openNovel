@@ -25,7 +25,7 @@
 
 ## 4. 规则沉淀
 
-- [ ] 4.1 `openspec/config.yaml` 的 `rules.tasks` 增加防同类/冗余/无用代码检查条目，`operations.apply.guidance` 增加对应执行指引（措辞见 design.md D5）
+- [x] 4.1 `openspec/config.yaml` 的 `rules.tasks` 增加防同类/冗余/无用代码检查条目，`operations.apply.guidance` 增加对应执行指引（措辞见 design.md D5）
   - 验证：`openspec validate composer-controls-consistency --strict` 通过
 
 ## 5. 收尾验证与防冗余复查
