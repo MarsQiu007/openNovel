@@ -2,9 +2,9 @@
 
 ## 1. 移植解析器与协议表
 
-- [ ] 1.1 新建 `core/src/plugin/reasoning-variant.ts`：移植上游 `supports()`/`resolve()` 与协议翻译表（按 design D2 过滤 fork 实际存在的包名条目，上游自有 `@opencode/ai/providers/*` 条目标注跳过）
+- [x] 1.1 新建 `core/src/plugin/reasoning-variant.ts`：移植上游 `supports()`/`resolve()` 与协议翻译表（按 design D2 过滤 fork 实际存在的包名条目，上游自有 `@opencode/ai/providers/*` 条目标注跳过）
   - 验证：`bun typecheck`（packages/core）通过；纯函数单测覆盖 supports/resolve 的 effort/toggle/budget 三分支
-- [ ] 1.2 对 fork provider 目录（`core/src/plugin/provider/`）逐个核对 aisdk 包名在协议表中的条目（D2 清单），缺失或包名不符的记录下来并在表内注释
+- [x] 1.2 对 fork provider 目录（`core/src/plugin/provider/`）逐个核对 aisdk 包名在协议表中的条目（D2 清单），缺失或包名不符的记录下来并在表内注释
   - 验证：核对结论以注释形式落在协议表文件内，review 可见
 
 ## 2. 元数据接入与通道接通
