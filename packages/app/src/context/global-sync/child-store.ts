@@ -200,6 +200,10 @@ export function createChildStoreManager(input: {
             ...input.queryOptions.references(key),
             enabled: instanceQueriesEnabled(),
           }))
+          const agentsQuery = useQuery(() => ({
+            ...input.queryOptions.agents(key),
+            enabled: instanceQueriesEnabled(),
+          }))
 
           const child = createStore<State>({
             project: "",
@@ -207,6 +211,9 @@ export function createChildStoreManager(input: {
             icon: initialIcon,
             get provider_ready() {
               return instanceQueriesEnabled() && !providerQuery.isLoading
+            },
+            get controls_ready() {
+              return this.provider_ready && !agentsQuery.isLoading
             },
             get provider() {
               const EMPTY = { all: new Map(), connected: [], default: {} }
@@ -221,7 +228,9 @@ export function createChildStoreManager(input: {
               return pathQuery.data ?? EMPTY
             },
             status: "loading" as const,
-            agent: [],
+            get agent() {
+              return agentsQuery.isLoading ? [] : (agentsQuery.data ?? [])
+            },
             command: [],
             get reference() {
               return referenceQuery.isLoading ? [] : (referenceQuery.data ?? [])

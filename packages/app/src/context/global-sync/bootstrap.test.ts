@@ -20,6 +20,7 @@ function directoryState() {
     projectMeta: undefined,
     icon: undefined,
     provider_ready: true,
+    controls_ready: true,
     provider,
     config: {},
     path: { state: "", config: "", worktree: "/project", directory: "/project", home: "/home" },

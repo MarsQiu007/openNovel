@@ -40,6 +40,8 @@ export type State = {
   projectMeta: ProjectMeta | undefined
   icon: string | undefined
   provider_ready: boolean
+  // 控件栏区域就绪：provider catalog 与 agent 快照均已就绪，底部控件可从占位切到终态
+  controls_ready: boolean
   provider: NormalizedProviderListResponse
   config: Config
   path: Path

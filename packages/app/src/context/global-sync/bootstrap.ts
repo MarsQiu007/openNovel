@@ -239,10 +239,6 @@ export async function bootstrapDirectory(input: {
     const slow = [
       () => Promise.resolve(input.loadSessions(input.directory)),
       () =>
-        input.queryClient
-          .ensureQueryData(loadAgentsQuery(input.scope, input.directory, input.sdk))
-          .then((data) => input.setStore("agent", data)),
-      () =>
         retry(() => input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))),
       // busy/idle 播种：V2 无 session.status 端点，active 集合即全部 busy 会话
       () =>
