@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Duration, Effect } from "effect"
 import { Permission } from "@opennovel-ai/schema/permission"
+import { SessionV2 } from "../src/session"
 import { PermissionJudge } from "../src/permission/judge"
 
 const decision = (effect: Permission.Effect, reason?: string) => Permission.Decision.make({ effect, reason })
@@ -38,7 +39,7 @@ describe("PermissionJudge.layerWith", () => {
     Effect.gen(function* () {
       const service = yield* PermissionJudge.Service
       return yield* service.judge({
-        sessionID: "ses_test" as never,
+        sessionID: SessionV2.ID.make("ses_test"),
         action: "bash",
         resources: ["ls"],
       })

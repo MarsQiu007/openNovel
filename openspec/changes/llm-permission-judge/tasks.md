@@ -27,10 +27,10 @@
 
 ## 4. 收尾验证与防冗余复查
 
-- [ ] 4.1 在受影响包（schema、core、app、session-ui）分别运行 `bun typecheck`、`bun test`，从仓库根按既定方式跑 oxlint 并与 main 基线同模式对比
-  - 验证结论：各命令结果与基线对比写入任务勾选批注
-- [ ] 4.2 按 config.yaml 防同类/冗余/无用代码规则自查全量 diff（新增导出是否被消费、策略表是否含无消费者档位、事件字段是否全被消费方读取）
-  - 验证结论：自查结果写入任务勾选批注
+- [x] 4.1 在受影响包（schema、core、app、session-ui）分别运行 `bun typecheck`、`bun test`，从仓库根按既定方式跑 oxlint 并与 main 基线同模式对比
+  - 验证结论：schema typecheck ✓ + 21 用例 ✓；core typecheck ✓ + 全量 1255 用例通过（唯 `location-layer.test.ts` models.dev 夹具隔离用例失败，已切 main 复现同败，属环境固有问题）；app typecheck ✓ + 927 用例 ✓（bun 1.3.14，1.4.3 有 solid JSX 假失败）；session-ui typecheck ✓ + 102 用例 ✓（bun 1.3.14）；oxlint 仓库根 0 errors，逐文件对比 main——所有改动过的既有文件警告数零新增（过程中自增的 2 处 no-unsafe-type-assertion 已修：permission.test.ts 改 schema decode、permission-judge.test.ts 改 ID.make）
+- [x] 4.2 按 config.yaml 防同类/冗余/无用代码规则自查全量 diff（新增导出是否被消费、策略表是否含无消费者档位、事件字段是否全被消费方读取）
+  - 验证结论：`JudgeAnnotation` 由 app `SessionPermissionDock` 消费 ✓；`judgeSuggestion`（context → dock）✓；`pairJudgeEvents` 纯函数目前消费者为单测，生产消费（一致率面板聚合）随阶段二翻强制落地，属提案明示的两阶段交付边界，非冗余；策略表全部档位经 `PermissionPolicy.resolve` 被 evaluateInput 消费 ✓；Judged 事件字段被审计流与 app recordJudged 消费（resources 随审计契约携带）✓；tool.ts 拓宽的 CorrectedError 错误通道被 14 个内置工具与 registry catchTag 消费 ✓；`permission.judge.model` 配置被 judge.ts 模型解析消费 ✓
 
 ## Workflow follow-up
 
