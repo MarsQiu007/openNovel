@@ -49,6 +49,7 @@ rules:
     - 用简体中文撰写；每条任务以动词开头、可独立验证
     - 涉及契约变更时包含"在 packages/client 重新生成 SDK"任务项
     - 完成标准包含：在对应包目录通过 `bun typecheck` 与 oxlint
+    - 完成标准包含：检查未引入同类、冗余、无用代码（新增长期无人引用的导出、只被死代码使用的 import、data 从未被消费的查询通道），命中即在本 change 内清理或立案说明
   specs:
     - 用简体中文撰写
     - 只描述可验证行为，不写实现细节（文件路径、函数名留给 design）
@@ -57,6 +58,7 @@ operations:
   apply:
     guidance:
       - 每完成一组任务立即更新 tasks.md 勾选，不要最后一次性补
+      - 每完成一组任务自查同类、冗余、无用代码（新增导出是否被引用、查询通道的 data 是否被消费、import 是否只服务死代码）；发现既有死代码与当前改动相邻时顺手清理并在提交信息中说明
       - '提交时在 footer 中写入 `OpenSpec-Change: <change-id>`，非提案工作写 `OpenSpec-Change: none`'
       - 测试只能从具体包目录运行（如 packages/opennovel），不要从仓库根运行
       - 类型检查用 `bun typecheck`，不要直接调 tsc
