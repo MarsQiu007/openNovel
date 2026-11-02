@@ -69,7 +69,6 @@ describe("bootstrapDirectory", () => {
         permission: { list: async () => ({ data: [] }) },
         question: { list: async () => ({ data: [] }) },
         v2: {
-          agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
           command: {
             list: async () => {
               mcpReads.push("command")
@@ -118,7 +117,6 @@ describe("bootstrapDirectory", () => {
       permission: { list: async () => ({ data: [] }) },
       question: { list: async () => ({ data: [] }) },
       v2: {
-        agent: { list: async () => ({ data: { data: [{ id: "build", mode: "primary", hidden: false, permissions: [] }] } }) },
         command: { list: async () => ({ data: { data: [] } }) },
         reference: { list: async () => ({ data: { data: [] } }) },
         session: { active: async () => ({ data: { data: { ses_busy: true } } }), get: async () => ({ data: { data: null } }) },
