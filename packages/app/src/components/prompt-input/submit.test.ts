@@ -406,39 +406,6 @@ describe("prompt submit worktree selection", () => {
     })
   })
 
-  test("uses an injected model selection", async () => {
-    params = { id: "session-1" }
-    const model = {
-      current: () => ({ id: "draft-model", provider: { id: "draft-provider" } }),
-      variant: { current: () => "draft-variant" },
-    } as unknown as ModelSelection
-    const submit = createPromptSubmit({
-      prompt,
-      info: () => ({ id: "session-1" }),
-      imageAttachments: () => [],
-      commentCount: () => 0,
-      autoAccept: () => false,
-      mode: () => "normal",
-      working: () => false,
-      editor: () => undefined,
-      queueScroll: () => undefined,
-      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
-      addToHistory: () => undefined,
-      resetHistoryNavigation: () => undefined,
-      setMode: () => undefined,
-      setPopover: () => undefined,
-      model,
-    })
-
-    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
-
-    expect(optimistic[0]).toMatchObject({
-      message: {
-        model: { providerID: "draft-provider", modelID: "draft-model", variant: "draft-variant" },
-      },
-    })
-  })
-
   test("seeds new sessions before optimistic prompts are added", async () => {
     const submit = createPromptSubmit({
       prompt,

@@ -7,7 +7,7 @@ import type { PromptProjectControls } from "@/components/prompt-project-selector
 import { useDirectoryPicker } from "@/components/directory-picker"
 import { useGlobal } from "@/context/global"
 import { useLayout } from "@/context/layout"
-import { useLocal, type ModelSelection } from "@/context/local"
+import { useLocal } from "@/context/local"
 import type { QueryOptionsApi } from "@/context/server-sync"
 import { useServerSDK } from "@/context/server-sdk"
 import { serverName, ServerConnection, useServer } from "@/context/server"
@@ -21,7 +21,6 @@ export function createPromptInputController(input: {
   sessionKey: Accessor<string>
   sessionID: Accessor<string | undefined>
   queryOptions: Pick<QueryOptionsApi, "agents" | "providers">
-  model?: ModelSelection
 }) {
   const layout = useLayout()
   const local = useLocal()
@@ -43,7 +42,7 @@ export function createPromptInputController(input: {
       select: local.agent.set,
     },
     model: {
-      selection: input.model ?? local.model,
+      selection: local.model,
       paid: providers.paid().length > 0,
       loading: agentsQuery.isLoading || providersQuery.isLoading || globalProvidersQuery.isLoading,
     },
