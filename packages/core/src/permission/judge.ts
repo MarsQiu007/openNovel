@@ -16,12 +16,17 @@ import { SessionV2 } from "../session"
 export interface Input {
   readonly sessionID: SessionV2.ID
   readonly action: string
-  readonly resources: string[]
+  readonly resources: readonly string[]
   readonly metadata?: Record<string, unknown>
 }
 
+export interface Verdict {
+  readonly decision: Permission.Decision
+  readonly model: string
+}
+
 export interface Interface {
-  readonly judge: (input: Input) => Effect.Effect<Permission.Decision>
+  readonly judge: (input: Input) => Effect.Effect<Verdict>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/v2/PermissionJudge") {}
@@ -95,9 +100,12 @@ const layer = Layer.effect(
     const judge = Effect.fn("PermissionJudge.judge")(function* (input: Input) {
       const resolved = yield* resolve(input.sessionID).pipe(Effect.option)
       if (Option.isNone(resolved)) {
-        return Permission.Decision.make({ effect: "ask", reason: "裁判模型不可用" })
+        return {
+          decision: Permission.Decision.make({ effect: "ask", reason: "裁判模型不可用" }),
+          model: "unavailable",
+        }
       }
-      return yield* failClosed(
+      const decision = yield* failClosed(
         LLM.generateObject({
           model: resolved.value,
           system: SYSTEM,
@@ -109,6 +117,7 @@ const layer = Layer.effect(
           schema: Permission.Decision,
         }).pipe(Effect.map((response) => response.object)),
       )
+      return { decision, model: `${resolved.value.provider}/${resolved.value.id}` }
     })
 
     return Service.of({ judge })

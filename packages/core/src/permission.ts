@@ -6,9 +6,12 @@ import { Permission } from "@opennovel-ai/schema/permission"
 import { EventV2 } from "./event"
 import { Location } from "./location"
 import { AgentV2 } from "./agent"
+import { Config } from "./config"
 import { SessionV2 } from "./session"
 import { SessionStore } from "./session/store"
 import { Wildcard } from "./util/wildcard"
+import { PermissionJudge } from "./permission/judge"
+import { PermissionPolicy } from "./permission/policy"
 import { PermissionSaved } from "./permission/saved"
 
 export { Effect, Rule, Ruleset } from "@opennovel-ai/schema/permission"
@@ -112,6 +115,8 @@ const layer = Layer.effect(
     const events = yield* EventV2.Service
     const location = yield* Location.Service
     const agents = yield* AgentV2.Service
+    const config = yield* Config.Service
+    const judge = yield* PermissionJudge.Service
     const sessions = yield* SessionStore.Service
     const saved = yield* PermissionSaved.Service
     const pending = new Map<ID, Pending>()
@@ -134,16 +139,6 @@ const layer = Layer.effect(
       )
     })
 
-    const configured = EffectRuntime.fn("PermissionV2.configured")(function* (
-      sessionID: SessionV2.ID,
-      agentID?: AgentV2.ID,
-    ) {
-      const session = yield* sessions.get(sessionID)
-      if (!session) return yield* new SessionV2.NotFoundError({ sessionID })
-      const agent = yield* agents.resolve(agentID ?? session.agent)
-      return agent?.permissions ?? missingAgentPermissions
-    })
-
     function denied(input: AssertInput, rules: Permission.Ruleset) {
       return input.resources.some((resource) => evaluate(input.action, resource, rules).effect === "deny")
     }
@@ -152,14 +147,77 @@ const layer = Layer.effect(
       return rules.filter((rule) => Wildcard.match(input.action, rule.action))
     }
 
-    const evaluateInput = EffectRuntime.fnUntraced(function* (input: AssertInput) {
-      const rules = yield* configured(input.sessionID, input.agent)
-      if (denied(input, rules)) return { effect: "deny" as const, rules }
-      const all = [...rules, ...(yield* savedRules())]
-      const effects = input.resources.map((resource) => evaluate(input.action, resource, all).effect)
-      const effect: Permission.Effect = effects.includes("deny") ? "deny" : effects.includes("ask") ? "ask" : "allow"
-      return { effect, rules: all }
+    // agent 级裁判配置查找：最高优先级文档中该 agent 的 permission 段。
+    const agentPermissionConfig = (entries: readonly Config.Entry[], agentID: AgentV2.ID) => {
+      const document = entries.findLast(
+        (entry): entry is Config.Document =>
+          entry.type === "document" && entry.info.agents?.[agentID] !== undefined,
+      )
+      return document?.info.agents?.[agentID]?.permission
+    }
+
+    type Verdict =
+      | { outcome: "allow" }
+      | { outcome: "deny"; rules: Permission.Ruleset }
+      | { outcome: "correct"; feedback: string }
+      | { outcome: "ask" }
+
+    const configured = EffectRuntime.fnUntraced(function* (sessionID: SessionV2.ID, agent?: AgentV2.ID) {
+      const session = yield* sessions.get(sessionID)
+      if (!session) return yield* new SessionV2.NotFoundError({ sessionID })
+      return (yield* agents.resolve(agent ?? session.agent))?.permissions
     })
+
+    const evaluateInput: (input: AssertInput) => EffectRuntime.Effect<Verdict, SessionV2.NotFoundError> =
+      EffectRuntime.fnUntraced(function* (input: AssertInput) {
+        const session = yield* sessions.get(input.sessionID)
+        if (!session) return yield* new SessionV2.NotFoundError({ sessionID: input.sessionID })
+        const agent = yield* agents.resolve(input.agent ?? session.agent)
+        const rules = agent?.permissions ?? missingAgentPermissions
+        if (denied(input, rules)) return { outcome: "deny", rules }
+        const all = [...rules, ...(yield* savedRules())]
+        const effects = input.resources.map((resource) => evaluate(input.action, resource, all).effect)
+        const effect: Permission.Effect = effects.includes("deny") ? "deny" : effects.includes("ask") ? "ask" : "allow"
+        if (effect === "allow") return { outcome: "allow" }
+        // 显式 ask 规则大于默认表：规则命中的 ask 直接走人审，不进策略分流
+        const matched = all.some(
+          (rule) =>
+            Wildcard.match(input.action, rule.action) &&
+            input.resources.some((resource) => Wildcard.match(resource, rule.resource)),
+        )
+        if (matched) return { outcome: "ask" }
+        const entries = yield* config.entries()
+        const project = Config.latest(entries, "permission")
+        const agentConfig = agent?.id ? agentPermissionConfig(entries, agent.id) : undefined
+        if (PermissionPolicy.resolve(input.action, agentConfig, project) === "allow") return { outcome: "allow" }
+        const current = PermissionPolicy.mode(agentConfig, project)
+        if (current === "ask") return { outcome: "ask" }
+        const verdict = yield* judge.judge({
+          sessionID: input.sessionID,
+          action: input.action,
+          resources: input.resources,
+          metadata: input.metadata,
+        })
+        // 审计事件尽力而为：事件总线故障不阻断裁决链
+        yield* events
+          .publish(Event.Judged, {
+            sessionID: input.sessionID,
+            action: input.action,
+            resources: input.resources,
+            decision: verdict.decision.effect,
+            reason: verdict.decision.reason,
+            model: verdict.model,
+            mode: current,
+            source: input.source,
+          })
+          .pipe(EffectRuntime.catch(() => EffectRuntime.void))
+        // 影子模式双轨：裁判只记录不闸门，请求仍弹人审
+        if (current === "judge-shadow") return { outcome: "ask" }
+        if (verdict.decision.effect === "allow") return { outcome: "allow" }
+        if (verdict.decision.effect === "deny")
+          return { outcome: "correct", feedback: verdict.decision.reason ?? "裁判拒绝执行" }
+        return { outcome: "ask" }
+      })
 
     function request(input: AssertInput): Request {
       return {
@@ -190,20 +248,22 @@ const layer = Layer.effect(
     const ask = EffectRuntime.fn("PermissionV2.ask")(function* (input: AssertInput) {
       const result = yield* evaluateInput(input)
       const value = request(input)
-      if (result.effect === "ask") yield* create(value, input.agent)
-      return { id: value.id, effect: result.effect }
+      if (result.outcome === "ask") yield* create(value, input.agent)
+      const effect: Permission.Effect = result.outcome === "deny" || result.outcome === "correct" ? "deny" : result.outcome
+      return { id: value.id, effect }
     })
 
     const assert = EffectRuntime.fn("PermissionV2.assert")((input: AssertInput) =>
       EffectRuntime.uninterruptibleMask((restore) =>
         EffectRuntime.gen(function* () {
           const result = yield* evaluateInput(input)
-          if (result.effect === "deny") {
+          if (result.outcome === "deny") {
             return yield* new BlockedError({
               rules: relevant(input, result.rules),
             })
           }
-          if (result.effect === "allow") return
+          if (result.outcome === "correct") return yield* new CorrectedError({ feedback: result.feedback })
+          if (result.outcome === "allow") return
           const item = yield* create(request(input), input.agent)
           return yield* restore(Deferred.await(item.deferred)).pipe(
             EffectRuntime.catchTag("PermissionV2.DeclinedError", (error) => EffectRuntime.die(error)),
@@ -306,5 +366,5 @@ export const locationLayer = layer.pipe(Layer.provideMerge(AgentV2.locationLayer
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [EventV2.node, Location.node, AgentV2.node, SessionStore.node, PermissionSaved.node],
+  deps: [EventV2.node, Location.node, AgentV2.node, SessionStore.node, PermissionSaved.node, Config.node, PermissionJudge.node],
 })

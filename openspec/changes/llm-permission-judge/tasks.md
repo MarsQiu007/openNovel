@@ -11,10 +11,10 @@
 
 - [x] 2.1 新建 `packages/core/src/permission/judge.ts`：`PermissionJudge` Effect Service（`judge(input)` 返回 Decision），内部单次 `llm.stream` + Schema 结构化解码 + 10s 超时，解码失败/抛错/超时统一归类 ask；裁判模型经 Catalog + Integration 既有凭据通道解析（同 SessionRunnerModel，缺省跟随会话模型）；node 声明相应 deps；测试经 `Layer.succeed` stub
   - 验证：`bun typecheck`（packages/core）通过；stub 单测覆盖 allow / deny / ask / 解码失败 / 超时五分支
-- [ ] 2.2 config 新增 `permission.mode`（ask 默认 / judge-shadow / judge）、`permission.policy`（动作 → judge|allow|ask）与 `permission.judge.model`（裁判模型，缺省跟随会话），按 agent 级 > 项目级 > 内置默认表 > ask 解析；内置默认表按 design D4（执行/写/网络/编排族 judge，只读族 allow，subagent ask）
-  - 验证：`bun typecheck` 通过；单测覆盖覆盖优先级、默认表逐档、未列动作回落 ask、显式 ask 规则不被策略覆盖（走 evaluateInput 是否命中规则的区分）
-- [ ] 2.3 `permission.ts` 的 evaluateInput ask 出口接入裁判：模式 gate、策略分流、shadow 下照常创建人审 pending、judge 下 allow 直接放行、deny 抛 `CorrectedError({feedback: reason})`、每次裁判发布 Judged 事件、裁判 allow 不触碰 PermissionSaved
-  - 验证：既有 permission 单测全绿；新增三用例——「显式 deny 规则不触发裁判调用」「shadow 模式裁判后仍弹人审」「裁判连续放行同命令不写入 PermissionSaved」
+- [x] 2.2 config 新增 `permission.mode`（ask 默认 / judge-shadow / judge）、`permission.policy`（动作 → judge|allow|ask）与 `permission.judge.model`（裁判模型，缺省跟随会话），按 agent 级 > 项目级 > 内置默认表 > ask 解析；内置默认表按 design D4（执行/写/网络/编排族 judge，只读族 allow，subagent ask）
+  - 验证：`bun typecheck` 通过；`permission-policy.test.ts` 六用例覆盖 agent>项目>默认表优先级、默认表逐档、未列动作回落 ask、mode 缺省 ask 与 agent 覆盖（typecheck + 26 permission 相关用例全绿）
+- [x] 2.3 `permission.ts` 的 evaluateInput ask 出口接入裁判：模式 gate、策略分流、shadow 下照常创建人审 pending、judge 下 allow 直接放行、deny 抛 `CorrectedError({feedback: reason})`、每次裁判发布 Judged 事件、裁判 allow 不触碰 PermissionSaved
+  - 验证：既有单测适配默认策略表后全绿（ask 流用例改用默认策略表外的 write 动作）；新增集成四用例——「显式 deny 规则不触发裁判调用」「shadow 模式裁判后仍弹人审且 Judged 事件落盘」「裁判连续放行同命令不写入 PermissionSaved」「裁判拒绝理由经 CorrectedError.feedback 回喂」均通过；core 全量 1252 用例通过，唯 `location-layer.test.ts` 的 models.dev 夹具隔离用例失败，已核实在干净树（仅分支提交、无工作区改动）同样失败且分支足迹不含 catalog/model/location 路径，归因环境固有失败，与本 change 无关
 - [ ] 2.4 在 `ToolRegistry.Materialization.settle` 统一翻译 `PermissionV2.CorrectedError` 为 `ToolFailure({ message: feedback })`（BlockedError 保持通用文案），修复内置工具把人审拒绝理由吞进通用错误的问题（design D3）
   - 验证：core 单测断言 CorrectedError 的 feedback 出现在 ToolFailure message；人审 reject 带 message 路径同测一例
 

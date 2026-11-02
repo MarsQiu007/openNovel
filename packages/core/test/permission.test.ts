@@ -1,12 +1,14 @@
 import { describe, expect } from "bun:test"
-import { Cause, Deferred, Effect, Fiber, Layer } from "effect"
+import { Cause, Deferred, Effect, Fiber, Layer, Schema } from "effect"
 import { AgentV2 } from "@opennovel-ai/core/agent"
+import { Config } from "@opennovel-ai/core/config"
 import { Database } from "@opennovel-ai/core/database/database"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { Location } from "@opennovel-ai/core/location"
 import { PermissionV2 } from "@opennovel-ai/core/permission"
+import { PermissionJudge } from "@opennovel-ai/core/permission/judge"
 import { PermissionTable } from "@opennovel-ai/core/permission/sql"
 import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { Project } from "@opennovel-ai/core/project"
@@ -15,6 +17,7 @@ import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { SessionTable } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
+import { Permission } from "@opennovel-ai/schema/permission"
 import { eq } from "drizzle-orm"
 import { location } from "./fixture/location"
 import { testEffect } from "./lib/effect"
@@ -79,7 +82,7 @@ function assertion(input: Partial<PermissionV2.AssertInput> = {}) {
   return {
     id: PermissionV2.ID.create("per_test"),
     sessionID: SessionV2.ID.make("ses_test"),
-    action: "read",
+    action: "write",
     resources: ["src/index.ts"],
     ...input,
   } satisfies PermissionV2.AssertInput
@@ -105,11 +108,11 @@ function waitForRequest() {
 describe("PermissionV2", () => {
   it.effect("returns the evaluated effect and only queues prompts", () =>
     Effect.gen(function* () {
-      yield* setup([{ action: "read", resource: "*", effect: "allow" }])
+      yield* setup([{ action: "write", resource: "*", effect: "allow" }])
       const service = yield* PermissionV2.Service
       expect(yield* service.ask(assertion())).toEqual({ id: PermissionV2.ID.create("per_test"), effect: "allow" })
       expect(yield* service.list()).toEqual([])
-      yield* setRules([{ action: "read", resource: "*", effect: "deny" }])
+      yield* setRules([{ action: "write", resource: "*", effect: "deny" }])
       expect(yield* service.ask(assertion())).toEqual({ id: PermissionV2.ID.create("per_test"), effect: "deny" })
       expect(yield* service.list()).toEqual([])
       yield* setRules([])
@@ -120,11 +123,11 @@ describe("PermissionV2", () => {
 
   it.effect("evaluates against an explicit provider-turn agent", () =>
     Effect.gen(function* () {
-      yield* setup([{ action: "read", resource: "*", effect: "allow" }])
+      yield* setup([{ action: "write", resource: "*", effect: "allow" }])
       const agents = yield* AgentV2.Service
       yield* agents.transform((editor) =>
         editor.update(AgentV2.ID.make("reviewer"), (agent) => {
-          agent.permissions.push({ action: "read", resource: "*", effect: "deny" })
+          agent.permissions.push({ action: "write", resource: "*", effect: "deny" })
         }),
       )
       const service = yield* PermissionV2.Service
@@ -143,10 +146,10 @@ describe("PermissionV2", () => {
 
   it.effect("allows and denies from explicit rules without asking", () =>
     Effect.gen(function* () {
-      yield* setup([{ action: "read", resource: "*", effect: "allow" }])
+      yield* setup([{ action: "write", resource: "*", effect: "allow" }])
       const service = yield* PermissionV2.Service
       yield* service.assert(assertion())
-      yield* setRules([{ action: "read", resource: "*", effect: "deny" }])
+      yield* setRules([{ action: "write", resource: "*", effect: "deny" }])
       const blocked = yield* service.assert(assertion()).pipe(Effect.flip)
       expect(blocked).toBeInstanceOf(PermissionV2.BlockedError)
       expect(yield* service.list()).toEqual([])
@@ -161,7 +164,7 @@ describe("PermissionV2", () => {
       ])
       const service = yield* PermissionV2.Service
 
-      expect(yield* service.ask(assertion({ resources: ["tool_123"] }))).toMatchObject({ effect: "allow" })
+      expect(yield* service.ask(assertion({ action: "read", resources: ["tool_123"] }))).toMatchObject({ effect: "allow" })
       expect(
         yield* service.ask(assertion({ action: "external_directory", resources: ["/tmp/tool-output/*"] })),
       ).toMatchObject({ effect: "deny" })
@@ -303,13 +306,134 @@ describe("PermissionV2", () => {
       const { db } = yield* Database.Service
       expect(
         yield* db.select().from(PermissionTable).where(eq(PermissionTable.project_id, Project.ID.global)).all(),
-      ).toMatchObject([{ action: "read", resource: "src/*" }])
+      ).toMatchObject([{ action: "write", resource: "src/*" }])
       const saved = yield* PermissionSaved.Service
       const id = (yield* saved.list())[0]!.id
-      expect(yield* saved.list()).toEqual([{ id, projectID: Project.ID.global, action: "read", resource: "src/*" }])
+      expect(yield* saved.list()).toEqual([{ id, projectID: Project.ID.global, action: "write", resource: "src/*" }])
       yield* service.assert(assertion({ id: PermissionV2.ID.create("per_next"), resources: ["src/next.ts"] }))
       yield* saved.remove(id)
       expect(yield* saved.list()).toEqual([])
+    }),
+  )
+})
+
+describe("PermissionV2 judge integration", () => {
+  const decode = Schema.decodeUnknownSync(Config.Info)
+  // 用可变桩替代节点：provideService 无法穿透已构建的 PermissionV2 层内捕获的配置/裁判实例
+  const state: {
+    mode: "ask" | "judge" | "judge-shadow"
+    judge: PermissionJudge.Interface["judge"]
+    calls: number
+  } = {
+    mode: "ask",
+    judge: () => Effect.succeed({ decision: Permission.Decision.make({ effect: "ask" }), model: "stub" }),
+    calls: 0,
+  }
+  const configNode = Layer.succeed(
+    Config.Service,
+    Config.Service.of({
+      entries: () =>
+        Effect.succeed(
+          state.mode === "ask"
+            ? []
+            : [new Config.Document({ type: "document", info: decode({ permission: { mode: state.mode } }) })],
+        ),
+    }),
+  )
+  const judgeNode = Layer.succeed(
+    PermissionJudge.Service,
+    PermissionJudge.Service.of({
+      judge: (input) => {
+        state.calls++
+        return state.judge(input)
+      },
+    }),
+  )
+  const itJudge = testEffect(
+    AppNodeBuilder.build(
+      LayerNode.group([
+        Database.node,
+        EventV2.node,
+        SessionStore.node,
+        PermissionSaved.node,
+        AgentV2.node,
+        PermissionV2.node,
+      ]),
+      [
+        [Location.node, current],
+        [Config.node, configNode],
+        [PermissionJudge.node, judgeNode],
+      ],
+    ),
+  )
+
+  const judgeGiving = (effect: Permission.Effect, reason?: string): PermissionJudge.Interface["judge"] => () =>
+    Effect.succeed({ decision: Permission.Decision.make({ effect, reason }), model: "stub" })
+
+  itJudge.effect("skips the judge when an explicit deny rule matches", () =>
+    Effect.gen(function* () {
+      state.mode = "judge"
+      state.calls = 0
+      state.judge = judgeGiving("allow")
+      yield* setup([{ action: "bash", resource: "*", effect: "deny" }])
+      const service = yield* PermissionV2.Service
+      const result = yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))
+      expect(result.effect).toBe("deny")
+      expect(state.calls).toBe(0)
+    }),
+  )
+
+  itJudge.effect("still asks a human in shadow mode while recording the judged event", () =>
+    Effect.gen(function* () {
+      state.mode = "judge-shadow"
+      state.calls = 0
+      state.judge = judgeGiving("allow")
+      yield* setup()
+      const events = yield* EventV2.Service
+      const judged = yield* Deferred.make<{ decision: string; model: string; mode: string }>()
+      const unsubscribe = yield* events.listen((event) =>
+        event.type === PermissionV2.Event.Judged.type
+          ? Deferred.succeed(judged, event.data as { decision: string; model: string; mode: string }).pipe(
+              Effect.asVoid,
+            )
+          : Effect.void,
+      )
+      yield* Effect.addFinalizer(() => unsubscribe)
+      const service = yield* PermissionV2.Service
+      const result = yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))
+      expect(result.effect).toBe("ask")
+      expect(state.calls).toBe(1)
+      expect(yield* Deferred.await(judged)).toMatchObject({ decision: "allow", model: "stub", mode: "judge-shadow" })
+      expect(yield* service.get(result.id)).toBeDefined()
+    }),
+  )
+
+  itJudge.effect("allows consecutive judge approvals without persisting to PermissionSaved", () =>
+    Effect.gen(function* () {
+      state.mode = "judge"
+      state.calls = 0
+      state.judge = judgeGiving("allow")
+      yield* setup()
+      const service = yield* PermissionV2.Service
+      yield* service.assert(assertion({ action: "bash", resources: ["pwd"] }))
+      yield* service.assert(assertion({ action: "bash", resources: ["pwd"] }))
+      expect(state.calls).toBe(2)
+      expect(yield* service.list()).toEqual([])
+      const saved = yield* PermissionSaved.Service
+      expect(yield* saved.list()).toEqual([])
+    }),
+  )
+
+  itJudge.effect("feeds the judge denial reason back as CorrectedError feedback", () =>
+    Effect.gen(function* () {
+      state.mode = "judge"
+      state.calls = 0
+      state.judge = judgeGiving("deny", "会删除工程目录")
+      yield* setup()
+      const service = yield* PermissionV2.Service
+      const error = yield* service.assert(assertion({ action: "bash", resources: ["rm -rf ."] })).pipe(Effect.flip)
+      if (!(error instanceof PermissionV2.CorrectedError)) throw new Error("expected CorrectedError")
+      expect(error.feedback).toBe("会删除工程目录")
     }),
   )
 })

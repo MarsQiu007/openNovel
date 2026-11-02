@@ -44,13 +44,19 @@ describe("PermissionJudge.layerWith", () => {
       })
     }).pipe(Effect.provide(PermissionJudge.layerWith(judge)))
 
+  const verdict = (effect: Permission.Effect, reason?: string): PermissionJudge.Verdict => ({
+    decision: decision(effect, reason),
+    model: "stub",
+  })
+
   test("stub 放行原样返回", async () => {
-    const result = await Effect.runPromise(run(() => Effect.succeed(decision("allow"))))
-    expect(result.effect).toBe("allow")
+    const result = await Effect.runPromise(run(() => Effect.succeed(verdict("allow"))))
+    expect(result.decision.effect).toBe("allow")
+    expect(result.model).toBe("stub")
   })
 
   test("stub 拒绝带理由返回", async () => {
-    const result = await Effect.runPromise(run(() => Effect.succeed(decision("deny", "会删除工程目录"))))
-    expect(result).toEqual(decision("deny", "会删除工程目录"))
+    const result = await Effect.runPromise(run(() => Effect.succeed(verdict("deny", "会删除工程目录"))))
+    expect(result.decision).toEqual(decision("deny", "会删除工程目录"))
   })
 })
