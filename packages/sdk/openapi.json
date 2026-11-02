@@ -26453,6 +26453,9 @@
             "$ref": "#/components/schemas/EventPermissionV2Replied"
           },
           {
+            "$ref": "#/components/schemas/EventPermissionV2Judged"
+          },
+          {
             "$ref": "#/components/schemas/EventPluginAdded"
           },
           {
@@ -28537,6 +28540,56 @@
                       }
                     },
                     "required": ["sessionID", "requestID", "reply"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["id", "type", "properties"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^evt_"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["permission.v2.judged"]
+                  },
+                  "properties": {
+                    "type": "object",
+                    "properties": {
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "resources": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "decision": {
+                        "$ref": "#/components/schemas/PermissionV2Effect"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "model": {
+                        "type": "string"
+                      },
+                      "mode": {
+                        "$ref": "#/components/schemas/PermissionV2JudgeMode"
+                      },
+                      "source": {
+                        "$ref": "#/components/schemas/PermissionV2Source"
+                      }
+                    },
+                    "required": ["sessionID", "action", "resources", "decision", "model", "mode"],
                     "additionalProperties": false
                   }
                 },
@@ -32380,6 +32433,9 @@
             "$ref": "#/components/schemas/PermissionV2Replied"
           },
           {
+            "$ref": "#/components/schemas/PermissionV2Judged"
+          },
+          {
             "$ref": "#/components/schemas/PluginAdded"
           },
           {
@@ -33122,6 +33178,10 @@
       "PermissionV2Reply": {
         "type": "string",
         "enum": ["once", "always", "reject"]
+      },
+      "PermissionV2JudgeMode": {
+        "type": "string",
+        "enum": ["judge-shadow", "judge"]
       },
       "QuestionV2Option": {
         "type": "object",
@@ -39785,6 +39845,78 @@
               }
             },
             "required": ["sessionID", "requestID", "reply"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "data"],
+        "additionalProperties": false
+      },
+      "PermissionV2Judged": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["permission.v2.judged"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "action": {
+                "type": "string"
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "decision": {
+                "$ref": "#/components/schemas/PermissionV2Effect"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "mode": {
+                "$ref": "#/components/schemas/PermissionV2JudgeMode"
+              },
+              "source": {
+                "$ref": "#/components/schemas/PermissionV2Source"
+              }
+            },
+            "required": ["sessionID", "action", "resources", "decision", "model", "mode"],
             "additionalProperties": false
           }
         },
@@ -47570,6 +47702,56 @@
               }
             },
             "required": ["sessionID", "requestID", "reply"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventPermissionV2Judged": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["permission.v2.judged"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "action": {
+                "type": "string"
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "decision": {
+                "$ref": "#/components/schemas/PermissionV2Effect"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "mode": {
+                "$ref": "#/components/schemas/PermissionV2JudgeMode"
+              },
+              "source": {
+                "$ref": "#/components/schemas/PermissionV2Source"
+              }
+            },
+            "required": ["sessionID", "action", "resources", "decision", "model", "mode"],
             "additionalProperties": false
           }
         },

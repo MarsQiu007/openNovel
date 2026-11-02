@@ -8,9 +8,9 @@ import { WorkspaceEvent } from "../src/workspace-event"
 
 describe("public event manifest", () => {
   test("owns the complete public event surface", () => {
-    expect(EventManifest.ServerDefinitions.length).toBe(54)
-    expect(EventManifest.Definitions.length).toBe(75)
-    expect(EventManifest.Latest.size).toBe(75)
+    expect(EventManifest.ServerDefinitions.length).toBe(55)
+    expect(EventManifest.Definitions.length).toBe(76)
+    expect(EventManifest.Latest.size).toBe(76)
     expect(EventManifest.Durable.size).toBe(31)
   })
 
@@ -25,7 +25,7 @@ describe("public event manifest", () => {
     expect(Project.Event.Definitions).toEqual([Project.Event.Updated])
     expect(FileSystem.Event.Definitions).toEqual([FileSystem.Event.Edited])
     expect(Integration.Event.Definitions).toEqual([Integration.Event.Updated, Integration.Event.ConnectionUpdated])
-    expect(Permission.Event.Definitions).toEqual([Permission.Event.Asked, Permission.Event.Replied])
+    expect(Permission.Event.Definitions).toEqual([Permission.Event.Asked, Permission.Event.Replied, Permission.Event.Judged])
     expect(Reference.Event.Definitions).toEqual([Reference.Event.Updated])
     expect(EventManifest.Latest.has("ide.installed")).toBe(false)
     expect(IdeEvent.Definitions).toEqual([IdeEvent.Installed])

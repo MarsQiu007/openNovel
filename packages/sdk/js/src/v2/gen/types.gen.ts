@@ -50,6 +50,7 @@ export type Event =
   | EventReferenceUpdated
   | EventPermissionV2Asked
   | EventPermissionV2Replied
+  | EventPermissionV2Judged
   | EventPluginAdded
   | EventProjectDirectoriesUpdated
   | EventFileWatcherUpdated
@@ -674,6 +675,20 @@ export type GlobalEvent = {
           sessionID: string
           requestID: string
           reply: PermissionV2Reply
+        }
+      }
+    | {
+        id: string
+        type: "permission.v2.judged"
+        properties: {
+          sessionID: string
+          action: string
+          resources: Array<string>
+          decision: PermissionV2Effect
+          reason?: string
+          model: string
+          mode: PermissionV2JudgeMode
+          source?: PermissionV2Source
         }
       }
     | {
@@ -1959,6 +1974,7 @@ export type V2Event =
   | ReferenceUpdated
   | PermissionV2Asked
   | PermissionV2Replied
+  | PermissionV2Judged
   | PluginAdded
   | ProjectDirectoriesUpdated
   | FileWatcherUpdated
@@ -2215,6 +2231,8 @@ export type PermissionV2Source = {
 }
 
 export type PermissionV2Reply = "once" | "always" | "reject"
+
+export type PermissionV2JudgeMode = "judge-shadow" | "judge"
 
 export type QuestionV2Option = {
   /**
@@ -4394,6 +4412,30 @@ export type PermissionV2Replied = {
     sessionID: string
     requestID: string
     reply: PermissionV2Reply
+  }
+}
+
+export type PermissionV2Judged = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "permission.v2.judged"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    action: string
+    resources: Array<string>
+    decision: PermissionV2Effect
+    reason?: string
+    model: string
+    mode: PermissionV2JudgeMode
+    source?: PermissionV2Source
   }
 }
 
@@ -6856,6 +6898,21 @@ export type EventPermissionV2Replied = {
     sessionID: string
     requestID: string
     reply: PermissionV2Reply
+  }
+}
+
+export type EventPermissionV2Judged = {
+  id: string
+  type: "permission.v2.judged"
+  properties: {
+    sessionID: string
+    action: string
+    resources: Array<string>
+    decision: PermissionV2Effect
+    reason?: string
+    model: string
+    mode: PermissionV2JudgeMode
+    source?: PermissionV2Source
   }
 }
 

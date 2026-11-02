@@ -40,6 +40,20 @@ export interface Request extends Schema.Schema.Type<typeof Request> {}
 export const Reply = Schema.Literals(["once", "always", "reject"]).annotate({ identifier: "PermissionV2.Reply" })
 export type Reply = typeof Reply.Type
 
+export const Effect = Schema.Literals(["allow", "deny", "ask"]).annotate({ identifier: "PermissionV2.Effect" })
+export type Effect = typeof Effect.Type
+
+export const Decision = Schema.Struct({
+  effect: Effect,
+  reason: Schema.String.pipe(optional),
+}).annotate({ identifier: "PermissionV2.Decision" })
+export interface Decision extends Schema.Schema.Type<typeof Decision> {}
+
+export const JudgeMode = Schema.Literals(["judge-shadow", "judge"]).annotate({
+  identifier: "PermissionV2.JudgeMode",
+})
+export type JudgeMode = typeof JudgeMode.Type
+
 const Asked = define({ type: "permission.v2.asked", schema: Request.fields })
 const Replied = define({
   type: "permission.v2.replied",
@@ -49,10 +63,20 @@ const Replied = define({
     reply: Reply,
   },
 })
-export const Event = { Asked, Replied, Definitions: inventory(Asked, Replied) }
-
-export const Effect = Schema.Literals(["allow", "deny", "ask"]).annotate({ identifier: "PermissionV2.Effect" })
-export type Effect = typeof Effect.Type
+const Judged = define({
+  type: "permission.v2.judged",
+  schema: {
+    sessionID: SessionID,
+    action: Schema.String,
+    resources: Schema.Array(Schema.String),
+    decision: Effect,
+    reason: Schema.String.pipe(optional),
+    model: Schema.String,
+    mode: JudgeMode,
+    source: Source.pipe(optional),
+  },
+})
+export const Event = { Asked, Replied, Judged, Definitions: inventory(Asked, Replied, Judged) }
 
 export interface Rule extends Schema.Schema.Type<typeof Rule> {}
 export const Rule = Schema.Struct({
