@@ -9,7 +9,7 @@
 
 ## 2. Core 裁判服务与策略接入
 
-- [ ] 2.1 新建 `packages/core/src/permission/judge.ts`：`PermissionJudge` Effect Service（`judge(input)` 返回 Decision），内部单次 `llm.stream` + Schema 结构化解码 + 10s 超时，解码失败/抛错/超时统一归类 ask；裁判模型经 Catalog + Integration 既有凭据通道解析（同 SessionRunnerModel，缺省跟随会话模型）；node 声明相应 deps；测试经 `Layer.succeed` stub
+- [x] 2.1 新建 `packages/core/src/permission/judge.ts`：`PermissionJudge` Effect Service（`judge(input)` 返回 Decision），内部单次 `llm.stream` + Schema 结构化解码 + 10s 超时，解码失败/抛错/超时统一归类 ask；裁判模型经 Catalog + Integration 既有凭据通道解析（同 SessionRunnerModel，缺省跟随会话模型）；node 声明相应 deps；测试经 `Layer.succeed` stub
   - 验证：`bun typecheck`（packages/core）通过；stub 单测覆盖 allow / deny / ask / 解码失败 / 超时五分支
 - [ ] 2.2 config 新增 `permission.mode`（ask 默认 / judge-shadow / judge）、`permission.policy`（动作 → judge|allow|ask）与 `permission.judge.model`（裁判模型，缺省跟随会话），按 agent 级 > 项目级 > 内置默认表 > ask 解析；内置默认表按 design D4（执行/写/网络/编排族 judge，只读族 allow，subagent ask）
   - 验证：`bun typecheck` 通过；单测覆盖覆盖优先级、默认表逐档、未列动作回落 ask、显式 ask 规则不被策略覆盖（走 evaluateInput 是否命中规则的区分）
