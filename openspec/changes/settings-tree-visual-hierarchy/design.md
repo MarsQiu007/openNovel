@@ -39,6 +39,10 @@ spec `setting-center-tree` 现有条款只约束信息架构与交互（三节�
 
 中文语境下 `uppercase tracking-wider` 无效果且拉大字距；板块头改为 `text-xs font-semibold` + muted 色（保留现有），分类组从 uppercase 12px 改为 `text-sm` 常规 + folder 图标区分（图标已承担「这是组」的语义）。仅样式调整，不改收纳行为与 aria。
 
+### D7: 板块模块化容器（实现迭代，来自目测反馈）
+
+三个一级板块各包为独立容器：`rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01`，容器间距 gap-2，容器内节点区 `px-1 pb-1` 让行高亮不贴边。板块头呈现语义图标（书籍内容 `book` / AI 设定 `settings-gear` / 角色 `user`）+ hover 背景；折叠态容器仅剩头部行（头部整行圆角），展开态头部圆角只开顶部——展开/收纳两态对比一目了然。全树 chevron 统一为 `chevron-right` 旋转 90° 的动画切换（`transition-transform duration-150`），替代图标硬切，强化展开/收纳感知。引导线槽与控件列在容器内继续工作，容器边框不截断槽结构。
+
 ## Risks / Trade-offs
 
 - [行密度上升，视觉更「重」] → 引导线用最浅 border token，图标 muted 色；如仍嫌重，引导线只在 depth ≥ 1 的行渲染（实现时目测定）

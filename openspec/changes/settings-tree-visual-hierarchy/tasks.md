@@ -10,6 +10,7 @@
 - [x] 2.2 实现逐级引导线（D1：相对定位容器 + 绝对定位 1px 竖线，位置由 depth 推导，token 取最浅 border 系）。验证：展开「世界观条目 > 某分类 > 条目」三层后，条目行存在与分类连接的可见引导线
 - [x] 2.3 选中/悬停状态分离（D4：选中 = accent 左侧 2px 指示条 + 微色块；悬停 = 浅灰），板块头与分类组按 D6 去 uppercase 改字重分层；保留 badge、faded、搜索展开、新建入口行为不变。验证：选中 A 悬停 B 时两者外观可区分；搜索过滤、收纳切换、待办徽标、退场角色灰显行为与改动前一致
 - [x] 2.4 确认既有测试不受行结构重构影响：`settings-node.test.ts` 只覆盖 `settings-node.ts` 纯函数（已核实）；e2e 探针按 `data-slot` 容器 + 节点按钮可访问名称定位（已核实），重构保留锚点即可。验证：`packages/app` 下 `bun test` 相关套件通过
+- [x] 2.5 板块模块化：三节各包为边框容器（bg-layer-01 + border-base + rounded-lg），板块头加语义图标（书籍内容 `book` / AI 设定 `settings-gear` / 角色 `user`）与 hover 背景，板块与分类 chevron 改旋转动画强化展开/收纳感知。验证：`packages/app` 下 `bun typecheck` 通过；折叠板块呈容器头部态、展开呈完整容器态，切换过渡平滑
 
 ## 3. 验收
 

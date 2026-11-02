@@ -13,7 +13,13 @@
  */
 import { type Accessor, createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
-import { useCreateWorldEntry, useCharacters, useMemoryFactCounts, useReviewInboxCounts, useWorldEntries } from "@/context/novel-queries"
+import {
+  useCreateWorldEntry,
+  useCharacters,
+  useMemoryFactCounts,
+  useReviewInboxCounts,
+  useWorldEntries,
+} from "@/context/novel-queries"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { Icon, type IconProps } from "@opennovel-ai/ui/icon"
 import { Spinner } from "@opennovel-ai/ui/spinner"
@@ -71,29 +77,22 @@ export function SettingsTree(props: SettingsTreeProps) {
     const data = charactersQuery.data ?? []
     const q = search().trim().toLowerCase()
     if (!q) return data
-    return data.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q),
-    )
+    return data.filter((c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q))
   })
 
-  const sectionCollapsed = (key: string) =>
-    searching() ? false : props.collapsedSections().includes(key)
+  const sectionCollapsed = (key: string) => (searching() ? false : props.collapsedSections().includes(key))
   const groupCollapsed = (key: string) => collapsedGroups().includes(key)
 
   const toggleGroup = (key: string) => {
-    setCollapsedGroups((list) =>
-      list.includes(key) ? list.filter((k) => k !== key) : [...list, key],
-    )
+    setCollapsedGroups((list) => (list.includes(key) ? list.filter((k) => k !== key) : [...list, key]))
   }
 
   const isSelected = (node: SettingsNode) => {
     const current = props.selectedNode()
     if (!current) return false
     if (current.kind !== node.kind) return false
-    if (node.kind === "world-entry" && current.kind === "world-entry")
-      return current.entryId === node.entryId
-    if (node.kind === "character" && current.kind === "character")
-      return current.characterId === node.characterId
+    if (node.kind === "world-entry" && current.kind === "world-entry") return current.entryId === node.entryId
+    if (node.kind === "character" && current.kind === "character") return current.characterId === node.characterId
     return true
   }
 
@@ -124,7 +123,7 @@ export function SettingsTree(props: SettingsTreeProps) {
   }
 
   return (
-    <div class="flex flex-col gap-1 py-2" data-slot="settings-tree">
+    <div class="flex flex-col gap-2 py-2" data-slot="settings-tree">
       <Show when={worldQuery.isLoading || charactersQuery.isLoading}>
         <div class="flex items-center justify-center py-8">
           <Spinner class="w-5 h-5 text-v2-text-text-muted" />
@@ -153,210 +152,223 @@ export function SettingsTree(props: SettingsTreeProps) {
 
       {/* —— 书籍内容 —— */}
       <Show when={!searchEmpty()}>
-        <SectionHeader
-          title={language.t("novel.settings.tree.sectionBookContent")}
-          collapsed={sectionCollapsed("book-content")}
-          onToggle={() => props.onToggleSection("book-content")}
-        />
-        <Show when={!sectionCollapsed("book-content")}>
-          <NodeRow
-            label={language.t("novel.settings.tree.bookInfo")}
+        <section class="rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01">
+          <SectionHeader
             icon="book"
-            active={isSelected({ kind: "book-info" })}
-            onClick={() => props.onSelect({ kind: "book-info" })}
-            depth={1}
+            title={language.t("novel.settings.tree.sectionBookContent")}
+            collapsed={sectionCollapsed("book-content")}
+            onToggle={() => props.onToggleSection("book-content")}
           />
-          {/* 世界观条目 root 节点：选中 → 中央区「列表 / 地图」；chevron 单独收纳分类子树 */}
-          <Show when={hasEntryHits() || !searching()}>
-            <WorldRootRow
-              selected={isSelected({ kind: "world" })}
-              onSelect={() => props.onSelect({ kind: "world" })}
-              collapsed={groupCollapsed("world-entries")}
-              searching={searching()}
-              onToggle={() => toggleGroup("world-entries")}
-              toggleLabel={language.t("novel.settings.tree.toggleWorldEntries")}
-              label={language.t("novel.settings.tree.worldEntries")}
-              addAction={() => {
-                // 分组收纳时先展开，保证内联表单可见
-                if (!searching() && groupCollapsed("world-entries")) toggleGroup("world-entries")
-                setIsAddingEntry(!isAddingEntry())
-              }}
-            />
-            <Show when={!groupCollapsed("world-entries")}>
-              <Show when={isAddingEntry()}>
-                <div class="mx-4 my-1 flex flex-col gap-2 rounded border border-v2-border-border-base bg-v2-background-bg-layer-01 p-2">
-                  <TextInputV2
-                    value={newCategory()}
-                    onInput={(e) => setNewCategory(e.currentTarget.value)}
-                    placeholder={language.t("novel.panel.world.category")}
-                    fluid
-                  />
-                  <TextInputV2
-                    value={newTitle()}
-                    onInput={(e) => setNewTitle(e.currentTarget.value)}
-                    placeholder={language.t("novel.panel.world.title")}
-                    fluid
-                  />
-                  <TextareaV2
-                    fluid
-                    value={newContent()}
-                    onInput={(e) => setNewContent(e.currentTarget.value)}
-                    placeholder={language.t("novel.panel.world.content")}
-                    rows={3}
-                  />
-                  <div class="flex gap-2">
-                    <ButtonV2
-                      type="button"
-                      variant="contrast"
-                      size="small"
-                      disabled={createWorld.isPending || !newTitle().trim()}
-                      onClick={() => void submitNewEntry()}
-                    >
-                      {language.t("novel.panel.world.add")}
-                    </ButtonV2>
-                    <ButtonV2 type="button" variant="ghost-muted" size="small" onClick={resetNewEntry}>
-                      ✕
-                    </ButtonV2>
-                  </div>
-                </div>
+          <Show when={!sectionCollapsed("book-content")}>
+            <div class="px-1 pb-1">
+              <NodeRow
+                label={language.t("novel.settings.tree.bookInfo")}
+                icon="book"
+                active={isSelected({ kind: "book-info" })}
+                onClick={() => props.onSelect({ kind: "book-info" })}
+                depth={1}
+              />
+              {/* 世界观条目 root 节点：选中 → 中央区「列表 / 地图」；chevron 单独收纳分类子树 */}
+              <Show when={hasEntryHits() || !searching()}>
+                <WorldRootRow
+                  selected={isSelected({ kind: "world" })}
+                  onSelect={() => props.onSelect({ kind: "world" })}
+                  collapsed={groupCollapsed("world-entries")}
+                  searching={searching()}
+                  onToggle={() => toggleGroup("world-entries")}
+                  toggleLabel={language.t("novel.settings.tree.toggleWorldEntries")}
+                  label={language.t("novel.settings.tree.worldEntries")}
+                  addAction={() => {
+                    // 分组收纳时先展开，保证内联表单可见
+                    if (!searching() && groupCollapsed("world-entries")) toggleGroup("world-entries")
+                    setIsAddingEntry(!isAddingEntry())
+                  }}
+                />
+                <Show when={!groupCollapsed("world-entries")}>
+                  <Show when={isAddingEntry()}>
+                    <div class="mx-4 my-1 flex flex-col gap-2 rounded border border-v2-border-border-base bg-v2-background-bg-layer-01 p-2">
+                      <TextInputV2
+                        value={newCategory()}
+                        onInput={(e) => setNewCategory(e.currentTarget.value)}
+                        placeholder={language.t("novel.panel.world.category")}
+                        fluid
+                      />
+                      <TextInputV2
+                        value={newTitle()}
+                        onInput={(e) => setNewTitle(e.currentTarget.value)}
+                        placeholder={language.t("novel.panel.world.title")}
+                        fluid
+                      />
+                      <TextareaV2
+                        fluid
+                        value={newContent()}
+                        onInput={(e) => setNewContent(e.currentTarget.value)}
+                        placeholder={language.t("novel.panel.world.content")}
+                        rows={3}
+                      />
+                      <div class="flex gap-2">
+                        <ButtonV2
+                          type="button"
+                          variant="contrast"
+                          size="small"
+                          disabled={createWorld.isPending || !newTitle().trim()}
+                          onClick={() => void submitNewEntry()}
+                        >
+                          {language.t("novel.panel.world.add")}
+                        </ButtonV2>
+                        <ButtonV2 type="button" variant="ghost-muted" size="small" onClick={resetNewEntry}>
+                          ✕
+                        </ButtonV2>
+                      </div>
+                    </div>
+                  </Show>
+                  <Show
+                    when={groupedEntries().size > 0}
+                    fallback={
+                      <Show when={!worldQuery.isLoading}>
+                        <p class="text-xs text-v2-text-text-muted px-6 py-2">{language.t("novel.panel.world.empty")}</p>
+                      </Show>
+                    }
+                  >
+                    <For each={Array.from(groupedEntries().entries())}>
+                      {([category, entries]) => {
+                        const groupKey = `cat:${category}`
+                        return (
+                          <>
+                            <GroupRow
+                              label={`${category} (${entries.length})`}
+                              collapsed={!searching() && groupCollapsed(groupKey)}
+                              onToggle={() => toggleGroup(groupKey)}
+                              depth={2}
+                            />
+                            <Show when={!groupCollapsed(groupKey)}>
+                              <For each={entries}>
+                                {(entry) => (
+                                  <NodeRow
+                                    label={entry.title}
+                                    icon="map"
+                                    active={isSelected({ kind: "world-entry", entryId: entry.id })}
+                                    onClick={() => props.onSelect({ kind: "world-entry", entryId: entry.id })}
+                                    depth={3}
+                                  />
+                                )}
+                              </For>
+                            </Show>
+                          </>
+                        )
+                      }}
+                    </For>
+                  </Show>
+                </Show>
+              </Show>
+              <NodeRow
+                label={language.t("novel.settings.tree.foreshadow")}
+                icon="zap"
+                active={isSelected({ kind: "foreshadow" })}
+                onClick={() => props.onSelect({ kind: "foreshadow" })}
+                depth={1}
+              />
+            </div>
+          </Show>
+        </section>
+
+        {/* —— AI 设定 —— */}
+        <section class="rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01">
+          <SectionHeader
+            icon="settings-gear"
+            title={language.t("novel.settings.tree.sectionAiSettings")}
+            collapsed={sectionCollapsed("ai-settings")}
+            onToggle={() => props.onToggleSection("ai-settings")}
+          />
+          <Show when={!sectionCollapsed("ai-settings")}>
+            <div class="px-1 pb-1">
+              <NodeRow
+                label={language.t("novel.settings.tree.style")}
+                icon="pencil-line"
+                active={isSelected({ kind: "style" })}
+                onClick={() => props.onSelect({ kind: "style" })}
+                depth={1}
+              />
+              <NodeRow
+                label={language.t("novel.settings.tree.soul")}
+                icon="fire"
+                active={isSelected({ kind: "soul" })}
+                onClick={() => props.onSelect({ kind: "soul" })}
+                depth={1}
+              />
+              <NodeRow
+                label={language.t("novel.settings.tree.techniques")}
+                icon="library"
+                active={isSelected({ kind: "techniques" })}
+                onClick={() => props.onSelect({ kind: "techniques" })}
+                depth={1}
+              />
+              <NodeRow
+                label={language.t("novel.settings.tree.organization")}
+                icon="checklist"
+                active={isSelected({ kind: "organization" })}
+                onClick={() => props.onSelect({ kind: "organization" })}
+                depth={1}
+                badge={inboxCounts.data?.total}
+              />
+              <NodeRow
+                label={language.t("novel.settings.tree.memory")}
+                icon="brain"
+                active={isSelected({ kind: "memory" })}
+                onClick={() => props.onSelect({ kind: "memory" })}
+                depth={1}
+                badge={memoryCounts.data?.total}
+              />
+            </div>
+          </Show>
+        </section>
+
+        {/* —— 角色 —— */}
+        <section class="rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01">
+          <SectionHeader
+            icon="user"
+            title={language.t("novel.settings.tree.sectionCharacters")}
+            collapsed={sectionCollapsed("characters")}
+            onToggle={() => props.onToggleSection("characters")}
+          />
+          <Show when={!sectionCollapsed("characters")}>
+            <div class="px-1 pb-1">
+              {/* 角色板块 root 节点：选中 → 中央区「列表 / 关系图」 */}
+              <Show when={hasCharacterHits() || !searching()}>
+                <NodeRow
+                  label={language.t("novel.settings.tree.characterList")}
+                  icon="user"
+                  active={isSelected({ kind: "characters" })}
+                  onClick={() => props.onSelect({ kind: "characters" })}
+                  depth={1}
+                />
               </Show>
               <Show
-                when={groupedEntries().size > 0}
+                when={filteredCharacters().length > 0}
                 fallback={
-                  <Show when={!worldQuery.isLoading}>
+                  <Show when={!charactersQuery.isLoading}>
                     <p class="text-xs text-v2-text-text-muted px-6 py-2">
-                      {language.t("novel.panel.world.empty")}
+                      {language.t("novel.panel.characters.empty")}
                     </p>
                   </Show>
                 }
               >
-                <For each={Array.from(groupedEntries().entries())}>
-                  {([category, entries]) => {
-                    const groupKey = `cat:${category}`
-                    return (
-                      <>
-                        <GroupRow
-                          label={`${category} (${entries.length})`}
-                          collapsed={!searching() && groupCollapsed(groupKey)}
-                          onToggle={() => toggleGroup(groupKey)}
-                          depth={2}
-                        />
-                        <Show when={!groupCollapsed(groupKey)}>
-                          <For each={entries}>
-                            {(entry) => (
-                              <NodeRow
-                                label={entry.title}
-                                icon="map"
-                                active={isSelected({ kind: "world-entry", entryId: entry.id })}
-                                onClick={() => props.onSelect({ kind: "world-entry", entryId: entry.id })}
-                                depth={3}
-                              />
-                            )}
-                          </For>
-                        </Show>
-                      </>
-                    )
-                  }}
+                <For each={filteredCharacters()}>
+                  {(character) => (
+                    <NodeRow
+                      label={character.name}
+                      icon="user"
+                      active={isSelected({ kind: "character", characterId: character.id })}
+                      onClick={() => props.onSelect({ kind: "character", characterId: character.id })}
+                      depth={2}
+                      faded={character.status === "departed"}
+                    />
+                  )}
                 </For>
               </Show>
-            </Show>
+            </div>
           </Show>
-          <NodeRow
-            label={language.t("novel.settings.tree.foreshadow")}
-            icon="zap"
-            active={isSelected({ kind: "foreshadow" })}
-            onClick={() => props.onSelect({ kind: "foreshadow" })}
-            depth={1}
-          />
-        </Show>
-
-        {/* —— AI 设定 —— */}
-        <SectionHeader
-          title={language.t("novel.settings.tree.sectionAiSettings")}
-          collapsed={sectionCollapsed("ai-settings")}
-          onToggle={() => props.onToggleSection("ai-settings")}
-        />
-        <Show when={!sectionCollapsed("ai-settings")}>
-          <NodeRow
-            label={language.t("novel.settings.tree.style")}
-            icon="pencil-line"
-            active={isSelected({ kind: "style" })}
-            onClick={() => props.onSelect({ kind: "style" })}
-            depth={1}
-          />
-          <NodeRow
-            label={language.t("novel.settings.tree.soul")}
-            icon="fire"
-            active={isSelected({ kind: "soul" })}
-            onClick={() => props.onSelect({ kind: "soul" })}
-            depth={1}
-          />
-          <NodeRow
-            label={language.t("novel.settings.tree.techniques")}
-            icon="library"
-            active={isSelected({ kind: "techniques" })}
-            onClick={() => props.onSelect({ kind: "techniques" })}
-            depth={1}
-          />
-          <NodeRow
-            label={language.t("novel.settings.tree.organization")}
-            icon="checklist"
-            active={isSelected({ kind: "organization" })}
-            onClick={() => props.onSelect({ kind: "organization" })}
-            depth={1}
-            badge={inboxCounts.data?.total}
-          />
-          <NodeRow
-            label={language.t("novel.settings.tree.memory")}
-            icon="brain"
-            active={isSelected({ kind: "memory" })}
-            onClick={() => props.onSelect({ kind: "memory" })}
-            depth={1}
-            badge={memoryCounts.data?.total}
-          />
-        </Show>
-
-        {/* —— 角色 —— */}
-        <SectionHeader
-          title={language.t("novel.settings.tree.sectionCharacters")}
-          collapsed={sectionCollapsed("characters")}
-          onToggle={() => props.onToggleSection("characters")}
-        />
-        <Show when={!sectionCollapsed("characters")}>
-          {/* 角色板块 root 节点：选中 → 中央区「列表 / 关系图」 */}
-          <Show when={hasCharacterHits() || !searching()}>
-            <NodeRow
-              label={language.t("novel.settings.tree.characterList")}
-              icon="user"
-              active={isSelected({ kind: "characters" })}
-              onClick={() => props.onSelect({ kind: "characters" })}
-              depth={1}
-            />
-          </Show>
-          <Show
-            when={filteredCharacters().length > 0}
-            fallback={
-              <Show when={!charactersQuery.isLoading}>
-                <p class="text-xs text-v2-text-text-muted px-6 py-2">
-                  {language.t("novel.panel.characters.empty")}
-                </p>
-              </Show>
-            }
-          >
-            <For each={filteredCharacters()}>
-              {(character) => (
-                <NodeRow
-                  label={character.name}
-                  icon="user"
-                  active={isSelected({ kind: "character", characterId: character.id })}
-                  onClick={() => props.onSelect({ kind: "character", characterId: character.id })}
-                  depth={2}
-                  faded={character.status === "departed"}
-                />
-              )}
-            </For>
-          </Show>
-        </Show>
+        </section>
       </Show>
     </div>
   )
@@ -376,38 +388,37 @@ function TreeSlot(props: { guide?: boolean; children?: JSX.Element }) {
 
 /** 行首引导线槽：depth 个，竖线连接父级收纳控件与本行，滚动后归属仍可辨。 */
 function GuideSlots(props: { depth: number }) {
-  return (
-    <For each={Array.from({ length: props.depth })}>
-      {() => <TreeSlot guide />}
-    </For>
-  )
+  return <For each={Array.from({ length: props.depth })}>{() => <TreeSlot guide />}</For>
 }
 
-/** 一级板块头：chevron 居首槽（与子级引导线同列）+ 空图标槽 + 标题，点击整行切换收纳。 */
-function SectionHeader(props: { title: string; collapsed: boolean; onToggle: () => void }) {
+/** 一级板块头：语义图标 + 标题，chevron 旋转动画切换收纳，点击整行切换。 */
+function SectionHeader(props: { icon: IconProps["name"]; title: string; collapsed: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
-      class="flex w-full items-center rounded py-2 text-xs font-semibold text-v2-text-text-muted hover:text-v2-text-text-base transition-colors"
+      class="flex w-full items-center py-2 text-xs font-semibold text-v2-text-text-muted hover:bg-v2-background-bg-layer-02 hover:text-v2-text-text-base transition-colors"
+      classList={{ "rounded-lg": props.collapsed, "rounded-t-lg": !props.collapsed }}
       onClick={props.onToggle}
       aria-expanded={!props.collapsed}
     >
       <TreeSlot>
-        <Icon name={props.collapsed ? "chevron-right" : "chevron-down"} size="small" />
+        <Icon
+          name="chevron-right"
+          size="small"
+          class="transition-transform duration-150"
+          classList={{ "rotate-90": !props.collapsed }}
+        />
       </TreeSlot>
-      <TreeSlot />
+      <TreeSlot>
+        <Icon name={props.icon} size="small" />
+      </TreeSlot>
       <span class="ml-1.5 truncate">{props.title}</span>
     </button>
   )
 }
 
 /** 可收纳分组行（分类子组）：chevron + folder 图标 + 标题。 */
-function GroupRow(props: {
-  label: string
-  collapsed: boolean
-  onToggle: () => void
-  depth: number
-}) {
+function GroupRow(props: { label: string; collapsed: boolean; onToggle: () => void; depth: number }) {
   return (
     <div class="flex w-full items-center rounded py-1.5 pr-2 text-sm text-v2-text-text-muted hover:bg-v2-background-bg-layer-02 transition-colors">
       <GuideSlots depth={props.depth} />
@@ -418,7 +429,12 @@ function GroupRow(props: {
         aria-expanded={!props.collapsed}
       >
         <TreeSlot>
-          <Icon name={props.collapsed ? "chevron-right" : "chevron-down"} size="small" />
+          <Icon
+            name="chevron-right"
+            size="small"
+            class="transition-transform duration-150"
+            classList={{ "rotate-90": !props.collapsed }}
+          />
         </TreeSlot>
         <TreeSlot>
           <Icon name="folder" size="small" />
@@ -457,7 +473,12 @@ function WorldRootRow(props: {
           aria-expanded={!props.collapsed}
           aria-label={props.toggleLabel}
         >
-          <Icon name={props.collapsed && !props.searching ? "chevron-right" : "chevron-down"} size="small" />
+          <Icon
+            name="chevron-right"
+            size="small"
+            class="transition-transform duration-150"
+            classList={{ "rotate-90": !props.collapsed || props.searching }}
+          />
         </button>
       </TreeSlot>
       <TreeSlot>
