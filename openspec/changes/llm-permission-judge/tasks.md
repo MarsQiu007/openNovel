@@ -20,8 +20,8 @@
 
 ## 3. 协议/UI 呈现
 
-- [ ] 3.1 session-ui `dock-prompt` 的 permission 布局增加裁判标注位：shadow 模式展示「裁判建议：放行/拒绝（理由）」，judge 模式历史消息展示「自动放行：理由」
-  - 验证：`bun test`（packages/session-ui，用 bun 1.3.14）通过；stories 覆盖两种标注态
+- [x] 3.1 session-ui `dock-prompt` 的 permission 布局增加裁判标注位：shadow 模式展示「裁判建议：放行/拒绝（理由）」，judge 模式历史消息展示「自动放行：理由」
+  - 验证：`dock-prompt` 新增结构化 `judge` 标注 prop（mode/effect/reason），渲染 `permission-judge` 标注位（data-mode/data-effect）；`@opennovel-ai/ui` 三语字典加 `ui.dockPrompt.judge*` 三键；stories 新增 JudgeSuggestion / JudgeAutoAllow 两态；session-ui typecheck 通过、`bun@1.3.14 test` 102 用例全绿
 - [ ] 3.2 app 侧按 `source.callID` 配对 Judged 与人审 Replied 事件计算一致率，聚合结果传入审批面板标注（纯函数落独立 ts 文件，不进 tsx 链）
   - 验证：`bun typecheck`（packages/app）通过；纯函数单测覆盖配对命中/孤儿事件/分歧计数
 

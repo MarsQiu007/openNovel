@@ -13,6 +13,8 @@ Use with form controls or confirmation buttons in the footer.
 
 ### Variants and states
 - Question and permission layouts (data attributes).
+- Judge annotation slot: \`judge={{ mode, effect, reason? }}\` renders the 裁判建议
+  (judge-shadow) or 自动放行 (judge) row above the footer.
 
 ### Behavior
 - Pure layout component; behavior handled by parent.
@@ -58,5 +60,25 @@ export const Permission = {
     header: "Allow access?",
     children: "This action needs permission to proceed.",
     footer: "Approve or deny",
+  },
+}
+
+export const JudgeSuggestion = {
+  args: {
+    kind: "permission",
+    header: "Allow access?",
+    children: "This action needs permission to proceed.",
+    footer: "Approve or deny",
+    judge: { mode: "judge-shadow", effect: "deny", reason: "会删除工程目录" },
+  },
+}
+
+export const JudgeAutoAllow = {
+  args: {
+    kind: "permission",
+    header: "Command finished",
+    children: "rm -rf build",
+    footer: "Done",
+    judge: { mode: "judge", effect: "allow", reason: "清理构建产物" },
   },
 }

@@ -169,6 +169,10 @@ export const dict: Record<string, string> = {
   "ui.permission.allowAlways": "Allow always",
   "ui.permission.allowOnce": "Allow once",
 
+  "ui.dockPrompt.judgeSuggestionAllow": "Judge suggests: allow",
+  "ui.dockPrompt.judgeSuggestionDeny": "Judge suggests: deny",
+  "ui.dockPrompt.judgeAutoAllow": "Auto-allowed",
+
   "ui.message.expand": "Expand message",
   "ui.message.collapse": "Collapse message",
   "ui.message.copy": "Copy",

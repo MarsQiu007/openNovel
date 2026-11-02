@@ -159,6 +159,10 @@ export const dict = {
   "ui.permission.allowAlways": "永遠允許",
   "ui.permission.allowOnce": "允許一次",
 
+  "ui.dockPrompt.judgeSuggestionAllow": "裁判建議：放行",
+  "ui.dockPrompt.judgeSuggestionDeny": "裁判建議：拒絕",
+  "ui.dockPrompt.judgeAutoAllow": "自動放行",
+
   "ui.message.expand": "展開訊息",
   "ui.message.collapse": "收合訊息",
   "ui.message.copy": "複製",
