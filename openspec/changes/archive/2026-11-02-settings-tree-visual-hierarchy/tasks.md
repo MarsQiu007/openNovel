@@ -14,8 +14,17 @@
 
 ## 3. 验收
 
-- [ ] 3.1 深浅色两主题下目测验收层级可读性（引导线、图标、状态分离在两主题均成立；滚动到深层条目区仍可辨归属）。验收为像素级 UI 目测，交用户执行
+- [x] 3.1 深浅色两主题下目测验收层级可读性（引导线、图标、状态分离在两主题均成立；滚动到深层条目区仍可辨归属）。验收为像素级 UI 目测，交用户执行——用户 2026-11-02 确认「树结构确实可以了」
 - [x] 3.2 对照 delta spec「设定树层级可视化」四条 scenario 逐条核对实现。验证：scenario 与实现一致，`openspec validate settings-tree-visual-hierarchy --strict` 通过
+
+## Workflow follow-up
+
+## Implementation Commits
+
+- `ccfe83b9e9` feat(app): 设定树行结构改为引导线+图标列三段式
+- `207eebd471` feat(app): 设定树板块模块化容器与收纳动画
+
+（提案工件提交 `625148e97e` 按约定不计入）
 
 ## Workflow follow-up
 
