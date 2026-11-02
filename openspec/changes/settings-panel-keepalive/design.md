@@ -33,6 +33,10 @@ spec `novel-workspace-layout` 的既有条款约束三区布局与首帧收敛�
 
 `setting-gallery`（画廊路径点节点）、`book-open-transition`（首帧 content 帧次数与快照）、`isolated-character-graph`（树内点名节点再切标签）均按可见性断言，hidden 面板不可见不影响定位；跑全量确认无回归。
 
+### D6: KeepAlive 内面板级 Suspense 边界，截断迟到资源挂起
+
+实现期诊断发现（e2e DOM 身份探针实证）：面板首次激活时组件首次挂载，内部迟到资源挂起曾冒泡到布局层顶层 `<Suspense>`（layout-new），把**整棵工作台子树（含左栏设定树）摘除再插回**——即用户体感的「首次点击整屏刷新，二次点击正常」（二次激活查询缓存命中不再挂起）。KeepAlive 容器内为每个面板包一层 `<Suspense>`（就地 Spinner fallback）：任一面板内的现在与未来的迟到资源只在面板内显示加载占位，左栏树与其余布局不再被摘。e2e 探针（逐节点点击观测 `novel-workspace-content` / `settings-tree` 节点身份）确认 12 类节点点击零摘插。
+
 ## Risks / Trade-offs
 
 - [16 面板常驻的内存与响应式开销] → 面板 DOM 中等、memo 全是缓存读；真出现瓶颈按面板单独惰性化（D4 留口）

@@ -7,7 +7,7 @@
  * 六类挂接：条目详情 / 角色详情 + ego 图 / 世界观列表 + 地图 / 角色列表 + 关系图 /
  * 单页节点（书籍信息 / 伏笔 / 风格 / 灵魂 / 技法库 / 整理）。
  */
-import { type Accessor, createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, For, Show, Suspense, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
 import { useCharacters, useNovelDetail, useUpdateNovel, useWorldEntries } from "@/context/novel-queries"
@@ -299,12 +299,22 @@ export function SettingsMain(props: SettingsMainProps) {
   )
 }
 
-/** keep-alive 容器：首次激活后保持挂载，切走以 display:none 保留，再激活零重建零重载。 */
+/** keep-alive 容器：首次激活后保持挂载，切走以 display:none 保留，再激活零重建零重载。
+ *  面板级 Suspense 边界（settings-panel-keepalive D5）：面板内迟到资源首次挂起时
+ *  就地显示加载占位，截断冒泡——否则会摘除布局层 Suspense 内的整棵工作台子树。 */
 function KeepAlive(props: { visited: boolean; active: boolean; children: JSX.Element }) {
   return (
     <Show when={props.visited}>
       <div class="flex flex-col flex-1 min-h-0" style={{ display: props.active ? "" : "none" }}>
-        {props.children}
+        <Suspense
+          fallback={
+            <div class="flex items-center justify-center flex-1 min-h-0 py-8">
+              <Spinner class="w-5 h-5 text-v2-text-text-muted" />
+            </div>
+          }
+        >
+          {props.children}
+        </Suspense>
       </div>
     </Show>
   )
