@@ -4,6 +4,7 @@ import { Effect, Stream } from "effect"
 import { EventV2 } from "../event"
 import { ModelsDev } from "../models-dev"
 import { ProviderV2 } from "../provider"
+import { ReasoningVariant } from "./reasoning-variant"
 
 function released(date: string) {
   const time = Date.parse(date)
@@ -75,6 +76,7 @@ function modeName(model: ModelsDev.Model, mode: string) {
 
 function applyModel(
   draft: ModelV2Info,
+  provider: ModelsDev.Provider,
   model: ModelsDev.Model,
   input: {
     readonly name?: string
@@ -82,19 +84,23 @@ function applyModel(
     readonly request?: NonNullable<NonNullable<ModelsDev.Model["experimental"]>["modes"]>[string]["provider"]
   } = {},
 ) {
+  // 上游 nativePackage(provider, model) 语义：模型级 provider.npm 优先，否则回落
+  // provider 级 npm/api——真实 models.dev 数据（如 zhipuai 的 GLM）只在 provider 级
+  // 声明 npm，缺这个回落模型会落成 native，推理档位与路由都无从谈起。
+  const npm = model.provider?.npm ?? provider.npm
   draft.name = input.name ?? model.name
   draft.family = model.family
-  draft.api = model.provider?.npm
+  draft.api = npm
     ? {
         id: model.id,
         type: "aisdk",
-        package: model.provider.npm,
-        url: model.provider.api,
+        package: npm,
+        url: model.provider?.api ?? provider.api,
       }
     : {
         id: model.id,
         type: "native",
-        url: model.provider?.api,
+        url: model.provider?.api ?? provider.api,
         settings: {},
       }
   draft.capabilities = {
@@ -102,7 +108,7 @@ function applyModel(
     input: [...(model.modalities?.input ?? [])],
     output: [...(model.modalities?.output ?? [])],
   }
-  draft.variants = []
+  draft.variants = ReasoningVariant.resolve(draft, ReasoningVariant.supports(model.reasoning_options))
   draft.time.released = released(model.release_date)
   draft.cost = input.cost ?? cost(model.cost)
   draft.status = model.status ?? "active"
@@ -161,10 +167,10 @@ export const ModelsDevPlugin = define({
 
           for (const model of Object.values(item.models)) {
             const baseCost = cost(model.cost)
-            catalog.model.update(providerID, model.id, (draft) => applyModel(draft, model, { cost: baseCost }))
+            catalog.model.update(providerID, model.id, (draft) => applyModel(draft, item, model, { cost: baseCost }))
             for (const [mode, options] of Object.entries(model.experimental?.modes ?? {})) {
               catalog.model.update(providerID, `${model.id}-${mode}`, (draft) =>
-                applyModel(draft, model, {
+                applyModel(draft, item, model, {
                   name: modeName(model, mode),
                   cost: mergeCost(baseCost, options.cost),
                   request: options.provider,

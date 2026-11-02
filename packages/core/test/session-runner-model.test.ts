@@ -6,6 +6,7 @@ import { Headers } from "effect/unstable/http"
 import { Credential } from "@opennovel-ai/core/credential"
 import { Integration } from "@opennovel-ai/core/integration"
 import { ModelV2 } from "@opennovel-ai/core/model"
+import { PROVIDER_OPTIONS_KEY } from "@opennovel-ai/core/plugin/reasoning-variant"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { ProjectV2 } from "@opennovel-ai/core/project"
 import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
@@ -205,13 +206,15 @@ describe("SessionRunnerModel", () => {
     }),
   )
 
-  it.effect("overlays selected Anthropic Session variant bodies", () =>
+  it.effect("routes selected Anthropic variant thinking budgets through providerOptions", () =>
     Effect.gen(function* () {
       const catalog = model({ type: "aisdk", package: "@ai-sdk/anthropic", url: "https://anthropic.example/v1" }, [
         {
           id: ModelV2.VariantID.make("high"),
           headers: {},
-          body: { thinking: { type: "enabled", budget_tokens: 12000 } },
+          body: {
+            [PROVIDER_OPTIONS_KEY]: { anthropic: { thinking: { type: "enabled", budgetTokens: 12000 } } },
+          },
         },
       ])
       const session = SessionV2.Info.make({
@@ -226,10 +229,51 @@ describe("SessionRunnerModel", () => {
       })
 
       const resolved = yield* SessionRunnerModel.resolve(session, catalog)
+      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved, prompt: "Hello" }))
 
-      expect(resolved.route.defaults.http?.body).toEqual({
-        custom_extension: { enabled: true },
-        thinking: { type: "enabled", budget_tokens: 12000 },
+      expect(prepared.body).toMatchObject({ thinking: { type: "enabled", budget_tokens: 12000 } })
+      expect(resolved.route.defaults.providerOptions).toEqual({
+        anthropic: { thinking: { type: "enabled", budgetTokens: 12000 } },
+      })
+      // 载体内键被拆包后不得残留进 HTTP body overlay（thinking 在协议的 denylist 上）。
+      expect(resolved.route.defaults.http?.body).toEqual({ custom_extension: { enabled: true } })
+    }),
+  )
+
+  it.effect("routes selected OpenAI variant reasoning efforts through providerOptions", () =>
+    Effect.gen(function* () {
+      const catalog = model({ type: "aisdk", package: "@ai-sdk/openai", url: "https://openai.example/v1" }, [
+        {
+          id: ModelV2.VariantID.make("low"),
+          headers: {},
+          body: {
+            [PROVIDER_OPTIONS_KEY]: {
+              openai: {
+                reasoningEffort: "low",
+                reasoningSummary: "auto",
+                include: ["reasoning.encrypted_content"],
+              },
+            },
+          },
+        },
+      ])
+      const session = SessionV2.Info.make({
+        id: SessionV2.ID.make("ses_openai_variant"),
+        projectID: ProjectV2.ID.global,
+        title: "test",
+        model: { id: catalog.id, providerID: catalog.providerID, variant: ModelV2.VariantID.make("low") },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+        location: { directory: AbsolutePath.make("/project") },
+      })
+
+      const resolved = yield* SessionRunnerModel.resolve(session, catalog)
+      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved, prompt: "Hello" }))
+
+      expect(prepared.body).toMatchObject({
+        reasoning: { effort: "low", summary: "auto" },
+        include: ["reasoning.encrypted_content"],
       })
     }),
   )

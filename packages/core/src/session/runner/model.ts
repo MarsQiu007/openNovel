@@ -1,7 +1,7 @@
 export * as SessionRunnerModel from "./model"
 
 import { makeLocationNode } from "../../effect/app-node"
-import { type Model } from "@opennovel-ai/llm"
+import { type Model, type ProviderOptions } from "@opennovel-ai/llm"
 import * as AnthropicMessages from "@opennovel-ai/llm/protocols/anthropic-messages"
 import * as OpenAICompatibleChat from "@opennovel-ai/llm/protocols/openai-compatible-chat"
 import * as OpenAIResponses from "@opennovel-ai/llm/protocols/openai-responses"
@@ -13,6 +13,7 @@ import { Credential } from "../../credential"
 import { Integration } from "../../integration"
 import { ModelV2 } from "../../model"
 import { PluginBoot } from "../../plugin/boot"
+import { PROVIDER_OPTIONS_KEY } from "../../plugin/reasoning-variant"
 import { ProviderV2 } from "../../provider"
 import { SessionSchema } from "../schema"
 
@@ -88,24 +89,26 @@ const apiKey = (model: ModelV2.Info, credential?: Credential.Value) => {
   if (typeof value === "string") return Auth.value(value)
 }
 
-const withDefaults = (model: ModelV2.Info, route: AnyRoute) => {
+const withDefaults = (model: ModelV2.Info, route: AnyRoute, providerOptions?: ProviderOptions) => {
   const body = model.request.body
   const httpBody = Object.hasOwn(body, "apiKey")
     ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "apiKey"))
     : body
-  return route.with({
-    provider: model.providerID,
-    endpoint: model.api.url === undefined ? undefined : { baseURL: model.api.url },
-    headers: model.request.headers,
-    http: { body: httpBody },
-    limits: { context: model.limit.context, output: model.limit.output },
-  })
+  return route
+    .with({
+      provider: model.providerID,
+      endpoint: model.api.url === undefined ? undefined : { baseURL: model.api.url },
+      headers: model.request.headers,
+      http: { body: httpBody },
+      limits: { context: model.limit.context, output: model.limit.output },
+    })
+    .with({ providerOptions })
 }
 
 const withVariant = (
   model: ModelV2.Info,
   variantID: ModelV2.VariantID | undefined,
-): Effect.Effect<ModelV2.Info, VariantUnavailableError> => {
+): Effect.Effect<{ model: ModelV2.Info; providerOptions?: ProviderOptions }, VariantUnavailableError> => {
   const id = variantID === "default" || variantID === undefined ? model.request.variant : variantID
   const variant = model.variants.find((item) => item.id === id)
   if (!variant && variantID !== undefined && variantID !== "default")
@@ -116,14 +119,20 @@ const withVariant = (
         variant: variantID,
       }),
     )
-  return Effect.succeed(
-    variant
-      ? produce(model, (draft) => {
-          Object.assign(draft.request.headers, variant.headers)
-          Object.assign(draft.request.body, variant.body)
-        })
-      : model,
-  )
+  if (!variant) return Effect.succeed({ model, providerOptions: undefined })
+  // 方言表把 SDK 语义键以载体内键存进 variant.body（ModelV2 schema 无 settings 层），
+  // 此处拆出后改走 route defaults 的 providerOptions 通道，剩余键才进 HTTP body overlay。
+  let providerOptions: ProviderOptions | undefined
+  const resolved = produce(model, (draft) => {
+    Object.assign(draft.request.headers, variant.headers)
+    const body = { ...variant.body }
+    const carried = body[PROVIDER_OPTIONS_KEY]
+    delete body[PROVIDER_OPTIONS_KEY]
+    Object.assign(draft.request.body, body)
+    if (carried !== undefined && typeof carried === "object" && carried !== null)
+      providerOptions = carried as ProviderOptions
+  })
+  return Effect.succeed({ model: resolved, providerOptions })
 }
 
 const apiName = (model: ModelV2.Info) =>
@@ -132,6 +141,7 @@ const apiName = (model: ModelV2.Info) =>
 export const fromCatalogModel = (
   model: ModelV2.Info,
   credential?: Credential.Value,
+  providerOptions?: ProviderOptions,
 ): Effect.Effect<Model, UnsupportedApiError> => {
   const resolved =
     credential?.type !== "key" || credential.metadata === undefined
@@ -142,21 +152,21 @@ export const fromCatalogModel = (
   const key = apiKey(resolved, credential)
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai") {
     return Effect.succeed(
-      withDefaults(resolved, OpenAIResponses.route)
+      withDefaults(resolved, OpenAIResponses.route, providerOptions)
         .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
         .model({ id: resolved.api.id }),
     )
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/anthropic") {
     return Effect.succeed(
-      withDefaults(resolved, AnthropicMessages.route)
+      withDefaults(resolved, AnthropicMessages.route, providerOptions)
         .with({ auth: key === undefined ? Auth.none : Auth.header("x-api-key", key) })
         .model({ id: resolved.api.id }),
     )
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai-compatible" && resolved.api.url) {
     return Effect.succeed(
-      withDefaults(resolved, OpenAICompatibleChat.route)
+      withDefaults(resolved, OpenAICompatibleChat.route, providerOptions)
         .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
         .model({ id: resolved.api.id }),
     )
@@ -171,7 +181,9 @@ export const fromCatalogModel = (
 }
 
 export const resolve = (session: SessionSchema.Info, model: ModelV2.Info, credential?: Credential.Value) =>
-  withVariant(model, session.model?.variant).pipe(Effect.flatMap((model) => fromCatalogModel(model, credential)))
+  withVariant(model, session.model?.variant).pipe(
+    Effect.flatMap(({ model: resolved, providerOptions }) => fromCatalogModel(resolved, credential, providerOptions)),
+  )
 
 export const supported = (model: ModelV2.Info) =>
   model.api.type === "aisdk" &&

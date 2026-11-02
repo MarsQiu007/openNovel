@@ -9,9 +9,9 @@
 
 ## 2. 元数据接入与通道接通
 
-- [ ] 2.1 `core/src/plugin/models-dev.ts` 模型填充处接入 reasoning 元数据解析（移植上游 modal/models.ts 的 variants(remote) 逻辑）：读 `reasoning`/`reasoning_options` → supports → resolve → 写入 `draft.variants`；删除 `draft.variants = []` 清空行
+- [x] 2.1 `core/src/plugin/models-dev.ts` 模型填充处接入 reasoning 元数据解析（移植上游 modal/models.ts 的 variants(remote) 逻辑）：读 `reasoning`/`reasoning_options` → supports → resolve → 写入 `draft.variants`；删除 `draft.variants = []` 清空行
   - 验证：`bun test`（packages/core 的 models-dev 相关用例）通过；新增"元数据声明 effort 白名单 → variants 取值正确"用例
-- [ ] 2.2 接通 providerOptions 通道（design D3）：`session/runner/model.ts` 的 `withVariant` 扩展输出 providerOptions，`packages/llm` 的 LLMRequest 组装点消费；anthropic-messages 的 thinking 优先走协议 schema 字段
+- [x] 2.2 接通 providerOptions 通道（design D3）：`session/runner/model.ts` 的 `withVariant` 扩展输出 providerOptions，`packages/llm` 的 LLMRequest 组装点消费；anthropic-messages 的 thinking 优先走协议 schema 字段
   - 验证：`bun typecheck`（core 与 llm）通过；withVariant 合并测试覆盖 settings/body 双通道
 
 ## 3. 硬编码移除与回归对拍

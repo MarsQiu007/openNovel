@@ -124,6 +124,94 @@ describe("ModelsDevPlugin", () => {
     }),
   )
 
+  it.effect("derives reasoning variants from models.dev reasoning metadata", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const catalog = yield* Catalog.Service
+      const models = ModelsDev.Service.of({
+        get: () =>
+          Effect.succeed({
+            zhipuai: {
+              id: "zhipuai",
+              name: "Zhipu AI",
+              env: ["ZHIPU_API_KEY"],
+              npm: "@ai-sdk/openai-compatible",
+              models: {
+                "glm-5.2": {
+                  id: "glm-5.2",
+                  name: "GLM-5.2",
+                  family: "glm",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  reasoning_options: [{ type: "effort", values: ["high", "max"] }],
+                  limit: { context: 1_000_000, output: 128_000 },
+                },
+                "glm-5-turbo": {
+                  id: "glm-5-turbo",
+                  name: "GLM-5-Turbo",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  limit: { context: 128_000, output: 64_000 },
+                },
+              },
+            },
+            deepseek: {
+              id: "deepseek",
+              name: "DeepSeek",
+              env: ["DEEPSEEK_API_KEY"],
+              npm: "@ai-sdk/openai-compatible",
+              models: {
+                "deepseek-v4-pro-0813": {
+                  id: "deepseek-v4-pro-0813",
+                  name: "DeepSeek V4 Pro 0813",
+                  family: "deepseek-thinking",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  reasoning_options: [{ type: "effort", values: ["none", "low", "medium", "high", "max"] }],
+                  limit: { context: 1_000_000, output: 128_000 },
+                },
+              },
+            },
+          } satisfies Record<string, ModelsDev.Provider>),
+        refresh: () => Effect.void,
+      })
+
+      yield* ModelsDevPlugin.effect(
+        host({
+          catalog: catalogHost(catalog),
+          integration: integrationHost(integrations),
+        }),
+      ).pipe(Effect.provideService(ModelsDev.Service, models))
+
+      const glm = yield* catalog.model.get(ProviderV2.ID.make("zhipuai"), ModelV2.ID.make("glm-5.2"))
+      const turbo = yield* catalog.model.get(ProviderV2.ID.make("zhipuai"), ModelV2.ID.make("glm-5-turbo"))
+      const deepseek = yield* catalog.model.get(ProviderV2.ID.make("deepseek"), ModelV2.ID.make("deepseek-v4-pro-0813"))
+
+      expect(glm?.api).toMatchObject({ type: "aisdk", package: "@ai-sdk/openai-compatible" })
+      expect(glm?.variants).toEqual([
+        expect.objectContaining({ id: "high", headers: {}, body: { reasoning_effort: "high" } }),
+        expect.objectContaining({ id: "max", headers: {}, body: { reasoning_effort: "max" } }),
+      ])
+      expect(turbo?.variants).toEqual([])
+      expect(deepseek?.variants).toEqual([
+        expect.objectContaining({ id: "none", body: { reasoning_effort: "none" } }),
+        expect.objectContaining({ id: "low", body: { reasoning_effort: "low" } }),
+        expect.objectContaining({ id: "medium", body: { reasoning_effort: "medium" } }),
+        expect.objectContaining({ id: "high", body: { reasoning_effort: "high" } }),
+        expect.objectContaining({ id: "max", body: { reasoning_effort: "max" } }),
+      ])
+    }),
+  )
+
   it.effect("registers key methods for providers with environment variables", () =>
     Effect.acquireUseRelease(
       Effect.sync(() => {
