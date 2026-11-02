@@ -1,12 +1,12 @@
 export * as SessionRunnerModel from "./model"
 
 import { makeLocationNode } from "../../effect/app-node"
-import { type Model, type ProviderOptions } from "@opennovel-ai/llm"
+import { type Model, ProviderOptions } from "@opennovel-ai/llm"
 import * as AnthropicMessages from "@opennovel-ai/llm/protocols/anthropic-messages"
 import * as OpenAICompatibleChat from "@opennovel-ai/llm/protocols/openai-compatible-chat"
 import * as OpenAIResponses from "@opennovel-ai/llm/protocols/openai-responses"
 import { Auth, type AnyRoute } from "@opennovel-ai/llm/route"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
 import { produce } from "immer"
 import { Catalog } from "../../catalog"
 import { Credential } from "../../credential"
@@ -126,11 +126,10 @@ const withVariant = (
   const resolved = produce(model, (draft) => {
     Object.assign(draft.request.headers, variant.headers)
     const body = { ...variant.body }
-    const carried = body[PROVIDER_OPTIONS_KEY]
+    const carried = Schema.decodeUnknownOption(ProviderOptions)(body[PROVIDER_OPTIONS_KEY])
     delete body[PROVIDER_OPTIONS_KEY]
     Object.assign(draft.request.body, body)
-    if (carried !== undefined && typeof carried === "object" && carried !== null)
-      providerOptions = carried as ProviderOptions
+    if (Option.isSome(carried)) providerOptions = carried.value
   })
   return Effect.succeed({ model: resolved, providerOptions })
 }
