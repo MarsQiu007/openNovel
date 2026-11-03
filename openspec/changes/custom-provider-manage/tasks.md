@@ -31,10 +31,16 @@
 
 - [x] 4.1 `settings-providers.tsx` 自定义区行新增「编辑」按钮（打开 edit 模式对话框）；行上保留既有「断开」；确认自定义区判定（`isConfigCustom`）对新保存记录仍成立
   - 验证：app typecheck 通过
-- [ ] 4.2 受影响包（opennovel、app、sdk）分别 `bun typecheck`、`bun test`；从仓库根按既定方式跑 oxlint 并与 main 基线同模式对比
+- [x] 4.2 受影响包（opennovel、app、sdk）分别 `bun typecheck`、`bun test`；从仓库根按既定方式跑 oxlint 并与 main 基线同模式对比
   - 验证：全绿；oxlint 逐文件警告数零新增
-- [ ] 4.3 非视觉验收自证：用 httpapi 练习或单测断言「PUT 整体覆盖后旧模型行/旧 header 键已清除」「DELETE 后 config.provider 无键、disabled/enabled 无残留、凭据双库无条目」，结论写入 tasks 验证记录
+  - 验证记录（2026-11-03）：opennovel/app/sdk 三个包 `bun typecheck` 全绿；app 套件 932 pass（bunx bun@1.3.14）；opennovel 全量套件 1693 pass / 31 skip / 1 fail，唯一失败为 `test/config/config.test.ts` 的「loads project config from Git Bash and MSYS2 paths on Windows」5s 超时——命中既有 5s 超时 flake 家族，与本次 diff 无关（该用例走 Git Bash/MSYS2 路径加载，不触改动面），单文件复跑 105 pass 全绿；oxlint 逐文件对比 main 零新增（config.ts/config.test.ts 各 0=0，新测试文件 0 告警）
+- [x] 4.3 非视觉验收自证：用 httpapi 练习或单测断言「PUT 整体覆盖后旧模型行/旧 header 键已清除」「DELETE 后 config.provider 无键、disabled/enabled 无残留、凭据双库无条目」，结论写入 tasks 验证记录
   - 验证：断言输出入档
+  - 验证记录（2026-11-03）：新增 `packages/opennovel/test/server/httpapi-global-provider.test.ts`（4 用例，经 `Server.Default().app` 真实走 HTTP 栈）+ Config 服务单测补 2 用例，全部通过——
+    - PUT 整体覆盖：第二次提交仅留 new-c 后，落盘 `provider.acme.models` 键集合恰为 `["new-c"]`、`options.headers` 旧键消失、细节字段（limit 数值对/reasoning）落盘正确；
+    - PUT 保存即启用：disabled 名单含 `["acme","other"]` 时保存后落盘为 `["other"]`；仅含 `["acme"]` 时键整体删除不留 `[]`；
+    - DELETE：落盘 `config.provider` 无 acme 键（other 保留）、disabled/enabled 名单无残留（空则删键）；`auth.json` 中 acme 凭据被清除；
+    - 修复并守护一个验收中发现的真 bug：全新环境无配置文件时 `globalConfigFile()` 回退到 `opennovel.jsonc`，`.jsonc` 分支对缺失键发删除会触发 jsonc-parser「Can not delete in empty document」致 PUT/DELETE 500——现已按「键存在才发删除补丁」修正，并由「无文件创建/无文件删除不变」两个单测守护。
 
 ## Workflow follow-up
 
