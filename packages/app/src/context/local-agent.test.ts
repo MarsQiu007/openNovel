@@ -1,19 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { hasCustomAgent, resolveAgent, resolveSessionAgent, showAgentSelector } from "./local-agent"
-
-describe("hasCustomAgent", () => {
-  test("detects explicitly custom agents", () => {
-    expect(hasCustomAgent([{ category: "internal" }, { category: "novel" }])).toBe(true)
-  })
-
-  test("ignores built-in agents", () => {
-    expect(hasCustomAgent([{ category: "internal" }])).toBe(false)
-  })
-
-  test("treats unclassified agents as custom", () => {
-    expect(hasCustomAgent([{ category: "internal" }, {}])).toBe(true)
-  })
-})
+import { resolveAgent, resolveSessionAgent, showAgentSelector } from "./local-agent"
 
 describe("showAgentSelector", () => {
   test("hides with a single custom primary agent", () => {
@@ -26,6 +12,11 @@ describe("showAgentSelector", () => {
 
   test("shows with two or more custom primary agents", () => {
     expect(showAgentSelector([{ category: "internal" }, { category: "novel" }, { category: "writing" }])).toBe(true)
+  })
+
+  test("counts unclassified agents as custom", () => {
+    expect(showAgentSelector([{ category: "internal" }, {}, {}])).toBe(true)
+    expect(showAgentSelector([{ category: "internal" }, {}])).toBe(false)
   })
 })
 

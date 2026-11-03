@@ -3,10 +3,6 @@ export function isCustomAgent(item: { category?: string }) {
   return item.category !== "internal"
 }
 
-export function hasCustomAgent(items: Array<{ category?: string }>) {
-  return items.some(isCustomAgent)
-}
-
 // 代理选择器显隐：可见的自定义（非 internal）主智能体 ≥ 2 才渲染，内置不参与计数。
 export function showAgentSelector(items: Array<{ category?: string }>) {
   return items.filter(isCustomAgent).length >= 2
