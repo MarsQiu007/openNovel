@@ -535,6 +535,7 @@ function PromptInputV2ConfiguredSelect(props: {
           <ProviderIcon id={providerID()!} class="size-4 shrink-0 opacity-60" />
         </Show>
       }
+      annotation={props.control.annotation?.()}
       onSelect={props.control.onSelect}
     />
   )
@@ -546,6 +547,7 @@ export function PromptInputV2Select(props: {
   options: PromptInputV2Option[]
   current: string
   currentIcon?: JSX.Element
+  annotation?: string
   class?: string
   onOpenChange?: (open: boolean) => void
   onSelect: (id: string) => void
@@ -572,6 +574,11 @@ export function PromptInputV2Select(props: {
           <span class="truncate capitalize leading-5">
             {props.options.find((option) => option.id === props.current)?.label ?? props.current}
           </span>
+          <Show when={props.annotation}>
+            <span class="ml-0.5 shrink-0 text-12-regular leading-5 text-v2-text-text-muted" data-slot="select-annotation">
+              {props.annotation}
+            </span>
+          </Show>
           <span class="-ml-0.5 -mr-1 flex shrink-0">
             <IconV2 name="chevron-down" />
           </span>

@@ -453,6 +453,11 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       permissionMode: {
         options: () => PERMISSION_MODES.map((value) => ({ id: value, label: permissionMode.describe(value) })),
         current: () => permissionMode.effective(),
+        // 项目级定义了更宽松档位被全局收紧时，当前值旁标注"未生效"（与设置页同判定）
+        annotation: () =>
+          permissionMode.ignoredProjectMode() !== undefined
+            ? language.t("permission.mode.projectIgnoredBadge")
+            : undefined,
         onSelect: (value) => {
           const next = PERMISSION_MODES.find((mode) => mode === value)
           if (!next || next === permissionMode.effective()) return

@@ -1186,6 +1186,7 @@ export const dict = {
   "permission.mode.ask": "Manual review",
   "permission.mode.judge-shadow": "Shadow review",
   "permission.mode.judge": "Auto approve",
+  "permission.mode.projectIgnoredBadge": "Not in effect",
   "settings.agents.model.follow": "Follow main session",
   "settings.agents.judge.title": "Permission judge",
   "settings.agents.judge.description": "Model used by the LLM permission judge; defaults to the session model",

@@ -1056,6 +1056,7 @@ export const dict = {
   "permission.mode.ask": "手動審批",
   "permission.mode.judge-shadow": "影子審查",
   "permission.mode.judge": "智能審批",
+  "permission.mode.projectIgnoredBadge": "未生效",
   "settings.agents.model.follow": "跟隨主會話",
   "settings.agents.judge.title": "權限裁判",
   "settings.agents.judge.description": "LLM 權限裁判使用的模型，缺省跟隨會話當前模型",

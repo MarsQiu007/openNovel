@@ -1060,6 +1060,7 @@ export const dict = {
   "permission.mode.ask": "手动审批",
   "permission.mode.judge-shadow": "影子审查",
   "permission.mode.judge": "智能审批",
+  "permission.mode.projectIgnoredBadge": "未生效",
   "settings.agents.model.follow": "跟随主会话",
   "settings.agents.judge.title": "权限裁判",
   "settings.agents.judge.description": "LLM 权限裁判使用的模型，缺省跟随会话当前模型",

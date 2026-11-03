@@ -24,6 +24,8 @@ export type PromptInputV2SelectControl = {
   current: Accessor<string>
   onSelect: (id: string) => void
   keybind?: Accessor<string[]>
+  // 当前值旁的可选标注（如权限模式项目级收紧未生效），宿主提供文案
+  annotation?: Accessor<string | undefined>
 }
 
 export type PromptInputV2ViewConfig = {
