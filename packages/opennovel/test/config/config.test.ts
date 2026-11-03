@@ -2240,4 +2240,28 @@ describe("updateGlobalProvider / removeGlobalProvider", () => {
         }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
     ),
   )
+
+  it.effect("jsonc: set without existing config file creates opennovel.jsonc", () =>
+    withGlobalConfig({}, ({ dir }) =>
+      Effect.gen(function* () {
+        const result = yield* Config.use.updateGlobalProvider("my-provider", provider)
+
+        expect(result.changed).toBe(true)
+        const written = yield* FSUtil.use.readFileString(path.join(dir, "opennovel.jsonc"))
+        expect(JSON.parse(written).provider?.["my-provider"]).toEqual(provider)
+      }),
+    ),
+  )
+
+  it.effect("jsonc: remove without existing config file reports unchanged and writes nothing", () =>
+    withGlobalConfig({}, ({ dir }) =>
+      Effect.gen(function* () {
+        const result = yield* Config.use.removeGlobalProvider("missing")
+
+        expect(result.changed).toBe(false)
+        const entries = yield* FSUtil.use.readDirectoryEntries(dir)
+        expect(entries.length).toBe(0)
+      }),
+    ),
+  )
 })

@@ -707,12 +707,14 @@ const layer = Layer.effect(
         if (changed) yield* fs.writeFileString(file, serialized).pipe(Effect.orDie)
         next = merged
       } else {
-        // jsonc-parser modify 对对象值做递归合并不是整体替换，覆盖须先删子树再写入
+        // jsonc-parser modify 对对象值做递归合并不是整体替换，覆盖须先删子树再写入。
+        // 对缺失键发删除会在空文档/缺父级时报 "Can not delete in empty document"，先判存在性再决定补丁形状。
+        const hasProvider = existing.provider?.[providerID] !== undefined
         const intermediate =
-          provider === undefined ? before : patchJsonc(before, { provider: { [providerID]: undefined } })
-        const patch: Record<string, unknown> = {
-          provider: { [providerID]: provider === undefined ? undefined : provider },
-        }
+          provider !== undefined && hasProvider ? patchJsonc(before, { provider: { [providerID]: undefined } }) : before
+        const patch: Record<string, unknown> = {}
+        if (provider !== undefined) patch.provider = { [providerID]: provider }
+        else if (hasProvider) patch.provider = { [providerID]: undefined }
         if (disabledPatch !== null) patch.disabled_providers = disabledPatch
         if (enabledPatch !== null) patch.enabled_providers = enabledPatch
         const updated = patchJsonc(intermediate, patch)
