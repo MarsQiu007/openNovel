@@ -1607,33 +1607,35 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </Button>
               </div>
               <div class="flex items-center gap-1.5 min-w-0 flex-1 h-7">
-                <Show when={controlsReady()} fallback={<ControlSkeleton />}>
-                  <div
-                    data-component="prompt-agent-control"
-                    classList={{ "animate-in fade-in duration-300": agentsShouldFadeIn() }}
-                  >
-                    <TooltipKeybind
-                      placement="top"
-                      gutter={4}
-                      title={language.t("command.agent.cycle")}
-                      keybind={command.keybind("agent.cycle")}
+                <Show when={props.controls.agents.visible}>
+                  <Show when={controlsReady()} fallback={<ControlSkeleton />}>
+                    <div
+                      data-component="prompt-agent-control"
+                      classList={{ "animate-in fade-in duration-300": agentsShouldFadeIn() }}
                     >
-                      <Select
-                        size="normal"
-                        options={props.controls.agents.options}
-                        current={props.controls.agents.current}
-                        onSelect={(value) => {
-                          props.controls.agents.select(value)
-                          restoreFocus()
-                        }}
-                        class="capitalize max-w-[160px] text-text-base"
-                        valueClass="truncate text-13-regular text-text-base"
-                        triggerStyle={control()}
-                        triggerProps={{ "data-action": "prompt-agent" }}
-                        variant="ghost"
-                      />
-                    </TooltipKeybind>
-                  </div>
+                      <TooltipKeybind
+                        placement="top"
+                        gutter={4}
+                        title={language.t("command.agent.cycle")}
+                        keybind={command.keybind("agent.cycle")}
+                      >
+                        <Select
+                          size="normal"
+                          options={props.controls.agents.options}
+                          current={props.controls.agents.current}
+                          onSelect={(value) => {
+                            props.controls.agents.select(value)
+                            restoreFocus()
+                          }}
+                          class="capitalize max-w-[160px] text-text-base"
+                          valueClass="truncate text-13-regular text-text-base"
+                          triggerStyle={control()}
+                          triggerProps={{ "data-action": "prompt-agent" }}
+                          variant="ghost"
+                        />
+                      </TooltipKeybind>
+                    </div>
+                  </Show>
                 </Show>
                 <Show when={controlsReady()} fallback={<ControlSkeleton />}>
                   <Show when={store.mode !== "shell"}>

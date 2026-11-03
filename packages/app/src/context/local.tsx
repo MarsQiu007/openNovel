@@ -4,14 +4,14 @@ import { useParams } from "@solidjs/router"
 import { batch, createEffect, createMemo, startTransition } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useModels } from "@/context/models"
-import { useSettings } from "@/context/settings"
 import { useProviders } from "@/hooks/use-providers"
 import { Persist, persisted } from "@/utils/persist"
-import { hasCustomAgent, resolveAgent } from "./local-agent"
+import { resolveAgent, resolveSessionAgent, showAgentSelector } from "./local-agent"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
 import { useServerSDK } from "./server-sdk"
+import { useServerSync } from "./server-sync"
 import { ScopedKey, type ServerScope } from "@/utils/server-scope"
 
 export type ModelKey = { providerID: string; modelID: string; variant?: string }
@@ -64,11 +64,11 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const serverSDK = useServerSDK()
     const providers = useProviders(() => sdk().directory)
     const models = useModels()
-    const settings = useSettings()
+    const serverSync = useServerSync()
 
     const id = createMemo(() => params.id || undefined)
     const list = createMemo(() => sync().data.agent.filter((item) => item.mode !== "subagent" && !item.hidden))
-    const agentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
+    const agentsVisible = createMemo(() => showAgentSelector(list()))
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
     const [saved, setSaved, , savedReady] = persisted(
@@ -113,6 +113,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const pickAgent = (name: string | undefined) => {
       return resolveAgent(list(), name)
     }
+
+    // default_agent 跨文档 latest-wins（与 core Config.latest 一致）：目录配置优先，回落全局配置。
+    // store.current 是永真合成值（初始化取 list()[0] + 失效重置），解析链中必须排在本配置之后。
+    const configDefaultAgent = createMemo(
+      () => sync().data.config.default_agent ?? serverSync().data.config.default_agent,
+    )
 
     createEffect(() => {
       const items = list()
@@ -184,7 +190,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       list,
       visible: agentsVisible,
       current() {
-        return pickAgent(agentsVisible() ? (scope()?.agent ?? store.current) : "build")
+        return resolveSessionAgent(list(), scope()?.agent, configDefaultAgent(), store.current)
       },
       set(name: string | undefined) {
         const item = pickAgent(name)
