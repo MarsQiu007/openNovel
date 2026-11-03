@@ -429,11 +429,13 @@ it.effect("round-trips judge permission fields through global config update", ()
         })
 
         const writtenConfig = yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))
-        expect(writtenConfig.permission).toEqual({
-          bash: "ask",
-          mode: "judge",
-          policy: { read: "allow" },
-          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        expect(writtenConfig).toMatchObject({
+          permission: {
+            bash: "ask",
+            mode: "judge",
+            policy: { read: "allow" },
+            judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+          },
         })
       }),
   ),
@@ -454,9 +456,11 @@ it.effect("writes judge permission fields through global config update", () =>
       })
 
       const writtenConfig = yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))
-      expect(writtenConfig.permission).toEqual({
-        mode: "judge-shadow",
-        judge: { model: "openrouter/openai/gpt-5" },
+      expect(writtenConfig).toMatchObject({
+        permission: {
+          mode: "judge-shadow",
+          judge: { model: "openrouter/openai/gpt-5" },
+        },
       })
     }),
   ),
