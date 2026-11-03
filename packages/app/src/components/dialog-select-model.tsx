@@ -162,6 +162,13 @@ export function ModelSelectorPopover(props: {
     })
   }
   const language = useLanguage()
+  const modelState = () => props.model ?? local.model
+  // 推理档位分段：仅当前选中模型声明了档位时呈现（选项含 UI 专用的 default 档）
+  const variantOptions = createMemo(() => ["default", ...modelState().variant.list()])
+  const selectVariant = (value: string) => {
+    modelState().variant.set(value === "default" ? undefined : value)
+    close("select")
+  }
 
   return (
     <Kobalte
@@ -228,6 +235,32 @@ export function ModelSelectorPopover(props: {
               </div>
             }
           />
+          <Show when={variantOptions().length > 1}>
+            <div
+              class="flex flex-none flex-col gap-0.5 border-t border-border-weak-base p-1.5"
+              data-slot="model-variant-section"
+            >
+              <div class="px-1.5 py-0.5 text-12-regular text-text-weak">
+                {language.t("dialog.model.variant.title")}
+              </div>
+              <For each={variantOptions()}>
+                {(option) => (
+                  <button
+                    type="button"
+                    class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
+                    onClick={() => selectVariant(option)}
+                  >
+                    <span class="flex-1 truncate text-left">
+                      {option === "default" ? language.t("common.default") : option}
+                    </span>
+                    <Show when={(modelState().variant.current() ?? "default") === option}>
+                      <Icon name="check" size="small" class="shrink-0" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
         </Kobalte.Content>
       </Kobalte.Portal>
     </Kobalte>
@@ -316,6 +349,14 @@ export function ModelSelectorPopoverV2(props: {
     restoreTrigger = false
     setOpen(false)
     afterClose(() => select(item))
+  }
+  // 推理档位分段：仅当前选中模型声明了档位时呈现，未声明时整个分段隐藏
+  const variantOptions = createMemo(() => ["default", ...model.variant.list()])
+  const selectVariant = (value: string) => {
+    model.variant.set(value === "default" ? undefined : value)
+    restoreTrigger = false
+    setOpen(false)
+    afterClose(() => props.onClose?.())
   }
   const manage = () => {
     restoreTrigger = false
@@ -492,6 +533,28 @@ export function ModelSelectorPopoverV2(props: {
               </Show>
             </div>
           </ScrollView>
+          <Show when={variantOptions().length > 1}>
+            <div class="h-px bg-v2-border-border-muted" />
+            <div class="flex flex-col p-0.5" data-slot="model-variant-section">
+              <div class="px-3 pt-1.5 pb-0.5 text-[11px] leading-4 text-v2-text-text-muted">
+                {language.t("dialog.model.variant.title")}
+              </div>
+              <MenuV2.RadioGroup value={model.variant.current() ?? "default"}>
+                <For each={variantOptions()}>
+                  {(option) => (
+                    <MenuV2.RadioItem
+                      value={option}
+                      class="capitalize"
+                      closeOnSelect
+                      onSelect={() => selectVariant(option)}
+                    >
+                      {option}
+                    </MenuV2.RadioItem>
+                  )}
+                </For>
+              </MenuV2.RadioGroup>
+            </div>
+          </Show>
           <div class="h-px bg-v2-border-border-muted" />
           <div class="flex flex-col p-0.5">
             <MenuV2.Item

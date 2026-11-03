@@ -5,7 +5,8 @@ import { List, type ListRef } from "@opennovel-ai/ui/list"
 import { ProviderIcon } from "@opennovel-ai/ui/provider-icon"
 import { Tag } from "@opennovel-ai/ui/tag"
 import { Tooltip } from "@opennovel-ai/ui/tooltip"
-import { type Component, Show } from "solid-js"
+import { type Component, createMemo, For, Show } from "solid-js"
+import { Icon } from "@opennovel-ai/ui/v2/icon"
 import { useLocal } from "@/context/local"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { ModelTooltip } from "./model-tooltip"
@@ -38,6 +39,9 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
     if (e.key === "Escape") return
     listRef?.onKeyDown(e)
   }
+
+  // 推理档位分段：仅当前选中模型声明了档位时呈现；选择不关闭弹窗，便于继续浏览模型
+  const variantOptions = createMemo(() => ["default", ...model.variant.list()])
 
   return (
     <Dialog
@@ -85,6 +89,30 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
             </div>
           )}
         </List>
+        <Show when={variantOptions().length > 1}>
+          <div class="flex flex-col gap-0.5 px-3" data-slot="model-variant-section">
+            <div class="px-1.5 py-0.5 text-12-regular text-text-weak">
+              {language.t("dialog.model.variant.title")}
+            </div>
+            <For each={variantOptions()}>
+              {(option) => (
+                <button
+                  type="button"
+                  class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
+                  classList={{ "bg-surface-raised-base": (model.variant.current() ?? "default") === option }}
+                  onClick={() => model.variant.set(option === "default" ? undefined : option)}
+                >
+                  <span class="flex-1 truncate text-left">
+                    {option === "default" ? language.t("common.default") : option}
+                  </span>
+                  <Show when={(model.variant.current() ?? "default") === option}>
+                    <Icon name="check" size="small" class="shrink-0" />
+                  </Show>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
       </div>
       <div class="px-1.5 pb-1.5">
         <div class="w-full rounded-sm border border-border-weak-base bg-surface-raised-base">

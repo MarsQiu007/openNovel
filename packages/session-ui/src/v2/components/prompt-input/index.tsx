@@ -216,6 +216,11 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onShell={props.controller.openShell}
             />
             <Show when={!view.pending?.()} fallback={<PromptInputV2ControlPlaceholder />}>
+              <Show when={view.permissionMode}>
+                {(control) => <PromptInputV2ConfiguredSelect title="Permission mode" control={control()} />}
+              </Show>
+            </Show>
+            <Show when={!view.pending?.()} fallback={<PromptInputV2ControlPlaceholder />}>
               <Show when={view.agent}>
                 {(control) => (
                   <PromptInputV2ConfiguredSelect title="Choose agent" keybind={["Mod", "."]} control={control()} />
@@ -240,27 +245,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               }
             >
               {props.modelControl}
-            </Show>
-            <Show when={!view.pending?.()} fallback={<PromptInputV2ControlPlaceholder />}>
-              <Show when={view.variant}>
-                {(control) => (
-                  <Show
-                    when={control().options().length > 1}
-                    fallback={<PromptInputV2VariantPlaceholder title="Current model does not support model variants" />}
-                  >
-                    <PromptInputV2ConfiguredSelect
-                      title="Choose model variant"
-                      keybind={["Shift", "Mod", "D"]}
-                      control={control()}
-                    />
-                  </Show>
-                )}
-              </Show>
-            </Show>
-            <Show when={!view.pending?.()} fallback={<PromptInputV2ControlPlaceholder />}>
-              <Show when={view.permissionMode}>
-                {(control) => <PromptInputV2ConfiguredSelect title="Permission mode" control={control()} />}
-              </Show>
             </Show>
           </div>
           <PromptInputV2SubmitButton
@@ -530,23 +514,6 @@ export function PromptInputV2AddMenu(props: {
 // 加载过程不再整块消失（垂直零跳动，水平近似）
 function PromptInputV2ControlPlaceholder() {
   return <div class="h-7 w-28 shrink-0 animate-pulse rounded-md bg-v2-icon-icon-muted opacity-30" aria-hidden="true" />
-}
-
-// 当前模型无推理档位时的禁用占位：保留布局位置并说明原因，而不是整块消失
-function PromptInputV2VariantPlaceholder(props: { title: string }) {
-  return (
-    <TooltipV2 placement="top" value={props.title}>
-      <div
-        class="flex h-7 max-w-[220px] cursor-not-allowed items-center gap-1 px-2 opacity-50"
-        aria-label={props.title}
-      >
-        <span class="truncate capitalize leading-5">default</span>
-        <span class="-ml-0.5 -mr-1 flex shrink-0">
-          <IconV2 name="chevron-down" />
-        </span>
-      </div>
-    </TooltipV2>
-  )
 }
 
 function PromptInputV2ConfiguredSelect(props: {

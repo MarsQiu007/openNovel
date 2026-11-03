@@ -377,7 +377,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       keybind: command.keybindParts(item.id),
     })),
   )
-  const variants = createMemo(() => ["default", ...props.controls.model.selection.variant.list()])
   const controller = createPromptInputV2Controller({
     store: () => prompt.capture().store,
     state: interaction,
@@ -451,12 +450,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
               keybind: () => command.keybindParts("agent.cycle"),
             }
           : undefined,
-      variant: {
-        options: () => variants().map((value) => ({ id: value, label: value })),
-        current: () => props.controls.model.selection.variant.current() ?? "default",
-        onSelect: (value) => props.controls.model.selection.variant.set(value === "default" ? undefined : value),
-        keybind: () => command.keybindParts("model.variant.cycle"),
-      },
       permissionMode: {
         options: () => PERMISSION_MODES.map((value) => ({ id: value, label: permissionMode.describe(value) })),
         current: () => permissionMode.effective(),
@@ -491,6 +484,8 @@ function PromptInputV2ModelControl(props: {
   onUnpaidClick: () => void
 }) {
   const shouldAnimate = createMemo<boolean>((previous) => previous ?? props.loading)
+  // 非默认推理档位以" · 档位"后缀挂在模型芯片上（档位选择已折入模型弹层）
+  const variant = () => props.model.variant.current()
   // 加载占位与终态按钮同高（h-7），避免模型控件在加载过程中整块消失
   const loadingPlaceholder = () => (
     <div class="h-7 w-28 shrink-0 animate-pulse rounded-md bg-surface-raised-base opacity-60" aria-hidden="true" />
@@ -506,7 +501,10 @@ function PromptInputV2ModelControl(props: {
           />
         )}
       </Show>
-      <span class="truncate leading-4">{props.modelName}</span>
+      <span class="truncate leading-4">
+        {props.modelName}
+        <Show when={variant()}>{(value) => <span class="text-v2-text-text-muted"> · {value()}</span>}</Show>
+      </span>
       <span class="-ml-0.5 -mr-1 flex shrink-0">
         <Icon name="chevron-down" />
       </span>

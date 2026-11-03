@@ -44,9 +44,8 @@ import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { IconButton } from "@opennovel-ai/ui/icon-button"
 import { Select } from "@opennovel-ai/ui/select"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
-import { ModelSelectorPopover, ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
+import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaid } from "@/components/dialog-select-model-unpaid"
-import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -1162,9 +1161,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     />
   )
 
-  const variants = createMemo(() => ["default", ...props.controls.model.selection.variant.list()])
-  // Check provider variants directly: `variants` also includes the UI-only default option.
-  const showVariantControl = createMemo(() => props.controls.model.selection.variant.list().length > 0)
   // 控件未就绪时的骨架占位：h-7 与控件栏行高一致，宽度取终态常见值近似，
   // 加载过程不再整块摘除控件（垂直方向零跳动，水平仅近似）
   const ControlSkeleton = () => (
@@ -1675,6 +1671,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                               <span class="truncate">
                                 {props.controls.model.selection.current()?.name ??
                                   language.t("dialog.model.select.title")}
+                                <Show when={props.controls.model.selection.variant.current()}>
+                                  {(value) => <span class="text-text-weak"> · {value()}</span>}
+                                </Show>
                               </span>
                               <Icon name="chevron-down" size="small" class="shrink-0" />
                             </Button>
@@ -1709,58 +1708,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                             <span class="truncate">
                               {props.controls.model.selection.current()?.name ??
                                 language.t("dialog.model.select.title")}
+                              <Show when={props.controls.model.selection.variant.current()}>
+                                {(value) => <span class="text-text-weak"> · {value()}</span>}
+                              </Show>
                             </span>
                             <Icon name="chevron-down" size="small" class="shrink-0" />
                           </ModelSelectorPopover>
                         </TooltipKeybind>
                       </Show>
                     </div>
-                    <Show
-                      when={showVariantControl()}
-                      fallback={
-                        <Show when={controlsReady()}>
-                          <Tooltip placement="top" gutter={4} value={language.t("model.tooltip.reasoning.none")}>
-                            <div
-                              data-component="prompt-variant-control"
-                              class="flex h-7 max-w-[160px] cursor-not-allowed items-center gap-1 px-2 opacity-50"
-                            >
-                              <span class="truncate text-13-regular text-text-base">
-                                {language.t("common.default")}
-                              </span>
-                              <Icon name="chevron-down" size="small" class="shrink-0" />
-                            </div>
-                          </Tooltip>
-                        </Show>
-                      }
-                    >
-                      <div
-                        data-component="prompt-variant-control"
-                        classList={{ "animate-in fade-in duration-300": providersShouldFadeIn() }}
-                      >
-                        <TooltipKeybind
-                          placement="top"
-                          gutter={4}
-                          title={language.t("command.model.variant.cycle")}
-                          keybind={command.keybind("model.variant.cycle")}
-                        >
-                          <Select
-                            size="normal"
-                            options={variants()}
-                            current={props.controls.model.selection.variant.current() ?? "default"}
-                            label={(x) => (x === "default" ? language.t("common.default") : x)}
-                            onSelect={(value) => {
-                              props.controls.model.selection.variant.set(value === "default" ? undefined : value)
-                              restoreFocus()
-                            }}
-                            class="capitalize max-w-[160px] text-text-base"
-                            valueClass="truncate text-13-regular text-text-base"
-                            triggerStyle={control()}
-                            triggerProps={{ "data-action": "prompt-model-variant" }}
-                            variant="ghost"
-                          />
-                        </TooltipKeybind>
-                      </div>
-                    </Show>
                   </Show>
                 </Show>
               </div>

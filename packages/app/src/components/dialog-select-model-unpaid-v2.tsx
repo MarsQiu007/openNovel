@@ -32,6 +32,8 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
   const isFree = (item: ReturnType<ModelState["list"]>[number]) =>
     item.provider.id === "opennovel" && (!item.cost || item.cost.input === 0)
   const freeModels = createMemo(() => model.list().filter(isFree))
+  // 推理档位分段：仅当前选中模型声明了档位时呈现；选择不关闭弹窗，便于继续浏览模型
+  const variantOptions = createMemo(() => ["default", ...model.variant.list()])
 
   const openProviders = (provider?: string) => {
     void import("./dialog-connect-provider").then((x) => {
@@ -117,6 +119,35 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
               )}
             </For>
           </div>
+
+          <Show when={variantOptions().length > 1}>
+            <div class="flex w-full flex-col gap-0.5 px-2 pb-3" data-slot="model-variant-section">
+              <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
+                <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+                  {language.t("dialog.model.variant.title")}
+                </div>
+              </div>
+              <For each={variantOptions()}>
+                {(option) => (
+                  <button
+                    type="button"
+                    class="flex h-7 w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 text-left text-[13px] font-[530] capitalize leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+                    classList={{
+                      "bg-v2-overlay-simple-overlay-hover": (model.variant.current() ?? "default") === option,
+                    }}
+                    onClick={() => model.variant.set(option === "default" ? undefined : option)}
+                  >
+                    <span class="flex-1 truncate">
+                      {option === "default" ? language.t("common.default") : option}
+                    </span>
+                    <Show when={(model.variant.current() ?? "default") === option}>
+                      <Icon name="check" class="size-4 shrink-0 text-v2-icon-icon-base" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
 
           <div class="flex w-full flex-col">
             <div class="flex w-full flex-col items-start rounded-lg border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-layer-02 p-2.5 pt-2">
