@@ -53,3 +53,7 @@
 - 433a87f897 feat(app): 自定义提供商编辑/删除/模型细节配置
 - 40694a0f5f refactor: 消除自定义提供商改动的 oxlint 新增告警
 - f8bc0c9a3a fix(opennovel): 修复无配置文件时自定义提供商增删的 jsonc 空文档崩溃
+
+### 归档后收尾修复
+
+- f5b4cfe07b test(opennovel): 补自定义提供商端点的 httpapi 练习场景——合并推送后 CI coverage 门 --fail-on-missing 秒红：新增两端点未注册练习场景，补注册后三模式全绿
