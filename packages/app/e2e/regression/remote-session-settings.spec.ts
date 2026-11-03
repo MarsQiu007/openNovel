@@ -3,9 +3,8 @@ import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-worksp
 
 // 独立会话路由已退役为重定向宿主（session-book-only）：会话页统一嵌在书籍工作台，
 // 设置对话框的"当前服务器上下文"跟随聚焦服务器。test 1 迁移到工作台路由验证
-// 远端服务器上下文；原 test 2（未聚焦服务器上后台会话的自动批准响应）覆盖的
-// 跨服务器独立会话面已随路由退役，无对应 UI 宿主，用例随之移除——同服务器的
-// 自动批准行为仍由 test 1 与 permission-auto-respond 单测覆盖。
+// 远端服务器上下文：权限模式三档切换（settings-permission-mode）经 global.config.update
+// 写回，断言 PATCH 落在聚焦的 serverB 上——原 auto-accept 开关的等价覆盖。
 const serverA = "http://127.0.0.1:4096"
 const serverB = "http://127.0.0.1:4097"
 const directoryA = "C:/server-a"
@@ -16,8 +15,8 @@ const childSessionA = { ...session("ses_server_a_child", directoryA, "Server A c
 const sessionB = session("ses_server_b", directoryB, "Server B session")
 
 test("session settings use the remote server context", async ({ page }) => {
-  const permissionRequests: string[] = []
-  await mockServers(page, permissionRequests)
+  const configPatches: ConfigPatch[] = []
+  await mockServers(page, configPatches)
   await mockNovelWorkspaceAPIs(page, { directory: directoryB, novelID, boundSessionIDs: [sessionB.id] })
   await configureServers(page)
 
@@ -26,27 +25,38 @@ test("session settings use the remote server context", async ({ page }) => {
   await page.keyboard.press(process.platform === "darwin" ? "Meta+," : "Control+,")
 
   const dialog = page.locator(".settings-v2-dialog")
-  const autoAccept = dialog.locator('[data-action="settings-auto-accept-permissions"]')
-  const input = autoAccept.getByRole("switch")
-  await expect(autoAccept).toBeVisible()
-  await expect(input).toBeEnabled()
-  permissionRequests.length = 0
-  await autoAccept.locator('[data-slot="switch-control"]').click()
-  await expect(input).toBeChecked()
+  const modeSelect = dialog.locator('[data-action="settings-permission-mode"]')
+  await expect(modeSelect).toBeVisible()
+  configPatches.length = 0
+  await modeSelect.click()
+  // SelectV2 的 option 无计算可访问名（aria snapshot 呈无名 option），按列表内文本定位
+  await page
+    .locator('[data-slot="select-v2-listbox"]')
+    .getByText("Auto approve", { exact: true })
+    .click()
   await expect
-    .poll(() =>
-      permissionRequests.some((request) => {
-        const url = new URL(request)
-        return url.origin === serverB && url.searchParams.get("location[directory]") === directoryB
-      }),
-    )
+    .poll(() => configPatches.some((patch) => patch.origin === serverB && patch.mode === "judge"))
     .toBe(true)
-  expect(permissionRequests.every((request) => new URL(request).origin === serverB)).toBe(true)
+  expect(configPatches.every((patch) => patch.origin === serverB)).toBe(true)
 
   await dialog.getByRole("tab", { name: "Models" }).click()
   await expect(dialog.getByRole("switch", { name: "Server B Model" })).toBeEnabled()
   await expect(dialog.getByRole("switch", { name: "Server A Model" })).toHaveCount(0)
 })
+
+type ConfigPatch = {
+  origin: string
+  mode?: string
+}
+
+// 无类型断言读取 PATCH 体 permission.mode（postDataJSON 为 any，Reflect.get 窄化）
+function readPermissionMode(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined
+  const permission = Reflect.get(body, "permission")
+  if (typeof permission !== "object" || permission === null) return undefined
+  const mode = Reflect.get(permission, "mode")
+  return typeof mode === "string" ? mode : undefined
+}
 
 type PermissionResponse = {
   origin: string
@@ -68,7 +78,7 @@ async function configureServers(page: Page) {
   )
 }
 
-async function mockServers(page: Page, permissionRequests: string[], permissionResponses: PermissionResponse[] = []) {
+async function mockServers(page: Page, configPatches: ConfigPatch[], permissionResponses: PermissionResponse[] = []) {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url())
     if (url.origin !== serverA && url.origin !== serverB) return route.fallback()
@@ -78,6 +88,11 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     const directory = remote ? directoryB : directoryA
     const sessions = remote ? [sessionB] : [sessionA, childSessionA]
     const requestDirectory = url.searchParams.get("directory")
+    // 权限模式三档切换经 global.config.update 写回：捕获 PATCH 验证落在聚焦服务器上
+    if (url.pathname === "/global/config" && route.request().method() === "PATCH") {
+      configPatches.push({ origin: url.origin, mode: readPermissionMode(route.request().postDataJSON()) })
+      return json(route, {})
+    }
     const response = url.pathname.match(/^\/session\/([^/]+)\/permissions\/([^/]+)$/)
     if (route.request().method() === "POST" && response) {
       permissionResponses.push({
@@ -93,6 +108,8 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     if (url.pathname === "/global/event" || url.pathname === "/event") return sse(route)
     if (url.pathname === "/global/health") return json(route, { healthy: true })
     if (url.pathname === "/api/session") return json(route, { data: sessions.map(v2Session), cursor: {} })
+    // app 启动固定读取面（global-sync bootstrap）：空信封而非落入 v2Match 的 NotFoundError 404
+    if (url.pathname === "/api/session/active") return json(route, { data: {} })
     if (/^\/api\/session\/[^/]+\/message$/.test(url.pathname)) return json(route, { data: [], cursor: {} })
     if (/^\/api\/session\/[^/]+\/message\/[^/]+$/.test(url.pathname)) return json(route, { error: "Message not found" }, 404)
     if (url.pathname === "/experimental/capabilities") return json(route, { backgroundSubagents: false })
@@ -109,11 +126,7 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
     if (/^\/session\/[^/]+$/.test(url.pathname)) return json(route, { name: "NotFoundError" }, 404)
     if (/^\/session\/[^/]+\/message$/.test(url.pathname)) return json(route, [])
     if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(url.pathname)) return json(route, [])
-    if (url.pathname === "/api/permission/request") {
-      // auto-accept 开启后 enableDirectory 拉取挂起权限走 V2 端点（location[directory] 查询参数）
-      permissionRequests.push(url.toString())
-      return json(route, { data: [], cursor: {} })
-    }
+    if (url.pathname === "/api/permission/request") return json(route, { data: [], cursor: {} })
     if (url.pathname === "/permission") return json(route, [])
     if (["/skill", "/command", "/lsp", "/formatter", "/question", "/vcs/diff", "/pty/shells"].includes(url.pathname))
       return json(route, [])

@@ -673,3 +673,48 @@
   line-height: 1;
   color: var(--v2-state-fg-danger);
 }
+
+/* 权限配置区：项目级配置来源标注（紧跟模式选择器行的提示条） */
+.settings-v2-row-note {
+  margin-top: -24px;
+  font-size: 11px;
+  font-weight: 440;
+  line-height: 1.4;
+  color: var(--v2-text-text-muted);
+}
+
+/* 权限配置区：生效策略表只读展示 */
+.settings-permission-policy {
+  display: flex;
+  min-width: 280px;
+  flex-direction: column;
+  border: 0.5px solid var(--v2-border-border-base);
+  border-radius: 6px;
+}
+
+.settings-permission-policy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+}
+
+.settings-permission-policy-row:not(:last-child) {
+  border-bottom: 0.5px solid var(--v2-border-border-base);
+}
+
+.settings-permission-policy-action {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 440;
+  line-height: 1;
+  color: var(--v2-text-text-base);
+}
+
+.settings-permission-policy-value {
+  font-size: 11px;
+  font-weight: 440;
+  line-height: 1;
+  color: var(--v2-text-text-muted);
+}

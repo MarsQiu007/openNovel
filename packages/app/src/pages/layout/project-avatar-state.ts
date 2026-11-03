@@ -1,7 +1,6 @@
 import { createMemo, type Accessor } from "solid-js"
 import { useGlobal } from "@/context/global"
 import { useNotification } from "@/context/notification"
-import { usePermission } from "@/context/permission"
 import { sessionPermissionRequest, sessionQuestionRequest } from "@/pages/session/composer/session-request-tree"
 import { ServerConnection } from "@/context/server"
 
@@ -12,8 +11,6 @@ export function useSessionTabAvatarState(
 ) {
   const global = useGlobal()
   const notification = useNotification()
-  const permission = usePermission()
-  const permissionState = createMemo(() => permission.ensureServerState(server()))
   const connection = createMemo(() => global.servers.list().find((item) => ServerConnection.key(item) === server()))
   const sync = createMemo(() => {
     const conn = connection()
@@ -23,9 +20,7 @@ export function useSessionTabAvatarState(
     const serverSync = sync()
     if (!serverSync) return false
     const [store] = serverSync.child(directory(), { bootstrap: false })
-    return !!sessionPermissionRequest(store.session, serverSync.session.data.permission, sessionId(), (item) => {
-      return !permissionState().autoResponds(item, directory())
-    })
+    return !!sessionPermissionRequest(store.session, serverSync.session.data.permission, sessionId())
   })
   const hasQuestions = createMemo(() => {
     const serverSync = sync()

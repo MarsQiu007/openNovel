@@ -39,8 +39,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import { clearWorkspaceTerminals } from "@/context/terminal"
 import { pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
 import { useNotification } from "@/context/notification"
-import { usePermission } from "@/context/permission"
-import { adaptPermission } from "@/utils/v2-adapter"
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { retry } from "@opennovel-ai/core/util/retry"
 import { playSoundById } from "@/utils/sound"
@@ -116,7 +114,6 @@ export default function LegacyLayout(props: ParentProps) {
   const settings = useSettings()
   const server = useServer()
   const notification = useNotification()
-  const permission = usePermission()
   const navigate = useNavigate()
   setNavigate(navigate)
   const providers = useProviders()
@@ -429,7 +426,6 @@ export default function LegacyLayout(props: ParentProps) {
         const icon = e.details.type === "permission.v2.asked" ? ("checklist" as const) : ("bubble-5" as const)
         const directory = e.name
         const props = e.details.properties
-        if (e.details.type === "permission.v2.asked" && permission.autoResponds(adaptPermission(e.details.properties), directory)) return
 
         const [store] = serverSync().child(directory, { bootstrap: false })
         const session = store.session.find((s) => s.id === props.sessionID)

@@ -8,7 +8,6 @@ import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { useTheme, type ColorScheme } from "@opennovel-ai/ui/theme/context"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
-import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useServerSync } from "@/context/server-sync"
 import { useServerSDK } from "@/context/server-sdk"
@@ -29,6 +28,7 @@ import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "../link"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
+import { SettingsPermissionV2 } from "./permission"
 import { LayoutRetirementNotice, LayoutTransitionToggle } from "./interface-transition"
 import "./settings-v2.css"
 
@@ -87,7 +87,6 @@ export const SettingsGeneralV2: Component<{
 }> = (props) => {
   const theme = useTheme()
   const language = useLanguage()
-  const permission = usePermission()
   const platform = usePlatform()
   const dialog = useDialog()
   const settings = useSettings()
@@ -101,23 +100,6 @@ export const SettingsGeneralV2: Component<{
     if (!props.sessionID) return undefined
     return serverSync().session.lineage.peek(props.sessionID)?.session.directory
   })
-  const accepting = createMemo(() => {
-    const value = dir()
-    if (!value || !props.sessionID) return false
-    return permission.isAutoAccepting(props.sessionID, value)
-  })
-
-  const toggleAccept = (checked: boolean) => {
-    const value = dir()
-    if (!value || !props.sessionID) return
-
-    if (checked) {
-      permission.enableAutoAccept(props.sessionID, value)
-      return
-    }
-
-    permission.disableAutoAccept(props.sessionID, value)
-  }
   const desktop = createMemo(() => platform.platform === "desktop")
 
   const themeOptions = createMemo<ThemeOption[]>(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
@@ -304,14 +286,7 @@ export const SettingsGeneralV2: Component<{
           />
         </SettingsRowV2>
 
-        <SettingsRowV2
-          title={language.t("command.permissions.autoaccept.enable")}
-          description={language.t("toast.permissions.autoaccept.on.description")}
-        >
-          <div data-action="settings-auto-accept-permissions">
-            <Switch checked={accepting()} disabled={!dir()} onChange={toggleAccept} />
-          </div>
-        </SettingsRowV2>
+        <SettingsPermissionV2 directory={dir} />
 
         <SettingsRowV2
           title={language.t("settings.general.row.shell.title")}

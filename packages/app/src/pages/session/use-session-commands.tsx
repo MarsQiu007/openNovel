@@ -5,7 +5,7 @@ import { previewSelectedLines } from "@opennovel-ai/session-ui/pierre/selection-
 import { useFile, selectionFromLines, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
-import { usePermission } from "@/context/permission"
+import { usePermissionMode } from "@/context/permission-mode"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
@@ -39,9 +39,10 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const dialog = useDialog()
   const file = useFile()
   const language = useLanguage()
-  const permission = usePermission()
-  const prompt = usePrompt()
   const sdk = useSDK()
+  // sdk 必须先于 usePermissionMode 声明：其内部 createMemo 会立即求值 directory 访问器（TDZ）
+  const permissionMode = usePermissionMode(() => sdk().directory)
+  const prompt = usePrompt()
   const settings = useSettings()
   const sync = useSync()
   const terminal = useTerminal()
@@ -136,17 +137,19 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const mcpCommand = withCategory(language.t("command.category.mcp"))
   const permissionsCommand = withCategory(language.t("command.category.permissions"))
 
-  const isAutoAcceptActive = () => {
-    const sessionID = params.id
-    if (sessionID) return permission.isAutoAccepting(sessionID, sdk().directory)
-    return permission.isAutoAcceptingDirectory(sdk().directory)
-  }
-
   const openFile = () => {
     void openDialog(
       () => import("@/components/dialog-select-file"),
       (x) => dialog.show(() => <x.DialogSelectFile onOpenFile={showAllFiles} />),
     )
+  }
+
+  const cyclePermissionMode = async () => {
+    const next = await permissionMode.cycle()
+    showToast({
+      title: language.t("toast.permissions.mode.title"),
+      description: permissionMode.describe(next),
+    })
   }
 
   const closeTab = () => {
@@ -193,24 +196,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       () => import("@/components/dialog-select-mcp"),
       (x) => dialog.show(() => <x.DialogSelectMcp />),
     )
-  }
-
-  const toggleAutoAccept = () => {
-    const sessionID = params.id
-    if (sessionID) permission.toggleAutoAccept(sessionID, sdk().directory)
-    else permission.toggleAutoAcceptDirectory(sdk().directory)
-
-    const active = sessionID
-      ? permission.isAutoAccepting(sessionID, sdk().directory)
-      : permission.isAutoAcceptingDirectory(sdk().directory)
-    showToast({
-      title: active
-        ? language.t("toast.permissions.autoaccept.on.title")
-        : language.t("toast.permissions.autoaccept.off.title"),
-      description: active
-        ? language.t("toast.permissions.autoaccept.on.description")
-        : language.t("toast.permissions.autoaccept.off.description"),
-    })
   }
 
   const undo = async () => {
@@ -442,13 +427,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
   const permissionsCmds = () => [
     permissionsCommand({
-      id: "permissions.autoaccept",
-      title: isAutoAcceptActive()
-        ? language.t("command.permissions.autoaccept.disable")
-        : language.t("command.permissions.autoaccept.enable"),
+      id: "permissions.mode.cycle",
+      title: language.t("command.permissions.mode.cycle", {
+        mode: permissionMode.describe(permissionMode.effective()),
+      }),
+      description: language.t("command.permissions.mode.description"),
       keybind: "mod+shift+a",
       disabled: false,
-      onSelect: toggleAutoAccept,
+      onSelect: cyclePermissionMode,
     }),
   ]
 

@@ -1,26 +1,18 @@
 import { createEffect, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
-import { createStore, produce } from "solid-js/store"
+import { createStore } from "solid-js/store"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
-import type { PermissionRequest } from "@opennovel-ai/sdk/v2/client"
-import { Persist, persisted } from "@/utils/persist"
+import { Persist, removePersisted } from "@/utils/persist"
 import type { ServerSDK } from "@/context/server-sdk"
 import type { ServerSync } from "./server-sync"
 import { useParams } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
-import { useTabs } from "./tabs"
 import { useSettings } from "./settings"
 import { requireServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
-import {
-  acceptKey,
-  directoryAcceptKey,
-  isDirectoryAutoAccepting,
-  autoRespondsPermission,
-  sessionAutoAccept,
-} from "./permission-auto-respond"
-import { adaptPermission } from "@/utils/v2-adapter"
+import { usePlatform } from "@/context/platform"
+import type { Platform } from "@/context/platform"
 
 type PermissionRespondFn = (input: {
   sessionID: string
@@ -29,38 +21,15 @@ type PermissionRespondFn = (input: {
   directory?: string
 }) => void
 
-function isNonAllowRule(rule: unknown) {
-  if (!rule) return false
-  if (typeof rule === "string") return rule !== "allow"
-  if (typeof rule !== "object") return false
-  if (Array.isArray(rule)) return false
-
-  for (const action of Object.values(rule)) {
-    if (action !== "allow") return true
-  }
-
-  return false
-}
-
-function hasPermissionPromptRules(permission: unknown) {
-  if (!permission) return false
-  if (typeof permission === "string") return permission !== "allow"
-  if (typeof permission !== "object") return false
-  if (Array.isArray(permission)) return false
-
-  const config = permission as Record<string, unknown>
-  return Object.values(config).some(isNonAllowRule)
-}
-
 export const { use: usePermission, provider: PermissionProvider } = createSimpleContext({
   name: "Permission",
   gate: false,
   init: () => {
     const params = useParams<{ serverKey?: string; dir?: string; id?: string }>()
-      const global = useGlobal()
+    const global = useGlobal()
     const server = useServer()
-    const tabs = useTabs()
     const settings = useSettings()
+    const platform = usePlatform()
     const owner = getOwner()
     const states = new Map<ServerScope, { key: ServerConnection.Key; dispose: () => void; state: PermissionState }>()
 
@@ -85,7 +54,7 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
         (dispose) => ({
           key,
           dispose,
-          state: createServerPermissionState({ sdk: ctx.sdk, sync: ctx.sync }),
+          state: createServerPermissionState({ sdk: ctx.sdk, sync: ctx.sync, platform: platform }),
         }),
         owner ?? undefined,
       )
@@ -120,25 +89,6 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       if (lastSelected) return lastSelected
       return ensure(server.key)
     }
-    const activeDirectory = createMemo(() => {
-      const directory = decode64(params.dir)
-      if (directory) return directory
-      if (!params.id) return
-      if (!global.servers.list().some((conn) => ServerConnection.key(conn) === activeServer())) return
-      return selected().sync.session.lineage.peek(params.id)?.session.directory
-    })
-
-    createEffect(() => {
-      const directory = activeDirectory()
-      if (!directory) return
-      selected().enableConfiguredDirectory(directory)
-    })
-
-    const permissionsEnabled = createMemo(() => {
-      const directory = activeDirectory()
-      if (!directory) return false
-      return selected().permissionsEnabled(directory)
-    })
 
     return {
       ready: () => selected().ready(),
@@ -146,31 +96,6 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       currentServerState: () => selected().api,
       respond(input: Parameters<PermissionRespondFn>[0]) {
         selected().respond(input)
-      },
-      autoResponds(permission: PermissionRequest, directory?: string) {
-        return selected().autoResponds(permission, directory)
-      },
-      isAutoAccepting(sessionID: string, directory?: string) {
-        return selected().isAutoAccepting(sessionID, directory)
-      },
-      isAutoAcceptingDirectory(directory: string) {
-        return selected().isAutoAcceptingDirectory(directory)
-      },
-      toggleAutoAccept(sessionID: string, directory: string) {
-        selected().toggleAutoAccept(sessionID, directory)
-      },
-      toggleAutoAcceptDirectory(directory: string) {
-        selected().toggleAutoAcceptDirectory(directory)
-      },
-      enableAutoAccept(sessionID: string, directory: string) {
-        selected().enableAutoAccept(sessionID, directory)
-      },
-      disableAutoAccept(sessionID: string, directory?: string) {
-        selected().disableAutoAccept(sessionID, directory)
-      },
-      permissionsEnabled,
-      isPermissionAllowAll(directory: string) {
-        return selected().isPermissionAllowAll(directory)
       },
       judgeSuggestion(sessionID: string, callID: string) {
         return selected().judgeSuggestion(sessionID, callID)
@@ -182,29 +107,9 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
 type PermissionState = ReturnType<typeof createServerPermissionState>
 type PermissionEvent = Parameters<Parameters<ServerSDK["event"]["listen"]>[0]>[0]
 
-function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }) {
-  const [store, setStore, _, ready] = persisted(
-    {
-      ...Persist.serverGlobal(input.sdk.scope, "permission", ["permission.v3"]),
-      migrate(value) {
-        if (!value || typeof value !== "object" || Array.isArray(value)) return value
-
-        const data = value as Record<string, unknown>
-        if (data.autoAccept) return value
-
-        return {
-          ...data,
-          autoAccept:
-            typeof data.autoAcceptEdits === "object" && data.autoAcceptEdits && !Array.isArray(data.autoAcceptEdits)
-              ? data.autoAcceptEdits
-              : {},
-        }
-      },
-    },
-    createStore({
-      autoAccept: {} as Record<string, boolean>,
-    }),
-  )
+function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync; platform: Platform }) {
+  // 旧 auto-accept 机制的本地持久化数据（permission / permission.v3 键）随机制删除一并清除
+  removePersisted(Persist.serverGlobal(input.sdk.scope, "permission", ["permission.v3"]), input.platform)
 
   // 裁判标注（shadow 建议）：按会话内存保留，不进持久化存储；key 为 `${sessionID}:${callID}`
   const [judged, setJudged] = createStore<
@@ -228,254 +133,30 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     })
   }
 
-  function enableConfiguredDirectory(directory: string) {
-    if (meta.disposed || !ready()) return
-    const [childStore] = input.sync.child(directory)
-    if (childStore.config.permission !== "allow") return
-    const key = directoryAcceptKey(directory)
-    if (store.autoAccept[key] !== undefined) return
-    setStore(
-      produce((draft) => {
-        draft.autoAccept[key] = true
-      }),
-    )
-  }
-
-  const MAX_RESPONDED = 1000
-  const RESPONDED_TTL_MS = 60 * 60 * 1000
-  const responded = new Map<string, number>()
-  const enableVersion = new Map<string, number>()
   const meta = { disposed: false }
-
-  function pruneResponded(now: number) {
-    for (const [id, ts] of responded) {
-      if (now - ts < RESPONDED_TTL_MS) break
-      responded.delete(id)
-    }
-
-    for (const id of responded.keys()) {
-      if (responded.size <= MAX_RESPONDED) break
-      responded.delete(id)
-    }
-  }
-
-  const respond: PermissionRespondFn = (request) => {
-    if (meta.disposed) return
-    input.sdk.client.v2.session.permission
-      .reply({ sessionID: request.sessionID, requestID: request.permissionID, reply: request.response })
-      .catch(() => {
-        responded.delete(request.permissionID)
-      })
-  }
-
-  function respondOnce(permission: PermissionRequest, directory?: string) {
-    const now = Date.now()
-    const hit = responded.has(permission.id)
-    responded.delete(permission.id)
-    responded.set(permission.id, now)
-    pruneResponded(now)
-    if (hit) return
-    respond({
-      sessionID: permission.sessionID,
-      permissionID: permission.id,
-      response: "once",
-      directory,
-    })
-  }
-
-  function sessions(directory?: string) {
-    const info = Object.values(input.sync.session.data.info).filter((session) => !!session)
-    if (!directory) return info
-    return [...info, ...input.sync.child(directory, { bootstrap: false })[0].session]
-  }
-
-  function isAutoAccepting(sessionID: string, directory?: string) {
-    return autoRespondsPermission(store.autoAccept, sessions(directory), { sessionID }, directory)
-  }
-
-  function isAutoAcceptingDirectory(directory: string) {
-    return isDirectoryAutoAccepting(store.autoAccept, directory)
-  }
-
-  function shouldAutoRespond(permission: PermissionRequest, directory?: string) {
-    return autoRespondsPermission(store.autoAccept, sessions(directory), permission, directory)
-  }
-
-  function isPending(permission: PermissionRequest) {
-    const pending = input.sync.session.data.permission[permission.sessionID]
-    return pending === undefined || pending.some((item) => item.id === permission.id)
-  }
-
-  async function shouldAutoRespondResolved(permission: PermissionRequest, directory?: string) {
-    const override = sessionAutoAccept(store.autoAccept, sessions(directory), permission, directory)
-    if (override !== undefined) return override
-    if (input.sync.session.lineage.peek(permission.sessionID)) return shouldAutoRespond(permission, directory)
-    const lineage = await input.sync.session.lineage.resolve(permission.sessionID).catch(() => undefined)
-    if (meta.disposed || !lineage) return false
-    return shouldAutoRespond(permission, directory)
-  }
-
-  async function respondPending(
-    permission: PermissionRequest,
-    directory?: string,
-    current: () => boolean = () => true,
-  ) {
-    if (!current() || !isPending(permission)) return
-    if (!(await shouldAutoRespondResolved(permission, directory))) return
-    if (meta.disposed || !current() || !isPending(permission)) return
-    respondOnce(permission, directory)
-  }
-
-  function bumpEnableVersion(sessionID: string, directory?: string) {
-    const key = acceptKey(sessionID, directory)
-    const next = (enableVersion.get(key) ?? 0) + 1
-    enableVersion.set(key, next)
-    return next
-  }
 
   const handlePermission = (e: PermissionEvent) => {
     const event = e.details
-    if (event?.type === "permission.v2.judged") {
-      recordJudged(event.properties)
-      return
-    }
-    if (event?.type !== "permission.v2.asked") return
-    void respondPending(adaptPermission(event.properties), e.name)
+    if (event?.type !== "permission.v2.judged") return
+    recordJudged(event.properties)
   }
 
-  const unsubscribe = input.sdk.event.listen((event) => {
-    if (ready()) {
-      handlePermission(event)
-      return
-    }
-    void ready.promise?.then(() => {
-      if (meta.disposed) return
-      handlePermission(event)
-    })
-  })
+  const unsubscribe = input.sdk.event.listen(handlePermission)
   onCleanup(() => {
     meta.disposed = true
     unsubscribe()
   })
 
-  function enableDirectory(directory: string) {
+  const respond: PermissionRespondFn = (request) => {
     if (meta.disposed) return
-    const key = directoryAcceptKey(directory)
-    setStore(
-      produce((draft) => {
-        draft.autoAccept[key] = true
-      }),
-    )
-
-    input.sdk.client.v2.permission.request
-      .list({ location: { directory } })
-      .then((x) => {
-        if (meta.disposed) return
-        if (!isAutoAcceptingDirectory(directory)) return
-        for (const item of x.data?.data ?? []) {
-          void respondPending(adaptPermission(item), directory, () => isAutoAcceptingDirectory(directory))
-        }
-      })
-      .catch(() => undefined)
-  }
-
-  function disableDirectory(directory: string) {
-    if (meta.disposed) return
-    const key = directoryAcceptKey(directory)
-    setStore(
-      produce((draft) => {
-        draft.autoAccept[key] = false
-      }),
-    )
-  }
-
-  function enable(sessionID: string, directory: string) {
-    if (meta.disposed) return
-    const key = acceptKey(sessionID, directory)
-    const version = bumpEnableVersion(sessionID, directory)
-    setStore(
-      produce((draft) => {
-        draft.autoAccept[key] = true
-        delete draft.autoAccept[sessionID]
-      }),
-    )
-
-    input.sdk.client.v2.permission.request
-      .list({ location: { directory } })
-      .then((x) => {
-        if (meta.disposed) return
-        if (enableVersion.get(key) !== version) return
-        if (!isAutoAccepting(sessionID, directory)) return
-        for (const item of x.data?.data ?? []) {
-          void respondPending(
-            adaptPermission(item),
-            directory,
-            () => enableVersion.get(key) === version && isAutoAccepting(sessionID, directory),
-          )
-        }
-      })
-      .catch(() => undefined)
-  }
-
-  function disable(sessionID: string, directory?: string) {
-    if (meta.disposed) return
-    bumpEnableVersion(sessionID, directory)
-    const key = directory ? acceptKey(sessionID, directory) : sessionID
-    setStore(
-      produce((draft) => {
-        draft.autoAccept[key] = false
-        if (!directory) return
-        delete draft.autoAccept[sessionID]
-      }),
-    )
+    input.sdk.client.v2.session.permission
+      .reply({ sessionID: request.sessionID, requestID: request.permissionID, reply: request.response })
+      .catch(() => {})
   }
 
   const api = {
-    ready: () => !meta.disposed && ready(),
+    ready: () => !meta.disposed,
     respond,
-    autoResponds(permission: PermissionRequest, directory?: string) {
-      if (meta.disposed) return false
-      return shouldAutoRespond(permission, directory)
-    },
-    isAutoAccepting(sessionID: string, directory?: string) {
-      if (meta.disposed) return false
-      return isAutoAccepting(sessionID, directory)
-    },
-    isAutoAcceptingDirectory(directory: string) {
-      if (meta.disposed) return false
-      return isAutoAcceptingDirectory(directory)
-    },
-    toggleAutoAccept(sessionID: string, directory: string) {
-      if (meta.disposed) return
-      if (isAutoAccepting(sessionID, directory)) {
-        disable(sessionID, directory)
-        return
-      }
-
-      enable(sessionID, directory)
-    },
-    toggleAutoAcceptDirectory(directory: string) {
-      if (meta.disposed) return
-      if (isAutoAcceptingDirectory(directory)) {
-        disableDirectory(directory)
-        return
-      }
-      enableDirectory(directory)
-    },
-    enableAutoAccept(sessionID: string, directory: string) {
-      if (meta.disposed) return
-      if (isAutoAccepting(sessionID, directory)) return
-      enable(sessionID, directory)
-    },
-    disableAutoAccept(sessionID: string, directory?: string) {
-      if (meta.disposed) return
-      disable(sessionID, directory)
-    },
-    isPermissionAllowAll(directory: string) {
-      if (meta.disposed) return false
-      const [childStore] = input.sync.child(directory)
-      return childStore.config.permission === "allow"
-    },
     judgeSuggestion(sessionID: string, callID: string) {
       const annotation = judged[`${sessionID}:${callID}`]
       if (!annotation || annotation.mode !== "judge-shadow") return undefined
@@ -487,11 +168,5 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     ...api,
     api,
     sync: input.sync,
-    enableConfiguredDirectory,
-    permissionsEnabled(directory: string) {
-      if (meta.disposed) return false
-      const [childStore] = input.sync.child(directory)
-      return hasPermissionPromptRules(childStore.config.permission)
-    },
   }
 }

@@ -512,13 +512,17 @@ function resolveTarget(target: PersistTarget, platform: Platform): PersistTarget
 }
 
 export function removePersisted(
-  target: { storage?: string; legacyStorageNames?: string[]; key: string },
+  target: { storage?: string; legacyStorageNames?: string[]; key: string; legacy?: string[] },
   platform?: Platform,
 ) {
   const isDesktop = platform?.platform === "desktop" && !!platform.storage
 
   if (isDesktop) {
-    void platform.storage?.(target.storage)?.removeItem(target.key)
+    const storage = platform.storage?.(target.storage)
+    void storage?.removeItem(target.key)
+    for (const key of target.legacy ?? []) {
+      void storage?.removeItem(key)
+    }
     for (const storage of target.legacyStorageNames ?? []) {
       void platform.storage?.(storage)?.removeItem(target.key)
     }
@@ -527,10 +531,17 @@ export function removePersisted(
 
   if (!target.storage) {
     localStorageDirect().removeItem(target.key)
+    for (const key of target.legacy ?? []) {
+      localStorageDirect().removeItem(key)
+    }
     return
   }
 
-  localStorageWithPrefix(target.storage).removeItem(target.key)
+  const prefixed = localStorageWithPrefix(target.storage)
+  prefixed.removeItem(target.key)
+  for (const key of target.legacy ?? []) {
+    prefixed.removeItem(key)
+  }
   for (const storage of target.legacyStorageNames ?? []) {
     localStorageWithPrefix(storage).removeItem(target.key)
   }

@@ -37,6 +37,7 @@ export const SettingsAgentsV2: Component = () => {
   const queryClient = useQueryClient()
   // 乐观选中的 value key（agent name -> option value），让下拉在服务器回环完成前就显示新值。
   const [pending, setPending] = createSignal<Record<string, string>>({})
+  const [pendingJudge, setPendingJudge] = createSignal<Record<string, string>>({})
 
   const agentsQuery = createQuery(() => ({
     queryKey: ["settings", serverSdk().url, "agents"],
@@ -95,6 +96,15 @@ export const SettingsAgentsV2: Component = () => {
   const currentOption = (agent: Agent): ModelOption =>
     modelOptions().find((o) => o.value === agentValueKey(agent)) ?? followOption()
 
+  // 裁判模型当前值：agent 级 permission.judge.model（全局配置的 agent 段），空串/缺省回跟随会话。
+  const judgeModelOf = (name: string) => {
+    const permission = serverSync().data.config.agent?.[name]?.permission
+    if (typeof permission !== "object" || permission === null) return undefined
+    const model = permission.judge?.model
+    return model ? model : undefined
+  }
+  const judgeValueKey = (name: string) => pendingJudge()[name] ?? judgeModelOf(name) ?? FOLLOW_VALUE
+
   const saveMutation = useMutation(() => ({
     mutationFn: async (input: { name: string; valueKey: string }) => {
       const follow = input.valueKey === FOLLOW_VALUE
@@ -139,6 +149,53 @@ export const SettingsAgentsV2: Component = () => {
     // 乐观更新显示值，避免等待服务器回环期间下拉回弹到“跟随主会话”。
     setPending((current) => ({ ...current, [agent.name]: nextKey }))
     saveMutation.mutate({ name: agent.name, valueKey: nextKey })
+  }
+
+  const judgeModelOptions = createMemo<ModelOption[]>(() => [
+    {
+      value: FOLLOW_VALUE,
+      providerID: "",
+      modelID: "",
+      name: language.t("settings.permission.judgeModel.follow"),
+      providerName: "",
+      follow: true,
+    },
+    ...modelOptions().filter((o) => !o.follow),
+  ])
+
+  const judgeSaveMutation = useMutation(() => ({
+    mutationFn: async (input: { name: string; valueKey: string }) => {
+      const follow = input.valueKey === FOLLOW_VALUE
+      // 空串随 JSON 持久化，core 裁判解析按 falsy 视为未配置（与全局裁判模型清除同约定）。
+      await serverSync().updateConfig({
+        agent: { [input.name]: { permission: { judge: { model: follow ? "" : input.valueKey } } } },
+      })
+      await queryClient.invalidateQueries({ queryKey: ["settings"] })
+    },
+    onSuccess: (_data, variables) => {
+      setPendingJudge((current) => {
+        const next = { ...current }
+        delete next[variables.name]
+        return next
+      })
+    },
+    onError: (error: unknown, variables) => {
+      setPendingJudge((current) => {
+        const next = { ...current }
+        delete next[variables.name]
+        return next
+      })
+      const message = error instanceof Error ? error.message : String(error)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    },
+  }))
+
+  const onSelectJudge = (agent: Agent, option: ModelOption | null) => {
+    if (judgeSaveMutation.isPending) return
+    const nextKey = !option || option.follow ? FOLLOW_VALUE : option.value
+    if (nextKey === judgeValueKey(agent.name)) return
+    setPendingJudge((current) => ({ ...current, [agent.name]: nextKey }))
+    judgeSaveMutation.mutate({ name: agent.name, valueKey: nextKey })
   }
 
   return (
@@ -204,19 +261,39 @@ export const SettingsAgentsV2: Component = () => {
                   }
                   description={agent.description || language.t("settings.agents.noDescription")}
                 >
-                  <SelectV2
-                    appearance="inline"
-                    placement="bottom-end"
-                    gutter={6}
-                    placeholder={language.t("settings.agents.model.follow")}
-                    options={modelOptions()}
-                    current={currentOption(agent)}
-                    value={(o) => o.value}
-                    label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
-                    groupBy={(o) => (o.follow ? "" : o.providerName)}
-                    disabled={saveMutation.isPending && pending()[agent.name] !== undefined}
-                    onSelect={(o) => onSelect(agent, o)}
-                  />
+                  <div class="flex items-center gap-2">
+                    <SelectV2
+                      appearance="inline"
+                      placement="bottom-end"
+                      gutter={6}
+                      placeholder={language.t("settings.agents.model.follow")}
+                      options={modelOptions()}
+                      current={currentOption(agent)}
+                      value={(o) => o.value}
+                      label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
+                      groupBy={(o) => (o.follow ? "" : o.providerName)}
+                      disabled={saveMutation.isPending && pending()[agent.name] !== undefined}
+                      onSelect={(o) => onSelect(agent, o)}
+                    />
+                    <SelectV2
+                      appearance="inline"
+                      placement="bottom-end"
+                      gutter={6}
+                      placeholder={language.t("settings.permission.judgeModel.follow")}
+                      options={judgeModelOptions()}
+                      current={
+                        judgeModelOptions().find((o) => o.value === judgeValueKey(agent.name)) ?? judgeModelOptions()[0]
+                      }
+                      value={(o) => o.value}
+                      label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
+                      groupBy={(o) => (o.follow ? "" : o.providerName)}
+                      disabled={judgeSaveMutation.isPending && pendingJudge()[agent.name] !== undefined}
+                      onSelect={(o) => onSelectJudge(agent, o)}
+                    />
+                    <span class="text-[10px] font-medium text-v2-text-text-muted">
+                      {language.t("settings.permission.judgeModel.short")}
+                    </span>
+                  </div>
                 </SettingsRowV2>
               )}
             </For>
