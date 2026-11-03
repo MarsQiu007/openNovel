@@ -257,6 +257,11 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 )}
               </Show>
             </Show>
+            <Show when={!view.pending?.()} fallback={<PromptInputV2ControlPlaceholder />}>
+              <Show when={view.permissionMode}>
+                {(control) => <PromptInputV2ConfiguredSelect title="Permission mode" control={control()} />}
+              </Show>
+            </Show>
           </div>
           <PromptInputV2SubmitButton
             mode={state.mode}

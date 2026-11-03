@@ -36,6 +36,8 @@ export type PromptInputV2ViewConfig = {
   agent?: PromptInputV2SelectControl
   model?: PromptInputV2SelectControl
   variant?: PromptInputV2SelectControl
+  // 权限审批模式三档切换（手动 / 影子审查 / 智能审批）；宿主未提供时不渲染。
+  permissionMode?: PromptInputV2SelectControl
   submit: {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
