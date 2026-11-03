@@ -3,19 +3,33 @@ import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { Dialog } from "@opennovel-ai/ui/dialog"
 import { IconButton } from "@opennovel-ai/ui/icon-button"
 import { ProviderIcon } from "@opennovel-ai/ui/provider-icon"
+import { Select } from "@opennovel-ai/ui/select"
+import { Switch } from "@opennovel-ai/ui/switch"
 import { useMutation } from "@tanstack/solid-query"
 import { TextField } from "@opennovel-ai/ui/text-field"
+import { Schema } from "effect"
+import { ConfigProviderV1 } from "@opennovel-ai/core/config/v1/provider"
 import { showToast } from "@/utils/toast"
-import { batch, For } from "solid-js"
+import { batch, createSignal, For, Show } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
-import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
+import {
+  MODEL_STATUS,
+  type FormMode,
+  type FormState,
+  type ModelDetail,
+  headerRow,
+  modelRow,
+  prefillCustomProvider,
+  validateCustomProvider,
+} from "./dialog-custom-provider-form"
 
 type Props = {
   onBack: () => void
+  providerID?: string
 }
 
 export function DialogCustomProvider(props: Props) {
@@ -35,26 +49,38 @@ export function DialogCustomProvider(props: Props) {
       }
       transition
     >
-      <CustomProviderForm />
+      <CustomProviderForm mode={props.providerID ? "edit" : "create"} providerID={props.providerID} />
     </Dialog>
   )
 }
 
-export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
+export function CustomProviderForm(
+  props: { autofocus?: boolean; mode?: FormMode; providerID?: string } = {},
+) {
   const dialog = useDialog()
   const serverSync = useServerSync()
   const serverSDK = useServerSDK()
   const language = useLanguage()
+  const mode: FormMode = props.mode ?? "create"
 
-  const [form, setForm] = createStore<FormState>({
-    providerID: "",
-    name: "",
-    baseURL: "",
-    apiKey: "",
-    models: [modelRow()],
-    headers: [headerRow()],
-    err: {},
-  })
+  const persisted = props.providerID ? serverSync().data.config.provider?.[props.providerID] : undefined
+  const [form, setForm] = createStore<FormState>(
+    mode === "edit" && props.providerID && persisted
+      ? { ...prefillCustomProvider(props.providerID, persisted), err: {} }
+      : {
+          providerID: "",
+          name: "",
+          baseURL: "",
+          apiKey: "",
+          models: [modelRow()],
+          headers: [headerRow()],
+          err: {},
+        },
+  )
+
+  // 模型行细节区展开态（本地信号，不进持久化表单状态）
+  const [expanded, setExpanded] = createStore<Record<string, boolean>>({})
+  const [confirmingDelete, setConfirmingDelete] = createSignal(false)
 
   const addModel = () => {
     setForm(
@@ -107,6 +133,17 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
     })
   }
 
+  const setModelDetail = (index: number, key: keyof ModelDetail & string, value: string) => {
+    batch(() => {
+      setForm("models", index, "detail", key, value)
+      setForm("models", index, "err", "detail", undefined)
+    })
+  }
+
+  const setModelFlag = (index: number, key: keyof ModelDetail & string, value: boolean) => {
+    setForm("models", index, "detail", key, value)
+  }
+
   const setHeader = (index: number, key: "key" | "value", value: string) => {
     batch(() => {
       setForm("headers", index, key, value)
@@ -118,6 +155,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
     const output = validateCustomProvider({
       form,
       t: language.t,
+      mode,
       disabledProviders: serverSync().data.config.disabled_providers ?? [],
       existingProviderIDs: new Set(serverSync().data.provider.all.keys()),
     })
@@ -131,9 +169,6 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
 
   const saveMutation = useMutation(() => ({
     mutationFn: async (result: NonNullable<ReturnType<typeof validate>>) => {
-      const disabledProviders = serverSync().data.config.disabled_providers ?? []
-      const nextDisabled = disabledProviders.filter((id) => id !== result.providerID)
-
       if (result.key) {
         await serverSDK().client.auth.set({
           providerID: result.providerID,
@@ -144,19 +179,41 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
         })
       }
 
-      await serverSync().updateConfig({
-        provider: { [result.providerID]: result.config },
-        disabled_providers: nextDisabled,
+      // 经契约 schema 解码后再出网：既拿到类型又拦下与 ConfigProviderV1 不符的字段
+      const providerConfig = Schema.decodeUnknownSync(ConfigProviderV1.Info)(result.config)
+      await serverSDK().client.global.config.provider.set({
+        providerID: result.providerID,
+        providerConfig,
       })
       return result
     },
     onSuccess: (result) => {
+      serverSync().refreshConfig()
       dialog.close()
       showToast({
         variant: "success",
         icon: "circle-check",
         title: language.t("provider.connect.toast.connected.title", { provider: result.name }),
         description: language.t("provider.connect.toast.connected.description", { provider: result.name }),
+      })
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : String(err)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    },
+  }))
+
+  const deleteMutation = useMutation(() => ({
+    mutationFn: async (providerID: string) => {
+      await serverSDK().client.global.config.provider.remove({ providerID })
+    },
+    onSuccess: (_data, providerID) => {
+      serverSync().refreshConfig()
+      dialog.close()
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("provider.custom.delete.toast.title", { provider: providerID }),
       })
     },
     onError: (err) => {
@@ -172,6 +229,16 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
     const result = validate()
     if (!result) return
     saveMutation.mutate(result)
+  }
+
+  const remove = () => {
+    if (!props.providerID) return
+    if (!confirmingDelete()) {
+      setConfirmingDelete(true)
+      return
+    }
+    if (deleteMutation.isPending) return
+    deleteMutation.mutate(props.providerID)
   }
 
   return (
@@ -200,6 +267,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
             onChange={(v) => setField("providerID", v)}
             validationState={form.err.providerID ? "invalid" : undefined}
             error={form.err.providerID}
+            disabled={mode === "edit"}
           />
           <TextField
             label={language.t("provider.custom.field.name.label")}
@@ -219,7 +287,11 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
           />
           <TextField
             label={language.t("provider.custom.field.apiKey.label")}
-            placeholder={language.t("provider.custom.field.apiKey.placeholder")}
+            placeholder={
+              mode === "edit"
+                ? language.t("provider.custom.field.apiKey.placeholderEdit")
+                : language.t("provider.custom.field.apiKey.placeholder")
+            }
             description={language.t("provider.custom.field.apiKey.description")}
             value={form.apiKey}
             onChange={(v) => setField("apiKey", v)}
@@ -230,38 +302,127 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
           <label class="text-12-medium text-text-weak">{language.t("provider.custom.models.label")}</label>
           <For each={form.models}>
             {(m, i) => (
-              <div class="flex gap-2 items-start" data-row={m.row}>
-                <div class="flex-1">
-                  <TextField
-                    label={language.t("provider.custom.models.id.label")}
-                    hideLabel
-                    placeholder={language.t("provider.custom.models.id.placeholder")}
-                    value={m.id}
-                    onChange={(v) => setModel(i(), "id", v)}
-                    validationState={m.err.id ? "invalid" : undefined}
-                    error={m.err.id}
+              <div class="flex flex-col gap-2" data-row={m.row}>
+                <div class="flex gap-2 items-start">
+                  <div class="flex-1">
+                    <TextField
+                      label={language.t("provider.custom.models.id.label")}
+                      hideLabel
+                      placeholder={language.t("provider.custom.models.id.placeholder")}
+                      value={m.id}
+                      onChange={(v) => setModel(i(), "id", v)}
+                      validationState={m.err.id ? "invalid" : undefined}
+                      error={m.err.id}
+                    />
+                  </div>
+                  <div class="flex-1">
+                    <TextField
+                      label={language.t("provider.custom.models.name.label")}
+                      hideLabel
+                      placeholder={language.t("provider.custom.models.name.placeholder")}
+                      value={m.name}
+                      onChange={(v) => setModel(i(), "name", v)}
+                      validationState={m.err.name ? "invalid" : undefined}
+                      error={m.err.name}
+                    />
+                  </div>
+                  <IconButton
+                    type="button"
+                    icon="trash"
+                    variant="ghost"
+                    class="mt-1.5"
+                    onClick={() => removeModel(i())}
+                    disabled={form.models.length <= 1}
+                    aria-label={language.t("provider.custom.models.remove")}
                   />
                 </div>
-                <div class="flex-1">
-                  <TextField
-                    label={language.t("provider.custom.models.name.label")}
-                    hideLabel
-                    placeholder={language.t("provider.custom.models.name.placeholder")}
-                    value={m.name}
-                    onChange={(v) => setModel(i(), "name", v)}
-                    validationState={m.err.name ? "invalid" : undefined}
-                    error={m.err.name}
-                  />
-                </div>
-                <IconButton
+                <Button
                   type="button"
-                  icon="trash"
+                  size="small"
                   variant="ghost"
-                  class="mt-1.5"
-                  onClick={() => removeModel(i())}
-                  disabled={form.models.length <= 1}
-                  aria-label={language.t("provider.custom.models.remove")}
-                />
+                  class="self-start -mt-1"
+                  onClick={() => setExpanded(m.row, !expanded[m.row])}
+                >
+                  {expanded[m.row]
+                    ? language.t("provider.custom.models.detail.hide")
+                    : language.t("provider.custom.models.detail.show")}
+                </Button>
+                <Show when={expanded[m.row]}>
+                  <div class="flex flex-col gap-3 pl-2 border-l border-border-weak-base">
+                    <div class="grid grid-cols-2 gap-3">
+                      <TextField
+                        label={language.t("provider.custom.models.detail.context.label")}
+                        placeholder="131072"
+                        value={m.detail.context}
+                        onChange={(v) => setModelDetail(i(), "context", v)}
+                      />
+                      <TextField
+                        label={language.t("provider.custom.models.detail.output.label")}
+                        placeholder="8192"
+                        value={m.detail.output}
+                        onChange={(v) => setModelDetail(i(), "output", v)}
+                      />
+                      <TextField
+                        label={language.t("provider.custom.models.detail.input.label")}
+                        placeholder="65536"
+                        value={m.detail.input}
+                        onChange={(v) => setModelDetail(i(), "input", v)}
+                      />
+                      <TextField
+                        label={language.t("provider.custom.models.detail.family.label")}
+                        placeholder="gpt-5"
+                        value={m.detail.family}
+                        onChange={(v) => setModelDetail(i(), "family", v)}
+                      />
+                      <TextField
+                        label={language.t("provider.custom.models.detail.costInput.label")}
+                        placeholder="1.25"
+                        value={m.detail.costInput}
+                        onChange={(v) => setModelDetail(i(), "costInput", v)}
+                      />
+                      <TextField
+                        label={language.t("provider.custom.models.detail.costOutput.label")}
+                        placeholder="10"
+                        value={m.detail.costOutput}
+                        onChange={(v) => setModelDetail(i(), "costOutput", v)}
+                      />
+                      <Select
+                        options={[...MODEL_STATUS]}
+                        current={m.detail.status || undefined}
+                        placeholder={language.t("provider.custom.models.detail.status.placeholder")}
+                        onSelect={(value) => setModelDetail(i(), "status", value ?? "")}
+                      >
+                        {(item) =>
+                          item ? (
+                            <span>{language.t(`provider.custom.models.detail.status.${item}`)}</span>
+                          ) : (
+                            <span />
+                          )
+                        }
+                      </Select>
+                    </div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2">
+                      <Switch checked={m.detail.reasoning} onChange={(v) => setModelFlag(i(), "reasoning", v)}>
+                        {language.t("provider.custom.models.detail.reasoning")}
+                      </Switch>
+                      <Switch checked={m.detail.interleaved} onChange={(v) => setModelFlag(i(), "interleaved", v)}>
+                        {language.t("provider.custom.models.detail.interleaved")}
+                      </Switch>
+                      <Switch checked={m.detail.temperature} onChange={(v) => setModelFlag(i(), "temperature", v)}>
+                        {language.t("provider.custom.models.detail.temperature")}
+                      </Switch>
+                      <Switch checked={m.detail.toolCall} onChange={(v) => setModelFlag(i(), "toolCall", v)}>
+                        {language.t("provider.custom.models.detail.toolCall")}
+                      </Switch>
+                      <Switch checked={m.detail.attachment} onChange={(v) => setModelFlag(i(), "attachment", v)}>
+                        {language.t("provider.custom.models.detail.attachment")}
+                      </Switch>
+                    </div>
+                    <Show when={m.err.detail}>
+                      <div class="text-12-regular text-on-critical-base">{m.err.detail}</div>
+                    </Show>
+                  </div>
+                </Show>
               </div>
             )}
           </For>
@@ -314,15 +475,31 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
           </Button>
         </div>
 
-        <Button
-          class="w-auto self-start"
-          type="submit"
-          size="large"
-          variant="primary"
-          disabled={saveMutation.isPending}
-        >
-          {saveMutation.isPending ? language.t("common.saving") : language.t("common.submit")}
-        </Button>
+        <div class="flex items-center gap-3">
+          <Button
+            class="w-auto self-start"
+            type="submit"
+            size="large"
+            variant="primary"
+            disabled={saveMutation.isPending}
+          >
+            {saveMutation.isPending ? language.t("common.saving") : language.t("common.submit")}
+          </Button>
+          <Show when={mode === "edit" && props.providerID}>
+            <Button
+              type="button"
+              size="large"
+              variant="ghost"
+              class="text-on-critical-base"
+              disabled={saveMutation.isPending || deleteMutation.isPending}
+              onClick={remove}
+            >
+              {confirmingDelete()
+                ? language.t("provider.custom.delete.confirm")
+                : language.t("provider.custom.delete.label")}
+            </Button>
+          </Show>
+        </div>
       </form>
     </div>
   )

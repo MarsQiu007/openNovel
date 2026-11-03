@@ -13,23 +13,23 @@
 
 ## 2. 对话框编辑模式与删除
 
-- [ ] 2.1 `dialog-custom-provider-form.ts`：`CustomProviderForm` 支持 `mode: "create" | "edit"` 与预填入参（id 锁定；name/baseURL/headers/models 从持久化配置回读；`env` 数组回显为 apiKey 框的 `{env:VAR}` 语法；apiKey 值不回显、留空即保留）；`validateCustomProvider` 按模式跳过 edit 的「ID 已存在」分支；结果序列化保持「留空不写出键」纪律（新增细节字段同纪律）
+- [x] 2.1 `dialog-custom-provider-form.ts`：`CustomProviderForm` 支持 `mode: "create" | "edit"` 与预填入参（id 锁定；name/baseURL/headers/models 从持久化配置回读；`env` 数组回显为 apiKey 框的 `{env:VAR}` 语法；apiKey 值不回显、留空即保留）；`validateCustomProvider` 按模式跳过 edit 的「ID 已存在」分支；结果序列化保持「留空不写出键」纪律（新增细节字段同纪律）
   - 验证：表单模块纯函数单测覆盖 create 校验不变、edit 同 ID 通过、预填往返（serialize(parse(x)) ⊇ x，含 env 语法与细节字段）
-- [ ] 2.2 `dialog-custom-provider.tsx`：接 `mode` 与 `providerID` props；edit 保存走 `PUT provider/:id`（apiKey 非空才追加 `authSet`，留空不动凭据），create 同步切到该 PUT 端点（替代原 PATCH updateConfig 写 provider 与 `disabled_providers` 的两段式，「保存即启用」由服务端 PUT 内建）；成功后失效 provider 查询（沿用 updateConfigMutation.onSuccess 的 queryClient invalidate 套路）
+- [x] 2.2 `dialog-custom-provider.tsx`：接 `mode` 与 `providerID` props；edit 保存走 `PUT provider/:id`（apiKey 非空才追加 `authSet`，留空不动凭据），create 同步切到该 PUT 端点（替代原 PATCH updateConfig 写 provider 与 `disabled_providers` 的两段式，「保存即启用」由服务端 PUT 内建）；成功后失效 provider 查询（沿用 updateConfigMutation.onSuccess 的 queryClient invalidate 套路）
   - 验证：app typecheck 通过；保存路径单测/既有测试适配
-- [ ] 2.3 编辑对话框内新增删除按钮（红色、二次确认），确认后调 `DELETE provider/:id` 并关闭对话框、失效 provider 查询
+- [x] 2.3 编辑对话框内新增删除按钮（红色、二次确认），确认后调 `DELETE provider/:id` 并关闭对话框、失效 provider 查询
   - 验证：app typecheck 通过
 
 ## 3. 模型细节配置
 
-- [ ] 3.1 模型行增加可展开细节区（展开态为本地信号）：数字输入 `limit.context`/`limit.output`/`limit.input`、`cost.input`/`cost.output`；开关 `reasoning`/`interleaved`/`temperature`/`tool_call`/`attachment`；下拉 `status`；文本 `family`；序列化仅写已填/已开键（`interleaved` 只写布尔）
+- [x] 3.1 模型行增加可展开细节区（展开态为本地信号）：数字输入 `limit.context`/`limit.output`/`limit.input`、`cost.input`/`cost.output`；开关 `reasoning`/`interleaved`/`temperature`/`tool_call`/`attachment`；下拉 `status`；文本 `family`；序列化仅写已填/已开键（`interleaved` 只写布尔）
   - 验证：序列化单测覆盖全填/部分填/全空三态的输出键集合
-- [ ] 3.2 三语文案落 `packages/app/src/i18n/{en,zh,zht}.ts` 的 `provider.custom.*` 命名空间（该对话框既有文案位，跟随近期 feature 提交先例），补齐细节区字段标签与删除确认文案
+- [x] 3.2 三语文案落 `packages/app/src/i18n/{en,zh,zht}.ts` 的 `provider.custom.*` 命名空间（该对话框既有文案位，跟随近期 feature 提交先例），补齐细节区字段标签与删除确认文案
   - 验证：三语字典键对齐（en 定义、zh/zht 同键），app typecheck 通过
 
 ## 4. 列表入口与收尾验证
 
-- [ ] 4.1 `settings-providers.tsx` 自定义区行新增「编辑」按钮（打开 edit 模式对话框）；行上保留既有「断开」；确认自定义区判定（`isConfigCustom`）对新保存记录仍成立
+- [x] 4.1 `settings-providers.tsx` 自定义区行新增「编辑」按钮（打开 edit 模式对话框）；行上保留既有「断开」；确认自定义区判定（`isConfigCustom`）对新保存记录仍成立
   - 验证：app typecheck 通过
 - [ ] 4.2 受影响包（opennovel、app、sdk）分别 `bun typecheck`、`bun test`；从仓库根按既定方式跑 oxlint 并与 main 基线同模式对比
   - 验证：全绿；oxlint 逐文件警告数零新增

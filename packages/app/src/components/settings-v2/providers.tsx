@@ -175,6 +175,17 @@ export const SettingsProvidersV2: Component<{ onBack?: () => void }> = (props) =
                         </span>
                       }
                     >
+                      <Show when={isConfigCustom(item.id)}>
+                        <ButtonV2
+                          size="normal"
+                          variant="ghost-muted"
+                          onClick={() =>
+                            dialog.show(() => <DialogCustomProvider onBack={dialog.close} providerID={item.id} />)
+                          }
+                        >
+                          {language.t("common.edit")}
+                        </ButtonV2>
+                      </Show>
                       <ButtonV2 size="normal" variant="ghost-muted" onClick={() => void disconnect(item.id, item.name)}>
                         {language.t("common.disconnect")}
                       </ButtonV2>
