@@ -37,7 +37,8 @@ export const SettingsAgentsV2: Component = () => {
   const queryClient = useQueryClient()
   // 乐观选中的 value key（agent name -> option value），让下拉在服务器回环完成前就显示新值。
   const [pending, setPending] = createSignal<Record<string, string>>({})
-  const [pendingJudge, setPendingJudge] = createSignal<Record<string, string>>({})
+  // 裁判行乐观选中的 value key（全局唯一入口，无需按名区分）。
+  const [pendingJudge, setPendingJudge] = createSignal<string>()
 
   const agentsQuery = createQuery(() => ({
     queryKey: ["settings", serverSdk().url, "agents"],
@@ -96,14 +97,26 @@ export const SettingsAgentsV2: Component = () => {
   const currentOption = (agent: Agent): ModelOption =>
     modelOptions().find((o) => o.value === agentValueKey(agent)) ?? followOption()
 
-  // 裁判模型当前值：agent 级 permission.judge.model（全局配置的 agent 段），空串/缺省回跟随会话。
-  const judgeModelOf = (name: string) => {
-    const permission = serverSync().data.config.agent?.[name]?.permission
+  // 内置"权限裁判"行：裁判模型唯一入口，读写全局配置 permission.judge.model。
+  // 空串/缺省回跟随会话模型（清除时持久化 ""，core 裁判解析按 falsy 视为未配置）。
+  const judgeModel = createMemo(() => {
+    const permission = serverSync().data.config.permission
     if (typeof permission !== "object" || permission === null) return undefined
     const model = permission.judge?.model
     return model ? model : undefined
-  }
-  const judgeValueKey = (name: string) => pendingJudge()[name] ?? judgeModelOf(name) ?? FOLLOW_VALUE
+  })
+  const judgeValueKey = () => pendingJudge() ?? judgeModel() ?? FOLLOW_VALUE
+  const judgeModelOptions = createMemo<ModelOption[]>(() => [
+    {
+      value: FOLLOW_VALUE,
+      providerID: "",
+      modelID: "",
+      name: language.t("settings.agents.judge.follow"),
+      providerName: "",
+      follow: true,
+    },
+    ...modelOptions().filter((o) => !o.follow),
+  ])
 
   const saveMutation = useMutation(() => ({
     mutationFn: async (input: { name: string; valueKey: string }) => {
@@ -141,6 +154,21 @@ export const SettingsAgentsV2: Component = () => {
     },
   }))
 
+  const judgeSaveMutation = useMutation(() => ({
+    mutationFn: async (valueKey: string) => {
+      const follow = valueKey === FOLLOW_VALUE
+      // 空串随 JSON 持久化，core 裁判解析按 falsy 视为未配置。
+      await serverSync().updateConfig({ permission: { judge: { model: follow ? "" : valueKey } } })
+      await queryClient.invalidateQueries({ queryKey: ["settings"] })
+    },
+    onSuccess: () => setPendingJudge(undefined),
+    onError: (error: unknown) => {
+      setPendingJudge(undefined)
+      const message = error instanceof Error ? error.message : String(error)
+      showToast({ title: language.t("common.requestFailed"), description: message })
+    },
+  }))
+
   const onSelect = (agent: Agent, option: ModelOption | null) => {
     if (saveMutation.isPending) return
     const nextKey = !option || option.follow ? FOLLOW_VALUE : option.value
@@ -151,51 +179,12 @@ export const SettingsAgentsV2: Component = () => {
     saveMutation.mutate({ name: agent.name, valueKey: nextKey })
   }
 
-  const judgeModelOptions = createMemo<ModelOption[]>(() => [
-    {
-      value: FOLLOW_VALUE,
-      providerID: "",
-      modelID: "",
-      name: language.t("settings.permission.judgeModel.follow"),
-      providerName: "",
-      follow: true,
-    },
-    ...modelOptions().filter((o) => !o.follow),
-  ])
-
-  const judgeSaveMutation = useMutation(() => ({
-    mutationFn: async (input: { name: string; valueKey: string }) => {
-      const follow = input.valueKey === FOLLOW_VALUE
-      // 空串随 JSON 持久化，core 裁判解析按 falsy 视为未配置（与全局裁判模型清除同约定）。
-      await serverSync().updateConfig({
-        agent: { [input.name]: { permission: { judge: { model: follow ? "" : input.valueKey } } } },
-      })
-      await queryClient.invalidateQueries({ queryKey: ["settings"] })
-    },
-    onSuccess: (_data, variables) => {
-      setPendingJudge((current) => {
-        const next = { ...current }
-        delete next[variables.name]
-        return next
-      })
-    },
-    onError: (error: unknown, variables) => {
-      setPendingJudge((current) => {
-        const next = { ...current }
-        delete next[variables.name]
-        return next
-      })
-      const message = error instanceof Error ? error.message : String(error)
-      showToast({ title: language.t("common.requestFailed"), description: message })
-    },
-  }))
-
-  const onSelectJudge = (agent: Agent, option: ModelOption | null) => {
+  const onSelectJudge = (option: ModelOption | null) => {
     if (judgeSaveMutation.isPending) return
     const nextKey = !option || option.follow ? FOLLOW_VALUE : option.value
-    if (nextKey === judgeValueKey(agent.name)) return
-    setPendingJudge((current) => ({ ...current, [agent.name]: nextKey }))
-    judgeSaveMutation.mutate({ name: agent.name, valueKey: nextKey })
+    if (nextKey === judgeValueKey()) return
+    setPendingJudge(nextKey)
+    judgeSaveMutation.mutate(nextKey)
   }
 
   return (
@@ -275,30 +264,34 @@ export const SettingsAgentsV2: Component = () => {
                       disabled={saveMutation.isPending && pending()[agent.name] !== undefined}
                       onSelect={(o) => onSelect(agent, o)}
                     />
-                    <SelectV2
-                      appearance="inline"
-                      placement="bottom-end"
-                      gutter={6}
-                      placeholder={language.t("settings.permission.judgeModel.follow")}
-                      options={judgeModelOptions()}
-                      current={
-                        judgeModelOptions().find((o) => o.value === judgeValueKey(agent.name)) ?? judgeModelOptions()[0]
-                      }
-                      value={(o) => o.value}
-                      label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
-                      groupBy={(o) => (o.follow ? "" : o.providerName)}
-                      disabled={judgeSaveMutation.isPending && pendingJudge()[agent.name] !== undefined}
-                      onSelect={(o) => onSelectJudge(agent, o)}
-                    />
-                    <span class="text-[10px] font-medium text-v2-text-text-muted">
-                      {language.t("settings.permission.judgeModel.short")}
-                    </span>
                   </div>
                 </SettingsRowV2>
               )}
             </For>
           </SettingsListV2>
         </Show>
+
+        <SettingsListV2>
+          <SettingsRowV2
+            title={language.t("settings.agents.judge.title")}
+            description={language.t("settings.agents.judge.description")}
+          >
+            <div data-action="settings-agents-judge-model">
+              <SelectV2
+                appearance="inline"
+                placement="bottom-end"
+                gutter={6}
+                options={judgeModelOptions()}
+                current={judgeModelOptions().find((o) => o.value === judgeValueKey()) ?? judgeModelOptions()[0]}
+                value={(o) => o.value}
+                label={(o) => (o.follow ? o.name : `${o.providerName} / ${o.name}`)}
+                groupBy={(o) => (o.follow ? "" : o.providerName)}
+                disabled={judgeSaveMutation.isPending && pendingJudge() !== undefined}
+                onSelect={onSelectJudge}
+              />
+            </div>
+          </SettingsRowV2>
+        </SettingsListV2>
       </div>
     </>
   )
