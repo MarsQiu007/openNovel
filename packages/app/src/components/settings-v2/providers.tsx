@@ -180,7 +180,9 @@ export const SettingsProvidersV2: Component<{ onBack?: () => void }> = (props) =
                           size="normal"
                           variant="ghost-muted"
                           onClick={() =>
-                            dialog.show(() => <DialogCustomProvider onBack={dialog.close} providerID={item.id} />)
+                            dialog.show(() => (
+                              <DialogCustomProvider onBack={() => dialog.close()} providerID={item.id} />
+                            ))
                           }
                         >
                           {language.t("common.edit")}

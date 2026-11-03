@@ -2095,15 +2095,17 @@ describe("updateGlobalProvider / removeGlobalProvider", () => {
             models: { keep: { name: "Keep" } },
           })
 
-          const written = (yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))) as {
-            disabled_providers?: string[]
-            provider: Record<string, { models: Record<string, unknown> }>
-          }
-          expect(written).toMatchObject({
-            disabled_providers: ["other"],
-            provider: { "my-provider": provider, untouched: { models: { keep: { name: "Keep" } } } },
+          const written = ConfigParse.schema(
+            ConfigV1.Info,
+            JSON.parse(yield* FSUtil.use.readFileString(path.join(dir, "opennovel.json"))),
+            "test:opennovel.json",
+          )
+          expect(written.disabled_providers).toEqual(["other"])
+          expect(written.provider?.["my-provider"]).toEqual(provider)
+          expect(written.provider?.["untouched"]).toEqual({
+            npm: "@ai-sdk/openai-compatible",
+            models: { keep: { name: "Keep" } },
           })
-          expect(written.provider["my-provider"].models).not.toHaveProperty("stale")
         }),
     ),
   )
@@ -2141,11 +2143,13 @@ describe("updateGlobalProvider / removeGlobalProvider", () => {
           expect(result.info.disabled_providers).toBeUndefined()
           expect(result.info.enabled_providers).toBeUndefined()
 
-          const written = (yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))) as {
-            provider: Record<string, unknown>
-          }
-          expect(written.provider).not.toHaveProperty("my-provider")
-          expect(written.provider).toHaveProperty("untouched")
+          const written = ConfigParse.schema(
+            ConfigV1.Info,
+            JSON.parse(yield* FSUtil.use.readFileString(path.join(dir, "opennovel.json"))),
+            "test:opennovel.json",
+          )
+          expect(written.provider?.["my-provider"]).toBeUndefined()
+          expect(written.provider?.["untouched"]).toBeDefined()
         }),
     ),
   )

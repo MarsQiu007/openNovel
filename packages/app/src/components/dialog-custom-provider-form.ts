@@ -176,15 +176,15 @@ export function validateCustomProvider(input: ValidateArgs) {
       const costInput = positive(detail.costInput)
       const costOutput = positive(detail.costOutput)
       const config: Record<string, unknown> = { name: m.name.trim() }
-      // 校验已保证 context/output 成对出现
-      if (context !== undefined) {
+      // 校验已保证 context/output、costInput/costOutput 各自成对
+      if (context !== undefined && output !== undefined) {
         config.limit = {
           context,
-          output: output as number,
+          output,
           ...(inputLimit !== undefined ? { input: inputLimit } : {}),
         }
       }
-      if (costInput !== undefined) config.cost = { input: costInput, output: costOutput as number }
+      if (costInput !== undefined && costOutput !== undefined) config.cost = { input: costInput, output: costOutput }
       if (detail.reasoning) config.reasoning = true
       if (detail.interleaved) config.interleaved = true
       if (detail.temperature) config.temperature = true

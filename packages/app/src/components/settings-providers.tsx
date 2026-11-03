@@ -184,7 +184,9 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
                           size="large"
                           variant="ghost"
                           onClick={() =>
-                            dialog.show(() => <DialogCustomProvider onBack={dialog.close} providerID={item.id} />)
+                            dialog.show(() => (
+                              <DialogCustomProvider onBack={() => dialog.close()} providerID={item.id} />
+                            ))
                           }
                         >
                           {language.t("common.edit")}

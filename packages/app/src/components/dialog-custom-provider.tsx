@@ -133,14 +133,14 @@ export function CustomProviderForm(
     })
   }
 
-  const setModelDetail = (index: number, key: keyof ModelDetail & string, value: string) => {
+  const setModelDetail = (index: number, key: keyof ModelDetail, value: string) => {
     batch(() => {
       setForm("models", index, "detail", key, value)
       setForm("models", index, "err", "detail", undefined)
     })
   }
 
-  const setModelFlag = (index: number, key: keyof ModelDetail & string, value: boolean) => {
+  const setModelFlag = (index: number, key: keyof ModelDetail, value: boolean) => {
     setForm("models", index, "detail", key, value)
   }
 
