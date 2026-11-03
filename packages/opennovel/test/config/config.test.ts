@@ -2063,3 +2063,177 @@ test("parseManagedPlist handles empty config", async () => {
   )
   expect(config.$schema).toBe("https://opennovel.ai/config.json")
 })
+
+describe("updateGlobalProvider / removeGlobalProvider", () => {
+  const provider = {
+    npm: "@ai-sdk/openai-compatible",
+    name: "My Provider",
+    options: { baseURL: "https://api.example.com/v1" },
+    models: { "my-model": { name: "My Model", limit: { context: 131072, output: 8192 }, reasoning: true } },
+  }
+
+  it.effect("json: set replaces provider wholesale and removes id from disabled_providers", () =>
+    withGlobalConfig(
+      {
+        config: {
+          disabled_providers: ["my-provider", "other"],
+          provider: {
+            "my-provider": { npm: "@ai-sdk/openai-compatible", models: { stale: { name: "Stale" } } },
+            untouched: { npm: "@ai-sdk/openai-compatible", models: { keep: { name: "Keep" } } },
+          },
+        },
+      },
+      ({ dir }) =>
+        Effect.gen(function* () {
+          const result = yield* Config.use.updateGlobalProvider("my-provider", provider)
+
+          expect(result.changed).toBe(true)
+          expect(result.info.provider?.["my-provider"]).toEqual(provider)
+          expect(result.info.disabled_providers).toEqual(["other"])
+          expect(result.info.provider?.["untouched"]).toEqual({
+            npm: "@ai-sdk/openai-compatible",
+            models: { keep: { name: "Keep" } },
+          })
+
+          const written = (yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))) as {
+            disabled_providers?: string[]
+            provider: Record<string, { models: Record<string, unknown> }>
+          }
+          expect(written).toMatchObject({
+            disabled_providers: ["other"],
+            provider: { "my-provider": provider, untouched: { models: { keep: { name: "Keep" } } } },
+          })
+          expect(written.provider["my-provider"].models).not.toHaveProperty("stale")
+        }),
+    ),
+  )
+
+  it.effect("json: set is idempotent when nothing changes", () =>
+    withGlobalConfig({}, () =>
+      Effect.gen(function* () {
+        // 先经 updateGlobal 写入口味化 JSON，排除格式化差异对 changed 判定的干扰
+        yield* Config.use.updateGlobal({ provider: { "my-provider": provider } })
+        const result = yield* Config.use.updateGlobalProvider("my-provider", provider)
+        expect(result.changed).toBe(false)
+      }),
+    ),
+  )
+
+  it.effect("json: remove deletes provider and scrubs disabled/enabled lists", () =>
+    withGlobalConfig(
+      {
+        config: {
+          disabled_providers: ["my-provider"],
+          enabled_providers: ["my-provider"],
+          provider: {
+            "my-provider": provider,
+            untouched: { npm: "@ai-sdk/openai-compatible", models: { keep: { name: "Keep" } } },
+          },
+        },
+      },
+      ({ dir }) =>
+        Effect.gen(function* () {
+          const result = yield* Config.use.removeGlobalProvider("my-provider")
+
+          expect(result.changed).toBe(true)
+          expect(result.info.provider?.["my-provider"]).toBeUndefined()
+          expect(result.info.provider?.["untouched"]).toBeDefined()
+          expect(result.info.disabled_providers).toBeUndefined()
+          expect(result.info.enabled_providers).toBeUndefined()
+
+          const written = (yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))) as {
+            provider: Record<string, unknown>
+          }
+          expect(written.provider).not.toHaveProperty("my-provider")
+          expect(written.provider).toHaveProperty("untouched")
+        }),
+    ),
+  )
+
+  it.effect("json: remove of unknown provider reports unchanged", () =>
+    withGlobalConfig({}, () =>
+      Effect.gen(function* () {
+        yield* Config.use.updateGlobal({ provider: { untouched: { models: { keep: { name: "Keep" } } } } })
+        const result = yield* Config.use.removeGlobalProvider("missing")
+        expect(result.changed).toBe(false)
+        expect(result.info.provider?.["untouched"]).toBeDefined()
+      }),
+    ),
+  )
+
+  it.effect("jsonc: set replaces subtree wholesale and keeps unrelated comments", () =>
+    withGlobalConfig(
+      {
+        name: "opennovel.jsonc",
+        config: undefined,
+      },
+      ({ dir }) =>
+        Effect.gen(function* () {
+          yield* FSUtil.use.writeWithDirs(
+            path.join(dir, "opennovel.jsonc"),
+            `{
+  // keep this comment
+  "$schema": "https://opennovel.ai/config.json",
+  "model": "test/model",
+  "disabled_providers": ["my-provider"],
+  "provider": {
+    "my-provider": {
+      "npm": "@ai-sdk/openai-compatible",
+      "models": { "stale": { "name": "Stale" }, "keep": { "name": "Keep" } }
+    }
+  }
+}`,
+          )
+          yield* Config.use.get().pipe(provideInstanceEffect(dir))
+
+          const result = yield* Config.use.updateGlobalProvider("my-provider", provider)
+
+          expect(result.changed).toBe(true)
+          expect(result.info.provider?.["my-provider"]).toEqual(provider)
+          expect(result.info.disabled_providers).toBeUndefined()
+          expect(Object.keys(result.info.provider?.["my-provider"]?.models ?? {})).toEqual(["my-model"])
+
+          const written = yield* FSUtil.use.readFileString(path.join(dir, "opennovel.jsonc"))
+          expect(written).toContain("keep this comment")
+          expect(written).not.toContain('"stale"')
+          expect(written).not.toContain('"disabled_providers"')
+        }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
+    ),
+  )
+
+  it.effect("jsonc: remove deletes subtree and scrubs lists while keeping comments", () =>
+    withGlobalConfig(
+      {
+        name: "opennovel.jsonc",
+        config: undefined,
+      },
+      ({ dir }) =>
+        Effect.gen(function* () {
+          yield* FSUtil.use.writeWithDirs(
+            path.join(dir, "opennovel.jsonc"),
+            `{
+  // keep this comment
+  "$schema": "https://opennovel.ai/config.json",
+  "disabled_providers": ["my-provider", "other"],
+  "enabled_providers": ["my-provider"],
+  "provider": {
+    "my-provider": { "npm": "@ai-sdk/openai-compatible", "models": { "a": { "name": "A" } } }
+  }
+}`,
+          )
+          yield* Config.use.get().pipe(provideInstanceEffect(dir))
+
+          const result = yield* Config.use.removeGlobalProvider("my-provider")
+
+          expect(result.changed).toBe(true)
+          expect(result.info.provider?.["my-provider"]).toBeUndefined()
+          expect(result.info.disabled_providers).toEqual(["other"])
+          expect(result.info.enabled_providers).toBeUndefined()
+
+          const written = yield* FSUtil.use.readFileString(path.join(dir, "opennovel.jsonc"))
+          expect(written).toContain("keep this comment")
+          expect(written).not.toContain('"my-provider"')
+        }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(LayerNode.compile(CrossSpawnSpawner.node))),
+    ),
+  )
+})

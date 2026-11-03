@@ -446,6 +446,121 @@
         ]
       }
     },
+    "/global/config/provider/{providerID}": {
+      "put": {
+        "tags": ["global"],
+        "operationId": "global.config.provider.set",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully saved custom provider configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Successfully saved custom provider configuration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Replace the custom provider configuration wholesale (create or edit), and remove it from the disabled providers list.",
+        "summary": "Save custom provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderConfig"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.global.config.provider.set({\n  ...\n})"
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["global"],
+        "operationId": "global.config.provider.remove",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully removed custom provider configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "description": "Successfully removed custom provider configuration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove a custom provider configuration along with disabled/enabled list residue and stored credentials.",
+        "summary": "Remove custom provider",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.global.config.provider.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/global/dispose": {
       "post": {
         "tags": ["global"],

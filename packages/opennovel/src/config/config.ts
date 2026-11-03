@@ -23,6 +23,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/
 import { EffectFlock } from "@opennovel-ai/core/util/effect-flock"
 import { containsPath, type InstanceContext } from "../project/instance-context"
 import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
+import { ConfigProviderV1 } from "@opennovel-ai/core/config/v1/provider"
 import { RemoteAuthError } from "@opennovel-ai/core/config/v1/error"
 import { ConfigPermissionV1 } from "@opennovel-ai/core/config/v1/permission"
 import { ConfigPluginV1 } from "@opennovel-ai/core/config/v1/plugin"
@@ -130,6 +131,11 @@ export interface Interface {
   readonly getConsoleState: () => Effect.Effect<ConsoleState>
   readonly update: (config: Info) => Effect.Effect<void>
   readonly updateGlobal: (config: Info) => Effect.Effect<{ info: Info; changed: boolean }>
+  readonly updateGlobalProvider: (
+    providerID: string,
+    provider: ConfigProviderV1.Info,
+  ) => Effect.Effect<{ info: Info; changed: boolean }>
+  readonly removeGlobalProvider: (providerID: string) => Effect.Effect<{ info: Info; changed: boolean }>
   readonly invalidate: () => Effect.Effect<void>
   readonly directories: () => Effect.Effect<string[]>
   readonly waitForDependencies: () => Effect.Effect<void>
@@ -664,12 +670,74 @@ const layer = Layer.effect(
       return { info: next, changed }
     })
 
+    // provider === undefined 表示删除。两种文件格式分路：.json 直接改内存对象写回；.jsonc 用 patchJsonc
+    // 发最小编辑（modify 对 undefined 删除子树、对对象整体替换子树、对数组整体替换），保留其余注释。
+    const mutateGlobalProvider = Effect.fn("Config.mutateGlobalProvider")(function* (
+      providerID: string,
+      provider: ConfigProviderV1.Info | undefined,
+    ) {
+      const file = globalConfigFile()
+      const before = (yield* readConfigFile(file)) ?? "{}"
+      const existing = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(before, file), file)
+      const disabled = (existing.disabled_providers ?? []).filter((id) => id !== providerID)
+      const enabled = (existing.enabled_providers ?? []).filter((id) => id !== providerID)
+      const disabledChanged = disabled.length !== (existing.disabled_providers?.length ?? 0)
+      const enabledChanged = provider === undefined && enabled.length !== (existing.enabled_providers?.length ?? 0)
+
+      let next: Info
+      let changed: boolean
+      // 过滤后为空数组时删键而不是留 [] 残留
+      const disabledPatch = disabledChanged ? (disabled.length ? disabled : undefined) : null
+      const enabledPatch = enabledChanged ? (enabled.length ? enabled : undefined) : null
+      if (!file.endsWith(".jsonc")) {
+        const merged: Info = structuredClone(existing)
+        merged.provider = { ...merged.provider }
+        if (provider === undefined) delete merged.provider[providerID]
+        else merged.provider[providerID] = provider
+        if (disabledPatch !== null) {
+          if (disabledPatch === undefined) delete merged.disabled_providers
+          else merged.disabled_providers = disabledPatch
+        }
+        if (enabledPatch !== null) {
+          if (enabledPatch === undefined) delete merged.enabled_providers
+          else merged.enabled_providers = enabledPatch
+        }
+        const serialized = JSON.stringify(merged, null, 2)
+        changed = serialized !== before
+        if (changed) yield* fs.writeFileString(file, serialized).pipe(Effect.orDie)
+        next = merged
+      } else {
+        // jsonc-parser modify 对对象值做递归合并不是整体替换，覆盖须先删子树再写入
+        const intermediate =
+          provider === undefined ? before : patchJsonc(before, { provider: { [providerID]: undefined } })
+        const patch: Record<string, unknown> = {
+          provider: { [providerID]: provider === undefined ? undefined : provider },
+        }
+        if (disabledPatch !== null) patch.disabled_providers = disabledPatch
+        if (enabledPatch !== null) patch.enabled_providers = enabledPatch
+        const updated = patchJsonc(intermediate, patch)
+        changed = updated !== before
+        if (changed) yield* fs.writeFileString(file, updated).pipe(Effect.orDie)
+        next = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(updated, file), file)
+      }
+
+      if (changed) yield* invalidate()
+      return { info: next, changed }
+    })
+
+    const updateGlobalProvider = (providerID: string, provider: ConfigProviderV1.Info) =>
+      mutateGlobalProvider(providerID, provider)
+
+    const removeGlobalProvider = (providerID: string) => mutateGlobalProvider(providerID, undefined)
+
     return Service.of({
       get,
       getGlobal,
       getConsoleState,
       update,
       updateGlobal,
+      updateGlobalProvider,
+      removeGlobalProvider,
       invalidate,
       directories,
       waitForDependencies,

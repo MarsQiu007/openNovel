@@ -1,4 +1,5 @@
 import { Config } from "@/config/config"
+import { Auth } from "@/auth"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { EventV2 } from "@opennovel-ai/core/event"
@@ -68,6 +69,7 @@ function eventResponse() {
 export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const auth = yield* Auth.Service
     const installation = yield* Installation.Service
     const bridge = yield* EffectBridge.make()
 
@@ -87,6 +89,20 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       const result = yield* config.updateGlobal(ctx.payload)
       if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
       return result.info
+    })
+
+    const providerSet = Effect.fn("GlobalHttpApi.providerSet")(function* (ctx) {
+      const result = yield* config.updateGlobalProvider(ctx.params.providerID, ctx.payload)
+      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      return true
+    })
+
+    const providerRemove = Effect.fn("GlobalHttpApi.providerRemove")(function* (ctx) {
+      const result = yield* config.removeGlobalProvider(ctx.params.providerID)
+      // Auth.remove 内部双清旧版凭据存储与 Integration 凭据库（同 control.ts authRemove 语义）
+      yield* auth.remove(ctx.params.providerID).pipe(Effect.orDie)
+      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      return true
     })
 
     const dispose = Effect.fn("GlobalHttpApi.dispose")(function* () {
@@ -150,6 +166,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       .handleRaw("event", event)
       .handle("configGet", configGet)
       .handle("configUpdate", configUpdate)
+      .handle("providerSet", providerSet)
+      .handle("providerRemove", providerRemove)
       .handle("dispose", dispose)
       .handleRaw("upgrade", upgradeRaw)
   }),

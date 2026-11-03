@@ -2,13 +2,13 @@
 
 ## 1. 协议端点与再生成
 
-- [ ] 1.1 GlobalApi 组（opennovel/src/server/routes/instance/httpapi/groups/global.ts）新增 `PUT /global/config/provider/:providerID`（路径常量入 `GlobalPaths`，params 用 `ProviderV2.ID`，payload `ConfigProviderV1.Info`，success Boolean）与 `DELETE /global/config/provider/:providerID`（success Boolean）两个端点，按既有 OpenApi annotations 惯例补 identifier/summary/description
+- [x] 1.1 GlobalApi 组（opennovel/src/server/routes/instance/httpapi/groups/global.ts）新增 `PUT /global/config/provider/:providerID`（路径常量入 `GlobalPaths`，params 用 `ProviderV2.ID`，payload `ConfigProviderV1.Info`，success Boolean）与 `DELETE /global/config/provider/:providerID`（success Boolean）两个端点，按既有 OpenApi annotations 惯例补 identifier/summary/description
   - 验证：`bun typecheck`（packages/opennovel）通过
-- [ ] 1.2 Config 服务（opennovel/src/config/config.ts）新增 provider 整体覆盖/删除方法，返回与 `updateGlobal` 同形的 `{ info, changed }`：覆盖 = `provider[id]` 整体替换 + 从 `disabled_providers` 移除该 id；删除 = 移除 `provider[id]` + 从 `disabled_providers`/`enabled_providers` 滤除；.json 路径读改写内存对象后 `JSON.stringify` 写回，.jsonc 路径复用 `patchJsonc`（删除子树发 undefined 编辑、覆盖先删子树再整体写入、数组发替换编辑）；写回后走既有 `invalidate()`
+- [x] 1.2 Config 服务（opennovel/src/config/config.ts）新增 provider 整体覆盖/删除方法，返回与 `updateGlobal` 同形的 `{ info, changed }`：覆盖 = `provider[id]` 整体替换 + 从 `disabled_providers` 移除该 id；删除 = 移除 `provider[id]` + 从 `disabled_providers`/`enabled_providers` 滤除；.json 路径读改写内存对象后 `JSON.stringify` 写回，.jsonc 路径复用 `patchJsonc`（删除子树发 undefined 编辑、覆盖先删子树再整体写入、数组发替换编辑）；写回后走既有 `invalidate()`
   - 验证：在 `packages/opennovel/test/config.test.ts`（或就近新建用例文件）覆盖 .json 与 .jsonc 两格式的覆盖/删除/禁启用清理组合，`bun test`（packages/opennovel）通过
-- [ ] 1.3 handlers/global.ts 新增两端点处理器，与 configUpdate 处理器（handlers/global.ts:86-90）同构：`changed` 为真则 `bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))` 触发运行实例重载；DELETE 处理器额外 `yield* Auth.Service` 调 `auth.remove(providerID)`（参照 handlers/control.ts 既有用法）
+- [x] 1.3 handlers/global.ts 新增两端点处理器，与 configUpdate 处理器（handlers/global.ts:86-90）同构：`changed` 为真则 `bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))` 触发运行实例重载；DELETE 处理器额外 `yield* Auth.Service` 调 `auth.remove(providerID)`（参照 handlers/control.ts 既有用法）
   - 验证：`bun typecheck`（packages/opennovel）通过
-- [ ] 1.4 从仓库根运行 `bun ./script/generate.ts` 完成双产物再生成（SDK gen 与 openapi.json，禁止手改 generated）
+- [x] 1.4 从仓库根运行 `bun ./script/generate.ts` 完成双产物再生成（SDK gen 与 openapi.json，禁止手改 generated）
   - 验证：再生成后 `git status` 仅出现预期产物 diff；CI generate 工作流绿灯复核
 
 ## 2. 对话框编辑模式与删除

@@ -7476,6 +7476,61 @@ export type GlobalConfigUpdateResponses = {
 
 export type GlobalConfigUpdateResponse = GlobalConfigUpdateResponses[keyof GlobalConfigUpdateResponses]
 
+export type GlobalConfigProviderRemoveData = {
+  body?: never
+  path: {
+    providerID: string
+  }
+  query?: never
+  url: "/global/config/provider/{providerID}"
+}
+
+export type GlobalConfigProviderRemoveErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type GlobalConfigProviderRemoveError = GlobalConfigProviderRemoveErrors[keyof GlobalConfigProviderRemoveErrors]
+
+export type GlobalConfigProviderRemoveResponses = {
+  /**
+   * Successfully removed custom provider configuration
+   */
+  200: boolean
+}
+
+export type GlobalConfigProviderRemoveResponse =
+  GlobalConfigProviderRemoveResponses[keyof GlobalConfigProviderRemoveResponses]
+
+export type GlobalConfigProviderSetData = {
+  body?: ProviderConfig
+  path: {
+    providerID: string
+  }
+  query?: never
+  url: "/global/config/provider/{providerID}"
+}
+
+export type GlobalConfigProviderSetErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+}
+
+export type GlobalConfigProviderSetError = GlobalConfigProviderSetErrors[keyof GlobalConfigProviderSetErrors]
+
+export type GlobalConfigProviderSetResponses = {
+  /**
+   * Successfully saved custom provider configuration
+   */
+  200: boolean
+}
+
+export type GlobalConfigProviderSetResponse = GlobalConfigProviderSetResponses[keyof GlobalConfigProviderSetResponses]
+
 export type GlobalDisposeData = {
   body?: never
   path?: never

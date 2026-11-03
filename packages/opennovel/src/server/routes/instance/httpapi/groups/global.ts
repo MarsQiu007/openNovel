@@ -1,4 +1,6 @@
 import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
+import { ConfigProviderV1 } from "@opennovel-ai/core/config/v1/provider"
+import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { EventManifest } from "@/event-manifest"
 import { InstanceDisposed } from "@/server/event"
@@ -66,9 +68,14 @@ export const GlobalPaths = {
   health: "/global/health",
   event: "/global/event",
   config: "/global/config",
+  provider: "/global/config/provider/:providerID",
   dispose: "/global/dispose",
   upgrade: "/global/upgrade",
 } as const
+
+const ProviderParams = Schema.Struct({
+  providerID: ProviderV2.ID,
+})
 
 export const GlobalApi = HttpApi.make("global").add(
   HttpApiGroup.make("global")
@@ -109,6 +116,31 @@ export const GlobalApi = HttpApi.make("global").add(
           identifier: "global.config.update",
           summary: "Update global configuration",
           description: "Update global OpenNovel configuration settings and preferences.",
+        }),
+      ),
+      HttpApiEndpoint.put("providerSet", GlobalPaths.provider, {
+        params: ProviderParams,
+        payload: ConfigProviderV1.Info,
+        success: described(Schema.Boolean, "Successfully saved custom provider configuration"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.provider.set",
+          summary: "Save custom provider",
+          description:
+            "Replace the custom provider configuration wholesale (create or edit), and remove it from the disabled providers list.",
+        }),
+      ),
+      HttpApiEndpoint.delete("providerRemove", GlobalPaths.provider, {
+        params: ProviderParams,
+        success: described(Schema.Boolean, "Successfully removed custom provider configuration"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.provider.remove",
+          summary: "Remove custom provider",
+          description:
+            "Remove a custom provider configuration along with disabled/enabled list residue and stored credentials.",
         }),
       ),
       HttpApiEndpoint.post("dispose", GlobalPaths.dispose, {
