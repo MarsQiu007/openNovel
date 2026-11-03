@@ -4,6 +4,7 @@ import { makeLocationNode } from "./effect/app-node"
 import { Context, Deferred, Effect as EffectRuntime, Layer, Schema } from "effect"
 import { Permission } from "@opennovel-ai/schema/permission"
 import { EventV2 } from "./event"
+import { Global } from "./global"
 import { Location } from "./location"
 import { AgentV2 } from "./agent"
 import { Config } from "./config"
@@ -116,6 +117,7 @@ const layer = Layer.effect(
     const location = yield* Location.Service
     const agents = yield* AgentV2.Service
     const config = yield* Config.Service
+    const global = yield* Global.Service
     const judge = yield* PermissionJudge.Service
     const sessions = yield* SessionStore.Service
     const saved = yield* PermissionSaved.Service
@@ -145,15 +147,6 @@ const layer = Layer.effect(
 
     function relevant(input: AssertInput, rules: Permission.Ruleset) {
       return rules.filter((rule) => Wildcard.match(input.action, rule.action))
-    }
-
-    // agent 级裁判配置查找：最高优先级文档中该 agent 的 permission 段。
-    const agentPermissionConfig = (entries: readonly Config.Entry[], agentID: AgentV2.ID) => {
-      const document = entries.findLast(
-        (entry): entry is Config.Document =>
-          entry.type === "document" && entry.info.agents?.[agentID] !== undefined,
-      )
-      return document?.info.agents?.[agentID]?.permission
     }
 
     type Verdict =
@@ -187,10 +180,11 @@ const layer = Layer.effect(
         )
         if (matched) return { outcome: "ask" }
         const entries = yield* config.entries()
-        const project = Config.latest(entries, "permission")
-        const agentConfig = agent?.id ? agentPermissionConfig(entries, agent.id) : undefined
-        if (PermissionPolicy.resolve(input.action, agentConfig, project) === "allow") return { outcome: "allow" }
-        const current = PermissionPolicy.mode(agentConfig, project)
+        const scoped = Config.latestScoped(entries, "permission", global.config)
+        const agentConfig = agent?.id ? PermissionPolicy.agentConfig(entries, agent.id) : undefined
+        if (PermissionPolicy.resolve(input.action, agentConfig, scoped.project ?? scoped.user) === "allow")
+          return { outcome: "allow" }
+        const current = PermissionPolicy.resolveMode(agentConfig?.mode ?? scoped.user?.mode, scoped.project?.mode)
         if (current === "ask") return { outcome: "ask" }
         const verdict = yield* judge.judge({
           sessionID: input.sessionID,
@@ -366,5 +360,14 @@ export const locationLayer = layer.pipe(Layer.provideMerge(AgentV2.locationLayer
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [EventV2.node, Location.node, AgentV2.node, SessionStore.node, PermissionSaved.node, Config.node, PermissionJudge.node],
+  deps: [
+    EventV2.node,
+    Location.node,
+    Global.node,
+    AgentV2.node,
+    SessionStore.node,
+    PermissionSaved.node,
+    Config.node,
+    PermissionJudge.node,
+  ],
 })

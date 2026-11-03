@@ -7,6 +7,7 @@ import { Database } from "@opennovel-ai/core/database/database"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
+import { Global } from "@opennovel-ai/core/global"
 import { Location } from "@opennovel-ai/core/location"
 import { PermissionV2 } from "@opennovel-ai/core/permission"
 import { PermissionJudge } from "@opennovel-ai/core/permission/judge"
@@ -30,6 +31,9 @@ const current = Layer.succeed(
   Location.Service,
   Location.Service.of(location({ directory: AbsolutePath.make("/project") })),
 )
+// 桩配置文档的 path 位于该目录下才会被 latestScoped 识别为用户级定义（真实加载的文档恒带 path）。
+const TEST_GLOBAL_DIR = "/test/global"
+const globalNode = Layer.succeed(Global.Service, Global.make({ config: TEST_GLOBAL_DIR }))
 
 // 可变桩：provideService 无法穿透已构建的 PermissionV2 层内捕获的配置/裁判实例
 const state: {
@@ -49,7 +53,13 @@ const configNode = Layer.succeed(
       Effect.succeed(
         state.mode === "ask"
           ? []
-          : [new Config.Document({ type: "document", info: decode({ permission: { mode: state.mode } }) })],
+          : [
+              new Config.Document({
+                type: "document",
+                path: `${TEST_GLOBAL_DIR}/opennovel.json`,
+                info: decode({ permission: { mode: state.mode } }),
+              }),
+            ],
       ),
   }),
 )
@@ -77,6 +87,7 @@ const it = testEffect(
     ]),
     [
       [Location.node, current],
+      [Global.node, globalNode],
       [Config.node, configNode],
       [PermissionJudge.node, judgeNode],
       [ToolOutputStore.node, ToolOutputStore.nodeWithoutConfig],

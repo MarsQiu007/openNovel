@@ -129,6 +129,29 @@ export function latest<K extends keyof Info>(entries: readonly Entry[], key: K):
     .findLast((entry) => entry.info[key] !== undefined)?.info[key]
 }
 
+/**
+ * 按来源层级拆分 key 的生效值：user 为全局配置目录下文档的最后一个定义者，
+ * project 为其余文档的最后一个定义者。entries 顺序为低→高优先级，同层后赋值覆盖先赋值。
+ */
+export function latestScoped<K extends keyof Info>(
+  entries: readonly Entry[],
+  key: K,
+  globalDirectory: string,
+): { user?: Info[K]; project?: Info[K] } {
+  const resolved: { user?: Info[K]; project?: Info[K] } = {}
+  for (const entry of entries) {
+    if (entry.type !== "document" || entry.info[key] === undefined) continue
+    const isGlobal =
+      entry.path !== undefined && path.dirname(path.resolve(entry.path)) === path.resolve(globalDirectory)
+    if (isGlobal) {
+      resolved.user = entry.info[key]
+      continue
+    }
+    resolved.project = entry.info[key]
+  }
+  return resolved
+}
+
 export interface Interface {
   /** Returns location config documents and supplemental directories from lowest to highest priority. */
   readonly entries: () => Effect.Effect<Entry[]>

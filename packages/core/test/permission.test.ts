@@ -6,6 +6,7 @@ import { Database } from "@opennovel-ai/core/database/database"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
+import { Global } from "@opennovel-ai/core/global"
 import { Location } from "@opennovel-ai/core/location"
 import { PermissionV2 } from "@opennovel-ai/core/permission"
 import { PermissionJudge } from "@opennovel-ai/core/permission/judge"
@@ -26,6 +27,9 @@ const current = Layer.succeed(
   Location.Service,
   Location.Service.of(location({ directory: AbsolutePath.make("/project") })),
 )
+// 与下方 judge integration 的 Global 桩一致：桩配置文档的 path 位于该目录下才会被识别为用户级定义。
+const TEST_GLOBAL_DIR = "/test/global"
+const globalNode = Layer.succeed(Global.Service, Global.make({ config: TEST_GLOBAL_DIR }))
 const it = testEffect(
   AppNodeBuilder.build(
     LayerNode.group([
@@ -336,7 +340,14 @@ describe("PermissionV2 judge integration", () => {
         Effect.succeed(
           state.mode === "ask"
             ? []
-            : [new Config.Document({ type: "document", info: decode({ permission: { mode: state.mode } }) })],
+            : [
+                new Config.Document({
+                  type: "document",
+                  // path 位于全局配置目录下，latestScoped 识别为用户级定义（真实加载的文档恒带 path）
+                  path: `${TEST_GLOBAL_DIR}/opennovel.json`,
+                  info: decode({ permission: { mode: state.mode } }),
+                }),
+              ],
         ),
     }),
   )
@@ -361,6 +372,7 @@ describe("PermissionV2 judge integration", () => {
       ]),
       [
         [Location.node, current],
+        [Global.node, globalNode],
         [Config.node, configNode],
         [PermissionJudge.node, judgeNode],
       ],

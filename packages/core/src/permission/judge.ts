@@ -6,12 +6,14 @@ import { Permission } from "@opennovel-ai/schema/permission"
 import { makeLocationNode } from "../effect/app-node"
 import { Catalog } from "../catalog"
 import { Config } from "../config"
+import { Global } from "../global"
 import { Integration } from "../integration"
 import { ModelV2 } from "../model"
 import { PluginBoot } from "../plugin/boot"
 import { SessionRunnerModel } from "../session/runner/model"
 import { SessionStore } from "../session/store"
 import { SessionV2 } from "../session"
+import { PermissionPolicy } from "./policy"
 
 export interface Input {
   readonly sessionID: SessionV2.ID
@@ -65,14 +67,18 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const catalog = yield* Catalog.Service
     const config = yield* Config.Service
+    const global = yield* Global.Service
     const integrations = yield* Integration.Service
     const pluginBoot = yield* PluginBoot.Service
     const sessions = yield* SessionStore.Service
 
     const resolve = Effect.fn("PermissionJudge.resolveModel")(function* (sessionID: SessionV2.ID) {
       yield* pluginBoot.ready
-      const configured = Config.latest(yield* config.entries(), "permission")?.judge?.model
+      const entries = yield* config.entries()
+      const scoped = Config.latestScoped(entries, "permission", global.config)
       const session = yield* sessions.get(sessionID)
+      const agentLevel = session?.agent ? PermissionPolicy.agentConfig(entries, session.agent) : undefined
+      const configured = agentLevel?.judge?.model ?? (scoped.project ?? scoped.user)?.judge?.model
       const available = yield* catalog.model.available()
       const referenced =
         configured !== undefined
@@ -127,5 +133,5 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Catalog.node, Integration.node, PluginBoot.node, SessionStore.node, Config.node],
+  deps: [Catalog.node, Global.node, Integration.node, PluginBoot.node, SessionStore.node, Config.node],
 })

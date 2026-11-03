@@ -2,9 +2,9 @@
 
 ## 1. core 项目级模式收紧
 
-- [ ] 1.1 在 `packages/core/src/permission.ts` 的 mode 解析处实现非宽松化收紧（design D2）：基于 `Config.entries()` 区分最后一个用户级（全局）定义与最后一个项目级定义，项目级取值仅在比 userMode 更严时生效，否则忽略并暴露被忽略信号；验证：`packages/core` 下新增单元测试覆盖三组场景（项目级放松被忽略/项目级收严生效/全局与 agent 级不受影响），`bun test` 通过
-- [ ] 1.2 在 `packages/core/src/permission/judge.ts` 的 `resolveModel` 补齐 agent 级裁判模型解析（design D4）：agent 级 `permission.judge.model` 优先于全局/项目级，均未配置时维持跟随会话模型；验证：core 单测覆盖优先级、回落与不可用 fail-closed 行为
-- [ ] 1.3 确认既有 judge 相关测试在收紧后全绿（存量项目级 judge 配置若存在于测试夹具需按新语义调整）；验证：`packages/core` `bun test` 全量通过
+- [x] 1.1 在 `packages/core/src/permission.ts` 的 mode 解析处实现非宽松化收紧（design D2）：基于 `Config.entries()` 区分最后一个用户级（全局）定义与最后一个项目级定义，项目级取值仅在比 userMode 更严时生效，否则忽略并暴露被忽略信号；验证：`packages/core` 下新增单元测试覆盖三组场景（项目级放松被忽略/项目级收严生效/全局与 agent 级不受影响），`bun test` 通过
+- [x] 1.2 在 `packages/core/src/permission/judge.ts` 的 `resolveModel` 补齐 agent 级裁判模型解析（design D4）：agent 级 `permission.judge.model` 优先于全局/项目级，均未配置时维持跟随会话模型；验证：core 单测覆盖优先级、回落与不可用 fail-closed 行为
+- [x] 1.3 确认既有 judge 相关测试在收紧后全绿（存量项目级 judge 配置若存在于测试夹具需按新语义调整）；验证：`packages/core` `bun test` 全量通过
 
 ## 2. app 移除 auto-accept
 
