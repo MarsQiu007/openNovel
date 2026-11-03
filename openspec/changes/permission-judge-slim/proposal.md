@@ -35,8 +35,8 @@ LLM 裁判链路落地后（llm-permission-judge + permission-judge-ui），裁�
 ## Impact
 
 - **packages/core**：`permission/policy.ts` 删 `agentConfig` 与三级 `resolve`（退为内置表单查）；`permission/judge.ts` 删 agent 级 / 项目级裁判模型解析（只读全局 `scoped.user?.judge?.model`）；`permission.ts` evaluateInput 删 agent 级 mode/policy 查找；`config/permission.ts` V2 Info 删 `policy` 字段；`config/agent.ts` V2 Agent 删 `permission` 字段；`config/v1/permission.ts` 保留接受 `policy` 键、`config/v1/agent.ts` 不动；`migrate.ts` 的 `permission()` 不再透传 policy、`migrateAgent` 不再产出 agent 级 permission（规则构建器继续跳过 `policy` 键）
-- **packages/schema + SDK**：PermissionConfig 类型瘦身，从仓库根 `bun ./script/generate.ts` 再生 openapi.json 与 JS SDK 类型
+- **packages/schema + SDK**：SDK 配置类型是 V1 on-disk 形状（继续承载存量键的接受面），V2 瘦身不落 SDK——`bun ./script/generate.ts` 产物无变化为验收证据
 - **packages/app**：settings-v2 权限区删裁判模型选择器与策略表；agents.tsx 删每行裁判下拉、新增内置"权限裁判"行；删除 `context/permission-policy.ts` UI 镜像；i18n 三语文案增删
 - **packages/session-ui**：不受影响（dock-prompt 裁判标注与配置面无关）
-- **测试**：core 的 permission / permission-policy / config（V1 迁移用例含 agent 级 permission 断言）测试改写或收缩；opennovel 的 config round-trip 用例（显式书写 `policy`）同步；app 相关单测；检查 opennovel httpapi 练习场景是否写入 permission.policy
+- **测试**：core 的 permission / permission-policy / config（V1 迁移用例含 agent 级 permission 断言）测试改写或收缩；app 相关单测；opennovel config round-trip 用例验证不改即通过（policy 在 V1 存储层原样回读、仅不被裁判链路消费）；检查 opennovel httpapi 练习场景是否写入 permission.policy
 - **兼容性**：V1 磁盘 schema 继续接受存量 `policy` 键（避免整文件解析失败），其值静默忽略；agent 级覆盖键失效属有意收编；无本地持久化数据结构迁移

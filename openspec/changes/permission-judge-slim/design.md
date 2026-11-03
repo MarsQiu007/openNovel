@@ -47,7 +47,7 @@ V1 on-disk schema **保留**接受 `policy` 键（显式字段 + RestValue 中�
 
 ### D6 契约再生与测试
 
-V2 schema 删字段 → 从仓库根 `bun ./script/generate.ts` 再生 openapi.json 与 JS SDK 类型（PermissionConfig 不再含 policy、AgentConfig 不再含 permission 裁判段）；`packages/client` 按需 `bun run generate`。测试更新：core `permission-policy.test.ts`（resolve 签名与覆盖链用例收缩为内置表用例、agentConfig describe 删除、selectModel 保留）、`permission.test.ts`、core `test/config/config.test.ts`（V1 迁移用例：policy 不再透传、agent 级 permission 不再产出）、opennovel `test/config/config.test.ts`（round-trip 用例去掉 policy 字段）；app 相关单测；检查 opennovel httpapi 练习场景是否书写 permission.policy。
+V2 schema 删字段，但 SDK 配置类型是 V1 on-disk 形状（PermissionConfig 含工具键 + mode/policy/judge，AgentConfig 含 permission 段）——V2 瘦身**不落 SDK**：存量键的接受面原样保留，写入被接受但不被裁判链路消费，`packages/client` 无再生成需求。已实测证据：根 `bun ./script/generate.ts` 产物零 diff；opennovel config round-trip 测试（显式书写 policy）不改即全绿。测试更新：core `permission-policy.test.ts`（resolve 用例收缩为内置表、agentConfig describe 删除、selectModel 保留）、`permission.test.ts`、core `test/config/config.test.ts`（V1 迁移用例：policy 不再透传、agent 级 permission 不再产出）；app 相关单测；检查 opennovel httpapi 练习场景是否书写 permission.policy。
 
 ## Risks / Trade-offs
 
