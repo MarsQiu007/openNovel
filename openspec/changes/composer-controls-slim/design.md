@@ -14,11 +14,11 @@
 
 ## D2 推理档位折入模型弹层
 
-**决策**：删除控件栏的推理档位下拉；`ModelSelectorPopoverV2` 内部对当前选中模型（或弹层内 hover 模型）追加"推理档位"分段，选项为 `default` + 模型 `variants` 声明的全部档位；选中即写 `local.model.variant.set`（沿用现有 `default → undefined` 约定）。模型芯片在档位非默认时显示 `模型名 · 档位` 后缀。`model.variant.cycle` 快捷键保留，循环结果直接反映为芯片后缀。
+**决策**：删除控件栏的推理档位下拉；`ModelSelectorPopoverV2` 内部对当前选中模型追加"推理档位"分段，选项为 `default` + 模型 `variants` 声明的全部档位；选中即写 `local.model.variant.set`（沿用现有 `default → undefined` 约定）。模型芯片在档位非默认时显示 `模型名 · 档位` 后缀。`model.variant.cycle` 快捷键保留，循环结果直接反映为芯片后缀。
 
 **现状依据**：档位生成完全由模型元数据驱动（`model-reasoning-variants` spec），`local.tsx` 的 `variant` 选择通道（`variant.set`/`variant.current`/`cycleModelVariant`）保持不变——本变更只动 UI 载体，不动数据与解析链路，满足"显示与提交同一条解析"约束。
 
-**参考**：上游镜像 `D:/AI/Codes/opencode/packages/app/src/providers/models/select-dialog.tsx` 已有档位折入弹层的实现可作参照；本地组件结构已分叉，按行为参照而非代码移植处理（`docs/agents/upstream-sync.md` 决策树中属"参考实现"分支）。
+**参考**：提案阶段曾记录"上游镜像 `select-dialog.tsx` 已有档位折入弹层实现可作参照"，实现期核实该说法不成立——上游 `select-dialog.tsx` 的 variant 命中均为按钮样式属性，并无档位折入弹层的实现；本变更的档位分段为本地新增（V2 弹层 `MenuV2.RadioGroup`、V1 弹层与免付费弹窗同款手写分段），实现不依赖上游参照。
 
 **空态**：当前模型无 `variants` 声明时，弹层不渲染档位分段（取代现行"禁用占位"行为——这是 spec 中「模型不支持推理档位」scenario 的语义反转点）。
 
@@ -43,7 +43,7 @@
 
 **决策**：`local.tsx` 现行 `pickAgent(agentsVisible() ? (scope()?.agent ?? store.current) : "build")` 的隐藏分支硬回退 `"build"` 删除——可见与隐藏共用同一解析链：`工作区持久化(scope/store) → resolveAgent 兜底`。
 
-**兜底语义**：解析链为 `会话级持久化(scope：saved.session / draft) → V1 配置 default_agent 键 → store.current 内存回退 → resolveAgent 兜底`——客户端从 `serverSync().data.config.default_agent` 读取该键（与 `permission-mode.ts` 读 `config.permission` 同一通道，数据已在客户端，无契约变更）。
+**兜底语义**：解析链为 `会话级持久化(scope：saved.session / draft) → V1 配置 default_agent 键 → store.current 内存回退 → resolveAgent 兜底`——客户端按目录配置优先、回落全局的跨文档 latest-wins 读取该键（`sync().data.config.default_agent ?? serverSync().data.config.default_agent`，与 core `Config.latest(documents, "default_agent")` 同语义），与 `permission-mode.ts` 的 config 读取同一通道，数据已在客户端，无契约变更。
 
 **顺序的关键约束**（审查期核实）：`store.current` 是永真合成值——初始化取 `list()[0]`（local.tsx:95），且存在"当前值不在列表即重置回首项"的 effect（local.tsx:117-125），若把它放在 default_agent 之前，配置项永不生效。因此链顺序必须是 scope → default_agent → store.current：会话级显式选择（含用户在输入区或快捷键的切换，均写 saved.session 或 draft）始终最高优先；default_agent 只裁决"从未选择过"的缺省；store.current 兜住内存初态。resolveAgent 的 name 级 fallback 维持 `"build"` 不动——`AgentV2.defaultID` 即 `"build"`，属"服务器缺省主智能体的客户端镜像"。核实结论：`Agent.Info` schema 无 default 标志，服务器 `draft.default()` 的解析结果不下发客户端，因此客户端读取 V1 配置键是实现"default_agent 配置"步骤的既有通道，不新增协议面。
 
