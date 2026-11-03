@@ -8,7 +8,7 @@ const novelID = "novel_prompt_thinking_level"
 const projectID = "proj_prompt_thinking_level_regression"
 const sessionID = "ses_prompt_thinking_level_regression"
 
-test("shows the V2 thinking level control while relevant", async ({ page }) => {
+test("folds the thinking level into the model selection popover", async ({ page }) => {
   await mockOpenNovelServer(page, {
     directory,
     project: {
@@ -63,26 +63,29 @@ test("shows the V2 thinking level control while relevant", async ({ page }) => {
   await page.goto(novelWorkspaceURL(directory, novelID, sessionID))
   const composer = page.locator('[data-component="prompt-input-v2"]')
   const input = composer.locator('[data-component="prompt-input"]')
-  const control = composer.getByRole("button", { name: "Choose model variant" })
+  const model = composer.locator('[data-action="prompt-model"]')
   await expectAppVisible(composer)
 
+  // 控件栏不再承载独立档位控件
   await idleComposer(page)
-  await expect(control).toBeVisible()
+  await expect(model).toBeVisible()
+  await expect(composer.getByRole("button", { name: "Choose model variant" })).toHaveCount(0)
 
-  await control.click()
-  const high = page.getByRole("menuitemradio", { name: "high" })
-  await expect(high).toBeVisible()
-  await page.mouse.move(0, 0)
-  await expect(control).toBeVisible()
-  await expect(high).toBeVisible()
-  await high.click()
+  // 模型选择弹层内呈现推理档位分段，选中非默认档后芯片带"模型名 · 档位"后缀
+  await model.click()
+  const section = page.locator('[data-slot="model-variant-section"]')
+  await expect(section).toBeVisible()
+  await section.getByRole("button", { name: "high" }).click()
+  await page.keyboard.press("Escape")
 
   await idleComposer(page)
   await input.focus()
-  await expect(control).toBeVisible()
+  await expect(model).toContainText("Thinking Model · high")
 
-  await idleComposer(page)
-  await expect(control).toBeVisible()
+  // 重开弹层：档位分段仍在且选中态保持
+  await model.click()
+  await expect(section).toBeVisible()
+  await expect(section.getByRole("button", { name: "high" })).toBeVisible()
 })
 
 async function idleComposer(page: Page) {

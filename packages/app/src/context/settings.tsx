@@ -33,7 +33,6 @@ export interface Settings {
     showReasoningSummaries: boolean
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
-    showCustomAgents: boolean
     mobileTitlebarPosition: "top" | "bottom"
     newLayoutDesigns?: boolean
     layoutTransitionEligible?: boolean
@@ -185,7 +184,6 @@ const defaultSettings: Settings = {
     showReasoningSummaries: false,
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
-    showCustomAgents: false,
     mobileTitlebarPosition: "top",
   },
   appearance: {
@@ -235,10 +233,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     const showFileTree = withFallback(() => store.general?.showFileTree, defaultSettings.general.showFileTree)
     const showSearch = withFallback(() => store.general?.showSearch, defaultSettings.general.showSearch)
     const showStatus = withFallback(() => store.general?.showStatus, defaultSettings.general.showStatus)
-    const showCustomAgents = withFallback(
-      () => store.general?.showCustomAgents,
-      defaultSettings.general.showCustomAgents,
-    )
     const sunset = oldInterfaceSunset
     const [oldInterfaceRetired, setOldInterfaceRetired] = createSignal(sunset ? Date.now() >= sunset.getTime() : false)
     const layoutTransitionClassified = createMemo(() => typeof store.general?.layoutTransitionEligible === "boolean")
@@ -401,10 +395,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setEditToolPartsExpanded(value: boolean) {
           setStore("general", "editToolPartsExpanded", value)
         },
-        showCustomAgents,
-        setShowCustomAgents(value: boolean) {
-          setStore("general", "showCustomAgents", value)
-        },
         mobileTitlebarPosition: withFallback(
           () => store.general?.mobileTitlebarPosition,
           defaultSettings.general.mobileTitlebarPosition,
@@ -439,7 +429,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         fileTree: visible(showFileTree),
         search: visible(showSearch),
         status: visible(showStatus),
-        customAgents: visible(showCustomAgents),
       },
       appearance: {
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
