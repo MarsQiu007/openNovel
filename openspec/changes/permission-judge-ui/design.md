@@ -39,7 +39,7 @@
 
 选择：定义严格序 `ask > judge-shadow > judge`（左更严）。解析时项目级配置的 mode 取值只允许把生效模式收严，不允许放松；agent 级与全局级不受此限制。
 
-实现位置：`packages/core/src/permission.ts` 取 mode 处。当前 `Config.latest` 把全局/项目合并为单一"最后一个定义者"，来源信息丢失；需要基于 `Config.entries()` 区分最后一个**用户级**（全局）定义与最后一个**项目级**定义（`Config.Document.path` 或加载侧来源标记），然后按严格序合并：
+实现位置：`packages/core/src/permission/policy.ts` 的 `resolveMode(userMode, projectMode)`（mode 解析实际消费方在 policy 模块）。当前 `Config.latest` 把全局/项目合并为单一"最后一个定义者"，来源信息丢失；需要基于 `Config.entries()` 区分最后一个**用户级**（全局）定义与最后一个**项目级**定义（`Config.Document.path` 或加载侧来源标记），然后按严格序合并：
 
 ```
 userMode   = agent?.mode ?? globalLatest?.mode ?? "ask"
@@ -89,6 +89,23 @@ effective  = projectMode !== undefined && rank(projectMode) < rank(userMode)
 选择：界面"项目配置定义/被忽略"标注不经过服务端新通道：UI 手里已有全局 config（`serverSync().data.config`）与目录级 config（`sync.child(directory)` 的 `config.permission`），按与 core 相同的严格序（ask > judge-shadow > judge）在本地计算生效值与忽略项。
 
 理由：Client 不得依赖 Core（架构铁律），`PermissionPolicy` 无法共享；严格序比较是一张三档 rank 表，重复成本几行，且两端规则同一来源（本 design D2 的 rank 定义）。服务端"被忽略信号"需要协议级新字段，为一个提示不值得。
+
+实现注记：UI 侧镜像表落在 `packages/app/src/context/permission-mode.ts`（rank/解析）与 `permission-policy.ts`（默认策略表），与 core 的 `permission/policy.ts` 保持双向同步注释（D7 的重复是有意为之，改一端必须改另一端）。
+
+### D8：裁判配置的 API 承载收口（实现期发现，推翻"零 schema 变更"前提）
+
+背景：动笔后发现归档提案 llm-permission-judge 留下的活缺口——裁判字段（`permission.mode` / `permission.policy` / `permission.judge.model`）只存在于 core 的 V2 配置视图（`ConfigPermission.Info`），而磁盘/API 载荷层用的是 V1 schema（`ConfigV1.Permission`）。V1 schema 无这些字段且为严格解析：用户按归档 spec 文档手写 judge 配置后，service 层 `loadGlobal`（`Effect.orElseSucceed` 退化为 `{}`）与 HttpApi `global.config.get/update` 会把整个全局配置静默清空——配置写了等于丢。原 proposal「无 schema/协议变更」前提被证伪，必须收口。
+
+选择：
+
+1. **V1 on-disk schema 吸收 V2 字段**：`packages/core/src/config/v1/permission.ts` 的 `InputObject` 增加显式可选字段 `mode`（三档字面量）/ `policy`（动作→judge|allow|ask 记录）/ `judge`（`{ model?: string }`），rest 索引从 `Record(String, Rule)` 放宽为 `Record(String, RestValue)`，其中 `RestValue = Rule | ModeValue | PolicyValue | JudgeConfig`。显式字段与索引并存的动机：显式类型喂给生成的 OpenAPI/SDK 文档，索引放宽是 StructWithRest 的类型要求（显式字段类型必须可赋给索引值类型），同时让未知键的误写（如 `mcp_xxx: "judge"`）仍能被文件解析容下、在迁移层丢弃而不是整份配置作废。
+2. **migrate 透传**：`packages/core/src/config/v1/migrate.ts` 新增 `permission()` picker，把 V1 `permission` 段与 `agent` 段的 mode/policy/judge 原样搬进 V2 `ConfigPermission.Info`；规则构建器 `permissions()` 跳过 mode/policy/judge 键，并对嵌套对象效果做 `isAction` 过滤——RestValue 放宽后误入规则位的非动作值（模式串/策略记录/裁判配置）不会污染 Ruleset（V2 解码失败会整份丢弃文档）。
+3. **空串清除约定**：mergeDeep 无法删键，UI 清除选择器时持久化 `""`；core 用 `||` falsy 链解析（与 agent 级 model 既有约定一致），`selectModel` 抽出为纯函数（`packages/core/src/permission/judge.ts`）便于单测。
+4. **SDK 再生**：V1 schema 即 OpenAPI 的 Config 形状来源，从仓库根 `bun ./script/generate.ts` 再生 `packages/sdk/openapi.json` 与 `packages/sdk/js/src/v2/gen/types.gen.ts`，`PermissionConfig`/`AgentConfig.permission` 获得新字段类型。
+
+理由：在磁盘/API 层承载是一次性收口，让文件解析、API 载荷、SDK 类型三处天然一致；替代方案（service 层单独加 V2 通道或 HttpApi 特判 judge 字段）会造成第二真相源，且仍需 SDK 表达新形状。
+
+风险与对策：RestValue 放宽意味着未知工具键可写入模式串等垃圾——由 `permissions()` 的键跳过 + isAction 过滤兜住，且有专门单测（`drops invalid rule effects widened by the judge rest value`）钉住行为；V1→V2 全字段往返、service 层 updateGlobal 往返、judge 字段 live-load 均有测试。
 
 ## Risks / Trade-offs
 

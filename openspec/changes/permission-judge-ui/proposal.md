@@ -34,7 +34,8 @@ LLM 裁判链路（permission-llm-judge）已落地，但按当时提案的非�
 ## Impact
 
 - **packages/app**：settings-v2 新增权限配置区与 agents 面板裁判模型列；`context/permission.tsx` 删除 auto-accept 逻辑与 `permission.v3` 持久化（含无消费者的 `permissionsEnabled`/`isPermissionAllowAll` 死代码）；消费方全部改到——输入区与提交逻辑（`prompt-input-v2.tsx` / `prompt-input.tsx` / `prompt-input/submit.ts`）、会话角标（`layout/sidebar-items.tsx`）、权限提示音（`pages/layout.tsx`）、composer 状态（`session/composer/session-composer-state.ts`）、设置开关与快捷键（`settings-general.tsx` / `settings-v2/general.tsx` / `use-session-commands.tsx`）；重写 `e2e/regression/remote-session-settings.spec.ts` 的 auto-accept 场景；i18n 三语文案新增
-- **packages/core**：`permission.ts` 的 mode 解析收紧（项目级非宽松化）；`permission/judge.ts` 补齐 agent 级裁判模型解析；两处各带单元测试
-- **packages/session-ui**：无需改动（审批面板裁判标注已存在，本提案不调整）
+- **packages/core**：`permission/policy.ts` 的 mode 解析收紧（项目级非宽松化）+ `permission/judge.ts` 补齐 agent 级裁判模型解析并抽出纯选择器 `selectModel`；两处各带单元测试
+- **packages/core（实现期新发现，schema 承载收口）**：归档提案 llm-permission-judge 留下的活缺口——judge 字段（mode/policy/judge.model）在 V1 on-disk schema（`ConfigV1.Permission`）中不存在，导致含裁判配置的全局配置文件经 service 层/HttpApi 解析时整体静默退化为空配置。本提案将 V1 permission schema 吸收 V2 字段（显式可选字段 + RestValue 联合兜底索引），`migrate` 透传 judge 字段至 V2 视图，规则构建器跳过 mode/policy/judge 键并过滤非动作效果，使文件解析、API 载荷、SDK 类型三处一致承载裁判配置；含迁移透传、脏数据防护与 SDK 再生的配套测试
+- **packages/session-ui**：`PromptInputV2ViewConfig` 增加 `permissionMode` 选择控件插槽（宿主未提供时不渲染），输入区控件栏渲染相应选择器
 - **归档 spec 修订**：`openspec/specs/permission-llm-judge/spec.md` 同步上述需求条款
-- **兼容性**：无 schema / protocol 变更，不需要再生 SDK；前端 `permission.v3` 本地状态整体废弃并在删除时经 `removePersisted` 清除；既有用户开着 auto-accept 的会话升级后回到人审/裁判链路，subagent 与 MCP 请求重新弹人审；项目级配置 `permission: "allow"` 字符串（V1 全放行约定）此前经 `enableConfiguredDirectory` 自动开启 auto-accept，该联动随 auto-accept 删除一并失效，相关项目回到规则引擎判定；全局配置 `permission` 字段缺省不变，默认仍为 ask 全人审
+- **兼容性**：有 schema 变更（V1 on-disk permission schema 吸收 mode/policy/judge 字段），已从仓库根 `bun ./script/generate.ts` 再生 `packages/sdk/openapi.json` 与 `packages/sdk/js/src/v2/gen/types.gen.ts`（PermissionConfig/AgentConfig.permission 已带新字段）；前端 `permission.v3` 本地状态整体废弃并在删除时经 `removePersisted` 清除；既有用户开着 auto-accept 的会话升级后回到人审/裁判链路，subagent 与 MCP 请求重新弹人审；项目级配置 `permission: "allow"` 字符串（V1 全放行约定）此前经 `enableConfiguredDirectory` 自动开启 auto-accept，该联动随 auto-accept 删除一并失效，相关项目回到规则引擎判定；全局配置 `permission` 字段缺省不变，默认仍为 ask 全人审
