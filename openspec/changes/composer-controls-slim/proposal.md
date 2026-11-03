@@ -25,7 +25,8 @@
 
 ## Impact
 
-- **packages/app**: 输入区控件栏（`prompt-input-v2` 及其控件装配）、模型选择弹层（`dialog-select-model` 系列）、`context/local.tsx` 显隐与解析逻辑、`context/settings.tsx` 可见性设置、i18n（zh / zht / en）与相关组件测试 / e2e。
+- **packages/app**: 输入区控件装配（`prompt-input-v2.tsx` controller 的 view.variant/view.agent 契约、`prompt-input.tsx` 旧版控件行）、模型选择弹层（`dialog-select-model` 系列，推理档位分段落点）、`context/local.tsx` 显隐与解析逻辑、`context/settings.tsx` 可见性设置、i18n（zh / zht / en）与相关组件测试 / e2e。
+- **packages/session-ui**: V2 控件栏渲染端（控件顺序、推理档位 SelectV2 与不支持占位组件的删除、`view.variant` 契约消费）。
 - **非目标包**: novel-store / plugin / opennovel / desktop / core / server 均不改动；不改模型元数据驱动的推理档位生成与协议翻译（`model-reasoning-variants` 不动）；不改权限模式写全局配置的语义与设置页三档（`permission-judge-config-ui` 不动）；不删除 `agent.cycle` 命令与键位；不改 `default_agent` 配置键语义（已存在，本变更仅消费）。
 - **持久化兼容**: `model-selection.v1` 持久化结构不变（仍记录推理档位，仅 UI 位置变化）；删除的 `visibility.customAgents` 为本地设置残留，无需迁移。
 - **契约与 SDK**: 无 Protocol / HttpApi 变更，SDK 无需再生成。
