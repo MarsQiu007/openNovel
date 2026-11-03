@@ -45,3 +45,11 @@
 ## Workflow follow-up
 
 - 实现提交统一带 `OpenSpec-Change: custom-provider-manage` trailer；完成后 validate → archive（`npx openspec archive --yes`）→ 合并推送 main → 按新沉淀规则确认 CI 全绿再清理分支
+
+## Implementation Commits
+
+- d6726957a6 docs(openspec): 建立 custom-provider-manage 提案
+- f98f7312d2 feat(opennovel): 新增自定义提供商整体覆盖与删除端点
+- 433a87f897 feat(app): 自定义提供商编辑/删除/模型细节配置
+- 40694a0f5f refactor: 消除自定义提供商改动的 oxlint 新增告警
+- f8bc0c9a3a fix(opennovel): 修复无配置文件时自定义提供商增删的 jsonc 空文档崩溃
