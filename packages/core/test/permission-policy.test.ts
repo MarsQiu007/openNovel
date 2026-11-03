@@ -3,6 +3,7 @@ import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "../src/config"
 import { ConfigAgent } from "../src/config/agent"
 import { ConfigPermission } from "../src/config/permission"
+import { selectModel } from "../src/permission/judge"
 import { PermissionPolicy } from "../src/permission/policy"
 
 const agent = (policy?: Record<string, PermissionPolicy.Policy>, mode?: PermissionPolicy.Mode) =>
@@ -100,5 +101,38 @@ describe("Config.latestScoped", () => {
     const scoped = Config.latestScoped([permissionDoc(undefined, "ask")], "permission", GLOBAL_DIR)
     expect(scoped.user).toBeUndefined()
     expect(scoped.project?.mode).toBe("ask")
+  })
+})
+
+describe("PermissionJudge.selectModel", () => {
+  const available = [
+    { providerID: "anthropic", id: "claude" },
+    { providerID: "openrouter", id: "gpt-5" },
+  ]
+
+  test("已配置引用按 provider/model 命中", () => {
+    expect(selectModel("openrouter/gpt-5", { providerID: "anthropic", id: "claude" }, available)).toEqual({
+      providerID: "openrouter",
+      id: "gpt-5",
+    })
+  })
+
+  test("空串等同未配置：回落跟随会话模型", () => {
+    expect(selectModel("", { providerID: "anthropic", id: "claude" }, available)).toEqual({
+      providerID: "anthropic",
+      id: "claude",
+    })
+  })
+
+  test("未配置时跟随会话模型", () => {
+    expect(selectModel(undefined, { providerID: "openrouter", id: "gpt-5" }, available)).toEqual({
+      providerID: "openrouter",
+      id: "gpt-5",
+    })
+  })
+
+  test("配置引用未命中与会话模型都缺省时返回 undefined（调用方回落默认模型）", () => {
+    expect(selectModel("unknown/model", undefined, available)).toBeUndefined()
+    expect(selectModel(undefined, undefined, available)).toBeUndefined()
   })
 })

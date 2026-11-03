@@ -9,6 +9,8 @@ export type Policy = "judge" | "allow" | "ask"
 export type Mode = "ask" | "judge-shadow" | "judge"
 
 // 内置默认策略表：执行/写/网络/编排族进裁判，只读族确定性放行，subagent 留人审。
+// 注意：packages/app/src/context/permission-policy.ts 有本表的 UI 只读镜像（依赖方向约束，
+// app 不可 import 本模块），改动本表必须同步镜像。
 export const defaults: Record<string, Policy> = {
   bash: "judge",
   edit: "judge",

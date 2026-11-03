@@ -87,6 +87,58 @@ describe("Config", () => {
     }),
   )
 
+  it.effect("carries v2 judge permission fields through v1 migration", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        permission: {
+          bash: "ask",
+          edit: { "*.md": "allow", "*": "deny" },
+          mode: "judge",
+          policy: { bash: "judge", read: "allow" },
+          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        },
+        agent: {
+          reviewer: {
+            permission: { read: "allow", mode: "judge-shadow" },
+          },
+        },
+      })
+      // 裁判字段原样透传给 V2 裁判链路
+      expect(migrated.permission).toEqual({
+        mode: "judge",
+        policy: { bash: "judge", read: "allow" },
+        judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+      })
+      expect(migrated.agents?.reviewer?.permission).toEqual({ mode: "judge-shadow" })
+      // 工具规则不混入裁判键，裁判档位也不沉淀为规则
+      expect(migrated.permissions).toEqual([
+        { action: "bash", resource: "*", effect: "ask" },
+        { action: "edit", resource: "*.md", effect: "allow" },
+        { action: "edit", resource: "*", effect: "deny" },
+      ])
+      expect(migrated.agents?.reviewer?.permissions).toEqual([{ action: "read", resource: "*", effect: "allow" }])
+      // 透传结果必须能被 V2 Info 解码（属性测试之外的聚焦断言）
+      Schema.decodeUnknownSync(Config.Info)(migrated, { errors: "all" })
+    }),
+  )
+
+  it.effect("drops invalid rule effects widened by the judge rest value", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        permission: {
+          bash: "ask",
+          // 未知工具键走 RestValue 校验："judge" 作为值会被裁判档位/策略形状放行，
+          // 迁移时按非法规则 effect 丢弃，不沉淀进 Ruleset。
+          mcp_notes: "judge",
+          mcp_mail: { read: "judge" },
+        },
+      })
+      expect(migrated.permissions).toEqual([{ action: "bash", resource: "*", effect: "ask" }])
+      expect(migrated.permission).toBeUndefined()
+      Schema.decodeUnknownSync(Config.Info)(migrated, { errors: "all" })
+    }),
+  )
+
   it.effect("migrates v1 provider setup options into AISDK settings", () =>
     Effect.sync(() => {
       const migrated = ConfigMigrateV1.migrate({
@@ -193,6 +245,53 @@ describe("Config", () => {
             new Config.Directory({ type: "directory", path: AbsolutePath.make(path.join(tmp.path, "global")) }),
           ])
         }).pipe(Effect.provide(testLayer(tmp.path))),
+      ),
+    ),
+  )
+
+  it.live("loads judge permission fields from a v1-flavored config file", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(tmp.path, "opennovel.json"),
+              JSON.stringify({
+                shell: "/bin/zsh",
+                permission: {
+                  bash: "ask",
+                  mode: "judge",
+                  policy: { read: "allow" },
+                  judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+                },
+                agent: {
+                  reviewer: {
+                    permission: { read: "allow", judge: { model: "openrouter/openai/gpt-5" } },
+                  },
+                },
+              }),
+            ),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.info.permission).toEqual({
+              mode: "judge",
+              policy: { read: "allow" },
+              judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+            })
+            expect(documents[0]?.info.agents?.reviewer?.permission).toEqual({
+              judge: { model: "openrouter/openai/gpt-5" },
+            })
+            expect(documents[0]?.info.permissions).toEqual([{ action: "bash", resource: "*", effect: "ask" }])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
       ),
     ),
   )

@@ -397,6 +397,71 @@ it.effect("updates global config and omits empty shell key in jsonc", () =>
   ),
 )
 
+it.effect("round-trips judge permission fields through global config update", () =>
+  withGlobalConfig(
+    {
+      config: {
+        permission: {
+          bash: "ask",
+          mode: "judge",
+          policy: { read: "allow" },
+          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        },
+      },
+    },
+    ({ dir }) =>
+      Effect.gen(function* () {
+        // 含裁判配置的全局文件在无关补丁更新下不再因 V1 解析失败而整体 400（归档提案遗留缺口）
+        const result = yield* Config.use.updateGlobal({ shell: "/bin/zsh" })
+        expect(result.changed).toBe(true)
+        expect(result.info.permission).toMatchObject({
+          bash: "ask",
+          mode: "judge",
+          policy: { read: "allow" },
+          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        })
+
+        const reread = yield* Config.use.getGlobal()
+        expect(reread.permission).toMatchObject({
+          mode: "judge",
+          policy: { read: "allow" },
+          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        })
+
+        const writtenConfig = yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))
+        expect(writtenConfig.permission).toEqual({
+          bash: "ask",
+          mode: "judge",
+          policy: { read: "allow" },
+          judge: { model: "openrouter/anthropic/claude-sonnet-5" },
+        })
+      }),
+  ),
+)
+
+it.effect("writes judge permission fields through global config update", () =>
+  withGlobalConfig({ config: { shell: "bash" } }, ({ dir }) =>
+    Effect.gen(function* () {
+      const result = yield* Config.use.updateGlobal({
+        permission: {
+          mode: "judge-shadow",
+          judge: { model: "openrouter/openai/gpt-5" },
+        },
+      })
+      expect(result.info.permission).toMatchObject({
+        mode: "judge-shadow",
+        judge: { model: "openrouter/openai/gpt-5" },
+      })
+
+      const writtenConfig = yield* FSUtil.use.readJson(path.join(dir, "opennovel.json"))
+      expect(writtenConfig.permission).toEqual({
+        mode: "judge-shadow",
+        judge: { model: "openrouter/openai/gpt-5" },
+      })
+    }),
+  ),
+)
+
 it.instance(
   "loads formatter boolean config",
   Effect.gen(function* () {

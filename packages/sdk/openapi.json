@@ -29798,10 +29798,54 @@
               },
               "skill": {
                 "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["ask", "judge-shadow", "judge"]
+              },
+              "policy": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["judge", "allow", "ask"]
+                }
+              },
+              "judge": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "additionalProperties": {
-              "$ref": "#/components/schemas/PermissionRuleConfig"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PermissionRuleConfig"
+                },
+                {
+                  "type": "string",
+                  "enum": ["ask", "judge-shadow", "judge"]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string",
+                    "enum": ["judge", "allow", "ask"]
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
             }
           }
         ]

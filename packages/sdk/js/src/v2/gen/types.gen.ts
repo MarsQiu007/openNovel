@@ -1044,7 +1044,36 @@ export type PermissionConfig =
       lsp?: PermissionRuleConfig
       doom_loop?: PermissionActionConfig
       skill?: PermissionRuleConfig
-      [key: string]: PermissionRuleConfig | PermissionActionConfig | undefined
+      mode?: "ask" | "judge-shadow" | "judge"
+      policy?: {
+        [key: string]: "judge" | "allow" | "ask"
+      }
+      judge?: {
+        model?: string
+      }
+      [key: string]:
+        | PermissionRuleConfig
+        | "ask"
+        | "judge-shadow"
+        | "judge"
+        | {
+            [key: string]: "judge" | "allow" | "ask"
+          }
+        | {
+            model?: string
+          }
+        | PermissionRuleConfig
+        | PermissionActionConfig
+        | "ask"
+        | "judge-shadow"
+        | "judge"
+        | {
+            [key: string]: "judge" | "allow" | "ask"
+          }
+        | {
+            model?: string
+          }
+        | undefined
     }
 
 export type AgentConfig = {

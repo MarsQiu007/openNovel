@@ -4,6 +4,7 @@ import { ConfigV1 } from "./config"
 import { ConfigAgentV1 } from "./agent"
 import { ConfigMCPV1 } from "./mcp"
 import { ConfigPermissionV1 } from "./permission"
+import { ConfigPermission } from "../permission"
 import { ConfigProviderV1 } from "./provider"
 import { ConfigProviderOptionsV1 } from "./provider-options"
 import { ConfigPlugin } from "../plugin"
@@ -71,6 +72,7 @@ export function migrate(info: typeof ConfigV1.Info.Type) {
     enterprise: info.enterprise,
     username: info.username,
     permissions: permissions(info.permission, info.tools),
+    permission: permission(info.permission),
     agents: agents(info),
     snapshots: info.snapshot,
     watcher: info.watcher,
@@ -131,14 +133,38 @@ function permissions(info?: ConfigPermissionV1.Info, tools?: Readonly<Record<str
     effect: enabled ? ("allow" as const) : ("deny" as const),
   }))
   for (const [action, rule] of Object.entries(info ?? {})) {
-    if (!rule) continue
+    if (action === "mode" || action === "policy" || action === "judge") continue
     if (typeof rule === "string") {
-      rules.push({ action, resource: "*", effect: rule })
+      // 宽化的 RestValue 会放过 "judge"/"judge-shadow" 等非法 effect（如把裁判档位误写到工具键上）；
+      // 这里按 Action 字面值过滤，避免污染 Ruleset 导致整个配置文档被 V2 校验丢弃。
+      if (isAction(rule)) rules.push({ action, resource: "*", effect: rule })
       continue
     }
-    rules.push(...Object.entries(rule).map(([resource, effect]) => ({ action, resource, effect })))
+    if (!rule) continue
+    rules.push(
+      ...Object.entries(rule)
+        .filter((entry): entry is [string, ConfigPermissionV1.Action] => isAction(entry[1]))
+        .map(([resource, effect]) => ({ action, resource, effect })),
+    )
   }
   return rules.length ? rules : undefined
+}
+
+function isAction(value: unknown): value is ConfigPermissionV1.Action {
+  return value === "allow" || value === "ask" || value === "deny"
+}
+
+// V2 裁判配置字段（mode/policy/judge）不是工具规则，迁移到 V2 Info 时原样透传，
+// 由裁判链路（PermissionPolicy / PermissionJudge）消费。
+export function permission(info?: ConfigPermissionV1.Info): ConfigPermission.Info | undefined {
+  if (!info) return undefined
+  const { mode, policy, judge } = info
+  if (mode === undefined && policy === undefined && judge === undefined) return undefined
+  return {
+    ...(mode === undefined ? {} : { mode }),
+    ...(policy === undefined ? {} : { policy }),
+    ...(judge === undefined ? {} : { judge }),
+  }
 }
 
 function normalizeAction(action: string) {
@@ -172,6 +198,7 @@ export function migrateAgent(info: ConfigAgentV1.Info) {
     steps: info.steps,
     disabled: info.disable,
     permissions: permissions(info.permission),
+    permission: permission(info.permission),
   }
 }
 

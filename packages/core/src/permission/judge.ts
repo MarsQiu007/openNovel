@@ -62,6 +62,22 @@ Decision rules:
 
 answer rules: reply with the structured decision; for deny and ask, one concrete sentence of reason, written in Simplified Chinese.`
 
+// 裁判模型纯选择逻辑：configured（agent 级 > 全局/项目级已折叠）优先按 provider/model 引用匹配；
+// 空串等同未配置（UI 清除选择器时持久化 ""，mergeDeep 无法删键，与 agent model 的 falsy 约定一致），
+// 回落跟随会话模型；均未命中返回 undefined，由调用方回落默认模型。
+export function selectModel<M extends { providerID: string; id: string }>(
+  configured: string | undefined,
+  session: { providerID: string; id: string } | undefined,
+  available: ReadonlyArray<M>,
+): M | undefined {
+  if (configured) {
+    const ref = ModelV2.parse(configured)
+    return available.find((model) => model.providerID === ref.providerID && model.id === ref.modelID)
+  }
+  if (!session) return undefined
+  return available.find((model) => model.providerID === session.providerID && model.id === session.id)
+}
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -78,19 +94,14 @@ const layer = Layer.effect(
       const scoped = Config.latestScoped(entries, "permission", global.config)
       const session = yield* sessions.get(sessionID)
       const agentLevel = session?.agent ? PermissionPolicy.agentConfig(entries, session.agent) : undefined
-      const configured = agentLevel?.judge?.model ?? (scoped.project ?? scoped.user)?.judge?.model
+      // 空串等同未配置：UI 清除裁判模型时持久化 ""（mergeDeep 无法删键），与 agent model 的 falsy 约定一致。
+      const configured = agentLevel?.judge?.model || (scoped.project ?? scoped.user)?.judge?.model
       const available = yield* catalog.model.available()
-      const referenced =
-        configured !== undefined
-          ? available.find((model) => {
-              const ref = ModelV2.parse(configured)
-              return model.providerID === ref.providerID && model.id === ref.modelID
-            })
-          : session?.model
-            ? available.find(
-                (model) => model.providerID === session.model?.providerID && model.id === session.model?.id,
-              )
-            : undefined
+      const referenced = selectModel(
+        configured,
+        session?.model ? { providerID: session.model.providerID, id: session.model.id } : undefined,
+        available,
+      )
       const selected = referenced ?? (yield* catalog.model.default())
       if (!selected) return yield* new SessionRunnerModel.ModelNotSelectedError({ sessionID })
       const provider = yield* catalog.provider.get(selected.providerID)
