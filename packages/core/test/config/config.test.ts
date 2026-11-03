@@ -94,6 +94,7 @@ describe("Config", () => {
           bash: "ask",
           edit: { "*.md": "allow", "*": "deny" },
           mode: "judge",
+          // 存量 policy 键 V1 侧继续接受但不再透传：策略表已退为内置常量
           policy: { bash: "judge", read: "allow" },
           judge: { model: "openrouter/anthropic/claude-sonnet-5" },
         },
@@ -106,10 +107,12 @@ describe("Config", () => {
       // 裁判字段原样透传给 V2 裁判链路
       expect(migrated.permission).toEqual({
         mode: "judge",
-        policy: { bash: "judge", read: "allow" },
         judge: { model: "openrouter/anthropic/claude-sonnet-5" },
       })
-      expect(migrated.agents?.reviewer?.permission).toEqual({ mode: "judge-shadow" })
+      // agent 级裁判配置段不再产出
+      const reviewer = migrated.agents?.reviewer
+      expect(reviewer?.permissions).toEqual([{ action: "read", resource: "*", effect: "allow" }])
+      expect(reviewer !== undefined && "permission" in reviewer).toBe(false)
       // 工具规则不混入裁判键，裁判档位也不沉淀为规则
       expect(migrated.permissions).toEqual([
         { action: "bash", resource: "*", effect: "ask" },
@@ -127,7 +130,7 @@ describe("Config", () => {
       const migrated = ConfigMigrateV1.migrate({
         permission: {
           bash: "ask",
-          // 未知工具键走 RestValue 校验："judge" 作为值会被裁判档位/策略形状放行，
+          // 未知工具键走 RestValue 校验："judge" 作为值会被裁判档位形状放行，
           // 迁移时按非法规则 effect 丢弃，不沉淀进 Ruleset。
           mcp_notes: "judge",
           mcp_mail: { read: "judge" },
@@ -283,11 +286,10 @@ describe("Config", () => {
             expect(documents).toHaveLength(1)
             expect(documents[0]?.info.permission).toEqual({
               mode: "judge",
-              policy: { read: "allow" },
               judge: { model: "openrouter/anthropic/claude-sonnet-5" },
             })
-            expect(documents[0]?.info.agents?.reviewer?.permission).toEqual({
-              judge: { model: "openrouter/openai/gpt-5" },
+            expect(documents[0]?.info.agents?.reviewer).toEqual({
+              permissions: [{ action: "read", resource: "*", effect: "allow" }],
             })
             expect(documents[0]?.info.permissions).toEqual([{ action: "bash", resource: "*", effect: "ask" }])
           }).pipe(Effect.provide(testLayer(tmp.path)))

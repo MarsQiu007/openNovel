@@ -13,7 +13,6 @@ import { PluginBoot } from "../plugin/boot"
 import { SessionRunnerModel } from "../session/runner/model"
 import { SessionStore } from "../session/store"
 import { SessionV2 } from "../session"
-import { PermissionPolicy } from "./policy"
 
 export interface Input {
   readonly sessionID: SessionV2.ID
@@ -93,9 +92,8 @@ const layer = Layer.effect(
       const entries = yield* config.entries()
       const scoped = Config.latestScoped(entries, "permission", global.config)
       const session = yield* sessions.get(sessionID)
-      const agentLevel = session?.agent ? PermissionPolicy.agentConfig(entries, session.agent) : undefined
       // 空串等同未配置：UI 清除裁判模型时持久化 ""（mergeDeep 无法删键），与 agent model 的 falsy 约定一致。
-      const configured = agentLevel?.judge?.model || (scoped.project ?? scoped.user)?.judge?.model
+      const configured = scoped.user?.judge?.model
       const available = yield* catalog.model.available()
       const referenced = selectModel(
         configured,

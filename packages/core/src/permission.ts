@@ -181,10 +181,8 @@ const layer = Layer.effect(
         if (matched) return { outcome: "ask" }
         const entries = yield* config.entries()
         const scoped = Config.latestScoped(entries, "permission", global.config)
-        const agentConfig = agent?.id ? PermissionPolicy.agentConfig(entries, agent.id) : undefined
-        if (PermissionPolicy.resolve(input.action, agentConfig, scoped.project ?? scoped.user) === "allow")
-          return { outcome: "allow" }
-        const current = PermissionPolicy.resolveMode(agentConfig?.mode ?? scoped.user?.mode, scoped.project?.mode)
+        if (PermissionPolicy.resolve(input.action) === "allow") return { outcome: "allow" }
+        const current = PermissionPolicy.resolveMode(scoped.user?.mode, scoped.project?.mode)
         if (current === "ask") return { outcome: "ask" }
         const verdict = yield* judge.judge({
           sessionID: input.sessionID,

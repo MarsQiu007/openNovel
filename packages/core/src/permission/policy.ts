@@ -1,16 +1,11 @@
 export * as PermissionPolicy from "./policy"
 
-import { AgentV2 } from "../agent"
-import { Config } from "../config"
-import { ConfigPermission } from "../config/permission"
-
 export type Policy = "judge" | "allow" | "ask"
 
 export type Mode = "ask" | "judge-shadow" | "judge"
 
 // 内置默认策略表：执行/写/网络/编排族进裁判，只读族确定性放行，subagent 留人审。
-// 注意：packages/app/src/context/permission-policy.ts 有本表的 UI 只读镜像（依赖方向约束，
-// app 不可 import 本模块），改动本表必须同步镜像。
+// 本表为内置常量，不提供任何配置覆盖入口（配置面收敛见 permission-judge-slim）。
 export const defaults: Record<string, Policy> = {
   bash: "judge",
   edit: "judge",
@@ -29,21 +24,9 @@ export const defaults: Record<string, Policy> = {
   subagent: "ask",
 }
 
-// 解析顺序：agent 级配置 > 项目级配置 > 内置默认表 > ask。
-export function resolve(action: string, agent?: ConfigPermission.Info, project?: ConfigPermission.Info): Policy {
-  return agent?.policy?.[action] ?? project?.policy?.[action] ?? defaults[action] ?? "ask"
-}
-
-// agent 级裁判配置查找：最高优先级文档中该 agent 的 permission 段。
-export function agentConfig(
-  entries: readonly Config.Entry[],
-  agentID: AgentV2.ID,
-): ConfigPermission.Info | undefined {
-  const document = entries.findLast(
-    (entry): entry is Config.Document =>
-      entry.type === "document" && entry.info.agents?.[agentID] !== undefined,
-  )
-  return document?.info.agents?.[agentID]?.permission
+// 未列动作保守回落 ask。
+export function resolve(action: string): Policy {
+  return defaults[action] ?? "ask"
 }
 
 // 严格序：ask 最严，judge-shadow 居中，judge 最宽松。

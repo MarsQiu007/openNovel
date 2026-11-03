@@ -154,15 +154,15 @@ function isAction(value: unknown): value is ConfigPermissionV1.Action {
   return value === "allow" || value === "ask" || value === "deny"
 }
 
-// V2 裁判配置字段（mode/policy/judge）不是工具规则，迁移到 V2 Info 时原样透传，
+// V2 裁判配置字段（mode/judge）不是工具规则，迁移到 V2 Info 时原样透传，
 // 由裁判链路（PermissionPolicy / PermissionJudge）消费。
+// policy 键 V1 侧继续接受（避免存量文件解析失败）但不再透传：策略表已退为内置常量。
 export function permission(info?: ConfigPermissionV1.Info): ConfigPermission.Info | undefined {
   if (!info) return undefined
-  const { mode, policy, judge } = info
-  if (mode === undefined && policy === undefined && judge === undefined) return undefined
+  const { mode, judge } = info
+  if (mode === undefined && judge === undefined) return undefined
   return {
     ...(mode === undefined ? {} : { mode }),
-    ...(policy === undefined ? {} : { policy }),
     ...(judge === undefined ? {} : { judge }),
   }
 }
@@ -198,7 +198,6 @@ export function migrateAgent(info: ConfigAgentV1.Info) {
     steps: info.steps,
     disabled: info.disable,
     permissions: permissions(info.permission),
-    permission: permission(info.permission),
   }
 }
 

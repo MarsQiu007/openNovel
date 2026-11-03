@@ -3,7 +3,6 @@ export * as ConfigAgent from "./agent"
 import { Schema } from "effect"
 import { Category } from "@opennovel-ai/schema/agent"
 import { Permission } from "@opennovel-ai/schema/permission"
-import { ConfigPermission } from "./permission"
 import { ConfigProvider } from "./provider"
 import { PositiveInt } from "../schema"
 
@@ -25,5 +24,4 @@ export class Info extends Schema.Class<Info>("ConfigV2.Agent")({
   steps: PositiveInt.pipe(Schema.optional),
   disabled: Schema.Boolean.pipe(Schema.optional),
   permissions: Permission.Ruleset.pipe(Schema.optional),
-  permission: ConfigPermission.Info.pipe(Schema.optional),
 }) {}

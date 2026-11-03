@@ -1,23 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "../src/config"
-import { ConfigAgent } from "../src/config/agent"
 import { ConfigPermission } from "../src/config/permission"
 import { selectModel } from "../src/permission/judge"
 import { PermissionPolicy } from "../src/permission/policy"
 
-const agent = (policy?: Record<string, PermissionPolicy.Policy>, mode?: PermissionPolicy.Mode) =>
-  new ConfigPermission.Info({ mode, policy })
-
 describe("PermissionPolicy.resolve", () => {
-  test("agent 级覆盖项目级与默认表", () => {
-    expect(PermissionPolicy.resolve("bash", agent({ bash: "ask" }), agent({ bash: "allow" }))).toBe("ask")
-  })
-
-  test("项目级覆盖默认表", () => {
-    expect(PermissionPolicy.resolve("bash", undefined, agent({ bash: "allow" }))).toBe("allow")
-  })
-
   test("默认表逐档", () => {
     for (const action of ["bash", "edit", "write", "apply_patch", "webfetch", "websearch", "browser", "skill", "codemode"])
       expect(PermissionPolicy.resolve(action)).toBe("judge")
@@ -51,23 +38,6 @@ describe("PermissionPolicy.resolveMode", () => {
   test("影子档同样只在收严方向生效", () => {
     expect(PermissionPolicy.resolveMode("ask", "judge-shadow")).toBe("ask")
     expect(PermissionPolicy.resolveMode("judge", "judge-shadow")).toBe("judge-shadow")
-  })
-})
-
-describe("PermissionPolicy.agentConfig", () => {
-  const doc = (path: string, agents: Config.Info["agents"]): Config.Document =>
-    new Config.Document({ type: "document", path, info: new Config.Info({ agents }) })
-
-  test("取最高优先级文档中该 agent 的 permission 段", () => {
-    const entries: Config.Entry[] = [
-      doc("/global/opennovel.json", { coder: new ConfigAgent.Info({ permission: new ConfigPermission.Info({ mode: "ask" }) }) }),
-      doc("/project/opennovel.json", { coder: new ConfigAgent.Info({ permission: new ConfigPermission.Info({ mode: "judge" }) }) }),
-    ]
-    expect(PermissionPolicy.agentConfig(entries, AgentV2.ID.make("coder"))?.mode).toBe("judge")
-  })
-
-  test("无 agent 定义返回 undefined", () => {
-    expect(PermissionPolicy.agentConfig([], AgentV2.ID.make("coder"))).toBeUndefined()
   })
 })
 
