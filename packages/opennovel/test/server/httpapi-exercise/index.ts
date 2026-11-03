@@ -147,6 +147,92 @@ const scenarios: Scenario[] = [
       },
       "status",
     ),
+  http.protected
+    .put("/global/config/provider/{providerID}", "global.config.provider.set")
+    .global()
+    .seeded(() =>
+      Effect.promise(() =>
+        Bun.write(
+          path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+          JSON.stringify({
+            disabled_providers: ["exercise-acme"],
+            provider: {
+              "exercise-acme": {
+                npm: "@ai-sdk/openai-compatible",
+                options: { baseURL: "https://old.example/v1", headers: { "x-old": "1" } },
+                models: { stale: { name: "Stale" } },
+              },
+            },
+          }),
+        ),
+      ),
+    )
+    .at(() => ({
+      path: route("/global/config/provider/{providerID}", { providerID: "exercise-acme" }),
+      body: {
+        npm: "@ai-sdk/openai-compatible",
+        name: "Exercise Acme",
+        options: { baseURL: "https://acme.example/v1" },
+        models: { "new-c": { name: "New C", limit: { context: 131072, output: 8192 } } },
+      },
+    }))
+    .jsonEffect(200, (body) =>
+      Effect.gen(function* () {
+        check(body === true, "provider set should return true")
+        const config = yield* Effect.promise(() =>
+          Bun.file(path.join(exerciseConfigDirectory, "opennovel.jsonc")).json(),
+        )
+        object(config)
+        const providers = config.provider
+        const provider = isRecord(providers) ? providers["exercise-acme"] : undefined
+        check(isRecord(provider) && Object.keys(provider.models ?? {}).join() === "new-c", "provider set should replace models wholesale")
+        check(
+          isRecord(provider) && (!isRecord(provider.options) || provider.options.headers === undefined),
+          "provider set should clear stale options.headers",
+        )
+        check(config.disabled_providers === undefined, "provider set should re-enable and drop empty disabled list")
+      }),
+    ),
+  http.protected
+    .delete("/global/config/provider/{providerID}", "global.config.provider.remove")
+    .global()
+    .seeded(() =>
+      Effect.promise(async () => {
+        await Bun.write(
+          path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+          JSON.stringify({
+            disabled_providers: ["exercise-acme"],
+            enabled_providers: ["exercise-acme"],
+            provider: {
+              "exercise-acme": { npm: "@ai-sdk/openai-compatible", models: { "old-a": { name: "Old A" } } },
+            },
+          }),
+        )
+        await Bun.write(
+          path.join(exerciseDataDirectory, "auth.json"),
+          JSON.stringify({ "exercise-acme": { type: "api", key: "remove-me" } }),
+        )
+      }),
+    )
+    .at(() => ({ path: route("/global/config/provider/{providerID}", { providerID: "exercise-acme" }) }))
+    .jsonEffect(200, (body) =>
+      Effect.gen(function* () {
+        check(body === true, "provider remove should return true")
+        const config = yield* Effect.promise(() =>
+          Bun.file(path.join(exerciseConfigDirectory, "opennovel.jsonc")).json(),
+        )
+        object(config)
+        check(
+          !isRecord(config.provider) || config.provider["exercise-acme"] === undefined,
+          "provider remove should delete provider subtree",
+        )
+        check(config.disabled_providers === undefined, "provider remove should scrub disabled list residue")
+        check(config.enabled_providers === undefined, "provider remove should scrub enabled list residue")
+        const auth = yield* Effect.promise(() => Bun.file(path.join(exerciseDataDirectory, "auth.json")).json())
+        object(auth)
+        check(auth["exercise-acme"] === undefined, "provider remove should delete stored credentials")
+      }),
+    ),
   http.protected.get("/path", "path.get").json(200, (body, ctx) => {
     object(body)
     check(body.directory === ctx.directory, "directory should resolve from x-opennovel-directory")
