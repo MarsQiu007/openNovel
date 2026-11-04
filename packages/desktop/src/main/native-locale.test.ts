@@ -58,6 +58,7 @@ describe("createT", () => {
 
   test("托盘菜单文案按语言渲染", () => {
     expect(createT(() => "zh")("tray.show")).toBe("显示主窗口")
+    expect(createT(() => "zh")("tray.settings")).toBe("设置")
     expect(createT(() => "zh")("tray.quit")).toBe("退出 OpenNovel")
     expect(createT(() => "en")("tray.show")).toBe("Show Main Window")
     expect(createT(() => '{"locale":"zht"}')("tray.quit")).toBe("結束 OpenNovel")

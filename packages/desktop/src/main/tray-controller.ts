@@ -1,6 +1,6 @@
 // 托盘纯逻辑内核：隐藏窗口集合、关闭拦截判定与菜单模型。
 // 本模块保持零 Electron 依赖以便单测，Electron 接线在 tray.ts / windows.ts。
-export type TrayMenuID = "show" | "quit"
+export type TrayMenuID = "show" | "settings" | "quit"
 
 export function resolveCloseToTrayDefault(platform: string) {
   return platform === "win32"
@@ -9,7 +9,7 @@ export function resolveCloseToTrayDefault(platform: string) {
 export function createTrayController<W>(opts: {
   closeToTrayEnabled: () => boolean
   isQuitting: () => boolean
-  translate: (key: "tray.show" | "tray.quit") => string
+  translate: (key: "tray.show" | "tray.settings" | "tray.quit") => string
 }) {
   const hidden = new Set<W>()
 
@@ -28,6 +28,7 @@ export function createTrayController<W>(opts: {
     menu() {
       return [
         { id: "show" as const, label: opts.translate("tray.show") },
+        { id: "settings" as const, label: opts.translate("tray.settings") },
         { id: "quit" as const, label: opts.translate("tray.quit") },
       ]
     },

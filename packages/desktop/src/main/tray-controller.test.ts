@@ -49,10 +49,11 @@ describe("hide / restoreAll", () => {
 })
 
 describe("menu", () => {
-  test("菜单恰好两项且经注入取词函数渲染", () => {
+  test("菜单恰好三项且经注入取词函数渲染", () => {
     const app = setup()
     expect(app.controller.menu()).toEqual([
       { id: "show", label: "tr:tray.show" },
+      { id: "settings", label: "tr:tray.settings" },
       { id: "quit", label: "tr:tray.quit" },
     ])
   })
