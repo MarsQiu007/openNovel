@@ -89,11 +89,23 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
             </div>
           )}
         </List>
-        <Show when={variantOptions().length > 1}>
-          <div class="flex flex-col gap-0.5 px-3" data-slot="model-variant-section">
-            <div class="px-1.5 py-0.5 text-12-regular text-text-weak">
-              {language.t("dialog.model.variant.title")}
-            </div>
+        <div class="flex flex-col gap-0.5 px-3" data-slot="model-variant-section">
+          <div class="flex items-center justify-between gap-2 px-1.5 py-0.5">
+            <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
+            <Show when={variantOptions().length <= 1}>
+              <span class="truncate text-11-regular text-text-weak">
+                {language.t("dialog.model.variant.emptyHint")}
+              </span>
+            </Show>
+          </div>
+          <Show
+            when={variantOptions().length > 1}
+            fallback={
+              <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
+                <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
+              </div>
+            }
+          >
             <For each={variantOptions()}>
               {(option) => (
                 <button
@@ -111,8 +123,8 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
                 </button>
               )}
             </For>
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
       <div class="px-1.5 pb-1.5">
         <div class="w-full rounded-sm border border-border-weak-base bg-surface-raised-base">

@@ -119,6 +119,7 @@ export const dict = {
   "dialog.model.empty": "No model results",
   "dialog.model.manage": "Manage models",
   "dialog.model.variant.title": "Reasoning effort",
+  "dialog.model.variant.emptyHint": "No reasoning levels for this model",
   "dialog.model.manage.description": "Customize which models appear in the model selector.",
   "dialog.model.manage.provider.toggle": "Toggle all {{provider}} models",
 

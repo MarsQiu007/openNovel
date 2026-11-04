@@ -120,13 +120,25 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
             </For>
           </div>
 
-          <Show when={variantOptions().length > 1}>
-            <div class="flex w-full flex-col gap-0.5 px-2 pb-3" data-slot="model-variant-section">
-              <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
-                <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
-                  {language.t("dialog.model.variant.title")}
-                </div>
+          <div class="flex w-full flex-col gap-0.5 px-2 pb-3" data-slot="model-variant-section">
+            <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
+              <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+                {language.t("dialog.model.variant.title")}
               </div>
+              <Show when={variantOptions().length <= 1}>
+                <span class="ml-auto truncate text-[11px] leading-4 text-v2-text-text-muted">
+                  {language.t("dialog.model.variant.emptyHint")}
+                </span>
+              </Show>
+            </div>
+            <Show
+              when={variantOptions().length > 1}
+              fallback={
+                <div class="flex h-7 w-full flex-row items-center rounded-md px-3 text-left text-[13px] capitalize leading-5 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)]">
+                  {language.t("common.default")}
+                </div>
+              }
+            >
               <For each={variantOptions()}>
                 {(option) => (
                   <button
@@ -146,8 +158,8 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                   </button>
                 )}
               </For>
-            </div>
-          </Show>
+            </Show>
+          </div>
 
           <div class="flex w-full flex-col">
             <div class="flex w-full flex-col items-start rounded-lg border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-layer-02 p-2.5 pt-2">

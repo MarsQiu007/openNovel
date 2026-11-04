@@ -150,6 +150,7 @@ export const dict = {
   "dialog.model.empty": "未找到模型",
   "dialog.model.manage": "管理模型",
   "dialog.model.variant.title": "思考档位",
+  "dialog.model.variant.emptyHint": "该模型未提供推理档位",
   "dialog.model.manage.description": "自定义模型选择器中显示的模型。",
   "dialog.model.manage.provider.toggle": "切换所有 {{provider}} 模型",
   "dialog.model.unpaid.freeModels.title": "OpenNovel 提供的免费模型",

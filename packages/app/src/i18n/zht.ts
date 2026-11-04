@@ -127,6 +127,7 @@ export const dict = {
   "dialog.model.empty": "找不到模型",
   "dialog.model.manage": "管理模型",
   "dialog.model.variant.title": "思考檔位",
+  "dialog.model.variant.emptyHint": "該模型未提供推理檔位",
   "dialog.model.manage.description": "自訂模型選擇器中顯示的模型。",
   "dialog.model.manage.provider.toggle": "切換所有 {{provider}} 模型",
 

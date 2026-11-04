@@ -235,14 +235,26 @@ export function ModelSelectorPopover(props: {
               </div>
             }
           />
-          <Show when={variantOptions().length > 1}>
-            <div
-              class="flex flex-none flex-col gap-0.5 border-t border-border-weak-base p-1.5"
-              data-slot="model-variant-section"
+          <div
+            class="flex flex-none flex-col gap-0.5 border-t border-border-weak-base p-1.5"
+            data-slot="model-variant-section"
+          >
+            <div class="flex items-center justify-between gap-2 px-1.5 py-0.5">
+              <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
+              <Show when={variantOptions().length <= 1}>
+                <span class="truncate text-11-regular text-text-weak">
+                  {language.t("dialog.model.variant.emptyHint")}
+                </span>
+              </Show>
+            </div>
+            <Show
+              when={variantOptions().length > 1}
+              fallback={
+                <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
+                  <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
+                </div>
+              }
             >
-              <div class="px-1.5 py-0.5 text-12-regular text-text-weak">
-                {language.t("dialog.model.variant.title")}
-              </div>
               <For each={variantOptions()}>
                 {(option) => (
                   <button
@@ -259,8 +271,8 @@ export function ModelSelectorPopover(props: {
                   </button>
                 )}
               </For>
-            </div>
-          </Show>
+            </Show>
+          </div>
         </Kobalte.Content>
       </Kobalte.Portal>
     </Kobalte>
@@ -533,12 +545,24 @@ export function ModelSelectorPopoverV2(props: {
               </Show>
             </div>
           </ScrollView>
-          <Show when={variantOptions().length > 1}>
-            <div class="h-px bg-v2-border-border-muted" />
-            <div class="flex flex-col p-0.5" data-slot="model-variant-section">
-              <div class="px-3 pt-1.5 pb-0.5 text-[11px] leading-4 text-v2-text-text-muted">
-                {language.t("dialog.model.variant.title")}
-              </div>
+          <div class="h-px bg-v2-border-border-muted" />
+          <div class="flex flex-col p-0.5" data-slot="model-variant-section">
+            <div class="flex items-center justify-between gap-2 px-3 pt-1.5 pb-0.5">
+              <span class="text-[11px] leading-4 text-v2-text-text-muted">{language.t("dialog.model.variant.title")}</span>
+              <Show when={variantOptions().length <= 1}>
+                <span class="truncate text-[11px] leading-4 text-v2-text-text-muted">
+                  {language.t("dialog.model.variant.emptyHint")}
+                </span>
+              </Show>
+            </div>
+            <Show
+              when={variantOptions().length > 1}
+              fallback={
+                <div class="px-3 pb-0.5 text-[13px] leading-5 capitalize text-v2-text-text-muted">
+                  {language.t("common.default")}
+                </div>
+              }
+            >
               <MenuV2.RadioGroup value={model.variant.current() ?? "default"}>
                 <For each={variantOptions()}>
                   {(option) => (
@@ -553,8 +577,8 @@ export function ModelSelectorPopoverV2(props: {
                   )}
                 </For>
               </MenuV2.RadioGroup>
-            </div>
-          </Show>
+            </Show>
+          </div>
           <div class="h-px bg-v2-border-border-muted" />
           <div class="flex flex-col p-0.5">
             <MenuV2.Item
