@@ -33,6 +33,8 @@
 
 备选：启动时快照语言 + 订阅设置变更广播。多一套事件通道，换来的是本就不需要的能力（下一次弹窗生效即可满足需求），否掉。
 
+`attachment-picker.ts` 是被大量单测覆盖的纯模块（零 Electron 依赖），不直接 import locale 模块：超限与未授权两条错误文案改为**必填的 getter 参数**（`() => string`），由 `ipc.ts` 组合根注入生产实现（绑定 `t()`），测试注入假文案。这样纯模块测试不触碰 electron-store，同时生产路径的取词仍发生在抛出时刻、随语言即时生效。
+
 ### 决策 2：恢复对话框按钮判定改为响应序号
 
 `wireWindowRecovery` 的 `handle(button: string | undefined, wait)` 改为 `handle(index: number | undefined, wait)`，对话框按钮效果按 `result.response` 序号判定；`buttons` 数组由字典组装，顺序固定为 [重启, 导出日志, 继续等待或退出]，语义与序号绑定。`cancelId: 2` 等序号语义不变（本地化只改标签）。
