@@ -7,18 +7,21 @@
 - 未内嵌 Web UI 形态（`opennovel-web-ui.gen.ts` 缺失：源码运行、e2e、调试）：`serveUIEffect` 把请求原样代理到云端 `https://app.opennovel.ai`——网络不可达 → 空体 500；可达 → 本地请求头部泄给上游并返回无关内容。
 - 内嵌 UI 形态：`serveEmbeddedUIEffect` 对未知路径回退 `index.html` → API 调用拿到 200 HTML。
 
-处置模型改为三段边界：
+处置模型改为四段边界：
 
 ```
 已注册路由 ──匹配──▶ 正常处理
-未匹配 + API 特征 ──▶ JSON 404（新，apiNotFoundRoute）
-未匹配 + 非 API 特征 ──▶ 既有 UI 兜底（代理 / index.html 回退）
+未匹配 + API 特征 ──▶ JSON 404（api 段或第一段位命中清单）
+未匹配 + 浏览器导航/静态资源 ──▶ 既有 UI 兜底（代理 / index.html 回退）
+其余未匹配 ──▶ JSON 404（不再代理、不再返回 HTML）
 ```
 
 「API 特征」定义（满足其一）：
 
 1. 路径以 `/api/` 为前缀（协议层与 novel-reader 的 `/api/*` 面；已注册的具体 `/api/*` 路由先匹配，不受影响）；
 2. 路径第一段位命中 API 面清单（穷举自全部已注册组，初始值）：`auth`、`log`、`event`、`global`、`config`、`experimental`、`file`、`find`、`mcp`、`path`、`vcs`、`skill`、`lsp`、`formatter`、`instance`、`project`、`provider`、`pty`。
+
+「浏览器导航」：`GET`/`HEAD` 且 `Accept` 含 `text/html`；「静态资源」：末路径段带扩展名（`/.[^/]+$/`）。两者不限形态：内嵌形态走 `serveEmbeddedUIEffect`，未内嵌形态走云端代理。
 
 `/doc`、`/reader` 为显式注册路由，走正常匹配，不进兜底讨论。
 
@@ -32,16 +35,20 @@
 
 ## D3 实现要点（实现注记）
 
-- 新增 `apiNotFoundRoute`：在 `createRoutes` 的 `Layer.mergeAll(...)` 中插到 `uiRoute` 之前（之后于 `novelReaderRoute`），对清单每段注册 `*` 方法的 `/seg` 与 `/seg/*` 两条路由，响应复用 ui.ts 既有 `notFound()` 形状（`{"error": "Not Found"}`，404）。
-- 注册序保证：具体路由（含 `/api/novels/*`、`/api/provider/*` 参数路由）全部先于兜底注册，兜底只接收未匹配流量；同 pattern 重复注册路由在 HttpRouter 构建期即 panic，类型检查与 exercise 会暴露冲突。
-- 清单常量在路由组装处集中定义并附注释「新增 API 面时同步」；tasks 含穷举核对步骤（对照全部 group 的 root/path 常量逐段验证，漏段即补）。
+- 最终方案：不新增路由层，在 `ui.ts` 新增 `serveUnmatchedEffect` 分流函数，`uiRoute` 的唯一 `* /*` 兜底改挂它。单一 catch-all 保持 find-my-way 路由表零冲突。
+- 实现期曾按「每段注册 `*` 方法 `/seg/*` 路由」的显式清单方案做了一版，踩到两个 find-my-way 限制后放弃，记录备查：
+  1. effect HttpRouter 对 `/*` 结尾 pattern 会自动同时挂裸前缀（`HttpRouter.js` addAll 的 `endsWith("/*")` 分支），显式再注册裸段触发 `Method 'ACL' already declared` panic；
+  2. 裸段已有 typed 路由时（如 `GET /config`、`GET /provider`），`* /seg/*` 自动展开的裸前缀与既有方法路由重复注册，同样 panic。
+  分流函数方案无路由表操作，天然规避。
+- 清单常量（18 段 + `api`）集中在 `ui.ts` 并附注释「新增 API 面时同步」；tasks 含穷举核对步骤（对照全部 group 的 root/path 常量逐段验证，漏段即补）。
 - 不引入新错误类、不改任何已注册路由的形状；无 Protocol/Schema 契约变更，无需 SDK 再生成。
 
 ## D4 不变面（穷举）
 
 - 已注册路由行为逐条不变：实例各组、RootHttpApi（auth/log）、EventApi（event、global/*）、ServerApi（`/api/*` 协议面，含 `/api/provider/:providerID` 参数路由语义）、PtyConnect、docRoute、novel-reader（`/reader`、`/api/novels/*`）。
-- UI 兜底对非 API 特征路径的行为不变：浏览器深链（无扩展名 + `Accept: text/html`）回退 `index.html`（内嵌形态）或代理上游（未内嵌形态），静态资源路径同理。
-- 鉴权、CORS、压缩、错误中间件的处理顺序与语义不变（兜底路由插入点在所有中间件之内层，仅改变未匹配流量的最终处置）。
+- UI 兜底的保留面：浏览器深链（无扩展名 + `Accept: text/html` 的 GET/HEAD）与静态资源路径（末段带扩展名）维持现状（内嵌形态回退 `index.html` / 未内嵌形态代理 UI 上游）。
+- **行为变更面**（相对旧「代理一切未匹配路径」）：API 特征路径与其余非导航/资源路径不再代理/回退，一律本地 JSON 404。影响调用方：依赖「未匹配路径被代理到 app.opennovel.ai」的非浏览器客户端（提案 BREAKING 已声明，无仓内合法调用方）。
+- 鉴权、CORS、压缩、错误中间件的处理顺序与语义不变（分流发生在 uiRoute handler 内，鉴权中间件仍包裹整个兜底路由）。
 - 无持久化状态、无配置键、无 i18n 文案变更。
 
 ## D5 测试
