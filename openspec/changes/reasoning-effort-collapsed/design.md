@@ -10,18 +10,24 @@
 ├──────────────────────────────┤
 │ 思考档位 · high            ▾ │ ← 收纳行常驻：标签 + 当前值 + 指示
 │ ┌──────────────────────────┐ │
-│ │ ✓ default                │ │ ← 点击行后展开
+│ │   default                │ │ ← 点击行后展开
 │ │   low                    │ │
 │ │   medium                 │ │
-│ │ ✓ high（当前）           │ │
+│ │ ✓ high                   │ │
 │ └──────────────────────────┘ │
 └──────────────────────────────┘
 ```
 
 - 收纳行为：点击行切换展开态（本地组件状态，如 `createSignal(false)`）；选择任一档位后强制收回。
+- 展开态不跨弹层会话持久化：弹层关闭后重开时档位列表回到收起态（组件本地状态随弹层卸载消亡）。
 - 行右侧当前值：未选档位时显示 localized `default`（common.default），选中后显示档位名；与芯片后缀同源（`model.variant.current()`）。
 - 展开指示：chevron 图标，展开态翻转（复用现有 `Icon`）。
-- 可达性：行是 `button` 并带 `aria-expanded`。
+- 可达性：行带 `aria-expanded` 与统一 `data-slot="model-variant-toggle"`；V1 付费 / 免费弹层为原生 `button`（角色 button），V2 付费弹层为 `MenuV2.Item`（角色 menuitem）——e2e 一律按 data-slot 定位收纳行，不依赖 locale 文案与角色差异。
+
+## D1.1 各弹层承载方式（实现注记）
+
+- V1 付费 / 两个免费弹层：自定义 DOM，收纳行为普通 `button` + `aria-expanded` + `Show` 展开列表，与现状一致。
+- V2 付费弹层（MenuV2）：收纳行 SHALL 用 `MenuV2.Item`（`closeOnSelect: false`）承载切换，不用裸 `button`——裸元素在 menu 内容区内会游离于 Kobalte 的焦点漫游与 typeahead 管理之外；选档仍走 `RadioItem closeOnSelect` 维持选档即关弹层现状。注意其可访问角色为 menuitem 而非 button（见 D1 的 e2e 定位约定）。
 
 ## D2 展开形态取舍：行内手风琴 vs 滑出面板
 

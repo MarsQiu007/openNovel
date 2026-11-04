@@ -8,7 +8,7 @@
 
 ## 2. e2e 更新
 
-- [ ] 2.1 改写 `e2e/regression/prompt-thinking-level.spec.ts` 两条用例：有档位模型走「点击收纳行 → 展开 → 选档 → 行与芯片显示当前值」路径；空态用例断言「行显示 default → 展开 → 仅 default 单项 + 提示文案」
+- [ ] 2.1 改写 `e2e/regression/prompt-thinking-level.spec.ts` 两条用例：有档位模型走「点击收纳行 → 展开 → 选档 → 行与芯片显示当前值」路径；空态用例断言「行显示 default → 展开 → 仅 default 单项 + 提示文案」。收纳行统一经 `data-slot="model-variant-toggle"` 定位（`aria-expanded` 表征展开态；V2 付费弹层角色为 menuitem，禁按 button 角色或 locale 文案定位）；外层容器保留 `data-slot="model-variant-section"`
 
 ## 3. 验证与收尾
 
