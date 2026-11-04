@@ -51,7 +51,7 @@ import * as SessionExecutionLocal from "@opennovel-ai/core/session/execution/loc
 import { SessionRestart } from "@opennovel-ai/core/session/execution/restart"
 import { lazy } from "@/util/lazy"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@opennovel-ai/server/cors"
-import { serveUIEffect } from "@/server/shared/ui"
+import { serveUnmatchedEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { Api } from "@opennovel-ai/server/api"
@@ -112,6 +112,8 @@ const cors = (corsOptions?: CorsOptions) =>
 // - ptyConnectApiRoutes: typed WebSocket upgrade route with ticket-aware auth.
 // - instanceApiRoutes: remaining typed instance routes.
 // - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
+//   未匹配流量在 serveUnmatchedEffect 内分流：API 特征与其余非导航/资源路径本地 JSON 404，
+//   浏览器导航与静态资源维持既有回落（代理 / index.html 回退）。
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.layer))
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.layer))
 const ptyConnectHttpApiAuthLayer = ptyConnectAuthorizationLayer.pipe(Layer.provide(ServerAuth.Config.layer))
@@ -173,7 +175,7 @@ const uiRoute = HttpRouter.use((router) =>
     const client = yield* HttpClient.HttpClient
     const flags = yield* RuntimeFlags.Service
     yield* router.add("*", "/*", (request) =>
-      serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
+      serveUnmatchedEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
     )
   }),
 ).pipe(Layer.provide(authOnlyRouterLayer))

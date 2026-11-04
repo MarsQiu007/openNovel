@@ -52,6 +52,43 @@ function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
 }
 
+// API 面的第一段位清单：命中这些段（或 api 段）的未匹配路径一律 JSON 404，
+// 不落入 UI 兜底。新增 API 面时同步。
+const API_FIRST_SEGMENTS = new Set([
+  "auth",
+  "config",
+  "event",
+  "experimental",
+  "file",
+  "find",
+  "formatter",
+  "global",
+  "instance",
+  "lsp",
+  "log",
+  "mcp",
+  "path",
+  "project",
+  "provider",
+  "pty",
+  "skill",
+  "vcs",
+])
+
+export function serveUnmatchedEffect(
+  request: HttpServerRequest.HttpServerRequest,
+  services: { fs: FSUtil.Interface; client: HttpClient.HttpClient; disableEmbeddedWebUi: boolean },
+) {
+  const path = new URL(request.url, "http://localhost").pathname
+  const segment = path.split("/")[1] ?? ""
+  if (API_FIRST_SEGMENTS.has(segment) || segment === "api") return Effect.succeed(notFound())
+  // 代理/回退只保留给浏览器导航与静态资源；其余未匹配路径不再泄漏到云端上游。
+  const navigation =
+    (request.method === "GET" || request.method === "HEAD") && (request.headers.accept ?? "").includes("text/html")
+  if (navigation || /\.[^/]+$/.test(path)) return serveUIEffect(request, services)
+  return Effect.succeed(notFound())
+}
+
 function embeddedUIResponse(file: string, body: Uint8Array) {
   const mime = FSUtil.mimeType(file)
   const headers = new Headers({ "content-type": mime })
