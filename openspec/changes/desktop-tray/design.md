@@ -36,7 +36,7 @@
 
 ### 2. 真退出判别复用既有 quitting 标志（单一真相）
 
-拦截判定读 `registry` 的标志。`registry` 目前只有 `setQuitting` 写口，新增 `isQuitting()` 读口，`windows.ts` 加 `isAppQuitting()` 出口；托盘「退出」菜单走既有 `setAppQuitting()` + `app.quit()`，与 Cmd+Q、更新器、session-end、SIGINT/SIGTERM 同一条纪律。
+拦截判定读 `registry` 的标志。`registry` 目前只有 `setQuitting` 写口，新增 `isQuitting()` 读口并直注 `tray-controller` 的 `isQuitting` 注入（`windows.ts` 不再二次出口，避免长期无人引用的导出）；托盘「退出」菜单走既有 `setAppQuitting()` + `app.quit()`，与 Cmd+Q、更新器、session-end、SIGINT/SIGTERM 同一条纪律。
 
 - 备选托盘自带独立标志：两套真相必然漂移（如更新器重启时被拦截器误挡），否决。
 
@@ -53,7 +53,7 @@
 ### 5. 设置持久化、IPC 与设置行
 
 - `store-keys.ts` 增 `CLOSE_TO_TRAY_ENABLED_KEY = "closeToTrayEnabled"`；读侧 `getCloseToTrayEnabled()`：`stored === undefined` 时按平台默认（win32 → true，其余 → false），否则取布尔值。判定写成纯函数 `resolveCloseToTrayDefault(platform)` 便于单测。
-- IPC 与 preload 镜像 pinch zoom 三件套：`get-close-to-tray-enabled` / `set-close-to-tray-enabled`（写后向所有窗口广播 `close-to-tray-enabled-changed`）；preload 类型进 `preload/types.ts`。
+- IPC 与 preload 镜像 pinch zoom 读写的两件套：`get-close-to-tray-enabled` / `set-close-to-tray-enabled`；`platform.tsx` 增 `getCloseToTrayEnabled?` / `setCloseToTrayEnabled?` 类型，桌面 renderer 平台对象透传 `window.api`。经核查 pinch 的 `onChanged` 广播在本开关无 renderer 订阅者（拦截判定在主进程实时读 store），按「不预留死代码」只建 get/set 两件套，有订阅者时再补广播。
 - 设置行同时加入 `settings-v2/general.tsx` 与 `settings-general.tsx`，行渲染条件为 `desktop()` 且平台 `os !== "macos"`（`desktop()` 守卫包含 macOS，而 R5 要求 macOS 无此开关），共用同一键与 IPC。旧版布局用户不加行会在 Windows 默认开启却无开关可关——穷举关联面后两处都加（行成本约十行）。
 - app locale 按「按键值增量走提案」约定新增两键三语（`settings.general.row.closeToTray.title` / `.description`），不动任何既有键。
 
