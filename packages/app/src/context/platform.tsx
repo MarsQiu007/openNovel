@@ -102,6 +102,12 @@ type PlatformBase = {
   /** Allow native pinch/Ctrl-scroll zoom gestures (desktop only) */
   setPinchZoomEnabled?(enabled: boolean): Promise<void> | void
 
+  /** Get whether closing the window minimizes to the system tray (desktop only) */
+  getCloseToTrayEnabled?(): Promise<boolean> | boolean
+
+  /** Allow minimizing to the system tray on close (desktop only) */
+  setCloseToTrayEnabled?(enabled: boolean): Promise<void> | void
+
   /** Check if an editor app exists (desktop only) */
   checkAppExists?(appName: string): Promise<boolean>
 

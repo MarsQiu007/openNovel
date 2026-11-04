@@ -1063,6 +1063,8 @@ export const dict = {
   "settings.general.row.newInterfaceNotice.dismiss": "Dismiss",
   "settings.general.row.pinchZoom.title": "Pinch to zoom",
   "settings.general.row.pinchZoom.description": "Allow trackpad pinch and Ctrl-scroll gestures to zoom",
+  "settings.general.row.closeToTray.title": "Minimize to system tray on close",
+  "settings.general.row.closeToTray.description": "Keep the app running in the background after closing; restore or quit from the system tray",
 
   "settings.general.row.wayland.title": "Use native Wayland",
   "settings.general.row.wayland.description": "Disable X11 fallback on Wayland. Requires restart.",

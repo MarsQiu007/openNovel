@@ -939,6 +939,8 @@ export const dict = {
   "settings.general.row.newInterfaceNotice.dismiss": "忽略",
   "settings.general.row.pinchZoom.title": "雙指縮放",
   "settings.general.row.pinchZoom.description": "允許使用觸控板雙指開合和 Ctrl-捲動手勢縮放",
+  "settings.general.row.closeToTray.title": "關閉時最小化到系統匣",
+  "settings.general.row.closeToTray.description": "關閉視窗後應用繼續在背景執行，可從系統匣復原或結束",
   "settings.general.row.wayland.title": "使用原生 Wayland",
   "settings.general.row.wayland.description": "在 Wayland 上停用 X11 後備模式。需要重新啟動。",
   "settings.general.row.wayland.tooltip": "在混合更新率螢幕的 Linux 系統上，原生 Wayland 可能更穩定。",

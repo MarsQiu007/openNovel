@@ -127,6 +127,12 @@ export const SettingsGeneral: Component = () => {
     { initialValue: false },
   )
 
+  const [closeToTray, { mutate: setCloseToTray }] = createResource(
+    () => desktop() && platform.getCloseToTrayEnabled !== undefined,
+    () => Promise.resolve(platform.getCloseToTrayEnabled?.() ?? false).catch(() => false),
+    { initialValue: false },
+  )
+
   onMount(() => {
     void theme.loadThemes()
   })
@@ -178,6 +184,13 @@ export const SettingsGeneral: Component = () => {
     const update = platform.setPinchZoomEnabled?.(checked)
     if (!update) return
     void update.catch(() => setPinchZoom(!checked))
+  }
+
+  const onCloseToTrayChange = (checked: boolean) => {
+    setCloseToTray(checked)
+    const update = platform.setCloseToTrayEnabled?.(checked)
+    if (!update) return
+    void update.catch(() => setCloseToTray(!checked))
   }
 
   const colorSchemeOptions = createMemo((): { value: ColorScheme; label: string }[] => [
@@ -723,6 +736,17 @@ export const SettingsGeneral: Component = () => {
               <Switch checked={pinchZoom.latest} onChange={onPinchZoomChange} />
             </div>
           </SettingsRow>
+
+          <Show when={platform.os !== "macos"}>
+            <SettingsRow
+              title={language.t("settings.general.row.closeToTray.title")}
+              description={language.t("settings.general.row.closeToTray.description")}
+            >
+              <div data-action="settings-close-to-tray">
+                <Switch checked={closeToTray.latest} onChange={onCloseToTrayChange} />
+              </div>
+            </SettingsRow>
+          </Show>
 
           <Show when={linux()}>
             <SettingsRow
