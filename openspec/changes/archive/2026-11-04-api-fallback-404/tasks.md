@@ -21,3 +21,7 @@
 ## Implementation Commits
 
 - `d927b62f7e` fix(opennovel): API 特征未匹配路径返回 JSON 404 而非 UI 兜底代理
+
+### 归档后收尾修复
+
+- `536581fc73` exercise 兜底场景 public → protected：uiRoute 挂鉴权中间件，配置密码时无凭证探针 401，与 protected 探针语义一致（public 要求无凭证非 401，auth 模式 9 场景红）
