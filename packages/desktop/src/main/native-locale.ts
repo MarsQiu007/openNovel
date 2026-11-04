@@ -51,6 +51,8 @@ export const dict = {
     en: "File was not selected by the picker.",
     zht: "該檔案未經檔案選擇器授權。",
   },
+  "tray.show": { zh: "显示主窗口", en: "Show Main Window", zht: "顯示主視窗" },
+  "tray.quit": { zh: "退出 OpenNovel", en: "Quit OpenNovel", zht: "結束 OpenNovel" },
 } as const
 
 export type NativeKey = keyof typeof dict

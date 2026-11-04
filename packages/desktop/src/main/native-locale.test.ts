@@ -55,4 +55,11 @@ describe("createT", () => {
   test("语言解析失败时取词兜底简体中文", () => {
     expect(createT(() => "fr")("picker.file")).toBe("选择文件")
   })
+
+  test("托盘菜单文案按语言渲染", () => {
+    expect(createT(() => "zh")("tray.show")).toBe("显示主窗口")
+    expect(createT(() => "zh")("tray.quit")).toBe("退出 OpenNovel")
+    expect(createT(() => "en")("tray.show")).toBe("Show Main Window")
+    expect(createT(() => '{"locale":"zht"}')("tray.quit")).toBe("結束 OpenNovel")
+  })
 })
