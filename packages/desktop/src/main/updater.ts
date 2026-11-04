@@ -4,6 +4,7 @@ import { UPDATER_ENABLED, UPDATER_SETTINGS } from "./constants"
 import { createUpdaterController, type UpdaterReadyRecord } from "./updater-controller"
 import { getLogger } from "./logging"
 import { getStore } from "./store"
+import { t } from "./native-locale"
 import { setAppQuitting } from "./windows"
 
 const { autoUpdater } = pkg
@@ -63,21 +64,25 @@ export async function showUpdaterDialog(controller: ReturnType<typeof setupAutoU
   const state = await controller.check()
   if (state.status === "error") {
     if (!alertOnFail) return
-    await dialog.showMessageBox({ type: "error", message: "Update check failed.", title: "Update Error" })
+    await dialog.showMessageBox({ type: "error", message: t("updater.error.message"), title: t("updater.error.title") })
     return
   }
   if (state.status === "up-to-date") {
     if (!alertOnFail) return
-    await dialog.showMessageBox({ type: "info", message: "You're up to date.", title: "No Updates" })
+    await dialog.showMessageBox({
+      type: "info",
+      message: t("updater.latest.message"),
+      title: t("updater.latest.title"),
+    })
     return
   }
   if (state.status !== "ready") return
 
   const response = await dialog.showMessageBox({
     type: "info",
-    message: `Update ${state.version} downloaded. Restart now?`,
-    title: "Update Ready",
-    buttons: ["Restart", "Later"],
+    message: t("updater.ready.message", { version: state.version }),
+    title: t("updater.ready.title"),
+    buttons: [t("updater.ready.restart"), t("updater.ready.later")],
     defaultId: 0,
     cancelId: 1,
   })

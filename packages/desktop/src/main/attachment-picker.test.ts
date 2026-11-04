@@ -10,14 +10,16 @@ import {
 } from "./attachment-picker"
 
 describe("assertAttachmentBudget", () => {
+  const tooLarge = () => "Selected attachments exceed the 20 MB limit"
+
   test("accepts selections within the media ingest limit", () => {
     expect(() =>
-      assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES / 2 }, { size: MAX_ATTACHMENT_BYTES / 2 }]),
+      assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES / 2 }, { size: MAX_ATTACHMENT_BYTES / 2 }], tooLarge),
     ).not.toThrow()
   })
 
   test("rejects the selection before files are read when its total exceeds the limit", () => {
-    expect(() => assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES }, { size: 1 }])).toThrow("20 MB limit")
+    expect(() => assertAttachmentBudget([{ size: MAX_ATTACHMENT_BYTES }, { size: 1 }], tooLarge)).toThrow("20 MB limit")
   })
 
   test("reads an approved file through a bounded buffer", async () => {
@@ -25,7 +27,7 @@ describe("assertAttachmentBudget", () => {
     const file = join(directory, "example.txt")
     try {
       await writeFile(file, "lorem ipsum")
-      expect(new TextDecoder().decode(await readAttachment(file))).toBe("lorem ipsum")
+      expect(new TextDecoder().decode(await readAttachment(file, MAX_ATTACHMENT_BYTES, tooLarge))).toBe("lorem ipsum")
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -37,7 +39,7 @@ describe("assertAttachmentBudget", () => {
     try {
       await writeFile(file, "")
       await truncate(file, MAX_ATTACHMENT_BYTES + 1)
-      await expect(readAttachment(file)).rejects.toThrow("20 MB limit")
+      await expect(readAttachment(file, MAX_ATTACHMENT_BYTES, tooLarge)).rejects.toThrow("20 MB limit")
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -46,6 +48,7 @@ describe("assertAttachmentBudget", () => {
 
 describe("picked file authorizations", () => {
   const read = async (path: string) => new TextEncoder().encode(path).buffer
+  const unauthorized = () => "File was not selected by the picker"
 
   test("keeps concurrent picker selections isolated", async () => {
     const authorizations = createPickedFileAuthorizations(read)
@@ -58,7 +61,7 @@ describe("picked file authorizations", () => {
   })
 
   test("releases unread files for one picker without affecting another", async () => {
-    const authorizations = createPickedFileAuthorizations(read)
+    const authorizations = createPickedFileAuthorizations(read, MAX_ATTACHMENT_BYTES, unauthorized)
     const first = authorizations.add(1, ["a.txt"])
     const second = authorizations.add(1, ["b.txt"])
     authorizations.release(1, first)
@@ -68,17 +71,21 @@ describe("picked file authorizations", () => {
   })
 
   test("keeps picker tokens scoped to their renderer", async () => {
-    const authorizations = createPickedFileAuthorizations(read)
+    const authorizations = createPickedFileAuthorizations(read, MAX_ATTACHMENT_BYTES, unauthorized)
     const token = authorizations.add(1, ["a.txt"])
 
     await expect(authorizations.read(2, token, "a.txt")).rejects.toThrow("not selected")
   })
 
   test("charges actual reads against the selection budget", async () => {
-    const authorizations = createPickedFileAuthorizations(async (_path, maxBytes) => {
-      if (6 > maxBytes) throw new Error("budget exceeded")
-      return new ArrayBuffer(6)
-    }, 10)
+    const authorizations = createPickedFileAuthorizations(
+      async (_path, maxBytes) => {
+        if (6 > maxBytes) throw new Error("budget exceeded")
+        return new ArrayBuffer(6)
+      },
+      10,
+      unauthorized,
+    )
     const token = authorizations.add(1, ["a.txt", "b.txt"])
 
     await authorizations.read(1, token, "a.txt")

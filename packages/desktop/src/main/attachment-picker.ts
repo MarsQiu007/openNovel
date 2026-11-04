@@ -3,9 +3,11 @@ import { open } from "node:fs/promises"
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 
+// 错误文案由调用方注入（生产环境经主进程 locale 模块取词），本模块保持零 Electron 依赖以便单测。
 export function createPickedFileAuthorizations(
-  read: (path: string, maxBytes: number) => Promise<ArrayBuffer> = readAttachment,
-  budget = MAX_ATTACHMENT_BYTES,
+  read: (path: string, maxBytes: number) => Promise<ArrayBuffer>,
+  budget: number,
+  unauthorized: () => string,
 ) {
   const selections = new Map<string, { sender: number; paths: Set<string>; remaining: number }>()
 
@@ -17,8 +19,7 @@ export function createPickedFileAuthorizations(
     },
     async read(sender: number, token: string, path: string) {
       const selection = selections.get(token)
-      if (selection?.sender !== sender || !selection.paths.delete(path))
-        throw new Error("File was not selected by the picker")
+      if (selection?.sender !== sender || !selection.paths.delete(path)) throw new Error(unauthorized())
       const bytes = await read(path, selection.remaining)
       selection.remaining -= bytes.byteLength
       if (selection.paths.size === 0) selections.delete(token)
@@ -30,18 +31,17 @@ export function createPickedFileAuthorizations(
   }
 }
 
-export function assertAttachmentBudget(files: { size: number }[]) {
+export function assertAttachmentBudget(files: { size: number }[], tooLarge: () => string) {
   const total = files.reduce((sum, file) => sum + file.size, 0)
   if (total <= MAX_ATTACHMENT_BYTES) return
-  throw new Error(`Selected attachments exceed the ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB limit`)
+  throw new Error(tooLarge())
 }
 
-export async function readAttachment(filePath: string, maxBytes = MAX_ATTACHMENT_BYTES) {
+export async function readAttachment(filePath: string, maxBytes: number, tooLarge: () => string) {
   const file = await open(filePath, "r")
   try {
     const info = await file.stat()
-    if (info.size > maxBytes)
-      throw new Error(`Selected attachments exceed the ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB limit`)
+    if (info.size > maxBytes) throw new Error(tooLarge())
     const bytes = Buffer.allocUnsafe(info.size)
     let offset = 0
     while (offset < info.size) {

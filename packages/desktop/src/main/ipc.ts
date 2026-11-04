@@ -6,18 +6,28 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import type { FatalRendererError, ServerReadyData, TitlebarTheme } from "../preload/types"
 import { setForceFocus } from "./debug"
-import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
+import {
+  assertAttachmentBudget,
+  createPickedFileAuthorizations,
+  MAX_ATTACHMENT_BYTES,
+  readAttachment,
+} from "./attachment-picker"
 import { getStore, removeStoreFileIfEmpty } from "./store"
+import { t } from "./native-locale"
 import { getPinchZoomEnabled, getWindowID, setPinchZoomEnabled, setTitlebar, updateTitlebar } from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
-  return [{ name: "Files", extensions: ext }]
+  return [{ name: t("picker.filter.files"), extensions: ext }]
 }
 
-const pickedFiles = createPickedFileAuthorizations()
+const pickedFiles = createPickedFileAuthorizations(
+  (path, maxBytes) => readAttachment(path, maxBytes, () => t("attachment.tooLarge")),
+  MAX_ATTACHMENT_BYTES,
+  () => t("attachment.unauthorized"),
+)
 
 type Deps = {
   killSidecar: () => Promise<void> | void
@@ -121,7 +131,7 @@ export function registerIpcHandlers(deps: Deps) {
     async (_event: IpcMainInvokeEvent, opts?: { multiple?: boolean; title?: string; defaultPath?: string }) => {
       const result = await dialog.showOpenDialog({
         properties: ["openDirectory", ...(opts?.multiple ? ["multiSelections" as const] : []), "createDirectory"],
-        title: opts?.title ?? "Choose a folder",
+        title: opts?.title ?? t("picker.folder"),
         defaultPath: opts?.defaultPath,
       })
       if (result.canceled) return null
@@ -137,7 +147,7 @@ export function registerIpcHandlers(deps: Deps) {
     ) => {
       const result = await dialog.showOpenDialog({
         properties: ["openFile", ...(opts?.multiple ? ["multiSelections" as const] : [])],
-        title: opts?.title ?? "Choose a file",
+        title: opts?.title ?? t("picker.file"),
         defaultPath: opts?.defaultPath,
         filters: pickerFilters(opts?.extensions),
       })
@@ -149,7 +159,7 @@ export function registerIpcHandlers(deps: Deps) {
           size: (await stat(filePath)).size,
         })),
       )
-      assertAttachmentBudget(files)
+      assertAttachmentBudget(files, () => t("attachment.tooLarge"))
       const token = pickedFiles.add(event.sender.id, result.filePaths)
       return { token, files }
     },
@@ -167,7 +177,7 @@ export function registerIpcHandlers(deps: Deps) {
     "save-file-picker",
     async (_event: IpcMainInvokeEvent, opts?: { title?: string; defaultPath?: string }) => {
       const result = await dialog.showSaveDialog({
-        title: opts?.title ?? "Save file",
+        title: opts?.title ?? t("picker.save"),
         defaultPath: opts?.defaultPath,
       })
       if (result.canceled) return null

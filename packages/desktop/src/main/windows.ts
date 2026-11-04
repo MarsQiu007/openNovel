@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, write as writeLog } from "./logging"
 import { getStore, removeStoreFile } from "./store"
+import { t } from "./native-locale"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
 import { createUnresponsiveSampler } from "./unresponsive"
 import { createWindowRegistry } from "./window-registry"
@@ -308,19 +309,20 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
   let showing = false
   const sampler = createUnresponsiveSampler(win, name)
 
-  const handle = async (button: string | undefined, wait: boolean) => {
-    if (button === "Export Logs") {
+  const handle = async (index: number | undefined, wait: boolean) => {
+    // 按钮效果按响应序号判定：按钮文案随语言变化，不能按标签比对。
+    if (index === 1) {
       const sampling = sampler.stopAndFlush()
       await exportDebugLogs().catch((error) => writeLog("main", "failed to export debug logs", { error }, "error"))
       if (wait && sampling) sampler.start()
       return true
     }
-    if (button === "Relaunch") {
+    if (index === 0) {
       sampler.stopAndFlush()
       relaunchHandler()
       return false
     }
-    if (button === "Quit") {
+    if (index === 2 && !wait) {
       sampler.stopAndFlush()
       app.quit()
     }
@@ -332,7 +334,9 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
     showing = true
     try {
       while (!win.isDestroyed()) {
-        const buttons = wait ? ["Relaunch", "Export Logs", "Keep Waiting"] : ["Relaunch", "Export Logs", "Quit"]
+        const buttons = wait
+          ? [t("recovery.relaunch"), t("recovery.exportLogs"), t("recovery.keepWaiting")]
+          : [t("recovery.relaunch"), t("recovery.exportLogs"), t("recovery.quit")]
         const result = await dialog.showMessageBox(win, {
           type: "warning",
           buttons,
@@ -341,7 +345,7 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
           message,
           detail,
         })
-        if (await handle(buttons[result.response], wait)) continue
+        if (await handle(result.response, wait)) continue
         return
       }
     } finally {
@@ -373,7 +377,7 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
 
     if (!isMainFrame || errorCode === -3) return
     void show(
-      "OpenNovel failed to load",
+      t("recovery.failed.title"),
       [`Window: ${name}`, `URL: ${validatedURL}`, `Error: ${errorCode} ${errorDescription}`].join("\n"),
       false,
     )
@@ -389,7 +393,7 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
     sampler.stopAndFlush()
     writeLog("window", "renderer process gone", { window: name, currentURL: safeWindowURL(win), details }, "error")
     void show(
-      "OpenNovel window terminated unexpectedly",
+      t("recovery.crashed.title"),
       [`Window: ${name}`, `Reason: ${details.reason}`, `Code: ${details.exitCode ?? "<unknown>"}`].join("\n"),
       false,
     )
@@ -397,7 +401,7 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
   win.on("unresponsive", () => {
     writeLog("window", "renderer unresponsive", { window: name, currentURL: safeWindowURL(win) }, "error")
     sampler.start()
-    void show("OpenNovel is not responding", "You can relaunch the app, open the logs, or keep waiting.", true)
+    void show(t("recovery.unresponsive.title"), t("recovery.unresponsive.detail"), true)
   })
   win.on("responsive", () => {
     writeLog("window", "renderer responsive", { window: name, currentURL: safeWindowURL(win) }, "error")
