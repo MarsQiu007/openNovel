@@ -170,6 +170,72 @@ describe("Config", () => {
     }),
   )
 
+  it.effect("expands the v1 reasoning switch into low/medium/high variants for openai-compatible models", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        provider: {
+          acme: {
+            npm: "@ai-sdk/openai-compatible",
+            options: { baseURL: "https://api.acme.test/v1" },
+            models: {
+              "glm-9.9-flash": { name: "GLM 9.9 Flash", reasoning: true },
+            },
+          },
+        },
+      })
+      expect(migrated.providers?.acme?.models?.["glm-9.9-flash"]?.variants).toEqual([
+        { id: "low", body: { reasoning_effort: "low" } },
+        { id: "medium", body: { reasoning_effort: "medium" } },
+        { id: "high", body: { reasoning_effort: "high" } },
+      ])
+      Schema.decodeUnknownSync(Config.Info)(migrated, { errors: "all" })
+    }),
+  )
+
+  it.effect("does not expand variants when the reasoning switch is off or the package is not openai-compatible", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        provider: {
+          acme: {
+            npm: "@ai-sdk/openai-compatible",
+            options: {},
+            models: {
+              off: { reasoning: false },
+              unset: {},
+            },
+          },
+          native: {
+            npm: "@ai-sdk/openai",
+            options: {},
+            models: {
+              "gpt-x": { reasoning: true },
+            },
+          },
+        },
+      })
+      expect(migrated.providers?.acme?.models?.off?.variants).toBeUndefined()
+      expect(migrated.providers?.acme?.models?.unset?.variants).toBeUndefined()
+      expect(migrated.providers?.native?.models?.["gpt-x"]?.variants).toBeUndefined()
+    }),
+  )
+
+  it.effect("keeps explicit v1 model variants over the expanded reasoning switch", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        provider: {
+          acme: {
+            npm: "@ai-sdk/openai-compatible",
+            options: {},
+            models: {
+              dual: { reasoning: true, variants: { fast: { temperature: 0.2 } } },
+            },
+          },
+        },
+      })
+      expect(migrated.providers?.acme?.models?.dual?.variants).toEqual([{ id: "fast", body: { temperature: 0.2 } }])
+    }),
+  )
+
   it.effect("migrates v1 command configuration", () =>
     Effect.sync(() => {
       expect(

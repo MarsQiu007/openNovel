@@ -291,6 +291,12 @@ function migrateModel(info: typeof ConfigProviderV1.Model.Type, packageName?: st
     info.tool_call !== undefined || info.modalities?.input !== undefined || info.modalities?.output !== undefined
       ? { tools: info.tool_call ?? false, input: info.modalities?.input ?? [], output: info.modalities?.output ?? [] }
       : undefined
+  const declared =
+    info.variants &&
+    Object.entries(info.variants).map(([id, options]) => ({
+      id,
+      body: lowerer.request(options),
+    }))
   return {
     family: info.family,
     name: info.name,
@@ -310,12 +316,7 @@ function migrateModel(info: typeof ConfigProviderV1.Model.Type, packageName?: st
       headers: info.headers,
       body: request,
     },
-    variants:
-      info.variants &&
-      Object.entries(info.variants).map(([id, options]) => ({
-        id,
-        body: lowerer.request(options),
-      })),
+    variants: declared ?? synthesizedVariants(info, packageName),
     cost: costs,
     disabled: info.status === "deprecated" ? true : undefined,
     limit: info.limit && {
@@ -324,6 +325,17 @@ function migrateModel(info: typeof ConfigProviderV1.Model.Type, packageName?: st
       output: int(info.limit.output),
     },
   }
+}
+
+// v1 自定义 OpenAI 兼容模型的 reasoning 开关即推理能力声明：展开为 low/medium/high 三档
+// （拼写与 core 协议表 openai-compatible 条目一致，GLM/DeepSeek 端点收 reasoning_effort），
+// 使显示链路与 V2 提交链路档位一致；显式 variants 存在时不展开。
+const SYNTHESIZED_EFFORTS = ["low", "medium", "high"] as const
+
+function synthesizedVariants(info: typeof ConfigProviderV1.Model.Type, packageName?: string) {
+  if (info.reasoning !== true) return undefined
+  if (packageName !== "@ai-sdk/openai-compatible") return undefined
+  return SYNTHESIZED_EFFORTS.map((effort) => ({ id: effort, body: { reasoning_effort: effort } }))
 }
 
 function int(value: number) {
