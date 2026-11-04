@@ -11,7 +11,7 @@
 
 ## What Changes
 
-- 在 UI 兜底之前拦截「API 特征」的未匹配请求：以 `/api/` 前缀的请求，以及第一段位命中已知 API 面（provider、config、session、instance、path、vcs、event、global、file、experimental、mcp、workspace、pty 等）的请求，未匹配任何已注册路由时返回 JSON `404`（形状与既有 `{"error": "Not Found"}` 一致）。
+- 在 UI 兜底之前拦截「API 特征」的未匹配请求：以 `/api/` 前缀的请求，以及第一段位命中已知 API 面（`auth`、`log`、`event`、`global`、`config`、`experimental`、`file`、`find`、`mcp`、`path`、`vcs`、`skill`、`lsp`、`formatter`、`instance`、`project`、`provider`、`pty`）的请求，未匹配任何已注册路由时返回 JSON `404`（形状与既有 `{"error": "Not Found"}` 一致）。
 - UI 兜底的行为收窄为：浏览器导航与静态资源（路径带扩展名）维持现状（内嵌 UI 回退 `index.html` / 未内嵌时代理上游），其余未匹配路径不再代理、不再返回 HTML。
 - 新增 httpapi-exercise 场景：未匹配的 API 特征路径断言 404 JSON；UI 深链与静态资源路径断言维持既有回落行为。
 

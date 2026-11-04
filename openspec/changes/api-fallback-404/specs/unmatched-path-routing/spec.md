@@ -8,7 +8,7 @@
 
 ### Requirement: API 特征未匹配路径一律返回 JSON 404
 
-以 `/api/` 为前缀、或路径第一段位命中已知 API 面（provider、config、session、instance、path、vcs、event、global、file、experimental、mcp、workspace、pty、command、skill、project、permission、question、agent、model、message、health、location、integration、credential、novel、sync 等）的请求，未匹配任何已注册路由时，服务器 SHALL 返回状态码 404 且响应体为 JSON 错误对象（与既有 `{"error": "Not Found"}` 形状一致）；该响应 SHALL NOT 被代理到任何上游（含云端 UI 上游），也 SHALL NOT 回退为 HTML 内容。此规则与方法无关。
+以 `/api/` 为前缀、或路径第一段位命中已知 API 面（`auth`、`log`、`event`、`global`、`config`、`experimental`、`file`、`find`、`mcp`、`path`、`vcs`、`skill`、`lsp`、`formatter`、`instance`、`project`、`provider`、`pty`）的请求，未匹配任何已注册路由时，服务器 SHALL 返回状态码 404 且响应体为 JSON 错误对象（与既有 `{"error": "Not Found"}` 形状一致）；该响应 SHALL NOT 被代理到任何上游（含云端 UI 上游），也 SHALL NOT 回退为 HTML 内容。此规则与方法无关。
 
 #### Scenario: 拼错的实例 API 路径返回 404
 
