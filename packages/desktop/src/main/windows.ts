@@ -11,8 +11,9 @@ import type { TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, write as writeLog } from "./logging"
 import { getStore, removeStoreFile } from "./store"
 import { t } from "./native-locale"
-import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
+import { PINCH_ZOOM_ENABLED_KEY, CLOSE_TO_TRAY_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
 import { createUnresponsiveSampler } from "./unresponsive"
+import { createTrayController, resolveCloseToTrayDefault } from "./tray-controller"
 import { createWindowRegistry } from "./window-registry"
 import { safeWindowURL } from "./window-state"
 
@@ -60,6 +61,12 @@ const registry = createWindowRegistry<BrowserWindow>({
     removeStoreFile(windowDataFile(id))
   },
 })
+// 关闭拦截与托盘恢复共享同一隐藏集合；真退出判定读 registry 的 quitting 标志。
+const trayController = createTrayController<BrowserWindow>({
+  closeToTrayEnabled: getCloseToTrayEnabled,
+  isQuitting: () => registry.isQuitting(),
+  translate: (key) => t(key),
+})
 const titlebarHeight = 40
 const maxZoomLevel = 10
 const minZoomLevel = 0.2
@@ -84,7 +91,7 @@ export function getBackgroundColor(): string | undefined {
   return backgroundColor
 }
 
-function iconsDir() {
+export function iconsDir() {
   return app.isPackaged ? join(process.resourcesPath, "icons") : join(root, "../../resources/icons")
 }
 
@@ -139,6 +146,32 @@ export function setPinchZoomEnabled(enabled: boolean) {
 
 export function getPinchZoomEnabled() {
   return getStore().get(PINCH_ZOOM_ENABLED_KEY) === true
+}
+
+export function getCloseToTrayEnabled() {
+  const stored = getStore().get(CLOSE_TO_TRAY_ENABLED_KEY)
+  if (typeof stored === "boolean") return stored
+  return resolveCloseToTrayDefault(process.platform)
+}
+
+export function setCloseToTrayEnabled(enabled: boolean) {
+  getStore().set(CLOSE_TO_TRAY_ENABLED_KEY, enabled)
+}
+
+export function restoreHiddenWindows() {
+  const hidden = trayController.restoreAll()
+  if (!hidden.length) {
+    getLastFocusedWindow()?.focus()
+    return
+  }
+  for (const win of hidden) {
+    win.show()
+    win.focus()
+  }
+}
+
+export function trayMenuItems() {
+  return trayController.menu()
 }
 
 export function getWindowID(win: BrowserWindow) {
@@ -238,6 +271,13 @@ function registerWindow(win: BrowserWindow, id: string) {
   // Windows never emits before-quit on OS shutdown/logoff, but each window
   // gets session-end before it closes; flag the quit so ids stay persisted.
   win.on("session-end", () => registry.setQuitting())
+  // 开关开启且非真退出时把关闭转为挂起（隐藏而非销毁），真退出路径均已先置 quitting 标志。
+  win.on("close", (event) => {
+    if (!trayController.shouldHideOnClose()) return
+    event.preventDefault()
+    win.hide()
+    trayController.hide(win)
+  })
   win.on("closed", () => registry.closed(id))
 }
 

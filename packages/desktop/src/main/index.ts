@@ -6,7 +6,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app } from "electron"
+import { BrowserWindow, app } from "electron"
 
 import { Deferred, Effect, Fiber } from "effect"
 import contextMenu from "electron-context-menu"
@@ -49,6 +49,7 @@ import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
 import { getStore } from "./store"
+import { createTray } from "./tray"
 
 const APP_NAMES: Record<string, string> = {
   dev: "OpenNovel Dev",
@@ -212,6 +213,11 @@ const main = Effect.gen(function* () {
       win.show()
       win.focus()
     }
+  })
+
+  app.on("activate", () => {
+    // macOS 关闭即销毁窗口、应用驻留后台；Dock 点击且不存在窗口时重建。
+    if (BrowserWindow.getAllWindows().length === 0) restoreMainWindows()
   })
 
   app.on("open-url", (event: Event, url: string) => {
@@ -382,6 +388,7 @@ const main = Effect.gen(function* () {
   yield* Fiber.await(loadingTask)
 
   const windows = restoreMainWindows()
+  createTray()
   if (windows.length) {
     createMenu({
       trigger: (id) => {
