@@ -98,6 +98,8 @@ export type ElectronAPI = {
   getPinchZoomEnabled: () => Promise<boolean>
   setPinchZoomEnabled: (enabled: boolean) => Promise<void>
   onPinchZoomEnabledChanged: (cb: (enabled: boolean) => void) => () => void
+  getCloseToTrayEnabled: () => Promise<boolean>
+  setCloseToTrayEnabled: (enabled: boolean) => Promise<void>
   onZoomFactorChanged: (cb: (factor: number) => void) => () => void
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>

@@ -14,7 +14,15 @@ import {
 } from "./attachment-picker"
 import { getStore, removeStoreFileIfEmpty } from "./store"
 import { t } from "./native-locale"
-import { getPinchZoomEnabled, getWindowID, setPinchZoomEnabled, setTitlebar, updateTitlebar } from "./windows"
+import {
+  getCloseToTrayEnabled,
+  getPinchZoomEnabled,
+  getWindowID,
+  setCloseToTrayEnabled,
+  setPinchZoomEnabled,
+  setTitlebar,
+  updateTitlebar,
+} from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 
@@ -259,6 +267,10 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("get-pinch-zoom-enabled", () => getPinchZoomEnabled())
   ipcMain.handle("set-pinch-zoom-enabled", (_event: IpcMainInvokeEvent, enabled: boolean) => {
     setPinchZoomEnabled(enabled)
+  })
+  ipcMain.handle("get-close-to-tray-enabled", () => getCloseToTrayEnabled())
+  ipcMain.handle("set-close-to-tray-enabled", (_event: IpcMainInvokeEvent, enabled: boolean) => {
+    setCloseToTrayEnabled(enabled)
   })
   ipcMain.handle("set-titlebar", (event: IpcMainInvokeEvent, theme: TitlebarTheme) => {
     const win = BrowserWindow.fromWebContents(event.sender)

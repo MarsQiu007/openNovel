@@ -282,6 +282,10 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     setPinchZoomEnabled,
 
+    getCloseToTrayEnabled: () => window.api.getCloseToTrayEnabled(),
+
+    setCloseToTrayEnabled: (enabled: boolean) => window.api.setCloseToTrayEnabled(enabled),
+
     checkAppExists: async (appName: string) => {
       return window.api.checkAppExists(appName)
     },

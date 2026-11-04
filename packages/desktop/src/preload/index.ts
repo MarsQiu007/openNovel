@@ -112,6 +112,8 @@ const api: ElectronAPI = {
     ipcRenderer.on("pinch-zoom-enabled-changed", handler)
     return () => ipcRenderer.removeListener("pinch-zoom-enabled-changed", handler)
   },
+  getCloseToTrayEnabled: () => ipcRenderer.invoke("get-close-to-tray-enabled"),
+  setCloseToTrayEnabled: (enabled) => ipcRenderer.invoke("set-close-to-tray-enabled", enabled),
   onZoomFactorChanged: (cb) => {
     const handler = (_: unknown, factor: number) => cb(factor)
     ipcRenderer.on("zoom-factor-changed", handler)
