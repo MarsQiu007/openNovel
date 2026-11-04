@@ -1226,17 +1226,18 @@ const scenarios: Scenario[] = [
     .at(() => ({ path: "/global/upgrade", body: { target: 1 } }))
     .status(400),
   // api-fallback-404：API 特征未匹配路径一律 JSON 404，不落入 UI 兜底代理/回退。
-  // UI 兜底路由对未携带凭证的浏览器流量放行（public 场景无 401 探针问题，protected 才期望 401）。
+  // uiRoute 挂在鉴权中间件之下：配置密码时无凭证探针 401、有凭证直达 404（非 401），
+  // 与 protected 探针语义一致，故用 protected 而非 public。
   // 走了云端代理在无网环境表现为 500/传输错误，断言 404 即证明未代理。
-  http.public.get("/provider/list", "fallback.notFound.provider-list").global().json(404, notFoundBody, "status"),
-  http.public.get("/api/not-registered", "fallback.notFound.api-prefix").global().json(404, notFoundBody, "status"),
-  http.public.post("/config/not-real", "fallback.notFound.config-post").global().json(404, notFoundBody, "status"),
-  http.public.get("/path/not-real", "fallback.notFound.path-segment").global().json(404, notFoundBody, "status"),
-  http.public.get("/vcs/not-real", "fallback.notFound.vcs-segment").global().json(404, notFoundBody, "status"),
-  http.public.get("/instance/not-real", "fallback.notFound.instance-segment").global().json(404, notFoundBody, "status"),
-  http.public.get("/pty/not-real/extra", "fallback.notFound.pty-segment").global().json(404, notFoundBody, "status"),
-  http.public.get("/find/not-real", "fallback.notFound.find-segment").global().json(404, notFoundBody, "status"),
-  http.public
+  http.protected.get("/provider/list", "fallback.notFound.provider-list").global().json(404, notFoundBody, "status"),
+  http.protected.get("/api/not-registered", "fallback.notFound.api-prefix").global().json(404, notFoundBody, "status"),
+  http.protected.post("/config/not-real", "fallback.notFound.config-post").global().json(404, notFoundBody, "status"),
+  http.protected.get("/path/not-real", "fallback.notFound.path-segment").global().json(404, notFoundBody, "status"),
+  http.protected.get("/vcs/not-real", "fallback.notFound.vcs-segment").global().json(404, notFoundBody, "status"),
+  http.protected.get("/instance/not-real", "fallback.notFound.instance-segment").global().json(404, notFoundBody, "status"),
+  http.protected.get("/pty/not-real/extra", "fallback.notFound.pty-segment").global().json(404, notFoundBody, "status"),
+  http.protected.get("/find/not-real", "fallback.notFound.find-segment").global().json(404, notFoundBody, "status"),
+  http.protected
     .get("/some-random-path", "fallback.notFound.non-api")
     .global()
     .at(() => ({ path: "/some-random-path", headers: { accept: "application/json" } }))
