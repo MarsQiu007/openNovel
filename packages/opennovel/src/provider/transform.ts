@@ -691,7 +691,10 @@ function googleThinkingVariants(model: Provider.Model): Record<string, Record<st
   )
 }
 
-export function variants(model: Provider.Model): Record<string, Record<string, any>> {
+export function variants(
+  model: Provider.Model,
+  options?: { nameExclusions?: boolean },
+): Record<string, Record<string, any>> {
   if (!model.capabilities.reasoning) return {}
 
   const id = model.id.toLowerCase()
@@ -737,17 +740,20 @@ export function variants(model: Provider.Model): Record<string, Record<string, a
       ]),
     )
   }
+  // 按名排除表仅在调用方未禁用时适用：仅配置自定义的模型由用户显式声明推理能力
+  // （provider.ts 按 existingModel 是否存在传入 nameExclusions: false），跳过排除表。
   if (
-    id.includes("deepseek-chat") ||
-    id.includes("deepseek-reasoner") ||
-    id.includes("deepseek-r1") ||
-    id.includes("deepseek-v3") ||
-    id.includes("minimax") ||
-    (id.includes("glm") && !glm52) ||
-    id.includes("kimi") ||
-    id.includes("k2p") ||
-    id.includes("qwen") ||
-    id.includes("big-pickle")
+    (options?.nameExclusions ?? true) &&
+    (id.includes("deepseek-chat") ||
+      id.includes("deepseek-reasoner") ||
+      id.includes("deepseek-r1") ||
+      id.includes("deepseek-v3") ||
+      id.includes("minimax") ||
+      (id.includes("glm") && !glm52) ||
+      id.includes("kimi") ||
+      id.includes("k2p") ||
+      id.includes("qwen") ||
+      id.includes("big-pickle"))
   )
     return {}
 

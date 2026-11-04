@@ -3329,6 +3329,59 @@ describe("ProviderTransform.variants", () => {
     expect(result).toEqual({})
   })
 
+  describe("with name exclusions disabled (config-only custom models)", () => {
+    test.each([
+      ["glm", "acme/glm-4.5-flash", "glm-4.5-flash"],
+      ["deepseek", "acme/deepseek-chat", "deepseek-chat"],
+      ["kimi", "acme/kimi-k2.5", "kimi-k2.5"],
+      ["qwen", "acme/qwen3-max", "qwen3-max"],
+      ["minimax", "acme/minimax-m2", "minimax-m2"],
+    ])("excluded %s model with declared reasoning generates widely supported efforts", (_label, id, apiID) => {
+      const model = createMockModel({
+        id,
+        providerID: "acme",
+        api: {
+          id: apiID,
+          url: "https://api.acme.com",
+          npm: "@ai-sdk/openai-compatible",
+        },
+      })
+      const result = ProviderTransform.variants(model, { nameExclusions: false })
+      expect(result).toEqual({
+        low: { reasoningEffort: "low" },
+        medium: { reasoningEffort: "medium" },
+        high: { reasoningEffort: "high" },
+      })
+    })
+
+    test("reasoning still gated off when the switch is not declared", () => {
+      const model = createMockModel({
+        id: "acme/glm-4.5-flash",
+        providerID: "acme",
+        capabilities: { reasoning: false },
+        api: {
+          id: "glm-4.5-flash",
+          url: "https://api.acme.com",
+          npm: "@ai-sdk/openai-compatible",
+        },
+      })
+      expect(ProviderTransform.variants(model, { nameExclusions: false })).toEqual({})
+    })
+
+    test("default keeps name exclusions for catalog models", () => {
+      const model = createMockModel({
+        id: "acme/glm-4.5-flash",
+        providerID: "acme",
+        api: {
+          id: "glm-4.5-flash",
+          url: "https://api.acme.com",
+          npm: "@ai-sdk/openai-compatible",
+        },
+      })
+      expect(ProviderTransform.variants(model)).toEqual({})
+    })
+  })
+
   test("minimax m3 using anthropic returns thinking toggles", () => {
     const model = createMockModel({
       id: "minimax/minimax-m3",

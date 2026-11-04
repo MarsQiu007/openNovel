@@ -7,7 +7,7 @@
 
 ## 2. opennovel 显示链：排除表条件收窄
 
-- [ ] 2.1 修改 `packages/opennovel/src/provider/transform.ts` 的 `ProviderTransform.variants`：按名排除分支（glm 非 5.2/deepseek/kimi/qwen/minimax 等）增加 `!model.capabilities.reasoning` 前置条件；声明了推理能力的模型落入 `@ai-sdk/openai-compatible` 通用分支生成 low/medium/high
+- [ ] 2.1 修改 `packages/opennovel/src/provider/transform.ts` 的 `ProviderTransform.variants`：增加可选参数 `{ nameExclusions?: boolean }`（缺省 true）；provider.ts 自定义模型解析调用点按 `existingModel === undefined`（仅配置自定义模型）传入 `false` 跳过按名排除分支（glm 非 5.2/deepseek/kimi/qwen/minimax 等），声明了推理能力的自定义模型落入 `@ai-sdk/openai-compatible` 通用分支生成 low/medium/high（注：排除表处 capabilities.reasoning 恒为 true，不能加 `!reasoning` 前置条件，须以调用点旗标为凭）
 - [ ] 2.2 补充 `ProviderTransform.variants` 单测：`capabilities.reasoning: true` 的 glm/deepseek/kimi 模型生成三档；`false` 维持 `{}`；既有非排除模型行为不变
 
 ## 3. app 弹层：分段常驻 default

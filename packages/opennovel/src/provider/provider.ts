@@ -1505,10 +1505,13 @@ const layer = Layer.effect(
               release_date: model.release_date ?? existingModel?.release_date ?? "",
               variants: {},
             }
+            // 仅配置自定义的模型（无目录既有模型）显式声明推理能力时按名排除表不适用，
+            // 用户自担端点兼容责任，档位落入下方通用条目；目录模型维持既有按名规则。
+            const nameExclusions = existingModel !== undefined
             const variants =
               existingModel?.api.npm === parsedModel.api.npm
-                ? (existingModel.variants ?? ProviderTransform.variants(parsedModel))
-                : ProviderTransform.variants(parsedModel)
+                ? (existingModel.variants ?? ProviderTransform.variants(parsedModel, { nameExclusions }))
+                : ProviderTransform.variants(parsedModel, { nameExclusions })
             const merged = mergeDeep(variants, model.variants ?? {})
             parsedModel.variants = mapValues(
               pickBy(merged, (v) => !v.disabled),

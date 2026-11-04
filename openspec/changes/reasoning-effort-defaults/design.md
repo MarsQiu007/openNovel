@@ -31,11 +31,13 @@
 
 ## D2 显示链修复：排除表让位于用户显式声明
 
-**决策**：`ProviderTransform.variants` 的按名排除分支（transform.ts:740-752）增加前置条件 `!model.capabilities.reasoning`——模型声明了推理能力（用户开关开启）即跳过排除表，落入 switch 的 `@ai-sdk/openai-compatible` 通用分支，生成 low/medium/high（`WIDELY_SUPPORTED_EFFORTS`）。排除表仅在未声明推理能力时维持既有行为。
+**决策**：给 `ProviderTransform.variants` 增加可选参数 `{ nameExclusions?: boolean }`（缺省 `true` 维持现状）；调用点（provider.ts 自定义模型解析处）按 `existingModel === undefined`（仅配置自定义模型）传入 `false`，跳过按名排除分支（transform.ts:740-752），落入 switch 的 `@ai-sdk/openai-compatible` 通用分支，生成 low/medium/high（`WIDELY_SUPPORTED_EFFORTS`）。排除表对目录既有模型维持既有行为。
+
+**机制说明**：不能在排除表分支上加 `!model.capabilities.reasoning` 前置条件——本函数首行 `if (!model.capabilities.reasoning) return {}` 已保证走到排除表时 reasoning 恒为 true，该前置条件恒为假。真正的"用户显式声明"信号来自解析层：`provider.ts` 中 `existingModel === undefined` 即配置-only 自定义模型（自定义 providerID 与 models.dev id 不冲突，表单有校验），此时 `capabilities.reasoning === true` 只能来自用户开关（`model.reasoning ?? ... ?? false`），故以调用点旗标为凭。
 
 **理由**：排除表的存在意义是"别让不支持推理参数的端点误收参数"；用户显式开启开关即自担此责，排除表不应再覆盖用户意图。显式 `config.variants` 合并逻辑（provider.ts:1512 `mergeDeep(variants, model.variants)`）不变，用户手写 variants 仍最高优先。
 
-**注意**：本函数首行 `if (!model.capabilities.reasoning) return {}` 已保证"开关未开 → 无档位"，排除表条件收窄不影响该缺省安全语义。
+**注意**：本函数首行守卫同时保证"开关未开 → 无档位"，调用点对未开开关的模型传不传旗标结果一致，缺省安全语义不受影响。
 
 **与 spec 的张力记录**：`model-reasoning-variants` 要求"不得在代码中按模型名硬编码推理档位规则"。本次不是新增按名规则，而是收窄既有 v1 遗留表的适用条件；v1 Provider service 整体退役、UI 改读 core Catalog 才是彻底归宿（非目标，见 D6）。同规格需求 1 中"推理控件保持禁用占位"的旧表述与常驻分段冲突，本次一并在 delta 中把呈现形态管辖权交给 session-composer-controls（生成规则不变）。
 
