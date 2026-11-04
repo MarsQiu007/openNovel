@@ -26,7 +26,7 @@
 - [x] 4.1 `packages/desktop` 下 `bun typecheck` 通过，仓库根 oxlint 基线对比无新增告警
 - [x] 4.2 `packages/desktop` 下 `bun test` 全绿（含新增 controller/registry/locale/store 测试）
 - [x] 4.3 `packages/app` 下 `bun typecheck` 与相关单测通过（locale 键与设置行改动）
-- [ ] 4.4 人工冒烟（用户执行）：Windows 开启状态下标题栏 X / Alt+F4 挂起到托盘、托盘左键恢复、托盘「退出 OpenNovel」真退出、设置开关切换即时生效、语言切英文后托盘菜单为英文；macOS 无托盘且 Dock 激活重建窗口
+- [x] 4.4 人工冒烟（用户执行）：Windows 开启状态下标题栏 X / Alt+F4 挂起到托盘、托盘左键恢复、托盘「退出 OpenNovel」真退出、设置开关切换即时生效、语言切英文后托盘菜单为英文；macOS 无托盘且 Dock 激活重建窗口
 - [x] 4.5 检查未引入同类/冗余/无用代码（新增长期无人引用的导出、死 import、未消费的通道），命中即在本 change 内清理
 
 ## Implementation Commits
