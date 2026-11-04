@@ -15,8 +15,8 @@ type Dictionary = i18n.Flatten<RawDictionary>
 
 const LOCALES: readonly Locale[] = ["en", "zh", "zht"]
 
-function detectLocale(): Locale {
-  if (typeof navigator !== "object") return "en"
+export function detectLocale(): Locale {
+  if (typeof navigator !== "object") return "zh"
 
   const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
   for (const language of languages) {
@@ -28,7 +28,7 @@ function detectLocale(): Locale {
     }
   }
 
-  return "en"
+  return "zh"
 }
 
 function parseLocale(value: unknown): Locale | null {
