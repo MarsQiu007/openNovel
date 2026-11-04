@@ -40,12 +40,16 @@
 - **WHEN** 自动更新已下载完成且用户确认立即重启
 - **THEN** 应用按真退出处理并随后完成更新安装
 
-### Requirement: 托盘提供显示与退出入口
-Windows 与 Linux 桌面端 SHALL 在系统托盘提供应用图标；托盘右键菜单 SHALL 恰好包含「显示主窗口」与「退出 OpenNovel」两项（简体中文界面），「退出 OpenNovel」SHALL 触发真退出。macOS SHALL NOT 创建托盘图标。
+### Requirement: 托盘提供显示、设置与退出入口
+Windows 与 Linux 桌面端 SHALL 在系统托盘提供应用图标；托盘右键菜单 SHALL 恰好包含「显示主窗口」「设置」与「退出 OpenNovel」三项（简体中文界面）；「设置」SHALL 恢复被隐藏的窗口并打开设置页；「退出 OpenNovel」SHALL 触发真退出。macOS SHALL NOT 创建托盘图标。
 
 #### Scenario: 托盘菜单构成
 - **WHEN** 简体中文界面下用户在托盘图标上打开右键菜单
-- **THEN** 菜单恰好包含「显示主窗口」与「退出 OpenNovel」两项，图标 tooltip 为 OpenNovel
+- **THEN** 菜单恰好包含「显示主窗口」「设置」与「退出 OpenNovel」三项，图标 tooltip 为 OpenNovel
+
+#### Scenario: 从托盘打开设置
+- **WHEN** 全部主窗口均已挂起到托盘，用户点击托盘菜单「设置」
+- **THEN** 全部被隐藏的窗口恢复可见，最近聚焦窗口打开设置页
 
 #### Scenario: 无窗口时托盘仍可退出
 - **WHEN** 全部主窗口均已挂起到托盘，用户打开托盘菜单并点击「退出 OpenNovel」

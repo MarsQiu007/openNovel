@@ -4,7 +4,7 @@
 
 - [x] 1.1 新增 `packages/desktop/src/main/tray-controller.ts`：隐藏窗口集合、`shouldHideOnClose()`（开关开启且未置 quitting 标志）、`hide()`/`restoreAll()`（恢复顺序=隐藏顺序）、菜单项模型（经注入取词函数）；零 Electron 依赖
 - [x] 1.2 新增 `packages/desktop/src/main/tray-controller.test.ts`：覆盖关闭判定真值表（开关×quitting）、重复 hide 幂等、restoreAll 清空集合与顺序、菜单项模型取词；`packages/desktop` 下 `bun test src/main/tray-controller.test.ts` 全绿
-- [x] 1.3 `packages/desktop/src/main/native-locale.ts` 字典新增 `tray.show`/`tray.quit` 两键（zh 源 + en/zht，按 design 文案键位表）；`native-locale.test.ts` 既有字典完整性测试自动覆盖，补 tray 键渲染断言
+- [x] 1.3 `packages/desktop/src/main/native-locale.ts` 字典新增 `tray.show`/`tray.settings`/`tray.quit` 三键（zh 源 + en/zht，按 design 文案键位表）；`native-locale.test.ts` 既有字典完整性测试自动覆盖，补 tray 键渲染断言
 - [x] 1.4 `packages/desktop/src/main/store-keys.ts` 增常量 `CLOSE_TO_TRAY_ENABLED_KEY = "closeToTrayEnabled"`；在 `tray-controller.ts` 增 `resolveCloseToTrayDefault(platform)` 纯函数（win32 → true，其余 → false）及单测
 
 ## 2. 主进程接线
@@ -12,7 +12,7 @@
 - [x] 2.1 `packages/desktop/src/main/window-registry.ts` 增 `isQuitting()` 读口并直注 tray-controller；`window-registry` 既有测试补充该读口断言
 - [x] 2.2 `windows.ts` `registerWindow` 接入 close 拦截：开关开启且未置 quitting 标志时 `preventDefault()` + `win.hide()` 并登记 controller，否则放行；grep 穷举 main 进程 `win.close()` 调用点确认无内部程序化关闭被误吞，结果记入提交说明
 - [x] 2.3 `windows.ts` 实现 `restoreHiddenWindows()`：`restoreAll()` 取隐藏句柄逐个 `show()`+`focus()`，无隐藏窗口时聚焦最近聚焦窗口；`getCloseToTrayEnabled()`/`setCloseToTrayEnabled()` 读写 store（读侧未设置时按平台默认）
-- [x] 2.4 新增 `packages/desktop/src/main/tray.ts`：Electron 壳（win32/linux），图标取 `resources/icons/icon.ico` / `32x32.png`，tooltip "OpenNovel"，右键菜单恰好「显示主窗口」「退出 OpenNovel」（构建经 `t()` 取词），左键点击调 `restoreHiddenWindows()`，「退出」走 `setAppQuitting()` + `app.quit()`；用 electron-store `onDidChange("language")` 订阅语言切换并重建菜单（store 封装未暴露则补透传），验证切换语言后新弹出菜单为对应语言
+- [x] 2.4 新增 `packages/desktop/src/main/tray.ts`：Electron 壳（win32/linux），图标取 `resources/icons/icon.ico` / `32x32.png`，tooltip "OpenNovel"，右键菜单恰好「显示主窗口」「设置」「退出 OpenNovel」（构建经 `t()` 取词），左键点击调 `restoreHiddenWindows()`，「设置」恢复窗口后发送既有 `settings.open` 命令，「退出」走 `setAppQuitting()` + `app.quit()`；用 electron-store `onDidChange("language")` 订阅语言切换并重建菜单（store 封装未暴露则补透传），验证切换语言后新弹出菜单为对应语言
 - [x] 2.5 `index.ts` 接线：`whenReady` 后按平台创建/跳过托盘；新增 `app.on("activate")`——仅 macOS 且无窗口时 `restoreMainWindows()`；确认未新增 `window-all-closed` handler
 
 ## 3. IPC / preload / 设置界面
@@ -35,6 +35,7 @@
 - `10ffb459d8` feat(desktop): 关闭挂起拦截与系统托盘接线
 - `d00ff7b613` feat(desktop): 关闭到托盘开关 IPC 与 preload 通道
 - `43f354860b` feat(app): 设置界面关闭到托盘开关行
+- `d0c69185a0` feat(desktop): 托盘菜单新增设置入口
 
 ## Workflow follow-up
 

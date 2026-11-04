@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- Windows / Linux 新增系统托盘（Electron `Tray`）：托盘菜单提供「显示主窗口」「退出 OpenNovel」两项；左键点击托盘图标恢复全部被隐藏的窗口；tooltip 为 OpenNovel。
+- Windows / Linux 新增系统托盘（Electron `Tray`）：托盘菜单提供「显示主窗口」「设置」「退出 OpenNovel」三项；左键点击托盘图标恢复全部被隐藏的窗口；点击「设置」恢复窗口并打开设置页（复用 renderer 既有 `settings.open` 命令通道）；tooltip 为 OpenNovel。
 - 新增「关闭时最小化到系统托盘」开关（设置 → 常规），持久化到桌面端 electron-store；Windows 默认开启，Linux 默认关闭，macOS 不提供该设置。
 - 开关开启时拦截主窗口 `close` 事件：仅当「开关开启且当前不是真退出流程」时 `preventDefault()` 并 `hide()` 窗口；隐藏窗口的渲染进程、后端与终端会话全部保留，窗口 ID 注册表不变（`hide` 不触发 `closed`，无需恢复逻辑）。
 - 真退出路径统一走既有 `quitting` 标志（`setAppQuitting`），托盘「退出」、macOS Cmd+Q、更新器 `quitAndInstall` 前置标志、`session-end`（Windows 关机）、SIGINT/SIGTERM、重启恢复对话框均已被覆盖；拦截器先检查该标志，真退出时放行销毁。

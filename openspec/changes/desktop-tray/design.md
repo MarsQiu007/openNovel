@@ -65,7 +65,11 @@ win32 用 `resources/icons/icon.ico`（多尺寸 ICO，Windows 托盘按 DPI 自
 
 ### 7. 托盘文案进 native-locale 字典
 
-`native-locale.ts` `dict` 新增两键（简体中文源文案，en/zht 并列）：`tray.show`（显示主窗口）、`tray.quit`（退出 OpenNovel）。菜单在每次构建时经 `t()` 取词。语言切换的刷新机制：renderer 写 language 键经 main IPC 落到同一 electron-store 缓存实例，`tray.ts` 用 electron-store 的 `onDidChange("language", …)` 订阅并重建菜单，保证下一次弹出的菜单即为新语言（既有 `desktop-native-locale` 即时生效机制的延伸，其「三语字典完整性」要求对新键自动适用）；若 `store.ts` 封装未暴露 `onDidChange`，在该封装补透传。
+`native-locale.ts` `dict` 新增三键（简体中文源文案，en/zht 并列）：`tray.show`（显示主窗口）、`tray.settings`（设置）、`tray.quit`（退出 OpenNovel）。菜单在每次构建时经 `t()` 取词。语言切换的刷新机制：renderer 写 language 键经 main IPC 落到同一 electron-store 缓存实例，`tray.ts` 用 electron-store 的 `onDidChange("language", …)` 订阅并重建菜单，保证下一次弹出的菜单即为新语言（既有 `desktop-native-locale` 即时生效机制的延伸，其「三语字典完整性」要求对新键自动适用）；若 `store.ts` 封装未暴露 `onDidChange`，在该封装补透传。
+
+### 8. 托盘「设置」复用既有命令通道
+
+托盘菜单第三项「设置」不新开 IPC：点击后先 `restoreHiddenWindows()` 恢复全部被隐藏窗口，再向最近聚焦窗口发送 renderer 已注册的 `settings.open` 命令（`sendMenuCommand` → `onMenuCommand` → `cmd.trigger`，与 macOS 菜单 Cmd+, 同一通道，`layout.tsx` 已注册导航动作）。主进程零新增 renderer 协议。
 
 ## Risks / Trade-offs
 
@@ -84,6 +88,7 @@ win32 用 `resources/icons/icon.ico`（多尺寸 ICO，Windows 托盘按 DPI 自
 | 键 | zh | en | zht |
 | --- | --- | --- | --- |
 | tray.show | 显示主窗口 | Show Main Window | 顯示主視窗 |
+| tray.settings | 设置 | Settings | 設定 |
 | tray.quit | 退出 OpenNovel | Quit OpenNovel | 結束 OpenNovel |
 | settings.general.row.closeToTray.title | 关闭时最小化到系统托盘 | Minimize to system tray on close | 關閉時最小化到系統匣 |
 | settings.general.row.closeToTray.description | 关闭窗口后应用继续在后台运行，可从系统托盘恢复或退出 | Keep the app running in the background after closing; restore or quit from the system tray | 關閉視窗後應用繼續在背景執行，可從系統匣復原或結束 |
