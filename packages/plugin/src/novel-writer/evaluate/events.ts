@@ -133,7 +133,7 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.created").pipe(
-      Stream.runForEach((event) =>
+      Stream.runForEach(() =>
         Effect.sync(() => {
           recordMetrics(directory, { domain: "c5-flow", key: "session.created", delta: 1 })
           maybeAutoReport(directory, "session-milestone")

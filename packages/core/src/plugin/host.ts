@@ -134,6 +134,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
     Definitions.map((definition) => [definition.type, definition]),
   )
   const event: Interface["event"] = {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 泛型 Type→EventMap[Type] 映射只能经单次断言落地（类型字符串查表擦除了索引关联）
     subscribe: ((type: string) => {
       const definition = sessionEventByType.get(type)
       if (!definition) return Stream.fail(new Error(`PluginHost: unsupported event type "${type}"`))

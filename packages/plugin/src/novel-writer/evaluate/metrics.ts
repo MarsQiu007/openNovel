@@ -62,6 +62,16 @@ export interface MetricsReadResult {
   overSoftLimit: boolean
 }
 
+/** 坏行容忍的入桶校验：四必填字段类型对了即收（额外字段原样保留，导出层脱敏） */
+function isMetricsEntry(value: unknown): value is MetricsEntry {
+  if (typeof value !== "object" || value === null) return false
+  if (!("ts" in value) || typeof value.ts !== "number") return false
+  if (!("domain" in value) || typeof value.domain !== "string") return false
+  if (!("key" in value) || typeof value.key !== "string") return false
+  if (!("delta" in value) || typeof value.delta !== "number") return false
+  return true
+}
+
 export function readMetrics(projectDir: string): MetricsReadResult {
   const path = getMetricsPath(projectDir)
   let raw: string
@@ -77,13 +87,8 @@ export function readMetrics(projectDir: string): MetricsReadResult {
     const trimmed = line.trim()
     if (!trimmed) continue
     try {
-      const parsed = JSON.parse(trimmed) as MetricsEntry
-      if (
-        typeof parsed.ts === "number" &&
-        typeof parsed.domain === "string" &&
-        typeof parsed.key === "string" &&
-        typeof parsed.delta === "number"
-      ) {
+      const parsed: unknown = JSON.parse(trimmed)
+      if (isMetricsEntry(parsed)) {
         entries.push(parsed)
       } else {
         corruptLines++

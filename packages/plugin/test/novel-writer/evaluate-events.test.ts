@@ -20,11 +20,13 @@ type Evt = { id: string; type: string; properties: Record<string, unknown> }
  */
 function fakeCtx() {
   const queues = new Map<string, Queue.Queue<Evt>>()
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 只实现事件域的部分上下文替身，字段集故意不完整
   const ctx = {
     event: {
       subscribe: (type: string) => {
         const q = Effect.runSync(Queue.unbounded<Evt>())
         queues.set(type, q)
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试替身无法实现泛型 Type→EventMap[Type] 映射，同 host.ts 宿主适配的既有断言
         return Stream.fromQueue(q) as never
       },
     },
