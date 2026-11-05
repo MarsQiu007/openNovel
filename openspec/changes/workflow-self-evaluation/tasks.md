@@ -34,7 +34,22 @@
 
 - [x] 5.1 `packages/plugin` 与受影响包 typecheck + 全量测试 + oxlint 基线对比
   - 实现注记：packages/plugin typecheck 0、全量 1087 过/99 文件；packages/novel-store typecheck 0、257 过/36 文件；packages/core typecheck 0。oxlint 仓库级同模式对比（main 5658 条基线 vs 分支，按 filename|code|message multiset）：本分支净新增 0。归因过程中修复 5 条本分支真实告警（events.ts created 未用参数、metrics.ts JSON.parse 断言改 isMetricsEntry 类型守卫、host.ts 与 evaluate-events 测试替身的泛型映射必要断言按仓库惯例补 oxlint-disable 注释——注意诊断锚定在表达式起点行，disable-next-line 须置于该行而非 as 所在行）。残余 2 条净差为 packages/llm 未触碰文件（route/client.ts、test/schema.test.ts）的联合类型显示序噪音：两侧 no-unsafe-type-assertion 各 29 条计数相等，仅消息文本成员序随程序形状漂移，非本分支引入
-- [ ] 5.2 真实项目走查：跑一次写作会话后手动 `/evaluate`，报告三分部有真实数据；自动触发在压缩后发生
+- [x] 5.2 真实项目走查：跑一次写作会话后手动 `/evaluate`，报告三分部有真实数据；自动触发在压缩后发生
+  - 实现注记：用户在真实写作项目走查通过——手动 `/evaluate` 生成三分部报告且内容有真实数据，压缩后自动触发报告正常落盘
+
+## Implementation Commits
+
+- e87fd6025 feat(plugin): evaluate 指标桶 append-only 计数（自评价 1.1）
+- edc18a366 feat(core): 插件宿主实现 V2 Event Adapter（PLAN.md §8）
+- 86be37783 feat(plugin): 会话事件惰性计数入指标桶（自评价 1.2）
+- 351485fc2 feat(novel-store): 评价指标写盘点与审批漏斗埋点（自评价 1.3）
+- b1718fdd9 feat(plugin): C2-C7 判定点埋点（自评价 1.3）
+- 78455557e test(plugin): 清理自评价测试未用导入并消除聚合测试时钟 flake
+- 0bbd3f4dc feat(plugin): 三分部规则模板报告生成器（自评价 2.1）
+- cd45d7a36 feat(plugin): /evaluate 模板命令与 evaluate 工具（自评价 2.2）
+- 571e19281 feat(plugin): 四类信号自动触发与 24h 冷却（自评价 3.1）
+- d20442ebc feat(plugin): 诊断包分级导出 L0/L1/L2（自评价 4.1）
+- 62d683229 fix(plugin): 消除自评价链路 oxlint 告警（自评价 5.1）
 
 ## v1.1 波次（另立 change）
 
