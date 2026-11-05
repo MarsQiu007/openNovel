@@ -54,10 +54,49 @@ function readLastRunTs(projectDir: string): number {
   }
 }
 
+/** 自动报告冷却水位：最后一次自动触发的时间戳（0=从未）。触发层（trigger.ts）读写。 */
+export function readLastAutoRunTs(projectDir: string): number {
+  try {
+    const raw: unknown = JSON.parse(readFileSync(getStatePath(projectDir), "utf8"))
+    if (typeof raw !== "object" || raw === null || !("lastAutoRunTs" in raw) || typeof raw.lastAutoRunTs !== "number") {
+      return 0
+    }
+    return raw.lastAutoRunTs
+  } catch {
+    return 0
+  }
+}
+
+/** 自动报告落盘后标定冷却水位；手动报告推进的 lastRunTs 窗口原样保留。 */
+export function markAutoReport(projectDir: string, autoRunTs: number): void {
+  try {
+    const prev: unknown = JSON.parse(readFileSync(getStatePath(projectDir), "utf8"))
+    const lastRunTs =
+      typeof prev === "object" && prev !== null && "lastRunTs" in prev && typeof prev.lastRunTs === "number"
+        ? prev.lastRunTs
+        : 0
+    const path =
+      typeof prev === "object" && prev !== null && "path" in prev && typeof prev.path === "string" ? prev.path : ""
+    writeFileSync(getStatePath(projectDir), JSON.stringify({ lastRunTs, path, lastAutoRunTs: autoRunTs }) + "\n", "utf8")
+  } catch (err) {
+    console.warn(`[evaluate] 写自动报告冷却状态失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 function writeState(projectDir: string, generatedAt: number, path: string): void {
   try {
     mkdirSync(getMetricsDir(projectDir), { recursive: true })
-    writeFileSync(getStatePath(projectDir), JSON.stringify({ lastRunTs: generatedAt, path }) + "\n", "utf8")
+    // 合并保留 lastAutoRunTs：手动报告推进"上次报告以来"窗口，但不重置自动冷却节奏
+    const lastAutoRunTs = readLastAutoRunTs(projectDir)
+    writeFileSync(
+      getStatePath(projectDir),
+      JSON.stringify({
+        lastRunTs: generatedAt,
+        path,
+        ...(lastAutoRunTs > 0 ? { lastAutoRunTs } : {}),
+      }) + "\n",
+      "utf8",
+    )
   } catch (err) {
     console.warn(`[evaluate] 写报告状态失败: ${err instanceof Error ? err.message : String(err)}`)
   }

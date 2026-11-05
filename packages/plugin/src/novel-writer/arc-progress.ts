@@ -13,6 +13,7 @@ import { and, eq, or } from "drizzle-orm"
 import { withTransaction } from "@opennovel-ai/novel-store"
 import { getDb, ArcBeatTable, StoryArcTable, ChapterTable } from "./session-store.js"
 import { recordMetricsBatch } from "./evaluate/metrics.js"
+import { maybeAutoReport } from "./evaluate/trigger.js"
 
 export type ArcProgressReport = {
   beatsDrafted: number
@@ -135,6 +136,8 @@ export async function syncArcProgress(
         ? [{ domain: "c7-narrative", key: "arc.completed", delta: report.arcsCompleted.length }]
         : []),
     ])
+    // 卷状态翻转信号（D4：弧光完成即卷完结近似信号）→ 自动评价触发
+    if (report.arcsCompleted.length > 0) maybeAutoReport(dbOrDirectory, "volume-complete")
   }
   return report
 }

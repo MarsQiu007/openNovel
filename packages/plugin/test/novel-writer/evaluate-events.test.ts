@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "fs"
+import { mkdtempSync, readdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import { Effect, Exit, Queue, Scope, Stream } from "effect"
-import { readMetrics, type MetricsEntry } from "../../src/novel-writer/evaluate/metrics"
+import { getMetricsDir, readMetrics, type MetricsEntry } from "../../src/novel-writer/evaluate/metrics"
 import { watchSessionEvents } from "../../src/novel-writer/evaluate/events"
 import type { PluginContext } from "../../src/v2/effect/context"
 
@@ -107,5 +107,29 @@ describe("evaluate events watcher", () => {
     expect(entries.some((e) => e.key === "tool.failed.unknown" && e.delta === 1)).toBe(true)
 
     await Effect.runPromise(Scope.close(scope, Exit.void))
+  })
+
+  test("会话里程碑信号：+10 个 Created 事件后台生成自动报告（不弹窗）", async () => {
+    using f = fixture()
+    const { ctx, push } = fakeCtx()
+    const scope = await startWatcher(ctx, f.dir)
+
+    for (let i = 0; i < 10; i++) push("session.next.created", {})
+    for (let attempt = 0; attempt < 100; attempt++) {
+      // 事件处理是异步的：首拍 .novel/evaluate 可能尚未创建（ENOENT 视为尚无报告）
+      let files: string[] = []
+      try {
+        files = readdirSync(getMetricsDir(f.dir)).filter((x) => x.endsWith(".md"))
+      } catch {
+        files = []
+      }
+      if (files.length > 0) {
+        expect(files[0].endsWith("-since-last.md")).toBe(true)
+        await Effect.runPromise(Scope.close(scope, Exit.void))
+        return
+      }
+      await Bun.sleep(20)
+    }
+    throw new Error("等待自动报告超时")
   })
 })

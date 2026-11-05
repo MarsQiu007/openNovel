@@ -8,6 +8,10 @@
 import { Effect, Stream } from "effect"
 import type { PluginContext } from "../../v2/effect/context.js"
 import { recordMetrics } from "./metrics.js"
+import { maybeAutoReport } from "./trigger.js"
+
+// 反复修改信号的兴趣工具：这些工具的成功事件提示滚动窗可能累积（窗阈值在 trigger 内按桶计数）
+const REVISION_TOOLS = new Set(["revise_chapter", "restore_chapter_version", "diff_chapter_version", "update_chapter"])
 
 export function watchSessionEvents(ctx: PluginContext, directory: string) {
   // agent/model 不在 step 事件 payload 里：从切换事件维护会话级映射
@@ -94,6 +98,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
             delta: 1,
             ...meta(event.properties.sessionID),
           })
+          const tool = toolByCallID.get(event.properties.callID)
+          if (tool && REVISION_TOOLS.has(tool)) maybeAutoReport(directory, "revision-window")
         }),
       ),
       Effect.forkScoped,
@@ -121,6 +127,7 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
             delta: 1,
             ...meta(event.properties.sessionID),
           })
+          maybeAutoReport(directory, "compaction")
         }),
       ),
       Effect.forkScoped,
@@ -129,6 +136,7 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Stream.runForEach((event) =>
         Effect.sync(() => {
           recordMetrics(directory, { domain: "c5-flow", key: "session.created", delta: 1 })
+          maybeAutoReport(directory, "session-milestone")
         }),
       ),
       Effect.forkScoped,
