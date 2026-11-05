@@ -2,9 +2,10 @@
 
 ## 1. app 弹层：档位分段收纳化
 
-- [ ] 1.1 `dialog-select-model.tsx` 两处分段（V1 与 V2 弹层）改为常驻收纳行：行显示「标签 + 当前值 + chevron」（带 `aria-expanded`），点击行内展开/收起档位列表，选择档位后收回；V2 弹层维持 `closeOnSelect` 现状
-- [ ] 1.2 `dialog-select-model-unpaid.tsx` 与 `dialog-select-model-unpaid-v2.tsx` 同步上述结构
+- [ ] 1.1 `dialog-select-model.tsx` 两处分段（V1 与 V2 弹层）改为常驻收纳行：行显示「标签 + 当前值 + chevron」（带 `aria-expanded`），点击行内展开/收起档位列表，选择档位后收回；维持既有选档关闭行为（付费弹层选档即关）；V2 弹层选档 RadioItem 维持 `closeOnSelect` 现状
+- [ ] 1.2 `dialog-select-model-unpaid.tsx` 与 `dialog-select-model-unpaid-v2.tsx` 同步上述结构；维持免费弹层选档不关弹窗现状
 - [ ] 1.3 空态行为：无档位模型收纳行常驻显示 default，展开后呈现 default 弱化单项与 `dialog.model.variant.emptyHint` 提示（复用现有资产，不新增 i18n 键）
+- [ ] 1.4 展开信号随弹层 Content 卸载/打开重置：付费弹层为常驻组件，展开状态不得残留到下次打开（见 design D1 实现陷阱）；免费弹层动态挂载天然满足
 
 ## 2. e2e 更新
 

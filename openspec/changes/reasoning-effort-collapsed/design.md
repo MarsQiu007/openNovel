@@ -19,10 +19,11 @@
 ```
 
 - 收纳行为：点击行切换展开态（本地组件状态，如 `createSignal(false)`）；选择任一档位后强制收回。
-- 展开态不跨弹层会话持久化：弹层关闭后重开时档位列表回到收起态（组件本地状态随弹层卸载消亡）。
+- 选档后弹层关闭行为**维持各弹层现状不统一**：付费弹层（V1 Kobalte、V2 MenuV2）选档即关弹层，免费弹层（V1/V2 Dialog）选档不关弹层便于继续浏览；「列表收回」在弹层保持打开的免费弹层下可观察，付费弹层随弹层关闭自然满足。
+- 展开态不跨弹层会话持久化：弹层关闭后重开时档位列表回到收起态。实现陷阱：Kobalte/MenuV2 的 Content 关闭时卸载，但 ModelSelectorPopover/ModelSelectorPopoverV2 是常驻组件、展开信号若定义在组件体则不随 Content 消亡——展开信号必须定义在弹层 Content 内部，或在弹层打开时显式重置；免费弹层经 `dialog.show` 动态挂载，本地状态天然随卸载重置。
 - 行右侧当前值：未选档位时显示 localized `default`（common.default），选中后显示档位名；与芯片后缀同源（`model.variant.current()`）。
 - 展开指示：chevron 图标，展开态翻转（复用现有 `Icon`）。
-- 可达性：行带 `aria-expanded` 与统一 `data-slot="model-variant-toggle"`；V1 付费 / 免费弹层为原生 `button`（角色 button），V2 付费弹层为 `MenuV2.Item`（角色 menuitem）——e2e 一律按 data-slot 定位收纳行，不依赖 locale 文案与角色差异。
+- 可达性：行带 `aria-expanded` 与统一 `data-slot="model-variant-toggle"`；四处弹层中 V1 付费、V1 免费、V2 免费为原生 `button`（角色 button），V2 付费为 `MenuV2.Item`（角色 menuitem）——e2e 一律按 data-slot 定位收纳行，不依赖 locale 文案与角色差异。
 
 ## D1.1 各弹层承载方式（实现注记）
 
@@ -44,12 +45,12 @@
 
 - 数据源：`variantOptions()`（`["default", ...model.variant.list()]`）与选择回调（`selectVariant` / `model.variant.set`）不动。
 - 芯片后缀：无档位无后缀、选中非默认档显示「模型名 · 档位」，逻辑不动。
-- 弹层关闭行为：维持各弹层现状（V2 MenuV2 `closeOnSelect` 选档即关弹层；V1 自定义按钮不关弹层），本 change 不统一。
+- 弹层关闭行为：维持各弹层现状（付费 V1/V2 选档即关弹层；免费 V1/V2 选档不关弹层），本 change 不统一——注意现状分界是付费/免费而非 V1/V2。
 - `model.variant.cycle` 快捷键、提交解析链路、core/opennovel 档位生成逻辑全部不动。
 - i18n 键集合不变（三语资产全部复用）。
 
 ## D5 测试
 
 - e2e `prompt-thinking-level.spec.ts`：两条用例改走「点击收纳行 → 展开档位列表 → 选档」路径；新增断言收纳行常驻显示当前值、展开/收起可用。空态用例改断言「行显示 default → 展开 → 仅 default 单项 + 提示」。
-- 组件级无单测基建（app 组件无单测传统），交互覆盖走 e2e；`bun typecheck` 兜底。
+- 组件渲染无单测基建（app 单测仅覆盖纯逻辑，tsx 组件 import 链不进 happydom 单测），交互覆盖走 e2e；`bun typecheck` 兜底。
 - 验收：`bun typecheck`（app）、相关 e2e 用例、oxlint 无新增告警、`openspec validate --strict`。
