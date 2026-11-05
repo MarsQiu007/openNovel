@@ -32,7 +32,7 @@ Goals：七域指标滚动积累；三分部确定性报告；自动+手动触�
 - 范围参数：上次报告以来（默认）/ 本卷 / 最近 N 会话 / 全部。
 
 ### D4：自动触发与冷却
-- 信号通道：插件 V2 `Event.subscribe`（v2/effect/event.ts，按事件类型返回 Stream；SDK v2 types.gen.ts 已含 `session.next.compaction.started/ended`）。压缩信号取 **`Compaction.Ended`**（不是 Finished——schema/session-event.ts:463 只有 Started/Delta/Ended；Ended 携带 text/recent，是压缩真正完成的时刻，Started 时摘要还没生成）。token 计数订阅 Step.Ended（stepSettlement 携带 tokens，publish-llm-event.ts:400）。
+- 信号通道：插件 V2 `Event.subscribe`（v2/effect/event.ts，按事件类型返回 Stream；SDK v2 types.gen.ts 已含 `session.next.compaction.started/ended`）。**实现注记**：动工时发现插件 V2 只有接口设计（`v2/effect/PLAN.md §8`）而宿主尚未实现事件适配——已按 PLAN.md 在 core `plugin/host.ts` 补齐（schema Definitions 解析类型字符串 → `EventV2.Service.subscribe`，SDK 形状 `{id,type,properties}` 由宿主搬运字段），`PluginContext` 新增 `readonly event`（任务 1.2 一并交付）。压缩信号取 **`Compaction.Ended`**（不是 Finished——schema/session-event.ts:463 只有 Started/Delta/Ended；Ended 携带 text/recent，是压缩真正完成的时刻，Started 时摘要还没生成）。token 计数订阅 Step.Ended（stepSettlement 携带 tokens，publish-llm-event.ts:400）。
 - 信号：卷状态翻转（arc-progress/章节提交处）、`Compaction.Ended`、反复修改滚动窗（rollback+审批拒绝+大改 ≥5/窗）、每 +10 会话兜底（以会话 Created 事件计数）。
 - 冷却：同项目 24h 一次自动报告，冷却期内信号只入桶；同类信号合并。手动 `/evaluate` 绕过冷却。
 - 自动生成后台执行，不弹窗，仅在报告中可查。

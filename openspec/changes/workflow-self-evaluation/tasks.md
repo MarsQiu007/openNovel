@@ -2,8 +2,9 @@
 
 ## 1. 指标层
 
-- [ ] 1.1 `evaluate/metrics.ts`：`record(domain, key, delta)` 计数 API + `.novel/evaluate/metrics.jsonl` append-only 落盘（对齐 mode.jsonl 的 best-effort 纪律，失败只 warn）；桶读取聚合器。验证方式：单测覆盖写入/聚合/IO 失败降级
-- [ ] 1.2 会话事件惰性计数：经插件 V2 `Event.subscribe` 订阅 Step.Ended（stepSettlement.tokens）/工具事件/Compaction.Ended/取消，按 agent+模型入桶。验证方式：构造事件序列的单测
+- [x] 1.1 `evaluate/metrics.ts`：`record(domain, key, delta)` 计数 API + `.novel/evaluate/metrics.jsonl` append-only 落盘（对齐 mode.jsonl 的 best-effort 纪律，失败只 warn）；桶读取聚合器。验证方式：单测覆盖写入/聚合/IO 失败降级
+- [x] 1.2 会话事件惰性计数：经插件 V2 `Event.subscribe` 订阅 Step.Ended（stepSettlement.tokens）/工具事件/Compaction.Ended/取消，按 agent+模型入桶。验证方式：构造事件序列的单测
+  - 实现注记：插件 V2 当时没有 Event 域，按 `v2/effect/PLAN.md §8` 补齐宿主适配（core `plugin/host.ts`：`ctx.event.subscribe(type)` → schema Definitions 解析 → `EventV2.Service.subscribe`，SDK 形状 `{id,type,properties}`）；`context.ts` 新增 `readonly event: Event`（session.next.* 全集）。tool.success/tool.failed 的 SDK payload 不带工具名，经 tool.called 的 callID 映射归因
 - [ ] 1.3 C2-C7 判定点埋点（D2 清单逐模块）：recall 三路命中、budget 各级裁剪、drift-guards/scene-constraints/approval-gate、paragraph-diff、technique-inject、hook-rotation、arc-progress、structure、continuity-check。验证方式：每测点单测锁计数，且既有模块测试全绿证明判定逻辑零改动
 
 ## 2. 报告生成器
