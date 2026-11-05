@@ -32,7 +32,8 @@
 
 ## 5. 收尾
 
-- [ ] 5.1 `packages/plugin` 与受影响包 typecheck + 全量测试 + oxlint 基线对比
+- [x] 5.1 `packages/plugin` 与受影响包 typecheck + 全量测试 + oxlint 基线对比
+  - 实现注记：packages/plugin typecheck 0、全量 1087 过/99 文件；packages/novel-store typecheck 0、257 过/36 文件；packages/core typecheck 0。oxlint 仓库级同模式对比（main 5658 条基线 vs 分支，按 filename|code|message multiset）：本分支净新增 0。归因过程中修复 5 条本分支真实告警（events.ts created 未用参数、metrics.ts JSON.parse 断言改 isMetricsEntry 类型守卫、host.ts 与 evaluate-events 测试替身的泛型映射必要断言按仓库惯例补 oxlint-disable 注释——注意诊断锚定在表达式起点行，disable-next-line 须置于该行而非 as 所在行）。残余 2 条净差为 packages/llm 未触碰文件（route/client.ts、test/schema.test.ts）的联合类型显示序噪音：两侧 no-unsafe-type-assertion 各 29 条计数相等，仅消息文本成员序随程序形状漂移，非本分支引入
 - [ ] 5.2 真实项目走查：跑一次写作会话后手动 `/evaluate`，报告三分部有真实数据；自动触发在压缩后发生
 
 ## v1.1 波次（另立 change）
