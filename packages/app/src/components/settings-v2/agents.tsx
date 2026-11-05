@@ -13,6 +13,7 @@ import { mapAgent, type Agent } from "@/context/global-sync/utils"
 import { showToast } from "@/utils/toast"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
+import { ConfigHealthBannerV2 } from "./config-health-banner"
 import "./settings-v2.css"
 
 // “跟随主会话”哨兵选项的稳定 value key；同时用于乐观更新与无变化判断。
@@ -218,6 +219,7 @@ export const SettingsAgentsV2: Component = () => {
       </div>
 
       <div class="settings-v2-tab-body">
+        <ConfigHealthBannerV2 />
         <Show
           when={agentsQuery.data && agentsQuery.data.length > 0}
           fallback={

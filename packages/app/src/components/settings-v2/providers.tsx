@@ -11,6 +11,7 @@ import { useServerSync } from "@/context/server-sync"
 import { DialogConnectProvider, useProviderConnectController } from "../dialog-connect-provider"
 import { DialogCustomProvider } from "../dialog-custom-provider"
 import { SettingsListV2 } from "./parts/list"
+import { ConfigHealthBannerV2 } from "./config-health-banner"
 import "./settings-v2.css"
 
 type ProviderSource = "env" | "api" | "config" | "custom"
@@ -143,6 +144,7 @@ export const SettingsProvidersV2: Component<{ onBack?: () => void }> = (props) =
       </div>
 
       <div class="settings-v2-tab-body settings-v2-providers">
+        <ConfigHealthBannerV2 />
         <div class="settings-v2-section" data-component="connected-providers-section">
           <h3 class="settings-v2-section-title">{language.t("settings.providers.section.connected")}</h3>
           <SettingsListV2>

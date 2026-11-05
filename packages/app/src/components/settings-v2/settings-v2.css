@@ -682,3 +682,105 @@
   line-height: 1.4;
   color: var(--v2-text-text-muted);
 }
+
+/* 配置健康横幅：全局配置体检问题（插件装载失败、agent 覆盖失效、legacy 残留） */
+.settings-v2-health {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--v2-border-border-warning, var(--v2-border-border-base));
+  border-radius: 8px;
+  background: var(--v2-bg-bg-warning-muted, var(--v2-bg-bg-secondary));
+}
+
+.settings-v2-health-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-v2-health-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-v2-health-title {
+  font-size: 13px;
+  font-weight: 530;
+  line-height: 1.2;
+  color: var(--v2-text-text-base);
+}
+
+.settings-v2-health-summary {
+  font-size: 11px;
+  font-weight: 440;
+  line-height: 1.4;
+  color: var(--v2-text-text-muted);
+}
+
+.settings-v2-health-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-v2-health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-v2-health-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--v2-bg-bg-base);
+}
+
+.settings-v2-health-item-message {
+  font-size: 12px;
+  font-weight: 440;
+  line-height: 1.4;
+  color: var(--v2-text-text-base);
+}
+
+.settings-v2-health-item-loc {
+  font-size: 11px;
+  font-weight: 440;
+  line-height: 1.4;
+  color: var(--v2-text-text-muted);
+  word-break: break-all;
+}
+
+.settings-v2-health-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 480px;
+  max-width: 100%;
+}
+
+.settings-v2-health-dialog-warning {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 440;
+  line-height: 1.4;
+  color: var(--v2-text-text-muted);
+}
+
+.settings-v2-health-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
