@@ -3,6 +3,7 @@ import type { AgentHooks } from "./agent.js"
 import type { AISDKHooks } from "./aisdk.js"
 import type { CatalogHooks } from "./catalog.js"
 import type { CommandHooks } from "./command.js"
+import type { Event } from "./event.js"
 import type { IntegrationHooks } from "./integration.js"
 import type { Location } from "./location.js"
 import type { Path } from "./path.js"
@@ -20,6 +21,7 @@ export interface PluginContext {
   readonly aisdk: AISDKHooks
   readonly catalog: CatalogHooks & Reload
   readonly command: CommandHooks & Reload
+  readonly event: Event
   readonly integration: IntegrationHooks & Reload
   readonly location: Location
   readonly paths: Path

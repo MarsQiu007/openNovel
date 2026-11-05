@@ -8,12 +8,14 @@ import type {
   ToolEditor,
 } from "@opennovel-ai/plugin/v2/effect"
 import { ToolResult } from "@opennovel-ai/plugin/v2/effect"
-import { Effect, Exit, Option, Schema, Scope } from "effect"
+import { Definitions } from "@opennovel-ai/schema/session-event"
+import { Effect, Exit, Option, Schema, Scope, Stream } from "effect"
 import { AgentV2 } from "../agent"
 import { AISDK } from "../aisdk"
 import { Catalog } from "../catalog"
 import { CommandV2 } from "../command"
 import { Credential } from "../credential"
+import { EventV2 } from "../event"
 import { Global } from "../global"
 import { Integration } from "../integration"
 import { Location } from "../location"
@@ -50,6 +52,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const integration = yield* Integration.Service
   const location = yield* Location.Service
   const permission = yield* PermissionV2.Service
+  const events = yield* EventV2.Service
   const reference = yield* Reference.Service
   const sessions = yield* SessionStore.Service
   const skill = yield* SkillV2.Service
@@ -125,8 +128,24 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       }),
     )
 
+  // V2 插件面事件订阅的宿主侧适配（v2/effect PLAN.md §8）：公开类型字符串 → schema Definition，
+  // 委托 EventV2.Service.subscribe；SDK 公开形状以 properties 承载 data，此处做字段搬运。
+  const sessionEventByType: Map<string, EventV2.Definition> = new Map(
+    Definitions.map((definition) => [definition.type, definition]),
+  )
+  const event: Interface["event"] = {
+    subscribe: ((type: string) => {
+      const definition = sessionEventByType.get(type)
+      if (!definition) return Stream.fail(new Error(`PluginHost: unsupported event type "${type}"`))
+      return events.subscribe(definition).pipe(
+        Stream.map((payload) => ({ id: payload.id, type: payload.type, properties: payload.data })),
+      )
+    }) as Interface["event"]["subscribe"],
+  }
+
   return {
     options: {},
+    event,
     location: {
       directory: location.directory,
       project: { directory: location.project.directory },

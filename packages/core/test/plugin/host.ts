@@ -6,7 +6,7 @@ import { Integration } from "@opennovel-ai/core/integration"
 import { ModelV2 } from "@opennovel-ai/core/model"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import type { IntegrationEnvMethod, IntegrationKeyMethod, IntegrationOAuthMethod } from "@opennovel-ai/sdk/v2/types"
-import { Effect } from "effect"
+import { Effect, Stream } from "effect"
 
 type Overrides = Partial<Omit<PluginContext, "options">>
 
@@ -28,6 +28,9 @@ export function host(overrides: Overrides = {}): PluginContext {
     command: overrides.command ?? {
       transform: () => Effect.die("unused command.transform"),
       reload: () => Effect.die("unused command.reload"),
+    },
+    event: overrides.event ?? {
+      subscribe: () => Stream.die(new Error("unused event.subscribe")),
     },
     integration: overrides.integration ?? {
       transform: () => Effect.die("unused integration.transform"),
