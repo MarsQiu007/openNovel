@@ -11,8 +11,12 @@
 
 ## 2. 报告生成器
 
-- [ ] 2.1 三分部规则模板报告（A 创作复盘 / B 配置优化建议规则映射表 / C 七域产品信号表+失败分类法），范围参数（默认上次报告以来/本卷/最近 N 会话/全部），产物落 `.novel/evaluate/`。验证方式：fixture 指标桶 → 报告快照测试；空数据报告不编造建议
-- [ ] 2.2 手动 slash 命令 `/evaluate` 经插件 V2 command 域注册（D4.1：CommandHooks transform + 带 agent 的模板命令，模板指令驱动 agent 调 evaluate 插件工具；非 cli.ts）。验证方式：会话内 `/evaluate` 触发生成报告并回贴摘要
+- [x] 2.1 三分部规则模板报告（A 创作复盘 / B 配置优化建议规则映射表 / C 七域产品信号表+失败分类法），范围参数（默认上次报告以来/本卷/最近 N 会话/全部），产物落 `.novel/evaluate/`。验证方式：fixture 指标桶 → 报告快照测试；空数据报告不编造建议
+  - 实现注记：`evaluate/report.ts` `generateReport(projectDir, scope, now?)`，ReportScope 四范围：since-last（默认，窗口经 `last-report.json` 状态、报告写盘后推进）/volume（当前小说最新章所属卷的章序号集合+无章节全局条目）/sessions（按 sessionId 最后出现时间取最近 N）/all。B 部六条规则映射表：B1 P2 裁剪×P4 占用→拼接转移、B2 scene.compile 空段占比>30%→章纲模板、B3 回滚≥2、B4 拒绝率>30%、B5 mode.jsonl 写作模式切换≥3、B6 hook 警告>0；未命中输出单行"本轮无配置建议"。空数据三分部均"暂无数据"，不编造建议或计数。产物 `.novel/evaluate/<yyyy-mm-dd>-<scope>.md`。时序 flake 注记：Windows 时钟粒度粗（~15.6ms），测试内新条目一律以 lastRunTs+1 直写 JSONL，避免与状态时间戳同毫秒被 `e.ts > lastRunTs` 排除
+  - 测试：`evaluate-report.test.ts` 5 例（固定时钟全量快照命中 B1-B6+分类法、空数据不编造、since-last 状态窗、本卷过滤、最近 N 会话过滤）
+- [x] 2.2 手动 slash 命令 `/evaluate` 经插件 V2 command 域注册（D4.1：CommandHooks transform + 带 agent 的模板命令，模板指令驱动 agent 调 evaluate 插件工具；非 cli.ts）。验证方式：会话内 `/evaluate` 触发生成报告并回贴摘要
+  - 实现注记：`evaluate/command.ts` `registerEvaluateCommand` 经 `ctx.command.transform` upsert 模板命令（template 含 `$ARGUMENTS`，范围参数原文交 agent 解析；agent=director，其 `"*": "allow"` 权限已覆盖 evaluate 工具）；注册挂在 novel-writer-v2 的 `.novel/` 条件分支内（非小说目录零污染，同上下文源）。执行落点 `tools/evaluate.ts` `evaluate` 工具（barrel 入账，88→89）：scope 全分支解析（默认 since-last，sessions 缺省 count=5），调 `generateReport` 后回贴全文+落盘路径，metadata 带 path/scope/entry_count/generated_at。端到端"会话内触发生成并回贴"归 5.2 真实项目走查
+  - 测试：`evaluate-command.test.ts` 4 例（注册 upsert/$ARGUMENTS/四范围/agent=director + 工具 all 执行与落盘读回、默认 since-last 不编造、sessions count 入 slug）
 
 ## 3. 自动触发
 
