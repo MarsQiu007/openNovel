@@ -32,6 +32,7 @@ import { MoveSession } from "@opennovel-ai/core/control-plane/move-session"
 import { Credential } from "@opennovel-ai/core/credential"
 import { Database } from "@opennovel-ai/core/database/database"
 import { Global } from "@opennovel-ai/core/global"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
 import { AppNodeBuilderV1 } from "@/effect/app-node-builder-v1"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { httpClient, llmClient } from "@opennovel-ai/core/effect/app-node-platform"
@@ -196,6 +197,7 @@ const app = LayerNode.group([
   Auth.node,
   Account.node,
   Config.node,
+  ConfigHealth.node,
   Env.node,
   Git.node,
   Ripgrep.node,

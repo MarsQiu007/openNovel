@@ -1,8 +1,14 @@
-import { Config } from "@/config/config"
+import path from "path"
+import { Config, globalConfigFile } from "@/config/config"
 import { Auth } from "@/auth"
 import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { EventV2 } from "@opennovel-ai/core/event"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
+import { FSUtil } from "@opennovel-ai/core/fs-util"
+import { Global } from "@opennovel-ai/core/global"
+import { ModelsDev } from "@opennovel-ai/core/models-dev"
+import { Provider } from "@/provider/provider"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import { InstallationVersion } from "@opennovel-ai/core/installation/version"
@@ -13,6 +19,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import * as Sse from "effect/unstable/encoding/Sse"
 import { RootHttpApi } from "../api"
 import { GlobalUpgradeInput } from "../groups/global"
+import { InvalidRequestError } from "../errors"
 
 function eventData(data: unknown): Sse.Event {
   return {
@@ -72,6 +79,35 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const auth = yield* Auth.Service
     const installation = yield* Installation.Service
     const bridge = yield* EffectBridge.make()
+    const healthSvc = yield* ConfigHealth.Service
+    const fs = yield* FSUtil.Service
+    const modelsDev = yield* ModelsDev.Service
+    const providerSvc = yield* Provider.Service
+
+    // 体检只读：装载结果只来自 ConfigHealth 注册表（插件装载路径是唯一事实源），此处不做任何 import 复判
+    const evaluateConfigHealth = Effect.fn("GlobalHttpApi.evaluateConfigHealth")(function* () {
+      const info = yield* config.getGlobal()
+      const [records, models, connected, agentLegacy, modeLegacy] = yield* Effect.all([
+        healthSvc.records(),
+        modelsDev.get(),
+        providerSvc.list(),
+        fs
+          .glob("{agent,agents}/**/*.md", { cwd: Global.Path.config, absolute: true, dot: true, symlink: true })
+          .pipe(Effect.orElseSucceed(() => [] as string[])),
+        fs
+          .glob("{mode,modes}/*.md", { cwd: Global.Path.config, absolute: true, dot: true, symlink: true })
+          .pipe(Effect.orElseSucceed(() => [] as string[])),
+      ])
+      const knownProviders = new Set([
+        ...Object.keys(models),
+        ...Object.keys(connected),
+        ...Object.keys(info.provider ?? {}),
+      ])
+      const legacyFiles = [...agentLegacy, ...modeLegacy].map((file) =>
+        path.relative(Global.Path.config, file).split(path.sep).join("/"),
+      )
+      return ConfigHealth.evaluate({ info, file: globalConfigFile(), records, knownProviders, legacyFiles })
+    })
 
     const health = Effect.fn("GlobalHttpApi.health")(function* () {
       return { healthy: true as const, version: InstallationVersion }
@@ -89,6 +125,29 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       const result = yield* config.updateGlobal(ctx.payload)
       if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
       return result.info
+    })
+
+    const configHealth = Effect.fn("GlobalHttpApi.configHealth")(function* () {
+      const findings = yield* evaluateConfigHealth()
+      return findings.map((finding) => finding.issue)
+    })
+
+    const configHealthFix = Effect.fn("GlobalHttpApi.configHealthFix")(function* (ctx) {
+      const findings = yield* evaluateConfigHealth()
+      const targets = findings.filter(
+        (finding) => finding.apply !== undefined && ctx.payload.ids.includes(finding.issue.id),
+      )
+      if (targets.length !== ctx.payload.ids.length) {
+        return yield* Effect.fail(
+          new InvalidRequestError({ message: "部分问题不存在或没有可用修复建议，请刷新配置健康状态后重试" }),
+        )
+      }
+      const draft = structuredClone(yield* config.getGlobal())
+      for (const finding of targets) finding.apply?.(draft)
+      const result = yield* config.updateGlobal(draft)
+      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      const remaining = yield* evaluateConfigHealth()
+      return remaining.map((finding) => finding.issue)
     })
 
     const providerSet = Effect.fn("GlobalHttpApi.providerSet")(function* (ctx) {
@@ -166,6 +225,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       .handleRaw("event", event)
       .handle("configGet", configGet)
       .handle("configUpdate", configUpdate)
+      .handle("configHealth", configHealth)
+      .handle("configHealthFix", configHealthFix)
       .handle("providerSet", providerSet)
       .handle("providerRemove", providerRemove)
       .handle("dispose", dispose)

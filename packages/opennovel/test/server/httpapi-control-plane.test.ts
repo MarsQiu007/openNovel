@@ -4,11 +4,16 @@ import { Context, Effect, Layer, Option, Ref } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpRouter } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { MoveSession } from "@opennovel-ai/core/control-plane/move-session"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
+import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
+import { FSUtil } from "@opennovel-ai/core/fs-util"
+import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { Auth } from "../../src/auth"
 import { Config } from "../../src/config/config"
 import { Installation } from "../../src/installation"
+import { Provider } from "../../src/provider/provider"
 import { ServerAuth } from "../../src/server/auth"
 import { RootHttpApi } from "../../src/server/routes/instance/httpapi/api"
 import { controlHandlers } from "../../src/server/routes/instance/httpapi/handlers/control"
@@ -38,6 +43,10 @@ const apiLayer = HttpRouter.serve(
   Layer.provideMerge(NodeHttpServer.layerTest),
   Layer.provide(Layer.mock(Auth.Service)({})),
   Layer.provide(Layer.mock(Config.Service)({})),
+  Layer.provide(Layer.mock(ConfigHealth.Service)({ records: () => Effect.succeed([]) })),
+  Layer.provide(LayerNode.compile(FSUtil.node)),
+  Layer.provide(Layer.mock(ModelsDev.Service)({ get: () => Effect.succeed({}) })),
+  Layer.provide(Layer.mock(Provider.Service)({ list: () => Effect.succeed({}) })),
   Layer.provide(Layer.mock(Installation.Service)({})),
   Layer.provide(
     Layer.mock(MoveSession.Service)({

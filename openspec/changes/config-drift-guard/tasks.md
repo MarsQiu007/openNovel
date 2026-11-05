@@ -8,9 +8,9 @@
 
 ## 2. HttpApi：健康检查端点
 
-- [ ] 2.1 在 `packages/opennovel/src/server/routes/instance/httpapi/groups/global.ts` 的 `GlobalPaths` 与 `GlobalApi` 新增 `GET /global/config/health`（成功返回 issue 清单数组）与 `POST /global/config/health/fix`（payload 为 issue id 数组，成功返回修复后清单），端点挂 `global` 分组并补 OpenApi 注解，验证 `packages/opennovel` 下 `bun typecheck` 通过
-- [ ] 2.2 在 `packages/opennovel/src/server/routes/instance/httpapi/handlers/global.ts` 实现两端点 handler：读端点聚合 `ConfigHealth` 注册表与 evaluate（从 `Config.Service` 经 globalDirectory 判定定位全局文档、从 ProviderV2 目录取已知 provider id 快照、glob legacy 目录）返回清单；修复端点按 id 查回 Issue 执行其 `apply` 并经 `config.updateGlobal` 写盘（复用既有写通道与 dispose 语义），写盘后重跑体检刷新注册表，验证 `packages/opennovel` 下 `bun typecheck` 通过
-- [ ] 2.3 为新端点注册 httpapi-exercise 场景（`packages/opennovel/test/server/httpapi-exercise/`，含健康读取与确认修复两条路径），验证本地 coverage 模式秒级预检通过（`--fail-on-missing` 门不红）
+- [x] 2.1 在 `packages/opennovel/src/server/routes/instance/httpapi/groups/global.ts` 的 `GlobalPaths` 与 `GlobalApi` 新增 `GET /global/config/health`（成功返回 issue 清单数组）与 `POST /global/config/health/fix`（payload 为 issue id 数组，成功返回修复后清单），端点挂 `global` 分组并补 OpenApi 注解，验证 `packages/opennovel` 下 `bun typecheck` 通过
+- [x] 2.2 在 `packages/opennovel/src/server/routes/instance/httpapi/handlers/global.ts` 实现两端点 handler：读端点聚合 `ConfigHealth` 注册表与 evaluate（从 `Config.Service` 经 globalDirectory 判定定位全局文档、从 ProviderV2 目录取已知 provider id 快照、glob legacy 目录）返回清单；修复端点按 id 查回 Issue 执行其 `apply` 并经 `config.updateGlobal` 写盘（复用既有写通道与 dispose 语义），写盘后重跑体检刷新注册表，验证 `packages/opennovel` 下 `bun typecheck` 通过
+- [x] 2.3 为新端点注册 httpapi-exercise 场景（`packages/opennovel/test/server/httpapi-exercise/`，含健康读取与确认修复两条路径），验证本地 coverage 模式秒级预检通过（`--fail-on-missing` 门不红）
 
 ## 3. SDK 再生成
 

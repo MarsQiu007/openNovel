@@ -137,6 +137,41 @@ const scenarios: Scenario[] = [
       "status",
     ),
   http.protected
+    .get("/global/config/health", "global.config.health")
+    .global()
+    .seeded(() =>
+      Effect.promise(async () => {
+        await Bun.write(
+          path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+          JSON.stringify({ agent: { ghost: { model: "ghostprovider/ghost-1" } } }),
+        )
+        await Bun.write(path.join(exerciseConfigDirectory, "agent", "plan.md"), "# legacy plan agent\n")
+      }),
+    )
+    .at(() => ({ path: "/global/config/health" }))
+    .json(200, (body) => {
+      array(body)
+      const ids = body.map((issue: { id: string }) => issue.id)
+      check(ids.includes("agent-model:ghost"), "stale agent model override should be reported")
+      check(ids.includes("legacy:agent/plan.md"), "legacy agent markdown leftover should be reported")
+    }),
+  http.protected
+    .post("/global/config/health/fix", "global.config.health.fix")
+    .global()
+    .seeded(() =>
+      Effect.promise(() =>
+        Bun.write(
+          path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+          JSON.stringify({ agent: { ghost: { model: "ghostprovider/ghost-1" } } }),
+        ),
+      ),
+    )
+    .at(() => ({ path: "/global/config/health/fix", body: { ids: ["agent-model:ghost"] } }))
+    .json(400, (body) => {
+      object(body)
+      check(typeof body.message === "string", "fix request without an available fix should be rejected")
+    }),
+  http.protected
     .post("/global/dispose", "global.dispose")
     .global()
     .mutating()

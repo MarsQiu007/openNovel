@@ -1,9 +1,11 @@
 import { ConfigV1 } from "@opennovel-ai/core/config/v1/config"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
 import { ConfigProviderV1 } from "@opennovel-ai/core/config/v1/provider"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { EventManifest } from "@/event-manifest"
 import { InstanceDisposed } from "@/server/event"
+import { InvalidRequestError } from "../errors"
 import "@opennovel-ai/core/account"
 import "@/server/event"
 import { Schema } from "effect"
@@ -53,6 +55,10 @@ export const GlobalUpgradeInput = Schema.Struct({
   target: Schema.optional(Schema.String),
 })
 
+const ConfigHealthFixInput = Schema.Struct({
+  ids: Schema.Array(Schema.String),
+})
+
 const GlobalUpgradeResult = Schema.Union([
   Schema.Struct({
     success: Schema.Literal(true),
@@ -68,6 +74,8 @@ export const GlobalPaths = {
   health: "/global/health",
   event: "/global/event",
   config: "/global/config",
+  configHealth: "/global/config/health",
+  configHealthFix: "/global/config/health/fix",
   provider: "/global/config/provider/:providerID",
   dispose: "/global/dispose",
   upgrade: "/global/upgrade",
@@ -116,6 +124,28 @@ export const GlobalApi = HttpApi.make("global").add(
           identifier: "global.config.update",
           summary: "Update global configuration",
           description: "Update global OpenNovel configuration settings and preferences.",
+        }),
+      ),
+      HttpApiEndpoint.get("configHealth", GlobalPaths.configHealth, {
+        success: described(Schema.Array(ConfigHealth.Issue), "Config health issues"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.health",
+          summary: "Get config health",
+          description:
+            "Read-only health check of the global configuration: external plugin load failures, stale agent model overrides, and legacy agent definition leftovers.",
+        }),
+      ),
+      HttpApiEndpoint.post("configHealthFix", GlobalPaths.configHealthFix, {
+        payload: ConfigHealthFixInput,
+        success: described(Schema.Array(ConfigHealth.Issue), "Remaining config health issues after fix"),
+        error: InvalidRequestError,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.health.fix",
+          summary: "Fix config health issues",
+          description:
+            "Apply user-confirmed fixes for the given config health issue ids, then return the remaining issues.",
         }),
       ),
       HttpApiEndpoint.put("providerSet", GlobalPaths.provider, {

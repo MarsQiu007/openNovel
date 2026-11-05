@@ -145,7 +145,7 @@ export class Service extends Context.Service<Service, Interface>()("@opennovel/C
 
 export const use = serviceUse(Service)
 
-function globalConfigFile() {
+export function globalConfigFile() {
   const candidates = ["opennovel.jsonc", "opennovel.json", "config.json"].map((file) =>
     path.join(Global.Path.config, file),
   )
