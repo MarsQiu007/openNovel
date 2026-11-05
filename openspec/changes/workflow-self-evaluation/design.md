@@ -17,13 +17,13 @@ Goals：七域指标滚动积累；三分部确定性报告；自动+手动触�
 
 ### D2：埋点全部寄生既有判定点，零判定改动
 七域测点（域 → 模块 → 信号）：
-- C1 运行时：会话事件流（工具失败/误触发/延迟/取消）。
-- C2 提示词控制：scene-constraints 清单违规、drift-guards 拦截、approval-gate 拒绝、paragraph-diff 改写幅度、annotation 问题密度。
+- C1 运行时：会话事件流（工具失败/误触发/延迟/取消），经插件 V2 `Event.subscribe` 订阅（见 D4）。
+- C2 提示词控制：scene-constraints 场景清单编译率与注入率（compileSceneChecklist 返回 null 的大纲占比，宿主 tools/outline.ts:217 与 recall.ts:30）、drift-guards 拦截、approval-gate 拒绝、paragraph-diff 改写幅度、annotation 问题密度。
 - C3 召回：recall.ts 三路合并处记各路命中；正文引用转化经 entity_refs 反查；零召回章节、伏笔召回时效。
-- C4 拼接：budget.applyBudget 各级占用与裁剪；context-source 快照大小与增量/全量渲染分支。
+- C4 拼接：budget.applyBudget 各级占用与裁剪（宿主链 recall.ts:659，写作步骤每次打包都过）；context-source 快照大小与增量/全量渲染分支。
 - C5 流程：agent 耗时/token（事件流）、rollback 与模式切换热点（version 工具 + mode.jsonl）。
-- C6 技法：technique-inject 注入数与 P7 截断；technique-learn/extract 回流计数。
-- C7 叙事质量：hook-rotation 同型警告、arc-progress 节奏偏移、structure 风险分布、continuity-check 37 维失败分布。
+- C6 技法：technique-inject.applyP7Budget 注入数与 P7 截断（宿主链 technique-learn.ts:129）；technique-learn/extract 回流计数。
+- C7 叙事质量：hook-rotation 同型警告（警告在 getHookStats 返回 `warning` 字段产出，埋点在 tools/hooks.ts 调用 trackHook 后取 stats 处，trackHook 本体只落库不判定）、arc-progress 节奏偏移、structure 风险分布、continuity-check 37 维失败分布。
 埋点以独立 `evaluate/metrics.ts` 暴露 `record(domain, key, delta)`，各判定点单行调用。
 
 ### D3：报告为纯规则模板
@@ -32,12 +32,18 @@ Goals：七域指标滚动积累；三分部确定性报告；自动+手动触�
 - 范围参数：上次报告以来（默认）/ 本卷 / 最近 N 会话 / 全部。
 
 ### D4：自动触发与冷却
-- 信号：卷状态翻转（arc-progress/章节提交处）、`SessionEvent.Compaction.Finished`、反复修改滚动窗（rollback+审批拒绝+大改 ≥5/窗）、每 +10 会话兜底。
-- 冷却：同项目 24h 一次自动报告，冷却期内信号只入桶；同类信号合并。手动 `/evaluate`（插件 cli.ts slash 先例）绕过冷却。
+- 信号通道：插件 V2 `Event.subscribe`（v2/effect/event.ts，按事件类型返回 Stream；SDK v2 types.gen.ts 已含 `session.next.compaction.started/ended`）。压缩信号取 **`Compaction.Ended`**（不是 Finished——schema/session-event.ts:463 只有 Started/Delta/Ended；Ended 携带 text/recent，是压缩真正完成的时刻，Started 时摘要还没生成）。token 计数订阅 Step.Ended（stepSettlement 携带 tokens，publish-llm-event.ts:400）。
+- 信号：卷状态翻转（arc-progress/章节提交处）、`Compaction.Ended`、反复修改滚动窗（rollback+审批拒绝+大改 ≥5/窗）、每 +10 会话兜底（以会话 Created 事件计数）。
+- 冷却：同项目 24h 一次自动报告，冷却期内信号只入桶；同类信号合并。手动 `/evaluate` 绕过冷却。
 - 自动生成后台执行，不弹窗，仅在报告中可查。
 
+### D4.1：手动触发的命令形态——插件 V2 command 域，非 CLI
+- 手动入口是**会话内 slash 命令 `/evaluate`**，经插件 V2 command 域注册（v2/effect/command.ts 的 CommandHooks transform；CommandV2Info = {name, template, description, agent?...}）。先例在此，不在 novel-writer/cli.ts（那是 initNovelProject/createBook/relevelTechniques 等主机 CLI 业务函数，不含任何 slash 命令注册）。
+- `/evaluate` 注册为带 agent 的模板命令：模板指令让 agent 调用 evaluate 插件工具生成报告并把摘要贴回会话（报告正文始终落盘，会话里只放摘要与路径）。范围参数（默认上次报告以来/本卷/最近 N 会话/全部）经命令参数传入模板。
+- 与 V1 hooks 事件通道的取舍：V1 `Hooks.event`（plugin/src/index.ts:249）也能收事件，但新功能一律走 V2 插件面（本仓库 V2-only 纪律），不新增 V1 依赖。
+
 ### D5：诊断包分级与隐私红线
-- `opennovel evaluate export --level L0|L1|L2`（默认 L1）：L0 纯计数；L1 +错误分类样本（每条截断、去正文）；L2 +复现事件序列，导出结果明示可能含题材信息。
+- 导出也是 evaluate 插件工具的子命令（`evaluate export --level L0|L1|L2`，默认 L1）：经 `/evaluate export` slash 模板或 agent 工具直调；不新增主机 CLI 命令面（保持插件自承载，主机零改动）。L0 纯计数；L1 +错误分类样本（每条截断、去正文）；L2 +复现事件序列，导出结果明示可能含题材信息。
 - 红线：任何级别不含小说正文；genre 值不进 L0/L1；零自动外发（无网络代码路径）。
 - 拒绝匿名遥测（C2 管道）：隐私面与本仓库云同步事故史不允许；可行动性靠报告质量而非信号量。
 
