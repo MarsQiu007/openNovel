@@ -17,6 +17,11 @@ export const dict = {
   },
   "updater.ready.restart": { zh: "立即重启", en: "Restart", zht: "立即重新啟動" },
   "updater.ready.later": { zh: "稍后", en: "Later", zht: "稍後" },
+  "updater.quitReady.message": {
+    zh: "更新 {version} 已下载。立即重启安装，或退出后留待下次启动。",
+    en: "Update {version} downloaded. Restart now to install, or quit and install on next launch.",
+    zht: "更新 {version} 已下載。立即重新啟動安裝，或結束後留待下次啟動。",
+  },
   "recovery.failed.title": { zh: "OpenNovel 加载失败", en: "OpenNovel failed to load", zht: "OpenNovel 載入失敗" },
   "recovery.crashed.title": {
     zh: "OpenNovel 窗口异常终止",

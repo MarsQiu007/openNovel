@@ -4,6 +4,14 @@ export type { UpdaterState } from "@opennovel-ai/app/updater"
 
 export type UpdaterReadyRecord = { version: string }
 
+// 退出拦截判定：仅「更新就绪且退出不是 updater 发起」时提示用户确认，其余一律放行。
+export function shouldPromptInstallOnQuit(
+  state: UpdaterState,
+  installQuit: boolean,
+): state is { status: "ready"; version: string } {
+  return !installQuit && state.status === "ready"
+}
+
 export type UpdaterBackend = {
   checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo?: { version?: string } } | null | undefined>
   downloadUpdate(): Promise<unknown>
@@ -74,6 +82,12 @@ export function createUpdaterController(input: {
       const ready = await input.persistence.get()
       if (ready?.version === input.currentVersion) await input.persistence.clear()
       return check()
+    },
+    // 「本次启动恢复了未决更新」：持久化记录存在且版本与当前不一致
+    //（用户上次选「稍后」，或上次安装被打断）。一次性信号，交给 renderer 决定提示时机。
+    async resumedPendingUpdate() {
+      const ready = await input.persistence.get()
+      return ready !== undefined && ready.version !== input.currentVersion
     },
     check,
     async install() {

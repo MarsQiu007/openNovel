@@ -32,7 +32,7 @@ import {
   spawnLocalServer,
   type SidecarListener,
 } from "./server"
-import { setupAutoUpdater, showUpdaterDialog } from "./updater"
+import { setupAutoUpdater, showUpdaterDialog, interceptInstallOnQuit } from "./updater"
 import { safeWebContentsURL } from "./window-state"
 import {
   getLastFocusedWindow,
@@ -226,11 +226,6 @@ const main = Effect.gen(function* () {
     emitDeepLinks([url])
   })
 
-  app.on("before-quit", () => {
-    setAppQuitting()
-    void stopSidecars()
-  })
-
   app.on("will-quit", () => {
     setAppQuitting()
     void stopSidecars()
@@ -277,6 +272,18 @@ const main = Effect.gen(function* () {
   registerRendererProtocol()
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
+  // 更新就绪时的退出确认拦截：Windows 关机/注销不触发 before-quit，天然不会弹框或阻塞系统。
+  app.on("before-quit", (event) => {
+    if (
+      interceptInstallOnQuit(event, updater, () => {
+        setAppQuitting()
+        void stopSidecars().finally(() => app.exit(0))
+      })
+    )
+      return
+    setAppQuitting()
+    void stopSidecars()
+  })
   registerIpcHandlers({
     killSidecar: () => killSidecar(),
     relaunch,

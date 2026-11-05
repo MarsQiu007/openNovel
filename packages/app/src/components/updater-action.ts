@@ -22,6 +22,12 @@ export function updaterAction(state: UpdaterState | undefined) {
   }
 }
 
+// 未决更新提示的触发条件：仅当「本次启动恢复了未决更新」且状态回到 ready 时返回版本号。
+// 定时检查下载完成（非启动恢复）走 titlebar 圆点，不弹全局提示，避免打扰。
+export function resumedUpdateReady(resumedPending: boolean, state: UpdaterState | undefined) {
+  return resumedPending && state?.status === "ready" ? state.version : undefined
+}
+
 export function useUpdaterAction() {
   const platform = usePlatform()
   const language = useLanguage()

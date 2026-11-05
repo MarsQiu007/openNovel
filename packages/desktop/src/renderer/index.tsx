@@ -220,6 +220,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
       state: updaterState,
       check: () => window.api.updater.check(),
       install: () => window.api.updater.install(),
+      resumedPendingUpdate: () => window.api.updater.resumedPendingUpdate(),
     },
 
     exportDebugLogs: () => window.api.exportDebugLogs(),

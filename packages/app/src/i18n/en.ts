@@ -612,6 +612,8 @@ export const dict = {
   "toast.update.description": "A new version of OpenNovel ({{version}}) is now available to install.",
   "toast.update.action.installRestart": "Install and restart",
   "toast.update.action.notYet": "Not yet",
+  "toast.updateResumed.title": "Update ready",
+  "toast.updateResumed.description": "The update you deferred (v{{version}}) is ready. Restart to finish installing.",
 
   "error.page.title": "Something went wrong",
   "error.page.description": "An error occurred while loading the application.",

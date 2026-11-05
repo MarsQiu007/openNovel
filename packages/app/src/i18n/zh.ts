@@ -597,6 +597,8 @@ export const dict = {
   "toast.update.description": "OpenNovel 有新版本 ({{version}}) 可安装。",
   "toast.update.action.installRestart": "安装并重启",
   "toast.update.action.notYet": "稍后",
+  "toast.updateResumed.title": "更新已就绪",
+  "toast.updateResumed.description": "上次退出时推迟的更新（v{{version}}）已就绪，重启完成安装。",
 
   "error.page.title": "出了点问题",
   "error.page.description": "加载应用程序时发生错误。",

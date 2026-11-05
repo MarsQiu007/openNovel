@@ -5,6 +5,7 @@ import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { DialogUpdaterConfirm } from "@/components/dialog-updater-confirm"
+import { UpdaterResumedToast } from "@/components/updater-resumed-toast"
 import { usePlatform } from "@/context/platform"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { setNavigate } from "@/utils/notification-click"
@@ -54,6 +55,7 @@ export default function NewLayout(props: ParentProps) {
       </main>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />
+      <UpdaterResumedToast />
       <ToastRegion v2 />
     </div>
   )

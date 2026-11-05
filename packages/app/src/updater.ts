@@ -14,4 +14,6 @@ export type UpdaterPlatform = {
   state: Accessor<UpdaterState>
   check(): Promise<UpdaterState>
   install(): Promise<void>
+  // 一次性信号：本次启动恢复了未决更新（上次选「稍后」或安装被打断）。
+  resumedPendingUpdate?(): Promise<boolean>
 }

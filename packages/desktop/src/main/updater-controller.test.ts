@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { createUpdaterController, type UpdaterBackend, type UpdaterReadyRecord } from "./updater-controller"
+import {
+  createUpdaterController,
+  shouldPromptInstallOnQuit,
+  type UpdaterBackend,
+  type UpdaterReadyRecord,
+} from "./updater-controller"
 
 function setup(input?: { currentVersion?: string; ready?: UpdaterReadyRecord }) {
   const calls: string[] = []
@@ -107,5 +112,44 @@ describe("updater controller", () => {
 
     await expect(failed.install()).rejects.toThrow("stop failed")
     expect(failed.getState()).toEqual({ status: "ready", version: "2.0.0" })
+  })
+})
+
+describe("shouldPromptInstallOnQuit", () => {
+  const ready = { status: "ready", version: "2.0.0" } as const
+
+  test("更新就绪且为用户退出时拦截", () => {
+    expect(shouldPromptInstallOnQuit(ready, false)).toBe(true)
+  })
+
+  test("updater 发起的退出不拦截", () => {
+    expect(shouldPromptInstallOnQuit(ready, true)).toBe(false)
+  })
+
+  test("非就绪状态不拦截", () => {
+    expect(shouldPromptInstallOnQuit({ status: "idle" }, false)).toBe(false)
+    expect(shouldPromptInstallOnQuit({ status: "downloading", version: "2.0.0" }, false)).toBe(false)
+    expect(shouldPromptInstallOnQuit({ status: "up-to-date" }, false)).toBe(false)
+  })
+
+  test("更新禁用时不拦截", () => {
+    expect(shouldPromptInstallOnQuit({ status: "disabled" }, false)).toBe(false)
+  })
+})
+
+describe("resumedPendingUpdate", () => {
+  test("存在版本不匹配的未决记录时视为启动恢复", async () => {
+    const app = setup({ ready: { version: "2.0.0" } })
+    expect(await app.controller.resumedPendingUpdate()).toBe(true)
+  })
+
+  test("无持久化记录时不视为启动恢复", async () => {
+    const app = setup()
+    expect(await app.controller.resumedPendingUpdate()).toBe(false)
+  })
+
+  test("记录版本与当前版本一致（安装已完成）时不视为启动恢复", async () => {
+    const app = setup({ currentVersion: "2.0.0", ready: { version: "2.0.0" } })
+    expect(await app.controller.resumedPendingUpdate()).toBe(false)
   })
 })

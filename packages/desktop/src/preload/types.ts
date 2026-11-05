@@ -25,6 +25,7 @@ export type UpdaterAPI = {
   subscribe: (cb: (state: UpdaterState) => void) => Promise<() => void>
   check: () => Promise<UpdaterState>
   install: () => Promise<void>
+  resumedPendingUpdate: () => Promise<boolean>
 }
 
 export type LinuxDisplayBackend = "wayland" | "auto"
