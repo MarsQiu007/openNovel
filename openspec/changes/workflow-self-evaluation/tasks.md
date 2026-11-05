@@ -26,7 +26,9 @@
 
 ## 4. 诊断包导出
 
-- [ ] 4.1 evaluate 插件工具 `export` 子命令 L0/L1/L2 分级（默认 L1，经 `/evaluate export` 或工具直调，D5）：正文与 genre 值的脱敏断言、L2 导出提示。验证方式：含敏感 fixture 的导出快照测试断言无正文无题材值；无任何网络调用（静态检查）
+- [x] 4.1 evaluate 插件工具 `export` 子命令 L0/L1/L2 分级（默认 L1，经 `/evaluate export` 或工具直调，D5）：正文与 genre 值的脱敏断言、L2 导出提示。验证方式：含敏感 fixture 的导出快照测试断言无正文无题材值；无任何网络调用（静态检查）
+  - 实现注记：`evaluate/export.ts` `exportDiagnostics(projectDir, level, now?)`：L0 纯七域计数（aggregateMetrics 全量）/L1 +错误分类样本（FAILURE_TAXONOMY 分类，复用 report.ts 导出的映射表，全窗 50 条截断+truncated 标记）/L2 +复现事件序列（按 ts 排序，500 条截断）。脱敏管道 `redactEntry`：条目只留白名单字段（ts/domain/key/delta/sessionId/agent/model/chapter），名单外字段（手工编辑 JSONL 可能夹带的 text/genre/scene/note 等）整条丢弃，字符串超 80 字符截断——正文与题材值在任何级别都不落盘。产物 `.novel/evaluate/diagnostics-<日期>-<级别>.json`。工具层 `tools/evaluate.ts` 加 `action`/`level` 形参（export 缺省 L1），L2 的"可能含题材信息"提示经工具输出层明示（spec 场景要求，bundle 本体仍无题材值）。`/evaluate` 模板命令补 export 子命令说明（参数以 export 开头时 action="export"，L2 必须向用户提示分享前自查）；不新增主机 CLI 命令面（D5）
+  - 测试：`evaluate-export.test.ts` 7 例（L0 无样本无序列、L1 样本分类+白名单外字段丢弃+正文题材值不落盘、L2 时序序列+同管道脱敏+红线仍无正文、50+样本截断标记、工具缺省 L1 输出、L2 题材提示、evaluate 链路+工具源码零网络 API 静态检查）
 
 ## 5. 收尾
 
