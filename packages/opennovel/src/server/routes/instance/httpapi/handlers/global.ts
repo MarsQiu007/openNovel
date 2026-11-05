@@ -86,7 +86,9 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     // 已知提供商目录取全局可达快照：models.dev 内置目录 + 全局配置里的自定义提供商 + 已存凭据的提供商
     //（Provider.Service.list 是实例级服务，全局路由无 InstanceRef，不能在这里调用）。
     const evaluateConfigHealth = Effect.fn("GlobalHttpApi.evaluateConfigHealth")(function* () {
-      const info = yield* config.getGlobal()
+      // 体检数据源必须反映配置文件当前内容：漂移检测的对象包含服务外直写（用户手改、
+      // 跨机覆盖），经 getGlobal 缓存读取会对此类漂移误报健康
+      const info = yield* config.getGlobalFresh()
       const [records, models, auths, agentLegacy, modeLegacy] = yield* Effect.all([
         healthSvc.records(),
         modelsDev.get(),
@@ -142,7 +144,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
           new InvalidRequestError({ message: "部分问题不存在或没有可用修复建议，请刷新配置健康状态后重试" }),
         )
       }
-      const draft = structuredClone(yield* config.getGlobal())
+      // draft 与评估同源（直读文件）：基于缓存快照打 patch 会把文件中已删除的键复活
+      const draft = structuredClone(yield* config.getGlobalFresh())
       for (const finding of targets) finding.apply?.(draft)
       const result = yield* config.updateGlobal(draft)
       if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))

@@ -128,6 +128,9 @@ type State = {
 export interface Interface {
   readonly get: () => Effect.Effect<Info>
   readonly getGlobal: () => Effect.Effect<Info>
+  // 直读全局配置文件当前内容（绕过进程内缓存）：体检等「文件现状即真相」的只读场景使用，
+  // 不做失效、不写缓存；失败容错语义与缓存路径一致（记日志后回退空配置）
+  readonly getGlobalFresh: () => Effect.Effect<Info>
   readonly getConsoleState: () => Effect.Effect<ConsoleState>
   readonly update: (config: Info) => Effect.Effect<void>
   readonly updateGlobal: (config: Info) => Effect.Effect<{ info: Info; changed: boolean }>
@@ -301,6 +304,15 @@ const layer = Layer.effect(
 
     const getGlobal = Effect.fn("Config.getGlobal")(function* () {
       return yield* cachedGlobal
+    })
+
+    const getGlobalFresh = Effect.fn("Config.getGlobalFresh")(function* () {
+      return yield* loadGlobal().pipe(
+        Effect.tapError((error) =>
+          Effect.logError("failed to load global config, using defaults", { error: String(error) }),
+        ),
+        Effect.orElseSucceed((): Info => ({})),
+      )
     })
 
     const ensureGitignore = Effect.fn("Config.ensureGitignore")(function* (dir: string) {
@@ -738,6 +750,7 @@ const layer = Layer.effect(
       getConsoleState,
       update,
       updateGlobal,
+      getGlobalFresh,
       updateGlobalProvider,
       removeGlobalProvider,
       invalidate,
