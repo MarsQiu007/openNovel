@@ -3,6 +3,7 @@ import { AISDK } from "@opennovel-ai/core/aisdk"
 import { Catalog } from "@opennovel-ai/core/catalog"
 import { CommandV2 } from "@opennovel-ai/core/command"
 import { Config } from "@opennovel-ai/core/config"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
 import { Credential } from "@opennovel-ai/core/credential"
 import { Database } from "@opennovel-ai/core/database/database"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
@@ -56,6 +57,7 @@ export const PluginTestLayer = AppNodeBuilder.build(
     Catalog.node,
     CommandV2.node,
     Config.node,
+    ConfigHealth.node,
     Integration.node,
     PermissionSaved.node,
     PermissionV2.node,

@@ -8,6 +8,7 @@ import { AgentV2 } from "../agent"
 import { Catalog } from "../catalog"
 import { CommandV2 } from "../command"
 import { Config } from "../config"
+import { ConfigHealth } from "../config/health"
 import { ConfigAgentPlugin } from "../config/plugin/agent"
 import { ConfigCommandPlugin } from "../config/plugin/command"
 import { ConfigExternalPlugin } from "../config/plugin/external"
@@ -39,6 +40,7 @@ export type Requirements =
   | Catalog.Service
   | CommandV2.Service
   | Config.Service
+  | ConfigHealth.Service
   | EventV2.Service
   | FileSystem.Service
   | FSUtil.Service
@@ -164,6 +166,7 @@ export const node = makeLocationNode({
     Integration.node,
     AgentV2.node,
     Config.node,
+    ConfigHealth.node,
     Location.node,
     ModelsDev.node,
     Npm.node,

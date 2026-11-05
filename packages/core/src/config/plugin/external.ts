@@ -2,10 +2,11 @@ export * as ConfigExternalPlugin from "./external"
 
 import type { Plugin as EffectPlugin } from "@opennovel-ai/plugin/v2/effect"
 import type { Plugin as PromisePlugin } from "@opennovel-ai/plugin/v2/promise"
-import { Effect, Schema } from "effect"
+import { Cause, Effect, Schema } from "effect"
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
 import { Config } from "../../config"
+import { ConfigHealth } from "../health"
 import { FSUtil } from "../../fs-util"
 import { Location } from "../../location"
 import { Npm } from "../../npm"
@@ -36,7 +37,8 @@ export const Plugin = define({
     const fs = yield* FSUtil.Service
     const location = yield* Location.Service
     const npm = yield* Npm.Service
-    const configured: { package: string; options?: Record<string, any> }[] = []
+    const health = yield* ConfigHealth.Service
+    const configured: { raw: string; package: string; options?: Record<string, any> }[] = []
 
     for (const entry of yield* config.entries()) {
       if (entry.type === "document") {
@@ -48,7 +50,7 @@ export const Plugin = define({
             if (ref.package.startsWith(".")) return path.resolve(location.directory, ref.package)
             return ref.package
           })()
-          configured.push({ package: packageName, options: ref.options })
+          configured.push({ raw: ref.package, package: packageName, options: ref.options })
         }
       }
 
@@ -63,7 +65,7 @@ export const Plugin = define({
           })
           .pipe(Effect.orElseSucceed(() => []))
         files.sort()
-        for (const file of files) configured.push({ package: file })
+        for (const file of files) configured.push({ raw: file, package: file })
       }
     }
 
@@ -77,7 +79,13 @@ export const Plugin = define({
         : ref.package.startsWith("@opennovel-ai/")
           ? resolveHostEntry(ref.package)
           : (yield* npm.add(ref.package)).entrypoint
-      if (!entrypoint) return
+      if (!entrypoint) {
+        // 静默跳过分支曾是配置漂移的隐身点（旧第一方 id 在新版本无映射）：记入健康注册表
+        yield* health.record(
+          new ConfigHealth.LoadRecord({ raw: ref.raw, package: ref.package, reason: "unresolvable" }),
+        )
+        return
+      }
 
       const mod = yield* Effect.promise(() => import(entrypoint))
       const value = (yield* Schema.decodeUnknownEffect(PluginModule)(mod)).default
@@ -86,11 +94,22 @@ export const Plugin = define({
         id: plugin.id,
         effect: (host) => plugin.effect({ ...host, options: ref.options ?? {} }),
       })
+      // 装载成功清掉该包的历史失败记录（上次启动的残留不应永恒误报）
+      yield* health.clear(ref.package)
     })
     const guard = (ref: (typeof configured)[number], effect: Effect.Effect<void, unknown>) =>
       effect.pipe(
         Effect.tapCause((cause) =>
-          Effect.logWarning("failed to load external plugin", { package: ref.package, cause }),
+          Effect.gen(function* () {
+            yield* Effect.logWarning("failed to load external plugin", { package: ref.package, cause })
+            yield* health.record(
+              new ConfigHealth.LoadRecord({
+                raw: ref.raw,
+                package: ref.package,
+                reason: Cause.pretty(cause).slice(0, 500),
+              }),
+            )
+          }),
         ),
         Effect.ignoreCause,
       )
