@@ -12,6 +12,7 @@ import {
   retireTechniqueAsPromoted,
 } from "./technique-store.js"
 import { applyP7Budget, formatTechniquesForPrompt } from "./technique-inject.js"
+import { recordMetricsBatch } from "./evaluate/metrics.js"
 import type { TechniqueEntry, TechniqueLevel, TechniqueLibrary, TechniqueScope, TechniqueStatus } from "./technique.js"
 
 export interface SaveTechniqueInput {
@@ -127,6 +128,17 @@ export async function confirmTechniques(
   if (picked.length === 0) return { section: "", injected: 0, injected_ids: [] }
 
   const budgeted = applyP7Budget(picked)
+  // 自评价埋点：注入数与 P7 截断量（C6 技法信号）
+  if (directory) {
+    const p7Trimmed = picked.length - budgeted.length
+    recordMetricsBatch(directory, [
+      { domain: "c6-technique", key: "technique.confirmed", delta: 1 },
+      { domain: "c6-technique", key: "technique.injected", delta: budgeted.length },
+      ...(p7Trimmed > 0
+        ? [{ domain: "c6-technique", key: "technique.p7.trimmed", delta: p7Trimmed }]
+        : []),
+    ])
+  }
   for (const t of budgeted) {
     // 饱和度账本（agent-memory-system §2.2）：带章序记录按章使用分布
     await incrementTechniqueUsage(t.entry.id, directory, t.library, chapterOrder)

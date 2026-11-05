@@ -13,6 +13,7 @@ import { Effect, Option, Schema } from "effect"
 import type { SessionDomain, SystemContextSource } from "../v2/effect/index.js"
 import { getSoul } from "./session-store.js"
 import { chooseSoul, readGlobalSoulFile } from "./soul.js"
+import { recordMetrics } from "./evaluate/metrics.js"
 import {
   loadNovelSnapshot,
   renderModeSection,
@@ -47,28 +48,37 @@ async function loadValue(
   const globalSoul = await readGlobalSoulFile(deps.configDir)
   const soul = chooseSoul(novelSoul, globalSoul)
   const snapshot = novelId ? await loadNovelSnapshot(novelId, deps.directory).catch(() => undefined) : undefined
+  const snapshotSection = snapshot ? renderSnapshotSection(snapshot) : undefined
+  // 自评价埋点：快照渲染段体积（C4 拼接信号；增量渲染分支的触发面）
+  if (snapshotSection) {
+    recordMetrics(deps.directory, { domain: "c4-context", key: "context.snapshot.chars", delta: snapshotSection.length })
+  }
 
   return Option.some({
     mode,
     ...(soul ? { soul: renderSoulSection(soul) } : {}),
     ...(novelId ? { novelId } : {}),
-    ...(snapshot ? { snapshot: renderSnapshotSection(snapshot) } : {}),
+    ...(snapshotSection ? { snapshot: snapshotSection } : {}),
   })
 }
 
-/** V1 同序同文三段拼装：模式契约 → 灵魂 → 快照。 */
-function renderBaseline(value: NovelContextValue): string {
+/** V1 同序同文三段拼装：模式契约 → 灵魂 → 快照。directory 供自评价埋点（C4 全量渲染计数） */
+function renderBaseline(value: NovelContextValue, directory?: string): string {
+  if (directory) recordMetrics(directory, { domain: "c4-context", key: "context.render.full", delta: 1 })
   return [value.mode, value.soul, value.snapshot].filter((s): s is string => s !== undefined).join("\n\n")
 }
 
-function renderUpdate(previous: NovelContextValue, current: NovelContextValue): string {
+/** update 分支：语义变化全量重渲（计 full），仅快照变化走一行通知（计 incremental） */
+function renderUpdate(previous: NovelContextValue, current: NovelContextValue, directory?: string): string {
   if (
     previous.mode !== current.mode ||
     previous.soul !== current.soul ||
     previous.novelId !== current.novelId
   ) {
+    if (directory) recordMetrics(directory, { domain: "c4-context", key: "context.render.full", delta: 1 })
     return renderBaseline(current)
   }
+  if (directory) recordMetrics(directory, { domain: "c4-context", key: "context.render.incremental", delta: 1 })
   return SNAPSHOT_UPDATED_NOTICE
 }
 
@@ -81,7 +91,7 @@ export function createNovelContextSource(deps: {
     key: "novel-writer/context",
     codec: NovelContextValue,
     load: (context) => Effect.promise(() => loadValue(deps, context.sessionID)),
-    baseline: renderBaseline,
-    update: renderUpdate,
+    baseline: (value) => renderBaseline(value, deps.directory),
+    update: (previous, current) => renderUpdate(previous, current, deps.directory),
   }
 }

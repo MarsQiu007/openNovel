@@ -46,6 +46,7 @@ import {
   getTargetWordCount,
 } from "./chapter-guards.js"
 import { nextVersion, projectDirFromCtx, resolveNovelId } from "./shared.js"
+import { recordMetrics, recordMetricsBatch } from "../evaluate/metrics.js"
 
 export const chapterTools = {
   write_chapter: defineTool({
@@ -146,6 +147,13 @@ export const chapterTools = {
       // 保守称谓守卫：不阻止写入，但把疑似称谓实体化问题交给后续 auditor 判断
       const bindingView = await loadCharacterBindingView(db, chapter.novel_id, args.content)
       const kinshipFindings = detectKinshipEntityDrift(args.content, bindingView)
+      // 自评价埋点：称谓守卫检查次数与命中（C2；命中交给 auditor，属警告级不硬拦）
+      recordMetricsBatch(projectDirFromCtx(ctx.directory), [
+        { domain: "c2-prompt-control", key: "driftguard.checked", delta: 1 },
+        ...(kinshipFindings.length > 0
+          ? [{ domain: "c2-prompt-control", key: "driftguard.finding", delta: kinshipFindings.length }]
+          : []),
+      ])
 
       // 归档当前正文为历史版本（仅当已有正文时）
       if (chapter.content.length > 0) {
@@ -498,6 +506,14 @@ export const chapterTools = {
       }
 
       const updated = await updateChapter(args.chapter_id, fields, ctx.directory)
+      // 自评价埋点：进入待审批计一次审批请求（C2 拒绝率分母；定稿决策在 novel-store handleApproval 计数）
+      if (args.status === "pending_review" && chapter.status !== "pending_review") {
+        recordMetrics(projectDirFromCtx(ctx.directory), {
+          domain: "c2-prompt-control",
+          key: "approval.requested",
+          delta: 1,
+        })
+      }
       // 记忆生命周期（agent-memory-system §2.4/§6）：章定稿即审批通过（auto 模式路径），
       // 本章相关卡去重合并（自动可撤销）+ 为下一章预计算注入快照；review 模式的审批入口
       // 在 server submitApproval。整理先于快照重建，保证注入包反映合并结果

@@ -12,6 +12,7 @@
 
 import { eq, desc } from "drizzle-orm"
 import { getDb, HookRotationTable } from "./session-store.js"
+import { recordMetrics, recordMetricsBatch } from "./evaluate/metrics.js"
 
 // ─── 钩子类型常量 ───
 
@@ -129,6 +130,18 @@ export async function getHookStats(
     consecutiveCount > 3 && consecutiveType
       ? `钩子类型过于单一：已连续使用 ${consecutiveCount} 次"${HOOK_TYPE_NAMES[consecutiveType]}"（${consecutiveType}），建议轮换其他类型以保持节奏变化`
       : null
+
+  // 自评价埋点：检查次数 + 同型警告分布（C7 叙事节奏信号）
+  if (directory) {
+    if (warning && consecutiveType) {
+      recordMetricsBatch(directory, [
+        { domain: "c7-narrative", key: "hook.checked", delta: 1 },
+        { domain: "c7-narrative", key: `hook.warning.${consecutiveType}`, delta: 1 },
+      ])
+    } else {
+      recordMetrics(directory, { domain: "c7-narrative", key: "hook.checked", delta: 1 })
+    }
+  }
 
   return { hooks, warning }
 }

@@ -7,6 +7,8 @@ import { and, desc, eq, sql } from "drizzle-orm"
 import { defineTool } from "../../v2/effect/tool.js"
 import { ChapterTable, ChapterVersionTable, getDb } from "../session-store.js"
 import { computeParagraphDiff } from "./paragraph-diff.js"
+import { recordMetrics, recordMetricsBatch } from "../evaluate/metrics.js"
+import { projectDirFromCtx } from "./shared.js"
 
 export const versionsTools = {
   list_chapter_versions: defineTool({
@@ -203,6 +205,12 @@ export const versionsTools = {
           lines.push(`- ${op.text}`)
         }
       }
+      // 自评价埋点：改写幅度（C2；added+removed 即版本间变动量）
+      recordMetricsBatch(projectDirFromCtx(ctx.directory), [
+        { domain: "c2-prompt-control", key: "paragraph.diff.checked", delta: 1 },
+        { domain: "c2-prompt-control", key: "paragraph.diff.added_chars", delta: added },
+        { domain: "c2-prompt-control", key: "paragraph.diff.removed_chars", delta: removed },
+      ])
       const header =
         `第${chapter.order}章《${chapter.title}》v${args.from_version} → v${targetVersion} 段落级 diff：\n` +
         `字数：v${args.from_version}=${fromRow.word_count} → v${targetVersion}=${toRow.word_count}（Δ ${toRow.word_count - fromRow.word_count}）\n` +
@@ -295,6 +303,8 @@ export const versionsTools = {
         .set({ content: targetRow.content, word_count: targetRow.word_count, updated_at: Date.now() })
         .where(eq(ChapterTable.id, args.chapter_id))
         .run()
+      // 自评价埋点：回滚热点（C5 反复修改信号）
+      recordMetrics(projectDirFromCtx(ctx.directory), { domain: "c5-flow", key: "version.rollback", delta: 1 })
       return {
         title: `restore_chapter_version（v${targetRow.version} → 新 v${newVersion}）`,
         output:

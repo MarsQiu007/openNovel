@@ -23,6 +23,7 @@ import {
   VolumeTable,
 } from "../session-store.js"
 import { projectDirFromCtx, resolveNovelId } from "./shared.js"
+import { recordMetricsBatch } from "../evaluate/metrics.js"
 import { resolveSessionNovel } from "./session-novel.js"
 
 export function createOutlineTools(deps: { session: SessionDomain }) {
@@ -216,6 +217,13 @@ export function createOutlineTools(deps: { session: SessionDomain }) {
               // 章纲场景硬约束清单：与写作快照同一份确定性编译输出，兜底路径同样注入硬约束
               const { compileSceneChecklist } = await import("../scene-constraints.js")
               const sceneChecklist = compileSceneChecklist(resolvedOutline.outline)
+              // 自评价埋点：场景清单编译率（与 assembleWriterSnapshot 同键族；此处只读兜底路径不计注入）
+              recordMetricsBatch(projectDirFromCtx(ctx.directory), [
+                { domain: "c2-prompt-control", key: "scene.compile.checked", delta: 1 },
+                ...(sceneChecklist
+                  ? []
+                  : [{ domain: "c2-prompt-control", key: "scene.compile.null", delta: 1 }]),
+              ])
               const output = sceneChecklist
                 ? `${resolvedOutline.outline}
 

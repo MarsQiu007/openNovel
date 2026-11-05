@@ -4,6 +4,7 @@
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
 import { LEVEL_CRITERIA } from "../technique.js"
+import { recordMetrics } from "../evaluate/metrics.js"
 
 export const techniqueTools = {
   record_technique_feedback: defineTool({
@@ -91,6 +92,8 @@ export const techniqueTools = {
         args.merge_target_id,
         ctx.directory,
       )
+      // 自评价埋点：learn 回流漏斗（created/merged 为回流，rejected 为过滤严格度信号）
+      recordMetrics(ctx.directory, { domain: "c6-technique", key: `technique.learn.${result.action}`, delta: 1 })
       if (result.action === "rejected") {
         const rejected = {
           title: "save_technique",

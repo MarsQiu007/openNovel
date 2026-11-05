@@ -81,7 +81,8 @@ export const stateTools = {
           lines.push(`\n🗑️ 临时提及 ${report.discarded} 条（importance=0，不入库）`)
         }
         // 结构线/弧光进度同步：把锚定本章的节点标记为已写，更新弧光实际区间/状态
-        const arcProgress = await syncArcProgress(db, novelId, args.chapter_id)
+        // 传目录字符串而非 db 句柄：getDb 按解析路径缓存返回同一实例，且埋点需要可信项目根
+        const arcProgress = await syncArcProgress(ctx.directory, novelId, args.chapter_id)
         if (arcProgress.beatsDrafted > 0) {
           lines.push(`\n🎬 弧光进度：${arcProgress.beatsDrafted} 个节点已落地`)
           if (arcProgress.arcsStarted.length > 0)

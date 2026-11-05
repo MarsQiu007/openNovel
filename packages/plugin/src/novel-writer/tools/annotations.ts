@@ -18,6 +18,8 @@ import {
   updateAnnotationRound,
 } from "../session-store.js"
 import { resolveSessionNovel } from "./session-novel.js"
+import { projectDirFromCtx } from "./shared.js"
+import { recordMetricsBatch } from "../evaluate/metrics.js"
 
 export function createAnnotationsTools(deps: { session: SessionDomain }) {
   return {
@@ -144,6 +146,15 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
           ctx.directory,
           { status: args.status },
         )
+        // 自评价埋点：批注密度（C2；按筛选状态分键，未筛选用 all）
+        recordMetricsBatch(projectDirFromCtx(ctx.directory), [
+          { domain: "c2-prompt-control", key: "annotation.listed", delta: 1 },
+          {
+            domain: "c2-prompt-control",
+            key: `annotation.issues.${args.status ?? "all"}`,
+            delta: annotations.length,
+          },
+        ])
         return {
           title: "list_annotations",
           output: `共 ${annotations.length} 条批注`,

@@ -18,8 +18,9 @@ import {
   markChapterFactsReviewed,
 } from "../session-store.js"
 import { checkStructure } from "../structure.js"
+import { recordMetricsBatch } from "../evaluate/metrics.js"
 import { resolveSessionNovel } from "./session-novel.js"
-import { resolveNovelId } from "./shared.js"
+import { projectDirFromCtx, resolveNovelId } from "./shared.js"
 
 // 注意：Schema.mutable 仅放宽解码类型的只读修饰（novel-store 层入参要求可变数组），运行时行为与 Schema.Array 一致。
 export function createReviewTools(deps: { session: SessionDomain }) {
@@ -207,6 +208,19 @@ export function createReviewTools(deps: { session: SessionDomain }) {
           foreshadowing: data.foreshadowing,
           chapters: data.chapters,
         })
+        // 自评价埋点：结构检查频次 + 问题类别分布（C7；category 为 snake_case 规则键，可直接入键名）
+        const issuesByCategory = new Map<string, number>()
+        for (const issue of report.issues) {
+          issuesByCategory.set(issue.category, (issuesByCategory.get(issue.category) ?? 0) + 1)
+        }
+        recordMetricsBatch(projectDirFromCtx(ctx.directory), [
+          { domain: "c7-narrative", key: "structure.checked", delta: 1 },
+          ...[...issuesByCategory].map(([category, count]) => ({
+            domain: "c7-narrative" as const,
+            key: `structure.issue.${category}`,
+            delta: count,
+          })),
+        ])
         const saved = await createEditorialReport(
           novelId,
           {

@@ -31,6 +31,7 @@ import {
 import { buildCharacterBindingView, detectKinshipEntityDrift } from "./drift-guards.js"
 import { selectProtectedRelationships } from "./relationship-context.js"
 import { parseCharacterProfile } from "./session-store.js"
+import { recordMetricsBatch } from "./evaluate/metrics.js"
 
 // ─── 类型定义 ───
 
@@ -228,6 +229,24 @@ export async function checkContinuity(
   const hasFail = dimensions.some((d) => d.status === "FAIL")
   const hasWarn = dimensions.some((d) => d.status === "WARN")
   const overall: CheckStatus = hasFail ? "FAIL" : hasWarn ? "WARN" : "PASS"
+
+  // 自评价埋点：检查次数 + 37 维逐维结果分布（C7 失败分布的原料）
+  if (directory) {
+    const byDim: Record<string, number> = {}
+    for (const d of dimensions) {
+      const key = `continuity.dim.${d.dimension}.${d.status.toLowerCase()}`
+      byDim[key] = (byDim[key] ?? 0) + 1
+    }
+    recordMetricsBatch(directory, [
+      { domain: "c7-narrative", key: "continuity.checked", delta: 1, chapter: chapterNumber },
+      ...Object.entries(byDim).map(([key, delta]) => ({
+        domain: "c7-narrative",
+        key,
+        delta,
+        chapter: chapterNumber,
+      })),
+    ])
+  }
 
   return {
     novelId,

@@ -12,6 +12,7 @@
 import { and, eq, or } from "drizzle-orm"
 import { withTransaction } from "@opennovel-ai/novel-store"
 import { getDb, ArcBeatTable, StoryArcTable, ChapterTable } from "./session-store.js"
+import { recordMetricsBatch } from "./evaluate/metrics.js"
 
 export type ArcProgressReport = {
   beatsDrafted: number
@@ -40,7 +41,7 @@ export async function syncArcProgress(
   const now = Date.now()
 
   // 多步相互依赖的写入：统一经 withTransaction 走 ORM 同步回调事务，任一步失败整体回滚
-  return withTransaction(db, (tx) => {
+  const report = withTransaction(db, (tx) => {
     // 回填：observer 可能用 chapter_id 锚定了节点但没填 chapter_order
     tx.update(ArcBeatTable)
       .set({ chapter_order: chapter.order, updated_at: now })
@@ -121,4 +122,19 @@ export async function syncArcProgress(
 
     return { beatsDrafted: pendingBeats.length, arcsStarted, arcsCompleted }
   })
+
+  // 自评价埋点：弧光推进量（C5 流程信号；arcsCompleted 同时是自动触发的卷完结信号）。
+  // 只有调用方显式传目录字符串时才埋——传 db 句柄时项目根不可信（getDbPath(null) 启发式会写错项目）
+  if (typeof dbOrDirectory === "string" && report.beatsDrafted > 0) {
+    recordMetricsBatch(dbOrDirectory, [
+      { domain: "c7-narrative", key: "arc.beats_drafted", delta: report.beatsDrafted },
+      ...(report.arcsStarted.length > 0
+        ? [{ domain: "c7-narrative", key: "arc.started", delta: report.arcsStarted.length }]
+        : []),
+      ...(report.arcsCompleted.length > 0
+        ? [{ domain: "c7-narrative", key: "arc.completed", delta: report.arcsCompleted.length }]
+        : []),
+    ])
+  }
+  return report
 }

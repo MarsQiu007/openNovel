@@ -23,6 +23,7 @@ import type {
   RecalledHistoryItem,
 } from "./context.js"
 import type { ProtectedRelationship } from "./relationship-context.js"
+import { recordMetricsBatch } from "./evaluate/metrics.js"
 
 // ─── Token 估算工具 ───
 
@@ -366,6 +367,42 @@ function applyChapterOutlineBudget(packet: ContextPacket): void {
 
 // ─── 导出函数 ───
 
+/** 自评价埋点用的预算层序列（C4 占用/裁剪对照的固定键族） */
+const BUDGET_LEVELS = ["p0", "spine", "outline", "p1", "p2", "p3", "p4", "p4b", "p5", "p6"] as const
+
+/**
+ * 各预算层的 token 估算（与层内裁剪同一口径，供埋点对照裁剪前后占用）。
+ * 纯读取，不修改 packet。
+ */
+function levelTokens(packet: ContextPacket): Record<(typeof BUDGET_LEVELS)[number], number> {
+  return {
+    p0: estimateTokens(packet.synopsis),
+    spine: estimateTokens(packet.storySpine ?? ""),
+    outline: estimateTokens(packet.chapterOutline ?? ""),
+    p1: packet.activeCharacters.reduce((sum, c) => sum + charTokens(c), 0),
+    p2:
+      (packet.volumeSummary ? estimateTokens(packet.volumeSummary) : 0) +
+      packet.recentChapterSummaries.reduce((sum, c) => sum + chapterTokens(c), 0) +
+      packet.segmentSummaries.reduce((sum, s) => sum + segmentTokens(s), 0),
+    p3:
+      packet.plotThreads.reduce((sum, t) => sum + threadTokens(t), 0) +
+      packet.foreshadowing.reduce((sum, f) => sum + foreshadowTokens(f), 0),
+    p4:
+      (packet.styleGuide
+        ? styleGuideFixedTokens(packet.styleGuide) +
+          Object.entries(packet.styleGuide.rules).reduce((sum, [key, value]) => sum + styleRuleTokens(key, value), 0)
+        : 0) + packet.genreRules.reduce((sum, rule) => sum + estimateTokens(rule), 0),
+    p4b: (packet.instructions ?? []).reduce((sum, layer) => sum + estimateTokens(layer.path + layer.content), 0),
+    p5:
+      (packet.protectedRelationships ?? []).reduce((sum, r) => sum + protectedRelationshipTokens(r), 0) +
+      packet.relationships.reduce((sum, r) => sum + relationshipTokens(r), 0) +
+      packet.volumeList.reduce((sum, v) => sum + volumeTokens(v), 0) +
+      packet.worldEntries.reduce((sum, w) => sum + worldEntryTokens(w), 0) +
+      packet.worldEntryIndex.reduce((sum, i) => sum + worldEntryIndexTokens(i), 0),
+    p6: packet.recalledHistory.reduce((sum, r) => sum + recalledTokens(r), 0),
+  }
+}
+
 /**
  * 对上下文快照应用预算裁剪
  *
@@ -383,9 +420,12 @@ function applyChapterOutlineBudget(packet: ContextPacket): void {
  * 字符数估算：1 token ≈ 1.5 中文字符。
  *
  * @param packet 原始上下文快照（不会被修改）
+ * @param metrics 可选自评价埋点目标：传入后经各层裁剪对照出占用/裁剪量入桶（C4 信号）
  * @returns 裁剪后的上下文快照
  */
-export function applyBudget(packet: ContextPacket): ContextPacket {
+export function applyBudget(packet: ContextPacket, metrics?: { directory: string }): ContextPacket {
+  // 自评价埋点：裁剪前各层占用（levelTokens 纯读取，不影响判定）
+  const before = metrics ? levelTokens(packet) : null
   // 浅拷贝，确保不修改原始对象
   const result: ContextPacket = {
     ...packet,
@@ -433,6 +473,19 @@ export function applyBudget(packet: ContextPacket): ContextPacket {
 
   // P6: 召回历史 - 2.5K tokens
   applyP6Budget(result)
+
+  // 自评价埋点：裁剪后各层占用 + 被裁层差量（occupied 恒记，trimmed 只在发生时记）
+  if (metrics && before) {
+    const after = levelTokens(result)
+    const entries = BUDGET_LEVELS.flatMap((level) => {
+      const out: Array<{ domain: string; key: string; delta: number }> = []
+      if (after[level] > 0) out.push({ domain: "c4-context", key: `budget.${level}.occupied`, delta: after[level] })
+      const trimmed = before[level] - after[level]
+      if (trimmed > 0) out.push({ domain: "c4-context", key: `budget.${level}.trimmed`, delta: trimmed })
+      return out
+    })
+    recordMetricsBatch(metrics.directory, entries)
+  }
 
   return result
 }

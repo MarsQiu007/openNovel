@@ -1,17 +1,18 @@
 /**
- * 自评价指标桶 — append-only JSONL 计数。
+ * 自评价指标桶 — plugin 埋点/报告层的 façade。
  *
- * 每行一条计数：{ts, domain, key, delta, ...}。落盘纪律对齐 mode.jsonl
- * （O_APPEND + fsync，失败只 warn 不抛）——指标是 best-effort，
- * 任何 IO 失败都不得阻断写作主流程。读取端容忍坏行（跳过并计数），
+ * 写入端唯一实现在 novel-store（evaluate-metric.ts）：`.novel/evaluate/metrics.jsonl`
+ * 属 .novel 数据领地（与 audit/mode.jsonl 同层），且 approval 转换点在 novel-store
+ * 内，写入实现下沉才能两边共用、避免分叉。本模块统一暴露路径解析/写入/读取/聚合。
+ *
+ * 每行一条计数：{ts, domain, key, delta, ...}。读取端容忍坏行（跳过并计数），
  * 因为文件可能被用户手工编辑或并发截断。
  */
 
-import { mkdirSync, openSync, closeSync, writeSync, fsyncSync, readFileSync, statSync } from "fs"
-import { dirname, join } from "path"
+import { getEvaluateMetricsPath, recordEvaluateMetrics } from "@opennovel-ai/novel-store"
+import { readFileSync, statSync } from "fs"
+import { dirname } from "path"
 
-const EVALUATE_DIR = join(".novel", "evaluate")
-const METRICS_FILE = join(EVALUATE_DIR, "metrics.jsonl")
 /** 软上限：超过后在读取时提示归档（设计 Risks，自动压缩留 v1.1） */
 export const METRICS_SOFT_LIMIT_BYTES = 5 * 1024 * 1024
 
@@ -23,64 +24,34 @@ export interface MetricsEntry {
   /** 毫秒级 Unix 时间戳 */
   ts: number
   domain: MetricsDomain
-  /** 域内信号键，如 "budget.p2.trimmed" / "recall.entity.hits" */
+  /** 域内信号键，如 "budget.p2.trimmed" / "recall.route.entity" */
   key: string
   /** 增量（通常为 1；token/耗时类用实际数值） */
   delta: number
   /** 可选：关联会话 */
   sessionId?: string
-  /** 可选：关联 agent（c1/c5 按 agent 统计） */
   agent?: string
-  /** 可选：关联模型 */
   model?: string
   /** 可选：章节号等数值型上下文 */
   chapter?: number
 }
 
 export function getMetricsDir(projectDir: string): string {
-  return join(projectDir, EVALUATE_DIR)
+  return dirname(getMetricsPath(projectDir))
 }
 
 export function getMetricsPath(projectDir: string): string {
-  return join(projectDir, METRICS_FILE)
+  return getEvaluateMetricsPath(projectDir)
 }
 
-function warnIO(stage: string, path: string, err: unknown) {
-  console.warn(`[evaluate] ${stage} failed for ${path}:`, err)
-}
-
-/**
- * 追加一条计数。IO 失败只 warn——指标是旁路观测，不是功能路径。
- * O_APPEND 保证原子追加，多进程并发写入不会互相截断。
- */
+/** 追加一条计数。IO 失败只 warn——指标是旁路观测，不是功能路径。 */
 export function recordMetrics(projectDir: string, entry: Omit<MetricsEntry, "ts">): void {
-  const path = getMetricsPath(projectDir)
-  try {
-    mkdirSync(dirname(path), { recursive: true })
-  } catch (err) {
-    warnIO("recordMetrics.mkdir", dirname(path), err)
-    return
-  }
+  recordEvaluateMetrics(projectDir, [entry])
+}
 
-  const line = JSON.stringify({ ...entry, ts: Date.now() }) + "\n"
-  let fd: number | null = null
-  try {
-    fd = openSync(path, "a")
-    // Buffer 显式传 length：避免部分 fs 实现对 string writeSync 的尾字节丢失
-    const buf = Buffer.from(line, "utf-8")
-    writeSync(fd, buf, 0, buf.length)
-    fsyncSync(fd)
-  } catch (err) {
-    warnIO("recordMetrics.write", path, err)
-  } finally {
-    if (fd !== null) {
-      try {
-        closeSync(fd)
-      } catch {
-        // 关闭错忽略
-      }
-    }
-  }
+/** 追加多条计数（单次 open/fsync 批量落盘；空数组不触碰文件系统） */
+export function recordMetricsBatch(projectDir: string, entries: Array<Omit<MetricsEntry, "ts">>): void {
+  recordEvaluateMetrics(projectDir, entries)
 }
 
 /** 读取结果：条目 + 坏行数（坏行跳过，不抛） */

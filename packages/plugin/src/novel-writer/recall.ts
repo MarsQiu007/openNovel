@@ -28,6 +28,7 @@ import { selectProtectedRelationships } from "./relationship-context.js"
 import { assembleSnapshot } from "./context.js"
 import { applyBudget } from "./budget.js"
 import { compileSceneChecklist } from "./scene-constraints.js"
+import { recordMetrics, recordMetricsBatch } from "./evaluate/metrics.js"
 
 // ─── 类型定义 ───
 
@@ -598,6 +599,26 @@ export async function assembleWriterSnapshot(
 
   // P6: 三路召回
   raw.recalledHistory = await runRecall(db, novelId, chapterNumber, mentioned, recentOrders, 7)
+  // 自评价埋点：三路命中分布 + 零召回（matchedBy 为合并后的优先路归因）
+  if (directory) {
+    if (raw.recalledHistory.length === 0) {
+      recordMetrics(directory, { domain: "c3-recall", key: "recall.zero", delta: 1, chapter: chapterNumber })
+    } else {
+      const byRoute: Record<string, number> = {}
+      for (const item of raw.recalledHistory) {
+        byRoute[item.matchedBy] = (byRoute[item.matchedBy] ?? 0) + 1
+      }
+      recordMetricsBatch(
+        directory,
+        Object.entries(byRoute).map(([route, count]) => ({
+          domain: "c3-recall",
+          key: `recall.route.${route}`,
+          delta: count,
+          chapter: chapterNumber,
+        })),
+      )
+    }
+  }
 
   // P5: 世界观相关性筛选
   const { core, index } = await selectRelevantWorldEntries(
@@ -654,9 +675,18 @@ export async function assembleWriterSnapshot(
   raw.chapterOutline = chapterOutline
   // 场景硬约束清单在预算裁剪前从完整章纲编译，保证清单完整（不参与裁剪）
   raw.sceneChecklist = chapterOutline ? compileSceneChecklist(chapterOutline) : null
+  // 自评价埋点：场景清单编译率与注入率（null = 章纲无关键场景段，清单进不了快照）
+  if (directory && chapterOutline) {
+    recordMetrics(directory, { domain: "c2-prompt-control", key: "scene.compile.checked", delta: 1, chapter: chapterNumber })
+    if (!raw.sceneChecklist) {
+      recordMetrics(directory, { domain: "c2-prompt-control", key: "scene.compile.null", delta: 1, chapter: chapterNumber })
+    } else {
+      recordMetrics(directory, { domain: "c2-prompt-control", key: "scene.injected", delta: 1, chapter: chapterNumber })
+    }
+  }
 
   // 预算裁剪
-  return applyBudget(raw)
+  return applyBudget(raw, directory ? { directory } : undefined)
 }
 
 function findCurrentVolumeOrder(
