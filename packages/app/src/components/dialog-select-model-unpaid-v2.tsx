@@ -5,7 +5,7 @@ import { Tag } from "@opennovel-ai/ui/v2/badge-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { useTheme } from "@opennovel-ai/ui/theme"
-import { createMemo, onCleanup, onMount, type Component, For, Show } from "solid-js"
+import { createMemo, createSignal, onCleanup, onMount, type Component, For, Show } from "solid-js"
 import { useLocal } from "@/context/local"
 import { useProviders } from "@/hooks/use-providers"
 import { decode64 } from "@/utils/base64"
@@ -32,8 +32,11 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
   const isFree = (item: ReturnType<ModelState["list"]>[number]) =>
     item.provider.id === "opennovel" && (!item.cost || item.cost.input === 0)
   const freeModels = createMemo(() => model.list().filter(isFree))
-  // 推理档位分段：仅当前选中模型声明了档位时呈现；选择不关闭弹窗，便于继续浏览模型
+  // 推理档位收纳分段：选项含 UI 专用的 default 档；选择不关闭弹窗，便于继续浏览模型
   const variantOptions = createMemo(() => ["default", ...model.variant.list()])
+  const variantCurrent = () => model.variant.current() ?? "default"
+  const [variantExpanded, setVariantExpanded] = createSignal(false)
+  let variantToggleRef: HTMLButtonElement | undefined
 
   const openProviders = (provider?: string) => {
     void import("./dialog-connect-provider").then((x) => {
@@ -121,43 +124,64 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
           </div>
 
           <div class="flex w-full flex-col gap-0.5 px-2 pb-3" data-slot="model-variant-section">
-            <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
-              <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
-                {language.t("dialog.model.variant.title")}
-              </div>
-              <Show when={variantOptions().length <= 1}>
-                <span class="ml-auto truncate text-[11px] leading-4 text-v2-text-text-muted">
-                  {language.t("dialog.model.variant.emptyHint")}
-                </span>
-              </Show>
-            </div>
-            <Show
-              when={variantOptions().length > 1}
-              fallback={
-                <div class="flex h-7 w-full flex-row items-center rounded-md px-3 text-left text-[13px] capitalize leading-5 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)]">
-                  {language.t("common.default")}
-                </div>
-              }
+            <button
+              type="button"
+              data-slot="model-variant-toggle"
+              aria-expanded={variantExpanded()}
+              class="flex h-7 w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 text-left text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+              ref={(el) => (variantToggleRef = el)}
+              onClick={() => setVariantExpanded((value) => !value)}
             >
-              <For each={variantOptions()}>
-                {(option) => (
-                  <button
-                    type="button"
-                    class="flex h-7 w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 text-left text-[13px] font-[530] capitalize leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
-                    classList={{
-                      "bg-v2-overlay-simple-overlay-hover": (model.variant.current() ?? "default") === option,
-                    }}
-                    onClick={() => model.variant.set(option === "default" ? undefined : option)}
-                  >
-                    <span class="flex-1 truncate">
-                      {option === "default" ? language.t("common.default") : option}
-                    </span>
-                    <Show when={(model.variant.current() ?? "default") === option}>
-                      <Icon name="check" class="size-4 shrink-0 text-v2-icon-icon-base" />
-                    </Show>
-                  </button>
-                )}
-              </For>
+              <span class="font-[440] text-v2-text-text-muted [font-variant-numeric:tabular-nums]">
+                {language.t("dialog.model.variant.title")}
+              </span>
+              <span class="ml-auto truncate text-[11px] leading-4 text-v2-text-text-muted">
+                {variantCurrent() === "default" ? language.t("common.default") : variantCurrent()}
+              </span>
+              <Icon
+                name="chevron-down"
+                class={`size-4 shrink-0 text-v2-icon-icon-base transition-transform ${variantExpanded() ? "rotate-180" : ""}`}
+              />
+            </button>
+            <Show when={variantExpanded()}>
+              <Show
+                when={variantOptions().length > 1}
+                fallback={
+                  <>
+                    <div class="flex h-7 w-full flex-row items-center rounded-md px-3 text-left text-[13px] capitalize leading-5 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)]">
+                      {language.t("common.default")}
+                    </div>
+                    <div class="px-3 pb-1 text-[11px] leading-4 text-v2-text-text-muted">
+                      {language.t("dialog.model.variant.emptyHint")}
+                    </div>
+                  </>
+                }
+              >
+                <For each={variantOptions()}>
+                  {(option) => (
+                    <button
+                      type="button"
+                      class="flex h-7 w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 text-left text-[13px] font-[530] capitalize leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+                      classList={{
+                        "bg-v2-overlay-simple-overlay-hover": variantCurrent() === option,
+                      }}
+                      onClick={() => {
+                        model.variant.set(option === "default" ? undefined : option)
+                        setVariantExpanded(false)
+                        // 选中项随收起卸载，焦点回收到收纳行，避免弹窗内焦点落空
+                        variantToggleRef?.focus()
+                      }}
+                    >
+                      <span class="flex-1 truncate">
+                        {option === "default" ? language.t("common.default") : option}
+                      </span>
+                      <Show when={variantCurrent() === option}>
+                        <Icon name="check" class="size-4 shrink-0 text-v2-icon-icon-base" />
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              </Show>
             </Show>
           </div>
 

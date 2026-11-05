@@ -71,21 +71,39 @@ test("folds the thinking level into the model selection popover", async ({ page 
   await expect(model).toBeVisible()
   await expect(composer.getByRole("button", { name: "Choose model variant" })).toHaveCount(0)
 
-  // 模型选择弹层内呈现推理档位分段，选中非默认档后芯片带"模型名 · 档位"后缀
+  // 模型选择弹层内档位分段收纳：收纳行常驻显示标签与当前值，点击后行内展开档位列表
   await model.click()
   const section = page.locator('[data-slot="model-variant-section"]')
   await expect(section).toBeVisible()
-  await section.getByRole("button", { name: "high" }).click()
-  await page.keyboard.press("Escape")
+  const toggle = section.locator('[data-slot="model-variant-toggle"]')
+  await expect(toggle).toBeVisible()
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(toggle).toContainText("Default")
+  // 收起态：无档位选项（toggle 名含标签文案，精确匹配避免误中）
+  await expect(section.getByRole("button", { name: "high", exact: true })).toHaveCount(0)
 
+  // 展开后选中非默认档：列表收回且弹层保持打开（免费弹层现状），收纳行显示当前档位值
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
+  const option = section.getByRole("button", { name: "high", exact: true })
+  await expect(option).toBeVisible()
+  await option.click()
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(toggle).toContainText("high")
+  await expect(section.getByRole("button", { name: "high", exact: true })).toHaveCount(0)
+
+  await page.keyboard.press("Escape")
   await idleComposer(page)
   await input.focus()
   await expect(model).toContainText("Thinking Model · high")
 
-  // 重开弹层：档位分段仍在且选中态保持
+  // 重开弹层：收纳行显示当前档位值且回到收起态
   await model.click()
-  await expect(section).toBeVisible()
-  await expect(section.getByRole("button", { name: "high" })).toBeVisible()
+  await expect(toggle).toBeVisible()
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(toggle).toContainText("high")
+  await expect(section.getByRole("button", { name: "high", exact: true })).toHaveCount(0)
 })
 
 test("keeps the reasoning section visible with a default-only item for models without variants", async ({ page }) => {
@@ -144,14 +162,22 @@ test("keeps the reasoning section visible with a default-only item for models wi
   const model = composer.locator('[data-action="prompt-model"]')
   await expectAppVisible(composer)
 
-  // 无档位模型：档位分段常驻，仅含 default 单项（弱化呈现，无档位按钮）与弱提示文案
+  // 无档位模型：收纳行常驻显示 default；展开后分段内仅含 default 弱化单项与弱提示文案
   await idleComposer(page)
   await model.click()
   const section = page.locator('[data-slot="model-variant-section"]')
   await expect(section).toBeVisible()
-  await expect(section.getByRole("button")).toHaveCount(0)
+  const toggle = section.locator('[data-slot="model-variant-toggle"]')
+  await expect(toggle).toBeVisible()
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(toggle).toContainText("Default")
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
   await expect(section).toContainText("Default")
   await expect(section).toContainText("No reasoning levels for this model")
+  // 空态不提供任何可选档位项（分段内仅剩收纳行一个按钮）
+  await expect(section.getByRole("button")).toHaveCount(1)
 
   // 芯片无档位后缀
   await page.keyboard.press("Escape")

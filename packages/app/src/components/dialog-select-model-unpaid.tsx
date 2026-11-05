@@ -5,7 +5,7 @@ import { List, type ListRef } from "@opennovel-ai/ui/list"
 import { ProviderIcon } from "@opennovel-ai/ui/provider-icon"
 import { Tag } from "@opennovel-ai/ui/tag"
 import { Tooltip } from "@opennovel-ai/ui/tooltip"
-import { type Component, createMemo, For, Show } from "solid-js"
+import { type Component, createMemo, createSignal, For, Show } from "solid-js"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
 import { useLocal } from "@/context/local"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
@@ -40,8 +40,11 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
     listRef?.onKeyDown(e)
   }
 
-  // 推理档位分段：仅当前选中模型声明了档位时呈现；选择不关闭弹窗，便于继续浏览模型
+  // 推理档位收纳分段：选项含 UI 专用的 default 档；选择不关闭弹窗，便于继续浏览模型
   const variantOptions = createMemo(() => ["default", ...model.variant.list()])
+  const variantCurrent = () => model.variant.current() ?? "default"
+  const [variantExpanded, setVariantExpanded] = createSignal(false)
+  let variantToggleRef: HTMLButtonElement | undefined
 
   return (
     <Dialog
@@ -90,39 +93,61 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
           )}
         </List>
         <div class="flex flex-col gap-0.5 px-3" data-slot="model-variant-section">
-          <div class="flex items-center justify-between gap-2 px-1.5 py-0.5">
-            <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
-            <Show when={variantOptions().length <= 1}>
-              <span class="truncate text-11-regular text-text-weak">
-                {language.t("dialog.model.variant.emptyHint")}
-              </span>
-            </Show>
-          </div>
-          <Show
-            when={variantOptions().length > 1}
-            fallback={
-              <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
-                <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
-              </div>
-            }
+          <button
+            type="button"
+            data-slot="model-variant-toggle"
+            aria-expanded={variantExpanded()}
+            class="flex h-7 w-full items-center gap-2 rounded-sm px-1.5 text-13-regular text-text-base hover:bg-surface-raised-base"
+            ref={(el) => (variantToggleRef = el)}
+            onClick={() => setVariantExpanded((value) => !value)}
           >
-            <For each={variantOptions()}>
-              {(option) => (
-                <button
-                  type="button"
-                  class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
-                  classList={{ "bg-surface-raised-base": (model.variant.current() ?? "default") === option }}
-                  onClick={() => model.variant.set(option === "default" ? undefined : option)}
-                >
-                  <span class="flex-1 truncate text-left">
-                    {option === "default" ? language.t("common.default") : option}
+            <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
+            <span class="flex-1 truncate text-right text-12-regular text-text-weak">
+              {variantCurrent() === "default" ? language.t("common.default") : variantCurrent()}
+            </span>
+            <Icon
+              name="chevron-down"
+              size="small"
+              class={`shrink-0 transition-transform ${variantExpanded() ? "rotate-180" : ""}`}
+            />
+          </button>
+          <Show when={variantExpanded()}>
+            <Show
+              when={variantOptions().length > 1}
+              fallback={
+                <>
+                  <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
+                    <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
+                  </div>
+                  <span class="px-1.5 text-11-regular text-text-weak">
+                    {language.t("dialog.model.variant.emptyHint")}
                   </span>
-                  <Show when={(model.variant.current() ?? "default") === option}>
-                    <Icon name="check" size="small" class="shrink-0" />
-                  </Show>
-                </button>
-              )}
-            </For>
+                </>
+              }
+            >
+              <For each={variantOptions()}>
+                {(option) => (
+                  <button
+                    type="button"
+                    class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
+                    classList={{ "bg-surface-raised-base": variantCurrent() === option }}
+                    onClick={() => {
+                      model.variant.set(option === "default" ? undefined : option)
+                      setVariantExpanded(false)
+                      // 选中项随收起卸载，焦点回收到收纳行，避免弹窗内焦点落空
+                      variantToggleRef?.focus()
+                    }}
+                  >
+                    <span class="flex-1 truncate text-left">
+                      {option === "default" ? language.t("common.default") : option}
+                    </span>
+                    <Show when={variantCurrent() === option}>
+                      <Icon name="check" size="small" class="shrink-0" />
+                    </Show>
+                  </button>
+                )}
+              </For>
+            </Show>
           </Show>
         </div>
       </div>

@@ -4,6 +4,7 @@ import {
   ComponentProps,
   createEffect,
   createMemo,
+  createSignal,
   For,
   JSX,
   onCleanup,
@@ -163,12 +164,6 @@ export function ModelSelectorPopover(props: {
   }
   const language = useLanguage()
   const modelState = () => props.model ?? local.model
-  // 推理档位分段：仅当前选中模型声明了档位时呈现（选项含 UI 专用的 default 档）
-  const variantOptions = createMemo(() => ["default", ...modelState().variant.list()])
-  const selectVariant = (value: string) => {
-    modelState().variant.set(value === "default" ? undefined : value)
-    close("select")
-  }
 
   return (
     <Kobalte
@@ -235,52 +230,14 @@ export function ModelSelectorPopover(props: {
               </div>
             }
           />
-          <div
-            class="flex flex-none flex-col gap-0.5 border-t border-border-weak-base p-1.5"
-            data-slot="model-variant-section"
-          >
-            <div class="flex items-center justify-between gap-2 px-1.5 py-0.5">
-              <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
-              <Show when={variantOptions().length <= 1}>
-                <span class="truncate text-11-regular text-text-weak">
-                  {language.t("dialog.model.variant.emptyHint")}
-                </span>
-              </Show>
-            </div>
-            <Show
-              when={variantOptions().length > 1}
-              fallback={
-                <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
-                  <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
-                </div>
-              }
-            >
-              <For each={variantOptions()}>
-                {(option) => (
-                  <button
-                    type="button"
-                    class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
-                    onClick={() => selectVariant(option)}
-                  >
-                    <span class="flex-1 truncate text-left">
-                      {option === "default" ? language.t("common.default") : option}
-                    </span>
-                    <Show when={(modelState().variant.current() ?? "default") === option}>
-                      <Icon name="check" size="small" class="shrink-0" />
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </Show>
-          </div>
+          <VariantSection model={modelState} onVariantSelect={() => close("select")} />
         </Kobalte.Content>
       </Kobalte.Portal>
     </Kobalte>
   )
 }
 
-export function ModelSelectorPopoverV2(props: {
-  provider?: string
+export function ModelSelectorPopoverV2(props: {  provider?: string
   model?: ModelState
   children?: JSX.Element
   triggerAs?: ValidComponent
@@ -362,10 +319,7 @@ export function ModelSelectorPopoverV2(props: {
     setOpen(false)
     afterClose(() => select(item))
   }
-  // 推理档位分段：仅当前选中模型声明了档位时呈现，未声明时整个分段隐藏
-  const variantOptions = createMemo(() => ["default", ...model.variant.list()])
-  const selectVariant = (value: string) => {
-    model.variant.set(value === "default" ? undefined : value)
+  const selectVariant = () => {
     restoreTrigger = false
     setOpen(false)
     afterClose(() => props.onClose?.())
@@ -546,39 +500,7 @@ export function ModelSelectorPopoverV2(props: {
             </div>
           </ScrollView>
           <div class="h-px bg-v2-border-border-muted" />
-          <div class="flex flex-col p-0.5" data-slot="model-variant-section">
-            <div class="flex items-center justify-between gap-2 px-3 pt-1.5 pb-0.5">
-              <span class="text-[11px] leading-4 text-v2-text-text-muted">{language.t("dialog.model.variant.title")}</span>
-              <Show when={variantOptions().length <= 1}>
-                <span class="truncate text-[11px] leading-4 text-v2-text-text-muted">
-                  {language.t("dialog.model.variant.emptyHint")}
-                </span>
-              </Show>
-            </div>
-            <Show
-              when={variantOptions().length > 1}
-              fallback={
-                <div class="px-3 pb-0.5 text-[13px] leading-5 capitalize text-v2-text-text-muted">
-                  {language.t("common.default")}
-                </div>
-              }
-            >
-              <MenuV2.RadioGroup value={model.variant.current() ?? "default"}>
-                <For each={variantOptions()}>
-                  {(option) => (
-                    <MenuV2.RadioItem
-                      value={option}
-                      class="capitalize"
-                      closeOnSelect
-                      onSelect={() => selectVariant(option)}
-                    >
-                      {option}
-                    </MenuV2.RadioItem>
-                  )}
-                </For>
-              </MenuV2.RadioGroup>
-            </Show>
-          </div>
+          <VariantSectionV2 model={model} onVariantSelect={selectVariant} />
           <div class="h-px bg-v2-border-border-muted" />
           <div class="flex flex-col p-0.5">
             <MenuV2.Item
@@ -597,6 +519,137 @@ export function ModelSelectorPopoverV2(props: {
         </MenuV2.Content>
       </MenuV2.Portal>
     </MenuV2>
+  )
+}
+
+// 推理档位收纳分段：选项含 UI 专用的 default 档；展开信号挂在组件内，弹层 Content 关闭卸载即重置
+function VariantSection(props: { model: () => ModelState; onVariantSelect: () => void }) {
+  const language = useLanguage()
+  const [expanded, setExpanded] = createSignal(false)
+  const variantOptions = createMemo(() => ["default", ...props.model().variant.list()])
+  const current = () => props.model().variant.current() ?? "default"
+  const label = (value: string) => (value === "default" ? language.t("common.default") : value)
+  const selectVariant = (value: string) => {
+    props.model().variant.set(value === "default" ? undefined : value)
+    props.onVariantSelect()
+  }
+
+  return (
+    <div
+      class="flex flex-none flex-col gap-0.5 border-t border-border-weak-base p-1.5"
+      data-slot="model-variant-section"
+    >
+      <button
+        type="button"
+        data-slot="model-variant-toggle"
+        aria-expanded={expanded()}
+        class="flex h-7 w-full items-center gap-2 rounded-sm px-1.5 text-13-regular text-text-base hover:bg-surface-raised-base"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span class="text-12-regular text-text-weak">{language.t("dialog.model.variant.title")}</span>
+        <span class="flex-1 truncate text-right text-12-regular text-text-weak">{label(current())}</span>
+        <Icon
+          name="chevron-down"
+          size="small"
+          class={`shrink-0 transition-transform ${expanded() ? "rotate-180" : ""}`}
+        />
+      </button>
+      <Show when={expanded()}>
+        <Show
+          when={variantOptions().length > 1}
+          fallback={
+            <>
+              <div class="flex h-7 w-full items-center rounded-sm px-1.5 text-13-regular text-text-weak">
+                <span class="flex-1 truncate text-left">{language.t("common.default")}</span>
+              </div>
+              <span class="px-1.5 text-11-regular text-text-weak">
+                {language.t("dialog.model.variant.emptyHint")}
+              </span>
+            </>
+          }
+        >
+          <For each={variantOptions()}>
+            {(option) => (
+              <button
+                type="button"
+                class="flex h-7 w-full items-center gap-1.5 rounded-sm px-1.5 text-13-regular capitalize text-text-base hover:bg-surface-raised-base"
+                onClick={() => selectVariant(option)}
+              >
+                <span class="flex-1 truncate text-left">{label(option)}</span>
+                <Show when={current() === option}>
+                  <Icon name="check" size="small" class="shrink-0" />
+                </Show>
+              </button>
+            )}
+          </For>
+        </Show>
+      </Show>
+    </div>
+  )
+}
+
+function VariantSectionV2(props: { model: ModelState; onVariantSelect: () => void }) {
+  const language = useLanguage()
+  const [expanded, setExpanded] = createSignal(false)
+  const variantOptions = createMemo(() => ["default", ...props.model.variant.list()])
+  const current = () => props.model.variant.current() ?? "default"
+  const selectVariant = (value: string) => {
+    props.model.variant.set(value === "default" ? undefined : value)
+    props.onVariantSelect()
+  }
+
+  return (
+    <div class="flex flex-col p-0.5" data-slot="model-variant-section">
+      <MenuV2.Item
+        data-slot="model-variant-toggle"
+        closeOnSelect={false}
+        aria-expanded={expanded()}
+        class="w-full"
+        onSelect={() => setExpanded((value) => !value)}
+      >
+        <span class="text-[11px] leading-4 text-v2-text-text-muted">
+          {language.t("dialog.model.variant.title")}
+        </span>
+        <span class="min-w-0 flex-1 truncate text-right text-[11px] leading-4 text-v2-text-text-muted">
+          {current() === "default" ? language.t("common.default") : current()}
+        </span>
+        <Icon
+          name="chevron-down"
+          size="small"
+          class={`shrink-0 transition-transform ${expanded() ? "rotate-180" : ""}`}
+        />
+      </MenuV2.Item>
+      <Show when={expanded()}>
+        <Show
+          when={variantOptions().length > 1}
+          fallback={
+            <>
+              <div class="px-3 pb-0.5 text-[13px] leading-5 capitalize text-v2-text-text-muted">
+                {language.t("common.default")}
+              </div>
+              <div class="px-3 pb-1 text-[11px] leading-4 text-v2-text-text-muted">
+                {language.t("dialog.model.variant.emptyHint")}
+              </div>
+            </>
+          }
+        >
+          <MenuV2.RadioGroup value={current()}>
+            <For each={variantOptions()}>
+              {(option) => (
+                <MenuV2.RadioItem
+                  value={option}
+                  class="capitalize"
+                  closeOnSelect
+                  onSelect={() => selectVariant(option)}
+                >
+                  {option}
+                </MenuV2.RadioItem>
+              )}
+            </For>
+          </MenuV2.RadioGroup>
+        </Show>
+      </Show>
+    </div>
   )
 }
 
