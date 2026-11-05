@@ -20,7 +20,9 @@
 
 ## 3. 自动触发
 
-- [ ] 3.1 四类信号检测（卷完结 / Compaction.Ended（schema 只有 Started/Delta/Ended，Ended 携带 text+recent 是压缩完成时刻）/ 反复修改滚动窗 ≥5 / +10 会话 Created 兜底）+ 24h 冷却与同类合并；后台生成不弹窗。验证方式：信号→触发单测，冷却期内不重复触发，手动绕过冷却
+- [x] 3.1 四类信号检测（卷完结 / Compaction.Ended（schema 只有 Started/Delta/Ended，Ended 携带 text+recent 是压缩完成时刻）/ 反复修改滚动窗 ≥5 / +10 会话 Created 兜底）+ 24h 冷却与同类合并；后台生成不弹窗。验证方式：信号→触发单测，冷却期内不重复触发，手动绕过冷却
+  - 实现注记：策略全部集中 `evaluate/trigger.ts` `maybeAutoReport(projectDir, signal, now?)`，事件源只上报信号。四类信号接线点：卷完结在 `arc-progress.ts`（`arc.completed` 批内 arcsCompleted 非空即报，D4 指定的卷翻转近似）；compaction 在 `events.ts` Compaction.Ended 处理器；反复修改窗在 `events.ts` tool.success 处理器（REVISION_TOOLS = revise_chapter/restore_chapter_version/diff_chapter_version/update_chapter，经 callID 归因拿到工具名）；+10 会话兜底在 `events.ts` created 处理器。24h 冷却水位落 `last-report.json` 的 `lastAutoRunTs`（`markAutoReport` 标定，`writeState` 合并保留——手动 /evaluate 只推进 `lastRunTs` 窗口、不重置自动节奏，即手动始终可用但不扰动冷却）。反复修改窗取 6h 滚动窗（D4 未定时长，取半日量级：短于"一天写完一卷"的尺度），跨键合计 version.rollback+approval.rejected+paragraph.diff.checked ≥5，按指标桶计数（recordMetrics 直写后再读桶，同事件流的计数口径一致）；+10 会话自上次自动报告以来按 session.created 桶计数。信号合并语义=冷却期内全部信号抑制，无需去重队列。后台生成=直调 `generateReport(since-last)`，不经 agent/prompt，不弹窗
+  - 测试：`evaluate-trigger.test.ts` 6 例（冷却首触发/24h 抑制/24h+1 再触发、手动报告绕过且不重置自动节奏、反复修改窗跨键 ≥5 触发+窗外不计+4 条抑制、会话里程碑自上次自动以来 +10 触发并重新累计、volume-complete 仅冷却门）；`evaluate-events.test.ts` 增补接线用例（10 个 created 事件后台落 `-since-last.md` 报告，ENOENT 轮询容忍异步建目录）
 
 ## 4. 诊断包导出
 
