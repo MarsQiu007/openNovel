@@ -2943,6 +2943,15 @@ export type ConfigV2ExperimentalPolicy = {
   resource: string
 }
 
+export type ConfigHealthIssue = {
+  id: string
+  severity: "error" | "warning"
+  message: string
+  file: string
+  keyPath?: string
+  fixSummary?: string
+}
+
 export type ProjectDirectories = Array<{
   directory: string
   strategy?: string
@@ -7504,6 +7513,58 @@ export type GlobalConfigUpdateResponses = {
 }
 
 export type GlobalConfigUpdateResponse = GlobalConfigUpdateResponses[keyof GlobalConfigUpdateResponses]
+
+export type GlobalConfigHealthData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/config/health"
+}
+
+export type GlobalConfigHealthErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type GlobalConfigHealthError = GlobalConfigHealthErrors[keyof GlobalConfigHealthErrors]
+
+export type GlobalConfigHealthResponses = {
+  /**
+   * Config health issues
+   */
+  200: Array<ConfigHealthIssue>
+}
+
+export type GlobalConfigHealthResponse = GlobalConfigHealthResponses[keyof GlobalConfigHealthResponses]
+
+export type GlobalConfigHealthFixData = {
+  body?: {
+    ids: Array<string>
+  }
+  path?: never
+  query?: never
+  url: "/global/config/health/fix"
+}
+
+export type GlobalConfigHealthFixErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+}
+
+export type GlobalConfigHealthFixError = GlobalConfigHealthFixErrors[keyof GlobalConfigHealthFixErrors]
+
+export type GlobalConfigHealthFixResponses = {
+  /**
+   * Remaining config health issues after fix
+   */
+  200: Array<ConfigHealthIssue>
+}
+
+export type GlobalConfigHealthFixResponse = GlobalConfigHealthFixResponses[keyof GlobalConfigHealthFixResponses]
 
 export type GlobalConfigProviderRemoveData = {
   body?: never

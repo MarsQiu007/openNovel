@@ -62,6 +62,10 @@ import type {
   FormatterStatusResponses,
   GlobalConfigGetErrors,
   GlobalConfigGetResponses,
+  GlobalConfigHealthErrors,
+  GlobalConfigHealthFixErrors,
+  GlobalConfigHealthFixResponses,
+  GlobalConfigHealthResponses,
   GlobalConfigProviderRemoveErrors,
   GlobalConfigProviderRemoveResponses,
   GlobalConfigProviderSetErrors,
@@ -1382,6 +1386,36 @@ export class Experimental extends HeyApiClient {
   }
 }
 
+export class Health extends HeyApiClient {
+  /**
+   * Fix config health issues
+   *
+   * Apply user-confirmed fixes for the given config health issue ids, then return the remaining issues.
+   */
+  public fix<ThrowOnError extends boolean = false>(
+    parameters: {
+      ids: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "ids" }] }])
+    return (options?.client ?? this.client).post<
+      GlobalConfigHealthFixResponses,
+      GlobalConfigHealthFixErrors,
+      ThrowOnError
+    >({
+      url: "/global/config/health/fix",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Provider extends HeyApiClient {
   /**
    * Remove custom provider
@@ -1481,6 +1515,23 @@ export class Config extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+
+  /**
+   * Get config health
+   *
+   * Read-only health check of the global configuration: external plugin load failures, stale agent model overrides, and legacy agent definition leftovers.
+   */
+  public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<GlobalConfigHealthResponses, GlobalConfigHealthErrors, ThrowOnError>({
+      url: "/global/config/health",
+      ...options,
+    })
+  }
+
+  private _health?: Health
+  get health2(): Health {
+    return (this._health ??= new Health({ client: this.client }))
   }
 
   private _provider?: Provider
@@ -3216,7 +3267,7 @@ export class Provider2 extends HeyApiClient {
   }
 }
 
-export class Health extends HeyApiClient {
+export class Health2 extends HeyApiClient {
   /**
    * Check server health
    *
@@ -11441,9 +11492,9 @@ export class Soul extends HeyApiClient {
 }
 
 export class V2 extends HeyApiClient {
-  private _health?: Health
-  get health(): Health {
-    return (this._health ??= new Health({ client: this.client }))
+  private _health?: Health2
+  get health(): Health2 {
+    return (this._health ??= new Health2({ client: this.client }))
   }
 
   private _location?: Location

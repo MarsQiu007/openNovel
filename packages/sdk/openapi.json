@@ -446,6 +446,114 @@
         ]
       }
     },
+    "/global/config/health": {
+      "get": {
+        "tags": ["global"],
+        "operationId": "global.config.health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Config health issues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigHealthIssue"
+                  },
+                  "description": "Config health issues"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read-only health check of the global configuration: external plugin load failures, stale agent model overrides, and legacy agent definition leftovers.",
+        "summary": "Get config health",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.global.config.health({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/config/health/fix": {
+      "post": {
+        "tags": ["global"],
+        "operationId": "global.config.health.fix",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Remaining config health issues after fix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigHealthIssue"
+                  },
+                  "description": "Remaining config health issues after fix"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Apply user-confirmed fixes for the given config health issue ids, then return the remaining issues.",
+        "summary": "Fix config health issues",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.global.config.health.fix({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/global/config/provider/{providerID}": {
       "put": {
         "tags": ["global"],
@@ -35486,6 +35594,32 @@
           }
         },
         "required": ["action", "effect", "resource"],
+        "additionalProperties": false
+      },
+      "ConfigHealthIssue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["error", "warning"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "keyPath": {
+            "type": "string"
+          },
+          "fixSummary": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "severity", "message", "file"],
         "additionalProperties": false
       },
       "ProjectDirectories": {

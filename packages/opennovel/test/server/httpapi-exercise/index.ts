@@ -151,7 +151,7 @@ const scenarios: Scenario[] = [
     .at(() => ({ path: "/global/config/health" }))
     .json(200, (body) => {
       array(body)
-      const ids = body.map((issue: { id: string }) => issue.id)
+      const ids = body.map((issue) => (isRecord(issue) ? issue.id : undefined))
       check(ids.includes("agent-model:ghost"), "stale agent model override should be reported")
       check(ids.includes("legacy:agent/plan.md"), "legacy agent markdown leftover should be reported")
     }),

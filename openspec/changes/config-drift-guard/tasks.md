@@ -14,7 +14,7 @@
 
 ## 3. SDK 再生成
 
-- [ ] 3.1 从 `packages/client` 运行 `bun run generate` 再生成 `src/generated` 与 `src/generated-effect`（禁止手改产物），并按仓库惯例运行 `packages/sdk/js/script/build.ts` 再生 legacy SDK，验证两包 `bun typecheck` 通过且 `git status` 仅显示再生产物变更
+- [x] 3.1 从 `packages/client` 运行 `bun run generate` 再生成 `src/generated` 与 `src/generated-effect`（禁止手改产物），并按仓库惯例运行 `packages/sdk/js/script/build.ts` 再生 legacy SDK，验证两包 `bun typecheck` 通过且 `git status` 仅显示再生产物变更
 
 ## 4. 设置 UI：健康横幅与确认修复
 
