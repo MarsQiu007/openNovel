@@ -14,6 +14,7 @@ import { Effect } from "effect"
 import { existsSync } from "fs"
 import { join } from "path"
 import { createNovelContextSource } from "./novel-writer/context-source.js"
+import { watchSessionEvents } from "./novel-writer/evaluate/events.js"
 import { createNovelWriterTools } from "./novel-writer/tools/index.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
@@ -49,6 +50,7 @@ export default define({
           configDir: ctx.paths.config,
         }),
       )
+      yield* watchSessionEvents(ctx, ctx.location.directory)
     }
   }),
 })
