@@ -55,7 +55,8 @@ jobs:
       matrix:
         settings:
           - name: linux
-            host: ubuntu-latest
+            # ubuntu-latest 滚动到 26.04 后 playwright 1.60 无对应 chromium 构建，固定 24.04
+            host: ubuntu-24.04
           - name: windows
             host: windows-latest
     runs-on: ${{ matrix.settings.host }}
