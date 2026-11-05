@@ -10,6 +10,7 @@
 import { eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { getDb, ChapterTable } from "./index.js"
+import { recordEvaluateMetrics } from "./evaluate-metric.js"
 import { withTransaction, type Tx } from "./tx.js"
 
 // ─── 审批结果类型 ───
@@ -78,6 +79,10 @@ export async function requestApproval(
 ): Promise<ApprovalRequest> {
   const db = getDb(directory)
   const chapter = withTransaction(db, (tx) => requestApprovalTx(tx, chapterId, content))
+  // 自评价埋点：进入待审批即一次审批请求（C2 拒绝率分母；directory 缺省时不知项目根，跳过）
+  if (directory) {
+    recordEvaluateMetrics(directory, [{ domain: "c2-prompt-control", key: "approval.requested", delta: 1 }])
+  }
 
   return {
     chapterId: chapter.id,
@@ -119,6 +124,10 @@ export async function handleApproval(
         })
         .where(eq(ChapterTable.id, chapterId))
         .run()
+      // 自评价埋点：审批决策三分支计数（C2 提示词控制信号）
+      if (directory) {
+        recordEvaluateMetrics(directory, [{ domain: "c2-prompt-control", key: "approval.approved", delta: 1 }])
+      }
 
       return {
         type: "APPROVED",
@@ -137,6 +146,9 @@ export async function handleApproval(
         })
         .where(eq(ChapterTable.id, chapterId))
         .run()
+      if (directory) {
+        recordEvaluateMetrics(directory, [{ domain: "c2-prompt-control", key: "approval.rejected", delta: 1 }])
+      }
 
       return {
         type: "REJECTED",
@@ -148,6 +160,9 @@ export async function handleApproval(
 
     case "EDIT": {
       // 人工编辑：返回当前内容，交由人工手动修改
+      if (directory) {
+        recordEvaluateMetrics(directory, [{ domain: "c2-prompt-control", key: "approval.edited", delta: 1 }])
+      }
       return {
         type: "EDITING",
         chapterId: chapter.id,

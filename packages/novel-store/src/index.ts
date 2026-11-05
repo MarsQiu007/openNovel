@@ -1618,6 +1618,10 @@ export async function bookHasAdultTechniques(directory?: string | null): Promise
 
 export * from "./approval.js"
 
+// ─── 自评价指标写入端（evaluate-metric） ───
+
+export * from "./evaluate-metric.js"
+
 // ─── Project mode helpers (re-export) ───
 
 export * from "./mode.js"
