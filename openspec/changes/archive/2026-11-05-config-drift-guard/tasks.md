@@ -48,3 +48,4 @@
 - `POST /global/config/health/fix`（仅插件 id）→ 返回剩余两条；重查清单插件条目自愈消失；`opennovel.jsonc` 中 `plugins` 被重写为 `["@opennovel-ai/plugin/novel-writer-v2"]`，**jsonc 注释与其余配置保持原样**（updateGlobal 走 jsonc-parser modify 增量补丁）。
 - 健康配置复跑（全新临时目录 + boot location）：`GET /global/config/health` 返回 `[]`，零漂移零横幅。
 - 实现期修正：已知 provider 快照曾用 `Provider.Service.list()`（实例级服务，全局路由无 InstanceRef 直接 500），已改为 models.dev 目录 ∪ 全局配置 provider 段 ∪ `Auth.all()` 凭据键的全局可达并集，凭据读取失败降级为空集。
+- UI 浏览器走查（2026-11-05，vite dev + 漂移后端，app 设置页）：智能体页与提供商页均渲染配置健康横幅（「发现 3 项配置问题」+ 展开明细，逐条显示 message + 文件路径 + keyPath）；点「修复」弹确认对话框（列出 fixSummary 与「仅涉及所列条目，未列出的配置与注释保持原样」提示）期间**无任何** `POST /global/config/health/fix` 请求；点「确认修复」后服务端重写 `plugins` 为 `["@opennovel-ai/plugin/novel-writer-v2"]` 且 jsonc 注释保留，横幅刷新为剩余 2 项且「修复」按钮消失（剩余问题无可自动修复建议）；修复触发的全局 dispose 使设置对话框按既有全局配置变更语义关闭，重开后横幅显示剩余 2 项，与 API 实测一致。
