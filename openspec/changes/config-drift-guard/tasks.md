@@ -9,7 +9,7 @@
 ## 2. HttpApi：健康检查端点
 
 - [x] 2.1 在 `packages/opennovel/src/server/routes/instance/httpapi/groups/global.ts` 的 `GlobalPaths` 与 `GlobalApi` 新增 `GET /global/config/health`（成功返回 issue 清单数组）与 `POST /global/config/health/fix`（payload 为 issue id 数组，成功返回修复后清单），端点挂 `global` 分组并补 OpenApi 注解，验证 `packages/opennovel` 下 `bun typecheck` 通过
-- [x] 2.2 在 `packages/opennovel/src/server/routes/instance/httpapi/handlers/global.ts` 实现两端点 handler：读端点聚合 `ConfigHealth` 注册表与 evaluate（从 `Config.Service` 经 globalDirectory 判定定位全局文档、从 ProviderV2 目录取已知 provider id 快照、glob legacy 目录）返回清单；修复端点按 id 查回 Issue 执行其 `apply` 并经 `config.updateGlobal` 写盘（复用既有写通道与 dispose 语义），写盘后重跑体检刷新注册表，验证 `packages/opennovel` 下 `bun typecheck` 通过
+- [x] 2.2 在 `packages/opennovel/src/server/routes/instance/httpapi/handlers/global.ts` 实现两端点 handler：读端点聚合 `ConfigHealth` 注册表与 evaluate（`config.getGlobal()` 取合并后的全局文档并以 `globalConfigFile()` 定位、取 models.dev 目录 + 全局配置 provider 段 + `Auth.all()` 凭据键的已知 provider id 快照、glob legacy 目录）返回清单；修复端点按 id 查回 Issue 执行其 `apply` 并经 `config.updateGlobal` 写盘（复用既有写通道与 dispose 语义），写盘后重跑体检刷新注册表，验证 `packages/opennovel` 下 `bun typecheck` 通过
 - [x] 2.3 为新端点注册 httpapi-exercise 场景（`packages/opennovel/test/server/httpapi-exercise/`，含健康读取与确认修复两条路径），验证本地 coverage 模式秒级预检通过（`--fail-on-missing` 门不红）
 
 ## 3. SDK 再生成
@@ -18,18 +18,33 @@
 
 ## 4. 设置 UI：健康横幅与确认修复
 
-- [ ] 4.1 新建 `packages/app/src/components/settings-v2/config-health-banner.tsx`：查询健康端点，问题数 > 0 时在智能体页（`agents.tsx`）与提供商页顶部渲染可展开横幅（逐条 message + file + keyPath），0 问题不渲染且不阻断页面功能，验证 `packages/app` 下 `bun typecheck` 通过
-- [ ] 4.2 实现修复交互：横幅"修复"入口 → 预览层列出所选问题的 fixSummary → 用户显式确认后调修复端点 → 用响应清单刷新横幅；未确认不得发起写请求，验证浏览器走查确认修复前不发写请求、确认后横幅问题消失
-- [ ] 4.3 新增 i18n 三语文案键（zh/zht/en，含横幅标题、展开明细、修复确认文案及其"将重写配置文件、注释与格式不保留"提示），验证三语 locale 文件同步更新且 `packages/app` 下 `bun typecheck` 通过
+- [x] 4.1 新建 `packages/app/src/components/settings-v2/config-health-banner.tsx`：查询健康端点，问题数 > 0 时在智能体页（`agents.tsx`）与提供商页顶部渲染可展开横幅（逐条 message + file + keyPath），0 问题不渲染且不阻断页面功能，验证 `packages/app` 下 `bun typecheck` 通过
+- [x] 4.2 实现修复交互：横幅"修复"入口 → 预览层列出所选问题的 fixSummary → 用户显式确认后调修复端点 → 用响应清单刷新横幅；未确认不得发起写请求，验证浏览器走查确认修复前不发写请求、确认后横幅问题消失
+- [x] 4.3 新增 i18n 三语文案键（zh/zht/en，含横幅标题、展开明细、修复确认文案及"将修改全局配置文件、仅涉及所列条目、注释保持原样"提示），验证三语 locale 文件同步更新且 `packages/app` 下 `bun typecheck` 通过
 
 ## 5. 验证与清理
 
-- [ ] 5.1 在 `packages/core`、`packages/opennovel`、`packages/app`、`packages/client` 各包目录运行 `bun typecheck` 全绿，并从仓库根运行 oxlint（子目录运行会误报 typeAware 配置错误）确认无新增告警（基线 diff 对比）
-- [ ] 5.2 用临时 HOME 模拟事故场景端到端验证：陈旧 `opennovel.jsonc`（plugins 指向旧入口 + 旧 agent 覆盖）下启动服务器，健康端点返回三类问题；经 UI 确认修复后重查清单为空且智能体页恢复新形态；随后用健康配置复跑确认零漂移零横幅，验证端到端脚本记录写入本 change 的验证说明
-- [ ] 5.3 穷举关联面清理检查：确认无新增长期无人引用的导出、无只被死代码使用的 import、无从未被消费的查询通道；新增 Issue/端点/文案的调用方均已落地，命中项在本 change 内清理或立案说明，验证 `git diff` 审查无冗余残留
+- [x] 5.1 在 `packages/core`、`packages/opennovel`、`packages/app`、`packages/client` 各包目录运行 `bun typecheck` 全绿，并从仓库根运行 oxlint（子目录运行会误报 typeAware 配置错误）确认无新增告警（基线 diff 对比）
+- [x] 5.2 用临时 HOME 模拟事故场景端到端验证：陈旧 `opennovel.jsonc`（plugins 指向旧入口 + 旧 agent 覆盖）下启动服务器，健康端点返回三类问题；经 UI 确认修复后重查清单为空且智能体页恢复新形态；随后用健康配置复跑确认零漂移零横幅，验证端到端脚本记录写入本 change 的验证说明
+- [x] 5.3 穷举关联面清理检查：确认无新增长期无人引用的导出、无只被死代码使用的 import、无从未被消费的查询通道；新增 Issue/端点/文案的调用方均已落地，命中项在本 change 内清理或立案说明，验证 `git diff` 审查无冗余残留
 
 ## Workflow follow-up
 
 - 按仓库惯例提交全部实现（每个提交带 `OpenSpec-Change: config-drift-guard` footer），收集实现提交写入本文件 `## Implementation Commits`。
 - 实现提交推送后检查远端 generate / typecheck / test 工作流全绿。
 - 同步 delta specs 至主 specs 后运行 `openspec archive config-drift-guard --yes` 归档（含移动目录），归档移动单独提交。
+
+## Implementation Commits
+
+- `0d1e15ea04` feat(core): 配置健康注册表与体检器
+- `32d444aedb` feat(opennovel): 配置健康检查 HTTP 端点
+- `ee1372484f` chore(sdk): 再生成配置健康端点产物
+- `5d1ee030df` feat(app): 设置页配置健康横幅与确认修复
+- `2fcebfb672` fix(opennovel): 全局健康端点改用全局可达的提供商快照
+
+## Verification
+
+- 事故重演（2026-11-05，Windows 临时 XDG 目录起 `serve`）：陈旧 `opennovel.jsonc`（`plugins: ["@opennovel-ai/plugin/novel-writer"]`（裸子路径在新版本无 exports → unresolvable 静默跳过分支）+ `agent.ghost.model: "ghostprovider/ghost-1"` + `agent/plan.md` 残留）经 boot location 触发插件装载后，`GET /global/config/health` 返回三条问题（1 error + 2 warning），形态与事故机器一致。
+- `POST /global/config/health/fix`（仅插件 id）→ 返回剩余两条；重查清单插件条目自愈消失；`opennovel.jsonc` 中 `plugins` 被重写为 `["@opennovel-ai/plugin/novel-writer-v2"]`，**jsonc 注释与其余配置保持原样**（updateGlobal 走 jsonc-parser modify 增量补丁）。
+- 健康配置复跑（全新临时目录 + boot location）：`GET /global/config/health` 返回 `[]`，零漂移零横幅。
+- 实现期修正：已知 provider 快照曾用 `Provider.Service.list()`（实例级服务，全局路由无 InstanceRef 直接 500），已改为 models.dev 目录 ∪ 全局配置 provider 段 ∪ `Auth.all()` 凭据键的全局可达并集，凭据读取失败降级为空集。

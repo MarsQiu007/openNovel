@@ -24,14 +24,14 @@
 - 不覆盖 proposal 的非目标（安装器不碰配置、不做云同步、不自动删除配置项、不自动重装插件）。
 - 不做"通用配置 lint 框架"：体检器按提案的三类漂移硬编码检查面，不为未来新检查类型设计插件化注册表。
 - 不做项目级（`.opennovel/`）配置漂移检查；首版只覆盖全局配置目录——事故场景是全局配置陈旧。
-- 修复不写 opennovel.jsonc 原文（注释/格式会丢）；修复经 `updateGlobal` 的结构化写路径，接受其既有语义。
+- 修复不写 opennovel.jsonc 原文（手改全文重写才会丢注释）；修复经 `updateGlobal` 的结构化写路径（jsonc-parser `modify` 增量补丁，未涉及的内容与注释保持原样，端到端已验证），接受其既有语义。
 
 ## Decisions
 
 ### D1：问题注册表 + 体检器放 core 全局服务，HttpApi 端点放 opennovel
 
 - `ConfigHealth` 服务（core 全局图层，`packages/core/src/config/health.ts`，遵循目录自导出惯例）持有问题注册表：`SynchronizedRef<ReadonlyArray<Issue>>`，`record(ref, failure)` 供装载路径上报，`check()` 返回当前清单。
-- 全局文档定位：handler 侧复用 `config.ts` 的 globalDirectory 判定（`path.dirname(entry.path) === global.config`）从 `Config.Service.entries()` 取出全局文档，`Issue.file` 填该文档路径；evaluate 只消费这一份文档，不扫描项目级配置（首版边界见 Non-Goals）。
+- 全局文档定位：handler 侧消费 opennovel 服务端 V1 `Config.Service`（`config.getGlobal()` 已按 config.json → opennovel.json → opennovel.jsonc 合并三文件），`Issue.file` 填 `globalConfigFile()`（实际承载写入的候选文件）；evaluate 只消费这一份合并结果，不扫描项目级配置（首版边界见 Non-Goals）。
 - 图层装配：ConfigHealth 导出全局 layer（对齐 `Global.node` 先例），在 RootHttpApi global handlers 的组装层与插件宿主层两处提供；装载路径与 handler 经同一 `ConfigHealth.Service` 写读。
 - 体检器是纯函数 `evaluate(globalDocument: Config.Info | undefined, extra: { legacyFiles: string[]; loadFailures: Array<{ package: string; reason: string }> }) → Issue[]`，同步、无副作用、可单测。各检查项需要的外部输入显式传参，不自行 yield 服务，保持可测与诚实。
 - HttpApi 新增端点（挂 `global` 分组）：`GET /global/config/health` 读清单；`POST /global/config/health/fix` 执行修复（payload 为用户在预览中确认的 issue id 列表），成功返回修复后的最新清单。读写都在 opennovel 的 global handlers 里组装（yield `ConfigHealth.Service` + `Config.Service`）。
@@ -58,7 +58,7 @@
 ### D4：三类漂移检查的数据来源
 
 - **插件装载失败**：来自 D2 的注册表。`"error"` 级。
-- **agent 覆盖的 provider/model 语法不可解析或不在已知目录**：分两层判定。① 语法层：`ModelV2.parse` 抛错即 drift；② 目录层：providerID 不在"已知提供商目录"（内建 models-dev 目录 + 配置自定义提供商的 id 集合）即 drift——这覆盖事故场景里"语法合法但 provider 已下线"的旧型号（如 `alibaba/glm-5`）。已知集合由 handler 在检查时刻从 ProviderV2 目录取快照、作为入参传给纯函数 evaluate，不与注册时序耦合。`"warning"` 级。
+- **agent 覆盖的 provider/model 语法不可解析或不在已知目录**：分两层判定。① 语法层：`ModelV2.parse` 从不出错，按"provider/model 两段均非空"判定形态合法性；② 目录层：providerID 不在"已知提供商目录"即 drift——这覆盖事故场景里"语法合法但 provider 已下线"的旧型号（如 `alibaba/glm-5`）。已知集合由 handler 在检查时刻取全局可达快照（内建 models-dev 目录键 ∪ 全局配置 `provider` 自定义段键 ∪ `Auth.all()` 凭据库键）作为入参传给纯函数 evaluate，不与注册时序耦合。不取 `Provider.Service.list()`：它是实例级服务，全局路由没有 InstanceRef（实现期端到端验证踩实，已修正）。`"warning"` 级。
 - **旧式 agent markdown 残留**：复用 `config-agent` 的 `legacySources` 模式，在全局配置目录 glob `agent/agents/mode/modes`；命中即 warning 条目（文件路径 + 说明），**不**自动删除。
 
 ### D5：设置 UI 横幅与修复交互
@@ -76,6 +76,6 @@
 
 - **第三方插件异步装载的体检时序缺口** → 启动即刻的首次体检可能漏 deferred 失败；横幅随后续刷新（重进设置页即重新查询）收敛。若日后需要，可引入全局事件推送，但本提案不做。
 - **fixSummary 文案式预览的信息量** → 对 plugins 重写类修复足够（目标值单一）；模型覆盖类修复先以"指向 X/Y"文案呈现。结构化 diff 作为后续增强立案。
-- **修复经 updateGlobal 重写 jsonc 丢注释** → 写路径与设置 UI 现有写入一致，用户已有预期；修复确认文案注明"将重写配置文件，注释与格式不保留"。
+- **修复经 updateGlobal 写盘的注释保留** → `updateGlobal` 走 jsonc-parser `modify` 增量补丁，只重写被修改的节点区间，注释与其余内容保持原样（事故重演端到端已验证：`plugins` 重写后 jsonc 注释仍在）；确认文案如实描述"仅涉及所列条目"。残留限制：补丁对数组等节点的局部重排可能改变该节点内的空白排版。
 - **Issue id 稳定性** → id 由检查类型 + 键路径派生，同一漂移多次体检保持稳定，前端 diff/勾选依赖此稳定性；键路径含数组下标（`plugins[0]`），用户手动重排后 id 变化属预期。
 - **装载失败上报引入注册表写入** → 注册表是进程内 SynchronizedRef，无 IO、无失败路径；guard 原有"不挂死"语义不变。
