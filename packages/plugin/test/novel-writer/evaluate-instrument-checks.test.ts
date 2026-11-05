@@ -20,9 +20,6 @@ import {
   getDb,
   NovelTable,
   ChapterTable,
-  CharacterTable,
-  CharacterStateTable,
-  RelationshipTable,
   StoryArcTable,
   ArcBeatTable,
 } from "../../src/novel-writer/session-store.js"

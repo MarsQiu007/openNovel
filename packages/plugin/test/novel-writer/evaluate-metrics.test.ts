@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync, writeFileSync } from "fs"
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import {
   aggregateMetrics,
+  getMetricsDir,
   getMetricsPath,
   METRICS_SOFT_LIMIT_BYTES,
   readMetrics,
@@ -31,16 +32,23 @@ describe("evaluate metrics", () => {
 
   test("aggregateMetrics 按域聚合且支持 fromTs 范围过滤", () => {
     using f = fixture()
-    recordMetrics(f.dir, { domain: "c3-recall", key: "recall.entity.hits", delta: 5 })
-    recordMetrics(f.dir, { domain: "c3-recall", key: "recall.fts.hits", delta: 3 })
-    recordMetrics(f.dir, { domain: "c3-recall", key: "recall.entity.hits", delta: 1 })
+    // 直写 JSONL 固定时间戳：recordMetrics 的真实 Date.now() 在 Windows 粗粒度时钟
+    // （~15.6ms）下可能多行同毫秒，cutoff 由相邻行推导会随之漂移（时序 flake）
+    mkdirSync(getMetricsDir(f.dir), { recursive: true })
+    writeFileSync(
+      getMetricsPath(f.dir),
+      [
+        JSON.stringify({ ts: 10, domain: "c3-recall", key: "recall.entity.hits", delta: 5 }),
+        JSON.stringify({ ts: 20, domain: "c3-recall", key: "recall.fts.hits", delta: 3 }),
+        JSON.stringify({ ts: 30, domain: "c3-recall", key: "recall.entity.hits", delta: 1 }),
+      ].join("\n") + "\n",
+    )
 
     const { entries } = readMetrics(f.dir)
     const all = aggregateMetrics(entries)
     expect(all["c3-recall"]).toEqual({ "recall.entity.hits": 6, "recall.fts.hits": 3 })
 
-    const cutoff = entries[1].ts + 1
-    const ranged = aggregateMetrics(entries, cutoff)
+    const ranged = aggregateMetrics(entries, 21)
     expect(ranged["c3-recall"]).toEqual({ "recall.entity.hits": 1 })
   })
 
