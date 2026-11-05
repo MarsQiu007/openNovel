@@ -1,7 +1,6 @@
 import path from "path"
 import { describe, expect, test } from "bun:test"
 import { Effect, Schema } from "effect"
-import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "@opennovel-ai/core/config"
 import { ConfigExternalPlugin } from "@opennovel-ai/core/config/plugin/external"
 import { ConfigHealth } from "@opennovel-ai/core/config/health"
@@ -161,7 +160,6 @@ describe("ConfigExternalPlugin 健康上报", () => {
   it.live("装载失败的插件条目被记入健康注册表", () =>
     Effect.gen(function* () {
       const plugins = yield* PluginV2.Service
-      const agents = yield* AgentV2.Service
       const fs = yield* FSUtil.Service
       const npm = yield* Npm.Service
       const health = yield* ConfigHealth.Service

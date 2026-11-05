@@ -8,7 +8,6 @@ import { ConfigHealth } from "@opennovel-ai/core/config/health"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { Global } from "@opennovel-ai/core/global"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
-import { Provider } from "@/provider/provider"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import { InstallationVersion } from "@opennovel-ai/core/installation/version"
@@ -82,15 +81,16 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const healthSvc = yield* ConfigHealth.Service
     const fs = yield* FSUtil.Service
     const modelsDev = yield* ModelsDev.Service
-    const providerSvc = yield* Provider.Service
 
-    // 体检只读：装载结果只来自 ConfigHealth 注册表（插件装载路径是唯一事实源），此处不做任何 import 复判
+    // 体检只读：装载结果只来自 ConfigHealth 注册表（插件装载路径是唯一事实源），此处不做任何 import 复判。
+    // 已知提供商目录取全局可达快照：models.dev 内置目录 + 全局配置里的自定义提供商 + 已存凭据的提供商
+    //（Provider.Service.list 是实例级服务，全局路由无 InstanceRef，不能在这里调用）。
     const evaluateConfigHealth = Effect.fn("GlobalHttpApi.evaluateConfigHealth")(function* () {
       const info = yield* config.getGlobal()
-      const [records, models, connected, agentLegacy, modeLegacy] = yield* Effect.all([
+      const [records, models, auths, agentLegacy, modeLegacy] = yield* Effect.all([
         healthSvc.records(),
         modelsDev.get(),
-        providerSvc.list(),
+        auth.all().pipe(Effect.orElseSucceed(() => ({}) as Record<string, Auth.Info>)),
         fs
           .glob("{agent,agents}/**/*.md", { cwd: Global.Path.config, absolute: true, dot: true, symlink: true })
           .pipe(Effect.orElseSucceed(() => [] as string[])),
@@ -100,7 +100,7 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       ])
       const knownProviders = new Set([
         ...Object.keys(models),
-        ...Object.keys(connected),
+        ...Object.keys(auths),
         ...Object.keys(info.provider ?? {}),
       ])
       const legacyFiles = [...agentLegacy, ...modeLegacy].map((file) =>

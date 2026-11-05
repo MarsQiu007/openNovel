@@ -1,6 +1,6 @@
 export * as ConfigHealth from "./health"
 
-import { Cause, Context, Effect, Layer, Schema, SynchronizedRef } from "effect"
+import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect"
 import { makeGlobalNode } from "../effect/app-node"
 import { ConfigV1 } from "./v1/config"
 import { ConfigPlugin } from "./plugin"

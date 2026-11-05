@@ -12,7 +12,6 @@ import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
 import { ModelsDev } from "@opennovel-ai/core/models-dev"
 import { ServerAuth } from "../../src/server/auth"
-import { Provider } from "../../src/provider/provider"
 import { RootHttpApi } from "../../src/server/routes/instance/httpapi/api"
 import { GlobalPaths } from "../../src/server/routes/instance/httpapi/groups/global"
 import { controlHandlers } from "../../src/server/routes/instance/httpapi/handlers/control"
@@ -33,12 +32,11 @@ const apiLayer = HttpRouter.serve(
   { disableListenLog: true, disableLogger: true },
 ).pipe(
   Layer.provideMerge(NodeHttpServer.layerTest),
-  Layer.provide(Layer.mock(Auth.Service)({})),
+  Layer.provide(Layer.mock(Auth.Service)({ all: () => Effect.succeed({}) })),
   Layer.provide(Layer.mock(Config.Service)({})),
   Layer.provide(Layer.mock(ConfigHealth.Service)({ records: () => Effect.succeed([]) })),
   Layer.provide(LayerNode.compile(FSUtil.node)),
   Layer.provide(Layer.mock(ModelsDev.Service)({ get: () => Effect.succeed({}) })),
-  Layer.provide(Layer.mock(Provider.Service)({ list: () => Effect.succeed({}) })),
   Layer.provide(Layer.mock(MoveSession.Service)({})),
   Layer.provide(
     Layer.mock(Installation.Service)({
