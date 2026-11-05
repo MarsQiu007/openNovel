@@ -1,5 +1,10 @@
 # Tasks
 
+## Implementation Commits
+
+- ab91762970 fix(opennovel): 健康端点直读全局配置文件
+- 0083a8f8d2 docs(openspec): 记录 config-health-fresh-read 实现进展
+
 ## 1. 实现直读接口与健康端点接入
 
 - [x] 1.1 `Config.Service` 接口与实现新增 `getGlobalFresh()`：复用 `loadGlobal` 装载器直读，不读不写缓存，失败回退空配置（与缓存路径同容错语义）。验证方式：`packages/opennovel` 相关单测通过
