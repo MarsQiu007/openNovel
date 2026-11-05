@@ -220,8 +220,8 @@ const DOMAIN_LABELS: Array<[string, string]> = [
   ["c7-narrative", "C7 叙事质量"],
 ]
 
-/** 失败分类法：键前缀 → 类别（C 部） */
-const FAILURE_TAXONOMY: Array<[string, string]> = [
+/** 失败分类法：键前缀 → 类别（C 部与诊断包错误样本共用） */
+export const FAILURE_TAXONOMY: Array<[string, string]> = [
   ["tool.failed.", "运行时失败"],
   ["step.failed", "运行时失败"],
   ["scene.compile.null", "提示词控制"],
@@ -296,7 +296,7 @@ const CONFIG_RULES: Array<{ id: string; when: (ctx: RuleContext) => boolean; adv
   },
 ]
 
-function localDate(ts: number): string {
+export function localDate(ts: number): string {
   const d = new Date(ts)
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
