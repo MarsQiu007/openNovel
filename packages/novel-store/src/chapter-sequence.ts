@@ -8,7 +8,7 @@
  * 旧号→新号映射，映射必须按行维护；逐章点更新互不相干，无需 design 中的临时负值摘出
  * （落点区间对向互不相交，最终态为 1..N 排列，中途瞬态无碍）。
  */
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm"
 import type { AnySQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core"
 import {
   ArcBeatTable,
@@ -80,6 +80,97 @@ export function relocateChaptersTx(tx: Tx, novelId: string, plan: RelocatePlan):
 /** 重排原语（自包形态）：单事务执行全书序号重排与派生同步。 */
 export function relocateChapters(novelId: string, plan: RelocatePlan, directory?: string | null): RelocateResult {
   return withTransaction(getDb(directory), (tx) => relocateChaptersTx(tx, novelId, plan))
+}
+
+// ─── 章纲落位（design D3：跳号拒绝下沉插入路径） ───
+
+/** 章纲落位结果：gap = 前置章缺失须先补（拒绝生成）；reused / created 均含章 ID。 */
+export type ChapterSlotResult =
+  | { kind: "reused"; chapterId: string }
+  | { kind: "created"; chapterId: string }
+  | { kind: "gap"; missingOrder: number }
+
+/** 跳号拒绝的 typed error：工具层据 missingOrder 翻译为用户可读指引。 */
+export class ChapterSequenceGapError extends Error {
+  readonly missingOrder: number
+  constructor(missingOrder: number) {
+    super(`章节序号跳号：第 ${missingOrder} 章记录不存在，须先补前置章`)
+    this.name = "ChapterSequenceGapError"
+    this.missingOrder = missingOrder
+  }
+}
+
+export interface ChapterSlotInput {
+  novelId: string
+  /** 目标章节序号（从 1 开始） */
+  order: number
+  /** 章标题；缺省按「第N章」落库 */
+  title?: string
+  /** 调用方已解析的落卷（章纲流程经 ensureVolume 保证非空） */
+  volumeId: string
+  /** 是否显式指定卷号：决定复用记录的 volume_id 回写分支（保持既有工具语义） */
+  hasExplicitVolume: boolean
+}
+
+/**
+ * 章纲生成落位（组合形态）：跳号校验 → 按 (novel_id, order) 查重 → 复用更新或插入，事务内执行。
+ *
+ * 跳号校验报告 [1, N) 的**首个**缺口（存量脏库下 N-1 之外可能还有更早缺口，报最早缺失章
+ * 才能顺序补齐）；N-1 存在即视为连续，跨卷连续号合法（卷归属不参与序号约束）。
+ */
+export function resolveChapterSlotTx(tx: Tx, input: ChapterSlotInput): ChapterSlotResult {
+  if (input.order < 1) throw new Error(`章节序号非法：${input.order}（须从 1 开始）`)
+  const below = tx
+    .select({ order: ChapterTable.order })
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, input.novelId), lt(ChapterTable.order, input.order)))
+    .all()
+  const present = new Set(below.map((row) => row.order))
+  for (let order = 1; order < input.order; order++) {
+    if (!present.has(order)) return { kind: "gap", missingOrder: order }
+  }
+  const title = input.title ?? `第${input.order}章`
+  const existing = tx
+    .select()
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, input.novelId), eq(ChapterTable.order, input.order)))
+    .get()
+  if (existing) {
+    const shouldRename = input.title !== undefined && input.title !== existing.title
+    if (shouldRename || input.hasExplicitVolume) {
+      tx.update(ChapterTable)
+        .set({
+          ...(shouldRename ? { title, status: "outline" } : {}),
+          volume_id: input.volumeId,
+          updated_at: Date.now(),
+        })
+        .where(eq(ChapterTable.id, existing.id))
+        .run()
+    }
+    return { kind: "reused", chapterId: existing.id }
+  }
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  tx.insert(ChapterTable)
+    .values({
+      id,
+      novel_id: input.novelId,
+      volume_id: input.volumeId,
+      title,
+      content: "",
+      word_count: 0,
+      status: "outline",
+      order: input.order,
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return { kind: "created", chapterId: id }
+}
+
+/** 章纲落位（自包形态）：跳号校验、查重、插入单事务完成。 */
+export function resolveChapterSlot(input: ChapterSlotInput, directory?: string | null): ChapterSlotResult {
+  return withTransaction(getDb(directory), (tx) => resolveChapterSlotTx(tx, input))
 }
 
 function computeOrders(

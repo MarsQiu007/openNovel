@@ -14,7 +14,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import {
   closeDb,
   getDb,
@@ -26,6 +26,7 @@ import {
   getWritingBatch,
   relocateChapters,
   relocateChaptersTx,
+  resolveChapterSlot,
   withTransaction,
   type RelocateResult,
   NovelTable,
@@ -289,8 +290,7 @@ describe("存量脏库容错", () => {
   })
 })
 
-describe("deleteVolume 卷号补位（tasks 1.2）", () => {
-  let volumes: Array<{ id: string; order: number }>
+describe("deleteVolume 卷号补位（tasks 1.2）", () => {  let volumes: Array<{ id: string; order: number }>
 
   beforeEach(async () => {
     volumes = []
@@ -355,5 +355,91 @@ describe("deleteVolume 卷号补位（tasks 1.2）", () => {
       { id: volumes[1].id, order: 2 },
       { id: volumes[2].id, order: 3 },
     ])
+  })
+})
+
+describe("resolveChapterSlot 章纲落位（tasks 2.1）", () => {
+  let defaultVolumeId: string
+
+  beforeEach(async () => {
+    defaultVolumeId = (await createVolume("novel-1", "默认卷", undefined, projectDir)).id
+  })
+
+  const slotInput = (overrides: Record<string, unknown>) => ({
+    novelId: "novel-1",
+    order: 1,
+    volumeId: defaultVolumeId,
+    hasExplicitVolume: false,
+    ...overrides,
+  })
+
+  test("跳号拒绝并报首个缺口：仅 3 章的书生成第 6 章 → 报第 4 章缺失", () => {
+    const db = getDb(projectDir)
+    for (let order = 4; order <= 10; order++) {
+      db.delete(ChapterTable).where(eq(ChapterTable.id, chapterAt(order).id)).run()
+    }
+    const result = resolveChapterSlot(slotInput({ order: 6 }), projectDir)
+    expect(result).toEqual({ kind: "gap", missingOrder: 4 })
+    expect(currentOrders()).toEqual([1, 2, 3])
+  })
+
+  test("第 1 章不受限：空书直接创建", () => {
+    const db = getDb(projectDir)
+    db.insert(NovelTable)
+      .values({ id: "novel-2", title: "空书", genre: "玄幻", synopsis: "", status: "draft", created_at: 1, updated_at: 1 })
+      .run()
+    const result = resolveChapterSlot(slotInput({ novelId: "novel-2", order: 1 }), projectDir)
+    expect(result.kind).toBe("created")
+  })
+
+  test("重复生成复用原记录：改标题置 outline 态、显式换卷，不产生第二条同号记录", async () => {
+    const volume = await createVolume("novel-1", "新卷", undefined, projectDir)
+    const result = resolveChapterSlot(
+      slotInput({ order: 3, title: "第三章 觉醒", volumeId: volume.id, hasExplicitVolume: true }),
+      projectDir,
+    )
+    expect(result).toEqual({ kind: "reused", chapterId: chapterAt(3).id })
+    const db = getDb(projectDir)
+    const row = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterAt(3).id)).get()!
+    expect(row.title).toBe("第三章 觉醒")
+    expect(row.status).toBe("outline")
+    expect(row.volume_id).toBe(volume.id)
+    const atOrder3 = db
+      .select()
+      .from(ChapterTable)
+      .where(and(eq(ChapterTable.novel_id, "novel-1"), eq(ChapterTable.order, 3)))
+      .all()
+    expect(atOrder3).toHaveLength(1)
+  })
+
+  test("复用但不改名不换卷时记录原样不动", () => {
+    const before = getDb(projectDir).select().from(ChapterTable).where(eq(ChapterTable.id, chapterAt(3).id)).get()!
+    const result = resolveChapterSlot(slotInput({ order: 3 }), projectDir)
+    expect(result).toEqual({ kind: "reused", chapterId: chapterAt(3).id })
+    const after = getDb(projectDir).select().from(ChapterTable).where(eq(ChapterTable.id, chapterAt(3).id)).get()!
+    expect(after).toEqual(before)
+  })
+
+  test("跨卷连续号合法：前置章在别的卷也可落位", async () => {
+    const otherVolume = await createVolume("novel-1", "别卷", undefined, projectDir)
+    const db = getDb(projectDir)
+    db.update(ChapterTable).set({ volume_id: otherVolume.id }).where(eq(ChapterTable.id, chapterAt(3).id)).run()
+    const result = resolveChapterSlot(slotInput({ order: 4, volumeId: defaultVolumeId }), projectDir)
+    expect(result).toEqual({ kind: "reused", chapterId: chapterAt(4).id })
+  })
+
+  test("顺序下一章正常创建（非复用）", () => {
+    const db = getDb(projectDir)
+    db.delete(ChapterTable).where(eq(ChapterTable.novel_id, "novel-1")).run()
+    // 空书后手动补回第 1 章，再落第 2 章
+    const first = resolveChapterSlot(slotInput({ order: 1, title: "开篇" }), projectDir)
+    expect(first.kind).toBe("created")
+    const second = resolveChapterSlot(slotInput({ order: 2 }), projectDir)
+    expect(second.kind).toBe("created")
+    expect(currentOrders()).toEqual([1, 2])
+  })
+
+  test("序号小于 1 抛错", () => {
+    expect(() => resolveChapterSlot(slotInput({ order: 0 }), projectDir)).toThrow("章节序号非法")
   })
 })

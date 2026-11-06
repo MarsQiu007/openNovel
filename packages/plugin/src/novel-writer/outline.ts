@@ -12,7 +12,7 @@
 
 import { eq, and } from "drizzle-orm"
 
-import { getDb, NovelTable, VolumeTable, ChapterTable } from "./session-store.js"
+import { getDb, NovelTable, VolumeTable, ChapterTable, resolveChapterSlot, ChapterSequenceGapError } from "./session-store.js"
 
 
 // ─── 辅助函数 ───
@@ -328,48 +328,20 @@ export async function generateChapterOutline(
     1
   const volumeId = await ensureVolume(db, novelId, novel.title, volumeOrder)
 
+  // 落位（查重/插入/跳号拒绝）已下沉 novel-store 事务帮手，plugin 不再直连 chapters 表写入
+  const slot = resolveChapterSlot(
+    {
+      novelId,
+      order: chapterNumber,
+      title,
+      volumeId,
+      hasExplicitVolume: volumeNumber !== undefined,
+    },
+    projectDir,
+  )
+  if (slot.kind === "gap") throw new ChapterSequenceGapError(slot.missingOrder)
+  const chapterId = slot.chapterId
   const chapterTitle = title ?? `第${chapterNumber}章`
-
-  const [existingChapter] = await db
-    .select()
-    .from(ChapterTable)
-    .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, chapterNumber)))
-    .all()
-
-  let chapterId: string
-  if (existingChapter) {
-    chapterId = existingChapter.id
-    const shouldRename = title !== undefined && title !== existingChapter.title
-    if (shouldRename || volumeNumber !== undefined) {
-      await db
-        .update(ChapterTable)
-        .set({
-          ...(shouldRename ? { title: chapterTitle, status: "outline" } : {}),
-          volume_id: volumeId,
-          updated_at: Date.now(),
-        })
-        .where(eq(ChapterTable.id, chapterId))
-        .run()
-    }
-  } else {
-    chapterId = crypto.randomUUID()
-    const now = Date.now()
-    await db
-      .insert(ChapterTable)
-      .values({
-        id: chapterId,
-        novel_id: novelId,
-        volume_id: volumeId,
-        title: chapterTitle,
-        content: "",
-        word_count: 0,
-        status: "outline",
-        order: chapterNumber,
-        created_at: now,
-        updated_at: now,
-      })
-      .run()
-  }
 
   const lines: string[] = []
 

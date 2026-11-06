@@ -7,7 +7,7 @@
 
 ## 2. 写路径收口与删除事务化（novel-store + plugin）
 
-- [ ] 2.1 把 `generateChapterOutline` 的按号查重复用/插入整段下沉为 novel-store 帮手（自包 + 组合双形态，事务内执行；N>1 时校验 N-1 存在否则拒绝），plugin `outline.ts` 改调帮手、不再直连 chapters 表写入。验证方式：novel-store 单测覆盖跳号拒绝/第 1 章放行/重复生成复用原记录/跨卷连续号合法；plugin 侧 outline 相关既有测试全绿
+- [x] 2.1 把 `generateChapterOutline` 的按号查重复用/插入整段下沉为 novel-store 帮手（自包 + 组合双形态，事务内执行；N>1 时校验 N-1 存在否则拒绝），plugin `outline.ts` 改调帮手、不再直连 chapters 表写入。验证方式：novel-store 单测覆盖跳号拒绝/第 1 章放行/重复生成复用原记录/跨卷连续号合法；plugin 侧 outline 相关既有测试全绿
 - [ ] 2.2 把 novel-store `deleteChapter` 升级为完整删除帮手（design D4：解锚节拍/主线 → 级联清理版本/摘要/评审/角色状态/状态日志/钩子轮值/实体引用/批注×2/伏笔置空/张力按旧号删 → 摘出补位重排 → 派生同步，单一 `withTransaction` 回调）；插件 `delete_chapter` 工具与 server `deleteChapterEndpoint` 均改接该帮手（修复 endpoint 现状零级联的分叉缺陷）。验证方式：novel-store 单测断言删除后序号连续补位、派生表同步、节拍/主线解锚无旧号残留、失败回滚；server 侧既有删除测试全绿并新增「接口删除后序号连续」用例
 - [ ] 2.3 `generate_chapter_outline` 工具把 store 拒绝翻译为用户可读消息（报缺失章号 + 先补前置章指引）。验证方式：plugin 单测断言拒绝消息含缺失章号与指引
 
