@@ -48,6 +48,10 @@
 - 5625a1c3fd chore(novel-store): 清理 5.1 验证发现的未用导入与变量
 - 9eaa58988b test(plugin): 章纲持久化测试补前置章过跳号门禁
 
+### 归档后收尾修复
+
+- 5c4f4dc958 fix(novel-store): createChapter 无号建章接续全书末位——CI test 工作流 HttpApi 练习 novel.move-chapter 500 归因：无号建章默认 order=0 致双章同号，up 移动触发 relocate 越界断言；自动编号改全书末位 +1，并补 3 条自编号回归用例
+
 ## Workflow follow-up
 
 - 实现提交收集：归档前运行 `git log --grep "OpenSpec-Change: chapter-sequence-guard" --format="%h %s"` 写入本文件 Implementation Commits
