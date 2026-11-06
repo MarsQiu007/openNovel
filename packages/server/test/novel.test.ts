@@ -34,6 +34,7 @@ import {
   listChapterReviews,
   getStyleGuideEndpoint,
   deleteChapterEndpoint,
+  moveChapterEndpoint,
 } from "../src/handlers/novel"
 import { NovelNotFoundError, NovelValidationError, ChapterNotFoundError } from "@opennovel-ai/protocol/groups/novel"
 
@@ -494,6 +495,45 @@ describe("novel handler - delete chapter sequence（chapter-sequence-guard · ta
   test("接口删除跨书章节报 ChapterNotFoundError", async () => {
     await expect(
       Effect.runPromise(deleteChapterEndpoint("nonexistent-novel", chapterId1, tempDir)),
+    ).rejects.toBeInstanceOf(ChapterNotFoundError)
+  })
+})
+
+describe("novel handler - move chapter sequence（chapter-sequence-guard · tasks 3.2）", () => {
+  test("接口移卷到空卷：落前一卷末位 + 1（摘出后口径），原位置补位全书连续", async () => {
+    const db = getDb(tempDir)
+    const volumeA = crypto.randomUUID()
+    const volumeB = crypto.randomUUID()
+    db.insert(VolumeTable)
+      .values({ id: volumeA, novel_id: novelId, title: "第一卷", order: 1, created_at: 1 })
+      .run()
+    db.insert(VolumeTable)
+      .values({ id: volumeB, novel_id: novelId, title: "第二卷", order: 2, created_at: 1 })
+      .run()
+    db.update(ChapterTable).set({ volume_id: volumeA }).where(eq(ChapterTable.novel_id, novelId)).run()
+
+    // 两章书把第 1 章移到空卷二：摘出后卷一末位为 1（第 2 章补位），落点 2
+    const moved = await Effect.runPromise(
+      moveChapterEndpoint(novelId, chapterId1, { action: "to-volume", volumeId: volumeB }, tempDir),
+    )
+    expect(moved.order).toBe(2)
+    expect(moved.volumeId).toBe(volumeB)
+
+    const chapters = await Effect.runPromise(listChapters(novelId, tempDir))
+    expect(chapters.map((c) => c.order).sort((a, b) => a - b)).toEqual([1, 2])
+    expect(chapters.find((c) => c.id === chapterId2)!.order).toBe(1)
+  })
+
+  test("接口同卷上移到组界为 no-op，序号不变", async () => {
+    const moved = await Effect.runPromise(moveChapterEndpoint(novelId, chapterId1, { action: "up" }, tempDir))
+    expect(moved.order).toBe(1)
+    const chapters = await Effect.runPromise(listChapters(novelId, tempDir))
+    expect(chapters.map((c) => c.order).sort((a, b) => a - b)).toEqual([1, 2])
+  })
+
+  test("接口移卷跨书章节报 ChapterNotFoundError", async () => {
+    await expect(
+      Effect.runPromise(moveChapterEndpoint("nonexistent-novel", chapterId1, { action: "up" }, tempDir)),
     ).rejects.toBeInstanceOf(ChapterNotFoundError)
   })
 })
