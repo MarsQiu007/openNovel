@@ -59,6 +59,8 @@ describe("chapter outline persistence plugin tools", () => {
 
   test("read tools read from database only", async () => {
     await seedProject()
+    // 跳号门禁：第 2 章需先有第 1 章（chapter-sequence-guard 2.1）
+    await tools.generate_chapter_outline.execute({ novel_id: novelId, chapter_number: 1, title: "", content: "" }, toolCtx())
     const outline = "# 数据库章纲\n\n数据库有内容，无文件。"
     await tools.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 2, title: "信号", content: outline },
@@ -83,6 +85,10 @@ describe("chapter outline persistence plugin tools", () => {
 
   test("writer snapshot resolves database outline", async () => {
     await seedProject()
+    // 跳号门禁：第 3 章需先顺序补齐第 1、2 章（chapter-sequence-guard 2.1）
+    for (const order of [1, 2]) {
+      await tools.generate_chapter_outline.execute({ novel_id: novelId, chapter_number: order, title: "", content: "" }, toolCtx())
+    }
     const outline = "# 写作快照章纲\n\n包含主角冲突、地点和关键悬念。"
     await tools.generate_chapter_outline.execute(
       { novel_id: novelId, chapter_number: 3, title: "异常", content: outline },
