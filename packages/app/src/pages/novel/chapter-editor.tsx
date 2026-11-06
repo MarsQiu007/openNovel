@@ -7,9 +7,10 @@ import {
   useAnnotations,
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
+import { useSettings } from "@/context/settings"
 import { showToast } from "@/utils/toast"
 import { SaveStatusIndicator } from "@/components/novel/save-status-indicator"
-import { createSaveStatusStore, type EditSaveStatus } from "@/utils/save-status"
+import { type EditSaveStatus } from "@/utils/save-status"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
@@ -32,6 +33,7 @@ type ChapterEditorProps = {
 
 export default function ChapterEditor(props: ChapterEditorProps) {
   const language = useLanguage()
+  const settings = useSettings()
   const chapterQuery = useChapterDetail(
     () => props.novelID,
     () => props.chapterID,
@@ -54,38 +56,81 @@ export default function ChapterEditor(props: ChapterEditorProps) {
   const [saveStatus, setSaveStatus] = createSignal<EditSaveStatus>("idle")
   const [saveFailure, setSaveFailure] = createSignal<string | null>(null)
   const [pendingContent, setPendingContent] = createSignal<string | null>(null)
+  const [loadedChapterID, setLoadedChapterID] = createSignal<string | null>(null)
+  const [awaitingCatchUp, setAwaitingCatchUp] = createSignal(false)
 
-  // Load initial content when chapter detail arrives
+  let pendingSave: Promise<boolean> | undefined
+
+  // 保存正文：返回是否保存成功。飞行期间用户继续输入时，本轮保存不代表最新状态，不标记为已保存；
+  // 章节在保存飞行中切换时，旧章节的响应不再写回编辑器状态。
+  const saveContent = (text: string) => {
+    const chapterID = props.chapterID
+    setSaveStatus("saving")
+    setAwaitingCatchUp(true)
+    const task = updateMutation
+      .mutateAsync({ novelID: props.novelID, chapterID, content: text })
+      .then(() => {
+        if (props.chapterID !== chapterID) return true
+        setPendingContent(null)
+        if (content() !== text) {
+          setSaveStatus("idle")
+          return true
+        }
+        setHasChanged(false)
+        setLastAutoSave(Date.now())
+        setSaveStatus("saved")
+        setSaveFailure(null)
+        return true
+      })
+      .catch((error: unknown) => {
+        // 保存失败：保留内容，显示失败状态和重试按钮，不显示虚假的自动保存成功时间
+        if (props.chapterID !== chapterID) return false
+        setLastAutoSave(null)
+        setSaveStatus("save_failed")
+        setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
+        setPendingContent(text)
+        return false
+      })
+      .finally(() => {
+        if (pendingSave === task) pendingSave = undefined
+      })
+    pendingSave = task
+    return task
+  }
+
+  // 初次载入与切换章节时采用服务端内容并重置编辑器状态；脏状态保留本地输入；
+  // 本地保存后服务端快照滞后的窗口内不回填，等重新拉取对齐后再恢复采用。
   createEffect(() => {
     const data = chapterQuery.data
-    if (data) {
+    if (!data) return
+    if (loadedChapterID() !== data.id) {
+      setLoadedChapterID(data.id)
+      setAwaitingCatchUp(false)
       setContent(data.content)
       setHasChanged(false)
+      setLastAutoSave(null)
+      setSaveStatus("idle")
+      setSaveFailure(null)
+      setPendingContent(null)
+      setPreviewVersion(null)
+      setConfirmRestore(null)
+      return
     }
+    if (data.content === content()) {
+      setAwaitingCatchUp(false)
+      return
+    }
+    if (hasChanged() || awaitingCatchUp()) return
+    setContent(data.content)
   })
 
-  // Auto-save 2s after the last edit; never exits the editor
+  // Auto-save after the configured idle delay; never exits the editor
   createEffect(() => {
     const current = content()
-    if (!hasChanged() || current === (chapterQuery.data?.content ?? "")) return
+    if (!settings.general.autoSave() || !hasChanged() || current === (chapterQuery.data?.content ?? "")) return
     const timer = setTimeout(() => {
-      setSaveStatus("saving")
-      void updateMutation
-        .mutateAsync({ novelID: props.novelID, chapterID: props.chapterID, content: current })
-        .then(() => {
-          setHasChanged(false)
-          setLastAutoSave(Date.now())
-          setSaveStatus("saved")
-          setSaveFailure(null)
-        })
-        .catch((error: unknown) => {
-          // 保存失败：保留内容，显示失败状态和重试按钮，不显示虚假的自动保存成功时间
-          setLastAutoSave(null)
-          setSaveStatus("save_failed")
-          setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
-          setPendingContent(current)
-        })
-    }, 2000)
+      void saveContent(current)
+    }, settings.general.autoSaveInterval())
     onCleanup(() => clearTimeout(timer))
   })
 
@@ -103,42 +148,22 @@ export default function ChapterEditor(props: ChapterEditorProps) {
   }
 
   const handleSave = async () => {
-    setSaveStatus("saving")
-    try {
-      await updateMutation.mutateAsync({
-        novelID: props.novelID,
-        chapterID: props.chapterID,
-        content: content(),
-      })
-      setHasChanged(false)
-      setSaveStatus("saved")
-      setSaveFailure(null)
-      showToast(language.t("novel.editor.saveSuccess"))
+    const ok = await saveContent(content())
+    showToast(language.t(ok ? "novel.editor.saveSuccess" : "novel.error.saveFailed"))
+  }
+
+  const handleExit = async () => {
+    if (pendingSave) await pendingSave
+    if (isUnchanged()) {
       props.onExit()
-    } catch (error) {
-      setSaveStatus("save_failed")
-      setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
-      showToast(language.t("novel.error.saveFailed"))
+      return
     }
+    const ok = await saveContent(content())
+    if (ok) props.onExit()
   }
 
   const handleRetrySave = async () => {
-    const retryContent = pendingContent() ?? content()
-    setSaveStatus("saving")
-    try {
-      await updateMutation.mutateAsync({
-        novelID: props.novelID,
-        chapterID: props.chapterID,
-        content: retryContent,
-      })
-      setHasChanged(false)
-      setSaveStatus("saved")
-      setSaveFailure(null)
-      setPendingContent(null)
-    } catch (error) {
-      setSaveStatus("save_failed")
-      setSaveFailure(error instanceof Error ? error.message : "网络或服务异常")
-    }
+    await saveContent(pendingContent() ?? content())
   }
 
   const handleRestore = async (version: number) => {
@@ -264,7 +289,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
               </ButtonV2>
 
               {/* Exit button */}
-              <ButtonV2 type="button" variant="ghost-muted" size="small" onClick={props.onExit}>
+              <ButtonV2 type="button" variant="ghost-muted" size="small" onClick={() => void handleExit()}>
                 {language.t("novel.editor.exit")}
               </ButtonV2>
             </div>
@@ -279,8 +304,10 @@ export default function ChapterEditor(props: ChapterEditorProps) {
                 class="w-full h-full p-6 bg-transparent text-v2-text-text-base font-serif text-base leading-relaxed resize-none outline-none"
                 value={content()}
                 onInput={(e) => {
-                  setContent(e.currentTarget.value)
+                  // 先置脏标记再写内容：采用 effect 随内容写入同步重跑，
+                  // 顺序颠倒会让它在 hasChanged 生效前把输入回填成服务端内容
                   setHasChanged(true)
+                  setContent(e.currentTarget.value)
                 }}
                 onKeyDown={handleKeyDown}
               />

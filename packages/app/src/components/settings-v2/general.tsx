@@ -195,6 +195,15 @@ export const SettingsGeneralV2: Component<{
     return [off, ...languageOptions()]
   })
 
+  const autoSaveIntervalOptions = createMemo(() => [
+    { value: "30000", label: language.t("settings.general.row.autosave.option.30s") },
+    { value: "60000", label: language.t("settings.general.row.autosave.option.1m") },
+    { value: "300000", label: language.t("settings.general.row.autosave.option.5m") },
+  ])
+  const currentAutoSaveInterval = createMemo(
+    () => autoSaveIntervalOptions().find((o) => o.value === String(settings.general.autoSaveInterval()))!,
+  )
+
   const currentOutputLanguage = createMemo(() => {
     const value = serverSync().data.config.general?.outputLanguage
     return value ?? language.locale()
@@ -355,6 +364,32 @@ export const SettingsGeneralV2: Component<{
               checked={settings.general.editToolPartsExpanded()}
               onChange={(checked) => settings.general.setEditToolPartsExpanded(checked)}
             />
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.autosave.title")}
+          description={language.t("settings.general.row.autosave.description")}
+        >
+          <div class="flex items-center gap-3">
+            <div data-action="settings-autosave-interval">
+              <SelectV2
+                appearance="inline"
+                options={autoSaveIntervalOptions()}
+                placement="bottom-end"
+                gutter={6}
+                current={currentAutoSaveInterval()}
+                value={(o) => o.value}
+                label={(o) => o.label}
+                onSelect={(option) => option && settings.general.setAutoSaveInterval(Number(option.value))}
+              />
+            </div>
+            <div data-action="settings-autosave">
+              <Switch
+                checked={settings.general.autoSave()}
+                onChange={(checked) => settings.general.setAutoSave(checked)}
+              />
+            </div>
           </div>
         </SettingsRowV2>
 

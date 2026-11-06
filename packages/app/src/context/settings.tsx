@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
+import { AUTO_SAVE_INTERVAL_DEFAULT, resolveAutoSaveInterval } from "@/utils/editor-autosave"
 
 export interface NotificationSettings {
   agent: boolean
@@ -22,6 +23,7 @@ export interface SoundSettings {
 export interface Settings {
   general: {
     autoSave: boolean
+    autoSaveInterval: number
     releaseNotes: boolean
     checkUpdatesOnStartup: boolean
     followup: "queue" | "steer"
@@ -173,6 +175,7 @@ export function terminalFontFamily(font: string | undefined) {
 const defaultSettings: Settings = {
   general: {
     autoSave: true,
+    autoSaveInterval: AUTO_SAVE_INTERVAL_DEFAULT,
     releaseNotes: true,
     checkUpdatesOnStartup: true,
     followup: "steer",
@@ -335,6 +338,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         autoSave: withFallback(() => store.general?.autoSave, defaultSettings.general.autoSave),
         setAutoSave(value: boolean) {
           setStore("general", "autoSave", value)
+        },
+        autoSaveInterval: withFallback(
+          () => resolveAutoSaveInterval(store.general?.autoSaveInterval),
+          AUTO_SAVE_INTERVAL_DEFAULT,
+        ),
+        setAutoSaveInterval(value: number) {
+          setStore("general", "autoSaveInterval", value)
         },
         releaseNotes: withFallback(() => store.general?.releaseNotes, defaultSettings.general.releaseNotes),
         setReleaseNotes(value: boolean) {

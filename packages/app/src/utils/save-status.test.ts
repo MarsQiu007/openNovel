@@ -1,9 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import {
-  EDIT_SAVE_STATUS_LABELS,
-  EDIT_SAVE_STATUS_STYLES,
-  createSaveStatusStore,
-} from "./save-status"
+import { EDIT_SAVE_STATUS_LABELS, EDIT_SAVE_STATUS_STYLES } from "./save-status"
 
 describe("EDIT_SAVE_STATUS_LABELS", () => {
   test("覆盖全部状态且使用简体中文", () => {
@@ -31,42 +27,5 @@ describe("EDIT_SAVE_STATUS_STYLES", () => {
     expect(EDIT_SAVE_STATUS_STYLES.sync_failed).toContain("red")
     expect(EDIT_SAVE_STATUS_STYLES.saved).toContain("green")
     expect(EDIT_SAVE_STATUS_STYLES.sync_pending).toContain("amber")
-  })
-})
-
-describe("createSaveStatusStore", () => {
-  test("初始状态为 idle", () => {
-    const store = createSaveStatusStore()
-    expect(store.status).toBe("idle")
-    expect(store.failureMessage).toBeNull()
-  })
-
-  test("set 更新状态和失败消息", () => {
-    const store = createSaveStatusStore()
-    store.set("save_failed", "网络超时")
-    expect(store.status).toBe("save_failed")
-    expect(store.failureMessage).toBe("网络超时")
-
-    store.set("saved")
-    expect(store.status).toBe("saved")
-    expect(store.failureMessage).toBeNull()
-  })
-
-  test("subscribe 监听状态变化", () => {
-    const store = createSaveStatusStore()
-    let notifyCount = 0
-    const unsubscribe = store.subscribe(() => {
-      notifyCount++
-    })
-
-    store.set("saving")
-    expect(notifyCount).toBe(1)
-
-    store.set("saved")
-    expect(notifyCount).toBe(2)
-
-    unsubscribe()
-    store.set("idle")
-    expect(notifyCount).toBe(2)
   })
 })

@@ -36,30 +36,3 @@ export const EDIT_SAVE_STATUS_STYLES: Readonly<Record<EditSaveStatus, string>> =
   sync_failed: "text-red-600",
   skipped: "text-stone-400",
 }
-
-/** 创建编辑保存状态管理器 */
-export function createSaveStatusStore() {
-  let current: EditSaveStatus = "idle"
-  let failureMessage: string | null = null
-  const listeners = new Set<() => void>()
-
-  return {
-    get status() {
-      return current
-    },
-    get failureMessage() {
-      return failureMessage
-    },
-    set(next: EditSaveStatus, message?: string) {
-      current = next
-      failureMessage = message ?? null
-      for (const listener of listeners) listener()
-    },
-    subscribe(listener: () => void) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-  }
-}
-
-export type SaveStatusStore = ReturnType<typeof createSaveStatusStore>

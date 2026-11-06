@@ -1056,6 +1056,12 @@ export const dict = {
   "settings.general.row.editToolPartsExpanded.title": "Expand edit tool parts",
   "settings.general.row.editToolPartsExpanded.description":
     "Show edit, write, and patch tool parts expanded by default in the timeline",
+  "settings.general.row.autosave.title": "Auto save",
+  "settings.general.row.autosave.description":
+    "Automatically save chapter content after you stop typing for the selected duration",
+  "settings.general.row.autosave.option.30s": "30 seconds",
+  "settings.general.row.autosave.option.1m": "1 minute",
+  "settings.general.row.autosave.option.5m": "5 minutes",
   "settings.general.row.newInterface.title": "New layout",
   "settings.general.row.newInterface.badge": "New",
   "settings.general.row.newInterface.description":
@@ -1867,7 +1873,6 @@ export const dict = {
   "novel.editor.saving": "Saving...",
   "novel.editor.target": "Daily Target",
   "novel.editor.shortcut": "Shortcuts",
-  "novel.editor.autoSave": "Auto Save",
   "novel.editor.charCount": "{{count}} / {{target}} chars",
   "novel.editor.wordCount": "Word Count",
   "novel.editor.saveSuccess": "Chapter saved",
@@ -1877,7 +1882,6 @@ export const dict = {
   "novel.editor.preview": "Preview",
   "novel.editor.restore": "Restore",
   "novel.editor.restoreSuccess": "Version restored",
-  "novel.editor.autoSaved": "Auto-saved {{time}}",
 
   "novel.status.planned": "Planned",
   "novel.status.drafting": "Drafting",
