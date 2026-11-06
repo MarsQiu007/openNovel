@@ -11,7 +11,7 @@ import { eq, and, or, asc, desc, isNull, gt, sql } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
-import { deleteChapterWithSequence, type ChapterDeletion } from "./chapter-sequence.js"
+import { deleteChapterWithSequence, moveChapterTx, type ChapterDeletion } from "./chapter-sequence.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
 import { serializeCharacterProfile, type CharacterProfile } from "./profile.js"
 import { Option, Schema } from "effect"
@@ -1729,62 +1729,17 @@ export async function updateChapter(
   return db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
 }
 
+/**
+ * 移动章节（自包形态）：to-volume 落目标卷阅读末位全书重排 / up/down 同卷相邻交换，
+ * 均经 relocate 原语单事务完成（派生同步 + running 批量作废）；移到「未分组」仅改归属保号。
+ */
 export async function moveChapter(
   chapterId: string,
   action: "up" | "down" | "to-volume",
   volumeId: string | undefined,
   directory?: string | null,
 ): Promise<typeof ChapterTable.$inferSelect> {
-  const db = getDb(directory)
-  const chapter = await db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
-  if (!chapter) throw new Error(`Chapter not found: ${chapterId}`)
-
-  if (action === "to-volume") {
-    const target = volumeId ?? null
-    const siblings = await db
-      .select()
-      .from(ChapterTable)
-      .where(
-        target
-          ? and(eq(ChapterTable.novel_id, chapter.novel_id), eq(ChapterTable.volume_id, target))
-          : and(eq(ChapterTable.novel_id, chapter.novel_id), isNull(ChapterTable.volume_id)),
-      )
-      .all()
-    const nextOrder = siblings.reduce((max, c) => Math.max(max, c.order), 0) + 1
-    await db
-      .update(ChapterTable)
-      .set({ volume_id: target, order: nextOrder, updated_at: Date.now() })
-      .where(eq(ChapterTable.id, chapterId))
-      .run()
-    return db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
-  }
-
-  const group = await db
-    .select()
-    .from(ChapterTable)
-    .where(
-      chapter.volume_id
-        ? and(eq(ChapterTable.novel_id, chapter.novel_id), eq(ChapterTable.volume_id, chapter.volume_id))
-        : and(eq(ChapterTable.novel_id, chapter.novel_id), isNull(ChapterTable.volume_id)),
-    )
-    .orderBy(asc(ChapterTable.order))
-    .all()
-  const index = group.findIndex((c) => c.id === chapterId)
-  const swapWith = action === "up" ? group[index - 1] : group[index + 1]
-  if (swapWith) {
-    const now = Date.now()
-    await db
-      .update(ChapterTable)
-      .set({ order: swapWith.order, updated_at: now })
-      .where(eq(ChapterTable.id, chapterId))
-      .run()
-    await db
-      .update(ChapterTable)
-      .set({ order: chapter.order, updated_at: now })
-      .where(eq(ChapterTable.id, swapWith.id))
-      .run()
-  }
-  return db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
+  return withTransaction(getDb(directory), (tx) => moveChapterTx(tx, chapterId, action, volumeId))
 }
 
 export async function createRelationship(

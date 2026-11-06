@@ -8,7 +8,7 @@
  * 旧号→新号映射，映射必须按行维护；逐章点更新互不相干，无需 design 中的临时负值摘出
  * （落点区间对向互不相交，最终态为 1..N 排列，中途瞬态无碍）。
  */
-import { and, asc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm"
 import type { AnySQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core"
 import {
   AnnotationRoundTable,
@@ -29,6 +29,7 @@ import {
   StorySpineEntryTable,
   TechniqueShadowLogTable,
   TensionLogTable,
+  VolumeTable,
   WritingBatchTable,
   cancelWritingBatchTx,
   getDb,
@@ -241,6 +242,103 @@ export function deleteChapterTx(tx: Tx, chapterId: string): ChapterDeletion {
 /** 删除章节（自包形态）：级联清理、补位重排、派生同步单事务完成。 */
 export function deleteChapterWithSequence(chapterId: string, directory?: string | null): ChapterDeletion {
   return withTransaction(getDb(directory), (tx) => deleteChapterTx(tx, chapterId))
+}
+
+// ─── 移卷与同卷交换（design D2：全书单事务重排收口 relocate 原语） ───
+
+/**
+ * 移动章节（组合形态）：to-volume 落到目标卷阅读末位，up/down 同卷相邻交换，均走 relocate。
+ *
+ * - 落点在摘出后计算（目标卷末章不含被移章）：目标卷非空 → 末章 + 1；空卷回退卷序更近的
+ *   前一个有章卷末章 + 1，前无卷则为 1；
+ * - 移到「未分组」仅改归属保号，不重排、不触碰派生表；同卷/组界无交换对象均为 no-op；
+ * - 重排部分整体收口 relocateChaptersTx：补位、派生同步、running 批量作废一并完成。
+ */
+export function moveChapterTx(
+  tx: Tx,
+  chapterId: string,
+  action: "up" | "down" | "to-volume",
+  volumeId: string | undefined,
+): typeof ChapterTable.$inferSelect {
+  const chapter = tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+  if (!chapter) throw new Error(`Chapter not found: ${chapterId}`)
+
+  if (action === "to-volume") {
+    if (volumeId == null) {
+      if (chapter.volume_id == null) return chapter
+      tx.update(ChapterTable)
+        .set({ volume_id: null, updated_at: Date.now() })
+        .where(eq(ChapterTable.id, chapterId))
+        .run()
+      return tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
+    }
+    if (volumeId === chapter.volume_id) return chapter
+    const volume = tx.select().from(VolumeTable).where(eq(VolumeTable.id, volumeId)).get()
+    if (!volume || volume.novel_id !== chapter.novel_id) throw new Error(`Volume not found: ${volumeId}`)
+    const targetOrder = landingOrderInVolume(tx, chapter, volume)
+    tx.update(ChapterTable)
+      .set({ volume_id: volumeId, updated_at: Date.now() })
+      .where(eq(ChapterTable.id, chapterId))
+      .run()
+    relocateChaptersTx(tx, chapter.novel_id, { kind: "move", chapterId, targetOrder })
+    return tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
+  }
+
+  const group = tx
+    .select()
+    .from(ChapterTable)
+    .where(
+      chapter.volume_id
+        ? and(eq(ChapterTable.novel_id, chapter.novel_id), eq(ChapterTable.volume_id, chapter.volume_id))
+        : and(eq(ChapterTable.novel_id, chapter.novel_id), isNull(ChapterTable.volume_id)),
+    )
+    .orderBy(asc(ChapterTable.order))
+    .all()
+  const index = group.findIndex((c) => c.id === chapterId)
+  const swapWith = action === "up" ? group[index - 1] : group[index + 1]
+  if (!swapWith) return chapter
+  relocateChaptersTx(tx, chapter.novel_id, { kind: "move", chapterId, targetOrder: swapWith.order })
+  return tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!
+}
+
+/** 落点 = 目标卷末章序号 + 1（摘出后口径：高于原位的章先 -1 再取末位）；目标卷为空时
+ * 回退卷序更近的前一个有章卷，前无卷则为 1。 */
+function landingOrderInVolume(
+  tx: Tx,
+  chapter: typeof ChapterTable.$inferSelect,
+  volume: typeof VolumeTable.$inferSelect,
+): number {
+  const targetMax = maxChapterOrderInVolume(tx, chapter, volume.id)
+  if (targetMax !== undefined) return targetMax + 1
+  const earlier = tx
+    .select()
+    .from(VolumeTable)
+    .where(and(eq(VolumeTable.novel_id, chapter.novel_id), lt(VolumeTable.order, volume.order)))
+    .orderBy(desc(VolumeTable.order))
+    .all()
+  for (const prev of earlier) {
+    const max = maxChapterOrderInVolume(tx, chapter, prev.id)
+    if (max !== undefined) return max + 1
+  }
+  return 1
+}
+
+/** 卷内排除被移章后的末位序号，按摘出口径折算（高于被移章原号的先 -1 补位）。 */
+function maxChapterOrderInVolume(
+  tx: Tx,
+  chapter: typeof ChapterTable.$inferSelect,
+  volumeId: string,
+): number | undefined {
+  const rows = tx
+    .select({ id: ChapterTable.id, order: ChapterTable.order })
+    .from(ChapterTable)
+    .where(and(eq(ChapterTable.novel_id, chapter.novel_id), eq(ChapterTable.volume_id, volumeId)))
+    .all()
+  return rows.reduce<number | undefined>((max, row) => {
+    if (row.id === chapter.id) return max
+    const effective = row.order > chapter.order ? row.order - 1 : row.order
+    return max === undefined || effective > max ? effective : max
+  }, undefined)
 }
 
 function computeOrders(

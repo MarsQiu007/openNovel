@@ -13,7 +13,7 @@
 
 ## 3. 移卷语义修正（novel-store + server）
 
-- [ ] 3.1 `moveChapter` to-volume 改走 relocate（落点 = 目标卷末章 + 1、原位置补位、插入点后区间 +1，全书单事务重排）；up/down 同卷交换纳入同一原语并同步派生表；移到「未分组」仅改 volume_id 不重排。验证方式：novel-store 单测覆盖 design D2 的三卷 60 章场景（改后卷一 1~19/卷二 20~40/卷三 41~60）、前移撞号场景不再产生重复、空卷落点、未分组保号
+- [x] 3.1 `moveChapter` to-volume 改走 relocate（落点 = 目标卷末章 + 1、原位置补位、插入点后区间 +1，全书单事务重排）；up/down 同卷交换纳入同一原语并同步派生表；移到「未分组」仅改 volume_id 不重排。验证方式：novel-store 单测覆盖 design D2 的三卷 60 章场景（改后卷一 1~19/卷二 20~40/卷三 41~60）、前移撞号场景不再产生重复、空卷落点、未分组保号
 - [ ] 3.2 server `moveChapterEndpoint` 改接新帮手（请求/响应契约不变，无需 SDK 再生成）。验证方式：`packages/server` typecheck 与既有 moveChapter 相关测试全绿
 
 ## 4. 检测升维与修复工具（plugin）

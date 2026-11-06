@@ -27,6 +27,8 @@ import {
   deleteVolumeTx,
   beginWritingBatch,
   getWritingBatch,
+  moveChapter,
+  moveChapterTx,
   relocateChapters,
   relocateChaptersTx,
   resolveChapterSlot,
@@ -575,5 +577,182 @@ describe("deleteChapter 统一删除（tasks 2.2 · D4）", () => {
     expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     expect(tensionNumbers()).toEqual([3, 4, 5, 8])
     expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
+  })
+})
+
+const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+
+describe("moveChapter 移卷与交换（tasks 3.1 · design D2）", () => {
+  let volumes60: Array<{ id: string }>
+
+  beforeEach(async () => {
+    const db = getDb(projectDir)
+    db.insert(NovelTable)
+      .values({ id: "novel-2", title: "六十章书", genre: "玄幻", synopsis: "", status: "draft", created_at: 1, updated_at: 1 })
+      .run()
+    volumes60 = []
+    for (const title of ["卷一", "卷二", "卷三"]) {
+      volumes60.push(await createVolume("novel-2", title, undefined, projectDir))
+    }
+    for (let order = 1; order <= 60; order++) {
+      const volumeIndex = order <= 20 ? 0 : order <= 40 ? 1 : 2
+      await createChapter("novel-2", `第${order}章`, order, volumes60[volumeIndex]!.id, projectDir)
+    }
+  })
+
+  function chapterAtNovel2(order: number) {
+    return getDb(projectDir)
+      .select()
+      .from(ChapterTable)
+      .where(and(eq(ChapterTable.novel_id, "novel-2"), eq(ChapterTable.order, order)))
+      .get()!
+  }
+
+  function ordersOfNovel2(): number[] {
+    return getDb(projectDir)
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, "novel-2"))
+      .all()
+      .map((row) => row.order)
+      .sort((a, b) => a - b)
+  }
+
+  function volumeOrders(volumeIndex: number): number[] {
+    return getDb(projectDir)
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(and(eq(ChapterTable.novel_id, "novel-2"), eq(ChapterTable.volume_id, volumes60[volumeIndex]!.id)))
+      .all()
+      .map((row) => row.order)
+      .sort((a, b) => a - b)
+  }
+
+  test("三卷 60 章把第 5 章移到卷二：落卷二末位 40，原 6~40 补位 -1，全书仍 1~60", async () => {
+    const movedId = chapterAtNovel2(5).id
+    const result = await moveChapter(movedId, "to-volume", volumes60[1]!.id, projectDir)
+    expect(result.order).toBe(40)
+    expect(result.volume_id).toBe(volumes60[1]!.id)
+
+    expect(ordersOfNovel2()).toEqual(range(1, 60))
+    expect(volumeOrders(0)).toEqual(range(1, 19))
+    expect(volumeOrders(1)).toEqual(range(20, 40))
+    expect(volumeOrders(2)).toEqual(range(41, 60))
+    // 落到阅读末位：卷二内无高于 40 的号
+    expect(chapterAtNovel2(40).id).toBe(movedId)
+  })
+
+  test("后移章入卷不再撞号：目标卷末位 +1 被占用时全书重排无重复", async () => {
+    // 卷一 1~3、卷二 4~5；把 3 号章移到卷二（旧实现直接 SET 末位+1 会撞 5 号位制造断档）
+    const db = getDb(projectDir)
+    db.delete(ChapterTable).where(eq(ChapterTable.novel_id, "novel-2")).run()
+    await createChapter("novel-2", "甲", 1, volumes60[0]!.id, projectDir)
+    await createChapter("novel-2", "乙", 2, volumes60[0]!.id, projectDir)
+    await createChapter("novel-2", "丙", 3, volumes60[0]!.id, projectDir)
+    await createChapter("novel-2", "丁", 4, volumes60[1]!.id, projectDir)
+    await createChapter("novel-2", "戊", 5, volumes60[1]!.id, projectDir)
+
+    const result = await moveChapter(chapterAtNovel2(3).id, "to-volume", volumes60[1]!.id, projectDir)
+    expect(result.order).toBe(5)
+    expect(ordersOfNovel2()).toEqual([1, 2, 3, 4, 5])
+    expect(volumeOrders(0)).toEqual([1, 2])
+    expect(volumeOrders(1)).toEqual([3, 4, 5])
+  })
+
+  test("空卷落点 = 前一卷末章 + 1（摘出后口径）", async () => {
+    const db = getDb(projectDir)
+    db.delete(ChapterTable).where(eq(ChapterTable.novel_id, "novel-2")).run()
+    await createChapter("novel-2", "甲", 1, volumes60[0]!.id, projectDir)
+    await createChapter("novel-2", "乙", 2, volumes60[0]!.id, projectDir)
+    await createChapter("novel-2", "丙", 3, volumes60[0]!.id, projectDir)
+    // 卷二保持空卷
+    const result = await moveChapter(chapterAtNovel2(1).id, "to-volume", volumes60[1]!.id, projectDir)
+    expect(result.order).toBe(3)
+    expect(ordersOfNovel2()).toEqual([1, 2, 3])
+    expect(volumeOrders(1)).toEqual([3])
+  })
+
+  test("移到未分组仅改归属：序号保持 10，其余章不重排、派生不动、批量不作废", async () => {
+    const db = getDb(projectDir)
+    db.update(ChapterTable).set({ volume_id: volumes60[0]!.id }).where(eq(ChapterTable.novel_id, "novel-2")).run()
+    await seedDerived()
+
+    const result = await moveChapter(chapterAt(10).id, "to-volume", undefined, projectDir)
+    expect(result.volume_id).toBeNull()
+    expect(result.order).toBe(10)
+    expect(currentOrders()).toEqual(range(1, 10))
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
+  })
+
+  test("up/down 同卷相邻交换走同一原语：仅两章换号并同步派生表", async () => {
+    const db = getDb(projectDir)
+    const volume = await createVolume("novel-1", "交换卷", undefined, projectDir)
+    db.update(ChapterTable).set({ volume_id: volume.id }).where(eq(ChapterTable.novel_id, "novel-1")).run()
+    await seedDerived()
+
+    // 3 号章上移：与 2 号交换（2↔3），其余章不动号
+    const result = await moveChapter(chapterAt(3).id, "up", undefined, projectDir)
+    expect(result.order).toBe(2)
+    expect(currentOrders()).toEqual(range(1, 10))
+    expect(tensionNumbers()).toEqual([2, 4, 5, 8])
+    const beat = db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, "beat-1")).get()!
+    expect(beat.chapter_order).toBe(4)
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("cancelled")
+  })
+
+  test("卷首上移到组界：no-op，序号与派生不动", async () => {
+    const db = getDb(projectDir)
+    db.update(ChapterTable).set({ volume_id: volumes60[0]!.id }).where(eq(ChapterTable.novel_id, "novel-2")).run()
+    await seedDerived()
+
+    const firstOfVolume = chapterAtNovel2(1)
+    const result = await moveChapter(firstOfVolume.id, "up", undefined, projectDir)
+    expect(result.order).toBe(1)
+    expect(ordersOfNovel2()).toEqual(range(1, 60))
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
+  })
+
+  test("down 与相邻章交换并同步派生表：节拍/主线/影子按新号", async () => {
+    await seedDerived()
+    const db = getDb(projectDir)
+    // 4 号章下移：与 5 号交换（4↔5）
+    const result = await moveChapter(chapterAt(4).id, "down", undefined, projectDir)
+    expect(result.order).toBe(5)
+    expect(currentOrders()).toEqual(range(1, 10))
+    const beat = db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, "beat-1")).get()!
+    expect(beat.chapter_order).toBe(5)
+    const spine = db.select().from(StorySpineEntryTable).where(eq(StorySpineEntryTable.id, "spine-1")).get()!
+    expect(spine.chapter_order).toBe(4)
+    const shadow = db.select().from(TechniqueShadowLogTable).where(eq(TechniqueShadowLogTable.id, "shadow-1")).get()!
+    expect(shadow.chapter_number).toBe(4)
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("cancelled")
+  })
+
+  test("目标卷不存在 / 跨书卷抛错", async () => {
+    const db = getDb(projectDir)
+    db.insert(NovelTable)
+      .values({ id: "novel-x", title: "别书", genre: "玄幻", synopsis: "", status: "draft", created_at: 1, updated_at: 1 })
+      .run()
+    db.insert(VolumeTable)
+      .values({ id: "vol-other", novel_id: "novel-x", title: "别书卷", order: 1, created_at: 1 })
+      .run()
+    await expect(moveChapter(chapterAt(2).id, "to-volume", "vol-missing", projectDir)).rejects.toThrow("Volume not found")
+    await expect(moveChapter(chapterAt(2).id, "to-volume", "vol-other", projectDir)).rejects.toThrow("Volume not found")
+  })
+
+  test("事务回滚：移卷中途失败主表整体还原", () => {
+    const db = getDb(projectDir)
+    const ch5Id = chapterAtNovel2(5).id
+    expect(() =>
+      withTransaction(db, (tx) => {
+        moveChapterTx(tx, ch5Id, "to-volume", volumes60[1]!.id)
+        throw new Error("模拟下游失败")
+      }),
+    ).toThrow("模拟下游失败")
+    expect(ordersOfNovel2()).toEqual(range(1, 60))
+    expect(chapterAtNovel2(5).volume_id).toBe(volumes60[0]!.id)
   })
 })
