@@ -7,7 +7,7 @@
  *
  * 不持有任何 hook 或 tool 注册逻辑。
  */
-import { eq, and, or, asc, desc, isNull } from "drizzle-orm"
+import { eq, and, or, asc, desc, isNull, gt, sql } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
@@ -1702,10 +1702,21 @@ export async function updateVolume(
   return db.select().from(VolumeTable).where(eq(VolumeTable.id, volumeId)).get()!
 }
 
+/** 删除卷（组合形态）：卷内章全部置未分组（保留章节序号），后续卷号 -1 补位，同一事务。 */
+export function deleteVolumeTx(tx: Tx, volumeId: string): void {
+  const volume = tx.select().from(VolumeTable).where(eq(VolumeTable.id, volumeId)).get()
+  if (!volume) throw new Error(`Volume not found: ${volumeId}`)
+  tx.update(ChapterTable).set({ volume_id: null }).where(eq(ChapterTable.volume_id, volumeId)).run()
+  tx.delete(VolumeTable).where(eq(VolumeTable.id, volumeId)).run()
+  tx.update(VolumeTable)
+    .set({ order: sql`${VolumeTable.order} - 1` })
+    .where(and(eq(VolumeTable.novel_id, volume.novel_id), gt(VolumeTable.order, volume.order)))
+    .run()
+}
+
+/** 删除卷（自包形态）：章置未分组 + 卷号补位单事务完成。 */
 export async function deleteVolume(volumeId: string, directory?: string | null): Promise<void> {
-  const db = getDb(directory)
-  await db.update(ChapterTable).set({ volume_id: null }).where(eq(ChapterTable.volume_id, volumeId)).run()
-  await db.delete(VolumeTable).where(eq(VolumeTable.id, volumeId)).run()
+  withTransaction(getDb(directory), (tx) => deleteVolumeTx(tx, volumeId))
 }
 
 export async function updateChapter(

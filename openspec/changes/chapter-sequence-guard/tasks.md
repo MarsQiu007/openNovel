@@ -3,7 +3,7 @@
 ## 1. relocate 事务原语（novel-store）
 
 - [x] 1.1 实现 `relocateChaptersTx` / `relocateChapters` 原语（design D1：oldOrder 快照 → 摘出章置临时负值 → 区间平移 → 落位 → 派生同步 → FTS 删插，覆盖 tension_log/arc_beats/story_spine/story_arcs 起止四字段/segment_summaries/technique_shadow_log/memory_injection_snapshot/writing_batch 作废全清单）。验证方式：novel-store 单测覆盖后移/前移/同卷交换/删除四形态、区间重叠不双写、中途失败完整回滚、派生表逐项断言新号、running 批量作废
-- [ ] 1.2 把 `deleteVolume` 的「章置未分组 + 后续卷号 -1」并入单事务。验证方式：novel-store 单测断言章节序号不变、卷号连续、事务回滚
+- [x] 1.2 把 `deleteVolume` 的「章置未分组 + 后续卷号 -1」并入单事务。验证方式：novel-store 单测断言章节序号不变、卷号连续、事务回滚
 
 ## 2. 写路径收口与删除事务化（novel-store + plugin）
 

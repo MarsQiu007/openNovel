@@ -19,6 +19,9 @@ import {
   closeDb,
   getDb,
   createChapter,
+  createVolume,
+  deleteVolume,
+  deleteVolumeTx,
   beginWritingBatch,
   getWritingBatch,
   relocateChapters,
@@ -28,6 +31,7 @@ import {
   NovelTable,
   ChapterTable,
   ChapterSummaryTable,
+  VolumeTable,
   TensionLogTable,
   ArcBeatTable,
   StoryArcTable,
@@ -282,5 +286,74 @@ describe("存量脏库容错", () => {
     const result = relocateChapters("novel-1", { kind: "move", chapterId: chapterAt(2).id, targetOrder: 8 }, projectDir)
     expect(result.changes).toHaveLength(7)
     expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 6, 8, 9, 10])
+  })
+})
+
+describe("deleteVolume 卷号补位（tasks 1.2）", () => {
+  let volumes: Array<{ id: string; order: number }>
+
+  beforeEach(async () => {
+    volumes = []
+    for (const title of ["卷一", "卷二", "卷三"]) {
+      volumes.push(await createVolume("novel-1", title, undefined, projectDir))
+    }
+    for (const [index, chapter] of chapters.entries()) {
+      const volumeIndex = Math.floor(index / 2)
+      if (volumeIndex < volumes.length) {
+        getDb(projectDir).update(ChapterTable).set({ volume_id: volumes[volumeIndex].id }).where(eq(ChapterTable.id, chapter.id)).run()
+      }
+    }
+  })
+
+  function remainingVolumes(): Array<{ id: string; order: number }> {
+    return getDb(projectDir)
+      .select({ id: VolumeTable.id, order: VolumeTable.order })
+      .from(VolumeTable)
+      .where(eq(VolumeTable.novel_id, "novel-1"))
+      .all()
+      .sort((a, b) => a.order - b.order)
+  }
+
+  function chapterVolume(chapterId: string): string | null {
+    return getDb(projectDir).select({ volume_id: ChapterTable.volume_id }).from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()!.volume_id
+  }
+
+  test("删除中间卷：章置未分组且序号不变，后续卷号 -1 连续", async () => {
+    await deleteVolume(volumes[1].id, projectDir)
+    expect(chapterVolume(chapterAt(3).id)).toBeNull()
+    expect(chapterVolume(chapterAt(4).id)).toBeNull()
+    expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(remainingVolumes()).toEqual([
+      { id: volumes[0].id, order: 1 },
+      { id: volumes[2].id, order: 2 },
+    ])
+  })
+
+  test("删除末卷：剩余卷号不变", async () => {
+    await deleteVolume(volumes[2].id, projectDir)
+    expect(remainingVolumes()).toEqual([
+      { id: volumes[0].id, order: 1 },
+      { id: volumes[1].id, order: 2 },
+    ])
+  })
+
+  test("卷不存在抛错", async () => {
+    await expect(deleteVolume("vol-missing", projectDir)).rejects.toThrow("Volume not found")
+  })
+
+  test("事务回滚：章归属与卷号均不变", () => {
+    const db = getDb(projectDir)
+    expect(() =>
+      withTransaction(db, (tx) => {
+        deleteVolumeTx(tx, volumes[1].id)
+        throw new Error("模拟下游失败")
+      }),
+    ).toThrow("模拟下游失败")
+    expect(chapterVolume(chapterAt(3).id)).toBe(volumes[1].id)
+    expect(remainingVolumes()).toEqual([
+      { id: volumes[0].id, order: 1 },
+      { id: volumes[1].id, order: 2 },
+      { id: volumes[2].id, order: 3 },
+    ])
   })
 })
