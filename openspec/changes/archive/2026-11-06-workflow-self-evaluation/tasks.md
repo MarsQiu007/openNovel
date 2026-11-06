@@ -33,7 +33,7 @@
 ## 5. 收尾
 
 - [x] 5.1 `packages/plugin` 与受影响包 typecheck + 全量测试 + oxlint 基线对比
-  - 实现注记：packages/plugin typecheck 0、全量 1087 过/99 文件；packages/novel-store typecheck 0、257 过/36 文件；packages/core typecheck 0。oxlint 仓库级同模式对比（main 5658 条基线 vs 分支，按 filename|code|message multiset）：本分支净新增 0。归因过程中修复 5 条本分支真实告警（events.ts created 未用参数、metrics.ts JSON.parse 断言改 isMetricsEntry 类型守卫、host.ts 与 evaluate-events 测试替身的泛型映射必要断言按仓库惯例补 oxlint-disable 注释——注意诊断锚定在表达式起点行，disable-next-line 须置于该行而非 as 所在行）。残余 2 条净差为 packages/llm 未触碰文件（route/client.ts、test/schema.test.ts）的联合类型显示序噪音：两侧 no-unsafe-type-assertion 各 29 条计数相等，仅消息文本成员序随程序形状漂移，非本分支引入
+  - 实现注记：packages/plugin typecheck 0、全量 1087 过/99 文件；packages/novel-store typecheck 0、257 过/36 文件；packages/core typecheck 0。oxlint 仓库级同模式对比（main 5658 条基线 vs 分支，按 filename|code|message multiset）：本分支净新增 0。归因过程中修复 5 条本分支真实告警（events.ts created 未用参数、metrics.ts JSON.parse 断言改 isMetricsEntry 类型守卫、host.ts 与 evaluate-events 测试替身的泛型映射必要断言按仓库惯例补 oxlint-disable 注释——注意诊断锚定在表达式起点行，disable-next-line 须置于该行而非 as 所在行）。残余 2 条净差为 packages/llm 未触碰文件（route/client.ts、test/schema.test.ts）的联合类型显示序噪音：两侧 no-unsafe-type-assertion 各 29 条计数相等，仅消息文本成员序随程序形状漂移，非本分支引入。教训：「受影响包」验证必须含该包测试套——core 当时只跑 typecheck 未跑测试，致下游硬编码工具数断言回归漏检，由归档后首轮 CI 红暴露补修（见下「归档后收尾修复」）
 - [x] 5.2 真实项目走查：跑一次写作会话后手动 `/evaluate`，报告三分部有真实数据；自动触发在压缩后发生
   - 实现注记：用户在真实写作项目走查通过——手动 `/evaluate` 生成三分部报告且内容有真实数据，压缩后自动触发报告正常落盘
 
@@ -50,6 +50,10 @@
 - 571e19281 feat(plugin): 四类信号自动触发与 24h 冷却（自评价 3.1）
 - d20442ebc feat(plugin): 诊断包分级导出 L0/L1/L2（自评价 4.1）
 - 62d683229 fix(plugin): 消除自评价链路 oxlint 告警（自评价 5.1）
+
+### 归档后收尾修复
+
+- 101da3682 test(core): novel-writer 工具数断言 95→96——归档后首轮 CI 红归因：evaluate 工具入账（2.2）使插件工具桶 95→96，core 冒烟用例硬编码计数未同步（本地全量验证漏跑 core 测试套所致，5.1 注记已补此教训）
 
 ## v1.1 波次（另立 change）
 
