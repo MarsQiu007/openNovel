@@ -1641,7 +1641,17 @@ export async function createChapter(
   const db = getDb(directory)
   const id = crypto.randomUUID()
   const now = Date.now()
-  const nextOrder = order ?? 0
+  // 自编号接续全书末位（chapter-sequence-guard：创建路径同样维护 1..N 唯一连续）。
+  // 曾默认 0，经 HttpApi 无号建章产生全 0 重号库，后续移动/修复被不变量断言拒绝。
+  const nextOrder =
+    order ??
+    (db
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, novelId))
+      .all()
+      .reduce((max, row) => Math.max(max, row.order), 0) +
+      1)
   await db
     .insert(ChapterTable)
     .values({

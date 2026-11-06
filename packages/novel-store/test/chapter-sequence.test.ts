@@ -787,3 +787,44 @@ describe("repairChapterSequence 显式修复（tasks 4.2 · D6）", () => {
     expect(tensionNumbers()).toEqual([3, 4, 5, 8])
   })
 })
+
+describe("createChapter 自编号接续全书末位（归档后收尾修复）", () => {
+  beforeEach(() => {
+    const db = getDb(projectDir)
+    db.insert(NovelTable)
+      .values({ id: "novel-3", title: "自编号书", genre: "玄幻", synopsis: "", status: "draft", created_at: 1, updated_at: 1 })
+      .run()
+  })
+
+  function ordersOfNovel3(): number[] {
+    return getDb(projectDir)
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, "novel-3"))
+      .all()
+      .map((row) => row.order)
+      .sort((a, b) => a - b)
+  }
+
+  test("无号建章接续末位：两章得 1、2 而非全 0 重号（HttpApi 练习场景同形）", async () => {
+    const first = await createChapter("novel-3", "第一章", undefined, undefined, projectDir)
+    const second = await createChapter("novel-3", "第二章", undefined, undefined, projectDir)
+    expect(first.order).toBe(1)
+    expect(second.order).toBe(2)
+    expect(ordersOfNovel3()).toEqual([1, 2])
+  })
+
+  test("双无号章后 up 移动成功且全书仍 1..N", async () => {
+    await createChapter("novel-3", "第一章", undefined, undefined, projectDir)
+    const second = await createChapter("novel-3", "第二章", undefined, undefined, projectDir)
+    const moved = await moveChapter(second.id, "up", undefined, projectDir)
+    expect(moved.order).toBe(1)
+    expect(ordersOfNovel3()).toEqual([1, 2])
+  })
+
+  test("显式 order 仍然优先：自动号不覆盖指定号，接续指定号之后", async () => {
+    await createChapter("novel-3", "指定章", 5, undefined, projectDir)
+    const auto = await createChapter("novel-3", "自动章", undefined, undefined, projectDir)
+    expect(auto.order).toBe(6)
+  })
+})
