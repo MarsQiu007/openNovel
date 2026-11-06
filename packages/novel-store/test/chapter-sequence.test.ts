@@ -551,7 +551,6 @@ describe("deleteChapter 统一删除（tasks 2.2 · D4）", () => {
 
   test("删除末章：级联照常、无补位、不作废批量", async () => {
     await seedDerived()
-    const db = getDb(projectDir)
     const ch10 = chapterAt(10).id
     const deletion = await deleteChapter(ch10, projectDir)
     expect(deletion.batchCancelled).toBe(false)

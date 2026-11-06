@@ -7,7 +7,7 @@
  *
  * 不持有任何 hook 或 tool 注册逻辑。
  */
-import { eq, and, or, asc, desc, isNull, gt, sql } from "drizzle-orm"
+import { eq, and, or, asc, desc, gt, sql } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
