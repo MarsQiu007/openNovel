@@ -11,6 +11,7 @@ import { eq, and, or, asc, desc, isNull, gt, sql } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
 import { withTransaction, type Tx } from "./tx.js"
+import { deleteChapterWithSequence, type ChapterDeletion } from "./chapter-sequence.js"
 import { requireNormalizedStyleRules } from "./style-rules.js"
 import { serializeCharacterProfile, type CharacterProfile } from "./profile.js"
 import { Option, Schema } from "effect"
@@ -1658,18 +1659,13 @@ export async function createChapter(
   return db.select().from(ChapterTable).where(eq(ChapterTable.id, id)).get()!
 }
 
-export async function deleteChapter(chapterId: string, directory?: string | null): Promise<void> {
-  const db = getDb(directory)
-  await db.delete(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, chapterId)).run()
-  await db
-    .delete(AnnotationTable)
-    .where(and(eq(AnnotationTable.target_type, "chapter"), eq(AnnotationTable.target_id, chapterId)))
-    .run()
-  await db
-    .delete(AnnotationRoundTable)
-    .where(and(eq(AnnotationRoundTable.target_type, "chapter"), eq(AnnotationRoundTable.target_id, chapterId)))
-    .run()
-  await db.delete(ChapterTable).where(eq(ChapterTable.id, chapterId)).run()
+/**
+ * 删除章节（完整删除帮手，自包形态）：解锚 → 级联清理 → 删章 → 补位重排与派生同步，
+ * 单事务完成。插件 delete_chapter 工具与服务端 deleteChapterEndpoint 共用本入口，
+ * 两条删除路径行为一致（chapter-sequence-guard · D4）。
+ */
+export async function deleteChapter(chapterId: string, directory?: string | null): Promise<ChapterDeletion> {
+  return deleteChapterWithSequence(chapterId, directory)
 }
 
 export async function createVolume(

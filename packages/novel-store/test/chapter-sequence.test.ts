@@ -9,6 +9,7 @@
  *   memory_injection_snapshot 受影响章删行、chapter_summary_fts 重建、running 批量作废
  * - no-op 不动派生、不作废批量；越界/跨书/不存在章校验抛错
  * - 调用方事务内中途失败完整回滚；存量重号脏库不平移区外旧号、不越权修复
+ * - deleteVolume 卷号补位与 deleteChapter 统一删除（D4：解锚/级联/补位/回滚）
  */
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
@@ -20,6 +21,8 @@ import {
   getDb,
   createChapter,
   createVolume,
+  deleteChapter,
+  deleteChapterTx,
   deleteVolume,
   deleteVolumeTx,
   beginWritingBatch,
@@ -30,8 +33,18 @@ import {
   withTransaction,
   type RelocateResult,
   NovelTable,
-  ChapterTable,
+  AnnotationRoundTable,
+  AnnotationTable,
+  ChapterReviewTable,
   ChapterSummaryTable,
+  ChapterTable,
+  ChapterVersionTable,
+  CharacterStateTable,
+  CharacterTable,
+  EntityRefTable,
+  ForeshadowingTable,
+  HookRotationTable,
+  NovelStateLogTable,
   VolumeTable,
   TensionLogTable,
   ArcBeatTable,
@@ -441,5 +454,126 @@ describe("resolveChapterSlot 章纲落位（tasks 2.1）", () => {
 
   test("序号小于 1 抛错", () => {
     expect(() => resolveChapterSlot(slotInput({ order: 0 }), projectDir)).toThrow("章节序号非法")
+  })
+})
+
+describe("deleteChapter 统一删除（tasks 2.2 · D4）", () => {
+  test("删除第 5 章：级联清空、节拍/主线解锚无旧号残留、后续章补位并同步派生表", async () => {
+    await seedDerived()
+    const db = getDb(projectDir)
+    const ch5 = chapterAt(5).id
+    db.insert(CharacterTable).values({ id: "char-1", novel_id: "novel-1", name: "角色甲" }).run()
+    db.insert(ChapterVersionTable).values({ id: "ver-5", chapter_id: ch5, version: 1, content: "旧稿", created_by: "test" }).run()
+    db.insert(CharacterStateTable).values({ id: "cs-5", character_id: "char-1", chapter_id: ch5 }).run()
+    db.insert(ChapterReviewTable).values({ id: "rev-5", chapter_id: ch5, round: 1, source: "audit", overall: "ok" }).run()
+    db.insert(NovelStateLogTable).values({ id: "log-5", novel_id: "novel-1", chapter_id: ch5, fact_type: "event", fact_data: { x: 1 } }).run()
+    db.insert(HookRotationTable).values({ id: "hook-5", novel_id: "novel-1", hook_type: "cliffhanger", chapter_id: ch5 }).run()
+    db.insert(EntityRefTable)
+      .values({ id: "ref-5", novel_id: "novel-1", source_type: "chapter", source_id: ch5, target_type: "character", target_id: "char-1", ref_field: "content" })
+      .run()
+    db.insert(AnnotationTable)
+      .values({ id: "ann-5", novel_id: "novel-1", target_type: "chapter", target_id: ch5, field: "content", quote: "段" })
+      .run()
+    db.insert(AnnotationRoundTable)
+      .values({ id: "round-5", novel_id: "novel-1", target_type: "chapter", target_id: ch5, prompt_snapshot: "p" })
+      .run()
+    db.insert(ForeshadowingTable).values({ id: "fore-5a", novel_id: "novel-1", planted_chapter_id: ch5, content: "伏笔甲" }).run()
+    db.insert(ForeshadowingTable).values({ id: "fore-5b", novel_id: "novel-1", resolved_chapter_id: ch5, content: "伏笔乙" }).run()
+    db.insert(MemoryInjectionSnapshotTable).values({ novel_id: "novel-1", chapter_id: ch5, payload: "{}" }).run()
+    db.insert(ChapterSummaryTable).values({ id: "sum-5", chapter_id: ch5, summary: "第五章摘要", key_events: [] }).run()
+    db.run(sql`INSERT INTO chapter_summary_fts (novel_id, chapter_id, chapter_order, title, body) VALUES (${"novel-1"}, ${ch5}, ${5}, ${"第五章"}, ${"第五章 摘要"})`)
+    db.insert(ArcBeatTable)
+      .values({ id: "beat-2", novel_id: "novel-1", arc_id: "arc-1", chapter_id: ch5, chapter_order: 5, label: "被删节拍" })
+      .run()
+
+    const deletion = await deleteChapter(ch5, projectDir)
+    expect(deletion).toMatchObject({ novelId: "novel-1", oldOrder: 5, batchCancelled: true })
+
+    expect(db.select().from(ChapterTable).where(eq(ChapterTable.id, ch5)).get()).toBeUndefined()
+    expect(db.select().from(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(ChapterReviewTable).where(eq(ChapterReviewTable.chapter_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(NovelStateLogTable).where(eq(NovelStateLogTable.chapter_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(HookRotationTable).where(eq(HookRotationTable.chapter_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(EntityRefTable).where(eq(EntityRefTable.source_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(AnnotationTable).where(eq(AnnotationTable.target_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(AnnotationRoundTable).where(eq(AnnotationRoundTable.target_id, ch5)).all()).toHaveLength(0)
+    expect(db.select().from(MemoryInjectionSnapshotTable).where(eq(MemoryInjectionSnapshotTable.chapter_id, ch5)).all()).toHaveLength(0)
+    const foreshadowing = db.select().from(ForeshadowingTable).all()
+    expect(foreshadowing.map((f) => [f.planted_chapter_id, f.resolved_chapter_id])).toEqual([
+      [null, null],
+      [null, null],
+    ])
+
+    // 补位：1..9 连续；张力按旧号删（5 消失、8→7）；影子日志同删
+    expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(tensionNumbers()).toEqual([3, 4, 7])
+    const shadowRows = db
+      .select({ chapter_number: TechniqueShadowLogTable.chapter_number })
+      .from(TechniqueShadowLogTable)
+      .where(eq(TechniqueShadowLogTable.novel_id, "novel-1"))
+      .all()
+    expect(shadowRows).toHaveLength(0)
+
+    // 解锚：被删章的节拍/主线条目保留但章号清空；幸存节拍按 chapter_id 回写新号（4 号章未动号，锚号保持）
+    expect(db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, "beat-2")).get()!.chapter_order).toBeNull()
+    expect(db.select().from(StorySpineEntryTable).where(eq(StorySpineEntryTable.id, "spine-1")).get()!.chapter_order).toBeNull()
+    expect(db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, "beat-1")).get()!.chapter_order).toBe(4)
+    const arc = db.select().from(StoryArcTable).where(eq(StoryArcTable.id, "arc-1")).get()!
+    expect({
+      planned_start_chapter: arc.planned_start_chapter,
+      planned_end_chapter: arc.planned_end_chapter,
+      actual_start_chapter: arc.actual_start_chapter,
+      actual_end_chapter: arc.actual_end_chapter,
+    }).toEqual({ planned_start_chapter: 3, planned_end_chapter: 7, actual_start_chapter: 4, actual_end_chapter: 6 })
+
+    // 段/快照/FTS：区外段保留，相交段与被删章/变动章清行，FTS 重建后无被删章
+    const segments = db.select().from(SegmentSummaryTable).where(eq(SegmentSummaryTable.novel_id, "novel-1")).all()
+    expect(segments.map((s) => s.id)).toEqual(["seg-a"])
+    const snapshots = db
+      .select({ chapter_id: MemoryInjectionSnapshotTable.chapter_id })
+      .from(MemoryInjectionSnapshotTable)
+      .where(eq(MemoryInjectionSnapshotTable.novel_id, "novel-1"))
+      .all()
+    expect(snapshots.map((s) => s.chapter_id)).toEqual([chapterAt(3).id])
+    const ftsOrders = db.all(sql`SELECT chapter_id, chapter_order FROM chapter_summary_fts WHERE novel_id = ${"novel-1"}`) as Array<{
+      chapter_id: string
+      chapter_order: number
+    }>
+    expect(Object.fromEntries(ftsOrders.map((row) => [row.chapter_id, row.chapter_order]))).toEqual({
+      [chapterAt(3).id]: 3,
+      [chapterAt(9).id]: 8,
+    })
+  })
+
+  test("删除末章：级联照常、无补位、不作废批量", async () => {
+    await seedDerived()
+    const db = getDb(projectDir)
+    const ch10 = chapterAt(10).id
+    const deletion = await deleteChapter(ch10, projectDir)
+    expect(deletion.batchCancelled).toBe(false)
+    expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
+  })
+
+  test("章不存在抛错", async () => {
+    await expect(deleteChapter("ch-missing", projectDir)).rejects.toThrow("Chapter not found")
+  })
+
+  test("事务回滚：删除中途失败整体还原", async () => {
+    await seedDerived()
+    const db = getDb(projectDir)
+    const ch5 = chapterAt(5).id
+    expect(() =>
+      withTransaction(db, (tx) => {
+        deleteChapterTx(tx, ch5)
+        throw new Error("模拟下游失败")
+      }),
+    ).toThrow("模拟下游失败")
+    expect(db.select().from(ChapterTable).where(eq(ChapterTable.id, ch5)).get()).toBeDefined()
+    expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
   })
 })

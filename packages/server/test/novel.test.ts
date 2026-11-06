@@ -33,6 +33,7 @@ import {
   updateOutline,
   listChapterReviews,
   getStyleGuideEndpoint,
+  deleteChapterEndpoint,
 } from "../src/handlers/novel"
 import { NovelNotFoundError, NovelValidationError, ChapterNotFoundError } from "@opennovel-ai/protocol/groups/novel"
 
@@ -469,5 +470,30 @@ describe("novel handler - style guide 归一化", () => {
 
     const styleGuide = await Effect.runPromise(getStyleGuideEndpoint(novelId, tempDir))
     expect(styleGuide.rules).toEqual({ "异能体系.等级严格": "三级" })
+  })
+})
+
+describe("novel handler - delete chapter sequence（chapter-sequence-guard · tasks 2.2）", () => {
+  test("接口删除中间章：序号连续补位，与工具删除路径行为一致", async () => {
+    const chapterId3 = crypto.randomUUID()
+    const now = Date.now()
+    getDb(tempDir)
+      .insert(ChapterTable)
+      .values({ id: chapterId3, novel_id: novelId, title: "Chapter 3", content: "", word_count: 0, status: "draft", order: 3, created_at: now, updated_at: now })
+      .run()
+
+    const result = await Effect.runPromise(deleteChapterEndpoint(novelId, chapterId1, tempDir))
+    expect(result).toEqual({ deleted: true })
+
+    const chapters = await Effect.runPromise(listChapters(novelId, tempDir))
+    expect(chapters.map((c) => c.order).sort((a, b) => a - b)).toEqual([1, 2])
+    expect(chapters.find((c) => c.id === chapterId2)!.order).toBe(1)
+    expect(chapters.find((c) => c.id === chapterId3)!.order).toBe(2)
+  })
+
+  test("接口删除跨书章节报 ChapterNotFoundError", async () => {
+    await expect(
+      Effect.runPromise(deleteChapterEndpoint("nonexistent-novel", chapterId1, tempDir)),
+    ).rejects.toBeInstanceOf(ChapterNotFoundError)
   })
 })

@@ -8,26 +8,18 @@ import { defineTool } from "../../v2/effect/tool.js"
 import {
   advanceWritingBatch,
   beginWritingBatch,
-  ChapterReviewTable,
-  ChapterSummaryTable,
   ChapterTable,
   ChapterVersionTable,
-  CharacterStateTable,
   CharacterTable,
   consolidateChapterFacts,
   deleteChapter,
-  EntityRefTable,
-  ForeshadowingTable,
   getDb,
   getWritingBatch,
-  HookRotationTable,
   invalidateChapterFactsByQuote,
-  NovelStateLogTable,
   NovelTable,
   PendingUpdateTable,
   readNovelConfig,
   rebuildNextChapterSnapshot,
-  TensionLogTable,
   updateChapter,
   WorldEntryTable,
   writingBatchCompleted,
@@ -547,43 +539,17 @@ export const chapterTools = {
       if (!args.confirm) {
         return {
           title: "delete_chapter",
-          output: `待删除：第${chapter.order}章「${chapter.title}」（${chapter.word_count}字，状态=${chapter.status}）。关联数据（版本/摘要/角色状态/张力/审计/引用）将一并删除。确认删除请传 confirm=true。`,
+          output: `待删除：第${chapter.order}章「${chapter.title}」（${chapter.word_count}字，状态=${chapter.status}）。关联数据（版本/摘要/角色状态/张力/审计/引用）将一并删除，后续章序号自动补位。确认删除请传 confirm=true。`,
         }
       }
-      // 级联清理：FK CASCADE 仅在 Bun SQLite 开启 foreign_keys 时生效，这里显式清理确保彻底
-      await db.delete(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, args.chapter_id)).run()
-      await db.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, args.chapter_id)).run()
-      await db.delete(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, args.chapter_id)).run()
-      await db.delete(ChapterReviewTable).where(eq(ChapterReviewTable.chapter_id, args.chapter_id)).run()
-      await db.delete(NovelStateLogTable).where(eq(NovelStateLogTable.chapter_id, args.chapter_id)).run()
-      await db.delete(HookRotationTable).where(eq(HookRotationTable.chapter_id, args.chapter_id)).run()
-      await db
-        .delete(EntityRefTable)
-        .where(and(eq(EntityRefTable.source_type, "chapter"), eq(EntityRefTable.source_id, args.chapter_id)))
-        .run()
-      // 伏笔的 planted/resolved_chapter_id 置空（SET NULL 语义）
-      await db
-        .update(ForeshadowingTable)
-        .set({ planted_chapter_id: null })
-        .where(eq(ForeshadowingTable.planted_chapter_id, args.chapter_id))
-        .run()
-      await db
-        .update(ForeshadowingTable)
-        .set({ resolved_chapter_id: null })
-        .where(eq(ForeshadowingTable.resolved_chapter_id, args.chapter_id))
-        .run()
-      // 该章张力记录按 chapter_number 删除
-      await db
-        .delete(TensionLogTable)
-        .where(
-          and(eq(TensionLogTable.novel_id, chapter.novel_id), eq(TensionLogTable.chapter_number, chapter.order)),
-        )
-        .run()
-      await deleteChapter(args.chapter_id, ctx.directory)
+      // 级联清理 + 补位重排 + 派生同步已收口 novel-store 统一删除帮手（与服务端接口共用）
+      const deletion = await deleteChapter(args.chapter_id, ctx.directory)
       return {
         title: "delete_chapter",
-        output: `已删除第${chapter.order}章「${chapter.title}」及其全部关联数据`,
-        metadata: { deleted_chapter_id: args.chapter_id, order: chapter.order },
+        output:
+          `已删除第${chapter.order}章「${chapter.title}」及其全部关联数据，后续章序号已补位` +
+          (deletion.batchCancelled ? "；进行中的批量写作任务已作废，请重新登记批量" : ""),
+        metadata: { deleted_chapter_id: args.chapter_id, order: chapter.order, batch_cancelled: deletion.batchCancelled },
       }
     },
   }),

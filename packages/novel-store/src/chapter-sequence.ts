@@ -11,9 +11,19 @@
 import { and, asc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm"
 import type { AnySQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core"
 import {
+  AnnotationRoundTable,
+  AnnotationTable,
   ArcBeatTable,
+  ChapterReviewTable,
+  ChapterSummaryTable,
   ChapterTable,
+  ChapterVersionTable,
+  CharacterStateTable,
+  EntityRefTable,
+  ForeshadowingTable,
+  HookRotationTable,
   MemoryInjectionSnapshotTable,
+  NovelStateLogTable,
   SegmentSummaryTable,
   StoryArcTable,
   StorySpineEntryTable,
@@ -171,6 +181,66 @@ export function resolveChapterSlotTx(tx: Tx, input: ChapterSlotInput): ChapterSl
 /** 章纲落位（自包形态）：跳号校验、查重、插入单事务完成。 */
 export function resolveChapterSlot(input: ChapterSlotInput, directory?: string | null): ChapterSlotResult {
   return withTransaction(getDb(directory), (tx) => resolveChapterSlotTx(tx, input))
+}
+
+// ─── 统一删除帮手（design D4：工具与服务端接口共用，消除两条删除路径分叉） ───
+
+export interface ChapterDeletion {
+  novelId: string
+  oldOrder: number
+  /** 删除引发的补位是否作废了 running 批量（调用方据此提示重新登记） */
+  batchCancelled: boolean
+}
+
+/**
+ * 删除章节（组合形态）：解锚 → 级联清理 → 删章 → 补位重排与派生同步，全部单事务。
+ *
+ * - 解锚先行：弧线节拍/故事主线保留条目但清空章号（FK SET NULL 会清 chapter_id，
+ *   必须先于删章按 chapter_id 定位清号，杜绝孤儿旧号被 syncArcProgress 错配）；
+ * - 级联覆盖既有插件工具的全部清理面（版本/摘要/评审/角色状态/状态日志/钩子轮值/
+ *   实体引用/批注×2/伏笔置空/张力按旧号删），快照与检索行随章删除（relocate 的
+ *   重建只覆盖幸存章，末章删除等空 changes 场景不会触达）；
+ * - 删章后走 relocate 补位重排：幸存章 -1 且派生表同步新号。
+ */
+export function deleteChapterTx(tx: Tx, chapterId: string): ChapterDeletion {
+  const chapter = tx.select().from(ChapterTable).where(eq(ChapterTable.id, chapterId)).get()
+  if (!chapter) throw new Error(`Chapter not found: ${chapterId}`)
+  tx.update(ArcBeatTable).set({ chapter_order: null }).where(eq(ArcBeatTable.chapter_id, chapterId)).run()
+  tx.update(StorySpineEntryTable).set({ chapter_order: null }).where(eq(StorySpineEntryTable.chapter_id, chapterId)).run()
+  tx.delete(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, chapterId)).run()
+  tx.delete(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).run()
+  tx.delete(ChapterReviewTable).where(eq(ChapterReviewTable.chapter_id, chapterId)).run()
+  tx.delete(CharacterStateTable).where(eq(CharacterStateTable.chapter_id, chapterId)).run()
+  tx.delete(NovelStateLogTable).where(eq(NovelStateLogTable.chapter_id, chapterId)).run()
+  tx.delete(HookRotationTable).where(eq(HookRotationTable.chapter_id, chapterId)).run()
+  tx.delete(EntityRefTable)
+    .where(and(eq(EntityRefTable.source_type, "chapter"), eq(EntityRefTable.source_id, chapterId)))
+    .run()
+  tx.delete(AnnotationTable)
+    .where(and(eq(AnnotationTable.target_type, "chapter"), eq(AnnotationTable.target_id, chapterId)))
+    .run()
+  tx.delete(AnnotationRoundTable)
+    .where(and(eq(AnnotationRoundTable.target_type, "chapter"), eq(AnnotationRoundTable.target_id, chapterId)))
+    .run()
+  tx.update(ForeshadowingTable).set({ planted_chapter_id: null }).where(eq(ForeshadowingTable.planted_chapter_id, chapterId)).run()
+  tx.update(ForeshadowingTable).set({ resolved_chapter_id: null }).where(eq(ForeshadowingTable.resolved_chapter_id, chapterId)).run()
+  tx.delete(TensionLogTable)
+    .where(and(eq(TensionLogTable.novel_id, chapter.novel_id), eq(TensionLogTable.chapter_number, chapter.order)))
+    .run()
+  // technique_shadow_log 与张力同形按旧号记账：不删则旧号重指派后检索归属张冠李戴
+  tx.delete(TechniqueShadowLogTable)
+    .where(and(eq(TechniqueShadowLogTable.novel_id, chapter.novel_id), eq(TechniqueShadowLogTable.chapter_number, chapter.order)))
+    .run()
+  tx.delete(MemoryInjectionSnapshotTable).where(eq(MemoryInjectionSnapshotTable.chapter_id, chapterId)).run()
+  tx.run(sql`DELETE FROM chapter_summary_fts WHERE chapter_id = ${chapterId}`)
+  tx.delete(ChapterTable).where(eq(ChapterTable.id, chapterId)).run()
+  const result = relocateChaptersTx(tx, chapter.novel_id, { kind: "remove", afterOrder: chapter.order })
+  return { novelId: chapter.novel_id, oldOrder: chapter.order, batchCancelled: result.batchCancelled }
+}
+
+/** 删除章节（自包形态）：级联清理、补位重排、派生同步单事务完成。 */
+export function deleteChapterWithSequence(chapterId: string, directory?: string | null): ChapterDeletion {
+  return withTransaction(getDb(directory), (tx) => deleteChapterTx(tx, chapterId))
 }
 
 function computeOrders(
