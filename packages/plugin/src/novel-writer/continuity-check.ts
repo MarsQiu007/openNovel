@@ -27,6 +27,10 @@ import {
   ChapterSummaryTable,
   WorldEntryTable,
   StyleGuideTable,
+  TensionLogTable,
+  TechniqueShadowLogTable,
+  ArcBeatTable,
+  StorySpineEntryTable,
 } from "./session-store.js"
 import { buildCharacterBindingView, detectKinshipEntityDrift } from "./drift-guards.js"
 import { selectProtectedRelationships } from "./relationship-context.js"
@@ -134,6 +138,10 @@ interface CheckContext {
   chapterSummaries: (typeof ChapterSummaryTable.$inferSelect)[]
   worldEntries: (typeof WorldEntryTable.$inferSelect)[]
   styleGuide: (typeof StyleGuideTable.$inferSelect)[]
+  tensionLog: (typeof TensionLogTable.$inferSelect)[]
+  techniqueShadowLog: (typeof TechniqueShadowLogTable.$inferSelect)[]
+  arcBeats: (typeof ArcBeatTable.$inferSelect)[]
+  storySpine: (typeof StorySpineEntryTable.$inferSelect)[]
 }
 
 // ─── 主函数 ───
@@ -180,6 +188,10 @@ export async function checkContinuity(
     chapterSummaries,
     worldEntries,
     styleGuideRows,
+    tensionLog,
+    techniqueShadowLog,
+    arcBeats,
+    storySpine,
   ] = await Promise.all([
     db
       .select()
@@ -195,6 +207,10 @@ export async function checkContinuity(
     db.select().from(ChapterSummaryTable).all(),
     db.select().from(WorldEntryTable).where(eq(WorldEntryTable.novel_id, novelId)).all(),
     db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all(),
+    db.select().from(TensionLogTable).where(eq(TensionLogTable.novel_id, novelId)).all(),
+    db.select().from(TechniqueShadowLogTable).where(eq(TechniqueShadowLogTable.novel_id, novelId)).all(),
+    db.select().from(ArcBeatTable).where(eq(ArcBeatTable.novel_id, novelId)).all(),
+    db.select().from(StorySpineEntryTable).where(eq(StorySpineEntryTable.novel_id, novelId)).all(),
   ])
 
   const ctx: CheckContext = {
@@ -212,6 +228,10 @@ export async function checkContinuity(
     chapterSummaries,
     worldEntries,
     styleGuide: styleGuideRows,
+    tensionLog,
+    techniqueShadowLog,
+    arcBeats,
+    storySpine,
   }
 
   const dimensions: ContinuityResult[] = [
@@ -702,38 +722,59 @@ function checkRelationshipContinuity(ctx: CheckContext): ContinuityResult[] {
 function checkTimelineContinuity(ctx: CheckContext): ContinuityResult[] {
   const results: ContinuityResult[] = []
 
-  // 事件顺序：检查章节序号是否连续
+  // 事件顺序：章节序号连续唯一 + 按号派生锚定漂移对账（chapter-sequence-guard D5）。
+  // 存量脏库检出保持 WARN 级并附 repair 工具指引，不卡死审批流。
   const orders = ctx.allChapters.map((c) => c.order).sort((a, b) => a - b)
-  const gaps: number[] = []
-  for (let i = 1; i < orders.length; i++) {
-    if (orders[i]! - orders[i - 1]! > 1) {
-      gaps.push(orders[i - 1]!)
+  const findings: string[] = []
+  if (ctx.allChapters.length === 0) {
+    findings.push("尚未创建任何章节")
+  } else {
+    const countByOrder = new Map<number, number>()
+    for (const order of orders) countByOrder.set(order, (countByOrder.get(order) ?? 0) + 1)
+    for (const [order, count] of countByOrder) {
+      if (count > 1) findings.push(`第 ${order} 章存在 ${count} 条记录（序号重复）`)
+    }
+    for (let i = 1; i < orders.length; i++) {
+      if (orders[i]! - orders[i - 1]! > 1) findings.push(`第 ${orders[i - 1]!} 章后缺章`)
+    }
+    if (orders[0] !== 1) findings.push(`章节从第 ${orders[0]} 章开始，缺少第1章`)
+
+    // 派生漂移：按号定位的记录指向不存在的章号；按 ID 锚定的记录与当前章号不符
+    const orderSet = new Set(orders)
+    const orderOfChapter = new Map(ctx.allChapters.map((c) => [c.id, c.order]))
+    for (const row of ctx.tensionLog) {
+      if (!orderSet.has(row.chapter_number)) findings.push(`张力记录指向不存在的第 ${row.chapter_number} 章`)
+    }
+    for (const row of ctx.techniqueShadowLog) {
+      if (!orderSet.has(row.chapter_number)) findings.push(`技法影子记录指向不存在的第 ${row.chapter_number} 章`)
+    }
+    for (const row of ctx.arcBeats) {
+      if (row.chapter_id == null || row.chapter_order == null) continue
+      const actual = orderOfChapter.get(row.chapter_id)
+      if (actual !== undefined && actual !== row.chapter_order) {
+        findings.push(`弧线节拍锚号过期：记录第 ${row.chapter_order} 章、实为第 ${actual} 章`)
+      }
+    }
+    for (const row of ctx.storySpine) {
+      if (row.chapter_id == null || row.chapter_order == null) continue
+      const actual = orderOfChapter.get(row.chapter_id)
+      if (actual !== undefined && actual !== row.chapter_order) {
+        findings.push(`主线事件锚号过期：记录第 ${row.chapter_order} 章、实为第 ${actual} 章`)
+      }
     }
   }
 
-  if (gaps.length > 0) {
+  if (findings.length > 0) {
     results.push({
       dimension: "事件顺序",
       status: "WARN",
-      detail: `章节序号存在 ${gaps.length} 处跳跃：${gaps.map((g) => `第${g}章后缺章`).join("、")}`,
-    })
-  } else if (orders.length > 0 && orders[0] !== 1) {
-    results.push({
-      dimension: "事件顺序",
-      status: "WARN",
-      detail: `章节从第 ${orders[0]} 章开始，缺少第1章`,
-    })
-  } else if (ctx.allChapters.length === 0) {
-    results.push({
-      dimension: "事件顺序",
-      status: "WARN",
-      detail: "尚未创建任何章节",
+      detail: `${findings.join("；")}。可运行 repair_chapter_sequence 工具显式修复序号并重排派生锚定`,
     })
   } else {
     results.push({
       dimension: "事件顺序",
       status: "PASS",
-      detail: `共 ${ctx.allChapters.length} 章，章节序号连续无跳跃`,
+      detail: `共 ${ctx.allChapters.length} 章，章节序号连续唯一，派生锚定无漂移`,
     })
   }
 
