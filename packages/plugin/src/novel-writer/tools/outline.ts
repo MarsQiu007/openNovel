@@ -11,6 +11,7 @@ import { generateChapterOutline, generateMasterOutline, generateVolumeOutline } 
 import { readChapterOutline } from "../pipeline.js"
 import { performVolumeRollup } from "../rollup.js"
 import {
+  ChapterSequenceGapError,
   ChapterTable,
   getDb,
   getOutlineCanvasLayout,
@@ -125,14 +126,32 @@ export function createOutlineTools(deps: { session: SessionDomain }) {
             }
           }
         }
-        const result = await generateChapterOutline(
-          novelId,
-          args.chapter_number,
-          projectDir,
-          args.content || undefined,
-          args.title || undefined,
-          args.volume_number,
-        )
+        let result: string
+        try {
+          result = await generateChapterOutline(
+            novelId,
+            args.chapter_number,
+            projectDir,
+            args.content || undefined,
+            args.title || undefined,
+            args.volume_number,
+          )
+        } catch (error) {
+          // 跳号拒绝在此翻译为用户可读指引：store 已保证不写入任何记录，原样上抛其余错误
+          if (error instanceof ChapterSequenceGapError) {
+            return {
+              title: "generate_chapter_outline",
+              output: `生成被拒绝：第 ${error.missingOrder} 章记录缺失，章节序号不允许跳号。请先调用 generate_chapter_outline 依次补齐第 ${error.missingOrder} 章及其后各章大纲，再生成第 ${args.chapter_number} 章。`,
+              metadata: {
+                novel_id: novelId,
+                chapter_number: args.chapter_number,
+                refused: true,
+                missing_order: error.missingOrder,
+              },
+            }
+          }
+          throw error
+        }
         return {
           title: "generate_chapter_outline",
           output: `已生成第${args.chapter_number}章大纲（${result.length} 字）${args.content ? "" : "（模板，需填充内容）"}${rollupNote}`,
