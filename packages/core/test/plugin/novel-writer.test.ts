@@ -22,7 +22,7 @@ const stubTools = createNovelWriterTools({ session: { get: () => Promise.resolve
 describe("novel-writer V2 入口", () => {
   it.effect("boot 后 96 工具可见、director 为默认 agent、非小说目录零注入", () =>
     Effect.gen(function* () {
-      expect(Object.keys(stubTools)).toHaveLength(96)
+      expect(Object.keys(stubTools)).toHaveLength(97)
 
       const plugins = yield* PluginV2.Service
       yield* plugins.add(PluginV2.ID.make("novel-writer"), novelWriterV2.effect)

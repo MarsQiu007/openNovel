@@ -19,7 +19,7 @@
 ## 4. 检测升维与修复工具（plugin）
 
 - [x] 4.1 `checkTimelineContinuity`「事件顺序」维度升维：序号重复检测 + tension/arc_beats/story_spine 派生漂移对账，检出消息附 repair 工具指引，保持 WARN 级。验证方式：plugin 单测覆盖重复检出、漂移对账、干净库 PASS 不回退
-- [ ] 4.2 新增 `repair_chapter_sequence` 工具：已连续返回「无需修复」，否则重排 1..N 并输出旧→新映射（文本表 + metadata 映射）；工具入账 barrel。验证方式：plugin 单测覆盖缺口修复映射输出/重复号修复/幂等重跑；**同步更新 core 冒烟测试硬编码工具数断言 96→97 并运行 core 测试套**（归档教训：受影响包验证必须含该包测试套）
+- [x] 4.2 新增 `repair_chapter_sequence` 工具：已连续返回「无需修复」，否则重排 1..N 并输出旧→新映射（文本表 + metadata 映射）；工具入账 barrel。验证方式：plugin 单测覆盖缺口修复映射输出/重复号修复/幂等重跑；**同步更新 core 冒烟测试硬编码工具数断言 96→97 并运行 core 测试套**（归档教训：受影响包验证必须含该包测试套）
 
 ## 5. 收尾验证
 

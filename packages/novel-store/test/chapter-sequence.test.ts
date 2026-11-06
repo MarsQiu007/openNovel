@@ -31,6 +31,7 @@ import {
   moveChapterTx,
   relocateChapters,
   relocateChaptersTx,
+  repairChapterSequence,
   resolveChapterSlot,
   withTransaction,
   type RelocateResult,
@@ -754,5 +755,36 @@ describe("moveChapter 移卷与交换（tasks 3.1 · design D2）", () => {
     ).toThrow("模拟下游失败")
     expect(ordersOfNovel2()).toEqual(range(1, 60))
     expect(chapterAtNovel2(5).volume_id).toBe(volumes60[0]!.id)
+  })
+})
+
+describe("repairChapterSequence 显式修复（tasks 4.2 · D6）", () => {
+  test("缺口库：按阅读序重排 1..N、映射按新号升序、派生同步、running 批量作废", async () => {
+    await seedDerived()
+    const db = getDb(projectDir)
+    // 绕过 deleteChapter 直接删第 2 章：序号为 1,3,4,...,10（缺口）
+    db.delete(ChapterTable).where(eq(ChapterTable.id, chapterAt(2).id)).run()
+
+    const repair = repairChapterSequence("novel-1", projectDir)
+    expect(repair.alreadyContiguous).toBe(false)
+    expect(repair.batchCancelled).toBe(true)
+    expect(currentOrders()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    const changes = changeMap(repair)
+    expect(changes[chapterAt(3).id]).toEqual({ oldOrder: 3, newOrder: 2 })
+    expect(changes[chapterAt(10).id]).toEqual({ oldOrder: 10, newOrder: 9 })
+    expect(Object.keys(changes)).toHaveLength(8)
+    // 派生随重排同步：张力 3→2、4→3、5→4、8→7
+    expect(tensionNumbers()).toEqual([2, 3, 4, 7])
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("cancelled")
+  })
+
+  test("幂等重跑：已连续返回 no-op，不作废批量、不触派生", async () => {
+    await seedDerived()
+    const first = repairChapterSequence("novel-1", projectDir)
+    expect(first.alreadyContiguous).toBe(true)
+    expect(first.changes).toHaveLength(0)
+    expect(first.batchCancelled).toBe(false)
+    expect((await getWritingBatch("novel-1", projectDir))!.status).toBe("running")
+    expect(tensionNumbers()).toEqual([3, 4, 5, 8])
   })
 })

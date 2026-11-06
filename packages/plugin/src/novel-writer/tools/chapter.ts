@@ -20,6 +20,7 @@ import {
   PendingUpdateTable,
   readNovelConfig,
   rebuildNextChapterSnapshot,
+  repairChapterSequence,
   updateChapter,
   WorldEntryTable,
   writingBatchCompleted,
@@ -550,6 +551,46 @@ export const chapterTools = {
           `已删除第${chapter.order}章「${chapter.title}」及其全部关联数据，后续章序号已补位` +
           (deletion.batchCancelled ? "；进行中的批量写作任务已作废，请重新登记批量" : ""),
         metadata: { deleted_chapter_id: args.chapter_id, order: chapter.order, batch_cancelled: deletion.batchCancelled },
+      }
+    },
+  }),
+  repair_chapter_sequence: defineTool({
+    description:
+      "显式修复章节序号。仅当连续性检查「事件顺序」维度报 WARN（序号缺口/重复/派生锚定漂移）或用户明确要求时调用：按阅读序把全书重排为 1..N，输出旧→新映射供核对，并同步张力/弧线/主线等按号派生数据。已连续唯一时返回「无需修复」不做任何改动。本工具绝不自动执行。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+    }),
+    execute: async (args, ctx) => {
+      const db = getDb(ctx.directory)
+      const novelId = await resolveNovelId(db, args.novel_id)
+      const [novel] = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
+      if (!novel) return { title: "repair_chapter_sequence", output: `小说不存在：${args.novel_id}` }
+
+      const repair = repairChapterSequence(novelId, ctx.directory)
+      if (repair.alreadyContiguous) {
+        return {
+          title: "repair_chapter_sequence",
+          output: "章节序号已连续唯一（1~N），无需修复。",
+          metadata: { novel_id: novelId, repaired: false, mapping: [] },
+        }
+      }
+      const mappingLines = repair.changes.map((change) => `第${change.oldOrder}章 → 第${change.newOrder}章`)
+      return {
+        title: "repair_chapter_sequence",
+        output:
+          `已修复章节序号：全书重排为 1..${repair.changes.length} 共 ${repair.changes.length} 处变动，旧→新映射：\n${mappingLines.join("\n")}\n` +
+          "张力/弧线/主线等按号派生数据已同步新号" +
+          (repair.batchCancelled ? "；进行中的批量写作任务已作废，请重新登记批量" : ""),
+        metadata: {
+          novel_id: novelId,
+          repaired: true,
+          batch_cancelled: repair.batchCancelled,
+          mapping: repair.changes.map((change) => ({
+            chapter_id: change.chapterId,
+            old_order: change.oldOrder,
+            new_order: change.newOrder,
+          })),
+        },
       }
     },
   }),

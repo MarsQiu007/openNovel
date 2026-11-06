@@ -244,6 +244,61 @@ export function deleteChapterWithSequence(chapterId: string, directory?: string 
   return withTransaction(getDb(directory), (tx) => deleteChapterTx(tx, chapterId))
 }
 
+// ─── 序号显式修复（design D6：repair 工具闭环存量缺口/重号库） ───
+
+export interface ChapterSequenceRepair {
+  novelId: string
+  /** 旧→新映射（按新号升序）；已连续时为空 */
+  changes: ChapterOrderChange[]
+  /** 修复前序号已连续唯一：no-op，不触碰派生、不作废批量 */
+  alreadyContiguous: boolean
+  /** 本次修复是否作废了 running 批量（调用方据此提示重新登记） */
+  batchCancelled: boolean
+}
+
+/**
+ * 显式修复章节序号（组合形态）：按 (order, created_at, id) 阅读序重排为 1..N，
+ * 派生同步/检索重建/running 批量作废与 relocate 同款收口。存量重号库同一旧号
+ * 多章时按号表取先者（uniquePairs 可接受残留）。
+ */
+export function repairChapterSequenceTx(tx: Tx, novelId: string): ChapterSequenceRepair {
+  const rows = tx
+    .select({ id: ChapterTable.id, order: ChapterTable.order })
+    .from(ChapterTable)
+    .where(eq(ChapterTable.novel_id, novelId))
+    .orderBy(asc(ChapterTable.order), asc(ChapterTable.created_at), asc(ChapterTable.id))
+    .all()
+  const changes = rows.flatMap((row, index) => {
+    const newOrder = index + 1
+    if (newOrder === row.order) return []
+    return [{ chapterId: row.id, oldOrder: row.order, newOrder }]
+  })
+  if (changes.length === 0) {
+    return { novelId, changes, alreadyContiguous: true, batchCancelled: false }
+  }
+  const now = Date.now()
+  for (const change of changes) {
+    tx.update(ChapterTable)
+      .set({ order: change.newOrder, updated_at: now })
+      .where(eq(ChapterTable.id, change.chapterId))
+      .run()
+  }
+  syncDerived(tx, novelId, changes)
+  rebuildChapterFts(tx, novelId)
+  cancelWritingBatchTx(tx, novelId)
+  const batch = tx
+    .select({ status: WritingBatchTable.status })
+    .from(WritingBatchTable)
+    .where(eq(WritingBatchTable.novel_id, novelId))
+    .get()
+  return { novelId, changes, alreadyContiguous: false, batchCancelled: batch?.status === "cancelled" }
+}
+
+/** 显式修复章节序号（自包形态）：重排 1..N、派生同步、批量作废单事务完成。 */
+export function repairChapterSequence(novelId: string, directory?: string | null): ChapterSequenceRepair {
+  return withTransaction(getDb(directory), (tx) => repairChapterSequenceTx(tx, novelId))
+}
+
 // ─── 移卷与同卷交换（design D2：全书单事务重排收口 relocate 原语） ───
 
 /**
