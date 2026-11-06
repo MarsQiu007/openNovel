@@ -23,8 +23,16 @@
 
 ## 5. 收尾验证
 
-- [ ] 5.1 受影响包全量验证：`packages/novel-store`、`packages/plugin`、`packages/server` 分别 `bun typecheck` + 全量 `bun test`；oxlint 仓库级同模式基线对比确认零净新增；自查未引入同类/冗余/无用代码（新导出均被引用、无只服务死代码的 import），命中即在本 change 内清理或立案说明
-- [ ] 5.2 真实项目取证走查：在临时项目库执行 UI/工具删除中间章与移卷后，`list_chapters` 序号连续无重复；手工制造缺口库经 `repair_chapter_sequence` 修复后映射正确（非视觉验收，自行取证写入本文件验证记录）
+- [x] 5.1 受影响包全量验证：`packages/novel-store`、`packages/plugin`、`packages/server` 分别 `bun typecheck` + 全量 `bun test`；oxlint 仓库级同模式基线对比确认零净新增；自查未引入同类/冗余/无用代码（新导出均被引用、无只服务死代码的 import），命中即在本 change 内清理或立案说明
+  - 全量结果：novel-store 294 通过 / server 164 通过 / plugin 1094 通过（章纲持久化测试补前置章过跳号门禁后）；core 1281 通过（2 个 LocationServiceMap/skill-discovery 失败为既有 flake 家族，隔离复跑通过）。
+  - 全量验证捕获并修复：chapter-outline-persistence 两个用例在空书直接生成第 2/3 章被新跳号门禁拒绝——测试早于门禁存在，补顺序前置章修复（提交 7c7b3244bf）。
+  - oxlint 同模式对比（merge-base 45c034693bc）：chapter.ts 23→14（净减 9 处 await-thenable，2.2 下沉 store 帮手所致）；index.ts 67→64；outline.ts 16→13；tools/outline.ts 5→5；core novel-writer.test.ts 1→1——零净新增。
+  - 5.1 清理提交 72729655ea：index.ts 移除随 moveChapter 下沉而闲置的 isNull 导入、章序测试移除未用 db 变量。
+  - 立案说明：新建测试文件（repair-chapter-sequence / chapter-outline-gap-refusal / chapter-sequence / chapter-sequence-continuity）存在 no-unsafe-type-assertion / no-unnecessary-type-assertion 警告，与既有同目录测试文件（db-consistency、story-spine 等）同类同形，属仓库测试既有模式，不在本 change 清理。
+- [x] 5.2 真实项目取证走查：在临时项目库执行 UI/工具删除中间章与移卷后，`list_chapters` 序号连续无重复；手工制造缺口库经 `repair_chapter_sequence` 修复后映射正确（非视觉验收，自行取证写入本文件验证记录）
+  - 取证方式：临时项目（initNovelProject + createBook），全程真实工具装配（createNovelWriterTools），走查脚本运行后即删。
+  - 场景 A（写路径）：顺序生成 1~5 章后 orders=[1,2,3,4,5]；第 3 章经 moveChapter（UI 端点同帮手）移入「第一卷」落 order=5（卷末），全书仍 [1,2,3,4,5] 连续唯一；delete_chapter 工具删中间章（第 2 章）输出「后续章序号已补位」，orders=[1,2,3,4]；list_chapters 返回与库内序号一致。
+  - 场景 B（缺口修复）：直连 DB 删一章制造缺口 orders=[1,3,4]；check_continuity 事件顺序维度 WARN「第 1 章后缺章。可运行 repair_chapter_sequence 工具显式修复序号并重排派生锚定」；repair_chapter_sequence 输出旧→新映射（第3章→第2章、第4章→第3章，metadata.mapping 同），修复后 orders=[1,2,3] 连续唯一；幂等重跑返回「章节序号已连续唯一（1~N），无需修复」。
 
 ## Workflow follow-up
 
