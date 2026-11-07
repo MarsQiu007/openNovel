@@ -1220,7 +1220,7 @@
         其他: "#8b949e",
       }
       function esc(s) {
-        return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
       }
       // 生成 onclick 参数：JSON.stringify 负责 JS 字符串转义，再按 HTML 属性规则处理 & < > "，
       // 属性解码回来后仍然是一个合法的字符串字面量，名字里带引号也逃逸不出脚本
