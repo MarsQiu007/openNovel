@@ -1,5 +1,8 @@
 name: typecheck
 
+permissions:
+  contents: read
+
 # 纯文档推送/PR 不触发本工作流；过滤清单在 push 与 pull_request 两处需同步维护，详见 docs/agents/ci-triage.md
 on:
   push:
