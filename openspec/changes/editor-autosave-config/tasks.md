@@ -39,6 +39,10 @@
 - 4.3：仓库根 `bun turbo typecheck` 31/31 通过。
 - 验收环境已清理：测试书「自动保存验收测试书」经书架 UI 删除；`settings.v3` 还原 `autoSaveInterval: 60000`；dev 进程与预览服务已停止。
 
+## Implementation Commits
+
+- e74cd756ef feat(app): 章节自动保存支持开关与可配置间隔
+
 ## Workflow follow-up
 
 - 提交实现改动（每个 commit 带 `OpenSpec-Change: editor-autosave-config` footer）并推送分支后走 propose/apply 收尾流程。
