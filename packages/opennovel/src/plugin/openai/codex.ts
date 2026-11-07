@@ -22,9 +22,19 @@ interface PkceCodes {
 
 async function generatePKCE(): Promise<PkceCodes> {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
-  const verifier = Array.from(crypto.getRandomValues(new Uint8Array(43)))
-    .map((b) => chars[b % chars.length])
-    .join("")
+  // 拒绝采样消除模偏差，避免 PKCE verifier 的字符分布偏斜
+  const limit = 256 - (256 % chars.length)
+  let verifier = ""
+  let pool = crypto.getRandomValues(new Uint8Array(43))
+  let cursor = 0
+  while (verifier.length < 43) {
+    if (cursor === pool.length) {
+      pool = crypto.getRandomValues(new Uint8Array(43 - verifier.length))
+      cursor = 0
+    }
+    const byte = pool[cursor++]
+    if (byte < limit) verifier += chars[byte % chars.length]
+  }
   const challenge = base64UrlEncode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)))
   return { verifier, challenge }
 }

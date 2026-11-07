@@ -61,9 +61,20 @@ async function generatePKCE(): Promise<PkceCodes> {
 
 function generateRandomString(length: number): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
-  return Array.from(crypto.getRandomValues(new Uint8Array(length)))
-    .map((b) => chars[b % chars.length])
-    .join("")
+  // 拒绝采样消除模偏差，避免 PKCE verifier 的字符分布偏斜
+  const limit = 256 - (256 % chars.length)
+  let result = ""
+  let pool = crypto.getRandomValues(new Uint8Array(length))
+  let cursor = 0
+  while (result.length < length) {
+    if (cursor === pool.length) {
+      pool = crypto.getRandomValues(new Uint8Array(length - result.length))
+      cursor = 0
+    }
+    const byte = pool[cursor++]
+    if (byte < limit) result += chars[byte % chars.length]
+  }
+  return result
 }
 
 function base64UrlEncode(buffer: ArrayBuffer): string {

@@ -43,10 +43,18 @@ function generateID(prefix: keyof typeof prefixes, direction: "descending" | "as
 
 function randomBase62(length: number): string {
   const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  // 拒绝采样消除模偏差：256 % 62 = 8，直接取模会让前 8 个字符概率偏高
+  const limit = 256 - (256 % chars.length)
   let result = ""
-  const bytes = randomBytes(length)
-  for (let i = 0; i < length; i++) {
-    result += chars[bytes[i] % 62]
+  let pool = randomBytes(length)
+  let cursor = 0
+  while (result.length < length) {
+    if (cursor === pool.length) {
+      pool = randomBytes(length - result.length)
+      cursor = 0
+    }
+    const byte = pool[cursor++]
+    if (byte < limit) result += chars[byte % chars.length]
   }
   return result
 }
