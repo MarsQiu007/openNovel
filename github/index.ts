@@ -465,8 +465,9 @@ async function getUserPrompt() {
     if (target.hostname !== "github.com" || !target.pathname.startsWith("/user-attachments/")) continue
     const filename = path.basename(target.pathname)
 
-    // Download image
-    const res = await fetch(url, {
+    // 下载必须使用已校验的 target.href 而非原始 url 字符串：
+    // CodeQL 的 request-forgery 消毒模型只认可「校验对象即请求对象」的形态
+    const res = await fetch(target.href, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
