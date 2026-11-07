@@ -1,4 +1,5 @@
 import { Marked } from "marked"
+import DOMPurify from "dompurify"
 
 const marked = new Marked()
 import { type Accessor, createMemo, createSignal, For, Show } from "solid-js"
@@ -15,11 +16,7 @@ type Props = {
 type EditTarget = { section: "master" | "volume" | "chapter"; id?: string } | null
 
 function sanitize(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript:/gi, "")
+  return DOMPurify.sanitize(html)
 }
 
 export function PanelOutline(props: Props) {

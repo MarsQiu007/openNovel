@@ -1,4 +1,5 @@
 import { Marked } from "marked"
+import DOMPurify from "dompurify"
 import { createMemo, createSignal, Show } from "solid-js"
 import type { Accessor } from "solid-js"
 import { useLanguage } from "@/context/language"
@@ -12,11 +13,7 @@ import type { OutlineTarget } from "./outline-sidebar"
 const marked = new Marked()
 
 function sanitize(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript:/gi, "")
+  return DOMPurify.sanitize(html)
 }
 
 type OutlineReaderProps = {

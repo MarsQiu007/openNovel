@@ -23,15 +23,12 @@ import { useLanguage } from "@/context/language"
 import { useConfirmDelete } from "./confirm-dialog"
 import { CharacterAvatar } from "./setting-gallery"
 import { Marked } from "marked"
+import DOMPurify from "dompurify"
 
 const marked = new Marked()
 
 function sanitize(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript:/gi, "")
+  return DOMPurify.sanitize(html)
 }
 
 /** 档案核心维度与展示顺序（character-profile）：编辑与只读渲染共用 */
