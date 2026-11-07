@@ -5,7 +5,6 @@ import { buffer } from "node:stream/consumers"
 import { errorMessage } from "./error"
 
 export type Stdio = "inherit" | "pipe" | "ignore" | number | Stream
-export type Shell = boolean | string
 
 export interface Options {
   cwd?: string
@@ -13,7 +12,6 @@ export interface Options {
   stdin?: Stdio
   stdout?: Stdio
   stderr?: Stdio
-  shell?: Shell
   abort?: AbortSignal
   kill?: NodeJS.Signals | number
   timeout?: number
@@ -60,9 +58,10 @@ export function spawn(cmd: string[], opts: Options = {}): Child {
   if (cmd.length === 0) throw new Error("Command is required")
   opts.abort?.throwIfAborted()
 
+  // 不提供 shell 选项：cross-spawn 的 shell:true 会把参数拼接成 shell 命令行，
+  // 使元字符注入成为可能；需要 shell 语义时调用方显式传 shell 可执行文件
   const proc = launch(cmd[0], cmd.slice(1), {
     cwd: opts.cwd,
-    shell: opts.shell,
     env: opts.env === null ? {} : opts.env ? { ...process.env, ...opts.env } : undefined,
     stdio: [opts.stdin ?? "ignore", opts.stdout ?? "ignore", opts.stderr ?? "ignore"],
     windowsHide: process.platform === "win32",
@@ -116,7 +115,6 @@ export async function run(cmd: string[], opts: RunOptions = {}): Promise<Result>
     cwd: opts.cwd,
     env: opts.env,
     stdin: opts.stdin,
-    shell: opts.shell,
     abort: opts.abort,
     kill: opts.kill,
     timeout: opts.timeout,

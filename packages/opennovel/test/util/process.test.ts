@@ -77,11 +77,10 @@ describe("util.process", () => {
     expect(out.stdout.toString()).toBe("set")
   })
 
-  test("uses shell in run on Windows", async () => {
+  test("runs cmd builtins on Windows without the shell option", async () => {
     if (process.platform !== "win32") return
 
-    const out = await Process.run(["set", "OPENNOVEL_TEST_SHELL"], {
-      shell: true,
+    const out = await Process.run(["cmd", "/d", "/s", "/c", "set OPENNOVEL_TEST_SHELL"], {
       env: {
         OPENNOVEL_TEST_SHELL: "ok",
       },
