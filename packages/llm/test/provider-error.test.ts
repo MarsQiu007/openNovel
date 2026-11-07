@@ -18,6 +18,17 @@ describe("provider error classification", () => {
     expect(messages.every(isContextOverflow)).toBe(true)
   })
 
+  test("classifies empty-body 4xx status messages as context overflow", () => {
+    const messages = [
+      "400 (no body)",
+      "400  status code  (no body)",
+      "413 status code (no body)",
+    ]
+
+    expect(messages.every(isContextOverflow)).toBe(true)
+    expect(isContextOverflow("401 (no body)")).toBe(false)
+  })
+
   test("does not classify rate limits as context overflow", () => {
     const messages = [
       "Throttling error: Too many tokens, please wait before trying again.",
