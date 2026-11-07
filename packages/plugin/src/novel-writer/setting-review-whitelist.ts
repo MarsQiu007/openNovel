@@ -24,7 +24,7 @@ const TEXT_FIELD: Record<OrganizeEntity["entity_type"], "content" | "description
 /** 去除 Markdown 标记与全部空白，用于「不增删事实」的等价比较 */
 function stripFormatting(text: string): string {
   return text
-    .replace(/\[([^\[\]\n]*)\]\(([^)\n]*)\)/g, "$1") // 链接保留文本
+    .replace(/\[([^\[\]\n]*)\]\(([^()\n]*)\)/g, "$1") // 链接保留文本
     .replace(/[#*`>~_]+/g, "") // 标题 / 加粗 / 斜体 / 引用 / 代码标记
     .replace(/^[ \t]{0,3}(?:-|\+|\d+\.)[ \t]+/gm, "") // 列表标记
     .replace(/\s+/g, "") // 空白与分段差异
