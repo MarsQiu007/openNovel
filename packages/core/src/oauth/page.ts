@@ -25,7 +25,7 @@ export function success(options?: CallbackPageOptions) {
     body: renderCard({
       status: "success",
       headline: "Authorization successful",
-      message: provider ? `OpenNovel is now connected to ${escapeHtml(provider)}.` : "OpenNovel is now authorized.",
+      message: provider ? `OpenNovel is now connected to ${provider}.` : "OpenNovel is now authorized.",
       footnote: "You can close this window.",
     }),
     script: options?.autoClose === false ? undefined : AUTO_CLOSE_SCRIPT,
@@ -40,7 +40,7 @@ export function error(detail: string, options?: CallbackPageOptions) {
       status: "error",
       headline: "Authorization failed",
       message: provider
-        ? `OpenNovel couldn't finish connecting to ${escapeHtml(provider)}.`
+        ? `OpenNovel couldn't finish connecting to ${provider}.`
         : "OpenNovel couldn't complete authorization.",
       detail,
       footnote: "Close this window and try again from OpenNovel.",
@@ -65,7 +65,7 @@ export function bootstrap(options: BootstrapOptions) {
       status: "pending",
       headline: "Finishing sign-in",
       message: options.provider
-        ? `Completing your ${escapeHtml(options.provider)} authorization.`
+        ? `Completing your ${options.provider} authorization.`
         : "Completing authorization.",
       footnote: "You can close this window once sign-in finishes.",
     }),
@@ -87,7 +87,7 @@ function renderCard(input: { status: Status; headline: string; message: string; 
         <span class="icon icon-error">${ICON_CROSS}</span>
       </div>
       <h1 class="headline" id="oc-headline">${escapeHtml(input.headline)}</h1>
-      <p class="message" id="oc-message">${input.message}</p>
+      <p class="message" id="oc-message">${escapeHtml(input.message)}</p>
       <pre class="detail" id="oc-detail"${detail ? "" : " hidden"}>${detail ? escapeHtml(detail) : ""}</pre>
       <p class="footnote" id="oc-footnote">${escapeHtml(input.footnote)}</p>
     </main>`
