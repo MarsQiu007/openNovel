@@ -139,12 +139,14 @@ function scriptString(value: string) {
 }
 
 function escapeHtml(value: string) {
+  // 用 /g 正则字面量而非 replaceAll：静态分析（CodeQL 反射型 XSS 消毒启发式）
+  // 只把 .replace(/<literal>/g, …) 形态识别为 HTML 转义
   return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
 }
 
 // Curated subset of OC-2 tokens (packages/ui/src/styles/theme.css). Default is
