@@ -490,12 +490,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   let result = html
   for (const match of matches) {
     const [fullMatch, lang, escapedCode] = match
-    const code = escapedCode
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
+    const code = unescapeHtml(escapedCode)
 
     let language = lang || "text"
     if (!(language in bundledLanguages)) {
@@ -514,6 +509,13 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   }
 
   return result
+}
+
+// 单趟解码 marked 产出的五个实体，避免链式 replace 对已解码文本二次命中
+const htmlEntities = { "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&#39;": "'" } as const
+
+function unescapeHtml(value: string): string {
+  return value.replace(/&(?:lt|gt|amp|quot|#39);/g, (entity) => htmlEntities[entity as keyof typeof htmlEntities] ?? entity)
 }
 
 export type NativeMarkdownParser = (markdown: string) => Promise<string>
