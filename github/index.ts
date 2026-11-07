@@ -459,7 +459,11 @@ async function getUserPrompt() {
     const start = m.index
 
     if (!url) continue
-    const filename = path.basename(url)
+    // 正文里的 URL 来自远程用户内容，即使正则已锚定 github.com 前缀，
+    // 下载前仍显式校验主机与路径，防止凭据被带往意外目标
+    const target = new URL(url)
+    if (target.hostname !== "github.com" || !target.pathname.startsWith("/user-attachments/")) continue
+    const filename = path.basename(target.pathname)
 
     // Download image
     const res = await fetch(url, {
