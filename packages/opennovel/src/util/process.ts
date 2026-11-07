@@ -59,9 +59,10 @@ export function spawn(cmd: string[], opts: Options = {}): Child {
   opts.abort?.throwIfAborted()
 
   // 不提供 shell 选项：cross-spawn 的 shell:true 会把参数拼接成 shell 命令行，
-  // 使元字符注入成为可能；需要 shell 语义时调用方显式传 shell 可执行文件
-  // codeql[js/command-line-injection] 数组形式 spawn 不经 shell 解释元字符；调用方仅为内部固定命令、运行时自身路径（process.execPath）与受 TLS 保护的发布元数据
-  // codeql[js/shell-command-injection-from-environment] 同上：cmd[0] 是固定工具链路径或 process.execPath，不经 shell 且无可注入的解释器
+  // 使元字符注入成为可能；需要 shell 语义时调用方显式传 shell 可执行文件。
+  // 数组形式 spawn 不经 shell 解释元字符；调用方仅为内部固定命令、运行时自身路径
+  // （process.execPath）与受 TLS 保护的发布元数据——命令注入面已除，
+  // 对应 code scanning 告警按 won't fix 带 SARIF 依据 dismiss（#52/#53/#54）
   const proc = launch(cmd[0], cmd.slice(1), {
     cwd: opts.cwd,
     env: opts.env === null ? {} : opts.env ? { ...process.env, ...opts.env } : undefined,
