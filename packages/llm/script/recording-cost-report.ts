@@ -55,15 +55,21 @@ const walk = async (dir: string): Promise<ReadonlyArray<string>> =>
     )
 
 const providerFromUrl = (url: string) => {
-  if (url.includes("api.openai.com")) return "openai"
-  if (url.includes("api.anthropic.com")) return "anthropic"
-  if (url.includes("generativelanguage.googleapis.com")) return "google"
-  if (url.includes("bedrock")) return "amazon-bedrock"
-  if (url.includes("openrouter.ai")) return "openrouter"
-  if (url.includes("api.x.ai")) return "xai"
-  if (url.includes("api.groq.com")) return "groq"
-  if (url.includes("api.deepseek.com")) return "deepseek"
-  if (url.includes("api.together.xyz")) return "togetherai"
+  let hostname = ""
+  try {
+    hostname = new URL(url).hostname
+  } catch {
+    return "unknown"
+  }
+  if (hostname === "api.openai.com") return "openai"
+  if (hostname === "api.anthropic.com") return "anthropic"
+  if (hostname === "generativelanguage.googleapis.com") return "google"
+  if (hostname.startsWith("bedrock")) return "amazon-bedrock"
+  if (hostname === "openrouter.ai") return "openrouter"
+  if (hostname === "api.x.ai") return "xai"
+  if (hostname === "api.groq.com") return "groq"
+  if (hostname === "api.deepseek.com") return "deepseek"
+  if (hostname === "api.together.xyz") return "togetherai"
   return "unknown"
 }
 
