@@ -461,15 +461,13 @@ async function getUserPrompt() {
     const start = m.index
 
     if (!url) continue
-    // 正文里的 URL 来自远程用户内容：下载 URL 由常量基座 + 已校验前缀的剩余段拼接，
-    // 即使剩余段受污染也影响不到主机名（CodeQL request-forgery 认可的 barrier-out 形态）；
-    // 文件名取路径末段，空名拒绝
+    // 正文里的 URL 来自远程用户内容：下载前用常量前缀锚定主机名——
+    // 该 startsWith 守卫即 CodeQL request-forgery 的 HostnameSanitizerGuard（barrier guard），
+    // 命中前缀后 url 的污点不再流向 fetch；文件名取路径末段，空名拒绝
     if (!url.startsWith(ATTACHMENTS_BASE)) continue
-    const rest = url.slice(ATTACHMENTS_BASE.length)
-    const filename = rest.split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? ""
+    const filename = url.slice(ATTACHMENTS_BASE.length).split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? ""
     if (!filename) continue
-
-    const res = await fetch(ATTACHMENTS_BASE + rest, {
+    const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
