@@ -1,5 +1,4 @@
 import { $ } from "bun"
-import path from "node:path"
 import { Octokit } from "@octokit/rest"
 import { graphql } from "@octokit/graphql"
 import * as core from "@actions/core"
@@ -14,6 +13,9 @@ type GitHubAuthor = {
   login: string
   name?: string
 }
+
+/** 评论附件下载的固定基座；下载 URL 必须由该常量前缀拼接而成，主机名不可被用户内容影响 */
+const ATTACHMENTS_BASE = "https://github.com/user-attachments/"
 
 type GitHubComment = {
   id: string
@@ -459,15 +461,15 @@ async function getUserPrompt() {
     const start = m.index
 
     if (!url) continue
-    // 正文里的 URL 来自远程用户内容，即使正则已锚定 github.com 前缀，
-    // 下载前仍显式校验主机与路径，防止凭据被带往意外目标
-    const target = new URL(url)
-    if (target.hostname !== "github.com" || !target.pathname.startsWith("/user-attachments/")) continue
-    const filename = path.basename(target.pathname)
+    // 正文里的 URL 来自远程用户内容：下载 URL 由常量基座 + 已校验前缀的剩余段拼接，
+    // 即使剩余段受污染也影响不到主机名（CodeQL request-forgery 认可的 barrier-out 形态）；
+    // 文件名取路径末段，空名拒绝
+    if (!url.startsWith(ATTACHMENTS_BASE)) continue
+    const rest = url.slice(ATTACHMENTS_BASE.length)
+    const filename = rest.split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? ""
+    if (!filename) continue
 
-    // 下载必须使用已校验的 target.href 而非原始 url 字符串：
-    // CodeQL 的 request-forgery 消毒模型只认可「校验对象即请求对象」的形态
-    const res = await fetch(target.href, {
+    const res = await fetch(ATTACHMENTS_BASE + rest, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
