@@ -25,8 +25,8 @@
 
 ## 4. 无工具后台整理与启动恢复
 
-- [ ] 4.1 实现安全边界后的同指纹整理队列，启动时通过现有 agent/Session 模型解析固定本次 providerID/modelID，无已配置模型或解析失败则保留 pending，不隐式改用其他模型；发车前读取实际解析结果并断言与固定值一致，回退即不发车。宿主为 purpose 会话屏蔽 Location context source，归因请求 system 段只含专用 agent 提示词；prompt 直接携带本批脱敏证据、已授权片段和当前问题骨架。归因专用 agent 先 `deny *` 且不开放证据读取、问题整理、写作、Shell 或网络工具，create 后、prompt 前验证 agent 存在且 materialize 工具集合精确为空，模型只返回结构化文本，由普通插件代码校验并写回指定段落；验证：覆盖当前轮次结束后才启动、原会话无新增输入、运行中新证据只派生一次后续整理、无模型不隐式替换、指定模型回退不发车、归因 system 段不含原书设定/灵魂段/快照/引用清单、未知 agent/注册未就绪/任何额外工具均不发车、归因无法调用任何工具、超时/非法输出/写盘失败保留事实且不影响写作
-- [ ] 4.2 使用 `pending_evidence_ids`、`organized_evidence_ids` 和失败状态实现崩溃恢复，插件装载后按当前项目和日志根只补一次 pending；启动时在 evidence 锁内读取有效证据，对账所有 frontmatter，凡证据 ID 不在 pending 与 organized 并集内都重新确定性摄取，不能仅凭已被引用就跳过，document 锁内再按证据与发生实例去重，并顺带从 frontmatter 确定性重建 `index.md` 修复崩溃残留。父 Session 缺失时使用当前项目 directory 创建同样的无工具顶层归因 Session，复测仍只能使用临时 directory。organize 锁覆盖单批整理及最终合并，锁内重读并跳过已整理证据；验证：覆盖模型成功后原子移动 ID、证据落盘但骨架未更新的孤儿恢复、失败/崩溃后重启补齐、过期索引重建、父 Session 缺失仍整理且不跨项目、已整理不重复、多进程同指纹只采用一批且发生次数不重复、目录变化停止旧队列、无周期扫描
+- [x] 4.1 实现安全边界后的同指纹整理队列，启动时通过现有 agent/Session 模型解析固定本次 providerID/modelID，无已配置模型或解析失败则保留 pending，不隐式改用其他模型；发车前读取实际解析结果并断言与固定值一致，回退即不发车。宿主为 purpose 会话屏蔽 Location context source，归因请求 system 段只含专用 agent 提示词；prompt 直接携带本批脱敏证据、已授权片段和当前问题骨架。归因专用 agent 先 `deny *` 且不开放证据读取、问题整理、写作、Shell 或网络工具，create 后、prompt 前验证 agent 存在且 materialize 工具集合精确为空，模型只返回结构化文本，由普通插件代码校验并写回指定段落；验证：覆盖当前轮次结束后才启动、原会话无新增输入、运行中新证据只派生一次后续整理、无模型不隐式替换、指定模型回退不发车、归因 system 段不含原书设定/灵魂段/快照/引用清单、未知 agent/注册未就绪/任何额外工具均不发车、归因无法调用任何工具、超时/非法输出/写盘失败保留事实且不影响写作
+- [x] 4.2 使用 `pending_evidence_ids`、`organized_evidence_ids` 和失败状态实现崩溃恢复，插件装载后按当前项目和日志根只补一次 pending；启动时在 evidence 锁内读取有效证据，对账所有 frontmatter，凡证据 ID 不在 pending 与 organized 并集内都重新确定性摄取，不能仅凭已被引用就跳过，document 锁内再按证据与发生实例去重，并顺带从 frontmatter 确定性重建 `index.md` 修复崩溃残留。父 Session 缺失时使用当前项目 directory 创建同样的无工具顶层归因 Session，复测仍只能使用临时 directory。organize 锁覆盖单批整理及最终合并，锁内重读并跳过已整理证据；验证：覆盖模型成功后原子移动 ID、证据落盘但骨架未更新的孤儿恢复、失败/崩溃后重启补齐、过期索引重建、父 Session 缺失仍整理且不跨项目、已整理不重复、多进程同指纹只采用一批且发生次数不重复、目录变化停止旧队列、无周期扫描
 
 ## 5. 系统确认、隔离复测与回归记录
 
