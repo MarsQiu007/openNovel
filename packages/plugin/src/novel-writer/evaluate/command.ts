@@ -18,18 +18,23 @@ const TEMPLATE = `用户触发了创作自评价命令 /evaluate。请按参数�
 - all = 全部历史
 诊断包导出子命令：
 - export [--level L0|L1|L2] = 导出诊断包（默认 L1）：L0 纯计数 / L1 +脱敏错误分类样本（不含正文与题材值）/ L2 +复现事件序列
+工具问题记录（自然语言，工具改进日志开启时可用）：
+- 「记录这个问题 <描述>」= 调用 tool_insight 工具 action=record，把描述放进 feedback；无报错的繁琐操作、理解偏差、写作之外的交互问题都可以记录
+- 「补充问题 <指纹> <反馈>」= action=supplement，沿用原发生实例；用户明确说是又一次新发生时才传 new_occurrence=true
+- 「重新整理问题 <指纹>」= action=reorganize，全部证据重新生成假设与建议
+- 用户提供的正文片段绝不能放进 feedback：需要必要正文时改用 content_exception 字段并向用户说明这是本地保留授权
 
 执行步骤：
-1. 参数以 export 开头时：调用 evaluate 工具 action="export"，level 按 --level 取值（缺省 L1）；否则调用 evaluate 工具生成报告，scope 按上述范围参数取值（since-last/volume/sessions/all），sessions 时一并传 count
-2. 报告：把报告内容原样贴回会话并附落盘路径；导出：贴回诊断包路径与分级说明
+1. 参数以 export 开头时：调用 evaluate 工具 action="export"，level 按 --level 取值（缺省 L1）；参数以「记录/补充/重新整理」开头或描述的是具体工具问题时：调用 tool_insight 工具（action 按上表映射）；否则调用 evaluate 工具生成报告，scope 按上述范围参数取值（since-last/volume/sessions/all），sessions 时一并传 count
+2. 报告：把报告内容原样贴回会话并附落盘路径；导出：贴回诊断包路径与分级说明；tool_insight：贴回动作结果与问题指纹
 3. 导出级别为 L2 时必须向用户提示：诊断包含复现事件序列，可能含题材相关信息，分享前请自行检查
-4. 本命令只读指标桶，不要修改任何写作数据，也不要对产物内容做额外发挥——报告逐条原样呈现 A/B/C 三部分，导出原样呈现分级说明`
+4. 本命令对 report/export 只读指标桶，不修改任何写作数据，也不要对产物内容做额外发挥——报告逐条原样呈现 A/B/C 三部分，导出原样呈现分级说明；tool_insight 动作只写工具改进日志，同样不修改任何写作数据`
 
 export function registerEvaluateCommand(draft: CommandDraft) {
   draft.update("evaluate", (item) => {
     item.template = TEMPLATE
     item.description =
-      "生成创作自评价报告（A 创作复盘 / B 配置优化建议 / C 产品信号），报告落盘 .novel/evaluate/ 并贴回会话；export 子命令导出分级诊断包（L0 计数/L1 脱敏样本/L2 复现序列）。范围：空=上次报告以来，volume=本卷，sessions N=最近 N 会话，all=全部"
+      "生成创作自评价报告（A 创作复盘 / B 配置优化建议 / C 产品信号），报告落盘 .novel/evaluate/ 并贴回会话；export 子命令导出分级诊断包（L0 计数/L1 脱敏样本/L2 复现序列）。范围：空=上次报告以来，volume=本卷，sessions N=最近 N 会话，all=全部。也可用自然语言记录/补充/重新整理工具改进问题（经 tool_insight 工具，需开启工具改进日志）"
     item.agent = "director"
   })
 }

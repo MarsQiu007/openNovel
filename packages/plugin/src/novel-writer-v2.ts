@@ -18,6 +18,8 @@ import { createNovelContextSource } from "./novel-writer/context-source.js"
 import { registerEvaluateCommand } from "./novel-writer/evaluate/command.js"
 import { watchSessionEvents } from "./novel-writer/evaluate/events.js"
 import { createNovelWriterTools } from "./novel-writer/tools/index.js"
+import { watchToolInsightEvents } from "./tool-insight/collector.js"
+import { createToolInsightTool } from "./tool-insight/tool.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
 import { directorAgent } from "./novel-writer/agents/director.js"
@@ -41,6 +43,9 @@ export default define({
     const tools = createNovelWriterTools({ session: ctx.session })
     yield* ctx.tool.transform((editor) => {
       for (const [name, spec] of Object.entries(tools)) editor.add(name, spec)
+      // 工具改进日志的主动入口：任何目录都可记录问题（含写作外流程问题），
+      // 运行时由全局开关决定是否落盘
+      editor.add("tool_insight", createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file }))
     })
 
     // 条件注册：仅小说目录注入上下文源，非小说目录零污染
@@ -53,6 +58,8 @@ export default define({
         }),
       )
       yield* watchSessionEvents(ctx, ctx.location.directory)
+      // 事件证据采集器（任务 3.1）：自身带全局开关门，未启用时零落盘
+      yield* watchToolInsightEvents({ ctx, projectDirectory: ctx.location.directory })
       yield* ctx.command.transform(registerEvaluateCommand)
     }
   }),

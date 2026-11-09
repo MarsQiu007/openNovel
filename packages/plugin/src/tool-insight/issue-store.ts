@@ -43,6 +43,16 @@ function warnStore(stage: string, detail: string, err?: unknown) {
   console.warn(`[tool-insight] ${stage}: ${detail}`, err ?? "")
 }
 
+export type IssueMetaRead = { error: "corrupt" | "missing" } | { error?: undefined; meta: ToolInsightIssueMeta }
+
+/** 读取问题文档 frontmatter（补充反馈入口用：取既有发生实例列表） */
+export function readIssueMeta(paths: ToolInsightPaths, fingerprint: string): IssueMetaRead {
+  const parsed = readIssueDoc(toolInsightIssuePath(paths, fingerprint))
+  if (parsed.error === "missing") return { error: "missing" }
+  if (parsed.error) return { error: "corrupt" }
+  return { meta: parsed.meta }
+}
+
 function readIssueDoc(filePath: string): ParsedIssueDoc | { error: "missing" } {
   let text: string
   try {
@@ -224,6 +234,45 @@ export async function organizeUnderLock(
     },
   )
   return outcome.ok ? outcome.value : { applied: false, reason: "lock-failed" }
+}
+
+export type ReorganizeRequestResult =
+  | { queued: true }
+  | { queued: false; reason: "lock-failed" | "corrupt-doc" | "missing" | "io-failed" }
+
+/**
+ * 用户「重新整理」入口：document 锁内把该问题的全部证据放回 pending 并重置整理
+ * 状态，由后台整理队列（任务 4.1）与启动补整理按既有流程重新生成三段内容。
+ * 旧的假设段落保留到下一次整理成功时才被替换；证据与发生次数不变。
+ */
+export async function requestReorganize(
+  file: Pick<FileDomain, "withLock">,
+  paths: ToolInsightPaths,
+  input: { fingerprint: string; timeoutMs?: number },
+): Promise<ReorganizeRequestResult> {
+  const outcome = await runExclusive(
+    file,
+    { dir: paths.locksDir, key: toolInsightLockKey(paths.root, "document"), timeoutMs: input.timeoutMs },
+    async () => {
+      const filePath = toolInsightIssuePath(paths, input.fingerprint)
+      const parsed = readIssueDoc(filePath)
+      if (parsed.error === "corrupt") return { queued: false, reason: "corrupt-doc" } as const
+      if (parsed.error) return { queued: false, reason: "missing" } as const
+      const meta = parsed.meta
+      meta.pending_evidence_ids = [...new Set(meta.evidence_ids)]
+      meta.organized_evidence_ids = []
+      meta.organize_status = "pending"
+      meta.organize_error = null
+      meta.updated_at = new Date().toISOString()
+      const sections: IssueSections = { ...parsed.sections, 事实: renderFactsSection(meta) }
+      if (!replaceToolInsightFile(filePath, renderIssueDoc(meta, sections))) {
+        return { queued: false, reason: "io-failed" } as const
+      }
+      rebuildIndexLocked(paths)
+      return { queued: true } as const
+    },
+  )
+  return outcome.ok ? outcome.value : { queued: false, reason: "lock-failed" }
 }
 
 export type FailureRecordResult =
