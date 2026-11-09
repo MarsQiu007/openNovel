@@ -12,9 +12,9 @@
 
 ## 2. 宿主后台会话、内部事件隔离与真实取消
 
-- [ ] 2.1 扩展插件 V2 `SessionDomain` 的 `settled` 与目的受限 `startBackground`，输入区分 organize/retest 和预期工具集合，retest 必须携带宿主执行授权；Core 宿主直接注入真实 `SessionV2.Service` 与 `SessionExecution.Service`，仅在目标 Location 就绪与权限预检时使用 `LocationServiceMap.Service`。后台输入采用 `resume: false` durable admission 后由宿主 `resume` 驱动，resume 后等待后台 Session 到达 settled 观察点才完成 `{ id, done, cancel }` 的 done、最终文本和真实成功/失败/取消结果，不开放通用执行循环；验证：覆盖 organize 非空工具与无授权 retest 在 create 前拒绝、当前 drain 落定、pending wake 后继续等待、后台 resume 后的 successor 未完成前不核验不清理、父会话无新增 prompt、归因继承原 Location、复测使用显式临时 Location、真实执行错误不被 wait 吞掉及组合层无 layer 环
-- [ ] 2.2 在 `create` 前预分配 Session ID 并登记进程级、跨 Location 可见的 purpose，插件私有事件信封与 `SessionRef` 提供只读标记，tombstone 保留到进程退出；新旧所有事件处理器在任何计数、Map 更新或报告触发前统一过滤；验证：覆盖 Created、agent/model switched、Step、Tool、Compaction、早发及晚消费尾部事件均不污染旧指标或新采集器，普通会话行为不变，公开 SessionEvent Schema 不变
-- [ ] 2.3 为每个插件构造绑定 child Scope 的宿主视图，作用域 finalizer 与开关关闭均调用真实 interrupt 取消该插件活动后台 ID；cancel 覆盖等待父 Session、已 admission 未 resume、执行中三个阶段，取消后不得再自动 create 或 resume，重复取消与等待方中断保持幂等；验证：分别覆盖三阶段取消，使用可控 provider/tool 执行证明取消会终止实际工作而非仅让 `done` 落定，插件 dispose、项目卸载和关闭开关均不再派生任务，证据与最后完整文档保留
+- [x] 2.1 扩展插件 V2 `SessionDomain` 的 `settled` 与目的受限 `startBackground`，输入区分 organize/retest 和预期工具集合，retest 必须携带宿主执行授权；Core 宿主直接注入真实 `SessionV2.Service` 与 `SessionExecution.Service`，仅在目标 Location 就绪与权限预检时使用 `LocationServiceMap.Service`。后台输入采用 `resume: false` durable admission 后由宿主 `resume` 驱动，resume 后等待后台 Session 到达 settled 观察点才完成 `{ id, done, cancel }` 的 done、最终文本和真实成功/失败/取消结果，不开放通用执行循环；验证：覆盖 organize 非空工具与无授权 retest 在 create 前拒绝、当前 drain 落定、pending wake 后继续等待、后台 resume 后的 successor 未完成前不核验不清理、父会话无新增 prompt、归因继承原 Location、复测使用显式临时 Location、真实执行错误不被 wait 吞掉及组合层无 layer 环
+- [x] 2.2 在 `create` 前预分配 Session ID 并登记进程级、跨 Location 可见的 purpose，插件私有事件信封与 `SessionRef` 提供只读标记，tombstone 保留到进程退出；新旧所有事件处理器在任何计数、Map 更新或报告触发前统一过滤；验证：覆盖 Created、agent/model switched、Step、Tool、Compaction、早发及晚消费尾部事件均不污染旧指标或新采集器，普通会话行为不变，公开 SessionEvent Schema 不变
+- [x] 2.3 为每个插件构造绑定 child Scope 的宿主视图，作用域 finalizer 与开关关闭均调用真实 interrupt 取消该插件活动后台 ID；cancel 覆盖等待父 Session、已 admission 未 resume、执行中三个阶段，取消后不得再自动 create 或 resume，重复取消与等待方中断保持幂等；验证：分别覆盖三阶段取消，使用可控 provider/tool 执行证明取消会终止实际工作而非仅让 `done` 落定，插件 dispose、项目卸载和关闭开关均不再派生任务，证据与最后完整文档保留
 
 ## 3. 事件证据、轨迹检测与真实结果
 
