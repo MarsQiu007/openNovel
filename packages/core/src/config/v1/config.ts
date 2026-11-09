@@ -17,6 +17,7 @@ import { ConfigPluginV1 } from "./plugin"
 import { ConfigProviderV1 } from "./provider"
 import { ConfigServerV1 } from "./server"
 import { ConfigSkillsV1 } from "./skills"
+import { ConfigToolInsight } from "./tool-insight"
 
 export type Layout = ConfigLayoutV1.Layout
 
@@ -187,6 +188,10 @@ export const Info = Schema.Struct({
   ).annotate({
     description:
       "Thresholds for truncating tool output. When output exceeds either limit, the full text is written to the truncation directory and a preview is returned.",
+  }),
+  toolInsight: Schema.optional(ConfigToolInsight.ToolInsight).annotate({
+    description:
+      "Local tool improvement log settings. Absent field means disabled; project config cannot override these global privacy settings. Update payloads that omit this field keep the existing setting.",
   }),
   compaction: Schema.optional(
     Schema.Struct({

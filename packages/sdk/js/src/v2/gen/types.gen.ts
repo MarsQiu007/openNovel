@@ -1249,6 +1249,14 @@ export type AttachmentConfig = {
   image?: ImageAttachmentConfig
 }
 
+export type ToolInsight = {
+  /**
+   * Whether the local tool improvement log is enabled. Absent field means disabled.
+   */
+  enabled: boolean
+  directory?: string
+}
+
 export type Config = {
   $schema?: string
   shell?: string
@@ -1381,6 +1389,7 @@ export type Config = {
     max_lines?: number
     max_bytes?: number
   }
+  toolInsight?: ToolInsight
   compaction?: {
     auto?: boolean
     prune?: boolean

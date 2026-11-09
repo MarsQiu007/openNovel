@@ -30413,6 +30413,20 @@
         },
         "additionalProperties": false
       },
+      "ToolInsight": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the local tool improvement log is enabled. Absent field means disabled."
+          },
+          "directory": {
+            "type": "string"
+          }
+        },
+        "required": ["enabled"],
+        "additionalProperties": false
+      },
       "Config": {
         "type": "object",
         "properties": {
@@ -30823,6 +30837,9 @@
               }
             },
             "additionalProperties": false
+          },
+          "toolInsight": {
+            "$ref": "#/components/schemas/ToolInsight"
           },
           "compaction": {
             "type": "object",

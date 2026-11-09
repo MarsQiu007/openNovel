@@ -35,6 +35,7 @@ import { coverageResult, parseOptions, routeKey, routeKeys, selectedScenarios } 
 import { runScenario } from "./runner"
 import { disposeApps } from "./backend"
 import { runtime } from "./runtime"
+import { GlobalBus, type GlobalEvent } from "../../../src/bus/global"
 import { type Scenario, type ScenarioContext } from "./types"
 import {
   beginWritingBatch,
@@ -71,6 +72,16 @@ import {
 
 function cursor(input: Record<string, unknown>) {
   return Buffer.from(JSON.stringify(input)).toString("base64url")
+}
+
+/** 订阅全局 disposed 事件计数；用例结束必须调用返回的 stop 解除订阅 */
+function watchGlobalDisposed() {
+  const disposed = { count: 0 }
+  const listener = (event: GlobalEvent) => {
+    if (isRecord(event.payload) && event.payload.type === "global.disposed") disposed.count++
+  }
+  GlobalBus.on("event", listener)
+  return { disposed, stop: () => GlobalBus.off("event", listener) }
 }
 
 function data(validate: (value: any) => void) {
@@ -110,30 +121,135 @@ const scenarios: Scenario[] = [
         }),
       "status",
     ),
-  http.protected.get("/global/config", "global.config.get").global().json(),
+  http.protected.get("/global/config", "global.config.get").global().json(200, (body) => {
+    object(body)
+    // 未配置时 get 也回写有效值：缺省关闭（无效配置按未启用的降级由解析器单测覆盖，
+    // exercise 写坏配置文件会毒化后续场景的全量配置加载）
+    check(isRecord(body.toolInsight), "global config get should return effective toolInsight")
+    if (isRecord(body.toolInsight)) {
+      check(body.toolInsight.enabled === false, "unconfigured toolInsight should be disabled")
+    }
+  }),
   http.protected
     .patch("/global/config", "global.config.update")
     .global()
     .seeded(() =>
-      Effect.promise(() =>
-        Bun.write(
-          path.join(exerciseConfigDirectory, "opennovel.jsonc"),
-          JSON.stringify({ username: "httpapi-global" }, null, 2),
-        ),
-      ),
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          Bun.write(
+            path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+            JSON.stringify(
+              { username: "httpapi-global", toolInsight: { enabled: true, directory: "D:/insight-logs" } },
+              null,
+              2,
+            ),
+          ),
+        )
+        return watchGlobalDisposed()
+      }),
     )
     .at(() => ({ path: "/global/config", body: { username: "httpapi-global" } }))
     .jsonEffect(
       200,
-      (body) =>
+      (body, ctx) =>
         Effect.gen(function* () {
           object(body)
           check(body.username === "httpapi-global", "global config update should return patched config")
+          // 缺省字段不清空：payload 未携带 toolInsight 时返回并保留磁盘有效值
+          check(isRecord(body.toolInsight), "global config update should return effective toolInsight")
+          if (isRecord(body.toolInsight)) {
+            check(body.toolInsight.enabled === true, "omitted toolInsight should keep existing enabled value")
+            check(body.toolInsight.directory === "D:/insight-logs", "omitted toolInsight should keep existing directory")
+          }
           const text = yield* Effect.promise(() =>
             Bun.file(path.join(exerciseConfigDirectory, "opennovel.jsonc")).text(),
           )
+          check(text.includes('"toolInsight"'), "omitted toolInsight should stay in the config file")
           check(text.includes('"username": "httpapi-global"'), "global config update should write isolated config file")
-        }),
+          // 同值写回（无字段语义变化）：不得触发全局 dispose
+          yield* Effect.sleep(800)
+          check(ctx.state.disposed.count === 0, "same-value update must not dispose project instances")
+        }).pipe(Effect.ensuring(Effect.sync(() => ctx.state.stop()))),
+      "status",
+    ),
+  http.protected
+    .patch("/global/config", "global.config.update-insight-only")
+    .global()
+    .seeded(() =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          Bun.write(
+            path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+            JSON.stringify(
+              { username: "httpapi-global", toolInsight: { enabled: true, directory: "D:/insight-logs" } },
+              null,
+              2,
+            ),
+          ),
+        )
+        return watchGlobalDisposed()
+      }),
+    )
+    .at(() => ({ path: "/global/config", body: { toolInsight: { enabled: false } } }))
+    .jsonEffect(
+      200,
+      (body, ctx) =>
+        Effect.gen(function* () {
+          object(body)
+          // 运行中关闭立即生效：响应回写磁盘有效值，其余字段不动
+          check(body.username === "httpapi-global", "insight-only update should not touch other fields")
+          check(isRecord(body.toolInsight), "insight-only update should return effective toolInsight")
+          if (isRecord(body.toolInsight)) {
+            check(body.toolInsight.enabled === false, "insight-only update should disable immediately")
+            check(body.toolInsight.directory === "D:/insight-logs", "insight-only update should keep existing directory")
+          }
+          const text = yield* Effect.promise(() =>
+            Bun.file(path.join(exerciseConfigDirectory, "opennovel.jsonc")).text(),
+          )
+          check(text.includes('"enabled": false'), "insight-only update should persist the disabled state")
+          // 仅 toolInsight 实际变化：跳过全局 dispose，项目不重开
+          yield* Effect.sleep(800)
+          check(ctx.state.disposed.count === 0, "insight-only update must not dispose project instances")
+        }).pipe(Effect.ensuring(Effect.sync(() => ctx.state.stop()))),
+      "status",
+    ),
+  http.protected
+    .patch("/global/config", "global.config.update-mixed-dispose")
+    .global()
+    .seeded(() =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          Bun.write(
+            path.join(exerciseConfigDirectory, "opennovel.jsonc"),
+            JSON.stringify(
+              { username: "httpapi-global", toolInsight: { enabled: false, directory: "D:/insight-logs" } },
+              null,
+              2,
+            ),
+          ),
+        )
+        return watchGlobalDisposed()
+      }),
+    )
+    .at(() => ({ path: "/global/config", body: { username: "httpapi-mixed", toolInsight: { enabled: true } } }))
+    .jsonEffect(
+      200,
+      (body, ctx) =>
+        Effect.gen(function* () {
+          object(body)
+          check(body.username === "httpapi-mixed", "mixed update should write username")
+          check(isRecord(body.toolInsight), "mixed update should return effective toolInsight")
+          if (isRecord(body.toolInsight)) {
+            check(body.toolInsight.enabled === true, "mixed update should enable toolInsight")
+          }
+          // 其他字段实际变化：保持既有全局 dispose 行为
+          let disposedSeen = false
+          for (let i = 0; i < 50 && !disposedSeen; i++) {
+            yield* Effect.sleep(100)
+            disposedSeen = ctx.state.disposed.count >= 1
+          }
+          check(disposedSeen, "mixed update should dispose project instances")
+        }).pipe(Effect.ensuring(Effect.sync(() => ctx.state.stop()))),
       "status",
     ),
   http.protected

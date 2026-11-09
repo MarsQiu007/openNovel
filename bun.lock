@@ -717,6 +717,7 @@
         "@opennovel-ai/sdk": "workspace:*",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
+        "jsonc-parser": "3.3.1",
         "zod": "catalog:",
       },
       "devDependencies": {

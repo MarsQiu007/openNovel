@@ -16,6 +16,8 @@ import * as Stream from "effect/Stream"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import * as Sse from "effect/unstable/encoding/Sse"
+import { resolveToolInsightSetting } from "@opennovel-ai/plugin/tool-insight/settings"
+import type { ToolInsightConfigFile } from "@opennovel-ai/plugin/tool-insight/settings"
 import { RootHttpApi } from "../api"
 import { GlobalUpgradeInput } from "../groups/global"
 import { InvalidRequestError } from "../errors"
@@ -35,6 +37,26 @@ function parseBody(body: string) {
   } catch {
     return undefined
   }
+}
+
+// 键序无关、undefined 视同缺键的深层语义比较，用于全局配置变化判定
+function semanticEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => semanticEqual(item, b[index]))
+  }
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false
+  const left = Object.entries(a as Record<string, unknown>).filter(([, value]) => value !== undefined)
+  const right = Object.entries(b as Record<string, unknown>).filter(([, value]) => value !== undefined)
+  if (left.length !== right.length) return false
+  const byKey = new Map(left)
+  return right.every(([key, value]) => byKey.has(key) && semanticEqual(byKey.get(key), value))
+}
+
+function stripToolInsight<T extends { toolInsight?: unknown }>(info: T): Omit<T, "toolInsight"> {
+  const { toolInsight: _toolInsight, ...rest } = info
+  return rest
 }
 
 function eventResponse() {
@@ -82,6 +104,25 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const fs = yield* FSUtil.Service
     const modelsDev = yield* ModelsDev.Service
 
+    // toolInsight 生效值永远来自磁盘三文件的窄读取，而非装载时快照；文件缺失跳过，
+    // 读取失败、语法错误或字段非法时按未启用处理，只给非阻断警告
+    const readGlobalToolInsight = Effect.fn("GlobalHttpApi.readGlobalToolInsight")(function* () {
+      const files: ToolInsightConfigFile[] = []
+      for (const name of ["config.json", "opennovel.json", "opennovel.jsonc"]) {
+        const text = yield* fs.readFileStringSafe(path.join(Global.Path.config, name)).pipe(
+          Effect.catch((error) =>
+            Effect.as(Effect.logWarning(`toolInsight 配置文件 ${name} 读取失败，本次按未启用处理`, { error }), undefined),
+          ),
+        )
+        files.push({ name, text })
+      }
+      const resolution = resolveToolInsightSetting(files)
+      if (resolution.warning) {
+        yield* Effect.logWarning("toolInsight 配置无效，本次按未启用处理", { warning: resolution.warning })
+      }
+      return resolution.setting
+    })
+
     // 体检只读：装载结果只来自 ConfigHealth 注册表（插件装载路径是唯一事实源），此处不做任何 import 复判。
     // 已知提供商目录取全局可达快照：models.dev 内置目录 + 全局配置里的自定义提供商 + 已存凭据的提供商
     //（Provider.Service.list 是实例级服务，全局路由无 InstanceRef，不能在这里调用）。
@@ -120,13 +161,24 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     })
 
     const configGet = Effect.fn("GlobalHttpApi.configGet")(function* () {
-      return yield* config.getGlobal()
+      const info = yield* config.getGlobal()
+      const toolInsight = yield* readGlobalToolInsight()
+      return { ...info, toolInsight }
     })
 
     const configUpdate = Effect.fn("GlobalHttpApi.configUpdate")(function* (ctx) {
+      // 变化判定基于合并有效值的语义比较而非序列化文本：仅 toolInsight 变化时跳过全局
+      // dispose，让设置即时生效而不重开项目；其他字段单独或混合变化保持原 dispose 行为
+      const before = yield* config.getGlobalFresh()
       const result = yield* config.updateGlobal(ctx.payload)
-      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
-      return result.info
+      const toolInsight = yield* readGlobalToolInsight()
+      if (result.changed) {
+        const after = yield* config.getGlobalFresh()
+        if (!semanticEqual(stripToolInsight(before), stripToolInsight(after))) {
+          bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+        }
+      }
+      return { ...result.info, toolInsight }
     })
 
     const configHealth = Effect.fn("GlobalHttpApi.configHealth")(function* () {
