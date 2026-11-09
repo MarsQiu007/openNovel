@@ -3,6 +3,7 @@ export * as PluginSession from "./session"
 import { Cause, Deferred, Effect, Exit, Fiber, Option, Scope } from "effect"
 import type { BackgroundSessionHandle, BackgroundSessionInput, BackgroundSessionResult, SessionDomain } from "@opennovel-ai/plugin/v2/effect"
 import { AgentV2 } from "../agent"
+import { Catalog } from "../catalog"
 import { Location } from "../location"
 import { LocationServiceMap } from "../location-service-map"
 import { ModelV2 } from "../model"
@@ -10,6 +11,7 @@ import { ProviderV2 } from "../provider"
 import { SessionExecution } from "../session/execution"
 import { SessionMessage } from "../session/message"
 import { SessionSchema } from "../session/schema"
+import { SessionRunnerModel } from "../session/runner/model"
 import { SessionV2 } from "../session"
 import { AbsolutePath } from "../schema"
 import { ToolRegistry } from "../tool/registry"
@@ -68,7 +70,7 @@ export interface Deps {
    */
   readonly withinLocation: <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
   ) => Effect.Effect<A, unknown>
 }
 
@@ -81,7 +83,7 @@ export type Background = Pick<SessionDomain, "settled" | "startBackground">
 export const withinLocationFrom = (locations: LocationServiceMap.Service["Service"]) => {
   const withinLocation = <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
   ): Effect.Effect<A, unknown> => Effect.provide(precheck, locations.get(ref)) as Effect.Effect<A, unknown>
   return withinLocation
 }
@@ -128,40 +130,80 @@ export const make = (deps: Deps) =>
           // 等待父会话落定；等待期间取消则 fiber 在此中断，不再 create
           yield* settledEffect(input.parentID)
         }
-        const info = yield* sessions
-          .create({
-            id: sessionID,
-            ...(input.parentID !== undefined
-              ? { parentID: SessionSchema.ID.make(input.parentID) }
-              : { location: Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) }) }),
-            agent: AgentV2.ID.make(input.agent),
-            ...(input.model === undefined
-              ? {}
-              : {
-                  model: {
-                    id: ModelV2.ID.make(input.model.modelID),
-                    providerID: ProviderV2.ID.make(input.model.providerID),
-                  },
-                }),
-          })
-          .pipe(Effect.mapError((error) => new Error(`后台会话创建失败: ${describeError(error)}`)))
 
-        // 目标 Location 预检：agent 存在，且实际工具集合与预期精确一致（organize 要求空集）
+        // 目标 Location 规范 ref：父会话取其已持久化 location，目录来源显式构造
+        const targetRef =
+          input.parentID !== undefined
+            ? yield* sessions.get(SessionSchema.ID.make(input.parentID)).pipe(
+                Effect.mapError((error) => new Error(`父会话不可达: ${describeError(error)}`)),
+                Effect.flatMap((info) =>
+                  info === undefined
+                    ? Effect.fail(new Error(`父会话不存在: ${input.parentID}`))
+                    : Effect.succeed(info.location),
+                ),
+              )
+            : Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) })
+
+        // create 前在目标 Location 上下文完成全部预检：agent 存在、实际工具集合与
+        // 预期精确一致（organize 要求空集）、organize 的模型固定与发车前一致性断言。
+        // 任何拒绝都发生在 create 之前，不派生 Session 资源。
+        // 模型固定语义：agent 定义的 model 提示优先，其次目录默认模型；现有解析在
+        // 指定模型不可用时会静默回退，因此固定值必须精确存在于可用集且受支持才放
+        // 行；无已配置模型或解析失败一律失败关闭，不隐式改用其他模型
+        let fixedModel = input.model
         const rejected = yield* withinLocation(
-          info.location,
+          targetRef,
           Effect.gen(function* () {
             const agents = yield* AgentV2.Service
             const registry = yield* ToolRegistry.Service
+            const catalog = yield* Catalog.Service
             const selection = yield* agents.select(AgentV2.ID.make(input.agent))
             if (selection.info === undefined) return new Error(`后台会话 agent 不存在: ${input.agent}`)
             const materialization = yield* registry.materialize(selection.info.permissions)
             const actual = materialization.definitions.map((definition) => definition.name)
             if (!sameToolSet(actual, input.expectedTools))
               return new Error(`后台会话工具集合不匹配: 预期 [${input.expectedTools.join(", ")}]，实际 [${actual.join(", ")}]`)
+            if (input.mode === "organize" && fixedModel === undefined) {
+              const hint = selection.info?.model
+              const fallback = hint ?? (yield* catalog.model.default())
+              if (fallback === undefined) return new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型")
+              const available = yield* catalog.model.available()
+              const matched = available.find((model) => model.providerID === fallback.providerID && model.id === fallback.id)
+              if (matched === undefined || !SessionRunnerModel.supported(matched))
+                return new Error(`已配置模型不可用: ${fallback.providerID}/${fallback.id}，发车前失败关闭以避免静默回退`)
+              fixedModel = { providerID: fallback.providerID, modelID: fallback.id }
+              return undefined
+            }
+            if (fixedModel !== undefined) {
+              const available = yield* catalog.model.available()
+              const matched = available.find(
+                (model) => model.providerID === fixedModel?.providerID && model.id === fixedModel?.modelID,
+              )
+              if (matched === undefined || !SessionRunnerModel.supported(matched))
+                return new Error(`发车前模型解析与固定值不一致: ${fixedModel.providerID}/${fixedModel.modelID} 不再可用，拒绝发车`)
+            }
             return undefined
           }),
         )
         if (rejected !== undefined) return yield* Effect.fail(rejected)
+
+        yield* sessions
+          .create({
+            id: sessionID,
+            ...(input.parentID !== undefined
+              ? { parentID: SessionSchema.ID.make(input.parentID) }
+              : { location: Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) }) }),
+            agent: AgentV2.ID.make(input.agent),
+            ...(fixedModel === undefined
+              ? {}
+              : {
+                  model: {
+                    id: ModelV2.ID.make(fixedModel.modelID),
+                    providerID: ProviderV2.ID.make(fixedModel.providerID),
+                  },
+                }),
+          })
+          .pipe(Effect.mapError((error) => new Error(`后台会话创建失败: ${describeError(error)}`)))
 
         // durable admission（resume: false 只落库，不调度执行）
         yield* sessions

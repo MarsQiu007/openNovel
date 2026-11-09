@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import type { ToolDefinition } from "@opennovel-ai/llm"
 import { AgentV2 } from "@opennovel-ai/core/agent"
+import { Catalog } from "@opennovel-ai/core/catalog"
 import { Location } from "@opennovel-ai/core/location"
+import { ModelV2 } from "@opennovel-ai/core/model"
 import { PluginSession } from "@opennovel-ai/core/plugin/session"
 import { SessionPurpose } from "@opennovel-ai/core/plugin/session-purpose"
 import { ProjectV2 } from "@opennovel-ai/core/project"
+import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import { SessionInput } from "@opennovel-ai/core/session/input"
 import { SessionMessage } from "@opennovel-ai/core/session/message"
@@ -82,8 +85,13 @@ const fakeExecution = (overrides: Partial<SessionExecution.Interface> = {}) => {
   return { service, interrupts }
 }
 
-// Location 预检段的替身：agent 恒存在，registry 物化出给定工具名集合
-const fakeWithinLocation = (toolNames: readonly string[]) => {
+// Location 预检段的替身：agent 恒存在，registry 物化出给定工具名集合；
+// catalog 默认提供一个受支持的默认模型（aisdk/anthropic），供 organize 模型固定段解析；
+// withoutDefault/available/默认模型形状可按用例编程
+const fakeWithinLocation = (
+  toolNames: readonly string[],
+  over: { defaultModel?: ModelV2.Info; available?: readonly ModelV2.Info[]; withoutDefault?: boolean } = {},
+) => {
   const agents = AgentV2.Service.of({
     transform: dieUnused,
     reload: dieUnused,
@@ -102,13 +110,40 @@ const fakeWithinLocation = (toolNames: readonly string[]) => {
       }),
     register: dieUnused,
   })
+  const defaultModel = over.withoutDefault
+    ? undefined
+    : (over.defaultModel ?? {
+        ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
+        api: { id: "test-model", type: "aisdk", package: "@ai-sdk/anthropic" },
+      } as ModelV2.Info)
+  const availableModels = over.available ?? (defaultModel === undefined ? [] : [defaultModel])
+  const catalog = Catalog.Service.of({
+    transform: dieUnused,
+    reload: dieUnused,
+    provider: {
+      get: dieUnused,
+      all: dieUnused,
+      available: () => Effect.succeed([]),
+    },
+    model: {
+      get: dieUnused,
+      all: dieUnused,
+      available: () => Effect.succeed([...availableModels]),
+      default: () => Effect.succeed(defaultModel),
+      small: dieUnused,
+    },
+  })
   return <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
   ): Effect.Effect<A, unknown> =>
     Effect.provide(
       precheck,
-      Layer.merge(Layer.succeed(AgentV2.Service, agents), Layer.succeed(ToolRegistry.Service, registry)),
+      Layer.mergeAll(
+        Layer.succeed(AgentV2.Service, agents),
+        Layer.succeed(ToolRegistry.Service, registry),
+        Layer.succeed(Catalog.Service, catalog),
+      ),
     )
 }
 
@@ -251,6 +286,86 @@ describe("PluginSession 后台会话生命周期", () => {
     expect(admissions).toEqual([])
   })
 
+  test("无已配置模型：organize 在 create 前失败关闭，不隐式改用其他模型", async () => {
+    const created: string[] = []
+    const result = await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                created.push(input.id ?? "ses_unspecified")
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+          }),
+          execution: fakeExecution().service,
+          withinLocation: fakeWithinLocation([], { withoutDefault: true }),
+        })
+        const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
+        return yield* Effect.promise(() => handle.done)
+      }),
+    )
+    if (result.status !== "failure") throw new Error("应为 failure 结果")
+    expect(result.reason).toContain("无已配置模型")
+    expect(created).toEqual([])
+  })
+
+  test("organize 指定模型不在可用集：发车前失败关闭，不静默回退", async () => {
+    const created: string[] = []
+    const result = await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                created.push(input.id ?? "ses_unspecified")
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+          }),
+          execution: fakeExecution().service,
+          // 可用集只有 test/test-model，指定 other/other-model 精确匹配失败
+          withinLocation: fakeWithinLocation([]),
+        })
+        const handle = yield* Effect.promise(() =>
+          domain.startBackground(organizeInput({ model: { providerID: "other", modelID: "other-model" } })),
+        )
+        return yield* Effect.promise(() => handle.done)
+      }),
+    )
+    if (result.status !== "failure") throw new Error("应为 failure 结果")
+    expect(result.reason).toContain("发车前模型解析与固定值不一致")
+    expect(created).toEqual([])
+  })
+
+  test("organize 未指定模型时以解析出的固定模型 create（agent 无提示取目录默认）", async () => {
+    const createdInputs: Array<Parameters<SessionV2.Interface["create"]>[0]> = []
+    await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                createdInputs.push(input)
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("整理完成")]),
+          }),
+          execution: fakeExecution().service,
+          withinLocation: fakeWithinLocation([]),
+        })
+        const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
+        return yield* Effect.promise(() => handle.done)
+      }),
+    )
+    expect(createdInputs).toHaveLength(1)
+    const model = createdInputs[0]?.model
+    expect(model && String(model.providerID)).toBe("test")
+    expect(model && String(model.id)).toBe("test-model")
+  })
+
   test("等待父会话落定期间取消则不再 create", async () => {
     const created: string[] = []
     const createdInputs: Array<Parameters<SessionV2.Interface["create"]>[0]> = []
@@ -301,6 +416,8 @@ describe("PluginSession 后台会话生命周期", () => {
       Effect.gen(function* () {
         const domain = yield* PluginSession.make({
           sessions: fakeSessions({
+            // 目标 Location 规范 ref 取自父会话持久化行：提供 get 返回父会话信息
+            get: (id) => Effect.succeed(fakeInfo(String(id))),
             create: (input) =>
               Effect.sync(() => {
                 createdInputs.push(input)

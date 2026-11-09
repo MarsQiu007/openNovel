@@ -18,6 +18,7 @@ import { ModelV2 } from "../../model"
 import { PermissionV2 } from "../../permission"
 import { ProviderV2 } from "../../provider"
 import { QuestionV2 } from "../../question"
+import { SessionPurpose } from "../../plugin/session-purpose"
 import { SystemContext } from "../../system-context/index"
 import { SystemContextRegistry } from "../../system-context/registry"
 import { SkillGuidance } from "../../skill/guidance"
@@ -167,10 +168,19 @@ const layer = Layer.effect(
     const continueAfterOverflowCompaction = (step: number) =>
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
-    const loadSystemContext = (agent: AgentV2.Selection) =>
-      Effect.all([systemContext.load(), skillGuidance.load(agent), referenceGuidance.load()], {
-        concurrency: "unbounded",
-      }).pipe(Effect.map(SystemContext.combine))
+    // purpose 会话（工具改进归因等后台会话）屏蔽 Location 级 context source：归因请求的
+    // system 段只含专用 agent 提示词与脱敏证据，不携带原书设定、灵魂段、注入快照或引用清单
+    const loadSystemContext = (sessionID: SessionSchema.ID, agent: AgentV2.Selection) =>
+      Effect.all(
+        [
+          SessionPurpose.lookup(sessionID) === undefined
+            ? systemContext.load()
+            : Effect.succeed(SystemContext.empty),
+          skillGuidance.load(agent),
+          referenceGuidance.load(),
+        ],
+        { concurrency: "unbounded" },
+      ).pipe(Effect.map(SystemContext.combine))
 
     const runTurnAttempt = Effect.fn("SessionRunner.runTurn")(function* (
       sessionID: SessionSchema.ID,
@@ -182,7 +192,7 @@ const layer = Layer.effect(
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
       const agent = yield* agents.select(session.agent)
-      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent), session.id)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(sessionID, agent), session.id)
       const toolFibers = yield* FiberSet.make<void, ToolOutputStore.Error>()
       let needsContinuation = false
       let currentStep = step
@@ -201,7 +211,7 @@ const layer = Layer.effect(
         }
       }
       const system =
-        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(sessionID, agent), session.id))
       const model = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const context = entries.map((entry) => entry.message)
@@ -418,9 +428,9 @@ const layer = Layer.effect(
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
       const agent = yield* agents.select(session.agent)
-      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent), session.id)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(input.sessionID, agent), session.id)
       const system =
-        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(input.sessionID, agent), session.id))
       const model = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const request = LLM.request({ model, messages: [], tools: [] })

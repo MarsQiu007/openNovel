@@ -2,6 +2,7 @@ import { describe, expect } from "bun:test"
 import { LLMClient, LLMError, LLMEvent, Model, type LLMClientShape, type LLMRequest } from "@opennovel-ai/llm"
 import * as OpenAIChat from "@opennovel-ai/llm/protocols/openai-chat"
 import { AgentV2 } from "@opennovel-ai/core/agent"
+import { Catalog } from "@opennovel-ai/core/catalog"
 import { Config } from "@opennovel-ai/core/config"
 import { ConfigCompaction } from "@opennovel-ai/core/config/compaction"
 import { Database } from "@opennovel-ai/core/database/database"
@@ -10,10 +11,12 @@ import { LayerNodePlatform } from "@opennovel-ai/core/effect/app-node-platform"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { Location } from "@opennovel-ai/core/location"
+import { ModelV2 } from "@opennovel-ai/core/model"
 import { PluginSession } from "@opennovel-ai/core/plugin/session"
 import { PermissionV2 } from "@opennovel-ai/core/permission"
 import { Project } from "@opennovel-ai/core/project"
 import { ProjectTable } from "@opennovel-ai/core/project/sql"
+import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { QuestionV2 } from "@opennovel-ai/core/question"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
@@ -234,12 +237,34 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
       const domain = yield* PluginSession.make({
         sessions: session,
         execution: exec,
-        // 单位置测试栈：Agent/Registry 服务本就在环境里，预检段直接提供
-        withinLocation: (ref, precheck) =>
-          Effect.provide(
+        // 单位置测试栈：Agent/Registry 服务本就在环境里，预检段直接提供；
+        // catalog 替身恒提供一个受支持的默认模型，满足 organize 模型固定段
+        withinLocation: (ref, precheck) => {
+          const defaultModel = {
+            ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
+            api: { id: "test-model", type: "aisdk", package: "@ai-sdk/anthropic" },
+          } as ModelV2.Info
+          const catalog = Catalog.Service.of({
+            transform: () => Effect.die("测试桩未实现的成员"),
+            reload: () => Effect.die("测试桩未实现的成员"),
+            provider: { get: () => Effect.succeed(undefined), all: () => Effect.succeed([]), available: () => Effect.succeed([]) },
+            model: {
+              get: () => Effect.succeed(undefined),
+              all: () => Effect.succeed([]),
+              available: () => Effect.succeed([defaultModel]),
+              default: () => Effect.succeed(defaultModel),
+              small: () => Effect.succeed(undefined),
+            },
+          })
+          return Effect.provide(
             precheck,
-            Layer.merge(Layer.succeed(AgentV2.Service, agents), Layer.succeed(ToolRegistry.Service, registry)),
-          ),
+            Layer.mergeAll(
+              Layer.succeed(AgentV2.Service, agents),
+              Layer.succeed(ToolRegistry.Service, registry),
+              Layer.succeed(Catalog.Service, catalog),
+            ),
+          )
+        },
       })
       const handle = yield* Effect.promise(() =>
         domain.startBackground({

@@ -33,8 +33,12 @@ import { defineTool } from "../v2/effect/tool.js"
 /** 用户报告类问题的稳定指纹：无工具、用户报告场景；反馈文本不进入指纹 */
 const USER_REPORT_FACTS = { tool: "", scenario: "user_report", errorCategory: "user_report" } as const
 
-export function createToolInsightTool(deps: { configDir: string; file: Pick<FileDomain, "withLock"> }) {
-  return defineTool({
+export function createToolInsightTool(deps: {
+  configDir: string
+  file: Pick<FileDomain, "withLock">
+  /** 落盘摄取成功后的整理信号：record/supplement/reorganize 都会触发后台归因队列 */
+  enqueue: (fingerprint: string, sessionID?: string) => void
+}) {  return defineTool({
     description:
       "记录、补充或重新整理工具改进问题（工具改进日志）。action=record 记录新问题：无报错的繁琐操作、理解偏差、写作之外的交互问题都可以，feedback 描述用户目标与实际体验；正文片段必须用 content_exception 字段单独提交（显式同意本地保留），不能混入 feedback。action=supplement 按 fingerprint 向既有问题补充反馈，沿用原发生实例不增加出现次数，只有明确报告新一次发生时才传 new_occurrence=true。action=reorganize 按 fingerprint 触发重新整理：全部证据重新生成原因假设与改进建议。三个动作都不修改任何写作数据。",
     args: Schema.Struct({
@@ -83,6 +87,7 @@ export function createToolInsightTool(deps: { configDir: string; file: Pick<File
             output: `重新整理未完成（${result.reason === "missing" ? "问题不存在" : result.reason}），未做任何修改。`,
           }
         }
+        deps.enqueue(args.fingerprint!, ctx.sessionID)
         return {
           title: "tool_insight",
           output: `问题 ${args.fingerprint} 已回到待整理状态：全部证据将在后台重新生成原因假设与改进建议，原有内容保留到新结论写入为止。`,
@@ -116,6 +121,8 @@ export function createToolInsightTool(deps: { configDir: string; file: Pick<File
       }
 
       const records: ToolInsightEvidence[] = []
+      // 文档归属键：启动对账按它把用户证据摄取回问题文档
+      const issueRef = { fingerprint: fingerprintHash, issue: { ...USER_REPORT_FACTS } }
       if (args.feedback !== undefined) {
         records.push({
           id: deriveEvidenceID({ projectID: opened.projectID, eventID: `user:${ts}:${occurrenceID}:feedback`, kind: "user_report" }),
@@ -125,7 +132,7 @@ export function createToolInsightTool(deps: { configDir: string; file: Pick<File
           sessionID: ctx.sessionID,
           trigger: "user",
           occurrenceID,
-          fields: { userFeedback: redactSummary(args.feedback) },
+          fields: { userFeedback: redactSummary(args.feedback), ...issueRef },
         })
       }
       // 正文例外独立证据：显式提交字段才会保存片段本体（本地保留授权）
@@ -145,6 +152,9 @@ export function createToolInsightTool(deps: { configDir: string; file: Pick<File
             retainedAt: exception.retainedAt,
             shareWarning: exception.shareWarning,
             text: exception.text,
+            // 模型使用授权持久化于此：签发后回写，整理/复测构造器按用途与指纹匹配
+            grants: exception.grants,
+            ...issueRef,
           },
         })
       }
@@ -176,6 +186,7 @@ export function createToolInsightTool(deps: { configDir: string; file: Pick<File
             : `反馈已追加到既有问题（指纹 ${fingerprintHash}），出现次数不变。`
           : `问题文档未更新（${ingested.reason}），证据本身已保存。`
       }
+      deps.enqueue(fingerprintHash, ctx.sessionID)
       const summary =
         args.action === "record"
           ? "已记录为新的一次发生。"

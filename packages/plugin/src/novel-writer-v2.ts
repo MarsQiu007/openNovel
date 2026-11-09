@@ -18,7 +18,9 @@ import { createNovelContextSource } from "./novel-writer/context-source.js"
 import { registerEvaluateCommand } from "./novel-writer/evaluate/command.js"
 import { watchSessionEvents } from "./novel-writer/evaluate/events.js"
 import { createNovelWriterTools } from "./novel-writer/tools/index.js"
+import { insightOrganizerAgent } from "./novel-writer/agents/insight-organizer.js"
 import { watchToolInsightEvents } from "./tool-insight/collector.js"
+import { createToolInsightOrganizer } from "./tool-insight/organizer.js"
 import { createToolInsightTool } from "./tool-insight/tool.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
@@ -40,13 +42,24 @@ export default define({
   effect: Effect.fn(function* (ctx) {
     yield* ctx.agent.transform(registerWritingAgents)
 
+    // 后台归因整理队列（任务 4.1/4.2）：独立于事件采集器，tool_insight 的
+    // record/supplement/reorganize 与采集器落盘都汇入同一队列
+    const organizer = createToolInsightOrganizer({
+      ctx,
+      projectDirectory: ctx.location.directory,
+      session: ctx.session,
+    })
+
     const tools = createNovelWriterTools({ session: ctx.session })
     yield* ctx.tool.transform((editor) => {
       for (const [name, spec] of Object.entries(tools)) editor.add(name, spec)
       // 工具改进日志的主动入口：任何目录都可记录问题（含写作外流程问题），
       // 运行时由全局开关决定是否落盘
-      editor.add("tool_insight", createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file }))
+      editor.add("tool_insight", createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file, enqueue: organizer.enqueue }))
     })
+
+    // 启动崩溃恢复（任务 4.2）：装载后按当前项目与日志根只补一次 pending
+    yield* Effect.promise(() => organizer.recoverOnce())
 
     // 条件注册：仅小说目录注入上下文源，非小说目录零污染
     if (existsSync(join(ctx.location.directory, ".novel"))) {
@@ -58,14 +71,15 @@ export default define({
         }),
       )
       yield* watchSessionEvents(ctx, ctx.location.directory)
-      // 事件证据采集器（任务 3.1）：自身带全局开关门，未启用时零落盘
-      yield* watchToolInsightEvents({ ctx, projectDirectory: ctx.location.directory })
+      // 事件证据采集器（任务 3.1）：自身带全局开关门，未启用时零落盘；
+      // 证据落盘即汇入归因整理队列
+      yield* watchToolInsightEvents({ ctx, projectDirectory: ctx.location.directory, onDocumented: organizer.enqueue })
       yield* ctx.command.transform(registerEvaluateCommand)
     }
   }),
 })
 
-/** 注册写作 agent 家族：禁用 build/plan、upsert 12 个 agent、默认指向 director */
+/** 注册写作 agent 家族：禁用 build/plan、upsert 写作 agent 与内部归因器、默认指向 director */
 export function registerWritingAgents(draft: AgentDraft) {
   // 对齐 V1 hook 的 build/plan 无条件禁用
   draft.remove("build")
@@ -83,6 +97,7 @@ export function registerWritingAgents(draft: AgentDraft) {
     librarianAgent,
     ideatorAgent,
     researchAgent,
+    insightOrganizerAgent,
   ]) {
     draft.update(agent.name, (item) => {
       item.description = agent.description
@@ -90,6 +105,8 @@ export function registerWritingAgents(draft: AgentDraft) {
       item.category = agent.category
       item.system = agent.prompt
       item.permissions.push(...ruleset(agent.permission))
+      // 内部归因器（hidden: true）不出现在用户可选列表
+      item.hidden = "hidden" in agent ? agent.hidden === true : false
     })
   }
   draft.default("director")

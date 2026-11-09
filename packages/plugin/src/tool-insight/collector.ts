@@ -85,6 +85,8 @@ export interface WatchToolInsightInput {
   ctx: PluginContext
   /** 本插件实例的 Location 目录：项目归属判定与日志根解析兜底 */
   projectDirectory: string
+  /** 证据落盘并摄取进问题文档后的整理信号：归因整理队列按指纹合并发车 */
+  onDocumented?: (fingerprint: string, sessionID: string) => void
 }
 
 function warnOnce(seen: Set<string>, message: string) {
@@ -185,6 +187,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
         detection: kind,
         candidates: [...detection.candidates],
         callsShape: detection.factDetail,
+        // 文档归属键：启动对账按它把孤儿证据确定性摄取回问题文档（无归属键的证据不参与对账）
+        fingerprint: fingerprintHash,
+        issue: { tool: trigger.tool, scenario: kind, errorCategory: detection.fingerprint.errorCategory },
       },
     }
     const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record])
@@ -200,6 +205,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       occurredAt: ts,
       facts: detection.fingerprint satisfies ToolInsightFingerprintInput,
     })
+    input.onDocumented?.(fingerprintHash, sessionID)
   }
 
   const recordCallFailure = async (
@@ -236,7 +242,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       model: info?.model,
       trigger: "auto",
       occurrenceID,
-      fields,
+      fields: { ...fields, fingerprint: fingerprintHash, issue: fingerprintInput },
     }
     const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record])
     if (!appended.appended) {
@@ -251,6 +257,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       occurredAt: ts,
       facts: fingerprintInput,
     })
+    input.onDocumented?.(fingerprintHash, sessionID)
     return occurrenceID
   }
 
@@ -347,7 +354,12 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
           model: turn.model,
           trigger: "auto",
           occurrenceID,
-          fields: { tool, callsShape: turn.calls.map((call) => `${call.tool}:${call.status}`).join(">") },
+          fields: {
+            tool,
+            callsShape: turn.calls.map((call) => `${call.tool}:${call.status}`).join(">"),
+            fingerprint: fingerprintHash,
+            issue: { tool, scenario: "tool_failure", errorCategory },
+          },
         }
         const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record])
         if (appended.appended) {
@@ -359,6 +371,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
             occurredAt: record.ts,
             facts: { tool, scenario: "tool_failure", errorCategory },
           })
+          input.onDocumented?.(fingerprintHash, properties.sessionID)
         }
       }
       turnBySession.delete(properties.sessionID)
@@ -428,6 +441,8 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const verified = await adapter.verify({ directory: projectDirectory, identifiers })
       const ts = Date.now()
       const evidenceID = deriveEvidenceID({ projectID, eventID: envelopeID, kind: "real_state" })
+      const fingerprintInput: ToolInsightFingerprintInput = { tool, scenario: "surface_success", errorCategory: "unknown" }
+      const fingerprintHash = issueFingerprint(fingerprintInput)
       const record: ToolInsightEvidence = {
         id: evidenceID,
         ts,
@@ -439,7 +454,13 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
         agent: info?.agent,
         model: info?.model,
         trigger: "auto",
-        fields: { tool, verifyStatus: verified.status, detail: redactSummary(verified.detail, 120) },
+        fields: {
+          tool,
+          verifyStatus: verified.status,
+          detail: redactSummary(verified.detail, 120),
+          // 仅核验失败（进 surface_success 文档）的证据带归属键；正常成功不参与对账
+          ...(verified.status === "verified_failure" ? { fingerprint: fingerprintHash, issue: fingerprintInput } : {}),
+        },
       }
       const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record])
       if (!appended.appended) {
@@ -448,8 +469,6 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       }
       if (verified.status !== "verified_failure") return
       // 表面成功但任务未完成：核验失败才建档
-      const fingerprintInput: ToolInsightFingerprintInput = { tool, scenario: "surface_success", errorCategory: "unknown" }
-      const fingerprintHash = issueFingerprint(fingerprintInput)
       const occurrenceID = deriveCallOccurrenceID({
         projectID,
         sessionID: properties.sessionID,
@@ -464,6 +483,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
         occurredAt: ts,
         facts: fingerprintInput,
       })
+      input.onDocumented?.(fingerprintHash, properties.sessionID)
       if (turn !== undefined) {
         await recordTurnDetection(ctx, opened.paths, projectID, properties.sessionID, turn, "surface_success", { tool }, `${envelopeID}:surface`, ts)
       }

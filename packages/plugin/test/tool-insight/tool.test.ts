@@ -52,8 +52,8 @@ function cleanup(input: { configDir: string; logRoot: string; projectDir: string
   }
 }
 
-function makeTool(configDir: string) {
-  return createToolInsightTool({ configDir, file }) as unknown as ToolSpec<Record<string, unknown>, unknown>
+function makeTool(configDir: string, enqueue: (fingerprint: string, sessionID?: string) => void = () => {}) {
+  return createToolInsightTool({ configDir, file, enqueue }) as unknown as ToolSpec<Record<string, unknown>, unknown>
 }
 
 function makeContext(projectDir: string): ToolContext {
@@ -76,7 +76,8 @@ describe("tool_insight 工具（任务 3.4）", () => {
   test("record：无报错体验问题与写作外流程问题都落证据并建档", async () => {
     const { configDir, logRoot, projectDir } = fixture("record")
     try {
-      const tool = makeTool(configDir)
+      const enqueued: Array<{ fingerprint: string; sessionID?: string }> = []
+      const tool = makeTool(configDir, (fingerprint, sessionID) => enqueued.push({ fingerprint, sessionID }))
       const ctx = makeContext(projectDir)
       const result = await tool.execute({ action: "record", feedback: "导出章节列表要点三步，太繁琐" }, ctx)
       expect(result).toMatchObject({ title: "tool_insight" })
@@ -92,11 +93,16 @@ describe("tool_insight 工具（任务 3.4）", () => {
       expect(entries).toHaveLength(1)
       expect(entries[0]?.kind).toBe("user_report")
       expect(entries[0]?.fields.userFeedback).toContain("导出章节列表")
+      // 证据带文档归属键（启动对账按它摄取孤儿）并触发整理入队
+      expect(entries[0]?.fields.fingerprint).toBe(meta.fingerprint)
+      expect(entries[0]?.fields.issue).toEqual({ tool: "", scenario: "user_report", errorCategory: "user_report" })
+      expect(enqueued).toEqual([{ fingerprint: meta.fingerprint, sessionID: "ses_user" }])
 
       // 写作外流程问题走同一路径：同一文档追加新发生
       const second = await tool.execute({ action: "record", feedback: "设置页无法搜索" }, ctx)
       expect(typeof second === "string" ? second : second.output).toContain("已记录为新的一次发生")
       expect(readUserReport(logRoot, projectDir).meta.occurrence_count).toBe(2)
+      expect(enqueued).toHaveLength(2)
     } finally {
       cleanup({ configDir, logRoot, projectDir })
     }
@@ -158,6 +164,8 @@ describe("tool_insight 工具（任务 3.4）", () => {
       expect(exceptionEntry?.fields.text).toBe("他抬头看天，云层压得很低。")
       expect(exceptionEntry?.fields.shareWarning).toBe(true)
       expect(exceptionEntry?.fields.length).toBe(13)
+      // 模型使用授权随证据持久化：初始为空（grants 为空即对模型不可见）
+      expect(exceptionEntry?.fields.grants).toEqual([])
     } finally {
       cleanup({ configDir, logRoot, projectDir })
     }
@@ -195,7 +203,8 @@ describe("tool_insight 工具（任务 3.4）", () => {
   test("reorganize：整理过的证据全部放回 pending，恢复待整理状态", async () => {
     const { configDir, logRoot, projectDir } = fixture("reorganize")
     try {
-      const tool = makeTool(configDir)
+      const reorganizeEnqueued: Array<{ fingerprint: string; sessionID?: string }> = []
+      const tool = makeTool(configDir, (fingerprint, sessionID) => reorganizeEnqueued.push({ fingerprint, sessionID }))
       const ctx = makeContext(projectDir)
       const first = await tool.execute({ action: "record", feedback: "初始反馈" }, ctx)
       const fingerprint = typeof first === "string" ? "" : String((first as { metadata?: { fingerprint?: string } }).metadata?.fingerprint)
@@ -211,6 +220,11 @@ describe("tool_insight 工具（任务 3.4）", () => {
       const result = await tool.execute({ action: "reorganize", fingerprint }, ctx)
       const output = typeof result === "string" ? result : result.output
       expect(output).toContain("已回到待整理状态")
+      // record 与重新整理各入队一次；重新整理触发后台队列再派生一次整理
+      expect(reorganizeEnqueued).toEqual([
+        { fingerprint: readUserReport(logRoot, projectDir).meta.fingerprint, sessionID: "ses_user" },
+        { fingerprint, sessionID: "ses_user" },
+      ])
       const meta = readUserReport(logRoot, projectDir).meta
       expect(meta.organize_status).toBe("pending")
       expect(meta.pending_evidence_ids).toEqual(meta.evidence_ids)

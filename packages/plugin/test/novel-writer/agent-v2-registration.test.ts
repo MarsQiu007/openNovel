@@ -97,6 +97,18 @@ describe("novel-writer V2 入口", () => {
     expect(draft.get("explore")).toBeDefined()
   })
 
+  test("内部归因器 insight-organizer：hidden 不可选且 deny * 无工具", () => {
+    const { draft } = fakeDraft()
+    registerWritingAgents(draft)
+    const organizer = draft.get("insight-organizer")
+    expect(organizer).toBeDefined()
+    expect(organizer?.mode).toBe("subagent")
+    expect(organizer?.hidden).toBe(true)
+    expect(organizer?.permissions).toContainEqual({ action: "*", resource: "*", effect: "deny" })
+    // 写作 agent 不被误标隐藏
+    expect(draft.get("writer")?.hidden).toBe(false)
+  })
+
   test("V1 permission map 直译为 V2 ruleset（subagent 权限键来自单一来源）", () => {
     const { draft } = fakeDraft()
     registerWritingAgents(draft)

@@ -236,10 +236,79 @@ export async function organizeUnderLock(
   return outcome.ok ? outcome.value : { applied: false, reason: "lock-failed" }
 }
 
+export type RequeueResult =
+  | { queued: true }
+  | { queued: false; reason: "lock-failed" | "corrupt-doc" | "missing" | "io-failed" }
+
+/**
+ * 启动对账用：已被文档 evidence_ids 引用、但既不在 pending 也不在 organized 的证据
+ * （崩溃残留的状态不一致）在 document 锁内补回 pending。幂等：已在任一集合时不改。
+ */
+export async function requeueEvidence(
+  file: Pick<FileDomain, "withLock">,
+  paths: ToolInsightPaths,
+  input: { fingerprint: string; evidenceID: string; timeoutMs?: number },
+): Promise<RequeueResult> {
+  const outcome = await runExclusive(
+    file,
+    { dir: paths.locksDir, key: toolInsightLockKey(paths.root, "document"), timeoutMs: input.timeoutMs },
+    async () => {
+      const filePath = toolInsightIssuePath(paths, input.fingerprint)
+      const parsed = readIssueDoc(filePath)
+      if (parsed.error === "corrupt") return { queued: false, reason: "corrupt-doc" } as const
+      if (parsed.error) return { queued: false, reason: "missing" } as const
+      const meta = parsed.meta
+      if (!meta.evidence_ids.includes(input.evidenceID)) return { queued: false, reason: "missing" } as const
+      if (meta.pending_evidence_ids.includes(input.evidenceID) || meta.organized_evidence_ids.includes(input.evidenceID)) {
+        return { queued: true } as const
+      }
+      meta.pending_evidence_ids.push(input.evidenceID)
+      meta.updated_at = new Date().toISOString()
+      const sections: IssueSections = { ...parsed.sections, 事实: renderFactsSection(meta) }
+      if (!replaceToolInsightFile(filePath, renderIssueDoc(meta, sections))) {
+        return { queued: false, reason: "io-failed" } as const
+      }
+      rebuildIndexLocked(paths)
+      return { queued: true } as const
+    },
+  )
+  return outcome.ok ? outcome.value : { queued: false, reason: "lock-failed" }
+}
+
 export type ReorganizeRequestResult =
   | { queued: true }
   | { queued: false; reason: "lock-failed" | "corrupt-doc" | "missing" | "io-failed" }
 
+/** 启动对账用：document 锁内从全部问题文档 frontmatter 确定性重建索引 */
+export async function rebuildIssueIndex(
+  file: Pick<FileDomain, "withLock">,
+  paths: ToolInsightPaths,
+  options?: { timeoutMs?: number },
+): Promise<{ rebuilt: boolean }> {
+  const outcome = await runExclusive(
+    file,
+    { dir: paths.locksDir, key: toolInsightLockKey(paths.root, "document"), timeoutMs: options?.timeoutMs },
+    async () => rebuildIndexLocked(paths),
+  )
+  return { rebuilt: outcome.ok ? outcome.value : false }
+}
+
+/** 启动对账用：列出仍有待整理证据的指纹（不可读/损坏文档跳过） */
+export function listPendingFingerprints(paths: ToolInsightPaths): string[] {
+  let files: string[]
+  try {
+    files = readdirSync(paths.issuesDir)
+  } catch {
+    return []
+  }
+  return files
+    .filter((name) => name.endsWith(".md"))
+    .flatMap((name) => {
+      const parsed = readIssueDoc(`${paths.issuesDir}/${name}`)
+      if (parsed.error) return []
+      return parsed.meta.pending_evidence_ids.length > 0 ? [parsed.meta.fingerprint] : []
+    })
+}
 /**
  * 用户「重新整理」入口：document 锁内把该问题的全部证据放回 pending 并重置整理
  * 状态，由后台整理队列（任务 4.1）与启动补整理按既有流程重新生成三段内容。

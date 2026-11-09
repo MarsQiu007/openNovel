@@ -40,6 +40,7 @@ import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "@opennovel-ai/core/config"
 import { ConfigCompaction } from "@opennovel-ai/core/config/compaction"
+import { SessionPurpose } from "@opennovel-ai/core/plugin/session-purpose"
 import { Tool } from "@opennovel-ai/core/tool/tool"
 import {
   SessionContextEpochTable,
@@ -3466,6 +3467,33 @@ describe("SessionRunnerLLM", () => {
       expect(yield* session.resume(sessionID).pipe(Effect.catchDefect(Effect.succeed))).toBe(
         "Tool input delta before start: call-1",
       )
+    }),
+  )
+
+  // 放在文件末尾：SessionPurpose 注册表 tombstone 保留到进程退出，注册 sessionID
+  // 的 purpose 后同文件后续用例不能再以普通会话身份使用它
+  it.effect("purpose 会话的 system 段屏蔽 Location context source，普通会话不受影响", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      yield* insertSession(otherSessionID)
+      yield* session.prompt({ sessionID: otherSessionID, prompt: Prompt.make({ text: "普通会话" }), resume: false })
+      requests.length = 0
+      responses = undefined
+      response = []
+      yield* session.resume(otherSessionID)
+      expect(requests).toHaveLength(1)
+      expect(JSON.stringify(requests[0]?.system)).toContain("Initial context")
+
+      SessionPurpose.register(sessionID, "tool-insight")
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "归因该问题" }), resume: false })
+      requests.length = 0
+      responses = undefined
+      response = []
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      // 归因 system 段只含专用 agent 提示词与脱敏证据：Location context source 被屏蔽
+      expect(JSON.stringify(requests[0]?.system)).not.toContain("Initial context")
     }),
   )
 })
