@@ -1623,6 +1623,10 @@ export * from "./approval.js"
 
 export * from "./evaluate-metric.js"
 
+// ─── 工具改进日志文件底座（evaluate-insight） ───
+
+export * from "./evaluate-insight.js"
+
 // ─── Project mode helpers (re-export) ───
 
 export * from "./mode.js"

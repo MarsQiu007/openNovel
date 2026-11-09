@@ -29,7 +29,11 @@
     "./novel-writer/setting-review-conflicts": "./src/novel-writer/setting-review-conflicts.ts",
     "./novel-writer/setting-review-staged": "./src/novel-writer/setting-review-staged.ts",
     "./novel-writer/setting-review-batch": "./src/novel-writer/setting-review-batch.ts",
-    "./novel-writer/tui": "./src/novel-writer/tui.tsx"
+    "./novel-writer/tui": "./src/novel-writer/tui.tsx",
+    "./tool-insight/evidence-store": "./src/tool-insight/evidence-store.ts",
+    "./tool-insight/issue-doc": "./src/tool-insight/issue-doc.ts",
+    "./tool-insight/issue-store": "./src/tool-insight/issue-store.ts",
+    "./tool-insight/settings": "./src/tool-insight/settings.ts"
   },
   "files": [
     "dist"
@@ -41,6 +45,7 @@
     "@opennovel-ai/schema": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "jsonc-parser": "3.3.1",
     "zod": "catalog:"
   },
   "peerDependencies": {

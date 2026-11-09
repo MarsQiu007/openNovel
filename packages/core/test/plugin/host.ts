@@ -10,6 +10,8 @@ import { Effect, Stream } from "effect"
 
 type Overrides = Partial<Omit<PluginContext, "options">>
 
+const fakeLocks = new Map<string, Promise<unknown>>()
+
 export function host(overrides: Overrides = {}): PluginContext {
   return {
     options: {},
@@ -31,6 +33,21 @@ export function host(overrides: Overrides = {}): PluginContext {
     },
     event: overrides.event ?? {
       subscribe: () => Stream.die(new Error("unused event.subscribe")),
+    },
+    file: overrides.file ?? {
+      // 测试 fake：进程内按键串行化，保持「同键互斥、跨键并行」语义
+      withLock: (input, callback) => {
+        const chain = fakeLocks.get(input.key) ?? Promise.resolve()
+        const run = chain.then(callback, callback)
+        fakeLocks.set(
+          input.key,
+          run.then(
+            () => undefined,
+            () => undefined,
+          ),
+        )
+        return run
+      },
     },
     integration: overrides.integration ?? {
       transform: () => Effect.die("unused integration.transform"),

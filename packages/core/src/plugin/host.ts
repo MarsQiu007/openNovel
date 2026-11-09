@@ -22,6 +22,7 @@ import { Location } from "../location"
 import { ModelV2 } from "../model"
 import { PermissionV2 } from "../permission"
 import { PluginV2 } from "../plugin"
+import { PluginFile } from "./file"
 import { ProviderV2 } from "../provider"
 import { Reference } from "../reference"
 import type { DeepMutable } from "../schema"
@@ -147,6 +148,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   return {
     options: {},
     event,
+    file: PluginFile.makeFileDomain(),
     location: {
       directory: location.directory,
       project: { directory: location.project.directory },
