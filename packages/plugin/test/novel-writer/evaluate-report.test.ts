@@ -48,14 +48,17 @@ function seedWindowEntries() {
 describe("generateReport 三分部报告", () => {
   test("窗口内数据：A/B/C 分部齐全，命中规则逐条输出且全文确定性", () => {
     seedWindowEntries()
-    // B5 需要窗口内模式切换审计
+    // B5 需要窗口内模式切换审计。指标条目由 recordEvaluateMetrics 以真实时钟打戳，
+    // mode 行时间戳必须取自同一真实时钟、落在指标之后且早于 now 参数；
+    // 用固定 NOW 派生会在真实日期越过 NOW 后整段落窗外（2026-11-07 起必红）
+    const modeBase = Date.now()
     mkdirSync(join(projectDir, ".novel", "audit"), { recursive: true })
     writeFileSync(
       join(projectDir, ".novel", "audit", "mode.jsonl"),
-      [1, 2, 3, 4].map((i) => JSON.stringify({ ts: NOW - 1000 + i, before: {}, after: {}, patch: { writing_mode: `m${i}` } })).join("\n") + "\n",
+      [1, 2, 3, 4].map((i) => JSON.stringify({ ts: modeBase + 10 + i, before: {}, after: {}, patch: { writing_mode: `m${i}` } })).join("\n") + "\n",
     )
 
-    const result = generateReport(projectDir, { kind: "all" }, NOW)
+    const result = generateReport(projectDir, { kind: "all" }, modeBase + 1000)
 
     expect(result.entryCount).toBe(9)
     expect(result.path.endsWith("-all.md")).toBe(true)
