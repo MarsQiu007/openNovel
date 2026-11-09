@@ -17,7 +17,13 @@ import { PluginTestLayer } from "./fixture"
 const it = testEffect(PluginTestLayer)
 
 // 冒烟用桩 session 域：工具注册只搬运 spec，不在 boot 期调用
-const stubTools = createNovelWriterTools({ session: { get: () => Promise.resolve(undefined) } })
+const stubTools = createNovelWriterTools({
+  session: {
+    get: () => Promise.resolve(undefined),
+    settled: () => Promise.reject(new Error("unused session.settled")),
+    startBackground: () => Promise.reject(new Error("unused session.startBackground")),
+  },
+})
 
 describe("novel-writer V2 入口", () => {
   it.effect("boot 后 96 工具可见、director 为默认 agent、非小说目录零注入", () =>

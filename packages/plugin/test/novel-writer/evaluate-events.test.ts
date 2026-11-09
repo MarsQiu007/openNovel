@@ -33,10 +33,11 @@ function fakeCtx() {
   } as PluginContext
   return {
     ctx,
-    push: (type: string, properties: Record<string, unknown>) => {
+    push: (type: string, properties: Record<string, unknown>, envelope?: Record<string, unknown>) => {
       const q = queues.get(type)
       if (!q) throw new Error(`fakeCtx: subscribe("${type}") 未被 watcher 调用`)
-      Queue.offerUnsafe(q, { id: `evt_${type}`, type, properties })
+      // envelope 模拟宿主信封的顶层附加字段（如 purpose），不进入 properties
+      Queue.offerUnsafe(q, { id: `evt_${type}`, type, properties, ...envelope })
     },
   }
 }
@@ -107,6 +108,50 @@ describe("evaluate events watcher", () => {
     push("session.next.tool.failed", { sessionID: "s1", callID: "orphan" })
     const entries = await waitEntries(f.dir, (list) => list.some((e) => e.key.startsWith("tool.failed.")))
     expect(entries.some((e) => e.key === "tool.failed.unknown" && e.delta === 1)).toBe(true)
+
+    await Effect.runPromise(Scope.close(scope, Exit.void))
+  })
+
+  test("内部会话事件带 purpose 信封不污染任何桶（任务 2.2）", async () => {
+    using f = fixture()
+    const { ctx, push } = fakeCtx()
+    const scope = await startWatcher(ctx, f.dir)
+
+    // 内部会话的全部事件形状（含早发/晚消费的尾部事件，信封同样带 purpose）
+    const internal = "ses_internal_tool_insight"
+    push("session.next.agent.switched", { sessionID: internal, agent: "writer" }, { purpose: "tool-insight" })
+    push(
+      "session.next.model.switched",
+      { sessionID: internal, model: { id: "test/model", providerID: "test" } },
+      { purpose: "tool-insight" },
+    )
+    push(
+      "session.next.step.ended",
+      {
+        sessionID: internal,
+        tokens: { input: 999, output: 999, reasoning: 999, cache: { read: 999, write: 999 } },
+      },
+      { purpose: "tool-insight" },
+    )
+    push("session.next.step.failed", { sessionID: internal }, { purpose: "tool-insight" })
+    push(
+      "session.next.tool.called",
+      { sessionID: internal, callID: "call-i", tool: "novel_write" },
+      { purpose: "tool-insight" },
+    )
+    push("session.next.tool.success", { sessionID: internal, callID: "call-i" }, { purpose: "tool-insight" })
+    push("session.next.tool.failed", { sessionID: internal, callID: "call-i" }, { purpose: "tool-insight" })
+    push("session.next.compaction.ended", { sessionID: internal, reason: "auto" }, { purpose: "tool-insight" })
+    push("session.next.created", {}, { purpose: "tool-insight" })
+
+    // 普通会话哨兵：等它落桶，证明内部事件已被处理过且未产生任何条目
+    push("session.next.step.failed", { sessionID: "s1" })
+    const entries = await waitEntries(f.dir, (list) => list.some((e) => e.key === "step.failed" && e.sessionId === "s1"))
+    expect(entries.some((e) => e.sessionId === internal)).toBe(false)
+    expect(entries.some((e) => e.key === "session.created")).toBe(false)
+    expect(entries.some((e) => e.key.startsWith("tool.") || e.key.startsWith("compaction."))).toBe(false)
+    // agent/model 映射也不被内部会话污染：普通会话查询不到内部会话的映射值
+    expect(entries.every((e) => e.agent !== "writer" || e.sessionId === "s1")).toBe(true)
 
     await Effect.runPromise(Scope.close(scope, Exit.void))
   })

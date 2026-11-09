@@ -6,6 +6,7 @@
  */
 
 import { Effect, Stream } from "effect"
+import { isInternalEvent } from "../../tool-insight/filter.js"
 import type { PluginContext } from "../../v2/effect/context.js"
 import { recordMetrics } from "./metrics.js"
 import { maybeAutoReport } from "./trigger.js"
@@ -27,6 +28,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
 
   return Effect.gen(function* () {
     yield* ctx.event.subscribe("session.next.agent.switched").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           agentBySession.set(event.properties.sessionID, event.properties.agent)
@@ -35,6 +38,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.model.switched").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           modelBySession.set(event.properties.sessionID, event.properties.model.id)
@@ -44,6 +49,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
     )
 
     yield* ctx.event.subscribe("session.next.step.ended").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           const { tokens, sessionID } = event.properties
@@ -68,6 +75,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.step.failed").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           recordMetrics(directory, {
@@ -82,6 +91,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
     )
 
     yield* ctx.event.subscribe("session.next.tool.called").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           toolByCallID.set(event.properties.callID, event.properties.tool)
@@ -90,6 +101,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.tool.success").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           recordMetrics(directory, {
@@ -105,6 +118,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.tool.failed").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           recordMetrics(directory, {
@@ -119,6 +134,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
     )
 
     yield* ctx.event.subscribe("session.next.compaction.ended").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach((event) =>
         Effect.sync(() => {
           recordMetrics(directory, {
@@ -133,6 +150,8 @@ export function watchSessionEvents(ctx: PluginContext, directory: string) {
       Effect.forkScoped,
     )
     yield* ctx.event.subscribe("session.next.created").pipe(
+      // 内部会话事件不计数、不更新映射、不触发报告（任务 2.2 统一过滤）
+      Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach(() =>
         Effect.sync(() => {
           recordMetrics(directory, { domain: "c5-flow", key: "session.created", delta: 1 })

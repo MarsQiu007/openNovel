@@ -1,7 +1,7 @@
 export * as PluginV2 from "./plugin"
 
-import { makeLocationNode } from "./effect/app-node"
-import { Context, Deferred, Effect, Exit, Layer, Scope } from "effect"
+import { Node, makeLocationNode } from "./effect/app-node"
+import { Context, Deferred, Effect, Exit, Layer, Option, Scope } from "effect"
 import type { Plugin as PluginRuntime } from "@opennovel-ai/plugin/v2/effect"
 import { Plugin } from "@opennovel-ai/schema/plugin"
 import { AgentV2 } from "./agent"
@@ -13,10 +13,14 @@ import { Global } from "./global"
 import { Integration } from "./integration"
 import { KeyedMutex } from "./effect/keyed-mutex"
 import { Location } from "./location"
+import { LocationServiceMap } from "./location-service-map"
 import { PermissionV2 } from "./permission"
 import { PluginHost } from "./plugin/host"
 import { Reference } from "./reference"
+import { PluginSession } from "./plugin/session"
+import { SessionExecution } from "./session/execution"
 import { SessionStore } from "./session/store"
+import { SessionV2 } from "./session"
 import { SkillV2 } from "./skill"
 import { State } from "./state"
 import { SystemContextRegistry } from "./system-context/registry"
@@ -40,6 +44,11 @@ const layer = Layer.effect(
     const events = yield* EventV2.Service
     const locks = KeyedMutex.makeUnsafe<ID>()
     const scope = yield* Scope.make()
+    // SessionV2 运行栈惰性绑定（与 host 同策略）：生产可用，测试环境缺绑定时 per-plugin
+    // 视图退化为 host.session（fail-closed 拒绝后台能力）
+    const sessionV2 = yield* Effect.serviceOption(SessionV2.Service)
+    const execution = yield* Effect.serviceOption(SessionExecution.Service)
+    const locations = yield* Effect.serviceOption(LocationServiceMap.Service)
     const active = new Map<ID, Scope.Closeable>()
     const loading = new Set<ID>()
     const waiters = new Map<ID, Set<Deferred.Deferred<void>>>()
@@ -62,7 +71,22 @@ const layer = Layer.effect(
                 if (existing) yield* Scope.close(existing, Exit.void).pipe(Effect.ignore)
 
                 const child = yield* Scope.fork(scope)
-                yield* effect(host).pipe(
+                // per-plugin Session 域视图：生命周期 fiber 与存活 handle 都挂在 child scope 上，
+                // 卸载/重载/关闭开关时经 finalizer 真实 cancel（含 execution.interrupt）
+                const sessionView =
+                  Option.isSome(sessionV2) && Option.isSome(execution) && Option.isSome(locations)
+                    ? yield* PluginSession.make({
+                        sessions: sessionV2.value,
+                        execution: execution.value,
+                        withinLocation: PluginSession.withinLocationFrom(locations.value),
+                      }).pipe(Effect.provideService(Scope.Scope, child))
+                    : undefined
+                const pluginHost: Parameters<PluginRuntime["effect"]>[0] = {
+                  ...host,
+                  // 完整视图整体替换（get 含 purpose 回填）；降级时沿用宿主 SessionStore 兜底
+                  session: sessionView ?? host.session,
+                }
+                yield* effect(pluginHost).pipe(
                   Scope.provide(child),
                   Effect.withSpan("Plugin.load", { attributes: { "plugin.id": id } }),
                   Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(child, exit) : Effect.void)),
@@ -157,7 +181,10 @@ export const locationLayer = layer.pipe(
   Layer.provideMerge(Reference.locationLayer),
 )
 
-export const node = makeLocationNode({
+// 显式注解读窄 node 静态类型（同 SessionV2.node 先例）：宿主 Session 域经 withinLocation
+// 回调引用 LocationServiceMap，其类型内嵌整棵位置树（含本 node）。注解让位置树别名在
+// 引用本 node 的循环点直接采用本类型，不再重入 layer 初始化式推导；运行时图不受影响。
+export const node: Node.LocationNode<Service> = makeLocationNode({
   service: Service,
   layer,
   deps: [

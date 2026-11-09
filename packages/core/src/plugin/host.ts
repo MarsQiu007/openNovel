@@ -19,15 +19,20 @@ import { EventV2 } from "../event"
 import { Global } from "../global"
 import { Integration } from "../integration"
 import { Location } from "../location"
+import { LocationServiceMap } from "../location-service-map"
 import { ModelV2 } from "../model"
 import { PermissionV2 } from "../permission"
 import { PluginV2 } from "../plugin"
 import { PluginFile } from "./file"
+import { PluginSession } from "./session"
+import { SessionPurpose } from "./session-purpose"
 import { ProviderV2 } from "../provider"
 import { Reference } from "../reference"
 import type { DeepMutable } from "../schema"
+import { SessionExecution } from "../session/execution"
 import { SessionSchema } from "../session/schema"
 import { SessionStore } from "../session/store"
+import { SessionV2 } from "../session"
 import { SkillV2 } from "../skill"
 import { SystemContext } from "../system-context/index"
 import { SystemContextRegistry } from "../system-context/registry"
@@ -57,6 +62,19 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const reference = yield* Reference.Service
   const sessions = yield* SessionStore.Service
   const skill = yield* SkillV2.Service
+  // SessionV2 运行栈惰性绑定：生产组合根（App/Location）全局可用；仅装配 recording 层的
+  // 测试环境保持原 R 不变，后台能力以 fail-closed 拒绝，不静默绕过
+  const sessionV2 = yield* Effect.serviceOption(SessionV2.Service)
+  const execution = yield* Effect.serviceOption(SessionExecution.Service)
+  const locations = yield* Effect.serviceOption(LocationServiceMap.Service)
+  const sessionFull =
+    Option.isSome(sessionV2) && Option.isSome(execution) && Option.isSome(locations)
+      ? yield* PluginSession.make({
+          sessions: sessionV2.value,
+          execution: execution.value,
+          withinLocation: PluginSession.withinLocationFrom(locations.value),
+        })
+      : undefined
   const systemContexts = yield* SystemContextRegistry.Service
   const tools = yield* Tools.Service
 
@@ -131,6 +149,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
 
   // V2 插件面事件订阅的宿主侧适配（v2/effect PLAN.md §8）：公开类型字符串 → schema Definition，
   // 委托 EventV2.Service.subscribe；SDK 公开形状以 properties 承载 data，此处做字段搬运。
+  // 内部会话的事件经进程级 purpose 注册表在信封上回填标记；普通会话事件形状不变。
   const sessionEventByType: Map<string, EventV2.Definition> = new Map(
     Definitions.map((definition) => [definition.type, definition]),
   )
@@ -140,11 +159,17 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       const definition = sessionEventByType.get(type)
       if (!definition) return Stream.fail(new Error(`PluginHost: unsupported event type "${type}"`))
       return events.subscribe(definition).pipe(
-        Stream.map((payload) => ({ id: payload.id, type: payload.type, properties: payload.data })),
+        Stream.map((payload) => {
+          const sessionID = (payload.data as { sessionID?: string }).sessionID
+          const purpose = sessionID === undefined ? undefined : SessionPurpose.lookup(sessionID)
+          const base = { id: payload.id, type: payload.type, properties: payload.data }
+          return purpose === undefined ? base : { ...base, purpose }
+        }),
       )
     }) as Interface["event"]["subscribe"],
   }
 
+  const degraded = PluginSession.unavailable()
   return {
     options: {},
     event,
@@ -161,14 +186,23 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       state: globalPaths.state,
       tmp: globalPaths.tmp,
     },
-    session: {
-      get: (id) =>
-        Effect.runPromise(
-          sessions.get(SessionSchema.ID.make(id)).pipe(
-            Effect.map((info) => info && { id: info.id as string, parentID: info.parentID as string | undefined }),
+    session:
+      sessionFull ??
+      {
+        // 降级 get：仅装配 recording 层时以 SessionStore 兜底（不含 purpose 回填，链读取同语义）
+        get: (id) =>
+          Effect.runPromise(
+            sessions.get(SessionSchema.ID.make(id)).pipe(
+              Effect.map((info) =>
+                info === undefined
+                  ? undefined
+                  : { id: info.id as string, parentID: info.parentID as string | undefined },
+              ),
+            ),
           ),
-        ),
-    },
+        settled: degraded.settled,
+        startBackground: degraded.startBackground,
+      },
     systemContext: {
       register: registerSource,
     },

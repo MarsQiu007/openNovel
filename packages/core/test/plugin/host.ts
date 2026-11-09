@@ -75,6 +75,8 @@ export function host(overrides: Overrides = {}): PluginContext {
     },
     session: overrides.session ?? {
       get: () => Promise.reject(new Error("unused session.get")),
+      settled: () => Promise.reject(new Error("unused session.settled")),
+      startBackground: () => Promise.reject(new Error("unused session.startBackground")),
     },
     systemContext: overrides.systemContext ?? {
       register: () => Effect.die("unused systemContext.register"),

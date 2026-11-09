@@ -3,7 +3,14 @@ export { define } from "./plugin.js"
 export type { Plugin } from "./plugin.js"
 export type { Location } from "./location.js"
 export type { Path } from "./path.js"
-export type { SessionDomain, SessionRef } from "./session.js"
+export type {
+  BackgroundSessionAuthorization,
+  BackgroundSessionHandle,
+  BackgroundSessionInput,
+  BackgroundSessionResult,
+  SessionDomain,
+  SessionRef,
+} from "./session.js"
 export type { FileDomain } from "./file.js"
 export type { LoadContext, SystemContextDomain, SystemContextSource } from "./system-context.js"
 export { defineTool, ToolResult } from "./tool.js"
