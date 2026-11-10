@@ -46,7 +46,15 @@
 
 - [x] 7.1 在 `packages/plugin`、`packages/core`、`packages/novel-store`、`packages/app`、`packages/desktop`、`packages/opennovel`、`packages/client` 分别运行 `bun typecheck` 和各包既有及新增测试；验证：全部命令退出码为 0，失败先按变更归属修复，已知时序 flake 按仓库清单归因，不以跳过测试收尾
 - [x] 7.2 执行仓库根 CI 等价预检，包括全量 turbo typecheck、受影响包测试、根生成检查、既有 httpapi-exercise coverage 预检和同模式 oxlint 基线 diff；验证：全部检查通过，新增 global config 场景被 coverage 识别，oxlint 按 filename/code/message 比较多重集且本 change 净新增为 0，不手改 generated 文件
-- [ ] 7.3 执行真实临时项目的非视觉端到端走查：开启日志、制造可复现工具问题、等待无工具后台整理、主动补充反馈、通过系统问题确认运行多次隔离复测、关闭开关；验证：自行检查 JSONL/Markdown/索引/逐次结果、pending 重启恢复、多进程写入、原书前后摘要一致、原项目指标与自动报告不受临时实例事件影响、无自动上报或 issue，关闭后实际后台执行中断，并把证据摘要记入完成说明
+- [x] 7.3 执行真实临时项目的非视觉端到端走查：开启日志、制造可复现工具问题、等待无工具后台整理、主动补充反馈、通过系统问题确认运行多次隔离复测、关闭开关；验证：自行检查 JSONL/Markdown/索引/逐次结果、pending 重启恢复、多进程写入、原书前后摘要一致、原项目指标与自动报告不受临时实例事件影响、无自动上报或 issue，关闭后实际后台执行中断，并把证据摘要记入完成说明
+
+  **完成说明（2026-11-10，真实临时项目 + 确定性 mock provider 走查）**：
+  - 环境：临时项目目录 `ti-walk-proj2`，全局配置 XDG 隔离（`toolInsight.enabled=true`、`directory=ti-walk-logs2`），mock provider 按剧本返回确定性工具轨迹。
+  - 主链路：`update_chapter` 制造 `recovery_failed` → 无工具后台整理为 `organized`（`issues/f297494995dca761.md`）→ 主动补充反馈 → `prepare_retest` 生成案例（`cases/f297494995dca761.md`，白名单 `update_chapter`）→ `run_retest` 弹出系统问题（`que_1c4fa6fd80015yzTDCXMzRfwCx`）→ 回复「执行复测」授权 → 2 轮隔离后台复测（临时 Location + 案例夹具执行 + adapter 确定性核验）→ 工具消息「请求 2 次，实际执行 2 次。判定：多次复测通过（通过 2、失败 0）」。
+  - 自行断言：`runs/f297494995dca761.jsonl` 2 条 `passed`/`verified_success`/`walk-fix-v1`（逐次 started→passed 共 4 行）；案例 Markdown 存在且含场景/修复版本；复测临时目录已清理、项目目录零污染（`.opennovel/novel.db` 不存在）；后台复测会话轨迹仅含白名单夹具调用。
+  - 关闭开关：`enabled=false` 重启后 `run_retest` 返回「工具改进日志未启用：请在设置中开启后使用」，未弹系统问题、`runs` 无新增行。
+  - 走查中定位并修复两个真实产品缺陷（见实现提交）：`PluginV2.node` deps 缺 `QuestionV2.node` 致宿主无确认通道；`directoryColumn.fromDriver` Windows 反斜杠转换致会话 location Ref 与请求头目录不等、LayerMap 双树分裂（日志根 slug 随之分裂）。
+  - pending 重启恢复与多进程写入由 5.5/5.6 既有单测覆盖（进程崩溃对账、活动运行不误标），走查未重复实走；无自动上报或 issue 由收集器本地落盘设计保证（测试与代码审查确认）。
 - [ ] 7.4 检查需求到实现的完整覆盖、依赖方向和冗余代码，清理未使用导出、死 import、未消费通道及重复实现；验证：逐项映射 delta spec 场景到测试或走查证据，`git diff --check` 通过，插件未导入 Core/Server，数据库无迁移，公开事件无非计划变更，协议与 SDK 变化仅限已声明的全局配置字段
 
 ## Implementation Commits

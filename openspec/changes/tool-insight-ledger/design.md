@@ -110,7 +110,7 @@
 - `settled(id)`：等待当前活动 drain 落定，并确认该 Session 在观察点不再活动；只等待，不注入 prompt、不中断执行。
 - `startBackground(input)`：输入 `purpose: "tool-insight"`、`mode: "organize" | "retest"`、专用 agent 定义、模型、脱敏 prompt、预期工具集合，以及二选一的位置来源 `parentID` 或 `directory`；retest 还必须携带宿主签发的执行授权 ID 和规范化案例。返回 `{ id, done, cancel }`。`done` 给出成功、失败或取消结果及最终文本，不让调用方逐轮控制工具循环。宿主强制 organize 工具集合为空，retest 无有效执行授权不得 create 或 prompt，不能只靠插件自我声明安全。
 
-`PluginHost.make` 直接注入全局 `SessionV2.Service` 与 `SessionExecution.Service`；只有准备目标 Location 的 agent、插件和工具时才使用 `LocationServiceMap.Service`。`PluginV2.node` 显式声明这些真实依赖，沿用 Location 工具依赖全局 Session 的既有组合方式，并以组合层测试证明无新增 layer 环。不得再引用不存在的 `SessionLayerMap`。
+`PluginV2.node` 显式声明 `SessionV2.node`、`SessionExecution.node` 与 `LocationServiceMap.node` 三个全局依赖（node deps），编译期把运行栈送达插件层上下文；`PluginHost.make` 与 `PluginV2.add` 的 per-plugin 视图都以 `Effect.serviceOption` 惰性探测，三服务齐备才绑 `PluginSession.make`，任一缺失降级 fail-closed。绑定纪律：`SessionExecution` 在位置树内保持 unbound（进程内单例不随 per-location 层物化），生产由 serve 组合根的 `AppNodeBuilderV1.build(app, [[SessionExecution.node, SessionExecutionLocal.node], ...])` 在宿主图统一绑定——若误把 `SessionExecutionLocal` 塞进 per-location 树，hoist 会把它从组内切除造成「组内单例与位置层互不可见」的双份物化，运行栈断裂且症状极隐晦（layer 上下文探测为 None）。`LocationServiceMap` 依赖在 per-location 树内由 `buildLocationServiceMap` 的 selfLsm 替换收编，不散射第二份。仅装配 recording 层的测试环境在 `AppNodeBuilder.build` 显式传 `SessionExecution.noopLayer`（或保持消费侧探测缺失降级），组合层测试证明无新增 layer 环。不得再引用不存在的 `SessionLayerMap`。
 
 宿主在 `create` 前预分配 Session ID，并在进程级、跨 Location 共享的 purpose 注册表写入 `id -> purpose`。插件私有事件信封在宿主适配时附加 purpose，`SessionRef` 也可读取该标记；新旧事件处理器统一在任何计数、映射或触发前排除有 purpose 的 Session，包括 Created、agent/model switched、Step、Tool、Compaction 和尾部事件。purpose tombstone 保留到进程退出，`done` 或插件 dispose 不删除，避免早发事件和晚消费事件出现递归窗口；不修改公开 SessionEvent Schema。
 
