@@ -8,6 +8,11 @@
  * - callID 只在同项目、同会话内关联，映射键 `projectID + sessionID + callID`。
  * - provider turn 以 `step.started` 的 assistantMessageID 开启、`step.ended/failed`
  *   关闭；触发时刻 turn 仍开放时先落证据（客观证据先行），turn 关闭后补齐完整轨迹。
+ *   宿主按事件类型分订阅流投递，跨流不保证先序：tool.* 可能先于同 turn 的
+ *   step.started 到达，下一 turn 的 step.started 也可能先于上一 turn 迟到的
+ *   tool.* 处理（慢落盘放大流间延迟）。窗口按 session+turn 复合键隔离、按事件自带
+ *   assistantMessageID 懒建，迟到 step.started 只合并回填 agent/model；任一 turn 的
+ *   迟到事件都落回自己 turn 的窗口，跨 turn 交错不丢轨迹判定。
  *
  * 落盘与建档分工：
  * - tool.failed 恒落 tool_failed 证据并按「单次调用问题」（call 级发生实例）建档；
@@ -48,10 +53,12 @@ const REVISION_STREAK_THRESHOLD = 3
 /** 有界窗口上限：超限淘汰最早条目，不保存无限 Map */
 const MAX_SESSIONS = 512
 const MAX_CALLS = 1024
+/** 存活 turn 窗口全局上限（跨会话合计；每会话通常 1-2 个活跃窗口） */
 const MAX_TURNS = 128
 const MAX_CALLS_PER_TURN = 32
 
 const callKey = (projectID: string, sessionID: string, callID: string): string => `${projectID}\u0000${sessionID}\u0000${callID}`
+const turnKey = (sessionID: string, turnID: string): string => `${sessionID}\u0000${turnID}`
 
 interface CallInfo {
   tool: string
@@ -70,6 +77,8 @@ interface TurnWindow {
   calls: TrajectoryCall[]
   /** 本 turn 已落盘失败证据的 callID → 失败类别：turn 关闭时按它用一致指纹补齐轨迹 */
   failedCalls: Map<string, string>
+  /** step.ended/failed 已处理过补齐：跨流重复 settle 不重复落补齐轨迹 */
+  settled?: boolean
 }
 
 export interface CollectorState {
@@ -77,9 +86,9 @@ export interface CollectorState {
   onStepStarted(properties: { sessionID: string; assistantMessageID: string; agent: string; model: { id: string } }): Promise<void>
   /** envelopeID：宿主事件信封 ID（跨重启不重用），落盘证据的派生 ID 以它为种子 */
   onStepSettled(properties: { sessionID: string; assistantMessageID: string }, envelopeID: string): Promise<void>
-  onToolCalled(properties: { sessionID: string; callID: string; tool: string; input: unknown }, envelopeID: string): Promise<void>
-  onToolSuccess(properties: { sessionID: string; callID: string; structured: unknown }, envelopeID: string): Promise<void>
-  onToolFailed(properties: { sessionID: string; callID: string; error: unknown }, envelopeID: string): Promise<void>
+  onToolCalled(properties: { sessionID: string; assistantMessageID: string; callID: string; tool: string; input: unknown }, envelopeID: string): Promise<void>
+  onToolSuccess(properties: { sessionID: string; assistantMessageID: string; callID: string; structured: unknown }, envelopeID: string): Promise<void>
+  onToolFailed(properties: { sessionID: string; assistantMessageID: string; callID: string; error: unknown }, envelopeID: string): Promise<void>
 }
 
 export interface WatchToolInsightInput {
@@ -103,7 +112,10 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
 
   const projectBySession = new Map<string, string>()
   const callByKey = new Map<string, CallInfo>()
-  const turnBySession = new Map<string, TurnWindow>()
+  /** 存活 turn 窗口：复合键 session+turn，跨订阅流交错的迟到事件落回各自 turn */
+  const turns = new Map<string, TurnWindow>()
+  /** 每会话最近开启的 turnID：agentFor 兜底与迟到 step.started 的合并锚点 */
+  const latestTurnBySession = new Map<string, string>()
   const revisionStreak = new Map<string, { tool: string; count: number }>()
 
   const boundedSet = <K>(map: Map<K, unknown>, limit: number) => {
@@ -142,13 +154,24 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     }
   }
 
-  const agentFor = (sessionID: string): string | undefined => turnBySession.get(sessionID)?.agent
+  const agentFor = (sessionID: string): string | undefined => {
+    const turnID = latestTurnBySession.get(sessionID)
+    return turnID === undefined ? undefined : turns.get(turnKey(sessionID, turnID))?.agent
+  }
 
-  const currentTurn = (sessionID: string): TurnWindow | undefined => {
-    const turn = turnBySession.get(sessionID)
-    if (turn === undefined) return undefined
-    if (turn.calls.length >= MAX_CALLS_PER_TURN) turn.calls.shift()
-    return turn
+  /**
+   * 取调用的 turn 窗口：按 session+turn 复合键懒建，永不替换其他 turn 的窗口。
+   * 宿主分类型订阅流不保证先序：下一 turn 的 step.started 可能先于上一 turn 迟到的
+   * tool.* 处理，复合键让迟到事件落回自己 turn 的窗口，跨 turn 交错不丢轨迹判定。
+   */
+  const windowFor = (sessionID: string, turnID: string): TurnWindow => {
+    const key = turnKey(sessionID, turnID)
+    const existing = turns.get(key)
+    if (existing !== undefined) return existing
+    const created: TurnWindow = { turnID, agent: undefined, model: undefined, calls: [], failedCalls: new Map() }
+    turns.set(key, created)
+    boundedSet(turns, MAX_TURNS)
+    return created
   }
 
   const recordTurnDetection = async (
@@ -262,9 +285,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     return occurrenceID
   }
 
-  /** 六类形状归纳：失败/成功时刻按轨迹判定检测类别，未命中返回 undefined */
-  const classifyShape = (sessionID: string, tool: string, status: "success" | "failed"): { kind: DetectionKind } | undefined => {
-    const turn = turnBySession.get(sessionID)
+  /** 六类形状归纳：失败/成功时刻按本 turn 的轨迹判定检测类别，未命中返回 undefined */
+  const classifyShape = (sessionID: string, turnID: string, tool: string, status: "success" | "failed"): { kind: DetectionKind } | undefined => {
+    const turn = turns.get(turnKey(sessionID, turnID))
     if (turn === undefined) return undefined
     // 排除 called：同一次调用的 called+failed 是同一调用的两个阶段，不构成「重复调用」
     const sameTool = turn.calls.filter((call) => call.tool === tool && call.status !== "called")
@@ -305,25 +328,29 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     },
 
     async onStepStarted(properties) {
-      turnBySession.set(properties.sessionID, {
-        turnID: properties.assistantMessageID,
-        agent: properties.agent,
-        model: properties.model.id,
-        calls: [],
-        failedCalls: new Map(),
-      })
-      boundedSet(turnBySession, MAX_TURNS)
+      const turn = windowFor(properties.sessionID, properties.assistantMessageID)
+      turn.agent ??= properties.agent
+      turn.model ??= properties.model.id
+      latestTurnBySession.set(properties.sessionID, properties.assistantMessageID)
+      boundedSet(latestTurnBySession, MAX_SESSIONS)
     },
 
     async onStepSettled(properties: { sessionID: string; assistantMessageID: string }, envelopeID: string) {
-      const turn = turnBySession.get(properties.sessionID)
-      if (turn === undefined || turn.turnID !== properties.assistantMessageID) return
+      const key = turnKey(properties.sessionID, properties.assistantMessageID)
+      const turn = turns.get(key)
+      if (turn === undefined) return
       const opened = gate()
       if (opened === undefined) {
-        turnBySession.delete(properties.sessionID)
+        turns.delete(key)
+        if (latestTurnBySession.get(properties.sessionID) === properties.assistantMessageID) {
+          latestTurnBySession.delete(properties.sessionID)
+        }
         return
       }
-      // 补齐：本 turn 落过失败证据的每个 callID 追加一条完整轨迹证据到 call 级文档
+      // 补齐：本 turn 落过失败证据的每个 callID 追加一条完整轨迹证据到 call 级文档；
+      // settled 防跨流重复 settle 的重复补齐（step.ended 与 step.failed 可能都到达）
+      if (turn.settled === true) return
+      turn.settled = true
       for (const [callID, errorCategory] of turn.failedCalls) {
         const info = callByKey.get(callKey(opened.projectID, properties.sessionID, callID))
         const tool = info?.tool ?? "unknown"
@@ -375,23 +402,25 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
           input.onDocumented?.(fingerprintHash, properties.sessionID)
         }
       }
-      turnBySession.delete(properties.sessionID)
+      // 不删除本 turn 窗口：跨流乱序下本 turn 的迟到 tool.* 仍需落回窗口做形状归纳；
+      // 窗口只由 MAX_TURNS 有界淘汰回收
     },
 
       // 归属：只采已在 created 映射中的会话；映射有界，淘汰后停采（跨项目不串线
       // 由映射值区分，ownProjectID 未知时与旧指标同样按本进程事件采集）
-    async onToolCalled(properties: { sessionID: string; callID: string; tool: string; input: unknown }, _envelopeID: string) {
+    async onToolCalled(properties, _envelopeID: string) {
       const opened = gate()
       if (opened === undefined) return
       const projectID = projectBySession.get(properties.sessionID)
       if (projectID === undefined) return
       const input = isRecord(properties.input) ? properties.input : {}
+      const turn = windowFor(properties.sessionID, properties.assistantMessageID)
       const info: CallInfo = {
         tool: properties.tool,
         paramKeys: Object.keys(input).sort(),
-        turnID: turnBySession.get(properties.sessionID)?.turnID,
-        agent: turnBySession.get(properties.sessionID)?.agent,
-        model: turnBySession.get(properties.sessionID)?.model,
+        turnID: turn.turnID,
+        agent: turn.agent,
+        model: turn.model,
       }
       const adapter = findToolInsightVerifyAdapter(properties.tool)
       if (adapter !== undefined) {
@@ -400,11 +429,11 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       }
       callByKey.set(callKey(projectID, properties.sessionID, properties.callID), info)
       boundedSet(callByKey, MAX_CALLS)
-      const turn = currentTurn(properties.sessionID)
-      turn?.calls.push({ callID: properties.callID, tool: properties.tool, status: "called", paramKeys: info.paramKeys })
+      if (turn.calls.length >= MAX_CALLS_PER_TURN) turn.calls.shift()
+      turn.calls.push({ callID: properties.callID, tool: properties.tool, status: "called", paramKeys: info.paramKeys })
     },
 
-    async onToolSuccess(properties: { sessionID: string; callID: string; structured: unknown }, envelopeID: string) {
+    async onToolSuccess(properties, envelopeID: string) {
       const opened = gate()
       if (opened === undefined) return
       const projectID = projectBySession.get(properties.sessionID)
@@ -412,9 +441,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const key = callKey(projectID, properties.sessionID, properties.callID)
       const info = callByKey.get(key)
       const structured = isRecord(properties.structured) ? properties.structured : {}
-      const turn = turnBySession.get(properties.sessionID)
+      const turn = windowFor(properties.sessionID, properties.assistantMessageID)
       const tool = info?.tool ?? "unknown"
-      turn?.calls.push({ callID: properties.callID, tool, status: "success", paramKeys: info?.paramKeys })
+      turn.calls.push({ callID: properties.callID, tool, status: "success", paramKeys: info?.paramKeys })
 
       // 反复修改信号：兴趣工具连续成功
       if (REVISION_TOOLS.has(tool)) {
@@ -431,7 +460,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const adapter = findToolInsightVerifyAdapter(tool)
       if (adapter === undefined) {
         // 无核验器：成功归纳（改参成功/换工具成功）仍可触发轨迹检测
-        const shape = classifyShape(properties.sessionID, tool, "success")
+        const shape = classifyShape(properties.sessionID, properties.assistantMessageID, tool, "success")
         if (shape !== undefined && turn !== undefined) {
           await recordTurnDetection(ctx, opened.paths, projectID, properties.sessionID, turn, shape.kind, { tool }, `${envelopeID}:shape:${shape.kind}`, Date.now())
         }
@@ -490,18 +519,22 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       }
     },
 
-    async onToolFailed(properties: { sessionID: string; callID: string; error: unknown }, envelopeID: string) {
+    async onToolFailed(properties, envelopeID: string) {
       const opened = gate()
-      if (opened === undefined) return
+      if (opened === undefined) {
+        return
+      }
       const projectID = projectBySession.get(properties.sessionID)
-      if (projectID === undefined) return
+      if (projectID === undefined) {
+        return
+      }
       const key = callKey(projectID, properties.sessionID, properties.callID)
       const info = callByKey.get(key)
       const tool = info?.tool ?? "unknown"
       const failureFields = redactToolFailed(tool, properties.error)
       const errorCategory = typeof failureFields.errorType === "string" ? failureFields.errorType : "unknown"
-      const turn = turnBySession.get(properties.sessionID)
-      turn?.calls.push({
+      const turn = windowFor(properties.sessionID, properties.assistantMessageID)
+      turn.calls.push({
         callID: properties.callID,
         tool,
         status: "failed",
@@ -524,7 +557,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       if (occurrenceID !== undefined) turn?.failedCalls.set(properties.callID, errorCategory)
 
       // 六类形状归纳：重复/恢复失败在失败时刻即可判定
-      const shape = classifyShape(properties.sessionID, tool, "failed")
+      const shape = classifyShape(properties.sessionID, properties.assistantMessageID, tool, "failed")
       if (shape !== undefined && turn !== undefined) {
         await recordTurnDetection(
           ctx,
@@ -596,7 +629,7 @@ export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Eff
     yield* ctx.event.subscribe("session.next.tool.called").pipe(
       Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach(
-        filterAndRun((properties: { sessionID: string; callID: string; tool: string; input: unknown }, envelopeID) =>
+        filterAndRun((properties: { sessionID: string; assistantMessageID: string; callID: string; tool: string; input: unknown }, envelopeID) =>
           state.onToolCalled(properties, envelopeID),
         ),
       ),
@@ -605,7 +638,7 @@ export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Eff
     yield* ctx.event.subscribe("session.next.tool.success").pipe(
       Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach(
-        filterAndRun((properties: { sessionID: string; callID: string; structured: unknown }, envelopeID) =>
+        filterAndRun((properties: { sessionID: string; assistantMessageID: string; callID: string; structured: unknown }, envelopeID) =>
           state.onToolSuccess(properties, envelopeID),
         ),
       ),
@@ -614,7 +647,7 @@ export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Eff
     yield* ctx.event.subscribe("session.next.tool.failed").pipe(
       Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach(
-        filterAndRun((properties: { sessionID: string; callID: string; error: unknown }, envelopeID) =>
+        filterAndRun((properties: { sessionID: string; assistantMessageID: string; callID: string; error: unknown }, envelopeID) =>
           state.onToolFailed(properties, envelopeID),
         ),
       ),

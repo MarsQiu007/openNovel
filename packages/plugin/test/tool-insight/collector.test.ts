@@ -85,10 +85,10 @@ describe("事件证据采集器（任务 3.1）", () => {
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "sA", projectID: "proj_A", directory: projectDir })
       await state.onCreated({ sessionID: "sB", projectID: "proj_B", directory: otherProject })
-      await state.onToolCalled({ sessionID: "sA", callID: "call_1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_a_call")
-      await state.onToolFailed({ sessionID: "sA", callID: "call_1", error: failError }, "evt_a_fail")
-      await state.onToolCalled({ sessionID: "sB", callID: "call_1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_b_call")
-      await state.onToolFailed({ sessionID: "sB", callID: "call_1", error: failError }, "evt_b_fail")
+      await state.onToolCalled({ sessionID: "sA", assistantMessageID: "msg_a", callID: "call_1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_a_call")
+      await state.onToolFailed({ sessionID: "sA", assistantMessageID: "msg_a", callID: "call_1", error: failError }, "evt_a_fail")
+      await state.onToolCalled({ sessionID: "sB", assistantMessageID: "msg_b", callID: "call_1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_b_call")
+      await state.onToolFailed({ sessionID: "sB", assistantMessageID: "msg_b", callID: "call_1", error: failError }, "evt_b_fail")
 
       const { entries } = readEvidence(logRoot, projectDir)
       const failures = entries.filter((entry) => entry.kind === "tool_failed")
@@ -114,8 +114,8 @@ describe("事件证据采集器（任务 3.1）", () => {
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
-      await state.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_call")
-      await state.onToolFailed({ sessionID: "s1", callID: "c1", error: failError }, "evt_fail")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_call")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_fail")
 
       // 客观证据先行：turn 仍开放时 tool_failed 证据与 call 级文档已落盘
       const during = readEvidence(logRoot, projectDir)
@@ -149,20 +149,89 @@ describe("事件证据采集器（任务 3.1）", () => {
     }
   })
 
+  test("乱序容忍：tool.* 先于同 turn 的 step.started 到达仍命中恢复失败归纳", async () => {
+    const { configDir, logRoot, projectDir } = fixture("reorder")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      // 宿主分类型订阅流不保证先序：两次失败先于 step.started 到达（参数键不同，
+      // 排除同键重复的 redundant_repeat，应命中 recovery_failed）
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_c1")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_f1")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c2", tool: "update_chapter", input: { chapter_id: "ch1", title: "x" } }, "evt_c2")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c2", error: failError }, "evt_f2")
+      // 迟到的 step.started 只补 agent/model，不覆盖已积累的调用序列
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
+      await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
+
+      const { entries } = readEvidence(logRoot, projectDir)
+      expect(entries.map((entry) => entry.kind)).toEqual(["tool_failed", "tool_failed", "trajectory", "trajectory", "trajectory"])
+      const trajectories = entries.filter((entry) => entry.kind === "trajectory")
+      expect(trajectories[0]?.fields.detection).toBe("recovery_failed")
+      // 检测在第二次失败时刻落盘（早于迟到 step.started），补齐在 settle 时已回填 agent
+      expect(trajectories[0]?.agent).toBeUndefined()
+      expect(trajectories[2]?.agent).toBe("writer")
+      // 指纹含 fact「retry-still-failed」（恢复失败检测的事实标记）
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "NotFoundError", fact: "retry-still-failed" })
+      const doc = readIssueMeta(logRoot, projectDir, fingerprint)
+      expect(doc.meta.occurrence_count).toBe(1)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("跨 turn 交错容忍：下一 turn 的 step.started 先于上一 turn 迟到的 tool.failed 处理，恢复失败归纳不丢", async () => {
+    const { configDir, logRoot, projectDir } = fixture("interleave")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      // 复刻真实走查时序：called 流跑在前面，failed 流因落盘延迟被 step 流超越——
+      // step.ended(A) 与 step.started(B) 都先于第二次 failed 处理
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_a", agent: "writer", model: { id: "m/1" } })
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_c1")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c2", tool: "update_chapter", input: { chapter_id: "ch1", title: "x" } }, "evt_c2")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c1", error: failError }, "evt_f1")
+      await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_a" }, "evt_end_a")
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_b", agent: "writer", model: { id: "m/1" } })
+      // 迟到的第二次失败仍落回 turn A 的窗口，命中 recovery_failed 而非另起空窗口
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c2", error: failError }, "evt_f2")
+
+      const { entries } = readEvidence(logRoot, projectDir)
+      const detection = entries.find((entry) => entry.kind === "trajectory" && entry.fields.detection === "recovery_failed")
+      expect(detection).toBeDefined()
+      expect(detection?.turnID).toBe("msg_a")
+      expect(detection?.fields.callsShape).toBe("update_chapter:called>update_chapter:called>update_chapter:failed>update_chapter:failed")
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "NotFoundError", fact: "retry-still-failed" })
+      const doc = readIssueMeta(logRoot, projectDir, fingerprint)
+      expect(doc.meta.occurrence_count).toBe(1)
+      // 两条失败证据都在（c1 先落、c2 迟到后落），互不覆盖
+      expect(entries.filter((entry) => entry.kind === "tool_failed")).toHaveLength(2)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+
   test("重启不重用证据 ID：同一调用再失败是新证据、同发生只计一次", async () => {
     const { configDir, logRoot, projectDir } = fixture("restart")
     try {
       enable(configDir, logRoot)
       const first = makeState(configDir, logRoot, projectDir)
       await first.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
-      await first.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: {} }, "evt_run1_fail")
-      await first.onToolFailed({ sessionID: "s1", callID: "c1", error: failError }, "evt_run1_fail")
+      await first.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: {} }, "evt_run1_fail")
+      await first.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_run1_fail")
 
       // 重启：新采集器状态、created 重新观察、同一 callID 再次失败（新信封 ID）
       const second = makeState(configDir, logRoot, projectDir)
       await second.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
-      await second.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: {} }, "evt_run2_fail")
-      await second.onToolFailed({ sessionID: "s1", callID: "c1", error: failError }, "evt_run2_fail")
+      await second.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: {} }, "evt_run2_fail")
+      await second.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_run2_fail")
 
       const { entries } = readEvidence(logRoot, projectDir)
       expect(entries).toHaveLength(2)
@@ -189,9 +258,9 @@ describe("事件证据采集器（任务 3.1）", () => {
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
       for (let index = 0; index < 33; index++) {
-        await state.onToolCalled({ sessionID: "s1", callID: `c${index}`, tool: `probe_${index}`, input: { key: index } }, `evt_c${index}`)
+        await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: `c${index}`, tool: `probe_${index}`, input: { key: index } }, `evt_c${index}`)
       }
-      await state.onToolFailed({ sessionID: "s1", callID: "c32", tool: "probe_32", error: failError }, "evt_fail")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c32", tool: "probe_32", error: failError }, "evt_fail")
       await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
 
       const { entries } = readEvidence(logRoot, projectDir)
@@ -216,8 +285,8 @@ describe("事件证据采集器（任务 3.1）", () => {
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
-      await state.onToolCalled({ sessionID: "s1", callID: "c1", tool: "read_setting", input: {} }, "evt_call")
-      await state.onToolSuccess({ sessionID: "s1", callID: "c1", structured: { ok: true } }, "evt_success")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "read_setting", input: {} }, "evt_call")
+      await state.onToolSuccess({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", structured: { ok: true } }, "evt_success")
       await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
 
       const paths = pathsFor(logRoot, projectDir)
@@ -248,8 +317,8 @@ describe("事件证据采集器（任务 3.1）", () => {
 
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
-      await state.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: { chapter_id: chapterID, content: "新正文" } }, "evt_call")
-      await state.onToolSuccess({ sessionID: "s1", callID: "c1", structured: { chapter_id: chapterID } }, "evt_success")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: chapterID, content: "新正文" } }, "evt_call")
+      await state.onToolSuccess({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", structured: { chapter_id: chapterID } }, "evt_success")
 
       const { entries } = readEvidence(logRoot, projectDir)
       expect(entries).toHaveLength(1)
@@ -279,8 +348,8 @@ describe("事件证据采集器（任务 3.1）", () => {
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
-      await state.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch_missing" } }, "evt_call")
-      await state.onToolSuccess({ sessionID: "s1", callID: "c1", structured: { chapter_id: "ch_missing" } }, "evt_success")
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch_missing" } }, "evt_call")
+      await state.onToolSuccess({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", structured: { chapter_id: "ch_missing" } }, "evt_success")
 
       const { entries } = readEvidence(logRoot, projectDir)
       const realState = entries.find((entry) => entry.kind === "real_state")
@@ -315,7 +384,7 @@ describe("事件证据采集器（任务 3.1）", () => {
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
       await state.onToolCalled({ sessionID: "s1", callID: "c1", tool: "update_chapter", input: {} }, "evt_call")
-      await state.onToolFailed({ sessionID: "s1", callID: "c1", error: failError }, "evt_fail")
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_fail")
       await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
       expect(existsSync(logRoot) ? readdirSync(logRoot) : []).toEqual([])
     } finally {
