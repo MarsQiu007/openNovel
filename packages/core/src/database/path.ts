@@ -43,6 +43,9 @@ export const absoluteColumn = customType<{
 
 // Legacy sessions may persist an empty directory. Keep that existing value
 // readable while normalizing and validating every real directory.
+// 读出保持存储格式（正斜杠）：Windows 下若转平台原生反斜杠，会话 location 的
+// Ref 与 HTTP 请求头目录（正斜杠）字符串不等，LayerMap 会按 Ref 分裂成两棵
+// location 树（插件双实例、工具执行落到另一日志根）；Node path API 兼容正斜杠。
 export const directoryColumn = customType<{
   data: string
   driverData: string
@@ -55,7 +58,7 @@ export const directoryColumn = customType<{
     return input ? absolute(input) : input
   },
   fromDriver(input) {
-    return input ? toPlatform(absolute(input)) : input
+    return input ? absolute(input) : input
   },
 })
 

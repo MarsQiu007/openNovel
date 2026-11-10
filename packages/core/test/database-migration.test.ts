@@ -528,7 +528,10 @@ describe("DatabaseMigration", () => {
         const session = yield* db.select().from(SessionTable).where(eq(SessionTable.directory, directory)).get()
         expect(project?.worktree).toBe(worktree)
         expect(project?.sandboxes).toEqual([sandbox])
-        expect(session?.directory).toBe(directory)
+        // directory 读出保持存储格式（正斜杠）：读出值会拼进会话 location 的 Ref 键，
+        // 若转平台原生反斜杠则与 HTTP 请求头目录（正斜杠）字符串不等，LayerMap 按 Ref
+        // 分裂成两棵 location 树；其余 absolute 列无此字符串比对需求，仍转平台原生格式
+        expect(session?.directory).toBe("C:/Repo/Thing/packages/api")
         expect(session?.path).toBe("packages/api")
 
         expect((yield* db.select().from(SessionTable).where(eq(SessionTable.path, "packages\\api")).get())?.id).toBe(
