@@ -8,7 +8,7 @@
  * 集合必须精确等于授权白名单，集合不符即不发车。
  */
 import { describe, expect } from "bun:test"
-import { LLMClient, LLMError, LLMEvent, Model, type LLMClientShape, type LLMRequest } from "@opennovel-ai/llm"
+import { LLMClient, LLMEvent, Model, type LLMRequest } from "@opennovel-ai/llm"
 import * as OpenAIChat from "@opennovel-ai/llm/protocols/openai-chat"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Catalog } from "@opennovel-ai/core/catalog"
@@ -35,7 +35,6 @@ import { SessionRunCoordinator } from "@opennovel-ai/core/session/run-coordinato
 import { SessionRunner } from "@opennovel-ai/core/session/runner"
 import * as SessionRunnerLLM from "@opennovel-ai/core/session/runner/llm"
 import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
-import { SessionSchema } from "@opennovel-ai/core/session/schema"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { SessionTitle } from "@opennovel-ai/core/session/title"
@@ -48,7 +47,7 @@ import { SystemContextRegistry } from "@opennovel-ai/core/system-context/registr
 import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
 import { ToolRegistry } from "@opennovel-ai/core/tool/registry"
 import { Tool } from "@opennovel-ai/core/tool/tool"
-import { Deferred, Effect, Layer, Schema, Stream } from "effect"
+import { Effect, Layer, Schema, Stream } from "effect"
 import { testEffect } from "../lib/effect"
 
 const RETEST_AGENT_ID = "insight-retester"
@@ -61,10 +60,10 @@ const client = Layer.succeed(
   LLMClient.Service,
   LLMClient.Service.of({
     prepare: () => Effect.die("unused"),
-    stream: ((request: LLMRequest) => {
+    stream: (request: LLMRequest) => {
       requests.push(request)
       return Stream.fromIterable(response)
-    }) as unknown as LLMClientShape["stream"],
+    },
     generate: () => Effect.die("unused"),
   }),
 )
@@ -226,10 +225,11 @@ const setup = Effect.gen(function* () {
   yield* applications.register({ retest_alpha: fake, retest_beta: fake })
 })
 
+// 目录 stub 只消费 id/名称做解析比对；api 必须满足 supported() 预检（aisdk 且 package 受支持），empty 默认 api 不满足
 const stubModel = {
   ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
-  api: { id: "test-model", type: "aisdk", package: "@ai-sdk/anthropic" },
-} as ModelV2.Info
+  api: { id: ModelV2.ID.make("test-model"), type: "aisdk" as const, package: "@ai-sdk/anthropic" as const },
+}
 
 /**
  * withinLocation 桩：agent 与工具注册表用环境真实服务（注册与清理走真实
@@ -311,7 +311,7 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
       // 白名单取真实注册表的单个工具：deny-first 物化后必须精确等于它（≠全量）
       const probe = AgentV2.Info.empty(AgentV2.ID.make("probe"))
       const allTools = (yield* registry.materialize(probe.permissions)).definitions.map((definition) => definition.name)
-      const whitelist = [allTools[0] as string]
+      const whitelist = [allTools[0]]
 
       const domain = yield* PluginSession.make({
         sessions: session,
@@ -341,8 +341,8 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
       const registry = yield* ToolRegistry.Service
       const probe = AgentV2.Info.empty(AgentV2.ID.make("probe"))
       const allTools = (yield* registry.materialize(probe.permissions)).definitions.map((definition) => definition.name)
-      const whitelistA = [allTools[0] as string]
-      const whitelistB = [allTools[0] as string, allTools[1] as string]
+      const whitelistA = [allTools[0]]
+      const whitelistB = [allTools[0], allTools[1]]
 
       const domain = yield* PluginSession.make({
         sessions: session,
@@ -380,7 +380,7 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
       // 注册的是 insight-retester，但 input.agent 指向不存在的 ghost：预检失败落 done
       // （fork 后的生命周期失败经 resultFromExit 落 done，不走 Promise 拒绝）
       const handle = yield* Effect.promise(() =>
-        domain.startBackground(retestStartInput([whitelist[0] as string], { agent: "ghost" })),
+        domain.startBackground(retestStartInput([whitelist[0]], { agent: "ghost" })),
       )
       const result = yield* Effect.promise(() => handle.done)
       expect(result.status).toBe("failure")
@@ -410,7 +410,7 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
           { plugins: "resolve", available: [{ ...stubModel, id: ModelV2.ID.make("other-model") }] },
         ),
       })
-      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0] as string])))
+      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0]])))
       const result = yield* Effect.promise(() => handle.done)
       expect(result.status).toBe("failure")
       if (result.status === "failure") expect(result.reason).toContain("发车前模型解析与固定值不一致")
@@ -436,7 +436,7 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
         retestPluginWaitTimeout: "30 millis",
         withinLocation: withinLocationStub({ agents, registry }, { plugins: "never" }),
       })
-      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0] as string], { plugins: "never" })))
+      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0]], { plugins: "never" })))
       const result = yield* Effect.promise(() => handle.done)
       expect(result.status).toBe("failure")
       if (result.status === "failure") expect(result.reason).toContain("复测前置插件未激活: config-plugin")
@@ -461,7 +461,7 @@ describe("PluginSession retest 隔离作用域（任务 5.3/5.4）", () => {
         withinLocation: withinLocationStub({ agents, registry }, { plugins: "fail" }),
       })
       // wait 以 defect 表达装载失败（接口无错误通道）：die 不走 Promise 拒绝，经 resultFromExit 落为 failure
-      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0] as string], { plugins: "fail" })))
+      const handle = yield* Effect.promise(() => domain.startBackground(retestStartInput([whitelist[0]], { plugins: "fail" })))
       const result = yield* Effect.promise(() => handle.done)
       expect(result.status).toBe("failure")
       if (result.status === "failure") expect(result.reason).toContain("插件装载失败")

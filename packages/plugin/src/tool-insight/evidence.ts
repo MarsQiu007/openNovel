@@ -138,16 +138,21 @@ export function redactSummary(text: string, maxChars = TOOL_INSIGHT_SUMMARY_MAX_
   return `${scrubbed.slice(0, maxChars)}…(截断)`
 }
 
+/** 事件信封等不可信输入的对象守卫：收窄为键值记录，供各白名单函数安全取字段 */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
 /** Tool.Called 白名单：工具名、参数键集合、非内容枚举值；完整参数不落盘 */
 export function redactToolCalled(tool: string, input: unknown): Record<string, unknown> {
   const fields: Record<string, unknown> = { tool }
-  if (input !== null && typeof input === "object" && !Array.isArray(input)) {
-    const keys = Object.keys(input as Record<string, unknown>)
+  if (isRecord(input)) {
+    const keys = Object.keys(input)
     fields.paramKeys = keys.sort()
     const enums: Record<string, unknown> = {}
     for (const key of keys) {
       if (!SAFE_ENUM_KEYS.has(key) || SECRET_KEY_PATTERN.test(key)) continue
-      const value = (input as Record<string, unknown>)[key]
+      const value = input[key]
       if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
         enums[key] = typeof value === "string" && value.length <= 32 ? value : `<len:${String(value).length}>`
       }
@@ -160,12 +165,16 @@ export function redactToolCalled(tool: string, input: unknown): Record<string, u
 /** Tool.Failed 白名单：错误类型、稳定错误码与截断脱敏摘要；完整错误不落盘 */
 export function redactToolFailed(tool: string, error: unknown): Record<string, unknown> {
   const fields: Record<string, unknown> = { tool }
-  if (error !== null && typeof error === "object") {
-    const record = error as Record<string, unknown>
-    if (typeof record.name === "string") fields.errorType = record.name
+  if (isRecord(error)) {
+    if (typeof error.name === "string") fields.errorType = error.name
     else fields.errorType = error.constructor?.name ?? "Error"
-    if (typeof record.code === "string" || typeof record.code === "number") fields.errorCode = record.code
-    const message = typeof record.message === "string" ? record.message : String(error)
+    if (typeof error.code === "string" || typeof error.code === "number") fields.errorCode = error.code
+    const message =
+      typeof error.message === "string"
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : `object:${error.constructor?.name ?? "unknown"}`
     fields.errorDigest = redactSummary(message)
   } else {
     fields.errorType = "Error"
@@ -216,6 +225,19 @@ export interface ToolInsightContentGrant {
   providerID?: string
   modelID?: string
   grantedAt: number
+}
+
+/** 从 JSONL/持久化恢复授权片段时逐条核验形状：损坏条目不参与授权 */
+export function isContentGrant(value: unknown): value is ToolInsightContentGrant {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.id === "string" &&
+    (value.purpose === "organize" || value.purpose === "retest") &&
+    typeof value.subjectDigest === "string" &&
+    (value.providerID === undefined || typeof value.providerID === "string") &&
+    (value.modelID === undefined || typeof value.modelID === "string") &&
+    typeof value.grantedAt === "number"
+  )
 }
 
 /**

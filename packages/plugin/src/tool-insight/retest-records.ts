@@ -15,7 +15,7 @@
 import { realpathSync, rmSync } from "fs"
 import { isAbsolute, relative } from "path"
 import type { ToolInsightPaths } from "@opennovel-ai/novel-store"
-import { createUlid } from "./evidence.js"
+import { createUlid, isRecord } from "./evidence.js"
 import { toolInsightLockKey, type AppendJsonlResult } from "./evidence-store.js"
 import { appendRunRecords, appendRunRecordsLocked, readRunRecords } from "./issue-store.js"
 import { runExclusive, type LockOutcome } from "./locks.js"
@@ -57,11 +57,44 @@ export interface ToolInsightRunRecord {
 
 const NOT_EXECUTED_STATUSES: readonly ToolInsightRunStatus[] = ["cancelled", "authorization_invalid", "preflight_failed"]
 
+function isRunStatus(value: unknown): value is ToolInsightRunStatus {
+  return (
+    value === "started" ||
+    value === "passed" ||
+    value === "failed" ||
+    value === "cancelled" ||
+    value === "authorization_invalid" ||
+    value === "preflight_failed" ||
+    value === "interrupted"
+  )
+}
+
+function isRunVerified(value: unknown): value is ToolInsightRunVerified {
+  return value === "verified_success" || value === "verified_failure" || value === "unverified"
+}
+
 function parseRecord(value: unknown): ToolInsightRunRecord | undefined {
-  if (value === null || typeof value !== "object") return undefined
-  const record = value as Record<string, unknown>
-  if (typeof record.run_id !== "string" || typeof record.case_digest !== "string" || typeof record.status !== "string") return undefined
-  return record as unknown as ToolInsightRunRecord
+  if (!isRecord(value)) return undefined
+  if (typeof value.run_id !== "string" || typeof value.case_digest !== "string" || typeof value.fix_version !== "string") return undefined
+  if (!isRunStatus(value.status) || !isRunVerified(value.verified)) return undefined
+  if (typeof value.detail !== "string" || typeof value.ts !== "number") return undefined
+  if (!isRecord(value.model)) return undefined
+  if (value.model.providerID !== undefined && typeof value.model.providerID !== "string") return undefined
+  if (value.model.modelID !== undefined && typeof value.model.modelID !== "string") return undefined
+  if (value.target_run_id !== undefined && typeof value.target_run_id !== "string") return undefined
+  if (value.manual !== undefined && typeof value.manual !== "boolean") return undefined
+  return {
+    run_id: value.run_id,
+    case_digest: value.case_digest,
+    model: { providerID: value.model.providerID, modelID: value.model.modelID },
+    fix_version: value.fix_version,
+    status: value.status,
+    verified: value.verified,
+    target_run_id: value.target_run_id,
+    manual: value.manual,
+    detail: value.detail,
+    ts: value.ts,
+  }
 }
 
 /** 读取某指纹全部运行记录（坏行跳过） */
@@ -306,13 +339,14 @@ export async function safeRemoveTempDir(input: { root: string; target: string })
   const rel = relative(realRoot, realTarget)
   if (rel.startsWith("..") || isAbsolute(rel)) return { removed: false, reason: "outside-root" }
   // rmSync 不跟随目录内符号链接（删除链接本身），目标已在根下由上方 realpath 校验
-  const bun = (globalThis as { Bun?: { gc?: (sync?: boolean) => void } }).Bun
+  const bun = typeof globalThis === "object" ? Reflect.get(globalThis, "Bun") : undefined
+  const bunGC = typeof bun === "object" && bun !== null ? Reflect.get(bun, "gc") : undefined
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
       rmSync(input.target, { recursive: true, force: true })
       return { removed: true }
     } catch {
-      bun?.gc?.(true)
+      if (typeof bunGC === "function") bunGC.call(bun, true)
       await new Promise((resolve) => setTimeout(resolve, 40))
     }
   }

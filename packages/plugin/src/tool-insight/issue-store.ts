@@ -21,7 +21,7 @@ import {
   toolInsightRunPath,
   type ToolInsightPaths,
 } from "@opennovel-ai/novel-store"
-import { redactSummary, type ToolInsightEvidenceKind } from "./evidence.js"
+import { isRecord, redactSummary, type ToolInsightEvidenceKind } from "./evidence.js"
 import { toolInsightLockKey, appendJsonlLocked, appendJsonlUnderLock, type AppendJsonlResult } from "./evidence-store.js"
 import { runExclusive } from "./locks.js"
 import {
@@ -459,6 +459,24 @@ export function renderCaseDoc(meta: ToolInsightCaseMeta, sections: ToolInsightCa
 
 export type ParsedCaseDoc = { error: "corrupt" } | { error?: undefined; meta: ToolInsightCaseMeta; body: string }
 
+function isCaseMeta(value: unknown): value is ToolInsightCaseMeta {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.format === "number" &&
+    typeof value.case_id === "string" &&
+    typeof value.fingerprint === "string" &&
+    typeof value.tool === "string" &&
+    typeof value.scenario === "string" &&
+    Array.isArray(value.whitelist) &&
+    value.whitelist.every((tool) => typeof tool === "string") &&
+    isRecord(value.model) &&
+    (value.model.providerID === undefined || typeof value.model.providerID === "string") &&
+    (value.model.modelID === undefined || typeof value.model.modelID === "string") &&
+    typeof value.fix_version === "string" &&
+    typeof value.created_at === "string"
+  )
+}
+
 export function parseCaseDoc(text: string): ParsedCaseDoc {
   if (!text.startsWith("---\n")) return { error: "corrupt" }
   const end = text.indexOf("\n---\n", 4)
@@ -469,12 +487,8 @@ export function parseCaseDoc(text: string): ParsedCaseDoc {
   } catch {
     return { error: "corrupt" }
   }
-  if (meta === null || typeof meta !== "object") return { error: "corrupt" }
-  const record = meta as Record<string, unknown>
-  if (typeof record.case_id !== "string" || typeof record.fingerprint !== "string" || !Array.isArray(record.whitelist)) {
-    return { error: "corrupt" }
-  }
-  return { meta: meta as ToolInsightCaseMeta, body: text.slice(end + 5) }
+  if (!isCaseMeta(meta)) return { error: "corrupt" }
+  return { meta, body: text.slice(end + 5) }
 }
 
 /** 案例文档在 document 锁内原子替换，崩溃后保留旧案例 */

@@ -8,7 +8,6 @@
  */
 import { describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs"
-import { tmpdir } from "os"
 import { dirname, join, relative } from "path"
 import { createHash } from "node:crypto"
 import { eq } from "drizzle-orm"

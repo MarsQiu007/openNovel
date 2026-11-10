@@ -11,7 +11,9 @@ const model = new Model({
   route: OpenAIChat.route,
 })
 
+// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试假体：Schema class 与 Decoder 接口的类型错位是有意断言
 const decodeLLMRequest = Schema.decodeUnknownSync(LLMRequest as unknown as Schema.Decoder<LLMRequest>)
+// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试假体：Schema class 与 Decoder 接口的类型错位是有意断言
 const decodeLLMEvent = Schema.decodeUnknownSync(LLMEvent as unknown as Schema.Decoder<LLMEvent>)
 
 describe("llm schema", () => {

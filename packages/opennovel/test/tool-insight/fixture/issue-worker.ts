@@ -7,7 +7,7 @@ import { toolInsightPaths } from "@opennovel-ai/novel-store"
 import { issueFingerprint } from "@opennovel-ai/plugin/tool-insight/issue-doc"
 import { ingestEvidenceIssue } from "@opennovel-ai/plugin/tool-insight/issue-store"
 
-const task = JSON.parse(process.argv[2]!) as {
+type Task = {
   logRoot: string
   workerID: string
   /** 证据/发生实例 ID 前缀：跨 worker 不同则各计一次，相同则按 ID 去重 */
@@ -15,6 +15,8 @@ const task = JSON.parse(process.argv[2]!) as {
   count: number
   facts: { tool: string; scenario: string; errorCategory: string }
 }
+
+const task: Task = JSON.parse(process.argv[2])
 
 const file = makeFileDomain()
 const paths = toolInsightPaths(task.logRoot)

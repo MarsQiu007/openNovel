@@ -153,6 +153,13 @@ export const make = (deps: Deps) =>
       }
       if ((input.parentID === undefined) === (input.directory === undefined))
         return yield* Effect.fail(new Error("后台会话位置来源必须二选一：parentID 或 directory"))
+      // 目录来源分支必须携带显式隔离目录：同一表达式内完成收窄，缺失即失败关闭
+      const directoryRef =
+        input.parentID === undefined && input.directory !== undefined
+          ? Location.Ref.make({ directory: AbsolutePath.make(input.directory) })
+          : undefined
+      if (input.parentID === undefined && directoryRef === undefined)
+        return yield* Effect.fail(new Error("后台会话缺少隔离目录"))
 
       const sessionID = SessionSchema.ID.create()
       // create 之前登记 purpose（tombstone 到进程退出），堵住早发事件与晚消费事件之间的采集窗口
@@ -178,7 +185,7 @@ export const make = (deps: Deps) =>
                     : Effect.succeed(info.location),
                 ),
               )
-            : Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) })
+            : directoryRef ?? (yield* Effect.fail(new Error("后台会话缺少隔离目录")))
 
         // retest 隔离作用域准备（任务 5.3/5.4）：先逐个有界等待 config 声明的前置插件
         // 在临时 Location 激活（PluginV2.wait 事件驱动，无固定 sleep；插件装载失败或
@@ -275,7 +282,7 @@ export const make = (deps: Deps) =>
             id: sessionID,
             ...(input.parentID !== undefined
               ? { parentID: SessionSchema.ID.make(input.parentID) }
-              : { location: Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) }) }),
+              : { location: directoryRef ?? (yield* Effect.fail(new Error("后台会话缺少隔离目录"))) }),
             agent: AgentV2.ID.make(input.agent),
             ...(fixedModel === undefined
               ? {}

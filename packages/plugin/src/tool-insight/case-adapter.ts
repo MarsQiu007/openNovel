@@ -100,7 +100,7 @@ const listChaptersAdapter: ToolInsightCaseAdapter = {
   verify: async ({ directory }) => {
     try {
       const db = getDb(directory)
-      const rows = await db
+      const rows = db
         .select({ id: ChapterTable.id, title: ChapterTable.title, content: ChapterTable.content })
         .from(ChapterTable)
         .where(eq(ChapterTable.novel_id, FIXTURE_NOVEL_ID))
@@ -141,7 +141,7 @@ const readChapterAdapter: ToolInsightCaseAdapter = {
   verify: async ({ directory }) => {
     try {
       const db = getDb(directory)
-      const rows = await db
+      const rows = db
         .select({ title: ChapterTable.title, content: ChapterTable.content })
         .from(ChapterTable)
         .where(eq(ChapterTable.id, FIXTURE_CHAPTER_1_ID))
@@ -179,7 +179,7 @@ const updateChapterAdapter: ToolInsightCaseAdapter = {
   verify: async ({ directory }) => {
     try {
       const db = getDb(directory)
-      const rows = await db
+      const rows = db
         .select({ title: ChapterTable.title, content: ChapterTable.content })
         .from(ChapterTable)
         .where(eq(ChapterTable.id, FIXTURE_CHAPTER_1_ID))
@@ -313,7 +313,8 @@ export function prepareToolInsightCase(input: PrepareToolInsightCaseInput): Prep
 async function seedFixture(directory: string, fixture: ToolInsightCaseFixture): Promise<void> {
   const db = getDb(directory)
   const now = Date.now()
-  await db
+  // bun:sqlite 驱动下 drizzle 写入链是同步的，无需 await
+  db
     .insert(NovelTable)
     .values({
       id: fixture.novel_id,
@@ -326,7 +327,7 @@ async function seedFixture(directory: string, fixture: ToolInsightCaseFixture): 
     })
     .run()
   for (const [index, chapter] of fixture.chapters.entries()) {
-    await db
+    db
       .insert(ChapterTable)
       .values({
         id: chapter.id,

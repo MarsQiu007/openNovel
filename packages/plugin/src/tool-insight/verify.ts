@@ -35,9 +35,6 @@ export interface ToolInsightVerifyAdapter {
   verify(input: { directory: string; identifiers: Record<string, string> }): Promise<ToolInsightVerifyResult>
 }
 
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
-
 const scalarString = (value: unknown): string | undefined => {
   if (typeof value === "string" && value.trim() !== "") return value
   if (typeof value === "number" && Number.isFinite(value)) return String(value)
@@ -58,10 +55,11 @@ function chapterVerify(kind: "created" | "revised" | "updated"): ToolInsightVeri
       if (chapterID === undefined) return { status: "unverified", detail: "缺少章节标识" }
       try {
         const db = getDb(directory)
-        const rows = await db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).limit(1).all()
+        // bun:sqlite 驱动下 drizzle 查询链是同步的，无需 await
+        const rows = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).limit(1).all()
         const chapter = rows[0]
         if (!chapter) return { status: "verified_failure", detail: `章节 ${chapterID.slice(0, 8)} 不存在于本地书籍状态` }
-        const versions = await db
+        const versions = db
           .select({ version: ChapterVersionTable.version })
           .from(ChapterVersionTable)
           .where(eq(ChapterVersionTable.chapter_id, chapterID))
@@ -95,7 +93,7 @@ const reviewVerify: ToolInsightVerifyAdapter = {
     if (chapterID === undefined) return { status: "unverified", detail: "缺少章节标识" }
     try {
       const db = getDb(directory)
-      const rows = await db
+      const rows = db
         .select({ round: ChapterReviewTable.round })
         .from(ChapterReviewTable)
         .where(eq(ChapterReviewTable.chapter_id, chapterID))
@@ -125,12 +123,9 @@ const settingAcceptVerify: ToolInsightVerifyAdapter = {
     try {
       const db = getDb(directory)
       const found =
-        (await db.select({ id: CharacterTable.id }).from(CharacterTable).where(eq(CharacterTable.id, createdID)).limit(1).all()).length >
-        0 ||
-        (await db.select({ id: WorldEntryTable.id }).from(WorldEntryTable).where(eq(WorldEntryTable.id, createdID)).limit(1).all()).length >
-        0 ||
-        (await db.select({ id: RelationshipTable.id }).from(RelationshipTable).where(eq(RelationshipTable.id, createdID)).limit(1).all()).length >
-        0
+        db.select({ id: CharacterTable.id }).from(CharacterTable).where(eq(CharacterTable.id, createdID)).limit(1).all().length > 0 ||
+        db.select({ id: WorldEntryTable.id }).from(WorldEntryTable).where(eq(WorldEntryTable.id, createdID)).limit(1).all().length > 0 ||
+        db.select({ id: RelationshipTable.id }).from(RelationshipTable).where(eq(RelationshipTable.id, createdID)).limit(1).all().length > 0
       if (!found) return { status: "verified_failure", detail: "入库标识未出现在任何设定正式表" }
       return { status: "verified_success", detail: `设定已落库（${identifiers.candidate_type ?? "unknown"}）` }
     } catch (error) {

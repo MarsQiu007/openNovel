@@ -109,10 +109,11 @@ describe("repairToolInsightTail", () => {
     expect(readdirSync(paths.recoveryDir)).toHaveLength(1)
 
     appendToolInsightJsonl(paths.evidence, [{ id: "evi_c" }])
-    expect(readToolInsightJsonl(paths.evidence).entries.map((entry) => (entry as { id: string }).id)).toEqual([
-      "evi_a",
-      "evi_c",
-    ])
+    expect(
+      readToolInsightJsonl(paths.evidence).entries.map((entry) =>
+        typeof entry === "object" && entry !== null ? Reflect.get(entry, "id") : undefined,
+      ),
+    ).toEqual(["evi_a", "evi_c"])
   })
 
   test("无撕裂时修复为幂等 no-op", () => {

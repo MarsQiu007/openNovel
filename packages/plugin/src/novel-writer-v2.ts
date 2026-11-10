@@ -119,7 +119,7 @@ export function registerWritingAgents(draft: AgentDraft) {
       item.system = agent.prompt
       item.permissions.push(...ruleset(agent.permission))
       // 内部归因器（hidden: true）不出现在用户可选列表
-      item.hidden = "hidden" in agent ? agent.hidden === true : false
+      item.hidden = "hidden" in agent ? agent.hidden : false
     })
   }
   draft.default("director")

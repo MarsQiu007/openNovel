@@ -9,7 +9,7 @@
  * 模型文本中的围栏或标题只是普通字符，无法逃出段落边界修改 frontmatter 或其他段落。
  */
 import { createHash } from "node:crypto"
-import type { ToolInsightEvidenceKind } from "./evidence.js"
+import { isRecord, type ToolInsightEvidenceKind } from "./evidence.js"
 
 export interface ToolInsightFingerprintInput {
   /** 规范化工具名；无工具问题为空串 */
@@ -147,15 +147,14 @@ export function renderIssueDoc(meta: ToolInsightIssueMeta, sections: IssueSectio
 export type ParsedIssueDoc = { error: "corrupt" } | { error?: undefined; meta: ToolInsightIssueMeta; sections: IssueSections }
 
 function isIssueMeta(value: unknown): value is ToolInsightIssueMeta {
-  if (value === null || typeof value !== "object") return false
-  const record = value as Record<string, unknown>
+  if (!isRecord(value)) return false
   return (
-    typeof record.fingerprint === "string" &&
-    typeof record.title === "string" &&
-    typeof record.occurrence_count === "number" &&
-    Array.isArray(record.evidence_ids) &&
-    Array.isArray(record.pending_evidence_ids) &&
-    Array.isArray(record.organized_evidence_ids)
+    typeof value.fingerprint === "string" &&
+    typeof value.title === "string" &&
+    typeof value.occurrence_count === "number" &&
+    Array.isArray(value.evidence_ids) &&
+    Array.isArray(value.pending_evidence_ids) &&
+    Array.isArray(value.organized_evidence_ids)
   )
 }
 
@@ -176,8 +175,10 @@ export function parseIssueDoc(text: string): ParsedIssueDoc {
   const sections: IssueSections = {}
   let current: string | null = null
   let buffer: string[] = []
+  const isIssueSectionTitle = (value: string): value is IssueSectionTitle => (ISSUE_SECTION_TITLES as readonly string[]).includes(value)
   const flush = () => {
-    if (current !== null) sections[current as IssueSectionTitle] = buffer.join("\n").trim()
+    // 未知标题段落不属于规范段落，渲染时只按已知标题读取，跳过即可
+    if (current !== null && isIssueSectionTitle(current)) sections[current] = buffer.join("\n").trim()
   }
   for (const line of body.split("\n")) {
     const heading = /^## (.+)$/.exec(line)

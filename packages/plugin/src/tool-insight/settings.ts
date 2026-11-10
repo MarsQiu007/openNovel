@@ -17,6 +17,7 @@
 import { createHash } from "node:crypto"
 import path from "node:path"
 import { parse, type ParseError } from "jsonc-parser"
+import { isRecord } from "./evidence.js"
 
 export interface ToolInsightSetting {
   enabled: boolean
@@ -54,33 +55,31 @@ export function resolveToolInsightSetting(files: ToolInsightConfigFile[]): ToolI
     const problems: ParseError[] = []
     // 与宿主 ConfigParse.jsonc 一致：允许尾逗号，避免宿主可接受的文件被窄解析器误判语法错误
     const parsed = parse(file.text, problems, { allowTrailingComma: true }) as unknown
-    if (problems.length > 0 || parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    if (problems.length > 0 || !isRecord(parsed)) {
       warnings.push(`${file.name} 无法解析为配置对象，toolInsight 本次按未启用处理`)
       declared = false
       break
     }
-    const record = parsed as Record<string, unknown>
-    if (!("toolInsight" in record)) continue
-    const raw = record.toolInsight
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    if (!("toolInsight" in parsed)) continue
+    const raw = parsed.toolInsight
+    if (!isRecord(raw)) {
       warnings.push(`${file.name} 的 toolInsight 字段必须是对象，本次按未启用处理`)
       declared = false
       break
     }
-    const fields = raw as Record<string, unknown>
-    if (typeof fields.enabled !== "boolean") {
+    if (typeof raw.enabled !== "boolean") {
       warnings.push(`${file.name} 的 toolInsight.enabled 必须是布尔值，本次按未启用处理`)
       declared = false
       break
     }
-    const rawDirectory = fields.directory
+    const rawDirectory = raw.directory
     if (rawDirectory !== undefined && typeof rawDirectory !== "string") {
       warnings.push(`${file.name} 的 toolInsight.directory 必须是字符串，本次按未启用处理`)
       declared = false
       break
     }
     // 高优先级文件的完整声明整体覆盖低优先级文件，不做字段级合并
-    setting = { enabled: fields.enabled, directory: normalizeDirectory(rawDirectory) }
+    setting = { enabled: raw.enabled, directory: normalizeDirectory(rawDirectory) }
     declared = true
   }
 

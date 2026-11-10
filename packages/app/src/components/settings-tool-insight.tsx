@@ -7,7 +7,7 @@
  * toolInsight 是深合并，缺键会保留旧值，空串经窄解析器归一为「使用默认位置」。
  * 组件文案按仓库约束使用内联简体中文，不改动 i18n locale 文件。
  */
-import { type Component, type JSX, createMemo, createSignal, Show } from "solid-js"
+import { type Component, type JSX, createMemo, createSignal } from "solid-js"
 import { Switch } from "@opennovel-ai/ui/switch"
 import { TextField } from "@opennovel-ai/ui/text-field"
 import { Button } from "@opennovel-ai/ui/button"
@@ -22,9 +22,12 @@ import { SettingsListV2 } from "./settings-v2/parts/list"
 import { SettingsRowV2 } from "./settings-v2/parts/row"
 
 function describeError(error: unknown): string {
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const message = (error as { data?: { message?: unknown } }).data?.message
-    if (typeof message === "string") return message
+  if (typeof error === "object" && error !== null) {
+    const message = Reflect.get(error, "data")
+    if (typeof message === "object" && message !== null) {
+      const text = Reflect.get(message, "message")
+      if (typeof text === "string") return text
+    }
   }
   if (error instanceof Error) return error.message
   return String(error)

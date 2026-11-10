@@ -15,7 +15,6 @@ import {
   parseCaseDoc,
   readRunRecords,
   recordOrganizeFailure,
-  renderCaseDoc,
   writeToolInsightCaseDoc,
   type IngestIssueInput,
 } from "@opennovel-ai/plugin/tool-insight/issue-store"

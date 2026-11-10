@@ -168,6 +168,7 @@ describe("夹具写入与真实结果核验", () => {
     await withTempProject("list-chapters", async (directory) => {
       const adapter = findToolInsightCaseAdapter("list_chapters", "recovery_failed")!
       await adapter.seed({ directory })
+      // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().resolves 返回 Promise，类型感知误判
       await expect(adapter.verify({ directory })).resolves.toEqual({
         status: "verified_success",
         detail: expect.stringContaining("2 条章节"),

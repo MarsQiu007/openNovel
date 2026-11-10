@@ -97,6 +97,7 @@ export function fakeSession(behavior: RunBehavior) {
   return { session, inputs }
 }
 
+// oxlint-disable-next-line typescript-eslint/no-redundant-type-constituents -- oxlint 无法解析跨包子模块类型，误判 BackgroundSessionAuthorization 为 error 类型
 export function makeConfirm(behavior?: (input: ConfirmRetestInput) => BackgroundSessionAuthorization | undefined) {
   const calls: ConfirmRetestInput[] = []
   const confirm: NonNullable<ToolContext["confirm"]> = async (input) => {
@@ -112,6 +113,7 @@ export function makeRetest(deps: {
   session: Pick<SessionDomain, "startBackground">
   defaultModel?: () => Promise<{ providerID: string; modelID: string } | undefined>
 }): ToolInsightRetest {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试 stub：PluginContext 大接口仅需 file/paths/event/catalog 四个成员
   const ctx = {
     file,
     paths: { config: deps.configDir },

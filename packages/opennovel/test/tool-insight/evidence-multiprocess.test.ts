@@ -15,6 +15,10 @@ const workerPath = join(import.meta.dir, "fixture", "evidence-worker.ts")
 
 type WorkerSummary = { workerID: string; appended: number; outcomes: Record<string, number> }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
 async function runWorker(task: Record<string, unknown>): Promise<WorkerSummary> {
   const proc = Bun.spawn([process.execPath, workerPath, JSON.stringify(task)], {
     stdout: "pipe",
@@ -27,7 +31,8 @@ async function runWorker(task: Record<string, unknown>): Promise<WorkerSummary> 
   ])
   if (exitCode !== 0) throw new Error(`worker failed (${exitCode}): ${stderr}`)
   const lines = stdout.trim().split("\n")
-  return JSON.parse(lines[lines.length - 1]!) as WorkerSummary
+  const summary: WorkerSummary = JSON.parse(lines[lines.length - 1])
+  return summary
 }
 
 function fixtureRoot() {
@@ -72,7 +77,8 @@ describe("多进程证据写入（真实 Flock 跨进程）", () => {
         ])
         const read = readToolInsightJsonl(paths.evidence)
         expect(read.entries).toHaveLength(13)
-        expect((read.entries[0] as { id: string }).id).toBe("history-1")
+        const first = read.entries[0]
+        expect(isRecord(first) && first.id).toBe("history-1")
         expect(read.corruptLines).toBe(0)
         expect(read.tailIncomplete).toBe(false)
         expect(readdirSync(paths.recoveryDir)).toHaveLength(1)

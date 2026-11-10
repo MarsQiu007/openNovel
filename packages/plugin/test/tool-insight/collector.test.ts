@@ -166,9 +166,12 @@ describe("事件证据采集器（任务 3.1）", () => {
 
       const { entries } = readEvidence(logRoot, projectDir)
       expect(entries).toHaveLength(2)
-      const [a, b] = entries as [{ id: string; occurrenceID?: string }, { id: string; occurrenceID?: string }]
-      expect(a.id).not.toBe(b.id)
-      expect(a.occurrenceID).toBe(b.occurrenceID)
+      const a = entries[0]
+      const b = entries[1]
+      const idOf = (value: unknown): unknown => (typeof value === "object" && value !== null ? Reflect.get(value, "id") : undefined)
+      const occurrenceOf = (value: unknown): unknown => (typeof value === "object" && value !== null ? Reflect.get(value, "occurrenceID") : undefined)
+      expect(idOf(a)).not.toBe(idOf(b))
+      expect(occurrenceOf(a)).toBe(occurrenceOf(b))
       const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "NotFoundError" })
       expect(readIssueMeta(logRoot, projectDir, fingerprint).meta.occurrence_count).toBe(1)
     } finally {

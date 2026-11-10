@@ -225,6 +225,7 @@ function withStandardProject<A, E>(
 // V2 catalog 只认 ConfigV2 provider 形状（api/request）；V1 的 npm/options 字段
 // 在解析时被丢弃，provider 永远不会进入 catalog.available。
 function testProviderConfigV2(llmUrl: string) {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 有意写入 ConfigV2 形状的 provider 文件：V1 解析应丢弃 npm/options 字段，类型错位是测试意图
   return {
     formatter: false,
     lsp: false,

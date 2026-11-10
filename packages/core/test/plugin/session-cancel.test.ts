@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { LLMClient, LLMError, LLMEvent, Model, type LLMClientShape, type LLMRequest } from "@opennovel-ai/llm"
+import { LLMClient, LLMError, LLMEvent, Model, type LLMRequest } from "@opennovel-ai/llm"
 import * as OpenAIChat from "@opennovel-ai/llm/protocols/openai-chat"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Catalog } from "@opennovel-ai/core/catalog"
@@ -50,7 +50,7 @@ const client = Layer.succeed(
   LLMClient.Service,
   LLMClient.Service.of({
     prepare: () => Effect.die("unused"),
-    stream: ((request: LLMRequest) => {
+    stream: (request: LLMRequest) => {
       requests.push(request)
       if (responseStream) {
         const stream = responseStream
@@ -58,7 +58,7 @@ const client = Layer.succeed(
         return stream
       }
       return Stream.fromIterable(response)
-    }) as unknown as LLMClientShape["stream"],
+    },
     generate: () => Effect.die("unused"),
   }),
 )
@@ -219,8 +219,8 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
         }),
       )
       const selection = yield* agents.select(AgentV2.ID.make("build"))
-      if (selection.info === undefined) return yield* Effect.die("build agent 未就绪")
-      const expectedTools = (yield* registry.materialize(selection.info.permissions)).definitions.map(
+      const selectionInfo = selection.info ?? (yield* Effect.die("build agent 未就绪"))
+      const expectedTools = (yield* registry.materialize(selectionInfo.permissions)).definitions.map(
         (definition) => definition.name,
       )
 
@@ -246,10 +246,11 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
         // catalog 替身恒提供一个受支持的默认模型，满足 organize 模型固定段；
         // PluginV2 替身恒 die：用例未传 requiredPlugins，走到插件等待即偏离预期
         withinLocation: (ref, precheck) => {
+          // catalog 替身只消费 id/名称做解析比对；api 必须满足 supported() 预检，empty 默认 api 不满足
           const defaultModel = {
             ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
-            api: { id: "test-model", type: "aisdk", package: "@ai-sdk/anthropic" },
-          } as ModelV2.Info
+            api: { id: ModelV2.ID.make("test-model"), type: "aisdk" as const, package: "@ai-sdk/anthropic" as const },
+          }
           const catalog = Catalog.Service.of({
             transform: () => Effect.die("测试桩未实现的成员"),
             reload: () => Effect.die("测试桩未实现的成员"),

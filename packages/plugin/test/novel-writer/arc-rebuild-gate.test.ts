@@ -93,7 +93,8 @@ describe("backfill_story_arcs 删除确认门", () => {
     )
     expect(askCalls.length).toBe(0)
     expect(result).toMatchObject({ title: "backfill_story_arcs" })
-    const titles = arcTitles(await db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
+    // bun:sqlite 驱动下 drizzle 查询链是同步的，无需 await
+    const titles = arcTitles(db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
     expect(titles).toContain("新主线")
     expect(titles).toContain("旧主线")
   })
@@ -113,7 +114,8 @@ describe("backfill_story_arcs 删除确认门", () => {
     expect(askCalls[0].always).toEqual(["replace_all"])
     expect(askCalls[0].metadata).toMatchObject({ toolId: "backfill_story_arcs", mode: "replace_all", arcs_to_delete: 3 })
     expect(result).toMatchObject({ title: "backfill_story_arcs" })
-    const titles = arcTitles(await db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
+    // bun:sqlite 驱动下 drizzle 查询链是同步的，无需 await
+    const titles = arcTitles(db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
     expect(titles).toEqual(["新主线"])
   })
 
@@ -132,7 +134,8 @@ describe("backfill_story_arcs 删除确认门", () => {
     )
     expect(askCalls.length).toBe(1)
     expect(askCalls[0].metadata).toMatchObject({ mode: "replace_matching", arcs_to_delete: 1 })
-    const titles = arcTitles(await db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
+    // bun:sqlite 驱动下 drizzle 查询链是同步的，无需 await
+    const titles = arcTitles(db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
     expect(titles).toEqual(["九爷救赎弧", "旧主线", "林晚黑化弧"])
   })
 
@@ -146,7 +149,8 @@ describe("backfill_story_arcs 删除确认门", () => {
         }),
       ),
     ).rejects.toThrow("用户拒绝删除弧光")
-    const titles = arcTitles(await db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
+    // bun:sqlite 驱动下 drizzle 查询链是同步的，无需 await
+    const titles = arcTitles(db.select({ title: StoryArcTable.title }).from(StoryArcTable).all())
     expect(titles).toEqual(["九爷救赎弧", "旧主线", "林晚成长弧"])
   })
 

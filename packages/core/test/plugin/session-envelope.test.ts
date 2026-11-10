@@ -49,7 +49,7 @@ describe("PluginHost 事件信封 purpose 回填（任务 2.2）", () => {
             const probed = yield* Queue.poll(queue)
             attached = Option.isSome(probed)
           }
-          if (!attached) return yield* Effect.die("宿主事件订阅未附着")
+          if (!attached) yield* Effect.die("宿主事件订阅未附着")
           // 先发内部会话事件（早发方向），再发普通会话事件作对照
           yield* events.publish(SessionEvent.Created, { ...base, sessionID: internalID })
           yield* events.publish(SessionEvent.Created, { ...base, sessionID: plainID })

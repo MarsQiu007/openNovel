@@ -27,7 +27,8 @@ async function runWorker(task: Record<string, unknown>): Promise<WorkerSummary> 
   ])
   if (exitCode !== 0) throw new Error(`worker failed (${exitCode}): ${stderr}`)
   const lines = stdout.trim().split("\n")
-  return JSON.parse(lines[lines.length - 1]!) as WorkerSummary
+  const summary: WorkerSummary = JSON.parse(lines[lines.length - 1])
+  return summary
 }
 
 function fixtureRoot() {

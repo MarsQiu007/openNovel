@@ -28,6 +28,7 @@ import {
   deriveCallOccurrenceID,
   deriveEvidenceID,
   deriveTurnOccurrenceID,
+  isRecord,
   redactSummary,
   redactToolFailed,
   type ToolInsightEvidence,
@@ -247,7 +248,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record])
     if (!appended.appended) {
       warnOnce(warnings, `失败证据落盘未完成（${appended.reason}），本条跳过`)
-      return
+      return undefined
     }
     await ingestEvidenceIssue(ctx2.file, paths, {
       fingerprint: fingerprintHash,
@@ -384,7 +385,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       if (opened === undefined) return
       const projectID = projectBySession.get(properties.sessionID)
       if (projectID === undefined) return
-      const input = asRecord(properties.input)
+      const input = isRecord(properties.input) ? properties.input : {}
       const info: CallInfo = {
         tool: properties.tool,
         paramKeys: Object.keys(input).sort(),
@@ -410,7 +411,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       if (projectID === undefined) return
       const key = callKey(projectID, properties.sessionID, properties.callID)
       const info = callByKey.get(key)
-      const structured = asRecord(properties.structured)
+      const structured = isRecord(properties.structured) ? properties.structured : {}
       const turn = turnBySession.get(properties.sessionID)
       const tool = info?.tool ?? "unknown"
       turn?.calls.push({ callID: properties.callID, tool, status: "success", paramKeys: info?.paramKeys })
@@ -543,10 +544,6 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
   return state
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
-}
-
 /** 订阅全部相关事件并挂当前 scope：内部会话事件在任何状态更新前被过滤 */
 export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Effect<void, never, Scope.Scope> {
   const state = createCollectorState(input)
@@ -557,7 +554,9 @@ export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Eff
   const filterAndRun =
     <P>(handler: (properties: P, envelopeID: string) => Promise<void>) =>
     (event: { properties: P }) => {
-      const envelopeID = (event as { id?: string }).id ?? ""
+      // 宿主信封在公开形状外携带事件 ID：Reflect.get 安全读取，无需断言
+      const rawID = typeof event === "object" && event !== null ? Reflect.get(event, "id") : undefined
+      const envelopeID = typeof rawID === "string" ? rawID : ""
       return Effect.promise(() =>
         handler(event.properties, envelopeID).catch((error: unknown) => {
           console.warn("[tool-insight] 事件处理异常（已忽略）:", error)

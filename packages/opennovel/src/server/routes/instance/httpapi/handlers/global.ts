@@ -47,8 +47,8 @@ function semanticEqual(a: unknown, b: unknown): boolean {
     return a.every((item, index) => semanticEqual(item, b[index]))
   }
   if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false
-  const left = Object.entries(a as Record<string, unknown>).filter(([, value]) => value !== undefined)
-  const right = Object.entries(b as Record<string, unknown>).filter(([, value]) => value !== undefined)
+  const left = Object.entries(a).filter(([, value]) => value !== undefined)
+  const right = Object.entries(b).filter(([, value]) => value !== undefined)
   if (left.length !== right.length) return false
   const byKey = new Map(left)
   return right.every(([key, value]) => byKey.has(key) && semanticEqual(byKey.get(key), value))

@@ -24,8 +24,10 @@ const dieUnused = () => Effect.die("测试桩未实现的成员")
 
 const assistantMessage = (text: string) =>
   // 测试只需 finalText 能读到 type/content/text 形状，完整消息形状无需伪造
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试假体消息：完整 Schema 形状与被测逻辑无关
   ({ type: "assistant", content: [{ type: "text", id: "msg_text", text }] }) as unknown as SessionMessage.Message
 
+// oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试假体消息：完整 Schema 形状与被测逻辑无关
 const userMessage = (text: string) => ({ type: "user", text }) as unknown as SessionMessage.Message
 
 const fakeInfo = (id: string, parentID?: string) =>
@@ -113,12 +115,14 @@ const fakeWithinLocation = (
       }),
     register: dieUnused,
   })
+  // 目录 stub 只消费 id/providerID 做解析比对，api 等字段用 empty 默认值即可
   const defaultModel = over.withoutDefault
     ? undefined
     : (over.defaultModel ?? {
         ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
-        api: { id: "test-model", type: "aisdk", package: "@ai-sdk/anthropic" },
-      } as ModelV2.Info)
+        // api 必须满足 supported() 预检（aisdk 且 package 受支持），empty 默认 api 不满足
+        api: { id: ModelV2.ID.make("test-model"), type: "aisdk" as const, package: "@ai-sdk/anthropic" as const },
+      })
   const availableModels = over.available ?? (defaultModel === undefined ? [] : [defaultModel])
   const catalog = Catalog.Service.of({
     transform: dieUnused,
@@ -206,6 +210,7 @@ const inside = <A>(body: Effect.Effect<A, unknown, Scope.Scope>) => Effect.runPr
 describe("PluginSession 后台会话生命周期", () => {
   test("organize 携带非空工具集合在 create 前拒绝", async () => {
     const created: string[] = []
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -230,6 +235,7 @@ describe("PluginSession 后台会话生命周期", () => {
 
   test("retest 缺少宿主执行授权在 create 前拒绝", async () => {
     const created: string[] = []
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -255,6 +261,7 @@ describe("PluginSession 后台会话生命周期", () => {
 
   test("retest 缺少发起确认的原会话在 create 前拒绝（任务 5.2）", async () => {
     const created: string[] = []
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -315,6 +322,7 @@ describe("PluginSession 后台会话生命周期", () => {
     )
     expect(created).toHaveLength(1)
     // 次数已用尽：同授权再次发车在 create 前拒绝
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -357,6 +365,7 @@ describe("PluginSession 后台会话生命周期", () => {
       }),
     )
     // 另一插件复用同一授权（剩余次数仍在）被拒绝
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -374,6 +383,7 @@ describe("PluginSession 后台会话生命周期", () => {
       pluginID: "test-plugin",
       withinLocation: fakeWithinLocation([]),
     }
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {
@@ -382,6 +392,7 @@ describe("PluginSession 后台会话生命周期", () => {
         }),
       ),
     ).rejects.toThrow("二选一")
+    // oxlint-disable-next-line typescript-eslint/await-thenable -- bun:test 的 expect().rejects.toThrow 返回 Promise，类型感知误判
     await expect(
       inside(
         Effect.gen(function* () {

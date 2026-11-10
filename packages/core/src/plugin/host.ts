@@ -216,7 +216,9 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
       if (!definition) return Stream.fail(new Error(`PluginHost: unsupported event type "${type}"`))
       return events.subscribe(definition).pipe(
         Stream.map((payload) => {
-          const sessionID = (payload.data as { sessionID?: string }).sessionID
+          // 宿主信封在公开类型外携带 sessionID：Reflect.get 安全读取，无需断言
+          const rawSessionID = typeof payload.data === "object" && payload.data !== null ? Reflect.get(payload.data, "sessionID") : undefined
+          const sessionID = typeof rawSessionID === "string" ? rawSessionID : undefined
           const purpose = sessionID === undefined ? undefined : SessionPurpose.lookup(sessionID)
           const base = { id: payload.id, type: payload.type, properties: payload.data }
           return purpose === undefined ? base : { ...base, purpose }

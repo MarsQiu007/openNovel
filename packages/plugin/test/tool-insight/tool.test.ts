@@ -53,7 +53,8 @@ function cleanup(input: { configDir: string; logRoot: string; projectDir: string
 }
 
 function makeTool(configDir: string, enqueue: (fingerprint: string, sessionID?: string) => void = () => {}) {
-  return createToolInsightTool({ configDir, file, enqueue }) as unknown as ToolSpec<Record<string, unknown>, unknown>
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试桩：通用工具签名与入口实现的具体 input 泛型不同
+  return createToolInsightTool({ configDir, file, enqueue }) as unknown as ToolSpec<Record<string, unknown>>
 }
 
 function makeContext(projectDir: string): ToolContext {

@@ -402,8 +402,10 @@ export const prepare = <Body = unknown>(request: LLMRequest) =>
 export function stream(request: LLMRequest): Stream.Stream<LLMEvent, LLMError> {
   return Stream.unwrap(
     Effect.gen(function* () {
-      return (yield* Service).stream(request)
+      const client = yield* Service
+      return client.stream(request)
     }),
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- Stream.unwrap 把 yield 的 LLMClient 环境透传进流类型：公开签名声明为无环境契约，显式窄化
   ) as Stream.Stream<LLMEvent, LLMError>
 }
 

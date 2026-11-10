@@ -6,13 +6,15 @@ import { makeFileDomain } from "@opennovel-ai/core/plugin/file"
 import { toolInsightPaths } from "@opennovel-ai/novel-store"
 import { appendEvidenceUnderLock } from "@opennovel-ai/plugin/tool-insight/evidence-store"
 
-const task = JSON.parse(process.argv[2]!) as {
+type Task = {
   logRoot: string
   workerID: string
   batches: number
   recordsPerBatch: number
   timeoutMs?: number
 }
+
+const task: Task = JSON.parse(process.argv[2])
 
 const file = makeFileDomain()
 const paths = toolInsightPaths(task.logRoot)

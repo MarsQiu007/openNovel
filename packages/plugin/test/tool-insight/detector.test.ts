@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { DETECTION_CANDIDATES, detect, type TrajectoryCall } from "../../src/tool-insight/detector.js"
+import { DETECTION_CANDIDATES, detect, type DetectionKind, type TrajectoryCall } from "../../src/tool-insight/detector.js"
 import { issueFingerprint } from "../../src/tool-insight/issue-doc.js"
 
 const call = (overrides: Partial<TrajectoryCall> & { callID: string; tool: string; status: TrajectoryCall["status"] }): TrajectoryCall => ({
@@ -114,7 +114,7 @@ describe("轨迹检测六类分类（任务 3.2）", () => {
   })
 
   test("证据不足：主分类恒未确认且候选属于六类工具问题分类", () => {
-    for (const kind of Object.keys(DETECTION_CANDIDATES) as Array<keyof typeof DETECTION_CANDIDATES>) {
+    for (const kind of Object.keys(DETECTION_CANDIDATES).filter((candidate): candidate is DetectionKind => candidate in DETECTION_CANDIDATES)) {
       const result = detect({ trigger: { kind, tool: "t" } })
       expect(result.classification).toBe("unconfirmed")
       expect(result.confirmed).toBe(false)

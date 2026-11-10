@@ -68,8 +68,22 @@ function cleanup(input: { configDir: string; logRoot: string; projectDir: string
 }
 
 const fakeCtx = (configDir: string) =>
-  // oxlint-disable 记录：测试假件只用到 file 与 paths.config 两个域
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试假件只用到 file 与 paths.config 两个域
   ({ file, paths: { config: configDir }, event: {} }) as unknown as PluginContext
+
+const str = (value: unknown, key: string): string | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const got = Reflect.get(value, key)
+  return typeof got === "string" ? got : undefined
+}
+
+/** 测试数据里 issue 归属键的守卫读取：字段缺失返回 undefined（配合非空断言使用） */
+const issueFacts = (record: unknown): { tool: string; scenario: string; errorCategory: string } | undefined => {
+  const tool = str(record, "tool")
+  const scenario = str(record, "scenario")
+  const errorCategory = str(record, "errorCategory")
+  return tool === undefined || scenario === undefined || errorCategory === undefined ? undefined : { tool, scenario, errorCategory }
+}
 
 const ORGANIZE_OUTPUT = { hypotheses: "工具描述遗漏了必填参数说明", suggestions: "补充参数文档并在校验失败时提示", acceptance: "再次调用时不再出现同类 NotFoundError" }
 const success = (payload: unknown): BackgroundSessionResult => ({ status: "success", text: JSON.stringify(payload) })
@@ -146,7 +160,7 @@ describe("归因整理队列（任务 4.1）", () => {
         occurrenceID: first.occurrenceID!,
         evidenceKind: first.kind,
         occurredAt: first.ts,
-        facts: first.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(first.fields.issue)!,
       })
       const fake = fakeSession()
       const organizer = createToolInsightOrganizer({ ctx: fakeCtx(configDir), projectDirectory: projectDir, session: fake.session })
@@ -189,7 +203,7 @@ describe("归因整理队列（任务 4.1）", () => {
         occurrenceID: second.occurrenceID!,
         evidenceKind: second.kind,
         occurredAt: second.ts,
-        facts: second.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(second.fields.issue)!,
       })
       organizer.enqueue(fingerprint, "ses_user")
       await sleep()
@@ -212,7 +226,7 @@ describe("归因整理队列（任务 4.1）", () => {
       const failed = toolFailedEvidence()
       await appendEvidenceUnderLock(file, paths, [failed])
       const fingerprint = String(failed.fields.fingerprint)
-      const facts = failed.fields.issue as { tool: string; scenario: string; errorCategory: string }
+      const facts = issueFacts(failed.fields.issue)!
       await ingestEvidenceIssue(file, paths, {
         fingerprint,
         evidenceID: failed.id,
@@ -311,7 +325,7 @@ describe("归因整理队列（任务 4.1）", () => {
           occurrenceID: record.occurrenceID!,
           evidenceKind: record.kind,
           occurredAt: record.ts,
-          facts: record.fields.issue as { tool: string; scenario: string; errorCategory: string },
+          facts: issueFacts(record.fields.issue)!,
         })
         return fingerprint
       }
@@ -373,7 +387,7 @@ describe("归因整理队列（任务 4.1）", () => {
         occurrenceID: record.occurrenceID!,
         evidenceKind: record.kind,
         occurredAt: record.ts,
-        facts: record.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(record.fields.issue)!,
       })
       const fake = fakeSession()
       const organizer = createToolInsightOrganizer({ ctx: fakeCtx(configDir), projectDirectory: projectDir, session: fake.session })
@@ -403,7 +417,7 @@ describe("归因整理队列（任务 4.1）", () => {
         occurrenceID: record.occurrenceID!,
         evidenceKind: record.kind,
         occurredAt: record.ts,
-        facts: record.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(record.fields.issue)!,
       })
       const rejecting: Pick<SessionDomain, "startBackground"> = {
         startBackground: () => Promise.reject(new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型")),
@@ -472,7 +486,7 @@ describe("启动崩溃恢复（任务 4.2）", () => {
         occurrenceID: record.occurrenceID!,
         evidenceKind: record.kind,
         occurredAt: record.ts,
-        facts: record.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(record.fields.issue)!,
       })
       // 模拟已完成整理后 pending/organized 均被清空的崩溃残留
       await organizeUnderLock(file, paths, { fingerprint }, async () => ({ hypotheses: "旧假设", suggestions: "旧建议", acceptance: "旧标准" }))
@@ -546,7 +560,7 @@ describe("启动崩溃恢复（任务 4.2）", () => {
         occurrenceID: record.occurrenceID!,
         evidenceKind: record.kind,
         occurredAt: record.ts,
-        facts: record.fields.issue as { tool: string; scenario: string; errorCategory: string },
+        facts: issueFacts(record.fields.issue)!,
       })
       const fake = fakeSession()
       // organizer 绑定另一个目录：gate 按 projectDirectory 解析出不同日志根，本日志根不入队

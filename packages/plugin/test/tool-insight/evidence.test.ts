@@ -33,7 +33,7 @@ describe("createUlid", () => {
 
   test("时间前缀按给定毫秒编码，跨重启不重用", () => {
     const id = createUlid(1730000000000)
-    const restored = [...id.slice(0, 10)].reduce(
+    const restored = Array.from(id.slice(0, 10)).reduce(
       (acc, char) => acc * 32 + "0123456789ABCDEFGHJKMNPQRSTVWXYZ".indexOf(char),
       0,
     )

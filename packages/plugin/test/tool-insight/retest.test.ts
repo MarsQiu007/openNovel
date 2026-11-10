@@ -130,7 +130,7 @@ describe("run_retest：确认前的失败关闭", () => {
       expect(outcome.message).toContain("用户未确认执行")
 
       expect(calls).toHaveLength(1)
-      const asked = calls[0]!
+      const asked = calls[0]
       expect(asked.question).toContain("update_chapter")
       expect(asked.runs).toBe(2)
       expect(asked.fixVersion).toBe("0.1.27")

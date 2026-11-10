@@ -26,9 +26,10 @@ import {
   type ToolInsightPaths,
 } from "@opennovel-ai/novel-store"
 import {
+  isContentGrant,
+  isRecord,
   modelVisibleContent,
   type ToolInsightContentException,
-  type ToolInsightContentGrant,
   type ToolInsightEvidence,
 } from "./evidence.js"
 import { toolInsightLockKey } from "./evidence-store.js"
@@ -55,9 +56,8 @@ const OUTPUT_HINT = `只输出一个 JSON 对象（不要代码围栏，不要�
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 const isEvidenceRecord = (entry: unknown): entry is ToolInsightEvidence => {
-  if (typeof entry !== "object" || entry === null) return false
-  const shape = entry as Record<string, unknown>
-  return typeof shape.id === "string" && typeof shape.fields === "object" && shape.fields !== null
+  if (!isRecord(entry)) return false
+  return typeof entry.id === "string" && typeof entry.fields === "object" && entry.fields !== null
 }
 
 /** 证据行进入模型 prompt 前剥离片段本体与授权：未授权片段对模型不可见 */
@@ -79,7 +79,7 @@ const exceptionFromEvidence = (record: ToolInsightEvidence): ToolInsightContentE
     length: typeof fields.length === "number" ? fields.length : fields.text.length,
     retainedAt: typeof fields.retainedAt === "number" ? fields.retainedAt : record.ts,
     shareWarning: true,
-    grants: fields.grants as ToolInsightContentGrant[],
+    grants: fields.grants.filter(isContentGrant),
     text: fields.text,
   }
 }
@@ -87,12 +87,11 @@ const exceptionFromEvidence = (record: ToolInsightEvidence): ToolInsightContentE
 /** 孤儿摄取的建档事实：按证据的 issue 三元组重建；旧格式证据无归属键返回 undefined */
 const issueFactsOf = (record: ToolInsightEvidence): ToolInsightFingerprintInput | undefined => {
   const issue = record.fields.issue
-  if (typeof issue !== "object" || issue === null) return undefined
-  const shape = issue as Record<string, unknown>
-  if (typeof shape.tool !== "string" || typeof shape.scenario !== "string" || typeof shape.errorCategory !== "string") {
+  if (!isRecord(issue)) return undefined
+  if (typeof issue.tool !== "string" || typeof issue.scenario !== "string" || typeof issue.errorCategory !== "string") {
     return undefined
   }
-  return { tool: shape.tool, scenario: shape.scenario, errorCategory: shape.errorCategory }
+  return { tool: issue.tool, scenario: issue.scenario, errorCategory: issue.errorCategory }
 }
 
 /** organize 锁内构造归因 prompt：问题文档全文 + 本批证据 JSONL + 授权片段 + 输出格式 */
@@ -141,10 +140,9 @@ const parseOrganizerOutput = (text: string): { hypotheses: string; suggestions: 
   } catch {
     return undefined
   }
-  if (typeof parsed !== "object" || parsed === null) return undefined
-  const shape = parsed as Record<string, unknown>
+  if (typeof parsed !== "object" || parsed === null || !isRecord(parsed)) return undefined
   const read = (key: string) => {
-    const value = shape[key]
+    const value = parsed[key]
     return typeof value === "string" && value.trim().length > 0 ? value : undefined
   }
   const hypotheses = read("hypotheses")
