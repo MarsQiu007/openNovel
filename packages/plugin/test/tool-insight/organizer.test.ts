@@ -177,6 +177,7 @@ describe("归因整理队列（任务 4.1）", () => {
       expect(fake.inputs[0]?.mode).toBe("organize")
       expect(fake.inputs[0]?.agent).toBe("insight-organizer")
       expect(fake.inputs[0]?.expectedTools).toEqual([])
+      // 模型由宿主解析固定后随 create 传入，插件侧不解析
 
       release(success(ORGANIZE_OUTPUT))
       await sleep(50)
@@ -419,12 +420,18 @@ describe("归因整理队列（任务 4.1）", () => {
         occurredAt: record.ts,
         facts: issueFacts(record.fields.issue)!,
       })
+      let calls = 0
       const rejecting: Pick<SessionDomain, "startBackground"> = {
-        startBackground: () => Promise.reject(new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型")),
+        startBackground: () => {
+          calls++
+          return Promise.reject(new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型"))
+        },
       }
       const organizer = createToolInsightOrganizer({ ctx: fakeCtx(configDir), projectDirectory: projectDir, session: rejecting })
       organizer.enqueue(fingerprint, "ses_user")
       await sleep(50)
+      // 宿主 create 前解析失败以 startBackground reject 表达：未派生后台会话、pending 原样保留、失败状态落盘
+      expect(calls).toBe(1)
       const meta = readDoc(paths, fingerprint).meta
       expect(meta.organize_status).toBe("failed")
       expect(meta.organize_error).toContain("无已配置模型")

@@ -21,6 +21,7 @@ import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { PluginV2 } from "@opennovel-ai/core/plugin"
 import { Policy } from "@opennovel-ai/core/policy"
 import { Reference } from "@opennovel-ai/core/reference"
+import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { SkillV2 } from "@opennovel-ai/core/skill"
 import { SystemContextRegistry } from "@opennovel-ai/core/system-context/registry"
@@ -39,6 +40,10 @@ const npmLayer = Layer.succeed(
   }),
 )
 
+// SessionExecution 显式绑 noop（只读 durable、不调度）：recording 层环境的
+// fail-closed 语义由消费侧 serviceOption 探测缺服务实现；本 fixture 的宿主图
+// 会真实绑到 noop 实例，因此 PluginV2.node 新增的运行栈 unbound 依赖必须显式
+// 收口，否则 compile 报 Unbound layer node。
 export const PluginTestLayer = AppNodeBuilder.build(
   LayerNode.group([
     FileSystem.node,
@@ -73,5 +78,6 @@ export const PluginTestLayer = AppNodeBuilder.build(
   [
     [Location.node, tempLocationLayer],
     [Npm.node, npmLayer],
+    [SessionExecution.node, SessionExecution.noopLayer],
   ],
 )

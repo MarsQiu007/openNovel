@@ -66,11 +66,20 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const reference = yield* Reference.Service
   const sessions = yield* SessionStore.Service
   const skill = yield* SkillV2.Service
-  // SessionV2 运行栈惰性绑定：生产组合根（App/Location）全局可用；仅装配 recording 层的
-  // 测试环境保持原 R 不变，后台能力以 fail-closed 拒绝，不静默绕过
+  // SessionV2 运行栈惰性绑定：宿主图经 PluginV2.node 依赖声明送达（见 serve 组合根
+  // AppNodeBuilderV1.build 的 SessionExecution 绑定）；仅装配 recording 层的测试环境
+  // 保持原 R 不变，后台能力以 fail-closed 拒绝，不静默绕过
   const sessionV2 = yield* Effect.serviceOption(SessionV2.Service)
   const execution = yield* Effect.serviceOption(SessionExecution.Service)
   const locations = yield* Effect.serviceOption(LocationServiceMap.Service)
+  // 降级原因透出缺失服务：端上走查见到拒绝文本即可定位组合根断裂点
+  const runtimeMissing = Option.isNone(sessionV2)
+    ? "SessionV2"
+    : Option.isNone(execution)
+      ? "SessionExecution"
+      : Option.isNone(locations)
+        ? "LocationServiceMap"
+        : undefined
   // 复测确认走原会话的 QuestionV2：仅装配了 Question 层的环境注入 confirm，
   // 降级环境（recording 层测试）不注入，插件侧 confirm 为 undefined
   const questions = yield* Effect.serviceOption(QuestionV2.Service)
@@ -227,7 +236,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
     }) as Interface["event"]["subscribe"],
   }
 
-  const degraded = PluginSession.unavailable()
+  const degraded = PluginSession.unavailable(runtimeMissing)
   return {
     options: {},
     event,

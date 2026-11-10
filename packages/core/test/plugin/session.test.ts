@@ -116,6 +116,8 @@ const fakeWithinLocation = (
     register: dieUnused,
   })
   // 目录 stub 只消费 id/providerID 做解析比对，api 等字段用 empty 默认值即可
+  // withoutDefault 只去掉目录默认模型，可用集保留默认模型实例——organize 模型解析
+  // 段会随默认模型一并缺失（解析失败），而显式固定模型预检仍能在可用集内终检通过
   const defaultModel = over.withoutDefault
     ? undefined
     : (over.defaultModel ?? {
@@ -123,7 +125,11 @@ const fakeWithinLocation = (
         // api 必须满足 supported() 预检（aisdk 且 package 受支持），empty 默认 api 不满足
         api: { id: ModelV2.ID.make("test-model"), type: "aisdk" as const, package: "@ai-sdk/anthropic" as const },
       })
-  const availableModels = over.available ?? (defaultModel === undefined ? [] : [defaultModel])
+  const fallbackModel = defaultModel ?? {
+    ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
+    api: { id: ModelV2.ID.make("test-model"), type: "aisdk" as const, package: "@ai-sdk/anthropic" as const },
+  }
+  const availableModels = over.available ?? [fallbackModel]
   const catalog = Catalog.Service.of({
     transform: dieUnused,
     reload: dieUnused,
@@ -512,6 +518,93 @@ describe("PluginSession 后台会话生命周期", () => {
     const model = createdInputs[0]?.model
     expect(model && String(model.providerID)).toBe("test")
     expect(model && String(model.id)).toBe("test-model")
+  })
+
+  test("organize 发车前解析并固定模型：解析出的固定值随 create 传入（directory 来源）", async () => {
+    const createdInputs: Array<Parameters<SessionV2.Interface["create"]>[0]> = []
+    await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                createdInputs.push(input)
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("整理完成")]),
+          }),
+          execution: fakeExecution().service,
+          pluginID: "test-plugin",
+          withinLocation: fakeWithinLocation([]),
+        })
+        // producer 侧解析失败已下沉：organize 不带 model 入参时由 host 在目录作用域解析固定
+        const handle = yield* Effect.promise(() => domain.startBackground({ ...organizeInput(), model: undefined }))
+        return yield* Effect.promise(() => handle.done)
+      }),
+    )
+    expect(createdInputs).toHaveLength(1)
+    const model = createdInputs[0]?.model
+    expect(model && String(model.providerID)).toBe("test")
+    expect(model && String(model.id)).toBe("test-model")
+  })
+
+  test("organize 模型解析只依赖目录：即使目录默认模型不可用，显式固定模型的 organize 仍发车", async () => {
+    const createdInputs: Array<Parameters<SessionV2.Interface["create"]>[0]> = []
+    await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                createdInputs.push(input)
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("整理完成")]),
+          }),
+          execution: fakeExecution().service,
+          pluginID: "test-plugin",
+          // 目录默认模型缺失（withoutDefault），但 organize 显式固定模型在可用集内
+          withinLocation: fakeWithinLocation([], { withoutDefault: true }),
+        })
+        const handle = yield* Effect.promise(() =>
+          domain.startBackground(organizeInput({ model: { providerID: "test", modelID: "test-model" } })),
+        )
+        const result = yield* Effect.promise(() => handle.done)
+        expect(result).toEqual({ status: "success", text: "整理完成" })
+      }),
+    )
+    expect(createdInputs).toHaveLength(1)
+  })
+
+  test("retest 仍被授权约束：无授权时 organize 之外的 retest 在 create 前拒绝", async () => {
+    const created: string[] = []
+    await expect(
+      inside(
+        Effect.gen(function* () {
+          const domain = yield* PluginSession.make({
+            sessions: fakeSessions({
+              create: (input) =>
+                Effect.sync(() => {
+                  created.push(input.id ?? "ses_unspecified")
+                  return fakeInfo(input.id ?? "ses_unspecified")
+                }),
+            }),
+            execution: fakeExecution().service,
+            pluginID: "test-plugin",
+            withinLocation: fakeWithinLocation([]),
+          })
+          const { authorization: _dropped, ...input } = retestInput()
+          return yield* Effect.promise(() => domain.startBackground(input))
+        }),
+      ),
+    ).rejects.toThrow("缺少宿主执行授权")
+    expect(created).toEqual([])
   })
 
   test("等待父会话落定期间取消则不再 create", async () => {

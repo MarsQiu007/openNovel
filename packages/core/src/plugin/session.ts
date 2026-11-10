@@ -234,13 +234,33 @@ export const make = (deps: Deps) =>
           Effect.promise(() => Effect.runPromise(Scope.close(registrationScope, Exit.void)).catch(() => undefined))
 
         const rest = Effect.gen(function* () {
-        // create 前在目标 Location 上下文完成全部预检：agent 存在、实际工具集合与
-        // 预期精确一致（organize 要求空集）、organize 的模型固定与发车前一致性断言。
-        // 任何拒绝都发生在 create 之前，不派生 Session 资源。
-        // 模型固定语义：agent 定义的 model 提示优先，其次目录默认模型；现有解析在
-        // 指定模型不可用时会静默回退，因此固定值必须精确存在于可用集且受支持才放
-        // 行；无已配置模型或解析失败一律失败关闭，不隐式改用其他模型
+        // 模型固定语义：organize 在发车前解析并固定（agent 提示优先，其次目录默认），
+        // 固定值必须精确存在于目录可用集且受支持才放行；无已配置模型或解析失败一律
+        // 失败关闭，不隐式改用其他模型。解析下沉到目标 Location 目录作用域完成，
+        // 不依赖会话运行栈——后台能力缺失时 organize 仍可整理，retest 仍被授权拒绝
         let fixedModel = input.model
+        if (input.mode === "organize" && fixedModel === undefined) {
+          const resolved = yield* withinLocation(
+            targetRef,
+            Effect.gen(function* () {
+              const agents = yield* AgentV2.Service
+              const catalog = yield* Catalog.Service
+              const hint = (yield* agents.select(AgentV2.ID.make(input.agent))).info?.model
+              const fallback = hint ?? (yield* catalog.model.default())
+              if (fallback === undefined) return undefined
+              const available = yield* catalog.model.available()
+              const matched = available.find((model) => model.providerID === fallback.providerID && model.id === fallback.id)
+              if (matched === undefined || !SessionRunnerModel.supported(matched)) return undefined
+              return { providerID: fallback.providerID, modelID: fallback.id }
+            }),
+          )
+          if (resolved === undefined)
+            return yield* Effect.fail(new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型"))
+          fixedModel = resolved
+        }
+        // create 前在目标 Location 上下文完成预检：agent 存在、实际工具集合与
+        // 预期精确一致（organize 要求空集）、模型可用性终检。任何拒绝都发生在
+        // create 之前，不派生 Session 资源
         const rejected = yield* withinLocation(
           targetRef,
           Effect.gen(function* () {
@@ -253,17 +273,6 @@ export const make = (deps: Deps) =>
             const actual = materialization.definitions.map((definition) => definition.name)
             if (!sameToolSet(actual, input.expectedTools))
               return new Error(`后台会话工具集合不匹配: 预期 [${input.expectedTools.join(", ")}]，实际 [${actual.join(", ")}]`)
-            if (input.mode === "organize" && fixedModel === undefined) {
-              const hint = selection.info?.model
-              const fallback = hint ?? (yield* catalog.model.default())
-              if (fallback === undefined) return new Error("无已配置模型：后台整理保留 pending，不隐式改用其他模型")
-              const available = yield* catalog.model.available()
-              const matched = available.find((model) => model.providerID === fallback.providerID && model.id === fallback.id)
-              if (matched === undefined || !SessionRunnerModel.supported(matched))
-                return new Error(`已配置模型不可用: ${fallback.providerID}/${fallback.id}，发车前失败关闭以避免静默回退`)
-              fixedModel = { providerID: fallback.providerID, modelID: fallback.id }
-              return undefined
-            }
             if (fixedModel !== undefined) {
               const available = yield* catalog.model.available()
               const matched = available.find(
@@ -406,11 +415,16 @@ export const make = (deps: Deps) =>
 })
 
 /**
- * 宿主运行栈未绑定 SessionV2（如仅装配 recording 层的测试环境）时的显式降级：
- * fail-closed，直接拒绝后台能力，绝不静默绕过 purpose 限制。get 由宿主以
- * SessionStore 兜底提供。
+ * 宿主运行栈未绑定（如仅装配 recording 层的测试环境，或服务端组合根未把
+ * SessionExecution 送达插件层）时的显式降级：fail-closed，直接拒绝后台能力，
+ * 绝不静默绕过 purpose 限制。缺失服务的判定由调用方（PluginV2 层/host）给出并
+ * 拼进 reason——「未绑定 SessionV2 运行栈」是既有断言的稳定锚点，不得破坏。
+ * get 由宿主以 SessionStore 兜底提供。
  */
-export const unavailable = (): Background => ({
-  settled: () => Promise.reject(new Error("插件宿主未绑定 SessionV2 运行栈：settled 不可用")),
-  startBackground: () => Promise.reject(new Error("插件宿主未绑定 SessionV2 运行栈：startBackground 不可用")),
-})
+export const unavailable = (missing?: string): Background => {
+  const reason = missing === undefined ? "插件宿主未绑定 SessionV2 运行栈" : `插件宿主未绑定 SessionV2 运行栈（缺 ${missing}）`
+  return {
+    settled: () => Promise.reject(new Error(`${reason}：settled 不可用`)),
+    startBackground: () => Promise.reject(new Error(`${reason}：startBackground 不可用`)),
+  }
+}

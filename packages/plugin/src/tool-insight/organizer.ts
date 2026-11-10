@@ -222,6 +222,8 @@ export function createToolInsightOrganizer(input: {
     try {
       const outcome = await organizeUnderLock(ctx.file, paths, { fingerprint }, async (pendingIDs) => {
         const prompt = buildOrganizePrompt(paths, fingerprint, pendingIDs)
+        // 模型固定由宿主在 create 前完成（agent 提示→目录默认→可用性校验）：解析失败
+        // 即失败关闭并保留 pending，不隐式改用其他模型
         const handle = await session.startBackground({
           mode: "organize",
           agent: ORGANIZE_AGENT,
