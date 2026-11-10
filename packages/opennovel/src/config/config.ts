@@ -673,7 +673,11 @@ const layer = Layer.effect(
         next = merged
       } else {
         const updated = patchJsonc(before, patch)
-        next = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(updated, file), file)
+        // toolInsight 是全局配置的已声明扩展字段但不属于 ConfigV1.Info：写盘保留，
+        // 重新解析前剔除，避免 schema 未知键校验拒绝刚写入的字段
+        const parsed = ConfigParse.jsonc(updated, file)
+        const configOnly = isRecord(parsed) && "toolInsight" in parsed ? Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "toolInsight")) : parsed
+        next = ConfigParse.schema(ConfigV1.Info, configOnly, file)
         changed = updated !== before
         if (changed) yield* fs.writeFileString(file, updated).pipe(Effect.orDie)
       }
