@@ -105,7 +105,7 @@ describe("MoveSession", () => {
           .from(SessionTable)
           .where(eq(SessionTable.id, sessionID))
           .get(),
-      ).toEqual({ directory: moved, path: "" })
+      ).toEqual({ directory: moved.replaceAll("\\", "/"), path: "" })
     }),
   )
 
@@ -157,7 +157,7 @@ describe("MoveSession", () => {
           .from(SessionTable)
           .where(eq(SessionTable.id, sessionID))
           .get(),
-      ).toEqual({ directory: destination, path: "packages" })
+      ).toEqual({ directory: destination.replaceAll("\\", "/"), path: "packages" })
     }),
   )
 
