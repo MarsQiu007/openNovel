@@ -16,6 +16,7 @@ import { Location } from "./location"
 import { LocationServiceMap } from "./location-service-map"
 import { PermissionV2 } from "./permission"
 import { PluginHost } from "./plugin/host"
+import { QuestionV2 } from "./question"
 import { Reference } from "./reference"
 import { PluginSession } from "./plugin/session"
 import { SessionExecution } from "./session/execution"
@@ -44,8 +45,10 @@ const layer = Layer.effect(
     const events = yield* EventV2.Service
     const locks = KeyedMutex.makeUnsafe<ID>()
     const scope = yield* Scope.make()
-    // SessionV2 运行栈惰性绑定（与 host 同策略）：生产可用，测试环境缺绑定时 per-plugin
-    // 视图退化为 host.session（fail-closed 拒绝后台能力）
+    // SessionV2 运行栈惰性绑定（与 host 同策略）：宿主图显式声明 SessionV2/
+    // SessionExecution/LocationServiceMap 依赖（见 node deps），serve 组合根经
+    // app 组与 locationServiceMapV2 送达；仅装配 recording 层的测试环境缺绑定
+    // 时 per-plugin 视图退化为 host.session（fail-closed 拒绝后台能力）
     const sessionV2 = yield* Effect.serviceOption(SessionV2.Service)
     const execution = yield* Effect.serviceOption(SessionExecution.Service)
     const locations = yield* Effect.serviceOption(LocationServiceMap.Service)
@@ -183,9 +186,6 @@ export const locationLayer = layer.pipe(
   Layer.provideMerge(Reference.locationLayer),
 )
 
-// 显式注解读窄 node 静态类型（同 SessionV2.node 先例）：宿主 Session 域经 withinLocation
-// 回调引用 LocationServiceMap，其类型内嵌整棵位置树（含本 node）。注解让位置树别名在
-// 引用本 node 的循环点直接采用本类型，不再重入 layer 初始化式推导；运行时图不受影响。
 export const node: Node.LocationNode<Service> = makeLocationNode({
   service: Service,
   layer,
@@ -199,10 +199,19 @@ export const node: Node.LocationNode<Service> = makeLocationNode({
     Integration.node,
     Location.node,
     PermissionV2.node,
+    QuestionV2.node,
     Reference.node,
     SessionStore.node,
     SkillV2.node,
     SystemContextRegistry.node,
     ToolRegistry.toolsNode,
+    // 会话运行栈：host 的 SessionDomain（startBackground/settled）与 per-plugin 视图
+    // 都依赖它；声明为位置层依赖让 serve 组合根把它送达本层上下文。生产经
+    // AppNodeBuilderV1.build(app, [[SessionExecution.node, SessionExecutionLocal.node]])
+    // 在宿主图绑进程内实现；SessionExecution 在位置树内保持 unbound（进程内单例
+    // 不随 per-location 层物化，避免抢占宿主图对 unbound 绑定的物化权）。
+    LocationServiceMap.node,
+    SessionV2.node,
+    SessionExecution.node,
   ],
 })
