@@ -16,11 +16,19 @@ import type { SystemContextDomain } from "./system-context.js"
 import type { ToolHooks } from "./tool.js"
 import type { Reload } from "./registration.js"
 
+/**
+ * 目录默认模型只读面：复测案例准备必须在用户确认前解析模型（案例摘要覆盖模型
+ * 提供方/模型）。只暴露标识读取，不暴露目录改写。
+ */
+export interface CatalogModelReader {
+  readonly defaultModel: () => Promise<{ readonly providerID: string; readonly modelID: string } | undefined>
+}
+
 export interface PluginContext {
   readonly options: PluginOptions
   readonly agent: AgentHooks & Reload
   readonly aisdk: AISDKHooks
-  readonly catalog: CatalogHooks & Reload
+  readonly catalog: CatalogHooks & Reload & CatalogModelReader
   readonly command: CommandHooks & Reload
   readonly event: Event
   readonly file: FileDomain

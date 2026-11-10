@@ -33,6 +33,23 @@ export type AppendJsonlResult =
 export type AppendEvidenceResult = AppendJsonlResult
 
 /**
+ * 锁内追加序列本体：调用方必须已持有该文件的对应锁。供已有外层锁的编排
+ * （如 run 锁覆盖整个复测运行时追加 started/终态/对账标记）复用，避免同键重入。
+ */
+export function appendJsonlLocked(
+  paths: ToolInsightPaths,
+  input: { filePath: string; records: readonly unknown[] },
+): AppendJsonlResult {
+  const state = readToolInsightJsonl(input.filePath)
+  if (state.corruptLines > 0) return { appended: false, reason: "corrupt-middle", corruptLines: state.corruptLines }
+  if (state.tailIncomplete && !repairToolInsightTail(paths, input.filePath)) {
+    return { appended: false, reason: "repair-failed" }
+  }
+  appendToolInsightJsonl(input.filePath, input.records)
+  return { appended: true }
+}
+
+/**
  * 在指定锁内对单个 JSONL 文件执行「尾部检查—隔离—截断—追加」。锁不可用（超时/
  * 损坏）时不写且不绕过；中部损坏不写；撕裂尾部先隔离再截断后追加。追加本身的
  * IO 失败由 novel-store 降级为警告，不改变本次返回值（文件层责任在 novel-store）。
@@ -42,17 +59,9 @@ export async function appendJsonlUnderLock(
   paths: ToolInsightPaths,
   input: { key: string; filePath: string; records: readonly unknown[]; timeoutMs?: number },
 ): Promise<AppendJsonlResult> {
-  const outcome = await runExclusive(file, { dir: paths.locksDir, key: input.key, timeoutMs: input.timeoutMs }, async () => {
-    const state = readToolInsightJsonl(input.filePath)
-    if (state.corruptLines > 0) {
-      return { appended: false, reason: "corrupt-middle", corruptLines: state.corruptLines } as const
-    }
-    if (state.tailIncomplete && !repairToolInsightTail(paths, input.filePath)) {
-      return { appended: false, reason: "repair-failed" } as const
-    }
-    appendToolInsightJsonl(input.filePath, input.records)
-    return { appended: true } as const
-  })
+  const outcome = await runExclusive(file, { dir: paths.locksDir, key: input.key, timeoutMs: input.timeoutMs }, async () =>
+    appendJsonlLocked(paths, input),
+  )
   return outcome.ok ? outcome.value : { appended: false, reason: "lock-failed" }
 }
 

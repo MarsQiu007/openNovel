@@ -10,6 +10,9 @@
  * - record：记录一个新问题（无工具失败也可以，覆盖体验/流程问题）
  * - supplement：向既有问题追加反馈证据（按指纹定位，沿用原发生实例）
  * - reorganize：把既有问题全部证据放回 pending，交后台整理重新生成假设段落
+ * - prepare_retest：构造确定性复测案例并写案例文档（只预览，不确认不执行）
+ * - run_retest：系统确认后按 1–20 次在隔离临时项目中自动复测（编排引擎见 retest.ts）
+ * - record_manual_result：人工验证结论留痕（只展示，不计自动通过）
  *
  * 开关未启用时显式拒绝，不静默落盘。全部写入走跨进程锁与既有非阻断纪律。
  */
@@ -27,6 +30,7 @@ import {
 import { openToolInsightGate } from "./gate.js"
 import { issueFingerprint } from "./issue-doc.js"
 import { ingestEvidenceIssue, readIssueMeta, requestReorganize } from "./issue-store.js"
+import type { ToolInsightRetest } from "./retest.js"
 import type { FileDomain } from "../v2/effect/file.js"
 import { defineTool } from "../v2/effect/tool.js"
 
@@ -38,12 +42,15 @@ export function createToolInsightTool(deps: {
   file: Pick<FileDomain, "withLock">
   /** 落盘摄取成功后的整理信号：record/supplement/reorganize 都会触发后台归因队列 */
   enqueue: (fingerprint: string, sessionID?: string) => void
+  /** 隔离复测编排引擎（任务 5.2-5.4）：prepare_retest/run_retest/record_manual_result 委托给它 */
+  retest: ToolInsightRetest
 }) {  return defineTool({
     description:
-      "记录、补充或重新整理工具改进问题（工具改进日志）。action=record 记录新问题：无报错的繁琐操作、理解偏差、写作之外的交互问题都可以，feedback 描述用户目标与实际体验；正文片段必须用 content_exception 字段单独提交（显式同意本地保留），不能混入 feedback。action=supplement 按 fingerprint 向既有问题补充反馈，沿用原发生实例不增加出现次数，只有明确报告新一次发生时才传 new_occurrence=true。action=reorganize 按 fingerprint 触发重新整理：全部证据重新生成原因假设与改进建议。三个动作都不修改任何写作数据。",
+      "记录、补充或重新整理工具改进问题（工具改进日志）。action=record 记录新问题：无报错的繁琐操作、理解偏差、写作之外的交互问题都可以，feedback 描述用户目标与实际体验；正文片段必须用 content_exception 字段单独提交（显式同意本地保留），不能混入 feedback。action=supplement 按 fingerprint 向既有问题补充反馈，沿用原发生实例不增加出现次数，只有明确报告新一次发生时才传 new_occurrence=true。action=reorganize 按 fingerprint 触发重新整理：全部证据重新生成原因假设与改进建议。action=prepare_retest 按 fingerprint 准备确定性复测案例（只写案例文档预览，不确认不执行）。action=run_retest 按 fingerprint 在隔离临时项目中自动复测：runs 为 1–20 整数、fix_version 非空，执行前须经用户系统确认，未确认不执行任何事。action=record_manual_result 按 fingerprint 留痕人工验证结论（passed 与 fix_version 必填）。全部动作都不修改任何写作数据。",
     args: Schema.Struct({
-      action: Schema.Literals(["record", "supplement", "reorganize"]).annotate({
-        description: "record=记录新问题/supplement=补充既有问题/reorganize=重新整理既有问题",
+      action: Schema.Literals(["record", "supplement", "reorganize", "prepare_retest", "run_retest", "record_manual_result"]).annotate({
+        description:
+          "record=记录新问题/supplement=补充既有问题/reorganize=重新整理既有问题/prepare_retest=准备复测案例/run_retest=确认后隔离复测/record_manual_result=人工结果留痕",
       }),
       feedback: Schema.optional(
         Schema.String.annotate({ description: "普通反馈文本（会被脱敏截断保存）；正文片段禁止放这里" }),
@@ -54,10 +61,22 @@ export function createToolInsightTool(deps: {
         }),
       ),
       fingerprint: Schema.optional(
-        Schema.String.annotate({ description: "action=supplement/reorganize 时的问题指纹（index.md 或问题文档可查）" }),
+        Schema.String.annotate({ description: "supplement/reorganize/复测类动作所需的问题指纹（index.md 或问题文档可查）" }),
       ),
       new_occurrence: Schema.optional(
         Schema.Boolean.annotate({ description: "supplement 专用：仅当明确是又一次新发生时才传 true（会新增出现次数）" }),
+      ),
+      runs: Schema.optional(
+        Schema.Number.annotate({ description: "run_retest 专用：1–20 的整数运行次数" }),
+      ),
+      fix_version: Schema.optional(
+        Schema.String.annotate({ description: "run_retest/record_manual_result 专用：非空修复版本" }),
+      ),
+      passed: Schema.optional(
+        Schema.Boolean.annotate({ description: "record_manual_result 专用：人工验证是否通过" }),
+      ),
+      detail: Schema.optional(
+        Schema.String.annotate({ description: "record_manual_result 专用：人工验证说明（会脱敏截断保存）" }),
       ),
     }),
     async execute(args, ctx) {
@@ -78,6 +97,30 @@ export function createToolInsightTool(deps: {
       const paths = opened.paths
       const file = deps.file
       const ts = Date.now()
+
+      if (args.action === "prepare_retest" || args.action === "run_retest") {
+        const outcome =
+          args.action === "prepare_retest"
+            ? await deps.retest.prepareRetest({ fingerprint: args.fingerprint! })
+            : await deps.retest.runRetest({
+                fingerprint: args.fingerprint!,
+                runs: args.runs,
+                fixVersion: args.fix_version ?? "",
+                confirm: ctx.confirm,
+                sessionID: ctx.sessionID,
+              })
+        return { title: "tool_insight", output: outcome.message, ...(outcome.metadata === undefined ? {} : { metadata: outcome.metadata }) }
+      }
+
+      if (args.action === "record_manual_result") {
+        const outcome = await deps.retest.recordManual({
+          fingerprint: args.fingerprint!,
+          passed: args.passed === true,
+          fixVersion: args.fix_version ?? "",
+          detail: args.detail,
+        })
+        return { title: "tool_insight", output: outcome.message, ...(outcome.metadata === undefined ? {} : { metadata: outcome.metadata }) }
+      }
 
       if (args.action === "reorganize") {
         const result = await requestReorganize(file, paths, { fingerprint: args.fingerprint! })

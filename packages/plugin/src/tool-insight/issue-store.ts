@@ -22,7 +22,7 @@ import {
   type ToolInsightPaths,
 } from "@opennovel-ai/novel-store"
 import { redactSummary, type ToolInsightEvidenceKind } from "./evidence.js"
-import { toolInsightLockKey, appendJsonlUnderLock, type AppendJsonlResult } from "./evidence-store.js"
+import { toolInsightLockKey, appendJsonlLocked, appendJsonlUnderLock, type AppendJsonlResult } from "./evidence-store.js"
 import { runExclusive } from "./locks.js"
 import {
   createIssueMeta,
@@ -389,6 +389,14 @@ export async function appendRunRecords(
     records: input.records,
     timeoutMs: input.timeoutMs,
   })
+}
+
+/** 已持有 run:<fingerprint> 锁时的锁内追加（运行编排全程持锁，避免同键重入） */
+export function appendRunRecordsLocked(
+  paths: ToolInsightPaths,
+  input: { fingerprint: string; records: readonly unknown[] },
+): AppendJsonlResult {
+  return appendJsonlLocked(paths, { filePath: toolInsightRunPath(paths, input.fingerprint), records: input.records })
 }
 
 /** 读取某指纹的全部运行记录（原样透传 novel-store 的容错读取） */

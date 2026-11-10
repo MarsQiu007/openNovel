@@ -72,12 +72,14 @@ const layer = Layer.effect(
 
                 const child = yield* Scope.fork(scope)
                 // per-plugin Session 域视图：生命周期 fiber 与存活 handle 都挂在 child scope 上，
-                // 卸载/重载/关闭开关时经 finalizer 真实 cancel（含 execution.interrupt）
+                // 卸载/重载/关闭开关时经 finalizer 真实 cancel（含 execution.interrupt）。
+                // pluginID 注入 retest 授权消费：首次消费绑定请求插件，跨插件复用拒绝
                 const sessionView =
                   Option.isSome(sessionV2) && Option.isSome(execution) && Option.isSome(locations)
                     ? yield* PluginSession.make({
                         sessions: sessionV2.value,
                         execution: execution.value,
+                        pluginID: id as string,
                         withinLocation: PluginSession.withinLocationFrom(locations.value),
                       }).pipe(Effect.provideService(Scope.Scope, child))
                     : undefined

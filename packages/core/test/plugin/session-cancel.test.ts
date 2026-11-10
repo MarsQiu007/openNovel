@@ -10,6 +10,8 @@ import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNodePlatform } from "@opennovel-ai/core/effect/app-node-platform"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
+import { RetestAuthorization } from "@opennovel-ai/core/plugin/retest-authorization"
+import { PluginV2 } from "@opennovel-ai/core/plugin"
 import { Location } from "@opennovel-ai/core/location"
 import { ModelV2 } from "@opennovel-ai/core/model"
 import { PluginSession } from "@opennovel-ai/core/plugin/session"
@@ -237,8 +239,12 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
       const domain = yield* PluginSession.make({
         sessions: session,
         execution: exec,
+        pluginID: "test-plugin",
         // 单位置测试栈：Agent/Registry 服务本就在环境里，预检段直接提供；
         // catalog 替身恒提供一个受支持的默认模型，满足 organize 模型固定段
+        // 单位置测试栈：Agent/Registry 服务本就在环境里，预检段直接提供；
+        // catalog 替身恒提供一个受支持的默认模型，满足 organize 模型固定段；
+        // PluginV2 替身恒 die：用例未传 requiredPlugins，走到插件等待即偏离预期
         withinLocation: (ref, precheck) => {
           const defaultModel = {
             ...ModelV2.Info.empty(ProviderV2.ID.make("test"), ModelV2.ID.make("test-model")),
@@ -262,9 +268,24 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
               Layer.succeed(AgentV2.Service, agents),
               Layer.succeed(ToolRegistry.Service, registry),
               Layer.succeed(Catalog.Service, catalog),
+              Layer.succeed(
+                PluginV2.Service,
+                PluginV2.Service.of({
+                  add: () => Effect.die("测试桩未实现的成员"),
+                  remove: () => Effect.die("测试桩未实现的成员"),
+                  wait: () => Effect.die("测试桩未实现的成员"),
+                }),
+              ),
             ),
           )
         },
+      })
+      const issued = RetestAuthorization.issue({
+        sessionID: "ses_cancel_origin",
+        caseDigest: "digest",
+        runs: 2,
+        model: { providerID: "test", modelID: "test-model" },
+        expectedTools: [...expectedTools],
       })
       const handle = yield* Effect.promise(() =>
         domain.startBackground({
@@ -273,7 +294,9 @@ describe("PluginSession 全真栈取消（任务 2.3）", () => {
           prompt: "复测该问题",
           expectedTools,
           directory: "/project",
-          authorization: { id: "auth-cancel", caseDigest: "digest" },
+          originSessionID: "ses_cancel_origin",
+          model: { providerID: "test", modelID: "test-model" },
+          authorization: { id: issued.id, caseDigest: issued.caseDigest },
         }),
       )
       // 真实 drain 已开始消费 provider 流

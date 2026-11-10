@@ -3,6 +3,8 @@ export * as PluginHost from "./host"
 import type {
   AnyToolSpec,
   AskInput,
+  BackgroundSessionAuthorization,
+  ConfirmRetestInput,
   PluginContext as Interface,
   SystemContextSource,
   ToolEditor,
@@ -24,6 +26,8 @@ import { ModelV2 } from "../model"
 import { PermissionV2 } from "../permission"
 import { PluginV2 } from "../plugin"
 import { PluginFile } from "./file"
+import { QuestionV2 } from "../question"
+import { RetestAuthorization } from "./retest-authorization"
 import { PluginSession } from "./session"
 import { SessionPurpose } from "./session-purpose"
 import { ProviderV2 } from "../provider"
@@ -67,11 +71,15 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const sessionV2 = yield* Effect.serviceOption(SessionV2.Service)
   const execution = yield* Effect.serviceOption(SessionExecution.Service)
   const locations = yield* Effect.serviceOption(LocationServiceMap.Service)
+  // 复测确认走原会话的 QuestionV2：仅装配了 Question 层的环境注入 confirm，
+  // 降级环境（recording 层测试）不注入，插件侧 confirm 为 undefined
+  const questions = yield* Effect.serviceOption(QuestionV2.Service)
   const sessionFull =
     Option.isSome(sessionV2) && Option.isSome(execution) && Option.isSome(locations)
       ? yield* PluginSession.make({
           sessions: sessionV2.value,
           execution: execution.value,
+          pluginID: "host",
           withinLocation: PluginSession.withinLocationFrom(locations.value),
         })
       : undefined
@@ -94,6 +102,51 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
         Effect.catchTag("Session.NotFoundError", () => Effect.fail(new Error("Session not found"))),
       )
 
+  const CONFIRM_APPROVE_LABEL = "执行复测"
+  const CONFIRM_CANCEL_LABEL = "取消"
+
+  /**
+   * 系统复测确认（任务 5.2）：经 QuestionV2.ask 在原会话展示问题、运行次数、修复
+   * 版本与案例摘要，只提供执行/取消两个选项且不保存 always 权限。入参非法（次数
+   * 非 1–20 整数、修复版本或摘要为空、白名单为空）不弹确认直接拒绝；用户确认后
+   * 签发随机执行授权并登记绑定，取消/拒绝/未装配 Question 层返回 undefined。
+   */
+  const confirmRetest = (input: ConfirmRetestInput, context: Tool.Context): Promise<BackgroundSessionAuthorization | undefined> =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        if (!RetestAuthorization.validateConfirmInput(input)) return undefined
+        const questionService = Option.getOrUndefined(questions)
+        if (questionService === undefined) return undefined
+        const answers = yield* questionService
+          .ask({
+            sessionID: SessionSchema.ID.make(context.sessionID),
+            questions: [
+              {
+                question: `${input.question}（运行 ${input.runs} 次，修复版本 ${input.fixVersion}，案例摘要 ${input.caseDigest.slice(0, 12)}…）`,
+                header: "隔离复测确认",
+                options: [
+                  { label: CONFIRM_APPROVE_LABEL, description: `在隔离临时项目中执行 ${input.expectedTools.join("、")}，共 ${input.runs} 次` },
+                  { label: CONFIRM_CANCEL_LABEL, description: "不执行，本次复测取消" },
+                ],
+                custom: false,
+              },
+            ],
+            tool: { messageID: context.assistantMessageID, callID: context.toolCallID },
+          })
+          .pipe(Effect.catchTag("QuestionV2.RejectedError", () => Effect.succeed(undefined)))
+        const approved = answers !== undefined && answers[0]?.includes(CONFIRM_APPROVE_LABEL)
+        if (!approved) return undefined
+        const issued = RetestAuthorization.issue({
+          sessionID: context.sessionID,
+          caseDigest: input.caseDigest,
+          runs: input.runs,
+          model: input.model,
+          expectedTools: [...input.expectedTools],
+        })
+        return { id: issued.id, caseDigest: issued.caseDigest }
+      }),
+    )
+
   const wrapTool = (spec: AnyToolSpec) => {
     const tool = Tool.make({
       description: spec.description,
@@ -108,6 +161,9 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
               messageID: context.assistantMessageID,
               directory: location.directory,
               ask: (ask) => Effect.runPromise(askPermission(ask, context)),
+              ...(Option.isSome(questions)
+                ? { confirm: (confirm) => confirmRetest(confirm, context) }
+                : {}),
             }),
           catch: (cause) => new Tool.Failure({ message: cause instanceof Error ? cause.message : String(cause) }),
         }),
@@ -196,7 +252,11 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
               Effect.map((info) =>
                 info === undefined
                   ? undefined
-                  : { id: info.id as string, parentID: info.parentID as string | undefined },
+                  : {
+                      id: info.id as string,
+                      parentID: info.parentID as string | undefined,
+                      location: info.location.directory,
+                    },
               ),
             ),
           ),
@@ -293,6 +353,15 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
     },
     catalog: {
       reload: catalog.reload,
+      // 复测案例准备需在用户确认前解析模型（案例摘要覆盖模型提供方/模型）：
+      // 只读当前目录默认模型标识，未配置返回 undefined；可用性校验由 startBackground
+      // 预检统一失败关闭
+      defaultModel: () =>
+        Effect.runPromise(
+          catalog.model.default().pipe(
+            Effect.map((info) => (info === undefined ? undefined : { providerID: info.providerID, modelID: info.id })),
+          ),
+        ),
       transform: (callback) =>
         catalog.transform((draft) =>
           callback({

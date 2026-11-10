@@ -4,6 +4,7 @@ export type { Plugin } from "./plugin.js"
 export type { Location } from "./location.js"
 export type { Path } from "./path.js"
 export type {
+  BackgroundRetestAgent,
   BackgroundSessionAuthorization,
   BackgroundSessionHandle,
   BackgroundSessionInput,
@@ -14,4 +15,4 @@ export type {
 export type { FileDomain } from "./file.js"
 export type { LoadContext, SystemContextDomain, SystemContextSource } from "./system-context.js"
 export { defineTool, ToolResult } from "./tool.js"
-export type { AnyToolSpec, AskInput, ToolContext, ToolEditor, ToolHooks, ToolSpec } from "./tool.js"
+export type { AnyToolSpec, AskInput, ConfirmRetestInput, ToolContext, ToolEditor, ToolHooks, ToolSpec } from "./tool.js"

@@ -21,6 +21,7 @@ import { createNovelWriterTools } from "./novel-writer/tools/index.js"
 import { insightOrganizerAgent } from "./novel-writer/agents/insight-organizer.js"
 import { watchToolInsightEvents } from "./tool-insight/collector.js"
 import { createToolInsightOrganizer } from "./tool-insight/organizer.js"
+import { createToolInsightRetest } from "./tool-insight/retest.js"
 import { createToolInsightTool } from "./tool-insight/tool.js"
 import { architectAgent } from "./novel-writer/agents/architect.js"
 import { auditorAgent } from "./novel-writer/agents/auditor.js"
@@ -50,16 +51,28 @@ export default define({
       session: ctx.session,
     })
 
+    // 隔离复测编排引擎（任务 5.2-5.4）：tool_insight 的 prepare/run/manual 动作
+    const retest = createToolInsightRetest({
+      ctx,
+      projectDirectory: ctx.location.directory,
+      session: ctx.session,
+    })
+
     const tools = createNovelWriterTools({ session: ctx.session })
     yield* ctx.tool.transform((editor) => {
       for (const [name, spec] of Object.entries(tools)) editor.add(name, spec)
       // 工具改进日志的主动入口：任何目录都可记录问题（含写作外流程问题），
       // 运行时由全局开关决定是否落盘
-      editor.add("tool_insight", createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file, enqueue: organizer.enqueue }))
+      editor.add(
+        "tool_insight",
+        createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file, enqueue: organizer.enqueue, retest }),
+      )
     })
 
-    // 启动崩溃恢复（任务 4.2）：装载后按当前项目与日志根只补一次 pending
+    // 启动崩溃恢复（任务 4.2/5.5）：装载后按当前项目与日志根只补一次 pending，
+    // 并把无终态的复测运行记录标为中断/未验证
     yield* Effect.promise(() => organizer.recoverOnce())
+    yield* Effect.promise(() => retest.reconcileRunsOnce())
 
     // 条件注册：仅小说目录注入上下文源，非小说目录零污染
     if (existsSync(join(ctx.location.directory, ".novel"))) {

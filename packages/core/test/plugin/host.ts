@@ -26,6 +26,7 @@ export function host(overrides: Overrides = {}): PluginContext {
     catalog: overrides.catalog ?? {
       transform: () => Effect.die("unused catalog.transform"),
       reload: () => Effect.die("unused catalog.reload"),
+      defaultModel: () => Promise.reject(new Error("unused catalog.defaultModel")),
     },
     command: overrides.command ?? {
       transform: () => Effect.die("unused command.transform"),
@@ -122,6 +123,13 @@ export function agentHost(agent: AgentV2.Interface): PluginContext["agent"] {
 export function catalogHost(catalog: Catalog.Interface): PluginContext["catalog"] {
   return {
     reload: catalog.reload,
+    // 复测摘要在确认前需要覆盖模型：桥接目录默认模型为插件窄读取面
+    defaultModel: () =>
+      Effect.runPromise(
+        catalog.model.default().pipe(
+          Effect.map((info) => (info === undefined ? undefined : { providerID: info.providerID, modelID: info.id })),
+        ),
+      ),
     transform: (callback) =>
       catalog.transform((draft) =>
         callback({

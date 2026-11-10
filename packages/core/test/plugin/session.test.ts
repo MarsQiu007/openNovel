@@ -5,6 +5,8 @@ import { Catalog } from "@opennovel-ai/core/catalog"
 import { Location } from "@opennovel-ai/core/location"
 import { ModelV2 } from "@opennovel-ai/core/model"
 import { PluginSession } from "@opennovel-ai/core/plugin/session"
+import { PluginV2 } from "@opennovel-ai/core/plugin"
+import { RetestAuthorization } from "@opennovel-ai/core/plugin/retest-authorization"
 import { SessionPurpose } from "@opennovel-ai/core/plugin/session-purpose"
 import { ProjectV2 } from "@opennovel-ai/core/project"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
@@ -87,7 +89,8 @@ const fakeExecution = (overrides: Partial<SessionExecution.Interface> = {}) => {
 
 // Location 预检段的替身：agent 恒存在，registry 物化出给定工具名集合；
 // catalog 默认提供一个受支持的默认模型（aisdk/anthropic），供 organize 模型固定段解析；
-// withoutDefault/available/默认模型形状可按用例编程
+// withoutDefault/available/默认模型形状可按用例编程。PluginV2 替身恒 die：用例未传
+// requiredPlugins 时不该走到插件等待，走到即说明发车路径偏离预期。
 const fakeWithinLocation = (
   toolNames: readonly string[],
   over: { defaultModel?: ModelV2.Info; available?: readonly ModelV2.Info[]; withoutDefault?: boolean } = {},
@@ -135,7 +138,7 @@ const fakeWithinLocation = (
   })
   return <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service | PluginV2.Service>,
   ): Effect.Effect<A, unknown> =>
     Effect.provide(
       precheck,
@@ -143,6 +146,7 @@ const fakeWithinLocation = (
         Layer.succeed(AgentV2.Service, agents),
         Layer.succeed(ToolRegistry.Service, registry),
         Layer.succeed(Catalog.Service, catalog),
+        Layer.succeed(PluginV2.Service, PluginV2.Service.of({ add: dieUnused, remove: dieUnused, wait: dieUnused })),
       ),
     )
 }
@@ -167,15 +171,27 @@ const organizeInput = (over: Partial<BackgroundSessionInput> = {}): BackgroundSe
   ...over,
 })
 
-const retestInput = (over: Partial<BackgroundSessionInput> = {}): BackgroundSessionInput => ({
-  mode: "retest",
-  agent: "build",
-  prompt: "复测该问题",
-  expectedTools: ["bash"],
-  directory: "/tmp/retest",
-  authorization: { id: "auth-1", caseDigest: "digest" },
-  ...over,
-})
+const retestInput = (over: Partial<BackgroundSessionInput> = {}): BackgroundSessionInput => {
+  // 授权须在注册表真实签发：startBackground 逐次消费校验（任务 5.2）
+  const issued = RetestAuthorization.issue({
+    sessionID: "ses_origin",
+    caseDigest: "digest",
+    runs: 3,
+    model: { providerID: "test", modelID: "test-model" },
+    expectedTools: ["bash"],
+  })
+  return {
+    mode: "retest",
+    agent: "build",
+    prompt: "复测该问题",
+    expectedTools: ["bash"],
+    directory: "/tmp/retest",
+    originSessionID: "ses_origin",
+    model: { providerID: "test", modelID: "test-model" },
+    authorization: { id: issued.id, caseDigest: issued.caseDigest },
+    ...over,
+  }
+}
 
 // 测试与生命周期 fiber 的确定性握手：fake 进入阶段时 succeed(entered)，测试 await 后再推进
 const gate = Effect.gen(function* () {
@@ -202,6 +218,7 @@ describe("PluginSession 后台会话生命周期", () => {
                 }),
             }),
             execution: fakeExecution().service,
+            pluginID: "test-plugin",
             withinLocation: fakeWithinLocation(["bash"]),
           })
           return yield* Effect.promise(() => domain.startBackground(organizeInput({ expectedTools: ["bash"] })))
@@ -225,6 +242,7 @@ describe("PluginSession 后台会话生命周期", () => {
                 }),
             }),
             execution: fakeExecution().service,
+            pluginID: "test-plugin",
             withinLocation: fakeWithinLocation(["bash"]),
           })
           const { authorization: _dropped, ...input } = retestInput()
@@ -235,10 +253,125 @@ describe("PluginSession 后台会话生命周期", () => {
     expect(created).toEqual([])
   })
 
+  test("retest 缺少发起确认的原会话在 create 前拒绝（任务 5.2）", async () => {
+    const created: string[] = []
+    await expect(
+      inside(
+        Effect.gen(function* () {
+          const domain = yield* PluginSession.make({
+            sessions: fakeSessions({
+              create: (input) =>
+                Effect.sync(() => {
+                  created.push(input.id ?? "ses_unspecified")
+                  return fakeInfo(input.id ?? "ses_unspecified")
+                }),
+            }),
+            execution: fakeExecution().service,
+            pluginID: "test-plugin",
+            withinLocation: fakeWithinLocation(["bash"]),
+          })
+          const { originSessionID: _dropped, ...input } = retestInput()
+          return yield* Effect.promise(() => domain.startBackground(input))
+        }),
+      ),
+    ).rejects.toThrow("缺少发起确认的原会话")
+    expect(created).toEqual([])
+  })
+
+  test("retest 授权按运行次数消费：超次数后再发车拒绝且不 create（任务 5.2）", async () => {
+    const created: string[] = []
+    const issued = RetestAuthorization.issue({
+      sessionID: "ses_origin",
+      caseDigest: "digest",
+      runs: 1,
+      model: { providerID: "test", modelID: "test-model" },
+      expectedTools: ["bash"],
+    })
+    const makeDomain = () =>
+      Effect.gen(function* () {
+        return yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                created.push(input.id ?? "ses_unspecified")
+                return fakeInfo(input.id ?? "ses_unspecified")
+              }),
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("复测完成")]),
+          }),
+          execution: fakeExecution().service,
+          pluginID: "test-plugin",
+          withinLocation: fakeWithinLocation(["bash"]),
+        })
+      })
+    await inside(
+      Effect.gen(function* () {
+        const domain = yield* makeDomain()
+        const handle = yield* Effect.promise(() => domain.startBackground(retestInput({ authorization: { id: issued.id, caseDigest: issued.caseDigest } })))
+        yield* Effect.promise(() => handle.done)
+      }),
+    )
+    expect(created).toHaveLength(1)
+    // 次数已用尽：同授权再次发车在 create 前拒绝
+    await expect(
+      inside(
+        Effect.gen(function* () {
+          const domain = yield* makeDomain()
+          return yield* Effect.promise(() => domain.startBackground(retestInput({ authorization: { id: issued.id, caseDigest: issued.caseDigest } })))
+        }),
+      ),
+    ).rejects.toThrow("exhausted")
+    expect(created).toHaveLength(1)
+  })
+
+  test("retest 授权跨插件复用被拒绝（任务 5.2）", async () => {
+    const issued = RetestAuthorization.issue({
+      sessionID: "ses_origin",
+      caseDigest: "digest",
+      runs: 2,
+      model: { providerID: "test", modelID: "test-model" },
+      expectedTools: ["bash"],
+    })
+    const makeDomain = (pluginID: string) =>
+      Effect.gen(function* () {
+        return yield* PluginSession.make({
+          sessions: fakeSessions({
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("复测完成")]),
+          }),
+          execution: fakeExecution().service,
+          pluginID,
+          withinLocation: fakeWithinLocation(["bash"]),
+        })
+      })
+    // 绑定方首次消费成功
+    await inside(
+      Effect.gen(function* () {
+        const domain = yield* makeDomain("test-plugin")
+        const handle = yield* Effect.promise(() => domain.startBackground(retestInput({ authorization: { id: issued.id, caseDigest: issued.caseDigest } })))
+        yield* Effect.promise(() => handle.done)
+      }),
+    )
+    // 另一插件复用同一授权（剩余次数仍在）被拒绝
+    await expect(
+      inside(
+        Effect.gen(function* () {
+          const other = yield* makeDomain("other-plugin")
+          return yield* Effect.promise(() => other.startBackground(retestInput({ authorization: { id: issued.id, caseDigest: issued.caseDigest } })))
+        }),
+      ),
+    ).rejects.toThrow("plugin-mismatch")
+  })
+
   test("位置来源必须二选一：parentID 与 directory 同时给或都不给都拒绝", async () => {
     const domainInput = {
       sessions: fakeSessions(),
       execution: fakeExecution().service,
+      pluginID: "test-plugin",
       withinLocation: fakeWithinLocation([]),
     }
     await expect(
@@ -274,6 +407,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           // 目标 Location 实际物化出 bash，与 organize 的空预期不一致
           withinLocation: fakeWithinLocation(["bash"]),
         })
@@ -299,6 +433,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([], { withoutDefault: true }),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -323,6 +458,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           // 可用集只有 test/test-model，指定 other/other-model 精确匹配失败
           withinLocation: fakeWithinLocation([]),
         })
@@ -354,6 +490,7 @@ describe("PluginSession 后台会话生命周期", () => {
             messages: () => Effect.succeed([assistantMessage("整理完成")]),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -388,6 +525,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() =>
@@ -429,6 +567,7 @@ describe("PluginSession 后台会话生命周期", () => {
             messages: () => Effect.succeed([assistantMessage("继承路径完成")]),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() =>
@@ -471,6 +610,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation(["bash"]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(retestInput()))
@@ -507,6 +647,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -538,6 +679,7 @@ describe("PluginSession 后台会话生命周期", () => {
             },
           }),
           execution: fakeExecution({ active: Effect.sync(() => new Set(active)) }).service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const settledPromise = domain.settled(child)
@@ -567,6 +709,7 @@ describe("PluginSession 后台会话生命周期", () => {
             wait: () => Effect.void,
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -591,6 +734,7 @@ describe("PluginSession 后台会话生命周期", () => {
             messages: () => Effect.succeed([assistantMessage("最终结论：工具描述有歧义")]),
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -613,6 +757,7 @@ describe("PluginSession 后台会话生命周期", () => {
             messages: () => Effect.succeed([userMessage("整理")]),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -635,6 +780,7 @@ describe("PluginSession 后台会话生命周期", () => {
                 : Effect.fail(new SessionV2.NotFoundError({ sessionID })),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const registered = yield* Effect.promise(() => domain.get("ses_registered"))
@@ -658,6 +804,7 @@ describe("PluginSession 后台会话生命周期", () => {
             messages: () => Effect.succeed([assistantMessage("done")]),
           }),
           execution: fakeExecution().service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         })
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))
@@ -690,6 +837,7 @@ describe("PluginSession 后台会话生命周期", () => {
               }),
           }),
           execution: service,
+          pluginID: "test-plugin",
           withinLocation: fakeWithinLocation([]),
         }).pipe(Effect.provideService(Scope.Scope, scope))
         const handle = yield* Effect.promise(() => domain.startBackground(organizeInput()))

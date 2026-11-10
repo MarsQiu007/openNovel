@@ -1,12 +1,19 @@
 export * as PluginSession from "./session"
 
-import { Cause, Deferred, Effect, Exit, Fiber, Option, Scope } from "effect"
-import type { BackgroundSessionHandle, BackgroundSessionInput, BackgroundSessionResult, SessionDomain } from "@opennovel-ai/plugin/v2/effect"
+import { Cause, Deferred, Duration, Effect, Exit, Fiber, Option, Scope } from "effect"
+import type {
+  BackgroundRetestAgent,
+  BackgroundSessionHandle,
+  BackgroundSessionInput,
+  BackgroundSessionResult,
+  SessionDomain,
+} from "@opennovel-ai/plugin/v2/effect"
 import { AgentV2 } from "../agent"
 import { Catalog } from "../catalog"
 import { Location } from "../location"
 import { LocationServiceMap } from "../location-service-map"
 import { ModelV2 } from "../model"
+import { PluginV2 } from "../plugin"
 import { ProviderV2 } from "../provider"
 import { SessionExecution } from "../session/execution"
 import { SessionMessage } from "../session/message"
@@ -15,9 +22,13 @@ import { SessionRunnerModel } from "../session/runner/model"
 import { SessionV2 } from "../session"
 import { AbsolutePath } from "../schema"
 import { ToolRegistry } from "../tool/registry"
+import { RetestAuthorization } from "./retest-authorization"
 import { SessionPurpose } from "./session-purpose"
 
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+/** 复测前置插件激活的有界期限：事件驱动等待（PluginV2.wait），超时即失败关闭，无固定 sleep */
+const RETEST_PLUGIN_WAIT_TIMEOUT = "15 seconds"
 
 const sameToolSet = (actual: readonly string[], expected: readonly string[]): boolean => {
   if (actual.length !== expected.length) return false
@@ -63,14 +74,23 @@ export interface Deps {
   /** class 实例形状里的 Service 属性即方法接口（effect 4 class-style tag） */
   readonly sessions: SessionV2.Service["Service"]
   readonly execution: SessionExecution.Service["Service"]
+  /** 请求插件身份（per-plugin 宿主视图注入）：retest 授权首次消费时绑定，跨插件复用拒绝 */
+  readonly pluginID: string
   /**
    * 在目标 Location 的服务上下文里运行预检段：宿主经 LocationServiceMap.get(ref) 落地。
    * 以回调注入让本模块类型不引用 LocationServiceMap.Service——其类型内嵌整棵位置树
    * （含 PluginV2），反向引用会构成 TS 循环基类（同 SessionV2.node 注释所述形态）。
+   * retest 的前置插件等待需要临时 Location 自己的 PluginV2 实例，因此预检段的
+   * Requirements 含 PluginV2.Service（未传 requiredPlugins 时不会真正 yield）。
    */
+  /**
+   * 复测前置插件激活的有界期限：默认 15 秒；测试注入短时限以覆盖超时路径，
+   * 而不真实等待 15 秒。
+   */
+  readonly retestPluginWaitTimeout?: Duration.Input
   readonly withinLocation: <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service | PluginV2.Service>,
   ) => Effect.Effect<A, unknown>
 }
 
@@ -83,7 +103,7 @@ export type Background = Pick<SessionDomain, "settled" | "startBackground">
 export const withinLocationFrom = (locations: LocationServiceMap.Service["Service"]) => {
   const withinLocation = <A>(
     ref: Location.Ref,
-    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service>,
+    precheck: Effect.Effect<A, Error, AgentV2.Service | ToolRegistry.Service | Catalog.Service | PluginV2.Service>,
   ): Effect.Effect<A, unknown> => Effect.provide(precheck, locations.get(ref)) as Effect.Effect<A, unknown>
   return withinLocation
 }
@@ -93,6 +113,8 @@ export const make = (deps: Deps) =>
     const sessions = deps.sessions
     const execution = deps.execution
     const withinLocation = deps.withinLocation
+    const pluginID = deps.pluginID
+    const pluginWaitTimeout = deps.retestPluginWaitTimeout ?? RETEST_PLUGIN_WAIT_TIMEOUT
     const scope = yield* Scope.Scope
 
   const settledEffect = (id: string) =>
@@ -113,8 +135,22 @@ export const make = (deps: Deps) =>
       // create 前校验：模式约束与位置来源二选一，不满足直接拒绝且不派生任何资源
       if (input.mode === "organize" && input.expectedTools.length > 0)
         return yield* Effect.fail(new Error("后台 organize 会话的预期工具集合必须为空"))
-      if (input.mode === "retest" && input.authorization === undefined)
-        return yield* Effect.fail(new Error("后台 retest 会话缺少宿主执行授权"))
+      if (input.mode === "retest") {
+        if (input.authorization === undefined) return yield* Effect.fail(new Error("后台 retest 会话缺少宿主执行授权"))
+        if (input.originSessionID === undefined) return yield* Effect.fail(new Error("后台 retest 会话缺少发起确认的原会话"))
+        if (input.model === undefined) return yield* Effect.fail(new Error("后台 retest 会话缺少案例绑定的模型"))
+        // 按运行次数消费授权：绑定（原会话/案例摘要/模型/白名单/请求插件）任一不符即拒绝，
+        // 拒绝发生在预分配与 purpose 登记之前，不派生任何资源
+        const consumed = RetestAuthorization.consume({
+          id: input.authorization.id,
+          pluginID,
+          sessionID: input.originSessionID,
+          caseDigest: input.authorization.caseDigest,
+          model: input.model,
+          expectedTools: input.expectedTools,
+        })
+        if (!consumed.ok) return yield* Effect.fail(new Error(`后台 retest 授权校验失败: ${consumed.reason}`))
+      }
       if ((input.parentID === undefined) === (input.directory === undefined))
         return yield* Effect.fail(new Error("后台会话位置来源必须二选一：parentID 或 directory"))
 
@@ -144,6 +180,53 @@ export const make = (deps: Deps) =>
               )
             : Location.Ref.make({ directory: AbsolutePath.make(input.directory as string) })
 
+        // retest 隔离作用域准备（任务 5.3/5.4）：先逐个有界等待 config 声明的前置插件
+        // 在临时 Location 激活（PluginV2.wait 事件驱动，无固定 sleep；插件装载失败或
+        // 超时均失败关闭），再由宿主在临时 Location 代持注册唯一 deny-first 复测 agent
+        // ——插件 ctx 只见自身 Location 视图，无法跨 Location transform。deny-first
+        // 权限按本次授权白名单构造：先全量 deny，再逐项 allow；materialize 后的工具
+        // 集合由下方预检断言精确等于授权集合，权限不固化在 agent 身份上。
+        // State.transform 是作用域化注册（关闭作用域即移除并重载）：注册挂到本运行
+        // 独立的 registrationScope 上，避免 withinLocation 的层作用域随调用结束把
+        // 注册回收；收尾经 Scope.close 执行 finalizer 完成清理。
+        const registrationScope = yield* Scope.make()
+        const prepareRetestScope = (spec: BackgroundRetestAgent) =>
+          withinLocation(
+            targetRef,
+            Effect.gen(function* () {
+              if (input.requiredPlugins !== undefined && input.requiredPlugins.length > 0) {
+                const plugins = yield* PluginV2.Service
+                for (const id of input.requiredPlugins) {
+                  yield* plugins.wait(PluginV2.ID.make(id)).pipe(
+                    Effect.timeout(pluginWaitTimeout),
+                    Effect.mapError((error) => new Error(`复测前置插件未激活: ${id}（${describeError(error)}）`)),
+                  )
+                }
+              }
+              const agents = yield* AgentV2.Service
+              yield* agents
+                .transform((editor) =>
+                  editor.update(AgentV2.ID.make(spec.id), (agent) => {
+                    agent.mode = "subagent"
+                    agent.hidden = true
+                    agent.description = spec.description
+                    agent.system = spec.system
+                    agent.permissions = [
+                      { action: "*", resource: "*", effect: "deny" },
+                      ...input.expectedTools.map((name) => ({ action: name, resource: "*", effect: "allow" as const })),
+                    ]
+                  }),
+                )
+                .pipe(Effect.provideService(Scope.Scope, registrationScope))
+            }),
+          )
+
+        // 作用域收尾：close 执行注册 finalizer（移除 transform 并重载），未注册时为 no-op；
+        // 清理失败不影响主退出
+        const cleanupRetestScope = () =>
+          Effect.promise(() => Effect.runPromise(Scope.close(registrationScope, Exit.void)).catch(() => undefined))
+
+        const rest = Effect.gen(function* () {
         // create 前在目标 Location 上下文完成全部预检：agent 存在、实际工具集合与
         // 预期精确一致（organize 要求空集）、organize 的模型固定与发车前一致性断言。
         // 任何拒绝都发生在 create 之前，不派生 Session 资源。
@@ -244,6 +327,16 @@ export const make = (deps: Deps) =>
         const text = finalText(messages)
         if (text === undefined) return yield* Effect.fail(new Error("后台会话未产出最终 assistant 文本"))
         return { status: "success", text } satisfies BackgroundSessionResult
+        })
+
+        // retest：先准备隔离作用域（等待插件激活 + 代持注册），预检通过才发车；
+        // onExit 覆盖成功/失败/取消路径的代持注册清理
+        const retestSpec = input.retestAgent
+        if (input.mode !== "retest" || retestSpec === undefined) return yield* rest
+        return yield* prepareRetestScope(retestSpec).pipe(
+          Effect.flatMap(() => rest),
+          Effect.onExit(() => cleanupRetestScope()),
+        )
       })
 
       // 失败/取消路径收尾：interrupt 残余活动（成功路径已显式 interrupt；idle/missing 均为 no-op）
@@ -280,6 +373,8 @@ export const make = (deps: Deps) =>
           Effect.map((info) => ({
             id: info.id,
             parentID: info.parentID,
+            // 规范 stored.location：复测隔离核验据此定位原书做前后摘要比对
+            location: info.location.directory,
             purpose: SessionPurpose.lookup(info.id),
           })),
           // 链读取语义：不存在的 Session 返回 undefined（视为链不可达），不抛错
