@@ -55,11 +55,32 @@
   - 关闭开关：`enabled=false` 重启后 `run_retest` 返回「工具改进日志未启用：请在设置中开启后使用」，未弹系统问题、`runs` 无新增行。
   - 走查中定位并修复两个真实产品缺陷（见实现提交）：`PluginV2.node` deps 缺 `QuestionV2.node` 致宿主无确认通道；`directoryColumn.fromDriver` Windows 反斜杠转换致会话 location Ref 与请求头目录不等、LayerMap 双树分裂（日志根 slug 随之分裂）。
   - pending 重启恢复与多进程写入由 5.5/5.6 既有单测覆盖（进程崩溃对账、活动运行不误标），走查未重复实走；无自动上报或 issue 由收集器本地落盘设计保证（测试与代码审查确认）。
-- [ ] 7.4 检查需求到实现的完整覆盖、依赖方向和冗余代码，清理未使用导出、死 import、未消费通道及重复实现；验证：逐项映射 delta spec 场景到测试或走查证据，`git diff --check` 通过，插件未导入 Core/Server，数据库无迁移，公开事件无非计划变更，协议与 SDK 变化仅限已声明的全局配置字段
+- [x] 7.4 检查需求到实现的完整覆盖、依赖方向和冗余代码，清理未使用导出、死 import、未消费通道及重复实现；验证：逐项映射 delta spec 场景到测试或走查证据，`git diff --check` 通过，插件未导入 Core/Server，数据库无迁移，公开事件无非计划变更，协议与 SDK 变化仅限已声明的全局配置字段
+
+  **完成说明（2026-11-10）**：
+  - 场景映射：delta spec `tool-insight-log` 全部 12 条 requirement、45 个场景逐项有归属——证据先行/指纹归并/问题文档/本地优先（§1）、开关与目录（§2，含设置界面 §6）、轨迹检测/分类/并验/主动记录（§3）、后台整理安全边界（§4）、确认/隔离/多次复测（§5）、真实走查（§7.3，确认链+隔离复测+关闭开关）。测试落点：`packages/plugin/test/tool-insight/`（collector/organizer/retest/adapter/record）、`packages/core/test/plugin/`（后台会话桥接/信封隔离/授权/降级）。
+  - 走查补证据：「运行中关闭开关」由 run E gate-off 断言补强；「用户授权可隔离案例复测」由 run D 全链路（prepare→question→reply→2 轮 passed）补强。
+  - 依赖方向：`packages/plugin` 运行时依赖不新增 Core/Server（SDK 类型仅编译期）；node deps 方向为 Core 内部组合，无环（组合层测试 `ea89779d98` 证明）。
+  - 冗余清理：16 处 TEMP-DEBUG 探针与仓库根诊断脚本已删；`git diff --check` 通过；数据库无迁移（仅 `directoryColumn` 读出语义修正，无 schema 变更）；公开事件无变更；协议/SDK 变化仅限 `toolInsight` 全局配置字段（`c05b55865f` 已双 SDK 再生）。
 
 ## Implementation Commits
 
 （实现阶段按 `git log --grep "OpenSpec-Change: tool-insight-ledger" --format="%h %s"` 收集，不写入记录更新或归档移动提交。）
+
+- `c05b55865f` feat(opennovel): 全局配置新增 toolInsight 字段并仅该字段变更跳过重开
+- `d39afe92fe` feat(plugin): 工具洞察证据、问题文档与跨进程锁底座
+- `ffc439038e` feat(plugin): 宿主后台会话桥接、事件隔离与真实取消
+- `b97e354314` feat(plugin): 事件证据采集器、轨迹检测与真实结果核验
+- `854fc382d8` feat(plugin): 无工具后台整理队列、模型固定与启动恢复
+- `6d6ec0f008` feat(plugin): 系统确认、隔离复测与回归记录
+- `e76404603d` feat(app): 工具洞察设置组件与经典/V2 双版本挂载
+- `81899c00b3` refactor: 守卫替代断言清零 oxlint 净新增
+- `ea89779d98` fix(core): 宿主降级透出缺失服务，organize 模型解析下沉 Location 作用域
+- `6029fb746b` fix(core): PluginV2.node 补声明 QuestionV2 依赖，修复复测确认通道缺失
+- `99dda6471f` fix(core): directoryColumn 读出保持存储格式，修复 location 树分裂
+- `2b3e96ae5f` fix(plugin): 收集器跨 turn 复合键窗口竞态
+- `ce72a11fbc` fix(plugin): 启动恢复对账排在事件订阅之后
+- `b52f084c91` fix(opennovel): 全局配置写盘保留 toolInsight 扩展字段
 
 ## Workflow follow-up
 
