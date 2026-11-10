@@ -44,7 +44,7 @@ export default define({
     yield* ctx.agent.transform(registerWritingAgents)
 
     // 后台归因整理队列（任务 4.1/4.2）：独立于事件采集器，tool_insight 的
-    // record/supplement/reorganize 与采集器落盘都汇入同一队列
+    // record/supplement/reorganize 与采集器落盘都汇入同一队列。
     const organizer = createToolInsightOrganizer({
       ctx,
       projectDirectory: ctx.location.directory,
@@ -69,11 +69,6 @@ export default define({
       )
     })
 
-    // 启动崩溃恢复（任务 4.2/5.5）：装载后按当前项目与日志根只补一次 pending，
-    // 并把无终态的复测运行记录标为中断/未验证
-    yield* Effect.promise(() => organizer.recoverOnce())
-    yield* Effect.promise(() => retest.reconcileRunsOnce())
-
     // 条件注册：仅小说目录注入上下文源，非小说目录零污染
     if (existsSync(join(ctx.location.directory, ".novel"))) {
       yield* ctx.systemContext.register(
@@ -88,6 +83,11 @@ export default define({
       // 证据落盘即汇入归因整理队列
       yield* watchToolInsightEvents({ ctx, projectDirectory: ctx.location.directory, onDocumented: organizer.enqueue })
       yield* ctx.command.transform(registerEvaluateCommand)
+      // 启动崩溃恢复（任务 4.2/5.5）：订阅就绪后再按当前项目与日志根只补一次 pending，
+      // 并把无终态的复测运行记录标为中断/未验证。对账只做磁盘回读，必须排在订阅之后，
+      // 否则对账期间到达的会话事件因无订阅被整体漏采
+      yield* Effect.promise(() => organizer.recoverOnce())
+      yield* Effect.promise(() => retest.reconcileRunsOnce())
     }
   }),
 })
