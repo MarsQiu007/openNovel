@@ -16,6 +16,7 @@ import { EventV2 } from "../../event"
 import { Location } from "../../location"
 import { ModelV2 } from "../../model"
 import { PermissionV2 } from "../../permission"
+import { PluginBoot } from "../../plugin/boot"
 import { ProviderV2 } from "../../provider"
 import { QuestionV2 } from "../../question"
 import { SessionPurpose } from "../../plugin/session-purpose"
@@ -98,6 +99,7 @@ const layer = Layer.effect(
     const events = yield* EventV2.Service
     const llm = yield* LLMClient.Service
     const agents = yield* AgentV2.Service
+    const pluginBoot = yield* PluginBoot.Service
     const tools = yield* ToolRegistry.Service
     const models = yield* SessionRunnerModel.Service
     const store = yield* SessionStore.Service
@@ -191,6 +193,9 @@ const layer = Layer.effect(
       const session = yield* getSession(sessionID)
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
+      // catalog 批（config-agent/config-skill 等 transform）在层构建期 fork 提交，
+      // agent 名册与 skill 来源在 PluginBoot 放行后才可见；先于 select/系统上下文组装等待
+      yield* pluginBoot.ready
       const agent = yield* agents.select(session.agent)
       const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(sessionID, agent), session.id)
       const toolFibers = yield* FiberSet.make<void, ToolOutputStore.Error>()
@@ -427,6 +432,8 @@ const layer = Layer.effect(
       const session = yield* getSession(input.sessionID)
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
+      // 与 runTurnAttempt 同款：插件填充状态（agent 名册/skill 来源）在引导门放行后才可见
+      yield* pluginBoot.ready
       const agent = yield* agents.select(session.agent)
       const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(input.sessionID, agent), session.id)
       const system =
@@ -462,5 +469,6 @@ export const node = makeLocationNode({
     Config.node,
     Snapshot.node,
     Database.node,
+    PluginBoot.node,
   ],
 })
