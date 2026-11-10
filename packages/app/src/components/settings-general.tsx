@@ -32,6 +32,7 @@ import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
 import { SettingsList } from "./settings-list"
+import { SettingsToolInsight } from "./settings-tool-insight"
 
 let demoSoundState = {
   cleanup: undefined as (() => void) | undefined,
@@ -800,6 +801,8 @@ export const SettingsGeneral: Component = () => {
         <UpdatesSection />
 
         <DisplaySection />
+
+        <SettingsToolInsight />
 
         <Show when={desktop()}>
           <AdvancedSection />

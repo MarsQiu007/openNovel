@@ -30,6 +30,7 @@ import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import { SettingsPermissionV2 } from "./permission"
 import { LayoutRetirementNotice, LayoutTransitionToggle } from "./interface-transition"
+import { SettingsToolInsight } from "../settings-tool-insight"
 import "./settings-v2.css"
 
 let demoSoundState = {
@@ -778,6 +779,8 @@ export const SettingsGeneralV2: Component<{
         </Show>
 
         <DisplaySection />
+
+        <SettingsToolInsight v2 />
 
         <AdvancedSection />
       </div>
