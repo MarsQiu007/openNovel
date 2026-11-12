@@ -1484,3 +1484,94 @@ export const SettingImageNoteUpdateInput = Schema.Struct({
   note: Schema.String,
 }).annotate({ identifier: "Novel.SettingImageNoteUpdateInput" })
 export interface SettingImageNoteUpdateInput extends Schema.Schema.Type<typeof SettingImageNoteUpdateInput> {}
+
+export const NovelImportEncoding = Schema.Literals(["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"])
+export type NovelImportEncoding = typeof NovelImportEncoding.Type
+
+export const NovelImportSpecialChapter = Schema.Literals(["prologue", "epilogue", "extra"])
+export type NovelImportSpecialChapter = typeof NovelImportSpecialChapter.Type
+
+export const NovelImportChapterPreview = Schema.Struct({
+  title: Schema.String,
+  wordCount: NonNegativeInt,
+  /** 章节正文 SHA-256（hex），apply 重解析一致性校验用 */
+  contentHash: Schema.String,
+  special: optional(NovelImportSpecialChapter),
+}).annotate({ identifier: "Novel.NovelImportChapterPreview" })
+export interface NovelImportChapterPreview extends Schema.Schema.Type<typeof NovelImportChapterPreview> {}
+
+export const NovelImportVolumePreview = Schema.Struct({
+  /** 卷标题；无卷题文件为 null（归入系统默认单卷） */
+  title: Schema.NullOr(Schema.String),
+  chapters: Schema.Array(NovelImportChapterPreview),
+}).annotate({ identifier: "Novel.NovelImportVolumePreview" })
+export interface NovelImportVolumePreview extends Schema.Schema.Type<typeof NovelImportVolumePreview> {}
+
+export const NovelImportIssueType = Schema.Literals([
+  "sequence-gap",
+  "duplicate-number",
+  "order-mismatch",
+  "unrecognized-boundary",
+])
+export type NovelImportIssueType = typeof NovelImportIssueType.Type
+
+export const NovelImportIssue = Schema.Struct({
+  type: NovelImportIssueType,
+  message: Schema.String,
+  /** 问题定位的章号（可解析出时给出） */
+  chapterNumber: optional(NonNegativeInt),
+}).annotate({ identifier: "Novel.NovelImportIssue" })
+export interface NovelImportIssue extends Schema.Schema.Type<typeof NovelImportIssue> {}
+
+export const NovelImportCleanSummary = Schema.Struct({
+  whitespaceTrimmed: NonNegativeInt,
+  blankLinesCollapsed: NonNegativeInt,
+  punctuationNormalized: NonNegativeInt,
+  linesMerged: NonNegativeInt,
+  adsRemoved: NonNegativeInt,
+  duplicatesRemoved: NonNegativeInt,
+}).annotate({ identifier: "Novel.NovelImportCleanSummary" })
+export interface NovelImportCleanSummary extends Schema.Schema.Type<typeof NovelImportCleanSummary> {}
+
+export const NovelImportAnalyzeInput = Schema.Struct({
+  /** data URL 形式的文件内容（data:text/plain;base64,...），解码后上限 50 MiB */
+  dataUrl: Schema.NonEmptyString,
+  filename: Schema.NonEmptyString,
+  /** 确定性清洗开关（关闭则正文原样解析） */
+  cleanEnabled: Schema.Boolean,
+  /** 编码识别失败时由用户显式指定重试 */
+  encoding: optional(NovelImportEncoding),
+}).annotate({ identifier: "Novel.NovelImportAnalyzeInput" })
+export interface NovelImportAnalyzeInput extends Schema.Schema.Type<typeof NovelImportAnalyzeInput> {}
+
+export const NovelImportPreview = Schema.Struct({
+  suggestedTitle: Schema.String,
+  encoding: NovelImportEncoding,
+  volumes: Schema.Array(NovelImportVolumePreview),
+  issues: Schema.Array(NovelImportIssue),
+  cleanSummary: NovelImportCleanSummary,
+  /** 不透明令牌：内容哈希 + 解析参数 + 解析器版本，apply 服务端重校验用 */
+  previewToken: Schema.String,
+}).annotate({ identifier: "Novel.NovelImportPreview" })
+export interface NovelImportPreview extends Schema.Schema.Type<typeof NovelImportPreview> {}
+
+export const NovelImportApplyInput = Schema.Struct({
+  previewToken: Schema.String,
+  /** 用户在预览中确认/改写后的书名 */
+  title: Schema.NonEmptyString,
+  dataUrl: Schema.NonEmptyString,
+  filename: Schema.NonEmptyString,
+  cleanEnabled: Schema.Boolean,
+  encoding: optional(NovelImportEncoding),
+}).annotate({ identifier: "Novel.NovelImportApplyInput" })
+export interface NovelImportApplyInput extends Schema.Schema.Type<typeof NovelImportApplyInput> {}
+
+export const NovelImportReport = Schema.Struct({
+  novelId: Schema.String,
+  title: Schema.String,
+  volumeCount: NonNegativeInt,
+  chapterCount: NonNegativeInt,
+  cleanSummary: NovelImportCleanSummary,
+  issues: Schema.Array(NovelImportIssue),
+}).annotate({ identifier: "Novel.NovelImportReport" })
+export interface NovelImportReport extends Schema.Schema.Type<typeof NovelImportReport> {}
