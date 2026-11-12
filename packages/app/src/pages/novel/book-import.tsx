@@ -1,8 +1,9 @@
 import { createSignal, For, Show } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
+import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
-import { useAnalyzeImport, useApplyImport } from "@/context/novel-queries"
+import { useAnalyzeImport, useApplyImport, useBindSession } from "@/context/novel-queries"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import type { NovelImportEncoding, NovelImportIssue, NovelImportPreview, NovelImportReport } from "@opennovel-ai/schema/novel"
@@ -11,7 +12,8 @@ import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
-import { IMPORT_SUPPORTED_EXTENSIONS, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
+import { IMPORT_SUPPORTED_EXTENSIONS, buildImportTidyPrompt, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
+import { sendNovelSessionInstruction } from "./workspace-data"
 
 const ENCODING_OPTIONS: NovelImportEncoding[] = ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
 
@@ -49,6 +51,8 @@ export default function NovelImportWizard() {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
+  const novel = useNovel()
+  const bindSession = useBindSession()
   const analyzeImport = useAnalyzeImport()
   const applyImport = useApplyImport()
 
@@ -60,6 +64,8 @@ export default function NovelImportWizard() {
   const [preview, setPreview] = createSignal<NovelImportPreview | null>(null)
   const [title, setTitle] = createSignal("")
   const [report, setReport] = createSignal<NovelImportReport | null>(null)
+  const [tidy, setTidy] = createSignal<{ kind: "ok" | "error"; text: string } | null>(null)
+  const [tidyPending, setTidyPending] = createSignal(false)
 
   const steps = [
     { title: language.t("novel.import.step.file") },
@@ -143,6 +149,32 @@ export default function NovelImportWizard() {
 
   const canConfirm = () =>
     title().trim().length > 0 && title().length <= 60 && (!unrecognized() || fallbackFixedLength())
+
+  // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），指令产出进既有审阅流
+  async function sendTidy() {
+    const current = report()
+    if (!current || tidyPending()) return
+    setTidyPending(true)
+    try {
+      await sendNovelSessionInstruction({
+        sdk,
+        novel,
+        bindSession,
+        novelID: current.novelId,
+        prompt: buildImportTidyPrompt({
+          novelID: current.novelId,
+          title: current.title,
+          volumeCount: current.volumeCount,
+          chapterCount: current.chapterCount,
+        }),
+      })
+      setTidy({ kind: "ok", text: language.t("novel.import.tidySent") })
+    } catch (err) {
+      setTidy({ kind: "error", text: errorMessage(err) })
+    } finally {
+      setTidyPending(false)
+    }
+  }
 
   return (
     <div class="flex flex-col h-full items-center justify-center p-8">
@@ -333,6 +365,16 @@ export default function NovelImportWizard() {
                 </For>
               </div>
             </Show>
+
+            <Show when={tidy()}>
+              {(data) => (
+                <div
+                  class={`text-sm ${data().kind === "ok" ? "text-v2-state-fg-success" : "text-v2-state-fg-danger"}`}
+                >
+                  {data().text}
+                </div>
+              )}
+            </Show>
           </div>
         </Show>
 
@@ -361,13 +403,18 @@ export default function NovelImportWizard() {
             </ButtonV2>
           </Show>
           <Show when={step() === 2}>
-            <ButtonV2
-              variant="contrast"
-              size="large"
-              onClick={() => navigate(`/${base64Encode(sdk().directory)}/novel/${report()?.novelId}`)}
-            >
-              {language.t("novel.import.report.open")}
-            </ButtonV2>
+            <div class="flex items-center gap-2">
+              <ButtonV2 variant="outline" size="large" onClick={() => void sendTidy()} disabled={tidyPending()}>
+                {tidyPending() ? language.t("novel.import.tidySending") : language.t("novel.import.tidy")}
+              </ButtonV2>
+              <ButtonV2
+                variant="contrast"
+                size="large"
+                onClick={() => navigate(`/${base64Encode(sdk().directory)}/novel/${report()?.novelId}`)}
+              >
+                {language.t("novel.import.report.open")}
+              </ButtonV2>
+            </div>
           </Show>
         </div>
       </div>

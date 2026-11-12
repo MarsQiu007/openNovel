@@ -2,7 +2,12 @@
  * 书籍导入向导纯函数单测（book-import）。
  */
 import { describe, expect, test } from "bun:test"
-import { IMPORT_SUPPORTED_EXTENSIONS, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
+import {
+  IMPORT_SUPPORTED_EXTENSIONS,
+  buildImportTidyPrompt,
+  importFilenameToTitle,
+  isSupportedImportFileName,
+} from "./book-import-utils"
 
 describe("isSupportedImportFileName", () => {
   test("TXT 与 Markdown 支持（含大写扩展名）", () => {
@@ -40,5 +45,35 @@ describe("importFilenameToTitle", () => {
 
   test("多点文件名只去末段", () => {
     expect(importFilenameToTitle("卷一.修订版.txt")).toBe("卷一.修订版")
+  })
+})
+
+describe("buildImportTidyPrompt", () => {
+  const input = { novelID: "novel-1", title: "斗破苍穹", volumeCount: 3, chapterCount: 42 }
+
+  test("指令含小说 ID、书名与卷章规模", () => {
+    const prompt = buildImportTidyPrompt(input)
+    expect(prompt).toContain("novel-1")
+    expect(prompt).toContain("斗破苍穹")
+    expect(prompt).toContain("3 卷 / 42 章")
+  })
+
+  test("编排覆盖错别字校对与设定/角色抽取", () => {
+    const prompt = buildImportTidyPrompt(input)
+    expect(prompt).toContain("错别字")
+    expect(prompt).toContain("list_chapters")
+    expect(prompt).toContain("read_chapter_content")
+    expect(prompt).toContain("lint_settings")
+    expect(prompt).toContain('organize_settings(action="analyze")')
+    expect(prompt).toContain('organize_settings(action="batch")')
+  })
+
+  test("审阅流约束：产出进收件箱、禁止直改正文与旁路改设定", () => {
+    const prompt = buildImportTidyPrompt(input)
+    expect(prompt).toContain("审阅收件箱")
+    expect(prompt).toContain("禁止直接修改章节正文")
+    expect(prompt).toContain("章节定位 + 原文/建议对照")
+    expect(prompt).toContain("旁路")
+    expect(prompt).toContain("禁止虚构 ID")
   })
 })

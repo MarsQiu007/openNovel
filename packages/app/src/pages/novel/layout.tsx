@@ -131,7 +131,9 @@ export function NovelImportWizardLayout() {
     <Show when={resolved()} keyed>
       {(resolved) => (
         <SDKProvider directory={resolved}>
-          <NovelImportWizard />
+          <NovelProvider>
+            <NovelImportWizard />
+          </NovelProvider>
         </SDKProvider>
       )}
     </Show>

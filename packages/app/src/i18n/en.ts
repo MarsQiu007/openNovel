@@ -1383,6 +1383,9 @@ export const dict = {
   "novel.import.report.volumes": "{{count}} volumes",
   "novel.import.report.chapters": "{{count}} chapters",
   "novel.import.report.open": "Open Book",
+  "novel.import.tidy": "Tidy with AI",
+  "novel.import.tidySending": "Sending…",
+  "novel.import.tidySent": "Tidy instruction sent. AI output will appear in the settings review inbox.",
 
   "novel.workspace.title": "Workspace",
   "novel.workspace.back": "Back",

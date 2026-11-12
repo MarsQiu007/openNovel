@@ -1345,6 +1345,9 @@ export const dict = {
   "novel.import.report.volumes": "{{count}} 卷",
   "novel.import.report.chapters": "{{count}} 章",
   "novel.import.report.open": "打開書籍",
+  "novel.import.tidy": "AI 整理",
+  "novel.import.tidySending": "傳送中…",
+  "novel.import.tidySent": "已傳送整理指令，AI 產出將出現在設定審閱收件匣。",
 
   "novel.workspace.title": "創作空間",
   "novel.workspace.back": "返回",
