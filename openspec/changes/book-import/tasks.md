@@ -54,6 +54,18 @@
 - [x] 9.1 关联面核查：grep 全部新导出/端点的调用方与共享状态消费方，清理未引用导出、只服务死代码的 import、data 未被消费的查询通道（命中即在本 change 内清理或立案说明）；验证：核查结论写入提交说明
 - [x] 9.2 跑全量 CI 等价本地检查：仓库根 `bun turbo typecheck`、受影响包（schema/protocol/client/server/app/desktop/plugin）全量 `bun test`、httpapi 练习器 coverage 模式；验证：全部通过，红先归因再修复
 
+## Implementation Commits
+
+- 96126343f0 feat(schema): 新增书籍导入契约
+- 001e6f3f38 feat(protocol): 新增书籍导入 analyze/apply 端点
+- f6819ffbf8 feat(server): 书籍导入解析管线（编码检测/拆章拆卷/确定性清洗）
+- d508d957f3 feat(server): 书籍导入 analyze/apply 编排与事务化建书
+- 37208dad61 test(opennovel): 注册书籍导入 httpapi 练习场景
+- a0f0e21c49 test(server): 补清洗开关两态落库对照用例
+- 56da64a084 feat(app): 书籍导入向导（选择/预览确认/报告三步）
+- 337d3f1f4f feat(app): 导入报告页 AI 整理委托入口
+- b986f4d648 refactor: 清理书籍导入新增代码的 oxlint 告警
+
 ## Workflow follow-up
 
 - 收集实现提交（`git log --grep "OpenSpec-Change: book-import"`）写入本文件 `## Implementation Commits`，记录更新单独提交
