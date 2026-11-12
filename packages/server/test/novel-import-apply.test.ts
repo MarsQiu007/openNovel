@@ -119,6 +119,47 @@ describe("novel.import.analyze", () => {
 describe("novel.import.apply", () => {
   const baseInput = { filename: "demo.txt", cleanEnabled: true }
 
+  test("清洗开关两态：关闭时摘要全零且落库正文原样", async () => {
+    const dirty = ["第一章 开局", "正文一,带半角。", "最新网址 www.example.com", "正文二。"].join("\n")
+    const dataUrl = toDataUrl(dirty)
+    for (const mode of [
+      { cleanEnabled: true, title: "清洗开" },
+      { cleanEnabled: false, title: "清洗关" },
+    ]) {
+      const preview = await analyze({ dataUrl, filename: "dirty.txt", cleanEnabled: mode.cleanEnabled })
+      const res = await post("/api/novel/import/apply", {
+        dataUrl,
+        filename: "dirty.txt",
+        cleanEnabled: mode.cleanEnabled,
+        previewToken: preview.previewToken,
+        title: mode.title,
+      })
+      expect(res.status).toBe(200)
+      if (!mode.cleanEnabled) {
+        const report = await readJson(res)
+        expect(report.cleanSummary).toEqual({
+          whitespaceTrimmed: 0,
+          blankLinesCollapsed: 0,
+          punctuationNormalized: 0,
+          linesMerged: 0,
+          adsRemoved: 0,
+          duplicatesRemoved: 0,
+        })
+      }
+    }
+    const db = getDb(tempDir)
+    const contentOf = (title: string) =>
+      db
+        .select({ content: ChapterTable.content })
+        .from(ChapterTable)
+        .innerJoin(NovelTable, eq(ChapterTable.novel_id, NovelTable.id))
+        .where(eq(NovelTable.title, title))
+        .get()!.content
+    expect(contentOf("清洗开")).not.toContain("www.example.com")
+    expect(contentOf("清洗开")).toContain("正文一，带半角。")
+    expect(contentOf("清洗关")).toBe("正文一,带半角。\n最新网址 www.example.com\n正文二。")
+  })
+
   test("analyze → apply 事务化建书，正文/字数/卷归属正确且不落版本", async () => {
     const preview = await analyze({ dataUrl: toDataUrl(MANUSCRIPT), ...baseInput })
     const res = await post("/api/novel/import/apply", {
