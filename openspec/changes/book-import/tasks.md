@@ -32,7 +32,7 @@
 - [x] 6.2 写大载荷集成用例实测 Effect HTTP（NodeHttpServer，非 Hono）对 ~67MB base64 载荷（50MB dataUrl）的承载；命中隐式上限时按 Effect 平台配置面放开后再验；验证：大载荷 analyze 请求不再被拦截且返回 200
 - [x] 6.3 在 novel-store 补齐 `createVolumeTx` / `createChapterTx` 组合形态（现有 `createVolume`/`createChapter` 为 async 自包形态不可嵌入事务；自包形态改为委托 `*Tx` 消除平行逻辑），章节序号沿用 chapter-sequence 纪律；实现 apply 编排：校验 previewToken 与重新解析结果一致（不一致返回「预览已过期」）→ `withTransaction` 单事务内建书、逐卷逐章 `*Tx` 写入初始正文与字数（不写 chapter_versions，初始态即首个版本）→ 返回导入报告；验证：成功路径书籍/卷/章完整落库且顺序正确，人为制造写入失败时全量回滚无残留
 - [x] 6.4 为 import handler 挂接既有权限/位置中间件（对齐同组其他 novel 端点的 LocationQuery 与鉴权形态），穷举关联面确认无遗漏；验证：未授权/错误 location 请求被既有中间件拒绝
-- [ ] 6.5 在 `packages/server` 跑全量 `bun test` 与 `bun typecheck`，确认无回归；oxlint 从仓库根对改动文件运行无新增告警
+- [x] 6.5 在 `packages/server` 跑全量 `bun test` 与 `bun typecheck`，确认无回归；oxlint 从仓库根对改动文件运行无新增告警
 
 ## 7. App 导入向导与入口
 
@@ -51,8 +51,8 @@
 
 ## 9. 收尾验证
 
-- [ ] 9.1 关联面核查：grep 全部新导出/端点的调用方与共享状态消费方，清理未引用导出、只服务死代码的 import、data 未被消费的查询通道（命中即在本 change 内清理或立案说明）；验证：核查结论写入提交说明
-- [ ] 9.2 跑全量 CI 等价本地检查：仓库根 `bun turbo typecheck`、受影响包（schema/protocol/client/server/app/desktop/plugin）全量 `bun test`、httpapi 练习器 coverage 模式；验证：全部通过，红先归因再修复
+- [x] 9.1 关联面核查：grep 全部新导出/端点的调用方与共享状态消费方，清理未引用导出、只服务死代码的 import、data 未被消费的查询通道（命中即在本 change 内清理或立案说明）；验证：核查结论写入提交说明
+- [x] 9.2 跑全量 CI 等价本地检查：仓库根 `bun turbo typecheck`、受影响包（schema/protocol/client/server/app/desktop/plugin）全量 `bun test`、httpapi 练习器 coverage 模式；验证：全部通过，红先归因再修复
 
 ## Workflow follow-up
 
