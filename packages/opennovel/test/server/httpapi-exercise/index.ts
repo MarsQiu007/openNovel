@@ -1863,6 +1863,21 @@ function seedMemoryFacts(ctx: ScenarioContext) {
   )
 }
 
+// 书籍导入练习样例：「第一章 风起 + 带半角标点正文」的 UTF-8 dataUrl（analyze/apply 场景共用同一字节）
+const EXERCISE_IMPORT_TEXT = "第一章 风起\n正文内容带半角标点,哦。"
+const EXERCISE_IMPORT_DATA_URL = `data:text/plain;base64,${Buffer.from(EXERCISE_IMPORT_TEXT, "utf8").toString("base64")}`
+
+/** 确定性伪随机噪声字节（固定 LCG 种子，避免 nondeterministic random 引入 flake）。 */
+function exerciseGarbageBytes(): Buffer {
+  const bytes = Buffer.alloc(4096)
+  let seed = 42
+  for (let index = 0; index < bytes.length; index++) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    bytes[index] = seed & 0xff
+  }
+  return bytes
+}
+
 function novelScenarios(): Scenario[] {
   const jsonHeaders = (ctx: ScenarioContext) => ({ ...ctx.headers(), "content-type": "application/json" })
   const isObject = (body: unknown) => object(body)
@@ -2649,6 +2664,88 @@ function novelScenarios(): Scenario[] {
       .json(200, (body) => {
         object(body)
         check((body as Record<string, unknown>).ok === false, "摘要不匹配的 apply 应被拒绝")
+      }),
+    http.protected
+      .post("/api/novel/import/analyze", "novel.import.analyze")
+      .at((ctx) => ({
+        path: "/api/novel/import/analyze",
+        headers: jsonHeaders(ctx),
+        body: {
+          dataUrl: EXERCISE_IMPORT_DATA_URL,
+          filename: "exercise-import.txt",
+          cleanEnabled: true,
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const preview = body as Record<string, unknown>
+        check(preview.suggestedTitle === "exercise-import", "建议书名应取文件名去扩展名")
+        check(preview.encoding === "utf-8", "UTF-8 样例应识别为 utf-8")
+        array(preview.volumes)
+        check((preview.volumes as unknown[]).length === 1, "单卷样例应解析出一个卷")
+        check(
+          typeof preview.previewToken === "string" && (preview.previewToken as string).length > 0,
+          "预览应携带 previewToken",
+        )
+      }),
+    http.protected
+      .post("/api/novel/import/analyze", "novel.import.analyze.encoding-failed")
+      .at((ctx) => ({
+        path: "/api/novel/import/analyze",
+        headers: jsonHeaders(ctx),
+        body: {
+          // 确定性伪随机噪声字节（固定 LCG 种子），任何候选编码评分都不达标
+          dataUrl: `data:text/plain;base64,${exerciseGarbageBytes().toString("base64")}`,
+          filename: "garbage.bin",
+          cleanEnabled: false,
+        },
+      }))
+      .json(400, (body) => {
+        object(body)
+        const error = body as Record<string, unknown>
+        check(error.name === "NovelImportError", "编码失败应返回 NovelImportError")
+        check((error.data as Record<string, unknown>).reason === "encoding-failed", "噪声字节应报编码识别失败")
+      }),
+    http.protected
+      .post("/api/novel/import/apply", "novel.import.apply")
+      .mutating()
+      .at((ctx) => ({
+        path: "/api/novel/import/apply",
+        headers: jsonHeaders(ctx),
+        body: {
+          // golden token：对固定样例字节经真实 analyze 管线产出（解析器版本/参数变更时需同步更新）
+          previewToken: "eyJ2IjoiYm9vay1pbXBvcnQtdjEiLCJoYXNoIjoiODFlMzU5ODY5MTE2NjRmYWJlYjdlNDBmNjQzY2IyMmFhNTY3YmIwYTg1MTg4M2YwZDM5MmU2YWY3ZDIxMDBkYiIsImNsZWFuIjp0cnVlLCJlbmMiOiJ1dGYtOCIsImZpeGVkIjpmYWxzZX0",
+          title: "练习导入书",
+          dataUrl: EXERCISE_IMPORT_DATA_URL,
+          filename: "exercise-import.txt",
+          cleanEnabled: true,
+        },
+      }))
+      .json(200, (body) => {
+        object(body)
+        const report = body as Record<string, unknown>
+        check(report.title === "练习导入书", "报告应回显确认书名")
+        check(report.volumeCount === 1 && report.chapterCount === 1, "样例应导入为一卷一章")
+        check(typeof report.novelId === "string" && (report.novelId as string).length > 0, "报告应携带新书 ID")
+      }),
+    http.protected
+      .post("/api/novel/import/apply", "novel.import.apply.preview-expired")
+      .at((ctx) => ({
+        path: "/api/novel/import/apply",
+        headers: jsonHeaders(ctx),
+        body: {
+          previewToken: "not-a-valid-token",
+          title: "不应建成",
+          dataUrl: EXERCISE_IMPORT_DATA_URL,
+          filename: "exercise-import.txt",
+          cleanEnabled: true,
+        },
+      }))
+      .json(400, (body) => {
+        object(body)
+        const error = body as Record<string, unknown>
+        check(error.name === "NovelImportError", "非法 token 应返回 NovelImportError")
+        check((error.data as Record<string, unknown>).reason === "preview-expired", "非法 token 应报预览过期")
       }),
     http.protected
       .get("/api/novel/{novelID}/review-inbox", "novel.review-inbox.items")
