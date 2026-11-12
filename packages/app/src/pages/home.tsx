@@ -367,16 +367,27 @@ export function NewHome() {
                   <p class="text-v2-text-text-muted text-sm">{language.t("novel.bookshelf.subTitle")}</p>
                 </Show>
               </div>
-              <ButtonV2
-                variant="ghost-muted"
-                size="normal"
-                icon="add"
-                class="h-7 px-2 [font-weight:530]"
-                disabled={!bookshelfDirectory()}
-                onClick={() => navigate(`/${base64Encode(bookshelfDirectory())}/novel/wizard`)}
-              >
-                {language.t("novel.bookshelf.create")}
-              </ButtonV2>
+              <div class="flex items-center gap-2">
+                <ButtonV2
+                  variant="ghost-muted"
+                  size="normal"
+                  class="h-7 px-2 [font-weight:530]"
+                  disabled={!bookshelfDirectory()}
+                  onClick={() => navigate(`/${base64Encode(bookshelfDirectory())}/novel/import`)}
+                >
+                  {language.t("novel.bookshelf.import")}
+                </ButtonV2>
+                <ButtonV2
+                  variant="ghost-muted"
+                  size="normal"
+                  icon="add"
+                  class="h-7 px-2 [font-weight:530]"
+                  disabled={!bookshelfDirectory()}
+                  onClick={() => navigate(`/${base64Encode(bookshelfDirectory())}/novel/wizard`)}
+                >
+                  {language.t("novel.bookshelf.create")}
+                </ButtonV2>
+              </div>
             </div>
 
             <div class="flex items-center gap-2 pb-4 pr-3">

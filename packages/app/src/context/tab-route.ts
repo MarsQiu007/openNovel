@@ -76,9 +76,10 @@ export const currentRoute = (pathname: string, search: string): LayoutRoute => {
 
   // The workspace route hosts both the novel main view and in-novel sessions
   // (/:dir/novel/:novelID[/session/:id]) — they are one book route. The wizard
-  // registers before the workspace route, so its :novelID segment would swallow
-  // "/novel/wizard" and mint a ghost "wizard" book tab; keep it a home route.
-  if (parts[1] === "novel" && parts[2] && parts[2] !== "wizard") {
+  // and book-import routes register before the workspace route, so their fixed
+  // segments would be swallowed as :novelID minting ghost book tabs
+  // ("/novel/wizard" / "/novel/import"); keep them home routes.
+  if (parts[1] === "novel" && parts[2] && parts[2] !== "wizard" && parts[2] !== "import") {
     return { type: "novel", dir, dirBase64, novelID: parts[2] }
   }
 

@@ -7,6 +7,7 @@ import { NovelProvider } from "@/context/novel"
 import { DirectoryDataProvider, decodeDirectory } from "@/pages/directory-layout"
 import NovelWorkspaceFrame from "./workspace-frame"
 import NovelWizard from "./wizard"
+import NovelImportWizard from "./book-import"
 
 export default function NovelWorkspaceLayout() {
   const params = useParams()
@@ -92,6 +93,45 @@ export function NovelWizardLayout() {
       {(resolved) => (
         <SDKProvider directory={resolved}>
           <NovelWizard />
+        </SDKProvider>
+      )}
+    </Show>
+  )
+}
+
+export function NovelImportWizardLayout() {
+  const params = useParams()
+  const language = useLanguage()
+  const navigate = useNavigate()
+  let invalid = ""
+
+  const resolved = createMemo(() => {
+    if (!params.dir) return ""
+    return decodeDirectory(params.dir) ?? ""
+  })
+
+  createEffect(() => {
+    const dir = params.dir
+    if (!dir) return
+    if (resolved()) {
+      invalid = ""
+      return
+    }
+    if (invalid === dir) return
+    invalid = dir
+    showToast({
+      variant: "error",
+      title: language.t("common.requestFailed"),
+      description: language.t("directory.error.invalidUrl"),
+    })
+    navigate("/", { replace: true })
+  })
+
+  return (
+    <Show when={resolved()} keyed>
+      {(resolved) => (
+        <SDKProvider directory={resolved}>
+          <NovelImportWizard />
         </SDKProvider>
       )}
     </Show>

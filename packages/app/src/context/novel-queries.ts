@@ -9,6 +9,7 @@ import type {
   CharacterProfile,
   ExportFormat,
   MemoryFactStatus,
+  NovelImportEncoding,
   ReviewInboxSource,
   SettingImageOwnerType,
 } from "@opennovel-ai/schema/novel"
@@ -725,6 +726,48 @@ export function useCreateNovel() {
         synopsis: input.synopsis,
         contentNature: input.contentNature,
       })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: novelKeys.list(sdk().directory) })
+    },
+  }))
+}
+
+// ---- 书籍导入（book-import）----
+
+export function useAnalyzeImport() {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      dataUrl: string
+      filename: string
+      cleanEnabled: boolean
+      encoding?: NovelImportEncoding
+      fallbackFixedLength?: boolean
+    }) => {
+      const dir = sdk().directory
+      return client()["server.novel"].analyzeImport({ location: { directory: dir }, ...input })
+    },
+  }))
+}
+
+export function useApplyImport() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      previewToken: string
+      title: string
+      dataUrl: string
+      filename: string
+      cleanEnabled: boolean
+      encoding?: NovelImportEncoding
+      fallbackFixedLength?: boolean
+    }) => {
+      const dir = sdk().directory
+      return client()["server.novel"].applyImport({ location: { directory: dir }, ...input })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: novelKeys.list(sdk().directory) })

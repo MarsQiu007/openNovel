@@ -135,6 +135,15 @@ export default function NovelWizard() {
               )}
             </For>
           </div>
+          <div class="mt-4 flex justify-center">
+            <ButtonV2
+              variant="ghost-muted"
+              size="small"
+              onClick={() => navigate(`/${base64Encode(sdk().directory)}/novel/import`)}
+            >
+              {language.t("novel.bookshelf.import")}
+            </ButtonV2>
+          </div>
         </Show>
 
         {/* Step 1: Title input */}

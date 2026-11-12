@@ -27,6 +27,10 @@ describe("currentRoute novel parsing", () => {
     expect(currentRoute(`/${dirBase64}/novel/wizard`, "")).toEqual({ type: "home" })
   })
 
+  test("the book-import route does not produce a novel route", () => {
+    expect(currentRoute(`/${dirBase64}/novel/import`, "")).toEqual({ type: "home" })
+  })
+
   test("novel routes without a novelID fall back to home", () => {
     expect(currentRoute(`/${dirBase64}/novel`, "")).toEqual({ type: "home" })
   })
