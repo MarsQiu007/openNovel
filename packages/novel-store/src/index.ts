@@ -7,6 +7,7 @@
  *
  * 不持有任何 hook 或 tool 注册逻辑。
  */
+import { countWords } from "@opennovel-ai/schema/schema"
 import { eq, and, or, asc, desc, gt, sql } from "drizzle-orm"
 import { sqliteTable, text, integer, real, index, primaryKey } from "drizzle-orm/sqlite-core"
 import { createDb, type Db } from "#driver"
@@ -1635,6 +1636,49 @@ export * from "./mode.js"
 
 export * from "./profile.js"
 
+/**
+ * 创建章节（组合形态）：写库逻辑同步收口本函数，供外层组合点事务内复用。
+ * content 缺省为既有行为（空正文、字数 0）；书籍导入等场景传入初始正文时
+ * 一次性写入 content 与字数（导入正文不算修订，不落 chapter_versions）。
+ * 自编号接续全书末位（chapter-sequence-guard：创建路径同样维护 1..N 唯一连续）。
+ */
+export function createChapterTx(
+  tx: Tx,
+  novelId: string,
+  title: string,
+  order?: number,
+  volumeId?: string | null,
+  content?: string,
+): string {
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  // 曾默认 0，经 HttpApi 无号建章产生全 0 重号库，后续移动/修复被不变量断言拒绝。
+  const nextOrder =
+    order ??
+    tx
+      .select({ order: ChapterTable.order })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, novelId))
+      .all()
+      .reduce((max, row) => Math.max(max, row.order), 0) +
+      1
+  tx.insert(ChapterTable)
+    .values({
+      id,
+      novel_id: novelId,
+      volume_id: volumeId ?? null,
+      title,
+      order: nextOrder,
+      status: "draft",
+      content: content ?? "",
+      word_count: content === undefined ? 0 : countWords(content),
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return id
+}
+
 export async function createChapter(
   novelId: string,
   title: string,
@@ -1643,33 +1687,7 @@ export async function createChapter(
   directory?: string | null,
 ): Promise<typeof ChapterTable.$inferSelect> {
   const db = getDb(directory)
-  const id = crypto.randomUUID()
-  const now = Date.now()
-  // 自编号接续全书末位（chapter-sequence-guard：创建路径同样维护 1..N 唯一连续）。
-  // 曾默认 0，经 HttpApi 无号建章产生全 0 重号库，后续移动/修复被不变量断言拒绝。
-  const nextOrder =
-    order ??
-    (db
-      .select({ order: ChapterTable.order })
-      .from(ChapterTable)
-      .where(eq(ChapterTable.novel_id, novelId))
-      .all()
-      .reduce((max, row) => Math.max(max, row.order), 0) +
-      1)
-  await db
-    .insert(ChapterTable)
-    .values({
-      id,
-      novel_id: novelId,
-      volume_id: volumeId ?? null,
-      title,
-      order: nextOrder,
-      status: "draft",
-      word_count: 0,
-      created_at: now,
-      updated_at: now,
-    })
-    .run()
+  const id = withTransaction(db, (tx) => createChapterTx(tx, novelId, title, order, volumeId))
   return db.select().from(ChapterTable).where(eq(ChapterTable.id, id)).get()!
 }
 
@@ -1682,6 +1700,17 @@ export async function deleteChapter(chapterId: string, directory?: string | null
   return deleteChapterWithSequence(chapterId, directory)
 }
 
+/** 创建卷（组合形态）：卷号接续全书末位，供外层组合点事务内复用（如书籍导入整书事务）。 */
+export function createVolumeTx(tx: Tx, novelId: string, title: string, summary?: string): string {
+  const id = crypto.randomUUID()
+  const existing = tx.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).all()
+  const nextOrder = existing.reduce((max, v) => Math.max(max, v.order), 0) + 1
+  tx.insert(VolumeTable)
+    .values({ id, novel_id: novelId, title, summary: summary ?? "", order: nextOrder, created_at: Date.now() })
+    .run()
+  return id
+}
+
 export async function createVolume(
   novelId: string,
   title: string,
@@ -1689,13 +1718,7 @@ export async function createVolume(
   directory?: string | null,
 ): Promise<typeof VolumeTable.$inferSelect> {
   const db = getDb(directory)
-  const id = crypto.randomUUID()
-  const existing = await db.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).all()
-  const nextOrder = existing.reduce((max, v) => Math.max(max, v.order), 0) + 1
-  await db
-    .insert(VolumeTable)
-    .values({ id, novel_id: novelId, title, summary: summary ?? "", order: nextOrder, created_at: Date.now() })
-    .run()
+  const id = withTransaction(db, (tx) => createVolumeTx(tx, novelId, title, summary))
   return db.select().from(VolumeTable).where(eq(VolumeTable.id, id)).get()!
 }
 

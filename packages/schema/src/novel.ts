@@ -1541,6 +1541,8 @@ export const NovelImportAnalyzeInput = Schema.Struct({
   cleanEnabled: Schema.Boolean,
   /** 编码识别失败时由用户显式指定重试 */
   encoding: optional(NovelImportEncoding),
+  /** 未识别到章节边界时按固定长度等长分章（默认 false：如实报未识别，不静默误切） */
+  fallbackFixedLength: optional(Schema.Boolean),
 }).annotate({ identifier: "Novel.NovelImportAnalyzeInput" })
 export interface NovelImportAnalyzeInput extends Schema.Schema.Type<typeof NovelImportAnalyzeInput> {}
 
@@ -1563,6 +1565,8 @@ export const NovelImportApplyInput = Schema.Struct({
   filename: Schema.NonEmptyString,
   cleanEnabled: Schema.Boolean,
   encoding: optional(NovelImportEncoding),
+  /** 须与 analyze 一致：token 校验包含该解析参数 */
+  fallbackFixedLength: optional(Schema.Boolean),
 }).annotate({ identifier: "Novel.NovelImportApplyInput" })
 export interface NovelImportApplyInput extends Schema.Schema.Type<typeof NovelImportApplyInput> {}
 

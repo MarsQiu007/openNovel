@@ -3,6 +3,7 @@ import { Effect, Option } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildNovelExport } from "./novel-export"
+import { analyzeImport, applyImport } from "./novel-import/orchestrate"
 import { SettingOrganization } from "../setting-organization"
 import { SettingReviewInbox, type ReviewInboxListQuery } from "../setting-review-inbox"
 import {
@@ -2988,6 +2989,18 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* settingOrganizationApply(ctx.params.novelID, location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.import.analyze", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* analyzeImport(location.directory, ctx.payload)
+        }),
+      )
+      .handle("novel.import.apply", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* applyImport(location.directory, ctx.payload)
         }),
       )
       .handle("novel.create-world-map", (ctx) =>

@@ -33,6 +33,14 @@ describe("NovelImportAnalyzeInput", () => {
     expect(decoded.encoding).toBe("gb18030")
   })
 
+  test("可携带等长分章兜底选项", () => {
+    const decoded = Schema.decodeUnknownSync(NovelImportAnalyzeInput)({
+      ...analyzeSample,
+      fallbackFixedLength: true,
+    })
+    expect(decoded.fallbackFixedLength).toBe(true)
+  })
+
   test("空 dataUrl 拒绝", () => {
     expect(() => Schema.decodeUnknownSync(NovelImportAnalyzeInput)({ ...analyzeSample, dataUrl: "" })).toThrow()
   })

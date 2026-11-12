@@ -5829,6 +5829,7 @@ export type NovelNovelImportAnalyzeInput = {
   filename: string
   cleanEnabled: boolean
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  fallbackFixedLength?: boolean
 }
 
 export type NovelNovelImportChapterPreview = {
@@ -5874,6 +5875,7 @@ export type NovelNovelImportApplyInput = {
   filename: string
   cleanEnabled: boolean
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  fallbackFixedLength?: boolean
 }
 
 export type NovelNovelImportReport = {

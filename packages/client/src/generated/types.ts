@@ -6600,25 +6600,36 @@ export type ServerNovelAnalyzeImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["dataUrl"]
   readonly filename: {
     readonly dataUrl: string
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["filename"]
   readonly cleanEnabled: {
     readonly dataUrl: string
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["cleanEnabled"]
   readonly encoding?: {
     readonly dataUrl: string
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["encoding"]
+  readonly fallbackFixedLength?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+  }["fallbackFixedLength"]
 }
 
 export type ServerNovelAnalyzeImportOutput = {
@@ -6665,6 +6676,7 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["previewToken"]
   readonly title: {
     readonly previewToken: string
@@ -6673,6 +6685,7 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["title"]
   readonly dataUrl: {
     readonly previewToken: string
@@ -6681,6 +6694,7 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["dataUrl"]
   readonly filename: {
     readonly previewToken: string
@@ -6689,6 +6703,7 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["filename"]
   readonly cleanEnabled: {
     readonly previewToken: string
@@ -6697,6 +6712,7 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["cleanEnabled"]
   readonly encoding?: {
     readonly previewToken: string
@@ -6705,7 +6721,17 @@ export type ServerNovelApplyImportInput = {
     readonly filename: string
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
   }["encoding"]
+  readonly fallbackFixedLength?: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+  }["fallbackFixedLength"]
 }
 
 export type ServerNovelApplyImportOutput = {

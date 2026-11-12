@@ -2219,6 +2219,7 @@ type Endpoint18_87Input = {
   readonly filename: Endpoint18_87Request["payload"]["filename"]
   readonly cleanEnabled: Endpoint18_87Request["payload"]["cleanEnabled"]
   readonly encoding?: Endpoint18_87Request["payload"]["encoding"]
+  readonly fallbackFixedLength?: Endpoint18_87Request["payload"]["fallbackFixedLength"]
 }
 const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87Input) =>
   raw["novel.import.analyze"]({
@@ -2228,6 +2229,7 @@ const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87I
       filename: input["filename"],
       cleanEnabled: input["cleanEnabled"],
       encoding: input["encoding"],
+      fallbackFixedLength: input["fallbackFixedLength"],
     },
   }).pipe(Effect.mapError(mapClientError))
 
@@ -2241,6 +2243,7 @@ type Endpoint18_88Input = {
   readonly filename: Endpoint18_88Request["payload"]["filename"]
   readonly cleanEnabled: Endpoint18_88Request["payload"]["cleanEnabled"]
   readonly encoding?: Endpoint18_88Request["payload"]["encoding"]
+  readonly fallbackFixedLength?: Endpoint18_88Request["payload"]["fallbackFixedLength"]
 }
 const Endpoint18_88 = (raw: RawClient["server.novel"]) => (input: Endpoint18_88Input) =>
   raw["novel.import.apply"]({
@@ -2252,6 +2255,7 @@ const Endpoint18_88 = (raw: RawClient["server.novel"]) => (input: Endpoint18_88I
       filename: input["filename"],
       cleanEnabled: input["cleanEnabled"],
       encoding: input["encoding"],
+      fallbackFixedLength: input["fallbackFixedLength"],
     },
   }).pipe(Effect.mapError(mapClientError))
 

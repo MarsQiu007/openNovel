@@ -44455,6 +44455,9 @@
           "encoding": {
             "type": "string",
             "enum": ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
+          },
+          "fallbackFixedLength": {
+            "type": "boolean"
           }
         },
         "required": ["dataUrl", "filename", "cleanEnabled"],
@@ -44609,6 +44612,9 @@
           "encoding": {
             "type": "string",
             "enum": ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
+          },
+          "fallbackFixedLength": {
+            "type": "boolean"
           }
         },
         "required": ["previewToken", "title", "dataUrl", "filename", "cleanEnabled"],
