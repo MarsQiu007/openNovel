@@ -20185,6 +20185,192 @@
         ]
       }
     },
+    "/api/novel/import/analyze": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.import.analyze",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.NovelImportPreview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNovelImportPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelImportError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelImportError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Detect encoding, split volumes and chapters, clean content and return a structured import preview.",
+        "summary": "Analyze a book import file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelNovelImportAnalyzeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.import.analyze({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/novel/import/apply": {
+      "post": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.import.apply",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TechniqueLibrary"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.NovelImportReport",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelNovelImportReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelImportError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelImportError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Revalidate the preview token against a fresh parse, then create the book, volumes and chapters in one transaction.",
+        "summary": "Apply a confirmed book import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovelNovelImportApplyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.import.apply({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/{novelID}/review-inbox": {
       "get": {
         "tags": ["novel"],
@@ -32948,6 +33134,31 @@
         "required": ["name", "data"],
         "additionalProperties": false
       },
+      "NovelImportError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["NovelImportError"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "enum": ["encoding-failed", "invalid-text", "file-too-large", "preview-expired"]
+              }
+            },
+            "required": ["message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
+        "additionalProperties": false
+      },
       "WorldMapValidationError": {
         "type": "object",
         "properties": {
@@ -44225,6 +44436,212 @@
           }
         },
         "required": ["ok", "errors", "results", "remaining"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportAnalyzeInput": {
+        "type": "object",
+        "properties": {
+          "dataUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cleanEnabled": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
+          }
+        },
+        "required": ["dataUrl", "filename", "cleanEnabled"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportChapterPreview": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "wordCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "special": {
+            "type": "string",
+            "enum": ["prologue", "epilogue", "extra"]
+          }
+        },
+        "required": ["title", "wordCount", "contentHash"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportVolumePreview": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelNovelImportChapterPreview"
+            }
+          }
+        },
+        "required": ["title", "chapters"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportIssue": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["sequence-gap", "duplicate-number", "order-mismatch", "unrecognized-boundary"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "chapterNumber": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["type", "message"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportCleanSummary": {
+        "type": "object",
+        "properties": {
+          "whitespaceTrimmed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blankLinesCollapsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "punctuationNormalized": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "linesMerged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "adsRemoved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicatesRemoved": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "whitespaceTrimmed",
+          "blankLinesCollapsed",
+          "punctuationNormalized",
+          "linesMerged",
+          "adsRemoved",
+          "duplicatesRemoved"
+        ],
+        "additionalProperties": false
+      },
+      "NovelNovelImportPreview": {
+        "type": "object",
+        "properties": {
+          "suggestedTitle": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelNovelImportVolumePreview"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelNovelImportIssue"
+            }
+          },
+          "cleanSummary": {
+            "$ref": "#/components/schemas/NovelNovelImportCleanSummary"
+          },
+          "previewToken": {
+            "type": "string"
+          }
+        },
+        "required": ["suggestedTitle", "encoding", "volumes", "issues", "cleanSummary", "previewToken"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportApplyInput": {
+        "type": "object",
+        "properties": {
+          "previewToken": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dataUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cleanEnabled": {
+            "type": "boolean"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
+          }
+        },
+        "required": ["previewToken", "title", "dataUrl", "filename", "cleanEnabled"],
+        "additionalProperties": false
+      },
+      "NovelNovelImportReport": {
+        "type": "object",
+        "properties": {
+          "novelId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "volumeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chapterCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cleanSummary": {
+            "$ref": "#/components/schemas/NovelNovelImportCleanSummary"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelNovelImportIssue"
+            }
+          }
+        },
+        "required": ["novelId", "title", "volumeCount", "chapterCount", "cleanSummary", "issues"],
         "additionalProperties": false
       },
       "NovelReviewInboxItem": {

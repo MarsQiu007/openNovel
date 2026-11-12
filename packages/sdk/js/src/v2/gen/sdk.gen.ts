@@ -133,6 +133,8 @@ import type {
   NovelMemoryFactCreateInput,
   NovelMemoryFactEditInput,
   NovelMoveChapterInput,
+  NovelNovelImportAnalyzeInput,
+  NovelNovelImportApplyInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
@@ -370,6 +372,10 @@ import type {
   V2NovelForeshadowingResponses,
   V2NovelForSessionErrors,
   V2NovelForSessionResponses,
+  V2NovelImportAnalyzeErrors,
+  V2NovelImportAnalyzeResponses,
+  V2NovelImportApplyErrors,
+  V2NovelImportApplyResponses,
   V2NovelListErrors,
   V2NovelListResponses,
   V2NovelMemoryFactsApproveErrors,
@@ -5684,6 +5690,92 @@ export class SettingsOrganization extends HeyApiClient {
   }
 }
 
+export class Import extends HeyApiClient {
+  /**
+   * Analyze a book import file
+   *
+   * Detect encoding, split volumes and chapters, clean content and return a structured import preview.
+   */
+  public analyze<ThrowOnError extends boolean = false>(
+    parameters: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelNovelImportAnalyzeInput: NovelNovelImportAnalyzeInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelNovelImportAnalyzeInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelImportAnalyzeResponses,
+      V2NovelImportAnalyzeErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/import/analyze",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Apply a confirmed book import
+   *
+   * Revalidate the preview token against a fresh parse, then create the book, volumes and chapters in one transaction.
+   */
+  public apply<ThrowOnError extends boolean = false>(
+    parameters: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      library?: TechniqueLibrary
+      novelNovelImportApplyInput: NovelNovelImportApplyInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "location" },
+            { in: "query", key: "library" },
+            { key: "novelNovelImportApplyInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<V2NovelImportApplyResponses, V2NovelImportApplyErrors, ThrowOnError>({
+      url: "/api/novel/import/apply",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class ReviewInbox extends HeyApiClient {
   /**
    * List review inbox items
@@ -10932,6 +11024,11 @@ export class Novel extends HeyApiClient {
   private _settingsOrganization?: SettingsOrganization
   get settingsOrganization(): SettingsOrganization {
     return (this._settingsOrganization ??= new SettingsOrganization({ client: this.client }))
+  }
+
+  private _import?: Import
+  get import(): Import {
+    return (this._import ??= new Import({ client: this.client }))
   }
 
   private _reviewInbox?: ReviewInbox

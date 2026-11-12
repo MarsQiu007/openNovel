@@ -136,6 +136,16 @@ export type ChapterNotFoundError = {
 export const isChapterNotFoundError = (value: unknown): value is ChapterNotFoundError =>
   typeof value === "object" && value !== null && "name" in value && value["name"] === "ChapterNotFoundError"
 
+export type NovelImportError = {
+  readonly name: "NovelImportError"
+  readonly data: {
+    readonly message: string
+    readonly reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "preview-expired" | undefined
+  }
+}
+export const isNovelImportError = (value: unknown): value is NovelImportError =>
+  typeof value === "object" && value !== null && "name" in value && value["name"] === "NovelImportError"
+
 export type WorldMapValidationError = {
   readonly name: "WorldMapValidationError"
   readonly data: { readonly message: string; readonly field?: string | undefined }
@@ -6573,6 +6583,148 @@ export type ServerNovelApplyOutput = {
     readonly action: "update" | "merge" | "delete"
     readonly entityType: "world_entry" | "character" | "relationship" | "plot_thread" | "foreshadowing"
     readonly entryIds: ReadonlyArray<string>
+  }>
+}
+
+export type ServerNovelAnalyzeImportInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly dataUrl: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["dataUrl"]
+  readonly filename: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["filename"]
+  readonly cleanEnabled: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["cleanEnabled"]
+  readonly encoding?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["encoding"]
+}
+
+export type ServerNovelAnalyzeImportOutput = {
+  readonly suggestedTitle: string
+  readonly encoding: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  readonly volumes: ReadonlyArray<{
+    readonly title: string | null
+    readonly chapters: ReadonlyArray<{
+      readonly title: string
+      readonly wordCount: number
+      readonly contentHash: string
+      readonly special?: "prologue" | "epilogue" | "extra"
+    }>
+  }>
+  readonly issues: ReadonlyArray<{
+    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+    readonly message: string
+    readonly chapterNumber?: number
+  }>
+  readonly cleanSummary: {
+    readonly whitespaceTrimmed: number
+    readonly blankLinesCollapsed: number
+    readonly punctuationNormalized: number
+    readonly linesMerged: number
+    readonly adsRemoved: number
+    readonly duplicatesRemoved: number
+  }
+  readonly previewToken: string
+}
+
+export type ServerNovelApplyImportInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["location"]
+  readonly library?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+  }["library"]
+  readonly previewToken: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["previewToken"]
+  readonly title: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["title"]
+  readonly dataUrl: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["dataUrl"]
+  readonly filename: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["filename"]
+  readonly cleanEnabled: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["cleanEnabled"]
+  readonly encoding?: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  }["encoding"]
+}
+
+export type ServerNovelApplyImportOutput = {
+  readonly novelId: string
+  readonly title: string
+  readonly volumeCount: number
+  readonly chapterCount: number
+  readonly cleanSummary: {
+    readonly whitespaceTrimmed: number
+    readonly blankLinesCollapsed: number
+    readonly punctuationNormalized: number
+    readonly linesMerged: number
+    readonly adsRemoved: number
+    readonly duplicatesRemoved: number
+  }
+  readonly issues: ReadonlyArray<{
+    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+    readonly message: string
+    readonly chapterNumber?: number
   }>
 }
 

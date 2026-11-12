@@ -116,6 +116,10 @@ import {
   ManualEditSyncQueryResult,
   ManualEditSyncRetryInput,
   ManualEditSyncRetryResult,
+  NovelImportAnalyzeInput,
+  NovelImportPreview,
+  NovelImportApplyInput,
+  NovelImportReport,
   UpgradeStatusResult,
   UpgradeStartResult,
   UpgradeProgressResult,
@@ -187,6 +191,19 @@ export class SettingImageValidationError extends Schema.ErrorClass<SettingImageV
   {
     name: Schema.Literal("SettingImageValidationError"),
     data: Schema.Struct({ message: Schema.String, code: Schema.optional(Schema.String) }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export class NovelImportError extends Schema.ErrorClass<NovelImportError>("NovelImportError")(
+  {
+    name: Schema.Literal("NovelImportError"),
+    data: Schema.Struct({
+      message: Schema.String,
+      reason: Schema.optional(
+        Schema.Literals(["encoding-failed", "invalid-text", "file-too-large", "preview-expired"]),
+      ),
+    }),
   },
   { httpApiStatus: 400 },
 ) {}
@@ -1332,6 +1349,38 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.settings-organization.apply",
           summary: "Apply setting organization plan",
           description: "Apply an explicitly confirmed organization plan after server-side revalidation.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.import.analyze", `${root}/import/analyze`, {
+      query: LocationQuery,
+      payload: NovelImportAnalyzeInput,
+      success: NovelImportPreview,
+      error: [NovelImportError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.import.analyze",
+          summary: "Analyze a book import file",
+          description: "Detect encoding, split volumes and chapters, clean content and return a structured import preview.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.import.apply", `${root}/import/apply`, {
+      query: LocationQuery,
+      payload: NovelImportApplyInput,
+      success: NovelImportReport,
+      error: [NovelImportError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.import.apply",
+          summary: "Apply a confirmed book import",
+          description: "Revalidate the preview token against a fresh parse, then create the book, volumes and chapters in one transaction.",
         }),
       ),
   )

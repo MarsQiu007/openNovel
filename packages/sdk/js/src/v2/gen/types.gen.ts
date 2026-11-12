@@ -2090,6 +2090,14 @@ export type ChapterNotFoundError = {
   }
 }
 
+export type NovelImportError = {
+  name: "NovelImportError"
+  data: {
+    message: string
+    reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "preview-expired"
+  }
+}
+
 export type WorldMapValidationError = {
   name: "WorldMapValidationError"
   data: {
@@ -5814,6 +5822,67 @@ export type NovelSettingOrganizationApplyResult = {
   errors: Array<string>
   results: Array<NovelSettingOrganizationOperationResult>
   remaining: Array<NovelSettingOrganizationRemainingOperation>
+}
+
+export type NovelNovelImportAnalyzeInput = {
+  dataUrl: string
+  filename: string
+  cleanEnabled: boolean
+  encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+}
+
+export type NovelNovelImportChapterPreview = {
+  title: string
+  wordCount: number
+  contentHash: string
+  special?: "prologue" | "epilogue" | "extra"
+}
+
+export type NovelNovelImportVolumePreview = {
+  title: string
+  chapters: Array<NovelNovelImportChapterPreview>
+}
+
+export type NovelNovelImportIssue = {
+  type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+  message: string
+  chapterNumber?: number
+}
+
+export type NovelNovelImportCleanSummary = {
+  whitespaceTrimmed: number
+  blankLinesCollapsed: number
+  punctuationNormalized: number
+  linesMerged: number
+  adsRemoved: number
+  duplicatesRemoved: number
+}
+
+export type NovelNovelImportPreview = {
+  suggestedTitle: string
+  encoding: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+  volumes: Array<NovelNovelImportVolumePreview>
+  issues: Array<NovelNovelImportIssue>
+  cleanSummary: NovelNovelImportCleanSummary
+  previewToken: string
+}
+
+export type NovelNovelImportApplyInput = {
+  previewToken: string
+  title: string
+  dataUrl: string
+  filename: string
+  cleanEnabled: boolean
+  encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+}
+
+export type NovelNovelImportReport = {
+  novelId: string
+  title: string
+  volumeCount: number
+  chapterCount: number
+  cleanSummary: NovelNovelImportCleanSummary
+  issues: Array<NovelNovelImportIssue>
 }
 
 export type NovelReviewInboxItem = {
@@ -15837,6 +15906,76 @@ export type V2NovelSettingsOrganizationApplyResponses = {
 
 export type V2NovelSettingsOrganizationApplyResponse =
   V2NovelSettingsOrganizationApplyResponses[keyof V2NovelSettingsOrganizationApplyResponses]
+
+export type V2NovelImportAnalyzeData = {
+  body: NovelNovelImportAnalyzeInput
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/import/analyze"
+}
+
+export type V2NovelImportAnalyzeErrors = {
+  /**
+   * NovelImportError | InvalidRequestError
+   */
+  400: NovelImportError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelImportAnalyzeError = V2NovelImportAnalyzeErrors[keyof V2NovelImportAnalyzeErrors]
+
+export type V2NovelImportAnalyzeResponses = {
+  /**
+   * Novel.NovelImportPreview
+   */
+  200: NovelNovelImportPreview
+}
+
+export type V2NovelImportAnalyzeResponse = V2NovelImportAnalyzeResponses[keyof V2NovelImportAnalyzeResponses]
+
+export type V2NovelImportApplyData = {
+  body: NovelNovelImportApplyInput
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+    library?: TechniqueLibrary
+  }
+  url: "/api/novel/import/apply"
+}
+
+export type V2NovelImportApplyErrors = {
+  /**
+   * NovelImportError | InvalidRequestError
+   */
+  400: NovelImportError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelImportApplyError = V2NovelImportApplyErrors[keyof V2NovelImportApplyErrors]
+
+export type V2NovelImportApplyResponses = {
+  /**
+   * Novel.NovelImportReport
+   */
+  200: NovelNovelImportReport
+}
+
+export type V2NovelImportApplyResponse = V2NovelImportApplyResponses[keyof V2NovelImportApplyResponses]
 
 export type V2NovelReviewInboxListData = {
   body?: never
