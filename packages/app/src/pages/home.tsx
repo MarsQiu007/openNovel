@@ -110,6 +110,7 @@ export function NewHome() {
   const [selectedGenre, setSelectedGenre] = createSignal("")
   const [sortOrder, setSortOrder] = createSignal<"newest" | "oldest" | "title">("newest")
   const [deletingNovelId, setDeletingNovelId] = createSignal<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = createSignal(false)
 
   const deleteNovel = useDeleteNovel()
   const novelClient = useNovelClient()
@@ -117,53 +118,67 @@ export function NewHome() {
 
   // 删除书籍并级联归档其绑定的会话（含子代理会话），避免残留为「未绑定书籍的对话」
   async function handleDeleteNovel(novelID: string) {
+    if (deleteBusy()) return
+    setDeleteBusy(true)
     const directory = bookshelfDirectory()
     const conn = focusedServer()
     // 绑定关系随书籍删除级联清除，必须在删除前取出
     let boundIds: string[] = []
     try {
-      const bindings = (await novelClient()["server.novel"]["session-bindings"]({
-        location: { directory },
-      })) as readonly NovelSessionBinding[]
-      boundIds = bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID)
+      try {
+        const bindings = (await novelClient()["server.novel"]["session-bindings"]({
+          location: { directory },
+        })) as readonly NovelSessionBinding[]
+        boundIds = bindings.filter((b) => b.novelID === novelID).map((b) => b.sessionID)
+      } catch (error) {
+        // 绑定查询失败不阻塞删除，但必须显式提示——相关会话会残留为未绑定对话
+        showToast({
+          variant: "error",
+          title: language.t("common.requestFailed"),
+          description: errorMessage(error, language.t("common.requestFailed")),
+        })
+      }
+      await deleteNovel.mutateAsync({ novelID, directory })
+      setDeletingNovelId(null)
+      if (!conn || boundIds.length === 0) return
+      const ctx = global.ensureServerCtx(conn)
+      const res = await ctx.sdk.client.v2.session.list({ directory, limit: 1000 }).catch(() => undefined)
+      const sessions = (res?.data?.data ?? []).map(adaptInfo)
+      const [, setStore] = ctx.sync.child(directory)
+      for (const sessionID of boundIds) {
+        const session = sessions.find((s) => s.id === sessionID)
+        if (!session || session.time.archived) continue
+        await archiveSessionCascade({
+          session,
+          sessions,
+          update: (value) => ctx.sdk.client.v2.session.update({ sessionID: value.sessionID, time: value.time }),
+          remove: (target) =>
+            setStore(
+              produce((draft) => {
+                const match = Binary.search(draft.session, target.id, (s) => s.id)
+                if (match.found) draft.session.splice(match.index, 1)
+              }),
+            ),
+          onError: (error) =>
+            showToast({
+              title: language.t("common.requestFailed"),
+              description: errorMessage(error, language.t("common.requestFailed")),
+            }),
+        })
+      }
+      void queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings"] })
+      void queryClient.invalidateQueries({ queryKey: ["sessions-novel-sessions"] })
     } catch (error) {
-      // 绑定查询失败不阻塞删除，但必须显式提示——相关会话会残留为未绑定对话
+      // 删除或级联归档失败：关闭遮罩并显式报错，避免用户被困在无反馈的确认框
+      setDeletingNovelId(null)
       showToast({
         variant: "error",
         title: language.t("common.requestFailed"),
         description: errorMessage(error, language.t("common.requestFailed")),
       })
+    } finally {
+      setDeleteBusy(false)
     }
-    await deleteNovel.mutateAsync({ novelID, directory })
-    setDeletingNovelId(null)
-    if (!conn || boundIds.length === 0) return
-    const ctx = global.ensureServerCtx(conn)
-    const res = await ctx.sdk.client.v2.session.list({ directory, limit: 1000 }).catch(() => undefined)
-    const sessions = (res?.data?.data ?? []).map(adaptInfo)
-    const [, setStore] = ctx.sync.child(directory)
-    for (const sessionID of boundIds) {
-      const session = sessions.find((s) => s.id === sessionID)
-      if (!session || session.time.archived) continue
-      await archiveSessionCascade({
-        session,
-        sessions,
-        update: (value) => ctx.sdk.client.v2.session.update({ sessionID: value.sessionID, time: value.time }),
-        remove: (target) =>
-          setStore(
-            produce((draft) => {
-              const match = Binary.search(draft.session, target.id, (s) => s.id)
-              if (match.found) draft.session.splice(match.index, 1)
-            }),
-          ),
-        onError: (error) =>
-          showToast({
-            title: language.t("common.requestFailed"),
-            description: errorMessage(error, language.t("common.requestFailed")),
-          }),
-      })
-    }
-    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-bindings"] })
-    void queryClient.invalidateQueries({ queryKey: ["sessions-novel-sessions"] })
   }
 
   const filteredNovels = createMemo(() => {
@@ -489,9 +504,10 @@ export function NewHome() {
                                 e.stopPropagation()
                                 setDeletingNovelId(novel.id)
                               }}
-                              class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-[4px] text-v2-text-text-faint opacity-0 transition-opacity hover:bg-v2-background-bg-layer-03 hover:text-v2-icon-icon-critical group-hover:opacity-100"
+                              class="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-[4px] text-v2-text-text-faint opacity-0 pointer-events-none transition-opacity hover:bg-v2-background-bg-layer-03 hover:text-v2-icon-icon-critical group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100"
                               type="button"
                               title={language.t("common.action.delete")}
+                              aria-label={language.t("common.action.delete")}
                             >
                               <IconV2 name="delete" size="small" />
                             </button>
@@ -506,10 +522,13 @@ export function NewHome() {
                                       e.stopPropagation()
                                       void handleDeleteNovel(novel.id)
                                     }}
-                                    class="px-3 py-1.5 text-xs font-medium rounded bg-v2-icon-icon-critical text-white hover:opacity-90"
+                                    class="px-3 py-1.5 text-xs font-medium rounded bg-v2-icon-icon-critical text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                                     type="button"
+                                    disabled={deleteBusy()}
                                   >
-                                    {language.t("common.action.confirm")}
+                                    {deleteBusy()
+                                      ? language.t("novel.bookshelf.deleting")
+                                      : language.t("common.action.confirm")}
                                   </button>
                                   <button
                                     onClick={(e) => {
