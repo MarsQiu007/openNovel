@@ -770,7 +770,7 @@ export function useApplyImport() {
       return client()["server.novel"].applyImport({ location: { directory: dir }, ...input })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: novelKeys.list(sdk().directory) })
+      void queryClient.invalidateQueries({ queryKey: novelKeys.list(sdk().directory) })
     },
   }))
 }

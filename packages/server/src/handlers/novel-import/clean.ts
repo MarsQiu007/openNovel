@@ -67,15 +67,16 @@ export function cleanText(raw: string): { text: string; summary: CleanSummary } 
   while (collapsed.length > 0 && collapsed[collapsed.length - 1] === "") collapsed.pop()
 
   const normalized = collapsed.map((line) => {
+    let out = ""
     let replaced = 0
-    const out = [...line]
-      .map((char) => {
-        const target = HALF_TO_FULL[char]
-        if (target === undefined) return char
+    for (const char of line) {
+      const target = HALF_TO_FULL[char]
+      if (target === undefined) out += char
+      else {
+        out += target
         replaced++
-        return target
-      })
-      .join("")
+      }
+    }
     summary.punctuationNormalized += replaced
     return out
   })

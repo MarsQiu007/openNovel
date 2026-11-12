@@ -153,7 +153,7 @@ export function parseStructure(text: string): ParsedStructure {
   // 懒创建默认卷：首个卷题之前出现章题时才需要它
   const currentVolume = () => {
     if (volumes.length === 0) volumes.push({ title: null, chapters: [] })
-    return volumes[volumes.length - 1]!
+    return volumes[volumes.length - 1]
   }
   const issues: ParsedStructure["issues"] = []
   const chapterNumbers: { number: number; lineIndex: number }[] = []
@@ -177,7 +177,7 @@ export function parseStructure(text: string): ParsedStructure {
   })
 
   // 首个章题前的卷前言并入第一章，避免内容丢失
-  const preamble = trimBlankEdges(lines.slice(0, headings[0]!.lineIndex))
+  const preamble = trimBlankEdges(lines.slice(0, headings[0].lineIndex))
   if (preamble.length > 0 && volumes.length > 0) {
     const first = volumes.find((volume) => volume.chapters.length > 0)?.chapters[0]
     if (first) {
@@ -186,8 +186,8 @@ export function parseStructure(text: string): ParsedStructure {
   }
 
   for (let index = 1; index < chapterNumbers.length; index++) {
-    const previous = chapterNumbers[index - 1]!
-    const current = chapterNumbers[index]!
+    const previous = chapterNumbers[index - 1]
+    const current = chapterNumbers[index]
     if (current.number === previous.number) {
       issues.push({ type: "duplicate-number", message: `第 ${current.number} 章编号重复`, chapterNumber: current.number })
       continue
@@ -208,7 +208,7 @@ function trimBlankEdges(lines: string[]): string[] {
   const start = lines.findIndex((line) => line.trim().length > 0)
   if (start === -1) return []
   let end = lines.length
-  while (end > start && lines[end - 1]!.trim().length === 0) end--
+  while (end > start && lines[end - 1].trim().length === 0) end--
   return lines.slice(start, end)
 }
 

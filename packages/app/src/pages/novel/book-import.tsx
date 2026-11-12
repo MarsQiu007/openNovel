@@ -17,6 +17,11 @@ import { sendNovelSessionInstruction } from "./workspace-data"
 
 const ENCODING_OPTIONS: NovelImportEncoding[] = ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
 
+function parseEncodingSelect(value: string): "auto" | NovelImportEncoding {
+  if (value === "auto") return "auto"
+  return ENCODING_OPTIONS.find((option) => option === value) ?? "auto"
+}
+
 const ISSUE_TYPE_KEYS: Record<NovelImportIssue["type"], string> = {
   "sequence-gap": "novel.import.issues.sequence-gap",
   "duplicate-number": "novel.import.issues.duplicate-number",
@@ -43,8 +48,13 @@ function readFileDataUrl(file: File): Promise<string> {
 }
 
 function errorMessage(err: unknown): string {
-  const data = (err as { data?: { message?: string } }).data
-  return data?.message ?? (err instanceof Error ? err.message : String(err))
+  if (typeof err === "object" && err !== null && "data" in err) {
+    const inner: unknown = err.data
+    if (typeof inner === "object" && inner !== null && "message" in inner && typeof inner.message === "string") {
+      return inner.message
+    }
+  }
+  return err instanceof Error ? err.message : String(err)
 }
 
 export default function NovelImportWizard() {
@@ -237,7 +247,7 @@ export default function NovelImportWizard() {
               <FieldV2.Label>{language.t("novel.import.encoding")}</FieldV2.Label>
               <select
                 value={encoding()}
-                onChange={(e) => setEncoding(e.currentTarget.value as "auto" | NovelImportEncoding)}
+                onChange={(e) => setEncoding(parseEncodingSelect(e.currentTarget.value))}
                 class="h-8 px-2 rounded-[6px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base text-sm outline-none focus:border-v2-border-border-focus transition-colors cursor-pointer"
               >
                 <option value="auto">{language.t("novel.import.encoding.auto")}</option>

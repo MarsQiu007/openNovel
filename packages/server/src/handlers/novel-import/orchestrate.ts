@@ -139,7 +139,7 @@ function parsePreviewToken(token: string): PreviewTokenPayload | null {
       v: candidate.v,
       hash: candidate.hash,
       clean: candidate.clean,
-      enc: candidate.enc as NovelImportEncoding,
+      enc: candidate.enc,
       fixed: candidate.fixed,
     }
   } catch {
