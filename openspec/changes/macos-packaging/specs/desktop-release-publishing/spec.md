@@ -21,7 +21,7 @@ beta 与 prod release MUST 包含 Windows 安装包、macOS（arm64）安装包�
 - **AND** publish 阶段不会将该 release 发布为最终 release
 
 ### Requirement: dev release 不提供自动更新
-dev release MUST 定位为手动测试构建，MUST NOT 上传会被 updater 消费的更新元数据或 blockmap。Windows 的 NSIS target 与 mac 的 zip/dmg target 会在本地构建目录无条件生成此类文件（供手动更新测试使用），因此 dev 构建流程 MUST 在上传前移除这些文件，且 dev 客户端 MUST NOT 通过 GitHub release 自动更新。
+dev release MUST 定位为手动测试构建，MUST NOT 上传会被 updater 消费的更新元数据或 blockmap。Windows 的 NSIS target 会在本地构建目录无条件生成此类文件（供手动更新测试使用），mac 构建同样可能在本地构建目录生成此类文件，因此各平台 dev 构建流程 MUST 在上传前移除这些文件，且 dev 客户端 MUST NOT 通过 GitHub release 自动更新。
 
 #### Scenario: dev 只有手动安装包
 - **WHEN** dev release 的 Windows 与 macOS 构建都完成

@@ -23,10 +23,11 @@ Windows 与 macOS 两个 job 的步骤骨架相同（checkout tag → 校验 com
 
 ### D3：签名/公证条件化，凭据探测收敛在 `getConfig()` 内
 
-在 `getConfig()` 中探测 Apple 凭据：
+在 `getConfig()` 中探测 Apple 凭据，签名与公证分开判定（公证以签名为前提）：
 
-- 有凭据（`CSC_LINK` / `CSC_NAME`，或公证用的 `APPLE_API_KEY` 或 `APPLE_ID` 三件套任一存在）：`notarize: true`、`dmg.sign: true`，`identity` 走 electron-builder 默认发现。
-- 无凭据：`mac.identity: null`（显式跳过签名，避免 electron-builder 在 mac 上尝试自动发现钥匙串证书）、`notarize: false`、`dmg.sign: false`；`hardenedRuntime` 等其余键保留——它们只在签名时生效。
+- 可签名（`CSC_LINK` / `CSC_NAME` 任一存在）：`dmg.sign: true`，`identity` 走 electron-builder 默认发现；`hardenedRuntime` 等其余键保留——它们只在签名时生效。
+- 不可签名：`mac.identity: null`（显式跳过签名，避免 electron-builder 在 mac 上尝试自动发现钥匙串证书）、`dmg.sign: false`。
+- 可公证（在可签名基础上，`APPLE_API_KEY` 或 `APPLE_ID` 三件套任一存在）：`notarize: true`；否则 `notarize: false`。electron-builder 26 的布尔 `notarize` 会自动选用上述凭据。
 
 `getConfig()` 在模块加载时执行一次，测试沿用既有模式：先设 env 再带 query 参数重 import。替代方案（维护独立未签名配置 / 构建时传 CLI 开关）都违反「不维护单独配置分支」的 spec 要求，且容易在 CI 与本地间漂移。
 
