@@ -252,37 +252,44 @@ jobs:
           fi
 
           assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
-          asset_exists() {
-            grep -Fxq -- "$1" <<<"$assets"
-          }
-
-          mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
-          if [ ${#installers[@]} -eq 0 ]; then
-            echo "Release $TAG is missing a Windows installer"
-            exit 1
-          fi
 
           if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            # 双平台 job 并行上传，dev 只校验本 job 的安装包存在；updater 元数据
+            # 与 blockmap 的禁令全通道一致，任一 job 误传都会在两个 job 中被抓出。
             while IFS= read -r asset; do
-              if [[ "$asset" != *.exe ]]; then
-                echo "Dev release contains unexpected asset: $asset"
-                exit 1
-              fi
+              case "$asset" in
+                *.blockmap|*.yml|*.yaml)
+                  echo "Dev release contains updater-consumed file: $asset"
+                  exit 1
+                  ;;
+              esac
             done <<<"$assets"
+            mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
+            if [ ${#installers[@]} -eq 0 ]; then
+              echo "Release $TAG is missing a Windows installer"
+              exit 1
+            fi
           else
             metadata=latest.yml
             if [ "$OPENNOVEL_CHANNEL" = "beta" ]; then
               metadata=beta.yml
             fi
 
+            # 只校验本 job 负责的平台前缀产物，避免跨 job 上传时序造成误杀
+            mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
+            if [ ${#installers[@]} -eq 0 ]; then
+              echo "Release $TAG is missing a Windows installer"
+              exit 1
+            fi
+
             for installer in "${installers[@]}"; do
-              if ! asset_exists "$installer.blockmap"; then
+              if ! grep -Fxq -- "$installer.blockmap" <<<"$assets"; then
                 echo "Release $TAG is missing blockmap: $installer.blockmap"
                 exit 1
               fi
             done
 
-            if ! asset_exists "$metadata"; then
+            if ! grep -Fxq -- "$metadata" <<<"$assets"; then
               echo "Release $TAG is missing updater metadata: $metadata"
               exit 1
             fi
@@ -296,12 +303,197 @@ jobs:
             fi
           fi
 
-  # TODO: 未来扩展 macOS
-  # build-macos:
-  #   name: Build macOS installer
-  #   needs: prepare
-  #   runs-on: macos-latest
-  #   steps: ...
+  # ========== 阶段 2b：构建 macOS 安装包 ==========
+  build-macos:
+    name: Build macOS installer
+    needs: prepare
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      OPENNOVEL_CHANNEL: ${{ needs.prepare.outputs.product_channel }}
+      EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
+      EXPECTED_COMMIT: ${{ needs.prepare.outputs.commit }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Verify checked-out release commit and version
+        run: |
+          set -euo pipefail
+          ACTUAL_COMMIT=$(git rev-parse HEAD)
+          if [ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]; then
+            echo "Release commit mismatch: expected $EXPECTED_COMMIT, got $ACTUAL_COMMIT"
+            exit 1
+          fi
+
+          ACTUAL_VERSION=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' packages/desktop/package.json | head -n 1)
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "Desktop version mismatch: expected $EXPECTED_VERSION, got $ACTUAL_VERSION"
+            exit 1
+          fi
+
+      - name: Verify reusable draft release
+        if: needs.prepare.outputs.product_channel != 'dev'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG=$(gh release view "$TAG" --json tagName --jq '.tagName')
+          IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+          if [ "$RELEASE_TAG" != "$TAG" ] || [ "$IS_DRAFT" != "true" ]; then
+            echo "Expected draft release $TAG, got tag=$RELEASE_TAG draft=$IS_DRAFT"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Build and publish package
+        working-directory: packages/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            PUBLISH_MODE=never
+            # GH_TOKEN 会让 electron-builder 隐式推断 GitHub publish 配置，dev 必须完全禁用
+            unset GH_TOKEN
+          else
+            PUBLISH_MODE=always
+          fi
+          echo "Building $OPENNOVEL_CHANNEL with --publish=$PUBLISH_MODE"
+          bun run build
+          bun run package:mac -- "--publish=$PUBLISH_MODE"
+
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            # electron-builder 可能在本地 dist 生成 blockmap 与 updater 元数据，
+            # dev 交付前必须移除这些文件。
+            rm -f dist/*.blockmap dist/latest*.yml dist/beta*.yml dist/alpha*.yml
+          fi
+
+      - name: Validate built artifacts
+        working-directory: packages/desktop
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(dist/opennovel-desktop-mac-*.dmg)
+          archives=(dist/opennovel-desktop-mac-*.zip)
+          if [ ${#images[@]} -eq 0 ] || [ ${#archives[@]} -eq 0 ]; then
+            echo "Missing macOS dmg or zip artifact"
+            ls -la dist
+            exit 1
+          fi
+
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            leftovers=(dist/*.blockmap dist/latest*.yml dist/beta*.yml dist/alpha*.yml)
+            if [ ${#leftovers[@]} -ne 0 ]; then
+              echo "Dev release must not contain blockmap or updater metadata"
+              echo "leftovers: ${leftovers[*]:-none}"
+              exit 1
+            fi
+          else
+            metadata=latest-mac.yml
+            if [ "$OPENNOVEL_CHANNEL" = "beta" ]; then
+              metadata=beta-mac.yml
+            fi
+
+            for artifact in "${images[@]}" "${archives[@]}"; do
+              if [ ! -f "$artifact.blockmap" ]; then
+                echo "Missing blockmap for $artifact"
+                exit 1
+              fi
+            done
+
+            if [ ! -f "dist/$metadata" ]; then
+              echo "Missing updater metadata: $metadata"
+              exit 1
+            fi
+          fi
+
+      - name: Upload dev artifacts
+        if: needs.prepare.outputs.product_channel == 'dev'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: packages/desktop
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/opennovel-desktop-mac-*.dmg dist/opennovel-desktop-mac-*.zip)
+          for file in "${files[@]}"; do
+            gh release upload "$TAG" "$file" --clobber --repo "$GITHUB_REPOSITORY"
+          done
+
+      - name: Validate uploaded release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE_RELEASE_ID=$(gh release view "$TAG" --json databaseId --jq '.databaseId')
+          if [ "$REMOTE_RELEASE_ID" != "$RELEASE_ID" ]; then
+            echo "Unexpected release $REMOTE_RELEASE_ID; expected prepared release $RELEASE_ID"
+            exit 1
+          fi
+
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+
+          if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
+            # 双平台 job 并行上传，dev 只校验本 job 的安装包存在；updater 元数据
+            # 与 blockmap 的禁令全通道一致，任一 job 误传都会在两个 job 中被抓出。
+            while IFS= read -r asset; do
+              case "$asset" in
+                *.blockmap|*.yml|*.yaml)
+                  echo "Dev release contains updater-consumed file: $asset"
+                  exit 1
+                  ;;
+              esac
+            done <<<"$assets"
+            mapfile -t installers < <(grep -E '^opennovel-desktop-mac-.+\.dmg$' <<<"$assets" || true)
+            if [ ${#installers[@]} -eq 0 ]; then
+              echo "Release $TAG is missing a macOS dmg"
+              exit 1
+            fi
+          else
+            metadata=latest-mac.yml
+            if [ "$OPENNOVEL_CHANNEL" = "beta" ]; then
+              metadata=beta-mac.yml
+            fi
+
+            # 只校验本 job 负责的平台前缀产物，避免跨 job 上传时序造成误杀
+            mapfile -t artifacts < <(grep -E '^opennovel-desktop-mac-.+\.(dmg|zip)$' <<<"$assets" || true)
+            if [ ${#artifacts[@]} -eq 0 ]; then
+              echo "Release $TAG is missing macOS artifacts"
+              exit 1
+            fi
+
+            for artifact in "${artifacts[@]}"; do
+              if ! grep -Fxq -- "$artifact.blockmap" <<<"$assets"; then
+                echo "Release $TAG is missing blockmap: $artifact.blockmap"
+                exit 1
+              fi
+            done
+
+            if ! grep -Fxq -- "$metadata" <<<"$assets"; then
+              echo "Release $TAG is missing updater metadata: $metadata"
+              exit 1
+            fi
+
+            validation_dir=$(mktemp -d)
+            gh release download "$TAG" --pattern "$metadata" --dir "$validation_dir" --clobber
+            metadata_version=$(sed -n 's/^version:[[:space:]]*//p' "$validation_dir/$metadata" | head -n 1)
+            if [ "$metadata_version" != "$EXPECTED_VERSION" ]; then
+              echo "Updater version mismatch: expected $EXPECTED_VERSION, got $metadata_version"
+              exit 1
+            fi
+          fi
 
   # TODO: 未来扩展 Linux
   # build-linux:
@@ -316,6 +508,7 @@ jobs:
     needs:
       - prepare
       - build-windows
+      - build-macos
     runs-on: ubuntu-latest
     steps:
       - name: Publish GitHub release

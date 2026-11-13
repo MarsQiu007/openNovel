@@ -35,7 +35,7 @@ const APP_IDS = {
   prod: "ai.opennovel.desktop",
 } as const
 
-const getBase = (appId: string): Configuration => ({
+const getBase = (appId: string, codesign: { sign: boolean; notarize: boolean }): Configuration => ({
   artifactName: "opennovel-desktop-${os}-${arch}.${ext}",
   directories: {
     output: "dist",
@@ -50,13 +50,6 @@ const getBase = (appId: string): Configuration => ({
     desktopName: `${appId}.desktop`,
   },
   files: ["out/**/*", "resources/**/*"],
-  extraResources: [
-    {
-      from: "native/",
-      to: "native/",
-      filter: ["index.js", "index.d.ts", "build/Release/mac_window.node", "swift-build/**"],
-    },
-  ],
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,
@@ -64,11 +57,13 @@ const getBase = (appId: string): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
-    notarize: true,
+    // 未配置 Apple 凭据（CSC_* / APPLE_*）时显式跳过签名与公证；凭据就位后自动升级
+    identity: codesign.sign ? undefined : null,
+    notarize: codesign.notarize,
     target: ["dmg", "zip"],
   },
   dmg: {
-    sign: true,
+    sign: codesign.sign,
   },
   protocols: {
     name: "OpenNovel",
@@ -105,7 +100,15 @@ const getBase = (appId: string): Configuration => ({
 
 function getConfig() {
   const appId = APP_IDS[channel]
-  const base = getBase(appId)
+  // 公证以签名为前提：CSC_* 决定签名，APPLE_* 决定公证
+  const canSign = Boolean(process.env.CSC_LINK || process.env.CSC_NAME)
+  const canNotarize =
+    canSign &&
+    Boolean(
+      process.env.APPLE_API_KEY ||
+        (process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID),
+    )
+  const base = getBase(appId, { sign: canSign, notarize: canNotarize })
 
   switch (channel) {
     case "dev": {
