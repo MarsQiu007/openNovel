@@ -27,3 +27,8 @@
 - 合入 main 后手动触发一次 dev channel release，端到端验证 build-macos（产物、校验、上传），mac 产物首次打开注明需右键打开
 - 触发一次 beta release 验证 mac 签名降级路径的 publish 与 `beta-mac.yml` 元数据
 - 收集实现提交写入本文件 `Implementation Commits`，`openspec validate macos-packaging --strict` 通过后归档
+
+## 验证结论
+
+- dev 试跑（run `43552502580`，v`0.1.5-dev.20261114`）首跑暴露：build-macos 的 `bun run build`（electron-vite，node 24 执行）在 macos-latest arm64（7GB）上因 node 默认堆上限约 2GB OOM，SIGABRT 退出码 134。已修：build-macos「Build and publish package」步骤加 `NODE_OPTIONS=--max-old-space-size=4096`（Windows runner 内存充足未动）。
+

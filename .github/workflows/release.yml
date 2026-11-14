@@ -361,6 +361,9 @@ jobs:
         working-directory: packages/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macos-latest arm64 仅 7GB 内存，node 默认堆上限约 2GB，electron-vite
+          # 构建峰值会 OOM（SIGABRT 退出码 134）；Windows runner 内存充足不受影响。
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           set -euo pipefail
           if [ "$OPENNOVEL_CHANNEL" = "dev" ]; then
