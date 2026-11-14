@@ -65,6 +65,17 @@ const waitStatus = (mcp: Mcp.Interface, name: string, status: Mcp.Status["status
     Effect.retry(Schedule.spaced("100 millis").pipe(Schedule.both(Schedule.recurs(200)))),
   )
 
+// connected 早于工具目录缓存翻转（src/mcp/index.ts connectServer），
+// 轮询 tools 直到目标工具键出现，失败时带出实际键集合便于归因
+const waitTools = (mcp: Mcp.Interface, key: string) =>
+  mcp.tools().pipe(
+    Effect.filterOrElse(
+      (listed) => key in listed,
+      (listed) => Effect.fail(new Error(`tools: ${JSON.stringify(Object.keys(listed))}`)),
+    ),
+    Effect.retry(Schedule.spaced("100 millis").pipe(Schedule.both(Schedule.recurs(200)))),
+  )
+
 describe("Mcp", () => {
   it.live(
     "connects to a configured stdio server and lists its tools",
@@ -73,7 +84,7 @@ describe("Mcp", () => {
         const mcp = yield* Mcp.Service
         yield* waitStatus(mcp, "fixture", "connected")
 
-        const listed = yield* mcp.tools()
+        const listed = yield* waitTools(mcp, "fixture_echo")
         expect(Object.keys(listed)).toContain("fixture_echo")
         expect(listed["fixture_echo"]?.server).toBe("fixture")
         expect(listed["fixture_echo"]?.def.description).toBe("Echo text back")
@@ -127,7 +138,7 @@ describe("Mcp", () => {
       Effect.gen(function* () {
         const mcp = yield* Mcp.Service
         yield* waitStatus(mcp, "fixture", "connected")
-        expect(Object.keys(yield* mcp.tools())).toContain("fixture_echo")
+        yield* waitTools(mcp, "fixture_echo")
 
         yield* mcp.disconnect("fixture")
         expect(yield* mcp.status()).toEqual({ fixture: { status: "disabled" } })
@@ -148,7 +159,7 @@ describe("Mcp", () => {
         yield* mcp.disconnect("fixture")
         yield* mcp.connect("fixture")
         yield* waitStatus(mcp, "fixture", "connected")
-        expect(Object.keys(yield* mcp.tools())).toContain("fixture_echo")
+        yield* waitTools(mcp, "fixture_echo")
       }).pipe(Effect.provide(testLayer({ fixture: local() }))),
     { timeout: 60_000 },
   )
