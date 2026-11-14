@@ -32,4 +32,15 @@
 
 - dev 试跑（run `43552502580`，v`0.1.5-dev.20261114`）首跑暴露：build-macos 的 `bun run build`（electron-vite，node 24 执行）在 macos-latest arm64（7GB）上因 node 默认堆上限约 2GB OOM，SIGABRT 退出码 134。已修：build-macos「Build and publish package」步骤加 `NODE_OPTIONS=--max-old-space-size=4096`（Windows runner 内存充足未动）。
 - 重跑（run `43553585501`）构建、产物校验、dmg/zip 上传全过，最终校验步骤暴露：「Validate uploaded release assets」使用 `mapfile`，macOS runner 的 `/bin/bash` 为 3.2 无此内建（exit 127）。已修：四个 `mapfile` 位点（windows/macos × dev/beta-prod）全部改为 grep 直接判定 + herestring 循环，bash 3.2 兼容。
+- 第三跑（run `43554626960`）dev 通道端到端全绿：release 资产仅 `opennovel-desktop-mac-arm64.dmg/.zip` + `opennovel-desktop-win-x64.exe`，无 blockmap/元数据；构建日志实证 `skipped macOS code signing reason=identity explicitly is set to null`。
+- beta 通道（run `43555740326`，v`0.1.5-beta.20261114`）端到端全绿：`--publish=always` 发布路径、双平台 blockmap、`beta.yml`/`beta-mac.yml` 齐全且版本断言通过；未签名产物成功进入 beta 更新通道（mac 客户端启动时自动更新被禁用逻辑兜底）。
+
+## Implementation Commits
+
+- `86b74c443` docs(openspec): 建立 macos-packaging 提案
+- `58c1081db` docs(openspec): 修订 macos-packaging 提案审查结论
+- `76bbc52e3` feat(desktop): 新增 macOS 打包与无凭据签名降级
+- `00f498c48` docs(openspec): 勾选 macos-packaging 实现任务并记录验证结论
+- `d43be9fa4` fix(release): macOS 构建步骤提升 Node 堆上限修 OOM
+- `62ef62b42` fix(release): 产物资产校验去除 mapfile 兼容 macOS bash 3.2
 
