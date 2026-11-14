@@ -1,6 +1,6 @@
 {
   "name": "@opennovel-ai/slack",
-  "version": "0.1.5",
+  "version": "0.1.5-dev.20261114",
   "type": "module",
   "license": "MIT",
   "scripts": {
