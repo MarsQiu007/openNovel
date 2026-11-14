@@ -8,7 +8,9 @@
 ## 2. 收尾
 
 - [x] 2.1 `openspec validate mcp-stdio-flake --strict` 通过且 tasks 勾选完整
-- [ ] 2.2 推送后 CI `test` workflow 观察期（后续 3 次 push/run）内 `unit (linux)`/`unit (windows)` 不再出现 `Mcp >` 失败签名；若再现，按 design.md Open Questions 升级为生产瞬态收敛提案
+- [x] 2.2 推送后 CI `test` workflow 观察期（后续 3 次 push/run）内 `unit (linux)`/`unit (windows)` 不再出现 `Mcp >` 失败签名；若再现，按 design.md Open Questions 升级为生产瞬态收敛提案
+
+验证结论（2026-11-14）：推送 SHA `b71870bcd3` 触发 test.yml run `43600763587`，5 个 job（node-runtime / unit (linux) / unit (windows) / e2e (linux) / e2e (windows)）全部 success，unit 各分片全 pass，无 `Mcp >` 失败签名——观察期 1/3；后续 2 次 run 若再现 `Mcp >` 失败，按 design.md Open Questions 升级立案。
 
 ## Workflow follow-up
 
