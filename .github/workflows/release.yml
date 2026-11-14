@@ -264,8 +264,8 @@ jobs:
                   ;;
               esac
             done <<<"$assets"
-            mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
-            if [ ${#installers[@]} -eq 0 ]; then
+            # macOS runner 的 /bin/bash 是 3.2，无 mapfile，统一用 grep 直接判定
+            if ! grep -Eq '^opennovel-desktop-win-.+\.exe$' <<<"$assets"; then
               echo "Release $TAG is missing a Windows installer"
               exit 1
             fi
@@ -276,18 +276,18 @@ jobs:
             fi
 
             # 只校验本 job 负责的平台前缀产物，避免跨 job 上传时序造成误杀
-            mapfile -t installers < <(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
-            if [ ${#installers[@]} -eq 0 ]; then
+            installers=$(grep -E '^opennovel-desktop-win-.+\.exe$' <<<"$assets" || true)
+            if [ -z "$installers" ]; then
               echo "Release $TAG is missing a Windows installer"
               exit 1
             fi
 
-            for installer in "${installers[@]}"; do
+            while IFS= read -r installer; do
               if ! grep -Fxq -- "$installer.blockmap" <<<"$assets"; then
                 echo "Release $TAG is missing blockmap: $installer.blockmap"
                 exit 1
               fi
-            done
+            done <<<"$installers"
 
             if ! grep -Fxq -- "$metadata" <<<"$assets"; then
               echo "Release $TAG is missing updater metadata: $metadata"
@@ -459,8 +459,8 @@ jobs:
                   ;;
               esac
             done <<<"$assets"
-            mapfile -t installers < <(grep -E '^opennovel-desktop-mac-.+\.dmg$' <<<"$assets" || true)
-            if [ ${#installers[@]} -eq 0 ]; then
+            # macOS runner 的 /bin/bash 是 3.2，无 mapfile，统一用 grep 直接判定
+            if ! grep -Eq '^opennovel-desktop-mac-.+\.dmg$' <<<"$assets"; then
               echo "Release $TAG is missing a macOS dmg"
               exit 1
             fi
@@ -471,18 +471,18 @@ jobs:
             fi
 
             # 只校验本 job 负责的平台前缀产物，避免跨 job 上传时序造成误杀
-            mapfile -t artifacts < <(grep -E '^opennovel-desktop-mac-.+\.(dmg|zip)$' <<<"$assets" || true)
-            if [ ${#artifacts[@]} -eq 0 ]; then
+            artifacts=$(grep -E '^opennovel-desktop-mac-.+\.(dmg|zip)$' <<<"$assets" || true)
+            if [ -z "$artifacts" ]; then
               echo "Release $TAG is missing macOS artifacts"
               exit 1
             fi
 
-            for artifact in "${artifacts[@]}"; do
+            while IFS= read -r artifact; do
               if ! grep -Fxq -- "$artifact.blockmap" <<<"$assets"; then
                 echo "Release $TAG is missing blockmap: $artifact.blockmap"
                 exit 1
               fi
-            done
+            done <<<"$artifacts"
 
             if ! grep -Fxq -- "$metadata" <<<"$assets"; then
               echo "Release $TAG is missing updater metadata: $metadata"

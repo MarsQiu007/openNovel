@@ -31,4 +31,5 @@
 ## 验证结论
 
 - dev 试跑（run `43552502580`，v`0.1.5-dev.20261114`）首跑暴露：build-macos 的 `bun run build`（electron-vite，node 24 执行）在 macos-latest arm64（7GB）上因 node 默认堆上限约 2GB OOM，SIGABRT 退出码 134。已修：build-macos「Build and publish package」步骤加 `NODE_OPTIONS=--max-old-space-size=4096`（Windows runner 内存充足未动）。
+- 重跑（run `43553585501`）构建、产物校验、dmg/zip 上传全过，最终校验步骤暴露：「Validate uploaded release assets」使用 `mapfile`，macOS runner 的 `/bin/bash` 为 3.2 无此内建（exit 127）。已修：四个 `mapfile` 位点（windows/macos × dev/beta-prod）全部改为 grep 直接判定 + herestring 循环，bash 3.2 兼容。
 
