@@ -52,15 +52,15 @@
 
 ### D5 迁移：`migrateChapterLengthRange` 照 `migrateChapterWordCount` 范式
 
-novel-store `migrate.ts` 新增并注册进 `runMigrations`：sqlite_master 探 `style_guide` 表 → 逐行读 rules（**防御双重编码历史**：parse 后仍是字符串则再 parse 一次）→ 开关键为 "true" 且 `chapter_length` 为有限正数时改写 `chapter_length = floor(原值×0.85)`、`chapter_length_max = ceil(原值×1.15)` 并删开关键；其余行缺 `chapter_length_max` 补空串；无键变更零写入（幂等）；失败 catch 放行不阻塞建连。非正数 / NaN 脏数据跳过折算仅删键。配套五态迁移测试（开关 true 折算、开关其他值/缺省仅补空串、已有 `chapter_length_max` 不覆盖、无 `style_guide` 表整体跳过、二次执行零写入）。
+novel-store `migrate.ts` 新增并注册进 `runMigrations`：sqlite_master 探 `style_guide` 表 → 逐行读 rules（**防御双重编码历史**：parse 后仍是字符串则再 parse 一次）→ 开关键为 "true" 且 `chapter_length` 为有限正数时改写 `chapter_length = floor(原值×0.85)`、`chapter_length_max = ceil(原值×1.15)` 并删开关键；开关键存在但无法折算（值非 "true"，或 "true" 但目标非正数 / NaN 脏数据）时仅删开关键、`chapter_length` 原值不动；缺 `chapter_length_max` 的行一律补空串；无键变更零写入（幂等）；失败 catch 放行不阻塞建连。配套六态迁移测试（开关 true 折算——fixture 采用双重编码形态钉死二次 parse 防御、开关 "false" 仅删键不折算、开关 "true" 但目标脏数据不折算仅删键、已有 `chapter_length_max` 不覆盖、无 `style_guide` 表整体跳过、二次执行零写入）。
 
 ### D6 UI 常驻字段与防双写
 
-`style-rules-model.ts` 删除保留键机制（`LENGTH_LIMIT_KEY`、reserved_key 校验），改为常驻字段模型：回填 `chapter_length ?? '2500'` / `chapter_length_max ?? ''`，序列化直接混入 record，校验正整数或空串；自由行键命中 `chapter_length` / `chapter_length_max` 判冲突拦截（承接 style-editor-ui 新增需求）。「章节结构」分区建议键移除 `chapter_length`/`章节字数`，杜绝双写入口。校验含交叉规则：上限非空且**小于**下限（严格小于）时拦截保存并标示上限字段错误；上限等于下限属退化区间，UI 允许保存，读取侧按 D2（≤ 视为不设上限）降级并注明——UI 拦「<」、读取侧降级「≤」两级口径在此衔接。校验失败形态沿用现有 RowIssue + 标示先例。
+`style-rules-model.ts` 删除保留键机制（`LENGTH_LIMIT_KEY`、reserved_key 校验），改为常驻字段模型：回填 `chapter_length ?? '2500'` / `chapter_length_max ?? ''`，序列化直接混入 record，校验正整数或空串；自由行键命中 `chapter_length` / `chapter_length_max` 判冲突拦截（承接 style-editor-ui 新增需求）。「章节结构」分区建议键移除 `chapter_length`/`章节字数`，杜绝双写入口。校验含交叉规则：上限非空且**小于**下限（严格小于）时拦截保存并标示上限字段错误；上限等于下限属退化区间，UI 允许保存，读取侧按 D2（≤ 视为不设上限）降级并注明——UI 拦「<」、读取侧降级「≤」两级口径在此衔接。字段级错误形态定案：新增独立纯函数 `validateLengthFields(lower, upper)`，返回 `{ lower?: "invalid_number"; upper?: "invalid_number" | "below_lower" }`（全合法返回 `{}`），组件据 `upper` 键标示上限字段错误；行级问题维持 `Map<number, RowIssue>` 结构与 `reserved_key` 类型不变，自由行键冲突复用 `reserved_key`，提示文案改用「该键由常驻字数上下限字段承载，请改用上方字段」。校验失败拦截与标红沿用现有保存前校验先例。
 
 ### D7 编辑器进度：改读 style guide rules
 
-`chapter-editor.tsx` 删除 `TARGET_LENGTH = 3000` 硬编码与 ±15% 派生界（既有偏差，spec「编辑器目标进度与写入闸门同口径」的本意就是同源于 rules）：下限 = `Number(rules['chapter_length'] ?? 2500)`，上限 = `chapter_length_max` 非空 ? `Number(...)` : 无。状态判定：`< 下限 = short`，`> 上限（仅上限存在）= long`，否则 good；无上限时永不判 long。进度条宽度基值取下限。i18n `novel.editor.charCount` 改区间词条（占位符 `{{min}}/{{max}}`），zh/en/zht 三 locale 同步（parity 测试强制占位符一致）；顺带清理全仓无引用的孤儿键 `novel.editor.target` / `novel.editor.wordCount`。
+`chapter-editor.tsx` 删除 `TARGET_LENGTH = 3000` 硬编码与 ±15% 派生界（既有偏差，spec「编辑器目标进度与写入闸门同口径」的本意就是同源于 rules）：下限 = `Number(rules['chapter_length'] ?? 2500)`，上限 = `chapter_length_max` 非空 ? `Number(...)` : 无。状态判定：`< 下限 = short`，`> 上限（仅上限存在）= long`，否则 good；无上限时永不判 long。进度条宽度基值取下限。i18n 拆为两键：`novel.editor.charCount` = 区间词条（zh/zht `{{count}} / {{min}}–{{max}} 字`，en `{{count}} / {{min}}–{{max}} chars`），`novel.editor.charCountMin` = 无上限词条（zh/zht `{{count}} / {{min}} 字`，en `{{count}} / {{min}} chars`）；调用点按上限存在性选键并只传对应占位符——i18n 库对缺失占位符是原样输出字面量（resolveTemplate 只替换传入键），禁靠少传 `{{max}}` 兜底。zh/en/zht 三 locale 同步；注意 parity 套件整体被 `describe.skipIf(CI)` 包裹仅本地强制，CI 无网，需另补不受 skip 约束的词条占位符 micro 用例。顺带清理全仓无引用的孤儿键 `novel.editor.target` / `novel.editor.wordCount`。
 
 ### D8 提示词同提交同步重写
 
