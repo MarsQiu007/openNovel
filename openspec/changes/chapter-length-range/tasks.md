@@ -34,12 +34,12 @@
 ## 6. 文档、核查与验证门
 
 - [ ] 6.1 同步 repowiki 文档：步骤3/步骤5/8步流水线/核心功能模块四处重写为显式上下限语义并删除一切 130%/1.3 倍/±30%/±15% 表述；步骤2 与上下文快照 API 补上限字段说明；「章节管理 API」「章节实体」两节随 normalizeChapter 删除整体移除。验证：repowiki 全目录 grep 上述旧表述零残留
-- [ ] 6.2 执行全仓关联面核查：grep `chapter_length_limit` / `CHAPTER_LENGTH_TOLERANCE` / `chapterLengthLimit` / `getChapterLengthLimit` / `normalizeChapter` / `篇幅限制` / `±15%`，确认残留仅存在于 novel-store 迁移代码与 openspec 归档目录；`metadata.target` 消费方结论引用 1.1 登记。输出核查清单。验证：清单无遗漏消费方
+- [ ] 6.2 执行全仓关联面核查：grep `chapter_length_limit` / `CHAPTER_LENGTH_TOLERANCE` / `chapterLengthLimit` / `getChapterLengthLimit` / `normalizeChapter` / `篇幅限制` / `±15%`，确认残留仅存在于 novel-store 迁移代码与 openspec 归档目录；`metadata.target` 消费方结论引用 1.1 登记。输出核查清单。唯一预期命中：主规格 `openspec/specs/chapter-length-limit/spec.md` 的 Purpose 段仍写旧开关语义（实现期尚未同步主 specs，archive 只合并 Requirements 章节、逐字保留既有 Purpose，故其改写排在归档流程，见 Workflow follow-up），处置方式须在清单中登记。验证：清单无遗漏消费方
 - [ ] 6.3 跑全量验证门：仓库根 `bun turbo typecheck` 全量、`plugin`/`app`/`novel-store`/`opennovel` 包 `bun test` 全量、仓库根 oxlint；复查未引入死代码/冗余导出/无用 import，命中即在本 change 内清理或立案说明。验证：全部通过（本变更不触碰 HttpApi 行为与 Protocol/Schema 契约，无需练习器与 SDK 再生成）
 - [ ] 6.4 勾选本文件任务并在归档前的记录更新中写入 Implementation Commits（`git log --grep "OpenSpec-Change: chapter-length-range"` 收集）。验证：`openspec validate chapter-length-range --strict` 通过
 
 ## Workflow follow-up
 
 - 实现提交按规范携带 `OpenSpec-Change: chapter-length-range` trailer，一个提交只写本 change。
-- 归档流程：推送 main 前过 CI 等价本地检查门 → `openspec validate chapter-length-range --strict` → 同步主 specs → `npx openspec archive --yes chapter-length-range` → merge/push main → 清理本地与远端分支并 prune。
+- 归档流程：推送 main 前过 CI 等价本地检查门 → `openspec validate chapter-length-range --strict` → 手工改写主规格 `openspec/specs/chapter-length-limit/spec.md` 的 Purpose 段为显式上下限两态语义（下限常驻缺省 2500、上限存在即区间双向门禁、留空即仅下限；archive 合并只重组 Requirements 章节、逐字保留既有 Purpose，不改写则旧「篇幅限制开关 + ±15%」表述随归档残留并与新需求自相矛盾）并单独提交 → `npx openspec archive --yes chapter-length-range` → merge/push main → 清理本地与远端分支并 prune。
 - 推送功能性代码到 main 后确认远端 generate / typecheck / test 全绿再收尾。
