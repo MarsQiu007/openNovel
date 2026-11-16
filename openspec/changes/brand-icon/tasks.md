@@ -40,3 +40,17 @@
 
 - 实现提交全部带 `OpenSpec-Change: brand-icon` footer；用 `git log --grep` 收集实现提交写入本文件 `## Implementation Commits`
 - 完成后顺序：openspec validate brand-icon --strict → sync specs → archive → 更新 main → 合并 → 清理分支
+
+## Implementation Commits
+
+- `f25dee47e6` chore(deps): 新增 resvg-js 与 png2icons 品牌图标管线依赖
+- `762256c785` feat(identity): 落地 v2 方框藏书 master artwork 与再生成脚本
+- `e7177c5ad1` feat(ui): 由新 master 再生成 favicon 两系与社交分享图
+- `706e8d91ba` feat(ui): 重画内联品牌组件为方框藏书与 OPENNOVEL 词标
+- `3524208bd6` feat(desktop): 再生成三渠道图标并清理无消费方移动端目录
+
+## 验证记录
+
+- 仓库根 `bun turbo typecheck` 31/31 通过；desktop 115 测试全过；ui/app 失败均为本机 bun 1.4.3 solid-js `jsxDEV` 环境回归（干净树复现同款报错，与本变更无关），CI bun 1.3.14 正常
+- `packages/app` 构建通过，dist favicon 产物确认为新 artwork
+- `script/brand-icon.ts` oxlint 0 警告 0 错误
