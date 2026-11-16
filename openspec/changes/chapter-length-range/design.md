@@ -52,7 +52,7 @@
 
 ### D5 迁移：`migrateChapterLengthRange` 照 `migrateChapterWordCount` 范式
 
-novel-store `migrate.ts` 新增并注册进 `runMigrations`：sqlite_master 探 `style_guide` 表 → 逐行读 rules（**防御双重编码历史**：parse 后仍是字符串则再 parse 一次）→ 开关键为 "true" 且 `chapter_length` 为有限正数时改写 `chapter_length = floor(原值×0.85)`、`chapter_length_max = ceil(原值×1.15)` 并删开关键；开关键存在但无法折算（值非 "true"，或 "true" 但目标非正数 / NaN 脏数据）时仅删开关键、`chapter_length` 原值不动；缺 `chapter_length_max` 的行一律补空串；无键变更零写入（幂等）；失败 catch 放行不阻塞建连。配套六态迁移测试（开关 true 折算——fixture 采用双重编码形态钉死二次 parse 防御、开关 "false" 仅删键不折算、开关 "true" 但目标脏数据不折算仅删键、已有 `chapter_length_max` 不覆盖、无 `style_guide` 表整体跳过、二次执行零写入）。
+novel-store `migrate.ts` 新增并注册进 `runMigrations`：sqlite_master 探 `style_guide` 表 → 逐行读 rules（**防御双重编码历史**：parse 后仍是字符串则再 parse 一次；字符串→数值转换与读取侧同源使用 `Number()`——先例 getTargetWordCount——不用 parseInt，"2500.7" 折 floor(×0.85)=2125 / ceil(×1.15)=2876 的口径以此为准）→ 开关键为 "true" 且 `chapter_length` 为有限正数时改写 `chapter_length = max(1, floor(原值×0.85))`（钳 1 防产物 0 落库后被读取侧回落 2500 翻转语义；正数微值 "1" 折出下限 1、上限 2，读取侧按 ≤ 下限忽略上限）、`chapter_length_max = ceil(原值×1.15)` 并删开关键；开关键存在但无法折算（值非 "true"，或 "true" 但目标非正数 / NaN 脏数据）时仅删开关键、`chapter_length` 原值不动——注意这类行旧门禁按回落目标 2500 叠加 ±15%（2125–2875）真实生效，迁移后变为下限 2500、无上限，属已接受的放宽方向（与 D2 宁降级哲学一致），记录备查；缺 `chapter_length_max` 的行一律补空串；无键变更零写入（幂等）；**逐行 try/catch**：单行解析失败 console.warn（带 style_guide 行 id）后继续下一行，整体失败 warn 后 catch 放行不阻塞建连——一行坏行不得冻结其余书的迁移。配套九态迁移测试（开关 true 折算[fixture 双重编码]、开关 "false" 仅删键不折算、开关 "true" 但目标脏数据["0"/"-3"/"abc"]不折算仅删键、正数微值 "1" 折算钳制、浮点原值 "2500.7" Number 口径折算、已有 `chapter_length_max` 不覆盖、无 `style_guide` 表整体跳过、二次执行零写入、单行损坏不阻塞其余行且告警）。
 
 ### D6 UI 常驻字段与防双写
 
@@ -73,6 +73,7 @@ writer 规则 16 与「字数要求」段、pipeline dispatch 指示（4 处）�
 ## Risks / Trade-offs
 
 - [迁移改变下限语义：开关曾为 true 的书下限变为 floor(原值×0.85)] → 迁移、快照、提示词同提交同步（任务排序保证）；迁移幂等且删除旧键，防止旧读取逻辑复活。
+- [迁移失败或行级跳过的书按下限=原值、无上限静默运行（未迁移窗口随失败永久化）] → 行级失败必须 console.warn 留痕（对照 migrateChapterWordCount 的静默 catch，本变更显式改进此点）；失败行可人工修复数据后随下次建连自动补迁。
 - [`checkChapterLengthGate` metadata 删 `target` 字段可能波及 UI / 埋点消费方] → 实现前先 grep 核查；保留 `lower_bound`/`upper_bound` 键名不变降低波及。
 - [缺省 2500 双口径：守卫缺省 2500 vs 快照组装层缺省 null] → D4 要求快照必渲染下限行，单边对齐消除错位。
 - [`chapter_length_max` 空串被 `Number("")` 误判为 0 上限] → D2 先判空再转换；迁移测试 + 读取单测覆盖。
