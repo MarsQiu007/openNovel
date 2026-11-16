@@ -5,6 +5,7 @@ import {
   useChapterVersions,
   useRestoreChapterVersion,
   useAnnotations,
+  useStyleGuide,
 } from "@/context/novel-queries"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
@@ -14,12 +15,7 @@ import { type EditSaveStatus } from "@/utils/save-status"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
-
-// ─── Constants ───
-
-const TARGET_LENGTH = 3000
-const LOWER_BOUND = Math.floor(TARGET_LENGTH * 0.85)
-const UPPER_BOUND = Math.ceil(TARGET_LENGTH * 1.15)
+import { lengthProgressState, parseChapterLengthBounds } from "./chapter-length-bounds"
 
 // ─── Props ───
 
@@ -38,6 +34,10 @@ export default function ChapterEditor(props: ChapterEditorProps) {
     () => props.novelID,
     () => props.chapterID,
   )
+  const styleQuery = useStyleGuide(() => props.novelID)
+  // 字数上下限读写作风格 rules（读取侧 D2 口径，见 chapter-length-bounds）；
+  // rules 未载入时按缺省下限 2500 / 无上限渲染，不阻塞编辑器
+  const lengthBounds = createMemo(() => parseChapterLengthBounds(styleQuery.data?.rules))
   const updateMutation = useUpdateChapterContent()
   const versionsQuery = useChapterVersions(
     () => props.novelID,
@@ -136,11 +136,13 @@ export default function ChapterEditor(props: ChapterEditorProps) {
 
   const charCount = () => countWords(content())
 
-  const targetStatus = createMemo(() => {
-    const count = charCount()
-    if (count >= LOWER_BOUND && count <= UPPER_BOUND) return "good"
-    if (count < LOWER_BOUND) return "short"
-    return "long"
+  const targetStatus = createMemo(() => lengthProgressState(charCount(), lengthBounds().lower, lengthBounds().upper))
+
+  const charCountText = createMemo(() => {
+    const bounds = lengthBounds()
+    return bounds.upper != null
+      ? language.t("novel.editor.charCount", { count: charCount(), min: bounds.lower, max: bounds.upper })
+      : language.t("novel.editor.charCountMin", { count: charCount(), min: bounds.lower })
   })
 
   const isUnchanged = () => {
@@ -192,16 +194,8 @@ export default function ChapterEditor(props: ChapterEditorProps) {
 
   // ─── Target indicator bar color ───
 
-  const barColor = () => {
-    switch (targetStatus()) {
-      case "good":
-        return "bg-v2-state-fg-success"
-      case "short":
-        return "bg-v2-state-fg-warning"
-      case "long":
-        return "bg-v2-state-fg-danger"
-    }
-  }
+  const barColor = () =>
+    targetStatus() === "good" ? "bg-v2-state-fg-success" : targetStatus() === "short" ? "bg-v2-state-fg-warning" : "bg-v2-state-fg-danger"
 
   return (
     <Show
@@ -233,13 +227,8 @@ export default function ChapterEditor(props: ChapterEditorProps) {
             <h2 class="text-lg font-semibold text-v2-text-text-base truncate min-w-0">{chapterQuery.data?.title}</h2>
 
             <div class="flex items-center gap-4 shrink-0">
-              {/* Word count */}
-              <span class="text-xs tabular-nums text-v2-text-text-faint">
-                {language.t("novel.editor.charCount", {
-                  count: charCount(),
-                  target: TARGET_LENGTH,
-                })}
-              </span>
+              {/* Word count：有上限走区间词条，无上限走仅下限词条 */}
+              <span class="text-xs tabular-nums text-v2-text-text-faint">{charCountText()}</span>
 
               {/* Auto-save status */}
               <SaveStatusIndicator
@@ -255,11 +244,11 @@ export default function ChapterEditor(props: ChapterEditorProps) {
                   <div
                     class={`h-full rounded-full transition-all ${barColor()}`}
                     style={{
-                      width: `${Math.min((charCount() / TARGET_LENGTH) * 100, 150)}%`,
+                      width: `${Math.min((charCount() / lengthBounds().lower) * 100, 150)}%`,
                     }}
                   />
                 </div>
-                <span class="text-[10px] text-v2-text-text-faint tabular-nums">{TARGET_LENGTH}</span>
+                <span class="text-[10px] text-v2-text-text-faint tabular-nums">{lengthBounds().lower}</span>
               </div>
 
               {/* History toggle */}
