@@ -64,9 +64,12 @@ describe("HttpApi novel reader", () => {
     const body = (await response.json()) as {
       data: { rules: Record<string, string>; tone: string; pov: string; tense: string }
     }
+    // 迁移按「所有行两键齐全」契约给历史嵌套行补 chapter_length_max（空串=不设上限），
+    // 接口透传存储形态；上限空串在读取侧按不设上限降级
     expect(body.data.rules).toEqual({
       "异能体系.等级严格": "三级",
       "禁用手法.0": "总结式收尾",
+      chapter_length_max: "",
     })
     expect(body.data.tone).toBe("冷峻")
     expect(body.data.pov).toBe("第三人称")
