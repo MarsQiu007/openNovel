@@ -2,7 +2,7 @@
 
 ## Purpose
 
-按书籍开关「篇幅限制」（style_guide.rules.chapter_length_limit）约束正文字数：启用时 write_chapter/revise_chapter 按目标字数 ±15% 区间双向拒绝（低于下限或高于上限都打回）；不启用（缺省）时维持现状仅拒绝低于目标 100% 的章节、上限不限。快照与 writer 提示词按模式渲染对应约束文案，书籍编辑 UI 提供开关复选框。
+按书籍显式设定的章节字数上下限（style_guide.rules.chapter_length / chapter_length_max）约束正文字数：下限常驻，缺省或非法回落 2500；上限留空、缺省或非法（含不大于下限）时不设上限。上限存在时 write_chapter/revise_chapter 按显式区间双向拒绝（too_short/too_long），仅下限时只拒不足、长章不限。快照与 writer 提示词按上限存在性两态渲染约束文案，书籍编辑 UI 提供常驻字数下限/上限字段；曾开启「篇幅限制」开关的存量书由迁移按 85%/115% 折算为具体上下限后删键。
 
 ## Requirements
 
