@@ -66,16 +66,13 @@
 - **WHEN** 用户直接输入建议之外的键名
 - **THEN** 输入被接受并按普通规则行保存
 
-### Requirement: 篇幅限制承载不变
+### Requirement: 规则行 SHALL NOT 占用字数上下限保留键
+规则行编辑 SHALL 拒绝键为 `chapter_length` 或 `chapter_length_max` 的自由行：保存前 SHALL 标示该行并提示改用常驻「字数下限/字数上限」字段，SHALL NOT 以规则行的值覆盖常驻字段值。
 
-篇幅限制 SHALL 继续由独立复选框承载，与规则键 `chapter_length_limit` 的映射语义保持现状：回填时该键不出现在规则编辑行中，保存时按复选框状态以字符串 `"true"`/`"false"` 写入该键；用户将某条规则行的键填写为 `chapter_length_limit` 时 SHALL 阻止保存并提示该键由篇幅限制复选框承载，SHALL NOT 以规则行的值覆盖复选框状态。
+#### Scenario: 手动添加下限键被阻止
+- **WHEN** 用户将某条规则行的键填写为 `chapter_length` 并点击保存
+- **THEN** 保存被阻止，该行被标示并提示改用常驻字数下限字段，常驻字段值不受影响
 
-#### Scenario: 复选框与规则键互不干扰
-
-- **WHEN** 用户勾选篇幅限制并保存
-- **THEN** 库中 `chapter_length_limit` 键为 `"true"`，且该键不出现在任何规则编辑行里
-
-#### Scenario: 手动添加保留键被阻止
-
-- **WHEN** 用户将某条规则行的键填写为 `chapter_length_limit` 并点击保存
-- **THEN** 保存被阻止，该行被标示并提示改用篇幅限制复选框，复选框状态不受影响
+#### Scenario: 手动添加上限键被阻止
+- **WHEN** 用户将某条规则行的键填写为 `chapter_length_max` 并点击保存
+- **THEN** 保存被阻止，该行被标示并提示改用常驻字数上限字段，常驻字段值不受影响
