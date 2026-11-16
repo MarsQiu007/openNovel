@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- openNovel dev-icon v2: blueprint base + faint grid, all-white mark with blue negative space -->
+  <defs>
+    <!-- userSpaceOnUse gradient so the negative shapes can reuse it seamlessly -->
+    <linearGradient id="bgGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#2E78EE"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="2"/>
+    </pattern>
+    <clipPath id="rrClip">
+      <rect width="512" height="512" rx="115"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+  <rect width="512" height="512" clip-path="url(#rrClip)" fill="url(#grid)"/>
+  <g transform="translate(256 256) scale(0.78125) translate(-256 -256)">
+    <path fill="#FFFFFF" fill-rule="evenodd" d="M128 128H384V384H128Z M192 192H320V320H192Z"/>
+    <rect x="222" y="204" width="68" height="100" fill="#FFFFFF"/>
+    <!-- negative shapes reuse the background gradient: invisible seams -->
+    <rect x="222" y="204" width="12" height="100" fill="url(#bgGrad)"/>
+    <rect x="244" y="254" width="38" height="8" fill="url(#bgGrad)"/>
+    <rect x="244" y="270" width="38" height="8" fill="url(#bgGrad)"/>
+    <path fill="url(#bgGrad)" d="M254 288H266V304L260 312L254 304Z"/>
+  </g>
+</svg>

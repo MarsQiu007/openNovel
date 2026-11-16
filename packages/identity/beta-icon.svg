@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- openNovel beta-icon: light channel, dark glyph on near-white rounded rect; geometry mirrors dev-icon -->
+  <rect width="512" height="512" rx="115" fill="#FAFAFA"/>
+  <g transform="translate(256 256) scale(0.78125) translate(-256 -256)">
+    <path fill="#131010" fill-rule="evenodd" d="M128 128H384V384H128Z M192 192H320V320H192Z"/>
+    <rect x="222" y="204" width="68" height="100" fill="#131010"/>
+    <!-- negatives reuse the background color: invisible seams -->
+    <rect x="222" y="204" width="12" height="100" fill="#FAFAFA"/>
+    <rect x="244" y="254" width="38" height="8" fill="#FAFAFA"/>
+    <rect x="244" y="270" width="38" height="8" fill="#FAFAFA"/>
+    <path fill="#FAFAFA" d="M254 288H266V304L260 312L254 304Z"/>
+  </g>
+</svg>

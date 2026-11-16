@@ -1,7 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512"><svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="512" height="512" fill="#131010"></rect>
-<path d="M320 224V352H192V224H320Z" fill="#5A5858"></path>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z" fill="white"></path>
-</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
-@media (prefers-color-scheme: dark) { :root { filter: none; } }
-</style></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- openNovel mark v2: opencode square ring + upright book in the hole -->
+  <rect width="512" height="512" fill="#131010"/>
+  <!-- square ring: outer 128..384, hole 192..320, width 64, evenodd -->
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M128 128H384V384H128Z M192 192H320V320H192Z"/>
+  <!-- book body: white, 68x100 standing in the hole, >=6 gap to hole edges -->
+  <rect x="222" y="204" width="68" height="100" fill="#FFFFFF"/>
+  <!-- spine: dark band on the inner left edge of the book -->
+  <rect x="222" y="204" width="12" height="100" fill="#131010"/>
+  <!-- fore-edge page lines: two dark horizontal lines in the lower half -->
+  <rect x="244" y="254" width="38" height="8" fill="#131010"/>
+  <rect x="244" y="270" width="38" height="8" fill="#131010"/>
+  <!-- bookmark: dark ribbon dropping from the bottom middle-right, pointed tail -->
+  <path fill="#131010" d="M254 288H266V304L260 312L254 304Z"/>
+</svg>

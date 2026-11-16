@@ -1,5 +1,14 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="512" height="512" fill="#FDFCFC"/>
-<path d="M320 224V352H192V224H320Z" fill="#E6E5E6"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z" fill="#17181C"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- openNovel mark-light v2: same geometry as mark.svg, inverted for light backgrounds -->
+  <!-- square ring: outer 128..384, hole 192..320, width 64, evenodd -->
+  <path fill="#131010" fill-rule="evenodd" d="M128 128H384V384H128Z M192 192H320V320H192Z"/>
+  <!-- book body -->
+  <rect x="222" y="204" width="68" height="100" fill="#131010"/>
+  <!-- spine -->
+  <rect x="222" y="204" width="12" height="100" fill="#FFFFFF"/>
+  <!-- fore-edge page lines -->
+  <rect x="244" y="254" width="38" height="8" fill="#FFFFFF"/>
+  <rect x="244" y="270" width="38" height="8" fill="#FFFFFF"/>
+  <!-- bookmark -->
+  <path fill="#FFFFFF" d="M254 288H266V304L260 312L254 304Z"/>
 </svg>
