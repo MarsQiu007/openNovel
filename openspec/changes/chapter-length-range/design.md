@@ -1,0 +1,92 @@
+# Design
+
+## Context
+
+章节字数门禁现状：`style_guide.rules` 存两个键——`chapter_length`（目标字数，缺省 2500）与 `chapter_length_limit`（"true"/"false" 开关）。开关关只拒低于目标的正文；开关开按目标 ±15% 双向拒绝。动机见 proposal.md - Why。关键约束：
+
+- 下限语义（`chapter_length` 缺省 2500、too_short、不足提示）已稳定运行多版，book-bootstrap / sequential-gate / save-settings / novel-writer-e2e 等大量既有断言依赖它，**必须原样保留**。
+- 快照「目标字数」行是 writer / pipeline 双 prompt 的硬约束来源（pipeline 要求原样传递），任何文案语义变化必须与提示词同提交同步，否则子 agent 按旧语义写作会被门禁拒。
+- `style_guide.rules` 是开放字符串映射（`Record<string,string>`，normalizeStyleRules 归一化），新键 `chapter_length_max` 原样透传，**协议 / SDK / schema 类型面零改动**，无需 `bun run generate`。
+- 已有同范式迁移先例：`migrateChapterWordCount`（探表、幂等零写入、失败放行），挂在 novel-store `runMigrations`，每次打开项目 `novel.db` 时执行。
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- 上下限都由用户按书显式设定，表达任意宽区间（如 2000–5000）。
+- 下限语义与缺省 2500 与现状逐字一致（既有回归网继续绿）。
+- 常驻字段开箱即用：打开写作风格面板即见上下限，回填缺省 2500 / 空。
+- 编辑器目标进度与写入闸门同口径（顺手纠正编辑器硬编码 3000 / ±15% 的既有偏差——编辑器从未读过 style guide）。
+- 存量数据一次性幂等迁移，无表结构变更。
+
+**Non-Goals:**
+
+- 不改字数统计口径（`countWords` 网文口径继续为唯一事实源）。
+- 不动 server 端 `word_count` 写入路径（纯度量，无门禁判定）。
+- 不动导入管线长度策略（导入不经过写入闸门，现状正确）。
+- 不给 `chapter_length_max` 加协议级类型约束（rules 开放映射，消费侧容错解析）。
+- server 端点无需改动：rules 为开放字符串映射透传，端点无键白名单校验（已核实 schema/protocol/sdk 类型面零命中），键集合变化不构成契约变化。
+
+## Decisions
+
+### D1 规则键：复用 `chapter_length` 作下限，新增 `chapter_length_max` 作上限
+
+`chapter_length` 在默认模式下行为本来就恰是"至少 N 字"（下限），重命名为 `chapter_length_min` 只会白白搅动 save-settings、chapter-rebuild、e2e 等存量键引用。新增对偶键 `chapter_length_max`，空串或缺省 = 不设上限（`normalizeStyleRules` 对空串叶值可安全往返落库，已验证）。
+
+- 备选：双新键 `chapter_length_min`/`chapter_length_max`。拒绝：无谓重命名，迁移面翻倍。
+- 备选：单键存区间文本（如 "2000-5000"）。拒绝：破坏既有键值契约，查询与校验都更脆。
+
+### D2 读取契约：空串 / 缺键 / 非正数 / 非法组合统一容错
+
+- 下限读取沿用现有容错：`Number` 转换 + `isFinite` + `> 0` + `floor`，非法回落 2500。
+- 新增上限读取：**先判原始字符串 trim 后为空**（缺键同等），再 `Number` + `isFinite` + `> 0` + `floor`，否则 `null`。必须先判空——`Number("") === 0`，直接转换会把"不设上限"误判成"上限 0 拒绝一切写入"。
+- 上限 ≤ 下限（含相等）视为**不设上限**（快照注明"上限非法已忽略"）：库中数据可能被旧客户端或脚本绕过 UI 写入非法组合，宁可降级为无限也不能把整本书锁死。
+
+### D3 守卫签名：`checkChapterLengthGate(toolName, wordCount, lower, upper|null)`
+
+删除 `CHAPTER_LENGTH_TOLERANCE` 常数与 `getChapterLengthLimit` 函数；`getTargetWordCount` 保留（其行为恰是新下限读取）。拒绝文案重写为显式上下限措辞（"本章字数下限 X 字，还差 Y 字" / "超出本章字数上限 Z 字，优先删除注水内容而非砍剧情主线"）。metadata 保留 `lower_bound`/`upper_bound`/`word_count`/`reason`，**删除 `target` 字段**——旧字段名在新语义下误导，且执行前先 grep 核查 UI / 埋点是否有消费方（若有，改用 `lower_bound` 并在任务中登记）。
+
+### D4 快照模型：删 `chapterLengthLimit`，新增 `targetWordCountMax`
+
+`ContextPacket` 删除 `chapterLengthLimit: boolean`，新增 `targetWordCountMax: number | null`（**可选字段**，控制波及面——约 12 处测试 WriterSnapshot 字面量若新增必填字段会成片 typecheck 报错）。`targetWordCount` 保留（语义本就写下限）。「目标字数」行**必渲染下限**（组装层缺省 2500，与守卫单边对齐），按上限存在性两态输出；`rollup.ts` / `scale-test.ts` 同口径同步。删除行内硬编码 0.85/1.15。
+
+### D5 迁移：`migrateChapterLengthRange` 照 `migrateChapterWordCount` 范式
+
+novel-store `migrate.ts` 新增并注册进 `runMigrations`：sqlite_master 探 `style_guide` 表 → 逐行读 rules（**防御双重编码历史**：parse 后仍是字符串则再 parse 一次）→ 开关键为 "true" 且 `chapter_length` 为有限正数时改写 `chapter_length = floor(原值×0.85)`、`chapter_length_max = ceil(原值×1.15)` 并删开关键；其余行缺 `chapter_length_max` 补空串；无键变更零写入（幂等）；失败 catch 放行不阻塞建连。非正数 / NaN 脏数据跳过折算仅删键。配套五态迁移测试（开关 true 折算、开关其他值/缺省仅补空串、已有 `chapter_length_max` 不覆盖、无 `style_guide` 表整体跳过、二次执行零写入）。
+
+### D6 UI 常驻字段与防双写
+
+`style-rules-model.ts` 删除保留键机制（`LENGTH_LIMIT_KEY`、reserved_key 校验），改为常驻字段模型：回填 `chapter_length ?? '2500'` / `chapter_length_max ?? ''`，序列化直接混入 record，校验正整数或空串；自由行键命中 `chapter_length` / `chapter_length_max` 判冲突拦截（承接 style-editor-ui 新增需求）。「章节结构」分区建议键移除 `chapter_length`/`章节字数`，杜绝双写入口。校验含交叉规则：上限非空且**小于**下限（严格小于）时拦截保存并标示上限字段错误；上限等于下限属退化区间，UI 允许保存，读取侧按 D2（≤ 视为不设上限）降级并注明——UI 拦「<」、读取侧降级「≤」两级口径在此衔接。校验失败形态沿用现有 RowIssue + 标示先例。
+
+### D7 编辑器进度：改读 style guide rules
+
+`chapter-editor.tsx` 删除 `TARGET_LENGTH = 3000` 硬编码与 ±15% 派生界（既有偏差，spec「编辑器目标进度与写入闸门同口径」的本意就是同源于 rules）：下限 = `Number(rules['chapter_length'] ?? 2500)`，上限 = `chapter_length_max` 非空 ? `Number(...)` : 无。状态判定：`< 下限 = short`，`> 上限（仅上限存在）= long`，否则 good；无上限时永不判 long。进度条宽度基值取下限。i18n `novel.editor.charCount` 改区间词条（占位符 `{{min}}/{{max}}`），zh/en/zht 三 locale 同步（parity 测试强制占位符一致）；顺带清理全仓无引用的孤儿键 `novel.editor.target` / `novel.editor.wordCount`。
+
+### D8 提示词同提交同步重写
+
+writer 规则 16 与「字数要求」段、pipeline dispatch 指示（4 处）、reviser（1 处）按两态语义重写：下限常驻硬约束，上限存在时区间双向硬拒绝 + 逼近上限优先精炼；无上限时明确"剧情需要写长不限，严禁注水凑数"。auditor / architect 提示词中 `chapter_length` 的"目标"措辞顺手改"下限"（非必须，顺手做）。**快照行、提示词、守卫必须同一批提交**，单改一处会造成子 agent 按旧语义写作被门禁拒。
+
+### D9 死代码 `normalizeChapter` 随容差概念一并删除
+
+`chapter-normalize.ts` 内部硬编码 ±15%，全仓零调用方，是死代码；百分比容差概念整体移除时一并删除模块，repowiki 为其立的「章节管理 API」「章节实体」两节文档同步删除。
+
+## Risks / Trade-offs
+
+- [迁移改变下限语义：开关曾为 true 的书下限变为 floor(原值×0.85)] → 迁移、快照、提示词同提交同步（任务排序保证）；迁移幂等且删除旧键，防止旧读取逻辑复活。
+- [`checkChapterLengthGate` metadata 删 `target` 字段可能波及 UI / 埋点消费方] → 实现前先 grep 核查；保留 `lower_bound`/`upper_bound` 键名不变降低波及。
+- [缺省 2500 双口径：守卫缺省 2500 vs 快照组装层缺省 null] → D4 要求快照必渲染下限行，单边对齐消除错位。
+- [`chapter_length_max` 空串被 `Number("")` 误判为 0 上限] → D2 先判空再转换；迁移测试 + 读取单测覆盖。
+- [core 全局库（opennovel.db）存在另一份 `style_guide` 表定义，novel-store 迁移不覆盖它] → 门禁数据实际都在项目库（插件经 novel-store getDb 读取），任务中加入核实步骤：确认全局库无真实 style_guide 行则无需扩迁移覆盖面。
+- [快照 / 提示词 / 守卫不同步 → 子 agent 按旧语义写作被批量拒绝] → D8 同提交铁律 + CI 全量测试兜底。
+- [常驻字段上线后旧 app 版本读到迁移后数据] → 旧 app 把 `chapter_length` 当普通规则行展示（不致命），新 app 遇未迁移数据读不到 max 视为不设上限（方向安全）；交错发布可接受，记录在案。
+- [快照新增字段波及 ~12 处测试字面量] → 字段设为可选，波及收敛到零或近零。
+
+## Migration Plan
+
+1. novel-store 迁移函数随本变更一起发布，首次打开项目库时自动执行（沿用既有 `runMigrations` 钩子，无人工步骤）。
+2. 迁移前 rules 原值无可回滚路径（本地库无备份惯例）——迁移仅改写键值对且语义可推导（85%/115% 折算），属可人工修复级别；不单独提供回滚工具。
+3. 验证：五态迁移测试 + 既有 `chapter-word-count` 迁移测试不回退。
+
+## Open Questions
+
+无。可延后事项均已定案（孤儿键清理、auditor/architect 措辞属顺手项，不阻塞任何决策）。
