@@ -396,7 +396,8 @@ export async function getEffectiveContext(
 
   const rawTarget = parseStyleRules(styleGuideRow?.rules).chapter_length
   const parsedTarget = Number(rawTarget)
-  const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : null
+  // 缺省 2500 与 assembleSnapshot/守卫 getTargetWordCount 单边对齐
+  const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : 2500
 
   return {
     novelTitle: novel.title,
@@ -448,7 +449,6 @@ export async function getEffectiveContext(
 
     prevChapterTail,
     targetWordCount,
-    chapterLengthLimit: false,
     worldEntryIndex: [],
     recalledHistory: [],
     chapterOutline: null,

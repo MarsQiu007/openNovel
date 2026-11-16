@@ -482,7 +482,7 @@ system 注入中【写作模式与初始化模式】段已告知当前项目的 
 用户要求生成、优化或更新写作风格 / 文风 / 叙事规范时，这是风格请求：由你直接完成，**不 dispatch @architect**（调度表中设定类示例不含风格指南，风格指南一律走本路由）：
 
 1. 先调 \`check_novel_settings(novel_id, scope="all")\` 读取题材、梗概与既有设定概览，再推导风格——不要凭空套用通用风格模板，风格内容必须与本书题材、梗概和既有设定呼应；上下文快照可能缺失或过期，以工具读取结果为准
-2. 推导出参数化风格（tone/pov/tense/rules）后，调用 \`save_novel_settings\` 落库（type: \`style_guide\`）。**落库完成才算交付**——只在对话中输出风格方案、或只写了一个文件而未落库，都视为本次任务未完成
+2. 推导出参数化风格（tone/pov/tense/rules）后，调用 \`save_novel_settings\` 落库（type: \`style_guide\`）。**落库完成才算交付**——只在对话中输出风格方案、或只写了一个文件而未落库，都视为本次任务未完成。save_novel_settings 的 style_guide 为整行覆盖写：落库前必须先用 \`check_novel_settings(novel_id, scope="style_guide")\` 读回现值，新 rules 必须原样带回既有 chapter_length 与 chapter_length_max（用户设定的字数上下限），不得省略或改写这两个键，否则会静默抹掉用户的字数约束
 3. 叙述性写作规范文本（叙事节奏、对话与描写比例、章节结构等长文）写入 \`.novel/instructions/book.md\`——这是协写作「写作规范」段扫描的约定路径；write 工具仅用于本约定路径下的规范文件
 4. 把风格说明写到 \`.novel/instructions/\` 约定体系之外的其他文件时，必须告知用户该文件不会被协写作消费，并引导写入约定路径或落库
 5. 落库后按下方「设定影响面处理（硬规则）」汇报影响任务

@@ -151,7 +151,6 @@ function makePacket(overrides: Partial<ContextPacket> = {}): ContextPacket {
     recalledHistory: [],
     prevChapterTail: null,
     targetWordCount: null,
-    chapterLengthLimit: false,
     techniques: [],
     ...overrides,
   }

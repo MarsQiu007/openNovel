@@ -373,11 +373,14 @@ export type ContextPacket = {
   /** 上一章结尾原文（约600字），writer 必须承接其后展开，严禁重复前文已发生的内容 */
   prevChapterTail: string | null
 
-  /** 目标字数下限（style_guide.rules.chapter_length），writer 不得低于此字数 */
+  /** 字数下限（style_guide.rules.chapter_length），writer 不得低于此字数；组装层缺省 2500 与守卫对齐 */
   targetWordCount: number | null
 
-  /** 篇幅限制开关（style_guide.rules.chapter_length_limit === "true"）：启用时正文字数必须在目标 ±15% 区间内 */
-  chapterLengthLimit: boolean
+  /** 字数上限（style_guide.rules.chapter_length_max）：存在且 > 下限时启用区间双向拒绝；缺键/空串/非法/≤下限降级为 null */
+  targetWordCountMax?: number | null
+
+  /** 上限键存在但 ≤ 下限（非法组合绕过 UI 落库）时为 true：快照「目标字数」行注明「上限非法已忽略」 */
+  targetWordCountMaxIgnored?: boolean
 
   /** P7: 技法检索结果（shadow mode 阶段不注入 prompt） */
   techniques: RetrievedTechnique[]
@@ -671,12 +674,22 @@ export async function assembleSnapshot(
   // 1500 字约覆盖一章的完整结尾场景；不参与 P2 预算裁剪（见 budget.ts）
   const prevChapterTail = prevChapter && prevChapter.content.length > 0 ? prevChapter.content.slice(-1500) : null
 
-  // ── 目标字数下限：style_guide.rules.chapter_length ──
+  // ── 章节字数下限与上限：style_guide.rules.chapter_length / chapter_length_max ──
+  // 下限缺省 2500 与守卫 getTargetWordCount 单边对齐；上限按 D2 契约解析（先判 trim 空串，
+  // 非正数/NaN 为 null；≤ 下限属非法组合降级为不设上限并置 Ignored 供快照注明）
   const styleRules = parseStyleRules(styleGuideRow?.rules)
   const rawTarget = styleRules.chapter_length
   const parsedTarget = Number(rawTarget)
-  const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : null
-  const chapterLengthLimit = styleRules.chapter_length_limit === "true"
+  const targetWordCount = Number.isFinite(parsedTarget) && parsedTarget > 0 ? Math.floor(parsedTarget) : 2500
+  const rawMax = styleRules.chapter_length_max
+  let targetWordCountMax: number | null = null
+  let targetWordCountMaxIgnored = false
+  if (typeof rawMax === "string" && rawMax.trim().length > 0) {
+    const parsedMax = Number(rawMax)
+    const upper = Number.isFinite(parsedMax) && parsedMax > 0 ? Math.floor(parsedMax) : null
+    if (upper != null && upper > targetWordCount) targetWordCountMax = upper
+    else if (upper != null) targetWordCountMaxIgnored = true
+  }
 
   // ── P7: 技法检索（shadow mode - 只记录，不注入 writer prompt） ──
   let techniques: RetrievedTechnique[] = []
@@ -782,7 +795,8 @@ export async function assembleSnapshot(
 
     prevChapterTail,
     targetWordCount,
-    chapterLengthLimit,
+    targetWordCountMax,
+    targetWordCountMaxIgnored,
     techniques,
   }
 }
@@ -999,12 +1013,15 @@ export function formatSnapshotToolOutput(
       lines.push(`- ${r.charAName} ↔ ${r.charBName}（${r.type || "未分类"}）：${r.description || "—"}`)
     }
   }
-  if (snapshot.targetWordCount && snapshot.chapterLengthLimit) {
-    const lowerBound = Math.floor(snapshot.targetWordCount * 0.85)
-    const upperBound = Math.ceil(snapshot.targetWordCount * 1.15)
-    lines.push(`目标字数：每章 ${snapshot.targetWordCount} 字，篇幅限制已启用——正文必须在 ${lowerBound}–${upperBound} 字（目标 ±15%）区间内，低于或高于此区间都会被 write_chapter 拒绝`)
-  } else if (snapshot.targetWordCount) {
-    lines.push(`目标字数：每章至少 ${snapshot.targetWordCount} 字（write_chapter 会拒绝低于此字数的章节）`)
+  if (snapshot.targetWordCount != null) {
+    const lower = snapshot.targetWordCount
+    if (snapshot.targetWordCountMax != null) {
+      const upper = snapshot.targetWordCountMax
+      lines.push(`目标字数：每章下限 ${lower} / 上限 ${upper} 字——正文必须在 ${lower}–${upper} 字区间内，低于或高于都会被 write_chapter 拒绝`)
+    } else {
+      const invalidNote = snapshot.targetWordCountMaxIgnored ? "（上限非法已忽略，按不设上限执行）" : ""
+      lines.push(`目标字数：每章至少 ${lower} 字，不设上限${invalidNote}——write_chapter 会拒绝低于此字数的章节；剧情需要时可以写长，但严禁注水凑数`)
+    }
   }
   if (snapshot.prevChapterTail) {
     lines.push(

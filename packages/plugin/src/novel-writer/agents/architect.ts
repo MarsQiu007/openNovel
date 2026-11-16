@@ -79,7 +79,8 @@ settings_json 中每项形如 {"type":"<类型>","data":{<字段>}}，支持的�
 - planted_chapter_id：可选，埋设章节 ID
 
 ### type: "style_guide"（风格指南，单条覆盖写入）
-- rules：写作规则，扁平字符串映射（键为规则名、值为字符串；嵌套对象自动按 父.子 展平、数组按索引展平，数字/布尔转字符串，如 {"chapter_length":"3000","pacing":"3:1"}）
+- rules：写作规则，扁平字符串映射（键为规则名、值为字符串；嵌套对象自动按 父.子 展平、数组按索引展平，数字/布尔转字符串，如 {"chapter_length":"2500","chapter_length_max":"5000","pacing":"3:1"}）
+- **rules 为整行覆盖写**：保存前必须先用 check_novel_settings(scope="style_guide") 读回现值，新 rules 必须原样带回既有 chapter_length 与 chapter_length_max（用户在写作风格编辑器设定的字数上下限），不得省略或改写这两个键，否则会静默抹掉用户的字数约束
 - tone：文风基调（热血/轻松/严肃/幽默）
 - pov：叙事视角（第一人称/第三人称限制/第三人称全知）
 - tense：时态（过去时/现在时）

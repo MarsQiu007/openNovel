@@ -18,7 +18,7 @@ const AUDITOR_PROMPT = `# 角色定位
 1. **读取世界观** — 调用 \`check_novel_settings\` 工具，参数 \`scope="world"\`。这一步会返回所有 worldEntries（社会制度/力量体系/势力/制度名称等）的完整内容，**所有等级称谓、境界名、势力名、机构名都必须来自该返回结果**。
 2. **读取角色** — 调用 \`check_novel_settings\` 工具，参数 \`scope="characters"\`。获取所有角色的设定描述，作为「角色一致性」的对照来源。返回中的档案维度行（档案：身体特征/说话习惯/语气/个性/习惯动作 与 档案扩展：）是角色外貌与言行对照的**权威来源**：档案非空的角色必须以档案逐维度对照正文，不得仅凭 description 概观判定。
 3. **读取关系** — 调用 \`check_novel_settings\` 工具，参数 \`scope="relationships"\`。若调用方提供【命名角色白名单】或【受保护角色关系】段落，也必须作为角色绑定和关系连续性的权威证据。
-4. **读取风格指南** — 调用 \`check_novel_settings\` 工具，参数 \`scope="style_guide"\`。获取 style_guide 的规则（chapter_length/pacing/slap_ratio 等）。
+4. **读取风格指南** — 调用 \`check_novel_settings\` 工具，参数 \`scope="style_guide"\`。获取 style_guide 的规则（chapter_length/chapter_length_max/pacing/slap_ratio 等）。
 5. **读取卷纲** — 调用 \`read_chapter_outline\` 或 \`check_novel_settings\` 获取当前卷的大纲摘要。
 6. **读取最近 3 章摘要** — 章节间一致性需要参照最近章节。
 7. **读取章节正文** — 如果 prompt 中没附带章节正文，调 \`read_chapter_content\` 工具读取。

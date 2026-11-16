@@ -215,3 +215,64 @@ describe("styleGuideRuleLines", () => {
     ])
   })
 })
+
+// ── chapter-length-range：快照「目标字数」行两态渲染（区间双向 / 仅下限） ──
+
+describe("formatSnapshotToolOutput 目标字数行", () => {
+  async function seedStyleGuide(novelId: string, rules: Record<string, string>) {
+    await getDb(dir)
+      .insert(StyleGuideTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        rules,
+        tone: "",
+        pov: "",
+        tense: "",
+      })
+      .run()
+  }
+
+  test("有上限：渲染区间双向拒绝文案与快照字段", async () => {
+    await seedNovel("novel-1")
+    await seedStyleGuide("novel-1", { chapter_length: "2000", chapter_length_max: "5000" })
+
+    const snapshot = await assembleSnapshot("novel-1", 0, dir)
+    expect(snapshot!.targetWordCount).toBe(2000)
+    expect(snapshot!.targetWordCountMax).toBe(5000)
+    // 未忽略时恒在场布尔 false（渲染侧 absent/false 同为无注明）
+    expect(snapshot!.targetWordCountMaxIgnored).toBe(false)
+
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
+    expect(result.output).toContain("目标字数：每章下限 2000 / 上限 5000 字")
+    expect(result.output).toContain("正文必须在 2000–5000 字区间内")
+    expect(result.output).not.toContain("上限非法已忽略")
+  })
+
+  test("无上限：渲染仅下限文案，不出现非法注明", async () => {
+    await seedNovel("novel-1")
+    await seedStyleGuide("novel-1", { chapter_length: "2000" })
+
+    const snapshot = await assembleSnapshot("novel-1", 0, dir)
+    expect(snapshot!.targetWordCount).toBe(2000)
+    expect(snapshot!.targetWordCountMax).toBeNull()
+
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
+    expect(result.output).toContain("目标字数：每章至少 2000 字，不设上限")
+    expect(result.output).toContain("剧情需要时可以写长，但严禁注水凑数")
+    expect(result.output).not.toContain("上限非法已忽略")
+  })
+
+  test("上限 ≤ 下限：按不设上限渲染并注明非法已忽略", async () => {
+    await seedNovel("novel-1")
+    await seedStyleGuide("novel-1", { chapter_length: "2000", chapter_length_max: "1500" })
+
+    const snapshot = await assembleSnapshot("novel-1", 0, dir)
+    expect(snapshot!.targetWordCountMax).toBeNull()
+    expect(snapshot!.targetWordCountMaxIgnored).toBe(true)
+
+    const result = formatSnapshotToolOutput(snapshot!, { hooks: [] })
+    expect(result.output).toContain("目标字数：每章至少 2000 字，不设上限（上限非法已忽略，按不设上限执行）")
+    expect(result.output).not.toContain("下限 2000 / 上限")
+  })
+})

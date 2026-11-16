@@ -140,10 +140,10 @@ dispatch 前先执行反馈编译：
 通过 subagent 工具 dispatch @writer 子 agent：
 - agent: "writer"
 - description: "写第X章正文"
-- prompt: 包含 novel_id、chapter_id、章节标题、完整的上下文快照（**必须原样传递快照中的"上一章结尾原文"和"目标字数"字段**）和已编译意图块（若有），指示 writer：① 本章必须承接上一章结尾之后继续展开，严禁重复前文已发生的事件/场景/对话；② 正文字数必须满足快照"目标字数"行的硬约束——默认模式下须达到目标字数（不足会被 write_chapter 拒绝）；快照注明篇幅限制已启用时，正文必须落在目标 ±15% 区间内，超出上限同样会被拒绝；③ 生成后调用 write_chapter 工具写入数据库；④ 只根据意图块处理用户反馈，禁止在正文复述控制层语言；⑤ 快照或兜底章纲输出中的「═══ 章纲场景硬约束清单 ═══」为必须逐条落实的硬约束（与字数、角色白名单同等级），writer 生成后须按清单逐场景核对（含「知情范围」行：出场角色言行不得超出其知情范围）后再调用 write_chapter；⑥ 快照标注审核模式（review）时逐章串行——前置章节未全部通过审批时 write_chapter / revise_chapter 会被硬性拒绝（sequential_blocked），收到该拒绝不要重写正文重试，把拒绝原样上报并停止
+- prompt: 包含 novel_id、chapter_id、章节标题、完整的上下文快照（**必须原样传递快照中的"上一章结尾原文"和"目标字数"行**）和已编译意图块（若有），指示 writer：① 本章必须承接上一章结尾之后继续展开，严禁重复前文已发生的事件/场景/对话；② 正文字数必须满足快照"目标字数"行的硬约束——下限常驻，正文须达到下限（不足会被 write_chapter 拒绝）；快照给出「下限 N / 上限 M 字」时正文必须落在 N–M 字区间内，超出上限同样会被拒绝；快照注明"不设上限"时超出无需精简；③ 生成后调用 write_chapter 工具写入数据库；④ 只根据意图块处理用户反馈，禁止在正文复述控制层语言；⑤ 快照或兜底章纲输出中的「═══ 章纲场景硬约束清单 ═══」为必须逐条落实的硬约束（与字数、角色白名单同等级），writer 生成后须按清单逐场景核对（含「知情范围」行：出场角色言行不得超出其知情范围）后再调用 write_chapter；⑥ 快照标注审核模式（review）时逐章串行——前置章节未全部通过审批时 write_chapter / revise_chapter 会被硬性拒绝（sequential_blocked），收到该拒绝不要重写正文重试，把拒绝原样上报并停止
 - **章纲保障（dispatch 前必查）**：检查步骤 2 快照输出是否包含"═══ 本章大纲 ═══"段。若不包含，必须先调用 \`read_outline\` 工具（type="chapter"、number=本章序号）读取章纲全文，将其并入 dispatch prompt（与快照内章纲同等地位传给 writer）后再 dispatch；若 \`read_outline\` 返回"大纲文件不存在"，**停止流水线**并报告"第X章大纲缺失，需人工介入"——禁止无大纲 dispatch @writer 裸写。（驳回重写场景 dispatch 的是 @reviser，不依赖章纲，不受本兜底约束。）
 - writer 返回后，检查 write_chapter 是否被拒绝：
-  - 若返回"字数不达标/正文含提纲标签/与前文重复"等拒绝结果（metadata.rejected 为 true），将拒绝提示原样传回 @writer，要求其补足字数或重写重复部分后重新调用 write_chapter，最多循环 3 次（注意：超出目标字数不会被拒绝，不要要求 writer 精简本来扎实的内容）
+  - 若返回"字数不达标/正文含提纲标签/与前文重复"等拒绝结果（metadata.rejected 为 true），将拒绝提示原样传回 @writer，要求其补足字数或重写重复部分后重新调用 write_chapter，最多循环 3 次（注意：快照注明"不设上限"时超出下限不会被拒绝，不要要求 writer 精简本来扎实的内容；快照注明上限时超出上限会被拒绝）
   - 若返回"逐章串行约束/前置章节未通过"（metadata.reason 为 sequential_blocked），**不进入上述 3 次重试循环**——重写内容无法解除该拦截，重试必然再次被拒：将拒绝信息原样上报（指明第几章尚未通过审批、需要先审批通过或重写使其通过），停止本章写作流程
   - 3 次后仍被拒绝 -> 停止，报告"字数/重复校验未通过，需人工介入"
 - 失败 -> 停止，报告 writer 失败原因
@@ -179,7 +179,7 @@ dispatch 前先执行反馈编译：
 通过 subagent 工具 dispatch @reviser 子 agent：
 - agent: "reviser"
 - description: "修订第X章"
-- prompt: 包含 novel_id、chapter_id、章节当前正文、@auditor 的审计结果（如有）、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_EXECUTOR_PROMPT}，指示 reviser 针对性修正问题，修订后调用 revise_chapter 工具更新数据库。注意：修订后字数不得低于目标字数（不足会被 revise_chapter 拒绝）
+- prompt: 包含 novel_id、chapter_id、章节当前正文、@auditor 的审计结果（如有）、【写作反馈意图摘要】（若有）和 ${FEEDBACK_INTENT_EXECUTOR_PROMPT}，指示 reviser 针对性修正问题，修订后调用 revise_chapter 工具更新数据库。注意：修订后字数不得低于快照下限（不足会被 revise_chapter 拒绝；快照注明上限时同样不得超出上限）
 - reviser 返回后，重新调用 \`check_continuity\` 验证修订结果
 - 仍 FAIL -> 停止，报告"修订后仍不通过，需人工介入"
 - PASS/WARN 且存在反馈意图 -> dispatch \`mode: feedback_focus\` 复核；结果 FAIL/WARN 时停止并报告"反馈意图仍未满足，需人工介入"
@@ -215,7 +215,7 @@ dispatch 前先执行反馈编译：
 
 若 director 任务中明确写有"重写第X章"且附有批注，说明该章节当前 status 已是 rejected，**不要走步骤 1（读取大纲）与步骤 3（@writer 重写）**，改为：
 - 步骤 2：调用 \`assemble_context_snapshot\` 重组上下文（仍按 chapter_number 读快照）
-- 步骤 3 重写：先基于原章节正文和【用户反馈原文】编译修订意图；把意图块、原章节正文、上一章结尾原文和目标字数传给 @reviser，要求针对性修改后调用 revise_chapter 写入。不要直接派发原始批注。
+- 步骤 3 重写：先基于原章节正文和【用户反馈原文】编译修订意图；把意图块、原章节正文、上一章结尾原文和快照"目标字数"行传给 @reviser，要求针对性修改后调用 revise_chapter 写入。不要直接派发原始批注。
 - 步骤 4-7：完整跑 audit（附带同一意图摘要）→ [revise] → reflect → sync
 - 步骤 8：按模式分支收口
 - 注意：observer 在步骤 6 会基于**修订后**的正文重跑事实提取，提交步骤 7 时自然覆盖上次的事实残留（幂等收敛）
