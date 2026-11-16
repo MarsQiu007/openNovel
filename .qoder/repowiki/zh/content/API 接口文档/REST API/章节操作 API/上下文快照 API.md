@@ -82,7 +82,7 @@ A --> F["hook-rotation.ts<br/>钩子统计 getHookStats()"]
     - P2：读取 chapters 与 chapter_summaries，取最近3章并按 order 升序排列
     - P3：读取 plot_threads 与 foreshadowing
     - P4：读取 style_guide 与 genre rules（动态导入题材模板）
-    - 附加：prevChapterTail（上一章结尾最后约600字）、targetWordCount（从 style_guide.rules.chapter_length 解析）
+    - 附加：prevChapterTail（上一章结尾最后约600字）、targetWordCount（从 style_guide.rules.chapter_length 解析）、targetWordCountMax（从 style_guide.rules.chapter_length_max 解析，非法、留空或 ≤ 下限时按不设上限执行）
 
 **章节来源**
 - [novel-writer.ts:695-762](file://packages/plugin/src/novel-writer.ts#L695-L762)
@@ -123,7 +123,8 @@ Tool-->>Client : 返回文本化 output 与 metadata
   - styleGuide：风格指南（rules、tone、pov、tense）
   - genreRules：题材规则字符串数组
   - prevChapterTail：上一章结尾片段（约600字）
-  - targetWordCount：每章目标字数下限（来自 style_guide.rules.chapter_length）
+  - targetWordCount：每章目标字数下限（来自 style_guide.rules.chapter_length，非法回落 2500）
+  - targetWordCountMax：每章可选字数上限（来自 style_guide.rules.chapter_length_max，仅在解析合法且大于下限时生效；否则不设上限）
 
 ```mermaid
 classDiagram
@@ -140,6 +141,7 @@ class ContextPacket {
 +string[] genreRules
 +string|nil prevChapterTail
 +number|nil targetWordCount
++number|nil targetWordCountMax
 }
 class ActiveCharacter {
 +string name
@@ -319,7 +321,7 @@ LoadThreads --> LoadForeshadowing["查询伏笔"]
 LoadForeshadowing --> LoadStyleGuide["查询风格指南"]
 LoadStyleGuide --> LoadGenreRules["动态导入题材规则"]
 LoadGenreRules --> PrevChapterTail["截取上一章结尾最后约600字"]
-PrevChapterTail --> ParseTargetWords["解析目标字数rules.chapter_length"]
+PrevChapterTail --> ParseTargetWords["解析目标字数 rules.chapter_length / chapter_length_max"]
 ParseTargetWords --> AssemblePacket["组装 ContextPacket"]
 AssemblePacket --> End(["返回结果"])
 ```

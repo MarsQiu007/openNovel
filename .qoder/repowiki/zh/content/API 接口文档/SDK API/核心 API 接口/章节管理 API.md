@@ -2,9 +2,7 @@
 
 <cite>
 **本文引用的文件**   
-- [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
-- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
+- [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
 - [packages/plugin/src/novel-writer/chapter-status.ts](file://packages/plugin/src/novel-writer/chapter-status.ts)
 - [packages/plugin/src/novel-writer/session-store.ts](file://packages/plugin/src/novel-writer/session-store.ts)
 - [packages/novel-store/src/index.ts](file://packages/novel-store/src/index.ts)
@@ -41,7 +39,6 @@ subgraph "插件工具层"
 A["chapter-tools.ts<br/>章节规划/写作/修订"]
 B["chapter-status.ts<br/>状态管理与转换校验"]
 C["chapter-rollback.ts<br/>版本回滚与列表"]
-D["chapter-normalize.ts<br/>长度归一化"]
 end
 subgraph "存储层"
 E["session-store.ts<br/>导出 @opencode-ai/novel-store"]
@@ -57,7 +54,6 @@ end
 A --> E
 B --> E
 C --> E
-D --> A
 E --> F
 F --> G
 H --> F
@@ -67,9 +63,7 @@ I --> E
 **图表来源** 
 - [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
 - [packages/plugin/src/novel-writer/chapter-status.ts](file://packages/plugin/src/novel-writer/chapter-status.ts)
-- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
-- [packages/plugin/src/novel-writer/session-store.ts](file://packages/plugin/src/novel-writer/session-store.ts)
+- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)- [packages/plugin/src/novel-writer/session-store.ts](file://packages/plugin/src/novel-writer/session-store.ts)
 - [packages/novel-store/src/index.ts](file://packages/novel-store/src/index.ts)
 - [packages/core/schema.json](file://packages/core/schema.json)
 - [packages/app/e2e/novel.spec.ts](file://packages/app/e2e/novel.spec.ts)
@@ -78,9 +72,7 @@ I --> E
 **章节来源**
 - [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
 - [packages/plugin/src/novel-writer/chapter-status.ts](file://packages/plugin/src/novel-writer/chapter-status.ts)
-- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
-- [packages/plugin/src/novel-writer/session-store.ts](file://packages/plugin/src/novel-writer/session-store.ts)
+- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)- [packages/plugin/src/novel-writer/session-store.ts](file://packages/plugin/src/novel-writer/session-store.ts)
 - [packages/novel-store/src/index.ts](file://packages/novel-store/src/index.ts)
 - [packages/core/schema.json](file://packages/core/schema.json)
 - [packages/app/e2e/novel.spec.ts](file://packages/app/e2e/novel.spec.ts)
@@ -90,16 +82,13 @@ I --> E
 - 章节工具（规划/写作/修订）：用于查询章节大纲、写入正文、修订并归档旧版本
 - 章节状态管理：定义合法状态转换与更新接口
 - 版本回滚与列表：支持回滚到指定版本与列出可用版本
-- 长度归一化：超长文本在句子边界裁剪，保证目标长度范围
 - 存储层接口：章节创建、删除、更新；版本表关联
 - 搜索与过滤：按关键词模糊匹配标题与内容，返回片段与排序结果
 
 **章节来源**
 - [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
 - [packages/plugin/src/novel-writer/chapter-status.ts](file://packages/plugin/src/novel-writer/chapter-status.ts)
-- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
-- [packages/novel-store/src/index.ts](file://packages/novel-store/src/index.ts)
+- [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)- [packages/novel-store/src/index.ts](file://packages/novel-store/src/index.ts)
 - [packages/plugin/src/novel-writer.ts](file://packages/plugin/src/novel-writer.ts)
 
 ## 架构总览
@@ -230,11 +219,8 @@ Format --> End["结束"]
 - [packages/app/e2e/novel.spec.ts](file://packages/app/e2e/novel.spec.ts)
 
 ### 大文本内容处理策略与性能优化
-- 长度归一化
-  - normalizeChapter(text, targetLength)：在 ±15% 范围内直接返回原文；超长则在句子边界裁剪至 targetLength+100 以内，最多一次裁剪
-  - 适用于 writer/reviser 生成内容后的自动裁剪，避免超出上限
 - 写入与修订
-  - write_chapter：校验字数范围（例如 2000-3000），更新 content、word_count、status、updated_at
+  - write_chapter：按写作风格的字数下限/上限区间校验，更新 content、word_count、status、updated_at
   - revise_chapter：先归档旧版本到 chapter_versions，再更新新内容
 - 性能建议
   - 使用 LIKE 搜索时尽量限定 novel_id，减少扫描范围
@@ -242,26 +228,11 @@ Format --> End["结束"]
   - 大文本读取按需分页或仅返回摘要片段
   - 批量更新时使用事务，降低锁竞争
 
-```mermaid
-flowchart TD
-In["输入 text 与 targetLength"] --> CalcRange["计算上下界：target±15%"]
-CalcRange --> InRange{"是否在范围内？"}
-InRange --> |是| ReturnOrig["返回原文normalized=false"]
-InRange --> |否| CutPoint["设定 cutPoint = target + 100"]
-CutPoint --> FindBoundary["向前查找最近句子结束标点"]
-FindBoundary --> Found{"找到合适边界？"}
-Found --> |是| TrimAtBoundary["在边界处裁剪保留标点"]
-Found --> |否| HardCut["在 cutPoint 硬截断"]
-TrimAtBoundary --> Out["返回裁剪结果normalized=true"]
-HardCut --> Out
-```
-
-**图表来源** 
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
+**图表来源**
+- [packages/plugin/src/novel-writer.ts](file://packages/plugin/src/novel-writer.ts)
 
 **章节来源**
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
-- [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
+- [packages/plugin/src/novel-writer.ts](file://packages/plugin/src/novel-writer.ts)
 
 ### 章节状态机
 - 状态集合：planned → drafting → audited → revised → final
@@ -325,7 +296,6 @@ SearchTool["plugin/novel-writer.ts"] --> SessionStore
   - 对 content/title 建立索引（视数据库引擎支持）
   - 限制 limit，避免一次性返回大量结果
 - 大文本处理
-  - 使用 normalizeChapter 在写入前裁剪，避免超大内容落库
   - 读取时按需返回片段（snippet），减少网络传输
 - 版本控制
   - 仅在必要时归档版本（如 revise_chapter），避免频繁插入
@@ -357,7 +327,7 @@ SearchTool["plugin/novel-writer.ts"] --> SessionStore
 - [packages/plugin/src/novel-writer.ts](file://packages/plugin/src/novel-writer.ts)
 
 ## 结论
-章节管理功能围绕“工具层—存储层—数据模型”三层展开，提供了完整的 CRUD、状态机、版本控制与搜索能力。通过长度归一化与片段化返回，有效应对大文本场景的性能问题。建议在业务层完善树结构维护（卷与章节的父子关系与排序），并结合索引与事务优化整体性能。
+章节管理功能围绕“工具层—存储层—数据模型”三层展开，提供了完整的 CRUD、状态机、版本控制与搜索能力。通过片段化返回，有效应对大文本场景的性能问题。建议在业务层完善树结构维护（卷与章节的父子关系与排序），并结合索引与事务优化整体性能。
 
 [本节为总结性内容，不直接分析具体文件]
 

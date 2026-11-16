@@ -65,7 +65,7 @@ Handler --> Store
 ## 核心组件
 - 章节工具（Plugin）
   - chapterPlan：查询章节大纲与已有内容摘要，辅助 writer/reviser 规划。
-  - chapterWrite：写入章节正文，进行字数校验（默认 2000-3000 字符），成功后设置状态为 draft。
+  - chapterWrite：写入章节正文，按写作风格的字数下限/上限区间校验（下限常驻、缺省 2500；注明上限时双向拒绝），成功后设置状态为 draft。
   - chapterRevise：修订章节，先保存旧版本到 chapter_versions，再更新当前内容。
 - 状态管理（Plugin）
   - updateChapterStatus：基于合法转换表更新章节状态，非法转换抛出错误。
@@ -123,7 +123,7 @@ Server-->>Client : 200 + JSON
 - 功能：校验输入后写入章节正文，设置 word_count 与 status=draft。
 - 参数验证：
   - chapterId：字符串，必填。
-  - content：字符串，必填；长度需在 2000-3000 之间（按字符长度计数）。
+  - content：字符串，必填；字数不得低于写作风格字数下限，写作风格注明上限时同样不得超过上限。
 - 业务规则：
   - 字数不足/超限直接拒绝。
   - 章节不存在时返回未找到提示。
@@ -136,7 +136,7 @@ Server-->>Client : 200 + JSON
 ```mermaid
 flowchart TD
 Start(["入口"]) --> Validate["校验参数<br/>chapterId, content"]
-Validate --> LenCheck{"字数是否在 2000-3000？"}
+Validate --> LenCheck{"字数是否满足下限/上限区间？"}
 LenCheck --> |否| ReturnLenErr["返回字数错误"]
 LenCheck --> |是| CheckExist["查询章节是否存在"]
 CheckExist --> |否| ReturnNotFound["返回未找到"]
@@ -318,7 +318,7 @@ Store --> DB[("数据库")]
 ## 故障排查指南
 - 常见错误与定位：
   - 未找到章节：检查 chapterId 是否正确，确认章节已创建。
-  - 字数不足/超限：调整 content 长度至 2000-3000 区间。
+  - 字数不足/超限：低于下限需扩写补足；写作风格注明上限时需精炼压缩（无上限时不判超限）。
   - 门禁拦截：存在 pending_updates，需先执行 cascade_execute 处理统改任务。
   - 状态转换不合法：检查当前状态与目标状态是否符合转换规则。
 - 调试建议：

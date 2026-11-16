@@ -7,7 +7,6 @@
 - [packages/server/src/handlers/novel.ts](file://packages/server/src/handlers/novel.ts)
 - [packages/plugin/src/novel-writer/chapter-status.ts](file://packages/plugin/src/novel-writer/chapter-status.ts)
 - [packages/plugin/src/novel-writer/chapter-tools.ts](file://packages/plugin/src/novel-writer/chapter-tools.ts)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts](file://packages/plugin/src/novel-writer/chapter-normalize.ts)
 - [packages/plugin/src/novel-writer/chapter-rollback.ts](file://packages/plugin/src/novel-writer/chapter-rollback.ts)
 - [packages/app/src/context/novel-queries.ts](file://packages/app/src/context/novel-queries.ts)
 - [packages/sdk/js/src/v2/gen/sdk.gen.ts](file://packages/sdk/js/src/v2/gen/sdk.gen.ts)
@@ -38,7 +37,7 @@
 - 数据库迁移与表定义：chapters、chapter_versions 等表的建表语句与索引
 - ORM 表模型：Drizzle 定义的 ChapterTable、ChapterVersionTable
 - 服务端处理器：DTO 映射、查询与更新接口实现
-- 插件工具：状态机、内容写入/修订、长度归一化、版本回滚
+- 插件工具：状态机、内容写入/修订、版本回滚
 - 前端调用：React Query 封装的章节详情与版本列表查询
 - SDK 客户端：生成的 API 方法用于调用章节版本、移动等操作
 
@@ -59,7 +58,6 @@ end
 subgraph "插件工具"
 G["chapter-status.ts<br/>状态机"]
 H["chapter-tools.ts<br/>plan/write/revise"]
-I["chapter-normalize.ts<br/>长度归一化"]
 J["chapter-rollback.ts<br/>版本回滚"]
 end
 subgraph "前端与SDK"
@@ -73,7 +71,6 @@ D --> E
 E --> F
 G --> F
 H --> F
-I --> H
 J --> F
 K --> L
 L --> E
@@ -85,7 +82,6 @@ L --> E
 - [packages/server/src/handlers/novel.ts:106-137](file://packages/server/src/handlers/novel.ts#L106-L137)
 - [packages/plugin/src/novel-writer/chapter-status.ts:1-104](file://packages/plugin/src/novel-writer/chapter-status.ts#L1-L104)
 - [packages/plugin/src/novel-writer/chapter-tools.ts:1-163](file://packages/plugin/src/novel-writer/chapter-tools.ts#L1-L163)
-- [packages/plugin/src/novel-writer/chapter-normalize.ts:1-132](file://packages/plugin/src/novel-writer/chapter-normalize.ts#L1-L132)
 - [packages/plugin/src/novel-writer/chapter-rollback.ts:1-116](file://packages/plugin/src/novel-writer/chapter-rollback.ts#L1-L116)
 - [packages/app/src/context/novel-queries.ts:99-127](file://packages/app/src/context/novel-queries.ts#L99-L127)
 - [packages/sdk/js/src/v2/gen/sdk.gen.ts:7593-7630](file://packages/sdk/js/src/v2/gen/sdk.gen.ts#L7593-L7630)
@@ -303,30 +299,6 @@ SDK-->>UI : 刷新列表
 - [packages/core/src/database/migration/20260721152252_novel_writing_tables.ts:189-191](file://packages/core/src/database/migration/20260721152252_novel_writing_tables.ts#L189-L191)
 - [packages/server/src/handlers/novel.ts:842-850](file://packages/server/src/handlers/novel.ts#L842-L850)
 
-### 内容操作与长度归一化
-- 内容写入：校验长度范围（例如 2000-3000 字），更新 content 与 wordCount，并设置状态为 draft
-- 修订流程：先保存旧版本到 chapter_versions，再更新新内容
-- 长度归一化：在目标长度 ±15% 范围内保持原文，超长则在句子边界裁剪
-
-```mermaid
-flowchart TD
-A["输入内容"] --> B{"长度是否在目标±15%?"}
-B --> |是| C["直接返回原文"]
-B --> |否且超长| D["在句子边界裁剪至 target+100"]
-B --> |否且太短| E["不填充，交由 writer 处理"]
-D --> F["生成 NormalizeResult"]
-C --> F
-E --> F
-```
-
-**图表来源**
-- [packages/plugin/src/novel-writer/chapter-normalize.ts:49-77](file://packages/plugin/src/novel-writer/chapter-normalize.ts#L49-L77)
-- [packages/plugin/src/novel-writer/chapter-tools.ts:60-97](file://packages/plugin/src/novel-writer/chapter-tools.ts#L60-L97)
-
-**章节来源**
-- [packages/plugin/src/novel-writer/chapter-normalize.ts:49-77](file://packages/plugin/src/novel-writer/chapter-normalize.ts#L49-L77)
-- [packages/plugin/src/novel-writer/chapter-tools.ts:60-97](file://packages/plugin/src/novel-writer/chapter-tools.ts#L60-L97)
-
 ### 版本回滚
 - 回滚到指定版本时，先将当前内容保存为新版本（确保可逆），再将章节恢复为目标版本内容
 - 提供 listVersions 列出所有可用版本，按 version 降序排列
@@ -354,7 +326,7 @@ Rollback-->>Client : 返回回滚结果
 - 数据层依赖：chapters 与 chapter_versions 通过 chapter_id 建立一对多关系
 - ORM 层：ChapterTable、ChapterVersionTable 定义字段与索引
 - 服务层：handlers/novel.ts 负责 DTO 映射与业务编排
-- 插件层：状态机、工具函数、归一化与回滚逻辑增强业务能力
+- 插件层：状态机、工具函数与回滚逻辑增强业务能力
 - 前端与 SDK：React Query 与生成式 SDK 简化调用
 
 ```mermaid
@@ -409,7 +381,7 @@ SDK --> App["App Queries"]
 - [packages/plugin/src/novel-writer/chapter-rollback.ts:39-52](file://packages/plugin/src/novel-writer/chapter-rollback.ts#L39-L52)
 
 ## 结论
-章节实体以清晰的字段设计与严格的版本控制为核心，结合状态机与长度归一化，形成了完整的创作与编辑闭环。通过前后端协作与 SDK 封装，开发者可以便捷地实现章节的创建、更新、移动与版本回溯，同时保障数据一致性与性能表现。
+章节实体以清晰的字段设计与严格的版本控制为核心，结合状态机，形成了完整的创作与编辑闭环。通过前后端协作与 SDK 封装，开发者可以便捷地实现章节的创建、更新、移动与版本回溯，同时保障数据一致性与性能表现。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -429,8 +401,6 @@ SDK --> App["App Queries"]
 - 内容写入与修订（含版本保存）
   - [packages/plugin/src/novel-writer/chapter-tools.ts:60-97](file://packages/plugin/src/novel-writer/chapter-tools.ts#L60-L97)
   - [packages/plugin/src/novel-writer/chapter-tools.ts:105-162](file://packages/plugin/src/novel-writer/chapter-tools.ts#L105-L162)
-- 长度归一化
-  - [packages/plugin/src/novel-writer/chapter-normalize.ts:49-77](file://packages/plugin/src/novel-writer/chapter-normalize.ts#L49-L77)
 - 版本回滚与列表
   - [packages/plugin/src/novel-writer/chapter-rollback.ts:29-93](file://packages/plugin/src/novel-writer/chapter-rollback.ts#L29-L93)
   - [packages/plugin/src/novel-writer/chapter-rollback.ts:100-115](file://packages/plugin/src/novel-writer/chapter-rollback.ts#L100-L115)
