@@ -46,6 +46,7 @@
 - 归档流程：推送 main 前过 CI 等价本地检查门 → `openspec validate chapter-length-range --strict` → 手工改写主规格 `openspec/specs/chapter-length-limit/spec.md` 的 Purpose 段为显式上下限两态语义（下限常驻缺省 2500、上限存在即区间双向门禁、留空即仅下限；archive 合并只重组 Requirements 章节、逐字保留既有 Purpose，不改写则旧「篇幅限制开关 + ±15%」表述随归档残留并与新需求自相矛盾）并单独提交 → `npx openspec archive --yes chapter-length-range` → 将 archive 产生的 specs 合并与目录移动按 `chore(openspec): 归档 chapter-length-range` 单独提交（带 trailer）→ 合并前检查工作树干净、切 main 并更新到最新 origin/main、优先 `git merge --ff-only`；无法快进时先把功能分支更新到最新 main、重跑 6.3 验证门后再合并 → push main → 确认分支已合并后删除本地与远端功能分支并 `git fetch --prune`。
 - 先序声明：author-style-ledger（若其实现启动）与本 change 在 plugin 快照组装文件（ContextPacket/assembleSnapshot/rollup.ts）相交——本 change 先行落地，其实现启动前核对快照文件清单；两者 spec 能力面无交集。
 - 推送功能性代码到 main 后确认远端 generate / typecheck / test 全绿再收尾。
+- 归档后收尾修复 87ecbdd916（见 Implementation Commits 子小节）推送 main 后同样按上行确认工作流全绿后收尾；该修复随 main tip CI 转绿后本 change 闭环。
 
 ## 6.2 关联面核查清单（实现完成态）
 
@@ -85,4 +86,8 @@
 - 7d8c41b17e feat(app): 写作风格编辑器常驻字数上下限字段
 - 0855c6a05d feat(app): 章节编辑器字数进度按上下限区间判定
 - d5474696ca docs(opennovel): 同步 repowiki 字数门禁两态语义
+
+### 归档后收尾修复
+
+- 87ecbdd916 test(opennovel): 同步 style 接口测试契约至两键齐全存储形态 —— 迁移补齐 `chapter_length_max` 后 GET style 接口透传含常驻键的存储形态，CI 双 OS unit 因既有「历史嵌套归一化为纯扁平映射」精确断言转红；同步断言（前端编辑器本就从 rules parse 两键，功能链路自洽）。本地 opennovel 包全量 1715 pass 复核仅此一处真回归（read-only smoke hook 5s 超时为既有 flake 家族形态，CI 双 OS 未复现）。
 
