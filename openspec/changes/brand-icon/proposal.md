@@ -6,7 +6,7 @@ openNovel 是 openCode 的 fork，但全部品牌视觉资产（应用图标、f
 
 ## What Changes
 
-- **新品牌 master「方框藏书」**：保留 opencode 白色方环几何基因（512 画布，外环 128..384、内孔 192..320），孔内改为深色立书立于浅色孔底——白色书脊豁口 + 双书口线 + 尖尾小书签；单色扁平（#131010 / #FFFFFF / #5A5858），16px 下仍保持「方框 + 书」辨识度
+- **新品牌 master「方框藏书」**：保留 opencode 白色方环几何基因（512 画布，外环 128..384、内孔 192..320），孔内为一本白色立书——深色书脊豁口 + 深色双书口线 + 深色尖尾小书签；单色扁平（#131010 / #FFFFFF / #5A5858），16px 下仍保持「方框 + 书」辨识度
 - **packages/identity 更新**：mark.svg / mark-light.svg（反色版）替换为 v2 设计稿，配套 mark PNG（96/192/512、含 light）由再生成脚本导出
 - **favicon 族脚本化再生成**：packages/ui/src/assets/favicon 下 v3 系（index.html 引用）与非 v3 系（site.webmanifest、线上项目图标 URL 引用）全部由仓库内 bun 脚本从新 master 一键产出（svg/ico/96x96/192/512/apple-touch），替换已断链的手工 tauri 流程
 - **UI 内联标识组件改造**（packages/ui/src/components/logo.tsx）：Splash 改为页顶向书脊下倾的摊开书形（viewBox 80×100）；Mark 小标孔内藏书；Logo 词标重拼为 OPENNOVEL 九字母块状像素风（viewBox 264×42，保留 --icon-* CSS 变量强弱双色机制），同步更新 stories

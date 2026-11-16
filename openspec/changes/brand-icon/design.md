@@ -21,8 +21,8 @@
 
 ## Decisions
 
-### 1. master 采用 v2「深色书立浅色孔底」反色方案
-v2 在 512 大图与 16px 小图两个尺度上都是三版中书形辨识度最高的（书脊豁口 + 双书口线 + 尖尾书签清楚可读）；备选 v1（白书深孔）大图呈「L 形角标」感、书味弱，v3（圆角亲和）深底描边书形有聊天气泡误读风险，均淘汰。词标以 v2 版为准（九字母拼读清晰）；其 V 为斜笔 check 形，与块状风一致，接受远距离轻微误读。
+### 1. master 采用 v2「白书深孔」方案
+v2 在 512 大图与 16px 小图两个尺度上都是三版中书形辨识度最高的（孔内白色立书 + 深色书脊豁口、双书口线与尖尾书签清楚可读）；备选 v1（同为白书但书体近满幅、细节少）大图呈「L 形角标」感、书味弱，v3（圆角亲和）深底描边书形有聊天气泡误读风险，均淘汰。词标以 v2 版为准（九字母拼读清晰）；其 V 为斜笔 check 形，与块状风一致，接受远距离轻微误读。
 
 ### 2. 再生成管线：仓库根 `script/brand-icon.ts`（Bun + @resvg/resvg-js + png2icons）
 - SVG→PNG 用 `@resvg/resvg-js`（Rust 渲染绑定，跨平台、无头、输出确定性），新增为根 devDependency
@@ -31,7 +31,7 @@ v2 在 512 大图与 16px 小图两个尺度上都是三版中书形辨识度最
 - 产物矩阵在脚本内声明（favicon 两系、identity 96/192/512×深浅、三渠道 icon/dock/托盘/Windows 尺寸、分享图 1200×630），脚本校验「产物清单与声明一致」
 
 ### 3. master 落位 `packages/identity/`，favicon 两系同源零引用改动
-v2 设计稿直接成为新 master：`identity/mark.svg`、`identity/mark-light.svg` 替换；favicon v3 系与非 v3 系由同一 master 产出不改名（`index.html`、`favicon.tsx`、`site.webmanifest`、`layout/helpers.ts:98` 的线上 URL 引用均零改动，`packages/app/public` 符号链接随源生效）。
+v2 设计稿成为 identity 下的品牌 artwork 集（6 个 SVG）：`mark.svg`（深底 master）、`mark-light.svg`（透明底反色）、`app-icon.svg`（prod 圆角版式）、`beta-icon.svg`（浅色渠道，近白底 + 深色图形）、`dev-icon.svg`（蓝图渠道）、`wordmark.svg`（词标）。`script/brand-icon.ts` 内置标准几何断言：修改 master 几何时必须同步全部布局 artwork，否则再生成失败——以此保证「单一脚本入口、全部产物可再生成」。favicon v3 系与非 v3 系由同一 master 产出不改名（`index.html`、`favicon.tsx`、`site.webmanifest`、`layout/helpers.ts:98` 的线上 URL 引用均零改动，`packages/app/public` 符号链接随源生效）。
 
 ### 4. logo.tsx 三组件按 v2 几何重画
 - Splash：viewBox 80×100，页顶向书脊下倾的摊开书形（v2 splash 几何），无顶梁
