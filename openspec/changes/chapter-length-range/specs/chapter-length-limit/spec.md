@@ -23,14 +23,14 @@
 #### Scenario: 非法上限组合降级
 - **WHEN** rules 中 chapter_length_max 不大于 chapter_length（如上限 "1500" 对下限 "2000"，绕过 UI 校验直接写入库）
 - **THEN** 快照与写入校验均按不设上限处理
-- **AND** 快照注明上限非法已被忽略
+- **AND** 快照注明「上限非法已忽略」
 
 ### Requirement: 章节写入校验 SHALL 按显式上下限双向拒绝
-`write_chapter` 与 `revise_chapter` SHALL 以网文字数口径统计提交正文，低于字数下限即拒绝（metadata.reason 为 "too_short"，消息注明差额与补足方向）；字数上限存在时同时拒绝高于上限的正文（metadata.reason 为 "too_long"，消息提示优先删除注水内容而非砍剧情主线）；上限不存在时对超长正文不设限。
+`write_chapter` 与 `revise_chapter` SHALL 以网文字数口径统计提交正文，低于字数下限即拒绝（metadata.reason 为 "too_short"，消息含「还差 Y 字」措辞与补足方向）；字数上限存在时同时拒绝高于上限的正文（metadata.reason 为 "too_long"，消息提示优先删除注水内容而非砍剧情主线）；上限不存在时对超长正文不设限。
 
 #### Scenario: 低于下限被拒绝
 - **WHEN** 字数下限 2000、无上限，正文字数为 1800
-- **THEN** 工具拒绝写入，metadata.reason 为 "too_short"，消息含差额与补足方向
+- **THEN** 工具拒绝写入，metadata.reason 为 "too_short"，消息含「还差」字样与补足差额
 
 #### Scenario: 区间内通过
 - **WHEN** 字数区间 2000–5000，正文字数为 3500
@@ -62,6 +62,11 @@
 #### Scenario: dispatch 注明上限拒绝
 - **WHEN** 上限存在，pipeline dispatch writer
 - **THEN** dispatch 指示注明超出上限同样会被拒绝
+
+#### Scenario: writer 提示词规则覆盖两态
+- **WHEN** 阅读 writer 系统提示词字数规则
+- **THEN** 包含未设上限模式的「下限硬、不设上限」语义
+- **AND** 包含有上限模式的「区间内双向硬拒绝」语义
 
 ### Requirement: 书籍编辑 UI SHALL 提供常驻字数下限与上限字段
 设定树「写作风格」节点表单 SHALL 常驻「字数下限」「字数上限」两个数字输入，用户无需手动新建规则行：打开面板时按下限（缺省 2500）与上限（缺省空）回填当前值；保存时将两值以字符串形式写入 style_guide.rules，上限留空写入空值表示不设上限；UI SHALL 在上限小于下限或输入非正数时拦截保存并标示错误。表单不再提供「篇幅限制」复选框。
