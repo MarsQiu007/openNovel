@@ -91,6 +91,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   cleanupUpgradeQueueScope(exec)
   migrateChapterContentFingerprint(exec, query)
   migrateChapterWordCount(exec, query)
+  migrateChapterLengthRange(exec, query)
   migrateReviewTrail(exec, query)
   migrateMemoryColumns(exec, query)
   migrateCharacterProfile(exec, query)
@@ -761,5 +762,79 @@ export function migrateChapterWordCount(exec: ExecFn, query: QueryFn): void {
     }
   } catch {
     // 重算失败不阻塞 DB 打开
+  }
+}
+
+/**
+ * 篇幅限制开关折算为显式字数上下限（chapter-length-range，幂等）。
+ *
+ * 旧语义：rules.chapter_length_limit === "true" 时目标 ±15% 区间生效；新语义为
+ * 显式 chapter_length（下限）/ chapter_length_max（上限）两键。逐行处理：
+ * - 开关键为 "true" 且 chapter_length 为有限正数：按 Number()（与读取侧同源，不用
+ *   parseInt）折算——下限 max(1, floor(×0.85))（钳 1 防零下限锁死）、上限 ceil(×1.15)，
+ *   写回下限并删开关键；已有 chapter_length_max 的行不覆盖（保护用户显式设定）；
+ * - 开关键为 "true" 但原值非法（非正数/NaN）：跳过折算，chapter_length 原值不动，仅删开关键；
+ * - 开关键存在但非 "true"：仅删开关键不折算；
+ * - 处理后仍缺 chapter_length_max 的行补空串（读取侧按不设上限降级）。
+ * 防御双重编码 rules（parse 后仍为 string 再 parse 一次）；单行 rules 损坏时
+ * console.warn（带行 id）后跳过继续；无键变更零写入；无 style_guide 表整体跳过；
+ * 失败不阻塞 DB 打开。
+ */
+export function migrateChapterLengthRange(exec: ExecFn, query: QueryFn): void {
+  try {
+    const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='style_guide'")
+    if (!Array.isArray(tables) || tables.length === 0) return
+    const rows = query("SELECT id, rules FROM style_guide")
+    if (!Array.isArray(rows)) return
+    for (const row of rows) {
+      if (typeof row !== "object" || row === null) continue
+      const id = "id" in row ? row.id : null
+      const rawRules = "rules" in row ? row.rules : null
+      if (typeof id !== "string" || typeof rawRules !== "string") continue
+      try {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(rawRules)
+        } catch {
+          console.warn(`[novel-store] style_guide 行 rules 非 JSON，跳过字数区间迁移 id=${id}`)
+          continue
+        }
+        if (typeof parsed === "string") {
+          try {
+            parsed = JSON.parse(parsed)
+          } catch {
+            console.warn(`[novel-store] style_guide 行 rules 双重编码且内层非 JSON，跳过字数区间迁移 id=${id}`)
+            continue
+          }
+        }
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          console.warn(`[novel-store] style_guide 行 rules 非对象形态，跳过字数区间迁移 id=${id}`)
+          continue
+        }
+        const rules = { ...(parsed as Record<string, unknown>) }
+        let changed = false
+        if ("chapter_length_limit" in rules) {
+          changed = true
+          const rawTarget = rules.chapter_length
+          const n = typeof rawTarget === "string" || typeof rawTarget === "number" ? Number(rawTarget) : NaN
+          if (rules.chapter_length_limit === "true" && Number.isFinite(n) && n > 0) {
+            rules.chapter_length = String(Math.max(1, Math.floor(n * 0.85)))
+            if (!("chapter_length_max" in rules)) rules.chapter_length_max = String(Math.ceil(n * 1.15))
+          }
+          delete rules.chapter_length_limit
+        }
+        if (!("chapter_length_max" in rules)) {
+          rules.chapter_length_max = ""
+          changed = true
+        }
+        if (!changed) continue
+        const json = JSON.stringify(rules).replace(/'/g, "''")
+        exec(`UPDATE style_guide SET rules = '${json}' WHERE id = '${id.replace(/'/g, "''")}'`)
+      } catch (error) {
+        console.warn(`[novel-store] style_guide 行字数区间迁移失败 id=${id}:`, error instanceof Error ? error.message : error)
+      }
+    }
+  } catch (error) {
+    console.warn("[novel-store] chapter length range migration failed:", error instanceof Error ? error.message : error)
   }
 }

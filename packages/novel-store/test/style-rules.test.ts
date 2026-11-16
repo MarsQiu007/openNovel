@@ -96,6 +96,17 @@ describe("normalizeStyleRules", () => {
     expect(normalizeStyleRules(undefined)).toEqual({ rules: {}, unnormalizable: false })
   })
 
+  test("空串值是合法叶子，往返保持空串（chapter_length_max 不设上限标记）", () => {
+    const { rules, unnormalizable } = normalizeStyleRules({ chapter_length: "2500", chapter_length_max: "" })
+    expect(unnormalizable).toBe(false)
+    expect(rules).toEqual({ chapter_length: "2500", chapter_length_max: "" })
+    // JSON 字符串形态同样保留空串条目（app 编辑器回传形态）
+    expect(normalizeStyleRules(JSON.stringify({ chapter_length: "2500", chapter_length_max: "" })).rules).toEqual({
+      chapter_length: "2500",
+      chapter_length_max: "",
+    })
+  })
+
   test("requireNormalizedStyleRules 失败时抛出带格式说明的错误", () => {
     expect(() => requireNormalizedStyleRules({ a: null })).toThrow("无法归一化")
     expect(() => requireNormalizedStyleRules({ a: null })).toThrow("扁平字符串映射")
@@ -147,6 +158,14 @@ describe("upsertStyleGuide 写入边界", () => {
     const db = getDb(projectDir)
     const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-sg")).all()
     expect(row!.rules).toEqual({})
+  })
+
+  test("空串值往返落库保持空串（chapter_length_max 不设上限）", async () => {
+    await seedNovelRow()
+    await upsertStyleGuide("novel-sg", { rules: { chapter_length: "2500", chapter_length_max: "" } }, projectDir)
+    const db = getDb(projectDir)
+    const [row] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, "novel-sg")).all()
+    expect(row!.rules).toEqual({ chapter_length: "2500", chapter_length_max: "" })
   })
 })
 
