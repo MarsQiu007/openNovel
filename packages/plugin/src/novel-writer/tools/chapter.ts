@@ -28,13 +28,12 @@ import {
 import { scanReferences } from "../state-commit.js"
 import { detectKinshipEntityDrift, loadCharacterBindingView } from "../drift-guards.js"
 import {
-  CHAPTER_LENGTH_TOLERANCE,
   checkChapterLengthGate,
   checkChapterSequentialGate,
   checkDuplicateRatio,
   detectCoordinateLeak,
   detectOutlineLabels,
-  getChapterLengthLimit,
+  getChapterLengthMax,
   getFirstUnpassedChapter,
   getTargetWordCount,
 } from "./chapter-guards.js"
@@ -97,11 +96,11 @@ export const chapterTools = {
         }
       }
 
-      // 字数校验：不启用篇幅限制时仅保留下限硬约束（现状）；启用时按目标 ±15% 双向拒绝
+      // 字数校验：下限常驻硬约束；上限存在时区间双向拒绝（非法/≤下限组合已降级为不设上限）
       const target = await getTargetWordCount(db, chapter.novel_id)
-      const limit = await getChapterLengthLimit(db, chapter.novel_id)
+      const upper = await getChapterLengthMax(db, chapter.novel_id, target)
       const wordCount = countWords(args.content)
-      const lengthRejection = checkChapterLengthGate("write_chapter", wordCount, target, limit)
+      const lengthRejection = checkChapterLengthGate("write_chapter", wordCount, target, upper)
       if (lengthRejection) return lengthRejection
 
       // 大纲标签校验：禁止把章纲模板/节拍标签写进读者正文
@@ -182,7 +181,7 @@ export const chapterTools = {
           : ""
       return {
         title: "write_chapter",
-        output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（${limit ? `目标 ${target}±15%（${Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE))}–${Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE))} 字）` : `目标≥${target}字`}）${driftWarning}`,
+        output: `已写入第${chapter.order}章「${chapter.title}」：${wordCount}字（${upper ? `下限 ${target} / 上限 ${upper} 字` : `下限≥${target}字`}）${driftWarning}`,
         metadata: {
           chapter_id: args.chapter_id,
           word_count: wordCount,
@@ -235,11 +234,11 @@ export const chapterTools = {
         }
       }
 
-      // 修订后仍需满足字数门槛：不启用时保留下限（防止修订改少）；启用时按目标 ±15% 双向校验
+      // 修订后仍需满足字数区间：下限常驻（防止修订改少）；上限存在时双向校验（非法/≤下限组合已降级为不设上限）
       const target = await getTargetWordCount(db, chapter.novel_id)
-      const limit = await getChapterLengthLimit(db, chapter.novel_id)
+      const upper = await getChapterLengthMax(db, chapter.novel_id, target)
       const wordCount = countWords(args.revision)
-      const lengthRejection = checkChapterLengthGate("revise_chapter", wordCount, target, limit)
+      const lengthRejection = checkChapterLengthGate("revise_chapter", wordCount, target, upper)
       if (lengthRejection) return lengthRejection
 
       // 大纲标签校验：修订时同样禁止把章纲模板/节拍标签写进正文
@@ -301,7 +300,7 @@ export const chapterTools = {
 
       return {
         title: "revise_chapter",
-        output: `已修订第${chapter.order}章「${chapter.title}」：${wordCount}字（${limit ? `目标 ${target}±15%（${Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE))}–${Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE))} 字）` : `目标≥${target}字`}）`,
+        output: `已修订第${chapter.order}章「${chapter.title}」：${wordCount}字（${upper ? `下限 ${target} / 上限 ${upper} 字` : `下限≥${target}字`}）`,
         metadata: { chapter_id: args.chapter_id, word_count: wordCount, stale_facts: staleFacts.length },
       }
     },

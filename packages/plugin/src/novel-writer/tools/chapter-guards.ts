@@ -63,51 +63,61 @@ export function detectCoordinateLeak(text: string): string[] {
 }
 
 /**
- * 读取目标字数下限：style_guide.rules.chapter_length，缺省 2500。
- * write_chapter/revise_chapter 用它做字数门禁——不达标拒绝写入。
+ * 章节字数区间校验：下限常驻，上限存在时双向拒绝。通过返回 null；拒绝返回带 reason 的结果。
+ * 上限由调用方经 getChapterLengthMax 解析（非法/≤下限已降级为 null），本函数不做组合判定。
  */
-/** 篇幅限制容差系数：启用时正文字数必须在目标 ±15% 区间内 */
-export const CHAPTER_LENGTH_TOLERANCE = 0.15
-
-/** 读取书籍篇幅限制开关（style_guide.rules.chapter_length_limit === "true"） */
-export async function getChapterLengthLimit(db: ReturnType<typeof getDb>, novelId: string): Promise<boolean> {
-  const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
-  return parseStyleRules(sg?.rules).chapter_length_limit === "true"
-}
-
-/** 章节字数门槛校验：通过返回 null；拒绝返回带 reason 的结果（too_short/too_long） */
 export function checkChapterLengthGate(
   toolName: string,
   wordCount: number,
-  target: number,
-  limit: boolean,
-): { title: string; output: string; metadata: { rejected: true; reason: "too_short" | "too_long"; word_count: number; target: number; lower_bound: number; upper_bound: number | null } } | null {
-  const lowerBound = limit ? Math.floor(target * (1 - CHAPTER_LENGTH_TOLERANCE)) : target
-  const upperBound = limit ? Math.ceil(target * (1 + CHAPTER_LENGTH_TOLERANCE)) : null
-  if (wordCount < lowerBound) {
-    const rangeText = limit ? `本章篇幅限制区间为 ${lowerBound}–${upperBound} 字` : `本章目标至少 ${target} 字，还差 ${target - wordCount} 字`
+  lower: number,
+  upper: number | null,
+): { title: string; output: string; metadata: { rejected: true; reason: "too_short" | "too_long"; word_count: number; lower_bound: number; upper_bound: number | null } } | null {
+  if (wordCount < lower) {
     const actionText = toolName === "revise_chapter" ? "请在修订内容中补足字数后重新调用 revise_chapter" : "请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容"
     return {
       title: `${toolName}（字数不达标）`,
-      output: `字数不足：当前 ${wordCount} 字，${rangeText}。${actionText}。`,
-      metadata: { rejected: true, reason: "too_short", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
+      output: `字数不足：当前 ${wordCount} 字，本章字数下限 ${lower} 字，还差 ${lower - wordCount} 字。${actionText}。`,
+      metadata: { rejected: true, reason: "too_short", word_count: wordCount, lower_bound: lower, upper_bound: upper },
     }
   }
-  if (upperBound != null && wordCount > upperBound) {
+  if (upper != null && wordCount > upper) {
     return {
       title: `${toolName}（字数超标）`,
-      output: `字数超标：当前 ${wordCount} 字，超出本章篇幅限制上限 ${upperBound} 字（目标 ${target} 的 +15%）。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白），不要砍剧情主线。`,
-      metadata: { rejected: true, reason: "too_long", word_count: wordCount, target, lower_bound: lowerBound, upper_bound: upperBound },
+      output: `字数超标：当前 ${wordCount} 字，超出本章字数上限 ${upper} 字。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白）而非砍剧情主线。`,
+      metadata: { rejected: true, reason: "too_long", word_count: wordCount, lower_bound: lower, upper_bound: upper },
     }
   }
   return null
 }
 
+/**
+ * 读取字数下限：style_guide.rules.chapter_length，缺省 2500。
+ * write_chapter/revise_chapter 用它做字数门禁——不达标拒绝写入。
+ */
 export async function getTargetWordCount(db: ReturnType<typeof getDb>, novelId: string): Promise<number> {
   const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
   const raw = parseStyleRules(sg?.rules).chapter_length
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 2500
+}
+
+/**
+ * 读取字数上限：style_guide.rules.chapter_length_max，返回已按 D2 契约降级的上限值。
+ * 必须先判 trim 空串（缺键同等）——Number("") === 0，先转换会把「不设上限」误判成上限 0；
+ * 非正数/NaN 返回 null；上限 ≤ 下限属非法组合，降级为不设上限（库中可能有绕过 UI 写入的数据，
+ * 宁降级也不能把整本书锁死）。
+ */
+export async function getChapterLengthMax(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  lower: number,
+): Promise<number | null> {
+  const [sg] = await db.select().from(StyleGuideTable).where(eq(StyleGuideTable.novel_id, novelId)).all()
+  const raw = parseStyleRules(sg?.rules).chapter_length_max
+  if (typeof raw !== "string" || raw.trim().length === 0) return null
+  const n = Number(raw)
+  const parsed = Number.isFinite(n) && n > 0 ? Math.floor(n) : null
+  return parsed != null && parsed > lower ? parsed : null
 }
 
 /** 视为「已通过审批」的章节终态（与 update_chapter 的 approved 判定一致）；其余状态均挡住后续章节 */
