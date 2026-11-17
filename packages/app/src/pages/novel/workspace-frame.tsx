@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams, useLocation, useIsRouting } from "@solidjs/router"
-import { createEffect, createSignal, createMemo, For, Show, onCleanup, type ParentProps } from "solid-js"
+import { createEffect, createSignal, createMemo, For, Show, Suspense, onCleanup, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useQueryClient } from "@tanstack/solid-query"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -317,9 +317,7 @@ export default function NovelWorkspaceFrame() {
     void boundSessions.dataUpdatedAt
     void boundSessions.errorUpdatedAt
     void boundSessions.fetchStatus
-    return queryClient.getQueryState<NovelSessionOption[]>(
-      novelKeys["bound-sessions"](sdk().directory, novelID()),
-    )
+    return queryClient.getQueryState<NovelSessionOption[]>(novelKeys["bound-sessions"](sdk().directory, novelID()))
   })
   // 会话记忆失效清理（spec「删除当前打开会话的面板定位」）：归属集合刷新后，若记忆指向的
   // 会话已不在树中（被本端或其他客户端删除/解绑），清空该项——否则存档长期持有死引用。
@@ -906,9 +904,7 @@ export default function NovelWorkspaceFrame() {
                 disabled={exportNovel.isPending}
                 title={language.t("novel.workspace.exportHint")}
               >
-                {exportNovel.isPending
-                  ? language.t("novel.workspace.exporting")
-                  : language.t("novel.workspace.export")}
+                {exportNovel.isPending ? language.t("novel.workspace.exporting") : language.t("novel.workspace.export")}
               </ButtonV2>
               <Show when={pendingCount() > 0}>
                 <Tag variant="accent">
@@ -1039,51 +1035,56 @@ export default function NovelWorkspaceFrame() {
                   </div>
 
                   {/* 视图内容 */}
-                  <div class="flex flex-col flex-1 min-h-0 px-8 py-6">
-                    <Show when={activeTab() === "reading"}>
-                      <div class="flex flex-col h-full">
-                        <ChapterReader
-                          novelID={novelID()}
-                          chapters={data.chapters}
-                          selectedChapterId={selectedChapterId()}
-                          onSelectChapter={selectChapter}
-                        />
-                        {/* 仅在选中章节存在于列表时挂载，避免僵尸进度 ID 发出必然 404 的单章请求 */}
-                        <Show when={selectedChapter()}>
-                          <ApprovalBar
+                  {/* 面板级 Suspense 截断：视图内任一查询冷挂载挂起时，只摘插主区子树。
+                      无此边界时挂起冒泡布局层全局 Suspense（fallback 为 null），整树移出文档再插回——
+                      节点身份不变但侧栏列表等滚动容器的滚动偏移被浏览器清零（切 tab 后侧栏回顶） */}
+                  <Suspense>
+                    <div class="flex flex-col flex-1 min-h-0 px-8 py-6">
+                      <Show when={activeTab() === "reading"}>
+                        <div class="flex flex-col h-full">
+                          <ChapterReader
                             novelID={novelID()}
-                            chapterID={selectedChapter()!.id}
-                            status={selectedChapter()!.status}
-                            onOpenReview={() => {
-                              // 与 openRailPanel("review") 语义等价：收起态恢复右栏 + 默认 expand
-                              setRailPanel("review")
-                              setLayout("railManual", false)
-                              setSearchParams({ tab: "panel:review" })
-                            }}
+                            chapters={data.chapters}
+                            selectedChapterId={selectedChapterId()}
+                            onSelectChapter={selectChapter}
+                          />
+                          {/* 仅在选中章节存在于列表时挂载，避免僵尸进度 ID 发出必然 404 的单章请求 */}
+                          <Show when={selectedChapter()}>
+                            <ApprovalBar
+                              novelID={novelID()}
+                              chapterID={selectedChapter()!.id}
+                              status={selectedChapter()!.status}
+                              onOpenReview={() => {
+                                // 与 openRailPanel("review") 语义等价：收起态恢复右栏 + 默认 expand
+                                setRailPanel("review")
+                                setLayout("railManual", false)
+                                setSearchParams({ tab: "panel:review" })
+                              }}
+                            />
+                          </Show>
+                        </div>
+                      </Show>
+                      <Show when={activeTab() === "writing"}>
+                        <Show
+                          when={selectedChapterId()}
+                          fallback={
+                            <div class="flex items-center justify-center flex-1 min-h-0 text-sm text-v2-text-text-faint">
+                              {language.t("novel.reader.empty")}
+                            </div>
+                          }
+                        >
+                          <ChapterEditor
+                            novelID={novelID()}
+                            chapterID={selectedChapterId()!}
+                            onExit={() => setSearchParams({ tab: "reading" })}
                           />
                         </Show>
-                      </div>
-                    </Show>
-                    <Show when={activeTab() === "writing"}>
-                      <Show
-                        when={selectedChapterId()}
-                        fallback={
-                          <div class="flex items-center justify-center flex-1 min-h-0 text-sm text-v2-text-text-faint">
-                            {language.t("novel.reader.empty")}
-                          </div>
-                        }
-                      >
-                        <ChapterEditor
-                          novelID={novelID()}
-                          chapterID={selectedChapterId()!}
-                          onExit={() => setSearchParams({ tab: "reading" })}
-                        />
                       </Show>
-                    </Show>
-                    <Show when={activeTab() === "canvas"}>
-                      <CanvasPanel novelID={novelID} />
-                    </Show>
-                  </div>
+                      <Show when={activeTab() === "canvas"}>
+                        <CanvasPanel novelID={novelID} />
+                      </Show>
+                    </div>
+                  </Suspense>
                 </Show>
 
                 <Show when={leftMode() === "outlines"}>
@@ -1226,7 +1227,10 @@ export default function NovelWorkspaceFrame() {
                           fallback={
                             // 回跳决策未确认（失败 / 重试期）时不呈现懒创建空态：
                             // 失败占位 + 重试入口与切换器一致，重试成功后由回跳决策定址
-                            <div data-slot="novel-chat-bindings-error" class="flex flex-col flex-1 items-center justify-center gap-3 px-6 text-center">
+                            <div
+                              data-slot="novel-chat-bindings-error"
+                              class="flex flex-col flex-1 items-center justify-center gap-3 px-6 text-center"
+                            >
                               <p class="text-sm text-v2-text-text-muted">
                                 {boundSessions.isError && !boundSessions.isFetching
                                   ? "会话列表加载失败"
@@ -1255,10 +1259,7 @@ export default function NovelWorkspaceFrame() {
                       }
                     >
                       <div class="flex-1 min-h-0 overflow-y-auto">
-                        <SessionRouteErrorBoundary
-                          sessionID={params.id}
-                          returnTo={`/${params.dir}/novel/${novelID()}`}
-                        >
+                        <SessionRouteErrorBoundary sessionID={params.id} returnTo={`/${params.dir}/novel/${novelID()}`}>
                           <WorkspaceSessionGate sessionID={() => params.id}>
                             <SessionPage />
                           </WorkspaceSessionGate>

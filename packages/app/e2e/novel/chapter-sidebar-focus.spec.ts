@@ -181,10 +181,11 @@ test("reading/writing tab switch keeps the workspace and sidebar mounted", async
   await setup(page)
   await openWorkspace(page, "ch-e2e-040")
 
-  // 远端章节选中使侧栏产生滚动（remount 后 settle 重滚的观测基础）
+  // 远端章节选中使侧栏产生滚动（remount / 摘插后滚动被清零的观测基础）
   const list = page.locator('[data-testid="chapter-list-scroll"]')
   await expectRowVisibleInList(page, "ch-e2e-040")
-  expect(await list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  const scrollBaseline = await list.evaluate((el) => el.scrollTop)
+  expect(scrollBaseline).toBeGreaterThan(0)
 
   await page.evaluate(() => {
     const win = window as unknown as { __e2eTabNodes: { main: Element | null; list: Element | null } }
@@ -211,7 +212,10 @@ test("reading/writing tab switch keeps the workspace and sidebar mounted", async
   await expect.poll(nodesStable, { timeout: 5_000, intervals: [100, 200, 400] }).toBe(true)
   // 地址落地晚于响应式更新（navigateEnd 批），轮询等其落定
   await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("tab=writing")
+  // 侧栏滚动必须原样保留：视图查询冷挂载挂起曾冒泡全局 Suspense 把整树移出文档，
+  // 滚动容器偏移被浏览器无声清零（settle 不补滚——其依赖未变），侧栏回顶
   const scrollAfterWriting = await list.evaluate((el) => el.scrollTop)
+  expect(scrollAfterWriting, "切写作后侧栏滚动不得清零").toBe(scrollBaseline)
 
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await expect.poll(nodesStable, { timeout: 5_000, intervals: [100, 200, 400] }).toBe(true)
