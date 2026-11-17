@@ -5,15 +5,41 @@ import { Agent } from "./agent"
 import { Location } from "./location"
 import { Model } from "./model"
 import { Project } from "./project"
-import { DateTimeUtcFromMillis, optional, RelativePath } from "./schema"
+import { DateTimeUtcFromMillis, NonNegativeInt, optional, RelativePath } from "./schema"
 import { SessionEvent } from "./session-event"
 import { SessionID } from "./session-id"
+import { SessionMessage } from "./session-message"
 import { Revert } from "./revert"
 
 export const ID = SessionID
 export type ID = SessionID
 
 export const Event = SessionEvent
+
+/** 统一上下文水位：驱动自动触发、溢出恢复与 UI 展示的唯一派生读模型。 */
+export interface ContextWatermark extends Schema.Schema.Type<typeof ContextWatermark> {}
+export const ContextWatermark = Schema.Struct({
+  model: Model.Ref,
+  window: NonNegativeInt.pipe(optional),
+  measured: NonNegativeInt,
+  estimated: NonNegativeInt,
+  total: NonNegativeInt,
+  ratio: Schema.Finite,
+  trigger: Schema.Struct({
+    share: Schema.Union([Schema.Finite, Schema.String]).pipe(optional),
+    tokens: NonNegativeInt.pipe(optional),
+  }).pipe(optional),
+  source: Schema.Literals(["measured", "estimated", "mixed"]),
+  degraded: Schema.String.pipe(optional),
+}).annotate({ identifier: "Session.ContextWatermark" })
+
+/** 手动压缩受理结果：status 为消息状态词表加 skipped（无窗口/无可压缩内容时不创建操作）。 */
+export interface CompactionAdmission extends Schema.Schema.Type<typeof CompactionAdmission> {}
+export const CompactionAdmission = Schema.Struct({
+  messageID: SessionMessage.ID.pipe(optional),
+  status: Schema.Literals(["queued", "running", "completed", "failed", "interrupted", "skipped"]),
+  retryOf: SessionMessage.ID.pipe(optional),
+}).annotate({ identifier: "Session.CompactionAdmission" })
 
 export interface Info extends Schema.Schema.Type<typeof Info> {}
 export const Info = Schema.Struct({
@@ -41,6 +67,7 @@ export const Info = Schema.Struct({
   location: Location.Ref,
   subpath: RelativePath.pipe(optional),
   revert: Revert.State.pipe(optional),
+  context: ContextWatermark.pipe(optional),
 }).annotate({ identifier: "SessionV2.Info" })
 
 export const ListAnchor = Schema.Struct({

@@ -304,7 +304,7 @@ const layer = Layer.effect(
             recoverOverflow &&
             !publisher.hasAssistantStarted() &&
             isContextOverflowFailure(overflowFailure ?? failure) &&
-            (yield* restore(recoverOverflow({ sessionID: session.id, entries, model, request })))
+            (yield* restore(recoverOverflow({ sessionID: session.id, entries, model, request }))).status === "completed"
           )
             return yield* Effect.die(continueAfterOverflowCompaction(currentStep))
           if (overflowFailure) yield* publish(overflowFailure)
@@ -438,8 +438,10 @@ const layer = Layer.effect(
       const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(input.sessionID, agent), session.id)
       const system =
         initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(input.sessionID, agent), session.id))
-      const model = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
+      // 空历史无可压缩内容，无需解析模型即可结算 skipped（模型解析依赖 catalog，空会话不应因此被拒）
+      if (entries.length === 0) return { status: "skipped" as const }
+      const model = yield* models.resolve(session)
       const request = LLM.request({ model, messages: [], tools: [] })
       return yield* compaction.compactAfterOverflow({ sessionID: session.id, entries, model, request }, "manual")
     })

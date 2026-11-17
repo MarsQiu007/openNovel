@@ -188,7 +188,7 @@ export interface Interface {
     skill: string
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
-  readonly compact: (input: CompactInput) => Effect.Effect<void, NotFoundError>
+  readonly compact: (input: CompactInput) => Effect.Effect<SessionSchema.CompactionAdmission, NotFoundError>
   readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
   readonly command: (input: {
     id?: SessionMessage.ID
@@ -507,10 +507,12 @@ const layer = Layer.effect(
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
         const session = yield* result.get(input.sessionID)
-        yield* SessionRunner.Service.use((runner) => runner.compact({ sessionID: session.id })).pipe(
+        const outcome = yield* SessionRunner.Service.use((runner) => runner.compact({ sessionID: session.id })).pipe(
           Effect.provide(locations.get(session.location)),
           Effect.orDie,
         )
+        if (outcome.status === "skipped") return { status: "skipped" as const }
+        return { messageID: outcome.messageID, status: outcome.status }
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)

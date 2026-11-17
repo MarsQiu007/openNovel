@@ -1200,7 +1200,7 @@ describe("SessionRunnerLLM", () => {
       // 直驱 runner：SessionV2.compact 的 LocationServiceMap 路由会为假目录 "/project"
       // 构建完整 location layer（lstat ENOENT）；routing  plumbing 已由 command 测试覆盖
       const runner = yield* SessionRunner.Service
-      expect(yield* runner.compact({ sessionID })).toBe(true)
+      expect(yield* runner.compact({ sessionID })).toMatchObject({ status: "completed" })
 
       expect(requests).toHaveLength(1)
       expect(userTexts(requests[0])[0]).toContain("Create a new anchored summary")
@@ -1214,6 +1214,41 @@ describe("SessionRunnerLLM", () => {
         (event) => event.type === "session.next.compaction.started" || event.type === "session.next.compaction.ended",
       )
       expect(compactionEvents.map((event) => event.data.reason)).toEqual(["manual", "manual"])
+    }),
+  )
+
+  it.effect("settles manual compaction failure with a durable Failed event and no history truncation", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      response = fragmentFixture("text", "text-earlier-fail", ["Earlier answer"]).completeEvents
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      currentModel = compactModel
+      requests.length = 0
+      response = [LLMEvent.providerError({ message: "provider exploded with request body secret" })]
+      const runner = yield* SessionRunner.Service
+      const outcome = yield* runner.compact({ sessionID })
+      expect(outcome.status).toBe("failed")
+      if (outcome.status === "failed") expect(outcome.messageID).toMatch(/^msg_/)
+
+      // failed 压缩不是历史锚点：原始消息全部保留
+      const context = yield* (yield* SessionStore.Service).context(sessionID)
+      expect(context.at(0)).toMatchObject({ type: "user" })
+      expect(requests).toHaveLength(1)
+
+      // Failed 事件 durable 且脱敏：不携带 provider 原始响应
+      const { events } = yield* session.history({ sessionID, limit: 100 })
+      const failed = events.find((event) => event.type === "session.next.compaction.failed")
+      expect(failed).toMatchObject({
+        data: { reason: "manual", error: { type: "compaction.failed" } },
+      })
+      expect(JSON.stringify(failed)).not.toContain("provider exploded")
     }),
   )
 
@@ -1344,9 +1379,11 @@ describe("SessionRunnerLLM", () => {
 
       expect(requests).toHaveLength(2)
       const context = yield* session.context(sessionID)
-      expect(context.some((message) => message.type === "compaction")).toBe(false)
+      // 恢复摘要失败：failed 压缩消息留在投影中，但不得截断历史
+      expect(context.find((message) => message.type === "compaction")).toMatchObject({ status: "failed" })
+      expect(context.find((message) => message.type === "user" && message.text === "Continue")).toBeDefined()
       expect(context.slice(-2)).toMatchObject([
-        { type: "user", text: "Continue" },
+        { type: "compaction", status: "failed" },
         { type: "assistant", finish: "error", error: { message: "prompt too long" } },
       ])
     }),
@@ -1373,7 +1410,10 @@ describe("SessionRunnerLLM", () => {
       expect(yield* Fiber.await(run)).toMatchObject({ _tag: "Failure" })
       streamGate = undefined
       expect(requests).toHaveLength(2)
-      expect((yield* session.context(sessionID)).some((message) => message.type === "compaction")).toBe(false)
+      // 中断发生在结算之前：running 压缩消息留在投影中（interrupted 结算在调度任务中实现），历史不截断
+      const context = yield* session.context(sessionID)
+      expect(context.find((message) => message.type === "compaction")).toMatchObject({ status: "running" })
+      expect(context.find((message) => message.type === "user" && message.text === "Continue")).toBeDefined()
     }),
   )
 

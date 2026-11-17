@@ -325,7 +325,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, IL extend
     .add(
       HttpApiEndpoint.post("session.compact", "/api/session/:sessionID/compact", {
         params: { sessionID: Session.ID },
-        success: HttpApiSchema.NoContent,
+        success: Schema.Struct({ data: Session.CompactionAdmission }),
         error: [SessionNotFoundError, ServiceUnavailableError],
       })
         .middleware(sessionLocationMiddleware)
@@ -333,7 +333,8 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, IL extend
           OpenApi.annotations({
             identifier: "v2.session.compact",
             summary: "Compact session",
-            description: "Compact a session conversation.",
+            description:
+              "Admit one compaction operation and return its message ID with the current status. The operation executes at the next safe provider-turn boundary; clients that ignore the response body keep working against the same endpoint.",
           }),
         ),
     )

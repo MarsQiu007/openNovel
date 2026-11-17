@@ -1323,6 +1323,20 @@ const scenarios: Scenario[] = [
     }))
     .status(404, undefined, "status"),
   http.protected
+    .post("/api/session/{sessionID}/compact", "v2.session.compact.empty")
+    .seeded((ctx) => ctx.session({ title: "Compact empty session" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/compact", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(
+      200,
+      data((body) => {
+        object(body)
+        check(body.status === "skipped", "empty session compact should be skipped without creating an operation")
+      }),
+    ),
+  http.protected
     .post("/api/session/{sessionID}/wait", "v2.session.wait")
     .at((ctx) => ({
       path: route("/api/session/{sessionID}/wait", { sessionID: "ses_httpapi_missing" }),

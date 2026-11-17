@@ -145,6 +145,8 @@ function toLLMMessage(message: SessionMessage.Message, model: Model): Message[] 
     case "assistant":
       return assistant(message, model)
     case "compaction":
+      // 只有完成态的压缩才是有效上下文锚点；queued/running/failed/interrupted 只用于用户可见状态
+      if (message.status !== undefined && message.status !== "completed") return []
       return [
         Message.make({
           id: message.id,

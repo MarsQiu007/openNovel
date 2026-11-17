@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, ne, or } from "drizzle-orm"
+import { and, asc, desc, eq, gt, gte, isNull, ne, or, sql } from "drizzle-orm"
 import { Effect, Schema } from "effect"
 import { Database } from "../database/database"
 import { MessageDecodeError } from "./error"
@@ -10,11 +10,24 @@ type DatabaseService = Database.Interface["db"]
 
 const decode = Schema.decodeUnknownEffect(SessionMessage.Message)
 
+// 只有真正完成的压缩才是历史锚点：旧消息无 status 字段（按 completed 兼容），
+// failed/interrupted/queued/running 消息不得截断历史
+const completedCompaction = or(
+  isNull(sql`json_extract(${SessionMessageTable.data}, '$.status')`),
+  eq(sql`json_extract(${SessionMessageTable.data}, '$.status')`, "completed"),
+)
+
 export const latestCompaction = Effect.fnUntraced(function* (db: DatabaseService, sessionID: SessionSchema.ID) {
   return yield* db
     .select({ seq: SessionMessageTable.seq })
     .from(SessionMessageTable)
-    .where(and(eq(SessionMessageTable.session_id, sessionID), eq(SessionMessageTable.type, "compaction")))
+    .where(
+      and(
+        eq(SessionMessageTable.session_id, sessionID),
+        eq(SessionMessageTable.type, "compaction"),
+        completedCompaction,
+      ),
+    )
     .orderBy(desc(SessionMessageTable.seq))
     .limit(1)
     .get()

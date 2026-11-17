@@ -72,6 +72,14 @@ type Input = {
   readonly request: LLMRequest
 }
 
+/** 一次压缩执行的结算：completed/failed 携带操作消息 ID，skipped 表示未创建操作。 */
+export type Outcome =
+  | { readonly status: "completed"; readonly messageID: SessionMessage.ID }
+  | { readonly status: "failed"; readonly messageID: SessionMessage.ID }
+  | { readonly status: "skipped" }
+
+const SKIPPED: Outcome = { status: "skipped" }
+
 const estimate = (value: unknown) => Token.estimate(JSON.stringify(value))
 
 const truncate = (value: string) =>
@@ -183,17 +191,21 @@ export const make = (dependencies: Dependencies) => {
     reason: "auto" | "manual" = "auto",
   ) {
     const context = input.model.route.defaults.limits?.context
-    if (context === undefined || context <= 0) return false
+    if (context === undefined || context <= 0) return SKIPPED
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
     const selected = select(input.entries, config.tokens)
-    const previousSummary = input.entries.find((entry) => entry.message.type === "compaction")?.message
-    if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return false
+    const previousSummary = input.entries.find(
+      (entry) =>
+        entry.message.type === "compaction" &&
+        (entry.message.status === undefined || entry.message.status === "completed"),
+    )?.message
+    if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return SKIPPED
     const summaryPrompt = buildPrompt({
       previousSummary: previousSummary?.type === "compaction" ? previousSummary.summary : undefined,
       context: [previousSummary?.type === "compaction" ? previousSummary.recent : "", selected.head].filter(Boolean),
     })
     const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
-    if (Token.estimate(summaryPrompt) > context - summaryOutput) return false
+    if (Token.estimate(summaryPrompt) > context - summaryOutput) return SKIPPED
     const messageID = SessionMessage.ID.create()
     yield* dependencies.events.publish(SessionEvent.Compaction.Started, {
       sessionID: input.sessionID,
@@ -223,7 +235,17 @@ export const make = (dependencies: Dependencies) => {
         Effect.catchTag("LLM.Error", () => Effect.succeed(false)),
       )
     const summary = chunks.join("")
-    if (!summarized || failed || !summary.trim()) return false
+    if (!summarized || failed || !summary.trim()) {
+      // 错误保持脱敏：不带原始响应体、请求头或凭据
+      yield* dependencies.events.publish(SessionEvent.Compaction.Failed, {
+        sessionID: input.sessionID,
+        messageID,
+        timestamp: yield* DateTime.now,
+        reason,
+        error: { type: "compaction.failed", message: "摘要生成失败，请稍后重试" },
+      })
+      return { status: "failed" as const, messageID }
+    }
     yield* dependencies.events.publish(SessionEvent.Compaction.Ended, {
       sessionID: input.sessionID,
       messageID,
@@ -232,7 +254,7 @@ export const make = (dependencies: Dependencies) => {
       text: summary,
       recent: selected.recent,
     })
-    return true
+    return { status: "completed" as const, messageID }
   })
   const compactIfNeeded = Effect.fn("SessionCompaction.compactIfNeeded")(function* (input: Input) {
     if (!config.auto) return false
@@ -244,7 +266,7 @@ export const make = (dependencies: Dependencies) => {
       context - Math.max(output, resolveBuffer(config.buffer, context))
     )
       return false
-    return yield* compactAfterOverflow(input)
+    return (yield* compactAfterOverflow(input)).status === "completed"
   })
   return {
     compactIfNeeded,
