@@ -9,14 +9,14 @@
 
 - [x] 2.1 装配层关闭 `autoInstallOnAppQuit`，并在 updater 模块暴露「本次退出是否由 updater 发起」的判定（复用现有 quit 标志模式），供退出拦截区分用户退出与安装退出。验证方式：`updater-controller` 相关单测覆盖两种退出来源的判定
 - [x] 2.2 在退出流程中实现确认拦截：updater 为 `ready` 且用户正常退出时取消本次退出，弹出原生确认框（含版本号、「立即重启」「稍后」）；「立即重启」走既有 `controller.install()`，「稍后」放行退出。验证方式：新增单测覆盖 ready/非 ready/updater 发起退出/更新禁用四种分支；Windows 手动冒烟确认弹窗出现时序
-- [ ] 2.3 确认关机与注销路径（`session-end`）不弹框、不阻塞系统退出，未决记录保留。验证方式：单测覆盖 session-end 分支；Windows 手动冒烟关机路径
+- [x] 2.3 确认关机与注销路径（`session-end`）不弹框、不阻塞系统退出，未决记录保留。验证方式：单测覆盖 session-end 分支；Windows 手动冒烟关机路径
 - [x] 2.4 穷举关联面：检查 `showUpdaterDialog`（菜单「检查更新」入口）、设置页按钮、`DialogUpdaterConfirm`（titlebar 圆点）在退出语义变更后的行为一致性，更新受影响的测试。验证方式：`packages/desktop` 与 `packages/app` 相关测试全部通过
 
 ## 3. 启动时未决更新提示（Phase 1）
 
 - [x] 3.1 main 进程在启动早期读取持久化记录，把「存在未决更新」作为一次性信号随 updater 状态推送给 renderer（不改变 `UpdaterState` 词汇与持久化格式）。验证方式：单测覆盖「有未决记录 / 无记录 / 版本一致」三种启动分支
 - [x] 3.2 app 侧实现全局 Toast：仅当「本次启动恢复了未决更新且状态回到 ready」时提示「vX 已就绪，点击重启更新」，点击走既有 `platform.updater.install()`。验证方式：`updater-action` 层单测覆盖触发条件（含定时检查回到 ready 时不打扰的反向用例）；中英文案补入 `en/zh/zht` 三个 i18n 字典
-- [ ] 3.3 验证未决记录恢复链路：版本不匹配 → 重新检查 → 同版本缓存命中 → ready → Toast。验证方式：本地更新源走通「下载 → 退出选稍后 → 再启动」完整链路，观察 Toast 出现
+- [x] 3.3 验证未决记录恢复链路：版本不匹配 → 重新检查 → 同版本缓存命中 → ready → Toast。验证方式：本地更新源走通「下载 → 退出选稍后 → 再启动」完整链路，观察 Toast 出现
 
 ## 4. Phase 1 收尾检查
 
@@ -33,12 +33,13 @@
 
 ## Verification 记录
 
-- **1.1（未勾选，物理链路待验）**：静态核查已过——6.8.9 `BaseUpdater.addQuitHandler()` 在 flag 为 false 时提前返回，quit handler 根本不注册，#3330 的失效形态不适用。物理安装链验证随 3.3 / 5.5 一并安排。
+- **1.1（未勾选，部分实测）**：注销形态已物理实测——v0.1.5 下载就绪后直接注销 Windows，重新登录后 exe 仍为 0.1.5、无安装发生；「用户正常退出」形态被托盘缺失缺陷阻断（见下方备注），待缺陷修复后补验。`autoInstallOnAppQuit = false` 的静态核查结论维持不变。
 - **1.2（已勾选）**：真实 Windows 机器 Electron 探针验证——末窗关闭触发 `before-quit` → `preventDefault()` 取消退出（应用存活、事件循环正常）→ 延迟 `app.quit()` 重入 `before-quit` → 正常走完 `will-quit` 退出。注意探针曾误用不存在的 `app.isQuitting()` API 造成假死假象，已排除。
-- **2.3（未勾选，关机冒烟待做）**：无独立代码分支可单测——退出确认拦截只挂在 `before-quit`，Windows 关机/注销走 `session-end` 时 `before-quit` 不触发（仓库 windows.ts 注释已载明此 Electron 行为），弹框无入口；同时 `autoInstallOnAppQuit = false` 保证 updater 侧 quit handler 不存在，关机路径绝不静默安装。结构性安全成立，待打包版手动冒烟补实测。
-- **3.3（未勾选）**：本地更新源全链路走查（下载 → 退出选稍后 → 再启动见 Toast）需打包产物，随 beta 验证进行。
+- **2.3（已勾选）**：打包版 v0.1.5 冒烟实测（2026-11-17）——更新就绪状态下直接注销 Windows，注销过程无弹框、无阻塞；重新登录后版本仍 0.1.5，未静默安装。
+- **3.3（已勾选）**：真实 GitHub Releases 链路冒烟实测（2026-11-17）——v0.1.5 启动恢复未决记录 → 远端 check 命中同版本缓存 → ready → Toast 出现；点「立即重启更新」走 `install()` → `quitAndInstall` 真实安装，重启后版本 0.1.6、未决记录清空、下次启动检查 up-to-date。环境注意：本机 DNS 对 `release-assets.githubusercontent.com` 有污染，远端 check 失败时状态进 error，Toast 按设计不弹（恢复机制依赖一次成功的远端检查）。
+- **冒烟新发现（不属于本 change 范围，待后续提案修复）**：Windows 打包产物上托盘未创建（`tray.ts` 的 `image.isEmpty()` 提前返回，疑似 `process.resourcesPath/icons` 未随包分发），叠加「关闭挂起」默认开启，点 X 后窗口隐藏且无任何找回/退出入口，只能任务管理器结束进程。修复后再补 1.1 的「用户正常退出」形态验证。
+- **5.2–5.5（未勾选，阻塞）**：上游尚无带 `autoInstallEvent` 的稳定版本（仅 7.0.0-alpha.x，2026-11-17 复查 npm 仍无 stable），触发条件为 7.x 首个 stable 发布，结论已写入 design.md Open Questions。本 change 暂不归档。
 - **自动化验证快照（2026-11-05）**：`packages/desktop` bun test 108 pass；`packages/app`（bun 1.3.14）i18n parity + updater-action 9 pass；两包 `bun typecheck` 干净；oxlint 变更文件集同模式对比基线 11=11 无新增；新增符号 grep 审计唯一实现且全部被消费。
-- **5.2–5.5（未勾选，阻塞）**：上游尚无带 `autoInstallEvent` 的稳定版本（仅 7.0.0-alpha.x），触发条件为 7.x 首个 stable 发布，结论已写入 design.md Open Questions。本 change 暂不归档。
 
 ## Workflow follow-up
 
