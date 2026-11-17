@@ -52,8 +52,9 @@ type Entry = {
 
 type Settings = {
   readonly auto: boolean
-  readonly buffer: number
+  readonly buffer: number | string
   readonly tokens: number
+  readonly background: boolean
 }
 
 type Dependencies = {
@@ -120,9 +121,17 @@ const settings = (documents: readonly Config.Entry[]) => {
       auto: current.auto ?? result.auto,
       buffer: current.buffer ?? result.buffer,
       tokens: current.keep?.tokens ?? result.tokens,
+      background: current.background ?? result.background,
     }),
-    { auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS },
+    { auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS, background: true },
   )
+}
+
+/** 百分比预留换算为 token；固定数值原样返回。 */
+export const resolveBuffer = (buffer: number | string, window: number) => {
+  if (typeof buffer === "number") return buffer
+  const share = Number.parseFloat(buffer) / 100
+  return Math.round(window * share)
 }
 
 const select = (
@@ -232,7 +241,7 @@ export const make = (dependencies: Dependencies) => {
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
     if (
       estimate({ system: input.request.system, messages: input.request.messages, tools: input.request.tools }) <=
-      context - Math.max(output, config.buffer)
+      context - Math.max(output, resolveBuffer(config.buffer, context))
     )
       return false
     return yield* compactAfterOverflow(input)

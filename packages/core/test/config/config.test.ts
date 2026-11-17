@@ -142,6 +142,45 @@ describe("Config", () => {
     }),
   )
 
+  it.effect("carries compaction percentage buffer and background through v1 migration", () =>
+    Effect.sync(() => {
+      const migrated = ConfigMigrateV1.migrate({
+        compaction: {
+          auto: false,
+          prune: true,
+          preserve_recent_tokens: 4000,
+          reserved: "15%",
+          background: true,
+        },
+      })
+      expect(migrated.compaction).toEqual({
+        auto: false,
+        prune: true,
+        keep: { tokens: 4000 },
+        buffer: "15%",
+        background: true,
+      })
+      Schema.decodeUnknownSync(Config.Info)(migrated, { errors: "all" })
+    }),
+  )
+
+  it.effect("rejects malformed compaction percentage buffer", () =>
+    Effect.sync(() => {
+      // 非法百分比不得静默换阈值：V1 侧直接拒绝，V2 侧同样拒绝
+      expect(() =>
+        Schema.decodeUnknownSync(ConfigV1.Info)({ compaction: { reserved: "15.5%" } }, { errors: "all" }),
+      ).toThrow()
+      expect(() =>
+        Schema.decodeUnknownSync(ConfigV1.Info)({ compaction: { reserved: "0%" } }, { errors: "all" }),
+      ).toThrow()
+      expect(() =>
+        Schema.decodeUnknownSync(ConfigV1.Info)({ compaction: { reserved: "abc" } }, { errors: "all" }),
+      ).toThrow()
+      expect(() => Schema.decodeUnknownSync(Config.Info)({ compaction: { buffer: "101%" } }, { errors: "all" })).toThrow()
+      expect(() => Schema.decodeUnknownSync(Config.Info)({ compaction: { buffer: "-5%" } }, { errors: "all" })).toThrow()
+    }),
+  )
+
   it.effect("migrates v1 provider setup options into AISDK settings", () =>
     Effect.sync(() => {
       const migrated = ConfigMigrateV1.migrate({
@@ -629,6 +668,7 @@ describe("Config", () => {
               prune: false,
               keep: { tokens: 2000 },
               buffer: 10000,
+              background: undefined,
             })
             expect(documents[0]?.info.skills).toEqual([
               "./skills",
@@ -845,6 +885,7 @@ describe("Config", () => {
               prune: undefined,
               keep: { tokens: 2000 },
               buffer: 10000,
+              background: undefined,
             })
             expect(documents[0]?.info.mcp).toMatchObject({
               timeout: { request: 5000 },

@@ -208,8 +208,18 @@ export const Info = Schema.Struct({
       preserve_recent_tokens: Schema.optional(NonNegativeInt).annotate({
         description: "Maximum number of tokens from recent turns to preserve verbatim after compaction",
       }),
-      reserved: Schema.optional(NonNegativeInt).annotate({
-        description: "Token buffer for compaction. Leaves enough window to avoid overflow during compaction.",
+      reserved: Schema.optional(
+        Schema.Union([
+          NonNegativeInt,
+          Schema.String.pipe(Schema.check(Schema.isPattern(/^([1-9]\d?|100)%$/))).annotate({
+            description: "Share of the context window kept free before compacting, e.g. \"15%\"",
+          }),
+        ]),
+      ).annotate({
+        description: "Token buffer or share of the context window kept free before compacting",
+      }),
+      background: Schema.optional(Schema.Boolean).annotate({
+        description: "Summarize in the background as the context nears the threshold (default: true)",
       }),
     }),
   ),
