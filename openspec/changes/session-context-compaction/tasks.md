@@ -17,8 +17,8 @@
 
 ## 3. 持久化状态机与安全调度
 
-- [ ] 3.1 实现实时 updater 与 replay projector 共用的 Compaction 状态转换，覆盖 queued/running/completed/failed/interrupted、旧消息兼容及幂等 replay；在 `packages/core` 运行投影与消息更新聚焦测试
-- [ ] 3.2 改造手动压缩为准入 durable 排队操作、Session 级 singleflight 和 advisory wake，移除直接调用活跃 runner 的旁路；验证活跃请求去重、受理后立即返回及 drain 退出窗口不丢操作
+- [x] 3.1 实现实时 updater 与 replay projector 共用的 Compaction 状态转换，覆盖 queued/running/completed/failed/interrupted、旧消息兼容及幂等 replay；在 `packages/core` 运行投影与消息更新聚焦测试
+- [x] 3.2 改造手动压缩为准入 durable 排队操作、Session 级 singleflight 和 advisory wake，移除直接调用活跃 runner 的旁路；验证活跃请求去重、受理后立即返回及 drain 退出窗口不丢操作
 - [ ] 3.3 在首次 provider turn 与 continuation 前接入统一排队和阈值检查，成功后重载投影再继续原始 durable input；用 runner 测试证明无半截 assistant 改写、无重复用户消息且原始 provider turn 只继续一次
 - [ ] 3.4 实现排队撤销、运行中停止、失败终态和一次原始 turn 的有界恢复；验证取消不删除原始 input、排队撤销不取消其他 assistant 工作、失败后无自动死循环
 - [ ] 3.5 实现进程恢复时对遗留 queued/running 的幂等中断结算，区分已完成操作且不自动重放 provider；用重建 Location/runner 的测试覆盖崩溃点在 Ended 前后两种形态
