@@ -17,6 +17,7 @@
 - [x] 3.2 四时机验证记录：恢复定位 / 连跳跟随 / 切分段重定位 / 收起展开补定位由 Playwright e2e（真实 Chromium、60 章场景）完成行为级断言，repeat 累计 52 连过且 novel 目录 43 用例全绿；视觉观感（指示条样式、跟随流畅度）经 dev 桌面窗口（探活 200、Electron 已拉起）交用户日常确认
 - [x] 3.3 冒烟反馈缺陷修复：①切章全屏黑闪——章节详情查询加 `placeholderData: keepPreviousData`，主区保留上一章内容静默替换，阅读/编辑视图滚动复位改为数据替换瞬间显式执行；②可见章节被切到视口底边——定位可见判定收紧为「行与视口有任意交集（含部分可见）即停止」，消除 nearest 对贴边行的补全滚动；验证：`bun typecheck` 通过，新增「部分可见行选中不补全滚动」e2e 回归用例，chapter-sidebar-focus 5 用例与 novel 目录全量回归通过
 - [x] 3.4 冒烟复测仍见黑闪的归因与加固：根因是 solid-query 内部 createResource 在查询 key 变化且缺占位数据时挂起，冒泡布局层 Suspense 整树摘插；章节详情之外，批注/章节版本/章节评审/批注轮次四个目标级查询同处该渲染路径，统一补 `keepPreviousData`；mock 章节详情改为按请求路径返回对应章节；新增「切章加载窗口内工作台不摘插」e2e 用例（端点延迟 800ms 撑窗口）；真实 dev 栈（4096 后端 + 节流 400ms）探针复核：整树节点身份稳定、阅读器旧标题全程在帧、数据到达静默换为新标题、可见行点击侧栏 scrollTop 不变；验证：chapter-sidebar-focus 6 用例通过
+- [x] 3.5 冒烟反馈缺陷修复（二）：切换阅读/写作模式时章节侧栏闪跳——根因是首帧门的 `openingRouting` 对任何路由 transition 置位，tab 切换与面板展开走 `setSearchParams`（searchParams 导航）也翻 `isRouting`，整个工作台子树被首帧门 `<Show>` 摘插重挂（滚动归零 + settle 重滚 = 闪跳，阅读器/编辑器组件状态一并丢失）；修复为仅路径级导航置位（路由 transition 内 reference 先于结束批同步落地，transition 期间读 `location.pathname` 已是新路径，与已落定路径比对区分导航类型），进入本书/回跳定址仍关门等地址落定，searchParams 导航与书内会话切换保持挂载；新增「tab 切换工作台与侧栏节点身份稳定」e2e 用例（旧代码红 / 新代码绿，URL 落地断言轮询等 navigateEnd 批）；验证：`bun typecheck` 通过，chapter-sidebar-focus 7 用例通过，novel/ 目录全量回归通过；真实 dev 栈探针复核：四次切 tab 全程 20/20 帧列表与选中行节点身份稳定
 
 ## Workflow follow-up
 
