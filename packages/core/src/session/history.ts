@@ -17,6 +17,14 @@ const completedCompaction = or(
   eq(sql`json_extract(${SessionMessageTable.data}, '$.status')`, "completed"),
 )
 
+// queued/running 是进行中操作：准入 singleflight 用它们去重，但绝不能当历史锚点
+const activeCompactionFilter = or(
+  eq(sql`json_extract(${SessionMessageTable.data}, '$.status')`, "queued"),
+  eq(sql`json_extract(${SessionMessageTable.data}, '$.status')`, "running"),
+)
+
+const queuedCompactionFilter = eq(sql`json_extract(${SessionMessageTable.data}, '$.status')`, "queued")
+
 export const latestCompaction = Effect.fnUntraced(function* (db: DatabaseService, sessionID: SessionSchema.ID) {
   return yield* db
     .select({ seq: SessionMessageTable.seq })
@@ -109,6 +117,60 @@ export const entriesForRunner = Effect.fn("SessionHistory.entriesForRunner")(fun
   return yield* Effect.forEach(rows, (row) =>
     decodeMessageRow(row).pipe(Effect.map((message) => ({ seq: row.seq, message }))),
   )
+})
+
+/**
+ * 最新一条进行中（queued/running）的压缩操作：手动压缩准入的 singleflight 复用游标。
+ * 与只取 completed 的历史锚点不同，这里关心尚未闭环的操作。
+ */
+export const activeCompaction = Effect.fn("SessionHistory.activeCompaction")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const row = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(
+      and(
+        eq(SessionMessageTable.session_id, sessionID),
+        eq(SessionMessageTable.type, "compaction"),
+        activeCompactionFilter,
+      ),
+    )
+    .orderBy(desc(SessionMessageTable.seq))
+    .limit(1)
+    .get()
+    .pipe(Effect.orDie)
+  if (!row) return undefined
+  const message = yield* decodeMessageRow(row)
+  return message.type === "compaction" ? message : undefined
+})
+
+/**
+ * 最早一条 queued 压缩操作：排队执行的工作队列头部。取最早而非最新，
+ * 保证 drain 循环把入队早于 drain 启动的操作全部执行完，不会在最新操作闭环后漏掉旧操作。
+ */
+export const oldestQueuedCompaction = Effect.fn("SessionHistory.oldestQueuedCompaction")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const row = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(
+      and(
+        eq(SessionMessageTable.session_id, sessionID),
+        eq(SessionMessageTable.type, "compaction"),
+        queuedCompactionFilter,
+      ),
+    )
+    .orderBy(asc(SessionMessageTable.seq))
+    .limit(1)
+    .get()
+    .pipe(Effect.orDie)
+  if (!row) return undefined
+  const message = yield* decodeMessageRow(row)
+  return message.type === "compaction" ? message : undefined
 })
 
 export * as SessionHistory from "./history"

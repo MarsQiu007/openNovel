@@ -758,7 +758,7 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/compact`,
             successStatus: 200,
-            declaredStatuses: [404, 503, 400, 401],
+            declaredStatuses: [404, 503, 500, 400, 401],
             empty: false,
           },
           requestOptions,

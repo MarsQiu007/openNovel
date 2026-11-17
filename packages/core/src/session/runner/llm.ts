@@ -32,6 +32,7 @@ import { SessionCompaction } from "../compaction"
 import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
+import { SessionMessage } from "../message"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTitle } from "../title"
@@ -248,7 +249,7 @@ const layer = Layer.effect(
         tools: toolMaterialization?.definitions ?? [],
         toolChoice: isLastStep ? "none" : undefined,
       })
-      if (yield* compaction.compactIfNeeded({ sessionID: session.id, entries, model, request }))
+      if (yield* compaction.compactIfNeeded({ sessionID: session.id, messageID: SessionMessage.ID.create(), entries, model, request }))
         return yield* Effect.die(continueAfterCompaction(currentStep))
       const startSnapshot = yield* snapshots.capture()
       const publisher = createLLMEventPublisher(events, {
@@ -319,7 +320,15 @@ const layer = Layer.effect(
             recoverOverflow &&
             !publisher.hasAssistantStarted() &&
             isContextOverflowFailure(overflowFailure ?? failure) &&
-            (yield* restore(recoverOverflow({ sessionID: session.id, entries, model, request }))).status === "completed"
+            (yield* restore(
+              recoverOverflow({
+                sessionID: session.id,
+                messageID: SessionMessage.ID.create(),
+                entries,
+                model,
+                request,
+              }),
+            )).status === "completed"
           )
             return yield* Effect.die(continueAfterOverflowCompaction(currentStep))
           if (overflowFailure) yield* publish(overflowFailure)
@@ -416,14 +425,80 @@ const layer = Layer.effect(
       )
     })
 
+    // 逐个执行投影中 queued 的压缩操作：Queued 事件 durable 落库是事实来源，循环重读直至
+    // 无 queued，保证 admission 与 drain 退出窗口之间新入队的操作不被遗漏
+    const drainQueuedCompactions = Effect.fn("SessionRunner.drainQueuedCompactions")(function* (
+      sessionID: SessionSchema.ID,
+    ) {
+      while (true) {
+        const queued = yield* SessionHistory.oldestQueuedCompaction(db, sessionID)
+        if (queued === undefined) return
+        yield* runQueuedCompaction(sessionID, queued)
+      }
+    })
+
+    // 排队压缩操作的执行体：与 runTurnAttempt 共用 epoch/模型/历史装载路径；request 仅用于
+    // 输出 token 预算估计，无在飞的 provider 请求，给最小形状。任何失败都以脱敏 Failed 结算，
+    // 绝不把操作留在 queued/running 悬挂态
+    const runQueuedCompaction = Effect.fn("SessionRunner.runQueuedCompaction")(function* (
+      sessionID: SessionSchema.ID,
+      op: SessionMessage.Compaction,
+    ) {
+      const session = yield* getSession(sessionID)
+      if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
+        return yield* Effect.interrupt
+      // 与 runTurnAttempt 同款：插件填充状态（agent 名册/skill 来源）在引导门放行后才可见
+      yield* pluginBoot.ready
+      const agent = yield* agents.select(session.agent)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(sessionID, agent), session.id)
+      const system =
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(sessionID, agent), session.id))
+      const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
+      const model = yield* models.resolve(session)
+      const request = LLM.request({ model, messages: [], tools: [] })
+      const outcome = yield* compaction.compactAfterOverflow(
+        { sessionID: session.id, messageID: op.id, entries, model, request },
+        op.reason,
+      ).pipe(
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            yield* Effect.logWarning("queued compaction execution failed", { cause })
+            yield* events.publish(SessionEvent.Compaction.Failed, {
+              sessionID: session.id,
+              messageID: op.id,
+              timestamp: yield* DateTime.now,
+              reason: op.reason,
+              error: { type: "compaction.failed", message: "压缩执行失败，请稍后重试" },
+            })
+            return { status: "failed" as const, messageID: op.id }
+          }),
+        ),
+      )
+      // 执行期退化（窗口配置变更等）同样要闭环操作：转为 failed 终态，不假装成功
+      if (outcome.status === "skipped")
+        yield* events.publish(SessionEvent.Compaction.Failed, {
+          sessionID: session.id,
+          messageID: op.id,
+          timestamp: yield* DateTime.now,
+          reason: op.reason,
+          error: { type: "compaction.failed", message: "没有可压缩的对话内容" },
+        })
+      return yield* publishWatermark(session.id)
+    })
+
     const run = Effect.fn("SessionRunner.run")(function* (input: {
       readonly sessionID: SessionSchema.ID
       readonly force: boolean
     }) {
       const hasSteer = yield* SessionInput.hasPending(db, input.sessionID, "steer")
       const hasQueue = hasSteer ? false : yield* SessionInput.hasPending(db, input.sessionID, "queue")
-      if (!input.force && !hasSteer && !hasQueue) return
+      // 排队压缩是 durable 事实：无 prompt 工作时，wake 仅凭 queued 操作也应启动 drain
+      if (!input.force && !hasSteer && !hasQueue) {
+        const queued = yield* SessionHistory.oldestQueuedCompaction(db, input.sessionID)
+        if (queued === undefined) return
+      }
       yield* failInterruptedTools(input.sessionID)
+      yield* drainQueuedCompactions(input.sessionID)
       let promotion: SessionInput.Delivery | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
       let shouldRun = input.force || hasSteer || hasQueue
       while (shouldRun) {
@@ -442,34 +517,8 @@ const layer = Layer.effect(
       }
     })
 
-    // 手动 compact 与 runTurnAttempt 共用 epoch/模型/历史装载路径；request 仅用于
-    // 输出 token 预算估计，无在飞的 provider 请求，给最小形状
-    const compact = Effect.fn("SessionRunner.compact")(function* (input: { readonly sessionID: SessionSchema.ID }) {
-      const session = yield* getSession(input.sessionID)
-      if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
-        return yield* Effect.interrupt
-      // 与 runTurnAttempt 同款：插件填充状态（agent 名册/skill 来源）在引导门放行后才可见
-      yield* pluginBoot.ready
-      const agent = yield* agents.select(session.agent)
-      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(input.sessionID, agent), session.id)
-      const system =
-        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(input.sessionID, agent), session.id))
-      const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
-      // 空历史无可压缩内容，无需解析模型即可结算 skipped（模型解析依赖 catalog，空会话不应因此被拒）
-      if (entries.length === 0) return { status: "skipped" as const }
-      const model = yield* models.resolve(session)
-      const request = LLM.request({ model, messages: [], tools: [] })
-      const outcome = yield* compaction.compactAfterOverflow(
-        { sessionID: session.id, entries, model, request },
-        "manual",
-      )
-      yield* publishWatermark(session.id)
-      return outcome
-    })
-
     return Service.of({
       run,
-      compact,
     })
   }),
 )

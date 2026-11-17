@@ -1,7 +1,7 @@
 export * as SessionV2 from "./session"
 export * from "./session/schema"
 
-import { DateTime, Effect, Layer, Schema, Context, Stream } from "effect"
+import { DateTime, Effect, Layer, Schema, Context, Stream, Semaphore } from "effect"
 import { ListAnchor } from "@opennovel-ai/schema/session"
 import { and, asc, desc, eq, gt, like, lt, or, type SQL } from "drizzle-orm"
 import { ProjectV2 } from "./project"
@@ -33,6 +33,8 @@ import { MessageDecodeError } from "./session/error"
 import { SessionEvent } from "./session/event"
 import { SessionInput } from "./session/input"
 import { SessionWatermark } from "./session/watermark"
+import { SessionHistory } from "./session/history"
+import { SessionContextEpoch } from "./session/context-epoch"
 import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
 import { SessionTodo } from "./session/todo"
@@ -189,7 +191,7 @@ export interface Interface {
     skill: string
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
-  readonly compact: (input: CompactInput) => Effect.Effect<SessionSchema.CompactionAdmission, NotFoundError>
+  readonly compact: (input: CompactInput) => Effect.Effect<SessionSchema.CompactionAdmission, NotFoundError | MessageDecodeError>
   readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
   readonly command: (input: {
     id?: SessionMessage.ID
@@ -251,6 +253,38 @@ const layer = Layer.effect(
             }),
         ),
       )
+
+    // 手动压缩准入的进程内 singleflight 锁：只防同进程并发重复入队，不伪装集群锁
+    const compactionLocks = new Map<SessionSchema.ID, Semaphore.Semaphore>()
+    // 手动压缩改为 durable 排队操作：受理即发布 Queued 并 advisory 唤醒 drain，立即返回操作 ID；
+    // 跳过预检（空历史/未知窗口）不创建操作，直接 skipped
+    const compactAdmission = (session: SessionSchema.Info) =>
+      Effect.gen(function* () {
+        // 复用本进程已受理的活跃操作（queued/running）：并发/重复请求返回同一操作，不重复入队
+        const active = yield* SessionHistory.activeCompaction(db, session.id)
+        if (active !== undefined && active.status !== undefined)
+          return { messageID: active.id, status: active.status }
+        // 无可压缩内容时不创建操作（epoch/entries 都是本地库查询，不依赖 location 服务引导）
+        const epoch = yield* SessionContextEpoch.stored(db, session.id)
+        const entries = yield* SessionHistory.entriesForRunner(db, session.id, epoch?.baseline_seq ?? 0)
+        if (entries.length === 0) return { status: "skipped" as const }
+        // 未知窗口（模型未配置等）不伪造操作；水位失败一律按 skipped 受理，不阻断用户
+        const watermark = yield* SessionWatermark.Service.use((service) => service.get(session)).pipe(
+          Effect.provide(locations.get(session.location)),
+          Effect.catchCause(() => Effect.succeed(undefined)),
+        )
+        if (watermark === undefined || watermark.window === undefined) return { status: "skipped" as const }
+        const messageID = SessionMessage.ID.create()
+        yield* events.publish(SessionEvent.Compaction.Queued, {
+          sessionID: session.id,
+          messageID,
+          timestamp: yield* DateTime.now,
+          reason: "manual",
+        })
+        // advisory：durable Queued 已是事实来源，wake 只负责尽快唤起 drain 执行
+        yield* execution.wake(session.id)
+        return { messageID, status: "queued" as const }
+      })
 
     const result = Service.of({
       create: Effect.fn("V2Session.create")(function* (input) {
@@ -513,12 +547,12 @@ const layer = Layer.effect(
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
         const session = yield* result.get(input.sessionID)
-        const outcome = yield* SessionRunner.Service.use((runner) => runner.compact({ sessionID: session.id })).pipe(
-          Effect.provide(locations.get(session.location)),
-          Effect.orDie,
-        )
-        if (outcome.status === "skipped") return { status: "skipped" as const }
-        return { messageID: outcome.messageID, status: outcome.status }
+        let lock = compactionLocks.get(session.id)
+        if (!lock) {
+          lock = Semaphore.makeUnsafe(1)
+          compactionLocks.set(session.id, lock)
+        }
+        return yield* lock.withPermit(compactAdmission(session))
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)

@@ -67,6 +67,7 @@ type Dependencies = {
 
 type Input = {
   readonly sessionID: SessionSchema.ID
+  readonly messageID: SessionMessage.ID
   readonly entries: readonly Entry[]
   readonly model: Model
   readonly request: LLMRequest
@@ -206,7 +207,7 @@ export const make = (dependencies: Dependencies) => {
     })
     const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
     if (Token.estimate(summaryPrompt) > context - summaryOutput) return SKIPPED
-    const messageID = SessionMessage.ID.create()
+    const messageID = input.messageID
     yield* dependencies.events.publish(SessionEvent.Compaction.Started, {
       sessionID: input.sessionID,
       messageID,

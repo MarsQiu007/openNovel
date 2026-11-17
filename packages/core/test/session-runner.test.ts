@@ -1185,6 +1185,7 @@ describe("SessionRunnerLLM", () => {
     Effect.gen(function* () {
       yield* setup
       const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
       response = fragmentFixture("text", "text-earlier", ["Earlier answer"]).completeEvents
       yield* session.prompt({
         sessionID,
@@ -1197,30 +1198,46 @@ describe("SessionRunnerLLM", () => {
       currentModel = compactModel
       requests.length = 0
       response = fragmentFixture("text", "text-manual-summary", ["## Objective\n- Manual summary"]).completeEvents
-      // 直驱 runner：SessionV2.compact 的 LocationServiceMap 路由会为假目录 "/project"
-      // 构建完整 location layer（lstat ENOENT）；routing  plumbing 已由 command 测试覆盖
-      const runner = yield* SessionRunner.Service
-      expect(yield* runner.compact({ sessionID })).toMatchObject({ status: "completed" })
+      // 模拟手动压缩准入：Queued durable 落库后 advisory wake 唤起 drain；
+      // force=false 时仅凭 queued 操作也会启动 drain（直驱 runner 而非 V2Session.compact：
+      // LocationServiceMap 路由会为假目录 "/project" 构建完整 location layer（lstat ENOENT）；
+      // 排队受理路径由 session-compact-admission 测试覆盖）
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* (yield* SessionRunner.Service).run({ sessionID, force: false })
 
       expect(requests).toHaveLength(1)
       expect(userTexts(requests[0])[0]).toContain("Create a new anchored summary")
       // history 按 compaction seq 截断：压缩消息取代先前全部消息
       const context = yield* (yield* SessionStore.Service).context(sessionID)
       expect(context.map((message) => message.type)).toEqual(["compaction"])
-      expect(context[0]).toMatchObject({ type: "compaction", summary: "## Objective\n- Manual summary" })
+      expect(context[0]).toMatchObject({
+        type: "compaction",
+        status: "completed",
+        summary: "## Objective\n- Manual summary",
+      })
 
       const { events } = yield* session.history({ sessionID, limit: 100 })
       const compactionEvents = events.filter(
-        (event) => event.type === "session.next.compaction.started" || event.type === "session.next.compaction.ended",
+        (event) =>
+          event.type === "session.next.compaction.queued" ||
+          event.type === "session.next.compaction.started" ||
+          event.type === "session.next.compaction.ended",
       )
-      expect(compactionEvents.map((event) => event.data.reason)).toEqual(["manual", "manual"])
+      expect(compactionEvents.map((event) => event.data.reason)).toEqual(["manual", "manual", "manual"])
     }),
   )
 
-  it.effect("settles manual compaction failure with a durable Failed event and no history truncation", () =>
+  it.effect("settles queued compaction failure with a durable Failed event and no history truncation", () =>
     Effect.gen(function* () {
       yield* setup
       const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
       response = fragmentFixture("text", "text-earlier-fail", ["Earlier answer"]).completeEvents
       yield* session.prompt({
         sessionID,
@@ -1232,14 +1249,19 @@ describe("SessionRunnerLLM", () => {
       currentModel = compactModel
       requests.length = 0
       response = [LLMEvent.providerError({ message: "provider exploded with request body secret" })]
-      const runner = yield* SessionRunner.Service
-      const outcome = yield* runner.compact({ sessionID })
-      expect(outcome.status).toBe("failed")
-      if (outcome.status === "failed") expect(outcome.messageID).toMatch(/^msg_/)
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* (yield* SessionRunner.Service).run({ sessionID, force: false })
 
-      // failed 压缩不是历史锚点：原始消息全部保留
+      // failed 压缩不是历史锚点：原始消息全部保留，操作以 failed 终态闭环在同一操作 ID 上
       const context = yield* (yield* SessionStore.Service).context(sessionID)
       expect(context.at(0)).toMatchObject({ type: "user" })
+      expect(context.find((message) => message.type === "compaction")).toMatchObject({ id: opID, status: "failed" })
       expect(requests).toHaveLength(1)
 
       // Failed 事件 durable 且脱敏：不携带 provider 原始响应
@@ -1249,6 +1271,58 @@ describe("SessionRunnerLLM", () => {
         data: { reason: "manual", error: { type: "compaction.failed" } },
       })
       expect(JSON.stringify(failed)).not.toContain("provider exploded")
+    }),
+  )
+
+  it.effect("drains every queued compaction operation to a terminal state, leaving none hanging", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
+      response = fragmentFixture("text", "text-earlier", ["Earlier answer"]).completeEvents
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      currentModel = compactModel
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-summary-1", ["## Objective\n- First summary"]).completeEvents,
+        fragmentFixture("text", "text-summary-2", ["## Objective\n- Second summary"]).completeEvents,
+      ]
+      // 两条 queued 操作（跨进程/旧路径可能出现的积压）在 drain 启动前都已 durable 落库：
+      // drain 从最早的 queued 开始循环重读工作队列，两条都必须闭环、不留悬挂；
+      // 第二条执行时历史已被第一条截断，以脱敏 failed 结算而非悬挂或假装成功
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: SessionMessage.ID.create(),
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: SessionMessage.ID.create(),
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* (yield* SessionRunner.Service).run({ sessionID, force: false })
+
+      const operations = (yield* (yield* SessionStore.Service).context(sessionID)).filter(
+        (message) => message.type === "compaction",
+      )
+      expect(operations).toHaveLength(2)
+      expect(operations.map((message) => (message.type === "compaction" ? message.status : undefined))).toEqual([
+        "completed",
+        "failed",
+      ])
+      expect(operations[0]).toMatchObject({ summary: "## Objective\n- First summary" })
+      expect(operations[1]).toMatchObject({
+        error: { type: "compaction.failed", message: "没有可压缩的对话内容" },
+      })
+      expect(requests).toHaveLength(1)
     }),
   )
 
