@@ -130,6 +130,32 @@ test("selection changes scroll the chapter row into view", async ({ page }) => {
   expect(after, "已可见行的选中不应产生额外滚动").toBe(before)
 })
 
+test("partially visible row selection does not complete the scroll", async ({ page }) => {
+  await setup(page)
+  await openWorkspace(page, "ch-e2e-005")
+
+  // 显式构造跨边行：把视口中部一行滚到骑在列表底边上（行中心高于底边 6px，可正常点击）
+  const partialId = await page.evaluate(() => {
+    const list = document.querySelector('[data-testid="chapter-list-scroll"]')!
+    const rect = list.getBoundingClientRect()
+    const rows = [...list.querySelectorAll<HTMLElement>("[data-testid^='chapter-row-']")].filter((el) => {
+      const r = el.getBoundingClientRect()
+      return r.height > 0 && r.top > rect.top + 100 && r.bottom < rect.bottom
+    })
+    const row = rows[Math.floor(rows.length / 2)]
+    if (!row) return null
+    const r = row.getBoundingClientRect()
+    list.scrollTop += r.top + r.height / 2 - 6 - rect.bottom
+    return row.getAttribute("data-testid")
+  })
+  expect(partialId, "应能构造出一行部分可见的行").not.toBeNull()
+
+  const before = await stableScrollTop(page)
+  await page.locator(`[data-testid="${partialId}"]`).click()
+  const after = await stableScrollTop(page)
+  expect(after, "部分可见行的选中不应被补全滚动（行被推到视口底边）").toBe(before)
+})
+
 test("collapsed sidebar catches up to the selection after re-expanding", async ({ page }) => {
   await setup(page)
   await openWorkspace(page, "ch-e2e-010")

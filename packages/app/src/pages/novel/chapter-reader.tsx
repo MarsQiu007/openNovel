@@ -156,10 +156,18 @@ export default function ChapterReader(props: ChapterReaderProps) {
   // Lazy loading state for long content
   const [shownParagraphs, setShownParagraphs] = createSignal(SEGMENT_SIZE)
 
-  // Reset lazy loading when chapter changes
+  // 数据替换瞬间复位阅读态（懒加载窗口 + 滚动位置）：章节查询带 keepPreviousData，阅读容器
+  // 不再随切章卸载重挂（防黑闪），两者会残留到新章内容上；仅在新章数据到达时复位，
+  // 同章后台刷新不触发。不复位懒加载会让占位窗口期的旧内容被截断跳变
+  let readingEl: HTMLDivElement | undefined
+  let renderedChapterID: string | undefined
   createEffect(() => {
-    props.selectedChapterId
+    const data = chapterQuery.data
+    if (!data) return
+    if (renderedChapterID === data.id) return
+    renderedChapterID = data.id
     setShownParagraphs(SEGMENT_SIZE)
+    if (readingEl) readingEl.scrollTop = 0
   })
 
   const isLongContent = () => {
@@ -241,7 +249,7 @@ export default function ChapterReader(props: ChapterReaderProps) {
             </div>
 
             {/* Reading content */}
-            <div class="flex-1 min-h-0 overflow-y-auto">
+            <div ref={readingEl} class="flex-1 min-h-0 overflow-y-auto">
               <div class="novel-reading px-6 py-8 select-text" onContextMenu={handleContextMenu}>
                 <For each={visibleParagraphs()}>
                   {(paragraph, idx) => (

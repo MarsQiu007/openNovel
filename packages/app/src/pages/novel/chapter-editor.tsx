@@ -100,6 +100,9 @@ export default function ChapterEditor(props: ChapterEditorProps) {
 
   // 初次载入与切换章节时采用服务端内容并重置编辑器状态；脏状态保留本地输入；
   // 本地保存后服务端快照滞后的窗口内不回填，等重新拉取对齐后再恢复采用。
+  // 切章滚动复位需显式执行：章节查询带 keepPreviousData，编辑器不再随切章卸载重挂（防黑闪），
+  // 隐式复位通道消失，textarea 换值后旧滚动位置会残留
+  let editorEl: HTMLTextAreaElement | undefined
   createEffect(() => {
     const data = chapterQuery.data
     if (!data) return
@@ -114,6 +117,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
       setPendingContent(null)
       setPreviewVersion(null)
       setConfirmRestore(null)
+      if (editorEl) editorEl.scrollTop = 0
       return
     }
     if (data.content === content()) {
@@ -290,6 +294,7 @@ export default function ChapterEditor(props: ChapterEditorProps) {
                 textarea 默认 inline-block 会在行盒基线下留出几像素缝隙，导致本层溢出、出现第二条滚动条 */}
             <div class="flex-1 min-h-0">
               <textarea
+                ref={editorEl}
                 class="w-full h-full p-6 bg-transparent text-v2-text-text-base font-serif text-base leading-relaxed resize-none outline-none"
                 value={content()}
                 onInput={(e) => {

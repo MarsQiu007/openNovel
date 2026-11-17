@@ -503,15 +503,16 @@ function ChapterRow(props: {
     const el = rowRef
     if (!el) return
     // 恢复路径布局多帧才稳定（Suspense 摘插期间行不在文档树，scrollIntoView 静默 no-op），
-    // 以行落入列表可视区为成功条件逐帧重试，上限约半秒；已完全可见时不产生额外滚动
+    // 以行落入列表可视区为成功条件逐帧重试，上限约半秒；行与视口有任意交集（含部分可见）即视为
+    // 已定位——nearest 对部分可见行会做补全滚动，把贴边行推到视口底边，正是「可见章节被切走」的来源
     let frames = 0
     const settle = () => {
       if (!el.isConnected || !props.isSelected || !props.listVisible()) return
       const list = el.closest<HTMLElement>("[data-testid='chapter-list-scroll']")
       const rowRect = el.getBoundingClientRect()
       const listRect = list?.getBoundingClientRect()
-      const fullyVisible = !!listRect && rowRect.height > 0 && rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1
-      if (fullyVisible) return
+      const visible = !!listRect && rowRect.height > 0 && rowRect.bottom > listRect.top && rowRect.top < listRect.bottom
+      if (visible) return
       el.scrollIntoView({ block: "nearest", behavior: "auto" })
       if (frames++ < 30) requestAnimationFrame(settle)
     }

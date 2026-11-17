@@ -15,6 +15,7 @@
 
 - [x] 3.1 跑 `packages/app` 全量单测与 `bun typecheck`，并确认章节侧栏既有 e2e 无回归；验证：`bun typecheck` 通过、既有用例全绿
 - [x] 3.2 四时机验证记录：恢复定位 / 连跳跟随 / 切分段重定位 / 收起展开补定位由 Playwright e2e（真实 Chromium、60 章场景）完成行为级断言，repeat 累计 52 连过且 novel 目录 43 用例全绿；视觉观感（指示条样式、跟随流畅度）经 dev 桌面窗口（探活 200、Electron 已拉起）交用户日常确认
+- [x] 3.3 冒烟反馈缺陷修复：①切章全屏黑闪——章节详情查询加 `placeholderData: keepPreviousData`，主区保留上一章内容静默替换，阅读/编辑视图滚动复位改为数据替换瞬间显式执行；②可见章节被切到视口底边——定位可见判定收紧为「行与视口有任意交集（含部分可见）即停止」，消除 nearest 对贴边行的补全滚动；验证：`bun typecheck` 通过，新增「部分可见行选中不补全滚动」e2e 回归用例，chapter-sidebar-focus 5 用例与 novel 目录全量回归通过
 
 ## Workflow follow-up
 

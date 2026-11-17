@@ -1,4 +1,4 @@
-import { createQuery, useMutation, useQueryClient } from "@tanstack/solid-query"
+import { createQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/solid-query"
 import { type Accessor, createMemo } from "solid-js"
 import { OpenNovel } from "@opennovel-ai/client"
 import type { Session } from "@opennovel-ai/sdk/v2/client"
@@ -306,6 +306,9 @@ export function useChapterDetail(novelID: Accessor<string>, chapterID: Accessor<
   return createQuery(() => ({
     queryKey: novelKeys.chapter(sdk().directory, novelID(), chapterID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
+    // 切章保留上一章内容渲染（isPlaceholderData），数据到达后静默替换；
+    // 否则 key 变化瞬间 data 为 undefined、编辑/阅读视图整体卸载，深色背景裸露成全屏黑闪
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client()["server.novel"].chapter({
         novelID: novelID(),
