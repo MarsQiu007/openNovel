@@ -38,9 +38,12 @@ export type Event =
   | EventSessionNextToolSuccess
   | EventSessionNextToolFailed
   | EventSessionNextRetried
+  | EventSessionNextCompactionQueued
   | EventSessionNextCompactionStarted
   | EventSessionNextCompactionDelta
   | EventSessionNextCompactionEnded
+  | EventSessionNextCompactionFailed
+  | EventSessionNextCompactionInterrupted
   | EventSessionNextRevertStaged
   | EventSessionNextRevertCleared
   | EventSessionNextRevertCommitted
@@ -569,6 +572,17 @@ export type GlobalEvent = {
       }
     | {
         id: string
+        type: "session.next.compaction.queued"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+          reason: "auto" | "manual"
+          retryOf?: string
+        }
+      }
+    | {
+        id: string
         type: "session.next.compaction.started"
         properties: {
           timestamp: number
@@ -597,6 +611,30 @@ export type GlobalEvent = {
           reason: "auto" | "manual"
           text: string
           recent: string
+        }
+      }
+    | {
+        id: string
+        type: "session.next.compaction.failed"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+          reason: "auto" | "manual"
+          error: {
+            type: string
+            message: string
+          }
+        }
+      }
+    | {
+        id: string
+        type: "session.next.compaction.interrupted"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+          cause: "user" | "restart"
         }
       }
     | {
@@ -974,8 +1012,11 @@ export type GlobalEvent = {
     | SyncEventSessionNextToolSuccess
     | SyncEventSessionNextToolFailed
     | SyncEventSessionNextRetried
+    | SyncEventSessionNextCompactionQueued
     | SyncEventSessionNextCompactionStarted
     | SyncEventSessionNextCompactionEnded
+    | SyncEventSessionNextCompactionFailed
+    | SyncEventSessionNextCompactionInterrupted
     | SyncEventSessionNextRevertStaged
     | SyncEventSessionNextRevertCleared
     | SyncEventSessionNextRevertCommitted
@@ -1395,7 +1436,11 @@ export type Config = {
     prune?: boolean
     tail_turns?: number
     preserve_recent_tokens?: number
-    reserved?: number
+    /**
+     * Token buffer or share of the context window kept free before compacting
+     */
+    reserved?: number | string
+    background?: boolean
   }
   experimental?: {
     disable_paste_summary?: boolean
@@ -1915,8 +1960,11 @@ export type SessionDurableEvent =
   | SessionNextReasoningStarted
   | SessionNextReasoningEnded
   | SessionNextRetried
+  | SessionNextCompactionQueued
   | SessionNextCompactionStarted
   | SessionNextCompactionEnded
+  | SessionNextCompactionFailed
+  | SessionNextCompactionInterrupted
   | SessionNextRevertStaged
   | SessionNextRevertCleared
   | SessionNextRevertCommitted
@@ -2000,9 +2048,12 @@ export type V2Event =
   | SessionNextToolSuccess
   | SessionNextToolFailed
   | SessionNextRetried
+  | SessionNextCompactionQueued
   | SessionNextCompactionStarted
   | SessionNextCompactionDelta
   | SessionNextCompactionEnded
+  | SessionNextCompactionFailed
+  | SessionNextCompactionInterrupted
   | SessionNextRevertStaged
   | SessionNextRevertCleared
   | SessionNextRevertCommitted
@@ -2847,6 +2898,24 @@ export type SyncEventSessionNextRetried = {
   }
 }
 
+export type SyncEventSessionNextCompactionQueued = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.compaction.queued.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+      reason: "auto" | "manual"
+      retryOf?: string
+    }
+  }
+}
+
 export type SyncEventSessionNextCompactionStarted = {
   type: "sync"
   id: string
@@ -2879,6 +2948,44 @@ export type SyncEventSessionNextCompactionEnded = {
       reason: "auto" | "manual"
       text: string
       recent: string
+    }
+  }
+}
+
+export type SyncEventSessionNextCompactionFailed = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.compaction.failed.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+      reason: "auto" | "manual"
+      error: {
+        type: string
+        message: string
+      }
+    }
+  }
+}
+
+export type SyncEventSessionNextCompactionInterrupted = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.compaction.interrupted.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+      cause: "user" | "restart"
     }
   }
 }
@@ -3018,6 +3125,21 @@ export type AgentV2Info = {
   permissions: PermissionV2Ruleset
 }
 
+export type SessionContextWatermark = {
+  model: ModelRef
+  window?: number
+  measured: number
+  estimated: number
+  total: number
+  ratio: number
+  trigger?: {
+    share?: number | string
+    tokens?: number
+  }
+  source: "measured" | "estimated" | "mixed"
+  degraded?: string
+}
+
 export type SessionV2Info = {
   id: string
   parentID?: string
@@ -3043,6 +3165,7 @@ export type SessionV2Info = {
   location: LocationRef
   subpath?: string
   revert?: RevertState
+  context?: SessionContextWatermark
 }
 
 export type PromptInputFileAttachment = {
@@ -3060,6 +3183,12 @@ export type SessionInputAdmitted = {
   delivery: "steer" | "queue"
   timeCreated: number
   promotedSeq?: number
+}
+
+export type SessionCompactionAdmission = {
+  messageID?: string
+  status: "queued" | "running" | "completed" | "failed" | "interrupted" | "skipped"
+  retryOf?: string
 }
 
 export type SessionMessageAgentSwitched = {
@@ -3257,8 +3386,13 @@ export type SessionMessageAssistant = {
 export type SessionMessageCompaction = {
   type: "compaction"
   reason: "auto" | "manual"
+  status?: "queued" | "running" | "completed" | "failed" | "interrupted"
   summary: string
   recent: string
+  error?: {
+    type: string
+    message: string
+  }
   id: string
   metadata?: {
     [key: string]: unknown
@@ -3859,6 +3993,27 @@ export type SessionNextRetried = {
   }
 }
 
+export type SessionNextCompactionQueued = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.compaction.queued"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    retryOf?: string
+  }
+}
+
 export type SessionNextCompactionStarted = {
   id: string
   metadata?: {
@@ -3898,6 +4053,50 @@ export type SessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+  }
+}
+
+export type SessionNextCompactionFailed = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.compaction.failed"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    error: {
+      type: string
+      message: string
+    }
+  }
+}
+
+export type SessionNextCompactionInterrupted = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.compaction.interrupted"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    cause: "user" | "restart"
   }
 }
 
@@ -6897,6 +7096,18 @@ export type EventSessionNextRetried = {
   }
 }
 
+export type EventSessionNextCompactionQueued = {
+  id: string
+  type: "session.next.compaction.queued"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    retryOf?: string
+  }
+}
+
 export type EventSessionNextCompactionStarted = {
   id: string
   type: "session.next.compaction.started"
@@ -6929,6 +7140,32 @@ export type EventSessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+  }
+}
+
+export type EventSessionNextCompactionFailed = {
+  id: string
+  type: "session.next.compaction.failed"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    error: {
+      type: string
+      message: string
+    }
+  }
+}
+
+export type EventSessionNextCompactionInterrupted = {
+  id: string
+  type: "session.next.compaction.interrupted"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    cause: "user" | "restart"
   }
 }
 
@@ -10267,9 +10504,11 @@ export type V2SessionCompactError = V2SessionCompactErrors[keyof V2SessionCompac
 
 export type V2SessionCompactResponses = {
   /**
-   * <No Content>
+   * Success
    */
-  204: void
+  200: {
+    data: SessionCompactionAdmission
+  }
 }
 
 export type V2SessionCompactResponse = V2SessionCompactResponses[keyof V2SessionCompactResponses]

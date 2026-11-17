@@ -383,6 +383,17 @@ export type SessionsListOutput = {
         readonly patch: string
       }>
     }
+    readonly context?: {
+      readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
+      readonly window?: number
+      readonly measured: number
+      readonly estimated: number
+      readonly total: number
+      readonly ratio: number
+      readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
+      readonly source: "measured" | "estimated" | "mixed"
+      readonly degraded?: string
+    }
   }>
   readonly cursor: { readonly previous?: string | null; readonly next?: string | null }
 }
@@ -445,6 +456,17 @@ export type SessionsCreateOutput = {
         readonly patch: string
       }>
     }
+    readonly context?: {
+      readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
+      readonly window?: number
+      readonly measured: number
+      readonly estimated: number
+      readonly total: number
+      readonly ratio: number
+      readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
+      readonly source: "measured" | "estimated" | "mixed"
+      readonly degraded?: string
+    }
   }
 }["data"]
 
@@ -482,6 +504,17 @@ export type SessionsGetOutput = {
         readonly deletions: number
         readonly patch: string
       }>
+    }
+    readonly context?: {
+      readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
+      readonly window?: number
+      readonly measured: number
+      readonly estimated: number
+      readonly total: number
+      readonly ratio: number
+      readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
+      readonly source: "measured" | "estimated" | "mixed"
+      readonly degraded?: string
     }
   }
 }["data"]
@@ -699,6 +732,17 @@ export type SessionsUpdateOutput = {
         readonly patch: string
       }>
     }
+    readonly context?: {
+      readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
+      readonly window?: number
+      readonly measured: number
+      readonly estimated: number
+      readonly total: number
+      readonly ratio: number
+      readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
+      readonly source: "measured" | "estimated" | "mixed"
+      readonly degraded?: string
+    }
   }
 }["data"]
 
@@ -726,7 +770,13 @@ export type SessionsDiffOutput = {
 
 export type SessionsCompactInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
-export type SessionsCompactOutput = void
+export type SessionsCompactOutput = {
+  readonly data: {
+    readonly messageID?: string
+    readonly status: "queued" | "running" | "completed" | "failed" | "interrupted" | "skipped"
+    readonly retryOf?: string
+  }
+}["data"]
 
 export type SessionsWaitInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
@@ -909,8 +959,10 @@ export type SessionsContextOutput = {
     | {
         readonly type: "compaction"
         readonly reason: "auto" | "manual"
+        readonly status?: "queued" | "running" | "completed" | "failed" | "interrupted"
         readonly summary: string
         readonly recent: string
+        readonly error?: { readonly type: string; readonly message: string } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -1357,6 +1409,20 @@ export type SessionsHistoryOutput = {
     | {
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.compaction.queued"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: {
+          readonly timestamp: number
+          readonly sessionID: string
+          readonly messageID: string
+          readonly reason: "auto" | "manual"
+          readonly retryOf?: string
+        }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
         readonly type: "session.next.compaction.started"
         readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
         readonly location?: { readonly directory: string; readonly workspaceID?: string }
@@ -1380,6 +1446,33 @@ export type SessionsHistoryOutput = {
           readonly reason: "auto" | "manual"
           readonly text: string
           readonly recent: string
+        }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.compaction.failed"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: {
+          readonly timestamp: number
+          readonly sessionID: string
+          readonly messageID: string
+          readonly reason: "auto" | "manual"
+          readonly error: { readonly type: string; readonly message: string }
+        }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.compaction.interrupted"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: {
+          readonly timestamp: number
+          readonly sessionID: string
+          readonly messageID: string
+          readonly cause: "user" | "restart"
         }
       }
     | {
@@ -1863,6 +1956,20 @@ export type SessionsEventsOutput =
   | {
       readonly id: string
       readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.compaction.queued"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: {
+        readonly timestamp: number
+        readonly sessionID: string
+        readonly messageID: string
+        readonly reason: "auto" | "manual"
+        readonly retryOf?: string
+      }
+    }
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
       readonly type: "session.next.compaction.started"
       readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
       readonly location?: { readonly directory: string; readonly workspaceID?: string }
@@ -1886,6 +1993,33 @@ export type SessionsEventsOutput =
         readonly reason: "auto" | "manual"
         readonly text: string
         readonly recent: string
+      }
+    }
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.compaction.failed"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: {
+        readonly timestamp: number
+        readonly sessionID: string
+        readonly messageID: string
+        readonly reason: "auto" | "manual"
+        readonly error: { readonly type: string; readonly message: string }
+      }
+    }
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.compaction.interrupted"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: {
+        readonly timestamp: number
+        readonly sessionID: string
+        readonly messageID: string
+        readonly cause: "user" | "restart"
       }
     }
   | {
@@ -2083,8 +2217,10 @@ export type SessionsMessageOutput = {
     | {
         readonly type: "compaction"
         readonly reason: "auto" | "manual"
+        readonly status?: "queued" | "running" | "completed" | "failed" | "interrupted"
         readonly summary: string
         readonly recent: string
+        readonly error?: { readonly type: string; readonly message: string } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -2255,8 +2391,10 @@ export type MessagesListOutput = {
     | {
         readonly type: "compaction"
         readonly reason: "auto" | "manual"
+        readonly status?: "queued" | "running" | "completed" | "failed" | "interrupted"
         readonly summary: string
         readonly recent: string
+        readonly error?: { readonly type: string; readonly message: string } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }

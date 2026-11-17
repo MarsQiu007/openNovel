@@ -4071,7 +4071,7 @@ export class Session extends HeyApiClient {
   /**
    * Compact session
    *
-   * Compact a session conversation.
+   * Admit one compaction operation and return its message ID with the current status. The operation executes at the next safe provider-turn boundary; clients that ignore the response body keep working against the same endpoint.
    */
   public compact<ThrowOnError extends boolean = false>(
     parameters: {
