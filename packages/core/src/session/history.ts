@@ -4,7 +4,7 @@ import { Database } from "../database/database"
 import { MessageDecodeError } from "./error"
 import { SessionMessage } from "./message"
 import { SessionSchema } from "./schema"
-import { SessionContextEpochTable, SessionMessageTable } from "./sql"
+import { SessionContextEpochTable, SessionMessageTable, SessionTable } from "./sql"
 
 type DatabaseService = Database.Interface["db"]
 
@@ -189,6 +189,30 @@ export const message = Effect.fn("SessionHistory.message")(function* (
     .pipe(Effect.orDie)
   if (!row) return undefined
   return yield* decodeMessageRow(row)
+})
+
+/**
+ * 本 location 目录下所有进行中（queued/running）的压缩操作：进程恢复结算的扫描入口。
+ * 与单会话的 activeCompaction 共用同一过滤器，保证「进行中」语义一致；directory 取
+ * SessionTable 中会话创建时落入的 location 目录串，与 map cell 的 ref.directory 同源可比。
+ */
+export const activeCompactionsByDirectory = Effect.fn("SessionHistory.activeCompactionsByDirectory")(function* (
+  db: DatabaseService,
+  directory: typeof SessionTable.$inferSelect.directory,
+) {
+  const rows = yield* db
+    .select({ sessionID: SessionTable.id, row: SessionMessageTable })
+    .from(SessionMessageTable)
+    .innerJoin(SessionTable, eq(SessionMessageTable.session_id, SessionTable.id))
+    .where(
+      and(eq(SessionTable.directory, directory), eq(SessionMessageTable.type, "compaction"), activeCompactionFilter),
+    )
+    .orderBy(asc(SessionMessageTable.session_id), asc(SessionMessageTable.seq))
+    .all()
+    .pipe(Effect.orDie)
+  return yield* Effect.forEach(rows, ({ sessionID, row }) =>
+    decodeMessageRow(row).pipe(Effect.map((message) => ({ sessionID, message }))),
+  )
 })
 
 export * as SessionHistory from "./history"
