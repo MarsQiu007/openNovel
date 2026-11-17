@@ -20,11 +20,11 @@
 
 ## 4. CLI 接线回归（opennovel）
 
-- [ ] 4.1 回归 `opennovel novel init` 写盘接线（`novel-init-wire` 测试全绿），并新增断言：init 接线后的项目与自动装配去重（显式声明路径下无合成文档叠加、插件单次装载）。验证：`cd packages/opennovel && bun test` 相关用例通过。
+- [x] 4.1 回归 `opennovel novel init` 写盘接线（`novel-init-wire` 测试全绿），并新增断言：init 接线后的项目与自动装配去重（显式声明路径下无合成文档叠加、插件单次装载）。验证：`cd packages/opennovel && bun test` 相关用例通过。（去重断言落在 core 侧：`config.test.ts` 的「显式接线项目抑制合成文档」与 `novel-auto-wire.test.ts` 的「恰好装载一次」，opennovel 侧保持纯回归不重复断言）
 
 ## 5. 文档与整体验证
 
-- [ ] 5.1 为 `plugins: []` 退出通道补充用户可见说明：先检查 `docs/` 与 CLI help 的既有落点，命中则在既有位置补充；确无落点时在本 change tasks.md 立案说明并保持 CLI help 不动。验证：说明可被读者按图索骥。
+- [x] 5.1 为 `plugins: []` 退出通道补充用户可见说明：先检查 `docs/` 与 CLI help 的既有落点，命中则在既有位置补充；确无落点时在本 change tasks.md 立案说明并保持 CLI help 不动。验证：说明可被读者按图索骥。（立案：docs/ 无任何插件配置文档，CLI help 的 init 描述保持一句话不动；退出通道语义由本 change spec 的「显式 plugins 声明优先于自动装配」需求与 design D2 承载，待仓库出现用户文档时再迁移）
 - [ ] 5.2 运行全量质量门：`cd packages/core && bun typecheck && bunx oxlint`、`cd packages/opennovel && bun typecheck`；两包 `bun test` 全量通过（对照本机预存基线失败名单区分环境差异与回归）。验证：命令退出码为 0，无新增失败。
 - [ ] 5.3 启动桌面 dev 做真机验收：以本机 `C:\Novels` 下无配置 novel 项目发起会话，确认写作会话默认 director、代理选择器不显示、模型路由条目不再产生可选 agent，且项目目录无新增配置文件。验证：观察记录写入本 change 收尾说明。
 
