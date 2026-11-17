@@ -20,7 +20,7 @@
 ## 4. 全量验证与收尾
 
 - [x] 4.1 在 `packages/app` 运行 `bun typecheck` 与全量单测（app 单测须用 bun 1.3.14 运行），仓库根运行 oxlint 并与基线同模式对比。验证：全部通过，无新增告警。结果：typecheck 通过；全量 987 pass / 0 fail（bun 1.3.14，`--only-failures --preload ./happydom.ts ./src`）；oxlint（仓库根 --type-aware）改动文件告警均为既有（bootstrap showErrors、home SessionTabAvatar、server-sdk asDelta 系），无新增。
-- [ ] 4.2 人工冒烟复现原报障路径：dev 桌面端新建会话 → 对话数轮 → 关闭重开 → 发送成功且不弹「无法获取会话」；并观察书籍工作台会话实时更新不再依赖轮询兜底。验证：行为符合预期，取证（截图/录屏）附于归档记录。
+- [x] 4.2 人工冒烟复现原报障路径：dev 桌面端新建会话 → 对话数轮 → 关闭重开 → 发送成功且不弹「无法获取会话」；并观察书籍工作台会话实时更新不再依赖轮询兜底。验证：行为符合预期，取证（截图/录屏）附于归档记录。结果：2026-11-17 用户桌面端完成验证，发送正常、不再误弹「无法获取会话」。
 - [x] 4.3 收尾自查：`grep "directory === " / "directory !== "` 复核比较点清单与 design 排除清单（session.tsx:866/:698、layout.tsx:1368/:1428、layout/helpers.ts:65/:76 等同源比较）逐项确认；确认无新增未引用导出/死代码；确认未触碰服务端存储读出语义、`Location.Service.directory` 原串传递、事件发布侧目录戳、i18n 文案与 `src/generated*`。验证：自查结论写入提交说明。结论：grep 复核补修 session-header.tsx:155（路由串 vs 项目列表跨源）；其余剩余裸比较逐项定性登记进 design 排除清单（file 子系统 watcher 作用域=非目标、server.tsx 项目操作族=选择族同源、sidebar-items nav 预取=同源列表、child-store skip/哨兵/typeof=非路径语义）；新增导出 buildNotificationIndex / createDirectoryEventBus 均被实现与测试双消费；仅改 packages/app，未触碰服务端、i18n、generated。
 
 ## Workflow follow-up
