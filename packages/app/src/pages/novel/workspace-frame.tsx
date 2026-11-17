@@ -146,17 +146,23 @@ export default function NovelWorkspaceFrame() {
   const navigate = useNavigate()
   const location = useLocation()
   // 在途导航标记（路由 transition 起止）。开门定址专用：从无会话段（params.id 为空）发起的
-  // 导航——回跳定址 / 展开态地址同步——期间保持门关闭，直到 history.replaceState 与
+  // 导航——回跳定址 / 进入本书——期间保持门关闭，直到 history.replaceState 与
   // isRouting=false 同批落地（见路由 navigateEnd），保证「地址已定址」先于最终内容帧渲染。
   // 书内会话切换（params.id 始终存在）不置位：工作台保持挂载，不闪、不丢组件状态。
+  // 仅认路径级导航：searchParams 变化（tab 切换 / 面板展开）同属路由 transition 会翻
+  // isRouting，但路径不变，置位会让首帧门整树摘插工作台（侧栏闪跳、滚动与组件状态丢失）。
+  // 路由 transition 内 reference 先于结束批同步落地，transition 期间读 location.pathname
+  // 已是新路径，与已落定路径（上次 transition 结束时的值）比对即可区分两类导航。
   const isRouting = useIsRouting()
   const [openingRouting, setOpeningRouting] = createSignal(false)
+  let settledPathname = location.pathname
   createEffect(() => {
-    if (isRouting() && params.id === undefined) {
-      setOpeningRouting(true)
+    if (!isRouting()) {
+      settledPathname = location.pathname
+      setOpeningRouting(false)
       return
     }
-    if (!isRouting()) setOpeningRouting(false)
+    if (params.id === undefined && location.pathname !== settledPathname) setOpeningRouting(true)
   })
   // 全局设置入口（mod+,）：会话宿主收敛到工作台后保持可达，对话框按 params.id 自动作用域到当前会话
   useSettingsCommand()

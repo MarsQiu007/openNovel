@@ -174,6 +174,51 @@ test("chapter switch keeps the workspace mounted while detail and annotations lo
   await expect(page.getByRole("heading", { name: "第6章" })).toBeVisible({ timeout: 5_000 })
 })
 
+test("reading/writing tab switch keeps the workspace and sidebar mounted", async ({ page }) => {
+  // 侧栏闪跳回归：tab 切换走 setSearchParams（searchParams 导航），同属路由 transition 会翻
+  // isRouting。首帧门曾对所有 transition 置位 openingRouting，整个工作台子树摘插重挂
+  //（侧栏滚动归零 + settle 重滚 = 闪跳）。断言切换后工作台容器与侧栏列表节点身份不变。
+  await setup(page)
+  await openWorkspace(page, "ch-e2e-040")
+
+  // 远端章节选中使侧栏产生滚动（remount 后 settle 重滚的观测基础）
+  const list = page.locator('[data-testid="chapter-list-scroll"]')
+  await expectRowVisibleInList(page, "ch-e2e-040")
+  expect(await list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+
+  await page.evaluate(() => {
+    const win = window as unknown as { __e2eTabNodes: { main: Element | null; list: Element | null } }
+    win.__e2eTabNodes = {
+      main: document.querySelector('[data-slot="novel-workspace-content"]'),
+      list: document.querySelector('[data-testid="chapter-list-scroll"]'),
+    }
+  })
+  const nodesStable = () =>
+    page.evaluate(() => {
+      const win = window as unknown as { __e2eTabNodes: { main: Element | null; list: Element | null } }
+      const { main, list } = win.__e2eTabNodes
+      return (
+        main !== null &&
+        list !== null &&
+        main.isConnected &&
+        list.isConnected &&
+        main === document.querySelector('[data-slot="novel-workspace-content"]') &&
+        list === document.querySelector('[data-testid="chapter-list-scroll"]')
+      )
+    })
+
+  await page.getByRole("button", { name: "Writing", exact: true }).click()
+  await expect.poll(nodesStable, { timeout: 5_000, intervals: [100, 200, 400] }).toBe(true)
+  // 地址落地晚于响应式更新（navigateEnd 批），轮询等其落定
+  await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("tab=writing")
+  const scrollAfterWriting = await list.evaluate((el) => el.scrollTop)
+
+  await page.getByRole("button", { name: "Reading", exact: true }).click()
+  await expect.poll(nodesStable, { timeout: 5_000, intervals: [100, 200, 400] }).toBe(true)
+  await expect.poll(() => page.url(), { timeout: 5_000 }).toContain("tab=reading")
+  expect(await list.evaluate((el) => el.scrollTop)).toBe(scrollAfterWriting)
+})
+
 test("partially visible row selection does not complete the scroll", async ({ page }) => {
   await setup(page)
   await openWorkspace(page, "ch-e2e-005")
