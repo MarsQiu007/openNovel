@@ -233,6 +233,9 @@ const layer = Layer.effect(
       }
       const system =
         initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(sessionID, agent), session.id))
+      // 安全边界：epoch 就绪后、组装 request 前执行排队操作（手动准入或此前阈值入队），
+      // 后续 entries 即截断后的投影；continuation 的每个 provider turn 前都会走到这里
+      yield* drainQueuedCompactions(session.id)
       const model = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const context = entries.map((entry) => entry.message)
@@ -249,8 +252,21 @@ const layer = Layer.effect(
         tools: toolMaterialization?.definitions ?? [],
         toolChoice: isLastStep ? "none" : undefined,
       })
-      if (yield* compaction.compactIfNeeded({ sessionID: session.id, messageID: SessionMessage.ID.create(), entries, model, request }))
-        return yield* Effect.die(continueAfterCompaction(currentStep))
+      // 阈值命中且压缩计划可行才走统一排队路径（与手动压缩同一份历史）：
+      // plan 不可行（空会话/无可压 head/摘要 prompt 超窗）时入队只会产出注定失败的操作，直接跳过；
+      // 有活跃操作只执行不重复入队；压缩完成后 die 重建请求继续原始 input，
+      // 失败则不立即重试，交给 provider 溢出兜底
+      if (compaction.shouldAutoCompact({ sessionID: session.id, messageID: SessionMessage.ID.create(), entries, model, request })) {
+        if ((yield* SessionHistory.activeCompaction(db, session.id)) === undefined)
+          yield* events.publish(SessionEvent.Compaction.Queued, {
+            sessionID: session.id,
+            messageID: SessionMessage.ID.create(),
+            timestamp: yield* DateTime.now,
+            reason: "auto",
+          })
+        const outcome = yield* drainQueuedCompactions(session.id)
+        if (outcome !== "failed") return yield* Effect.die(continueAfterCompaction(currentStep))
+      }
       const startSnapshot = yield* snapshots.capture()
       const publisher = createLLMEventPublisher(events, {
         sessionID: session.id,
@@ -426,14 +442,16 @@ const layer = Layer.effect(
     })
 
     // 逐个执行投影中 queued 的压缩操作：Queued 事件 durable 落库是事实来源，循环重读直至
-    // 无 queued，保证 admission 与 drain 退出窗口之间新入队的操作不被遗漏
+    // 无 queued，保证 admission 与 drain 退出窗口之间新入队的操作不被遗漏。
+    // 返回最后一次闭环结果（completed/failed），调用方据此决定是否重建请求继续原始 input
     const drainQueuedCompactions = Effect.fn("SessionRunner.drainQueuedCompactions")(function* (
       sessionID: SessionSchema.ID,
     ) {
+      let outcome: "completed" | "failed" | undefined
       while (true) {
         const queued = yield* SessionHistory.oldestQueuedCompaction(db, sessionID)
-        if (queued === undefined) return
-        yield* runQueuedCompaction(sessionID, queued)
+        if (queued === undefined) return outcome
+        outcome = yield* runQueuedCompaction(sessionID, queued)
       }
     })
 
@@ -483,7 +501,8 @@ const layer = Layer.effect(
           reason: op.reason,
           error: { type: "compaction.failed", message: "没有可压缩的对话内容" },
         })
-      return yield* publishWatermark(session.id)
+      yield* publishWatermark(session.id)
+      return outcome.status === "skipped" ? ("failed" as const) : outcome.status
     })
 
     const run = Effect.fn("SessionRunner.run")(function* (input: {

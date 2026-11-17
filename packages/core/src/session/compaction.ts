@@ -187,12 +187,15 @@ export const buildPrompt = (input: { readonly previousSummary?: string; readonly
 
 export const make = (dependencies: Dependencies) => {
   const config = settings(dependencies.config)
-  const compactAfterOverflow = Effect.fn("SessionCompaction.compactAfterOverflow")(function* (
-    input: Input,
-    reason: "auto" | "manual" = "auto",
-  ) {
+
+  /**
+   * 压缩执行计划（纯函数）：可行返回摘要 prompt 所需的上下文，不可行返回 undefined。
+   * compactAfterOverflow 与 shouldAutoCompact 共用同一判定，保证「入队前可判定」与「执行时可执行」一致：
+   * 空会话、无 head 且无上一摘要、摘要 prompt 本身超窗三种注定失败的情形都挡在执行前。
+   */
+  const plan = (input: Input) => {
     const context = input.model.route.defaults.limits?.context
-    if (context === undefined || context <= 0) return SKIPPED
+    if (context === undefined || context <= 0) return
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
     const selected = select(input.entries, config.tokens)
     const previousSummary = input.entries.find(
@@ -200,13 +203,22 @@ export const make = (dependencies: Dependencies) => {
         entry.message.type === "compaction" &&
         (entry.message.status === undefined || entry.message.status === "completed"),
     )?.message
-    if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return SKIPPED
+    if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return
+    const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
     const summaryPrompt = buildPrompt({
       previousSummary: previousSummary?.type === "compaction" ? previousSummary.summary : undefined,
       context: [previousSummary?.type === "compaction" ? previousSummary.recent : "", selected.head].filter(Boolean),
     })
-    const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
-    if (Token.estimate(summaryPrompt) > context - summaryOutput) return SKIPPED
+    if (Token.estimate(summaryPrompt) > context - summaryOutput) return
+    return { previousSummary, selected, summaryOutput, summaryPrompt }
+  }
+
+  const compactAfterOverflow = Effect.fn("SessionCompaction.compactAfterOverflow")(function* (
+    input: Input,
+    reason: "auto" | "manual" = "auto",
+  ) {
+    const prepared = plan(input)
+    if (prepared === undefined) return SKIPPED
     const messageID = input.messageID
     yield* dependencies.events.publish(SessionEvent.Compaction.Started, {
       sessionID: input.sessionID,
@@ -221,9 +233,9 @@ export const make = (dependencies: Dependencies) => {
       .stream(
         LLM.request({
           model: input.model,
-          messages: [Message.user(summaryPrompt)],
+          messages: [Message.user(prepared.summaryPrompt)],
           tools: [],
-          generation: { maxTokens: summaryOutput },
+          generation: { maxTokens: prepared.summaryOutput },
         }),
       )
       .pipe(
@@ -253,24 +265,28 @@ export const make = (dependencies: Dependencies) => {
       timestamp: yield* DateTime.now,
       reason,
       text: summary,
-      recent: selected.recent,
+      recent: prepared.selected.recent,
     })
     return { status: "completed" as const, messageID }
   })
-  const compactIfNeeded = Effect.fn("SessionCompaction.compactIfNeeded")(function* (input: Input) {
+
+  /** 阈值估计（纯函数）：是否超出窗口减预留的触发线。auto 关闭或未知窗口不触发。 */
+  const thresholdExceeded = (input: Input) => {
     if (!config.auto) return false
     const context = input.model.route.defaults.limits?.context
     if (context === undefined || context <= 0) return false
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
-    if (
-      estimate({ system: input.request.system, messages: input.request.messages, tools: input.request.tools }) <=
+    return (
+      estimate({ system: input.request.system, messages: input.request.messages, tools: input.request.tools }) >
       context - Math.max(output, resolveBuffer(config.buffer, context))
     )
-      return false
-    return (yield* compactAfterOverflow(input)).status === "completed"
-  })
+  }
+
+  /** 自动压缩前置（纯函数）：阈值命中且本次压缩确有可执行计划才入队，避免为注定失败的操作排队。 */
+  const shouldAutoCompact = (input: Input) => thresholdExceeded(input) && plan(input) !== undefined
   return {
-    compactIfNeeded,
+    thresholdExceeded,
+    shouldAutoCompact,
     compactAfterOverflow,
   }
 }

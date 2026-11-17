@@ -1326,6 +1326,70 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("drains a queued compaction at the next provider-turn boundary and continues the original turn once", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
+      response = fragmentFixture("text", "text-earlier", ["Earlier answer"]).completeEvents
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      requests.length = 0
+      responses = [
+        [
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.toolCall({ id: "call-echo", name: "echo", input: { text: "boundary" } }),
+          LLMEvent.stepFinish({ index: 0, reason: "tool-calls" }),
+          LLMEvent.finish({ reason: "tool-calls" }),
+        ],
+        fragmentFixture("text", "text-boundary-summary", ["## Objective\n- Boundary summary"]).completeEvents,
+        fragmentFixture("text", "text-boundary-final", ["Done"]).completeEvents,
+      ]
+      toolExecutionGate = yield* Deferred.make<void>()
+      toolExecutionsStarted = yield* Deferred.make<void>()
+      toolExecutionsReady = 1
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Boundary request" }), resume: false })
+      const run = yield* Effect.forkChild(session.resume(sessionID))
+      yield* Deferred.await(toolExecutionsStarted)
+
+      // 工具执行期间手动准入一条 queued 操作：它必须在下一个 provider turn 前的安全边界被 drain，
+      // 而不是在工具结算前的当前 turn 内嵌执行；切到窄窗模型让 drain 里的摘要流有可执行窗口
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      currentModel = compactModel
+      yield* Deferred.succeed(toolExecutionGate, undefined)
+      yield* Fiber.join(run)
+
+      // 三个请求：toolCall turn、压缩摘要流、压缩后重建的 continuation turn
+      expect(requests).toHaveLength(3)
+      expect(userTexts(requests[1])[0]).toContain("Earlier question")
+      // continuation 的请求上下文只剩压缩锚点（单一消息内带 summary + 保留的近期文本）
+      expect(userTexts(requests[2])).toHaveLength(1)
+      expect(userTexts(requests[2])[0]).toContain("<summary>\n## Objective\n- Boundary summary\n</summary>")
+
+      const context = yield* session.context(sessionID)
+      // 无半截 assistant 改写（压缩前的 toolCall assistant 被锚点截断）、无重复用户消息、原始 turn 只继续一次
+      expect(context.map((message) => message.type)).toEqual(["compaction", "assistant"])
+      expect(context[0]).toMatchObject({
+        type: "compaction",
+        status: "completed",
+        reason: "manual",
+        summary: "## Objective\n- Boundary summary",
+      })
+      expect(context.filter((message) => message.type === "user")).toHaveLength(0)
+    }),
+  )
+
   it.effect("waits for the active drain to settle and returns immediately while idle", () =>
     Effect.gen(function* () {
       yield* setup
