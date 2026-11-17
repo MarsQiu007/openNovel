@@ -145,24 +145,16 @@ export default function NovelWorkspaceFrame() {
   const novel = useNovel()
   const navigate = useNavigate()
   const location = useLocation()
-  // 在途导航标记（路由 transition 起止）。开门定址专用：从无会话段（params.id 为空）发起的
-  // 导航——回跳定址 / 进入本书——期间保持门关闭，直到 history.replaceState 与
-  // isRouting=false 同批落地（见路由 navigateEnd），保证「地址已定址」先于最终内容帧渲染。
-  // 书内会话切换（params.id 始终存在）不置位：工作台保持挂载，不闪、不丢组件状态。
-  // 仅认路径级导航：searchParams 变化（tab 切换 / 面板展开）同属路由 transition 会翻
-  // isRouting，但路径不变，置位会让首帧门整树摘插工作台（侧栏闪跳、滚动与组件状态丢失）。
-  // 路由 transition 内 reference 先于结束批同步落地，transition 期间读 location.pathname
-  // 已是新路径，与已落定路径（上次 transition 结束时的值）比对即可区分两类导航。
+  // 在途导航标记（回跳定址专用）：go effect 发起 replace 定址前置位，首帧门保持关闭，
+  // 直到 history.replaceState 与 isRouting=false 同批落地（见路由 navigateEnd）后复位，
+  // 保证「地址已定址」先于最终内容帧渲染。不能靠「transition 期间比对 pathname」判断
+  // 导航类型：pathname 与 params 同源（路由 reference）同批落地，任何 effect 运行点
+  // 两者同新或同旧，比对恒失效——只能由导航发起方（go effect）显式置位。
+  // 书内会话切换（params.id 始终存在）go 不触发，门不受影响：工作台保持挂载。
   const isRouting = useIsRouting()
   const [openingRouting, setOpeningRouting] = createSignal(false)
-  let settledPathname = location.pathname
   createEffect(() => {
-    if (!isRouting()) {
-      settledPathname = location.pathname
-      setOpeningRouting(false)
-      return
-    }
-    if (params.id === undefined && location.pathname !== settledPathname) setOpeningRouting(true)
+    if (!isRouting()) setOpeningRouting(false)
   })
   // 全局设置入口（mod+,）：会话宿主收敛到工作台后保持可达，对话框按 params.id 自动作用域到当前会话
   useSettingsCommand()
@@ -379,6 +371,9 @@ export default function NovelWorkspaceFrame() {
   createEffect(() => {
     const adopt = adoptDecision()
     if (adopt.kind !== "go") return
+    // 定址前置位在途标记：transition 内 reference 落地会先行把 adoptDecision 弹回 stay，
+    // 门若因此提前重开，内容帧会出现在 replaceState 落定之前
+    setOpeningRouting(true)
     // 保留当前查询串：展开态（?tab=panel:<id>）等地址状态随定址一起迁移，不被 replace 丢弃
     navigate(`/${params.dir}/novel/${novelID()}/session/${adopt.sessionID}${location.search}`, {
       replace: true,
