@@ -4,13 +4,14 @@ import { EventManifest } from "../src/event-manifest"
 import { IdeEvent } from "../src/ide-event"
 import { SessionEvent } from "../src/session-event"
 import { SessionTodo } from "../src/session-todo"
+import { SessionWatermarkEvent } from "../src/session-watermark-event"
 import { WorkspaceEvent } from "../src/workspace-event"
 
 describe("public event manifest", () => {
   test("owns the complete public event surface", () => {
-    expect(EventManifest.ServerDefinitions.length).toBe(58)
-    expect(EventManifest.Definitions.length).toBe(79)
-    expect(EventManifest.Latest.size).toBe(79)
+    expect(EventManifest.ServerDefinitions.length).toBe(59)
+    expect(EventManifest.Definitions.length).toBe(80)
+    expect(EventManifest.Latest.size).toBe(80)
     expect(EventManifest.Durable.size).toBe(34)
   })
 
@@ -20,6 +21,7 @@ describe("public event manifest", () => {
     expect(Workspace.Event).toBe(WorkspaceEvent)
     expect(Workspace.Event.Definitions).toBe(WorkspaceEvent.Definitions)
     expect(EventManifest.Latest.get("session.next.step.ended")).toBe(SessionEvent.Step.Ended)
+    expect(EventManifest.Latest.get("session.context.watermark")).toBe(SessionWatermarkEvent.Refreshed)
     expect(EventManifest.Latest.get("todo.updated")).toBe(SessionTodo.Event.Updated)
     expect(EventManifest.Latest.get("project.updated")).toBe(Project.Event.Updated)
     expect(Project.Event.Definitions).toEqual([Project.Event.Updated])

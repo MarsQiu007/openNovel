@@ -114,6 +114,14 @@ const find = Effect.fn("SessionContextEpoch.find")(function* (db: DatabaseServic
     .pipe(Effect.orDie)
 })
 
+/** 只读基线行（watermark 等派生读模型的装载游标与预算文本来源），不做 initialize/prepare 写路径。 */
+export const stored = Effect.fn("SessionContextEpoch.stored")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  return yield* find(db, sessionID)
+})
+
 export const reset = Effect.fn("SessionContextEpoch.reset")(function* (
   db: DatabaseService,
   sessionID: SessionSchema.ID,

@@ -10,3 +10,6 @@ export type Info = Session.Info
 
 export const CompactionAdmission = Session.CompactionAdmission
 export type CompactionAdmission = Session.CompactionAdmission
+
+export const ContextWatermark = Session.ContextWatermark
+export type ContextWatermark = Session.ContextWatermark

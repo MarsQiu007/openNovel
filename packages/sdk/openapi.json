@@ -26867,6 +26867,9 @@
             "$ref": "#/components/schemas/EventSessionNextRevertCommitted"
           },
           {
+            "$ref": "#/components/schemas/EventSessionContextWatermark"
+          },
+          {
             "$ref": "#/components/schemas/EventInstallationUpdated"
           },
           {
@@ -28922,6 +28925,38 @@
                       }
                     },
                     "required": ["timestamp", "sessionID", "messageID"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["id", "type", "properties"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^evt_"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["session.context.watermark"]
+                  },
+                  "properties": {
+                    "type": "object",
+                    "properties": {
+                      "timestamp": {
+                        "type": "number"
+                      },
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "watermark": {
+                        "$ref": "#/components/schemas/SessionContextWatermark"
+                      }
+                    },
+                    "required": ["timestamp", "sessionID", "watermark"],
                     "additionalProperties": false
                   }
                 },
@@ -32896,6 +32931,60 @@
         "required": ["_tag", "requestID", "message"],
         "additionalProperties": false
       },
+      "session.context.watermark": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.context.watermark"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "watermark": {
+                "$ref": "#/components/schemas/SessionContextWatermark"
+              }
+            },
+            "required": ["timestamp", "sessionID", "watermark"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "data"],
+        "additionalProperties": false
+      },
       "session.status": {
         "type": "object",
         "properties": {
@@ -33074,6 +33163,9 @@
           },
           {
             "$ref": "#/components/schemas/SessionNextRevertCommitted"
+          },
+          {
+            "$ref": "#/components/schemas/session.context.watermark"
           },
           {
             "$ref": "#/components/schemas/InstallationUpdated"
@@ -33842,6 +33934,62 @@
           }
         },
         "required": ["messageID"],
+        "additionalProperties": false
+      },
+      "SessionContextWatermark": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelRef"
+          },
+          "window": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "measured": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ratio": {
+            "type": "number"
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "share": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "source": {
+            "type": "string",
+            "enum": ["measured", "estimated", "mixed"]
+          },
+          "degraded": {
+            "type": "string"
+          }
+        },
+        "required": ["model", "measured", "estimated", "total", "ratio", "source"],
         "additionalProperties": false
       },
       "PermissionV2Source": {
@@ -36372,62 +36520,6 @@
           }
         },
         "required": ["id", "request", "mode", "hidden", "permissions"],
-        "additionalProperties": false
-      },
-      "SessionContextWatermark": {
-        "type": "object",
-        "properties": {
-          "model": {
-            "$ref": "#/components/schemas/ModelRef"
-          },
-          "window": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "measured": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "estimated": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "total": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "ratio": {
-            "type": "number"
-          },
-          "trigger": {
-            "type": "object",
-            "properties": {
-              "share": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              },
-              "tokens": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "additionalProperties": false
-          },
-          "source": {
-            "type": "string",
-            "enum": ["measured", "estimated", "mixed"]
-          },
-          "degraded": {
-            "type": "string"
-          }
-        },
-        "required": ["model", "measured", "estimated", "total", "ratio", "source"],
         "additionalProperties": false
       },
       "SessionV2Info": {
@@ -49056,6 +49148,38 @@
               }
             },
             "required": ["timestamp", "sessionID", "messageID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventSessionContextWatermark": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.context.watermark"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "watermark": {
+                "$ref": "#/components/schemas/SessionContextWatermark"
+              }
+            },
+            "required": ["timestamp", "sessionID", "watermark"],
             "additionalProperties": false
           }
         },

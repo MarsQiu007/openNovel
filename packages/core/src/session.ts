@@ -32,6 +32,7 @@ import { LocationServiceMap } from "./location-service-map"
 import { MessageDecodeError } from "./session/error"
 import { SessionEvent } from "./session/event"
 import { SessionInput } from "./session/input"
+import { SessionWatermark } from "./session/watermark"
 import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
 import { SessionTodo } from "./session/todo"
@@ -354,7 +355,12 @@ const layer = Layer.effect(
       get: Effect.fn("V2Session.get")(function* (sessionID) {
         const session = yield* store.get(sessionID)
         if (!session) return yield* new NotFoundError({ sessionID })
-        return session
+        // 水位是派生读模型：任何失败（模型未配置/Location 未引导等）都不阻断 get，仅不带 context
+        const context = yield* SessionWatermark.Service.use((service) => service.get(session)).pipe(
+          Effect.provide(locations.get(session.location)),
+          Effect.catchCause(() => Effect.succeed(undefined)),
+        )
+        return context === undefined ? session : { ...session, context }
       }),
       list: Effect.fn("V2Session.list")(function* (input = {}) {
         const direction = input.anchor?.direction ?? "next"

@@ -31,6 +31,7 @@ import { SessionExecutionLocal } from "./session/execution/local"
 import * as SessionRunnerLLM from "./session/runner/llm"
 import { SessionRunnerModel } from "./session/runner/model"
 import { SessionTodo } from "./session/todo"
+import { SessionWatermark } from "./session/watermark"
 import { SkillV2 } from "./skill"
 import { SkillGuidance } from "./skill/guidance"
 import { Snapshot } from "./snapshot"
@@ -82,6 +83,7 @@ export const locationServices = LayerNode.group([
   SessionRunnerModel.node,
   Snapshot.node,
   SessionRunnerLLM.node,
+  SessionWatermark.node,
 ])
 
 export type LocationServices = LayerNode.Output<typeof locationServices>

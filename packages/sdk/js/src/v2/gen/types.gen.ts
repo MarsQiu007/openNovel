@@ -47,6 +47,7 @@ export type Event =
   | EventSessionNextRevertStaged
   | EventSessionNextRevertCleared
   | EventSessionNextRevertCommitted
+  | EventSessionContextWatermark
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
   | EventFileEdited
@@ -661,6 +662,15 @@ export type GlobalEvent = {
           timestamp: number
           sessionID: string
           messageID: string
+        }
+      }
+    | {
+        id: string
+        type: "session.context.watermark"
+        properties: {
+          timestamp: number
+          sessionID: string
+          watermark: SessionContextWatermark2
         }
       }
     | {
@@ -1996,6 +2006,25 @@ export type PermissionNotFoundError = {
   message: string
 }
 
+export type SessionContextWatermark = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.context.watermark"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    watermark: SessionContextWatermark2
+  }
+}
+
 export type SessionStatus2 = {
   id: string
   metadata?: {
@@ -2057,6 +2086,7 @@ export type V2Event =
   | SessionNextRevertStaged
   | SessionNextRevertCleared
   | SessionNextRevertCommitted
+  | SessionContextWatermark
   | InstallationUpdated
   | InstallationUpdateAvailable
   | FileEdited
@@ -2319,6 +2349,21 @@ export type RevertState = {
   snapshot?: string
   diff?: string
   files?: Array<FileDiff>
+}
+
+export type SessionContextWatermark2 = {
+  model: ModelRef
+  window?: number
+  measured: number
+  estimated: number
+  total: number
+  ratio: number
+  trigger?: {
+    share?: number | string
+    tokens?: number
+  }
+  source: "measured" | "estimated" | "mixed"
+  degraded?: string
 }
 
 export type PermissionV2Source = {
@@ -3125,21 +3170,6 @@ export type AgentV2Info = {
   permissions: PermissionV2Ruleset
 }
 
-export type SessionContextWatermark = {
-  model: ModelRef
-  window?: number
-  measured: number
-  estimated: number
-  total: number
-  ratio: number
-  trigger?: {
-    share?: number | string
-    tokens?: number
-  }
-  source: "measured" | "estimated" | "mixed"
-  degraded?: string
-}
-
 export type SessionV2Info = {
   id: string
   parentID?: string
@@ -3165,7 +3195,7 @@ export type SessionV2Info = {
   location: LocationRef
   subpath?: string
   revert?: RevertState
-  context?: SessionContextWatermark
+  context?: SessionContextWatermark2
 }
 
 export type PromptInputFileAttachment = {
@@ -7195,6 +7225,16 @@ export type EventSessionNextRevertCommitted = {
     timestamp: number
     sessionID: string
     messageID: string
+  }
+}
+
+export type EventSessionContextWatermark = {
+  id: string
+  type: "session.context.watermark"
+  properties: {
+    timestamp: number
+    sessionID: string
+    watermark: SessionContextWatermark2
   }
 }
 

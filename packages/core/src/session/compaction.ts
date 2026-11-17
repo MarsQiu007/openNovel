@@ -50,7 +50,7 @@ type Entry = {
   readonly message: SessionMessage.Message
 }
 
-type Settings = {
+export type Settings = {
   readonly auto: boolean
   readonly buffer: number | string
   readonly tokens: number
@@ -120,7 +120,7 @@ const serialize = (message: SessionMessage.Message) => {
   return ""
 }
 
-const settings = (documents: readonly Config.Entry[]) => {
+export const settings = (documents: readonly Config.Entry[]) => {
   const configured = documents
     .filter((entry): entry is Config.Document => entry.type === "document")
     .flatMap((entry) => (entry.info.compaction ? [entry.info.compaction] : []))

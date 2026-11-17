@@ -8,6 +8,7 @@ import {
   isContextOverflowFailure,
   type ProviderErrorEvent,
 } from "@opennovel-ai/llm"
+import { SessionWatermarkEvent } from "@opennovel-ai/schema/session-watermark-event"
 import { Cause, DateTime, Effect, FiberSet, Layer, Option, Semaphore, Stream } from "effect"
 import { AgentV2 } from "../../agent"
 import { Config } from "../../config"
@@ -34,6 +35,7 @@ import { SessionInput } from "../input"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTitle } from "../title"
+import { SessionWatermark } from "../watermark"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
@@ -110,12 +112,25 @@ const layer = Layer.effect(
     const referenceGuidance = yield* ReferenceGuidance.Service
     const config = yield* Config.Service
     const snapshots = yield* Snapshot.Service
+    const watermarks = yield* SessionWatermark.Service
     const db = (yield* Database.Service).db
     const compaction = SessionCompaction.make({ events, llm, config: yield* config.entries() })
     const getSession = Effect.fn("SessionRunner.getSession")(function* (sessionID: SessionSchema.ID) {
       const session = yield* store.get(sessionID)
       if (!session) return yield* Effect.die(`Session not found: ${sessionID}`)
       return session
+    })
+    // 每个 provider turn 结束后刷新统一水位快照（非 durable，纯通知；快照随时可经 session.get 重取）
+    const publishWatermark = Effect.fn("SessionRunner.publishWatermark")(function* (sessionID: SessionSchema.ID) {
+      const session = yield* store.get(sessionID)
+      if (!session) return
+      const watermark = yield* watermarks.get(session).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      if (!watermark) return
+      yield* events.publish(SessionWatermarkEvent.Refreshed, {
+        sessionID,
+        timestamp: yield* DateTime.now,
+        watermark,
+      })
     })
 
     const getContext = Effect.fn("SessionRunner.getContext")(function* (sessionID: SessionSchema.ID) {
@@ -416,6 +431,7 @@ const layer = Layer.effect(
         let step = 1
         while (needsContinuation) {
           const result = yield* runTurn(input.sessionID, promotion, step)
+          yield* publishWatermark(input.sessionID)
           needsContinuation = result.needsContinuation
           step = result.step + 1
           promotion = "steer"
@@ -443,7 +459,12 @@ const layer = Layer.effect(
       if (entries.length === 0) return { status: "skipped" as const }
       const model = yield* models.resolve(session)
       const request = LLM.request({ model, messages: [], tools: [] })
-      return yield* compaction.compactAfterOverflow({ sessionID: session.id, entries, model, request }, "manual")
+      const outcome = yield* compaction.compactAfterOverflow(
+        { sessionID: session.id, entries, model, request },
+        "manual",
+      )
+      yield* publishWatermark(session.id)
+      return outcome
     })
 
     return Service.of({
@@ -472,5 +493,6 @@ export const node = makeLocationNode({
     Snapshot.node,
     Database.node,
     PluginBoot.node,
+    SessionWatermark.node,
   ],
 })

@@ -22,6 +22,7 @@ import { SessionCompactionEvent } from "./session-compaction-event"
 import { SessionEvent } from "./session-event"
 import { SessionStatusEvent } from "./session-status-event"
 import { SessionTodo } from "./session-todo"
+import { SessionWatermarkEvent } from "./session-watermark-event"
 import { TuiEvent } from "./tui-event"
 import { VcsEvent } from "./vcs-event"
 import { WorkspaceEvent } from "./workspace-event"
@@ -32,6 +33,7 @@ const foundationDefinitions = Event.inventory(
   ...Integration.Event.Definitions,
   ...Catalog.Event.Definitions,
   ...SessionEvent.Definitions,
+  ...SessionWatermarkEvent.Definitions,
 )
 
 const featureDefinitions = Event.inventory(
