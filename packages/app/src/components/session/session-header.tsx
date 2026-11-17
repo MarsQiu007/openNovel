@@ -6,6 +6,7 @@ import { IconButton } from "@opennovel-ai/ui/icon-button"
 import { Keybind } from "@opennovel-ai/ui/keybind"
 import { Spinner } from "@opennovel-ai/ui/spinner"
 import { showToast } from "@/utils/toast"
+import { pathKey } from "@/utils/path-key"
 import { Tooltip, TooltipKeybind } from "@opennovel-ai/ui/tooltip"
 import { getFilename } from "@opennovel-ai/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
@@ -152,7 +153,10 @@ export function SessionHeader() {
   const project = createMemo(() => {
     const directory = projectDirectory()
     if (!directory) return
-    return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
+    const key = pathKey(directory)
+    return layout.projects
+      .list()
+      .find((p) => pathKey(p.worktree) === key || p.sandboxes?.some((sandbox) => pathKey(sandbox) === key))
   })
   const name = createMemo(() => {
     const current = project()

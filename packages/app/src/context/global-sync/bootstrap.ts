@@ -9,6 +9,7 @@ import type {
   SessionStatus,
 } from "@opennovel-ai/sdk/v2/client"
 import { adaptInfo, adaptPermission, adaptQuestion } from "@/utils/v2-adapter"
+import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@opennovel-ai/core/util/path"
 import { retry } from "@opennovel-ai/core/util/retry"
@@ -141,7 +142,10 @@ function groupBySession<T extends { id: string; sessionID: string }>(input: T[])
 }
 
 function projectID(directory: string, projects: Project[]) {
-  return projects.find((project) => project.worktree === directory || project.sandboxes?.includes(directory))?.id
+  const key = pathKey(directory)
+  return projects.find(
+    (project) => pathKey(project.worktree) === key || project.sandboxes?.some((sandbox) => pathKey(sandbox) === key),
+  )?.id
 }
 
 function mergeSession(setStore: SetStoreFunction<State>, session: Session) {
@@ -224,7 +228,7 @@ export async function bootstrapDirectory(input: {
 }) {
   const loading = input.store.status !== "complete"
   const seededProject = projectID(input.directory, input.global.project)
-  const seededPath = input.global.path.directory === input.directory ? input.global.path : undefined
+  const seededPath = pathKey(input.global.path.directory) === pathKey(input.directory) ? input.global.path : undefined
   if (seededProject) input.setStore("project", seededProject)
   if (seededPath) input.setStore("path", seededPath)
   if (Object.keys(input.store.config).length === 0 && Object.keys(input.global.config).length > 0) {
@@ -257,7 +261,8 @@ export async function bootstrapDirectory(input: {
               produce((draft) => {
                 for (const sessionID of Object.keys(draft)) {
                   if (active.has(sessionID)) continue
-                  if (input.session?.get(sessionID)?.directory === input.directory) delete draft[sessionID]
+                  const session = input.session?.get(sessionID)
+                  if (session && pathKey(session.directory) === pathKey(input.directory)) delete draft[sessionID]
                 }
               }),
             )
@@ -309,7 +314,8 @@ export async function bootstrapDirectory(input: {
                 const current = input.session?.data.permission ?? input.store.permission
                 for (const sessionID of Object.keys(current)) {
                   if (grouped[sessionID]) continue
-                  if (input.session?.get(sessionID)?.directory !== input.directory) continue
+                  const session = input.session?.get(sessionID)
+                  if (!session || pathKey(session.directory) !== pathKey(input.directory)) continue
                   if (input.session) input.session.set("permission", sessionID, [])
                   if (!input.session) input.setStore("permission", sessionID, [])
                 }
@@ -339,7 +345,8 @@ export async function bootstrapDirectory(input: {
                 const current = input.session?.data.question ?? input.store.question
                 for (const sessionID of Object.keys(current)) {
                   if (grouped[sessionID]) continue
-                  if (input.session?.get(sessionID)?.directory !== input.directory) continue
+                  const session = input.session?.get(sessionID)
+                  if (!session || pathKey(session.directory) !== pathKey(input.directory)) continue
                   if (input.session) input.session.set("question", sessionID, [])
                   if (!input.session) input.setStore("question", sessionID, [])
                 }

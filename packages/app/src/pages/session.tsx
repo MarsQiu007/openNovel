@@ -36,6 +36,7 @@ import { createAutoScroll } from "@opennovel-ai/ui/hooks"
 import { previewSelectedLines } from "@opennovel-ai/session-ui/pierre/selection-bridge"
 import { Button } from "@opennovel-ai/ui/button"
 import { showToast } from "@/utils/toast"
+import { pathKey } from "@/utils/path-key"
 import { base64Encode, checksum } from "@opennovel-ai/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
@@ -714,7 +715,7 @@ export default function Page() {
   const newSessionWorktree = createMemo(() => {
     if (store.newSessionWorktree === "create") return "create"
     const project = sync().project
-    if (project && sdk().directory !== project.worktree) return sdk().directory
+    if (project && pathKey(sdk().directory) !== pathKey(project.worktree)) return sdk().directory
     return "main"
   })
 

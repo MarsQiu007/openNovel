@@ -22,6 +22,7 @@ import type {
   ToolPart,
   UserMessage,
 } from "@opennovel-ai/sdk/v2/client"
+import { pathKey } from "./path-key"
 
 // V2 投影/事件形状 → V1 store 形状的纯函数适配层。
 // timeline/session-ui/导出继续消费 V1 Message/Part 词汇，读取面统一在这里转换。
@@ -50,7 +51,8 @@ export function adaptInfo(session: SessionV2Info): Session {
     slug: session.id,
     projectID: session.projectID,
     ...(session.location.workspaceID === undefined ? {} : { workspaceID: session.location.workspaceID }),
-    directory: session.location.directory,
+    // 出口归一为存储规范形态（正斜杠）：缓存条目目录不随播种来源（响应/事件）翻转形态
+    directory: pathKey(session.location.directory),
     ...(session.subpath === undefined ? {} : { path: session.subpath }),
     ...(session.parentID === undefined ? {} : { parentID: session.parentID }),
     cost: session.cost,
@@ -82,7 +84,7 @@ export function adaptCreated(props: {
     id: props.sessionID,
     slug: props.sessionID,
     projectID: props.projectID,
-    directory: props.directory,
+    directory: pathKey(props.directory),
     ...(props.workspaceID === undefined ? {} : { workspaceID: props.workspaceID }),
     ...(props.path === undefined ? {} : { path: props.path }),
     ...(props.parentID === undefined ? {} : { parentID: props.parentID }),

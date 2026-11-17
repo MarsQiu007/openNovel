@@ -6,6 +6,7 @@ import { useLanguage } from "@/context/language"
 import { Icon } from "@opennovel-ai/ui/icon"
 import { Mark } from "@opennovel-ai/ui/logo"
 import { getDirectory, getFilename } from "@opennovel-ai/core/util/path"
+import { pathKey } from "@/utils/path-key"
 
 const MAIN_WORKTREE = "main"
 const CREATE_WORKTREE = "create"
@@ -31,7 +32,7 @@ export function NewSessionView(props: NewSessionViewProps) {
   const isWorktree = createMemo(() => {
     const project = sync().project
     if (!project) return false
-    return sdk().directory !== project.worktree
+    return pathKey(sdk().directory) !== pathKey(project.worktree)
   })
 
   const label = (value: string) => {

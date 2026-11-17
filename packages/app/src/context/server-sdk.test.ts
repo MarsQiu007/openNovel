@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import { createDirectoryEventBus, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import { createGlobalEmitter } from "@solid-primitives/event-bus"
+import { pathKey } from "@/utils/path-key"
 import type { Event } from "@opennovel-ai/sdk/v2/client"
 
 describe("resumeStreamAfterPageShow", () => {
@@ -70,6 +72,23 @@ describe("coalesceServerEvents", () => {
     const result = coalesceServerEvents([first, other, last])
 
     expect(result.map((event) => event.payload.id)).toEqual(["1", "2", "3"])
+  })
+
+  test("merges adjacent deltas whose directory forms differ", () => {
+    const first = delta("hello ")
+    const second = delta("world")
+    first.directory = "D:\\repo"
+    second.directory = "D:/repo"
+
+    // 入队侧已将目录归一为存储规范形态；此处验证归一输入下双来源序列正常合并
+    const result = coalesceServerEvents([
+      { ...first, directory: pathKey(first.directory) },
+      { ...second, directory: pathKey(second.directory) },
+    ])
+
+    expect(result).toHaveLength(1)
+    expect(result[0]?.payload).toMatchObject({ properties: { delta: "hello world" } })
+    expect(String(pathKey("D:\\repo"))).toBe("D:/repo")
   })
 })
 
@@ -171,5 +190,32 @@ describe("enqueueServerEvent", () => {
     enqueue("busy")
 
     expect(events).toHaveLength(2)
+  })
+})
+
+describe("createDirectoryEventBus", () => {
+  test("subscribers receive events despite form mismatch between keys", () => {
+    const emitter = createGlobalEmitter<{ [key: string]: Event }>()
+    const bus = createDirectoryEventBus(emitter)
+    const received: string[] = []
+    const unsub = bus.on("D:\\repo", (event) => received.push(event.type))
+
+    emitter.emit("D:/repo", { type: "session.idle", properties: { sessionID: "ses_1" } } as Event)
+
+    expect(received).toEqual(["session.idle"])
+    unsub()
+    emitter.emit("D:/repo", { type: "session.idle", properties: { sessionID: "ses_1" } } as Event)
+    expect(received).toEqual(["session.idle"])
+  })
+
+  test("does not match a different directory", () => {
+    const emitter = createGlobalEmitter<{ [key: string]: Event }>()
+    const bus = createDirectoryEventBus(emitter)
+    const received: Event[] = []
+    bus.on("D:\\repo\\other", (event) => received.push(event))
+
+    emitter.emit("D:/repo", { type: "session.idle", properties: {} } as Event)
+
+    expect(received).toHaveLength(0)
   })
 })

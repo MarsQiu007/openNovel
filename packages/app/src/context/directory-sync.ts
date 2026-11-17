@@ -1,6 +1,7 @@
 import { Binary } from "@opennovel-ai/core/util/binary"
 import type { Message, Part, Session } from "@opennovel-ai/sdk/v2/client"
 import { adaptInfo } from "@/utils/v2-adapter"
+import { pathKey } from "@/utils/path-key"
 import { createMemo } from "solid-js"
 import { produce, reconcile, type SetStoreFunction } from "solid-js/store"
 import type { createServerSdkContext } from "./server-sdk"
@@ -46,7 +47,7 @@ export const createDirSyncContext = (
 
   const index = (sessionID: string) => {
     const session = serverSync.session.get(sessionID)
-    if (!session || session.directory !== directory) return
+    if (!session || pathKey(session.directory) !== pathKey(directory)) return
     const [store, setStore] = current()
     const result = Binary.search(store.session, session.id, (item) => item.id)
     if (result.found) {
@@ -80,7 +81,7 @@ export const createDirSyncContext = (
       },
       get(sessionID: string) {
         const session = serverSync.session.get(sessionID)
-        if (session?.directory === directory) return session
+        if (session && pathKey(session.directory) === pathKey(directory)) return session
       },
       optimistic: {
         add(input: { directory?: string; sessionID: string; message: Message; parts: Part[] }) {

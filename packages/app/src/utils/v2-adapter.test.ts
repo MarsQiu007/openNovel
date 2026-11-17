@@ -8,6 +8,7 @@ import type {
   SessionV2Info,
 } from "@opennovel-ai/sdk/v2/client"
 import {
+  adaptCreated,
   adaptDiff,
   adaptInfo,
   adaptMessages,
@@ -78,6 +79,47 @@ describe("adaptInfo", () => {
     expect("model" in adapted).toBe(false)
     expect("revert" in adapted).toBe(false)
     expect("workspaceID" in adapted).toBe(false)
+  })
+})
+
+describe("adaptInfo directory normalization", () => {
+  test("normalizes backslash windows paths to storage form", () => {
+    const adapted = adaptInfo(info({ location: { directory: "D:\\novels\\book", workspaceID: "wrk_1" } }))
+    expect(adapted.directory).toBe("D:/novels/book")
+    expect(adapted.workspaceID).toBe("wrk_1")
+  })
+
+  test("keeps forward-slash form stable and trims trailing slashes", () => {
+    expect(adaptInfo(info({ location: { directory: "D:/novels/book" } })).directory).toBe("D:/novels/book")
+    expect(adaptInfo(info({ location: { directory: "D:/novels/book/" } })).directory).toBe("D:/novels/book")
+  })
+
+  test("different directories stay distinct", () => {
+    const book = adaptInfo(info({ location: { directory: "D:/novels/book" } })).directory
+    const other = adaptInfo(info({ location: { directory: "D:\\novels\\other" } })).directory
+    expect(other).toBe("D:/novels/other")
+    expect(book).not.toBe(other)
+  })
+
+  test("leaves subpath untouched", () => {
+    const adapted = adaptInfo(info({ location: { directory: "D:\\novels\\book" }, subpath: "novel/a" }))
+    expect(adapted.path).toBe("novel/a")
+  })
+})
+
+describe("adaptCreated", () => {
+  const props = {
+    sessionID: "ses_2",
+    timestamp: 1,
+    projectID: "pro_1",
+    directory: "D:\\novels\\book",
+    title: "t",
+    version: "",
+  }
+
+  test("normalizes directory to storage form", () => {
+    expect(adaptCreated(props).directory).toBe("D:/novels/book")
+    expect(adaptCreated({ ...props, directory: "D:/novels/book/" }).directory).toBe("D:/novels/book")
   })
 })
 

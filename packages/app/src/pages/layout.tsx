@@ -551,7 +551,7 @@ export default function LegacyLayout(props: ParentProps) {
       if (!last) return
       await openProject(last, true)
     } else {
-      const next = list.find((project) => project.worktree === last) ?? list[0]
+      const next = list.find((project) => pathKey(project.worktree) === pathKey(last)) ?? list[0]
       if (!next) return
       await openProject(next.worktree, true)
     }
@@ -594,7 +594,7 @@ export default function LegacyLayout(props: ParentProps) {
 
     const activeDir = currentDir()
     return workspaceIds(project).filter((directory) => {
-      const expanded = store.workspaceExpanded[directory] ?? directory === project.worktree
+      const expanded = store.workspaceExpanded[directory] ?? pathKey(directory) === pathKey(project.worktree)
       const active = pathKey(directory) === pathKey(activeDir)
       return expanded || active
     })

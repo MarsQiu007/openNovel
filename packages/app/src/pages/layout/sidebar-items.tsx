@@ -15,6 +15,7 @@ import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { showToast } from "@/utils/toast"
+import { pathKey } from "@/utils/path-key"
 import { exportSessionJson } from "@/pages/novel-sessions"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
@@ -38,7 +39,7 @@ export const ProjectIcon = (props: {
     dirs().some((directory) =>
       hasProjectPermissions(
         serverSync().session.data.permission,
-        (item) => serverSync().session.get(item.sessionID)?.directory === directory,
+        (item) => pathKey(serverSync().session.get(item.sessionID)?.directory ?? "") === pathKey(directory),
       ),
     ),
   )

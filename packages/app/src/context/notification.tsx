@@ -11,46 +11,16 @@ import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { decode64 } from "@/utils/base64"
 import type { SessionErrorUnknown } from "@opennovel-ai/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
+import { pathKey } from "@/utils/path-key"
 import { playSoundById } from "@/utils/sound"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
 import { useTabs } from "./tabs"
 import { requireServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
+import { buildNotificationIndex, type Notification, type NotificationIndex } from "./notification-index"
 
-type NotificationBase = {
-  directory?: string
-  session?: string
-  metadata?: unknown
-  time: number
-  viewed: boolean
-}
-
-type TurnCompleteNotification = NotificationBase & {
-  type: "turn-complete"
-}
-
-type ErrorNotification = NotificationBase & {
-  type: "error"
-  error?: SessionErrorUnknown
-}
-
-export type Notification = TurnCompleteNotification | ErrorNotification
-
-type NotificationIndex = {
-  session: {
-    all: Record<string, Notification[]>
-    unseen: Record<string, Notification[]>
-    unseenCount: Record<string, number>
-    unseenHasError: Record<string, boolean>
-  }
-  project: {
-    all: Record<string, Notification[]>
-    unseen: Record<string, Notification[]>
-    unseenCount: Record<string, number>
-    unseenHasError: Record<string, boolean>
-  }
-}
+export type { Notification } from "./notification-index"
 
 const MAX_NOTIFICATIONS = 500
 const NOTIFICATION_TTL_MS = 1000 * 60 * 60 * 24 * 30
@@ -60,53 +30,6 @@ function pruneNotifications(list: Notification[]) {
   const pruned = list.filter((n) => n.time >= cutoff)
   if (pruned.length <= MAX_NOTIFICATIONS) return pruned
   return pruned.slice(pruned.length - MAX_NOTIFICATIONS)
-}
-
-function createNotificationIndex(): NotificationIndex {
-  return {
-    session: {
-      all: {},
-      unseen: {},
-      unseenCount: {},
-      unseenHasError: {},
-    },
-    project: {
-      all: {},
-      unseen: {},
-      unseenCount: {},
-      unseenHasError: {},
-    },
-  }
-}
-
-function buildNotificationIndex(list: Notification[]) {
-  const index = createNotificationIndex()
-
-  list.forEach((notification) => {
-    if (notification.session) {
-      const all = index.session.all[notification.session] ?? []
-      index.session.all[notification.session] = [...all, notification]
-      if (!notification.viewed) {
-        const unseen = index.session.unseen[notification.session] ?? []
-        index.session.unseen[notification.session] = [...unseen, notification]
-        index.session.unseenCount[notification.session] = unseen.length + 1
-        if (notification.type === "error") index.session.unseenHasError[notification.session] = true
-      }
-    }
-
-    if (notification.directory) {
-      const all = index.project.all[notification.directory] ?? []
-      index.project.all[notification.directory] = [...all, notification]
-      if (!notification.viewed) {
-        const unseen = index.project.unseen[notification.directory] ?? []
-        index.project.unseen[notification.directory] = [...unseen, notification]
-        index.project.unseenCount[notification.directory] = unseen.length + 1
-        if (notification.type === "error") index.project.unseenHasError[notification.directory] = true
-      }
-    }
-  })
-
-  return index
 }
 
 export const { use: useNotification, provider: NotificationProvider } = createSimpleContext({
@@ -256,11 +179,12 @@ function createServerNotificationState(input: {
     }
 
     if (notification.directory) {
-      setIndex("project", "all", notification.directory, (all = []) => [...all, notification])
+      const key = pathKey(notification.directory)
+      setIndex("project", "all", key, (all = []) => [...all, notification])
       if (!notification.viewed) {
-        setIndex("project", "unseen", notification.directory, (unseen = []) => [...unseen, notification])
-        setIndex("project", "unseenCount", notification.directory, (count = 0) => count + 1)
-        if (notification.type === "error") setIndex("project", "unseenHasError", notification.directory, true)
+        setIndex("project", "unseen", key, (unseen = []) => [...unseen, notification])
+        setIndex("project", "unseenCount", key, (count = 0) => count + 1)
+        if (notification.type === "error") setIndex("project", "unseenHasError", key, true)
       }
     }
   }
@@ -275,10 +199,11 @@ function createServerNotificationState(input: {
     }
 
     if (notification.directory) {
-      setIndex("project", "all", notification.directory, (all = []) => all.filter((n) => n !== notification))
+      const key = pathKey(notification.directory)
+      setIndex("project", "all", key, (all = []) => all.filter((n) => n !== notification))
       if (!notification.viewed) {
-        const unseen = (index.project.unseen[notification.directory] ?? empty).filter((n) => n !== notification)
-        updateUnseen("project", notification.directory, unseen)
+        const unseen = (index.project.unseen[key] ?? empty).filter((n) => n !== notification)
+        updateUnseen("project", key, unseen)
       }
     }
   }
@@ -323,7 +248,8 @@ function createServerNotificationState(input: {
     const activeSession = currentSession()
     if (!activeSession) return false
     if (!sessionID) return false
-    if (activeDirectory && directory !== activeDirectory) return false
+    // activeDirectory 为路由串、directory 为事件分发键，两侧形态可能不同，按归一键比较
+    if (activeDirectory && pathKey(directory) !== pathKey(activeDirectory)) return false
     return sessionID === activeSession
   }
 
@@ -422,7 +348,7 @@ function createServerNotificationState(input: {
         if (!unseen.length) return
 
         const projects = [
-          ...new Set(unseen.flatMap((notification) => (notification.directory ? [notification.directory] : []))),
+          ...new Set(unseen.flatMap((notification) => (notification.directory ? [pathKey(notification.directory)] : []))),
         ]
         batch(() => {
           setStore("list", (n) => n.session === session && !n.viewed, "viewed", true)
@@ -437,31 +363,33 @@ function createServerNotificationState(input: {
       },
     },
     project: {
+      // 索引键统一为归一形态（append/build 侧已 pathKey 化）；查找键按归一比较，调用方可传任意形态
       all(directory: string) {
-        return index.project.all[directory] ?? empty
+        return index.project.all[pathKey(directory)] ?? empty
       },
       unseen(directory: string) {
-        return index.project.unseen[directory] ?? empty
+        return index.project.unseen[pathKey(directory)] ?? empty
       },
       unseenCount(directory: string) {
-        return index.project.unseenCount[directory] ?? 0
+        return index.project.unseenCount[pathKey(directory)] ?? 0
       },
       unseenHasError(directory: string) {
-        return index.project.unseenHasError[directory] ?? false
+        return index.project.unseenHasError[pathKey(directory)] ?? false
       },
       markViewed(directory: string) {
-        const unseen = index.project.unseen[directory] ?? empty
+        const key = pathKey(directory)
+        const unseen = index.project.unseen[key] ?? empty
         if (!unseen.length) return
 
         const sessions = [
           ...new Set(unseen.flatMap((notification) => (notification.session ? [notification.session] : []))),
         ]
         batch(() => {
-          setStore("list", (n) => n.directory === directory && !n.viewed, "viewed", true)
-          updateUnseen("project", directory, [])
+          setStore("list", (n) => !!n.directory && pathKey(n.directory) === key && !n.viewed, "viewed", true)
+          updateUnseen("project", key, [])
           sessions.forEach((session) => {
             const next = (index.session.unseen[session] ?? empty).filter(
-              (notification) => notification.directory !== directory,
+              (notification) => !notification.directory || pathKey(notification.directory) !== key,
             )
             updateUnseen("session", session, next)
           })

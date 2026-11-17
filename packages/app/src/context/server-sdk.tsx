@@ -1,10 +1,11 @@
 import type { Event } from "@opennovel-ai/sdk/v2/client"
 import { createSimpleContext } from "@opennovel-ai/ui/context"
-import { createGlobalEmitter } from "@solid-primitives/event-bus"
+import { createGlobalEmitter, type GlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, onCleanup, onMount } from "solid-js"
 import { createSdkForServer } from "@/utils/server"
 import { normalizeEventTimestamp } from "@/utils/server-event"
+import { pathKey } from "@/utils/path-key"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
@@ -99,6 +100,14 @@ export function coalesceServerEvents(events: QueuedServerEvent[]) {
 export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () => unknown) {
   if (!event.persisted) return
   start()
+}
+
+// 目录键事件总线：订阅键按 pathKey 归一，与入队归一后的 emit 键对齐，形态错配不再静默漏事件
+export function createDirectoryEventBus(emitter: GlobalEmitter<{ [key: string]: Event }>) {
+  return {
+    on: (key: string, handler: (event: Event) => void) => emitter.on(pathKey(key), handler),
+    listen: emitter.listen.bind(emitter),
+  }
 }
 
 function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope) {
@@ -218,7 +227,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             resetHeartbeat()
             streamErrorLogged = false
             if (event.payload.type !== "sync") {
-              const directory = event.directory ?? "global"
+              // 入口即归一：emit/合并/订阅键在此收敛为存储规范形态，下游全部单形态比较
+              const directory = event.directory ? pathKey(event.directory) : "global"
               const payload = normalizeEventTimestamp(event.payload as Event)
               if (enqueueServerEvent(queue, { directory, payload })) schedule()
             }
@@ -290,8 +300,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     url: server.http.url,
     client: sdk,
     event: {
-      on: emitter.on.bind(emitter),
-      listen: emitter.listen.bind(emitter),
+      ...createDirectoryEventBus(emitter),
       start,
     },
     createClient(opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">) {
@@ -337,7 +346,7 @@ type SDKEventMap = {
   [key in Event["type"]]: Extract<Event, { type: key }>
 }
 
-function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
+export function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
   const client = serverSDK.createClient({
     directory,
     throwOnError: true,

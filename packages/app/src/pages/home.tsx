@@ -831,7 +831,7 @@ function HomeProjectList(props: {
             server={props.server}
             selected={
               props.selected.server === ServerConnection.key(props.server) &&
-              props.selected.directory === project.worktree
+              pathKey(props.selected.directory ?? "") === pathKey(project.worktree)
             }
             unseenCount={props.unseenCount(props.server, project)}
             selectProject={props.selectProject}
