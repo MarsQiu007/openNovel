@@ -385,8 +385,8 @@ test.describe("novel journey", () => {
     // ════════════════════════════════════════════════
     // Step 3: Workspace — verify three areas render
     // ════════════════════════════════════════════════
-    // Verify the novel title in the workspace header
-    await expect(page.getByText("星辰之旅")).toBeVisible({ timeout: APP_READY_TIMEOUT })
+    // Verify the novel title in the workspace header（标题栏标签亦渲染同名标题，须锚定 heading）
+    await expect(page.getByRole("heading", { name: "星辰之旅" })).toBeVisible({ timeout: APP_READY_TIMEOUT })
     // Verify genre badge
     await expect(page.getByText("Xuanhuan")).toBeVisible()
     // Verify status badge（exact：避免子串匹配到章节状态 "Drafting"）
