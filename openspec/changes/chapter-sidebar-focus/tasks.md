@@ -1,0 +1,22 @@
+# Tasks
+
+## 1. 章节行视口跟随
+
+- [x] 1.1 在 `ChapterSidebar` 用 IntersectionObserver 观察列表容器派生可见性信号，`ChapterRow` 选中行挂 ref 并以 `createEffect` 监听 `isSelected` 与可见性，同时为真时对该行执行 `scrollIntoView({ block: "nearest", behavior: "auto" })`；验证：本地起 app，进入章节较多的书，点行切换与阅读器「下一章」连跳后视口跟随目标行
+- [x] 1.2 新增 Playwright e2e：预置阅读进度恢复场景打开工作台，断言选中章节行经内层列表滚动（`scrollTop` > 0）落至可视区；验证：`packages/app` 下 `bun run test:e2e` 新用例通过
+- [x] 1.3 扩展 e2e 覆盖收起恢复：收起侧栏后经「下一章」连跳、再展开侧栏，断言视口定位到当前章节而非收起前位置；验证：`bun run test:e2e` 通过
+
+## 2. 选中行高亮强化
+
+- [x] 2.1 全部章节行加 `border-l-2 border-transparent` 基线，选中行以 accent token 换指示条颜色并将文字升为强调色；验证：本地 dev 查看选中行指示条与文字样式，切换选中后指示条随行迁移且无水平抖动
+- [x] 2.2 扩展 e2e 断言选中行携带指示条样式类、未选中行不携带；验证：`bun run test:e2e` 通过
+
+## 3. 回归与验收
+
+- [x] 3.1 跑 `packages/app` 全量单测与 `bun typecheck`，并确认章节侧栏既有 e2e 无回归；验证：`bun typecheck` 通过、既有用例全绿
+- [ ] 3.2 三时机加收起恢复的手动冒烟（刷新恢复定位、连跳跟随、切分段回来重定位、收起展开补定位）并记录结果到本文件；验证：冒烟清单逐项通过，指示条视觉观感请用户最终确认
+
+## Workflow follow-up
+
+- 归档前完成 CI 等价本地检查（仓库根 `bun turbo typecheck` + 受影响包测试）。
+- 归档流程按 AGENTS.md：validate --strict → archive --yes → 合并 main → 远端 CI 全绿 → 清理分支。

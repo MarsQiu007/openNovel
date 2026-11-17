@@ -1,4 +1,4 @@
-import { createMemo, For, Show, createSignal } from "solid-js"
+import { createMemo, createEffect, createSignal, onCleanup, For, Show, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
@@ -101,6 +101,20 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
 
   const empty = () => props.chapters.length === 0
 
+  // 列表可见性信号：侧栏收起为祖先 display:none，IO 报告不交叉；展开恢复后信号翻转触发选中行补定位
+  let listRef: HTMLDivElement | undefined
+  const [listVisible, setListVisible] = createSignal(false)
+  createEffect(() => {
+    const el = listRef
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setListVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver(([entry]) => setListVisible(entry?.isIntersecting ?? false))
+    observer.observe(el)
+    onCleanup(() => observer.disconnect())
+  })
+
   async function submitNewChapter() {
     const title = newTitle().trim()
     if (!title) {
@@ -157,7 +171,9 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
   }
 
   return (
-    <div class="flex flex-col flex-1 min-h-0">
+  // h-full：外层容器（workspace 左栏列表宿主）是普通 overflow 容器而非 flex 容器，
+  // flex-1 在其下无效，不钉高度会让整栏随内容撑开、滚动落在外层（搜索框滚出视野）
+  <div class="flex h-full flex-col flex-1 min-h-0">
       {/* Header */}
       <div class="flex items-center justify-between px-4 py-3 border-b border-v2-border-border-base">
         <h2 class="text-sm font-semibold text-v2-text-text-base">{language.t("novel.chapter.title")}</h2>
@@ -236,7 +252,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
       </div>
 
       {/* List */}
-      <div class="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={listRef} data-testid="chapter-list-scroll" class="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Show
           when={!searching()}
           fallback={
@@ -352,6 +368,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
                             chapter={chapter}
                             volumes={props.volumes}
                             isSelected={props.selectedChapterId === chapter.id}
+                            listVisible={listVisible}
                             isDeleting={ui.deletingChapterId === chapter.id}
                             isEditing={ui.editingChapterId === chapter.id}
                             onSelect={() => props.onSelectChapter(chapter.id)}
@@ -383,6 +400,7 @@ export default function ChapterSidebar(props: ChapterSidebarProps) {
                       chapter={chapter}
                       volumes={props.volumes}
                       isSelected={props.selectedChapterId === chapter.id}
+                      listVisible={listVisible}
                       isDeleting={ui.deletingChapterId === chapter.id}
                       isEditing={ui.editingChapterId === chapter.id}
                       onSelect={() => props.onSelectChapter(chapter.id)}
@@ -419,6 +437,7 @@ function ChapterRow(props: {
   chapter: ServerNovelChaptersOutput[number]
   volumes: ServerNovelVolumesOutput
   isSelected: boolean
+  listVisible: Accessor<boolean>
   isDeleting: boolean
   isEditing: boolean
   onSelect: () => void
@@ -477,10 +496,36 @@ function ChapterRow(props: {
     props.onCancelEdit()
   }
 
+  // 定位需列表可见：侧栏收起（display:none）期间切章时浏览器无法滚动，展开后 listVisible 翻转触发补定位
+  let rowRef: HTMLDivElement | undefined
+  createEffect(() => {
+    if (!props.isSelected || !props.listVisible()) return
+    const el = rowRef
+    if (!el) return
+    // 恢复路径布局多帧才稳定（Suspense 摘插期间行不在文档树，scrollIntoView 静默 no-op），
+    // 以行落入列表可视区为成功条件逐帧重试，上限约半秒；已完全可见时不产生额外滚动
+    let frames = 0
+    const settle = () => {
+      if (!el.isConnected || !props.isSelected || !props.listVisible()) return
+      const list = el.closest<HTMLElement>("[data-testid='chapter-list-scroll']")
+      const rowRect = el.getBoundingClientRect()
+      const listRect = list?.getBoundingClientRect()
+      const fullyVisible = !!listRect && rowRect.height > 0 && rowRect.top >= listRect.top - 1 && rowRect.bottom <= listRect.bottom + 1
+      if (fullyVisible) return
+      el.scrollIntoView({ block: "nearest", behavior: "auto" })
+      if (frames++ < 30) requestAnimationFrame(settle)
+    }
+    requestAnimationFrame(settle)
+  })
+
   return (
     <div
-      class={`group relative w-full text-left text-sm transition-colors hover:bg-v2-overlay-simple-overlay-hover ${
-        props.isSelected ? "bg-v2-overlay-simple-overlay-pressed text-v2-text-text-base" : "text-v2-text-text-muted"
+      ref={rowRef}
+      data-testid={`chapter-row-${props.chapter.id}`}
+      class={`group relative w-full border-l-2 border-transparent text-left text-sm transition-colors hover:bg-v2-overlay-simple-overlay-hover ${
+        props.isSelected
+          ? "border-v2-background-bg-accent bg-v2-overlay-simple-overlay-pressed text-v2-text-text-base"
+          : "text-v2-text-text-muted"
       }`}
     >
       <div
