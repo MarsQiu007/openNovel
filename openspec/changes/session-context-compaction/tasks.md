@@ -10,10 +10,10 @@
 
 ## 2. 统一水位与 Provider 错误分类
 
-- [ ] 2.1 实现匹配 provider/model/variant 和请求指纹的实测锚点、未测量后缀及 CJK 保守回退；在 `packages/core` 新增中文冷启动、缓存 token、工具后缀、模型切换和未知窗口测试并验证通过
-- [ ] 2.2 实现 V2 初始水位快照与非 durable 刷新通知，使重连可直接读取最新派生值；验证客户端无需补收瞬时事件即可获得与自动决策一致的水位
-- [ ] 2.3 移植 DashScope、Z.ai 及 raw body 上下文溢出识别并保留限流、配额排除项；从 `packages/llm` 运行 `bun test test/provider-error.test.ts` 和新增真实错误回归用例
-- [ ] 2.4 从 `packages/core`、`packages/llm` 运行 `bun typecheck`，从仓库根运行本组 oxlint 检查，并确认旧前端独立 usage 计算尚未被误当作后端触发来源
+- [x] 2.1 实现匹配 provider/model/variant 和请求指纹的实测锚点、未测量后缀及 CJK 保守回退；在 `packages/core` 新增中文冷启动、缓存 token、工具后缀、模型切换和未知窗口测试并验证通过
+- [x] 2.2 实现 V2 初始水位快照与非 durable 刷新通知，使重连可直接读取最新派生值；验证客户端无需补收瞬时事件即可获得与自动决策一致的水位
+- [x] 2.3 移植 DashScope、Z.ai 及 raw body 上下文溢出识别并保留限流、配额排除项；从 `packages/llm` 运行 `bun test test/provider-error.test.ts` 和新增真实错误回归用例
+- [x] 2.4 从 `packages/core`、`packages/llm` 运行 `bun typecheck`，从仓库根运行本组 oxlint 检查，并确认旧前端独立 usage 计算尚未被误当作后端触发来源
 
 ## 3. 持久化状态机与安全调度
 
