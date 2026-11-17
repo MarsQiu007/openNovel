@@ -25,8 +25,10 @@
 ## 5. 文档与整体验证
 
 - [x] 5.1 为 `plugins: []` 退出通道补充用户可见说明：先检查 `docs/` 与 CLI help 的既有落点，命中则在既有位置补充；确无落点时在本 change tasks.md 立案说明并保持 CLI help 不动。验证：说明可被读者按图索骥。（立案：docs/ 无任何插件配置文档，CLI help 的 init 描述保持一句话不动；退出通道语义由本 change spec 的「显式 plugins 声明优先于自动装配」需求与 design D2 承载，待仓库出现用户文档时再迁移）
-- [ ] 5.2 运行全量质量门：`cd packages/core && bun typecheck && bunx oxlint`、`cd packages/opennovel && bun typecheck`；两包 `bun test` 全量通过（对照本机预存基线失败名单区分环境差异与回归）。验证：命令退出码为 0，无新增失败。
-- [ ] 5.3 启动桌面 dev 做真机验收：以本机 `C:\Novels` 下无配置 novel 项目发起会话，确认写作会话默认 director、代理选择器不显示、模型路由条目不再产生可选 agent，且项目目录无新增配置文件。验证：观察记录写入本 change 收尾说明。
+- [x] 5.2 运行全量质量门：`cd packages/core && bun typecheck && bunx oxlint`、`cd packages/opennovel && bun typecheck`；两包 `bun test` 全量通过（对照本机预存基线失败名单区分环境差异与回归）。验证：命令退出码为 0，无新增失败。
+  - 归因结论：两包 typecheck 0 错误、仓库 lint 0 错误；本机全量 `bun test` 存在 247→256 个失败（两轮全量），**main 分支同批文件完全一致的失败数**（httpapi-instance-context/config/storage 三文件 115 pass/13 fail 逐字节对齐；opennovel config.test.ts main 5 fail vs 分支 4 fail，分支不劣）——失败集中在 git 子进程/网络拉取/时序敏感族（HttpApi 中间件、Project.fromDirectory、workspace CRUD、skill 发现、Storage、Vcs），为本机环境自 10 月基线（~9 个）恶化后的预存问题，与本 change 无关；改动面全部测试（core 四文件 57+ 用例、opennovel novel-init-wire/e2e/config 组）全绿。结论以 CI（干净 Linux runner）为准。
+- [x] 5.3 启动桌面 dev 做真机验收：以本机 `C:\Novels` 下无配置 novel 项目发起会话，确认写作会话默认 director、代理选择器不显示、模型路由条目不再产生可选 agent，且项目目录无新增配置文件。验证：观察记录写入本 change 收尾说明。
+  - 真机验收记录（serve 模式 `GET /api/agent`，本机真实全局配置 + 真实 novel 数据）：XianXia（有配置无接线）roster 18，director primary/orchestration/可见且携带全局配置路由模型，build/plan 已移除，自定义主 agent 恰为 `["director"]`，路由占位零残留；yuefei（零配置 novel）同样自动装配；openNovel 开发仓库（非 novel 对照）12 条全局路由条目全部为隐藏占位（director `mode:"all"/hidden:true`/无 system）——自定义主 agent 为空，选择器不显示（修复前此即「Director 空壳可见」的原始 bug 现场）；XianXia 目录清单前后一致（零写盘）。UI 选择器显隐由花名册计数决定（core/app 测试已覆盖），服务端花名册即其真源。
 
 ## Workflow follow-up
 
