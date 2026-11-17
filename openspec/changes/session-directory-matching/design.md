@@ -72,7 +72,11 @@
 - `layout.tsx:1368/:1428`（`directory === root`）——deleteWorkspace 系参数来自同一 workspaceIds 列表，同源。
 - `layout.tsx:274/:280`（hoverProject / peek 匹配）与 `sidebar-project.tsx:41/:280`（拖拽 overlay、currentProject 链）——写入侧均为 nav/列表渲染的 worktree 值（:210/:1890/:290），currentProject 匹配已 pathKey（:1303），同源。
 - `home.tsx:281`（selectProject 项目存在性判定）与 `layout/helpers.ts:65/:76`——项目选择族，选择状态与参数均来自项目列表/目录选择器，同源；`home.tsx:903`（`~/path` 显示化简）home 与 worktree 同源读出。
-- `server-sync.tsx:92/:94`（`directory === null`）——哨兵判断，非路径相等语义。
+- `server-sync.tsx:92/:94`（`directory === null`）、`context/sdk.tsx:13`（typeof 判断）——哨兵/类型判断，非路径相等语义。
+- `context/file/tree-store.ts:66/:111`、`context/file.tsx:186/:195`（`scope() !== directory`）——文件浏览子系统的 watcher 作用域判定，proposal 非目标明确不动文件/diff 子系统。
+- `context/server.tsx:91-132`（项目 open/close/touch/remove 的列表操作族）——与项目选择族同源（directory 参数来自 UI 交互链），同族排除。
+- `sidebar-items.tsx:189/:195`（nav 预取列表条目匹配）——item 与 session 同源列表，D2 归一后形态统一；匹配失败仅退化预取范围，非正确性路径。
+- `child-store.ts:145`（`directory !== skip`）——skip 参数同源列表迭代。
 - `child-store.ts` 系——实例键已是 `pathKey`（`directoryKey` re-export）。
 - 持久化写入侧（`utils/persist.ts:353-371` 已 pathKey；`server.tsx:143` lastProject 写入）——持久化键与写入形态不动，只归一读取比较（见 D3 的 layout.tsx:554）。
 - 服务端 `directoryColumn`、`Location.Service`、`sharedRef`、事件发布侧目录戳——非目标（见 Non-Goals）。
