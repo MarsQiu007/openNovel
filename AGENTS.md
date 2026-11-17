@@ -181,6 +181,7 @@ const table = sqliteTable("session", {
 - Avoid mocks as much as possible, you shouldn't be using globalThis.\* at all unless it's the only option.
 - Test actual implementation, do not duplicate logic into tests
 - Tests cannot run from repo root (guard: `do-not-run-tests-from-root`); run from package dirs like `packages/opennovel`.
+- 测试节奏：迭代期只跑聚焦测试（受影响 e2e 用例 / 包内单测）+ `bun typecheck`；全量回归（受影响 e2e 目录全量、turbo typecheck 全量等）在用户人工冒烟验收通过后、提交收尾前再执行。未验收先全量跑，功能若被人工测打回，全量结果即作废，浪费机时与 token。
 
 ## Type Checking
 

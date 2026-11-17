@@ -66,6 +66,7 @@ operations:
       - '提交时在 footer 中写入 `OpenSpec-Change: <change-id>`，非提案工作写 `OpenSpec-Change: none`'
       - 测试只能从具体包目录运行（如 packages/opennovel），不要从仓库根运行
       - 类型检查用 `bun typecheck`，不要直接调 tsc
+      - '测试节奏：迭代期只跑聚焦测试（受影响 e2e 用例 / 包内单测）与 `bun typecheck`，不主动跑全量 e2e 或全仓回归；全量回归（受影响 e2e 目录全量、turbo typecheck 全量等）在用户人工冒烟验收通过后、提交收尾前再执行——功能若被人工测打回，先跑的全量结果即作废，白白浪费机时与 token'
       - 推送前必须通过全部 CI 等价本地检查，任一红即停推先修：仓库根 `bun turbo typecheck` 全量；受影响面所有包全量 `bun test`；凡触碰 HttpApi 行为（含既有端点语义变更）须跑 `cd packages/opennovel && bun run script/httpapi-exercise.ts`（至少 coverage 模式）；改了 Protocol/Schema 才须 `bun run generate` 再验。tasks.md 字面验证范围窄于 CI 覆盖时，按「CI 有什么本地就预跑什么」补齐。本地全绿不等于 CI 必绿（bun 版本差、CWD 配置污染、SQL 并列键序未定义等环境差仍会漏检），CI 仍是终验门
       - '完成的判定以 CI 全绿为准（generate / typecheck / test）；红先归因再修复，重跑仅作已知 flake 的止血，细则见 docs/agents/ci-triage.md；纯文档推送不产生 run，以「无 run」为预期'
   archive:
