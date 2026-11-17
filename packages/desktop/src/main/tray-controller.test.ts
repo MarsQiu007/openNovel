@@ -8,6 +8,8 @@ function setup(initial: { enabled?: boolean; quitting?: boolean } = {}) {
     isQuitting: () => state.quitting,
     translate: (key) => `tr:${key}`,
   })
+  // 既有用例覆盖托盘已创建的常态；未创建形态在下方专项 describe 中覆盖。
+  controller.markTrayCreated()
   return { controller, state }
 }
 
@@ -56,6 +58,35 @@ describe("menu", () => {
       { id: "settings", label: "tr:tray.settings" },
       { id: "quit", label: "tr:tray.quit" },
     ])
+  })
+})
+
+describe("托盘创建前置", () => {
+  function fresh(initial: { enabled?: boolean; quitting?: boolean } = {}) {
+    const state = { enabled: initial.enabled ?? true, quitting: initial.quitting ?? false }
+    const controller = createTrayController<{ name: string }>({
+      closeToTrayEnabled: () => state.enabled,
+      isQuitting: () => state.quitting,
+      translate: (key) => `tr:${key}`,
+    })
+    return { controller, state }
+  }
+
+  test("托盘未创建时开关开启也不拦截关闭", () => {
+    expect(fresh().controller.shouldHideOnClose()).toBe(false)
+  })
+
+  test("markTrayCreated 后恢复拦截", () => {
+    const app = fresh()
+    app.controller.markTrayCreated()
+    expect(app.controller.shouldHideOnClose()).toBe(true)
+  })
+
+  test("markTrayCreated 幂等", () => {
+    const app = fresh()
+    app.controller.markTrayCreated()
+    app.controller.markTrayCreated()
+    expect(app.controller.shouldHideOnClose()).toBe(true)
   })
 })
 

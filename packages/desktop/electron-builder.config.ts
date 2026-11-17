@@ -50,6 +50,9 @@ const getBase = (appId: string, codesign: { sign: boolean; notarize: boolean }):
     desktopName: `${appId}.desktop`,
   },
   files: ["out/**/*", "resources/**/*"],
+  // 运行时图标经 resourcesPath/icons 读取（托盘、Dock 图标），必须落在 asar 之外；
+  // files 里的 resources/**/* 只进 app.asar，托盘加载不到，这里单独分发 icons 子目录。
+  extraResources: [{ from: "resources/icons", to: "icons" }],
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,

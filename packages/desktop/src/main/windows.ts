@@ -62,7 +62,8 @@ const registry = createWindowRegistry<BrowserWindow>({
   },
 })
 // 关闭拦截与托盘恢复共享同一隐藏集合；真退出判定读 registry 的 quitting 标志。
-const trayController = createTrayController<BrowserWindow>({
+// 导出供 tray.ts 在托盘创建成功后置位托盘可用性（trayMenuItems 同向导出先例）。
+export const trayController = createTrayController<BrowserWindow>({
   closeToTrayEnabled: getCloseToTrayEnabled,
   isQuitting: () => registry.isQuitting(),
   translate: (key) => t(key),

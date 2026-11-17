@@ -12,10 +12,15 @@ export function createTrayController<W>(opts: {
   translate: (key: "tray.show" | "tray.settings" | "tray.quit") => string
 }) {
   const hidden = new Set<W>()
+  let trayCreated = false
 
   return {
     shouldHideOnClose() {
-      return opts.closeToTrayEnabled() && !opts.isQuitting()
+      // 托盘未创建时挂起会让窗口隐藏且无任何找回/退出入口，因此挂起必须以托盘可用为前提。
+      return opts.closeToTrayEnabled() && trayCreated && !opts.isQuitting()
+    },
+    markTrayCreated() {
+      trayCreated = true
     },
     hide(window: W) {
       hidden.add(window)

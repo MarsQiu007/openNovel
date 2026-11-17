@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import { sendMenuCommand } from "./ipc"
 import { getStore } from "./store"
-import { getLastFocusedWindow, iconsDir, restoreHiddenWindows, setAppQuitting, trayMenuItems } from "./windows"
+import { trayController, getLastFocusedWindow, iconsDir, restoreHiddenWindows, setAppQuitting, trayMenuItems } from "./windows"
 
 let tray: Tray | undefined
 
@@ -13,6 +13,7 @@ export function createTray() {
   const image = nativeImage.createFromPath(join(iconsDir(), icon))
   if (image.isEmpty()) return
   tray = new Tray(image)
+  trayController.markTrayCreated()
   tray.setToolTip("OpenNovel")
   rebuildMenu()
   tray.on("click", () => restoreHiddenWindows())
