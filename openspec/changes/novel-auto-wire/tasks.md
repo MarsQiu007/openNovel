@@ -34,3 +34,7 @@
 
 - 实现提交全部带 `OpenSpec-Change: novel-auto-wire` footer，完成后收集提交写入本文件 Implementation Commits，再走 validate → sync specs → archive 流程。
 - 归档前按 config.yaml apply guidance 过 CI 等价本地检查门（本 change 无 HttpApi/Schema 触碰，无需 generate 与练习器）。
+
+## Implementation Commits
+
+- `c54687f1` feat(core): novel 项目运行时自动装配与 agent 路由占位分界
