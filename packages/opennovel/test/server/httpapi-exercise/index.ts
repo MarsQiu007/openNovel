@@ -17,7 +17,7 @@
  * - `.json(...)` / `.jsonEffect(...)` assert response shape and optional side effects.
  * - `.mutating()` tells the runner to reset isolated state after destructive routes.
  */
-import { Effect } from "effect"
+import { DateTime, Effect, Schema } from "effect"
 import { OpenApi } from "effect/unstable/httpapi"
 import path from "path"
 import { array, check, isRecord, message, object } from "./assertions"
@@ -29,7 +29,9 @@ import {
   exerciseDatabasePath,
   exerciseGlobalRoot,
 } from "./environment"
-import { sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
+import { SessionMessage } from "@opennovel-ai/core/session/message"
+import { SessionMessageTable } from "@opennovel-ai/core/session/sql"
 import { color, printHeader, printResults } from "./report"
 import { coverageResult, parseOptions, routeKey, routeKeys, selectedScenarios } from "./routing"
 import { runScenario } from "./runner"
@@ -1335,6 +1337,73 @@ const scenarios: Scenario[] = [
         object(body)
         check(body.status === "skipped", "empty session compact should be skipped without creating an operation")
       }),
+    ),
+  http.protected
+    .post("/api/session/{sessionID}/compact/cancel", "v2.session.compact.cancel")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/compact/cancel", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+      body: { messageID: "msg_httpapi_missing" },
+    }))
+    .status(404, undefined, "status"),
+  http.protected
+    .post("/api/session/{sessionID}/compact/cancel", "v2.session.compact.cancel.missing-message")
+    .seeded((ctx) => ctx.session({ title: "Cancel compaction missing message" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/compact/cancel", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+      body: { messageID: "msg_httpapi_missing" },
+    }))
+    .status(404, undefined, "status"),
+  http.protected
+    .post("/api/session/{sessionID}/compact/cancel", "v2.session.compact.cancel.queued")
+    .seeded((ctx) =>
+      Effect.gen(function* () {
+        const session = yield* ctx.session({ title: "Cancel queued compaction" })
+        // 直接播种 queued 压缩消息（无对应事件）：cancel 只读消息表并发布 Interrupted，
+        // 投影按 messageID 结算状态，不依赖事件重放
+        const opID = SessionMessage.ID.make("msg_httpapi_compact_cancel")
+        const encoded = Schema.encodeSync(SessionMessage.Message)(
+          SessionMessage.Compaction.make({
+            id: opID,
+            type: "compaction",
+            reason: "manual",
+            status: "queued",
+            summary: "",
+            recent: "",
+            time: { created: yield* DateTime.now },
+          }),
+        )
+        const { id, type, ...data } = encoded
+        getDb(novelDirectory(ctx))
+          .insert(SessionMessageTable)
+          .values({ id: SessionMessage.ID.make(id), session_id: session.id, type, seq: 1, data })
+          .run()
+        return { session, opID }
+      }),
+    )
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/compact/cancel", { sessionID: ctx.state.session.id }),
+      headers: ctx.headers(),
+      body: { messageID: ctx.state.opID },
+    }))
+    .status(204, (ctx) =>
+      Effect.sync(() => {
+        const row = getDb(novelDirectory(ctx))
+          .select()
+          .from(SessionMessageTable)
+          .where(
+            and(eq(SessionMessageTable.id, ctx.state.opID), eq(SessionMessageTable.session_id, ctx.state.session.id)),
+          )
+          .get()
+        if (!row) throw new Error("queued compaction message should persist after cancel")
+        const data: unknown = row.data
+        check(
+          row.type === "compaction" && isRecord(data) && data.status === "interrupted",
+          `queued compaction should settle as interrupted, got ${JSON.stringify(row.data)}`,
+        )
+      }),
+      "none",
     ),
   http.protected
     .post("/api/session/{sessionID}/wait", "v2.session.wait")

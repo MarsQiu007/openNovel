@@ -60,6 +60,7 @@ const fakeSessions = (overrides: Partial<SessionV2.Interface> = {}): SessionV2.I
     shell: dieUnused,
     skill: dieUnused,
     compact: dieUnused,
+    compactCancel: dieUnused,
     wait: dieUnused,
     command: dieUnused,
     update: dieUnused,

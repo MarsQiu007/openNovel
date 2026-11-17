@@ -339,6 +339,23 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, IL extend
         ),
     )
     .add(
+      HttpApiEndpoint.post("session.compact.cancel", "/api/session/:sessionID/compact/cancel", {
+        params: { sessionID: Session.ID },
+        payload: Schema.Struct({ messageID: SessionMessage.ID }),
+        success: HttpApiSchema.NoContent,
+        error: [SessionNotFoundError, MessageNotFoundError, UnknownError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.compact.cancel",
+            summary: "Cancel compaction operation",
+            description:
+              "Cancel a queued compaction operation, or stop a running one via the session interrupt ownership chain. The operation settles as interrupted; original durable input and completed messages are preserved.",
+          }),
+        ),
+    )
+    .add(
       HttpApiEndpoint.post("session.wait", "/api/session/:sessionID/wait", {
         params: { sessionID: Session.ID },
         success: HttpApiSchema.NoContent,

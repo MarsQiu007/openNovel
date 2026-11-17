@@ -95,6 +95,11 @@ type CompactInput = {
   prompt?: Prompt
 }
 
+type CompactCancelInput = {
+  sessionID: SessionSchema.ID
+  messageID: SessionMessage.ID
+}
+
 export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Session.NotFoundError", {
   sessionID: SessionSchema.ID,
 }) {}
@@ -192,6 +197,9 @@ export interface Interface {
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
   readonly compact: (input: CompactInput) => Effect.Effect<SessionSchema.CompactionAdmission, NotFoundError | MessageDecodeError>
+  readonly compactCancel: (
+    input: CompactCancelInput,
+  ) => Effect.Effect<void, NotFoundError | MessageNotFoundError | MessageDecodeError>
   readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
   readonly command: (input: {
     id?: SessionMessage.ID
@@ -553,6 +561,25 @@ const layer = Layer.effect(
           compactionLocks.set(session.id, lock)
         }
         return yield* lock.withPermit(compactAdmission(session))
+      }),
+      // 撤销排队操作或停止运行中操作：取消只结算压缩操作本身，不触碰原始 durable 输入与已完成消息
+      compactCancel: Effect.fn("V2Session.compactCancel")(function* (input) {
+        const session = yield* result.get(input.sessionID)
+        const message = yield* SessionHistory.message(db, session.id, input.messageID)
+        // 非压缩消息没有可取消的操作：失败直接中断，与 switchAgent 一致不引入 return 分支
+        const compaction =
+          message?.type === "compaction" ? message : yield* new MessageNotFoundError({ sessionID: session.id, messageID: input.messageID })
+        // queued/running/终态互斥，顺序分支恰好其一生效；终态幂等 no-op：撤销与完成/失败的竞态不产生第二个终态
+        if (compaction.status === "queued")
+          yield* events.publish(SessionEvent.Compaction.Interrupted, {
+            sessionID: session.id,
+            messageID: compaction.id,
+            timestamp: yield* DateTime.now,
+            cause: "user",
+          })
+        if (compaction.status === "running")
+          // 运行中停止沿用 interrupt 所有权链：由压缩 finalizer 在 drain 被中断时发布 Interrupted
+          yield* execution.interrupt(session.id)
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)

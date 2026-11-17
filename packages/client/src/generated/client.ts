@@ -29,6 +29,8 @@ import type {
   SessionsDiffOutput,
   SessionsCompactInput,
   SessionsCompactOutput,
+  SessionsCancelInput,
+  SessionsCancelOutput,
   SessionsWaitInput,
   SessionsWaitOutput,
   SessionsStageInput,
@@ -763,6 +765,18 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ).then((value) => value.data),
+      cancel: (input: SessionsCancelInput, requestOptions?: RequestOptions) =>
+        request<SessionsCancelOutput>(
+          {
+            method: "POST",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/compact/cancel`,
+            body: { messageID: input["messageID"] },
+            successStatus: 204,
+            declaredStatuses: [404, 500, 400, 401],
+            empty: true,
+          },
+          requestOptions,
+        ),
       wait: (input: SessionsWaitInput, requestOptions?: RequestOptions) =>
         request<SessionsWaitOutput>(
           {

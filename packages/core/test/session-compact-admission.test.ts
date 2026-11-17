@@ -25,12 +25,16 @@ import { Prompt } from "@opennovel-ai/core/session/prompt"
 import { testEffect } from "./lib/effect"
 
 const wakeCalls: SessionV2.ID[] = []
+const interruptCalls: SessionV2.ID[] = []
 const execution = Layer.succeed(
   SessionExecution.Service,
   SessionExecution.Service.of({
     active: Effect.sync(() => new Set()),
     resume: () => Effect.void,
-    interrupt: () => Effect.void,
+    interrupt: (sessionID) =>
+      Effect.sync(() => {
+        interruptCalls.push(sessionID)
+      }),
     wake: (sessionID) =>
       Effect.sync(() => {
         wakeCalls.push(sessionID)
@@ -75,6 +79,7 @@ const sessionID = SessionV2.ID.make("ses_compact_admission")
 
 const setup = Effect.gen(function* () {
   wakeCalls.length = 0
+  interruptCalls.length = 0
   watermarkOK = true
   const { db } = yield* Database.Service
   yield* db
@@ -104,16 +109,17 @@ const compactionMessages = Effect.gen(function* () {
 })
 
 // resume:false 的 prompt 只准入不投影；直接发布 Prompted 事件，等效 drain 提升后的用户消息投影
-const seedUserMessage = Effect.gen(function* () {
-  const bus = yield* EventV2.Service
-  yield* bus.publish(SessionEvent.Prompted, {
-    sessionID,
-    messageID: SessionMessage.ID.create(),
-    timestamp: yield* DateTime.now,
-    prompt: Prompt.make({ text: "hello" }),
-    delivery: "steer",
+const seedUserMessage = (messageID: SessionMessage.ID) =>
+  Effect.gen(function* () {
+    const bus = yield* EventV2.Service
+    yield* bus.publish(SessionEvent.Prompted, {
+      sessionID,
+      messageID,
+      timestamp: yield* DateTime.now,
+      prompt: Prompt.make({ text: "hello" }),
+      delivery: "steer",
+    })
   })
-})
 
 describe("V2Session.compact admission", () => {
   it.effect("unknown session fails with NotFoundError", () =>
@@ -142,7 +148,7 @@ describe("V2Session.compact admission", () => {
       yield* setup
       watermarkOK = false
       const session = yield* SessionV2.Service
-      yield* seedUserMessage
+      yield* seedUserMessage(SessionMessage.ID.create())
       const admission = yield* session.compact({ sessionID })
       expect(admission).toEqual({ status: "skipped" })
       expect(wakeCalls).toHaveLength(0)
@@ -154,7 +160,7 @@ describe("V2Session.compact admission", () => {
     Effect.gen(function* () {
       yield* setup
       const session = yield* SessionV2.Service
-      yield* seedUserMessage
+      yield* seedUserMessage(SessionMessage.ID.create())
       const admission = yield* session.compact({ sessionID })
       expect(admission.status).toBe("queued")
       if (admission.status === "queued") expect(admission.messageID).toMatch(/^msg_/)
@@ -170,7 +176,7 @@ describe("V2Session.compact admission", () => {
     Effect.gen(function* () {
       yield* setup
       const session = yield* SessionV2.Service
-      yield* seedUserMessage
+      yield* seedUserMessage(SessionMessage.ID.create())
       const first = yield* session.compact({ sessionID })
       const second = yield* session.compact({ sessionID })
       expect(second).toEqual(first)
@@ -185,7 +191,7 @@ describe("V2Session.compact admission", () => {
       yield* setup
       const session = yield* SessionV2.Service
       const bus = yield* EventV2.Service
-      yield* seedUserMessage
+      yield* seedUserMessage(SessionMessage.ID.create())
       const opID = SessionMessage.ID.create()
       yield* bus.publish(SessionEvent.Compaction.Queued, {
         sessionID,
@@ -210,7 +216,7 @@ describe("V2Session.compact admission", () => {
       yield* setup
       const session = yield* SessionV2.Service
       const bus = yield* EventV2.Service
-      yield* seedUserMessage
+      yield* seedUserMessage(SessionMessage.ID.create())
       const opID = SessionMessage.ID.create()
       yield* bus.publish(SessionEvent.Compaction.Queued, {
         sessionID,
@@ -236,6 +242,109 @@ describe("V2Session.compact admission", () => {
       expect(admission.status).toBe("queued")
       if (admission.status === "queued") expect(admission.messageID).not.toBe(opID)
       expect(yield* compactionMessages).toHaveLength(2)
+    }),
+  )
+})
+
+describe("V2Session.compactCancel", () => {
+  it.effect("unknown message fails with MessageNotFoundError", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const error = yield* session
+        .compactCancel({ sessionID, messageID: SessionMessage.ID.make("msg_compact_missing") })
+        .pipe(Effect.flip)
+      expect(error._tag).toBe("Session.MessageNotFoundError")
+      expect(interruptCalls).toHaveLength(0)
+    }),
+  )
+
+  it.effect("non-compaction message fails with MessageNotFoundError", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const messageID = SessionMessage.ID.make("msg_compact_user")
+      yield* seedUserMessage(messageID)
+      const error = yield* session.compactCancel({ sessionID, messageID }).pipe(Effect.flip)
+      expect(error._tag).toBe("Session.MessageNotFoundError")
+      expect(interruptCalls).toHaveLength(0)
+    }),
+  )
+
+  it.effect("canceling a queued operation settles it as interrupted without touching execution", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* session.compactCancel({ sessionID, messageID: opID })
+      expect(interruptCalls).toHaveLength(0)
+      const operations = yield* compactionMessages
+      expect(operations).toHaveLength(1)
+      expect(operations[0]).toMatchObject({ status: "interrupted" })
+    }),
+  )
+
+  it.effect("canceling a settled operation is an idempotent no-op", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* bus.publish(SessionEvent.Compaction.Started, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* bus.publish(SessionEvent.Compaction.Ended, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+        text: "summary",
+        recent: "recent",
+      })
+      yield* session.compactCancel({ sessionID, messageID: opID })
+      expect(interruptCalls).toHaveLength(0)
+      expect(yield* compactionMessages).toMatchObject([{ status: "completed" }])
+    }),
+  )
+
+  it.effect("canceling a running operation interrupts the session ownership chain", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const bus = yield* EventV2.Service
+      const opID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Compaction.Queued, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* bus.publish(SessionEvent.Compaction.Started, {
+        sessionID,
+        messageID: opID,
+        timestamp: yield* DateTime.now,
+        reason: "manual",
+      })
+      yield* session.compactCancel({ sessionID, messageID: opID })
+      expect(interruptCalls).toEqual([sessionID])
+      // 终态结算由 runner 的压缩 finalizer 负责，准入层只断言所有权链委托
+      expect(yield* compactionMessages).toMatchObject([{ status: "running" }])
     }),
   )
 })

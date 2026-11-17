@@ -778,6 +778,13 @@ export type SessionsCompactOutput = {
   }
 }["data"]
 
+export type SessionsCancelInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly messageID: { readonly messageID: string }["messageID"]
+}
+
+export type SessionsCancelOutput = void
+
 export type SessionsWaitInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
 export type SessionsWaitOutput = void

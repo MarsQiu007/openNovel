@@ -1181,6 +1181,52 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("ends the turn without sending after a failed threshold compaction, retrying once per wake", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      response = fragmentFixture("text", "text-first", ["Earlier answer"]).completeEvents
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Earlier question ".repeat(180) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      currentModel = compactModel
+      requests.length = 0
+      responses = [
+        [LLMEvent.providerError({ message: "summary unavailable" })],
+        [LLMEvent.providerError({ message: "summary unavailable again" })],
+        [LLMEvent.providerError({ message: "summary unavailable third" })],
+      ]
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Recent exact request ".repeat(180) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      // 阈值压缩失败：本轮不再发送已判定超界的原始请求，只留下一次摘要请求；原始 durable 输入保留可追溯
+      expect(requests).toHaveLength(1)
+      expect(userTexts(requests[0])[0]).toContain("Earlier question")
+      let context = yield* session.context(sessionID)
+      expect(
+        context.find((message) => message.type === "user" && message.text.startsWith("Recent exact request")),
+      ).toBeDefined()
+      expect(context.find((message) => message.type === "user" && message.text.startsWith("Earlier question"))).toBeDefined()
+      expect(context.filter((message) => message.type === "compaction")).toMatchObject([{ status: "failed" }])
+
+      // 每次显式唤醒按当时水位重试一次有界操作，失败后自然结束；同一唤醒内无自动死循环
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(2)
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(3)
+      context = yield* session.context(sessionID)
+      expect(context.filter((message) => message.type === "compaction")).toHaveLength(3)
+    }),
+  )
+
   it.effect("manually compacts recorded history with reason manual", () =>
     Effect.gen(function* () {
       yield* setup
@@ -1548,9 +1594,9 @@ describe("SessionRunnerLLM", () => {
       expect(yield* Fiber.await(run)).toMatchObject({ _tag: "Failure" })
       streamGate = undefined
       expect(requests).toHaveLength(2)
-      // 中断发生在结算之前：running 压缩消息留在投影中（interrupted 结算在调度任务中实现），历史不截断
+      // 运行中停止由压缩 finalizer 结算为 interrupted：历史不截断，原始输入保留
       const context = yield* session.context(sessionID)
-      expect(context.find((message) => message.type === "compaction")).toMatchObject({ status: "running" })
+      expect(context.find((message) => message.type === "compaction")).toMatchObject({ status: "interrupted" })
       expect(context.find((message) => message.type === "user" && message.text === "Continue")).toBeDefined()
     }),
   )

@@ -10558,6 +10558,47 @@ export type V2SessionCompactResponses = {
 
 export type V2SessionCompactResponse = V2SessionCompactResponses[keyof V2SessionCompactResponses]
 
+export type V2SessionCompactCancelData = {
+  body: {
+    messageID: string
+  }
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/compact/cancel"
+}
+
+export type V2SessionCompactCancelErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError | MessageNotFoundError
+   */
+  404: MessageNotFoundError | SessionNotFoundError
+  /**
+   * UnknownError
+   */
+  500: UnknownError
+}
+
+export type V2SessionCompactCancelError = V2SessionCompactCancelErrors[keyof V2SessionCompactCancelErrors]
+
+export type V2SessionCompactCancelResponses = {
+  /**
+   * <No Content>
+   */
+  204: void
+}
+
+export type V2SessionCompactCancelResponse = V2SessionCompactCancelResponses[keyof V2SessionCompactCancelResponses]
+
 export type V2SessionWaitData = {
   body?: never
   path: {

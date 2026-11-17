@@ -173,4 +173,22 @@ export const oldestQueuedCompaction = Effect.fn("SessionHistory.oldestQueuedComp
   return message.type === "compaction" ? message : undefined
 })
 
+/**
+ * 按 ID 读取单条消息：压缩撤销与中断结算需要精确核对操作当前状态（queued/running/终态）。
+ */
+export const message = Effect.fn("SessionHistory.message")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+  messageID: SessionMessage.ID,
+) {
+  const row = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(and(eq(SessionMessageTable.session_id, sessionID), eq(SessionMessageTable.id, messageID)))
+    .get()
+    .pipe(Effect.orDie)
+  if (!row) return undefined
+  return yield* decodeMessageRow(row)
+})
+
 export * as SessionHistory from "./history"

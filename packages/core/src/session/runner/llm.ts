@@ -204,7 +204,7 @@ const layer = Layer.effect(
       sessionID: SessionSchema.ID,
       promotion: SessionInput.Delivery | undefined,
       step: number,
-      recoverOverflow?: typeof compaction.compactAfterOverflow,
+      allowOverflowRecovery: boolean,
     ) {
       const session = yield* getSession(sessionID)
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
@@ -253,9 +253,7 @@ const layer = Layer.effect(
         toolChoice: isLastStep ? "none" : undefined,
       })
       // 阈值命中且压缩计划可行才走统一排队路径（与手动压缩同一份历史）：
-      // plan 不可行（空会话/无可压 head/摘要 prompt 超窗）时入队只会产出注定失败的操作，直接跳过；
-      // 有活跃操作只执行不重复入队；压缩完成后 die 重建请求继续原始 input，
-      // 失败则不立即重试，交给 provider 溢出兜底
+      // plan 不可行（空会话/无可压 head/摘要 prompt 超窗）时入队只会产出注定失败的操作，直接跳过
       if (compaction.shouldAutoCompact({ sessionID: session.id, messageID: SessionMessage.ID.create(), entries, model, request })) {
         if ((yield* SessionHistory.activeCompaction(db, session.id)) === undefined)
           yield* events.publish(SessionEvent.Compaction.Queued, {
@@ -265,7 +263,11 @@ const layer = Layer.effect(
             reason: "auto",
           })
         const outcome = yield* drainQueuedCompactions(session.id)
-        if (outcome !== "failed") return yield* Effect.die(continueAfterCompaction(currentStep))
+        // 压缩成功：丢弃旧 request，die 后从压缩投影重建并继续原始 input
+        if (outcome === "completed") return yield* Effect.die(continueAfterCompaction(currentStep))
+        // 失败或无 queued 可执行：本轮不再发送已判定超界的原始请求；原始 durable input 保持可追溯，
+        // 留待新的活动或显式唤醒按当时水位重试——每次唤醒只有一次有界操作，失败后无自动死循环
+        return { needsContinuation: false, step: currentStep }
       }
       const startSnapshot = yield* snapshots.capture()
       const publisher = createLLMEventPublisher(events, {
@@ -332,21 +334,29 @@ const layer = Layer.effect(
           const stream = yield* restore(providerStream).pipe(Effect.exit)
           const failure =
             stream._tag === "Failure" ? Option.getOrUndefined(Cause.findErrorOption(stream.cause)) : undefined
+          // 溢出恢复统一进排队路径（与阈值触发共用 durable 操作与 drain）：
+          // 摘要完成后再继续原始 turn；runAfterOverflowCompaction 保证原始 turn 只有一次恢复。
+          // restore：恢复块必须可中断，否则运行中停止会卡在摘要流上无法结算 interrupted
           if (
-            recoverOverflow &&
+            allowOverflowRecovery &&
             !publisher.hasAssistantStarted() &&
             isContextOverflowFailure(overflowFailure ?? failure) &&
-            (yield* restore(
-              recoverOverflow({
-                sessionID: session.id,
-                messageID: SessionMessage.ID.create(),
-                entries,
-                model,
-                request,
+            compaction.overflowRecoveryEnabled
+          ) {
+            const recovered = yield* restore(
+              Effect.gen(function* () {
+                if ((yield* SessionHistory.activeCompaction(db, session.id)) === undefined)
+                  yield* events.publish(SessionEvent.Compaction.Queued, {
+                    sessionID: session.id,
+                    messageID: SessionMessage.ID.create(),
+                    timestamp: yield* DateTime.now,
+                    reason: "auto",
+                  })
+                return yield* drainQueuedCompactions(session.id)
               }),
-            )).status === "completed"
-          )
-            return yield* Effect.die(continueAfterOverflowCompaction(currentStep))
+            )
+            if (recovered === "completed") return yield* Effect.die(continueAfterOverflowCompaction(currentStep))
+          }
           if (overflowFailure) yield* publish(overflowFailure)
           const llmFailure = failure instanceof LLMError ? failure : undefined
           if (llmFailure && !publisher.hasProviderError()) {
@@ -414,7 +424,8 @@ const layer = Layer.effect(
     ) => Effect.Effect<{ readonly needsContinuation: boolean; readonly step: number }, RunError>
 
     const runAfterOverflowCompaction: RunTurn = Effect.fnUntraced(function* (sessionID, promotion, step) {
-      return yield* runTurnAttempt(sessionID, promotion, step).pipe(
+      // 原始 turn 只有一次溢出恢复：恢复后的 provider 尝试再溢出时按原始失败结算，不再排队压缩
+      return yield* runTurnAttempt(sessionID, promotion, step, false).pipe(
         Effect.catchDefect(
           Effect.fnUntraced(function* (defect) {
             if (!(defect instanceof TurnTransitionError)) return yield* Effect.die(defect)
@@ -428,7 +439,7 @@ const layer = Layer.effect(
     })
 
     const runTurn: RunTurn = Effect.fnUntraced(function* (sessionID, promotion, step) {
-      return yield* runTurnAttempt(sessionID, promotion, step, compaction.compactAfterOverflow).pipe(
+      return yield* runTurnAttempt(sessionID, promotion, step, true).pipe(
         Effect.catchDefect(
           Effect.fnUntraced(function* (defect) {
             if (!(defect instanceof TurnTransitionError)) return yield* Effect.die(defect)
@@ -478,6 +489,22 @@ const layer = Layer.effect(
         { sessionID: session.id, messageID: op.id, entries, model, request },
         op.reason,
       ).pipe(
+        // 运行中停止沿用 interrupt 所有权链：仅在操作已进入 running 且未闭环时由 finalizer 结算
+        // interrupted；queued 阶段被中断的操作仍保持 queued，交由后续 drain 或进程恢复结算
+        Effect.onInterrupt(() =>
+          Effect.uninterruptible(
+            Effect.gen(function* () {
+              const current = yield* SessionHistory.message(db, sessionID, op.id)
+              if (current?.type === "compaction" && current.status === "running")
+                yield* events.publish(SessionEvent.Compaction.Interrupted, {
+                  sessionID: session.id,
+                  messageID: op.id,
+                  timestamp: yield* DateTime.now,
+                  cause: "user",
+                })
+            }),
+          ),
+        ),
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
             yield* Effect.logWarning("queued compaction execution failed", { cause })

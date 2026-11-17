@@ -287,6 +287,8 @@ export const make = (dependencies: Dependencies) => {
   return {
     thresholdExceeded,
     shouldAutoCompact,
+    /** 溢出自动恢复与阈值触发共用同一开关：auto:false 时两者都不自动执行，手动压缩仍可用。 */
+    overflowRecoveryEnabled: config.auto,
     compactAfterOverflow,
   }
 }

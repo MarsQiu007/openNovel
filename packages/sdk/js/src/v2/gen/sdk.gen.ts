@@ -568,6 +568,8 @@ import type {
   V2SessionActiveResponses,
   V2SessionCommandErrors,
   V2SessionCommandResponses,
+  V2SessionCompactCancelErrors,
+  V2SessionCompactCancelResponses,
   V2SessionCompactErrors,
   V2SessionCompactResponses,
   V2SessionContextErrors,
@@ -3357,6 +3359,47 @@ export class Agent extends HeyApiClient {
   }
 }
 
+export class Compact extends HeyApiClient {
+  /**
+   * Cancel compaction operation
+   *
+   * Cancel a queued compaction operation, or stop a running one via the session interrupt ownership chain. The operation settles as interrupted; original durable input and completed messages are preserved.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "body", key: "messageID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2SessionCompactCancelResponses,
+      V2SessionCompactCancelErrors,
+      ThrowOnError
+    >({
+      url: "/api/session/{sessionID}/compact/cancel",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Revert extends HeyApiClient {
   /**
    * Stage session revert
@@ -4268,6 +4311,11 @@ export class Session extends HeyApiClient {
       ...options,
       ...params,
     })
+  }
+
+  private _compact?: Compact
+  get compact2(): Compact {
+    return (this._compact ??= new Compact({ client: this.client }))
   }
 
   private _revert?: Revert
