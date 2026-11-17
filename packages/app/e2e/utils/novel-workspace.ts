@@ -25,6 +25,10 @@ export type NovelWorkspaceMockInput = {
   writingBatch?: () => unknown | null
   /** 批量放弃 POST（/writing-batch/cancel）捕获，供 spec 断言与状态翻转 */
   onWritingBatchCancel?: (novelID: string) => void
+  /** 章节详情 GET 延迟（毫秒）：模拟真实服务端延迟，供黑闪类用例撑开加载窗口 */
+  chapterDetailDelayMs?: number
+  /** 批注 GET 延迟（毫秒）：同上，批注查询与详情查询同处阅读器渲染路径 */
+  annotationsDelayMs?: number
   /** 会话 prompt POST（/api/session/:id/prompt）捕获，供 spec 断言续跑指令 */
   onSessionPrompt?: (input: { sessionID: string; body: { prompt?: { text?: string } } }) => void
 }
@@ -76,8 +80,13 @@ export async function mockNovelWorkspaceAPIs(page: Page, input: NovelWorkspaceMo
       return json(route, [novel])
     if (method === "GET" && path.endsWith("/volumes")) return json(route, [])
     if (method === "GET" && path.endsWith("/chapters")) return json(route, chapters)
-    if (method === "GET" && /\/chapters\/[^/]+$/.test(path))
-      return json(route, { ...chapters[0], content: "", wordCount: 0 })
+    if (method === "GET" && /\/chapters\/[^/]+$/.test(path)) {
+      // 按请求路径返回对应章节（此前恒返回第一章，详情身份与选中章节不符）
+      const id = path.split("/").pop()!
+      const chapter = chapters.find((c) => c.id === id)
+      if (input.chapterDetailDelayMs) await new Promise((resolve) => setTimeout(resolve, input.chapterDetailDelayMs))
+      return json(route, { ...chapter, content: "", wordCount: 0 })
+    }
     if (path === "/api/novel/session-bindings")
       return json(
         route,
@@ -93,7 +102,10 @@ export async function mockNovelWorkspaceAPIs(page: Page, input: NovelWorkspaceMo
       input.onWritingBatchCancel?.(input.novelID)
       return json(route, input.writingBatch?.() ?? null)
     }
-    if (path.endsWith("/annotations")) return json(route, [])
+    if (path.endsWith("/annotations")) {
+      if (input.annotationsDelayMs) await new Promise((resolve) => setTimeout(resolve, input.annotationsDelayMs))
+      return json(route, [])
+    }
     return json(route, [])
   })
   await page.route(/\/api\/sync\/run/, async (route) => json(route, { results: [] }))

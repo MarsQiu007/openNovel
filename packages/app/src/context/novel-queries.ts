@@ -325,6 +325,9 @@ export function useChapterVersions(novelID: Accessor<string>, chapterID: Accesso
   return createQuery(() => ({
     queryKey: novelKeys["chapter-versions"](sdk().directory, novelID(), chapterID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
+    // keepPreviousData：key 随切章变化时保留旧数据，避免 isLoading 翻真导致 solid-query 内部
+    // resource 挂起——阅读/写作区挂在布局层 Suspense 下，任何挂起都会整树摘插（全屏黑闪）
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client()["server.novel"]["chapter-versions"]({
         novelID: novelID(),
@@ -341,6 +344,8 @@ export function useChapterReviews(novelID: Accessor<string>, chapterID: Accessor
   return createQuery(() => ({
     queryKey: novelKeys["chapter-reviews"](sdk().directory, novelID(), chapterID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
+    // keepPreviousData：同 useChapterVersions，防切章 key 变化时挂起冒泡布局层 Suspense 整树摘插
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client()["server.novel"]["chapter-reviews"]({
         novelID: novelID(),
@@ -1781,6 +1786,9 @@ export function useAnnotations(novelID: Accessor<string>, targetType: Accessor<s
   return createQuery(() => ({
     queryKey: novelKeys.annotations(sdk().directory, novelID(), targetType(), targetId()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
+    // keepPreviousData：批注在阅读器渲染路径内消费，切章 key 变化若 isLoading 翻真，
+    // solid-query 内部 resource 挂起会冒泡布局层 Suspense 整树摘插（全屏黑闪）
+    placeholderData: keepPreviousData,
     queryFn: () =>
       client()["server.novel"].annotations({
         novelID: novelID(),
@@ -2034,6 +2042,8 @@ export function useAnnotationRounds(novelID: Accessor<string>, targetType: Acces
   return createQuery(() => ({
     queryKey: novelKeys["annotation-rounds"](sdk().directory, novelID(), targetType(), targetId()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
+    // keepPreviousData：同 useAnnotations，防切章/切目标 key 变化时挂起冒泡布局层 Suspense
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const dir = sdk().directory
       const result = await client()["server.novel"]["annotation-rounds"]({

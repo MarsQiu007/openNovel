@@ -130,6 +130,50 @@ test("selection changes scroll the chapter row into view", async ({ page }) => {
   expect(after, "已可见行的选中不应产生额外滚动").toBe(before)
 })
 
+test("chapter switch keeps the workspace mounted while detail and annotations load", async ({ page }) => {
+  // 黑闪回归：详情/批注端点延迟 800ms 撑开加载窗口。切章时这两个查询 key 变化，
+  // 若无 keepPreviousData，isLoading 翻真使 solid-query 内部 resource 挂起、冒泡布局层
+  // Suspense 把整个工作台子树摘插（黑闪 + 侧栏从头重滚）。断言窗口内容器节点身份不变。
+  await mockOpenNovelServer(page, {
+    sessions: [],
+    provider: { id: "opennovel", model: "gpt-4", provider: "opennovel" },
+    directory,
+    project: { id: "proj-sidebar-focus", directory },
+  })
+  await mockNovelWorkspaceAPIs(page, {
+    directory,
+    novelID: soloBook.novelID,
+    novelTitle: soloBook.title,
+    chapterCount,
+    chapterDetailDelayMs: 800,
+    annotationsDelayMs: 800,
+  })
+  await openWorkspace(page, "ch-e2e-005")
+
+  const heading = page.getByRole("heading", { name: "第5章" })
+  await expect(heading).toBeVisible()
+
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-slot="novel-workspace-content"]')
+    ;(window as unknown as { __e2eMain: Element | null }).__e2eMain = el
+  })
+
+  await page.getByRole("button", { name: "Next Chapter" }).click()
+
+  // 延迟窗口内（数据未到达）：旧标题仍在渲染、工作台容器仍是同一挂接节点
+  await page.waitForTimeout(400)
+  const stable = await page.evaluate(() => {
+    const el = document.querySelector('[data-slot="novel-workspace-content"]')
+    const ref = (window as unknown as { __e2eMain: Element | null }).__e2eMain
+    return ref !== null && el === ref && ref.isConnected
+  })
+  expect(stable, "切章加载窗口内工作台不得摘插重挂（全屏黑闪来源）").toBe(true)
+  await expect(heading).toBeVisible()
+
+  // 数据到达后标题更新为新章
+  await expect(page.getByRole("heading", { name: "第6章" })).toBeVisible({ timeout: 5_000 })
+})
+
 test("partially visible row selection does not complete the scroll", async ({ page }) => {
   await setup(page)
   await openWorkspace(page, "ch-e2e-005")
