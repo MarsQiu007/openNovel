@@ -30,6 +30,10 @@
 - **2.1（2026-11-17）**：`extraResources` 落地后本地 `bun run package:win` 产出 dist，`win-unpacked/resources/icons` 含全部 18 个图标（icon.ico、dock.png、32x32.png、icon.icns、多尺寸 png），托盘所需资源齐备。注：本机 node_modules 存在旧环境残留的悬空符号链接（plugin/@opencode-ai/core、core/@typescript/native-preview 等共 20 处）导致 electron-rebuild 失败，已清除悬空链接恢复打包；NSIS 下载阶段受本机 DNS 污染影响，经本地代理完成（资源已进 electron-builder 缓存）。
 - **2.2 + 3.1（2026-11-17，dev 产物对照冒烟，不涉生产安装）**：dev channel 产物（`OpenNovel Dev.exe`，独立 userData）双形态对照——形态一 icons 完整：启动后发 WM_CLOSE，进程 4s 后存活（SURVIVED）＝挂起生效，蕴含 `markTrayCreated` 已置位（其唯一路径为 `new Tray` 成功）；形态二临时移走 icons 目录：重启后发 WM_CLOSE，进程 4s 内退出（EXITED）＝托盘缺失时关闭兜底真退出生效，无隐藏窗口残留。「更新就绪时拦截照常」子项在 dev 产物上不可测（dev channel updater disabled），由 3.2 既有单测保障，真实形态随 `updater-install-prompt` tasks 1.1 补验覆盖。托盘图标视觉可见与菜单三项功能留待用户日常使用时确认（代码层证据：形态一挂起成立证明 Tray 构造成功且图标非空）。
 
+## Implementation Commits
+
+- ec9ce91558 fix(desktop): 分发托盘图标资源并兜底托盘缺失时的关闭行为
+
 ## Workflow follow-up
 
 - 实现提交收集：归档前运行 `git log --grep "OpenSpec-Change: tray-exit-paths" --format="%h %s"` 写入本文件 Implementation Commits
