@@ -26,7 +26,7 @@
 
 - 不改动 `Location.Service.directory` / HTTP 头 / `sharedRef` 的原串传递（LayerMap 去重依赖）。
 - 不改动服务端 `directoryColumn` 存储读出语义与事件发布侧目录戳（`global-event-bridge`），归一收敛在客户端入口。
-- 不改动既有持久化状态的键形态：workspace 状态存储键已是 `pathKey`（`persist.ts:353-371`）；`workspaceExpanded` 的键现状为原串混合形态，属既有的表面性状态问题（折叠展开记忆），本变更只对齐其默认值比较（layout.tsx:597），不改键。
+- 不改动既有持久化状态的键形态：workspace 状态存储键已是 `pathKey`（`utils/persist.ts:353-371`）；`workspaceExpanded` 的键现状为原串混合形态，属既有的表面性状态问题（折叠展开记忆），本变更只对齐其默认值比较（layout.tsx:597），不改键。
 - 不引入大小写归一；不处理 UNC/盘符以外的新路径形态。
 
 ## Decisions
@@ -39,7 +39,7 @@
 - 落点（已逐点核实）：
   - 核心 bug 点：`context/directory-sync.ts` 的 `index()`（:49）与 `session.get`（:83）。
   - bootstrap 过滤：`global-sync/bootstrap.ts` 的 seededPath（:227）、session_status/permission/question 清理过滤（:260/:312/:342）、`projectID` 的 worktree/sandboxes 匹配（:144；先例：`layout/helpers.ts:114` 同形查找已 pathKey）。
-  - 侧栏归属过滤：`sidebar-items.ts:41`、`sidebar-project.tsx:308`。
+  - 侧栏归属过滤：`sidebar-items.tsx:41`、`sidebar-project.tsx:308`。
   - 通知匹配：`notification.tsx:326`（当前会话已读判定）、`pages/home.tsx:305-312`（project unseen 计数/清除的索引查找）。
 
 ### D2：适配出口统一目录串形态
@@ -50,7 +50,7 @@
 
 ### D3：归属判定族对齐，持久化键不动
 
-`directory === project.worktree` 归属判定族改用 `pathKey` 比较：`layout.tsx:597`（默认展开判定）、`session.tsx:717`（新会话工作区选择）、`components/session/session-new-view.tsx:34`、`pages/home.tsx:834`、`sidebar-workspace.tsx:75/:316`（同文件 :317 已 pathKey，属同函数内新旧并存）、`sidebar-project.tsx:299`。改动机械、验证面清晰。
+`directory === project.worktree` 归属判定族改用 `pathKey` 比较：`layout.tsx:597`（默认展开判定）、`layout.tsx:554`（autoselect 自动选回上次项目——`server.projects.last()` 为持久化 store，`context/server.tsx:139-140`，历史值形态与列表 worktree 跨源）、`session.tsx:717`（新会话工作区选择）、`components/session/session-new-view.tsx:34`、`pages/home.tsx:834`、`sidebar-workspace.tsx:75/:316`（同文件 :317 已 pathKey，属同函数内新旧并存）、`sidebar-project.tsx:299`。改动机械、验证面清晰。
 
 ### D4：事件目录在客户端入口归一（新增决策）
 
@@ -59,7 +59,7 @@
 - 入口：`server-sdk.tsx` 事件入队处（:221-223）将 `event.directory ?? "global"` 过 `pathKey` 后再入队——下游 emit 键（:152）、相邻增量合并键（`coalesceServerEvents` :83）、通知 append 键、`applyDirectoryEvent`、children 查找全部随之一致。
 - 订阅侧：`server-sdk.tsx` 暴露的 `event.on`（:293）包装为 `emitter.on(directoryKey(key), fn)`（`listen` 无键透传不动）——`createDirSdkContext`（:348）与 `novel-live.ts:135` 等订阅方自动对齐，形态错配不再静默漏事件。
 - 备选方案：逐订阅点归一（21 处订阅/分发点逐个改）——遗漏风险高且无单一真源，排除。
-- 语义变化登记：监听方拿到的 `e.name` 由混合形态收敛为存储规范形态（正斜杠），回传 API（AbsolutePath 接受正斜杠）安全；通知索引键随之统一，home/侧栏查找配合 D1 归一后命中。
+- 语义变化登记：监听方拿到的 `e.name` 由混合形态收敛为存储规范形态（正斜杠），回传 API 安全——已核实 `AbsolutePath` 为纯字符串品牌（`packages/schema/src/schema.ts:16`，无 toPlatform/fromPlatform 转换），且正斜杠恰与 session 行存储格式一致；通知索引键随之统一，home/侧栏查找配合 D1 归一后命中。
 
 ### D5：`pathKey` 语义边界沿用既有先例
 
@@ -70,8 +70,11 @@
 - `session.tsx:866`（`sdk().directory !== dir`）——同源自比较的计时器防抖守卫。
 - `session.tsx:698`（`directory !== root`）——root 与 directory 均由同次调用的 `reviewRootDirectory`/`reviewDiffDirectory` 推导，同源同形。
 - `layout.tsx:1368/:1428`（`directory === root`）——deleteWorkspace 系参数来自同一 workspaceIds 列表，同源。
-- `layout/helpers.ts:65/:76`（toggleHomeProjectSelection / closeHomeProject）——选择状态与参数均来自项目列表/目录选择器，同源。
+- `layout.tsx:274/:280`（hoverProject / peek 匹配）与 `sidebar-project.tsx:41/:280`（拖拽 overlay、currentProject 链）——写入侧均为 nav/列表渲染的 worktree 值（:210/:1890/:290），currentProject 匹配已 pathKey（:1303），同源。
+- `home.tsx:281`（selectProject 项目存在性判定）与 `layout/helpers.ts:65/:76`——项目选择族，选择状态与参数均来自项目列表/目录选择器，同源；`home.tsx:903`（`~/path` 显示化简）home 与 worktree 同源读出。
+- `server-sync.tsx:92/:94`（`directory === null`）——哨兵判断，非路径相等语义。
 - `child-store.ts` 系——实例键已是 `pathKey`（`directoryKey` re-export）。
+- 持久化写入侧（`utils/persist.ts:353-371` 已 pathKey；`server.tsx:143` lastProject 写入）——持久化键与写入形态不动，只归一读取比较（见 D3 的 layout.tsx:554）。
 - 服务端 `directoryColumn`、`Location.Service`、`sharedRef`、事件发布侧目录戳——非目标（见 Non-Goals）。
 
 ## Risks / Trade-offs

@@ -9,13 +9,13 @@
 
 - [ ] 2.1 改造 `context/directory-sync.ts`：`index()` 与 `session.get` 的目录过滤改为 `pathKey` 双侧比较。验证：新增 directory-sync 单测——正斜杠 info 在反斜杠作用域命中、带尾斜杠命中、不同目录不返回。
 - [ ] 2.2 改造 `context/global-sync/bootstrap.ts`：seededPath（:227）、session_status / permission / question 清理过滤（:260/:312/:342）、`projectID` 的 worktree/sandboxes 匹配（:144）改为 `pathKey` 比较。验证：global-sync 现有测试全绿，并增补形态差异用例。
-- [ ] 2.3 改造 `pages/layout/sidebar-items.ts:41` 与 `pages/layout/sidebar-project.tsx:308` 的会话归属过滤为 `pathKey` 比较。验证：相关测试全绿；双形态下会话条目归属正确。
-- [ ] 2.4 改造通知匹配点：`context/notification.tsx:326`（当前会话已读判定）与 `pages/home.tsx:305-312`（project unseen 计数/清除的索引查找）改为 `pathKey` 比较。验证：新增/扩展单测——事件目录形态与项目列表形态不一致时通知仍计入并可清除。
+- [ ] 2.3 改造 `pages/layout/sidebar-items.tsx:41` 与 `pages/layout/sidebar-project.tsx:308` 的会话归属过滤为 `pathKey` 比较。验证：相关测试全绿；双形态下会话条目归属正确。
+- [ ] 2.4 改造通知匹配点双侧归一：`context/notification.tsx:326`（当前会话已读判定）、`pages/home.tsx:303-312`（project unseen 计数/清除的索引查找，键 pathKey 化）与索引 append 键（依赖 3.1 入队归一后的目录参数，确认 `notification.directory` 构造来源走归一键）。验证：新增/扩展单测——事件目录形态与项目列表形态不一致时通知仍计入并可清除。
 
 ## 3. 事件入口归一与归属判定族对齐
 
-- [ ] 3.1 事件入口归一：`context/server-sdk.tsx` 事件入队处（:221-223）将 `event.directory ?? "global"` 过 `pathKey` 再入队；`event.on`（:293）包装为按 `directoryKey` 归一订阅键（`listen` 透传不动，退订句柄原样透传）。验证：新增单测——订阅键与事件目录形态不一致（反斜杠订阅、正斜杠事件）时 `on` 订阅收到事件、`listen` 行为不变；`coalesceServerEvents` 对双形态同目录相邻增量正确合并。
-- [ ] 3.2 将 `directory === project.worktree` 归属判定族改为 `pathKey` 比较：`pages/layout.tsx:597`、`pages/session.tsx:717`、`components/session/session-new-view.tsx:34`、`pages/home.tsx:834`、`pages/layout/sidebar-workspace.tsx:75/:316`、`pages/layout/sidebar-project.tsx:299`。验证：`cd packages/app && bun typecheck` 通过；主工作区在双形态下不被误标为沙箱（相关既有测试全绿）。
+- [ ] 3.1 事件入口归一：`context/server-sdk.tsx` 事件入队处（:221-223）将 `event.directory ?? "global"` 过 `pathKey` 再入队；`event.on`（:293）包装为按 `directoryKey` 归一订阅键（`listen` 透传不动，退订句柄原样透传）。验证：在现有 `context/server-sdk.test.ts` 上扩展（已直接 import `coalesceServerEvents` / `enqueueServerEvent`）——订阅键与事件目录形态不一致（反斜杠订阅、正斜杠事件）时 `on` 订阅收到事件、`listen` 行为不变；`coalesceServerEvents` 对双形态同目录相邻增量正确合并。
+- [ ] 3.2 将 `directory === project.worktree` 归属判定族改为 `pathKey` 比较：`pages/layout.tsx:554`（autoselect 上次项目恢复）/:597、`pages/session.tsx:717`、`components/session/session-new-view.tsx:34`、`pages/home.tsx:834`、`pages/layout/sidebar-workspace.tsx:75/:316`、`pages/layout/sidebar-project.tsx:299`。验证：`cd packages/app && bun typecheck` 通过；主工作区在双形态下不被误标为沙箱（相关既有测试全绿）。
 
 ## 4. 全量验证与收尾
 
