@@ -86,7 +86,18 @@ export const Plugin = define({
               continue
             }
 
+            // 路由/定义分界（openspec change novel-auto-wire，design D3）：只含路由字段的
+            // 条目语义是"给已知 agent 配模型"，不是定义。目标缺席时创建隐藏占位承载路由，
+            // 让花名册/选择器/默认解析/@ 补全都看不到它；插件随后注册同名 agent 时 upsert
+            // 保留 model 并重置 hidden，占位无缝转正。不能整条跳过——config-agent 合并先于
+            // 外部插件注册（boot 时序），跳过会废掉已接线项目的模型路由。
+            const isDefinition =
+              item.description !== undefined ||
+              item.system !== undefined ||
+              item.mode !== undefined ||
+              item.category !== undefined
             const exists = draft.get(agentID) !== undefined
+            const placeholder = !exists && !isDefinition
             draft.update(agentID, (agent) => {
               if (!exists) agent.permissions.push(...permissions)
               if (item.model !== undefined) {
@@ -103,7 +114,8 @@ export const Plugin = define({
               if (item.system !== undefined) agent.system = item.system
               if (item.description !== undefined) agent.description = item.description
               if (item.mode !== undefined) agent.mode = item.mode
-              if (item.hidden !== undefined) agent.hidden = item.hidden
+              if (placeholder) agent.hidden = true
+              else if (item.hidden !== undefined) agent.hidden = item.hidden
               if (item.color !== undefined) agent.color = item.color
               if (item.category !== undefined) agent.category = item.category
               if (item.steps !== undefined) agent.steps = item.steps
