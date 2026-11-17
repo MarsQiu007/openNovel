@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test"
-import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { mockOpenNovelServer } from "../utils/mock-server"
 import { mockNovelWorkspaceAPIs, novelWorkspaceURL } from "../utils/novel-workspace"
 import { expectAppVisible } from "../utils/waits"
