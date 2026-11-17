@@ -165,7 +165,13 @@ const layer = Layer.effectDiscard(
                   ),
                 )
               }
-              const limit = Config.latest(yield* config.entries(), "experimental")?.subagent_depth ?? 1
+              // 子键级 findLast：整体对象 latest 会被任何声明 experimental 的文档整体遮蔽，
+              // novel 项目合成装配文档的深度缺省必须只在无显式子键声明时生效。
+              const limit =
+                (yield* config.entries())
+                  .filter((entry): entry is Config.Document => entry.type === "document")
+                  .findLast((entry) => entry.info.experimental?.subagent_depth !== undefined)
+                  ?.info.experimental?.subagent_depth ?? 1
               if (depth >= limit)
                 return yield* new ToolFailure({
                   message: `Subagent depth limit reached (${limit}). Increase "experimental.subagent_depth" to allow nested subagents.`,

@@ -200,12 +200,14 @@ const layer = Layer.effect(
     const globalDirectory = AbsolutePath.make(global.config)
     const locationIsGlobal = path.resolve(location.directory) === path.resolve(global.config)
     // Read configuration once when this location opens. Later calls reuse these
-    // values until the location is reopened.
+    // values until the location is reopened. `.novel` rides the same upward walk
+    // as a probe signal for the novel-project auto wiring below; it is a marker
+    // directory, not a config file, and never enters the direct-config load path.
     const discovered = locationIsGlobal
       ? []
       : yield* fs
           .up({
-            targets: [".opennovel", ...names.toReversed()],
+            targets: [".novel", ".opennovel", ...names.toReversed()],
             start: location.directory,
             stop: location.project.directory,
           })
@@ -219,15 +221,56 @@ const layer = Layer.effect(
     ]
     // A config closer to the opened directory should win over one higher up.
     // Search starts nearby, so reverse the results before applying them.
-    const directPaths = discovered.filter((item) => path.basename(item) !== ".opennovel").toReversed()
+    const directPaths = discovered.filter((item) => {
+      const base = path.basename(item)
+      return base !== ".opennovel" && base !== ".novel"
+    }).toReversed()
     const direct = yield* Effect.forEach(directPaths, loadFile).pipe(
       Effect.orDie,
       Effect.map((configs) => configs.filter((config): config is Document => config !== undefined)),
     )
     const supplementary = yield* Effect.forEach(directories, loadDirectory).pipe(Effect.orDie)
+    const documents = [...(supplementary[0] ?? []), ...direct, ...supplementary.slice(1).flat()].filter(
+      (entry): entry is Document => entry.type === "document",
+    )
+    // Novel 项目自动装配（openspec change novel-auto-wire，design D2）：
+    // 含 .novel 标记、项目级未显式声明 plugins（声明即权威，空数组为退出通道）、
+    // 且任何层级未声明 novel-writer-v2（与 CLI 接线/全局声明去重）时，合成一份
+    // 最低优先级文档，镜像 wireNovelWriterV2 写盘产物的两个键。纯内存推导、不落盘，
+    // 每次打开 Location 重新计算——应用更新覆盖安装后首次启动即生效。
+    // 无 path 文档约定：latest 语义下任何用户文档的同键声明都会覆盖它；新增配置
+    // 消费方须容忍无 path 文档（latestScoped 归入 project 层，字段与接线产物一致）。
+    const globalDir = path.resolve(globalDirectory)
+    const explicitPlugins = documents.some(
+      (document) =>
+        document.info.plugins !== undefined &&
+        !(document.path !== undefined && path.dirname(path.resolve(document.path)) === globalDir),
+    )
+    const alreadyWired = documents.some((document) =>
+      document.info.plugins?.some(
+        (item) => (typeof item === "string" ? item : item.package) === ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN,
+      ),
+    )
+    const autoWire =
+      discovered.some((item) => path.basename(item) === ".novel") && !explicitPlugins && !alreadyWired
     // Apply general settings first and more specific settings last:
-    // global config, project files, then `.opennovel` files.
-    const configs = [...(supplementary[0] ?? []), ...direct, ...supplementary.slice(1).flat()]
+    // auto wiring default, global config, project files, then `.opennovel` files.
+    const configs = [
+      ...(autoWire
+        ? [
+            new Document({
+              type: "document",
+              info: new Info({
+                plugins: [ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN],
+                experimental: ConfigExperimental.Experimental.make({ subagent_depth: 2 }),
+              }),
+            }),
+          ]
+        : []),
+      ...(supplementary[0] ?? []),
+      ...direct,
+      ...supplementary.slice(1).flat(),
+    ]
     // Rules use the opposite order so a user-global rule can override a
     // repository rule. Statement order inside each file stays unchanged.
     yield* policy.load(

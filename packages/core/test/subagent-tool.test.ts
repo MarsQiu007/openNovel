@@ -220,6 +220,71 @@ describe("SubagentTool", () => {
     }),
   )
 
+  it.effect("synthetic wiring depth survives a user experimental doc without subagent_depth", () =>
+    Effect.gen(function* () {
+      assertions.length = 0
+      wakeCalls.length = 0
+      configEntries.length = 0
+      // 合成装配文档置于最低优先级（生产顺序）；用户文档只声明其他 experimental 键，
+      // 子键级解析不得被它整体遮蔽
+      configEntries.push(
+        Config.Document.make({
+          type: "document",
+          info: Config.Info.make({
+            experimental: ConfigExperimental.Experimental.make({ subagent_depth: 2 }),
+          }),
+        }),
+        Config.Document.make({
+          type: "document",
+          info: Config.Info.make({
+            experimental: ConfigExperimental.Experimental.make({ policies: [] }),
+          }),
+        }),
+      )
+      yield* addAgent("helper", "subagent")
+      const sessions = yield* SessionV2.Service
+      const parent = yield* sessions.create({ location })
+
+      const first = yield* settleSubagent(parent.id, { agent: "helper", description: "一级", prompt: "一级" })
+      const childID = childIDOf(first)
+      const second = yield* settleSubagent(SessionV2.ID.make(childID), { agent: "helper", description: "二级", prompt: "二级" })
+      expect(second.result.type).toBe("text")
+    }),
+  )
+
+  it.effect("explicit subagent_depth wins over the synthetic wiring default", () =>
+    Effect.gen(function* () {
+      assertions.length = 0
+      wakeCalls.length = 0
+      configEntries.length = 0
+      configEntries.push(
+        Config.Document.make({
+          type: "document",
+          info: Config.Info.make({
+            experimental: ConfigExperimental.Experimental.make({ subagent_depth: 2 }),
+          }),
+        }),
+        Config.Document.make({
+          type: "document",
+          info: Config.Info.make({
+            experimental: ConfigExperimental.Experimental.make({ subagent_depth: 1 }),
+          }),
+        }),
+      )
+      yield* addAgent("helper", "subagent")
+      const sessions = yield* SessionV2.Service
+      const parent = yield* sessions.create({ location })
+
+      const first = yield* settleSubagent(parent.id, { agent: "helper", description: "一级", prompt: "一级" })
+      const childID = childIDOf(first)
+      const second = yield* settleSubagent(SessionV2.ID.make(childID), { agent: "helper", description: "二级", prompt: "二级" })
+      expect(second.result).toMatchObject({
+        type: "error",
+        value: expect.stringContaining('Subagent depth limit reached (1). Increase "experimental.subagent_depth"'),
+      })
+    }),
+  )
+
   it.effect("rejects primary agents", () =>
     Effect.gen(function* () {
       assertions.length = 0

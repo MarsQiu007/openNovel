@@ -932,6 +932,191 @@ describe("Config", () => {
     ),
   )
 
+  it.live("auto-wires a novel project without any config declaration", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.path).toBeUndefined()
+            expect(documents[0]?.info.plugins).toEqual([ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN])
+            expect(documents[0]?.info.experimental?.subagent_depth).toBe(2)
+            // 合成文档不落盘：项目目录不出现任何配置文件
+            expect(yield* Effect.promise(() => fs.readdir(tmp.path))).not.toContain("opennovel.json")
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("auto-wires a novel project opened from a subdirectory", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, "sub")))
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.path).toBeUndefined()
+            expect(documents[0]?.info.plugins).toEqual([ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN])
+          }).pipe(Effect.provide(testLayer(path.join(tmp.path, "sub"), path.join(tmp.path, "global"), tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("an explicit empty project plugins declaration suppresses novel auto wiring", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() =>
+            fs.writeFile(path.join(tmp.path, "opennovel.json"), JSON.stringify({ plugins: [] })),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.info.plugins).toEqual([])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("an explicit project plugins declaration with an unrelated package suppresses novel auto wiring", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() =>
+            fs.writeFile(path.join(tmp.path, "opennovel.json"), JSON.stringify({ plugins: ["some-third-party"] })),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.info.plugins).toEqual(["some-third-party"])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("an explicit project novel-writer declaration suppresses the synthetic document", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(tmp.path, "opennovel.json"),
+              JSON.stringify({ plugins: [ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN] }),
+            ),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            // 已接线项目：只有用户文档，无 pathless 合成文档叠加
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.path).toBeDefined()
+            expect(documents[0]?.info.plugins).toEqual([ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("a global novel-writer declaration dedupes novel auto wiring", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, "global"), { recursive: true }))
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(tmp.path, "global", "opennovel.json"),
+              JSON.stringify({ plugins: [ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN] }),
+            ),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(1)
+            expect(documents[0]?.path).toBeDefined()
+            expect(documents[0]?.info.plugins).toEqual([ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
+  it.live("a global unrelated plugin declaration does not suppress novel auto wiring", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".novel")))
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, "global"), { recursive: true }))
+          yield* Effect.promise(() =>
+            fs.writeFile(
+              path.join(tmp.path, "global", "opennovel.json"),
+              JSON.stringify({ plugins: ["some-third-party"] }),
+            ),
+          )
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const documents = (yield* config.entries()).filter((entry) => entry.type === "document")
+
+            expect(documents).toHaveLength(2)
+            expect(documents[0]?.path).toBeUndefined()
+            expect(documents[0]?.info.plugins).toEqual([ConfigMigrateV1.NOVEL_WRITER_V2_PLUGIN])
+            expect(documents[1]?.path).toBeDefined()
+            expect(documents[1]?.info.plugins).toEqual(["some-third-party"])
+          }).pipe(Effect.provide(testLayer(tmp.path)))
+        }),
+      ),
+    ),
+  )
+
   it.live("ignores an invalid file while loading valid config values", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),

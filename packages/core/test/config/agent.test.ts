@@ -5,6 +5,7 @@ import { Effect, Schema } from "effect"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Config } from "@opennovel-ai/core/config"
 import { ConfigAgentPlugin } from "@opennovel-ai/core/config/plugin/agent"
+import { ConfigHealth } from "@opennovel-ai/core/config/health"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { FSUtil } from "@opennovel-ai/core/fs-util"
@@ -297,6 +298,86 @@ Use native v2 fields.`,
         }),
       ),
     ),
+  )
+
+  it.effect("routing-only entry creates a hidden placeholder when the target is absent", () =>
+    Effect.gen(function* () {
+      const agents = yield* AgentV2.Service
+      const config = Config.Service.of({
+        entries: () =>
+          Effect.succeed([
+            new Config.Document({
+              type: "document",
+              info: decode({ agents: { director: { model: "zp-coding-plan/glm-5.3-flash" } } }),
+            }),
+          ]),
+      })
+
+      yield* ConfigAgentPlugin.Plugin.effect(host({ agent: agentHost(agents) })).pipe(
+        Effect.provideService(Config.Service, config),
+      )
+
+      const director = yield* agents.get(AgentV2.ID.make("director"))
+      if (!director) throw new Error("expected routing placeholder")
+      expect(director.hidden).toBe(true)
+      expect(director.model).toMatchObject({ providerID: "zp-coding-plan", id: "glm-5.3-flash" })
+      // 花名册/选择器/默认解析的可见过滤（mode !== subagent && !hidden）对占位为 false
+      expect(director.mode !== "subagent" && !director.hidden).toBe(false)
+      expect(director.system).toBeUndefined()
+      expect(director.description).toBeUndefined()
+    }),
+  )
+
+  it.effect("routing entry merges into an existing agent without touching definition fields", () =>
+    Effect.gen(function* () {
+      const agents = yield* AgentV2.Service
+      // 目标已注册（定义字段在位），路由条目随后合并
+      yield* agents.transform((editor) =>
+        editor.update(AgentV2.ID.make("director"), (agent) => {
+          agent.mode = "primary"
+          agent.category = "orchestration"
+          agent.system = "编排提示词"
+          agent.description = "小说写作编排"
+        }),
+      )
+
+      const config = Config.Service.of({
+        entries: () =>
+          Effect.succeed([
+            new Config.Document({
+              type: "document",
+              info: decode({ agents: { director: { model: "alibaba-coding-plan-cn/glm-5" } } }),
+            }),
+          ]),
+      })
+
+      yield* ConfigAgentPlugin.Plugin.effect(host({ agent: agentHost(agents) })).pipe(
+        Effect.provideService(Config.Service, config),
+      )
+
+      const director = yield* agents.get(AgentV2.ID.make("director"))
+      if (!director) throw new Error("expected registered director")
+      expect(director.model).toMatchObject({ providerID: "alibaba-coding-plan-cn", id: "glm-5" })
+      expect(director.mode).toBe("primary")
+      expect(director.category).toBe("orchestration")
+      expect(director.hidden).toBe(false)
+      expect(director.system).toBe("编排提示词")
+    }),
+  )
+
+  it.effect("routing placeholders do not produce config health findings", () =>
+    Effect.sync(() => {
+      // 用户侧路由条目（V1 键形，同真实全局配置）：占位机制本身不产生任何 finding，
+      // 已知提供商下 agentFindings 也无话可说
+      const findings = ConfigHealth.evaluate({
+        info: { agent: { director: { model: "zp-coding-plan/glm-5.3-flash" } } },
+        file: "/home/user/.config/opennovel/opennovel.jsonc",
+        records: [],
+        knownProviders: new Set(["zp-coding-plan"]),
+        legacyFiles: [],
+      })
+      expect(findings).toHaveLength(0)
+    }),
   )
 })
 
