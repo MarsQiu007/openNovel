@@ -11,8 +11,10 @@ export interface Adapter {
   readonly getCurrentAssistant: () => Effect.Effect<SessionMessage.Assistant | undefined>
   readonly getAssistant: (messageID: SessionMessage.ID) => Effect.Effect<SessionMessage.Assistant | undefined>
   readonly getCurrentShell: (callID: string) => Effect.Effect<SessionMessage.Shell | undefined>
+  readonly getCompaction: (messageID: SessionMessage.ID) => Effect.Effect<SessionMessage.Compaction | undefined>
   readonly updateAssistant: (assistant: SessionMessage.Assistant) => Effect.Effect<void>
   readonly updateShell: (shell: SessionMessage.Shell) => Effect.Effect<void>
+  readonly updateCompaction: (compaction: SessionMessage.Compaction) => Effect.Effect<void>
   readonly appendMessage: (message: SessionMessage.Message) => Effect.Effect<void>
 }
 
@@ -23,6 +25,8 @@ export function memory(state: MemoryState): Adapter {
   const latestAssistantIndex = () => state.messages.findLastIndex((message) => message.type === "assistant")
   const activeShellIndex = (callID: string) =>
     state.messages.findLastIndex((message) => message.type === "shell" && message.callID === callID)
+  const compactionIndex = (messageID: SessionMessage.ID) =>
+    state.messages.findLastIndex((message) => message.type === "compaction" && message.id === messageID)
 
   return {
     getCurrentAssistant() {
@@ -49,6 +53,14 @@ export function memory(state: MemoryState): Adapter {
         return shell?.type === "shell" ? shell : undefined
       })
     },
+    getCompaction(messageID) {
+      return Effect.sync(() => {
+        const index = compactionIndex(messageID)
+        if (index < 0) return
+        const compaction = state.messages[index]
+        return compaction?.type === "compaction" ? compaction : undefined
+      })
+    },
     updateAssistant(assistant) {
       return Effect.sync(() => {
         const index = assistantIndex(assistant.id)
@@ -65,6 +77,15 @@ export function memory(state: MemoryState): Adapter {
         const current = state.messages[index]
         if (current?.type !== "shell") return
         state.messages[index] = shell
+      })
+    },
+    updateCompaction(compaction) {
+      return Effect.sync(() => {
+        const index = compactionIndex(compaction.id)
+        if (index < 0) return
+        const current = state.messages[index]
+        if (current?.type !== "compaction") return
+        state.messages[index] = compaction
       })
     },
     appendMessage(message) {
@@ -97,6 +118,8 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
       const assistant = yield* adapter.getAssistant(messageID)
       if (assistant) yield* adapter.updateAssistant(produce(assistant, recipe))
     })
+
+  const findCompaction = (messageID: SessionMessage.ID) => adapter.getCompaction(messageID)
 
   return Effect.gen(function* () {
     yield* SessionEvent.All.match(event, {
@@ -375,20 +398,100 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
         })
       },
       "session.next.retried": () => Effect.void,
-      "session.next.compaction.started": () => Effect.void,
-      "session.next.compaction.delta": () => Effect.void,
-      "session.next.compaction.ended": (event) => {
+      "session.next.compaction.queued": (event) => {
         return adapter.appendMessage(
           SessionMessage.Compaction.make({
             id: event.data.messageID,
             type: "compaction",
             metadata: event.metadata,
             reason: event.data.reason,
-            summary: event.data.text,
-            recent: event.data.recent,
+            status: "queued",
+            summary: "",
+            recent: "",
             time: { created: event.data.timestamp },
           }),
         )
+      },
+      "session.next.compaction.started": (event) => {
+        return Effect.gen(function* () {
+          const existing = yield* adapter.getAssistant(event.data.messageID)
+          if (existing) return
+          // 无前置 Queued（如旧路径直发 Started）时补一条 running 消息
+          const found = yield* findCompaction(event.data.messageID)
+          if (found !== undefined) {
+            yield* adapter.updateCompaction(
+              produce(found, (draft) => {
+                draft.status = "running"
+              }),
+            )
+            return
+          }
+          yield* adapter.appendMessage(
+            SessionMessage.Compaction.make({
+              id: event.data.messageID,
+              type: "compaction",
+              metadata: event.metadata,
+              reason: event.data.reason,
+              status: "running",
+              summary: "",
+              recent: "",
+              time: { created: event.data.timestamp },
+            }),
+          )
+        })
+      },
+      "session.next.compaction.delta": () => Effect.void,
+      "session.next.compaction.ended": (event) => {
+        return Effect.gen(function* () {
+          const found = yield* findCompaction(event.data.messageID)
+          if (found !== undefined) {
+            yield* adapter.updateCompaction(
+              produce(found, (draft) => {
+                draft.status = "completed"
+                draft.summary = event.data.text
+                draft.recent = event.data.recent
+              }),
+            )
+            return
+          }
+          yield* adapter.appendMessage(
+            SessionMessage.Compaction.make({
+              id: event.data.messageID,
+              type: "compaction",
+              metadata: event.metadata,
+              reason: event.data.reason,
+              status: "completed",
+              summary: event.data.text,
+              recent: event.data.recent,
+              time: { created: event.data.timestamp },
+            }),
+          )
+        })
+      },
+      "session.next.compaction.failed": (event) => {
+        return Effect.gen(function* () {
+          const found = yield* findCompaction(event.data.messageID)
+          if (found !== undefined) {
+            yield* adapter.updateCompaction(
+              produce(found, (draft) => {
+                draft.status = "failed"
+                draft.error = event.data.error
+              }),
+            )
+          }
+        })
+      },
+      "session.next.compaction.interrupted": (event) => {
+        return Effect.gen(function* () {
+          const found = yield* findCompaction(event.data.messageID)
+          if (found !== undefined) {
+            yield* adapter.updateCompaction(
+              produce(found, (draft) => {
+                draft.status = "interrupted"
+              }),
+            )
+          }
+        })
       },
       "session.next.revert.staged": () => Effect.void,
       "session.next.revert.cleared": () => Effect.void,

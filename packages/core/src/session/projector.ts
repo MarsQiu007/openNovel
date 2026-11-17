@@ -21,7 +21,7 @@ const encodeMessage = Schema.encodeSync(SessionMessage.Message)
 
 export class SessionAlreadyProjected extends Error {}
 
-function run(db: DatabaseService, event: SessionEvent.Event) {
+function run(db: DatabaseService, event: SessionEvent.Event): Effect.Effect<void, never, never> {
   return Effect.gen(function* () {
     const decodeRow = (row: typeof SessionMessageTable.$inferSelect) =>
       decodeMessage({ ...row.data, id: row.id, type: row.type })
@@ -94,8 +94,28 @@ function run(db: DatabaseService, event: SessionEvent.Event) {
             .find((message): message is SessionMessage.Shell => message.type === "shell" && message.callID === callID)
         })
       },
+      getCompaction(messageID) {
+        return Effect.gen(function* () {
+          const row = yield* db
+            .select()
+            .from(SessionMessageTable)
+            .where(
+              and(
+                eq(SessionMessageTable.id, messageID),
+                eq(SessionMessageTable.session_id, event.data.sessionID),
+                eq(SessionMessageTable.type, "compaction"),
+              ),
+            )
+            .get()
+            .pipe(Effect.orDie)
+          if (!row) return
+          const message = decodeRow(row)
+          return message.type === "compaction" ? message : undefined
+        })
+      },
       updateAssistant: updateMessage,
       updateShell: updateMessage,
+      updateCompaction: updateMessage,
       appendMessage,
     }
     yield* SessionMessageUpdater.update(adapter, event)
@@ -257,7 +277,11 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.Reasoning.Started, (event) => run(db, event))
     yield* events.project(SessionEvent.Reasoning.Ended, (event) => run(db, event))
     // yield* events.project(SessionEvent.Retried, (event) => run(db, event))
+    yield* events.project(SessionEvent.Compaction.Queued, (event) => run(db, event))
+    yield* events.project(SessionEvent.Compaction.Started, (event) => run(db, event))
     yield* events.project(SessionEvent.Compaction.Ended, (event) => run(db, event))
+    yield* events.project(SessionEvent.Compaction.Failed, (event) => run(db, event))
+    yield* events.project(SessionEvent.Compaction.Interrupted, (event) => run(db, event))
     yield* events.project(SessionEvent.RevertEvent.Staged, (event) =>
       db
         .update(SessionTable)

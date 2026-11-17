@@ -192,8 +192,22 @@ export interface Compaction extends Schema.Schema.Type<typeof Compaction> {}
 export const Compaction = Schema.Struct({
   type: Schema.Literal("compaction"),
   reason: Schema.Literals(["auto", "manual"]),
+  // 旧消息无 status 字段：解码为 completed 以保持兼容
+  status: Schema.Union([
+    Schema.Literal("queued"),
+    Schema.Literal("running"),
+    Schema.Literal("completed"),
+    Schema.Literal("failed"),
+    Schema.Literal("interrupted"),
+  ]).pipe(optional),
   summary: Schema.String,
   recent: Schema.String,
+  error: Schema.optional(
+    Schema.Struct({
+      type: Schema.String,
+      message: Schema.String,
+    }),
+  ),
   ...Base,
 }).annotate({ identifier: "Session.Message.Compaction" })
 

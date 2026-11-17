@@ -8,10 +8,10 @@ import { WorkspaceEvent } from "../src/workspace-event"
 
 describe("public event manifest", () => {
   test("owns the complete public event surface", () => {
-    expect(EventManifest.ServerDefinitions.length).toBe(55)
-    expect(EventManifest.Definitions.length).toBe(76)
-    expect(EventManifest.Latest.size).toBe(76)
-    expect(EventManifest.Durable.size).toBe(31)
+    expect(EventManifest.ServerDefinitions.length).toBe(58)
+    expect(EventManifest.Definitions.length).toBe(79)
+    expect(EventManifest.Latest.size).toBe(79)
+    expect(EventManifest.Durable.size).toBe(34)
   })
 
   test("uses canonical definitions for current public events", () => {

@@ -439,6 +439,18 @@ export const Retried = Event.define({
 export type Retried = typeof Retried.Type
 
 export namespace Compaction {
+  export const Queued = Event.define({
+    type: "session.next.compaction.queued",
+    ...options,
+    schema: {
+      ...Base,
+      messageID: SessionMessage.ID,
+      reason: Schema.Union([Schema.Literal("auto"), Schema.Literal("manual")]),
+      retryOf: SessionMessage.ID.pipe(optional),
+    },
+  })
+  export type Queued = typeof Queued.Type
+
   export const Started = Event.define({
     type: "session.next.compaction.started",
     ...options,
@@ -472,6 +484,32 @@ export namespace Compaction {
     },
   })
   export type Ended = typeof Ended.Type
+
+  export const Failed = Event.define({
+    type: "session.next.compaction.failed",
+    ...options,
+    schema: {
+      ...Base,
+      messageID: SessionMessage.ID,
+      reason: Started.data.fields.reason,
+      error: Schema.Struct({
+        type: Schema.String,
+        message: Schema.String,
+      }),
+    },
+  })
+  export type Failed = typeof Failed.Type
+
+  export const Interrupted = Event.define({
+    type: "session.next.compaction.interrupted",
+    ...options,
+    schema: {
+      ...Base,
+      messageID: SessionMessage.ID,
+      cause: Schema.Union([Schema.Literal("user"), Schema.Literal("restart")]),
+    },
+  })
+  export type Interrupted = typeof Interrupted.Type
 }
 
 export namespace RevertEvent {
@@ -515,8 +553,11 @@ export const DurableDefinitions = Event.inventory(
   Reasoning.Started,
   Reasoning.Ended,
   Retried,
+  Compaction.Queued,
   Compaction.Started,
   Compaction.Ended,
+  Compaction.Failed,
+  Compaction.Interrupted,
   RevertEvent.Staged,
   RevertEvent.Cleared,
   RevertEvent.Committed,
@@ -552,9 +593,12 @@ export const Definitions = Event.inventory(
   Tool.Success,
   Tool.Failed,
   Retried,
+  Compaction.Queued,
   Compaction.Started,
   Compaction.Delta,
   Compaction.Ended,
+  Compaction.Failed,
+  Compaction.Interrupted,
   RevertEvent.Staged,
   RevertEvent.Cleared,
   RevertEvent.Committed,

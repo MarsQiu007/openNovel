@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { DateTime, Effect, Schema } from "effect"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { Database } from "@opennovel-ai/core/database/database"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
@@ -283,14 +283,20 @@ describe("SessionProjector", () => {
           .all()
           .pipe(Effect.orDie),
       ).toEqual([])
+      const runningRows = yield* db
+        .select()
+        .from(SessionMessageTable)
+        .where(and(eq(SessionMessageTable.type, "compaction"), eq(SessionMessageTable.id, compactionID)))
+        .all()
+        .pipe(Effect.orDie)
+      expect(runningRows).toHaveLength(1)
       expect(
-        yield* db
-          .select({ id: SessionMessageTable.id })
-          .from(SessionMessageTable)
-          .where(eq(SessionMessageTable.type, "compaction"))
-          .all()
-          .pipe(Effect.orDie),
-      ).toEqual([])
+        Schema.decodeUnknownSync(SessionMessage.Message)({
+          ...runningRows[0]!.data,
+          id: runningRows[0]!.id,
+          type: runningRows[0]!.type,
+        }),
+      ).toMatchObject({ type: "compaction", status: "running" })
       yield* events.publish(SessionEvent.Compaction.Ended, {
         sessionID,
         messageID: compactionID,
@@ -323,6 +329,7 @@ describe("SessionProjector", () => {
         time: { completed: DateTime.makeUnsafe(1) },
       })
       expect(messages.find((message) => message.type === "compaction")).toMatchObject({
+        status: "completed",
         summary: "summary",
         recent: "recent context",
       })
