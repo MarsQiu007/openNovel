@@ -2,11 +2,11 @@
 
 ## 1. 配置与公开契约
 
-- [ ] 1.1 扩展 V1/V2 压缩配置以支持百分比 buffer、后台开关和默认 85% 触发，保留旧数值与 V1 迁移语义；新增配置解析、非法百分比和迁移测试，并从 `packages/core` 运行聚焦测试与 `bun typecheck`
-- [ ] 1.2 定义 ContextWatermark、带状态的 Compaction 消息及 Queued/Failed/Interrupted 事件契约，保持旧 Ended 和无状态消息兼容；从 `packages/schema`、`packages/core` 运行新增编解码与 replay 聚焦测试及 `bun typecheck`
-- [ ] 1.3 调整 V2 Session 快照、水位刷新和手动压缩受理响应的 Protocol/Server 契约，保持既有端点调用兼容；更新对应 `httpapi-exercise` 场景并验证覆盖检查通过
-- [ ] 1.4 从仓库根运行 `bun ./script/generate.ts`，再在 `packages/client` 运行 `bun run generate` 重新生成双 SDK；检查生成 diff 包含新契约且没有手改 generated 文件，并运行相关包 `bun typecheck`
-- [ ] 1.5 从仓库根对第 1 组改动路径运行 `bun run lint -- <路径>`，确认无新增 oxlint 问题，并检查配置键、事件定义和 SDK 产物不存在重复或无人消费的平行契约
+- [x] 1.1 扩展 V1/V2 压缩配置以支持百分比 buffer、后台开关和默认 85% 触发，保留旧数值与 V1 迁移语义；新增配置解析、非法百分比和迁移测试，并从 `packages/core` 运行聚焦测试与 `bun typecheck`
+- [x] 1.2 定义 ContextWatermark、带状态的 Compaction 消息及 Queued/Failed/Interrupted 事件契约，保持旧 Ended 和无状态消息兼容；从 `packages/schema`、`packages/core` 运行新增编解码与 replay 聚焦测试及 `bun typecheck`
+- [x] 1.3 调整 V2 Session 快照、水位刷新和手动压缩受理响应的 Protocol/Server 契约，保持既有端点调用兼容；更新对应 `httpapi-exercise` 场景并验证覆盖检查通过
+- [x] 1.4 从仓库根运行 `bun ./script/generate.ts`，再在 `packages/client` 运行 `bun run generate` 重新生成双 SDK；检查生成 diff 包含新契约且没有手改 generated 文件，并运行相关包 `bun typecheck`
+- [x] 1.5 从仓库根对第 1 组改动路径运行 `bun run lint -- <路径>`，确认无新增 oxlint 问题，并检查配置键、事件定义和 SDK 产物不存在重复或无人消费的平行契约
 
 ## 2. 统一水位与 Provider 错误分类
 
