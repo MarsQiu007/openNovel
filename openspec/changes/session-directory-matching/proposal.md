@@ -8,8 +8,9 @@
 
 - `directory-sync` 的会话缓存取用与索引（`session.get` / `index`）改用路径归一化比较，目录字符串仅分隔符形态（正/反斜杠）或尾斜杠不同的会话 info 正常命中所属作用域。
 - 会话 info 适配出口（`adaptInfo` / `adaptCreated`）统一 `directory` 字段形态，消除缓存条目随播种来源翻转的形态不稳定。
-- 排查并归一化客户端其余会话 `directory` 裸比较点（如会话级本地状态按目录索引处），保证同一语义只有一份归一化实现。
-- 新增回归测试：双形态播种后作用域取用命中、不同目录绝不误匹配、尾斜杠形态等价。
+- SSE 事件目录在客户端入口归一（入队与目录子作用域订阅键），消除事件路由/合并/通知索引/书籍实时订阅在形态错配下静默漏事件与漏合并。
+- 排查并归一化客户端其余目录裸比较点（bootstrap 过滤与项目归属、侧栏会话归属过滤、通知匹配、主工作区归属判定族），保证同一语义只有一份归一化实现。
+- 新增回归测试：双形态播种后作用域取用命中、不同目录绝不误匹配、尾斜杠形态等价、双形态事件序列正确路由与合并。
 
 ## Capabilities
 
@@ -23,7 +24,7 @@
 
 ## Impact
 
-- **packages/app**：`src/context/directory-sync.ts`（取用/索引过滤）、`src/utils/v2-adapter.ts`（适配出口）、`src/context/server-session.ts` 及其余会话 directory 比较点；新增/扩展对应单测。
+- **packages/app**：`src/context/directory-sync.ts`（取用/索引过滤）、`src/utils/v2-adapter.ts`（适配出口）、`src/context/server-sdk.tsx`（事件入口归一与订阅键包装）、`src/context/global-sync/bootstrap.ts`、`src/context/notification.tsx` 及其余目录比较点；新增/扩展对应单测。
 - 不涉及 Schema / Protocol / Server HttpApi 变更，无需再生成 SDK；packages/core、desktop 无改动。
 - **数据兼容性**：不改存储格式与读出语义（session 表 directory 列保持正斜杠存储），现有本地数据完全兼容；纯客户端行为修复。
 - 用户可见变化：重开会话后发送不再误弹「无法获取会话」；其余行为不变。
