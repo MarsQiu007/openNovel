@@ -29,6 +29,7 @@ import { ToolRegistry } from "../../tool/registry"
 import { ToolOutputStore } from "../../tool-output-store"
 import { SessionContextEpoch } from "../context-epoch"
 import { SessionCompaction } from "../compaction"
+import { SessionCompactionCandidate } from "../compaction-candidate"
 import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
@@ -116,6 +117,7 @@ const layer = Layer.effect(
     const watermarks = yield* SessionWatermark.Service
     const db = (yield* Database.Service).db
     const compaction = SessionCompaction.make({ events, llm, config: yield* config.entries() })
+    const candidates = yield* SessionCompactionCandidate.Service
     const getSession = Effect.fn("SessionRunner.getSession")(function* (sessionID: SessionSchema.ID) {
       const session = yield* store.get(sessionID)
       if (!session) return yield* Effect.die(`Session not found: ${sessionID}`)
@@ -269,6 +271,20 @@ const layer = Layer.effect(
         // 留待新的活动或显式唤醒按当时水位重试——每次唤醒只有一次有界操作，失败后无自动死循环
         return { needsContinuation: false, step: currentStep }
       }
+      // 未达阈值：接近触发线时为后台候选预热。no-op 条件在内部判定（开关/启动线/实测锚点/单候选/熔断）；
+      // 候选易失于本 location cell，不发送 Delta、不改历史，达到阈值时由 runQueuedCompaction 校验取用
+      yield* candidates.start({
+        sessionID: session.id,
+        agent: agent.id,
+        entries,
+        model,
+        modelRef: ModelV2.Ref.make({
+          id: ModelV2.ID.make(model.id),
+          providerID: ProviderV2.ID.make(model.provider),
+          ...(session.model?.variant === undefined ? {} : { variant: session.model.variant }),
+        }),
+        request,
+      })
       const startSnapshot = yield* snapshots.capture()
       const publisher = createLLMEventPublisher(events, {
         sessionID: session.id,
@@ -485,9 +501,31 @@ const layer = Layer.effect(
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const model = yield* models.resolve(session)
       const request = LLM.request({ model, messages: [], tools: [] })
-      const outcome = yield* compaction.compactAfterOverflow(
-        { sessionID: session.id, messageID: op.id, entries, model, request },
-        op.reason,
+      // 后台候选（design 决策 6）：快照校验命中则应用候选（接入 Started+Ended），
+      // 失配/过期/未就绪则丢弃并回退前台同步摘要——阈值时始终保留这一次有界前台机会
+      const planned = compaction.plan({ sessionID: session.id, messageID: op.id, entries, model, request })
+      const candidate =
+        planned === undefined
+          ? undefined
+          : yield* candidates.take({
+              sessionID: session.id,
+              firstMessageID: planned.firstMessageID,
+              keepStartID: planned.keepStartID,
+              fingerprint: planned.fingerprint,
+              tailTokens: planned.tailTokens,
+              tailLimit: planned.tailLimit,
+            })
+      const outcome = yield* (
+        candidate
+          ? compaction.applyCandidate(
+              { sessionID: session.id, messageID: op.id, entries, model, request },
+              candidate,
+              op.reason,
+            )
+          : compaction.compactAfterOverflow(
+              { sessionID: session.id, messageID: op.id, entries, model, request },
+              op.reason,
+            )
       ).pipe(
         // 运行中停止沿用 interrupt 所有权链：仅在操作已进入 running 且未闭环时由 finalizer 结算
         // interrupted；queued 阶段被中断的操作仍保持 queued，交由后续 drain 或进程恢复结算
@@ -528,6 +566,8 @@ const layer = Layer.effect(
           reason: op.reason,
           error: { type: "compaction.failed", message: "没有可压缩的对话内容" },
         })
+      // 压缩闭环（前台或候选应用）：候选相对新历史已 stale，重置后台失败计数开启新周期
+      if (outcome.status === "completed") yield* candidates.cycle(session.id)
       yield* publishWatermark(session.id)
       return outcome.status === "skipped" ? ("failed" as const) : outcome.status
     })
@@ -589,5 +629,6 @@ export const node = makeLocationNode({
     Database.node,
     PluginBoot.node,
     SessionWatermark.node,
+    SessionCompactionCandidate.node,
   ],
 })

@@ -971,6 +971,12 @@ export type SessionsContextOutput = {
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
         readonly cause?: "user" | "restart" | null
+        readonly usage?: {
+          readonly input: number
+          readonly output: number
+          readonly reasoning: number
+          readonly cache: { readonly read: number; readonly write: number }
+        } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -1454,6 +1460,12 @@ export type SessionsHistoryOutput = {
           readonly reason: "auto" | "manual"
           readonly text: string
           readonly recent: string
+          readonly usage?: {
+            readonly input: number
+            readonly output: number
+            readonly reasoning: number
+            readonly cache: { readonly read: number; readonly write: number }
+          } | null
         }
       }
     | {
@@ -2001,6 +2013,14 @@ export type SessionsEventsOutput =
         readonly reason: "auto" | "manual"
         readonly text: string
         readonly recent: string
+        readonly usage?:
+          | {
+              readonly input: number
+              readonly output: number
+              readonly reasoning: number
+              readonly cache: { readonly read: number; readonly write: number }
+            }
+          | undefined
       }
     }
   | {
@@ -2230,6 +2250,12 @@ export type SessionsMessageOutput = {
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
         readonly cause?: "user" | "restart" | null
+        readonly usage?: {
+          readonly input: number
+          readonly output: number
+          readonly reasoning: number
+          readonly cache: { readonly read: number; readonly write: number }
+        } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -2405,6 +2431,12 @@ export type MessagesListOutput = {
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
         readonly cause?: "user" | "restart" | null
+        readonly usage?: {
+          readonly input: number
+          readonly output: number
+          readonly reasoning: number
+          readonly cache: { readonly read: number; readonly write: number }
+        } | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }

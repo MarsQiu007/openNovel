@@ -28850,6 +28850,35 @@
                       },
                       "recent": {
                         "type": "string"
+                      },
+                      "usage": {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "number"
+                          },
+                          "output": {
+                            "type": "number"
+                          },
+                          "reasoning": {
+                            "type": "number"
+                          },
+                          "cache": {
+                            "type": "object",
+                            "properties": {
+                              "read": {
+                                "type": "number"
+                              },
+                              "write": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["read", "write"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["input", "output", "reasoning", "cache"],
+                        "additionalProperties": false
                       }
                     },
                     "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -36091,6 +36120,35 @@
                   },
                   "recent": {
                     "type": "string"
+                  },
+                  "usage": {
+                    "type": "object",
+                    "properties": {
+                      "input": {
+                        "type": "number"
+                      },
+                      "output": {
+                        "type": "number"
+                      },
+                      "reasoning": {
+                        "type": "number"
+                      },
+                      "cache": {
+                        "type": "object",
+                        "properties": {
+                          "read": {
+                            "type": "number"
+                          },
+                          "write": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["read", "write"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["input", "output", "reasoning", "cache"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -37364,6 +37422,35 @@
           "cause": {
             "type": "string",
             "enum": ["user", "restart"]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "number"
+              },
+              "output": {
+                "type": "number"
+              },
+              "reasoning": {
+                "type": "number"
+              },
+              "cache": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "number"
+                  },
+                  "write": {
+                    "type": "number"
+                  }
+                },
+                "required": ["read", "write"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["input", "output", "reasoning", "cache"],
+            "additionalProperties": false
           },
           "id": {
             "type": "string",
@@ -39270,6 +39357,35 @@
               },
               "recent": {
                 "type": "string"
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "number"
+                  },
+                  "output": {
+                    "type": "number"
+                  },
+                  "reasoning": {
+                    "type": "number"
+                  },
+                  "cache": {
+                    "type": "object",
+                    "properties": {
+                      "read": {
+                        "type": "number"
+                      },
+                      "write": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["read", "write"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["input", "output", "reasoning", "cache"],
+                "additionalProperties": false
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -49077,6 +49193,35 @@
               },
               "recent": {
                 "type": "string"
+              },
+              "usage": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "number"
+                  },
+                  "output": {
+                    "type": "number"
+                  },
+                  "reasoning": {
+                    "type": "number"
+                  },
+                  "cache": {
+                    "type": "object",
+                    "properties": {
+                      "read": {
+                        "type": "number"
+                      },
+                      "write": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["read", "write"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["input", "output", "reasoning", "cache"],
+                "additionalProperties": false
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],

@@ -28,6 +28,7 @@ import { Reference } from "./reference"
 import { ReferenceGuidance } from "./reference/guidance"
 import { SessionExecution } from "./session/execution"
 import { SessionExecutionLocal } from "./session/execution/local"
+import { SessionCompactionCandidate } from "./session/compaction-candidate"
 import { SessionCompactionRecovery } from "./session/compaction-recovery"
 import * as SessionRunnerLLM from "./session/runner/llm"
 import { SessionRunnerModel } from "./session/runner/model"
@@ -85,6 +86,7 @@ export const locationServices = LayerNode.group([
   Snapshot.node,
   SessionRunnerLLM.node,
   SessionWatermark.node,
+  SessionCompactionCandidate.node,
   SessionCompactionRecovery.node,
 ])
 

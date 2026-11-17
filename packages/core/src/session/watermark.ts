@@ -102,7 +102,7 @@ const isAnchor = (
   (message.model.variant ?? undefined) === (model.variant ?? undefined) &&
   message.tokens.input + message.tokens.cache.read + message.tokens.cache.write > 0
 
-const findAnchor = (entries: readonly Entry[], model: Model.Ref, agent: string) => {
+export const findAnchor = (entries: readonly Entry[], model: Model.Ref, agent: string) => {
   for (let index = entries.length - 1; index >= 0; index--) {
     const message = entries[index].message
     if (message.type === "agent-switched" || message.type === "model-switched") return undefined

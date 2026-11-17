@@ -210,6 +210,18 @@ export const Compaction = Schema.Struct({
   ),
   // interrupted 态的原因：区分用户停止与进程恢复
   cause: Schema.optional(Schema.Union([Schema.Literal("user"), Schema.Literal("restart")])),
+  // 摘要调用的实测 usage：前台压缩或后台候选被应用时记录，未使用候选不写入消息
+  usage: Schema.optional(
+    Schema.Struct({
+      input: Schema.Finite,
+      output: Schema.Finite,
+      reasoning: Schema.Finite,
+      cache: Schema.Struct({
+        read: Schema.Finite,
+        write: Schema.Finite,
+      }),
+    }),
+  ),
   ...Base,
 }).annotate({ identifier: "Session.Message.Compaction" })
 

@@ -62,6 +62,7 @@ export const transition = (current: SessionMessage.Compaction | undefined, event
           status: "completed",
           summary: event.data.text,
           recent: event.data.recent,
+          ...(event.data.usage === undefined ? {} : { usage: event.data.usage }),
           time: { created: event.data.timestamp },
         })
       if (TERMINAL.has(current.status)) return undefined
@@ -70,6 +71,7 @@ export const transition = (current: SessionMessage.Compaction | undefined, event
         status: "completed" as const,
         summary: event.data.text,
         recent: event.data.recent,
+        ...(event.data.usage === undefined ? {} : { usage: event.data.usage }),
       }
     }
     case "session.next.compaction.failed": {

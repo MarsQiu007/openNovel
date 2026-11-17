@@ -472,6 +472,16 @@ export namespace Compaction {
   })
   export type Delta = typeof Delta.Type
 
+  export const Usage = Schema.Struct({
+    input: Schema.Finite,
+    output: Schema.Finite,
+    reasoning: Schema.Finite,
+    cache: Schema.Struct({
+      read: Schema.Finite,
+      write: Schema.Finite,
+    }),
+  })
+
   export const Ended = Event.define({
     type: "session.next.compaction.ended",
     ...options,
@@ -481,6 +491,8 @@ export namespace Compaction {
       reason: Started.data.fields.reason,
       text: Schema.String,
       recent: Schema.String,
+      // 摘要调用实测 usage（可选）：应用后台候选或前台摘要返回时携带，projector 落到消息上
+      usage: Schema.optional(Usage),
     },
   })
   export type Ended = typeof Ended.Type

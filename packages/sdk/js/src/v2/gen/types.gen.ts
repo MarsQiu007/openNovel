@@ -612,6 +612,15 @@ export type GlobalEvent = {
           reason: "auto" | "manual"
           text: string
           recent: string
+          usage?: {
+            input: number
+            output: number
+            reasoning: number
+            cache: {
+              read: number
+              write: number
+            }
+          }
         }
       }
     | {
@@ -2993,6 +3002,15 @@ export type SyncEventSessionNextCompactionEnded = {
       reason: "auto" | "manual"
       text: string
       recent: string
+      usage?: {
+        input: number
+        output: number
+        reasoning: number
+        cache: {
+          read: number
+          write: number
+        }
+      }
     }
   }
 }
@@ -3424,6 +3442,15 @@ export type SessionMessageCompaction = {
     message: string
   }
   cause?: "user" | "restart"
+  usage?: {
+    input: number
+    output: number
+    reasoning: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
   id: string
   metadata?: {
     [key: string]: unknown
@@ -4084,6 +4111,15 @@ export type SessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+    usage?: {
+      input: number
+      output: number
+      reasoning: number
+      cache: {
+        read: number
+        write: number
+      }
+    }
   }
 }
 
@@ -7171,6 +7207,15 @@ export type EventSessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+    usage?: {
+      input: number
+      output: number
+      reasoning: number
+      cache: {
+        read: number
+        write: number
+      }
+    }
   }
 }
 
