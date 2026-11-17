@@ -3423,6 +3423,7 @@ export type SessionMessageCompaction = {
     type: string
     message: string
   }
+  cause?: "user" | "restart"
   id: string
   metadata?: {
     [key: string]: unknown

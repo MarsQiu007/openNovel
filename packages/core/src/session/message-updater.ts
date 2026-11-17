@@ -1,5 +1,6 @@
 import { castDraft, produce, type WritableDraft } from "immer"
 import { Effect, Option, Schema } from "effect"
+import { SessionCompactionState } from "./compaction-state"
 import { SessionEvent } from "./event"
 import { SessionMessage } from "./message"
 
@@ -120,6 +121,22 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
     })
 
   const findCompaction = (messageID: SessionMessage.ID) => adapter.getCompaction(messageID)
+
+  // 压缩消息走统一状态转换（与 replay projector 共用）：返回 undefined 即丢弃/幂等 no-op
+  const applyCompaction = (event: SessionCompactionState.Event) =>
+    Effect.gen(function* () {
+      const current = yield* findCompaction(event.data.messageID)
+      const next = SessionCompactionState.transition(current, event)
+      if (next === undefined) return
+      if (current !== undefined) {
+        yield* adapter.updateCompaction(next)
+        return
+      }
+      // 追加前做 ID 冲突防护：同 ID 已被 assistant 占用时不追加
+      const assistant = yield* adapter.getAssistant(event.data.messageID)
+      if (assistant) return
+      yield* adapter.appendMessage(next)
+    })
 
   return Effect.gen(function* () {
     yield* SessionEvent.All.match(event, {
@@ -398,101 +415,12 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
         })
       },
       "session.next.retried": () => Effect.void,
-      "session.next.compaction.queued": (event) => {
-        return adapter.appendMessage(
-          SessionMessage.Compaction.make({
-            id: event.data.messageID,
-            type: "compaction",
-            metadata: event.metadata,
-            reason: event.data.reason,
-            status: "queued",
-            summary: "",
-            recent: "",
-            time: { created: event.data.timestamp },
-          }),
-        )
-      },
-      "session.next.compaction.started": (event) => {
-        return Effect.gen(function* () {
-          const existing = yield* adapter.getAssistant(event.data.messageID)
-          if (existing) return
-          // 无前置 Queued（如旧路径直发 Started）时补一条 running 消息
-          const found = yield* findCompaction(event.data.messageID)
-          if (found !== undefined) {
-            yield* adapter.updateCompaction(
-              produce(found, (draft) => {
-                draft.status = "running"
-              }),
-            )
-            return
-          }
-          yield* adapter.appendMessage(
-            SessionMessage.Compaction.make({
-              id: event.data.messageID,
-              type: "compaction",
-              metadata: event.metadata,
-              reason: event.data.reason,
-              status: "running",
-              summary: "",
-              recent: "",
-              time: { created: event.data.timestamp },
-            }),
-          )
-        })
-      },
+      "session.next.compaction.queued": (event) => applyCompaction(event),
+      "session.next.compaction.started": (event) => applyCompaction(event),
       "session.next.compaction.delta": () => Effect.void,
-      "session.next.compaction.ended": (event) => {
-        return Effect.gen(function* () {
-          const found = yield* findCompaction(event.data.messageID)
-          if (found !== undefined) {
-            yield* adapter.updateCompaction(
-              produce(found, (draft) => {
-                draft.status = "completed"
-                draft.summary = event.data.text
-                draft.recent = event.data.recent
-              }),
-            )
-            return
-          }
-          yield* adapter.appendMessage(
-            SessionMessage.Compaction.make({
-              id: event.data.messageID,
-              type: "compaction",
-              metadata: event.metadata,
-              reason: event.data.reason,
-              status: "completed",
-              summary: event.data.text,
-              recent: event.data.recent,
-              time: { created: event.data.timestamp },
-            }),
-          )
-        })
-      },
-      "session.next.compaction.failed": (event) => {
-        return Effect.gen(function* () {
-          const found = yield* findCompaction(event.data.messageID)
-          if (found !== undefined) {
-            yield* adapter.updateCompaction(
-              produce(found, (draft) => {
-                draft.status = "failed"
-                draft.error = event.data.error
-              }),
-            )
-          }
-        })
-      },
-      "session.next.compaction.interrupted": (event) => {
-        return Effect.gen(function* () {
-          const found = yield* findCompaction(event.data.messageID)
-          if (found !== undefined) {
-            yield* adapter.updateCompaction(
-              produce(found, (draft) => {
-                draft.status = "interrupted"
-              }),
-            )
-          }
-        })
-      },
+      "session.next.compaction.ended": (event) => applyCompaction(event),
+      "session.next.compaction.failed": (event) => applyCompaction(event),
+      "session.next.compaction.interrupted": (event) => applyCompaction(event),
       "session.next.revert.staged": () => Effect.void,
       "session.next.revert.cleared": () => Effect.void,
       "session.next.revert.committed": () => Effect.void,

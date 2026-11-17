@@ -37252,6 +37252,10 @@
             "required": ["type", "message"],
             "additionalProperties": false
           },
+          "cause": {
+            "type": "string",
+            "enum": ["user", "restart"]
+          },
           "id": {
             "type": "string",
             "pattern": "^msg_"

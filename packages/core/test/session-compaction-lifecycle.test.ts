@@ -126,4 +126,97 @@ describe("SessionMessageUpdater compaction lifecycle", () => {
       expect(decoded).toMatchObject({ type: "compaction", summary: "old summary" })
     }),
   )
+
+  it.effect("重复 replay 幂等：不追加重复消息，终态不回退", () =>
+    Effect.gen(function* () {
+      const state: SessionMessageUpdater.MemoryState = { messages: [] }
+      const adapter = SessionMessageUpdater.memory(state)
+      const messageID = SessionMessage.ID.create()
+      const ended = {
+        id: "evt_5" as never,
+        type: SessionEvent.Compaction.Ended.type,
+        data: { sessionID: "ses_test" as never, messageID, timestamp, reason: "manual", text: "summary", recent: "recent" },
+      }
+
+      yield* SessionMessageUpdater.update(adapter, queuedEvent(messageID) as never)
+      yield* SessionMessageUpdater.update(adapter, queuedEvent(messageID) as never)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ status: "queued" })
+
+      yield* SessionMessageUpdater.update(adapter, startedEvent(messageID) as never)
+      yield* SessionMessageUpdater.update(adapter, startedEvent(messageID) as never)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ status: "running" })
+
+      yield* SessionMessageUpdater.update(adapter, ended as never)
+      yield* SessionMessageUpdater.update(adapter, ended as never)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ status: "completed", summary: "summary" })
+
+      // 终态不回退：replay 乱序或重复事件不能把 completed 拉回 running/failed
+      yield* SessionMessageUpdater.update(adapter, startedEvent(messageID) as never)
+      yield* SessionMessageUpdater.update(adapter, failedEvent(messageID) as never)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ status: "completed" })
+    }),
+  )
+
+  it.effect("interrupted 记录 cause，先到的终态为准", () =>
+    Effect.gen(function* () {
+      const state: SessionMessageUpdater.MemoryState = { messages: [] }
+      const adapter = SessionMessageUpdater.memory(state)
+      const userStopID = SessionMessage.ID.create()
+      const failedID = SessionMessage.ID.create()
+
+      yield* SessionMessageUpdater.update(adapter, startedEvent(userStopID) as never)
+      yield* SessionMessageUpdater.update(adapter, interruptedEvent(userStopID, "user") as never)
+      expect(state.messages[0]).toMatchObject({ status: "interrupted", cause: "user" })
+
+      yield* SessionMessageUpdater.update(adapter, startedEvent(failedID) as never)
+      yield* SessionMessageUpdater.update(adapter, failedEvent(failedID) as never)
+      yield* SessionMessageUpdater.update(adapter, interruptedEvent(failedID, "restart") as never)
+      expect(state.messages[1]).toMatchObject({ status: "failed" })
+      expect(state.messages[1]).not.toHaveProperty("cause")
+    }),
+  )
+
+  it.effect("无 status 的旧消息视为终态，后续转换不再改动", () =>
+    Effect.gen(function* () {
+      const state: SessionMessageUpdater.MemoryState = { messages: [] }
+      const adapter = SessionMessageUpdater.memory(state)
+      const legacy = Schema.decodeUnknownSync(SessionMessage.Message)({
+        id: SessionMessage.ID.create(),
+        type: "compaction",
+        reason: "manual",
+        summary: "old summary",
+        recent: "old recent",
+        time: { created: 1_000 },
+      })
+      state.messages.push(legacy)
+
+      yield* SessionMessageUpdater.update(
+        adapter,
+        startedEvent(legacy.id as SessionMessage.ID) as never,
+      )
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ summary: "old summary" })
+    }),
+  )
+
+  it.effect("started 丢失时 ended 可直接结算 queued", () =>
+    Effect.gen(function* () {
+      const state: SessionMessageUpdater.MemoryState = { messages: [] }
+      const adapter = SessionMessageUpdater.memory(state)
+      const messageID = SessionMessage.ID.create()
+
+      yield* SessionMessageUpdater.update(adapter, queuedEvent(messageID) as never)
+      yield* SessionMessageUpdater.update(adapter, {
+        id: "evt_5" as never,
+        type: SessionEvent.Compaction.Ended.type,
+        data: { sessionID: "ses_test" as never, messageID, timestamp, reason: "manual", text: "s", recent: "r" },
+      } as never)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0]).toMatchObject({ status: "completed", summary: "s" })
+    }),
+  )
 })

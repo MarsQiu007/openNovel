@@ -963,6 +963,7 @@ export type SessionsContextOutput = {
         readonly summary: string
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
+        readonly cause?: "user" | "restart" | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -2221,6 +2222,7 @@ export type SessionsMessageOutput = {
         readonly summary: string
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
+        readonly cause?: "user" | "restart" | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -2395,6 +2397,7 @@ export type MessagesListOutput = {
         readonly summary: string
         readonly recent: string
         readonly error?: { readonly type: string; readonly message: string } | null
+        readonly cause?: "user" | "restart" | null
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
