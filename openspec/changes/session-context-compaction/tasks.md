@@ -45,11 +45,33 @@
 - [x] 6.1 使用隔离数据库和可控 provider 完成中文长会话端到端验收，取证阈值前自动压缩、DashScope 溢出兜底、手动/自动去重、失败重试和进程重启不自动重放，并将可重复断言固化为自动化用例（`test/session-compaction-e2e/` 5 用例全过、6 连跑稳定：①中文长会话阈值自动压缩并继续原始回合（窗口 40000/reserved 6000/keep 100，判定量含 SystemContext baseline ≈21k chars，第 2 轮 ~35.6k tokens 跨过 trigger 34000）；②手动受理排队且活跃操作去重（同 messageID）；③失败脱敏可读（400 不进重试阶梯）+ 手动重试 failed→completed；④DashScope 400 溢出兜底后原始回合重发成功；⑤进程重启遗留 running 结算 interrupted(restart) 且零请求重放——共享 DB 文件须显式 `Database.layerFromPath` 替换节点（preload 把 Flag.OPENNOVEL_DB 冻结为 ":memory:"），基线 calls 须 poll 等摘要请求到达（running 状态先于摘要请求落库，过早读取会把 scope1 摘要请求误判为重放））
 - [ ] 6.2 在用户完成会话 UI 冒烟验收后，运行受影响 core/llm/app 测试目录全量及受影响 e2e 目录全量；记录实际命令、结果和既有 flake 归因，不把未验收前的结果作为最终收尾证据
 - [ ] 6.3 从仓库根运行 `bun run typecheck`、全量 oxlint、生成一致性检查和 HttpApi coverage 等价检查，确认达到 CI 等价要求；若有失败先按时间线和 diff 归因，不用重复重跑代替修复
-- [ ] 6.4 检查并清理本 change 引入的同类、冗余和无用代码，重点确认旧手动旁路、旧独立水位消费、无人引用导出、死 import 和未消费查询通道；验证所有新增公开字段均有实际消费者或在规格中说明兼容用途
-- [ ] 6.5 核对 proposal、design、两个 delta specs 与最终实现一致，运行 `openspec validate session-context-compaction --strict`，并确认所有实现提交含 `OpenSpec-Change: session-context-compaction` 及适用的完整 `Ported-from`
+- [x] 6.4 检查并清理本 change 引入的同类、冗余和无用代码，重点确认旧手动旁路、旧独立水位消费、无人引用导出、死 import 和未消费查询通道；验证所有新增公开字段均有实际消费者或在规格中说明兼容用途（子代理六面审查全部干净：旧 runner.compact 直调旁路已删、执行仅存于 drain；新导出 estimateText/findAnchor/CANDIDATE_TTL/settle/6 类事件/compact·cancel 端点均有消费点；旧 Ended 兼容为刻意保留（compaction-state.ts 注释明示）；degraded 字段有 UI 消费（session-context-usage.tsx:167 展示降级原因）。审查报告的两项「可选清理」核实后均不成立：session-context-tab.tsx 详情面板不在本 change diff 内（既有代码非本次引入），degraded 实际被 ring 读取）
+- [x] 6.5 核对 proposal、design、两个 delta specs 与最终实现一致，运行 `openspec validate session-context-compaction --strict`，并确认所有实现提交含 `OpenSpec-Change: session-context-compaction` 及适用的完整 `Ported-from`（validate --strict 通过；design 十项决策逐一对应实现（水位读模型/百分比 buffer+durable Queued/安全边界继续原始 input/统一状态转换/后台候选单 fiber/四级缩减+nudge/恢复只结算不重放/App 复用链路/按语义拆分移植）；13 个 requirement 场景全落地；实现提交全部带 trailer，唯一移植提交 e6d12183fb 记录 2 个完整 Ported-from；实现提交清单已写入下方 Implementation Commits）
 
 ## Workflow follow-up
 
 - 用 `git log --grep "OpenSpec-Change: session-context-compaction" --format="%h %s"` 收集实现提交并写入 `## Implementation Commits`，不包含记录更新和归档移动自身。
 - 单独提交记录更新，按仓库流程同步主 specs、归档并验证归档结果。
 - 合并前确认工作树干净并更新 main；推送功能性代码后检查远端 generate、typecheck、test 全部通过。
+
+## Implementation Commits
+
+- b682e08736 feat(core): 压缩配置支持百分比预留与后台开关
+- a19e28541f feat(schema): 压缩消息状态字段与压缩生命周期事件
+- 1a7de5742c feat(protocol): 手动压缩受理响应与统一水位快照契约
+- 8011a9f3f8 chore(sdk): 再生成 compact 受理响应与水位快照类型
+- e6d12183fb fix(llm): 移植上游上下文溢出识别模式（Ported-from: bdf019a9acef…、a931e8a9fd4…）
+- 014a3a3181 feat(core): 统一上下文水位读模型与快照刷新
+- 8ea20ae266 feat(core): 统一压缩消息状态转换并保证终态幂等
+- 6424d53261 feat(core): 手动压缩改造为 durable 排队操作
+- 5e86a5b72a feat(core): 自动阈值压缩接入统一排队路径
+- a8b06fc64b feat(core): 压缩排队撤销、运行中停止与有界恢复
+- 94d672ff48 feat(core): 进程恢复结算遗留压缩操作
+- 5182541109 feat(core): 摘要四级缩减阶梯与结构 nudge
+- 5a938ea31b feat(core): 后台压缩候选预生成、熔断与 usage 记账
+- a22226107f feat(app): 统一水位 preparing 信号与压缩全生命周期翻译
+- 66c044b861 feat(app): 时间线压缩状态卡与可展开摘要
+- 483b8d5472 feat(app): 用量圆环统一水位与压缩设置
+- 5faa120edd test(app): 压缩生命周期 e2e 覆盖
+- aca4414341 test(app): 清理压缩 e2e 多余非空断言
+- 8aef1c1a50 test(opennovel): 压缩端到端验收与重启不自动重放用例
