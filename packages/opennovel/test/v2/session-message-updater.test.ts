@@ -218,7 +218,16 @@ test("compaction events reduce to compaction message only when completed", () =>
     } satisfies SessionEvent.Event),
   )
 
-  expect(state.messages).toEqual([])
+  expect(state.messages).toHaveLength(1)
+  expect(state.messages[0]).toMatchObject({
+    id: compactionID,
+    type: "compaction",
+    reason: "auto",
+    status: "running",
+    summary: "",
+    recent: "",
+    time: { created: DateTime.makeUnsafe(1) },
+  })
 
   Effect.runSync(
     SessionMessageUpdater.update(SessionMessageUpdater.memory(state), {
@@ -266,8 +275,9 @@ test("compaction events reduce to compaction message only when completed", () =>
     id: compactionID,
     type: "compaction",
     reason: "auto",
+    status: "completed",
     summary: "final summary",
     recent: "recent context",
-    time: { created: DateTime.makeUnsafe(4) },
+    time: { created: DateTime.makeUnsafe(1) },
   })
 })
