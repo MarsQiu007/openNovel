@@ -53,6 +53,7 @@
 - 用 `git log --grep "OpenSpec-Change: session-context-compaction" --format="%h %s"` 收集实现提交并写入 `## Implementation Commits`，不包含记录更新和归档移动自身。
 - 单独提交记录更新，按仓库流程同步主 specs、归档并验证归档结果。
 - 合并前确认工作树干净并更新 main；推送功能性代码后检查远端 generate、typecheck、test 全部通过。
+- 归档后收尾修复 7c67169abb（见 Implementation Commits 子小节）推送 main 后同样按上行确认工作流全绿后收尾；该修复随 main tip CI 转绿后本 change 闭环。
 
 ## Implementation Commits
 
@@ -75,3 +76,7 @@
 - 5faa120edd test(app): 压缩生命周期 e2e 覆盖
 - aca4414341 test(app): 清理压缩 e2e 多余非空断言
 - 8aef1c1a50 test(opennovel): 压缩端到端验收与重启不自动重放用例
+
+### 归档后收尾修复
+
+- 7c67169abb fix(opennovel): 同步事件清单计数断言至 80 —— 本 change 新增 4 个 wire 类型（压缩消息状态/生命周期事件、水位快照事件）后 opennovel 侧 `test/event-manifest.test.ts` 的 `Latest.size` 快照仍停留在 76，推送 main 后 CI unit 双 OS 红；schema 侧断言已在 014a3a3181 同步为 80，本处补齐漏改，本地该文件 2 pass 复核。
