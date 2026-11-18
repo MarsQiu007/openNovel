@@ -28,7 +28,7 @@
  */
 import { Effect, Scope, Stream } from "effect"
 import { readToolInsightJsonl, type ToolInsightPaths } from "@opennovel-ai/novel-store"
-import { appendEvidenceUnderLock } from "./evidence-store.js"
+import { appendEvidenceUnderLock, appendSignalUnderLock } from "./evidence-store.js"
 import {
   deriveCallOccurrenceID,
   deriveEvidenceID,
@@ -43,6 +43,16 @@ import { isInternalEvent } from "./filter.js"
 import { openToolInsightGate } from "./gate.js"
 import { issueFingerprint, type ToolInsightFingerprintInput } from "./issue-doc.js"
 import { ingestEvidenceIssue } from "./issue-store.js"
+import {
+  createToolInsightOwnership,
+  type ToolInsightOwnership,
+  type ToolInsightSessionOwnership,
+} from "./ownership.js"
+import {
+  classifyNegativePrompt,
+  deriveSignalID,
+  deriveSignalOccurrenceID,
+} from "./signal-store.js"
 import { findToolInsightVerifyAdapter } from "./verify.js"
 import type { PluginContext } from "../v2/effect/context.js"
 
@@ -83,6 +93,10 @@ interface TurnWindow {
 
 export interface CollectorState {
   onCreated(properties: { sessionID: string; projectID: string; directory: string }): Promise<void>
+  onPromptAdmitted(
+    properties: { sessionID: string; messageID: string; prompt: { text: string } },
+    envelopeID: string,
+  ): Promise<void>
   onStepStarted(properties: { sessionID: string; assistantMessageID: string; agent: string; model: { id: string } }): Promise<void>
   /** envelopeID：宿主事件信封 ID（跨重启不重用），落盘证据的派生 ID 以它为种子 */
   onStepSettled(properties: { sessionID: string; assistantMessageID: string }, envelopeID: string): Promise<void>
@@ -93,6 +107,8 @@ export interface CollectorState {
 
 export interface WatchToolInsightInput {
   ctx: PluginContext
+  /** 与 tool_insight 共享的会话归属解析器；测试和既有调用可省略 */
+  ownership?: ToolInsightOwnership
   /** 本插件实例的 Location 目录：项目归属判定与日志根解析兜底 */
   projectDirectory: string
   /** 证据落盘并摄取进问题文档后的整理信号：归因整理队列按指纹合并发车 */
@@ -109,8 +125,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
   const { ctx, projectDirectory } = input
   const warnings = new Set<string>()
   let bootstrapped = false
-
-  const projectBySession = new Map<string, string>()
+  const ownership = input.ownership ?? createToolInsightOwnership({ ctx, projectDirectory })
   const callByKey = new Map<string, CallInfo>()
   /** 存活 turn 窗口：复合键 session+turn，跨订阅流交错的迟到事件落回各自 turn */
   const turns = new Map<string, TurnWindow>()
@@ -126,23 +141,22 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     }
   }
 
-  /** 逐事件开关门：未启用返回 undefined；启用返回路径与真实项目标识 */
-  const gate = (): { paths: ToolInsightPaths; projectID: string } | undefined => {
+  /** 按会话持久归属打开开关；无法确认真实归属时不使用当前 Location 兜底 */
+  const gateFor = (resolved: ToolInsightSessionOwnership | undefined): { paths: ToolInsightPaths; projectID: string } | undefined => {
+    if (resolved === undefined) return undefined
     const opened = openToolInsightGate({
       configDir: ctx.paths.config,
-      projectDirectory,
+      projectDirectory: resolved.directory,
       // 日志根的项目隔离哈希恒用项目目录（与 tool_insight 工具入口一致，跨重启稳定）
-      projectID: projectDirectory,
+      projectID: resolved.projectID,
       warnOnce: (message) => warnOnce(warnings, message),
     })
     if (opened === undefined) return undefined
     bootstrap(opened.paths)
-    // 证据条目与发生实例派生用真实 projectID（created 观察值）
-    return { paths: opened.paths, projectID: ownProjectID ?? projectDirectory }
+    return { paths: opened.paths, projectID: resolved.projectID }
   }
 
-  /** 本项目 projectID 的 created 观察值：目录匹配本 Location 的 created 事件固化 */
-  let ownProjectID: string | undefined
+  const resolveGate = async (sessionID: string) => gateFor(await ownership.resolve(sessionID))
 
   /** 首次启用时的全量解析：只确认可读性并对中部损坏告警；追加纪律由写入路径逐次保证 */
   const bootstrap = (paths: ToolInsightPaths) => {
@@ -216,9 +230,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
         issue: { tool: trigger.tool, scenario: kind, errorCategory: detection.fingerprint.errorCategory },
       },
     }
-    const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record])
+    const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record], { dedupe: true })
     if (!appended.appended) {
-      warnOnce(warnings, `轨迹证据落盘未完成（${appended.reason}），本条跳过`)
+      if (appended.reason !== "duplicate") warnOnce(warnings, `轨迹证据落盘未完成（${appended.reason}），本条跳过`)
       return
     }
     await ingestEvidenceIssue(ctx2.file, paths, {
@@ -268,9 +282,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       occurrenceID,
       fields: { ...fields, fingerprint: fingerprintHash, issue: fingerprintInput },
     }
-    const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record])
+    const appended = await appendEvidenceUnderLock(ctx2.file, paths, [record], { dedupe: true })
     if (!appended.appended) {
-      warnOnce(warnings, `失败证据落盘未完成（${appended.reason}），本条跳过`)
+      if (appended.reason !== "duplicate") warnOnce(warnings, `失败证据落盘未完成（${appended.reason}），本条跳过`)
       return undefined
     }
     await ingestEvidenceIssue(ctx2.file, paths, {
@@ -320,10 +334,35 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
 
   const state: CollectorState = {
     async onCreated(properties) {
-      projectBySession.set(properties.sessionID, properties.projectID)
-      boundedSet(projectBySession, MAX_SESSIONS)
-      if (ownProjectID === undefined && properties.directory === projectDirectory) {
-        ownProjectID = properties.projectID
+      ownership.observeCreated(properties)
+    },
+
+    async onPromptAdmitted(properties, envelopeID) {
+      const opened = await resolveGate(properties.sessionID)
+      if (opened === undefined) return
+      const classification = classifyNegativePrompt(properties.prompt.text)
+      if (classification === undefined) return
+      const occurrenceID = deriveSignalOccurrenceID({
+        projectID: opened.projectID,
+        sessionID: properties.sessionID,
+        promptMessageID: properties.messageID,
+        ...classification,
+      })
+      // 信号 ID 从发生实例派生：同一提示在事件信封重启/重放变化时仍只有一个原始信号
+      const signalID = deriveSignalID({ projectID: opened.projectID, eventID: occurrenceID })
+      const appended = await appendSignalUnderLock(ctx.file, opened.paths, [
+        {
+          id: signalID,
+          ts: Date.now(),
+          projectID: opened.projectID,
+          sessionID: properties.sessionID,
+          promptMessageID: properties.messageID,
+          occurrenceID,
+          ...classification,
+        },
+      ])
+      if (!appended.appended && appended.reason !== "duplicate") {
+        warnOnce(warnings, `负反馈信号落盘未完成（${appended.reason}），本条跳过`)
       }
     },
 
@@ -339,7 +378,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const key = turnKey(properties.sessionID, properties.assistantMessageID)
       const turn = turns.get(key)
       if (turn === undefined) return
-      const opened = gate()
+      const opened = await resolveGate(properties.sessionID)
       if (opened === undefined) {
         turns.delete(key)
         if (latestTurnBySession.get(properties.sessionID) === properties.assistantMessageID) {
@@ -389,7 +428,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
             issue: { tool, scenario: "tool_failure", errorCategory },
           },
         }
-        const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record])
+        const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record], { dedupe: true })
         if (appended.appended) {
           await ingestEvidenceIssue(ctx.file, opened.paths, {
             fingerprint: fingerprintHash,
@@ -406,13 +445,10 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       // 窗口只由 MAX_TURNS 有界淘汰回收
     },
 
-      // 归属：只采已在 created 映射中的会话；映射有界，淘汰后停采（跨项目不串线
-      // 由映射值区分，ownProjectID 未知时与旧指标同样按本进程事件采集）
     async onToolCalled(properties, _envelopeID: string) {
-      const opened = gate()
+      const opened = await resolveGate(properties.sessionID)
       if (opened === undefined) return
-      const projectID = projectBySession.get(properties.sessionID)
-      if (projectID === undefined) return
+      const { projectID } = opened
       const input = isRecord(properties.input) ? properties.input : {}
       const turn = windowFor(properties.sessionID, properties.assistantMessageID)
       const info: CallInfo = {
@@ -434,10 +470,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     },
 
     async onToolSuccess(properties, envelopeID: string) {
-      const opened = gate()
+      const opened = await resolveGate(properties.sessionID)
       if (opened === undefined) return
-      const projectID = projectBySession.get(properties.sessionID)
-      if (projectID === undefined) return
+      const { projectID } = opened
       const key = callKey(projectID, properties.sessionID, properties.callID)
       const info = callByKey.get(key)
       const structured = isRecord(properties.structured) ? properties.structured : {}
@@ -492,9 +527,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
           ...(verified.status === "verified_failure" ? { fingerprint: fingerprintHash, issue: fingerprintInput } : {}),
         },
       }
-      const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record])
+      const appended = await appendEvidenceUnderLock(ctx.file, opened.paths, [record], { dedupe: true })
       if (!appended.appended) {
-        warnOnce(warnings, `真实状态证据落盘未完成，本条跳过`)
+        if (appended.reason !== "duplicate") warnOnce(warnings, `真实状态证据落盘未完成（${appended.reason}），本条跳过`)
         return
       }
       if (verified.status !== "verified_failure") return
@@ -520,14 +555,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     },
 
     async onToolFailed(properties, envelopeID: string) {
-      const opened = gate()
-      if (opened === undefined) {
-        return
-      }
-      const projectID = projectBySession.get(properties.sessionID)
-      if (projectID === undefined) {
-        return
-      }
+      const opened = await resolveGate(properties.sessionID)
+      if (opened === undefined) return
+      const { projectID } = opened
       const key = callKey(projectID, properties.sessionID, properties.callID)
       const info = callByKey.get(key)
       const tool = info?.tool ?? "unknown"
@@ -598,6 +628,16 @@ export function watchToolInsightEvents(input: WatchToolInsightInput): Effect.Eff
     }
 
   return Effect.gen(function* () {
+    yield* ctx.event.subscribe("session.next.prompt.admitted").pipe(
+      Stream.filter((event) => !isInternalEvent(event)),
+      Stream.runForEach(
+        filterAndRun(
+          (properties: { sessionID: string; messageID: string; prompt: { text: string } }, envelopeID) =>
+            state.onPromptAdmitted(properties, envelopeID),
+        ),
+      ),
+      Effect.forkScoped,
+    )
     yield* ctx.event.subscribe("session.next.created").pipe(
       Stream.filter((event) => !isInternalEvent(event)),
       Stream.runForEach(filterAndRun((properties) => state.onCreated(properties))),

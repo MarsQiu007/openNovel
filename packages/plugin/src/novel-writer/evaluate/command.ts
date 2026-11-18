@@ -22,6 +22,9 @@ const TEMPLATE = `用户触发了创作自评价命令 /evaluate。请按参数�
 - 「记录这个问题 <描述>」= 调用 tool_insight 工具 action=record，把描述放进 feedback；无报错的繁琐操作、理解偏差、写作之外的交互问题都可以记录
 - 「补充问题 <指纹> <反馈>」= action=supplement，沿用原发生实例；用户明确说是又一次新发生时才传 new_occurrence=true
 - 「重新整理问题 <指纹>」= action=reorganize，全部证据重新生成假设与建议
+- 普通对话中的「不对 / 错了」已由系统自动保存为 signals.jsonl 中的低噪声负反馈信号；不展示、不引用提示原文
+- 「查看负反馈信号」= action=list_signals，只展示信号 ID、时间、目标范围、反馈类别和升级状态
+- 「升级负反馈信号 <ID...>」= 先向用户确认影响，再 action=upgrade_signal；可选用户确认的简短影响描述放进 feedback，仍会被脱敏截断
 - 用户提供的正文片段绝不能放进 feedback：需要必要正文时改用 content_exception 字段并向用户说明这是本地保留授权
 
 执行步骤：

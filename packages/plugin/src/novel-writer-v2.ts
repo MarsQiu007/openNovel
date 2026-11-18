@@ -20,6 +20,7 @@ import { watchSessionEvents } from "./novel-writer/evaluate/events.js"
 import { createNovelWriterTools } from "./novel-writer/tools/index.js"
 import { insightOrganizerAgent } from "./novel-writer/agents/insight-organizer.js"
 import { watchToolInsightEvents } from "./tool-insight/collector.js"
+import { createToolInsightOwnership } from "./tool-insight/ownership.js"
 import { createToolInsightOrganizer } from "./tool-insight/organizer.js"
 import { createToolInsightRetest } from "./tool-insight/retest.js"
 import { createToolInsightTool } from "./tool-insight/tool.js"
@@ -43,6 +44,9 @@ export default define({
   effect: Effect.fn(function* (ctx) {
     yield* ctx.agent.transform(registerWritingAgents)
 
+    // 采集与主动入口共享同一归属映射，保证自动证据和手动记录写同一个日志根
+    const ownership = createToolInsightOwnership({ ctx, projectDirectory: ctx.location.directory })
+
     // 后台归因整理队列（任务 4.1/4.2）：独立于事件采集器，tool_insight 的
     // record/supplement/reorganize 与采集器落盘都汇入同一队列。
     const organizer = createToolInsightOrganizer({
@@ -65,12 +69,20 @@ export default define({
       // 运行时由全局开关决定是否落盘
       editor.add(
         "tool_insight",
-        createToolInsightTool({ configDir: ctx.paths.config, file: ctx.file, enqueue: organizer.enqueue, retest }),
+        createToolInsightTool({
+          configDir: ctx.paths.config,
+          file: ctx.file,
+          enqueue: organizer.enqueue,
+          retest,
+          resolveOwnership: ownership.resolve,
+        }),
       )
     })
 
-    // 条件注册：仅小说目录注入上下文源，非小说目录零污染
+    // 条件注册：仅小说目录注入上下文源，非小说目录零污染；
+    // 复测临时 Location 带 internal purpose，装载工具但不做常规采集与启动对账
     if (existsSync(join(ctx.location.directory, ".novel"))) {
+      if (ctx.purpose !== undefined) return
       yield* ctx.systemContext.register(
         createNovelContextSource({
           session: ctx.session,
@@ -81,7 +93,12 @@ export default define({
       yield* watchSessionEvents(ctx, ctx.location.directory)
       // 事件证据采集器（任务 3.1）：自身带全局开关门，未启用时零落盘；
       // 证据落盘即汇入归因整理队列
-      yield* watchToolInsightEvents({ ctx, projectDirectory: ctx.location.directory, onDocumented: organizer.enqueue })
+      yield* watchToolInsightEvents({
+        ctx,
+        projectDirectory: ctx.location.directory,
+        ownership,
+        onDocumented: organizer.enqueue,
+      })
       yield* ctx.command.transform(registerEvaluateCommand)
       // 启动崩溃恢复（任务 4.2/5.5）：订阅就绪后再按当前项目与日志根只补一次 pending，
       // 并把无终态的复测运行记录标为中断/未验证。对账只做磁盘回读，必须排在订阅之后，

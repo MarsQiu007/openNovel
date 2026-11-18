@@ -13,6 +13,7 @@ import { join } from "path"
 import { closeDb, readToolInsightJsonl, toolInsightIssuePath, toolInsightPaths } from "@opennovel-ai/novel-store"
 import { ChapterTable, ChapterVersionTable, NovelTable, getDb } from "../../src/novel-writer/session-store.js"
 import { createCollectorState } from "../../src/tool-insight/collector.js"
+import { isInternalEvent } from "../../src/tool-insight/filter.js"
 import { issueFingerprint, parseIssueDoc } from "../../src/tool-insight/issue-doc.js"
 import { toolInsightProjectSlug } from "../../src/tool-insight/settings.js"
 import type { PluginContext } from "../../src/v2/effect/context.js"
@@ -50,10 +51,18 @@ function pathsFor(logRoot: string, projectDir: string) {
   return toolInsightPaths(join(logRoot, toolInsightProjectSlug(projectDir)))
 }
 
-function makeState(configDir: string, logRoot: string, projectDir: string) {
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 采集器只消费 file/paths.config 两个域，测试替身字段集故意不完整
-  const ctx = { file, paths: { config: configDir }, event: {} } as unknown as PluginContext
-  return createCollectorState({ ctx, projectDirectory: projectDir })
+function makeState(
+  configDir: string,
+  logRoot: string,
+  projectDir: string,
+  options?: {
+    session?: { get: (sessionID: string) => Promise<{ location: string; projectID?: string } | undefined> }
+    ownership?: Parameters<typeof createCollectorState>[0]["ownership"]
+  },
+) {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 采集器只消费 file/paths.config/session 三个域，测试替身字段集故意不完整
+  const ctx = { file, paths: { config: configDir }, event: {}, session: options?.session } as unknown as PluginContext
+  return createCollectorState({ ctx, projectDirectory: projectDir, ownership: options?.ownership })
 }
 
 function readEvidence(logRoot: string, projectDir: string) {
@@ -90,16 +99,17 @@ describe("事件证据采集器（任务 3.1）", () => {
       await state.onToolCalled({ sessionID: "sB", assistantMessageID: "msg_b", callID: "call_1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_b_call")
       await state.onToolFailed({ sessionID: "sB", assistantMessageID: "msg_b", callID: "call_1", error: failError }, "evt_b_fail")
 
-      const { entries } = readEvidence(logRoot, projectDir)
-      const failures = entries.filter((entry) => entry.kind === "tool_failed")
-      expect(failures).toHaveLength(2)
-      const projects = new Set(failures.map((entry) => entry.projectID))
-      expect(projects).toEqual(new Set(["proj_A", "proj_B"]))
-      const [first, second] = failures
-      expect(first?.occurrenceID).toBeDefined()
-      expect(first?.occurrenceID).not.toBe(second?.occurrenceID)
-      expect(first?.callID).toBe("call_1")
-      expect(second?.callID).toBe("call_1")
+      const first = readEvidence(logRoot, projectDir)
+      const second = readEvidence(logRoot, otherProject)
+      const firstFailures = first.entries.filter((entry) => entry.kind === "tool_failed")
+      const secondFailures = second.entries.filter((entry) => entry.kind === "tool_failed")
+      expect(firstFailures).toHaveLength(1)
+      expect(secondFailures).toHaveLength(1)
+      expect(firstFailures[0]?.projectID).toBe("proj_A")
+      expect(secondFailures[0]?.projectID).toBe("proj_B")
+      expect(firstFailures[0]?.occurrenceID).not.toBe(secondFailures[0]?.occurrenceID)
+      expect(firstFailures[0]?.callID).toBe("call_1")
+      expect(secondFailures[0]?.callID).toBe("call_1")
     } finally {
       removeDir(configDir)
       removeDir(logRoot)
@@ -377,6 +387,115 @@ describe("事件证据采集器（任务 3.1）", () => {
     }
   })
 
+describe("会话归属与负反馈信号（任务 2/4）", () => {
+  test("多 Location 同一事件只写一个项目根，重复证据不重复摄取", async () => {
+    const { configDir, logRoot, projectDir } = fixture("multi-owner")
+    const ownership = {
+      observeCreated() {},
+      resolve: async () => ({ projectID: "proj_same", directory: projectDir }),
+    }
+    try {
+      enable(configDir, logRoot)
+      const first = makeState(configDir, logRoot, projectDir, { ownership })
+      const second = makeState(configDir, logRoot, projectDir, { ownership })
+      for (const state of [first, second]) {
+        await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_call")
+        await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_fail")
+      }
+      const { entries } = readEvidence(logRoot, projectDir)
+      expect(entries.filter((entry) => entry.kind === "tool_failed")).toHaveLength(1)
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "NotFoundError" })
+      expect(readIssueMeta(logRoot, projectDir, fingerprint).meta.occurrence_count).toBe(1)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("重启后持久 Session 归属一致才兜底，不一致时不落盘", async () => {
+    const { configDir, logRoot, projectDir } = fixture("persistent")
+    const otherProject = join(projectDir, "..", "other-book")
+    const consistent = makeState(configDir, logRoot, projectDir, {
+      session: { get: async () => ({ location: projectDir, projectID: "proj_persistent" }) },
+    })
+    const mismatched = makeState(configDir, logRoot, projectDir, {
+      session: { get: async () => ({ location: otherProject, projectID: "proj_other" }) },
+    })
+    try {
+      enable(configDir, logRoot)
+      await consistent.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_fail")
+      await mismatched.onToolFailed({ sessionID: "s2", assistantMessageID: "msg_2", callID: "c2", error: failError }, "evt_other")
+      const { entries } = readEvidence(logRoot, projectDir)
+      expect(entries.filter((entry) => entry.kind === "tool_failed")).toHaveLength(1)
+      expect(entries[0]?.projectID).toBe("proj_persistent")
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+      removeDir(otherProject)
+    }
+  })
+
+  test("明确负反馈只保存稳定引用，同一提示跨事件信封只计一次", async () => {
+    const { configDir, logRoot, projectDir } = fixture("signal")
+    try {
+      enable(configDir, logRoot)
+      const secret = "sk-test-0123456789abcdef 第一千零二十四章 主角挺身而出。"
+      const state = makeState(configDir, logRoot, projectDir, {
+        ownership: { observeCreated() {}, resolve: async () => ({ projectID: "proj_signal", directory: projectDir }) },
+      })
+      const prompt = { sessionID: "s1", messageID: "msg_1", prompt: { text: `不对，${secret} {attachment:ch1.txt}` } }
+      await state.onPromptAdmitted(prompt, "evt_first")
+      await state.onPromptAdmitted(prompt, "evt_replayed")
+      await state.onPromptAdmitted({ sessionID: "s1", messageID: "msg_2", prompt: { text: "你用错工具了" } }, "evt_tool")
+      await state.onPromptAdmitted({ sessionID: "s1", messageID: "msg_3", prompt: { text: "流程步骤不合理" } }, "evt_flow")
+      await state.onPromptAdmitted({ sessionID: "s1", messageID: "msg_4", prompt: { text: "可以再润色一下" } }, "evt_vague")
+
+      const paths = pathsFor(logRoot, projectDir)
+      const raw = readFileSync(paths.signals, "utf-8")
+      const signals = readToolInsightJsonl(paths.signals).entries
+      expect(signals).toHaveLength(3)
+      expect(signals.filter((entry) => entry.occurrenceID?.startsWith("oci_"))).toHaveLength(3)
+      expect(raw).not.toContain(secret)
+      expect(raw).not.toContain("sk-test")
+      expect(raw).not.toContain("attachment")
+      expect(signals.map((entry) => entry.feedbackCategory)).toEqual(["result_rejected", "tool_misuse", "flow_issue"])
+      expect(Object.keys(signals[0]!).sort()).toEqual([
+        "feedbackCategory",
+        "id",
+        "occurrenceID",
+        "projectID",
+        "promptMessageID",
+        "sessionID",
+        "targetScope",
+        "ts",
+      ])
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("未启用时负反馈零落盘；内部事件被订阅过滤器拒绝", async () => {
+    const { configDir, logRoot, projectDir } = fixture("signal-off")
+    try {
+      const state = makeState(configDir, logRoot, projectDir, {
+        ownership: { observeCreated() {}, resolve: async () => ({ projectID: "proj_off", directory: projectDir }) },
+      })
+      await state.onPromptAdmitted({ sessionID: "s1", messageID: "msg_1", prompt: { text: "不对" } }, "evt_prompt")
+      expect(existsSync(pathsFor(logRoot, projectDir).signals)).toBe(false)
+      expect(
+        isInternalEvent({ id: "evt_internal", purpose: "tool-insight", properties: { sessionID: "internal", messageID: "msg", prompt: { text: "不对" } } }),
+      ).toBe(true)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+})
   test("开关关闭零落盘：未启用时全部事件静默", async () => {
     const { configDir, logRoot, projectDir } = fixture("off")
     try {

@@ -25,6 +25,7 @@ export function toolInsightLockKey(logRoot: string, purpose: string, scope?: str
 
 export type AppendJsonlResult =
   | { appended: true }
+  | { appended: false; reason: "duplicate" }
   | { appended: false; reason: "corrupt-middle"; corruptLines: number }
   | { appended: false; reason: "repair-failed" }
   | { appended: false; reason: "lock-failed" }
@@ -32,16 +33,35 @@ export type AppendJsonlResult =
 /** 兼容别名：证据追加与运行记录追加共用同一结果形状 */
 export type AppendEvidenceResult = AppendJsonlResult
 
+/** 记录稳定去重键的窄读取：JSONL 层不认识各业务记录形状 */
+function recordDedupeKey(record: unknown, key: string): string | undefined {
+  if (typeof record !== "object" || record === null) return undefined
+  const value = Reflect.get(record, key)
+  return typeof value === "string" && value !== "" ? `${key}:${value}` : undefined
+}
+
 /**
- * 锁内追加序列本体：调用方必须已持有该文件的对应锁。供已有外层锁的编排
- * （如 run 锁覆盖整个复测运行时追加 started/终态/对账标记）复用，避免同键重入。
+ * 锁内追加序列本体：调用方必须已持有该文件的对应锁。提供稳定 ID 时先做存储层
+ * 去重；相同 ID 不修复尾部也不重写既有行，等待下一次无重复追加自然恢复。
  */
 export function appendJsonlLocked(
   paths: ToolInsightPaths,
-  input: { filePath: string; records: readonly unknown[] },
+  input: { filePath: string; records: readonly unknown[]; dedupe?: boolean; dedupeKeys?: readonly string[] },
 ): AppendJsonlResult {
   const state = readToolInsightJsonl(input.filePath)
   if (state.corruptLines > 0) return { appended: false, reason: "corrupt-middle", corruptLines: state.corruptLines }
+  if (input.dedupe === true) {
+    const dedupeKeys = input.dedupeKeys ?? ["id"]
+    const incomingKeys = input.records
+      .flatMap((record) => dedupeKeys.map((key) => recordDedupeKey(record, key)))
+      .filter((key): key is string => key !== undefined)
+    const existingKeys = new Set(
+      state.entries
+        .flatMap((record) => dedupeKeys.map((key) => recordDedupeKey(record, key)))
+        .filter((key): key is string => key !== undefined),
+    )
+    if (incomingKeys.some((key) => existingKeys.has(key))) return { appended: false, reason: "duplicate" }
+  }
   if (state.tailIncomplete && !repairToolInsightTail(paths, input.filePath)) {
     return { appended: false, reason: "repair-failed" }
   }
@@ -57,7 +77,7 @@ export function appendJsonlLocked(
 export async function appendJsonlUnderLock(
   file: Pick<FileDomain, "withLock">,
   paths: ToolInsightPaths,
-  input: { key: string; filePath: string; records: readonly unknown[]; timeoutMs?: number },
+  input: { key: string; filePath: string; records: readonly unknown[]; dedupe?: boolean; dedupeKeys?: readonly string[]; timeoutMs?: number },
 ): Promise<AppendJsonlResult> {
   const outcome = await runExclusive(file, { dir: paths.locksDir, key: input.key, timeoutMs: input.timeoutMs }, async () =>
     appendJsonlLocked(paths, input),
@@ -65,17 +85,35 @@ export async function appendJsonlUnderLock(
   return outcome.ok ? outcome.value : { appended: false, reason: "lock-failed" }
 }
 
-/** 在 evidence 锁内追加已脱敏证据记录 */
+/** 在 evidence 锁内追加已脱敏证据记录；传入 dedupe 后按稳定 ID 跳过重复 */
 export async function appendEvidenceUnderLock(
+  file: Pick<FileDomain, "withLock">,
+  paths: ToolInsightPaths,
+  records: readonly unknown[],
+  options?: { dedupe?: boolean; timeoutMs?: number },
+): Promise<AppendEvidenceResult> {
+  return appendJsonlUnderLock(file, paths, {
+    key: toolInsightLockKey(paths.root, "evidence"),
+    filePath: paths.evidence,
+    records,
+    dedupe: options?.dedupe,
+    timeoutMs: options?.timeoutMs,
+  })
+}
+
+/** 在 signals 锁内追加负反馈信号；相同信号 ID 或同一提示发生实例都直接跳过 */
+export async function appendSignalUnderLock(
   file: Pick<FileDomain, "withLock">,
   paths: ToolInsightPaths,
   records: readonly unknown[],
   options?: { timeoutMs?: number },
 ): Promise<AppendEvidenceResult> {
   return appendJsonlUnderLock(file, paths, {
-    key: toolInsightLockKey(paths.root, "evidence"),
-    filePath: paths.evidence,
+    key: toolInsightLockKey(paths.root, "signals"),
+    filePath: paths.signals,
     records,
+    dedupe: true,
+    dedupeKeys: ["id", "occurrenceID"],
     timeoutMs: options?.timeoutMs,
   })
 }

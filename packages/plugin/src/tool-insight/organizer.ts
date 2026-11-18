@@ -255,6 +255,24 @@ export function createToolInsightOrganizer(input: {
     }
   }
 
+/**
+ * 启动对账前的零写入探测：没有任何真实记录或可修复尾部时，连锁目录也不创建。
+ * 空索引不是真实记录；问题文档、证据、信号和复测运行才是对账对象。
+ */
+function hasReconcileArtifacts(paths: ToolInsightPaths): boolean {
+  const evidence = readToolInsightJsonl(paths.evidence)
+  const signals = readToolInsightJsonl(paths.signals)
+  if (evidence.entries.length > 0 || evidence.tailIncomplete || evidence.corruptLines > 0) return true
+  if (signals.entries.length > 0 || signals.tailIncomplete || signals.corruptLines > 0) return true
+  try {
+    if (readdirSync(paths.issuesDir).some((name) => name.endsWith(".md"))) return true
+  } catch {}
+  try {
+    if (readdirSync(paths.runsDir).some((name) => name.endsWith(".jsonl"))) return true
+  } catch {}
+  return false
+}
+
   let recovered = false
   const recoverOnce = async () => {
     if (recovered) return
@@ -271,6 +289,7 @@ export function createToolInsightOrganizer(input: {
     const opened = openGate()
     if (opened === undefined) return
     const paths = opened.paths
+    if (!hasReconcileArtifacts(paths)) return
     const file = ctx.file
 
     // 证据锁内：修复撕裂尾部并取干净快照；中部损坏停止一切，等待人工处理
@@ -348,7 +367,7 @@ export function createToolInsightOrganizer(input: {
       if (result.queued) requeued++
     }
 
-    await rebuildIssueIndex(file, paths)
+    if (docFiles.length > 0) await rebuildIssueIndex(file, paths)
 
     // 仍有 pending 的指纹全部入队：无父会话，走显式目录的顶层归因会话
     for (const fingerprint of listPendingFingerprints(paths)) enqueue(fingerprint)
