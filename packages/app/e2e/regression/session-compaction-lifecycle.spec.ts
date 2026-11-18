@@ -46,7 +46,7 @@ test("walks queued to running to completed on one stable card with an expandable
   })
   const [queued, started, ...rest] = frames
 
-  await transport.send(queued!)
+  await transport.send(queued)
   const card = statusCard(page)
   await expect(card).toHaveCount(1)
   await expect(card).toHaveAttribute("data-status", "queued")
@@ -55,7 +55,7 @@ test("walks queued to running to completed on one stable card with an expandable
   await expect(card).toContainText("Automatic")
   await expect(card.getByRole("button", { name: "Cancel" })).toBeVisible()
 
-  await transport.send(started!)
+  await transport.send(started)
   await expect(card).toHaveAttribute("data-status", "running")
   await expect(card).toContainText("Compacting context")
   await expect(card.getByRole("button", { name: "Stop" })).toBeVisible()
@@ -125,7 +125,7 @@ test("cancels a queued compaction from the card action", async ({ page }) => {
     interruptedCause: "restart",
   })
   // 只发 queued 帧，让卡片停在可撤销状态
-  await transport.send(frames[0]!)
+  await transport.send(frames[0])
 
   await statusCard(page).getByRole("button", { name: "Cancel" }).click()
   await expect
@@ -246,13 +246,13 @@ test("keeps the lifecycle machine drivable after an SSE disconnect and reconnect
     terminal: "ended",
   })
 
-  await transport.send(frames[0]!)
+  await transport.send(frames[0])
   await expect(statusCard(page)).toHaveAttribute("data-status", "queued")
 
   await transport.error("compaction reconnect probe")
   await transport.waitForConnection({ after: first.id })
 
-  await transport.send(frames[1]!)
+  await transport.send(frames[1])
   await expect(statusCard(page)).toHaveAttribute("data-status", "running")
   for (const frame of frames.slice(2)) await transport.send(frame)
   await expect(page.locator('[data-timeline-row="TurnDivider"]')).toHaveCount(1)
