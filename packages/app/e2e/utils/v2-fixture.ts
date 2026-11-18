@@ -7,6 +7,7 @@
 import { Schema } from "effect"
 import { SessionEvent } from "@opennovel-ai/schema/session-event"
 import { SessionMessage } from "@opennovel-ai/schema/session-message"
+import { SessionWatermarkEvent } from "@opennovel-ai/schema/session-watermark-event"
 import { Permission } from "@opennovel-ai/schema/permission"
 import { Question } from "@opennovel-ai/schema/question"
 import type {
@@ -38,9 +39,12 @@ const decodeOptions = { errors: "all", onExcessProperty: "error" } as const
 const decodeMessage = Schema.decodeUnknownSync(SessionMessage.Message)
 
 const eventDefinitions: ReadonlyMap<string, Schema.Codec<unknown, unknown>> = new Map(
-  [...SessionEvent.Definitions, ...Question.Event.Definitions, ...Permission.Event.Definitions].map(
-    (definition) => [definition.type, definition.data] as const,
-  ),
+  [
+    ...SessionEvent.Definitions,
+    ...SessionWatermarkEvent.Definitions,
+    ...Question.Event.Definitions,
+    ...Permission.Event.Definitions,
+  ].map((definition) => [definition.type, definition.data] as const),
 )
 
 let messageSequence = 0
@@ -217,6 +221,10 @@ export function v2Compaction(input: {
   recent: string
   id?: string
   created?: number
+  status?: "queued" | "running" | "completed" | "failed" | "interrupted"
+  error?: { type: string; message: string }
+  cause?: "user" | "restart"
+  usage?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
 }): SessionMessageCompaction {
   return checked({
     type: "compaction",
@@ -225,7 +233,82 @@ export function v2Compaction(input: {
     reason: input.reason,
     summary: input.summary,
     recent: input.recent,
+    ...(input.status === undefined ? {} : { status: input.status }),
+    ...(input.error === undefined ? {} : { error: input.error }),
+    ...(input.cause === undefined ? {} : { cause: input.cause }),
+    ...(input.usage === undefined ? {} : { usage: input.usage }),
   })
+}
+
+/** 压缩生命周期帧序列：queued → started → delta×N → terminal（ended/failed/interrupted）。
+ *  terminal 按终态类型生成对应帧；delta 文本整体替换累积（translator 语义），重复帧幂等。 */
+export function v2CompactionLifecycle(input: {
+  directory: string
+  sessionID: string
+  messageID: string
+  reason: "auto" | "manual"
+  text: string
+  recent?: string
+  chunks?: number
+  retryOf?: string
+  terminal: "ended" | "failed" | "interrupted"
+  endedUsage?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
+  failedError?: { type: string; message: string }
+  interruptedCause?: "user" | "restart"
+}): V2SseFrame[] {
+  const chunks = input.chunks ?? 3
+  const size = Math.max(1, Math.ceil(input.text.length / chunks))
+  const deltas = Array.from({ length: Math.ceil(input.text.length / size) }, (_, index) =>
+    input.text.slice(index * size, (index + 1) * size),
+  )
+  const base = () => ({ timestamp: nextTimestamp(), sessionID: input.sessionID })
+  return [
+    v2Event(input.directory, "session.next.compaction.queued", {
+      ...base(),
+      messageID: input.messageID,
+      reason: input.reason,
+      ...(input.retryOf === undefined ? {} : { retryOf: input.retryOf }),
+    }),
+    v2Event(input.directory, "session.next.compaction.started", {
+      ...base(),
+      messageID: input.messageID,
+      reason: input.reason,
+    }),
+    ...deltas.map((delta) =>
+      v2Event(input.directory, "session.next.compaction.delta", { ...base(), messageID: input.messageID, text: delta }),
+    ),
+    ...(input.terminal === "ended"
+      ? [
+          v2Event(input.directory, "session.next.compaction.ended", {
+            ...base(),
+            messageID: input.messageID,
+            reason: input.reason,
+            text: input.text,
+            recent: input.recent ?? "recent context",
+            ...(input.endedUsage === undefined ? {} : { usage: input.endedUsage }),
+          }),
+        ]
+      : []),
+    ...(input.terminal === "failed"
+      ? [
+          v2Event(input.directory, "session.next.compaction.failed", {
+            ...base(),
+            messageID: input.messageID,
+            reason: input.reason,
+            error: input.failedError ?? { type: "provider", message: "Compaction failed visibly" },
+          }),
+        ]
+      : []),
+    ...(input.terminal === "interrupted"
+      ? [
+          v2Event(input.directory, "session.next.compaction.interrupted", {
+            ...base(),
+            messageID: input.messageID,
+            cause: input.interruptedCause ?? "user",
+          }),
+        ]
+      : []),
+  ]
 }
 
 /** N 对 user+assistant 历史回合（升序），供分页/滚动场景播种 */
@@ -241,7 +324,8 @@ export function v2History(count: number, input?: { agent?: string; model?: Model
   ])
 }
 
-/** fixture 自检：重复 ID、孤儿 assistant（前面必须已有 user/compaction）、content 归属 */
+/** fixture 自检：重复 ID、孤儿 assistant（前面必须已有 user/compaction）、content 归属。
+ *  注意消息 ID 需随时间线字典序单调递增——store 按 ID 排序（server-session reconcileFetched）。 */
 export function validateV2Timeline(messages: V2FixtureMessage[]) {
   const seen = new Set<string>()
   let hasUser = false

@@ -37,6 +37,11 @@ export interface MockServerConfig {
   onV2SessionUpdate?: (sessionID: string, body: { title?: string; time?: { archived?: number | null } }) => void
   /** question/permission 回复 POST 捕获，供 spec 断言请求体 */
   onV2Reply?: (input: { kind: "question" | "permission"; sessionID: string; requestID: string; body: unknown }) => void
+  /** POST /api/session/{id}/compact 兜底：回调供 spec 断言触发，admission 覆盖默认 queued */
+  onV2Compact?: (input: { sessionID: string }) => void
+  v2CompactAdmission?: { messageID?: string; status: "queued" | "running" | "completed" | "failed" | "interrupted" | "skipped" }
+  /** POST /api/session/{id}/compact/cancel 兜底：回调供 spec 断言触发 */
+  onV2CompactCancel?: (input: { sessionID: string; body: { messageID?: string } }) => void
   events?: () => unknown[]
   eventRetry?: number
   vcsDiff?: unknown[]
@@ -153,6 +158,21 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
         body: route.request().postDataJSON(),
       })
       return json(route, { data: {} })
+    }
+
+    const compactCancelMatch = path.match(/^\/api\/session\/([^/]+)\/compact\/cancel$/)
+    if (compactCancelMatch && method === "POST") {
+      config.onV2CompactCancel?.({
+        sessionID: compactCancelMatch[1]!,
+        body: (route.request().postDataJSON() ?? {}) as { messageID?: string },
+      })
+      return json(route, {})
+    }
+
+    const compactMatch = path.match(/^\/api\/session\/([^/]+)\/compact$/)
+    if (compactMatch && method === "POST") {
+      config.onV2Compact?.({ sessionID: compactMatch[1]! })
+      return json(route, { data: config.v2CompactAdmission ?? { status: "queued" } })
     }
 
     const messageMatch = path.match(/^\/api\/session\/([^/]+)\/message\/([^/]+)$/)
