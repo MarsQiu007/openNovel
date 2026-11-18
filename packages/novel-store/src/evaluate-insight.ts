@@ -2,7 +2,7 @@
  * 工具改进日志（tool-insight）本地文件底座 — 路径解析与 JSONL 追加/读取辅助。
  *
  * 目录布局由设计固定（<log-root> 由插件侧 resolveToolInsightRoot 解析）：
- *   evidence.jsonl  issues/<fingerprint>.md  index.md
+ *   evidence.jsonl  signals.jsonl  issues/<fingerprint>.md  index.md
  *   runs/<fingerprint>.jsonl  cases/<fingerprint>.md  recovery/  locks/
  *
  * 落盘纪律同 evaluate-metric.ts：O_APPEND + writeSync + fsyncSync + closeSync，
@@ -17,6 +17,8 @@ export interface ToolInsightPaths {
   root: string
   /** 客观证据 JSONL（追加写） */
   evidence: string
+  /** 用户负反馈信号 JSONL（追加写） */
+  signals: string
   issuesDir: string
   index: string
   runsDir: string
@@ -31,6 +33,7 @@ export function toolInsightPaths(logRoot: string): ToolInsightPaths {
   return {
     root: logRoot,
     evidence: join(logRoot, "evidence.jsonl"),
+    signals: join(logRoot, "signals.jsonl"),
     issuesDir: join(logRoot, "issues"),
     index: join(logRoot, "index.md"),
     runsDir: join(logRoot, "runs"),

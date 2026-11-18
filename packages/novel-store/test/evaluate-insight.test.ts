@@ -32,6 +32,7 @@ describe("toolInsightPaths", () => {
   test("固定布局路径解析", () => {
     const paths = toolInsightPaths(logRoot)
     expect(paths.evidence).toBe(join(logRoot, "evidence.jsonl"))
+    expect(paths.signals).toBe(join(logRoot, "signals.jsonl"))
     expect(toolInsightIssuePath(paths, "fp123")).toBe(join(logRoot, "issues", "fp123.md"))
     expect(paths.index).toBe(join(logRoot, "index.md"))
     expect(paths.recoveryDir).toBe(join(logRoot, "recovery"))
