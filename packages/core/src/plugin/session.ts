@@ -162,6 +162,8 @@ export const make = (deps: Deps) =>
         return yield* Effect.fail(new Error("后台会话缺少隔离目录"))
 
       const sessionID = SessionSchema.ID.create()
+      // 临时 Location 中的插件装载早于 Session create：先按目录登记内部用途。
+      if (input.directory !== undefined) SessionPurpose.registerLocation(input.directory, "tool-insight")
       // create 之前登记 purpose（tombstone 到进程退出），堵住早发事件与晚消费事件之间的采集窗口
       SessionPurpose.register(sessionID, "tool-insight")
 
@@ -388,6 +390,7 @@ export const make = (deps: Deps) =>
         sessions.get(SessionSchema.ID.make(id)).pipe(
           Effect.map((info) => ({
             id: info.id,
+            projectID: info.projectID,
             parentID: info.parentID,
             // 规范 stored.location：复测隔离核验据此定位原书做前后摘要比对
             location: info.location.directory,

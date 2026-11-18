@@ -897,6 +897,54 @@ describe("PluginSession 后台会话生命周期", () => {
     expect(outcome.missing).toBeUndefined()
   })
 
+  test("retest 隔离目录登记 purpose，get 回填持久 projectID；授权失败仍不创建", async () => {
+    const directory = `/tmp/opennovel-retest-purpose-${Date.now()}`
+    const created: string[] = []
+    const outcome = await inside(
+      Effect.gen(function* () {
+        const domain = yield* PluginSession.make({
+          sessions: fakeSessions({
+            create: (input) =>
+              Effect.sync(() => {
+                created.push(input.id ?? "ses_purpose")
+                return fakeInfo(input.id ?? "ses_purpose")
+              }),
+            get: (sessionID) => Effect.succeed(fakeInfo(String(sessionID))),
+            prompt: (input) => Effect.sync(() => admittedFake(input)),
+            resume: () => Effect.void,
+            wait: () => Effect.void,
+            messages: () => Effect.succeed([assistantMessage("复测完成")]),
+          }),
+          execution: fakeExecution().service,
+          pluginID: "test-plugin",
+          withinLocation: fakeWithinLocation(["bash"]),
+        })
+        const handle = yield* Effect.promise(() => domain.startBackground(retestInput({ directory })))
+        yield* Effect.promise(() => handle.done)
+        const createdID = created[0]!
+        const persisted = yield* Effect.promise(() => domain.get(createdID))
+        return { persisted }
+      }),
+    )
+    expect(SessionPurpose.lookupLocation(directory)).toBe("tool-insight")
+    expect(outcome.persisted).toMatchObject({ projectID: "prj_test", purpose: "tool-insight" })
+
+    const before = SessionPurpose.lookup("ses_missing_directory")
+    await expect(
+      inside(
+        Effect.gen(function* () {
+          const domain = yield* PluginSession.make({
+            sessions: fakeSessions(),
+            execution: fakeExecution().service,
+            pluginID: "test-plugin",
+            withinLocation: fakeWithinLocation(["bash"]),
+          })
+          return yield* Effect.promise(() => domain.startBackground(retestInput({ directory: undefined })))
+        }),
+      ),
+    ).rejects.toThrow("二选一")
+    expect(SessionPurpose.lookup("ses_missing_directory")).toBe(before)
+  })
   test("完成后的重复取消幂等：done 保持既有结果", async () => {
     const result = await inside(
       Effect.gen(function* () {
