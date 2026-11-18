@@ -392,6 +392,7 @@ export type SessionsListOutput = {
       readonly ratio: number
       readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
       readonly source: "measured" | "estimated" | "mixed"
+      readonly preparing?: boolean
       readonly degraded?: string
     }
   }>
@@ -465,6 +466,7 @@ export type SessionsCreateOutput = {
       readonly ratio: number
       readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
       readonly source: "measured" | "estimated" | "mixed"
+      readonly preparing?: boolean
       readonly degraded?: string
     }
   }
@@ -514,6 +516,7 @@ export type SessionsGetOutput = {
       readonly ratio: number
       readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
       readonly source: "measured" | "estimated" | "mixed"
+      readonly preparing?: boolean
       readonly degraded?: string
     }
   }
@@ -741,6 +744,7 @@ export type SessionsUpdateOutput = {
       readonly ratio: number
       readonly trigger?: { readonly share?: number | string; readonly tokens?: number }
       readonly source: "measured" | "estimated" | "mixed"
+      readonly preparing?: boolean
       readonly degraded?: string
     }
   }

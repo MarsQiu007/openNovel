@@ -11,6 +11,7 @@ import type {
   RevertState,
   Session,
   SessionStatus,
+  SessionV2Info,
   SnapshotFileDiff,
   Todo,
 } from "@opennovel-ai/sdk/v2/client"
@@ -823,6 +824,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
   const applyV2 = (event: { type: string; properties?: unknown }): boolean => {
     if (
       !event.type.startsWith("session.next.") &&
+      !event.type.startsWith("session.context.") &&
       !event.type.startsWith("permission.v2.") &&
       !event.type.startsWith("question.v2.")
     )
@@ -942,16 +944,25 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         if (current) remember({ ...current, model: props.model })
         return true
       }
+      // 统一水位刷新（live-only）：直接落地到会话快照的 context 字段
+      case "session.context.watermark": {
+        const props = event.properties as {
+          sessionID: string
+          timestamp: number
+          watermark: SessionV2Info["context"]
+        }
+        const current = data.info[props.sessionID]
+        if (current && props.watermark) remember({ ...current, context: props.watermark })
+        return true
+      }
       // 无 app 消费面的词汇：prompt.admitted 由 prompted 覆盖；moved 由 global-sync 刷新；
-      // synthetic/shell/context/compaction 进度不渲染
+      // synthetic/shell/context 不渲染（compaction 生命周期经翻译器映射到 Compaction part）
       case "session.next.moved":
       case "session.next.prompt.admitted":
       case "session.next.context.updated":
       case "session.next.synthetic":
       case "session.next.shell.started":
       case "session.next.shell.ended":
-      case "session.next.compaction.started":
-      case "session.next.compaction.delta":
       case "session.next.tool.input.started":
       case "session.next.tool.input.delta":
       case "session.next.tool.input.ended":

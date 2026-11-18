@@ -30,6 +30,8 @@ export const ContextWatermark = Schema.Struct({
     tokens: NonNegativeInt.pipe(optional),
   }).pipe(optional),
   source: Schema.Literals(["measured", "estimated", "mixed"]),
+  /** 后台候选摘要正在准备（未改历史、未发送压缩增量）；快照与刷新通知共用同一信号 */
+  preparing: Schema.Boolean.pipe(optional),
   degraded: Schema.String.pipe(optional),
 }).annotate({ identifier: "Session.ContextWatermark" })
 

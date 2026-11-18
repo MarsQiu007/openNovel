@@ -350,6 +350,108 @@ describe("compaction", () => {
     }
     expect(next[0].properties.info.parentID).toBe("msg_c1")
   })
+
+  test("lifecycle events keep one stable part through queued→running→completed", () => {
+    const translator = make()
+    translator.translate(prompted())
+    const queued = translator.translate(
+      ev("session.next.compaction.queued", {
+        timestamp: 120,
+        sessionID: "ses_1",
+        messageID: "msg_c1",
+        reason: "manual",
+      }),
+    )
+    expect(queued).toHaveLength(2)
+    expect(queued[0]).toMatchObject({ type: "message.updated", properties: { info: { id: "msg_c1", role: "user" } } })
+    expect(queued[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: { part: { id: "msg_c1:compaction", type: "compaction", status: "queued", reason: "manual" } },
+    })
+
+    const running = translator.translate(
+      ev("session.next.compaction.delta", { timestamp: 130, sessionID: "ses_1", messageID: "msg_c1", text: "partial" }),
+    )
+    expect(running[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: { part: { id: "msg_c1:compaction", status: "running", summary: "partial" } },
+    })
+    const more = translator.translate(
+      ev("session.next.compaction.delta", { timestamp: 135, sessionID: "ses_1", messageID: "msg_c1", text: "partial full" }),
+    )
+    expect(more[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: { part: { status: "running", summary: "partial full" } },
+    })
+
+    const ended = translator.translate(
+      ev("session.next.compaction.ended", {
+        timestamp: 140,
+        sessionID: "ses_1",
+        messageID: "msg_c1",
+        reason: "manual",
+        text: "final",
+        recent: "recent",
+        usage: { input: 10, output: 2, reasoning: 0, cache: { read: 3, write: 1 } },
+      }),
+    )
+    expect(ended[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "msg_c1:compaction",
+          status: "completed",
+          summary: "final",
+          usage: { input: 10, output: 2, reasoning: 0, cache: { read: 3, write: 1 } },
+        },
+      },
+    })
+
+    // 结束后 assistant 锚到合成 user；增量账目清空（重试新 messageID 不受污染）
+    const next = translator.translate(stepStarted("msg_a2"))
+    if (next[0]?.type !== "message.updated" || next[0].properties.info.role !== "assistant") {
+      throw new Error("expected assistant message")
+    }
+    expect(next[0].properties.info.parentID).toBe("msg_c1")
+    expect(translator.translate(
+      ev("session.next.compaction.delta", { timestamp: 150, sessionID: "ses_1", messageID: "msg_c2", text: "x" }),
+    )[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: { part: { id: "msg_c2:compaction", summary: "x" } },
+    })
+  })
+
+  test("failed and interrupted map to their statuses with error and cause", () => {
+    const translator = make()
+    const failed = translator.translate(
+      ev("session.next.compaction.failed", {
+        timestamp: 140,
+        sessionID: "ses_1",
+        messageID: "msg_c1",
+        reason: "auto",
+        error: { type: "context-overflow", message: "摘要请求超出窗口" },
+      }),
+    )
+    expect(failed[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: {
+        part: { id: "msg_c1:compaction", status: "failed", error: { type: "context-overflow", message: "摘要请求超出窗口" } },
+      },
+    })
+
+    const interrupted = translator.translate(
+      ev("session.next.compaction.interrupted", {
+        timestamp: 150,
+        sessionID: "ses_1",
+        messageID: "msg_c2",
+        cause: "restart",
+      }),
+    )
+    expect(interrupted[1]).toMatchObject({
+      type: "message.part.updated",
+      properties: { part: { id: "msg_c2:compaction", status: "interrupted", cause: "restart" } },
+    })
+  })
 })
 
 describe("permission and question", () => {

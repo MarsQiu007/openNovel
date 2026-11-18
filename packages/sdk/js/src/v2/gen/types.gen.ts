@@ -2372,6 +2372,7 @@ export type SessionContextWatermark2 = {
     tokens?: number
   }
   source: "measured" | "estimated" | "mixed"
+  preparing?: boolean
   degraded?: string
 }
 

@@ -78,6 +78,8 @@ export interface Interface {
   readonly cycle: (sessionID: SessionSchema.ID) => Effect.Effect<void>
   /** 未使用候选累计的摘要 token（input+output+reasoning+cache 全计） */
   readonly discarded: (sessionID: SessionSchema.ID) => Effect.Effect<number>
+  /** 是否有在途或就绪的后台候选（水位「正在准备摘要」信号；就绪未应用也算，应用/丢弃/过期即消失） */
+  readonly active: (sessionID: SessionSchema.ID) => Effect.Effect<boolean>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opennovel/v2/SessionCompactionCandidate") {}
@@ -234,7 +236,13 @@ export const make = (dependencies: {
   const discarded = (sessionID: SessionSchema.ID) =>
     Effect.map(Ref.get(registry), (all) => all.get(sessionID)?.discarded ?? 0)
 
-  return { start, take, cycle, discarded }
+  const active = (sessionID: SessionSchema.ID) =>
+    Effect.map(Ref.get(registry), (all) => {
+      const record = all.get(sessionID)
+      return record !== undefined && (record.pending || record.slot !== undefined)
+    })
+
+  return { start, take, cycle, discarded, active }
 }
 
 export const node = makeLocationNode({

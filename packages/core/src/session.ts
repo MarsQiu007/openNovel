@@ -9,6 +9,7 @@ import { WorkspaceV2 } from "./workspace"
 import { ModelV2 } from "./model"
 import { Location } from "./location"
 import { SessionMessage } from "./session/message"
+import { SessionCompactionCandidate } from "./session/compaction-candidate"
 import { Prompt } from "./session/prompt"
 import { PromptInput } from "@opennovel-ai/schema/prompt-input"
 import { EventV2 } from "./event"
@@ -398,11 +399,21 @@ const layer = Layer.effect(
         const session = yield* store.get(sessionID)
         if (!session) return yield* new NotFoundError({ sessionID })
         // 水位是派生读模型：任何失败（模型未配置/Location 未引导等）都不阻断 get，仅不带 context
-        const context = yield* SessionWatermark.Service.use((service) => service.get(session)).pipe(
-          Effect.provide(locations.get(session.location)),
-          Effect.catchCause(() => Effect.succeed(undefined)),
+        const [context, preparing] = yield* Effect.all(
+          [
+            SessionWatermark.Service.use((service) => service.get(session)).pipe(
+              Effect.provide(locations.get(session.location)),
+              Effect.catchCause(() => Effect.succeed(undefined)),
+            ),
+            SessionCompactionCandidate.Service.use((service) => service.active(session.id)).pipe(
+              Effect.provide(locations.get(session.location)),
+              Effect.catchCause(() => Effect.succeed(false)),
+            ),
+          ],
+          { concurrency: "unbounded" },
         )
-        return context === undefined ? session : { ...session, context }
+        if (context === undefined) return session
+        return { ...session, context: preparing ? { ...context, preparing: true } : context }
       }),
       list: Effect.fn("V2Session.list")(function* (input = {}) {
         const direction = input.anchor?.direction ?? "next"

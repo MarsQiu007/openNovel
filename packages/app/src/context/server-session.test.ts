@@ -1583,6 +1583,29 @@ describe("server session V2 events", () => {
     expect(ctx.store.data.session_status.root).toEqual({ type: "retry", attempt: 2, message: "boom", next: 50 })
   })
 
+  test("lands session.context.watermark on the session info context", () => {
+    const ctx = setup({})
+    created(ctx.store)
+
+    const watermark = {
+      model: { id: "m", providerID: "p" },
+      window: 100_000,
+      measured: 20_000,
+      estimated: 5_000,
+      total: 25_000,
+      ratio: 0.25,
+      trigger: { tokens: 85_000 },
+      source: "mixed" as const,
+      preparing: true,
+    }
+    ctx.store.apply({
+      type: "session.context.watermark",
+      properties: { timestamp: 60, sessionID: "root", watermark },
+    })
+
+    expect(ctx.store.get("root")?.context).toEqual(watermark)
+  })
+
   test("clears retry back to busy on session.next.step.started and stores the skeleton", () => {
     const ctx = setup({})
     created(ctx.store)
@@ -1673,7 +1696,17 @@ describe("server session V2 events", () => {
 
     expect(ctx.store.data.message.root?.[0]).toMatchObject({ id: "msg_c1", role: "user" })
     expect(ctx.store.data.part.msg_c1).toEqual([
-      { id: "msg_c1:compaction", sessionID: "root", messageID: "msg_c1", type: "compaction", auto: true },
+      {
+        id: "msg_c1:compaction",
+        sessionID: "root",
+        messageID: "msg_c1",
+        type: "compaction",
+        auto: true,
+        reason: "auto",
+        status: "completed",
+        summary: "summary",
+        recent: "recent",
+      },
     ])
   })
 

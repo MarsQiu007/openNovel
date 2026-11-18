@@ -1,5 +1,7 @@
 import type {
   AssistantMessage,
+  CompactionPart,
+  CompactionUsage,
   EventMessagePartDelta,
   EventMessagePartUpdated,
   EventMessageUpdated,
@@ -15,7 +17,6 @@ import {
   adaptPermission,
   adaptQuestion,
   adaptUser,
-  compactionPart,
   serializeToolContent,
   structuredTitle,
   zeroTokens,
@@ -62,6 +63,8 @@ export function createV2Translator(input: { context: (sessionID: string) => Tran
   const lastUser = new Map<string, string>()
   const calls = new Map<string, CallRecord>()
   const reasoningStarts = new Map<string, number>()
+  // 压缩摘要增量按 messageID 累积：running 卡实时摘要；ended/failed/interrupted 时清账
+  const compactionDeltas = new Map<string, string>()
 
   const context = (sessionID: string) => input.context(sessionID) ?? fallbackContext()
 
@@ -334,8 +337,23 @@ export function createV2Translator(input: { context: (sessionID: string) => Tran
         assistants.set(data.assistantMessageID, failed)
         return [messageUpdated(data.sessionID, failed)]
       }
-      case "session.next.compaction.ended": {
-        const data = event.properties
+      case "session.next.compaction.queued":
+      case "session.next.compaction.started":
+      case "session.next.compaction.delta":
+      case "session.next.compaction.ended":
+      case "session.next.compaction.failed":
+      case "session.next.compaction.interrupted": {
+        const data = event.properties as {
+          sessionID: string
+          messageID: string
+          timestamp: number
+          reason?: "auto" | "manual"
+          text?: string
+          recent?: string
+          error?: { type: string; message: string }
+          cause?: "user" | "restart"
+          usage?: CompactionUsage
+        }
         const ctx = context(data.sessionID)
         const adapt = {
           sessionID: data.sessionID,
@@ -343,22 +361,45 @@ export function createV2Translator(input: { context: (sessionID: string) => Tran
           agent: ctx.agent,
           model: ctx.model,
         }
+        const delta =
+          event.type === "session.next.compaction.delta"
+            ? (compactionDeltas.set(data.messageID, data.text ?? ""), compactionDeltas.get(data.messageID) ?? "")
+            : undefined
+        const status: NonNullable<CompactionPart["status"]> =
+          event.type === "session.next.compaction.queued"
+            ? "queued"
+            : event.type === "session.next.compaction.started" || event.type === "session.next.compaction.delta"
+              ? "running"
+              : event.type === "session.next.compaction.ended"
+                ? "completed"
+                : event.type === "session.next.compaction.failed"
+                  ? "failed"
+                  : "interrupted"
+        if (
+          event.type === "session.next.compaction.ended" ||
+          event.type === "session.next.compaction.failed" ||
+          event.type === "session.next.compaction.interrupted"
+        )
+          compactionDeltas.delete(data.messageID)
+        // ended 后历史以压缩消息为界重置：后续 assistant 的 parentID 锚到合成 user
+        if (event.type === "session.next.compaction.ended") lastUser.set(data.sessionID, data.messageID)
         const adapted = adaptUser(
           { id: data.messageID, time: { created: data.timestamp }, text: "", type: "user" },
           adapt,
         )
-        const compaction = compactionPart(
-          {
-            id: data.messageID,
-            time: { created: data.timestamp },
-            type: "compaction",
-            reason: data.reason,
-            summary: data.text,
-            recent: data.recent,
-          },
-          adapt,
-        )
-        lastUser.set(data.sessionID, data.messageID)
+        const compaction: CompactionPart = {
+          id: `${data.messageID}:compaction`,
+          sessionID: data.sessionID,
+          messageID: data.messageID,
+          type: "compaction",
+          ...(data.reason === undefined ? {} : { auto: data.reason === "auto", reason: data.reason }),
+          status,
+          summary: delta ?? data.text ?? "",
+          recent: data.recent ?? "",
+          ...(data.error === undefined ? {} : { error: data.error }),
+          ...(data.cause === undefined ? {} : { cause: data.cause }),
+          ...(data.usage === undefined ? {} : { usage: data.usage }),
+        }
         return [
           messageUpdated(data.sessionID, adapted.info),
           partUpdated(data.sessionID, compaction, data.timestamp),

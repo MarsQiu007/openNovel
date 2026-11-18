@@ -1,5 +1,7 @@
 import type {
   AssistantMessage,
+  CompactionUsage,
+  ContextWatermark,
   FileDiff,
   FilePart,
   LlmToolContent,
@@ -63,6 +65,7 @@ export function adaptInfo(session: SessionV2Info): Session {
     version: "",
     time: session.time,
     ...(session.revert === undefined ? {} : { revert: adaptRevert(session.revert) }),
+    ...(session.context === undefined ? {} : { context: session.context }),
   }
 }
 
@@ -346,6 +349,14 @@ export function compactionPart(message: SessionMessageCompaction, ctx: AdaptCont
     messageID: message.id,
     type: "compaction",
     auto: message.reason === "auto",
+    reason: message.reason,
+    // 旧消息无 status 字段：按完成态兼容（schema 解码注释同款语义）
+    status: message.status ?? "completed",
+    summary: message.summary,
+    recent: message.recent,
+    ...(message.error === undefined ? {} : { error: message.error }),
+    ...(message.cause === undefined ? {} : { cause: message.cause }),
+    ...(message.usage === undefined ? {} : { usage: message.usage satisfies CompactionUsage }),
   }
 }
 

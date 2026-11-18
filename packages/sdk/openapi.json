@@ -34123,6 +34123,9 @@
             "type": "string",
             "enum": ["measured", "estimated", "mixed"]
           },
+          "preparing": {
+            "type": "boolean"
+          },
           "degraded": {
             "type": "string"
           }

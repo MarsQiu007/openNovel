@@ -23,6 +23,37 @@ export type SnapshotFileDiff = {
   status?: "added" | "deleted" | "modified"
 }
 
+export type ContextWatermark = {
+  model: {
+    providerID: string
+    id: string
+    variant?: string
+  }
+  window?: number
+  measured: number
+  estimated: number
+  total: number
+  ratio: number
+  trigger?: {
+    share?: number | string
+    tokens?: number
+  }
+  source: "measured" | "estimated" | "mixed"
+  /** 后台候选摘要正在准备（session-context-compaction：圆环「正在准备摘要」非阻塞状态） */
+  preparing?: boolean
+  degraded?: string
+}
+
+export type CompactionUsage = {
+  input: number
+  output: number
+  reasoning: number
+  cache: {
+    read: number
+    write: number
+  }
+}
+
 export type Session = {
   id: string
   slug: string
@@ -67,6 +98,8 @@ export type Session = {
     snapshot?: string
     diff?: string
   }
+  /** 服务端统一水位快照（SessionV2.get 附加；live 刷新经 session.context.watermark 事件） */
+  context?: ContextWatermark
 }
 
 export type JsonSchema = {
@@ -287,9 +320,18 @@ export type CompactionPart = {
   sessionID: string
   messageID: string
   type: "compaction"
-  auto: boolean
+  /** 历史适配（有 reason 时）恒给出；排队/运行等生命周期增量可能先于 reason 可见 */
+  auto?: boolean
   overflow?: boolean
   tail_start_id?: string
+  /** 压缩操作全生命周期状态（session-context-compaction 时间线状态卡；旧投影无此字段按完成态兼容） */
+  status?: "queued" | "running" | "completed" | "failed" | "interrupted"
+  reason?: "auto" | "manual"
+  summary?: string
+  recent?: string
+  error?: { type: string; message: string } | null
+  cause?: "user" | "restart" | null
+  usage?: CompactionUsage | null
 }
 
 export type Part = TextPart | ReasoningPart | FilePart | ToolPart | AgentPart | CompactionPart

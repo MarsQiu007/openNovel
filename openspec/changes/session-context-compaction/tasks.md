@@ -33,7 +33,7 @@
 
 ## 5. App 状态展示与设置
 
-- [ ] 5.1 接入 server-session 与 V2 translator 的水位和 Compaction 全生命周期事件，保持消息/part ID 稳定；用 Bun 1.3.14 从 `packages/app` 运行 `v2-translator`、事件 reducer 和新增增量归属测试
+- [x] 5.1 接入 server-session 与 V2 translator 的水位和 Compaction 全生命周期事件，保持消息/part ID 稳定；用 Bun 1.3.14 从 `packages/app` 运行 `v2-translator`、事件 reducer 和新增增量归属测试
 - [ ] 5.2 实现时间线排队、运行、完成、失败和中断卡片及撤销、停止、重试、展开操作，复用现有 Compaction row；用组件测试和 `session-timeline` 聚焦 e2e 验证五类状态、错误可读性和操作后的状态
 - [ ] 5.3 实现上下文用量圆环的统一水位、配置/实际阈值和后台准备状态，并通过 `serverSync.updateConfig` 提供自动开关、百分比阈值与后台开关；验证保存重载、安全上限说明和未知窗口降级
 - [ ] 5.4 按仓库 locale 保护约束接入默认简体中文及既有 zh/en/zht 文案流程，不新增硬编码英文；运行 i18n parity、键盘焦点、明暗主题和减少动态效果相关聚焦测试

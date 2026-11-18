@@ -127,12 +127,18 @@ const layer = Layer.effect(
     const publishWatermark = Effect.fn("SessionRunner.publishWatermark")(function* (sessionID: SessionSchema.ID) {
       const session = yield* store.get(sessionID)
       if (!session) return
-      const watermark = yield* watermarks.get(session).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      const [watermark, preparing] = yield* Effect.all(
+        [
+          watermarks.get(session).pipe(Effect.catchCause(() => Effect.succeed(undefined))),
+          candidates.active(sessionID),
+        ],
+        { concurrency: "unbounded" },
+      )
       if (!watermark) return
       yield* events.publish(SessionWatermarkEvent.Refreshed, {
         sessionID,
         timestamp: yield* DateTime.now,
-        watermark,
+        watermark: preparing ? { ...watermark, preparing: true } : watermark,
       })
     })
 

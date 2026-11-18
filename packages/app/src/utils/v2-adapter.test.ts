@@ -282,13 +282,19 @@ describe("adaptMessages", () => {
       ctx,
     )
     expect(session[0]).toMatchObject({ id: "msg_c1", role: "user" })
-    expect(part[0]?.part).toContainEqual({
-      id: "msg_c1:compaction",
-      sessionID: "ses_1",
-      messageID: "msg_c1",
-      type: "compaction",
-      auto: true,
-    })
+    expect(part[0]?.part).toEqual([
+      {
+        id: "msg_c1:compaction",
+        sessionID: "ses_1",
+        messageID: "msg_c1",
+        type: "compaction",
+        auto: true,
+        reason: "auto",
+        status: "completed",
+        summary: "s",
+        recent: "r",
+      },
+    ])
   })
 
   test("drops non-rendered variants and chains parent across compaction", () => {
