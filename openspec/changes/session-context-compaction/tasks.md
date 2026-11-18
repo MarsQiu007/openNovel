@@ -42,7 +42,7 @@
 
 ## 6. 端到端验收与收尾验证
 
-- [ ] 6.1 使用隔离数据库和可控 provider 完成中文长会话端到端验收，取证阈值前自动压缩、DashScope 溢出兜底、手动/自动去重、失败重试和进程重启不自动重放，并将可重复断言固化为自动化用例
+- [x] 6.1 使用隔离数据库和可控 provider 完成中文长会话端到端验收，取证阈值前自动压缩、DashScope 溢出兜底、手动/自动去重、失败重试和进程重启不自动重放，并将可重复断言固化为自动化用例（`test/session-compaction-e2e/` 5 用例全过、6 连跑稳定：①中文长会话阈值自动压缩并继续原始回合（窗口 40000/reserved 6000/keep 100，判定量含 SystemContext baseline ≈21k chars，第 2 轮 ~35.6k tokens 跨过 trigger 34000）；②手动受理排队且活跃操作去重（同 messageID）；③失败脱敏可读（400 不进重试阶梯）+ 手动重试 failed→completed；④DashScope 400 溢出兜底后原始回合重发成功；⑤进程重启遗留 running 结算 interrupted(restart) 且零请求重放——共享 DB 文件须显式 `Database.layerFromPath` 替换节点（preload 把 Flag.OPENNOVEL_DB 冻结为 ":memory:"），基线 calls 须 poll 等摘要请求到达（running 状态先于摘要请求落库，过早读取会把 scope1 摘要请求误判为重放））
 - [ ] 6.2 在用户完成会话 UI 冒烟验收后，运行受影响 core/llm/app 测试目录全量及受影响 e2e 目录全量；记录实际命令、结果和既有 flake 归因，不把未验收前的结果作为最终收尾证据
 - [ ] 6.3 从仓库根运行 `bun run typecheck`、全量 oxlint、生成一致性检查和 HttpApi coverage 等价检查，确认达到 CI 等价要求；若有失败先按时间线和 diff 归因，不用重复重跑代替修复
 - [ ] 6.4 检查并清理本 change 引入的同类、冗余和无用代码，重点确认旧手动旁路、旧独立水位消费、无人引用导出、死 import 和未消费查询通道；验证所有新增公开字段均有实际消费者或在规格中说明兼容用途
