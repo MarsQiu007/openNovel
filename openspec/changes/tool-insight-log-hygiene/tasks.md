@@ -32,4 +32,4 @@
 - [x] 5.2 在上述包目录运行 `bun typecheck` 与 oxlint，并在仓库根运行 `bun run lint`，确认无类型与风格回归
 - [x] 5.3 核查本变更未改公开 Protocol/Schema；若有契约变化，在 `packages/client` 运行 `bun run generate` 并验证生成物无意外 diff
 - [x] 5.4 汇总验证结果与已知限制，确认旧日志兼容策略、空状态策略和负反馈升级策略均已落到测试
-- [ ] 5.5 用户人工验收通过后，运行受影响包全量测试与 `bun turbo typecheck`，作为推送前 CI 等价检查
+- [x] 5.5 用户人工验收通过后，运行受影响包全量测试与 `bun turbo typecheck`，作为推送前 CI 等价检查
