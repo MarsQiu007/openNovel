@@ -8,7 +8,7 @@
 - 宿主链路已打通 throw 通道：`packages/core/src/plugin/host.ts:159-182` wrapTool 把 Promise reject 映射为 `Tool.Failure`；`packages/core/src/session/runner/to-llm-message.ts:55-67` 以 `resultType:"error"` 发给 provider（Anthropic `is_error:true`，`packages/llm/src/protocols/anthropic-messages.ts:481`）。
 - 软返回与 metadata 标记在模型侧不可见：`host.ts:179` toModelOutput 只发 output 文本；`packages/llm/src/schema/messages.ts:112-117` provider 下沉丢弃 structured——metadata 本身随 structured 在观测面可达（collector resultStructured 收到完整对象），但 tool-insight 现无代码读取 `.metadata` 字段。
 - 错误类别在失败结算链两处丢失。本地工具失败的真实路径（逐环核实）：host 造 Tool.Failure → `packages/core/src/tool/registry.ts:69-75` settleWith catchTag 把 failure 收敛为 error 型结果（只留 message，name/code/metadata 在此丢弃）→ `runner/llm.ts:329-345` 结算并发布 `LLMEvent.toolResult`（error 型）→ `publish-llm-event.ts:44-51` settledOutput 硬编码 `error={type:"unknown",message}` → `:352-361` 发布 `session.next.tool.failed`；`packages/schema/src/session-message.ts:19-22` UnknownError 仅两字段。`packages/llm/src/tool-runtime.ts` 的 ToolRuntime.dispatch 与 publish-llm-event 的 tool-error 分支不在本地工具失败路径上（dispatch 无生产调用方；tool-error 分支只服务 provider 侧事件），不列入修改点。tool-insight `evidence.ts:166-184` 回退 `constructor.name` 恒得 "Object"。
-- 失败路径不落结构化 metadata：`session.next.tool.failed` 事件无 structured/content 字段（`packages/schema/src/session-event.ts:402-414`）；`message-updater.ts:373-381` 落库 ToolStateError 时 structured 恒为空对象——失败态下模型与 UI 都只能读 error.message 文本。
+- 失败态的可见性分面：模型面只能读 error.message（`to-llm-message.ts:55-67` 只下发 state.error）；`session.next.tool.failed` 无 structured/content 字段（`packages/schema/src/session-event.ts:402-414`）但携带 result（`session-event.ts:408`），`publish-llm-event.ts:359` 传完整 result、`message-updater.ts:373-381` 落入 ToolStateError.result——UI/持久化面可经 result 与 error 到达结构化载体，本地工具失败路径的 structured 实际为空。失败文本仍必须自含全部行动信息：模型是补救行动的执行方。
 - 检测器无法区分批量并行与顺序重试：turn.calls 只存到达序且跨流到达序不可靠（`packages/plugin/src/tool-insight/collector.ts:10-15、433`）；shapeSignature 丢弃 callID（`detector.ts:72-74`）；revisionStreak 只数完成不查调用发出时序（`collector.ts:449-457`）；detector redundant_repeat 分支未排除 called 状态（`detector.ts:139-161`）；失败时刻形状归纳 classifyShape（`collector.ts:289-319`）按 paramKeys 同尾判重复——门禁转 throw 后批量拦截（全批失败、参数键相同）会镜像出同族误报。
 - 章节 ID 无预分配机制（`packages/novel-store/src/chapter-sequence.ts:163`、`packages/novel-store/src/index.ts:1645` 均为插入时生成）；director 工具表无 update_chapter 条目、权限 `"*": "allow"` 隐式放行（`agents/director.ts:19、114-156`）；update_chapter 只收 UUID、查询不过滤 novel_id（`tools/chapter.ts:464-477`）。
 - 软返回形状有提示词消费方：pipeline 提示词的重试/不重试分叉直接读 metadata（`agents/pipeline.ts:145-148` 读 metadata.rejected / metadata.reason），writer 提示词按内容拒绝结果形状判定（`agents/writer.ts:186`）——转换后失败路径无 metadata，判定依据必须改写。
@@ -41,7 +41,7 @@
 
 在 plugin 工具层提供一个小型失败构造 helper（如 `toolFailure(category, message, extra?)`），抛出的 Error 带 `name = category`（ASCII 稳定词）与中文 message。类别词表收敛为：`not_found` / `param_error` / `state_conflict` / `gate_blocked` / `content_rejected` / `internal`。理由：tool-insight 的 errorCategory 生命线是错误对象 `name`（`evidence.ts:168-171`），结算链透传后即成指纹类别（`collector.ts:535、249-253`）；每个类别一个 Error 子类过重，metadata 承载类别已证模型不可见。
 
-失败文本自含语义与全部行动信息（含 samples、计数等展示信息）：OpenAI Chat/Responses/Gemini 协议层无 is_error wire 标记（`openai-chat.ts:271`、`openai-responses.ts:340`、`gemini.ts:261`），不能依赖 provider 标记；且失败路径不落结构化 metadata（见 Context），模型与 UI 在失败态都只能读 message 文本——展示信息放 metadata 会在失败态同时丢失给两边。补救指引形态对齐正例 `tools/outline.ts:141-152` 跳号拒绝。
+失败文本自含语义与全部行动信息（含 samples、计数等展示信息）：OpenAI Chat/Responses/Gemini 协议层无 is_error wire 标记（`openai-chat.ts:271`、`openai-responses.ts:340`、`gemini.ts:261`），不能依赖 provider 标记；失败态下模型只能读 message 文本（见 Context），而模型是补救行动的执行方——展示信息必须随文本到达模型，不能只放 metadata。补救指引形态对齐正例 `tools/outline.ts:141-152` 跳号拒绝。
 
 ### D3 软返回分类判定表（转换边界）
 
@@ -64,22 +64,22 @@
 
 - **死代码复活**：write_chapter 坐标泄漏检测块（chapter.ts:115-122）嵌进提纲标签 if（:108-123）内永不可达，移出为平级判定（对齐 revise_chapter :255-262 的正确形态）。
 - **顶层散字段迁回 metadata**：technique.ts:97-121、157-167、183-189 的 `action/reason/technique_id/count/injected` 放在 ToolResult 顶层会被编码静默丢弃（实测 `encodeSync` 只剩 title/output），全部迁入 metadata；technique.ts 自身的失败形态软返回（save_technique 拒绝入库 :97-105、verify_technique 转正失败 :204、promote_technique layer 校验 :224、promoteTechniqueToSpec 失败 :228）一并转换。
-- **novel-store `get()!` 族**：`packages/novel-store/src/index.ts:3019`（updateStoryArc）、`:3099`（updateArcBeat）、`:2143`（updateForeshadowing）对 0 行更新经非空断言炸 TypeError（arcs.ts:140/200、foreshadow.ts:79 上抛裸 TypeError）。改为查无目标返回 null，调用方转 `not_found` 失败。全文件共 46 处 `get()!`，其余为插入后按刚生成 ID 读回（必然命中），实施时清点调用方可达性并记录豁免清单。
+- **novel-store `get()!` 族**：`packages/novel-store/src/index.ts:3019`（updateStoryArc）、`:3099`（updateArcBeat）、`:2143`（updateForeshadowing）对 0 行更新经非空断言炸 TypeError（arcs.ts:140/200、foreshadow.ts:79 上抛裸 TypeError）。改为查无目标返回 null，调用方转 `not_found` 失败。全文件共 45 处 `get()!`，其中 18 处为 update 形态读回（含上述 3 处，另有 updateChapter:1766、updateVolume:1735、updateRelationship:1809、updateNovel:1929、updateCharacter:1976、updateTensionPoint:2053、updatePlotThread:2101、updateWorldEntry:2186、updateAnnotation:3300、updateAnnotationRound:3393、updateCharacterState:1851、updateCharacterMapPin:2602、updateWorldMap:2311、updateWorldMapFeature:2516、updateSettingImageNote:2818），函数内无存在性前置校验；其余 27 处为 create/upsert/插入后读回。18 个 update 形态站点逐一清点调用方前置校验（如 updateChapter 的调用方 chapter.ts:476-477 自带预检），给出修复或豁免清单，不预设必然命中。
 
 ### D4 失败事件语义保留：真实结算链的载体透传
 
 本地工具失败的生产路径（见 Context）逐环修改：
 
 1. **抛出点**：错误对象带 `name`（类别）与可选 `code`（细分类别，如 `chapter_not_found`）。
-2. **host wrapTool**（`host.ts:177`）：创建 `Tool.Failure` 时把 rejected Error 的 name/code 填入其 metadata（`ToolFailure` 已有可选 metadata 字段，`packages/llm/src/schema/errors.ts:213-217`，从未被填充）。
+2. **host wrapTool**（`host.ts:177`）：创建 `Tool.Failure` 时，仅当 rejected Error 的 name 命中 D2 类别词表才把 name/code 填入其 metadata（`ToolFailure` 已有可选 metadata 字段，`packages/llm/src/schema/errors.ts:213-217`，从未被填充）。**词表门禁**：非工厂路径的普通 `Error` name 实测为 `"Error"`、`TypeError` 为 `"TypeError"`，Effect TaggedErrorClass 以 tag 充当 name（`ToolFailure` 实例 name 为 `"LLM.ToolFailure"`，`read.ts:104` 直接抛 ToolFailure；`createChapterReview` 抛普通 Error、`ChapterSequenceGapError` 显式设类名）——无条件拷贝会让运行时类型名冒充类别、重建 "Object" 伪指纹；词表外不填，事件保持无类别，观测面标未分类。词表常量宿主于 packages/plugin（与错误工厂同处，遵循 plugin 包规约「禁 import host packages」），core 侧门禁从 @opennovel-ai/plugin 导入（core→plugin 为既有依赖方向，core/package.json 已声明），避免两份漂移副本。
 3. **registry settleWith**（`registry.ts:69-75`）：error 型结果保留 failure.metadata，不再只留 message——载体为扩展 packages/llm `ToolResultValue` 的 error 变体（`messages.ts:58-85`，现为 `{type:"error", value}`），增加可选 metadata 字段；provider 下沉序列化（toResultValue）保持只含 value，metadata 不进 wire。
-4. **publish-llm-event**：settledOutput（`:44-51`）与 Tool.Failed 发布（`:352-361`）从结算结果的 metadata 提取 name/code 填入 `session.next.tool.failed` 的 error；中断路径（`runner/llm.ts:155-165`）无类别来源，保持 `{type:"unknown"}` 形态（观测面标未分类）。
+4. **publish-llm-event**：settledOutput（`:44-51`）与 Tool.Failed 发布（`:352-361`）从结算结果的 metadata 提取 name/code 填入 `session.next.tool.failed` 的 error，提取时按 D2 词表复校验（防上游绕过门禁）；中断路径（`runner/llm.ts:155-165`）无类别来源，保持 `{type:"unknown"}` 形态（观测面标未分类）。
 5. **schema**：`SessionMessage.UnknownError`（`session-message.ts:19-22`）增加可选 `name`/`code` 字段——纯增量，旧消费方不受影响。
 6. **SDK 再生成**：从仓库根运行 `bun ./script/generate.ts`（第二步再生 openapi.json，缺一 CI generate 必红）；llm 包不在协议面，openapi.json 若无对应差异属预期，以 git diff 实测为准。
 
 ### D5 read 工具错误映射
 
-`packages/core/src/tool/read.ts:95-105` mapError 白名单外的错误统一折叠为 `Unable to read <path>`。改为按真实原因映射：`FSUtil.Error`（`fs-util.ts:24`）按 reason 分「文件不存在/权限不足」；`PathKindError`（目录）、`OffsetOutOfRangeError`（越界，`read-filesystem.ts:17-61`）与 `MalformedUtf8Error`（编码损坏，`read-filesystem.ts:37-43`）保留类名；message 附原因说明（如「文件不存在：<path>」）。抛出形态带上类别 name（not_found/param_error/internal），配合 D4 链路让 errorCategory 不再是 "Object"。
+`packages/core/src/tool/read.ts:95-105` mapError 白名单外的错误统一折叠为 `Unable to read <path>`。改为按真实原因映射：`FSUtil.Error`（`fs-util.ts:24`）按 reason 分「文件不存在/权限不足」；`PathKindError`（目录）、`OffsetOutOfRangeError`（越界，`read-filesystem.ts:45-52`）与 `MalformedUtf8Error`（编码损坏，`read-filesystem.ts:37-43`）保留类名；message 附原因说明（如「文件不存在：<path>」）。抛出形态带上类别 name（not_found/param_error/internal），配合 D4 链路让 errorCategory 不再是 "Object"。
 
 ### D6 检测器批量区分：配对发出时序，成功与失败两侧都排除
 
@@ -100,7 +100,7 @@ errorCategory 进入指纹四元组（`issue-doc.ts:25-28`）。词表切换后�
 ### D8 update_chapter 增强
 
 - **双寻址**：参数支持 chapter_id / chapter_number 二选一，复用 `read_chapter_content` 的 locator 形态（`chapter.ts:395-400`）——消除批量语境「手里只有序号、工具只要 UUID」的错配（writing_batch 表全程序号，`novel-store/src/index.ts:1000`）。
-- **归属过滤**：查询按解析出的当前小说过滤——复用同域工具的 `resolveNovelId` 路径（参数匹配 → 单书兜底，`tools/shared.ts:72-78`），不引入会话绑定依赖：复测适配器（`case-adapter.ts:161-199`）在隔离临时项目以合成夹具运行复测会话（`retest.ts:265-278`），无会话→小说绑定，会话绑定过滤会使其合法夹具全部 `not_found`、复测链路报废（复测 agent 被限定不得调用白名单外能力，`retest.ts:59-61`，无法改调 list_chapters 定位）。解析小说范围外的跨书 ID 一律 `not_found`；任务含复测适配器回归验证。
+- **归属过滤**：新增可选 novel_id 参数，查询按解析出的当前小说过滤——传参时走 `resolveNovelId` 参数匹配（`tools/shared.ts:72-78`）；未传时单书兜底（库内恰一书即该书），无法唯一解析归属（多书且未传）时 `param_error` 失败并指引提供小说标识或先列举小说。可选形态保证既有调用方兼容：pipeline 调用指引（`pipeline.ts:81/86/211-212`）不带 novel_id 仍可用，复测适配器 prompt 已传 novel_id（`case-adapter.ts:173`）。不引入会话绑定依赖：复测适配器（`case-adapter.ts:161-199`）在隔离临时项目以合成夹具运行复测会话（`retest.ts:265-278`），无会话→小说绑定，会话绑定过滤会使其合法夹具全部 `not_found`、复测链路报废（复测 agent 被限定不得调用白名单外能力，`retest.ts:59-61`，无法改调 list_chapters 定位）。解析小说范围外的跨书 ID 一律 `not_found`；任务含复测适配器回归验证与 prompt 同步。
 - **描述与指引**：工具描述与参数描述声明 chapter_id 必须来自 `list_chapters` / `read_chapter_outline` / 章纲生成返回，禁止构造；`not_found` 失败文本给出「先列举/读章纲定位真实 ID，或派发 @outliner 生成章纲创建」的指引。
 - **代理面**：director 工具表补 update_chapter 条目（说明用途、ID 来源、批量场景应交 @pipeline 步骤 8）；writer/reviser 提示词补「章节标识来自上游分发或快照，不得自造」（`agents/writer.ts:185`、`agents/reviser.ts:33` 现只给参数名）。
 
@@ -114,14 +114,19 @@ errorCategory 进入指纹四元组（`issue-doc.ts:25-28`）。词表切换后�
 
 现状失败证据只记录 tool/errorType/errorCode/errorDigest 与 paramKeys（仅键名，`collector.ts:245-256`、`evidence.ts:166-184`），无法定位失败调用的目标对象（如哪个章节）。为失败证据增加脱敏标识符摘要：从调用参数提取 ID 形态键（`*_id` 白名单，沿用既有参数白名单机制扩展）的值，做脱敏截断（短哈希或短标识），与 paramKeys 并存；证据不含正文片段或完整参数值。成功核验通道的 verifyIdentifiers 机制（`collector.ts:425-429`）不改动，仅失败证据对齐同一脱敏边界。
 
+### D11 evidence 错误归类：词表校验，移除构造器名回退
+
+`evidence.ts:166-184` 现回退 `constructor.name` 恒得 "Object"。改为：errorCategory 只取事件携带且命中 D2 类别词表的 name；未携带或词表外一律标未分类，MUST NOT 以构造器名或运行时类型名充当类别。词表校验与 D4 门禁构成双保险：即使上游透传链遗漏校验，指纹类别也不会被运行时类型名污染。
+
 ## Risks / Trade-offs
 
-- [门禁转 throw 改变工具卡片呈现（完成态 → 错误态）] → 接受：错误态更符合「未完成」语义；实施前核查 `metadata.blocked`/`rejected`/`refused`/`valid`/`ok` 的全部消费方（UI、路由、提示词、测试）：失败路径不落结构化 metadata（ToolStateError.structured 恒空），被确认依赖的展示信息必须写进失败文本（任务 3.5、7.2）；成功路径的 metadata 展示不受影响。
+- [门禁转 throw 改变工具卡片呈现（完成态 → 错误态）] → 接受：错误态更符合「未完成」语义；实施前核查 `metadata.blocked`/`rejected`/`refused`/`valid`/`ok` 的全部消费方（UI、路由、提示词、测试）：失败态模型只能读 error.message（UI 另可经 ToolStateError.result 到达结构化载体），被确认依赖且模型需要据此行动的展示信息必须写进失败文本（任务 3.5、7.2）；成功路径的 metadata 展示不受影响。
+- [主 spec chapter-length-limit 现行强制 metadata.reason 为 "too_short"/"too_long"，归档同步后与实现矛盾] → 本 change 附带该 capability 的 MODIFIED delta（specs/chapter-length-limit）：拒绝语义改写为失败形态 + 失败文本断言，删除 metadata.reason 字面断言。
 - [约 151 处转换 + 约 30 个测试文件更新，回归面大] → 按工具文件分批转换，每批聚焦测试 + `bun typecheck`；迭代期不跑全量（测试节奏规约）。
 - [归属过滤若误选会话绑定路径会报废复测链路] → D8 选 `resolveNovelId`（参数匹配 → 单书兜底）；任务 3.6 验证复测适配器夹具回归。
 - [errorCategory 词表变化改变指纹，旧文档可能漏归并] → D7 alias 溯源标注；观察期内同类失败若拆档，人工确认后合并。
 - [schema 变更遗漏 SDK 再生 → CI generate 红] → 任务内置仓库根 `bun ./script/generate.ts` 步骤（既往「协议变更双再生」教训）。
-- [reader 层 TaggedErrorClass 未覆盖的原因（如权限）落入兜底分支] → 兜底 message 保留原始 PlatformError 摘要，类别标 `internal`，不虚构具体原因。
+- [reader 层 TaggedErrorClass 未覆盖的原因（如无 reason 可辨的文件系统错误、未列入 D5 reason 映射的原因）落入兜底分支] → 兜底 message 保留原始 PlatformError 摘要，类别标 `internal`，不虚构具体原因。
 - [批量区分依赖 called/success/failed 事件都送达（会话中断时 failUnsettledTools 兜底）] → 中断路径已发布失败结算（`publish-llm-event.ts:213-232`），在途集合随之清空，不残留假性 overlap。
 
 ## Migration Plan
@@ -129,7 +134,7 @@ errorCategory 进入指纹四元组（`issue-doc.ts:25-28`）。词表切换后�
 按依赖序落地，每步可独立回滚：
 
 1. schema UnknownError 可选字段 + llm ToolResultValue 载体 + 仓库根 `bun ./script/generate.ts`。
-2. core host wrapTool / registry settleWith / publish-llm-event 透传链。
+2. core host wrapTool / registry settleWith / publish-llm-event 透传链（词表常量随本步先行落 packages/plugin 供 wrapTool 门禁导入）。
 3. core read.ts 错误映射。
 4. plugin 错误工厂 + chapter 族（含 chapter-guards 门禁 helper）→ 其余域（含 technique）+ 附带缺陷修复。
 5. novel-store get()! 族。
