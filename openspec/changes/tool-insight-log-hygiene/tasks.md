@@ -33,3 +33,14 @@
 - [x] 5.3 核查本变更未改公开 Protocol/Schema；若有契约变化，在 `packages/client` 运行 `bun run generate` 并验证生成物无意外 diff
 - [x] 5.4 汇总验证结果与已知限制，确认旧日志兼容策略、空状态策略和负反馈升级策略均已落到测试
 - [x] 5.5 用户人工验收通过后，运行受影响包全量测试与 `bun turbo typecheck`，作为推送前 CI 等价检查
+
+## Implementation Commits
+
+- `63ca259f19` docs(openspec): 建立 tool-insight-log-hygiene 提案
+- `e760de4cd8` docs(openspec): 完善 tool-insight-log-hygiene 提案
+- `8a466af499` feat(novel-store): 增加 tool-insight 信号路径
+- `b2993621a2` feat(core): 传播复测隔离 purpose 与持久项目标识
+- `8f2c99246f` feat(plugin): 实现 tool-insight 日志卫生与负反馈信号
+- `1d0a481e2e` docs(openspec): 勾选 tool-insight-log-hygiene 实现任务
+- `8bbed1cdc8` test(core): 更新 session.get 回填断言
+- `fe158c428b` docs(openspec): 勾选 tool-insight-log-hygiene 全量验证
