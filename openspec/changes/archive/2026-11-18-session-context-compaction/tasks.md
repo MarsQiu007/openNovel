@@ -53,7 +53,7 @@
 - 用 `git log --grep "OpenSpec-Change: session-context-compaction" --format="%h %s"` 收集实现提交并写入 `## Implementation Commits`，不包含记录更新和归档移动自身。
 - 单独提交记录更新，按仓库流程同步主 specs、归档并验证归档结果。
 - 合并前确认工作树干净并更新 main；推送功能性代码后检查远端 generate、typecheck、test 全部通过。
-- 归档后收尾修复 7c67169abb（见 Implementation Commits 子小节）推送 main 后同样按上行确认工作流全绿后收尾；该修复随 main tip CI 转绿后本 change 闭环。
+- 归档后收尾修复 7c67169abb 与 f283912d98（见 Implementation Commits 子小节）推送 main 后同样按上行确认工作流全绿后收尾；该修复随 main tip CI 转绿后本 change 闭环。
 
 ## Implementation Commits
 
@@ -79,4 +79,5 @@
 
 ### 归档后收尾修复
 
-- 7c67169abb fix(opennovel): 同步事件清单计数断言至 80 —— 本 change 新增 4 个 wire 类型（压缩消息状态/生命周期事件、水位快照事件）后 opennovel 侧 `test/event-manifest.test.ts` 的 `Latest.size` 快照仍停留在 76，推送 main 后 CI unit 双 OS 红；schema 侧断言已在 014a3a3181 同步为 80，本处补齐漏改，本地该文件 2 pass 复核。
+- 7c67169abb fix(opennovel): 同步事件清单计数断言至 80 —— 本 change 新增 4 个 wire 类型（压缩消息状态/生命周期事件、水位快照事件）后 opennovel 侧 `test/event-manifest.test.ts` 的 `Latest.size` 快照仍停留在 76，推送 main 后 CI unit 双 OS 红；schema 侧断言已在 014a3a3181 同步为 80，本处补齐漏改。
+- f283912d98 fix(opennovel): 同步消息更新器压缩契约至统一状态转换 —— 8ea20ae266 将 `session.next.compaction.started` 从 no-op 改为无前置 Queued 时补 running 消息（与 replay projector 共用统一状态转换，属 design 有意决策），opennovel 侧旧契约测试仍停在基线语义（started 后 `messages` 为空、ended 重写 `time.created`）；同步断言至新契约（started 后一条 running 消息、ended 终态保持 started 的 `time.created`）。6.2 全量清单未含 opennovel unit 全量，两处回归均由 CI 兜出；本地 opennovel 全量复核后无第三处。
