@@ -44,6 +44,7 @@ import { TextReveal } from "@opennovel-ai/ui/text-reveal"
 import { TextShimmer } from "@opennovel-ai/ui/text-shimmer"
 import type {
   AssistantMessage,
+  CompactionPart,
   Message as MessageType,
   Part as PartType,
   ToolPart,
@@ -130,6 +131,75 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
       <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
       <Show when={!props.showReasoningSummaries}>
         <TextReveal text={props.reasoningHeading} class="session-turn-thinking-heading" travel={25} duration={700} />
+      </Show>
+    </div>
+  )
+}
+
+// 压缩排队/运行/失败/中断状态卡：与 TurnDivider（completed 分隔线）共享稳定 part 身份，
+// 状态转换原位更新，不重复成卡（design 决策 9）
+function CompactionStatusCard(props: { part: CompactionPart }) {
+  const language = useLanguage()
+  const sdk = useSDK()
+  const part = () => props.part
+  const cancel = () => {
+    void sdk()
+      .client.v2.session.compact2.cancel({ sessionID: part().sessionID, messageID: part().messageID })
+      .catch(() => showToast({ title: language.t("ui.compaction.status.failed"), variant: "error" }))
+  }
+  const retry = () => {
+    void sdk()
+      .client.v2.session.compact({ sessionID: part().sessionID })
+      .catch(() => showToast({ title: language.t("ui.compaction.status.failed"), variant: "error" }))
+  }
+  const reasonLabel = () => {
+    const reason = part().reason
+    if (reason === "auto") return language.t("ui.compaction.reason.auto")
+    if (reason === "manual") return language.t("ui.compaction.reason.manual")
+    return ""
+  }
+  const statusLabel = () => {
+    const cause = part().cause
+    if (part().status === "queued") return language.t("ui.compaction.status.queued")
+    if (part().status === "running") return language.t("ui.compaction.status.running")
+    if (part().status === "failed") return language.t("ui.compaction.status.failed")
+    return cause === "restart"
+      ? language.t("ui.compaction.status.interruptedRestart")
+      : language.t("ui.compaction.status.interruptedUser")
+  }
+  const action = () => {
+    if (part().status === "queued") return { label: language.t("ui.compaction.action.cancel"), run: cancel }
+    if (part().status === "running") return { label: language.t("ui.compaction.action.stop"), run: cancel }
+    if (part().status === "failed" || part().status === "interrupted")
+      return { label: language.t("ui.compaction.action.retry"), run: retry }
+    return undefined
+  }
+
+  return (
+    <div
+      data-slot="session-turn-compaction-status"
+      data-status={part().status}
+      class="flex w-full flex-col gap-1 rounded-md border border-border-weak-base bg-surface-base px-3 py-2"
+      role="status"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-12-regular text-text-weak">
+          {statusLabel()}
+          {reasonLabel() && <span class="text-text-weaker"> · {reasonLabel()}</span>}
+        </span>
+        <Show when={action()}>
+          {(action) => (
+            <ButtonV2 type="button" variant="ghost-muted" size="small" class="ml-auto" onClick={action().run}>
+              {action().label}
+            </ButtonV2>
+          )}
+        </Show>
+      </div>
+      <Show when={part().status === "queued"}>
+        <div class="text-11-regular text-text-weaker">{language.t("ui.compaction.status.queuedHint")}</div>
+      </Show>
+      <Show when={part().status === "failed" && part().error?.message}>
+        {(message) => <div class="text-11-regular text-text-weak break-words">{message()}</div>}
       </Show>
     </div>
   )
@@ -1122,6 +1192,12 @@ export function MessageTimeline(props: {
       }
       case "TurnDivider": {
         const turnDividerRow = row as Accessor<TimelineRowByTag<"TurnDivider">>
+        // completed 压缩：分隔线下方可展开摘要与实测 usage（<details> 原生键盘可达且展开不丢焦点）
+        const compaction = createMemo(() =>
+          turnDividerRow().label === "compaction" && turnDividerRow().compaction?.summary
+            ? turnDividerRow().compaction
+            : undefined,
+        )
         return (
           <TimelineRowFrame row={turnDividerRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
@@ -1131,7 +1207,41 @@ export function MessageTimeline(props: {
                     turnDividerRow().label === "compaction" ? "ui.messagePart.compaction" : "ui.message.interrupted",
                   )}
                 />
+                <Show when={compaction()}>
+                  {(compaction) => (
+                    <details data-slot="session-turn-compaction-details" class="mt-1">
+                      <summary class="cursor-pointer text-11-regular text-text-weaker select-none outline-none focus-visible:text-text-strong">
+                        {language.t("ui.compaction.summary.expand")}
+                      </summary>
+                      <div class="mt-1 flex flex-col gap-1">
+                        <div class="text-12-regular text-text-weak whitespace-pre-wrap break-words">
+                          {compaction().summary}
+                        </div>
+                        <Show when={compaction().usage}>
+                          {(usage) => (
+                            <div class="text-11-regular text-text-weaker">
+                              {language.t("ui.compaction.summary.usage", {
+                                input: usage().input.toLocaleString(language.intl()),
+                                output: usage().output.toLocaleString(language.intl()),
+                              })}
+                            </div>
+                          )}
+                        </Show>
+                      </div>
+                    </details>
+                  )}
+                </Show>
               </div>
+            </div>
+          </TimelineRowFrame>
+        )
+      }
+      case "CompactionStatus": {
+        const compactionStatusRow = row as Accessor<TimelineRowByTag<"CompactionStatus">>
+        return (
+          <TimelineRowFrame row={compactionStatusRow}>
+            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+              <CompactionStatusCard part={compactionStatusRow().part} />
             </div>
           </TimelineRowFrame>
         )

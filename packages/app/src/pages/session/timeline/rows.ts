@@ -1,4 +1,5 @@
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
+import type { CompactionPart } from "@opennovel-ai/sdk/v2/client"
 import { AssistantMessage, Part, SessionStatus, UserMessage } from "@opennovel-ai/sdk/v2"
 import { groupParts, reasoningHeadingText, renderable, type PartGroup } from "@opennovel-ai/session-ui/message-part"
 import { reasoningPartRenderable, TimelineRow } from "./timeline-row"
@@ -45,7 +46,9 @@ export namespace Timeline {
     const previousUserMessage = index > 0
     const userParts = getMessageParts(userMessage.id)
     const comments = userParts.flatMap((p) => MessageComment.fromPart(p) ?? [])
-    const compaction = userParts.some((p) => p.type === "compaction")
+    // 旧投影无 status：按完成态兼容（adapter/translator 同款语义）
+    const compactionPart = userParts.find((p): p is CompactionPart => p.type === "compaction")
+    const compactionStatus = compactionPart?.status ?? "completed"
     const interruptedMessageIndex = assistantMessages.findIndex((m) => m.error?.name === "MessageAbortedError")
     const interrupted = interruptedMessageIndex !== -1
     const error = assistantMessages.find((m) => m.error && m.error.name !== "MessageAbortedError")?.error
@@ -65,7 +68,7 @@ export namespace Timeline {
         .map((part) => ({ messageID: message.id, messageIndex, part })),
     )
     const assistantItems =
-      interrupted && !compaction
+      interrupted && compactionStatus !== "completed"
         ? [
             ...groupParts(assistantPartRefs.filter((ref) => ref.messageIndex <= interruptedMessageIndex)).map(
               (group) => ({
@@ -98,13 +101,24 @@ export namespace Timeline {
       }),
     )
 
-    if (compaction) {
-      rows.push(
-        new TimelineRow.TurnDivider({
-          userMessageID: userMessage.id,
-          label: "compaction",
-        }),
-      )
+    if (compactionPart) {
+      // 完成态保留分隔线（可展开摘要）；排队/运行/失败/中断扩展为状态卡
+      if (compactionStatus === "completed") {
+        rows.push(
+          new TimelineRow.TurnDivider({
+            userMessageID: userMessage.id,
+            label: "compaction",
+            compaction: compactionPart,
+          }),
+        )
+      } else {
+        rows.push(
+          new TimelineRow.CompactionStatus({
+            userMessageID: userMessage.id,
+            part: compactionPart,
+          }),
+        )
+      }
     }
 
     let assistantGroupIndex = 0

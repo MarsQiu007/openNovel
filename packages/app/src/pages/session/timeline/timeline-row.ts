@@ -1,4 +1,5 @@
 import type { PartGroup } from "@opennovel-ai/session-ui/message-part"
+import type { CompactionPart } from "@opennovel-ai/sdk/v2/client"
 import { Data, Equal } from "effect"
 
 export namespace TimelineRow {
@@ -15,6 +16,12 @@ export namespace TimelineRow {
   export class TurnDivider extends Data.TaggedClass("TurnDivider")<{
     userMessageID: string
     label: "compaction" | "interrupted"
+    // completed 压缩的可展开摘要与实测 usage（历史加载与实时流共用同一行身份）
+    compaction?: CompactionPart
+  }> {}
+  export class CompactionStatus extends Data.TaggedClass("CompactionStatus")<{
+    userMessageID: string
+    part: CompactionPart
   }> {}
   export class AssistantPart extends Data.TaggedClass("AssistantPart")<{
     userMessageID: string
@@ -38,6 +45,7 @@ export namespace TimelineRow {
     | CommentStrip
     | UserMessage
     | TurnDivider
+    | CompactionStatus
     | AssistantPart
     | Thinking
     | Error
@@ -53,6 +61,8 @@ export namespace TimelineRow {
         return `user-message:${row.userMessageID}`
       case "TurnDivider":
         return `turn-divider:${row.userMessageID}:${row.label}`
+      case "CompactionStatus":
+        return `compaction-status:${row.userMessageID}`
       case "AssistantPart":
         return `assistant-part:${row.userMessageID}:${row.group.key}`
       case "Thinking":
