@@ -268,6 +268,78 @@ export const SettingsGeneralV2: Component<{
     />
   )
 
+  // 默认预留与 core DEFAULT_BUFFER 对齐；JSON patch 无法传 undefined，恢复默认即写显式数值
+  const COMPACTION_DEFAULT_RESERVED = 20000
+  const COMPACTION_TRIGGERS = ["90", "85", "80", "70"] as const
+
+  const CompactionSection = () => {
+    const compaction = createMemo(() => serverSync().data.config.compaction)
+    const auto = createMemo(() => compaction()?.auto ?? true)
+    const background = createMemo(() => compaction()?.background ?? true)
+    const threshold = createMemo(() => {
+      const reserved = compaction()?.reserved
+      if (typeof reserved !== "string") return "default"
+      return String(100 - Number.parseInt(reserved, 10))
+    })
+    const thresholdOptions = createMemo(() => [
+      { value: "default", label: language.t("settings.general.row.compaction.threshold.default") },
+      ...COMPACTION_TRIGGERS.map((value) => ({ value, label: `${value}%` })),
+    ])
+    const setAuto = (checked: boolean) => void serverSync().updateConfig({ compaction: { auto: checked } })
+    const setBackground = (checked: boolean) =>
+      void serverSync().updateConfig({ compaction: { background: checked } })
+
+    return (
+      <div class="settings-v2-section">
+        <h3 class="settings-v2-section-title">{language.t("settings.general.section.compaction")}</h3>
+
+        <SettingsListV2>
+          <SettingsRowV2
+            title={language.t("settings.general.row.compaction.auto.title")}
+            description={language.t("settings.general.row.compaction.auto.description")}
+          >
+            <div data-action="settings-compaction-auto">
+              <Switch checked={auto()} onChange={setAuto} />
+            </div>
+          </SettingsRowV2>
+
+          <Show when={auto()}>
+            <SettingsRowV2
+              title={language.t("settings.general.row.compaction.threshold.title")}
+              description={language.t("settings.general.row.compaction.threshold.description")}
+            >
+              <SelectV2
+                appearance="inline"
+                data-action="settings-compaction-threshold"
+                options={thresholdOptions()}
+                current={thresholdOptions().find((o) => o.value === threshold())}
+                placement="bottom-end"
+                gutter={6}
+                value={(o) => o.value}
+                label={(o) => o.label}
+                onSelect={(option) => {
+                  if (!option || option.value === threshold()) return
+                  const reserved =
+                    option.value === "default" ? COMPACTION_DEFAULT_RESERVED : `${100 - Number(option.value)}%`
+                  void serverSync().updateConfig({ compaction: { reserved } })
+                }}
+              />
+            </SettingsRowV2>
+          </Show>
+
+          <SettingsRowV2
+            title={language.t("settings.general.row.compaction.background.title")}
+            description={language.t("settings.general.row.compaction.background.description")}
+          >
+            <div data-action="settings-compaction-background">
+              <Switch checked={background()} onChange={setBackground} />
+            </div>
+          </SettingsRowV2>
+        </SettingsListV2>
+      </div>
+    )
+  }
+
   const GeneralSection = () => (
     <div class="settings-v2-section">
       <SettingsListV2>
@@ -767,6 +839,8 @@ export const SettingsGeneralV2: Component<{
         </Show>
 
         <GeneralSection />
+
+        <CompactionSection />
 
         <AppearanceSection />
 

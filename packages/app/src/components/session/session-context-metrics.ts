@@ -1,4 +1,4 @@
-import type { AssistantMessage, Message } from "@opennovel-ai/sdk/v2/client"
+import type { AssistantMessage, ContextWatermark, Message } from "@opennovel-ai/sdk/v2/client"
 
 type Provider = {
   id: string
@@ -62,4 +62,14 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Context | 
 
 export function getSessionContext(messages: Message[] = [], providers: Provider[] = []) {
   return build(messages, providers)
+}
+
+// 服务端统一水位优先（与后端自动压缩决策同源）；窗口未知时降级为 undefined，不显示伪造百分比。
+// 仅在无水位快照（老服务端）时回退前端估算。
+export function resolveUsagePercent(
+  watermark: ContextWatermark | undefined,
+  estimated: { usage: number | null } | undefined,
+) {
+  if (watermark) return watermark.window !== undefined ? Math.round(watermark.ratio * 100) : undefined
+  return estimated?.usage ?? undefined
 }

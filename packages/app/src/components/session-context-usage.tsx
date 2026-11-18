@@ -12,10 +12,11 @@ import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { useSDK } from "@/context/sdk"
-import { getSessionContext } from "@/components/session/session-context-metrics"
+import { getSessionContext, resolveUsagePercent } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSettings } from "@/context/settings"
+import type { Part } from "@opennovel-ai/sdk/v2"
 
 interface SessionContextUsageProps {
   variant?: "button" | "indicator"
@@ -73,7 +74,23 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       }),
   )
 
+  // 服务端统一水位优先（与后端自动压缩决策同源）；窗口未知时降级为 undefined，
+  // 不显示伪造百分比，仅在无水位快照时回退前端估算
+  const watermark = createMemo(() => info()?.context)
   const context = createMemo(() => getSessionContext(messages(), [...providers.all().values()]))
+  const usage = createMemo(() => resolveUsagePercent(watermark(), context()))
+  const total = createMemo(() => watermark()?.total ?? context()?.total ?? 0)
+  // 活跃压缩操作（排队/运行）与时间线状态卡同源：压缩 part 存在即压缩进行中
+  const compacting = createMemo(() => {
+    const id = params.id
+    if (!id) return false
+    const partsByID = sync().data.part as Record<string, Part[] | undefined>
+    return messages().some((message) =>
+      partsByID[message.id]?.some(
+        (part) => part.type === "compaction" && (part.status === "queued" || part.status === "running"),
+      ),
+    )
+  })
   const cost = createMemo(() => {
     return usd().format(info()?.cost ?? 0)
   })
@@ -106,7 +123,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       <ProgressCircle
         size={16}
         strokeWidth={2}
-        percentage={context()?.usage ?? 0}
+        percentage={usage() ?? 0}
         style={
           variant() === "indicator"
             ? {
@@ -121,18 +138,35 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   )
   const circleV2 = () => (
     <div class="flex items-center justify-center">
-      <ProgressCircleV2 percentage={context()?.usage ?? 0} />
+      <ProgressCircleV2 percentage={usage() ?? 0} />
     </div>
   )
 
   const tooltipValue = () => (
-    <div class="flex w-[120px] flex-col gap-2">
+    <div class="flex w-[160px] flex-col gap-2">
+      <Show when={watermark()?.preparing}>
+        <ContextTooltipRow
+          name={language.t("context.usage.compaction")}
+          value={language.t("context.usage.preparing")}
+        />
+      </Show>
+      <Show when={compacting()}>
+        <ContextTooltipRow name={language.t("context.usage.compaction")} value={language.t("context.usage.running")} />
+      </Show>
       <ContextTooltipRow name={language.t("context.usage.cost")} value={cost()} />
-      <ContextTooltipRow name={language.t("context.usage.usage")} value={`${context()?.usage ?? 0}%`} />
-      <ContextTooltipRow
-        name={language.t("context.usage.tokens")}
-        value={context()?.total.toLocaleString(language.intl()) ?? "0"}
-      />
+      <Show when={usage() !== undefined}>
+        <ContextTooltipRow name={language.t("context.usage.usage")} value={`${usage()}%`} />
+      </Show>
+      <ContextTooltipRow name={language.t("context.usage.tokens")} value={total().toLocaleString(language.intl())} />
+      <Show when={watermark()?.trigger?.tokens !== undefined}>
+        <ContextTooltipRow
+          name={language.t("context.usage.trigger")}
+          value={watermark()!.trigger!.tokens!.toLocaleString(language.intl())}
+        />
+      </Show>
+      <Show when={watermark()?.degraded}>
+        {(degraded) => <div class="text-11-regular text-v2-text-text-muted">{degraded()}</div>}
+      </Show>
     </div>
   )
 

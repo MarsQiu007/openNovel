@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Message } from "@opennovel-ai/sdk/v2/client"
-import { getSessionContext } from "./session-context-metrics"
+import type { ContextWatermark, Message } from "@opennovel-ai/sdk/v2/client"
+import { getSessionContext, resolveUsagePercent } from "./session-context-metrics"
 
 const assistant = (
   id: string,
@@ -95,5 +95,25 @@ describe("getSessionContext", () => {
     const ctx = getSessionContext(undefined, undefined)
 
     expect(ctx).toBeUndefined()
+  })
+})
+
+describe("resolveUsagePercent", () => {
+  const watermark = (input: Partial<ContextWatermark>): ContextWatermark => input as ContextWatermark
+
+  test("prefers the server watermark ratio when the window is known", () => {
+    const wm = watermark({ window: 1000, ratio: 0.4321, total: 432 })
+    expect(resolveUsagePercent(wm, { usage: 12 })).toBe(43)
+  })
+
+  test("degrades to undefined instead of a fake percentage when the window is unknown", () => {
+    const wm = watermark({ ratio: 0, total: 432 })
+    expect(resolveUsagePercent(wm, { usage: 12 })).toBeUndefined()
+  })
+
+  test("falls back to the frontend estimate only without a watermark snapshot", () => {
+    expect(resolveUsagePercent(undefined, { usage: 55 })).toBe(55)
+    expect(resolveUsagePercent(undefined, { usage: null })).toBeUndefined()
+    expect(resolveUsagePercent(undefined, undefined)).toBeUndefined()
   })
 })
