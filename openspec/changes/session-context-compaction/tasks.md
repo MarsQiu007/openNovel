@@ -38,7 +38,7 @@
 - [x] 5.3 实现上下文用量圆环的统一水位、配置/实际阈值和后台准备状态，并通过 `serverSync.updateConfig` 提供自动开关、百分比阈值与后台开关；验证保存重载、安全上限说明和未知窗口降级（resolveUsagePercent 降级单测 7 pass；保存重载与端到端取证在 6.1 隔离环境落实）
 - [x] 5.4 按仓库 locale 保护约束接入默认简体中文及既有 zh/en/zht 文案流程，不新增硬编码英文；运行 i18n parity、键盘焦点、明暗主题和减少动态效果相关聚焦测试（parity 4 pass；展开摘要用 `<details>` 原生键盘可达 + focus-visible，状态卡与 tooltip 全语义 token 无新增动画）
 - [x] 5.5 扩展会话 e2e fixture 以覆盖运行中刷新、重连、历史加载、虚拟滚动和重复增量，验证无重复卡片、跨消息串写、错误假完成或不可接受的锚点跳变（`session-compaction-lifecycle.spec.ts` 7 用例全过：流转/重试/撤销/历史+重载/水位 tooltip/断线重连/虚拟滚动往返；fixture 自检 spec 7 pass。坑：store 按消息 ID 字典序排序且 desc 分页先拉最新 20 条，fixture ID 必须随时间线单调递增）
-- [ ] 5.6 用 Bun 1.3.14 从 `packages/app` 运行受影响单测、聚焦 e2e、`bun typecheck` 与 `bun run typecheck:e2e`，再从仓库根运行本组 oxlint 检查
+- [x] 5.6 用 Bun 1.3.14 从 `packages/app` 运行受影响单测、聚焦 e2e、`bun typecheck` 与 `bun run typecheck:e2e`，再从仓库根运行本组 oxlint 检查（Bun 1.3.14 单测 126 pass（metrics/parity/translator/server-session/adapter 5 文件）；聚焦 e2e：lifecycle spec 7 pass + fixture 自检 7 pass；`bun typecheck` 与 `typecheck:e2e` 过；仓库根 oxlint 本组路径 0 errors，改动文件仅余与文件既有基线一致的 no-unsafe-type-assertion 3 处，新增 5 处多余非空断言已清）
 
 ## 6. 端到端验收与收尾验证
 
