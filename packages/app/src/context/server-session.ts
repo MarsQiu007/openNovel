@@ -12,6 +12,7 @@ import type {
   Session,
   SessionStatus,
   SessionV2Info,
+  SessionWorkRunRun,
   SnapshotFileDiff,
   Todo,
 } from "@opennovel-ai/sdk/v2/client"
@@ -178,6 +179,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
     session_status: {} as Record<string, SessionStatus>,
     session_diff: {} as Record<string, SnapshotFileDiff[]>,
     todo: {} as Record<string, Todo[]>,
+    workrun: {} as Record<string, SessionWorkRunRun | null>,
     permission: {} as Record<string, PermissionRequest[]>,
     question: {} as Record<string, QuestionRequest[]>,
     message: {} as Record<string, Message[]>,
@@ -219,6 +221,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
   const inflight = new Map<string, Promise<void>>()
   const inflightDiff = new Map<string, Promise<void>>()
   const inflightTodo = new Map<string, Promise<void>>()
+  const inflightWorkrun = new Map<string, Promise<void>>()
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const messageLoads = new Map<string, MessageLoadState>()
   const pendingParts = new Map<string, Map<string, Set<string>>>()
@@ -266,6 +269,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         ...inflight.keys(),
         ...inflightDiff.keys(),
         ...inflightTodo.keys(),
+        ...inflightWorkrun.keys(),
         ...messageLoads.keys(),
         ...optimistic.keys(),
         ...Object.entries(data.permission)
@@ -322,7 +326,8 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         !messageLoads.has(sessionID) &&
         !inflight.has(sessionID) &&
         !inflightDiff.has(sessionID) &&
-        !inflightTodo.has(sessionID)
+        !inflightTodo.has(sessionID) &&
+        !inflightWorkrun.has(sessionID)
       )
         generations.delete(sessionID)
     }
@@ -489,6 +494,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       inflight.delete(sessionID)
       inflightDiff.delete(sessionID)
       inflightTodo.delete(sessionID)
+      inflightWorkrun.delete(sessionID)
       messageLoads.delete(sessionID)
       pendingParts.delete(sessionID)
       orphanParts.delete(sessionID)
@@ -1018,6 +1024,11 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         setData("todo", props.sessionID, reconcile(props.todos))
         return
       }
+      case "workrun.updated": {
+        const props = event.properties as { sessionID: string; run: SessionWorkRunRun }
+        setData("workrun", props.sessionID, reconcile(props.run))
+        return
+      }
       case "session.status": {
         const props = event.properties as { sessionID: string; status: SessionStatus }
         setData("session_status", props.sessionID, reconcile(props.status))
@@ -1380,6 +1391,17 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
         return retry(() => client.v2.session.todo({ sessionID })).then((result) => {
           if (generations.get(sessionID) !== active) return
           setData("todo", sessionID, reconcile(result.data?.data ?? []))
+        })
+      })
+    },
+    workrun(sessionID: string, options?: { force?: boolean }) {
+      touch(sessionID)
+      if (data.workrun[sessionID] !== undefined && !options?.force) return Promise.resolve()
+      return runInflight(inflightWorkrun, sessionID, () => {
+        const active = generation(sessionID)
+        return retry(() => client.v2.session.workrun.get({ sessionID })).then((result) => {
+          if (generations.get(sessionID) !== active) return
+          setData("workrun", sessionID, reconcile(result.data?.data ?? null))
         })
       })
     },

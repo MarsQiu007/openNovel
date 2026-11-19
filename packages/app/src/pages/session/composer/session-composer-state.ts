@@ -1,6 +1,6 @@
-import { createEffect, createMemo, on, onCleanup } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { PermissionRequest, QuestionRequest, Todo } from "@opennovel-ai/sdk/v2"
+import type { PermissionRequest, QuestionRequest, SessionWorkRunRun, Todo } from "@opennovel-ai/sdk/v2"
 import { useParams } from "@solidjs/router"
 import { showToast } from "@/utils/toast"
 import { useServerSync } from "@/context/server-sync"
@@ -50,6 +50,29 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     if (!id) return []
     return serverSync().session.data.todo[id] ?? []
   })
+
+  const workrun = createMemo((): SessionWorkRunRun | undefined => {
+    const id = params.id
+    if (!id) return undefined
+    return serverSync().session.data.workrun[id] ?? undefined
+  })
+
+  const [workrunBusy, setWorkrunBusy] = createSignal<"pause" | "resume" | undefined>(undefined)
+
+  const mutateWorkRun = (action: "pause" | "resume") => {
+    const id = params.id
+    if (!id || workrunBusy()) return
+    setWorkrunBusy(action)
+    const workrun = sdk().client.v2.session.workrun
+    // 资源类方法依赖实例 this：不能提取方法引用后调用（会丢 this）
+    const call = action === "pause" ? workrun.pause({ sessionID: id }) : workrun.resume({ sessionID: id })
+    call
+      .catch((err: unknown) => {
+        const description = err instanceof Error ? err.message : String(err)
+        showToast({ title: language.t("common.requestFailed"), description })
+      })
+      .finally(() => setWorkrunBusy(undefined))
+  }
 
   const done = createMemo(
     () => todos().length > 0 && todos().every((todo) => todo.status === "completed" || todo.status === "cancelled"),
@@ -188,6 +211,10 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     permissionResponding,
     decide,
     todos,
+    workrun,
+    workrunBusy,
+    pauseWorkRun: () => mutateWorkRun("pause"),
+    resumeWorkRun: () => mutateWorkRun("resume"),
     dock: () =>
       store.sessionID === params.id
         ? store.dock

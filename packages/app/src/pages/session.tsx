@@ -875,6 +875,19 @@ export default function Page() {
     ),
   )
 
+  // 工作队列区块不依赖会话 busy：进入会话即拉取，挂起队列在空闲态也要可恢复。
+  // 不用 defer：SessionPage 挂载时 params.id 已定且本生命周期可能不再变化，
+  // defer 会跳过首跑导致拉取永不发生（e2e workrun-dock 抓到）
+  createEffect(
+    on(
+      () => params.id,
+      (id) => {
+        if (!id) return
+        void sync().session.workrun(id)
+      },
+    ),
+  )
+
   createEffect(
     on(
       () => visibleUserMessages().at(-1)?.id,

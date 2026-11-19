@@ -5,6 +5,7 @@ import type {
   PermissionRequest,
   QuestionRequest,
   SessionStatus,
+  SessionWorkRunRun,
   SnapshotFileDiff,
   Todo,
 } from "@opennovel-ai/sdk/v2/client"
@@ -35,6 +36,7 @@ describe("app session cache", () => {
       session_status: Record<string, SessionStatus | undefined>
       session_diff: Record<string, SnapshotFileDiff[] | undefined>
       todo: Record<string, Todo[] | undefined>
+      workrun: Record<string, SessionWorkRunRun | null | undefined>
       message: Record<string, Message[] | undefined>
       part: Record<string, Part[] | undefined>
       permission: Record<string, PermissionRequest[] | undefined>
@@ -44,6 +46,7 @@ describe("app session cache", () => {
       session_status: { ses_1: { type: "busy" } as SessionStatus },
       session_diff: { ses_1: [] },
       todo: { ses_1: [] as Todo[] },
+      workrun: {},
       message: {},
       part: { msg_1: [part("prt_1", "ses_1", "msg_1")] },
       permission: { ses_1: [] as PermissionRequest[] },
@@ -69,6 +72,7 @@ describe("app session cache", () => {
       session_status: Record<string, SessionStatus | undefined>
       session_diff: Record<string, SnapshotFileDiff[] | undefined>
       todo: Record<string, Todo[] | undefined>
+      workrun: Record<string, SessionWorkRunRun | null | undefined>
       message: Record<string, Message[] | undefined>
       part: Record<string, Part[] | undefined>
       permission: Record<string, PermissionRequest[] | undefined>
@@ -78,6 +82,7 @@ describe("app session cache", () => {
       session_status: {},
       session_diff: {},
       todo: {},
+      workrun: {},
       message: { ses_1: [m] },
       part: { [m.id]: [part("prt_1", "ses_1", m.id)] },
       permission: {},

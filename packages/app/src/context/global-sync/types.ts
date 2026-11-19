@@ -11,6 +11,7 @@ import type {
   ReferenceInfo,
   Session,
   SessionStatus,
+  SessionWorkRunRun,
   SnapshotFileDiff,
   Todo,
   VcsInfo,
@@ -56,6 +57,9 @@ export type State = {
   }
   todo: {
     [sessionID: string]: Todo[]
+  }
+  workrun: {
+    [sessionID: string]: SessionWorkRunRun | null
   }
   permission: {
     [sessionID: string]: PermissionRequest[]
