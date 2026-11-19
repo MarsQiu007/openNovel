@@ -163,6 +163,8 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
         )
       },
       "session.next.created": () => Effect.void,
+      // drain 级失败不改变消息投影（通知由 CLI/app 消费层处理）
+      "session.next.failed": () => Effect.void,
       "session.next.deleted": () => Effect.void,
       "session.next.moved": () => Effect.void,
       "session.next.updated": () => Effect.void,
