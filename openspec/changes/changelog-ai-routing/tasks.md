@@ -28,7 +28,7 @@
 ## 5. 行为验证
 
 - [x] 5.1 模拟凭证缺失场景（以不含 deepseek 条目的 `OPENNOVEL_AUTH_CONTENT` 覆盖环境）本地运行 changelog 命令，确认以非零退出码显式失败且错误指明模型不可用，不再触达其它 provider
-- [ ] 5.2 携带有效 deepseek 凭证本地运行 changelog 命令，确认会话命中 `deepseek/deepseek-flash` 并正常产出 changelog 文件，验证后删除产物
+- [x] 5.2 携带有效 deepseek 凭证本地运行 changelog 命令，确认会话命中 `deepseek/deepseek-flash` 并正常产出 changelog 文件，验证后删除产物
 - [ ] 5.3 归档前验收：人工冒烟通过后随下一次 prod release 确认 prepare 日志中 changelog 环节命中 deepseek 模型、release 说明为真实生成内容（dev/beta 通道不运行 changelog，不作为验证载体）
 
 ## 6. 质量门槛
