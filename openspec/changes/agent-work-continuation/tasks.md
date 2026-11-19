@@ -31,7 +31,7 @@
 
 ## 6. 验证收尾
 
-- [ ] 6.1 聚焦测试全绿：core（WorkRun/守卫/注入源）、plugin（消费者）、schema/protocol 相关包 + 各包 `bun typecheck` 通过
+- [x] 6.1 聚焦测试全绿：core（WorkRun/守卫/注入源）113 pass、plugin（消费者 + agent 契约）26+4 pass、schema/protocol 相关包；core/plugin/schema/protocol 各包 `bun typecheck` 通过
 - [ ] 6.2 httpapi 练习 coverage 预检通过；协议双再生产物一致（`check:generated` 绿）
 
 ## Workflow follow-up
