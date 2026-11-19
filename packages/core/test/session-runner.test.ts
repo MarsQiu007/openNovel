@@ -3812,6 +3812,48 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  // 用独立会话隔离：主 sessionID 已被压缩中断用例残留 queued 压缩操作，
+  // drain 会捡起残留操作挂在本用例的 streamGate 上
+  it.effect("用户打断把 active 队列转挂起，恢复后读回一致", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      const interruptSessionID = SessionV2.ID.make("ses_runner_interrupt")
+      yield* insertSession(interruptSessionID)
+      yield* workrun.create({ sessionID: interruptSessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({
+        sessionID: interruptSessionID,
+        prompt: Prompt.make({ text: "开始审查" }),
+        resume: false,
+      })
+      const gate = yield* Deferred.make<void>()
+      streamGate = gate
+      requests.length = 0
+      const runFiber = yield* session.resume(interruptSessionID).pipe(Effect.forkChild)
+      while (requests.length < 1) yield* Effect.yieldNow
+
+      // 用户打断进行中回合：active 队列经 run 的 onInterrupt 转挂起，队列数据保留
+      yield* session.interrupt(interruptSessionID)
+      expect(yield* Fiber.await(runFiber)).toMatchObject({ _tag: "Failure" })
+      streamGate = undefined
+      const paused = yield* workrun.current(interruptSessionID)
+      expect(paused?.status).toBe("paused")
+      expect(paused?.goal).toBe("逐章审查全书")
+      expect(paused?.items.map((item) => item.status)).toEqual(["pending", "pending"])
+
+      // 恢复挂起队列：转 active 且守卫计数清零，持久化读回一致
+      const resumed = yield* workrun.resume(interruptSessionID)
+      expect(resumed.status).toBe("active")
+      expect(resumed.continuationCount).toBe(0)
+      expect(resumed.noProgressCount).toBe(0)
+      const reread = yield* workrun.current(interruptSessionID)
+      expect(reread?.status).toBe("active")
+      expect(reread?.goal).toBe("逐章审查全书")
+      expect(reread?.items.map((item) => item.status)).toEqual(["pending", "pending"])
+    }),
+  )
+
   it.effect("无队列会话守卫不引入任何行为", () =>
     Effect.gen(function* () {
       yield* setup

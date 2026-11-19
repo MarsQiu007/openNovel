@@ -620,20 +620,32 @@ const layer = Layer.effect(
       yield* drainQueuedCompactions(input.sessionID)
       let promotion: SessionInput.Delivery | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
       let shouldRun = input.force || hasSteer || hasQueue
-      while (shouldRun) {
-        let needsContinuation = true
-        let step = 1
-        while (needsContinuation) {
-          const result = yield* runTurn(input.sessionID, promotion, step)
-          yield* publishWatermark(input.sessionID)
-          needsContinuation = result.needsContinuation
-          step = result.step + 1
-          promotion = "steer"
-          if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+      yield* Effect.gen(function* () {
+        while (shouldRun) {
+          let needsContinuation = true
+          let step = 1
+          while (needsContinuation) {
+            const result = yield* runTurn(input.sessionID, promotion, step)
+            yield* publishWatermark(input.sessionID)
+            needsContinuation = result.needsContinuation
+            step = result.step + 1
+            promotion = "steer"
+            if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+          }
+          shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
+          promotion = shouldRun ? "queue" : undefined
         }
-        shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
-        promotion = shouldRun ? "queue" : undefined
-      }
+      }).pipe(
+        // 用户打断沿用 interrupt 所有权链（design D3）：active 队列转挂起保留数据，
+        // 无活动队列的中断是 no-op；恢复时 resume 清守卫计数后守卫照常续跑
+        Effect.onInterrupt(() =>
+          Effect.uninterruptible(
+            workrun.pause(input.sessionID).pipe(
+              Effect.catchTag("SessionWorkRun.NoActiveRun", () => Effect.void),
+            ),
+          ),
+        ),
+      )
     })
 
     return Service.of({
