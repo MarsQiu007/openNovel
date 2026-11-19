@@ -13,6 +13,7 @@ import type { SystemContext } from "../system-context/index"
 import { AgentV2 } from "../agent"
 import type { Revert } from "@opennovel-ai/schema/revert"
 import type { Ruleset } from "@opennovel-ai/schema/permission"
+import type { SessionWorkRun } from "@opennovel-ai/schema/session-work-run"
 
 type SessionMessageData = Omit<(typeof SessionMessage.Message)["Encoded"], "type" | "id">
 
@@ -142,6 +143,42 @@ export const SessionContextEpochTable = sqliteTable("session_context_epoch", {
   snapshot: text({ mode: "json" }).notNull().$type<SystemContext.Snapshot>(),
   baseline_seq: integer().notNull(),
 })
+
+// 会话绑定的持久化工作队列（agent-work-continuation）：run 承载目标与守卫阀门计数，
+// item 为逐单元清单。同一会话允许存在历史 run（paused/complete），守卫与工具只操作 active run
+export const WorkRunTable = sqliteTable(
+  "work_run",
+  {
+    id: text().primaryKey(),
+    session_id: text()
+      .$type<SessionSchema.ID>()
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    goal: text().notNull(),
+    status: text().$type<SessionWorkRun.RunStatus>().notNull(),
+    progress_note: text().notNull().default(""),
+    continuation_count: integer().notNull().default(0),
+    no_progress_count: integer().notNull().default(0),
+    ...Timestamps,
+  },
+  (table) => [index("work_run_session_idx").on(table.session_id)],
+)
+
+export const WorkRunItemTable = sqliteTable(
+  "work_run_item",
+  {
+    id: text().primaryKey(),
+    run_id: text()
+      .notNull()
+      .references(() => WorkRunTable.id, { onDelete: "cascade" }),
+    seq: integer().notNull(),
+    title: text().notNull(),
+    status: text().$type<SessionWorkRun.ItemStatus>().notNull(),
+    note: text(),
+    ...Timestamps,
+  },
+  (table) => [uniqueIndex("work_run_item_run_seq_idx").on(table.run_id, table.seq)],
+)
 
 // ============================================================================
 // 小说写作相关表 (Novel Writing Tables)

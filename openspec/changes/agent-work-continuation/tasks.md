@@ -2,9 +2,9 @@
 
 ## 1. schema 与持久化层
 
-- [ ] 1.1 packages/schema 新增 WorkRun 相关 schema（run 状态 active/paused/complete、item 状态 pending/in_progress/done/skipped/blocked、目标/单元/进度笔记/连续续跑计数字段）；`bun typecheck` 通过
-- [ ] 1.2 packages/core session db 新增 `work_run` 与 `work_run_item` 两表（Drizzle snake_case，session_id 普通关联列与既有 session 表同模式）；启动建表迁移生效，旧库打开不报错
-- [ ] 1.3 core 新增 WorkRun 服务：创建队列（含单元清单）、领取/完成/跳过/受阻/重置单元、覆盖式进度笔记、状态推进、按会话查询、挂起/恢复（含续跑计数重置）、守卫阀门判定（续跑上限与无进展熔断）；持久化在压缩与重启后可完整读回——core 单测覆盖（含重启后读回场景）
+- [x] 1.1 packages/schema 新增 WorkRun 相关 schema（run 状态 active/paused/complete、item 状态 pending/in_progress/done/skipped/blocked、目标/单元/进度笔记/连续续跑计数字段）；`bun typecheck` 通过
+- [x] 1.2 packages/core session db 新增 `work_run` 与 `work_run_item` 两表（Drizzle snake_case，session_id 普通关联列与既有 session 表同模式）；启动建表迁移生效，旧库打开不报错
+- [x] 1.3 core 新增 WorkRun 服务：创建队列（含单元清单）、领取/完成/跳过/受阻/重置单元、覆盖式进度笔记、状态推进、按会话查询、挂起/恢复（含续跑计数重置）、守卫阀门判定（续跑上限与无进展熔断）；持久化在压缩与重启后可完整读回——core 单测覆盖（含重启后读回场景）
 
 ## 2. 模型工具层
 
