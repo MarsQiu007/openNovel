@@ -111,7 +111,7 @@ export function resolveToolInsightRoot(setting: ToolInsightSetting, options: Too
   return path.join(directory, toolInsightProjectSlug(options.projectID))
 }
 
-/** 项目稳定标识的短哈希：路径先做规范化（统一分隔符），再生成跨重启稳定的不可逆摘要 */
+/** 项目稳定标识的短哈希：反斜杠统一为正斜杠（跨平台一致），再生成跨重启稳定的不可逆摘要 */
 export function toolInsightProjectSlug(projectID: string): string {
-  return createHash("sha256").update(path.normalize(projectID)).digest("hex").slice(0, 12)
+  return createHash("sha256").update(projectID.replace(/\\/g, "/")).digest("hex").slice(0, 12)
 }
