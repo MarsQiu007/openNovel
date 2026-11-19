@@ -538,6 +538,10 @@ export const RunCommand = effectCmd({
           for await (const event of events.stream) {
             if (!("sessionID" in event.data) || event.data.sessionID !== sessionID) continue
 
+            // step.failed/default 在流结束后统一落退出码；json 分支会提前 continue，
+            // 终态失败必须在通用 JSON 输出前设置，否则 raw 事件成功输出但 CLI 假成功。
+            if (event.type === "session.next.step.failed" || event.type === "session.next.failed") process.exitCode = 1
+
             if (event.type === "permission.v2.asked") {
               if (auto) {
                 await client.v2.session.permission.reply({ sessionID, requestID: event.data.id, reply: "once" })
@@ -616,6 +620,11 @@ export const RunCommand = effectCmd({
               UI.error(event.data.error.message)
               continue
             }
+            if (event.type === "session.next.failed") {
+              error = error ? error + EOL + event.data.error.message : event.data.error.message
+              UI.error(event.data.error.message)
+              continue
+            }
           }
           return error
         }
@@ -667,8 +676,8 @@ export const RunCommand = effectCmd({
           return
         }
         if (args.format !== "json") await printTail(client, sessionID, admittedID, printed)
-        // json 模式以事件流为输出：wait 落定时尾部事件可能仍在 SSE 投递途中，留冲刷窗口再断流
-        if (args.format === "json") await new Promise((resolve) => setTimeout(resolve, 200))
+        // wait 落定时终态事件可能仍在 SSE 投递途中；default/json 都需要冲刷窗口，否则失败会假成功
+        await new Promise((resolve) => setTimeout(resolve, 200))
         abort.abort()
         const error = await finished
         if (error) process.exitCode = 1
