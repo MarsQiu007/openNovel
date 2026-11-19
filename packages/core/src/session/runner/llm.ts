@@ -34,10 +34,12 @@ import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
 import { SessionMessage } from "../message"
+import { Prompt } from "../prompt"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTitle } from "../title"
 import { SessionWatermark } from "../watermark"
+import { SessionWorkRun } from "../work-run"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
@@ -97,10 +99,14 @@ import { llmClient } from "../../effect/app-node-platform"
  * explicit loop starts the next provider turn after local settlement. Configured agent step limits bound the loop.
  */
 
+// 3.5 接入 per-agent 配置前的默认阀门（design D5：续跑上限 100，无进展熔断 3）
+export const WORK_RUN_GUARD_LIMITS = { continuationLimit: 100, noProgressLimit: 3 }
+export const WORK_RUN_CONTINUATION_PROMPT =
+  "[自动续跑] 工作队列尚未完成：领取下一个待处理单元继续推进，并保持进度笔记为最新状态。"
+
 const layer = Layer.effect(
   Service,
-  Effect.gen(function* () {
-    const events = yield* EventV2.Service
+  Effect.gen(function* () {    const events = yield* EventV2.Service
     const llm = yield* LLMClient.Service
     const agents = yield* AgentV2.Service
     const pluginBoot = yield* PluginBoot.Service
@@ -116,6 +122,7 @@ const layer = Layer.effect(
     const snapshots = yield* Snapshot.Service
     const watermarks = yield* SessionWatermark.Service
     const db = (yield* Database.Service).db
+    const workrun = yield* SessionWorkRun.Service
     const compaction = SessionCompaction.make({ events, llm, config: yield* config.entries() })
     const candidates = yield* SessionCompactionCandidate.Service
     const getSession = Effect.fn("SessionRunner.getSession")(function* (sessionID: SessionSchema.ID) {
@@ -435,6 +442,18 @@ const layer = Layer.effect(
           if (stream._tag === "Failure") return yield* Effect.failCause(stream.cause)
           if (settled._tag === "Failure" && Cause.hasInterrupts(settled.cause))
             return yield* Effect.failCause(settled.cause)
+          // 纯文本回合守卫（design D3）：正常结算且无工具续跑时判定工作队列是否续跑。
+          // provider 失败结算已被 hasProviderError 排除；压缩跳过与中断路径提前 return 不经过此处
+          if (!needsContinuation && !publisher.hasProviderError()) {
+            const decision = yield* workrun.guardDecide(sessionID, WORK_RUN_GUARD_LIMITS)
+            if (decision.action === "continue")
+              yield* SessionInput.admit(db, events, {
+                id: SessionMessage.ID.create(),
+                sessionID,
+                prompt: Prompt.fromUserMessage({ text: WORK_RUN_CONTINUATION_PROMPT }),
+                delivery: "queue",
+              })
+          }
           return { needsContinuation: !publisher.hasProviderError() && needsContinuation, step: currentStep }
         }),
       )
@@ -636,5 +655,6 @@ export const node = makeLocationNode({
     PluginBoot.node,
     SessionWatermark.node,
     SessionCompactionCandidate.node,
+    SessionWorkRun.node,
   ],
 })

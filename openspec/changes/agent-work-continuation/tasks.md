@@ -12,8 +12,8 @@
 
 ## 3. 续跑守卫与提示词契约
 
-- [ ] 3.1 runner 服务层实现守卫谓词与合成续跑：纯文本回合正常结算处（needsContinuation=false 且非 provider 失败结算）检查会话 WorkRun——active 且有 pending/in_progress 单元且阀门未触发则 `SessionInput.admit(合成续跑指令, delivery="queue")`；无队列、paused/complete、无可执行单元（含 blocked-only）、provider 失败结算、阀门触发一律放行——core 单测覆盖放行/续跑判定矩阵
-- [ ] 3.2 续跑指令携带明确合成来源标记，经 PromptAdmitted 事件落库、由 run 循环外层队列消费逻辑提升（promote 重置步数配额）后对用户可见——core 单测断言 admitted 记录、事件与续跑后配额重置
+- [x] 3.1 runner 服务层实现守卫谓词与合成续跑：纯文本回合正常结算处（needsContinuation=false 且非 provider 失败结算）检查会话 WorkRun——active 且有 pending/in_progress 单元且阀门未触发则 `SessionInput.admit(合成续跑指令, delivery="queue")`；无队列、paused/complete、无可执行单元（含 blocked-only）、provider 失败结算、阀门触发一律放行——core 单测覆盖放行/续跑判定矩阵
+- [x] 3.2 续跑指令携带明确合成来源标记，经 PromptAdmitted 事件落库、由 run 循环外层队列消费逻辑提升（promote 重置步数配额）后对用户可见——core 单测断言 admitted 记录、事件与续跑后配额重置
 - [ ] 3.3 System Context 新增条件注入源：会话存在 active WorkRun 时注入「禁纯文本停机」与「每回合复述更新进度」两条约束，paused/complete 后停止注入；WorkRun 状态迁移纳入 SessionContextEpoch 失效语义——core 单测覆盖注入、停止与迁移当回合生效
 - [ ] 3.4 用户打断时经 runner run 的 `Effect.onInterrupt` 把 active WorkRun 转挂起（数据保留）——core 单测覆盖打断挂起后状态与恢复读回
 - [ ] 3.5 守卫续跑上限落地为 per-agent 配置项（默认 100）并在 config-agent 体系注册；单测覆盖超限转挂起与恢复后计数重置

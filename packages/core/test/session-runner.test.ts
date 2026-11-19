@@ -34,6 +34,8 @@ import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import { SessionRunCoordinator } from "@opennovel-ai/core/session/run-coordinator"
 import { SessionRunner } from "@opennovel-ai/core/session/runner"
 import * as SessionRunnerLLM from "@opennovel-ai/core/session/runner/llm"
+import { MAX_STEPS_PROMPT } from "@opennovel-ai/core/session/runner/max-steps"
+import { WORK_RUN_CONTINUATION_PROMPT } from "@opennovel-ai/core/session/runner/llm"
 import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
 import { ToolRegistry } from "@opennovel-ai/core/tool/registry"
 import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
@@ -50,6 +52,7 @@ import {
 } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { SessionTitle } from "@opennovel-ai/core/session/title"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import { SystemContext } from "@opennovel-ai/core/system-context"
 import { SystemContextRegistry } from "@opennovel-ai/core/system-context/registry"
 import { SkillGuidance } from "@opennovel-ai/core/skill/guidance"
@@ -59,7 +62,7 @@ import { Location } from "@opennovel-ai/core/location"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
 import * as TestClock from "effect/testing/TestClock"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
 
 const requests: LLMRequest[] = []
@@ -276,6 +279,7 @@ const it = testEffect(
       QuestionV2.node,
       SessionProjector.node,
       SessionStore.node,
+      SessionWorkRun.node,
       ApplicationTools.node,
       AgentV2.node,
       ToolRegistry.node,
@@ -3718,6 +3722,155 @@ describe("SessionRunnerLLM", () => {
       expect(requests).toHaveLength(1)
       // 归因 system 段只含专用 agent 提示词与脱敏证据：Location context source 被屏蔽
       expect(JSON.stringify(requests[0]?.system)).not.toContain("Initial context")
+    }),
+  )
+
+  const queueInputRows = Effect.gen(function* () {
+    const { db } = yield* Database.Service
+    return yield* db
+      .select({ id: SessionInputTable.id })
+      .from(SessionInputTable)
+      .where(and(eq(SessionInputTable.session_id, sessionID), eq(SessionInputTable.delivery, "queue")))
+      .all()
+      .pipe(Effect.orDie)
+  })
+
+  it.effect("守卫在纯文本回合合成续跑指令，无进展熔断后放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-guard-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-guard-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-guard-3", ["继续三"]).completeEvents,
+        fragmentFixture("text", "text-guard-4", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+
+      // 三次守卫续跑后第四次守卫触发无进展熔断转挂起：四个回合、三次续跑指令提升；
+      // 提升后的续跑指令是持久历史消息，后续回合的请求全部可见
+      expect(requests).toHaveLength(4)
+      expect(userTexts(requests[0]!)).toEqual(["开始审查"])
+      expect(userTexts(requests[1]!)).toEqual(["开始审查", WORK_RUN_CONTINUATION_PROMPT])
+      expect(userTexts(requests[3]!)).toEqual([
+        "开始审查",
+        WORK_RUN_CONTINUATION_PROMPT,
+        WORK_RUN_CONTINUATION_PROMPT,
+        WORK_RUN_CONTINUATION_PROMPT,
+      ])
+      expect(yield* queueInputRows).toHaveLength(3)
+      // 续跑指令经 PromptAdmitted durable 事件落库，重放可追溯（用户入口 1 条 + 守卫续跑 3 条）
+      const { db } = yield* Database.Service
+      expect(
+        yield* db
+          .select({ type: EventTable.type })
+          .from(EventTable)
+          .where(eq(EventTable.type, "session.next.prompt.admitted.1"))
+          .all()
+          .pipe(Effect.orDie),
+      ).toHaveLength(4)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+    }),
+  )
+
+  it.effect("无队列会话守卫不引入任何行为", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "普通提问" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-plain-guard", ["回答"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect(yield* queueInputRows).toHaveLength(0)
+    }),
+  )
+
+  it.effect("provider 失败回合守卫放行不续跑", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = [LLMEvent.providerError({ message: "provider failed" })]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("active")
+    }),
+  )
+
+  it.effect("blocked-only 队列守卫放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      const run = yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* workrun.claimNext(run.id)
+      yield* workrun.blockItem(run.id, 0, "前置缺失")
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-blocked-guard", ["停机"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("active")
+    }),
+  )
+
+  it.effect("挂起队列守卫放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* workrun.pause(sessionID)
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-paused-guard", ["停机"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+    }),
+  )
+
+  it.effect("步数到限回合照常触发守卫续跑，配额随续跑提升重置", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const agent = yield* AgentV2.Service
+      yield* agent.transform((editor) =>
+        editor.update(AgentV2.ID.make("build"), (selected) => {
+          selected.steps = 1
+          selected.mode = "primary"
+        }),
+      )
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-limit-1", ["总结一"]).completeEvents,
+        fragmentFixture("text", "text-limit-2", ["总结二"]).completeEvents,
+        fragmentFixture("text", "text-limit-3", ["总结三"]).completeEvents,
+        fragmentFixture("text", "text-limit-4", ["总结四"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+
+      // steps=1 的每个回合都是到限总结形态（无工具、MAX_STEPS 提示），守卫照常续跑三次后熔断
+      expect(requests).toHaveLength(4)
+      for (const request of requests) {
+        expect(request.tools).toEqual([])
+        expect(request.messages.at(-1)?.content).toEqual([{ type: "text", text: MAX_STEPS_PROMPT }])
+      }
+      expect(yield* queueInputRows).toHaveLength(3)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
     }),
   )
 })
