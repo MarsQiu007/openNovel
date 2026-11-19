@@ -34,4 +34,18 @@ describe("全书逐章审查工作队列", () => {
   test("director 允许调用 workrun 工具", () => {
     expect(directorAgent.permission.workrun).toBe("allow")
   })
+
+  // 终结与最终汇报（agent-work-continuation 5.2）：队列终结后守卫自动放行，
+  // agent 产出全书审查总结（守卫谓词本体由 core session-runner 测试覆盖）。
+  test("director 队列终结后产出全书审查总结", () => {
+    // 终结触发：claim 返回没有待处理单元（全部完成或跳过）时 finish
+    expect(prompt).toContain("claim 返回“没有待处理单元”")
+    expect(prompt).toContain('workrun(action="finish")')
+    expect(prompt).toContain("终结队列")
+    // 最终汇报：全书审查总结内容要求
+    expect(prompt).toContain("全书审查总结")
+    expect(prompt).toContain("主要问题分布")
+    // 守卫放行：终结后自动续跑约束解除，可正常停机
+    expect(prompt).toContain("自动续跑约束解除")
+  })
 })
