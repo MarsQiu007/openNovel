@@ -556,6 +556,35 @@ describe("V1Migration.run", () => {
       }),
     ))
 
+  test("fresh 数据库（无 message 表）：直接落锚点且不报错", () =>
+    // changelog-ai-routing：fresh 库连 V1 存量表都没有，迁移必须收敛到锚点，
+    // 不得因 `SELECT ... FROM message` 报 no such table 而每次启动重试。
+    withDb(
+      Effect.gen(function* () {
+        const database = yield* Database.Service
+        const db = database.db
+        yield* seedProject(db)
+        yield* V1Migration.run
+        const anchor = yield* db
+          .select()
+          .from(DataMigrationTable)
+          .where(eq(DataMigrationTable.name, "v1-session-migration"))
+          .get()
+          .pipe(Effect.orDie)
+        expect(anchor).toBeDefined()
+
+        // 幂等：锚点短路，重跑零变化
+        yield* V1Migration.run
+        const anchorAgain = yield* db
+          .select()
+          .from(DataMigrationTable)
+          .where(eq(DataMigrationTable.name, "v1-session-migration"))
+          .get()
+          .pipe(Effect.orDie)
+        expect(anchorAgain).toBeDefined()
+      }),
+    ))
+
   test("已有 V2 内容的会话跳过内容迁移（②格后续聊边界）", () =>
     run(
       Effect.gen(function* () {
