@@ -5,6 +5,10 @@
 - 43e08d4655 feat(opennovel): 工具失败改走错误文本与稳定类别语义
 - 8edc983b71 test(core): 对齐非小说目录引导源注入断言
 
+### 归档后收尾修复
+
+- 408ffdaae5 chore(sdk): 补回合并丢失的 client 生成 name/code 字段（合并 origin/main 时 packages/client/src/generated/types.ts 的 error.name/code 生成改动被 origin 侧同区覆盖回退，CI check:generated 报红后再生补回）
+
 ### 全量回归备注（2026-11-19）
 
 - 五包 `bun test` 全量：plugin/llm/schema/novel-store 全绿；core 三失败逐一归因——novel-writer.test.ts 断言与 7.3 冲突已修（8edc983b71）；location-layer.test.ts 失败为本机全局配置污染（XDG_CONFIG_HOME 隔离后 4/4 全过，glm-5.3/zi-pu-coding-plan 经 model.ts:216 回退命中，与 CI 无关）；npm.test.ts 的 Npm.add 9.6s 复跑通过（命中已知 9s flake 家族）。`bun turbo typecheck` 全量已过。
@@ -85,3 +89,4 @@
 - 提交全部实现改动（每个提交 footer 带 `OpenSpec-Change: tool-failure-semantics`），用 `git log --grep` 收集实现提交写入本文件 Implementation Commits。
 - 记录更新单独提交后运行 `openspec validate tool-failure-semantics --strict`，同步主 specs 并归档。
 - 观察期确认：新会话中 update_chapter 失败不再以 surface_success 出现（迁移到 tool_failure + 稳定类别指纹），read / tool_failure / "Object" 指纹不再新增发生。
+- 归档后收尾修复已登记（408ffdaae5，见 Implementation Commits 的「归档后收尾修复」），实现提交计数相应 +1。
