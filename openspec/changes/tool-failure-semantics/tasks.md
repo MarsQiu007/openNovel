@@ -3,6 +3,11 @@
 ## Implementation Commits
 
 - 43e08d4655 feat(opennovel): 工具失败改走错误文本与稳定类别语义
+- 8edc983b71 test(core): 对齐非小说目录引导源注入断言
+
+### 全量回归备注（2026-11-19）
+
+- 五包 `bun test` 全量：plugin/llm/schema/novel-store 全绿；core 三失败逐一归因——novel-writer.test.ts 断言与 7.3 冲突已修（8edc983b71）；location-layer.test.ts 失败为本机全局配置污染（XDG_CONFIG_HOME 隔离后 4/4 全过，glm-5.3/zi-pu-coding-plan 经 model.ts:216 回退命中，与 CI 无关）；npm.test.ts 的 Npm.add 9.6s 复跑通过（命中已知 9s flake 家族）。`bun turbo typecheck` 全量已过。
 
 ## 1. 事件链路：失败语义保留
 
