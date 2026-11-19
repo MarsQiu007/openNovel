@@ -352,7 +352,7 @@ describe("ReadTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-truncated-image", name: "read", input: { path: "truncated.png" } },
         }),
-      ).toEqual({ type: "error", value: "Image could not be decoded: truncated.png" })
+      ).toEqual({ type: "error", value: "Image could not be decoded: truncated.png", metadata: { name: "internal" } })
     }),
   )
 
@@ -504,7 +504,7 @@ describe("ReadTool", () => {
             input: { path: "archive.dat", offset: 2, limit: 1 },
           },
         }),
-      ).toEqual({ type: "error", value: "Cannot read binary file: archive.dat" })
+      ).toEqual({ type: "error", value: "Cannot read binary file: archive.dat", metadata: { name: "internal" } })
       expect(readCalls).toEqual([
         { input: AbsolutePath.make(path.join(process.cwd(), "archive.dat")), page: { offset: 2, limit: 1 } },
       ])
@@ -539,7 +539,7 @@ describe("ReadTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-read", name: "read", input: { path: "README.md" } },
         }),
-      ).toEqual({ type: "error", value: "Unable to read README.md" })
+      ).toEqual({ type: "error", value: "无法读取 README.md", metadata: { name: "internal" } })
       expect(readCalls).toEqual([])
     }),
   )
@@ -554,9 +554,71 @@ describe("ReadTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-missing-path", name: "read", input: { path: missingPath } },
         }),
-      ).toEqual({ type: "error", value: `Unable to read ${missingPath}` })
+      ).toEqual({
+        type: "error",
+        value: `路径包含非目录祖先，无法解析：${missingPath}`,
+        metadata: { name: "param_error" },
+      })
       expect(assertions).toEqual([])
       expect(readCalls).toEqual([])
+    }),
+  )
+
+  it.effect("maps reader failures to real reasons and stable categories", () =>
+    Effect.gen(function* () {
+      const registry = yield* ToolRegistry.Service
+      const cases: Array<{ readonly failure: unknown; readonly value: string; readonly name: string }> = [
+        {
+          failure: PlatformError.systemError({
+            _tag: "NotFound",
+            module: "FileSystem",
+            method: "stat",
+            pathOrDescriptor: "README.md",
+          }),
+          value: "文件不存在：README.md",
+          name: "not_found",
+        },
+        {
+          failure: PlatformError.systemError({
+            _tag: "PermissionDenied",
+            module: "FileSystem",
+            method: "open",
+            pathOrDescriptor: "README.md",
+          }),
+          value: "权限不足：README.md",
+          name: "internal",
+        },
+        {
+          failure: new ReadToolFileSystem.PathKindError({ resource: "README.md", expected: "a file" }),
+          value: "读取目标不是文件：README.md",
+          name: "param_error",
+        },
+        {
+          failure: new ReadToolFileSystem.PathKindError({ resource: "README.md", expected: "a file or directory" }),
+          value: "路径既不是文件也不是目录：README.md",
+          name: "param_error",
+        },
+        {
+          failure: new ReadToolFileSystem.OffsetOutOfRangeError({ offset: 42 }),
+          value: "读取偏移 42 超出文件内容范围：README.md",
+          name: "param_error",
+        },
+        {
+          failure: new ReadToolFileSystem.MalformedUtf8Error({ resource: "README.md" }),
+          value: "文件内容不是有效 UTF-8 编码：README.md",
+          name: "internal",
+        },
+      ]
+      for (const [index, expected] of cases.entries()) {
+        readFailure = expected.failure as ReadToolFileSystem.ReadError
+        expect(
+          yield* executeTool(registry, {
+            sessionID,
+            ...toolIdentity,
+            call: { type: "tool-call", id: `call-map-${index}`, name: "read", input: { path: "README.md" } },
+          }),
+        ).toEqual({ type: "error", value: expected.value, metadata: { name: expected.name } })
+      }
     }),
   )
 
@@ -594,7 +656,7 @@ describe("ReadTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-read-directory-denied", name: "read", input: { path: "src" } },
         }),
-      ).toEqual({ type: "error", value: "Unable to read src" })
+      ).toEqual({ type: "error", value: "无法读取 src", metadata: { name: "internal" } })
       expect(listCalls).toEqual([])
     }),
   )
@@ -668,7 +730,7 @@ describe("ReadTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-direct-binary", name: "read", input: { path: "late-binary" } },
         }),
-      ).toEqual({ type: "error", value: "Cannot read binary file: late-binary" })
+      ).toEqual({ type: "error", value: "Cannot read binary file: late-binary", metadata: { name: "internal" } })
     }),
   )
 })

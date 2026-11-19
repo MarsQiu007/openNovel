@@ -80,6 +80,38 @@ describe("轨迹检测六类分类（任务 3.2）", () => {
     expect(four.fingerprint).toEqual(result.fingerprint)
   })
 
+  test("redundant_repeat：批量先发后收不构成重复（called 与 overlapped 排除）", () => {
+    const result = detect({
+      trigger: { kind: "redundant_repeat", tool: "restore_chapter_version" },
+      calls: [
+        call({ callID: "c1", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c1", tool: "restore_chapter_version", status: "success", overlapped: true }),
+        call({ callID: "c2", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c2", tool: "restore_chapter_version", status: "success", overlapped: true }),
+        call({ callID: "c3", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c3", tool: "restore_chapter_version", status: "success" }),
+      ],
+    })
+    // 批量兄弟完成被排除后只剩最后一次真实结算：不构成重复
+    expect(result.fingerprint.fact).toBeUndefined()
+  })
+
+  test("redundant_repeat：顺序重试（成功后同参再发起）计入重复", () => {
+    const result = detect({
+      trigger: { kind: "redundant_repeat", tool: "restore_chapter_version" },
+      calls: [
+        call({ callID: "c1", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c1", tool: "restore_chapter_version", status: "success" }),
+        call({ callID: "c2", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c2", tool: "restore_chapter_version", status: "success" }),
+        call({ callID: "c3", tool: "restore_chapter_version", status: "called" }),
+        call({ callID: "c3", tool: "restore_chapter_version", status: "success" }),
+      ],
+    })
+    // called 两阶段条目排除后，逐次结算的相邻同参成功构成重复
+    expect(result.fingerprint.fact).toBe("same-call-repeated")
+  })
+
   test("recovery_failed：失败后重试仍失败", () => {
     const result = detect({
       trigger: { kind: "recovery_failed", tool: "update_chapter", errorCategory: "ConflictError" },

@@ -5,7 +5,8 @@
  * agent（build/plan）、注册 12 个写作 agent、默认 agent 设为 director；
  * 经 ctx.tool.transform 一次注册 89 个写作工具（从 V1 机械转换的 effect-Schema
  * 版，窗口期 V1 入口保留同名 zod 版）；`.novel/` 存在的 Location 条件注册
- * novel-writer/context SystemContext 源（非小说目录零注入）、会话事件惰性计数
+ * novel-writer/context SystemContext 源（非小说目录注册最小引导源，design D9）、
+ * 会话事件惰性计数
  * 与 /evaluate 模板命令（自评价）。权限以
  * agents/*.ts 的 permission map 为单一来源，逐键直译为 V2 ruleset。
  *
@@ -15,6 +16,7 @@ import { Effect } from "effect"
 import { existsSync } from "fs"
 import { join } from "path"
 import { createNovelContextSource } from "./novel-writer/context-source.js"
+import { createBootstrapContextSource } from "./novel-writer/bootstrap-context-source.js"
 import { registerEvaluateCommand } from "./novel-writer/evaluate/command.js"
 import { watchSessionEvents } from "./novel-writer/evaluate/events.js"
 import { createNovelWriterTools } from "./novel-writer/tools/index.js"
@@ -69,7 +71,7 @@ export default define({
       )
     })
 
-    // 条件注册：仅小说目录注入上下文源，非小说目录零污染
+    // 条件注册：小说目录注入完整上下文源，未初始化目录注入最小引导源（design D9）
     if (existsSync(join(ctx.location.directory, ".novel"))) {
       yield* ctx.systemContext.register(
         createNovelContextSource({
@@ -88,6 +90,10 @@ export default define({
       // 否则对账期间到达的会话事件因无订阅被整体漏采
       yield* Effect.promise(() => organizer.recoverOnce())
       yield* Effect.promise(() => retest.reconcileRunsOnce())
+    } else {
+      // 未初始化目录（design D9）：最小引导上下文源，注入「本项目未初始化小说」
+      // 状态与初始化路径，替代盲读探测
+      yield* ctx.systemContext.register(createBootstrapContextSource())
     }
   }),
 })

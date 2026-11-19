@@ -5,6 +5,7 @@ import { Schema } from "effect"
 import { and, asc, eq, sql } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import {
   advanceWritingBatch,
   beginWritingBatch,
@@ -50,7 +51,12 @@ export const chapterTools = {
     execute: async (args, ctx) => {
       const db = getDb(ctx.directory)
       const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).all()
-      if (!chapter) return { title: "write_chapter", output: `章节不存在：${args.chapter_id}` }
+      if (!chapter)
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请先用 list_chapters 定位真实章节 ID；若章节尚不存在，可先派发 @outliner 生成章纲创建章节。`,
+          { code: "chapter_not_found" },
+        )
 
       // 新书兜底：完全无核心设定时禁止静默裸写第一章，但保留旧书和已有设定项目的写作路径。
       if (chapter.order === 1 && chapter.content.length === 0) {
@@ -65,12 +71,10 @@ export const chapterTools = {
           .where(eq(WorldEntryTable.novel_id, chapter.novel_id))
           .all()
         if (characters.length === 0 && worldEntries.length === 0) {
-          return {
-            title: "write_chapter（需要初始化设定）",
-            output:
-              "当前小说还没有角色或世界观设定。请先初始化小说设定（生成故事圣经、题材规则和核心设定），再写第一章。",
-            metadata: { blocked: true, reason: "uninitialized" },
-          }
+          throw toolFailure(
+            "gate_blocked",
+            "当前小说还没有角色或世界观设定。请先初始化小说设定（生成故事圣经、题材规则和核心设定），再写第一章。",
+          )
         }
       }
 
@@ -79,8 +83,7 @@ export const chapterTools = {
         readNovelConfig(projectDirFromCtx(ctx.directory)).writing_mode === "review"
           ? await getFirstUnpassedChapter(db, chapter.novel_id, chapter.order)
           : null
-      const sequentialBlock = checkChapterSequentialGate("write_chapter", firstUnpassed)
-      if (sequentialBlock) return sequentialBlock
+      checkChapterSequentialGate("write_chapter", firstUnpassed)
 
       const pendingCount = await db
         .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })
@@ -89,37 +92,33 @@ export const chapterTools = {
         .all()
       if (pendingCount.length > 0) {
         const highCount = pendingCount.filter((t) => t.priority === "high").length
-        return {
-          title: "write_chapter（被门禁拦截）",
-          output: `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能写新章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
-          metadata: { blocked: true, pending_count: pendingCount.length, high_priority_count: highCount },
-        }
+        throw toolFailure(
+          "gate_blocked",
+          `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能写新章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
+        )
       }
 
       // 字数校验：下限常驻硬约束；上限存在时区间双向拒绝（非法/≤下限组合已降级为不设上限）
       const target = await getTargetWordCount(db, chapter.novel_id)
       const upper = await getChapterLengthMax(db, chapter.novel_id, target)
       const wordCount = countWords(args.content)
-      const lengthRejection = checkChapterLengthGate("write_chapter", wordCount, target, upper)
-      if (lengthRejection) return lengthRejection
+      checkChapterLengthGate("write_chapter", wordCount, target, upper)
 
       // 大纲标签校验：禁止把章纲模板/节拍标签写进读者正文
       const outlineLeaks = detectOutlineLabels(args.content)
       if (outlineLeaks.length > 0) {
-        return {
-          title: "write_chapter（正文含提纲标签）",
-          output: `正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请将这些提纲转化为连续小说正文，用自然段落和场景转换表达，去掉所有标题、编号和【】标签后重新调用 write_chapter。`,
-          metadata: { rejected: true, reason: "outline_label", samples: outlineLeaks },
-        }
+        throw toolFailure(
+          "content_rejected",
+          `正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请将这些提纲转化为连续小说正文，用自然段落和场景转换表达，去掉所有标题、编号和【】标签后重新调用 write_chapter。`,
+        )
+      }
 
       const coordLeak = detectCoordinateLeak(args.content)
       if (coordLeak.length > 0) {
-        return {
-          title: "write_chapter（正文含书籍坐标泄漏）",
-          output: `正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达（如"三日前""当夜""上月""去年""那时"）或因果衔接后重新调用 write_chapter。`,
-          metadata: { rejected: true, reason: "coordinate_leak", samples: coordLeak },
-        }
-      }
+        throw toolFailure(
+          "content_rejected",
+          `正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达（如"三日前""当夜""上月""去年""那时"）或因果衔接后重新调用 write_chapter。`,
+        )
       }
 
       // 重复度校验：与前文章节重复（照抄或开头场景重演）拒绝写入，防止重写已写过的内容
@@ -129,11 +128,10 @@ export const chapterTools = {
           dup.openingRatio > 0.05
             ? `本章开头与前文章节高度相似（相似度约 ${Math.round(dup.openingRatio * 100)}%）`
             : `约 ${Math.round(dup.ratio * 100)}% 的段落与前文相同`
-        return {
-          title: "write_chapter（与前文重复）",
-          output: `检测到与前文章节重复的内容：${why}。例如：${dup.samples.join(" / ")}。禁止重复已写章节的事件和场景，请承接上一章结尾之后重写后重新调用 write_chapter。`,
-          metadata: { rejected: true, reason: "duplicate", ratio: dup.ratio, opening_ratio: dup.openingRatio },
-        }
+        throw toolFailure(
+          "content_rejected",
+          `检测到与前文章节重复的内容：${why}。例如：${dup.samples.join(" / ")}。禁止重复已写章节的事件和场景，请承接上一章结尾之后重写后重新调用 write_chapter。`,
+        )
       }
 
       // 保守称谓守卫：不阻止写入，但把疑似称谓实体化问题交给后续 auditor 判断
@@ -203,22 +201,29 @@ export const chapterTools = {
     execute: async (args, ctx) => {
       const db = getDb(ctx.directory)
       const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).all()
-      if (!chapter) return { title: "revise_chapter", output: `章节不存在：${args.chapter_id}` }
+      if (!chapter)
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请先用 list_chapters 定位真实章节 ID；若章节尚不存在，可先派发 @outliner 生成章纲创建章节。`,
+          { code: "chapter_not_found" },
+        )
       if (chapter.content.length === 0)
-        return { title: "revise_chapter", output: `章节尚无正文，无需修订：${args.chapter_id}` }
+        throw toolFailure(
+          "state_conflict",
+          `章节尚无正文，无法修订：${args.chapter_id}。空章节请改用 write_chapter 写入正文。`,
+        )
       if (typeof args.revision !== "string" || args.revision.trim().length === 0)
-        return {
-          title: "revise_chapter（参数错误）",
-          output: "缺少 revision：请传入 chapter_id 和 revision（修订后的完整章节正文），正文参数名是 revision，不是 content。",
-        }
+        throw toolFailure(
+          "param_error",
+          "缺少 revision：请传入 chapter_id 和 revision（修订后的完整章节正文），正文参数名是 revision，不是 content。",
+        )
 
       // 顺序门禁：review 模式逐章串行——前置章节未全部通过审批时，不得修订后续章节正文
       const firstUnpassed =
         readNovelConfig(projectDirFromCtx(ctx.directory)).writing_mode === "review"
           ? await getFirstUnpassedChapter(db, chapter.novel_id, chapter.order)
           : null
-      const sequentialBlock = checkChapterSequentialGate("revise_chapter", firstUnpassed)
-      if (sequentialBlock) return sequentialBlock
+      checkChapterSequentialGate("revise_chapter", firstUnpassed)
 
       const pendingCount = await db
         .select({ id: PendingUpdateTable.id, priority: PendingUpdateTable.priority })
@@ -227,38 +232,33 @@ export const chapterTools = {
         .all()
       if (pendingCount.length > 0) {
         const highCount = pendingCount.filter((t) => t.priority === "high").length
-        return {
-          title: "revise_chapter（被门禁拦截）",
-          output: `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能修订章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
-          metadata: { blocked: true, pending_count: pendingCount.length, high_priority_count: highCount },
-        }
+        throw toolFailure(
+          "gate_blocked",
+          `当前小说有 ${pendingCount.length} 个未完成影响任务（高优先级 ${highCount} 个）未处理，不能修订章节。先用 cascade_list_pending 查看任务列表与证据，处理后调用 cascade_execute 批量执行；确需跳过用 cascade_resolve 标记 skipped。门禁将在任务清零后解除。`,
+        )
       }
 
       // 修订后仍需满足字数区间：下限常驻（防止修订改少）；上限存在时双向校验（非法/≤下限组合已降级为不设上限）
       const target = await getTargetWordCount(db, chapter.novel_id)
       const upper = await getChapterLengthMax(db, chapter.novel_id, target)
       const wordCount = countWords(args.revision)
-      const lengthRejection = checkChapterLengthGate("revise_chapter", wordCount, target, upper)
-      if (lengthRejection) return lengthRejection
+      checkChapterLengthGate("revise_chapter", wordCount, target, upper)
 
       // 大纲标签校验：修订时同样禁止把章纲模板/节拍标签写进正文
       const outlineLeaks = detectOutlineLabels(args.revision)
       if (outlineLeaks.length > 0) {
-        return {
-          title: "revise_chapter（正文含提纲标签）",
-          output: `修订正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请改为连续小说正文，去掉所有标题、编号和【】标签后重新调用 revise_chapter。`,
-          metadata: { rejected: true, reason: "outline_label", samples: outlineLeaks },
-        }
+        throw toolFailure(
+          "content_rejected",
+          `修订正文不能包含大纲/节拍标签或编号分段，例如：${outlineLeaks.join(" / ")}。请改为连续小说正文，去掉所有标题、编号和【】标签后重新调用 revise_chapter。`,
+        )
       }
-
 
       const coordLeak = detectCoordinateLeak(args.revision)
       if (coordLeak.length > 0) {
-        return {
-          title: "revise_chapter（修订正文含书籍坐标泄漏）",
-          output: `修订正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达后重新调用 revise_chapter。`,
-          metadata: { rejected: true, reason: "coordinate_leak", samples: coordLeak },
-        }
+        throw toolFailure(
+          "content_rejected",
+          `修订正文不能将「第N章」「第N卷」等书籍控制层坐标作为叙事时间使用，例如：${coordLeak.join(" / ")}。请将坐标转换为故事层时间表达后重新调用 revise_chapter。`,
+        )
       }
       const dup = await checkDuplicateRatio(db, chapter.novel_id, args.revision, chapter.order)
       if (dup.duplicate) {
@@ -266,11 +266,10 @@ export const chapterTools = {
           dup.openingRatio > 0.05
             ? `修订后开头与前文章节高度相似（相似度约 ${Math.round(dup.openingRatio * 100)}%）`
             : `约 ${Math.round(dup.ratio * 100)}% 的段落与前文相同`
-        return {
-          title: "revise_chapter（与前文重复）",
-          output: `检测到修订内容与前文章节重复：${why}。例如：${dup.samples.join(" / ")}。禁止重复已写章节的事件和场景，请重写重复部分后重新调用 revise_chapter。`,
-          metadata: { rejected: true, reason: "duplicate", ratio: dup.ratio, opening_ratio: dup.openingRatio },
-        }
+        throw toolFailure(
+          "content_rejected",
+          `检测到修订内容与前文章节重复：${why}。例如：${dup.samples.join(" / ")}。禁止重复已写章节的事件和场景，请重写重复部分后重新调用 revise_chapter。`,
+        )
       }
 
       // 归档修订前版本
@@ -315,13 +314,13 @@ export const chapterTools = {
     }),
     execute: async (args, ctx) => {
       if (!Number.isInteger(args.start_chapter) || args.start_chapter < 1)
-        return { title: "begin_writing_batch", output: `起始章序号无效：${args.start_chapter}（须为 ≥1 的整数）` }
+        throw toolFailure("param_error", `起始章序号无效：${args.start_chapter}（须为 ≥1 的整数）`)
       if (!Number.isInteger(args.total) || args.total < 1)
-        return { title: "begin_writing_batch", output: `批量总章数无效：${args.total}（须为 ≥1 的整数）` }
+        throw toolFailure("param_error", `批量总章数无效：${args.total}（须为 ≥1 的整数）`)
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
       const [novel] = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
-      if (!novel) return { title: "begin_writing_batch", output: `小说不存在：${args.novel_id}` }
+      if (!novel) throw toolFailure("not_found", `小说不存在：${args.novel_id}。请先用 list_novels 列举真实小说 ID。`, { code: "novel_not_found" })
       await beginWritingBatch(
         { novelId, sessionId: ctx.sessionID, startChapter: args.start_chapter, total: args.total },
         ctx.directory,
@@ -403,7 +402,7 @@ export const chapterTools = {
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
       if (!args.chapter_id && args.chapter_number === undefined) {
-        return { title: "read_chapter_content", output: "请提供 chapter_id 或 chapter_number 之一" }
+        throw toolFailure("param_error", "请提供 chapter_id 或 chapter_number 之一")
       }
       const chapter = args.chapter_id
         ? await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).get()
@@ -414,7 +413,11 @@ export const chapterTools = {
             .get()
       if (!chapter) {
         const locator = args.chapter_id ? `ID：${args.chapter_id}` : `第${args.chapter_number}章`
-        return { title: "read_chapter_content", output: `章节不存在：${locator}` }
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${locator}。请先用 list_chapters 定位真实章节序号或 ID；若章节尚不存在，可先派发 @outliner 生成章纲创建章节。`,
+          { code: "chapter_not_found" },
+        )
       }
       return {
         title: "read_chapter_content",
@@ -458,11 +461,23 @@ export const chapterTools = {
   }),
   update_chapter: defineTool({
     description:
-      "更新章节标题或状态。用于修改章节标题、推进章节状态。\n" +
+      "更新章节标题或状态。可通过 chapter_id（UUID）或 chapter_number（章节序号，从 1 开始）定位章节，二选一。\n" +
+      "**章节标识来源**：章节标识必须来自 list_chapters、read_chapter_outline 或章纲生成等工具的真实返回，禁止自行构造。\n" +
       "**审批门禁**：项目 writing_mode=review 时，禁止直接设 status=final（必须走阅读页审批流 — 调 submitApproval 工具）；auto 模式下允许。其他状态（draft/pending_review/rejected/audited/revised/published）按需可设。\n" +
       "正文内容请用 write_chapter/revise_chapter，不要用本工具写正文。",
     args: Schema.Struct({
-      chapter_id: Schema.String.annotate({ description: "章节 ID" }),
+      novel_id: Schema.optional(
+        Schema.String.annotate({ description: "小说 ID（可选）。不传且库内仅一本小说时自动解析；库内多本小说时必须提供。" }),
+      ),
+      chapter_id: Schema.optional(
+        Schema.String.annotate({
+          description:
+            "章节 ID（UUID）。必须来自 list_chapters / read_chapter_outline / 章纲生成等工具的真实返回，禁止自行构造。与 chapter_number 二选一。",
+        }),
+      ),
+      chapter_number: Schema.optional(
+        Schema.Number.annotate({ description: "章节序号（从 1 开始）。与 chapter_id 二选一。" }),
+      ),
       title: Schema.optional(Schema.String.annotate({ description: "新的章节标题（不传则不改）" })),
       status: Schema.optional(
         Schema.String.annotate({
@@ -473,31 +488,52 @@ export const chapterTools = {
     }),
     execute: async (args, ctx) => {
       const db = getDb(ctx.directory)
-      const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).all()
-      if (!chapter) return { title: "update_chapter", output: `章节不存在：${args.chapter_id}` }
+      if (!args.chapter_id && args.chapter_number === undefined) {
+        throw toolFailure("param_error", "请提供 chapter_id 或 chapter_number 之一")
+      }
+      const novelId = args.novel_id !== undefined
+        ? await resolveNovelId(db, args.novel_id)
+        : await resolveOwnedNovelId(db)
+      const chapter = args.chapter_id
+        ? db
+            .select()
+            .from(ChapterTable)
+            .where(and(eq(ChapterTable.id, args.chapter_id), eq(ChapterTable.novel_id, novelId)))
+            .get()
+        : db
+            .select()
+            .from(ChapterTable)
+            .where(and(eq(ChapterTable.novel_id, novelId), eq(ChapterTable.order, args.chapter_number!)))
+            .get()
+      if (!chapter) {
+        const locator = args.chapter_id ? `ID：${args.chapter_id}` : `第${args.chapter_number}章`
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${locator}。请先用 list_chapters（或读取章纲）定位真实章节序号或 ID；若章节尚不存在，可先派发 @outliner 生成章纲创建章节。`,
+          { code: "chapter_not_found" },
+        )
+      }
       const fields: { title?: string; status?: string } = {}
       if (args.title !== undefined) fields.title = args.title
       if (args.status !== undefined) fields.status = args.status
       if (Object.keys(fields).length === 0) {
-        return { title: "update_chapter", output: "未提供任何要更新的字段" }
+        throw toolFailure("param_error", "未提供任何要更新的字段：请传入 title 或 status 之一。")
       }
 
       // 审批门禁：review 模式下禁止直接设 final/published — 必须走审批流
       if (args.status !== undefined) {
         const mode = readNovelConfig(projectDirFromCtx(ctx.directory))
         if (mode.writing_mode === "review" && (args.status === "final" || args.status === "published")) {
-          return {
-            title: "update_chapter（被门禁拦截）",
-            output:
-              `当前项目写作模式为 review，禁止直接设 status=${args.status}。` +
+          throw toolFailure(
+            "gate_blocked",
+            `当前项目写作模式为 review，禁止直接设 status=${args.status}。` +
               `必须先在阅读页提交审批（submitApproval 工具）或用户在阅读页批准/驳回。` +
               `如需立即结案，请先切换为 auto 模式（update_project_config 改 writing_mode=auto），或用 director 对话让用户改模式。`,
-            metadata: { blocked: true, reason: "review_mode_bypass" },
-          }
+          )
         }
       }
 
-      const updated = await updateChapter(args.chapter_id, fields, ctx.directory)
+      const updated = await updateChapter(chapter.id, fields, ctx.directory)
       // 自评价埋点：进入待审批计一次审批请求（C2 拒绝率分母；定稿决策在 novel-store handleApproval 计数）
       if (args.status === "pending_review" && chapter.status !== "pending_review") {
         recordMetrics(projectDirFromCtx(ctx.directory), {
@@ -511,9 +547,9 @@ export const chapterTools = {
       // 在 server submitApproval。整理先于快照重建，保证注入包反映合并结果
       const approved = args.status === "final" || args.status === "published"
       const consolidated = approved
-        ? consolidateChapterFacts(db, chapter.novel_id, args.chapter_id).reduce((n, g) => n + g.retired.length, 0)
+        ? consolidateChapterFacts(db, chapter.novel_id, chapter.id).reduce((n, g) => n + g.retired.length, 0)
         : 0
-      if (approved) await rebuildNextChapterSnapshot(db, chapter.novel_id, args.chapter_id)
+      if (approved) await rebuildNextChapterSnapshot(db, chapter.novel_id, chapter.id)
       return {
         title: "update_chapter",
         output:
@@ -535,7 +571,12 @@ export const chapterTools = {
     execute: async (args, ctx) => {
       const db = getDb(ctx.directory)
       const [chapter] = await db.select().from(ChapterTable).where(eq(ChapterTable.id, args.chapter_id)).all()
-      if (!chapter) return { title: "delete_chapter", output: `章节不存在：${args.chapter_id}` }
+      if (!chapter)
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请先用 list_chapters 定位真实章节 ID；若章节尚不存在，可先派发 @outliner 生成章纲创建章节。`,
+          { code: "chapter_not_found" },
+        )
       if (!args.confirm) {
         return {
           title: "delete_chapter",
@@ -563,7 +604,7 @@ export const chapterTools = {
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
       const [novel] = await db.select({ id: NovelTable.id }).from(NovelTable).where(eq(NovelTable.id, novelId)).all()
-      if (!novel) return { title: "repair_chapter_sequence", output: `小说不存在：${args.novel_id}` }
+      if (!novel) throw toolFailure("not_found", `小说不存在：${args.novel_id}。请先用 list_novels 列举真实小说 ID。`, { code: "novel_not_found" })
 
       const repair = repairChapterSequence(novelId, ctx.directory)
       if (repair.alreadyContiguous) {
@@ -605,7 +646,7 @@ export const chapterTools = {
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
       if (!args.query || args.query.trim().length < 2) {
-        return { title: "search_chapters", output: "关键词长度至少 2 个字符" }
+        throw toolFailure("param_error", "关键词长度至少 2 个字符")
       }
       const pattern = `%${args.query.trim()}%`
       const rows = await db
@@ -645,4 +686,17 @@ export const chapterTools = {
       }
     },
   }),
+}
+
+/**
+ * update_chapter 的小说归属解析：显式传 novel_id 走 resolveNovelId 参数匹配；
+ * 未传时单书兜底（库内恰一书即该书），0 本或多本无法唯一解析时 param_error 失败并指引。
+ */
+const resolveOwnedNovelId = async (db: ReturnType<typeof getDb>): Promise<string> => {
+  const novels = db.select({ id: NovelTable.id }).from(NovelTable).limit(2).all()
+  if (novels.length === 1) return novels[0].id
+  throw toolFailure(
+    "param_error",
+    `无法唯一解析小说归属（未提供 novel_id，库内现有 ${novels.length} 本小说）。请提供 novel_id，或先用 list_novels 列举小说后按真实 ID 调用；库内还没有小说时请先初始化。`,
+  )
 }

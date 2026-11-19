@@ -67,7 +67,15 @@ const registryLayer = Layer.effect(
       }).pipe(
         Effect.map((output) => ({ output })),
         Effect.catchTag("LLM.ToolFailure", (failure) =>
-          Effect.succeed({ result: { type: "error" as const, value: failure.message } }),
+          // 类别载体（design D4）：failure.metadata 的 name/code 进 error 型结果，
+          // 经 LLMEvent.toolResult 抵达 publish-llm-event 的词表复校验。
+          Effect.succeed({
+            result: {
+              type: "error" as const,
+              value: failure.message,
+              ...(failure.metadata === undefined ? {} : { metadata: failure.metadata }),
+            },
+          }),
         ),
         // 裁判拒绝与人审 reject 带理由的反馈在此统一翻译，一处覆盖全部工具（design D3）
         Effect.catchTag("PermissionV2.CorrectedError", (error) =>

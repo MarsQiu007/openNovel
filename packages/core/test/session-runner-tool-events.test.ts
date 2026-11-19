@@ -112,6 +112,42 @@ test("binary failure emits no success event", async () => {
   expect(published.some((event) => event.type === "session.next.tool.failed.1")).toBe(true)
 })
 
+test("categorized failure carries name and code into the failed event", async () => {
+  const { published, publisher } = capture()
+  await Effect.runPromise(publisher.publish(call))
+  await Effect.runPromise(
+    publisher.publish(
+      LLMEvent.toolResult({
+        id: call.id,
+        name: call.name,
+        result: { type: "error", value: "章节不存在", metadata: { name: "not_found", code: "chapter_not_found" } },
+      }),
+    ),
+  )
+  const failed = published.find((event) => event.type === "session.next.tool.failed.1")
+  expect(failed?.data).toMatchObject({
+    error: { type: "unknown", message: "章节不存在", name: "not_found", code: "chapter_not_found" },
+  })
+})
+
+test("runtime type names never masquerade as categories", async () => {
+  const { published, publisher } = capture()
+  await Effect.runPromise(publisher.publish(call))
+  await Effect.runPromise(
+    publisher.publish(
+      LLMEvent.toolResult({
+        id: call.id,
+        name: call.name,
+        result: { type: "error", value: "炸了", metadata: { name: "TypeError" } },
+      }),
+    ),
+  )
+  const failed = published.find((event) => event.type === "session.next.tool.failed.1")
+  expect(failed?.data).toMatchObject({ error: { type: "unknown", message: "炸了" } })
+  expect(failed?.data).not.toHaveProperty("error.name")
+  expect(failed?.data).not.toHaveProperty("error.code")
+})
+
 test("old success event data containing result still decodes", () => {
   const decoded = Schema.decodeUnknownSync(SessionEvent.Tool.Success.data)({
     sessionID,

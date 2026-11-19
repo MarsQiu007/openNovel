@@ -1,13 +1,15 @@
 /**
  * context 域写作工具（V2 版）。从 novel-writer.ts 机械转换，窗口期 V1 入口保留同名 zod 版；execute 函数体与 V1 逐字一致。
  */
+import { and, eq } from "drizzle-orm"
 import { Schema } from "effect"
 import { lookupClosedThreads, lookupDormantCharacters, lookupPastVolumes, memoryLookup, memorySearch } from "../archive.js"
 import { getHookStats } from "../hook-rotation.js"
 import { assembleWriterSnapshot, recallByQuery } from "../recall.js"
 import { performVolumeRollup } from "../rollup.js"
-import { buildMaintenanceReport, getDb, PLANNED_STALL_CHAPTER_THRESHOLD } from "../session-store.js"
+import { buildMaintenanceReport, getDb, PLANNED_STALL_CHAPTER_THRESHOLD, VolumeTable } from "../session-store.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { resolveNovelId } from "./shared.js"
 
 export const contextTools = {
@@ -38,7 +40,10 @@ export const contextTools = {
         args.content_nature,
       )
       if (!snapshot) {
-        return { title: "assemble_context_snapshot", output: `无法组装上下文快照，小说 ${novelId} 不存在` }
+        throw toolFailure(
+          "not_found",
+          `小说 ${novelId} 不存在，无法组装上下文快照。请确认 novel_id 来自真实返回（init_novel / list_novels）。`,
+        )
       }
       const hookStats = await getHookStats(novelId, 10, ctx.directory)
       const { formatSnapshotToolOutput } = await import("../context.js")
@@ -191,7 +196,10 @@ export const contextTools = {
       const novelId = await resolveNovelId(db, args.novel_id)
       const history = await memoryLookup(novelId, args.entity_id, args.limit ?? 10, ctx.directory)
       if (!history) {
-        return { title: "memory_lookup", output: `未找到实体「${args.entity_id}」的任何记录` }
+        throw toolFailure(
+          "not_found",
+          `未找到实体「${args.entity_id}」的任何记录。请确认 entity_id 来自角色/世界观工具的真实返回。`,
+        )
       }
       const lines = [`实体「${history.title}」（${history.kind}）全史：`]
       if (history.appearances.length > 0) {
@@ -254,9 +262,20 @@ export const contextTools = {
     async execute(args, ctx) {
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
+      const [volume] = db
+        .select({ id: VolumeTable.id })
+        .from(VolumeTable)
+        .where(and(eq(VolumeTable.novel_id, novelId), eq(VolumeTable.order, args.volume_number)))
+        .all()
+      if (!volume) {
+        throw toolFailure(
+          "not_found",
+          `第${args.volume_number}卷不存在。请确认卷号来自小说真实卷列表（read_novel_blueprint 或卷管理工具）。`,
+        )
+      }
       const result = await performVolumeRollup(novelId, args.volume_number, ctx.directory)
       if (!result) {
-        return { title: "volume_rollup", output: `第${args.volume_number}卷不存在或本卷暂无可汇总的章节` }
+        return { title: "volume_rollup", output: `第${args.volume_number}卷暂无可汇总的章节，无需汇总` }
       }
       return {
         title: "volume_rollup",

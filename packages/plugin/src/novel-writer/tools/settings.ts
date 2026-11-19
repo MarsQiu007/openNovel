@@ -28,6 +28,7 @@ import { SETTING_TEXT_FIELDS } from "../setting-review-candidates.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
 import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "../world-category.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { SETTING_ENTITY_TYPES, resolveCharRef, resolveNovelId, searchSnippet } from "./shared.js"
 
 export const settingsTools = {
@@ -53,7 +54,7 @@ export const settingsTools = {
       try {
         settings = JSON.parse(args.settings_json)
       } catch {
-        return { title: "save_novel_settings", output: "settings_json 不是合法 JSON" }
+        throw toolFailure("param_error", "settings_json 不是合法 JSON。请修正 JSON 语法后重试。")
       }
       for (const setting of settings) {
         for (const field of SETTING_TEXT_FIELDS[setting.type] ?? []) {
@@ -69,11 +70,7 @@ export const settingsTools = {
         }),
       )
       if (textErrors.length > 0) {
-        return {
-          title: "save_novel_settings",
-          output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
-          metadata: { count: 0, errors: textErrors },
-        }
+        throw toolFailure("param_error", `设定文本格式校验失败：\n${textErrors.join("\n")}`)
       }
       // Phase 1: 先插入所有 character，构建 ref->id 和 name->id[] 映射。
       // relationship 依赖这些映射来解析角色引用，所以 character 必须先落库。
@@ -564,7 +561,10 @@ export const settingsTools = {
           (r) => `- [${r.id}] ${r.type}: ${r.description.slice(0, 60)}${r.description.length > 60 ? "..." : ""}`,
         )
       } else {
-        return { title: "list_settings", output: `不支持的实体类型：${type}` }
+        throw toolFailure(
+          "param_error",
+          `不支持的实体类型：${type}。支持：${SETTING_ENTITY_TYPES.join("/")}`,
+        )
       }
       if (count === 0) return { title: "list_settings", output: `${type} 暂无记录` }
       return {
@@ -597,7 +597,12 @@ export const settingsTools = {
           .from(CharacterTable)
           .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `character 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `character 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
@@ -610,7 +615,12 @@ export const settingsTools = {
           .from(WorldEntryTable)
           .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `world_entry 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `world_entry 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
@@ -623,7 +633,12 @@ export const settingsTools = {
           .from(PlotThreadTable)
           .where(and(eq(PlotThreadTable.novel_id, novelId), eq(PlotThreadTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `plot_thread 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `plot_thread 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
@@ -636,7 +651,12 @@ export const settingsTools = {
           .from(ForeshadowingTable)
           .where(and(eq(ForeshadowingTable.novel_id, novelId), eq(ForeshadowingTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `foreshadowing 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `foreshadowing 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
@@ -649,7 +669,12 @@ export const settingsTools = {
           .from(VolumeTable)
           .where(and(eq(VolumeTable.novel_id, novelId), eq(VolumeTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `volume 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `volume 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
@@ -662,14 +687,19 @@ export const settingsTools = {
           .from(RelationshipTable)
           .where(and(eq(RelationshipTable.novel_id, novelId), eq(RelationshipTable.id, id)))
           .all()
-        if (!row) return { title: "read_setting", output: `relationship 记录不存在：${id.slice(0, 8)}` }
+        if (!row) {
+          throw toolFailure(
+            "not_found",
+            `relationship 记录不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+          )
+        }
         return {
           title: "read_setting",
           output: JSON.stringify(row, null, 2),
           metadata: { entity_type: type, entity_id: id, row },
         }
       }
-      return { title: "read_setting", output: unsupported }
+      throw toolFailure("param_error", unsupported)
     },
   }),
 
@@ -687,12 +717,14 @@ export const settingsTools = {
     }),
     async execute(args, ctx) {
       const query = args.query.trim()
-      if (!query) return { title: "search_settings", output: "query 不能为空" }
+      if (!query) {
+        throw toolFailure("param_error", "query 不能为空。请提供要搜索的关键词（角色名、设定名、内容关键词等）。")
+      }
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
       const type = args.entity_type
       if (type && !SETTING_ENTITY_TYPES.includes(type)) {
-        return { title: "search_settings", output: `不支持的实体类型：${type}。支持：${SETTING_ENTITY_TYPES.join("/")}` }
+        throw toolFailure("param_error", `不支持的实体类型：${type}。支持：${SETTING_ENTITY_TYPES.join("/")}`)
       }
       const types = type ? [type] : SETTING_ENTITY_TYPES
       const results: Array<{ id: string; entity_type: string; title: string; matched_field: string; snippet: string }> = []

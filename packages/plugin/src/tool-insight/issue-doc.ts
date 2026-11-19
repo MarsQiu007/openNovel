@@ -92,8 +92,8 @@ export type IssueSections = Partial<Record<IssueSectionTitle, string>>
 export interface CreateIssueMetaInput {
   fingerprint: string
   facts: ToolInsightFingerprintInput
-  /** 指纹演变前的历史指纹（新文档记录别名，不静默重写旧文档） */
-  aliasOf?: string
+  /** 指纹演变前的历史指纹（新文档记录别名，不静默重写旧文档）；桥接可命中多个旧指纹 */
+  aliasOf?: string | readonly string[]
   now: Date
 }
 
@@ -122,7 +122,7 @@ export function createIssueMeta(input: CreateIssueMetaInput): ToolInsightIssueMe
     pending_evidence_ids: [],
     organized_evidence_ids: [],
     affected_versions: [],
-    aliases: input.aliasOf ? [input.aliasOf] : [],
+    aliases: input.aliasOf === undefined ? [] : Array.isArray(input.aliasOf) ? [...input.aliasOf] : [input.aliasOf],
   }
 }
 

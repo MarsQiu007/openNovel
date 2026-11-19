@@ -5,6 +5,7 @@
 import { Schema } from "effect"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { ChapterTable, ChapterVersionTable, getDb } from "../session-store.js"
 import { computeParagraphDiff } from "./paragraph-diff.js"
 import { recordMetrics, recordMetricsBatch } from "../evaluate/metrics.js"
@@ -28,7 +29,10 @@ export const versionsTools = {
         .where(eq(ChapterTable.id, args.chapter_id))
         .all()
       if (!chapter) {
-        return { title: "list_chapter_versions", output: `章节不存在：${args.chapter_id}` }
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请确认 chapter_id 来自上游分发或章节工具的真实返回，不要自行构造。`,
+        )
       }
       const total = await db
         .select({ c: sql<number>`count(*)` })
@@ -94,7 +98,10 @@ export const versionsTools = {
         .where(eq(ChapterTable.id, args.chapter_id))
         .all()
       if (!chapter) {
-        return { title: "read_chapter_version", output: `章节不存在：${args.chapter_id}` }
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请确认 chapter_id 来自上游分发或章节工具的真实返回，不要自行构造。`,
+        )
       }
       const [row] = await db
         .select()
@@ -102,10 +109,10 @@ export const versionsTools = {
         .where(and(eq(ChapterVersionTable.chapter_id, args.chapter_id), eq(ChapterVersionTable.version, args.version)))
         .all()
       if (!row) {
-        return {
-          title: "read_chapter_version",
-          output: `第${chapter.order}章 不存在 v${args.version}（用 list_chapter_versions 查看可用版本号）`,
-        }
+        throw toolFailure(
+          "not_found",
+          `第${chapter.order}章不存在 v${args.version}。请先用 list_chapter_versions 查看可用版本号。`,
+        )
       }
       return {
         title: `read_chapter_version（v${args.version}）`,
@@ -144,7 +151,10 @@ export const versionsTools = {
         .where(eq(ChapterTable.id, args.chapter_id))
         .all()
       if (!chapter) {
-        return { title: "diff_chapter_version", output: `章节不存在：${args.chapter_id}` }
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请确认 chapter_id 来自上游分发或章节工具的真实返回，不要自行构造。`,
+        )
       }
       // 解析 to_version
       let targetVersion = args.to_version
@@ -181,10 +191,10 @@ export const versionsTools = {
         .all()
       if (!fromRow || !toRow) {
         const missing = [fromRow ? null : `v${args.from_version}`, toRow ? null : `v${targetVersion}`].filter(Boolean)
-        return {
-          title: "diff_chapter_version",
-          output: `版本不存在：${missing.join("、")}（用 list_chapter_versions 查看可用版本号）`,
-        }
+        throw toolFailure(
+          "not_found",
+          `版本不存在：${missing.join("、")}。请先用 list_chapter_versions 查看可用版本号。`,
+        )
       }
       // 段落级 diff：按 \n 切，简化 LCS 求最长公共子序列对齐
       const split = (s: string) => s.split(/\n+/).map((p) => p.trim()).filter((p) => p.length > 0)
@@ -251,7 +261,10 @@ export const versionsTools = {
         .where(eq(ChapterTable.id, args.chapter_id))
         .all()
       if (!chapter) {
-        return { title: "restore_chapter_version", output: `章节不存在：${args.chapter_id}` }
+        throw toolFailure(
+          "not_found",
+          `章节不存在：${args.chapter_id}。请确认 chapter_id 来自上游分发或章节工具的真实返回，不要自行构造。`,
+        )
       }
       const [targetRow] = await db
         .select()
@@ -264,10 +277,10 @@ export const versionsTools = {
         )
         .all()
       if (!targetRow) {
-        return {
-          title: "restore_chapter_version",
-          output: `v${args.target_version} 不存在（用 list_chapter_versions 查看可用版本号）`,
-        }
+        throw toolFailure(
+          "not_found",
+          `v${args.target_version} 不存在。请先用 list_chapter_versions 查看可用版本号。`,
+        )
       }
       const [latest] = await db
         .select({ version: ChapterVersionTable.version, word_count: ChapterVersionTable.word_count })

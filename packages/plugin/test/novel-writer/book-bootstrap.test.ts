@@ -28,15 +28,12 @@ describe("book bootstrap guard", () => {
       .values({ id: chapterId, novel_id: novelId, title: "第一章", content: "", status: "draft", order: 1 })
       .run()
 
-    const result = await tools.write_chapter.execute(
-      { chapter_id: chapterId, content: "这是一段完全没有设定支撑的正文。" },
-      toolCtx(),
-    )
-    const metadata = "metadata" in (result ?? {}) ? result.metadata : undefined
+    const err = await tools.write_chapter
+      .execute({ chapter_id: chapterId, content: "这是一段完全没有设定支撑的正文。" }, toolCtx())
+      .then(() => null, (e: Error) => e)
 
-    expect(metadata?.blocked).toBe(true)
-    expect(metadata?.reason).toBe("uninitialized")
-    expect(result?.output).toContain("初始化小说设定")
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("初始化小说设定")
   })
 
   test("allows the first chapter when a core setting already exists", async () => {
@@ -57,14 +54,12 @@ describe("book bootstrap guard", () => {
       .values({ id: "world-bootstrap", novel_id: novelId, category: "location", title: "青云城", content: "山城。", created_at: 1 })
       .run()
 
-    const result = await tools.write_chapter.execute(
-      { chapter_id: chapterId, content: "短正文" },
-      toolCtx(),
-    )
-    const metadata = "metadata" in (result ?? {}) ? result.metadata : undefined
+    const err = await tools.write_chapter
+      .execute({ chapter_id: chapterId, content: "短正文" }, toolCtx())
+      .then(() => null, (e: Error) => e)
 
-    expect(metadata?.reason).toBe("too_short")
-    expect(metadata?.reason).not.toBe("uninitialized")
+    expect(err?.name).toBe("content_rejected")
+    expect(err?.message).toContain("字数不足")
   })
 
   test("allows existing first-chapter content and later chapters without core settings", async () => {
@@ -84,18 +79,17 @@ describe("book bootstrap guard", () => {
       .values({ id: laterChapterId, novel_id: novelId, title: "第二章", content: "", status: "draft", order: 2 })
       .run()
 
-    const existing = await tools.write_chapter.execute(
-      { chapter_id: existingChapterId, content: "短正文" },
-      toolCtx(),
-    )
-    const later = await tools.write_chapter.execute(
-      { chapter_id: laterChapterId, content: "短正文" },
-      toolCtx(),
-    )
+    const existingErr = await tools.write_chapter
+      .execute({ chapter_id: existingChapterId, content: "短正文" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    const laterErr = await tools.write_chapter
+      .execute({ chapter_id: laterChapterId, content: "短正文" }, toolCtx())
+      .then(() => null, (e: Error) => e)
 
-    expect("metadata" in (existing ?? {})).toBe(true)
-    expect(existing?.metadata?.reason).toBe("too_short")
-    expect(later?.metadata?.reason).toBe("too_short")
+    expect(existingErr?.name).toBe("content_rejected")
+    expect(existingErr?.message).toContain("字数不足")
+    expect(laterErr?.name).toBe("content_rejected")
+    expect(laterErr?.message).toContain("字数不足")
   })
 })
 

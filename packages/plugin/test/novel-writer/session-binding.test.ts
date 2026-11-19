@@ -100,14 +100,15 @@ describe("novel-writer 会话归属继承", () => {
     expect(requested).toEqual([CHILD_SESSION_ID])
   })
 
-  test("父链无绑定祖先时工具返回未找到，不误绑多书目录", async () => {
+  test("父链无绑定祖先时工具拒绝未找到，不误绑多书目录", async () => {
     await seedMultiBookProject()
 
     const tools = createWritingTools(parentChainSession({}, []))
 
-    const result = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
+    const err = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID)).then(() => null, (e: Error) => e)
 
-    expect(outputOf(result)).toBe("未找到当前小说项目")
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("未找到当前小说项目")
     expect(await getNovelForSession(CHILD_SESSION_ID, projectDir)).toBeUndefined()
   })
 
@@ -121,9 +122,10 @@ describe("novel-writer 会话归属继承", () => {
       },
     })
 
-    const result = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID))
+    const err = await tools.list_story_arcs.execute({}, toolCtx(CHILD_SESSION_ID)).then(() => null, (e: Error) => e)
 
-    expect(outputOf(result)).toBe("未找到当前小说项目")
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("未找到当前小说项目")
     expect(await getNovelForSession(CHILD_SESSION_ID, projectDir)).toBeUndefined()
   })
 })

@@ -70,17 +70,12 @@ describe("generate_chapter_outline 跳号拒绝翻译（chapter-sequence-guard�
     const novelId = await createBook("跳号拒绝书", "玄幻", "章纲跳号拒绝消息翻译测试用书籍。")
     await generateChapterOutline(novelId, 1, projectDir)
 
-    const result = (await generateOutline(novelId, 3)) as {
-      output?: string
-      metadata?: { refused?: boolean; missing_order?: number; chapter_number?: number }
-    }
-    expect(result.metadata?.refused).toBe(true)
-    expect(result.metadata?.missing_order).toBe(2)
-    expect(result.metadata?.chapter_number).toBe(3)
-    expect(result.output).toContain("生成被拒绝")
-    expect(result.output).toContain("第 2 章")
-    expect(result.output).toContain("缺失")
-    expect(result.output).toContain("补齐第 2 章")
+    const err = await generateOutline(novelId, 3).then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("生成被拒绝")
+    expect(err?.message).toContain("第 2 章")
+    expect(err?.message).toContain("缺失")
+    expect(err?.message).toContain("补齐第 2 章")
 
     // 拒绝路径不得写入任何章节记录
     const db = getDb(projectDir)
@@ -97,13 +92,11 @@ describe("generate_chapter_outline 跳号拒绝翻译（chapter-sequence-guard�
     const novelId = await createBook("顺序补齐书", "玄幻", "章纲顺序补齐成功路径测试用书籍。")
     await generateChapterOutline(novelId, 1, projectDir)
 
-    const second = (await generateOutline(novelId, 2)) as { output?: string; metadata?: { refused?: boolean } }
+    const second = (await generateOutline(novelId, 2)) as { output?: string }
     expect(second.output).toContain("已生成第2章大纲")
-    expect(second.metadata?.refused).toBeFalsy()
 
-    const third = (await generateOutline(novelId, 3)) as { output?: string; metadata?: { refused?: boolean } }
+    const third = (await generateOutline(novelId, 3)) as { output?: string }
     expect(third.output).toContain("已生成第3章大纲")
-    expect(third.metadata?.refused).toBeFalsy()
 
     expect(ordersOf(novelId)).toEqual([1, 2, 3])
   })

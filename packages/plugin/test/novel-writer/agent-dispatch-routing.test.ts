@@ -13,6 +13,7 @@ import { directorAgent } from "../../src/novel-writer/agents/director.js"
 import { ideatorAgent } from "../../src/novel-writer/agents/ideator.js"
 import { outlinerAgent } from "../../src/novel-writer/agents/outliner.js"
 import { pipelineAgent } from "../../src/novel-writer/agents/pipeline.js"
+import { reviserAgent } from "../../src/novel-writer/agents/reviser.js"
 import { writerAgent } from "../../src/novel-writer/agents/writer.js"
 import { renderModeSection } from "../../src/novel-writer/tools/context-render.js"
 import { createWritingTools } from "./runtime-assembly-helpers.js"
@@ -126,5 +127,35 @@ describe("chapter sequential gate wiring", () => {
     const prompt = pipelineAgent.prompt
     expect(prompt).toContain("sequential_blocked")
     expect(prompt).toContain("不进入上述 3 次重试循环")
+  })
+
+  test("update_chapter 代理面：director 工具表声明 ID 来源与批量路由，writer/reviser 章节标识来自上游", () => {
+    // director 工具表条目：用途、章节标识来源约束、批量场景交 @pipeline
+    const prompt = directorAgent.prompt
+    expect(prompt).toContain("| update_chapter |")
+    expect(prompt).toContain("chapter_id 必须来自 list_chapters / read_chapter_outline 等工具的真实返回")
+    expect(prompt).toContain("批量逐章状态流转（如整卷定稿）交 @pipeline 处理")
+    // writer：章节标识来自上游分发或快照，不得自造
+    expect(writerAgent.prompt).toContain("chapter_id 来自上游分发或基线快照，不得自行构造")
+    // reviser：章节标识来自上游分发，不得自造
+    expect(reviserAgent.prompt).toContain("chapter_id 来自上游分发")
+    expect(reviserAgent.prompt).toContain("不得自行构造")
+  })
+
+  test("pipeline/writer 重试分叉依据失败文本语义，不再读取结构化 metadata", () => {
+    // 失败语义改造后工具以错误文本拒绝，提示词不得再引用 metadata.rejected / metadata.reason
+    for (const prompt of [pipelineAgent.prompt, writerAgent.prompt]) {
+      expect(prompt).not.toContain("metadata.rejected")
+      expect(prompt).not.toContain("metadata.reason")
+    }
+    expect(pipelineAgent.prompt).toContain("失败文本")
+    // pipeline 分叉：内容类拒绝重试（≤3 次）、sequential_blocked 不重试
+    const pipeline = pipelineAgent.prompt
+    expect(pipeline).toContain("字数不达标/正文含提纲标签/与前文重复")
+    expect(pipeline).toContain("最多循环 3 次")
+    expect(pipeline).toContain("sequential_blocked 门禁失败")
+    // writer 分叉同语义
+    expect(writerAgent.prompt).toContain("sequential_blocked 门禁失败")
+    expect(writerAgent.prompt).toContain("不要重试")
   })
 })

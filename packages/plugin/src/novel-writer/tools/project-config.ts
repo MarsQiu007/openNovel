@@ -5,6 +5,7 @@
  */
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "fs"
 import { dirname, join } from "path"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 
 const PROVIDER_MODEL_PATTERN = /^[\w.-]+\/[\w.-]+$/
 
@@ -263,15 +264,12 @@ export function writeProjectConfig(
 } {
   const spec = PROJECT_CONFIG_SPECS[target]
   if (!spec) {
-    return { title: "update_project_config", output: `不支持的 target：${target}` }
+    throw toolFailure("param_error", `不支持的 target：${target}（可用：opennovel / novel）。`)
   }
   const fieldSpec = spec.fields[field]
   if (!fieldSpec) {
     const allowed = Object.keys(spec.fields).join("、")
-    return {
-      title: "update_project_config",
-      output: `target=${target} 不支持字段 "${field}"。允许的字段：${allowed}`,
-    }
+    throw toolFailure("param_error", `target=${target} 不支持字段 "${field}"。允许的字段：${allowed}。`)
   }
 
   let parsed: unknown
@@ -279,17 +277,14 @@ export function writeProjectConfig(
     try {
       parsed = JSON.parse(rawValue)
     } catch {
-      return {
-        title: "update_project_config",
-        output: `字段 ${field} 需要合法的 JSON 字面量：${rawValue}`,
-      }
+      throw toolFailure("param_error", `字段 ${field} 需要合法的 JSON 字面量，收到：${rawValue}`)
     }
   } else {
     parsed = rawValue
   }
   const validationError = fieldSpec.validate(parsed)
   if (validationError) {
-    return { title: "update_project_config", output: `字段 ${field} 校验失败：${validationError}` }
+    throw toolFailure("param_error", `字段 ${field} 校验失败：${validationError}`)
   }
 
   const filePath = spec.resolvePath(projectDir)
@@ -303,10 +298,10 @@ export function writeProjectConfig(
       data = JSON.parse(raw) as Record<string, unknown>
       hadOriginal = true
     } catch (err) {
-      return {
-        title: "update_project_config",
-        output: `${filePath} 不是合法 JSON，拒绝覆盖以防损坏：${err instanceof Error ? err.message : String(err)}`,
-      }
+      throw toolFailure(
+        "state_conflict",
+        `${filePath} 不是合法 JSON，拒绝覆盖以防损坏：${err instanceof Error ? err.message : String(err)}。请先手工修复该文件的 JSON 语法。`,
+      )
     }
   }
 
@@ -325,10 +320,10 @@ export function writeProjectConfig(
         closeSync(backupFd)
       }
     } catch (err) {
-      return {
-        title: "update_project_config",
-        output: `备份原文件失败：${err instanceof Error ? err.message : String(err)}`,
-      }
+      throw toolFailure(
+        "internal",
+        `备份原文件失败：${err instanceof Error ? err.message : String(err)}。配置未修改，请检查文件系统权限后重试。`,
+      )
     }
   }
 
@@ -342,10 +337,10 @@ export function writeProjectConfig(
       closeSync(fd)
     }
   } catch (err) {
-    return {
-      title: "update_project_config",
-      output: `写入失败：${err instanceof Error ? err.message : String(err)}`,
-    }
+    throw toolFailure(
+      "internal",
+      `写入失败：${err instanceof Error ? err.message : String(err)}。备份保留在 ${filePath}.bak，可从备份恢复。`,
+    )
   }
 
   return {

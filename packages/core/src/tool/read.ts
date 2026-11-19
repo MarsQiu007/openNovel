@@ -2,8 +2,10 @@ export * as ReadTool from "./read"
 
 import { ToolFailure } from "@opennovel-ai/llm"
 import { Effect, Layer, Schema } from "effect"
+import { PlatformError } from "effect/PlatformError"
 import { makeLocationNode } from "../effect/app-node"
 import { FileSystem } from "../filesystem"
+import { FSUtil } from "../fs-util"
 import { Image } from "../image"
 import { LocationMutation } from "../location-mutation"
 import { PermissionV2 } from "../permission"
@@ -94,14 +96,7 @@ const layer = Layer.effectDiscard(
             }).pipe(
               Effect.mapError((error) => {
                 if (error instanceof PermissionV2.CorrectedError) return error
-                const message =
-                  error instanceof ReadToolFileSystem.BinaryFileError ||
-                  error instanceof ReadToolFileSystem.MediaIngestLimitError ||
-                  error instanceof Image.DecodeError ||
-                  error instanceof Image.SizeError
-                    ? error.message
-                    : `Unable to read ${input.path}`
-                return new ToolFailure({ message })
+                return readFailure(input.path, error)
               }),
             )
           },
@@ -116,3 +111,43 @@ export const node = makeLocationNode({
   layer,
   deps: [ToolRegistry.node, ReadToolFileSystem.node, LocationMutation.node, Image.node, PermissionV2.node],
 })
+
+// design D5：read 失败按真实原因映射，不再统一折叠为 "Unable to read"；类别进
+// ToolFailure.metadata，经结算链词表复校验后到达失败事件（design D4）。
+const readFailure = (path: string, error: unknown): ToolFailure => {
+  if (error instanceof ReadToolFileSystem.PathKindError)
+    return new ToolFailure({
+      message: error.expected === "a file" ? `读取目标不是文件：${path}` : `路径既不是文件也不是目录：${path}`,
+      metadata: { name: "param_error" },
+    })
+  if (error instanceof ReadToolFileSystem.OffsetOutOfRangeError)
+    return new ToolFailure({
+      message: `读取偏移 ${error.offset} 超出文件内容范围：${path}`,
+      metadata: { name: "param_error" },
+    })
+  if (error instanceof ReadToolFileSystem.MalformedUtf8Error)
+    return new ToolFailure({ message: `文件内容不是有效 UTF-8 编码：${path}`, metadata: { name: "internal" } })
+  if (
+    error instanceof ReadToolFileSystem.BinaryFileError ||
+    error instanceof ReadToolFileSystem.MediaIngestLimitError ||
+    error instanceof Image.DecodeError ||
+    error instanceof Image.SizeError
+  )
+    return new ToolFailure({ message: error.message, metadata: { name: "internal" } })
+  if (error instanceof LocationMutation.PathError)
+    return new ToolFailure({
+      message:
+        error.reason === "non_directory_ancestor" ? `路径包含非目录祖先，无法解析：${path}` : `路径越出位置边界：${path}`,
+      metadata: { name: "param_error" },
+    })
+  if (error instanceof PlatformError) {
+    if (error.reason._tag === "NotFound")
+      return new ToolFailure({ message: `文件不存在：${path}`, metadata: { name: "not_found" } })
+    if (error.reason._tag === "PermissionDenied")
+      return new ToolFailure({ message: `权限不足：${path}`, metadata: { name: "internal" } })
+    return new ToolFailure({ message: `无法读取 ${path}：${error.message}`, metadata: { name: "internal" } })
+  }
+  if (error instanceof FSUtil.FileSystemError)
+    return new ToolFailure({ message: `无法读取 ${path}：${error.message}`, metadata: { name: "internal" } })
+  return new ToolFailure({ message: `无法读取 ${path}`, metadata: { name: "internal" } })
+}

@@ -40,6 +40,8 @@ export interface TrajectoryCall {
   paramKeys?: readonly string[]
   /** 稳定错误类别（errorType/errorCode，不含错误文案） */
   errorCategory?: string
+  /** 批量兄弟配对标记（D6）：发出早于同工具在途兄弟结算的批量「先发后收」完成 */
+  overlapped?: boolean
 }
 
 export interface DetectInput {
@@ -137,12 +139,14 @@ export function detect(input: DetectInput): DetectResult {
   }
 
   if (kind === "redundant_repeat") {
-    // 轨迹证据：完全相同 tool+paramKeys 的调用连续重复（次数不进指纹，避免次数增长分裂文档）
+    // 轨迹证据：完全相同 tool+paramKeys 的调用连续重复（次数不进指纹，避免次数增长分裂文档）。
+    // 排除 called（同一次调用的两个阶段）与 overlapped（D6 批量兄弟完成）：只对真实逐次结算计重复
+    const eligible = calls.filter((call) => call.status !== "called" && !call.overlapped)
     let longest = 1
     let current = 1
-    for (let index = 1; index < calls.length; index++) {
-      const previous = calls[index - 1]
-      const call = calls[index]
+    for (let index = 1; index < eligible.length; index++) {
+      const previous = eligible[index - 1]
+      const call = eligible[index]
       if (previous && call && previous.tool === call.tool && paramSignature(previous) === paramSignature(call)) {
         current++
         if (current > longest) longest = current

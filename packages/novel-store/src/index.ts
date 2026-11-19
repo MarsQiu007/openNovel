@@ -2133,14 +2133,14 @@ export async function updateForeshadowing(
   entryId: string,
   fields: { content?: string; state?: string; resolvedChapterId?: string | null },
   directory?: string | null,
-): Promise<typeof ForeshadowingTable.$inferSelect> {
+): Promise<typeof ForeshadowingTable.$inferSelect | null> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = {}
   if (fields.content !== undefined) updates.content = fields.content
   if (fields.state !== undefined) updates.state = fields.state
   if (fields.resolvedChapterId !== undefined) updates.resolved_chapter_id = fields.resolvedChapterId
   await db.update(ForeshadowingTable).set(updates).where(eq(ForeshadowingTable.id, entryId)).run()
-  return db.select().from(ForeshadowingTable).where(eq(ForeshadowingTable.id, entryId)).get()!
+  return db.select().from(ForeshadowingTable).where(eq(ForeshadowingTable.id, entryId)).get() ?? null
 }
 
 export async function deleteForeshadowing(entryId: string, directory?: string | null): Promise<void> {
@@ -3003,7 +3003,7 @@ export async function updateStoryArc(
     actualEndChapter?: number | null
   },
   directory?: string | null,
-): Promise<typeof StoryArcTable.$inferSelect> {
+): Promise<typeof StoryArcTable.$inferSelect | null> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = { updated_at: Date.now() }
   if (fields.title !== undefined) updates.title = fields.title
@@ -3016,7 +3016,7 @@ export async function updateStoryArc(
   if (fields.actualStartChapter !== undefined) updates.actual_start_chapter = fields.actualStartChapter
   if (fields.actualEndChapter !== undefined) updates.actual_end_chapter = fields.actualEndChapter
   await db.update(StoryArcTable).set(updates).where(eq(StoryArcTable.id, arcId)).run()
-  return db.select().from(StoryArcTable).where(eq(StoryArcTable.id, arcId)).get()!
+  return db.select().from(StoryArcTable).where(eq(StoryArcTable.id, arcId)).get() ?? null
 }
 
 export async function deleteStoryArc(arcId: string, directory?: string | null): Promise<void> {
@@ -3086,7 +3086,7 @@ export async function updateArcBeat(
     chapterOrder?: number | null
   },
   directory?: string | null,
-): Promise<typeof ArcBeatTable.$inferSelect> {
+): Promise<typeof ArcBeatTable.$inferSelect | null> {
   const db = getDb(directory)
   const updates: Record<string, unknown> = { updated_at: Date.now() }
   if (fields.label !== undefined) updates.label = fields.label
@@ -3096,7 +3096,7 @@ export async function updateArcBeat(
   if (fields.chapterId !== undefined) updates.chapter_id = fields.chapterId
   if (fields.chapterOrder !== undefined) updates.chapter_order = fields.chapterOrder
   await db.update(ArcBeatTable).set(updates).where(eq(ArcBeatTable.id, beatId)).run()
-  return db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, beatId)).get()!
+  return db.select().from(ArcBeatTable).where(eq(ArcBeatTable.id, beatId)).get() ?? null
 }
 
 export async function deleteArcBeat(beatId: string, directory?: string | null): Promise<void> {

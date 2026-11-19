@@ -3,6 +3,7 @@
  */
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { LEVEL_CRITERIA } from "../technique.js"
 import { recordMetrics } from "../evaluate/metrics.js"
 
@@ -95,30 +96,23 @@ export const techniqueTools = {
       // 自评价埋点：learn 回流漏斗（created/merged 为回流，rejected 为过滤严格度信号）
       recordMetrics(ctx.directory, { domain: "c6-technique", key: `technique.learn.${result.action}`, delta: 1 })
       if (result.action === "rejected") {
-        const rejected = {
-          title: "save_technique",
-          output: `已拒绝入库：「${args.name}」${result.reason}，请给出具体可操作的指令并附原文证据`,
-          action: "rejected",
-          reason: result.reason,
-        }
-        return rejected
+        throw toolFailure(
+          "content_rejected",
+          `技法入库被拒绝：「${args.name}」${result.reason}。请给出具体可操作的指令并附原文证据后重试。`,
+        )
       }
       if (result.action === "merged") {
-        const merged = {
+        return {
           title: "save_technique",
           output: `已合并到技法 ${result.technique_id.slice(0, 8)}`,
-          action: "merged",
-          technique_id: result.technique_id,
+          metadata: { action: "merged", technique_id: result.technique_id },
         }
-        return merged
       }
-      const created = {
+      return {
         title: "save_technique",
         output: `已入库技法「${args.name}」（unverified/0.5，id=${result.technique_id.slice(0, 8)}）`,
-        action: "created",
-        technique_id: result.technique_id,
+        metadata: { action: "created", technique_id: result.technique_id },
       }
-      return created
     },
   }),
 
@@ -154,7 +148,7 @@ export const techniqueTools = {
         },
         ctx.directory,
       )
-      const result = {
+      return {
         title: "search_techniques",
         output:
           count > 0
@@ -162,9 +156,8 @@ export const techniqueTools = {
             : total === 0
               ? "技法库为空（本书库与全局库均无条目）"
               : `过滤条件命中 0 条（无匹配条目）：库内共 ${total} 条（未验证 ${unverified} 条），可移除或放宽过滤条件后重试`,
-        count,
+        metadata: { count },
       }
-      return result
     },
   }),
 
@@ -180,12 +173,11 @@ export const techniqueTools = {
     async execute(args, ctx) {
       const { confirmTechniques } = await import("../technique-learn.js")
       const { section, injected } = await confirmTechniques(args.ids, ctx.directory, args.chapter_number)
-      const result = {
+      return {
         title: "confirm_techniques",
         output: section === "" ? "（无有效技法 ID，本轮不注入写作技法指导）" : section,
-        injected,
+        metadata: { injected },
       }
-      return result
     },
   }),
 
@@ -201,7 +193,15 @@ export const techniqueTools = {
     async execute(args, ctx) {
       const { verifyTechnique } = await import("../technique-store.js")
       const result = await verifyTechnique(args.technique_id, ctx.directory, args.library)
-      if (!result.ok) return { title: "verify_technique", output: `转正失败：${result.error}` }
+      if (!result.ok) {
+        if (result.error.startsWith("技法不存在")) {
+          throw toolFailure(
+            "not_found",
+            `转正失败：${result.error}。请用 search_techniques 查看现存技法 ID 后重试。`,
+          )
+        }
+        throw toolFailure("state_conflict", `转正失败：${result.error}`)
+      }
       return { title: "verify_technique", output: `技法 ${args.technique_id.slice(0, 8)} 已经作者确认转正（verified）` }
     },
   }),
@@ -221,11 +221,19 @@ export const techniqueTools = {
     async execute(args, ctx) {
       const layer = args.layer ?? "book"
       if (!/^(book|volume-\d+)$/.test(layer)) {
-        return { title: "promote_technique", output: `固化失败：layer 只能是 book 或 volume-<n>，收到 ${layer}` }
+        throw toolFailure("param_error", `固化失败：layer 只能是 book 或 volume-<n>，收到：${layer}。请修正 layer 后重试。`)
       }
       const { promoteTechniqueToSpec } = await import("../technique-learn.js")
       const result = await promoteTechniqueToSpec(args.technique_id, ctx.directory, args.library, layer)
-      if (!result.ok) return { title: "promote_technique", output: `固化失败：${result.error}` }
+      if (!result.ok) {
+        if (result.error.startsWith("技法不存在")) {
+          throw toolFailure(
+            "not_found",
+            `固化失败：${result.error}。请用 search_techniques 查看现存技法 ID 后重试。`,
+          )
+        }
+        throw toolFailure("state_conflict", `固化失败：${result.error}`)
+      }
       return {
         title: "promote_technique",
         output: `技法 ${args.technique_id.slice(0, 8)} 已固化进 ${result.spec_path}（技法行 retired 留痕，后续经写作规范通道注入）`,

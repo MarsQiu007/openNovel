@@ -170,7 +170,7 @@ const updateChapterAdapter: ToolInsightCaseAdapter = {
   prompt: ({ novelID }) =>
     [
       "你是复测执行 agent。请严格按以下步骤操作，不要做任何其他事：",
-      `1. 调用 update_chapter 工具，参数 chapter_id="${FIXTURE_CHAPTER_1_ID}"、title="${FIXTURE_UPDATED_TITLE}"（novel_id="${novelID}" 仅供定位，不要传其他字段）。`,
+      `1. 调用 update_chapter 工具，参数 novel_id="${novelID}"、chapter_id="${FIXTURE_CHAPTER_1_ID}"、title="${FIXTURE_UPDATED_TITLE}"（不要传其他字段）。`,
       "2. 工具返回后立即结束，不要总结、不要继续调用其他工具。",
     ].join("\n"),
   seed: async ({ directory }) => {

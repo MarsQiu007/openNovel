@@ -10,6 +10,7 @@ import {
   deriveTurnOccurrenceID,
   grantContentModelUse,
   modelVisibleContent,
+  redactParamIdentifiers,
   redactSummary,
   redactToolCalled,
   redactToolFailed,
@@ -80,10 +81,11 @@ describe("字段白名单脱敏", () => {
     expect(fields.paramEnums).toEqual({ mode: "replace" })
   })
 
-  test("tool_failed 保留错误类型/错误码与脱敏摘要，密钥与绝对路径不落盘", () => {
+  test("tool_failed 保留词表内错误类别与脱敏摘要，密钥与绝对路径不落盘", () => {
     const fields = redactToolFailed("write_file", new Error('failed to write D:\\books\\原书\\第一千章.md: api_key=abcd1234'))
     expect(fields.tool).toBe("write_file")
-    expect(fields.errorType).toBe("Error")
+    // 普通 Error 的 name="Error" 在类别词表外，不落 errorType
+    expect(fields.errorType).toBeUndefined()
     const serialized = JSON.stringify(fields)
     expect(serialized).not.toContain("abcd1234")
     expect(serialized).not.toContain("D:\\books")
@@ -105,6 +107,68 @@ describe("字段白名单脱敏", () => {
     const summary = redactSummary(long)
     expect(summary.length).toBeLessThanOrEqual(TOOL_INSIGHT_SUMMARY_MAX_CHARS + 10)
     expect(summary).toContain("截断")
+  })
+})
+
+describe("失败证据脱敏标识符摘要", () => {
+  test("只提取 ID 形态键的标量值并截断，正文键与非标量值不进", () => {
+    const identifiers = redactParamIdentifiers({
+      chapter_id: "0f8e2c1a-93b7-4d6e-a1c2-5f6b7d8e9f0a",
+      novel_id: "n1",
+      content: "第两千章 正文原文……",
+      word_count: 1200,
+      revision_plan: { nested: "对象值不进" },
+      empty_id: "",
+    })
+    // 短标识截断（UUID 前 12 位）定位目标对象
+    expect(identifiers).toEqual({ chapter_id: "0f8e2c1a-93b", novel_id: "n1" })
+    expect(JSON.stringify(identifiers)).not.toContain("正文原文")
+    expect(JSON.stringify(identifiers)).not.toContain("0f8e2c1a-93b7-4d6e")
+  })
+
+  test("密钥形状键整体丢弃，自由文本形状值转写短哈希", () => {
+    const identifiers = redactParamIdentifiers({
+      api_key_id: "sk-should-not-appear",
+      freeform_id: "含 空白 的 自由文本 摘要",
+      long_id: "x".repeat(65),
+    })
+    expect(identifiers).toBeDefined()
+    const serialized = JSON.stringify(identifiers)
+    expect(serialized).not.toContain("sk-should-not-appear")
+    expect(serialized).not.toContain("自由文本")
+    // 哈希转写为 8 位十六进制短哈希，非原值
+    expect(identifiers?.freeform_id).toMatch(/^[0-9a-f]{8}$/)
+    expect(identifiers?.long_id).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  test("无 ID 形态键返回 undefined，非 record 输入返回 undefined", () => {
+    expect(redactParamIdentifiers({ content: "正文" })).toBeUndefined()
+    expect(redactParamIdentifiers("plain")).toBeUndefined()
+  })
+})
+
+describe("error 类别词表校验", () => {
+  test("词表外 name 与无类别输入一律不落 errorType（未分类）", () => {
+    // 普通 Error：name="Error" 词表外
+    expect(redactToolFailed("update_chapter", new Error("章节不存在")).errorType).toBeUndefined()
+    // 词表外运行时类型名
+    expect(
+      redactToolFailed("update_chapter", Object.assign(new Error("boom"), { name: "TypeError" })).errorType,
+    ).toBeUndefined()
+    // 构造器名回退路径（普通对象）：恒得 "Object"，词表外
+    expect(redactToolFailed("update_chapter", { name: "Object", message: "x" }).errorType).toBeUndefined()
+    // 非 record 输入不落 errorType
+    expect(redactToolFailed("update_chapter", "plain string failure").errorType).toBeUndefined()
+  })
+
+  test("词表内 name 透传为 errorType，错误码保留", () => {
+    const fields = redactToolFailed(
+      "update_chapter",
+      Object.assign(new Error("章节不存在：ch-1"), { name: "not_found", code: "chapter_not_found" }),
+    )
+    expect(fields.errorType).toBe("not_found")
+    expect(fields.errorCode).toBe("chapter_not_found")
+    expect(String(fields.errorDigest)).toContain("章节不存在")
   })
 })
 

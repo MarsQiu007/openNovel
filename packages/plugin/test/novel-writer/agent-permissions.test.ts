@@ -32,6 +32,8 @@ describe("novel-writer agent permissions", () => {
 
     // restore_chapter_version 追加新版本而不删除历史，纯可逆操作，直接放行
     expect(directorAgent.permission.restore_chapter_version).toBe("allow")
+    // update_chapter 只改标题/状态（错误类别 not_found/param_error/gate_blocked 自带指引），直接放行
+    expect(directorAgent.permission.update_chapter).toBe("allow")
 
     expect(pipelineAgent.permission.read_chapter_content).toBe("allow")
     expect(pipelineAgent.permission.commit_state_delta).toBe("allow")

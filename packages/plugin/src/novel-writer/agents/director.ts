@@ -31,6 +31,7 @@ export const directorAgent = {
     get_writing_batch: "allow",
     write_chapter: "allow",
     revise_chapter: "allow",
+    update_chapter: "allow",
     manage_characters: "allow",
     recall_history: "allow",
     save_novel_settings: "allow",
@@ -117,6 +118,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 |---|---|
 | write_chapter | writer subagent 产出正文后，写入数据库 |
 | revise_chapter | reviser subagent 修订后，更新数据库 |
+| update_chapter | 更新章节标题或状态（纠错、状态修正等零散小改）。chapter_id 必须来自 list_chapters / read_chapter_outline 等工具的真实返回，禁止自行构造；批量逐章状态流转（如整卷定稿）交 @pipeline 处理，不要逐章手动调用 |
 | manage_characters | 需要新增或更新角色信息时 |
 | generate_master_outline | 生成整体大纲模板 |
 | generate_volume_outline | 生成卷大纲模板 |
@@ -217,6 +219,9 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
 ### 用户说"帮我开一本新小说/初始化"
 → 先按下方“初始化（setup_mode 行为）”判断是否需要 @ideator；确定 creative brief 后再调用 @architect
+
+### 未初始化项目（上下文注入【本项目未初始化小说】时生效）
+→ 当前目录没有小说数据，先确认项目状态再执行写作类任务：用 list_novels 列举已有小说、用 init_novel 初始化新书（或走上方“帮我开一本新小说/初始化”路由）。**不要**以 read/glob 探测 package.json、.novel/* 等项目配置文件来推断项目性质——项目状态一律以初始化工具的回答为准，文件盲读不可靠也越界。
 
 ### 用户说"查一下XX的设定/前面有没有提到XX"
 → 调用 @librarian 子 agent 查询世界数据库

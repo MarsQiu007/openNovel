@@ -19,6 +19,9 @@ export interface UnknownError extends Schema.Schema.Type<typeof UnknownError> {}
 export const UnknownError = Schema.Struct({
   type: Schema.Literal("unknown"),
   message: Schema.String,
+  // 稳定错误类别与细分码：仅词表命中的失败携带（design D4），向后兼容增量
+  name: Schema.String.pipe(optional),
+  code: Schema.String.pipe(optional),
 }).annotate({ identifier: "Session.Error.Unknown" })
 
 const Base = {

@@ -67,7 +67,7 @@ function readIssueMeta(logRoot: string, projectDir: string, fingerprint: string)
   return parsed
 }
 
-const failError = { type: "unknown", name: "NotFoundError", message: "章节不存在 ch_x" }
+const failError = { type: "unknown", name: "not_found", message: "章节不存在 ch_x" }
 
 function removeDir(dir: string) {
   // Windows 下句柄/DB 释放有短暂延迟：清理失败不影响断言
@@ -120,7 +120,7 @@ describe("事件证据采集器（任务 3.1）", () => {
       // 客观证据先行：turn 仍开放时 tool_failed 证据与 call 级文档已落盘
       const during = readEvidence(logRoot, projectDir)
       expect(during.entries.map((entry) => entry.kind)).toEqual(["tool_failed"])
-      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "NotFoundError" })
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "not_found" })
       const duringDoc = readIssueMeta(logRoot, projectDir, fingerprint)
       expect(duringDoc.meta.occurrence_count).toBe(1)
       const occurrence = duringDoc.meta.occurrence_ids[0]
@@ -173,7 +173,7 @@ describe("事件证据采集器（任务 3.1）", () => {
       expect(trajectories[0]?.agent).toBeUndefined()
       expect(trajectories[2]?.agent).toBe("writer")
       // 指纹含 fact「retry-still-failed」（恢复失败检测的事实标记）
-      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "NotFoundError", fact: "retry-still-failed" })
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "not_found", fact: "retry-still-failed" })
       const doc = readIssueMeta(logRoot, projectDir, fingerprint)
       expect(doc.meta.occurrence_count).toBe(1)
     } finally {
@@ -183,29 +183,29 @@ describe("事件证据采集器（任务 3.1）", () => {
     }
   })
 
-  test("跨 turn 交错容忍：下一 turn 的 step.started 先于上一 turn 迟到的 tool.failed 处理，恢复失败归纳不丢", async () => {
+  test("乱序投递容忍不回归：下一 turn 的 step.started 先于上一 turn 迟到的 tool 事件处理，顺序重试的恢复失败归纳不丢", async () => {
     const { configDir, logRoot, projectDir } = fixture("interleave")
     try {
       enable(configDir, logRoot)
       const state = makeState(configDir, logRoot, projectDir)
       await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
-      // 复刻真实走查时序：called 流跑在前面，failed 流因落盘延迟被 step 流超越——
-      // step.ended(A) 与 step.started(B) 都先于第二次 failed 处理
+      // 复刻真实走查时序：called 流与 failed 流因落盘延迟被 step 流超越——step.ended(A)
+      // 与 step.started(B) 都先于第二次调用的 tool 事件处理；重试是顺序发起（前一次
+      // 失败结算后才发出，非 D6 批量在途形态），迟到的 called/failed 仍落回 turn A 窗口
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_a", agent: "writer", model: { id: "m/1" } })
       await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch1" } }, "evt_c1")
-      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c2", tool: "update_chapter", input: { chapter_id: "ch1", title: "x" } }, "evt_c2")
       await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c1", error: failError }, "evt_f1")
       await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_a" }, "evt_end_a")
       await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_b", agent: "writer", model: { id: "m/1" } })
-      // 迟到的第二次失败仍落回 turn A 的窗口，命中 recovery_failed 而非另起空窗口
+      await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c2", tool: "update_chapter", input: { chapter_id: "ch1", title: "x" } }, "evt_c2")
       await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_a", callID: "c2", error: failError }, "evt_f2")
 
       const { entries } = readEvidence(logRoot, projectDir)
       const detection = entries.find((entry) => entry.kind === "trajectory" && entry.fields.detection === "recovery_failed")
       expect(detection).toBeDefined()
       expect(detection?.turnID).toBe("msg_a")
-      expect(detection?.fields.callsShape).toBe("update_chapter:called>update_chapter:called>update_chapter:failed>update_chapter:failed")
-      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "NotFoundError", fact: "retry-still-failed" })
+      expect(detection?.fields.callsShape).toBe("update_chapter:called>update_chapter:failed>update_chapter:called>update_chapter:failed")
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "recovery_failed", errorCategory: "not_found", fact: "retry-still-failed" })
       const doc = readIssueMeta(logRoot, projectDir, fingerprint)
       expect(doc.meta.occurrence_count).toBe(1)
       // 两条失败证据都在（c1 先落、c2 迟到后落），互不覆盖
@@ -217,6 +217,118 @@ describe("事件证据采集器（任务 3.1）", () => {
     }
   })
 
+
+  test("批量先发后收零建档：同轮多调用全部先于结果发出后全部成功，零证据零文档", async () => {
+    const { configDir, logRoot, projectDir } = fixture("batch-ok")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
+      // 批量并行：三个调用全部先于任何结果发出（无核验器工具，成功恒零落盘）
+      for (const callID of ["c1", "c2", "c3"]) {
+        await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID, tool: "restore_chapter_version", input: { chapter_id: "ch1" } }, `evt_${callID}`)
+      }
+      for (const callID of ["c1", "c2", "c3"]) {
+        await state.onToolSuccess({ sessionID: "s1", assistantMessageID: "msg_1", callID, structured: {} }, `evt_ok_${callID}`)
+      }
+      await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
+
+      // 批量兄弟完成不计入 revisionStreak：不触发无意义重复，也不生成任何问题记录
+      const paths = pathsFor(logRoot, projectDir)
+      expect(existsSync(paths.evidence)).toBe(false)
+      expect(existsSync(paths.issuesDir) ? readdirSync(paths.issuesDir).filter((name) => name.endsWith(".md")) : []).toEqual([])
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("批量门禁拦截不建档：同轮多调用同门禁全部失败，只有单次调用问题文档", async () => {
+    const { configDir, logRoot, projectDir } = fixture("batch-gate")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
+      // 批量并行：全部先发出，随后同一前置拦截（同参数键、同类别）全部失败
+      for (const callID of ["c1", "c2", "c3"]) {
+        await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID, tool: "update_chapter", input: { chapter_id: "ch1" } }, `evt_${callID}`)
+      }
+      for (const callID of ["c1", "c2", "c3"]) {
+        await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID, error: failError }, `evt_fail_${callID}`)
+      }
+      await state.onStepSettled({ sessionID: "s1", assistantMessageID: "msg_1" }, "evt_end")
+
+      const { entries } = readEvidence(logRoot, projectDir)
+      // 客观证据先行恒落：三条 tool_failed + settle 补齐轨迹；无 detection 归纳记录
+      expect(entries.filter((entry) => entry.kind === "tool_failed")).toHaveLength(3)
+      expect(entries.some((entry) => typeof entry.fields.detection === "string")).toBe(false)
+      // 只有 call 级 tool_failure 文档（三次发生），无重复/恢复失败/表面成功建档
+      const docs = readdirSync(pathsFor(logRoot, projectDir).issuesDir).filter((name) => name.endsWith(".md"))
+      expect(docs).toHaveLength(1)
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "not_found" })
+      expect(readIssueMeta(logRoot, projectDir, fingerprint).meta.occurrence_count).toBe(3)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("成功后同参重试记重复：顺序发起的同参成功达到阈值计入无意义重复", async () => {
+    const { configDir, logRoot, projectDir } = fixture("retry-streak")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
+      // 顺序重试：每次调用都在前一次成功结算后才发起（非批量在途形态），连续计入
+      for (const callID of ["c1", "c2", "c3"]) {
+        await state.onToolCalled({ sessionID: "s1", assistantMessageID: "msg_1", callID, tool: "restore_chapter_version", input: { chapter_id: "ch1" } }, `evt_${callID}`)
+        await state.onToolSuccess({ sessionID: "s1", assistantMessageID: "msg_1", callID, structured: {} }, `evt_ok_${callID}`)
+      }
+
+      const { entries } = readEvidence(logRoot, projectDir)
+      const detection = entries.find((entry) => entry.fields.detection === "redundant_repeat")
+      expect(detection).toBeDefined()
+      const fingerprint = String(detection?.fields.fingerprint)
+      expect(readIssueMeta(logRoot, projectDir, fingerprint).meta.occurrence_count).toBe(1)
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
+
+  test("失败证据携带脱敏标识符与参数键名：章节更新失败证据不含正文与完整参数值", async () => {
+    const { configDir, logRoot, projectDir } = fixture("identifier")
+    try {
+      enable(configDir, logRoot)
+      const state = makeState(configDir, logRoot, projectDir)
+      await state.onCreated({ sessionID: "s1", projectID: "proj_1", directory: projectDir })
+      await state.onStepStarted({ sessionID: "s1", assistantMessageID: "msg_1", agent: "writer", model: { id: "m/1" } })
+      await state.onToolCalled(
+        { sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", tool: "update_chapter", input: { chapter_id: "ch_target_0001", content: "第两千章 正文原文……" } },
+        "evt_call",
+      )
+      await state.onToolFailed({ sessionID: "s1", assistantMessageID: "msg_1", callID: "c1", error: failError }, "evt_fail")
+
+      const { entries } = readEvidence(logRoot, projectDir)
+      const failure = entries.find((entry) => entry.kind === "tool_failed")
+      // 参数键名与脱敏章节标识并存（短标识截断）
+      expect(failure?.fields.paramKeys).toEqual(["chapter_id", "content"])
+      expect(failure?.fields.paramIdentifiers).toEqual({ chapter_id: "ch_target_00" })
+      const serialized = JSON.stringify(entries)
+      expect(serialized).not.toContain("正文原文")
+      expect(serialized).not.toContain("ch_target_0001")
+    } finally {
+      removeDir(configDir)
+      removeDir(logRoot)
+      removeDir(projectDir)
+    }
+  })
 
   test("重启不重用证据 ID：同一调用再失败是新证据、同发生只计一次", async () => {
     const { configDir, logRoot, projectDir } = fixture("restart")
@@ -241,7 +353,7 @@ describe("事件证据采集器（任务 3.1）", () => {
       const occurrenceOf = (value: unknown): unknown => (typeof value === "object" && value !== null ? Reflect.get(value, "occurrenceID") : undefined)
       expect(idOf(a)).not.toBe(idOf(b))
       expect(occurrenceOf(a)).toBe(occurrenceOf(b))
-      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "NotFoundError" })
+      const fingerprint = issueFingerprint({ tool: "update_chapter", scenario: "tool_failure", errorCategory: "not_found" })
       expect(readIssueMeta(logRoot, projectDir, fingerprint).meta.occurrence_count).toBe(1)
     } finally {
       removeDir(configDir)

@@ -68,6 +68,8 @@ export const ToolResultValue = Object.assign(
     Schema.Struct({
       type: Schema.Literal("error"),
       value: Schema.Unknown,
+      // 失败结算链的类别载体（design D4）：provider 下沉序列化只含 value，metadata 不进 wire
+      metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
     }),
     Schema.Struct({
       type: Schema.Literal("content"),

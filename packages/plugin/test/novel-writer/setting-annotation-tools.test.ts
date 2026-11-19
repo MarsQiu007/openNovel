@@ -90,28 +90,34 @@ describe("setting annotation tools", () => {
 
   test("annotate 拒绝非原文引用和不存在的条目", async () => {
     const { tools } = await seed()
-    const badQuote = await tools.annotate.execute(
-      {
-        target_type: "world_entry",
-        target_id: "world-old-city",
-        field: "content",
-        quote: "城墙不高",
-        comment: "错误锚点",
-      },
-      toolCtx(),
-    )
-    expect(badQuote.output).toContain("quote 不是当前")
-    const missing = await tools.annotate.execute(
-      {
-        target_type: "world_entry",
-        target_id: "world-missing",
-        field: "content",
-        quote: "城墙很高。",
-        comment: "错误条目",
-      },
-      toolCtx(),
-    )
-    expect(missing.output).toContain("world_entry 不存在")
+    const badQuote = await tools.annotate
+      .execute(
+        {
+          target_type: "world_entry",
+          target_id: "world-old-city",
+          field: "content",
+          quote: "城墙不高",
+          comment: "错误锚点",
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(badQuote?.name).toBe("param_error")
+    expect(badQuote?.message).toContain("quote 不是当前")
+    const missing = await tools.annotate
+      .execute(
+        {
+          target_type: "world_entry",
+          target_id: "world-missing",
+          field: "content",
+          quote: "城墙很高。",
+          comment: "错误条目",
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(missing?.name).toBe("not_found")
+    expect(missing?.message).toContain("world_entry 不存在")
   })
 
   test("annotate 支持跨段锚点并落库 end_paragraph_index", async () => {
@@ -147,60 +153,69 @@ describe("setting annotation tools", () => {
 
   test("annotate 拒绝结束段落索引小于起始段落索引", async () => {
     const { tools } = await seed()
-    const result = await tools.annotate.execute(
-      {
-        target_type: "world_entry",
-        target_id: "world-old-city",
-        field: "content",
-        paragraph_index: 1,
-        start_offset: 0,
-        end_offset: 2,
-        end_paragraph_index: 0,
-        quote: "森严。",
-        comment: "倒挂区间",
-      },
-      toolCtx(),
-    )
-    expect(result.output).toBe("段落索引或偏移量与原文不一致")
+    const result = await tools.annotate
+      .execute(
+        {
+          target_type: "world_entry",
+          target_id: "world-old-city",
+          field: "content",
+          paragraph_index: 1,
+          start_offset: 0,
+          end_offset: 2,
+          end_paragraph_index: 0,
+          quote: "森严。",
+          comment: "倒挂区间",
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(result?.name).toBe("param_error")
+    expect(result?.message).toContain("段落索引或偏移量与原文不一致")
   })
 
   test("annotate 拒绝结束段落索引越界", async () => {
     const { tools } = await seed()
-    const result = await tools.annotate.execute(
-      {
-        target_type: "world_entry",
-        target_id: "world-old-city",
-        field: "content",
-        paragraph_index: 0,
-        start_offset: 0,
-        end_offset: 2,
-        end_paragraph_index: 9,
-        quote: "城墙很高。",
-        comment: "越界区间",
-      },
-      toolCtx(),
-    )
-    expect(result.output).toBe("段落索引或偏移量与原文不一致")
+    const result = await tools.annotate
+      .execute(
+        {
+          target_type: "world_entry",
+          target_id: "world-old-city",
+          field: "content",
+          paragraph_index: 0,
+          start_offset: 0,
+          end_offset: 2,
+          end_paragraph_index: 9,
+          quote: "城墙很高。",
+          comment: "越界区间",
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(result?.name).toBe("param_error")
+    expect(result?.message).toContain("段落索引或偏移量与原文不一致")
   })
 
   test("annotate 拒绝跨段引用与原文不一致", async () => {
     const { tools } = await seed()
-    const result = await tools.annotate.execute(
-      {
-        target_type: "world_entry",
-        target_id: "world-old-city",
-        field: "content",
-        paragraph_index: 0,
-        start_offset: 2,
-        end_offset: 2,
-        end_paragraph_index: 1,
-        quote: "很高。\n\n皇宫",
-        comment: "引用不匹配",
-      },
-      toolCtx(),
-    )
+    const result = await tools.annotate
+      .execute(
+        {
+          target_type: "world_entry",
+          target_id: "world-old-city",
+          field: "content",
+          paragraph_index: 0,
+          start_offset: 2,
+          end_offset: 2,
+          end_paragraph_index: 1,
+          quote: "很高。\n\n皇宫",
+          comment: "引用不匹配",
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
     // 严格 includes 检查先拦截（"皇宫"不在原文中）
-    expect(result.output).toBe("quote 不是当前 world_entry 原文中的精确片段")
+    expect(result?.name).toBe("param_error")
+    expect(result?.message).toContain("quote 不是当前 world_entry 原文中的精确片段")
   })
 
   test("list_annotations 支持状态筛选", async () => {
@@ -293,19 +308,25 @@ describe("setting annotation tools", () => {
       },
       projectDir,
     )
-    const result = await tools.report_annotation_execution.execute(
-      { execution_round_id: round.id, status: "completed", result_summary: "声称完成" },
-      toolCtx(),
-    )
-    expect(result.output).toContain("completed 需要存在")
+    const result = await tools.report_annotation_execution
+      .execute(
+        { execution_round_id: round.id, status: "completed", result_summary: "声称完成" },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(result?.name).toBe("state_conflict")
+    expect(result?.message).toContain("completed 需要存在")
   })
 
   test("report_annotation_execution 拒绝不存在的轮次", async () => {
     const { tools } = await seed()
-    const result = await tools.report_annotation_execution.execute(
-      { execution_round_id: "wear-missing", status: "failed", result_summary: "错误轮次" },
-      toolCtx(),
-    )
-    expect(result.output).toBe("执行轮次不存在")
+    const result = await tools.report_annotation_execution
+      .execute(
+        { execution_round_id: "wear-missing", status: "failed", result_summary: "错误轮次" },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(result?.name).toBe("not_found")
+    expect(result?.message).toContain("执行轮次不存在")
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { Effect, Fiber, Option, Schema } from "effect"
-import { define } from "@opennovel-ai/plugin/v2/effect"
+import { define, toolFailure } from "@opennovel-ai/plugin/v2/effect"
 import { AgentV2 } from "@opennovel-ai/core/agent"
 import { Database } from "@opennovel-ai/core/database/database"
 import { PermissionV2 } from "@opennovel-ai/core/permission"
@@ -115,6 +115,50 @@ describe("PluginHost tool domain", () => {
       expect(seen).toEqual([
         { sessionID, agent, messageID: assistantMessageID, directory: expect.any(String) },
       ])
+    }),
+  )
+
+  it.effect("applies the category vocabulary gate to plugin tool rejections", () =>
+    Effect.gen(function* () {
+      const plugins = yield* PluginV2.Service
+
+      yield* plugins.add(
+        PluginV2.ID.make("tool-failure-gate"),
+        define({
+          id: "tool-failure-gate",
+          effect: (ctx) =>
+            ctx.tool
+              .transform((editor) => {
+                editor.add("gate_factory", {
+                  description: "category failure",
+                  args: Schema.Struct({}),
+                  execute: () => Promise.reject(toolFailure("not_found", "章节不存在", { code: "chapter_not_found" })),
+                })
+                editor.add("gate_plain", {
+                  description: "plain error",
+                  args: Schema.Struct({}),
+                  execute: () => Promise.reject(new Error("普通错误")),
+                })
+                editor.add("gate_type", {
+                  description: "type error",
+                  args: Schema.Struct({}),
+                  execute: () => Promise.reject(new TypeError("类型不对")),
+                })
+              })
+              .pipe(Effect.asVoid),
+        }).effect,
+      )
+
+      const factory = yield* settle("gate_factory", {})
+      expect(factory.result).toEqual({
+        type: "error",
+        value: "章节不存在",
+        metadata: { name: "not_found", code: "chapter_not_found" },
+      })
+      const plain = yield* settle("gate_plain", {})
+      expect(plain.result).toEqual({ type: "error", value: "普通错误" })
+      const typed = yield* settle("gate_type", {})
+      expect(typed.result).toEqual({ type: "error", value: "类型不对" })
     }),
   )
 

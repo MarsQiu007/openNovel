@@ -141,33 +141,39 @@ describe("chapter-sequential-gate review 模式逐章串行", () => {
     const novelId = await setupBook("待审拦截书", "review")
     setChapterStatus(novelId, 1, "pending_review")
     insertChapter(novelId, 2, "夜雨初停", "outline")
-    const result = await writeChapter(getChapterId(novelId, 2), makeContent())
-    const typed = result as { output?: string; metadata?: { blocked?: boolean; reason?: string; blocked_by_order?: number; blocked_by_title?: string } }
-    expect(typed.metadata?.blocked).toBe(true)
-    expect(typed.metadata?.reason).toBe("sequential_blocked")
-    expect(typed.metadata?.blocked_by_order).toBe(1)
-    expect(typed.output).toContain("第 1 章")
-    expect(typed.output).toContain("尚未通过审批")
+    const err = await writeChapter(getChapterId(novelId, 2), makeContent()).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("第 1 章")
+    expect(err?.message).toContain("尚未通过审批")
+    expect(err?.message).toContain("pending_review")
   })
 
   test("前置驳回拦截：第 1 章 rejected 时 revise 第 2 章被拒", async () => {
     const novelId = await setupBook("驳回拦截书", "review")
     setChapterStatus(novelId, 1, "rejected")
     insertChapter(novelId, 2, "旧稿残章", "draft", "这是第 2 章的旧稿内容，供修订覆盖。")
-    const result = await reviseChapter(getChapterId(novelId, 2), makeContent())
-    const typed = result as { metadata?: { blocked?: boolean; reason?: string } }
-    expect(typed.metadata?.blocked).toBe(true)
-    expect(typed.metadata?.reason).toBe("sequential_blocked")
+    const err = await reviseChapter(getChapterId(novelId, 2), makeContent()).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("rejected")
+    expect(err?.message).toContain("请先处理第 1 章")
   })
 
   test("前置大纲态拦截：第 1 章 outline（无正文）时 write 第 2 章被拒", async () => {
     const novelId = await setupBook("大纲态拦截书", "review")
     setChapterStatus(novelId, 1, "outline")
     insertChapter(novelId, 2, "第二章", "outline")
-    const result = await writeChapter(getChapterId(novelId, 2), makeContent())
-    const typed = result as { metadata?: { blocked?: boolean; reason?: string } }
-    expect(typed.metadata?.blocked).toBe(true)
-    expect(typed.metadata?.reason).toBe("sequential_blocked")
+    const err = await writeChapter(getChapterId(novelId, 2), makeContent()).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("outline")
   })
 
   test("前置全部通过放行：第 1 章 final 时 write 第 2 章成功", async () => {
@@ -202,10 +208,13 @@ describe("chapter-sequential-gate review 模式逐章串行", () => {
     setChapterStatus(novelId, 1, "rejected")
     setChapterStatus(novelId, 2, "draft")
     insertChapter(novelId, 3, "第三章", "outline")
-    const result = await writeChapter(getChapterId(novelId, 3), makeContent())
-    const typed = result as { output?: string; metadata?: { blocked_by_order?: number } }
-    expect(typed.metadata?.blocked_by_order).toBe(1)
-    expect(typed.output).toContain("第 1 章")
+    const err = await writeChapter(getChapterId(novelId, 3), makeContent()).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("第 1 章")
+    expect(err?.message).toContain("请先处理第 1 章")
   })
 
   test("拒绝消息含未通过章标题与处理指引", async () => {
@@ -213,13 +222,15 @@ describe("chapter-sequential-gate review 模式逐章串行", () => {
     setChapterStatus(novelId, 1, "final")
     insertChapter(novelId, 2, "夜雨初停", "pending_review")
     insertChapter(novelId, 3, "第三章", "outline")
-    const result = await writeChapter(getChapterId(novelId, 3), makeContent())
-    const typed = result as { output?: string; metadata?: { blocked_by_order?: number; blocked_by_title?: string } }
-    expect(typed.metadata?.blocked_by_order).toBe(2)
-    expect(typed.metadata?.blocked_by_title).toBe("夜雨初停")
-    expect(typed.output).toContain("夜雨初停")
-    expect(typed.output).toContain("pending_review")
-    expect(typed.output).toContain("请先处理第 2 章")
+    const err = await writeChapter(getChapterId(novelId, 3), makeContent()).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("夜雨初停")
+    expect(err?.message).toContain("pending_review")
+    expect(err?.message).toContain("请先处理第 2 章")
+    expect(err?.message).toContain("在阅读页审批通过")
   })
 })
 

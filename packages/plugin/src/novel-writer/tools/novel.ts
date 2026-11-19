@@ -5,6 +5,7 @@
 import { Schema } from "effect"
 import { eq, sql } from "drizzle-orm"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { readProjectConfig, writeProjectConfig } from "./project-config.js"
 import { ChapterTable, getDb, getNovelForSession, NovelTable, tagNovelSession } from "../session-store.js"
 import { projectDirFromCtx } from "./shared.js"
@@ -70,7 +71,7 @@ export const novelTools = {
       }
       const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"]
       if (!GENRES.includes(args.genre)) {
-        return { title: "init_novel", output: `类型「${args.genre}」不合法，必须是：${GENRES.join("/")} 之一` }
+        throw toolFailure("param_error", `类型「${args.genre}」不合法，必须是：${GENRES.join("/")} 之一。请确认类型后重试。`)
       }
       // 项目级同名去重：同项目已存在同名书籍时直接绑定，不重复 INSERT
       const title = args.title.trim()

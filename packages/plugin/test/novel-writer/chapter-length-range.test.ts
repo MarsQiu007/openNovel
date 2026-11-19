@@ -113,37 +113,35 @@ describe("chapter_length 章节字数区间门禁", () => {
     expect(output).toContain("下限 2000 / 上限 5000")
   })
 
-  test("低于下限拒绝：reason too_short，消息含「还差」与补足方向", async () => {
+  test("低于下限拒绝：content_rejected，消息含「还差」与补足方向", async () => {
     const chapterId = await setupBookWithChapter("低于下限书", {
       chapter_length: "2000",
     })
-    const result = await writeChapter(chapterId, makeContent(1800))
-    const typed = result as { title?: string; output?: string; metadata?: { rejected?: boolean; reason?: string; lower_bound?: number; upper_bound?: number | null } }
-    expect(typed.metadata?.rejected).toBe(true)
-    expect(typed.metadata?.reason).toBe("too_short")
-    expect(typed.metadata?.lower_bound).toBe(2000)
-    expect(typed.metadata?.upper_bound).toBeNull()
-    expect(typed.output).toContain("字数不足")
-    expect(typed.output).toContain("还差")
-    expect(typed.output).toContain("字数下限 2000 字")
-    expect(typed.output).toContain("扩写正文补足字数")
+    const err = await writeChapter(chapterId, makeContent(1800)).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("content_rejected")
+    expect(err?.message).toContain("字数不足")
+    expect(err?.message).toContain("还差")
+    expect(err?.message).toContain("字数下限 2000 字")
+    expect(err?.message).toContain("扩写正文补足字数")
   })
 
-  test("高于上限拒绝：reason too_long，消息提示删注水而非砍主线", async () => {
+  test("高于上限拒绝：content_rejected，消息提示删注水而非砍主线", async () => {
     const chapterId = await setupBookWithChapter("高于上限书", {
       chapter_length: "2000",
       chapter_length_max: "5000",
     })
-    const result = await writeChapter(chapterId, makeContent(5200))
-    const typed = result as { title?: string; output?: string; metadata?: { rejected?: boolean; reason?: string; lower_bound?: number; upper_bound?: number | null } }
-    expect(typed.metadata?.rejected).toBe(true)
-    expect(typed.metadata?.reason).toBe("too_long")
-    expect(typed.metadata?.lower_bound).toBe(2000)
-    expect(typed.metadata?.upper_bound).toBe(5000)
-    expect(typed.output).toContain("字数超标")
-    expect(typed.output).toContain("字数上限 5000 字")
-    expect(typed.output).toContain("优先删除注水内容")
-    expect(typed.output).toContain("而非砍剧情主线")
+    const err = await writeChapter(chapterId, makeContent(5200)).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(err?.name).toBe("content_rejected")
+    expect(err?.message).toContain("字数超标")
+    expect(err?.message).toContain("字数上限 5000 字")
+    expect(err?.message).toContain("优先删除注水内容")
+    expect(err?.message).toContain("而非砍剧情主线")
   })
 
   test("修订受同等约束：revise_chapter 低于下限与高于上限均拒绝", async () => {
@@ -154,18 +152,20 @@ describe("chapter_length 章节字数区间门禁", () => {
     const written = (await writeChapter(chapterId, makeContent(3500))) as { output?: string }
     expect(written.output).toContain("已写入")
 
-    const shortResult = await reviseChapter(chapterId, makeContent(1800))
-    const shortTyped = shortResult as { metadata?: { rejected?: boolean; reason?: string } }
-    expect(shortTyped.metadata?.rejected).toBe(true)
-    expect(shortTyped.metadata?.reason).toBe("too_short")
+    const shortErr = await reviseChapter(chapterId, makeContent(1800)).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(shortErr?.name).toBe("content_rejected")
+    expect(shortErr?.message).toContain("字数不足")
 
-    const longResult = await reviseChapter(chapterId, makeContent(5200))
-    const longTyped = longResult as { output?: string; metadata?: { rejected?: boolean; reason?: string; upper_bound?: number | null } }
-    expect(longTyped.metadata?.rejected).toBe(true)
-    expect(longTyped.metadata?.reason).toBe("too_long")
-    expect(longTyped.metadata?.upper_bound).toBe(5000)
-    expect(longTyped.output).toContain("字数超标")
-    expect(longTyped.output).toContain("请精炼压缩后重新调用 revise_chapter")
+    const longErr = await reviseChapter(chapterId, makeContent(5200)).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(longErr?.name).toBe("content_rejected")
+    expect(longErr?.message).toContain("字数超标")
+    expect(longErr?.message).toContain("请精炼压缩后重新调用 revise_chapter")
   })
 
   test("仅下限超长放行：2500 下限无上限，6000 字写入成功", async () => {
@@ -209,10 +209,12 @@ describe("chapter_length 章节字数区间门禁", () => {
     expect((passResult as { output?: string }).output).toContain("下限 2000 / 上限 5000")
 
     // 同一书重写超上限正文验证包夹值真实生效
-    const longResult = await writeChapter(chapterId, makeContent(5600))
-    const longTyped = longResult as { output?: string; metadata?: { rejected?: boolean; reason?: string; upper_bound?: number | null } }
-    expect(longTyped.metadata?.rejected).toBe(true)
-    expect(longTyped.metadata?.reason).toBe("too_long")
-    expect(longTyped.metadata?.upper_bound).toBe(5000)
+    const longErr = await writeChapter(chapterId, makeContent(5600)).then(
+      () => null,
+      (e: Error) => e,
+    )
+    expect(longErr?.name).toBe("content_rejected")
+    expect(longErr?.message).toContain("字数超标")
+    expect(longErr?.message).toContain("字数上限 5000 字")
   })
 })

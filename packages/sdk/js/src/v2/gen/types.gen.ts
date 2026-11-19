@@ -2309,6 +2309,8 @@ export type PromptAgentAttachment = {
 export type SessionErrorUnknown = {
   type: "unknown"
   message: string
+  name?: string
+  code?: string
 }
 
 export type LlmProviderMetadata = {

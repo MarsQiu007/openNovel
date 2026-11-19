@@ -311,8 +311,11 @@ describe("organize_settings tool", () => {
       ref_text: "引用片段",
     })
     const plan = JSON.stringify({ version: 1, operations: [{ action: "delete", id: "referenced", reason: "清理空条目" }] })
-    const result = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
-    expect(result.output).toContain("仍被活跃引用")
+    const err = await tool
+      .organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("仍被活跃引用")
     expect(await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.id, "referenced")).all()).toHaveLength(1)
   })
 
@@ -356,9 +359,11 @@ describe("organize_settings tool", () => {
       version: 1,
       operations: [{ action: "update", id: "world-missing", fields: { title: "新标题" }, reason: "目标不存在" }],
     })
-    const result = await tool.organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
-    expect(result.output).toContain("校验失败")
-    expect((result.metadata as Record<string, unknown>).valid).toBe(false)
+    const err = await tool
+      .organize_settings!.execute({ action: "stage", novel_id: "novel-reorg", plan_json: plan }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
     expect(await db.select().from(StagedChangeTable).all()).toHaveLength(0)
   })
 
@@ -537,8 +542,11 @@ describe("cross-entity organization", () => {
       version: 2,
       operations: [{ entity_type: "character", action: "delete", id: "protagonist", reason: "不应执行" }],
     })
-    const protectedResult = await tool.organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: protectedPlan }, toolCtx())
-    expect(protectedResult.output).toContain("主角不能删除")
+    const protectedErr = await tool
+      .organize_settings!.execute({ action: "apply", novel_id: "novel-reorg", plan_json: protectedPlan }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(protectedErr?.name).toBe("param_error")
+    expect(protectedErr?.message).toContain("主角不能删除")
     expect(await db.select().from(CharacterTable).where(eq(CharacterTable.id, "protagonist")).all()).toHaveLength(1)
   })
 })

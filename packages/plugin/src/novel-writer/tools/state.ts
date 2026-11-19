@@ -8,6 +8,7 @@ import { persistStateDelta, validateStateDelta } from "../pipeline.js"
 import { commitStateWithReport, StateDeltaSchema } from "../state-commit.js"
 import { getDb } from "../session-store.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { resolveNovelId } from "./shared.js"
 
 export const stateTools = {
@@ -53,10 +54,10 @@ export const stateTools = {
       try {
         delta = StateDeltaSchema.parse(JSON.parse(args.delta_json))
       } catch (err) {
-        return {
-          title: "commit_observer_delta",
-          output: `delta JSON 解析失败：${err instanceof Error ? err.message : String(err)}`,
-        }
+        throw toolFailure(
+          "param_error",
+          `delta JSON 解析失败：${err instanceof Error ? err.message : String(err)}。请修正 delta_json 后重试；schema 以 reflector 校验要求为准。`,
+        )
       }
       try {
         const bindingView = await loadFullCharacterBindingView(db, novelId)
@@ -96,10 +97,10 @@ export const stateTools = {
           metadata: { ...report, arcProgress },
         }
       } catch (err) {
-        return {
-          title: "commit_observer_delta",
-          output: `状态提交失败：${err instanceof Error ? err.message : String(err)}`,
-        }
+        throw toolFailure(
+          "internal",
+          `状态提交失败：${err instanceof Error ? err.message : String(err)}。本次提交未完成，请检查后重试。`,
+        )
       }
     },
   }),

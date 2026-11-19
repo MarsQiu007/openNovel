@@ -9,7 +9,7 @@ import type {
   SystemContextSource,
   ToolEditor,
 } from "@opennovel-ai/plugin/v2/effect"
-import { ToolResult } from "@opennovel-ai/plugin/v2/effect"
+import { isToolErrorCategory, ToolResult } from "@opennovel-ai/plugin/v2/effect"
 import { Definitions } from "@opennovel-ai/schema/session-event"
 import { Effect, Exit, Option, Schema, Scope, Stream } from "effect"
 import { AgentV2 } from "../agent"
@@ -174,7 +174,21 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
                 ? { confirm: (confirm) => confirmRetest(confirm, context) }
                 : {}),
             }),
-          catch: (cause) => new Tool.Failure({ message: cause instanceof Error ? cause.message : String(cause) }),
+          catch: (cause) => {
+            // 词表门禁（design D4）：仅 rejected Error 的 name 命中类别词表时透传
+            // name/code，词表外（普通 Error、TypeError、Effect 类 tag）不填，
+            // 事件保持无类别，观测面标未分类。
+            const name = cause instanceof Error ? cause.name : undefined
+            const code = cause instanceof Error && "code" in cause ? cause.code : undefined
+            const metadata =
+              name !== undefined && isToolErrorCategory(name)
+                ? { name, ...(typeof code === "string" ? { code } : {}) }
+                : undefined
+            return new Tool.Failure({
+              message: cause instanceof Error ? cause.message : String(cause),
+              ...(metadata === undefined ? {} : { metadata }),
+            })
+          },
         }),
       toModelOutput: ({ output }) => [{ type: "text" as const, text: typeof output === "string" ? output : output.output }],
     })

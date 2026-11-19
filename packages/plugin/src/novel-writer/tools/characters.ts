@@ -5,6 +5,7 @@
 import { and, eq } from "drizzle-orm"
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { archiveDescription, deduplicateCharacters, scanReferences } from "../state-commit.js"
 import { applyImpact, buildImpactReport, planImpact, type ImpactReport } from "../setting-impact.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
@@ -38,27 +39,27 @@ export const charactersTools = {
       try {
         patch = JSON.parse(args.update)
       } catch {
-        return { title: "manage_characters", output: `update 不是合法 JSON：${args.update}` }
+        throw toolFailure("param_error", `update 不是合法 JSON：${args.update}`)
       }
       if (patch.novel_id) patch.novel_id = await resolveNovelId(db, patch.novel_id)
       if (typeof patch.description === "string") patch.description = normalizeSettingText(patch.description)
       const textError = settingTextFormatError(patch.description, "character", "description")
-      if (textError) return { title: "manage_characters", output: `设定文本格式校验失败：${textError}` }
+      if (textError) throw toolFailure("param_error", `设定文本格式校验失败：${textError}`)
 
       // 档案塑造输入校验：整包与补丁/删除互斥，key 白名单 + 值类型
       if (patch.profile !== undefined && (patch.profile_patch !== undefined || patch.profile_remove !== undefined)) {
-        return { title: "manage_characters", output: "profile（整包替换）与 profile_patch / profile_remove 互斥，一次只能传一种档案操作" }
+        throw toolFailure("param_error", "profile（整包替换）与 profile_patch / profile_remove 互斥，一次只能传一种档案操作。")
       }
       if (patch.profile !== undefined) {
         const error = profileShapeError(patch.profile, "profile")
-        if (error) return { title: "manage_characters", output: error }
+        if (error) throw toolFailure("param_error", error)
       }
       if (patch.profile_patch !== undefined) {
         const error = profileShapeError(patch.profile_patch, "profile_patch")
-        if (error) return { title: "manage_characters", output: error }
+        if (error) throw toolFailure("param_error", error)
       }
       if (patch.profile_remove !== undefined && !Array.isArray(patch.profile_remove)) {
-        return { title: "manage_characters", output: "profile_remove 必须是维度 key 数组，如 [\"mannerism\"]" }
+        throw toolFailure("param_error", `profile_remove 必须是维度 key 数组，如 ["mannerism"]。`)
       }
 
       // 基于基础档案应用塑造操作；无档案参数时不改动档案
@@ -77,8 +78,8 @@ export const charactersTools = {
 
       // 新增角色
       if (args.character_id.length === 0) {
-        if (!patch.novel_id) return { title: "manage_characters", output: "新增角色需提供 novel_id" }
-        if (!patch.name) return { title: "manage_characters", output: "新增角色需提供 name" }
+        if (!patch.novel_id) throw toolFailure("param_error", "新增角色需提供 novel_id（在 update JSON 中携带）。")
+        if (!patch.name) throw toolFailure("param_error", "新增角色需提供 name（在 update JSON 中携带）。")
 
         const [dup] = await db
           .select({ id: CharacterTable.id, profile: CharacterTable.profile })
@@ -88,7 +89,7 @@ export const charactersTools = {
           .all()
         if (dup) {
           const op = resolveProfileOperation(parseCharacterProfile(dup.profile))
-          if (op.error) return { title: "manage_characters", output: op.error }
+          if (op.error) throw toolFailure("param_error", op.error)
           await db
             .update(CharacterTable)
             .set({
@@ -107,7 +108,7 @@ export const charactersTools = {
         }
 
         const op = resolveProfileOperation({})
-        if (op.error) return { title: "manage_characters", output: op.error }
+        if (op.error) throw toolFailure("param_error", op.error)
         const id = crypto.randomUUID()
         await db
           .insert(CharacterTable)
@@ -133,16 +134,21 @@ export const charactersTools = {
         .from(CharacterTable)
         .where(eq(CharacterTable.id, args.character_id))
         .all()
-      if (!existing) return { title: "manage_characters", output: `角色不存在：${args.character_id}` }
+      if (!existing) {
+        throw toolFailure(
+          "not_found",
+          `角色不存在：${args.character_id}。请确认 character_id 来自 save_novel_settings / manage_characters 等工具的真实返回，不要自行构造。`,
+        )
+      }
 
       const oldDesc = existing.description
       const newDesc = patch.description ?? existing.description
 
       if (patch.description !== undefined && oldDesc.length > 0 && newDesc.length < oldDesc.length * 0.5) {
-        return {
-          title: "manage_characters（已拦截）",
-          output: `⚠ 新描述(${newDesc.length}字)比旧描述(${oldDesc.length}字)短超过一半，可能丢失信息。\n\n旧描述全文：\n${oldDesc}\n\n如确认无误，请在 update 中保留旧描述的内容后再提交。`,
-        }
+        throw toolFailure(
+          "gate_blocked",
+          `新描述(${newDesc.length}字)比旧描述(${oldDesc.length}字)短超过一半，可能丢失信息，已拦截。\n\n旧描述全文：\n${oldDesc}\n\n如确认无误，请在 update 中保留旧描述的内容后再提交。`,
+        )
       }
 
       if (patch.description !== undefined && oldDesc.length > 0 && newDesc.length < oldDesc.length) {
@@ -151,14 +157,14 @@ export const charactersTools = {
 
       // 主角保护：不能退场
       if (patch.status === "departed" && existing.role === "protagonist") {
-        return {
-          title: "manage_characters（已拦截）",
-          output: `主角「${existing.name}」不能退场。如需更换主角，请先创建新主角并用 update 将旧主角的 role 改为非主角。`,
-        }
+        throw toolFailure(
+          "gate_blocked",
+          `主角「${existing.name}」不能退场。如需更换主角，请先创建新主角并用 update 将旧主角的 role 改为非主角。`,
+        )
       }
 
       const op = resolveProfileOperation(parseCharacterProfile(existing.profile))
-      if (op.error) return { title: "manage_characters", output: op.error }
+      if (op.error) throw toolFailure("param_error", op.error)
       const newProfile = op.profile !== undefined ? serializeCharacterProfile(op.profile) : existing.profile
 
       await db

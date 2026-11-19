@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
+import { eq } from "drizzle-orm"
 import { closeDb, type Db } from "@opennovel-ai/novel-store"
 import { CharacterTable, ChapterTable, ChapterVersionTable, ChapterReviewTable, NovelTable, getDb } from "../../src/novel-writer/session-store.js"
 import { findToolInsightVerifyAdapter } from "../../src/tool-insight/verify.js"
@@ -88,13 +89,45 @@ describe("真实结果只读核验适配器", () => {
       db.insert(ChapterVersionTable)
         .values({ id: crypto.randomUUID(), chapter_id: chapterID, version: 1, content: "第一版正文", word_count: 5, created_at: now, created_by: "writer" })
         .run()
-      for (const tool of ["write_chapter", "revise_chapter", "update_chapter"]) {
+      // 内容建/改核验按内容版本判定（update_chapter 只改 title/status，另有专用用例）
+      for (const tool of ["write_chapter", "revise_chapter"]) {
         const result = await findToolInsightVerifyAdapter(tool)!.verify({ directory: projectDir, identifiers: { chapter_id: chapterID } })
         expect(result.status).toBe("verified_success")
         expect(result.detail).toContain("v1")
       }
       expect(db.select().from(NovelTable).all()).toHaveLength(1)
       expect(novelID).toBeTruthy()
+    } finally {
+      cleanup(projectDir)
+    }
+  })
+
+  test("update_chapter：请求的 title/status 与本地一致 → verified_success，未落库 → verified_failure", async () => {
+    const projectDir = newProject()
+    try {
+      const db = getDb(projectDir)
+      const chapterID = crypto.randomUUID()
+      await seedNovelAndChapter(db, chapterID, "正文")
+      const adapter = findToolInsightVerifyAdapter("update_chapter")!
+      // extract 捕获章节 ID + 请求状态（枚举）+ 请求标题哈希（自由文本不进标识通道）
+      const identifiers = adapter.extract({ callInput: { chapter_id: chapterID, title: "新章题", status: "audited" }, resultStructured: {} })
+      expect(identifiers).toBeDefined()
+      expect(identifiers?.chapter_id).toBe(chapterID)
+      expect(identifiers?.requested_status).toBe("audited")
+      expect(identifiers?.requested_title_hash).toMatch(/^[0-9a-f]{16}$/)
+      // 本地仍是旧标题与旧状态：自称成功但未落库
+      const stale = await adapter.verify({ directory: projectDir, identifiers: identifiers! })
+      expect(stale.status).toBe("verified_failure")
+      expect(stale.detail).toContain("未按请求更新")
+      // 标题先落库、状态未变：仍判失败
+      db.update(ChapterTable).set({ title: "新章题" }).where(eq(ChapterTable.id, chapterID)).run()
+      const halfDone = await adapter.verify({ directory: projectDir, identifiers: identifiers! })
+      expect(halfDone.status).toBe("verified_failure")
+      expect(halfDone.detail).toContain("状态")
+      // title/status 均按请求落库：核实通过
+      db.update(ChapterTable).set({ status: "audited" }).where(eq(ChapterTable.id, chapterID)).run()
+      const done = await adapter.verify({ directory: projectDir, identifiers: identifiers! })
+      expect(done.status).toBe("verified_success")
     } finally {
       cleanup(projectDir)
     }

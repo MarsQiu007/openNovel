@@ -134,12 +134,13 @@ describe("project-dir-resolution 行为回归（OPENNOVEL_DB 误设）", () => {
       })
       .run()
 
-    const result = await novelWriterTools.write_chapter.execute(
-      { chapter_id: getChapterId(novelId, 2), content: "正文内容不足以通过篇幅门禁，但顺序门禁先拦。" },
-      toolCtx(),
-    )
-    const typed = result as { metadata?: { blocked?: boolean; reason?: string } }
-    expect(typed.metadata?.blocked).toBe(true)
-    expect(typed.metadata?.reason).toBe("sequential_blocked")
+    const err = await novelWriterTools.write_chapter
+      .execute(
+        { chapter_id: getChapterId(novelId, 2), content: "正文内容不足以通过篇幅门禁，但顺序门禁先拦。" },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("逐章串行约束")
   })
 })

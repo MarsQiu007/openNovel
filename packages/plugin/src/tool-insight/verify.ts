@@ -7,8 +7,11 @@
  *
  * 全部查询走 novel-store 只读 select：核验路径没有任何 insert/update/delete，
  * 也不调用 agent 或模型。标识只允许 ID/枚举类标量（章节 ID、候选类型、版本号），
- * extract 永不返回正文、路径或自由文本。
+ * extract 永不返回正文、路径或自由文本；update_chapter 的请求标题以等值短哈希
+ * 携带（哈希比对本地实际标题），自由文本不进标识通道。update_chapter 只改
+ * title/status：核验按请求值比对实际落库，不查内容与版本。
  */
+import { createHash } from "node:crypto"
 import { desc, eq } from "drizzle-orm"
 import {
   ChapterReviewTable,
@@ -41,9 +44,9 @@ const scalarString = (value: unknown): string | undefined => {
   return undefined
 }
 
-// ─── 章节内容核验：write_chapter / revise_chapter / update_chapter ───
+// ─── 章节内容核验：write_chapter / revise_chapter ───
 
-function chapterVerify(kind: "created" | "revised" | "updated"): ToolInsightVerifyAdapter {
+function chapterVerify(kind: "created" | "revised"): ToolInsightVerifyAdapter {
   return {
     tool: "",
     extract: ({ callInput }) => {
@@ -78,6 +81,44 @@ function chapterVerify(kind: "created" | "revised" | "updated"): ToolInsightVeri
       }
     },
   }
+}
+
+// ─── 章节元数据核验：update_chapter（只改 title/status，不核内容与版本） ───
+
+/** 等值校验短哈希：请求标题不进标识通道（无自由文本落盘面），以哈希比对本地实际值 */
+const stableDigest = (value: string): string => createHash("sha256").update(value).digest("hex").slice(0, 16)
+
+const chapterUpdateVerify: ToolInsightVerifyAdapter = {
+  tool: "update_chapter",
+  extract: ({ callInput }) => {
+    const chapterID = scalarString(callInput.chapter_id)
+    if (chapterID === undefined) return undefined
+    const identifiers: Record<string, string> = { chapter_id: chapterID }
+    // status 属枚举类标量可直存；请求标题以短哈希携带用于等值比对
+    const status = scalarString(callInput.status)
+    if (status !== undefined) identifiers.requested_status = status
+    const title = scalarString(callInput.title)
+    if (title !== undefined) identifiers.requested_title_hash = stableDigest(title)
+    return identifiers
+  },
+  verify: async ({ directory, identifiers }) => {
+    const chapterID = identifiers.chapter_id
+    if (chapterID === undefined) return { status: "unverified", detail: "缺少章节标识" }
+    try {
+      const db = getDb(directory)
+      const chapter = db.select().from(ChapterTable).where(eq(ChapterTable.id, chapterID)).limit(1).all()[0]
+      if (!chapter) return { status: "verified_failure", detail: `章节 ${chapterID.slice(0, 8)} 不存在于本地书籍状态` }
+      if (identifiers.requested_title_hash !== undefined && stableDigest(chapter.title) !== identifiers.requested_title_hash) {
+        return { status: "verified_failure", detail: "章节标题未按请求更新（标题哈希不匹配）" }
+      }
+      if (identifiers.requested_status !== undefined && chapter.status !== identifiers.requested_status) {
+        return { status: "verified_failure", detail: `章节状态未按请求更新（当前 ${chapter.status}）` }
+      }
+      return { status: "verified_success", detail: `章节 title/status 已按请求落库（status=${chapter.status}）` }
+    } catch (error) {
+      return { status: "unverified", detail: `本地状态查询失败：${error instanceof Error ? error.message : String(error)}` }
+    }
+  },
 }
 
 // ─── 审批轨迹核验：submit_chapter_review（章节审计/评审记录） ───
@@ -134,11 +175,11 @@ const settingAcceptVerify: ToolInsightVerifyAdapter = {
   },
 }
 
-/** 首批只读核验适配器：章节内容（建/改/审）、审批轨迹、设定入库 */
+/** 首批只读核验适配器：章节内容（建/改）、章节元数据、审批轨迹、设定入库 */
 const VERIFY_ADAPTERS: readonly ToolInsightVerifyAdapter[] = [
   { ...chapterVerify("created"), tool: "write_chapter" },
   { ...chapterVerify("revised"), tool: "revise_chapter" },
-  { ...chapterVerify("updated"), tool: "update_chapter" },
+  chapterUpdateVerify,
   { ...reviewVerify, tool: "submit_chapter_review" },
   { ...settingAcceptVerify, tool: "accept_pending_setting" },
 ]

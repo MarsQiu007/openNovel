@@ -27,6 +27,7 @@ import {
   createArcBeat,
   updateArcBeat,
   deleteArcBeat,
+  updateForeshadowing,
   listStoryArcs,
   listArcBeats,
   createVolumeReview,
@@ -133,9 +134,27 @@ describe("story arcs", () => {
     const novelId = await seedNovel()
     const arc = await createStoryArc(novelId, { arcType: "subplot", title: "支线", status: "planned" }, projectDir)
     const updated = await updateStoryArc(arc.id, { status: "completed", actualEndChapter: 30, summary: "已收尾" }, projectDir)
-    expect(updated.status).toBe("completed")
-    expect(updated.actual_end_chapter).toBe(30)
-    expect(updated.summary).toBe("已收尾")
+    expect(updated).not.toBeNull()
+    expect(updated!.status).toBe("completed")
+    expect(updated!.actual_end_chapter).toBe(30)
+    expect(updated!.summary).toBe("已收尾")
+  })
+
+  test("不存在 ID 更新返回 null 而非 TypeError", async () => {
+    const novelId = await seedNovel()
+    const arc = await createStoryArc(novelId, { arcType: "narrative", title: "主线" }, projectDir)
+    const beat = await createArcBeat(arc.id, { chapterOrder: 1, label: "开场", kind: "setup" }, projectDir)
+    await getDb(projectDir)
+      .insert(ForeshadowingTable)
+      .values({ id: "fs-1", novel_id: novelId, content: "怀表停了", state: "planted" })
+      .run()
+    expect(await updateStoryArc("arc-missing", { status: "completed" }, projectDir)).toBeNull()
+    expect(await updateArcBeat("beat-missing", { status: "reviewed" }, projectDir)).toBeNull()
+    expect(await updateForeshadowing("fs-missing", { state: "resolved" }, projectDir)).toBeNull()
+    // 真实 ID 不受影响
+    expect((await updateStoryArc(arc.id, { status: "active" }, projectDir))!.status).toBe("active")
+    expect((await updateArcBeat(beat.id, { status: "drafted" }, projectDir))!.status).toBe("drafted")
+    expect((await updateForeshadowing("fs-1", { state: "resolved" }, projectDir))!.state).toBe("resolved")
   })
 
   test("删除叙事弧级联节点", async () => {
@@ -183,8 +202,9 @@ describe("arc beats", () => {
     const arc = await createStoryArc(novelId, { arcType: "narrative", title: "主线" }, projectDir)
     const beat = await createArcBeat(arc.id, { chapterOrder: 1, label: "开场", kind: "setup" }, projectDir)
     const updated = await updateArcBeat(beat.id, { status: "reviewed", summary: "已审阅" }, projectDir)
-    expect(updated.status).toBe("reviewed")
-    expect(updated.summary).toBe("已审阅")
+    expect(updated).not.toBeNull()
+    expect(updated!.status).toBe("reviewed")
+    expect(updated!.summary).toBe("已审阅")
   })
 })
 

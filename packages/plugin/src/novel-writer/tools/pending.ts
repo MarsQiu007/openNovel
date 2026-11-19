@@ -4,6 +4,7 @@
  */
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import {
   acceptPendingSetting,
   listPendingSettingRows,
@@ -101,18 +102,11 @@ export const pendingTools = {
       const db = getDb(ctx.directory)
       const result = await acceptPendingSetting(db, args.pending_id, { allowNewCategory: args.allow_new_category })
       if (!result.ok) {
-        const response: { title: string; output: string; metadata?: Record<string, unknown> } = {
-          title: "accept_pending_setting",
-          output: result.error,
-        }
-        if (result.format_errors) {
-          response.metadata = {
-            pending_id: args.pending_id,
-            candidate_type: result.candidate_type ?? "",
-            errors: result.format_errors,
-          }
-        }
-        return response
+        // D2：失败路径无 metadata，格式校验明细拼进失败文本
+        const detail = result.format_errors?.length
+          ? `格式校验未通过：\n${result.format_errors.map((e) => `- ${e}`).join("\n")}`
+          : undefined
+        throw candidateFailure(result.error, detail)
       }
       const impactLine =
         result.impact.task_count > 0 ? `\n⚠ 已生成 ${result.impact.task_count} 个联动任务（待处理 ${result.impact.pending_count} 个）` : ""
@@ -139,7 +133,7 @@ export const pendingTools = {
       const db = getDb(ctx.directory)
       const result = await rejectPendingSetting(db, args.pending_id)
       if (!result.ok) {
-        return { title: "reject_pending_setting", output: result.error }
+        throw candidateFailure(result.error)
       }
       return {
         title: "reject_pending_setting",
@@ -172,18 +166,11 @@ export const pendingTools = {
         allowNewCategory: args.allow_new_category,
       })
       if (!result.ok) {
-        const response: { title: string; output: string; metadata?: Record<string, unknown> } = {
-          title: "merge_pending_settings",
-          output: result.error,
-        }
-        if (result.format_errors) {
-          response.metadata = {
-            candidate_type: result.candidate_type ?? "",
-            source_pending_ids: args.pending_ids,
-            errors: result.format_errors,
-          }
-        }
-        return response
+        // D2：失败路径无 metadata，格式校验明细拼进失败文本
+        const detail = result.format_errors?.length
+          ? `格式校验未通过：\n${result.format_errors.map((e) => `- ${e}`).join("\n")}`
+          : undefined
+        throw candidateFailure(result.error, detail)
       }
       return {
         title: "merge_pending_settings",
@@ -290,7 +277,7 @@ export const pendingTools = {
         source: "agent",
       })
       if (!result.ok) {
-        return { title: "resolve_conflict", output: result.error }
+        throw candidateFailure(result.error)
       }
       if (result.action === "keep_current") {
         return {
@@ -324,4 +311,16 @@ export const pendingTools = {
       }
     },
   }),
+}
+
+/**
+ * store 层 { ok:false, error } 失败没有类别载体（store 函数与 UI 端点共用，不能改为
+ * throw）：按稳定错误文案前缀映射 D2 类别后抛出，未命中映射的兜底 internal。
+ */
+const candidateFailure = (error: string, detail?: string): Error => {
+  let category: "not_found" | "param_error" | "state_conflict" | "internal" = "internal"
+  if (/^(候选|部分候选|冲突|关联的世界观条目)不存在/.test(error)) category = "not_found"
+  else if (/^(按正文更新需要提供|没有受影响的章节|不支持的 candidate_type|候选分属不同小说|世界观分类「|world_entry\.content：)/.test(error)) category = "param_error"
+  else if (/不可接受|不可拒绝|不可合并|不可重复处理/.test(error)) category = "state_conflict"
+  return toolFailure(category, detail ? `${error}\n${detail}` : error)
 }

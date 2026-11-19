@@ -69,9 +69,11 @@ describe("init_novel 工具", () => {
 
   test("非法类型被拒绝且不创建记录", async () => {
     const initNovel = initNovelTool()
-    const result = await initNovel.execute({ title: "坏书", genre: "魔幻", synopsis: "" }, toolCtx("ses_global"))
-    const output = typeof result === "string" ? result : result.output
-    expect(output).toContain("不合法")
+    const err = await initNovel
+      .execute({ title: "坏书", genre: "魔幻", synopsis: "" }, toolCtx("ses_global"))
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("不合法")
 
     expect(await getDb(projectDir).select().from(NovelTable).all()).toHaveLength(0)
     expect(await getNovelForSession("ses_global", projectDir)).toBeUndefined()

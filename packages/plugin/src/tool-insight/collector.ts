@@ -18,6 +18,7 @@
  * - tool.failed 恒落 tool_failed 证据并按「单次调用问题」（call 级发生实例）建档；
  * - 六类轨迹形状（无意义重复、恢复失败、改参成功、换工具成功、表面成功）在归纳
  *   命中时落 trajectory 证据并按「turn 轨迹问题」（turn 级发生实例）建档；
+ *   同一轮内「先发后收」的批量并行形态（D6 发出序配对）不参与重复/恢复/表面成功归纳。
  * - 注册了核验适配器的工具成功时做只读真实状态核验，恒落 real_state 证据；
  *   核验失败再按表面成功建档——正常成功只存证据，不产生任何问题文档。
  * - turn 关闭时对本 turn 落过失败证据的调用补齐 trajectory 证据：证据追加进同一
@@ -34,6 +35,7 @@ import {
   deriveEvidenceID,
   deriveTurnOccurrenceID,
   isRecord,
+  redactParamIdentifiers,
   redactSummary,
   redactToolFailed,
   type ToolInsightEvidence,
@@ -44,6 +46,7 @@ import { openToolInsightGate } from "./gate.js"
 import { issueFingerprint, type ToolInsightFingerprintInput } from "./issue-doc.js"
 import { ingestEvidenceIssue } from "./issue-store.js"
 import { findToolInsightVerifyAdapter } from "./verify.js"
+import { isToolErrorCategory } from "../v2/effect/tool-failure.js"
 import type { PluginContext } from "../v2/effect/context.js"
 
 /** 反复修改信号的兴趣工具：连续成功达到阈值提示同目标反复修改 */
@@ -68,6 +71,12 @@ interface CallInfo {
   model?: string
   /** 成功时提取的核验标识（ID 类标量） */
   verifyIdentifiers?: Record<string, string>
+  /** 脱敏标识符摘要（D10）：ID 形态参数键的短标识值，失败证据与 paramKeys 并存 */
+  identifiers?: Record<string, string>
+  /** 进程内单调发出序号：批量兄弟配对的时序信号（D6） */
+  issueSeq: number
+  /** 发出时同工具已有兄弟调用在途：批量「先发后收」成员标记 */
+  batchIssued: boolean
 }
 
 interface TurnWindow {
@@ -77,6 +86,8 @@ interface TurnWindow {
   calls: TrajectoryCall[]
   /** 本 turn 已落盘失败证据的 callID → 失败类别：turn 关闭时按它用一致指纹补齐轨迹 */
   failedCalls: Map<string, string>
+  /** 同工具未完成 callID → 发出序号：批量兄弟配对（D6） */
+  inFlightByTool: Map<string, Map<string, number>>
   /** step.ended/failed 已处理过补齐：跨流重复 settle 不重复落补齐轨迹 */
   settled?: boolean
 }
@@ -117,6 +128,8 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
   /** 每会话最近开启的 turnID：agentFor 兜底与迟到 step.started 的合并锚点 */
   const latestTurnBySession = new Map<string, string>()
   const revisionStreak = new Map<string, { tool: string; count: number }>()
+  /** 进程内单调发出序号计数器：CallInfo.issueSeq 的来源（D6） */
+  let issueSeqCounter = 0
 
   const boundedSet = <K>(map: Map<K, unknown>, limit: number) => {
     while (map.size > limit) {
@@ -168,10 +181,37 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     const key = turnKey(sessionID, turnID)
     const existing = turns.get(key)
     if (existing !== undefined) return existing
-    const created: TurnWindow = { turnID, agent: undefined, model: undefined, calls: [], failedCalls: new Map() }
+    const created: TurnWindow = {
+      turnID,
+      agent: undefined,
+      model: undefined,
+      calls: [],
+      failedCalls: new Map(),
+      inFlightByTool: new Map(),
+    }
     turns.set(key, created)
     boundedSet(turns, MAX_TURNS)
     return created
+  }
+
+  /**
+   * 批量兄弟配对（D6）：本调用发出时有同工具兄弟在途（batchIssued），或结算时仍有
+   * 发出晚于自己的同工具兄弟在途 → 属于「同一轮内先发后收」的批量并行形态。批量
+   * 形态不参与无意义重复、恢复失败与表面成功归纳（spec：仅成功返回后的同参重试计入）。
+   */
+  const isBatchMember = (turn: TurnWindow, tool: string, callID: string, info: CallInfo): boolean => {
+    if (info.batchIssued) return true
+    const siblings = turn.inFlightByTool.get(tool)
+    if (siblings === undefined) return false
+    for (const [otherCallID, otherSeq] of siblings) {
+      if (otherCallID !== callID && otherSeq > info.issueSeq) return true
+    }
+    return false
+  }
+
+  /** 结算时从在途集合摘除（callByKey 淘汰后 tool 未知，按 callID 全扫兜底） */
+  const removeFromInFlight = (turn: TurnWindow, callID: string) => {
+    for (const siblings of turn.inFlightByTool.values()) siblings.delete(callID)
   }
 
   const recordTurnDetection = async (
@@ -246,10 +286,13 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
     const tool = info?.tool ?? "unknown"
     const fields = redactToolFailed(tool, error)
     if (info?.paramKeys?.length) fields.paramKeys = info.paramKeys
+    // 脱敏标识符摘要（D10）：与 paramKeys 并存，定位失败目标对象；完整参数值不落盘
+    if (info?.identifiers !== undefined) fields.paramIdentifiers = info.identifiers
     const fingerprintInput: ToolInsightFingerprintInput = {
       tool,
       scenario: "tool_failure",
-      errorCategory: typeof fields.errorType === "string" ? fields.errorType : "unknown",
+      errorCategory:
+        typeof fields.errorType === "string" && isToolErrorCategory(fields.errorType) ? fields.errorType : "unknown",
     }
     const fingerprintHash = issueFingerprint(fingerprintInput)
     const evidenceID = deriveEvidenceID({ projectID, eventID: envelopeID, kind: "tool_failed" })
@@ -289,8 +332,9 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
   const classifyShape = (sessionID: string, turnID: string, tool: string, status: "success" | "failed"): { kind: DetectionKind } | undefined => {
     const turn = turns.get(turnKey(sessionID, turnID))
     if (turn === undefined) return undefined
-    // 排除 called：同一次调用的 called+failed 是同一调用的两个阶段，不构成「重复调用」
-    const sameTool = turn.calls.filter((call) => call.tool === tool && call.status !== "called")
+    // 排除 called：同一次调用的 called+failed 是同一调用的两个阶段，不构成「重复调用」。
+    // 排除 overlapped：批量兄弟条目不参与形状归纳（D6），批量失败不镜像误报
+    const sameTool = turn.calls.filter((call) => call.tool === tool && call.status !== "called" && !call.overlapped)
     const sameKeyTail = (list: TrajectoryCall[]) => {
       if (list.length < 2) return false
       const last = list[list.length - 1]
@@ -415,20 +459,29 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       if (projectID === undefined) return
       const input = isRecord(properties.input) ? properties.input : {}
       const turn = windowFor(properties.sessionID, properties.assistantMessageID)
+      // 批量兄弟配对（D6）：登记前先看在途规模（不含自身），登记自身发出序号
+      const siblings = turn.inFlightByTool.get(properties.tool) ?? new Map<string, number>()
+      turn.inFlightByTool.set(properties.tool, siblings)
+      const issueSeq = ++issueSeqCounter
       const info: CallInfo = {
         tool: properties.tool,
         paramKeys: Object.keys(input).sort(),
         turnID: turn.turnID,
         agent: turn.agent,
         model: turn.model,
+        issueSeq,
+        batchIssued: siblings.size > 0,
       }
       const adapter = findToolInsightVerifyAdapter(properties.tool)
       if (adapter !== undefined) {
         const identifiers = adapter.extract({ callInput: input, resultStructured: {} })
         if (identifiers !== undefined) info.verifyIdentifiers = identifiers
       }
+      const paramIdentifiers = redactParamIdentifiers(input)
+      if (paramIdentifiers !== undefined) info.identifiers = paramIdentifiers
       callByKey.set(callKey(projectID, properties.sessionID, properties.callID), info)
       boundedSet(callByKey, MAX_CALLS)
+      siblings.set(properties.callID, issueSeq)
       if (turn.calls.length >= MAX_CALLS_PER_TURN) turn.calls.shift()
       turn.calls.push({ callID: properties.callID, tool: properties.tool, status: "called", paramKeys: info.paramKeys })
     },
@@ -443,10 +496,18 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const structured = isRecord(properties.structured) ? properties.structured : {}
       const turn = windowFor(properties.sessionID, properties.assistantMessageID)
       const tool = info?.tool ?? "unknown"
-      turn.calls.push({ callID: properties.callID, tool, status: "success", paramKeys: info?.paramKeys })
+      const overlapped = info !== undefined && isBatchMember(turn, tool, properties.callID, info)
+      turn.calls.push({
+        callID: properties.callID,
+        tool,
+        status: "success",
+        paramKeys: info?.paramKeys,
+        ...(overlapped ? { overlapped: true } : {}),
+      })
+      removeFromInFlight(turn, properties.callID)
 
-      // 反复修改信号：兴趣工具连续成功
-      if (REVISION_TOOLS.has(tool)) {
+      // 反复修改信号：兴趣工具连续成功（批量兄弟完成不计入，D6）
+      if (REVISION_TOOLS.has(tool) && !overlapped) {
         const streak = revisionStreak.get(properties.sessionID)
         const next = streak?.tool === tool ? streak.count + 1 : 1
         revisionStreak.set(properties.sessionID, { tool, count: next })
@@ -532,15 +593,21 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const info = callByKey.get(key)
       const tool = info?.tool ?? "unknown"
       const failureFields = redactToolFailed(tool, properties.error)
-      const errorCategory = typeof failureFields.errorType === "string" ? failureFields.errorType : "unknown"
+      const errorCategory =
+        typeof failureFields.errorType === "string" && isToolErrorCategory(failureFields.errorType)
+          ? failureFields.errorType
+          : "unknown"
       const turn = windowFor(properties.sessionID, properties.assistantMessageID)
+      const overlapped = info !== undefined && isBatchMember(turn, tool, properties.callID, info)
       turn.calls.push({
         callID: properties.callID,
         tool,
         status: "failed",
         paramKeys: info?.paramKeys,
         errorCategory,
+        ...(overlapped ? { overlapped: true } : {}),
       })
+      removeFromInFlight(turn, properties.callID)
 
       // 客观证据先行：失败恒落 tool_failed 证据并按单次调用问题建档
       const occurrenceID = await recordCallFailure(

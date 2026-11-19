@@ -43,20 +43,20 @@ afterAll(() => {
 
 describe("设定影响面写作门禁", () => {
   test("write_chapter 被 pending 任务阻断并提示待处理数量", async () => {
-    const result = await tools.write_chapter.execute(
-      { chapter_id: "chapter-gate", content: "第一章正文" },
-      ctx,
-    )
-    expect(result.output).toContain("1 个未完成影响任务")
-    expect(result.output).toContain("高优先级 1 个")
-    expect(result.output).toContain("cascade_list_pending")
+    const err = await tools.write_chapter
+      .execute({ chapter_id: "chapter-gate", content: "第一章正文" }, ctx)
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("1 个未完成影响任务")
+    expect(err?.message).toContain("高优先级 1 个")
+    expect(err?.message).toContain("cascade_list_pending")
   })
 
   test("revise_chapter 被 pending 任务阻断", async () => {
-    const result = await tools.revise_chapter.execute(
-      { chapter_id: "chapter-gate", revision: "修订正文" },
-      ctx,
-    )
-    expect(result.output).toContain("1 个未完成影响任务")
+    const err = await tools.revise_chapter
+      .execute({ chapter_id: "chapter-gate", revision: "修订正文" }, ctx)
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("gate_blocked")
+    expect(err?.message).toContain("1 个未完成影响任务")
   })
 })

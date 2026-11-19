@@ -26,6 +26,7 @@ import { toolInsightLockKey, appendJsonlLocked, appendJsonlUnderLock, type Appen
 import { runExclusive } from "./locks.js"
 import {
   createIssueMeta,
+  issueFingerprint,
   parseIssueDoc,
   renderEvidenceLine,
   renderFactsSection,
@@ -94,13 +95,29 @@ export interface IngestIssueInput {
   /** 建档用的稳定事实（仅首次创建时消费） */
   facts: ToolInsightFingerprintInput
   affectedVersion?: string
-  /** 指纹演变前的历史指纹：新文档记别名，旧文档保持原样 */
-  aliasOf?: string
+  /** 指纹演变前的历史指纹：新文档记别名，旧文档保持原样；未传时 ingest 按旧机制指纹自动桥接 */
+  aliasOf?: string | readonly string[]
 }
 
 export type IngestIssueResult =
   | { documented: true; created: boolean; newOccurrence: boolean }
   | { documented: false; reason: "duplicate-evidence" | "lock-failed" | "corrupt-doc" | "io-failed" }
+
+/** 旧错误机制产出的 tool_failure 文档类别（构造器名回退与默认值），词表切换后的桥接目标 */
+const LEGACY_TOOL_FAILURE_CATEGORIES = ["Object", "unknown"] as const
+
+/**
+ * 桥接旧机制指纹（D7）：新类别 tool_failure 文档首次建档时，若同 (tool, tool_failure)
+ * 的旧机制文档实际存在，把旧指纹登记为 aliasOf 溯源标注；旧文档保留独立，不归并不改写。
+ */
+function legacyToolFailureAliases(paths: ToolInsightPaths, input: IngestIssueInput): string[] {
+  if (input.aliasOf !== undefined) return []
+  if (input.facts.scenario !== "tool_failure" || !input.facts.tool) return []
+  const fingerprints = LEGACY_TOOL_FAILURE_CATEGORIES.map((errorCategory) =>
+    issueFingerprint({ tool: input.facts.tool, scenario: "tool_failure", errorCategory }),
+  ).filter((fingerprint) => fingerprint !== input.fingerprint)
+  return fingerprints.filter((fingerprint) => !readIssueDoc(toolInsightIssuePath(paths, fingerprint)).error)
+}
 
 /**
  * 确定性摄取：document 锁内读改写问题文档并重建索引。
@@ -125,8 +142,10 @@ export async function ingestEvidenceIssue(
       }
 
       const now = new Date()
+      const legacyAliases = existing ? [] : legacyToolFailureAliases(paths, input)
       const meta: ToolInsightIssueMeta =
-        existing?.meta ?? createIssueMeta({ fingerprint: input.fingerprint, facts: input.facts, aliasOf: input.aliasOf, now })
+        existing?.meta ??
+        createIssueMeta({ fingerprint: input.fingerprint, facts: input.facts, aliasOf: input.aliasOf ?? legacyAliases, now })
       const created = !existing
 
       const newOccurrence = !meta.occurrence_ids.includes(input.occurrenceID)

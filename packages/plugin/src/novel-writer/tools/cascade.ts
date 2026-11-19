@@ -4,6 +4,7 @@
  */
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import {
   cascadeCheck,
   cascadeCreateTasks,
@@ -110,13 +111,20 @@ export const cascadeTools = {
     async execute(args, ctx) {
       const db = getDb(ctx.directory)
       if (args.status !== "done" && args.status !== "skipped") {
-        return { title: "cascade_resolve", output: "status 必须是 done 或 skipped" }
+        throw toolFailure("param_error", `status 必须是 done 或 skipped，收到「${args.status}」。`)
       }
       const ok = await cascadeResolve(db, args.task_id, args.status)
+      if (!ok) {
+        throw toolFailure(
+          "not_found",
+          `统改任务 ${args.task_id} 不存在。请用 cascade_list_pending 查看现存任务的 ID 后重试。`,
+          { code: "task_not_found" },
+        )
+      }
       return {
         title: "cascade_resolve",
-        output: ok ? `任务 ${args.task_id} 已标记为 ${args.status}` : `任务 ${args.task_id} 不存在`,
-        metadata: { resolved: ok },
+        output: `任务 ${args.task_id} 已标记为 ${args.status}`,
+        metadata: { resolved: true },
       }
     },
   }),
@@ -170,21 +178,33 @@ export const cascadeTools = {
       const db = getDb(ctx.directory)
       if (args.action === "confirm") {
         const ok = await confirmSemanticSuggestion(db, args.task_id)
+        if (!ok) {
+          throw toolFailure(
+            "state_conflict",
+            `任务 ${args.task_id} 不是待确认语义建议，无法确认。请用 cascade_list_pending 查看现存任务后再处理。`,
+          )
+        }
         return {
           title: "impact_semantic_review",
-          output: ok ? `语义建议 ${args.task_id} 已确认，进入待处理队列` : `任务 ${args.task_id} 不是待确认语义建议`,
-          metadata: { confirmed: ok },
+          output: `语义建议 ${args.task_id} 已确认，进入待处理队列`,
+          metadata: { confirmed: true },
         }
       }
       if (args.action === "ignore") {
         const ok = await ignoreSemanticSuggestion(db, args.task_id)
+        if (!ok) {
+          throw toolFailure(
+            "state_conflict",
+            `任务 ${args.task_id} 不是待确认语义建议，无法忽略。请用 cascade_list_pending 查看现存任务后再处理。`,
+          )
+        }
         return {
           title: "impact_semantic_review",
-          output: ok ? `语义建议 ${args.task_id} 已忽略` : `任务 ${args.task_id} 不是待确认语义建议`,
-          metadata: { ignored: ok },
+          output: `语义建议 ${args.task_id} 已忽略`,
+          metadata: { ignored: true },
         }
       }
-      return { title: "impact_semantic_review", output: "action 必须是 confirm 或 ignore" }
+      throw toolFailure("param_error", `action 必须是 confirm 或 ignore，收到「${args.action}」。`)
     },
   }),
   cascade_rebuild_refs: defineTool({

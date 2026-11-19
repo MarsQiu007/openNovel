@@ -203,6 +203,30 @@ describe("ToolRegistry", () => {
     }),
   )
 
+  it.effect("preserves failure metadata through error settlement", () =>
+    Effect.gen(function* () {
+      const service = yield* ToolRegistry.Service
+      yield* service.register({
+        categorized: Tool.make({
+          description: "Categorized",
+          input: Schema.Struct({}),
+          output: Schema.Struct({ ok: Schema.Boolean }),
+          execute: () =>
+            Effect.fail(
+              new Tool.Failure({ message: "章节不存在", metadata: { name: "not_found", code: "chapter_not_found" } }),
+            ),
+        }),
+      })
+      expect(
+        yield* executeTool(service, {
+          sessionID,
+          ...identity,
+          call: { type: "tool-call", id: "categorized", name: "categorized", input: {} },
+        }),
+      ).toEqual({ type: "error", value: "章节不存在", metadata: { name: "not_found", code: "chapter_not_found" } })
+    }),
+  )
+
   it.effect("propagates retention failures through settlement", () =>
     Effect.gen(function* () {
       const service = yield* ToolRegistry.Service

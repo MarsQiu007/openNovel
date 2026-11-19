@@ -154,16 +154,19 @@ describe("backfill_story_arcs 删除确认门", () => {
     expect(titles).toEqual(["九爷救赎弧", "旧主线", "林晚成长弧"])
   })
 
-  test("replace_matching 缺少 replace_match 时直接返回，不发起确认", async () => {
+  test("replace_matching 缺少 replace_match 时直接拒绝，不发起确认", async () => {
     const { tools } = await seed()
     const askCalls: AskRecord[] = []
-    const result = await tools.backfill_story_arcs.execute(
-      { arcs: newArcs, mode: "replace_matching" },
-      toolCtx(async (input) => {
-        askCalls.push(input)
-      }),
-    )
+    const err = await tools.backfill_story_arcs
+      .execute(
+        { arcs: newArcs, mode: "replace_matching" },
+        toolCtx(async (input) => {
+          askCalls.push(input)
+        }),
+      )
+      .then(() => null, (e: Error) => e)
     expect(askCalls.length).toBe(0)
-    expect(result).toMatchObject({ output: expect.stringContaining("需要提供 replace_match") })
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("需要提供 replace_match")
   })
 })

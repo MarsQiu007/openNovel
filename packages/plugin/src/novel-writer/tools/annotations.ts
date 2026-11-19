@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from "drizzle-orm"
 import { Schema } from "effect"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import {
   AnnotationRoundTable,
   ChapterVersionTable,
@@ -44,7 +45,12 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
       }),
       async execute(args, ctx) {
         const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "annotate", output: "未找到当前小说项目" }
+        if (!novelId) {
+          throw toolFailure(
+            "not_found",
+            "未找到当前小说项目。请先在全局对话用 init_novel 初始化书籍，或确认会话已绑定小说后再批注。",
+          )
+        }
         const field = args.field ?? "content"
         let source = args.source ?? "user"
         let authorSessionId: string | null = null
@@ -58,9 +64,19 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
             .from(WorldEntryTable)
             .where(and(eq(WorldEntryTable.id, args.target_id), eq(WorldEntryTable.novel_id, novelId)))
             .get()
-          if (!entry) return { title: "annotate", output: `world_entry 不存在：${args.target_id}` }
+          if (!entry) {
+            throw toolFailure(
+              "not_found",
+              `world_entry 不存在：${args.target_id}。请确认 ID 来自 read_setting / list_settings 等工具的真实返回，不要自行构造。`,
+            )
+          }
           quote = entry.content.includes(quote) ? quote : ""
-          if (!quote.trim()) return { title: "annotate", output: "quote 不是当前 world_entry 原文中的精确片段" }
+          if (!quote.trim()) {
+            throw toolFailure(
+              "param_error",
+              "quote 不是当前 world_entry 原文中的精确片段。请用 read_setting 读取条目全文后逐字复制要引用的片段。",
+            )
+          }
           if (args.paragraph_index != null) {
             const paragraphs = entry.content.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean)
             const paragraph = paragraphs[args.paragraph_index]
@@ -69,7 +85,10 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
             const endParagraphIndex = args.end_paragraph_index ?? args.paragraph_index
             if (endParagraphIndex === args.paragraph_index) {
               if (!paragraph || args.paragraph_index < 0 || start < 0 || end <= start || end > paragraph.length || paragraph.slice(start, end) !== quote) {
-                return { title: "annotate", output: "段落索引或偏移量与原文不一致" }
+                throw toolFailure(
+                  "param_error",
+                  "段落索引或偏移量与原文不一致。请用 read_setting 读取全文，按真实段落索引与偏移量重试。",
+                )
               }
             } else {
               // 跨段锚点：结构与边界校验 + quote 去空白宽松比较（与服务端校验语义一致）
@@ -84,7 +103,10 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
                 || end < 0 || end > endParagraph.length
                 || expected.replace(/\s+/g, "") !== quote.replace(/\s+/g, "")
               ) {
-                return { title: "annotate", output: "段落索引或偏移量与原文不一致" }
+                throw toolFailure(
+                  "param_error",
+                  "段落索引或偏移量与原文不一致。请用 read_setting 读取全文，按真实段落索引与偏移量重试。",
+                )
               }
             }
           }
@@ -139,7 +161,12 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
             .from(WorldEntryTable)
             .where(eq(WorldEntryTable.id, args.target_id))
             .get()
-          if (!entry) return { title: "list_annotations", output: `world_entry 不存在：${args.target_id}` }
+          if (!entry) {
+            throw toolFailure(
+              "not_found",
+              `world_entry 不存在：${args.target_id}。请确认 ID 来自 read_setting / list_settings 等工具的真实返回，不要自行构造。`,
+            )
+          }
         }
         const annotations = await listAnnotations(
           { targetType: args.target_type, targetId: args.target_id },
@@ -188,7 +215,12 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
       }),
       async execute(args, ctx) {
         const existing = await getAnnotation(args.annotation_id, ctx.directory)
-        if (!existing) return { title: "resolve_annotation", output: `批注不存在：${args.annotation_id}` }
+        if (!existing) {
+          throw toolFailure(
+            "not_found",
+            `批注不存在：${args.annotation_id}。请用 list_annotations 查看现存批注 ID 后重试。`,
+          )
+        }
         const updated = await updateAnnotation(
           args.annotation_id,
           { status: args.status, comment: args.comment },
@@ -216,9 +248,16 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
           .from(AnnotationRoundTable)
           .where(eq(AnnotationRoundTable.id, args.execution_round_id))
           .get()
-        if (!round) return { title: "report_annotation_execution", output: "执行轮次不存在" }
+        if (!round) {
+          throw toolFailure(
+            "not_found",
+            `执行轮次不存在：${args.execution_round_id}。轮次 ID 来自批注执行分发时的真实返回，不要自行构造。`,
+          )
+        }
         const targetId = round.target_id
-        if (!targetId) return { title: "report_annotation_execution", output: "执行轮次缺少目标 ID" }
+        if (!targetId) {
+          throw toolFailure("internal", "执行轮次缺少目标 ID，无法回填执行结果。请重新发起批注执行轮次。")
+        }
         let resultRefId: string | null = null
         if (args.status === "completed") {
           if (round.target_type === "world_entry") {
@@ -235,7 +274,10 @@ export function createAnnotationsTools(deps: { session: SessionDomain }) {
               .orderBy(desc(sql`rowid`))
               .get()
             if (!history) {
-              return { title: "report_annotation_execution", output: "completed 需要存在本次 world_entry 的 content 描述历史" }
+              throw toolFailure(
+                "state_conflict",
+                "completed 需要存在本次 world_entry 的 content 描述历史（description_history）。请先按批注完成设定改写，再回填执行结果；如无法完成请改报 failed。",
+              )
             }
             resultRefId = history.id
           } else {

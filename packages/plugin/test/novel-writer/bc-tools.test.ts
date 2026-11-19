@@ -115,12 +115,43 @@ describe("B/C tools", () => {
   test("plan_story_arc 角色弧引用不存在的角色名时返回清晰错误", async () => {
     await setupNovel()
     const tools = getTools()
-    const result = await tools.plan_story_arc!.execute(
-      { action: "create", arc_type: "character", title: "弧光", target_character_id: "林小满" },
-      toolCtx(),
-    )
-    expect(result.output).toContain("未找到角色")
-    expect(result.output).toContain("林小满")
+    const err = await tools.plan_story_arc!
+      .execute({ action: "create", arc_type: "character", title: "弧光", target_character_id: "林小满" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("未找到角色")
+    expect(err?.message).toContain("林小满")
+  })
+
+  test("plan_story_arc 更新不存在的结构线返回 not_found", async () => {
+    await setupNovel()
+    const tools = getTools()
+    const err = await tools.plan_story_arc!
+      .execute({ action: "update", arc_id: "arc-missing", title: "改名" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("结构线不存在")
+  })
+
+  test("record_arc_beat 更新不存在的节点返回 not_found", async () => {
+    await setupNovel()
+    const tools = getTools()
+    const err = await tools.record_arc_beat!
+      .execute({ action: "update", arc_id: "arc-x", beat_id: "beat-missing", label: "改名" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("节点不存在")
+  })
+
+  test("foreshadow_resolve 不存在的伏笔返回 not_found", async () => {
+    await setupNovel()
+    const tools = getTools()
+    const err = await tools.foreshadow_resolve!
+      .execute({ foreshadowing_id: "fs-missing", state: "resolved" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("伏笔不存在")
+    expect(err?.message).toContain("foreshadow_list")
   })
 
   test("record_arc_beat 创建节点", async () => {
@@ -299,11 +330,14 @@ describe("B/C tools", () => {
   test("report_annotation_execution 拒绝不存在的轮次", async () => {
     await setupNovel()
     const tools = getTools()
-    const result = await tools.report_annotation_execution!.execute(
-      { execution_round_id: "missing", status: "completed", result_summary: "不该写入" },
-      toolCtx(),
-    )
-    expect(result.output).toContain("执行轮次不存在")
+    const err = await tools.report_annotation_execution!
+      .execute(
+        { execution_round_id: "missing", status: "completed", result_summary: "不该写入" },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("执行轮次不存在")
   })
 
   test("polish_paragraph 生成润色建议", async () => {

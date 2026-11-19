@@ -176,6 +176,45 @@ describe("确定性摄取（document 锁）", () => {
     }
   })
 
+  test("旧机制指纹自动桥接：新类别 tool_failure 文档登记存在的旧指纹为 aliasOf", async () => {
+    const { root, paths } = newPaths()
+    try {
+      const toolFacts = (errorCategory: string) => facts({ scenario: "tool_failure", errorCategory })
+      // 旧机制文档（"Object" 类别）已存在，"unknown" 类别文档不存在
+      const fpLegacyObject = issueFingerprint(toolFacts("Object"))
+      await ingestEvidenceIssue(file, paths, ingestInput({ fingerprint: fpLegacyObject, facts: toolFacts("Object") }))
+      // 新类别文档首次 ingest：自动桥接存在的旧指纹，不存在的旧指纹不登记
+      const newFacts = toolFacts("not_found")
+      const fpNew = issueFingerprint(newFacts)
+      const result = await ingestEvidenceIssue(file, paths, ingestInput({ fingerprint: fpNew, facts: newFacts }))
+      expect(result).toMatchObject({ documented: true, created: true })
+      expect(readMeta(paths, fpNew).aliases).toEqual([fpLegacyObject])
+      // 旧文档原样保留
+      const legacyMeta = readMeta(paths, fpLegacyObject)
+      expect(legacyMeta.aliases).toEqual([])
+      expect(legacyMeta.evidence_ids).toHaveLength(1)
+      expect(legacyMeta.occurrence_count).toBe(1)
+    } finally {
+      cleanup(root)
+    }
+  })
+
+  test("桥接不误伤：非 tool_failure 场景与无旧文档时不登记别名", async () => {
+    const { root, paths } = newPaths()
+    try {
+      // 非 tool_failure 场景不桥接
+      const fpDetection = issueFingerprint(facts({ scenario: "recovery_failed", errorCategory: "not_found" }))
+      await ingestEvidenceIssue(file, paths, ingestInput({ fingerprint: fpDetection, facts: facts({ scenario: "recovery_failed", errorCategory: "not_found" }) }))
+      expect(readMeta(paths, fpDetection).aliases).toEqual([])
+      // tool_failure 但无任何旧机制文档时不桥接
+      const fpLonely = issueFingerprint(facts({ scenario: "tool_failure", errorCategory: "state_conflict" }))
+      await ingestEvidenceIssue(file, paths, ingestInput({ fingerprint: fpLonely, facts: facts({ scenario: "tool_failure", errorCategory: "state_conflict" }) }))
+      expect(readMeta(paths, fpLonely).aliases).toEqual([])
+    } finally {
+      cleanup(root)
+    }
+  })
+
   test("影响版本去重登记", async () => {
     const { root, paths } = newPaths()
     try {

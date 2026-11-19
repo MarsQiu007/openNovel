@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm"
 import { Schema } from "effect"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { backfillStoryArcs, resolveArcsToDelete } from "../arc-backfill.js"
 import {
   CharacterTable,
@@ -21,6 +22,16 @@ import {
 import { resolveSessionNovel } from "./session-novel.js"
 
 export function createArcsTools(deps: { session: SessionDomain }) {
+  const requireNovelId = async (sessionID: string, directory: string): Promise<string> => {
+    const novelId = await resolveSessionNovel(deps.session, sessionID, directory)
+    if (!novelId) {
+      throw toolFailure(
+        "not_found",
+        "未找到当前小说项目：当前会话未绑定书籍且项目内没有可解析的小说归属。请先在全局对话用 init_novel 初始化书籍，或确认会话归属后重试。",
+      )
+    }
+    return novelId
+  }
   return {
     list_story_arcs: defineTool({
       description:
@@ -34,8 +45,7 @@ export function createArcsTools(deps: { session: SessionDomain }) {
         })),
       }),
       async execute(args, ctx) {
-        const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "list_story_arcs", output: "未找到当前小说项目" }
+        const novelId = await requireNovelId(ctx.sessionID, ctx.directory)
         const allArcs = await listStoryArcs(novelId, ctx.directory)
         const arcs = allArcs.filter(
           (a) =>
@@ -88,8 +98,7 @@ export function createArcsTools(deps: { session: SessionDomain }) {
         actual_end_chapter: Schema.optional(Schema.Number),
       }),
       async execute(args, ctx) {
-        const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "plan_story_arc", output: "未找到当前小说项目" }
+        const novelId = await requireNovelId(ctx.sessionID, ctx.directory)
         // target_character_id 接受角色 ID 或角色名：architect/observer 手里通常只有名字，
         // 这里解析到真实 UUID，避免把名字直接写入外键触发 FOREIGN KEY constraint failed
         let resolvedCharacterId: string | null | undefined
@@ -112,10 +121,10 @@ export function createArcsTools(deps: { session: SessionDomain }) {
               .limit(1)
               .all()
             if (!byName) {
-              return {
-                title: "plan_story_arc",
-                output: `未找到角色「${ref}」，请先用 save_novel_settings 创建该角色，或传入正确的角色 ID`,
-              }
+              throw toolFailure(
+                "not_found",
+                `未找到角色「${ref}」。请先用 save_novel_settings 创建该角色，或传入正确的角色 ID。`,
+              )
             }
             resolvedCharacterId = byName.id
           }
@@ -135,6 +144,12 @@ export function createArcsTools(deps: { session: SessionDomain }) {
             },
             ctx.directory,
           )
+          if (!updated) {
+            throw toolFailure(
+              "not_found",
+              `结构线不存在：${args.arc_id.slice(0, 8)}。请确认 arc_id 来自 plan_story_arc 或 backfill_story_arcs 的真实返回，不要自行构造。`,
+            )
+          }
           return {
             title: "plan_story_arc",
             output: `已更新结构线「${updated.title}」状态为 ${updated.status}`,
@@ -195,6 +210,12 @@ export function createArcsTools(deps: { session: SessionDomain }) {
             },
             ctx.directory,
           )
+          if (!updated) {
+            throw toolFailure(
+              "not_found",
+              `节点不存在：${args.beat_id.slice(0, 8)}。请确认 beat_id 来自 record_arc_beat 创建时的真实返回，不要自行构造。`,
+            )
+          }
           return {
             title: "record_arc_beat",
             output: `已更新节点「${updated.label}」`,
@@ -283,11 +304,13 @@ export function createArcsTools(deps: { session: SessionDomain }) {
         ),
       }),
       async execute(args, ctx) {
-        const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "backfill_story_arcs", output: "未找到当前小说项目" }
+        const novelId = await requireNovelId(ctx.sessionID, ctx.directory)
         const mode = args.mode ?? "create_only"
         if (mode === "replace_matching" && !args.replace_match?.arc_type && !args.replace_match?.target_character_name) {
-          return { title: "backfill_story_arcs", output: "replace_matching 模式需要提供 replace_match（arc_type 和/或 target_character_name）" }
+          throw toolFailure(
+            "param_error",
+            "replace_matching 模式需要提供 replace_match（arc_type 和/或 target_character_name）。请补齐后重试。",
+          )
         }
         // replace 模式删除前请求确认：独立权限键 arc_rebuild 避开 agent 规则表对
         // 工具 ID 的通配 allow，审批记忆按模式粒度生效（openspec/changes/safe-delete-gates）
@@ -367,10 +390,10 @@ export function createArcsTools(deps: { session: SessionDomain }) {
             metadata: result,
           }
         } catch (err) {
-          return {
-            title: "backfill_story_arcs",
-            output: "弧光操作失败：" + (err instanceof Error ? err.message : String(err)),
-          }
+          throw toolFailure(
+            "internal",
+            `弧光操作失败：${err instanceof Error ? err.message : String(err)}`,
+          )
         }
       },
     }),

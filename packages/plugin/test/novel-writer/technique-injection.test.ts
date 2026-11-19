@@ -69,10 +69,16 @@ describe("writeProjectConfig 支持 technique_injection", () => {
   })
 
   test("非 boolean 字面量被拒绝", () => {
-    // 合法 JSON 但不是 boolean → 走到校验层被拒
-    const result = writeProjectConfig(projectDir, "novel", "technique_injection", '"yes"')
-    expect(result.output).toContain("校验失败")
-    expect(result.output).toContain("boolean")
+    // 合法 JSON 但不是 boolean → 走到校验层被拒（D2 转换后拒绝以 throw 表达）
+    let err: Error | null = null
+    try {
+      writeProjectConfig(projectDir, "novel", "technique_injection", '"yes"')
+    } catch (e) {
+      err = e instanceof Error ? e : new Error(String(e))
+    }
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
+    expect(err?.message).toContain("boolean")
   })
 })
 

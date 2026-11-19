@@ -7,6 +7,7 @@ import { readFileSync } from "fs"
 import { join } from "path"
 import { TOOL_INSIGHT_DEFAULT_SUBPATH } from "@opennovel-ai/plugin/tool-insight/settings"
 import { MODEL_SECTION_TITLES, ISSUE_SECTION_TITLES } from "@opennovel-ai/plugin/tool-insight/issue-doc"
+import { ToolErrorCategories } from "../../src/v2/effect/tool-failure.js"
 
 const docPath = join(import.meta.dir, "..", "..", "..", "..", "docs", "tool-insight.md")
 const doc = readFileSync(docPath, "utf-8")
@@ -53,5 +54,23 @@ describe("tool-insight 文档与实现一致", () => {
     expect(doc).toContain("模型使用")
     expect(doc).toContain("不会自动上报")
     expect(doc).toContain("默认不落盘")
+  })
+
+  test("错误类别词表、检测批量语义与 alias 溯源语义一致", () => {
+    // 词表逐项出现且以代码字面形状声明，实现侧词表改名时文档先红
+    for (const category of ToolErrorCategories) {
+      expect(doc).toContain(`\`${category}\``)
+    }
+    expect(doc).toContain("未分类")
+    // 检测批量语义：批量先发后收不建档，仅成功后同参重试计入
+    expect(doc).toContain("批量形态")
+    expect(doc).toContain("不生成对应问题记录")
+    expect(doc).toContain("再次以相同参数发起")
+    // 失败证据的脱敏标识符字段名
+    expect(doc).toContain("paramKeys")
+    expect(doc).toContain("`paramIdentifiers`")
+    // alias 溯源语义：登记旧指纹为别名，不归并不重写
+    expect(doc).toContain("历史溯源标注")
+    expect(doc).toContain("旧文档不合并、不重写、不重定向")
   })
 })

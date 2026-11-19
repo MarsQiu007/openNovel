@@ -6,6 +6,7 @@ import { Schema } from "effect"
 import { eq } from "drizzle-orm"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { checkContinuity, CONTINUITY_DIMENSIONS } from "../continuity-check.js"
 import {
   ChapterTable,
@@ -37,7 +38,10 @@ export function createReviewTools(deps: { session: SessionDomain }) {
         const novelId = await resolveNovelId(db, args.novel_id)
         const result = await checkContinuity(novelId, args.chapter_number, ctx.directory)
         if (!result) {
-          return { title: "check_continuity", output: "连续性检查失败：无法获取检查结果" }
+          throw toolFailure(
+            "internal",
+            `连续性检查失败：无法获取第 ${args.chapter_number} 章的检查结果。请确认章节存在后重试；若持续失败请检查检查器日志。`,
+          )
         }
         if (result.chapterId) {
           await createChapterReview(
@@ -88,10 +92,10 @@ export function createReviewTools(deps: { session: SessionDomain }) {
       async execute(args, ctx) {
         const invalid = args.dimensions.filter((d) => !CONTINUITY_DIMENSIONS.includes(d.dimension))
         if (invalid.length > 0) {
-          return {
-            title: "submit_chapter_review",
-            output: `提交失败：${invalid.length} 个维度名称不在评审维度清单中：${invalid.map((d) => d.dimension).join("、")}。有效维度：${CONTINUITY_DIMENSIONS.join("、")}`,
-          }
+          throw toolFailure(
+            "param_error",
+            `提交失败：${invalid.length} 个维度名称不在评审维度清单中：${invalid.map((d) => d.dimension).join("、")}。有效维度：${CONTINUITY_DIMENSIONS.join("、")}`,
+          )
         }
         const review = await createChapterReview(
           args.chapter_id,
@@ -199,7 +203,12 @@ export function createReviewTools(deps: { session: SessionDomain }) {
       args: Schema.Struct({}),
       async execute(_args, ctx) {
         const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "editorial_review", output: "未找到当前小说项目" }
+        if (!novelId) {
+          throw toolFailure(
+            "not_found",
+            "未找到当前小说项目。请先在全局对话用 init_novel 初始化书籍，或确认会话已绑定小说后再运行结构检查。",
+          )
+        }
         const data = await listStructureForEditor(novelId, ctx.directory)
         const report = checkStructure({
           arcs: data.arcs,

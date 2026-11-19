@@ -82,17 +82,17 @@ describe("begin_writing_batch 登记", () => {
   })
 
   test("起始章或总数非法时拒绝登记", async () => {
-    const badStart = await tools().begin_writing_batch.execute(
-      { novel_id: NOVEL, start_chapter: 0, total: 3 },
-      ctx(),
-    )
-    expect(outputOf(badStart)).toContain("起始章序号无效")
+    const badStart = await tools().begin_writing_batch
+      .execute({ novel_id: NOVEL, start_chapter: 0, total: 3 }, ctx())
+      .then(() => null, (e: Error) => e)
+    expect(badStart?.name).toBe("param_error")
+    expect(badStart?.message).toContain("起始章序号无效")
 
-    const badTotal = await tools().begin_writing_batch.execute(
-      { novel_id: NOVEL, start_chapter: 1, total: 1.5 },
-      ctx(),
-    )
-    expect(outputOf(badTotal)).toContain("批量总章数无效")
+    const badTotal = await tools().begin_writing_batch
+      .execute({ novel_id: NOVEL, start_chapter: 1, total: 1.5 }, ctx())
+      .then(() => null, (e: Error) => e)
+    expect(badTotal?.name).toBe("param_error")
+    expect(badTotal?.message).toContain("批量总章数无效")
     expect(await getWritingBatch(NOVEL, projectDir)).toBeUndefined()
   })
 })

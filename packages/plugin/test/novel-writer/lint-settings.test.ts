@@ -116,8 +116,12 @@ describe("rename_world_category", () => {
   test("目标分类不在白名单且无逃生门时拒绝", async () => {
     await seed()
     const tools = getHooks()
-    const result = await tools.rename_world_category.execute({ novel_id: "novel-lint", old_category: "力量", new_category: "乱七八糟" }, toolCtx())
-    expect(result.output).toContain("乱七八糟")
+    const err = await tools.rename_world_category
+      .execute({ novel_id: "novel-lint", old_category: "力量", new_category: "乱七八糟" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("乱七八糟")
+    expect(err?.message).toContain("allow_new_category")
     const db = getDb(projectDir)
     const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.category, "力量")).all()
     expect(rows).toHaveLength(2)
@@ -133,11 +137,14 @@ describe("rename_world_category", () => {
     expect(result.metadata!.updated).toBe(2)
   })
 
-  test("无匹配分类时不做任何修改", async () => {
+  test("无匹配分类时返回 not_found 失败", async () => {
     await seed()
     const tools = getHooks()
-    const result = await tools.rename_world_category.execute({ novel_id: "novel-lint", old_category: "不存在", new_category: "地理" }, toolCtx())
-    expect(result.output).toContain("未找到")
-    expect(result.metadata).toBeUndefined()
+    const err = await tools.rename_world_category
+      .execute({ novel_id: "novel-lint", old_category: "不存在", new_category: "地理" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("未找到")
+    expect(err?.message).toContain("lint_settings")
   })
 })

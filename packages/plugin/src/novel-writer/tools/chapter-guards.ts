@@ -4,6 +4,7 @@
  * 从 novel-writer.ts 原样搬入，V1/V2 双入口窗口期共用同一份实现。
  */
 import { and, eq, lt, notInArray } from "drizzle-orm"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { parseStyleRules } from "../context.js"
 import { ChapterTable, getDb, StyleGuideTable } from "../session-store.js"
 
@@ -63,31 +64,29 @@ export function detectCoordinateLeak(text: string): string[] {
 }
 
 /**
- * 章节字数区间校验：下限常驻，上限存在时双向拒绝。通过返回 null；拒绝返回带 reason 的结果。
- * 上限由调用方经 getChapterLengthMax 解析（非法/≤下限已降级为 null），本函数不做组合判定。
+ * 章节字数区间校验：下限常驻，上限存在时双向拒绝。通过静默返回；拒绝抛 content_rejected
+ * 失败（失败文本自含计数与修改指引）。上限由调用方经 getChapterLengthMax 解析（非法/≤下限
+ * 已降级为 null），本函数不做组合判定。
  */
 export function checkChapterLengthGate(
   toolName: string,
   wordCount: number,
   lower: number,
   upper: number | null,
-): { title: string; output: string; metadata: { rejected: true; reason: "too_short" | "too_long"; word_count: number; lower_bound: number; upper_bound: number | null } } | null {
+): void {
   if (wordCount < lower) {
     const actionText = toolName === "revise_chapter" ? "请在修订内容中补足字数后重新调用 revise_chapter" : "请扩写正文补足字数后重新调用 write_chapter，不要先写入不足的内容"
-    return {
-      title: `${toolName}（字数不达标）`,
-      output: `字数不足：当前 ${wordCount} 字，本章字数下限 ${lower} 字，还差 ${lower - wordCount} 字。${actionText}。`,
-      metadata: { rejected: true, reason: "too_short", word_count: wordCount, lower_bound: lower, upper_bound: upper },
-    }
+    throw toolFailure(
+      "content_rejected",
+      `字数不足：当前 ${wordCount} 字，本章字数下限 ${lower} 字，还差 ${lower - wordCount} 字。${actionText}。`,
+    )
   }
   if (upper != null && wordCount > upper) {
-    return {
-      title: `${toolName}（字数超标）`,
-      output: `字数超标：当前 ${wordCount} 字，超出本章字数上限 ${upper} 字。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白）而非砍剧情主线。`,
-      metadata: { rejected: true, reason: "too_long", word_count: wordCount, lower_bound: lower, upper_bound: upper },
-    }
+    throw toolFailure(
+      "content_rejected",
+      `字数超标：当前 ${wordCount} 字，超出本章字数上限 ${upper} 字。请精炼压缩后重新调用 ${toolName}：优先删除注水内容（重复描写/无意义对话/循环独白）而非砍剧情主线。`,
+    )
   }
-  return null
 }
 
 /**
@@ -149,32 +148,20 @@ export async function getFirstUnpassedChapter(
 }
 
 /**
- * 顺序门禁判定：前置存在未通过章节时组装拦截对象（只报最小 order 的第一个——
+ * 顺序门禁判定：前置存在未通过章节时抛 gate_blocked 失败（只报最小 order 的第一个——
  * 处理完它自然暴露下一个，消息保持简短）。firstUnpassed 为 null 表示放行。
  */
 export function checkChapterSequentialGate(
   toolName: string,
   firstUnpassed: { order: number; title: string; status: string } | null,
-): {
-  title: string
-  output: string
-  metadata: { blocked: true; reason: "sequential_blocked"; blocked_by_order: number; blocked_by_title: string; blocked_by_status: string }
-} | null {
-  if (!firstUnpassed) return null
+): void {
+  if (!firstUnpassed) return
   const actionText = toolName === "revise_chapter" ? "修订" : "写入"
-  return {
-    title: `${toolName}（前置章节未通过）`,
-    output:
-      `逐章串行约束：第 ${firstUnpassed.order} 章「${firstUnpassed.title}」当前状态为 ${firstUnpassed.status}，尚未通过审批，` +
+  throw toolFailure(
+    "gate_blocked",
+    `逐章串行约束：第 ${firstUnpassed.order} 章「${firstUnpassed.title}」当前状态为 ${firstUnpassed.status}，尚未通过审批，` +
       `不能${actionText}后续章节正文。请先处理第 ${firstUnpassed.order} 章（在阅读页审批通过，或重写使其通过）后再试。`,
-    metadata: {
-      blocked: true,
-      reason: "sequential_blocked",
-      blocked_by_order: firstUnpassed.order,
-      blocked_by_title: firstUnpassed.title,
-      blocked_by_status: firstUnpassed.status,
-    },
-  }
+  )
 }
 
 /**

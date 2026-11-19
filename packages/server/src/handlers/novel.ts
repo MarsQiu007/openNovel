@@ -1862,6 +1862,7 @@ export function updateForeshadowing(
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
     const row = yield* Effect.promise(() => storeUpdateForeshadowing(entryID, input, directory))
+    if (!row) return yield* Effect.fail(novelNotFound(entryID))
     return toForeshadowing(row)
   })
 }
@@ -2282,6 +2283,7 @@ function updateArc(arcId: string, input: Record<string, unknown>, directory: str
       actualStartChapter: input.actualStartChapter as number | null | undefined,
       actualEndChapter: input.actualEndChapter as number | null | undefined,
     }, directory))
+    if (!arc) return yield* Effect.fail(novelNotFound(arcId))
     return toStoryArc(arc)
   })
 }
@@ -2316,6 +2318,7 @@ function updateBeat(beatId: string, input: Record<string, unknown>, directory: s
       chapterId: input.chapterId as string | null | undefined,
       chapterOrder: input.chapterOrder as number | null | undefined,
     }, directory))
+    if (!beat) return yield* Effect.fail(novelNotFound(beatId))
     return toArcBeat(beat)
   })
 }

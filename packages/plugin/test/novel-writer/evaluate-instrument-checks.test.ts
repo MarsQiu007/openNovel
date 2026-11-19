@@ -202,16 +202,20 @@ describe("save_technique 工具埋点", () => {
 
   test("入库成功记 technique.learn.created", async () => {
     const result = await createWritingTools().save_technique.execute(validArgs, createToolContext(projectDir))
-    expect(result.action).not.toBe("rejected")
+    const meta = "metadata" in result ? result.metadata : undefined
+    expect(meta?.action).toBe("created")
     expect(sumByKey(domainEntries("c6-technique"), "technique.learn.created")).toBe(1)
   })
 
   test("模糊指令被拒记 technique.learn.rejected，且不产生 created", async () => {
-    const result = await createWritingTools().save_technique.execute(
-      { ...validArgs, name: "模糊技法", instruction: "要注意对话节奏" },
-      createToolContext(projectDir),
-    )
-    expect(result.action).toBe("rejected")
+    const err = await createWritingTools()
+      .save_technique.execute(
+        { ...validArgs, name: "模糊技法", instruction: "要注意对话节奏" },
+        createToolContext(projectDir),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("content_rejected")
+    expect(err?.message).toContain("技法入库被拒绝")
     const c6 = domainEntries("c6-technique")
     expect(sumByKey(c6, "technique.learn.rejected")).toBe(1)
     expect(sumByKey(c6, "technique.learn.created")).toBe(0)

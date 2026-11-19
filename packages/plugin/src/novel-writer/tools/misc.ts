@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import { Schema } from "effect"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { splitParagraphs } from "../annotation.js"
 import { validateWorldMapAiDraft } from "../map-ai.js"
 import { ChapterTable, createAnnotation, getDb, getWorldMapByStatus, replaceWorldMapDraft } from "../session-store.js"
@@ -23,14 +24,24 @@ export function createMiscTools(deps: { session: SessionDomain }) {
       }),
       async execute(args, ctx) {
         const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "polish_paragraph", output: "未找到当前小说项目" }
+        if (!novelId) {
+          throw toolFailure(
+            "not_found",
+            "未找到当前小说项目。请先在全局对话用 init_novel 初始化书籍，或确认会话已绑定小说后再润色段落。",
+          )
+        }
         const db = getDb(ctx.directory)
         const chapter = await db
           .select()
           .from(ChapterTable)
           .where(eq(ChapterTable.id, args.chapter_id))
           .get()
-        if (!chapter) return { title: "polish_paragraph", output: "章节不存在" }
+        if (!chapter) {
+          throw toolFailure(
+            "not_found",
+            `章节不存在：${args.chapter_id}。请确认 chapter_id 来自上游分发或章节工具的真实返回，不要自行构造。`,
+          )
+        }
         const paragraphs = splitParagraphs(chapter.content)
         const quote = paragraphs[args.paragraph_index] ?? ""
         const ann = await createAnnotation(
@@ -68,24 +79,32 @@ export function createMiscTools(deps: { session: SessionDomain }) {
       async execute(args, ctx) {
         const boundNovelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
         if (!boundNovelId || boundNovelId !== args.novel_id) {
-          return { title: "write_world_map_draft", output: "会话未绑定到目标小说，禁止写入地图草稿" }
+          throw toolFailure(
+            "state_conflict",
+            `会话未绑定到目标小说（novel_id=${args.novel_id}），禁止写入地图草稿。请先确认会话已绑定该书，或在正确的书籍会话中重试。`,
+          )
         }
         const existing = await getWorldMapByStatus(boundNovelId, "draft", ctx.directory)
         if (existing && !args.allow_replace) {
-          return { title: "write_world_map_draft", output: "已存在地图草稿，必须先获得用户明确确认后才能替换" }
+          throw toolFailure(
+            "state_conflict",
+            "已存在地图草稿，必须先获得用户明确确认后才能替换。请向用户说明将覆盖旧草稿，确认后传 allow_replace=true。",
+          )
         }
         let rawDraft: unknown
         try {
           rawDraft = JSON.parse(args.features_json)
         } catch {
-          return { title: "write_world_map_draft", output: "features_json 不是合法 JSON" }
+          throw toolFailure("param_error", "features_json 不是合法 JSON。请修正 JSON 语法后重试。")
         }
         const validated = validateWorldMapAiDraft({
           title: args.title,
           description: args.description,
           features: rawDraft,
         })
-        if (!validated.ok) return { title: "write_world_map_draft", output: validated.error }
+        if (!validated.ok) {
+          throw toolFailure("param_error", `${validated.error}。请按世界地图生成提示词的结构修正 features 后重试。`)
+        }
         const map = await replaceWorldMapDraft(
           boundNovelId,
           {

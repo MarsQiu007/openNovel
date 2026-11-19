@@ -8,6 +8,7 @@
  */
 
 import { createHash } from "node:crypto"
+import { isToolErrorCategory } from "../v2/effect/tool-failure.js"
 
 /** 脱敏摘要的长度上限：证据是事实索引，不是输出转储 */
 export const TOOL_INSIGHT_SUMMARY_MAX_CHARS = 200
@@ -166,8 +167,8 @@ export function redactToolCalled(tool: string, input: unknown): Record<string, u
 export function redactToolFailed(tool: string, error: unknown): Record<string, unknown> {
   const fields: Record<string, unknown> = { tool }
   if (isRecord(error)) {
-    if (typeof error.name === "string") fields.errorType = error.name
-    else fields.errorType = error.constructor?.name ?? "Error"
+    // 类别词表校验（双保险）：只透传命中类别词表的 name，构造器名/运行时类型名不充当类别
+    if (typeof error.name === "string" && isToolErrorCategory(error.name)) fields.errorType = error.name
     if (typeof error.code === "string" || typeof error.code === "number") fields.errorCode = error.code
     const message =
       typeof error.message === "string"
@@ -177,10 +178,36 @@ export function redactToolFailed(tool: string, error: unknown): Record<string, u
           : `object:${error.constructor?.name ?? "unknown"}`
     fields.errorDigest = redactSummary(message)
   } else {
-    fields.errorType = "Error"
     fields.errorDigest = redactSummary(String(error))
   }
   return fields
+}
+
+/** ID 形态参数键：值为可定位失败目标对象的标识符，白名单提取（D10） */
+const ID_KEY_PATTERN = /(?:^|_)id$/
+
+/**
+ * 失败证据的脱敏标识符摘要（D10）：只取 ID 形态键（`*_id`/`id`）的标量值，短标识
+ * 截断或短哈希转写，与 paramKeys 并存；正文键、非标量值与密钥形状键一律不进，
+ * 证据不含正文片段或完整参数值。
+ */
+export function redactParamIdentifiers(input: unknown): Record<string, string> | undefined {
+  if (!isRecord(input)) return undefined
+  const identifiers: Record<string, string> = {}
+  for (const key of Object.keys(input).sort()) {
+    if (!ID_KEY_PATTERN.test(key) || SECRET_KEY_PATTERN.test(key)) continue
+    const value = input[key]
+    const raw =
+      typeof value === "string"
+        ? value
+        : typeof value === "number" && Number.isFinite(value)
+          ? String(value)
+          : undefined
+    if (raw === undefined || raw.trim() === "") continue
+    // 短标识（无空白且 ≤64 字符）截断保留，自由文本形状转写短哈希：完整参数值不落盘
+    identifiers[key] = /\s/.test(raw) || raw.length > 64 ? stableHash(raw).slice(0, 8) : raw.slice(0, 12)
+  }
+  return Object.keys(identifiers).length > 0 ? identifiers : undefined
 }
 
 /** Tool.Success 白名单：成功标志、输出文件类别与核验标识；不保存 result/content 原文 */

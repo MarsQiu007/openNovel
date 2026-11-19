@@ -33,6 +33,7 @@ import { createStagedChangesFromPlan } from "../setting-review-staged.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
 import { validateWorldCategory, WORLD_ENTRY_CATEGORY_HINT } from "../world-category.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { isToolErrorCategory, toolFailure } from "../../v2/effect/tool-failure.js"
 import { resolveNovelId } from "./shared.js"
 
 export const settingsOpsTools = {
@@ -279,7 +280,7 @@ export const settingsOpsTools = {
     async execute(args, ctx) {
       const categoryError = validateWorldCategory(args.new_category)
       if (categoryError && !args.allow_new_category) {
-        return { title: "rename_world_category", output: categoryError }
+        throw toolFailure("param_error", `${categoryError}。请从标准分类列表中选择，或确认后传 allow_new_category=true。`)
       }
       const db = getDb(ctx.directory)
       const novelId = await resolveNovelId(db, args.novel_id)
@@ -289,7 +290,10 @@ export const settingsOpsTools = {
         .where(and(eq(WorldEntryTable.novel_id, novelId), eq(WorldEntryTable.category, args.old_category)))
         .all()
       if (rows.length === 0) {
-        return { title: "rename_world_category", output: `未找到分类为「${args.old_category}」的条目，未执行任何修改` }
+        throw toolFailure(
+          "not_found",
+          `未找到分类为「${args.old_category}」的条目，未执行任何修改。请先用 lint_settings 查看现存分类与条目。`,
+        )
       }
       // 单条批量 UPDATE：SQLite 单语句原子，避免逐条更新中途失败留下部分归类的中间态
       await db
@@ -344,15 +348,14 @@ export const settingsOpsTools = {
       }
 
       if (!args.plan_json) {
-        return { title: "organize_settings", output: `action=${args.action} 时必须提供 plan_json` }
+        throw toolFailure("param_error", `action=${args.action} 时必须提供 plan_json。请先用 action=analyze 获取真实条目 ID 再构造整理计划。`)
       }
       const parsed = parseOrganizePlan(args.plan_json)
       if (parsed.errors.length > 0 || !parsed.plan) {
-        return {
-          title: "organize_settings",
-          output: `整理计划解析失败：\n${parsed.errors.map((error) => `- ${error}`).join("\n")}`,
-          metadata: { action: args.action, novel_id: novelId, valid: false, errors: parsed.errors },
-        }
+        throw toolFailure(
+          "param_error",
+          `整理计划解析失败，未修改数据：\n${parsed.errors.map((error) => `- ${error}`).join("\n")}`,
+        )
       }
       const validation = validateOrganizePlan({
         plan: parsed.plan,
@@ -361,21 +364,19 @@ export const settingsOpsTools = {
         relatedCharacterIds: context.relatedCharacterIds,
       })
       if (!validation.ok) {
-        return {
-          title: "organize_settings",
-          output: `整理计划校验失败，未修改数据：\n${validation.errors.map((error) => `- ${error}`).join("\n")}`,
-          metadata: { action: args.action, novel_id: novelId, valid: false, errors: validation.errors, previews: validation.previews },
-        }
+        throw toolFailure(
+          "param_error",
+          `整理计划校验失败，未修改数据：\n${validation.errors.map((error) => `- ${error}`).join("\n")}`,
+        )
       }
 
       if (args.action === "stage") {
         const staged = await createStagedChangesFromPlan(ctx.directory, novelId, parsed.plan, { source: "agent" })
         if (!staged.ok) {
-          return {
-            title: "organize_settings",
-            output: `整理计划校验失败，未产出暂存：\n${staged.errors.map((error) => `- ${error}`).join("\n")}`,
-            metadata: { action: "stage", novel_id: novelId, valid: false, errors: staged.errors },
-          }
+          throw toolFailure(
+            "param_error",
+            `整理计划校验失败，未产出暂存：\n${staged.errors.map((error) => `- ${error}`).join("\n")}`,
+          )
         }
         const lines = [`✅ 已产出 ${staged.staged_ids.length} 条待审暂存草案（未修改任何正式数据），可在设定收件箱审阅`]
         for (const preview of validation.previews) {
@@ -401,11 +402,10 @@ export const settingsOpsTools = {
       if (args.action === "batch") {
         const batch = await runSettingReviewBatch(ctx.directory, novelId, parsed.plan, { source: "agent" })
         if (!batch.ok) {
-          return {
-            title: "organize_settings",
-            output: `批处理失败，未修改数据：\n${batch.errors.map((error) => `- ${error}`).join("\n")}`,
-            metadata: { action: "batch", novel_id: novelId, ok: false, errors: batch.errors },
-          }
+          throw toolFailure(
+            "param_error",
+            `批处理失败，未修改数据：\n${batch.errors.map((error) => `- ${error}`).join("\n")}`,
+          )
         }
         const lines = [
           `✅ 批处理完成：白名单内自动执行 ${batch.auto_executed} 条，新增待审 ${batch.pending_added} 条`,
@@ -584,7 +584,10 @@ export const settingsOpsTools = {
 
       try {
         if (!(await exists())) {
-          return { title: "delete_setting", output: `记录不存在：${type} ${id.slice(0, 8)}，未执行删除` }
+          throw toolFailure(
+            "not_found",
+            `记录不存在：${type} ${id.slice(0, 8)}，未执行删除。请先用 list_settings 定位真实 entity_id。`,
+          )
         }
         const hintKeys = await entityHintKeys()
         if (type === "character") await deleteCharacter(id, ctx.directory)
@@ -593,7 +596,7 @@ export const settingsOpsTools = {
         else if (type === "foreshadowing") await deleteForeshadowing(id, ctx.directory)
         else if (type === "volume") await deleteVolume(id, ctx.directory)
         else if (type === "relationship") await deleteRelationship(id, ctx.directory)
-        else return { title: "delete_setting", output: `不支持的实体类型：${type}` }
+        else throw toolFailure("param_error", `不支持的实体类型：${type}。支持：character/world_entry/plot_thread/foreshadowing/volume/relationship`)
         const retiredFacts = hintKeys.reduce((n, key) => n + retireFactsForEntity(db, novelId, key), 0)
         return {
           title: "delete_setting",
@@ -601,14 +604,22 @@ export const settingsOpsTools = {
           metadata: { entity_type: type, entity_id: id, retired_facts: retiredFacts },
         }
       } catch (err) {
+        // try 块内已分类的失败（not_found/param_error）原样放行，不重复包装
+        if (err instanceof Error && isToolErrorCategory(err.name)) throw err
         const msg = err instanceof Error ? err.message : String(err)
-        let output = `删除失败：${msg}`
         if (msg === "PROTAGONIST_CANNOT_BE_DELETED") {
-          output = `主角不能删除。如需更换主角，请先创建新主角并用 update_setting 将旧主角的 role 改为非主角，再退场或删除。`
-        } else if (msg === "CHARACTER_APPEARED_IN_CHAPTERS") {
-          output = `此角色已在章节正文中出场，不能硬删除（会破坏叙事连续性）。请改用 update_setting 将 status 设为 "departed" 让角色退场：退场后后续章节不再安排出场，但历史章节中的提及仍然有效。`
+          throw toolFailure(
+            "gate_blocked",
+            "主角不能删除（主角保护）。如需更换主角，请先创建新主角并用 update_setting 将旧主角的 role 改为非主角，再退场或删除。",
+          )
         }
-        return { title: "delete_setting", output }
+        if (msg === "CHARACTER_APPEARED_IN_CHAPTERS") {
+          throw toolFailure(
+            "gate_blocked",
+            '此角色已在章节正文中出场，不能硬删除（出场保护，会破坏叙事连续性）。请改用 update_setting 将 status 设为 "departed" 让角色退场：退场后后续章节不再安排出场，但历史章节中的提及仍然有效。',
+          )
+        }
+        throw toolFailure("internal", `删除失败：${msg}。删除未执行，请检查后重试。`)
       }
     },
   }),
@@ -636,10 +647,10 @@ export const settingsOpsTools = {
       try {
         fields = JSON.parse(args.fields_json) as Record<string, unknown>
       } catch {
-        return { title: "update_setting", output: `fields_json 不是合法 JSON：${args.fields_json}` }
+        throw toolFailure("param_error", `fields_json 不是合法 JSON：${args.fields_json}。请修正 JSON 语法后重试。`)
       }
       if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
-        return { title: "update_setting", output: "fields_json 必须是非空对象" }
+        throw toolFailure("param_error", "fields_json 必须是非空对象。请提供要更新的字段，如 {\"state\":\"resolved\"}。")
       }
       for (const field of SETTING_TEXT_FIELDS[type] ?? []) {
         if (typeof fields[field] === "string") fields[field] = normalizeSettingText(fields[field] as string)
@@ -649,11 +660,7 @@ export const settingsOpsTools = {
         return error ? [`${type}.${field}：${error}`] : []
       })
       if (textErrors.length > 0) {
-        return {
-          title: "update_setting",
-          output: `设定文本格式校验失败：\n${textErrors.join("\n")}`,
-          metadata: { entity_type: type, entity_id: id, errors: textErrors },
-        }
+        throw toolFailure("param_error", `设定文本格式校验失败：\n${textErrors.join("\n")}`)
       }
       const db = getDb(ctx.directory)
       // 引用追踪 + 级联副作用
@@ -670,13 +677,19 @@ export const settingsOpsTools = {
             .where(eq(WorldEntryTable.id, id))
             .get()
           if (!oldRow) {
-            return { title: "update_setting", output: `world_entry 不存在：${id.slice(0, 8)}` }
+            throw toolFailure(
+              "not_found",
+              `world_entry 不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+            )
           }
           const f: { category?: string; title?: string; content?: string } = {}
           if (typeof fields.category === "string") {
             const categoryError = validateWorldCategory(fields.category)
             if (categoryError && !args.allow_new_category) {
-              return { title: "update_setting", output: categoryError }
+              throw toolFailure(
+                "param_error",
+                `${categoryError}。请从标准分类列表中选择，或确认后传 allow_new_category=true。`,
+              )
             }
             f.category = fields.category
           }
@@ -741,7 +754,10 @@ export const settingsOpsTools = {
             .where(eq(PlotThreadTable.id, id))
             .get()
           if (!oldRow) {
-            return { title: "update_setting", output: `plot_thread 不存在：${id.slice(0, 8)}` }
+            throw toolFailure(
+              "not_found",
+              `plot_thread 不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+            )
           }
           const f: { title?: string; status?: string; priority?: string; description?: string } = {}
           if (typeof fields.title === "string") f.title = fields.title
@@ -778,7 +794,10 @@ export const settingsOpsTools = {
             .where(eq(ForeshadowingTable.id, id))
             .get()
           if (!oldRow) {
-            return { title: "update_setting", output: `foreshadowing 不存在：${id.slice(0, 8)}` }
+            throw toolFailure(
+              "not_found",
+              `foreshadowing 不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+            )
           }
           const f: { content?: string; state?: string; resolvedChapterId?: string | null } = {}
           if (typeof fields.content === "string") f.content = fields.content
@@ -816,7 +835,10 @@ export const settingsOpsTools = {
             .where(eq(RelationshipTable.id, id))
             .get()
           if (!oldRow) {
-            return { title: "update_setting", output: `relationship 不存在：${id.slice(0, 8)}` }
+            throw toolFailure(
+              "not_found",
+              `relationship 不存在：${id.slice(0, 8)}。请先用 list_settings 定位真实 entity_id，不要自行构造。`,
+            )
           }
           const f: { type?: string; description?: string } = {}
           if (typeof fields.type === "string") f.type = fields.type
@@ -845,7 +867,10 @@ export const settingsOpsTools = {
             updateImpact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
           }
         } else {
-          return { title: "update_setting", output: `不支持的实体类型：${type}` }
+          throw toolFailure(
+            "param_error",
+            `不支持的实体类型：${type}。支持：world_entry / plot_thread / foreshadowing / relationship`,
+          )
         }
         // 拼接级联提示 + 历史归档提示
         let cascadeLine = ""
@@ -877,10 +902,12 @@ export const settingsOpsTools = {
           metadata: { entity_type: type, entity_id: id, updated: Object.keys(fields), cascade: cascadeSummary, history_archived: historyEntries, impact: updateImpact },
         }
       } catch (err) {
-        return {
-          title: "update_setting",
-          output: `更新失败：${err instanceof Error ? err.message : String(err)}`,
-        }
+        // try 块内已分类的失败原样放行，不重复包装
+        if (err instanceof Error && isToolErrorCategory(err.name)) throw err
+        throw toolFailure(
+          "internal",
+          `更新失败：${err instanceof Error ? err.message : String(err)}。本次更新未完成，请检查后重试。`,
+        )
       }
     },
   }),

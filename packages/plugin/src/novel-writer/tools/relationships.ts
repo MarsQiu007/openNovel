@@ -5,6 +5,7 @@
 import { and, eq } from "drizzle-orm"
 import { Schema } from "effect"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { deduplicateRelationships, listDescriptionHistory, restoreDescription, scanReferences } from "../state-commit.js"
 import { applyImpact, buildImpactReport, planImpact } from "../setting-impact.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
@@ -28,14 +29,11 @@ export const relationshipsTools = {
       // V2 args 字段只读，normalize 后的描述改用局部变量承载（V1 原地写回 args.description）
       const description = typeof args.description === "string" ? normalizeSettingText(args.description) : args.description
       const textError = settingTextFormatError(description ?? "", "relationship", "description")
-      if (textError) return { title: "create_relationship", output: `设定文本格式校验失败：${textError}` }
+      if (textError) throw toolFailure("param_error", `设定文本格式校验失败：${textError}`)
 
-      const resolveChar = async (
-        input: string,
-        label: string,
-      ): Promise<{ id: string } | { error: string }> => {
+      const resolveChar = async (input: string, label: string): Promise<string> => {
         const trimmed = input.trim()
-        if (!trimmed) return { error: `${label}：不能为空` }
+        if (!trimmed) throw toolFailure("param_error", `${label}：不能为空。请提供角色名或角色 UUID。`)
         if (trimmed.length === 36 && trimmed.includes("-")) {
           const [row] = await db
             .select({ id: CharacterTable.id })
@@ -43,29 +41,37 @@ export const relationshipsTools = {
             .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.id, trimmed)))
             .limit(1)
             .all()
-          return row ? { id: row.id } : { error: `${label}：ID "${trimmed}" 不属于本小说或不存在` }
+          if (row) return row.id
+          throw toolFailure(
+            "not_found",
+            `${label}：ID "${trimmed}" 不属于本小说或不存在。请改用角色名，或确认 ID 来自真实返回。`,
+          )
         }
         const rows = await db
           .select({ id: CharacterTable.id })
           .from(CharacterTable)
           .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.name, trimmed)))
           .all()
-        if (rows.length === 1) return { id: rows[0].id }
+        if (rows.length === 1) return rows[0].id
         if (rows.length > 1) {
-          return { error: `${label}：姓名 "${trimmed}" 匹配到 ${rows.length} 个角色，存在歧义，请使用 UUID` }
+          throw toolFailure(
+            "param_error",
+            `${label}：姓名 "${trimmed}" 匹配到 ${rows.length} 个角色，存在歧义。请改用角色 UUID。`,
+          )
         }
-        return { error: `${label}：姓名 "${trimmed}" 未匹配到任何角色` }
+        throw toolFailure(
+          "not_found",
+          `${label}：姓名 "${trimmed}" 未匹配到任何角色。请先用 save_novel_settings 创建该角色，或检查名字是否正确。`,
+        )
       }
 
       const a = await resolveChar(args.char_a, "char_a")
-      if ("error" in a) return { title: "create_relationship", output: a.error }
       const b = await resolveChar(args.char_b, "char_b")
-      if ("error" in b) return { title: "create_relationship", output: b.error }
-      if (a.id === b.id) {
-        return { title: "create_relationship", output: "char_a 和 char_b 不能是同一角色" }
+      if (a === b) {
+        throw toolFailure("param_error", "char_a 和 char_b 不能是同一角色。")
       }
       if (!args.type.trim()) {
-        return { title: "create_relationship", output: "type 不能为空" }
+        throw toolFailure("param_error", "type 不能为空。请填写关系类型（如 亲情/友情/敌对/mentor）。")
       }
 
       const id = crypto.randomUUID()
@@ -74,8 +80,8 @@ export const relationshipsTools = {
         .values({
           id,
           novel_id: novelId,
-          char_a_id: a.id,
-          char_b_id: b.id,
+          char_a_id: a,
+          char_b_id: b,
           type: args.type.trim(),
           description: (description ?? "").trim(),
         })
@@ -446,11 +452,14 @@ export const relationshipsTools = {
 
       if (action === "restore") {
         if (!args.history_id) {
-          return { title: "description_history", output: "action=restore 时需要提供 history_id" }
+          throw toolFailure("param_error", "action=restore 时需要提供 history_id。可先用 action=list 查看现存历史记录。")
         }
         const result = await restoreDescription(ctx.directory, args.history_id)
         if (!result) {
-          return { title: "description_history", output: `历史记录不存在：${args.history_id}` }
+          throw toolFailure(
+            "not_found",
+            `历史记录不存在：${args.history_id}。请先用 action=list 查看该实体的现存历史记录 ID。`,
+          )
         }
         return {
           title: "description_history（已恢复）",

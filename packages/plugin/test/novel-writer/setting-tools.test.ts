@@ -62,23 +62,24 @@ describe("read_setting", () => {
     expect(row.content).toContain("五等爵位传承制度")
   })
 
-  test("记录不存在时返回错误信息", async () => {
+  test("记录不存在时返回 not_found 失败", async () => {
     const { tools } = await seed()
-    const result = await tools.read_setting.execute(
-      { novel_id: "novel-tools", entity_type: "world_entry", entity_id: "world-missing" },
-      toolCtx(),
-    )
-    expect(result.output).toContain("记录不存在")
+    const err = await tools.read_setting
+      .execute({ novel_id: "novel-tools", entity_type: "world_entry", entity_id: "world-missing" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("not_found")
+    expect(err?.message).toContain("记录不存在")
+    expect(err?.message).toContain("list_settings")
   })
 
-  test("不支持的类型返回类型列表", async () => {
+  test("不支持的类型返回 param_error 失败并附类型列表", async () => {
     const { tools } = await seed()
-    const result = await tools.read_setting.execute(
-      { novel_id: "novel-tools", entity_type: "artifact", entity_id: "anything" },
-      toolCtx(),
-    )
-    expect(result.output).toContain("不支持的实体类型")
-    expect(result.output).toContain("world_entry")
+    const err = await tools.read_setting
+      .execute({ novel_id: "novel-tools", entity_type: "artifact", entity_id: "anything" }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("不支持的实体类型")
+    expect(err?.message).toContain("world_entry")
   })
 })
 
@@ -112,9 +113,12 @@ describe("search_settings", () => {
     expect(result.output).toContain("未找到")
   })
 
-  test("空关键词返回参数校验错误", async () => {
+  test("空关键词返回 param_error 失败", async () => {
     const { tools } = await seed()
-    const result = await tools.search_settings.execute({ novel_id: "novel-tools", query: "  " }, toolCtx())
-    expect(result.output).toContain("query 不能为空")
+    const err = await tools.search_settings
+      .execute({ novel_id: "novel-tools", query: "  " }, toolCtx())
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("query 不能为空")
   })
 })

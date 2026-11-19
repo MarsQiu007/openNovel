@@ -5,6 +5,7 @@
 import { Schema } from "effect"
 import { and, asc, eq } from "drizzle-orm"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { normalizeSettingText, SETTING_TEXT_FORMAT_RULE, settingTextFormatError } from "../setting-text.js"
 import { createForeshadowing, ForeshadowingTable, getDb, updateForeshadowing } from "../session-store.js"
 import { resolveNovelId } from "./shared.js"
@@ -25,7 +26,7 @@ export const foreshadowTools = {
       // V2 args 为 readonly，V1 的 args.content 原地归一化改为局部变量
       const content = normalizeSettingText(args.content)
       const textError = settingTextFormatError(content, "foreshadowing", "content")
-      if (textError) return { title: "foreshadow_plant", output: `设定文本格式校验失败：${textError}` }
+      if (textError) throw toolFailure("param_error", `设定文本格式校验失败：${textError}`)
       // 同 novel 内按 content 去重
       const [existing] = await db
         .select()
@@ -61,10 +62,10 @@ export const foreshadowTools = {
     }),
     async execute(args, ctx) {
       if (!["hinted", "resolved", "abandoned"].includes(args.state)) {
-        return {
-          title: "foreshadow_resolve",
-          output: `state 必须是 hinted/resolved/abandoned，收到：${args.state}`,
-        }
+        throw toolFailure(
+          "param_error",
+          `state 必须是 hinted/resolved/abandoned，收到：${args.state}。请修正 state 后重试。`,
+        )
       }
       const row = await updateForeshadowing(
         args.foreshadowing_id,
@@ -74,6 +75,12 @@ export const foreshadowTools = {
         },
         ctx.directory,
       )
+      if (!row) {
+        throw toolFailure(
+          "not_found",
+          `伏笔不存在：${args.foreshadowing_id.slice(0, 8)}。请先用 foreshadow_list 定位真实伏笔 ID，不要自行构造。`,
+        )
+      }
       return {
         title: "foreshadow_resolve",
         output: `伏笔已${args.state === "resolved" ? "回收" : args.state === "hinted" ? "标记为暗示" : "废弃"}：${row.content.slice(0, 60)}`,

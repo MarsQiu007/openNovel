@@ -108,32 +108,37 @@ describe("setting paragraph prompts", () => {
 describe("setting write tools", () => {
   test("save_novel_settings 拒绝 Markdown 内容", async () => {
     const { db, tools } = await seed()
-    const result = await tools.save_novel_settings.execute(
-      {
-        novel_id: "novel-text",
-        settings_json: JSON.stringify([
-          { type: "world_entry", data: { category: "力量体系", title: "炼气期", content: "## 炼气期\n\n**吸纳灵气。**" } },
-        ]),
-      },
-      toolCtx(),
-    )
-    expect(result.output).toContain("设定文本格式校验失败")
-    expect(result.metadata.count).toBe(0)
+    const err = await tools.save_novel_settings
+      .execute(
+        {
+          novel_id: "novel-text",
+          settings_json: JSON.stringify([
+            { type: "world_entry", data: { category: "力量体系", title: "炼气期", content: "## 炼气期\n\n**吸纳灵气。**" } },
+          ]),
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("设定文本格式校验失败")
     const rows = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.title, "炼气期")).all()
     expect(rows).toHaveLength(0)
   })
 
   test("update_setting 拒绝 Markdown 内容", async () => {
     const { db, tools } = await seed()
-    const result = await tools.update_setting.execute(
-      {
-        entity_type: "world_entry",
-        entity_id: "world-text",
-        fields_json: JSON.stringify({ content: "- 第一境界\n- 第二境界" }),
-      },
-      toolCtx(),
-    )
-    expect(result.output).toContain("设定文本格式校验失败")
+    const err = await tools.update_setting
+      .execute(
+        {
+          entity_type: "world_entry",
+          entity_id: "world-text",
+          fields_json: JSON.stringify({ content: "- 第一境界\n- 第二境界" }),
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("设定文本格式校验失败")
     const [row] = await db.select().from(WorldEntryTable).where(eq(WorldEntryTable.id, "world-text")).all()
     expect(row.content).toBe("锻体期是第一境界。\n\n主要强化肉身。")
   })
@@ -175,31 +180,36 @@ describe("setting write tools", () => {
   test("save_novel_settings 拒绝超过 600 字的单段内容", async () => {
     const content = "字".repeat(650)
     const { tools } = await seed()
-    const result = await tools.save_novel_settings.execute(
-      {
-        novel_id: "novel-text",
-        settings_json: JSON.stringify([
-          { type: "world_entry", data: { category: "力量体系", title: "单段长文", content } },
-        ]),
-      },
-      toolCtx(),
-    )
-    expect(result.output).toContain("超过 600 字")
-    expect(result.metadata.count).toBe(0)
+    const err = await tools.save_novel_settings
+      .execute(
+        {
+          novel_id: "novel-text",
+          settings_json: JSON.stringify([
+            { type: "world_entry", data: { category: "力量体系", title: "单段长文", content } },
+          ]),
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("超过 600 字")
   })
 
   test("update_setting 拒绝超过 600 字的单段内容", async () => {
     const content = "字".repeat(650)
     const { tools } = await seed()
-    const result = await tools.update_setting.execute(
-      {
-        entity_type: "world_entry",
-        entity_id: "world-text",
-        fields_json: JSON.stringify({ content }),
-      },
-      toolCtx(),
-    )
-    expect(result.output).toContain("超过 600 字")
+    const err = await tools.update_setting
+      .execute(
+        {
+          entity_type: "world_entry",
+          entity_id: "world-text",
+          fields_json: JSON.stringify({ content }),
+        },
+        toolCtx(),
+      )
+      .then(() => null, (e: Error) => e)
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("超过 600 字")
   })
 
   test("update_setting 将单个换行规范化为空行分段", async () => {

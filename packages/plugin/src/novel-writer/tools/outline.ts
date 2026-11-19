@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm"
 import { Schema } from "effect"
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { defineTool } from "../../v2/effect/tool.js"
+import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { sanitizeLayout, defaultLayout } from "../outline-canvas.js"
 import { generateChapterOutline, generateMasterOutline, generateVolumeOutline } from "../outline.js"
 import { readChapterOutline } from "../pipeline.js"
@@ -28,6 +29,16 @@ import { recordMetricsBatch } from "../evaluate/metrics.js"
 import { resolveSessionNovel } from "./session-novel.js"
 
 export function createOutlineTools(deps: { session: SessionDomain }) {
+  const requireSessionNovelId = async (sessionID: string, directory: string): Promise<string> => {
+    const novelId = await resolveSessionNovel(deps.session, sessionID, directory)
+    if (!novelId) {
+      throw toolFailure(
+        "not_found",
+        "未找到当前小说项目：当前会话未绑定书籍且项目内没有可解析的小说归属。请先在全局对话用 init_novel 初始化书籍，或确认会话归属后重试。",
+      )
+    }
+    return novelId
+  }
   return {
     generate_master_outline: defineTool({
       description:
@@ -137,18 +148,12 @@ export function createOutlineTools(deps: { session: SessionDomain }) {
             args.volume_number,
           )
         } catch (error) {
-          // 跳号拒绝在此翻译为用户可读指引：store 已保证不写入任何记录，原样上抛其余错误
+          // 跳号拒绝在此翻译为稳定类别失败：store 已保证不写入任何记录，原样上抛其余错误
           if (error instanceof ChapterSequenceGapError) {
-            return {
-              title: "generate_chapter_outline",
-              output: `生成被拒绝：第 ${error.missingOrder} 章记录缺失，章节序号不允许跳号。请先调用 generate_chapter_outline 依次补齐第 ${error.missingOrder} 章及其后各章大纲，再生成第 ${args.chapter_number} 章。`,
-              metadata: {
-                novel_id: novelId,
-                chapter_number: args.chapter_number,
-                refused: true,
-                missing_order: error.missingOrder,
-              },
-            }
+            throw toolFailure(
+              "gate_blocked",
+              `生成被拒绝：第 ${error.missingOrder} 章记录缺失，章节序号不允许跳号。请先调用 generate_chapter_outline 依次补齐第 ${error.missingOrder} 章及其后各章大纲，再生成第 ${args.chapter_number} 章。`,
+            )
           }
           throw error
         }
@@ -172,10 +177,10 @@ export function createOutlineTools(deps: { session: SessionDomain }) {
         const novelId = await resolveNovelId(db, args.novel_id)
         const chapter = await readChapterOutline(novelId, args.chapter_number, ctx.directory)
         if (!chapter) {
-          return {
-            title: "read_chapter_outline",
-            output: `第${args.chapter_number}章不存在，请先调用 generate_chapter_outline 生成大纲`,
-          }
+          throw toolFailure(
+            "not_found",
+            `第${args.chapter_number}章不存在。请先调用 generate_chapter_outline 生成大纲，或用 list_chapters 确认章节序号。`,
+          )
         }
         const resolvedOutline = await resolveChapterOutline(novelId, args.chapter_number, ctx.directory)
         const outlineSection = resolvedOutline.available
@@ -216,11 +221,11 @@ export function createOutlineTools(deps: { session: SessionDomain }) {
       }),
       async execute(args, ctx) {
         if ((args.type === "volume" || args.type === "chapter") && typeof args.number !== "number") {
-          return { title: "read_outline", output: `type=${args.type} 时必须提供 number 参数` }
+          throw toolFailure("param_error", `type=${args.type} 时必须提供 number 参数。`)
         }
         if (args.type === "chapter") {
           if (typeof args.number !== "number") {
-            return { title: "read_outline", output: `type=chapter 时必须提供 number 参数` }
+            throw toolFailure("param_error", "type=chapter 时必须提供 number 参数。")
           }
           const db = getDb(ctx.directory)
           let novelId: string | null = null
@@ -277,7 +282,7 @@ ${sceneChecklist}`
               return { title: "read_outline", output: resolved.outline, metadata: { source: resolved.source, length: resolved.outline.length } }
             }
           }
-          return { title: "read_outline", output: "总纲不存在。请先调用 generate_master_outline 工具生成。" }
+          throw toolFailure("not_found", "总纲不存在。请先调用 generate_master_outline 工具生成。")
         }
         if (args.type === "volume") {
           const db = getDb(ctx.directory)
@@ -294,9 +299,12 @@ ${sceneChecklist}`
               return { title: "read_outline", output: resolved.outline, metadata: { source: resolved.source, volume_number: args.number, length: resolved.outline.length } }
             }
           }
-          return { title: "read_outline", output: `第${args.number}卷大纲不存在。请先调用 generate_volume_outline 工具生成。` }
+          throw toolFailure(
+            "not_found",
+            `第${args.number}卷大纲不存在。请先调用 generate_volume_outline 工具生成。`,
+          )
         }
-        return { title: "read_outline", output: "未找到大纲。请先调用对应的 generate_*_outline 工具生成。" }
+        throw toolFailure("not_found", "未找到大纲。请先调用对应的 generate_*_outline 工具生成。")
       },
     }),
 
@@ -304,8 +312,7 @@ ${sceneChecklist}`
       description: "读取大纲画布布局。损坏时返回自动布局。",
       args: Schema.Struct({}),
       async execute(_args, ctx) {
-        const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "read_outline_canvas", output: "未找到当前小说项目" }
+        const novelId = await requireSessionNovelId(ctx.sessionID, ctx.directory)
         const raw = await getOutlineCanvasLayout(novelId, ctx.directory)
         const data = await listStructureForEditor(novelId, ctx.directory)
         const layout = sanitizeLayout(
@@ -329,9 +336,13 @@ ${sceneChecklist}`
         layout: Schema.String.annotate({ description: "画布布局 JSON 字符串" }),
       }),
       async execute(args, ctx) {
-        const novelId = await resolveSessionNovel(deps.session, ctx.sessionID, ctx.directory)
-        if (!novelId) return { title: "write_outline_canvas", output: "未找到当前小说项目" }
-        const parsed = JSON.parse(args.layout)
+        const novelId = await requireSessionNovelId(ctx.sessionID, ctx.directory)
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(args.layout) as unknown
+        } catch {
+          throw toolFailure("param_error", "layout 不是合法 JSON，请传入合法的画布布局 JSON 字符串。")
+        }
         const layout = sanitizeLayout(parsed)
         await upsertOutlineCanvasLayout(novelId, layout, ctx.directory)
         return {

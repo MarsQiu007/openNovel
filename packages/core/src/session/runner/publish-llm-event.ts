@@ -1,4 +1,5 @@
 import { ToolOutput, type LLMEvent, type ProviderMetadata, type ToolResultValue, type Usage } from "@opennovel-ai/llm"
+import { isToolErrorCategory } from "@opennovel-ai/plugin/v2/effect"
 import { DateTime, Effect } from "effect"
 import { EventV2 } from "../../event"
 import { ModelV2 } from "../../model"
@@ -41,10 +42,30 @@ const message = (value: unknown) => {
 
 type SettledOutput =
   | { readonly structured: Record<string, unknown>; readonly content: ToolOutput["content"] }
-  | { readonly error: { readonly type: "unknown"; readonly message: string } }
+  | {
+      readonly error: {
+        readonly type: "unknown"
+        readonly message: string
+        readonly name?: string
+        readonly code?: string
+      }
+    }
 
 const settledOutput = (value: ToolOutput | undefined, result: ToolResultValue): SettledOutput => {
-  if (result.type === "error") return { error: { type: "unknown", message: message(result.value) } }
+  if (result.type === "error") {
+    // 词表复校验（design D4）：上游透传链即使漏检，运行时类型名也不得进事件类别
+    const metadata = result.metadata
+    const name = metadata !== undefined && isToolErrorCategory(metadata.name) ? metadata.name : undefined
+    const code = typeof metadata?.code === "string" && name !== undefined ? metadata.code : undefined
+    return {
+      error: {
+        type: "unknown",
+        message: message(result.value),
+        ...(name === undefined ? {} : { name }),
+        ...(code === undefined ? {} : { code }),
+      },
+    }
+  }
   const settled = value ?? ToolOutput.fromResultValue(result)
   if (!settled) throw new Error(`Unsupported tool result: ${message(result)}`)
   return { structured: record(settled.structured), content: settled.content }

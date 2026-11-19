@@ -33937,6 +33937,12 @@
           },
           "message": {
             "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
           }
         },
         "required": ["type", "message"],

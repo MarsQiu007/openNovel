@@ -17,6 +17,16 @@ let projectDir: string
 let originalHome: string | undefined
 let originalUserProfile: string | undefined
 
+/** writeProjectConfig 业务拒绝已改为 throw（D2）：同步捕获供断言 */
+function catchSync(fn: () => unknown): Error | null {
+  try {
+    fn()
+    return null
+  } catch (e) {
+    return e instanceof Error ? e : new Error(String(e))
+  }
+}
+
 beforeEach(() => {
   projectDir = join(tmpdir(), `novel-project-config-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   mkdirSync(projectDir, { recursive: true })
@@ -160,9 +170,10 @@ describe("writeProjectConfig", () => {
   test("model 缺 provider 部分被拒绝", () => {
     const file = join(projectDir, "opennovel.json")
     writeFileSync(file, JSON.stringify({ model: "qwen3.7-plus" }))
-    const result = writeProjectConfig(projectDir, "opennovel", "model", "glm-5")
-    expect(result.output).toContain("校验失败")
-    expect(result.output).toContain("provider/model")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "model", "glm-5"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
+    expect(err?.message).toContain("provider/model")
     // 原文件未变
     const data = JSON.parse(readFileSync(file, "utf-8"))
     expect(data.model).toBe("qwen3.7-plus")
@@ -170,19 +181,21 @@ describe("writeProjectConfig", () => {
 
   test("model 含奇怪字符被拒绝", () => {
     writeFileSync(join(projectDir, "opennovel.json"), JSON.stringify({ model: "x" }))
-    const result = writeProjectConfig(projectDir, "opennovel", "model", "../etc/passwd")
-    expect(result.output).toContain("校验失败")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "model", "../etc/passwd"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
   })
 
   test("白名单外字段（如 provider）一律拒绝", () => {
     const file = join(projectDir, "opennovel.json")
     writeFileSync(file, JSON.stringify({ model: "x/y" }))
-    const result = writeProjectConfig(projectDir, "opennovel", "provider", "injected")
-    expect(result.output).toContain("不支持字段")
-    expect(result.output).toContain("允许的字段")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "provider", "injected"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("不支持字段")
+    expect(err?.message).toContain("允许的字段")
     // 列出允许的字段
-    expect(result.output).toContain("model")
-    expect(result.output).toContain("small_model")
+    expect(err?.message).toContain("model")
+    expect(err?.message).toContain("small_model")
     // 原文件未变
     const data = JSON.parse(readFileSync(file, "utf-8"))
     expect(data.provider).toBeUndefined()
@@ -192,8 +205,9 @@ describe("writeProjectConfig", () => {
     const file = join(projectDir, "opennovel.json")
     writeFileSync(file, "{}")
     for (const field of ["mcp", "permission", "plugin"]) {
-      const r = writeProjectConfig(projectDir, "opennovel", field, "x")
-      expect(r.output).toContain("不支持字段")
+      const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", field, "x"))
+      expect(err?.name).toBe("param_error")
+      expect(err?.message).toContain("不支持字段")
     }
   })
 
@@ -210,26 +224,29 @@ describe("writeProjectConfig", () => {
   test("原文件 JSON 损坏时拒绝覆盖", () => {
     const file = join(projectDir, "opennovel.json")
     writeFileSync(file, "{ broken")
-    const result = writeProjectConfig(projectDir, "opennovel", "model", "anthropic/claude-sonnet-4-5")
-    expect(result.output).toContain("不是合法 JSON")
-    expect(result.output).toContain("拒绝覆盖")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "model", "anthropic/claude-sonnet-4-5"))
+    expect(err?.name).toBe("state_conflict")
+    expect(err?.message).toContain("不是合法 JSON")
+    expect(err?.message).toContain("拒绝覆盖")
     // 原文件保持原样（未损坏未丢失）
     expect(readFileSync(file, "utf-8")).toBe("{ broken")
   })
 
   test("非法 target 拒绝", () => {
     // @ts-expect-error 测试非法入参
-    const result = writeProjectConfig(projectDir, "tsconfig", "compilerOptions", "{}")
-    expect(result.output).toContain("不支持的 target")
+    const err = catchSync(() => writeProjectConfig(projectDir, "tsconfig", "compilerOptions", "{}"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("不支持的 target")
   })
 
   test("enum 字段（logLevel）拒绝 enum 不合法的 JSON 字面量", () => {
     const file = join(projectDir, "opennovel.json")
     writeFileSync(file, JSON.stringify({ logLevel: "INFO" }))
     // 传带引号的 JSON 字符串 "FATAL"，JSON.parse 通过但 enum 校验失败
-    const result = writeProjectConfig(projectDir, "opennovel", "logLevel", '"FATAL"')
-    expect(result.output).toContain("校验失败")
-    expect(result.output).toContain("DEBUG / INFO / WARN / ERROR")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "logLevel", '"FATAL"'))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
+    expect(err?.message).toContain("DEBUG / INFO / WARN / ERROR")
     const data = JSON.parse(readFileSync(file, "utf-8"))
     expect(data.logLevel).toBe("INFO")
   })
@@ -245,8 +262,9 @@ describe("writeProjectConfig", () => {
 
   test("enum 字段（logLevel）接受非 JSON 字面量时被拒绝（提示需要 JSON）", () => {
     writeFileSync(join(projectDir, "opennovel.json"), "{}")
-    const result = writeProjectConfig(projectDir, "opennovel", "logLevel", "DEBUG")
-    expect(result.output).toContain("需要合法的 JSON 字面量")
+    const err = catchSync(() => writeProjectConfig(projectDir, "opennovel", "logLevel", "DEBUG"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("需要合法的 JSON 字面量")
   })
 
   test("boolean 字段（autoupdate）接受 true / false / \"notify\"", () => {
@@ -294,8 +312,9 @@ describe("writeProjectConfig", () => {
     const novelDir = join(projectDir, ".novel")
     mkdirSync(novelDir, { recursive: true })
     writeFileSync(join(novelDir, "config.json"), JSON.stringify({ name: "x" }))
-    const result = writeProjectConfig(projectDir, "novel", "description", "evil")
-    expect(result.output).toContain("不支持字段")
+    const err = catchSync(() => writeProjectConfig(projectDir, "novel", "description", "evil"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("不支持字段")
   })
 
   test("name 为空字符串被拒绝", () => {
@@ -303,8 +322,9 @@ describe("writeProjectConfig", () => {
     mkdirSync(novelDir, { recursive: true })
     const file = join(novelDir, "config.json")
     writeFileSync(file, JSON.stringify({ name: "原项目名" }))
-    const result = writeProjectConfig(projectDir, "novel", "name", "")
-    expect(result.output).toContain("校验失败")
+    const err = catchSync(() => writeProjectConfig(projectDir, "novel", "name", ""))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
     const data = JSON.parse(readFileSync(file, "utf-8"))
     expect(data.name).toBe("原项目名")
   })
@@ -313,8 +333,9 @@ describe("writeProjectConfig", () => {
     const novelDir = join(projectDir, ".novel")
     mkdirSync(novelDir, { recursive: true })
     writeFileSync(join(novelDir, "config.json"), JSON.stringify({ version: "1.0.0" }))
-    const result = writeProjectConfig(projectDir, "novel", "version", "v1.2")
-    expect(result.output).toContain("校验失败")
+    const err = catchSync(() => writeProjectConfig(projectDir, "novel", "version", "v1.2"))
+    expect(err?.name).toBe("param_error")
+    expect(err?.message).toContain("校验失败")
   })
 
   test("写完后 readProjectConfig 能看到新值", () => {

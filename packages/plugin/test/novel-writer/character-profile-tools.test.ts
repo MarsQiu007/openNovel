@@ -120,12 +120,14 @@ describe("manage_characters 档案补丁", () => {
 
   test("未知维度 key 拒绝并提示走 extensions", async () => {
     await seedCharacter({ id: "char-4", profile: { speech: "句尾带哼" } })
-    const rejected = await manage("char-4", { profile_patch: { weapon: "双手重剑" } })
-    expect(rejected.output).toContain("未知维度")
-    expect(rejected.output).toContain("extensions")
+    const rejected = await manage("char-4", { profile_patch: { weapon: "双手重剑" } }).then(() => null, (e: Error) => e)
+    expect(rejected?.name).toBe("param_error")
+    expect(rejected?.message).toContain("未知维度")
+    expect(rejected?.message).toContain("extensions")
 
-    const removeRejected = await manage("char-4", { profile_remove: ["weapon"] })
-    expect(removeRejected.output).toContain("未知维度")
+    const removeRejected = await manage("char-4", { profile_remove: ["weapon"] }).then(() => null, (e: Error) => e)
+    expect(removeRejected?.name).toBe("param_error")
+    expect(removeRejected?.message).toContain("未知维度")
 
     // 校验失败不落库
     const { profile } = await profileOf("char-4")
@@ -137,8 +139,9 @@ describe("manage_characters 档案补丁", () => {
     const conflict = await manage("char-5", {
       profile: { appearance: "疤" },
       profile_patch: { tone: "冷" },
-    })
-    expect(conflict.output).toContain("互斥")
+    }).then(() => null, (e: Error) => e)
+    expect(conflict?.name).toBe("param_error")
+    expect(conflict?.message).toContain("互斥")
     const { profile } = await profileOf("char-5")
     expect(profile.speech).toBe("句尾带哼")
     expect(profile.appearance).toBeUndefined()
