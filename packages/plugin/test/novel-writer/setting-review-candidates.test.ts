@@ -10,7 +10,7 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
-import { CharacterTable, WorldEntryTable } from "@opennovel-ai/novel-store"
+import { CharacterTable, RelationshipTable, WorldEntryTable } from "@opennovel-ai/novel-store"
 import {
   getDb,
   NovelTable,
@@ -236,5 +236,134 @@ describe("listPendingSettingRows", () => {
     expect(pending.rows.every((r) => r.status === "pending")).toBe(true)
     const filtered = await listPendingSettingRows(getDb(), { novelId, candidateType: "character" })
     expect(filtered.rows.every((r) => r.candidate_type === "character")).toBe(true)
+  })
+})
+
+
+describe("relationship 角色 ID 解析", () => {
+  test("直接 ID 命中：suggested_entity_id 非空时角色接受使用了同一 ID", async () => {
+    const db = getDb()
+    const tempId = `char_direct_${Date.now()}`
+    // 先插入角色候选并接受（suggested_entity_id = tempId → 角色正式表 ID = tempId）
+    await db
+      .insert(PendingSettingTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        candidate_type: "character",
+        display_title: "李新博",
+        payload_json: JSON.stringify({ name: "李新博", description: "测试角色" }),
+        suggested_entity_id: tempId,
+        status: "accepted",
+        created_at: Date.now(),
+      })
+      .run()
+    await db
+      .insert(CharacterTable)
+      .values({ id: tempId, novel_id: novelId, name: "李新博", role: "", description: "", status: "active" })
+      .run()
+    const relId = await insertPending({
+      candidate_type: "relationship",
+      display_title: "李新博 ↔ 王明 [师徒]",
+      payload_json: JSON.stringify({ char_a_id: tempId, char_b_id: tempId, type: "师徒", description: "测试关系" }),
+    })
+    const result = await acceptPendingSetting(db, relId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const [rel] = await db.select().from(RelationshipTable).where(eq(RelationshipTable.id, result.created_id)).all()
+    expect(rel?.char_a_id).toBe(tempId)
+    expect(rel?.char_b_id).toBe(tempId)
+  })
+
+  test("角色候选反查命中：角色以随机 UUID 入库，relationship 通过 accepted 候选反查角色名", async () => {
+    const db = getDb()
+    const tempId = `char_reverse_${Date.now()}`
+    const actualId = crypto.randomUUID()
+    // 角色以随机 UUID 入库（suggested_entity_id 为空）
+    await db
+      .insert(CharacterTable)
+      .values({ id: actualId, novel_id: novelId, name: "王明", role: "", description: "", status: "active" })
+      .run()
+    // 已接受的角色候选记录了 suggested_entity_id = tempId
+    await db
+      .insert(PendingSettingTable)
+      .values({
+        id: crypto.randomUUID(),
+        novel_id: novelId,
+        candidate_type: "character",
+        display_title: "王明",
+        payload_json: JSON.stringify({ name: "王明", description: "" }),
+        suggested_entity_id: tempId,
+        status: "accepted",
+        created_at: Date.now(),
+      })
+      .run()
+    const relId = await insertPending({
+      candidate_type: "relationship",
+      display_title: "王明 ↔ 未知 [朋友]",
+      payload_json: JSON.stringify({ char_a_id: tempId, char_b_id: actualId, type: "朋友", description: "" }),
+    })
+    const result = await acceptPendingSetting(db, relId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const [rel] = await db.select().from(RelationshipTable).where(eq(RelationshipTable.id, result.created_id)).all()
+    expect(rel?.char_a_id).toBe(actualId)
+  })
+
+  test("角色不存在报明确错误", async () => {
+    const db = getDb()
+    const relId = await insertPending({
+      candidate_type: "relationship",
+      display_title: "未知 ↔ 未知 [敌人]",
+      payload_json: JSON.stringify({ char_a_id: "char_missing", char_b_id: "char_also_missing", type: "敌人", description: "" }),
+    })
+    const result = await acceptPendingSetting(db, relId)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain("char_missing")
+    expect(result.error).toContain("角色候选")
+  })
+})
+
+describe("前缀匹配接受", () => {
+  test("8 字符前缀命中单条直接接受", async () => {
+    const db = getDb()
+    const fullId = crypto.randomUUID()
+    await insertPending({
+      id: fullId,
+      candidate_type: "character",
+      display_title: "前缀测试",
+      payload_json: JSON.stringify({ name: "前缀测试角色", description: "" }),
+    })
+    const result = await acceptPendingSetting(db, fullId.slice(0, 8))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.pending_id).toBe(fullId)
+  })
+
+  test("完整 UUID 直接命中", async () => {
+    const db = getDb()
+    const fullId = await insertPending({
+      candidate_type: "character",
+      display_title: "完整 UUID 测试",
+      payload_json: JSON.stringify({ name: "完整UUID角色", description: "" }),
+    })
+    const result = await acceptPendingSetting(db, fullId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.pending_id).toBe(fullId)
+  })
+})
+
+describe("listPendingSettingRows all 状态", () => {
+  test("status=all 返回全部状态候选", async () => {
+    const db = getDb()
+    await insertPending({ candidate_type: "character", display_title: "pending 角色", payload_json: "{}", status: "pending" })
+    await insertPending({ candidate_type: "character", display_title: "accepted 角色", payload_json: "{}", status: "accepted" })
+    const { total, rows } = await listPendingSettingRows(db, { novelId, status: "all" })
+    expect(total).toBeGreaterThanOrEqual(2)
+    const statuses = new Set(rows.map((r) => r.status))
+    expect(statuses.has("pending")).toBe(true)
+    expect(statuses.has("accepted")).toBe(true)
   })
 })

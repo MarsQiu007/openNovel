@@ -24,8 +24,8 @@ export const pendingTools = {
     args: Schema.Struct({
       novel_id: Schema.String.annotate({ description: "小说 ID" }),
       status: Schema.optional(
-        Schema.Literals(["pending", "accepted", "rejected", "merged"]).annotate({
-          description: "状态过滤（默认 pending）",
+        Schema.Literals(["pending", "accepted", "rejected", "merged", "all"]).annotate({
+          description: "状态过滤（默认 pending，all 查看全部）",
         }),
       ),
       candidate_type: Schema.optional(
@@ -49,20 +49,21 @@ export const pendingTools = {
         limit: args.limit,
         offset: args.offset,
       })
+      const displayStatus = args.status ?? "pending"
       if (rows.length === 0) {
         return {
           title: "list_pending_settings",
-          output: `无 ${status} 候选${args.candidate_type ? `（类型=${args.candidate_type}）` : ""}`,
+          output: `无 ${displayStatus} 候选${args.candidate_type ? `（类型=${args.candidate_type}）` : ""}`,
           metadata: { total: totalCount, returned: 0, items: [] },
         }
       }
-      const lines: string[] = [`共 ${totalCount} 条 ${status} 候选，显示 ${rows.length} 条：`]
+      const lines: string[] = [`共 ${totalCount} 条 ${displayStatus} 候选，显示 ${rows.length} 条：`]
       for (const r of rows) {
         const tag = r.type_strength ? ` [${r.type_strength}]` : ` [imp=${r.importance}]`
         const time = new Date(r.created_at).toLocaleString("zh-CN")
         const payloadPreview = r.payload_json.length > 60 ? r.payload_json.slice(0, 60) + "…" : r.payload_json
         lines.push(
-          `\n[${r.id.slice(0, 8)}] ${time} | ${r.candidate_type}${tag} | ${r.display_title}\n  payload: ${payloadPreview}`,
+          `\n[${r.id}] ${time} | ${r.candidate_type}${tag} | ${r.display_title}\n  payload: ${payloadPreview}`,
         )
       }
       return {
@@ -308,6 +309,44 @@ export const pendingTools = {
           staged_change_id: result.staged_change_id,
           note: args.note ?? "",
         },
+      }
+    },
+  }),
+
+  batch_accept_pending_settings: defineTool({
+    description:
+      "批量接受候选区多条 pending 设定。逐条调用 accept_pending_setting 的共享服务（含 relationship 角色 ID 解析与引用扫描），部分失败不回滚已成功的候选。返回每条候选的接受结果。",
+    args: Schema.Struct({
+      novel_id: Schema.String.annotate({ description: "小说 ID" }),
+      pending_ids: Schema.Array(Schema.String).annotate({ description: "候选 ID 列表（list_pending_settings 拿）" }),
+      allow_new_category: Schema.optional(
+        Schema.Boolean.annotate({
+          description: `world_entry 专用：允许使用标准列表之外的分类。${WORLD_ENTRY_CATEGORY_HINT}`,
+        }),
+      ),
+    }),
+    async execute(args, ctx) {
+      const db = getDb(ctx.directory)
+      const results: { pending_id: string; ok: boolean; error?: string; created_id?: string }[] = []
+      let accepted = 0
+      for (const pendingId of args.pending_ids) {
+        const result = await acceptPendingSetting(db, pendingId, { allowNewCategory: args.allow_new_category })
+        if (result.ok) {
+          accepted++
+          results.push({ pending_id: result.pending_id, ok: true, created_id: result.created_id })
+        } else {
+          results.push({ pending_id: pendingId, ok: false, error: result.error })
+        }
+      }
+      const failed = results.filter((r) => !r.ok)
+      const lines = [
+        `批量接受完成：成功 ${accepted}/${args.pending_ids.length}`,
+        ...failed.map((r) => `  ✗ ${r.pending_id.slice(0, 8)}：${r.error}`),
+      ]
+      return {
+        title: "batch_accept_pending_settings",
+        output: lines.join("\n"),
+        metadata: { total: args.pending_ids.length, accepted, results },
       }
     },
   }),

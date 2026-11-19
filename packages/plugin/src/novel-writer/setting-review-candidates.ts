@@ -57,8 +57,9 @@ export async function listPendingSettingRows(
   db: Db,
   query: ListPendingSettingsQuery,
 ): Promise<{ total: number; rows: PendingSettingRow[] }> {
-  const status = query.status ?? "pending"
-  const conditions = [eq(PendingSettingTable.novel_id, query.novelId), eq(PendingSettingTable.status, status)]
+  const status = query.status === "all" ? undefined : (query.status ?? "pending")
+  const conditions = [eq(PendingSettingTable.novel_id, query.novelId)]
+  if (status) conditions.push(eq(PendingSettingTable.status, status))
   if (query.candidateType) conditions.push(eq(PendingSettingTable.candidate_type, query.candidateType))
   if (query.sourceChapterId) conditions.push(eq(PendingSettingTable.source_chapter_id, query.sourceChapterId))
   const where = and(...conditions)
@@ -94,7 +95,23 @@ export async function acceptPendingSetting(
   pendingId: string,
   options: { allowNewCategory?: boolean } = {},
 ): Promise<AcceptPendingSettingResult> {
-  const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, pendingId)).all()
+  let resolvedId = pendingId
+  let [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, pendingId)).all()
+  if (!row && pendingId.length < 36) {
+    // 8 字符前缀匹配：命中多条报歧义，单条命中直接使用
+    const prefixMatches = await db
+      .select()
+      .from(PendingSettingTable)
+      .where(sql`${PendingSettingTable.id} LIKE ${pendingId + "%"}`)
+      .all()
+    if (prefixMatches.length > 1) {
+      return { ok: false, error: `ID 前缀 ${pendingId} 匹配到 ${prefixMatches.length} 条候选，请提供完整 UUID` }
+    }
+    if (prefixMatches.length === 1) {
+      row = prefixMatches[0]
+      resolvedId = row.id
+    }
+  }
   if (!row) {
     return { ok: false, error: `候选不存在：${pendingId.slice(0, 8)}` }
   }
@@ -119,7 +136,7 @@ export async function acceptPendingSetting(
       ok: false,
       error: `设定文本格式校验失败：\n${formatErrors.join("\n")}`,
       format_errors: formatErrors,
-      pending_id: pendingId,
+      pending_id: resolvedId,
       candidate_type: row.candidate_type,
     }
   }
@@ -204,11 +221,15 @@ export async function acceptPendingSetting(
         content: String(payload.description ?? ""),
       } as any)
     } else if (row.candidate_type === "relationship") {
+      const charAId = await resolveCharacterId(db, row.novel_id, String(payload.char_a_id ?? ""))
+      if (!charAId.ok) return charAId
+      const charBId = await resolveCharacterId(db, row.novel_id, String(payload.char_b_id ?? ""))
+      if (!charBId.ok) return charBId
       await db.insert(RelationshipTable).values({
         id: newId,
         novel_id: row.novel_id,
-        char_a_id: String(payload.char_a_id ?? ""),
-        char_b_id: String(payload.char_b_id ?? ""),
+        char_a_id: charAId.id,
+        char_b_id: charBId.id,
         type: String(payload.type ?? ""),
         description: String(payload.description ?? ""),
       } as any)
@@ -219,7 +240,7 @@ export async function acceptPendingSetting(
     await db
       .update(PendingSettingTable)
       .set({ status: "accepted", resolved_at: Date.now() })
-      .where(eq(PendingSettingTable.id, pendingId))
+      .where(eq(PendingSettingTable.id, resolvedId))
       .run()
     // 统一影响面：候选入库属正式设定变更——重建描述引用并生成任务
     const entityType = row.candidate_type === "location" ? "world_entry" : row.candidate_type
@@ -237,7 +258,7 @@ export async function acceptPendingSetting(
     const impact = await buildImpactReport(db, intent, await planImpact(db, intent), created)
     return {
       ok: true,
-      pending_id: pendingId,
+      pending_id: resolvedId,
       created_id: newId,
       candidate_type: row.candidate_type,
       display_title: row.display_title,
@@ -251,6 +272,49 @@ export async function acceptPendingSetting(
 export type RejectPendingSettingResult =
   | { ok: true; pending_id: string; candidate_type: string; display_title: string }
   | CandidateOpFailure
+
+/** relationship 候选角色 ID 多级解析：直接 ID 查找 → 已接受角色候选反查角色名 → 角色表按名查找 */
+async function resolveCharacterId(
+  db: Db,
+  novelId: string,
+  tempId: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  // 1. 直接查找：角色候选的 suggested_entity_id 非空时，接受时使用了同一 ID
+  const [direct] = await db.select({ id: CharacterTable.id }).from(CharacterTable).where(eq(CharacterTable.id, tempId)).limit(1).all()
+  if (direct) return { ok: true, id: direct.id }
+  // 2. 角色候选反查：找已接受角色候选的 suggested_entity_id 与临时 ID 匹配，取其角色名再按名查找
+  const [acceptedCandidate] = await db
+    .select({ payload_json: PendingSettingTable.payload_json, display_title: PendingSettingTable.display_title })
+    .from(PendingSettingTable)
+    .where(
+      and(
+        eq(PendingSettingTable.novel_id, novelId),
+        eq(PendingSettingTable.suggested_entity_id, tempId),
+        eq(PendingSettingTable.status, "accepted"),
+        eq(PendingSettingTable.candidate_type, "character"),
+      ),
+    )
+    .limit(1)
+    .all()
+  if (acceptedCandidate) {
+    let charName = acceptedCandidate.display_title
+    try {
+      const candidatePayload = JSON.parse(acceptedCandidate.payload_json) as Record<string, unknown>
+      if (typeof candidatePayload.name === "string" && candidatePayload.name.trim() !== "") charName = candidatePayload.name
+    } catch {}
+    const [byName] = await db
+      .select({ id: CharacterTable.id })
+      .from(CharacterTable)
+      .where(and(eq(CharacterTable.novel_id, novelId), eq(CharacterTable.name, charName)))
+      .limit(1)
+      .all()
+    if (byName) return { ok: true, id: byName.id }
+  }
+  return {
+    ok: false,
+    error: `角色 ${tempId} 不存在于正式角色表。请先接受对应的角色候选再接受关系候选。`,
+  }
+}
 
 export async function rejectPendingSetting(db: Db, pendingId: string): Promise<RejectPendingSettingResult> {
   const [row] = await db.select().from(PendingSettingTable).where(eq(PendingSettingTable.id, pendingId)).all()
