@@ -1,5 +1,9 @@
 # Tasks
 
+## Implementation Commits
+
+- 43e08d4655 feat(opennovel): 工具失败改走错误文本与稳定类别语义
+
 ## 1. 事件链路：失败语义保留
 
 - [x] 1.1 增加 packages/schema SessionMessage.UnknownError 的可选 name/code 字段，验证 `cd packages/schema && bun typecheck` 通过
