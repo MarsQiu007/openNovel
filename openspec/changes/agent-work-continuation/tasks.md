@@ -16,7 +16,7 @@
 - [x] 3.2 续跑指令携带明确合成来源标记，经 PromptAdmitted 事件落库、由 run 循环外层队列消费逻辑提升（promote 重置步数配额）后对用户可见——core 单测断言 admitted 记录、事件与续跑后配额重置
 - [x] 3.3 System Context 新增条件注入源：会话存在 active WorkRun 时注入「禁纯文本停机」与「每回合复述更新进度」两条约束，paused/complete 后停止注入；WorkRun 状态迁移纳入 SessionContextEpoch 失效语义——core 单测覆盖注入、停止与迁移当回合生效
 - [x] 3.4 用户打断时经 runner run 的 `Effect.onInterrupt` 把 active WorkRun 转挂起（数据保留）——core 单测覆盖打断挂起后状态与恢复读回
-- [ ] 3.5 守卫续跑上限落地为 per-agent 配置项（默认 100）并在 config-agent 体系注册；单测覆盖超限转挂起与恢复后计数重置
+- [x] 3.5 守卫续跑上限落地为 per-agent 配置项（默认 100）并在 config-agent 体系注册；单测覆盖超限转挂起与恢复后计数重置
 
 ## 4. 协议与 UI 面
 

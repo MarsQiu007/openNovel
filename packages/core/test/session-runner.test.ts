@@ -3949,4 +3949,57 @@ describe("SessionRunnerLLM", () => {
       expect((yield* workrun.current(sessionID))?.status).toBe("paused")
     }),
   )
+
+  it.effect("守卫续跑上限经 agent 配置生效，超限挂起恢复后计数重置续跑", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const agent = yield* AgentV2.Service
+      yield* agent.transform((editor) =>
+        editor.update(AgentV2.ID.make("build"), (selected) => {
+          selected.workRunContinuationLimit = 2
+          selected.mode = "primary"
+        }),
+      )
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      // 上限 2：两次守卫续跑后第三次守卫熔断（无进展计数 2 < 3，命中的是续跑上限而非无进展；
+      // 若 per-agent 配置未生效，默认 100 下会走到第 4 回合由无进展熔断）
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-agent-limit-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-3", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(3)
+      expect(yield* queueInputRows).toHaveLength(2)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+
+      // 恢复重置计数：守卫照常续跑，再次达到上限转挂起
+      const resumed = yield* workrun.resume(sessionID)
+      expect(resumed.continuationCount).toBe(0)
+      expect(resumed.noProgressCount).toBe(0)
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "恢复后继续" }), resume: false })
+      responses = [
+        fragmentFixture("text", "text-agent-limit-4", ["再继续一"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-5", ["再继续二"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-6", ["又空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(6)
+      expect(userTexts(requests[3]!)).toEqual([
+        "开始审查",
+        WORK_RUN_CONTINUATION_PROMPT,
+        WORK_RUN_CONTINUATION_PROMPT,
+        "恢复后继续",
+      ])
+      expect(yield* queueInputRows).toHaveLength(4)
+      const pausedAgain = yield* workrun.current(sessionID)
+      expect(pausedAgain?.status).toBe("paused")
+      expect(pausedAgain?.continuationCount).toBe(2)
+    }),
+  )
 })

@@ -3188,6 +3188,7 @@ export type AgentV2Info = {
   color?: AgentColor
   category?: AgentCategory
   steps?: number
+  workRunContinuationLimit?: number
   permissions: PermissionV2Ruleset
 }
 

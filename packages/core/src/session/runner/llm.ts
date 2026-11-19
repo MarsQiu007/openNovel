@@ -100,7 +100,8 @@ import { llmClient } from "../../effect/app-node-platform"
  * explicit loop starts the next provider turn after local settlement. Configured agent step limits bound the loop.
  */
 
-// 3.5 接入 per-agent 配置前的默认阀门（design D5：续跑上限 100，无进展熔断 3）
+// 守卫阀门默认值（design D5：续跑上限 100，无进展熔断 3）；续跑上限可经 agent 配置
+// workRunContinuationLimit 按 agent 覆盖，无进展熔断固定不配置化
 export const WORK_RUN_GUARD_LIMITS = { continuationLimit: 100, noProgressLimit: 3 }
 export const WORK_RUN_CONTINUATION_PROMPT =
   "[自动续跑] 工作队列尚未完成：领取下一个待处理单元继续推进，并保持进度笔记为最新状态。"
@@ -453,7 +454,10 @@ const layer = Layer.effect(
           // 纯文本回合守卫（design D3）：正常结算且无工具续跑时判定工作队列是否续跑。
           // provider 失败结算已被 hasProviderError 排除；压缩跳过与中断路径提前 return 不经过此处
           if (!needsContinuation && !publisher.hasProviderError()) {
-            const decision = yield* workrun.guardDecide(sessionID, WORK_RUN_GUARD_LIMITS)
+            const decision = yield* workrun.guardDecide(sessionID, {
+              continuationLimit: agent.info?.workRunContinuationLimit ?? WORK_RUN_GUARD_LIMITS.continuationLimit,
+              noProgressLimit: WORK_RUN_GUARD_LIMITS.noProgressLimit,
+            })
             if (decision.action === "continue")
               yield* SessionInput.admit(db, events, {
                 id: SessionMessage.ID.create(),

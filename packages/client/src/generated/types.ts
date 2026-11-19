@@ -242,6 +242,7 @@ export type AgentsListOutput = {
     readonly color?: string | "primary" | "secondary" | "accent" | "success" | "warning" | "error" | "info"
     readonly category?: "orchestration" | "creation" | "review" | "memory" | "research" | "internal"
     readonly steps?: number
+    readonly workRunContinuationLimit?: number
     readonly permissions: ReadonlyArray<{
       readonly action: string
       readonly resource: string
