@@ -2282,6 +2282,7 @@ type Endpoint18_89Input = {
   readonly source?: Endpoint18_89Request["query"]["source"]
   readonly limit?: Endpoint18_89Request["query"]["limit"]
   readonly offset?: Endpoint18_89Request["query"]["offset"]
+  readonly showProcessed?: Endpoint18_89Request["query"]["showProcessed"]
 }
 const Endpoint18_89 = (raw: RawClient["server.novel"]) => (input: Endpoint18_89Input) =>
   raw["novel.review-inbox.items"]({
@@ -2292,6 +2293,7 @@ const Endpoint18_89 = (raw: RawClient["server.novel"]) => (input: Endpoint18_89I
       source: input["source"],
       limit: input["limit"],
       offset: input["offset"],
+      showProcessed: input["showProcessed"],
     },
   }).pipe(Effect.mapError(mapClientError))
 

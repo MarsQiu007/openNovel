@@ -1392,6 +1392,7 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
         source: ReviewInboxSource.pipe(Schema.optional),
         limit: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
         offset: Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int), Schema.optional),
+        showProcessed: Schema.optional(Schema.Literals(["true", "false"])),
       }),
       success: ReviewInboxListResult,
       error: [NovelNotFoundError, ServiceUnavailableError],

@@ -2643,6 +2643,7 @@ export function make(options: ClientOptions) {
               source: input["source"],
               limit: input["limit"],
               offset: input["offset"],
+              showProcessed: input["showProcessed"],
             },
             successStatus: 200,
             declaredStatuses: [404, 503, 401, 400],

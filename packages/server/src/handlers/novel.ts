@@ -3172,6 +3172,7 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
             source: ctx.query.source,
             limit: ctx.query.limit,
             offset: ctx.query.offset,
+            showProcessed: ctx.query.showProcessed === "true",
           })
         }),
       )

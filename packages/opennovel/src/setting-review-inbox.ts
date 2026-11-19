@@ -46,7 +46,7 @@ function countsOf(db: Db, novelId: string): ReviewInboxCounts {
   const pending = db
     .select({ c: sql<number>`count(*)` })
     .from(PendingSettingTable)
-    .where(eq(PendingSettingTable.novel_id, novelId))
+    .where(sql`${PendingSettingTable.novel_id} = ${novelId} AND ${PendingSettingTable.status} = 'pending'`)
     .get()?.c ?? 0
   const conflicts = db
     .select({ c: sql<number>`count(*)` })
@@ -141,7 +141,12 @@ export function createSettingReviewInboxService(): SettingReviewInboxService {
       const items: ReviewInboxItem[] = []
       const wants = (candidate: "candidate" | "conflict" | "staged") => !source || source === candidate
       if (wants("candidate")) {
-        const rows = await listPendingSettingRows(db, { novelId: novelID, limit: limit + offset, offset: 0 })
+        const rows = await listPendingSettingRows(db, {
+          novelId: novelID,
+          status: query.showProcessed ? "all" : undefined,
+          limit: limit + offset,
+          offset: 0,
+        })
         items.push(...rows.rows.slice(offset, offset + limit).map(candidateItem))
       }
       if (wants("conflict")) {

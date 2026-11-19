@@ -17,6 +17,7 @@ export type ReviewInboxListQuery = {
   source?: "candidate" | "conflict" | "staged"
   limit?: number
   offset?: number
+  showProcessed?: boolean
 }
 
 /**

@@ -6996,6 +6996,7 @@ export type ServerNovelItemsInput = {
     readonly source?: "candidate" | "conflict" | "staged" | undefined
     readonly limit?: number | undefined
     readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
   }["location"]
   readonly library?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -7003,6 +7004,7 @@ export type ServerNovelItemsInput = {
     readonly source?: "candidate" | "conflict" | "staged" | undefined
     readonly limit?: number | undefined
     readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
   }["library"]
   readonly source?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -7010,6 +7012,7 @@ export type ServerNovelItemsInput = {
     readonly source?: "candidate" | "conflict" | "staged" | undefined
     readonly limit?: number | undefined
     readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
   }["source"]
   readonly limit?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -7017,6 +7020,7 @@ export type ServerNovelItemsInput = {
     readonly source?: "candidate" | "conflict" | "staged" | undefined
     readonly limit?: number | undefined
     readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
   }["limit"]
   readonly offset?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -7024,7 +7028,16 @@ export type ServerNovelItemsInput = {
     readonly source?: "candidate" | "conflict" | "staged" | undefined
     readonly limit?: number | undefined
     readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
   }["offset"]
+  readonly showProcessed?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly library?: ("book" | "global" | "all") | undefined
+    readonly source?: "candidate" | "conflict" | "staged" | undefined
+    readonly limit?: number | undefined
+    readonly offset?: number | undefined
+    readonly showProcessed?: "true" | "false" | undefined
+  }["showProcessed"]
 }
 
 export type ServerNovelItemsOutput = {
