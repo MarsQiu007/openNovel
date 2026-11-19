@@ -127,6 +127,17 @@ export const Updated = Event.define({
 })
 export type Updated = typeof Updated.Type
 
+/** Drain 非中断失败的会话级终态事件：失败可能发生在 assistant message 创建之前，
+ *  因此不挂 messageID；CLI 与桌面端以此感知"会话落定但以失败告终"（changelog-ai-routing）。 */
+export const Failed = Event.define({
+  type: "session.next.failed",
+  ...options,
+  schema: {
+    ...Base,
+    error: UnknownError,
+  },
+})
+export type Failed = typeof Failed.Type
 export const Prompted = Event.define({
   type: "session.next.prompted",
   ...options,
@@ -545,6 +556,7 @@ export const DurableDefinitions = Event.inventory(
   ModelSwitched,
   Moved,
   Updated,
+  Failed,
   Prompted,
   PromptAdmitted,
   ContextUpdated,
@@ -582,6 +594,7 @@ export const Definitions = Event.inventory(
   ModelSwitched,
   Moved,
   Updated,
+  Failed,
   Prompted,
   PromptAdmitted,
   ContextUpdated,

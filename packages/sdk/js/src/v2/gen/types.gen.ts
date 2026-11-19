@@ -15,6 +15,7 @@ export type Event =
   | EventSessionNextModelSwitched
   | EventSessionNextMoved
   | EventSessionNextUpdated
+  | EventSessionNextFailed
   | EventSessionNextPrompted
   | EventSessionNextPromptAdmitted
   | EventSessionNextContextUpdated
@@ -285,6 +286,15 @@ export type GlobalEvent = {
           sessionID: string
           title?: string
           archived?: number
+        }
+      }
+    | {
+        id: string
+        type: "session.next.failed"
+        properties: {
+          timestamp: number
+          sessionID: string
+          error: SessionErrorUnknown
         }
       }
     | {
@@ -1011,6 +1021,7 @@ export type GlobalEvent = {
     | SyncEventSessionNextModelSwitched
     | SyncEventSessionNextMoved
     | SyncEventSessionNextUpdated
+    | SyncEventSessionNextFailed
     | SyncEventSessionNextPrompted
     | SyncEventSessionNextPromptAdmitted
     | SyncEventSessionNextContextUpdated
@@ -1959,6 +1970,7 @@ export type SessionDurableEvent =
   | SessionNextModelSwitched
   | SessionNextMoved
   | SessionNextUpdated
+  | SessionNextFailed
   | SessionNextPrompted
   | SessionNextPromptAdmitted
   | SessionNextContextUpdated
@@ -2063,6 +2075,7 @@ export type V2Event =
   | SessionNextModelSwitched
   | SessionNextMoved
   | SessionNextUpdated
+  | SessionNextFailed
   | SessionNextPrompted
   | SessionNextPromptAdmitted
   | SessionNextContextUpdated
@@ -2287,6 +2300,13 @@ export type LocationRef = {
   workspaceID?: string
 }
 
+export type SessionErrorUnknown = {
+  type: "unknown"
+  message: string
+  name?: string
+  code?: string
+}
+
 export type PromptSource = {
   start: number
   end: number
@@ -2304,13 +2324,6 @@ export type PromptFileAttachment = {
 export type PromptAgentAttachment = {
   name: string
   source?: PromptSource
-}
-
-export type SessionErrorUnknown = {
-  type: "unknown"
-  message: string
-  name?: string
-  code?: string
 }
 
 export type LlmProviderMetadata = {
@@ -2560,6 +2573,22 @@ export type SyncEventSessionNextUpdated = {
       sessionID: string
       title?: string
       archived?: number
+    }
+  }
+}
+
+export type SyncEventSessionNextFailed = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.failed.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      error: SessionErrorUnknown
     }
   }
 }
@@ -3600,6 +3629,25 @@ export type SessionNextUpdated = {
     sessionID: string
     title?: string
     archived?: number
+  }
+}
+
+export type SessionNextFailed = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.failed"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    error: SessionErrorUnknown
   }
 }
 
@@ -6856,6 +6904,16 @@ export type EventSessionNextUpdated = {
     sessionID: string
     title?: string
     archived?: number
+  }
+}
+
+export type EventSessionNextFailed = {
+  id: string
+  type: "session.next.failed"
+  properties: {
+    timestamp: number
+    sessionID: string
+    error: SessionErrorUnknown
   }
 }
 
