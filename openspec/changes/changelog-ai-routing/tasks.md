@@ -47,3 +47,4 @@
 - 65d9562009 fix(opennovel): CLI 失败事件落退出码
 - c833ddff4c feat(app): 通知 drain 会话失败
 - 34ead978dd chore(config): 更新 changelog 模型
+- d315f29f3c chore(sdk): 再生成失败事件契约
