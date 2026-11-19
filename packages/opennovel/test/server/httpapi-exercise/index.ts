@@ -1299,6 +1299,51 @@ const scenarios: Scenario[] = [
     }))
     .status(204, undefined, "none"),
   http.protected
+    .get("/api/session/{sessionID}/workrun", "v2.session.workrun.get.missing")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .status(404, undefined, "status"),
+  http.protected
+    .get("/api/session/{sessionID}/workrun", "v2.session.workrun.get.empty")
+    .seeded((ctx) => ctx.session({ title: "Work run empty" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, data((run) => check(run === null, "Expected null data when the session has no work run"))),
+  http.protected
+    .post("/api/session/{sessionID}/workrun/pause", "v2.session.workrun.pause.missing")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun/pause", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .status(404, undefined, "status"),
+  http.protected
+    .post("/api/session/{sessionID}/workrun/pause", "v2.session.workrun.pause.conflict")
+    .seeded((ctx) => ctx.session({ title: "Work run pause without run" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun/pause", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .status(409, undefined, "status"),
+  http.protected
+    .post("/api/session/{sessionID}/workrun/resume", "v2.session.workrun.resume.missing")
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun/resume", { sessionID: "ses_httpapi_missing" }),
+      headers: ctx.headers(),
+    }))
+    .status(404, undefined, "status"),
+  http.protected
+    .post("/api/session/{sessionID}/workrun/resume", "v2.session.workrun.resume.conflict")
+    .seeded((ctx) => ctx.session({ title: "Work run resume without run" }))
+    .at((ctx) => ({
+      path: route("/api/session/{sessionID}/workrun/resume", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .status(409, undefined, "status"),
+  http.protected
     .get("/api/session/{sessionID}/message/{messageID}", "v2.session.message.missing")
     .at((ctx) => ({
       path: route("/api/session/{sessionID}/message/{messageID}", {

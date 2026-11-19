@@ -47,6 +47,7 @@ import { PtyTicket } from "@opennovel-ai/core/pty/ticket"
 import { Ripgrep } from "@opennovel-ai/core/ripgrep"
 import { SessionProjector } from "@opennovel-ai/core/session/projector"
 import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import * as SessionExecutionLocal from "@opennovel-ai/core/session/execution/local"
 import { SessionRestart } from "@opennovel-ai/core/session/execution/restart"
@@ -213,6 +214,7 @@ const app = LayerNode.group([
   SessionProjector.node,
   GlobalEventBridge.node,
   SessionV2.node,
+  SessionWorkRun.node,
   RuntimeFlags.node,
   LSP.node,
   Format.node,

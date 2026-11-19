@@ -2307,6 +2307,72 @@ export type SessionsMessageOutput = {
       }
 }["data"]
 
+export type SessionsWorkrunInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsWorkrunOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID: string
+    readonly goal: string
+    readonly status: "active" | "paused" | "complete"
+    readonly progressNote: string
+    readonly continuationCount: number
+    readonly noProgressCount: number
+    readonly timeCreated: number
+    readonly timeUpdated: number
+    readonly items: ReadonlyArray<{
+      readonly seq: number
+      readonly title: string
+      readonly status: "pending" | "in_progress" | "done" | "skipped" | "blocked"
+      readonly note?: string
+    }>
+  } | null
+}["data"]
+
+export type SessionsPauseInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsPauseOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID: string
+    readonly goal: string
+    readonly status: "active" | "paused" | "complete"
+    readonly progressNote: string
+    readonly continuationCount: number
+    readonly noProgressCount: number
+    readonly timeCreated: number
+    readonly timeUpdated: number
+    readonly items: ReadonlyArray<{
+      readonly seq: number
+      readonly title: string
+      readonly status: "pending" | "in_progress" | "done" | "skipped" | "blocked"
+      readonly note?: string
+    }>
+  }
+}["data"]
+
+export type SessionsResumeInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type SessionsResumeOutput = {
+  readonly data: {
+    readonly id: string
+    readonly sessionID: string
+    readonly goal: string
+    readonly status: "active" | "paused" | "complete"
+    readonly progressNote: string
+    readonly continuationCount: number
+    readonly noProgressCount: number
+    readonly timeCreated: number
+    readonly timeUpdated: number
+    readonly items: ReadonlyArray<{
+      readonly seq: number
+      readonly title: string
+      readonly status: "pending" | "in_progress" | "done" | "skipped" | "blocked"
+      readonly note?: string
+    }>
+  }
+}["data"]
+
 export type MessagesListInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly limit?: {

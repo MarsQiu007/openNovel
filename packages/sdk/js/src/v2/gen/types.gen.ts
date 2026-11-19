@@ -4227,6 +4227,26 @@ export type SessionNextRevertCommitted = {
   }
 }
 
+export type SessionWorkRunItem = {
+  seq: number
+  title: string
+  status: "pending" | "in_progress" | "done" | "skipped" | "blocked"
+  note?: string
+}
+
+export type SessionWorkRunRun = {
+  id: string
+  sessionID: string
+  goal: string
+  status: "active" | "paused" | "complete"
+  progressNote: string
+  continuationCount: number
+  noProgressCount: number
+  timeCreated: number
+  timeUpdated: number
+  items: Array<SessionWorkRunItem>
+}
+
 export type ModelApi =
   | {
       id: string
@@ -10997,6 +11017,125 @@ export type V2SessionMessageResponses = {
 }
 
 export type V2SessionMessageResponse = V2SessionMessageResponses[keyof V2SessionMessageResponses]
+
+export type V2SessionWorkrunGetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/workrun"
+}
+
+export type V2SessionWorkrunGetErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+}
+
+export type V2SessionWorkrunGetError = V2SessionWorkrunGetErrors[keyof V2SessionWorkrunGetErrors]
+
+export type V2SessionWorkrunGetResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SessionWorkRunRun
+  }
+}
+
+export type V2SessionWorkrunGetResponse = V2SessionWorkrunGetResponses[keyof V2SessionWorkrunGetResponses]
+
+export type V2SessionWorkrunPauseData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/workrun/pause"
+}
+
+export type V2SessionWorkrunPauseErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+  /**
+   * ConflictError
+   */
+  409: ConflictError
+}
+
+export type V2SessionWorkrunPauseError = V2SessionWorkrunPauseErrors[keyof V2SessionWorkrunPauseErrors]
+
+export type V2SessionWorkrunPauseResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SessionWorkRunRun
+  }
+}
+
+export type V2SessionWorkrunPauseResponse = V2SessionWorkrunPauseResponses[keyof V2SessionWorkrunPauseResponses]
+
+export type V2SessionWorkrunResumeData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: never
+  url: "/api/session/{sessionID}/workrun/resume"
+}
+
+export type V2SessionWorkrunResumeErrors = {
+  /**
+   * InvalidRequestError
+   */
+  400: InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+  /**
+   * SessionNotFoundError
+   */
+  404: SessionNotFoundError
+  /**
+   * ConflictError
+   */
+  409: ConflictError
+}
+
+export type V2SessionWorkrunResumeError = V2SessionWorkrunResumeErrors[keyof V2SessionWorkrunResumeErrors]
+
+export type V2SessionWorkrunResumeResponses = {
+  /**
+   * Success
+   */
+  200: {
+    data: SessionWorkRunRun
+  }
+}
+
+export type V2SessionWorkrunResumeResponse = V2SessionWorkrunResumeResponses[keyof V2SessionWorkrunResumeResponses]
 
 export type V2SessionMessagesData = {
   body?: never

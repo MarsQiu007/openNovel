@@ -20,8 +20,8 @@
 
 ## 4. 协议与 UI 面
 
-- [ ] 4.1 schema/protocol 新增 WorkRun 查询端点（按会话返回队列与单元）与挂起/恢复操作端点；从 packages/client 运行 `bun run generate` 并运行根脚本 `./packages/sdk/js/script/build.ts` 双再生，`git diff` 确认 generated 产物无回退——generated types 出现新端点
-- [ ] 4.2 server HttpApi 实现新端点并同步注册 httpapi-exercise 场景——本地 coverage 模式预检无 missing（`--fail-on-missing` 不红）
+- [x] 4.1 schema/protocol 新增 WorkRun 查询端点（按会话返回队列与单元）与挂起/恢复操作端点；从 packages/client 运行 `bun run generate` 并运行根脚本 `./packages/sdk/js/script/build.ts` 双再生，`git diff` 确认 generated 产物无回退——generated types 出现新端点
+- [x] 4.2 server HttpApi 实现新端点并同步注册 httpapi-exercise 场景——本地 coverage 模式预检无 missing（`--fail-on-missing` 不红）
 - [ ] 4.3 app 会话面板新增工作队列区块：队列目标、单元清单与状态、实时进度笔记、挂起与恢复按钮——浏览器实测展示/推进/挂起/恢复四操作
 
 ## 5. 逐章审查消费者

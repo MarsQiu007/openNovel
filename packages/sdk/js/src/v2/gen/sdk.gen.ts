@@ -627,6 +627,12 @@ import type {
   V2SessionUpdateResponses,
   V2SessionWaitErrors,
   V2SessionWaitResponses,
+  V2SessionWorkrunGetErrors,
+  V2SessionWorkrunGetResponses,
+  V2SessionWorkrunPauseErrors,
+  V2SessionWorkrunPauseResponses,
+  V2SessionWorkrunResumeErrors,
+  V2SessionWorkrunResumeResponses,
   V2SkillListErrors,
   V2SkillListResponses,
   V2SoulGlobalErrors,
@@ -3485,6 +3491,73 @@ export class Revert extends HeyApiClient {
   }
 }
 
+export class Workrun extends HeyApiClient {
+  /**
+   * Get session work run
+   *
+   * Retrieve the session's durable work queue with its units and statuses. Data is null when the session has no work run.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).get<V2SessionWorkrunGetResponses, V2SessionWorkrunGetErrors, ThrowOnError>({
+      url: "/api/session/{sessionID}/workrun",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Pause session work run
+   *
+   * Suspend the session's active work queue, preserving units and progress for later resumption. Fails with a conflict when no active run exists.
+   */
+  public pause<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).post<
+      V2SessionWorkrunPauseResponses,
+      V2SessionWorkrunPauseErrors,
+      ThrowOnError
+    >({
+      url: "/api/session/{sessionID}/workrun/pause",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Resume session work run
+   *
+   * Reactivate the session's paused work queue and reset its guard counters. Fails with a conflict when no paused run exists.
+   */
+  public resume<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "path", key: "sessionID" }] }])
+    return (options?.client ?? this.client).post<
+      V2SessionWorkrunResumeResponses,
+      V2SessionWorkrunResumeErrors,
+      ThrowOnError
+    >({
+      url: "/api/session/{sessionID}/workrun/resume",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Permission extends HeyApiClient {
   /**
    * List session permission requests
@@ -4321,6 +4394,11 @@ export class Session extends HeyApiClient {
   private _revert?: Revert
   get revert(): Revert {
     return (this._revert ??= new Revert({ client: this.client }))
+  }
+
+  private _workrun?: Workrun
+  get workrun(): Workrun {
+    return (this._workrun ??= new Workrun({ client: this.client }))
   }
 
   private _permission?: Permission

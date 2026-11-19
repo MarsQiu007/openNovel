@@ -8,6 +8,7 @@ import { Global } from "@opennovel-ai/core/global"
 import { PermissionSaved } from "@opennovel-ai/core/permission/saved"
 import { PtyTicket } from "@opennovel-ai/core/pty/ticket"
 import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import { LocationServiceMap } from "@opennovel-ai/core/location-service-map"
 import { SessionExecutionLocal } from "@opennovel-ai/core/session/execution/local"
@@ -30,6 +31,7 @@ const applicationServices = LayerNode.group([
   httpClient,
   ToolOutputStore.cleanupNode,
   SessionV2.node,
+  SessionWorkRun.node,
   PermissionSaved.node,
   PtyTicket.node,
   Credential.node,
