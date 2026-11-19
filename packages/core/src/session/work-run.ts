@@ -13,6 +13,7 @@ import {
 import { Database } from "../database/database"
 import { makeLocationNode } from "../effect/app-node"
 import { EventV2 } from "../event"
+import { SessionContextEpoch } from "./context-epoch"
 import { SessionSchema } from "./schema"
 import { WorkRunItemTable, WorkRunTable } from "./sql"
 
@@ -297,6 +298,9 @@ const layer = Layer.effect(
             .pipe(Effect.orDie)
           const run = yield* selectRunOrDie(runID)
           yield* publishUpdate(run.id)
+          // 状态迁移纳入 epoch 失效语义（design D4）：终结后重置上下文 epoch，
+          // 下回合 initialize 重新生成 baseline，active 注入约束随迁移当回合消失
+          yield* SessionContextEpoch.reset(db, run.session_id)
           return fromRows(run, items)
         }),
 
@@ -313,6 +317,8 @@ const layer = Layer.effect(
             .pipe(Effect.orDie)
           const row = yield* selectRunOrDie(run.id)
           yield* publishUpdate(row.id)
+          // 挂起重置上下文 epoch：下回合 baseline 不再包含续跑约束
+          yield* SessionContextEpoch.reset(db, row.session_id)
           return fromRows(row, yield* selectItems(run.id))
         }),
 
@@ -333,6 +339,8 @@ const layer = Layer.effect(
             .pipe(Effect.orDie)
           const row = yield* selectRunOrDie(run.id)
           yield* publishUpdate(row.id)
+          // 恢复重置上下文 epoch：下回合 initialize 以 active 队列重新生成 baseline 注入约束
+          yield* SessionContextEpoch.reset(db, row.session_id)
           return fromRows(row, yield* selectItems(run.id))
         }),
 
@@ -351,6 +359,8 @@ const layer = Layer.effect(
               .where(eq(WorkRunTable.id, run.id))
               .run()
               .pipe(Effect.orDie)
+            // 熔断挂起重置上下文 epoch：下回合 baseline 不再包含续跑约束
+            yield* SessionContextEpoch.reset(db, run.sessionID)
             return { action: "stop", reason: "limit_reached" }
           }
           if (run.noProgressCount >= limits.noProgressLimit) {
@@ -360,6 +370,7 @@ const layer = Layer.effect(
               .where(eq(WorkRunTable.id, run.id))
               .run()
               .pipe(Effect.orDie)
+            yield* SessionContextEpoch.reset(db, run.sessionID)
             return { action: "stop", reason: "no_progress" }
           }
           yield* db

@@ -40,6 +40,7 @@ import { SessionStore } from "../store"
 import { SessionTitle } from "../title"
 import { SessionWatermark } from "../watermark"
 import { SessionWorkRun } from "../work-run"
+import { WorkRunContext } from "../work-run-context"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
@@ -202,7 +203,9 @@ const layer = Layer.effect(
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
     // purpose 会话（工具改进归因等后台会话）屏蔽 Location 级 context source：归因请求的
-    // system 段只含专用 agent 提示词与脱敏证据，不携带原书设定、灵魂段、注入快照或引用清单
+    // system 段只含专用 agent 提示词与脱敏证据，不携带原书设定、灵魂段、注入快照或引用清单。
+    // WorkRun 条件源仅在该会话存在 active 工作队列时组合（无队列组合 empty，快照无 key 不注入），
+    // purpose 会话自身不建队列、current 查询按其 sessionID 落空，天然不受影响
     const loadSystemContext = (sessionID: SessionSchema.ID, agent: AgentV2.Selection) =>
       Effect.all(
         [
@@ -211,6 +214,11 @@ const layer = Layer.effect(
             : Effect.succeed(SystemContext.empty),
           skillGuidance.load(agent),
           referenceGuidance.load(),
+          workrun.current(sessionID).pipe(
+            Effect.map((run) =>
+              run !== undefined && run.status === "active" ? WorkRunContext.forRun(run) : SystemContext.empty,
+            ),
+          ),
         ],
         { concurrency: "unbounded" },
       ).pipe(Effect.map(SystemContext.combine))

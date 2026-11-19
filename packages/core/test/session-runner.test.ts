@@ -3735,6 +3735,40 @@ describe("SessionRunnerLLM", () => {
       .pipe(Effect.orDie)
   })
 
+  it.effect("活动队列回合 system 注入续跑约束，熔断挂起当回合解除", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-inject-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-inject-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-inject-3", ["继续三"]).completeEvents,
+        fragmentFixture("text", "text-inject-4", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(4)
+      // 回合 1-4：active 队列 prepare 注入禁纯文本停机与复述两条约束，baseline 持续存在；
+      // 第 4 次守卫在回合 4 结算处熔断，prepare 时队列仍 active
+      for (const request of requests)
+        expect(JSON.stringify(request.system)).toContain("禁止以纯文本结束回合")
+      // 熔断转 paused 并同步失效 epoch：后续普通对话重新生成干净 baseline，约束消失
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+      requests.length = 0
+      responses = [fragmentFixture("text", "text-inject-5", ["普通回复"]).completeEvents]
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "队列挂起了吗" }), resume: false })
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      const finalSystem = JSON.stringify(requests[0]?.system)
+      expect(finalSystem).not.toContain("禁止以纯文本结束回合")
+      expect(finalSystem).not.toContain("【工作队列已停止】")
+    }),
+  )
+
   it.effect("守卫在纯文本回合合成续跑指令，无进展熔断后放行停机", () =>
     Effect.gen(function* () {
       yield* setup
