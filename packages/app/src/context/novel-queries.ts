@@ -231,8 +231,8 @@ export const novelKeys = {
     ["novel", "writing-batch", directory, novelID] as const,
   "review-inbox-counts": (directory: string, novelID: string) =>
     ["novel", "review-inbox-counts", directory, novelID] as const,
-  "review-inbox-items": (directory: string, novelID: string, source: string, limit: number) =>
-    ["novel", "review-inbox-items", directory, novelID, source, limit] as const,
+  "review-inbox-items": (directory: string, novelID: string, source: string, limit: number, showProcessed: boolean) =>
+    ["novel", "review-inbox-items", directory, novelID, source, limit, showProcessed] as const,
   "memory-fact-counts": (directory: string, novelID: string) =>
     ["novel", "memory-fact-counts", directory, novelID] as const,
   "memory-fact-items": (directory: string, novelID: string, filter: string, limit: number) =>
@@ -2481,11 +2481,12 @@ export function useReviewInboxItems(
   novelID: Accessor<string>,
   source: Accessor<ReviewInboxSource | null>,
   limit: Accessor<number>,
+  showProcessed?: Accessor<boolean>,
 ) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
-    queryKey: novelKeys["review-inbox-items"](sdk().directory, novelID(), source() ?? "all", limit()),
+    queryKey: novelKeys["review-inbox-items"](sdk().directory, novelID(), source() ?? "all", limit(), showProcessed?.() ?? false),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].items({
@@ -2494,6 +2495,7 @@ export function useReviewInboxItems(
         source: source() ?? undefined,
         limit: limit(),
         offset: 0,
+        showProcessed: showProcessed?.() ? "true" : undefined,
       }),
     enabled: !!novelID(),
   }))

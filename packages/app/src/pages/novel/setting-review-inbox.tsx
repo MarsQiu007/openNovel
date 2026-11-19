@@ -50,6 +50,13 @@ const SOURCE_TAG_VARIANTS: Record<ReviewInboxSourceKey, "info" | "warning" | "ac
   staged: "accent",
 }
 
+const STATUS_TAG_VARIANTS: Record<string, "success" | "neutral" | "danger"> = {
+  pending: "neutral",
+  accepted: "success",
+  rejected: "danger",
+  merged: "success",
+}
+
 const EDIT_ERROR_KEYS = {
   empty: "novel.settings.inbox.error.editEmpty",
   invalid: "novel.settings.inbox.error.editInvalid",
@@ -66,6 +73,7 @@ export function SettingReviewInboxPanel(props: SettingReviewInboxPanelProps) {
   const t = language.t
 
   const [sourceFilter, setSourceFilter] = createSignal<ReviewInboxSourceKey | null>(null)
+  const [showProcessed, setShowProcessed] = createSignal(false)
   const [limit, setLimit] = createSignal(REVIEW_INBOX_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = createSignal<readonly string[]>([])
   const [panel, setPanel] = createSignal<{ id: string; kind: PanelKind } | null>(null)
@@ -75,7 +83,7 @@ export function SettingReviewInboxPanel(props: SettingReviewInboxPanelProps) {
   const [status, setStatus] = createSignal<{ kind: "ok" | "error"; lines: string[] } | null>(null)
 
   const counts = useReviewInboxCounts(props.novelID)
-  const itemsQuery = useReviewInboxItems(props.novelID, sourceFilter, limit)
+  const itemsQuery = useReviewInboxItems(props.novelID, sourceFilter, limit, showProcessed)
 
   function refreshInbox() {
     const dir = sdk().directory
@@ -253,6 +261,15 @@ export function SettingReviewInboxPanel(props: SettingReviewInboxPanelProps) {
         >
           <For each={[...FILTERS]}>{(filter) => <SegmentedControlItemV2 value={filter}>{sourceLabel(filter, t)}</SegmentedControlItemV2>}</For>
         </SegmentedControlV2>
+        <CheckboxV2
+          checked={showProcessed()}
+          onChange={(checked) => {
+            setShowProcessed(checked)
+            setLimit(REVIEW_INBOX_PAGE_SIZE)
+            setSelectedIds([])
+          }}
+          label={t("novel.settings.inbox.showProcessed")}
+        />
         <Show when={selectedIds().length > 0}>
           <div class="flex items-center gap-2">
             <span class="text-xs text-v2-text-text-muted">{t("novel.settings.inbox.selected", { count: selectedIds().length })}</span>
@@ -310,6 +327,9 @@ export function SettingReviewInboxPanel(props: SettingReviewInboxPanelProps) {
                             <div class="min-w-0 flex-1">
                               <div class="flex flex-wrap items-center gap-2">
                                 <Tag variant={SOURCE_TAG_VARIANTS[item.source]}>{sourceLabel(item.source, t)}</Tag>
+                                <Show when={item.source === "candidate" && item.status !== "pending"}>
+                                  <Tag variant={STATUS_TAG_VARIANTS[item.status] ?? "neutral"}>{t(`novel.settings.inbox.status.${item.status}` as never)}</Tag>
+                                </Show>
                                 <span class="text-xs text-v2-text-text-muted">{kindLabel(item.source, item.kind, t)}</span>
                                 <span class="truncate font-medium">{item.title}</span>
                               </div>
