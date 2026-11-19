@@ -253,6 +253,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: PluginV2.Int
   const degraded = PluginSession.unavailable(runtimeMissing)
   return {
     options: {},
+    purpose: SessionPurpose.lookupLocation(location.directory),
     event,
     file: PluginFile.makeFileDomain(),
     location: {

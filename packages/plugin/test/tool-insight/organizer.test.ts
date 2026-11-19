@@ -442,6 +442,50 @@ describe("归因整理队列（任务 4.1）", () => {
   })
 })
 
+describe("空状态与旧日志兼容（任务 1）", () => {
+  test("零历史启动对账不创建项目日志根、索引、锁或空数据文件", async () => {
+    const { configDir, logRoot, projectDir } = fixture("empty")
+    const projectLogRoot = join(logRoot, toolInsightProjectSlug(projectDir))
+    const fake = fakeSession()
+    const organizer = createToolInsightOrganizer({ ctx: fakeCtx(configDir), projectDirectory: projectDir, session: fake.session })
+    try {
+      await organizer.recoverOnce()
+      await sleep(50)
+      expect(existsSync(projectLogRoot)).toBe(false)
+      expect(fake.inputs).toHaveLength(0)
+    } finally {
+      cleanup({ configDir, logRoot, projectDir })
+    }
+  })
+
+  test("撕裂尾部证据进入修复与孤儿摄取流程，且只摄取完整记录一次", async () => {
+    const { configDir, logRoot, projectDir } = fixture("tail")
+    try {
+      const paths = pathsFor(logRoot, projectDir)
+      const record = toolFailedEvidence()
+      await appendEvidenceUnderLock(file, paths, [record])
+      const raw = readFileSync(paths.evidence, "utf-8")
+      writeFileSync(paths.evidence, raw + '{"id":"ev_torn","kind":', "utf-8")
+      const fake = fakeSession()
+      const organizer = createToolInsightOrganizer({ ctx: fakeCtx(configDir), projectDirectory: projectDir, session: fake.session })
+      const release = fake.deferred()
+      await organizer.recoverOnce()
+      await sleep(50)
+      const fingerprint = String(record.fields.fingerprint)
+      const meta = readDoc(paths, fingerprint).meta
+      expect(meta.evidence_ids).toEqual([record.id])
+      expect(meta.occurrence_count).toBe(1)
+      expect(existsSync(paths.index)).toBe(true)
+      expect(fake.inputs).toHaveLength(1)
+      release(success(ORGANIZE_OUTPUT))
+      await sleep(50)
+      expect(readDoc(paths, fingerprint).meta.organize_status).toBe("organized")
+    } finally {
+      cleanup({ configDir, logRoot, projectDir })
+    }
+  })
+})
+
 describe("启动崩溃恢复（任务 4.2）", () => {
   test("孤儿证据重新确定性摄取并入队；恢复走显式目录顶层会话；只补一次", async () => {
     const { configDir, logRoot, projectDir } = fixture("orphan")

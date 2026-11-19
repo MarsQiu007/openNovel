@@ -25,6 +25,7 @@
 ```text
 <log-root>/
   evidence.jsonl
+  signals.jsonl
   issues/<fingerprint>.md
   index.md
   cases/<fingerprint>.md
@@ -34,8 +35,8 @@
 ```
 
 | 路径                       | 内容                                                   |
-| -------------------------- | ------------------------------------------------------ |
 | `evidence.jsonl`           | 客观证据，逐行一条 JSON，只追加                        |
+| `signals.jsonl`            | 用户负反馈信号，逐行一条 JSON，只追加，不保存原文        |
 | `issues/<fingerprint>.md`  | 每个问题一份可读文档，文件名是 16 位十六进制问题指纹   |
 | `index.md`                 | 问题总索引，只从各问题文档的 frontmatter 确定性重建    |
 | `cases/<fingerprint>.md`   | 可自动复测问题的案例文档（夹具、工具白名单、验收标准） |
@@ -73,6 +74,14 @@
 
 - 仅本地保留：片段只保存在本地证据文件中，对归因与复测的模型输入不可见。
 - 模型使用授权：另行签发唯一 grant（`cgr_` 前缀），绑定用途（本次归因或一组复测）、案例或问题摘要与目标模型范围；授权范围外的请求拿不到该片段。依赖未授权正文才能成立的复测案例直接转人工，不悄悄换成不完整案例。
+
+## 负反馈信号
+
+普通对话中的「不对」「错了」「用错工具了」这类明确负面评价，会先写入 `signals.jsonl`，不会自动创建完整问题文档。每条信号只保存时间、项目/会话/提示消息引用、稳定信号 ID 与发生实例 ID，以及固定枚举 `targetScope`（`writing`、`tool`、`process`、`unknown`）和 `feedbackCategory`（`result_rejected`、`tool_misuse`、`flow_issue`、`other`）。同一提示消息只计一个发生实例。
+
+信号层不保存完整对话原文、小说正文、文件附件、完整工具参数或密钥；检测在本地用固定规则完成，不调用模型。可以在 `tool_insight` 工具用 `action=list_signals` 查看待确认信号，输出只有信号 ID、时间、目标范围、反馈类别和升级状态。只有用户明确确认记录（或通过显式自然语言记录入口确认）后，才用 `action=upgrade_signal` 升级为 `user_report` 问题文档；升级反馈仍走既有脱敏截断和正文授权规则，同一信号只升级一次。
+
+零历史时不会创建 `signals.jsonl`、索引或任何日志骨架；旧目录中的既有文件保持只读兼容。
 
 ## 问题文档
 

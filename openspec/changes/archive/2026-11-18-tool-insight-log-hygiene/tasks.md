@@ -1,0 +1,46 @@
+# Tasks
+
+## 1. 空状态零落盘
+
+- [x] 1.1 调整启动对账为「先探测、后落盘」，确保无证据、无问题文档、无复测记录、无负反馈信号、无待恢复尾部且无待处理任务时不创建日志根、索引、锁目录或空数据文件；用 `packages/plugin` 聚焦测试覆盖零历史场景
+- [x] 1.2 调整首个真实证据、问题或信号写入路径，使其只创建该记录所需的最小工件；用 `packages/plugin` 聚焦测试验证首个证据和首个信号分别触发最小工件创建
+- [x] 1.3 保持既有目录只读兼容，并验证旧日志根上的启动对账仍能补齐孤儿证据；在 `packages/plugin` 增加旧目录回归测试
+
+## 2. 会话归属与记录唯一
+
+- [x] 2.1 将创建事件维护的会话项目归属接入日志根解析，并为未观察到创建事件的已存在会话增加持久归属一致性兜底；用 `packages/plugin` 测试覆盖多 Location 单根、重启恢复和临时 Location 不兜底
+- [x] 2.2 在证据与信号追加锁内加入稳定 ID 去重，返回明确跳过结果并阻止问题文档重复摄取；用 `packages/plugin` 测试覆盖证据和信号去重、崩溃恢复与出现次数不变
+- [x] 2.3 清理事件归属相关的调用方和测试辅助，确保未引入无人引用的导出；在 `packages/plugin` 运行 `bun typecheck` 与 oxlint
+
+## 3. 复测隔离边界
+
+- [x] 3.1 将内部复测 purpose 传播到临时 Location 的插件上下文，并在插件启动时跳过常规采集、负反馈信号采集与启动对账；用 `packages/core` 和 `packages/plugin` 聚焦测试验证 purpose 标记存在
+- [x] 3.2 确认复测遥测和结果继续写回原问题运行记录，临时项目清理后不在共享日志目录新增常规日志根；用 `packages/plugin` 复测端到端测试覆盖连续多次运行
+- [x] 3.3 核查临时 Location 的插件装载、授权校验和清理失败路径未受新标记影响；在 `packages/core` 补充失败路径断言
+
+## 4. 负反馈信号层
+
+- [x] 4.1 新增负反馈信号 JSONL 读写与稳定 ID/发生实例规则，实现固定的目标范围、反馈类别和聚合键；用 `packages/plugin` 测试覆盖空状态、首条信号和同提示消息去重
+- [x] 4.2 接入 `session.next.prompt.admitted`，用本地确定性规则检测明确负反馈并只保留会话/提示引用与稳定枚举；测试覆盖「不对」「错了」「又错了」、模糊表达、重启恢复会话、未启用和内部会话
+- [x] 4.3 扩展 `tool_insight` 主动入口新增 `upgrade_signal` 动作支持用户确认后的信号升级，用稳定目标/类别派生指纹并沿用信号发生实例；提供无原文的信号列表；用 `packages/plugin` 测试覆盖列表、升级、信息不足标记、不同类别不误并和同一信号不重复升级
+- [x] 4.4 验证负反馈信号层不保存完整对话原文、章节正文、文件附件或敏感信息；用隐私白名单测试覆盖正文、完整参数和疑似密钥样本
+- [x] 4.5 更新 `docs/tool-insight.md`、`/evaluate` 模板与 `tool_insight` 工具描述，说明信号文件、隐私边界和确认升级流程；验证文档与工具输出描述一致
+
+## 5. 收尾验证
+
+- [x] 5.1 运行受影响包聚焦测试：`packages/plugin`、`packages/novel-store`、`packages/core`，确认全部通过
+- [x] 5.2 在上述包目录运行 `bun typecheck` 与 oxlint，并在仓库根运行 `bun run lint`，确认无类型与风格回归
+- [x] 5.3 核查本变更未改公开 Protocol/Schema；若有契约变化，在 `packages/client` 运行 `bun run generate` 并验证生成物无意外 diff
+- [x] 5.4 汇总验证结果与已知限制，确认旧日志兼容策略、空状态策略和负反馈升级策略均已落到测试
+- [x] 5.5 用户人工验收通过后，运行受影响包全量测试与 `bun turbo typecheck`，作为推送前 CI 等价检查
+
+## Implementation Commits
+
+- `63ca259f19` docs(openspec): 建立 tool-insight-log-hygiene 提案
+- `e760de4cd8` docs(openspec): 完善 tool-insight-log-hygiene 提案
+- `8a466af499` feat(novel-store): 增加 tool-insight 信号路径
+- `b2993621a2` feat(core): 传播复测隔离 purpose 与持久项目标识
+- `8f2c99246f` feat(plugin): 实现 tool-insight 日志卫生与负反馈信号
+- `1d0a481e2e` docs(openspec): 勾选 tool-insight-log-hygiene 实现任务
+- `8bbed1cdc8` test(core): 更新 session.get 回填断言
+- `fe158c428b` docs(openspec): 勾选 tool-insight-log-hygiene 全量验证

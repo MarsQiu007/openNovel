@@ -12,9 +12,17 @@ export * as SessionPurpose from "./session-purpose"
 export type Purpose = "tool-insight"
 
 const registry = new Map<string, Purpose>()
+const locationRegistry = new Map<string, Purpose>()
 
 export const register = (id: string, purpose: Purpose): void => {
   registry.set(id, purpose)
 }
 
 export const lookup = (id: string): Purpose | undefined => registry.get(id)
+
+/** 隔离目录级标记：临时 Location 中的插件装载早于 Session create，必须按目录识别内部用途 */
+export const registerLocation = (directory: string, purpose: Purpose): void => {
+  locationRegistry.set(directory, purpose)
+}
+
+export const lookupLocation = (directory: string): Purpose | undefined => locationRegistry.get(directory)

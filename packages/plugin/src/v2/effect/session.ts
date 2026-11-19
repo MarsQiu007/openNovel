@@ -1,6 +1,8 @@
 /** Minimal read view of a session, for parent-chain walks inside plugins. */
 export interface SessionRef {
   readonly id: string
+  /** 持久项目标识：事件归属兜底与日志根解析使用；降级读视图可能缺失 */
+  readonly projectID?: string
   readonly parentID?: string
   /**
    * 规范 stored.location（持久化 Session 行上的目录）：复测隔离核验用它定位原书

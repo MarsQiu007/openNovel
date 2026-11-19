@@ -26,6 +26,23 @@ describe("tool-insight 文档与实现一致", () => {
     expect(doc).toContain("12 位十六进制")
   })
 
+  test("负反馈信号文件、隐私边界与确认升级一致", () => {
+    expect(doc).toContain("signals.jsonl")
+    expect(doc).toContain("`targetScope`")
+    expect(doc).toContain("`feedbackCategory`")
+    expect(doc).toContain("`result_rejected`")
+    expect(doc).toContain("`tool_misuse`")
+    expect(doc).toContain("`flow_issue`")
+    expect(doc).toContain("`writing`")
+    expect(doc).toContain("`tool`")
+    expect(doc).toContain("`process`")
+    expect(doc).toContain("`unknown`")
+    expect(doc).toContain("action=list_signals")
+    expect(doc).toContain("action=upgrade_signal")
+    expect(doc).toContain("同一提示消息只计一个发生实例")
+    expect(doc).toContain("不保存完整对话原文")
+    expect(doc).toContain("同一信号只升级一次")
+  })
   test("frontmatter 字段名与固定段落一致", () => {
     expect(doc).toContain("pending_evidence_ids")
     expect(doc).toContain("organized_evidence_ids")

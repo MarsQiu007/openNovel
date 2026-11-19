@@ -26,6 +26,8 @@ export interface CatalogModelReader {
 
 export interface PluginContext {
   readonly options: PluginOptions
+  /** 临时 Location 的内部用途标记；常规写作插件上下文为 undefined */
+  readonly purpose?: "tool-insight"
   readonly agent: AgentHooks & Reload
   readonly aisdk: AISDKHooks
   readonly catalog: CatalogHooks & Reload & CatalogModelReader

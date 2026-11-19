@@ -28,17 +28,35 @@ import {
   type ToolInsightEvidence,
 } from "./evidence.js"
 import { openToolInsightGate } from "./gate.js"
-import { issueFingerprint } from "./issue-doc.js"
+import { issueFingerprint, type ToolInsightFingerprintInput } from "./issue-doc.js"
 import { ingestEvidenceIssue, readIssueMeta, requestReorganize } from "./issue-store.js"
 import type { ToolInsightRetest } from "./retest.js"
+import {
+  listSignals,
+  toUpgradedEvidenceFields,
+  type ToolInsightSignal,
+} from "./signal-store.js"
+import type { ToolInsightOwnership } from "./ownership.js"
 import type { FileDomain } from "../v2/effect/file.js"
 import { defineTool } from "../v2/effect/tool.js"
 
 /** 用户报告类问题的稳定指纹：无工具、用户报告场景；反馈文本不进入指纹 */
 const USER_REPORT_FACTS = { tool: "", scenario: "user_report", errorCategory: "user_report" } as const
 
+/** 信号升级的稳定事实：目标范围/类别进指纹，原文、Session 与时间不进指纹 */
+function signalIssueFacts(signal: ToolInsightSignal): ToolInsightFingerprintInput {
+  return {
+    tool: "",
+    scenario: `user_report_${signal.targetScope}_${signal.feedbackCategory}`,
+    errorCategory: signal.feedbackCategory,
+    fact: signal.targetScope,
+  }
+}
+
 export function createToolInsightTool(deps: {
   configDir: string
+  /** 与采集器共享的会话归属解析；未传入时仅保留旧测试的当前目录行为 */
+  resolveOwnership?: ToolInsightOwnership["resolve"]
   file: Pick<FileDomain, "withLock">
   /** 落盘摄取成功后的整理信号：record/supplement/reorganize 都会触发后台归因队列 */
   enqueue: (fingerprint: string, sessionID?: string) => void
@@ -46,11 +64,11 @@ export function createToolInsightTool(deps: {
   retest: ToolInsightRetest
 }) {  return defineTool({
     description:
-      "记录、补充或重新整理工具改进问题（工具改进日志）。action=record 记录新问题：无报错的繁琐操作、理解偏差、写作之外的交互问题都可以，feedback 描述用户目标与实际体验；正文片段必须用 content_exception 字段单独提交（显式同意本地保留），不能混入 feedback。action=supplement 按 fingerprint 向既有问题补充反馈，沿用原发生实例不增加出现次数，只有明确报告新一次发生时才传 new_occurrence=true。action=reorganize 按 fingerprint 触发重新整理：全部证据重新生成原因假设与改进建议。action=prepare_retest 按 fingerprint 准备确定性复测案例（只写案例文档预览，不确认不执行）。action=run_retest 按 fingerprint 在隔离临时项目中自动复测：runs 为 1–20 整数、fix_version 非空，执行前须经用户系统确认，未确认不执行任何事。action=record_manual_result 按 fingerprint 留痕人工验证结论（passed 与 fix_version 必填）。全部动作都不修改任何写作数据。",
+      "记录、补充或重新整理工具改进问题（工具改进日志）。action=record 记录新问题：无报错的繁琐操作、理解偏差、写作之外的交互问题都可以，feedback 描述用户目标与实际体验；正文片段必须用 content_exception 字段单独提交（显式同意本地保留），不能混入 feedback。action=supplement 按 fingerprint 向既有问题补充反馈，沿用原发生实例不增加出现次数，只有明确报告新一次发生时才传 new_occurrence=true。action=reorganize 按 fingerprint 触发重新整理：全部证据重新生成原因假设与改进建议。action=prepare_retest 按 fingerprint 准备确定性复测案例（只写案例文档预览，不确认不执行）。action=run_retest 按 fingerprint 在隔离临时项目中自动复测：runs 为 1–20 整数、fix_version 非空，执行前须经用户系统确认，未确认不执行任何事。action=record_manual_result 按 fingerprint 留痕人工验证结论（passed 与 fix_version 必填）。action=list_signals 只展示负反馈信号 ID、时间、目标范围、反馈类别和升级状态，不展示提示原文或附件；action=upgrade_signal 必须由用户确认后调用，把已确认信号升级为 user_report，同一信号只升级一次。signals.jsonl 不保存完整对话原文、正文、附件或敏感信息，升级反馈仍走脱敏截断和正文授权规则。全部动作都不修改任何写作数据。",
     args: Schema.Struct({
-      action: Schema.Literals(["record", "supplement", "reorganize", "prepare_retest", "run_retest", "record_manual_result"]).annotate({
+      action: Schema.Literals(["record", "supplement", "reorganize", "prepare_retest", "run_retest", "record_manual_result", "list_signals", "upgrade_signal"]).annotate({
         description:
-          "record=记录新问题/supplement=补充既有问题/reorganize=重新整理既有问题/prepare_retest=准备复测案例/run_retest=确认后隔离复测/record_manual_result=人工结果留痕",
+          "record=记录新问题/supplement=补充既有问题/reorganize=重新整理既有问题/prepare_retest=准备复测案例/run_retest=确认后隔离复测/record_manual_result=人工结果留痕/list_signals=查看负反馈信号/upgrade_signal=确认后升级信号",
       }),
       feedback: Schema.optional(
         Schema.String.annotate({ description: "普通反馈文本（会被脱敏截断保存）；正文片段禁止放这里" }),
@@ -75,17 +93,25 @@ export function createToolInsightTool(deps: {
       passed: Schema.optional(
         Schema.Boolean.annotate({ description: "record_manual_result 专用：人工验证是否通过" }),
       ),
+      signal_ids: Schema.optional(
+        Schema.Array(Schema.String).annotate({ description: "upgrade_signal 专用：已确认的负反馈信号 ID 列表" }),
+      ),
       detail: Schema.optional(
         Schema.String.annotate({ description: "record_manual_result 专用：人工验证说明（会脱敏截断保存）" }),
       ),
     }),
     async execute(args, ctx) {
-      if (args.action !== "record" && args.fingerprint === undefined) {
+      if (args.action !== "record" && args.action !== "list_signals" && args.action !== "upgrade_signal" && args.fingerprint === undefined) {
         return { title: "tool_insight", output: `action=${args.action} 需要提供 fingerprint（可在问题索引 index.md 查到）。` }
+      }
+      const ownership = deps.resolveOwnership === undefined ? { projectID: ctx.directory, directory: ctx.directory } : await deps.resolveOwnership(ctx.sessionID)
+      if (ownership === undefined) {
+        return { title: "tool_insight", output: "无法确认当前会话的项目归属：本次未记录任何内容。" }
       }
       const opened = openToolInsightGate({
         configDir: deps.configDir,
-        projectDirectory: ctx.directory,
+        projectDirectory: ownership.directory,
+        projectID: ownership.projectID,
         warnOnce: (message) => console.warn(`[tool-insight] ${message}`),
       })
       if (opened === undefined) {
@@ -97,6 +123,87 @@ export function createToolInsightTool(deps: {
       const paths = opened.paths
       const file = deps.file
       const ts = Date.now()
+
+      if (args.action === "list_signals") {
+        const entries = listSignals(paths)
+        const body =
+          entries.length === 0
+            ? "当前没有负反馈信号。"
+            : entries
+                .map(
+                  (signal) =>
+                    `- ${signal.id}（${new Date(signal.ts).toISOString()}，${signal.targetScope}/${signal.feedbackCategory}，${signal.upgraded ? "已升级" : "待确认"}）`,
+                )
+                .join("\n")
+        return { title: "tool_insight", output: body, metadata: { action: "list_signals", total: entries.length } }
+      }
+
+      if (args.action === "upgrade_signal") {
+        const requested = [...new Set(args.signal_ids ?? [])]
+        if (requested.length === 0) {
+          return { title: "tool_insight", output: "请提供 signal_ids；先使用 list_signals 查看待确认信号。" }
+        }
+        const signals = listSignals(paths)
+        const selected = signals.filter((signal) => requested.includes(signal.id))
+        if (selected.length !== requested.length) {
+          return { title: "tool_insight", output: "部分信号不存在：本次未升级任何信号。" }
+        }
+        if (selected.some((signal) => signal.upgraded)) {
+          return { title: "tool_insight", output: "所选信号中已有已升级项：本次整体跳过，未重复记录。" }
+        }
+        const feedback = args.feedback === undefined ? {} : { userFeedback: redactSummary(args.feedback) }
+        const records = selected.map((signal): ToolInsightEvidence => {
+          const facts = signalIssueFacts(signal)
+          const fingerprintHash = issueFingerprint(facts)
+          return {
+            id: deriveEvidenceID({ projectID: opened.projectID, eventID: `signal-upgrade:${signal.id}`, kind: "user_report" }),
+            ts: Date.now(),
+            kind: "user_report",
+            projectID: opened.projectID,
+            sessionID: ctx.sessionID,
+            trigger: "user",
+            occurrenceID: signal.occurrenceID,
+            fields: {
+              ...feedback,
+              ...toUpgradedEvidenceFields(signal),
+              fingerprint: fingerprintHash,
+              issue: facts,
+            },
+          }
+        })
+        const appended = await appendEvidenceUnderLock(file, paths, records, { dedupe: true })
+        if (!appended.appended) {
+          return {
+            title: "tool_insight",
+            output:
+              appended.reason === "duplicate"
+                ? "所选信号已被升级：本次整体跳过，未重复记录。"
+                : `信号升级落盘未完成（${appended.reason}），本次未记录。`,
+          }
+        }
+        let ingestNote = ""
+        for (const [index, signal] of selected.entries()) {
+          const record = records[index]!
+          const facts = signalIssueFacts(signal)
+          const ingested = await ingestEvidenceIssue(file, paths, {
+            fingerprint: issueFingerprint(facts),
+            evidenceID: record.id,
+            occurrenceID: signal.occurrenceID,
+            evidenceKind: "user_report",
+            occurredAt: record.ts,
+            facts,
+          })
+          if (!ingested.documented) ingestNote = `问题文档未更新（${ingested.reason}），证据本身已保存。`
+        }
+        const primary = selected[0]
+        const fingerprint = issueFingerprint(signalIssueFacts(primary!))
+        deps.enqueue(fingerprint, ctx.sessionID)
+        return {
+          title: "tool_insight",
+          output: `已升级 ${selected.length} 条信号并创建用户报告问题。\n证据 ${records.map((record) => record.id).join("、")} 已保存。${ingestNote}`,
+          metadata: { action: "upgrade_signal", fingerprint, signal_ids: selected.map((signal) => signal.id), evidence_ids: records.map((record) => record.id) },
+        }
+      }
 
       if (args.action === "prepare_retest" || args.action === "run_retest") {
         const outcome =

@@ -91,6 +91,7 @@ describe("隔离复测端到端验收（任务 5.6）", () => {
       const paths = pathsFor(dirs.logRoot, dirs.projectDir)
       await seedIssue(paths, FP, FACTS)
       const { calls: confirmCalls, confirm } = makeConfirm()
+      const logDirsBefore = readdirSync(dirs.logRoot).sort()
 
       // 工具轨迹与隔离探针：只调白名单工具、只引用合成 ID；原书数据在临时项目不可达
       const trajectory: Array<{ name: string; args: Record<string, unknown> }> = []
@@ -159,6 +160,8 @@ describe("隔离复测端到端验收（任务 5.6）", () => {
 
       // 原书数据库与文件前后摘要一致
       expect(projectDigest(dirs.projectDir)).toBe(digestBefore)
+      // 共享日志目录不为临时运行新增常规日志根
+      expect(readdirSync(dirs.logRoot).sort()).toEqual(logDirsBefore)
       // 每次运行的临时目录已清理，祖先链无 opennovel 配置并入
       const root = tempRootFor(dirs.projectDir)
       expect(readdirSync(root)).toHaveLength(0)

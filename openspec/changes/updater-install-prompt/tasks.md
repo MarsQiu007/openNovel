@@ -2,7 +2,7 @@
 
 ## 1. 前置验证：6.8.9 上 flag 行为实测
 
-- [ ] 1.1 实测 `autoInstallOnAppQuit = false` 在 electron-updater 6.8.9 下是否被尊重：构造本地更新源（发布一个高版本到本地静态服务），安装低版本后走「下载完成 → 正常退出」链路，观察退出时是否静默触发安装。验证方式：退出后进程列表与安装目录时间戳无变化即为通过；若 flag 失效，将依赖升级任务（第 5 组）提前并在此记录结论
+- [x] 1.1 实测 `autoInstallOnAppQuit = false` 在 electron-updater 6.8.9 下是否被尊重：构造本地更新源（发布一个高版本到本地静态服务），安装低版本后走「下载完成 → 正常退出」链路，观察退出时是否静默触发安装。验证方式：退出后进程列表与安装目录时间戳无变化即为通过；若 flag 失效，将依赖升级任务（第 5 组）提前并在此记录结论
 - [x] 1.2 实测 updater 为 `ready` 时正常退出是否触发 `before-quit`，以及 `event.preventDefault()` 能否取消退出（为退出拦截提供依据）。验证方式：打日志确认事件时序与取消行为符合预期
 
 ## 2. 退出确认拦截（Phase 1 核心）
@@ -33,12 +33,12 @@
 
 ## Verification 记录
 
-- **1.1（未勾选，部分实测）**：注销形态已物理实测——v0.1.5 下载就绪后直接注销 Windows，重新登录后 exe 仍为 0.1.5、无安装发生；「用户正常退出」形态被托盘缺失缺陷阻断（见下方备注），待缺陷修复后补验。`autoInstallOnAppQuit = false` 的静态核查结论维持不变。
+- **1.1（已勾选）**：注销形态已物理实测——v0.1.5 下载就绪后直接注销 Windows，重新登录后 exe 仍为 0.1.5、无安装发生；「用户正常退出」形态于 2026-11-18 打包版人工冒烟补验——更新就绪状态下托盘右键退出唤出更新确认弹窗（确认框出现即排除静默安装路径），全部验证方案通过。前置阻断（托盘缺失）已由 tray-exit-paths（ec9ce91558）修复。`autoInstallOnAppQuit = false` 的静态核查结论维持不变。
 - **1.2（已勾选）**：真实 Windows 机器 Electron 探针验证——末窗关闭触发 `before-quit` → `preventDefault()` 取消退出（应用存活、事件循环正常）→ 延迟 `app.quit()` 重入 `before-quit` → 正常走完 `will-quit` 退出。注意探针曾误用不存在的 `app.isQuitting()` API 造成假死假象，已排除。
 - **2.3（已勾选）**：打包版 v0.1.5 冒烟实测（2026-11-17）——更新就绪状态下直接注销 Windows，注销过程无弹框、无阻塞；重新登录后版本仍 0.1.5，未静默安装。
 - **3.3（已勾选）**：真实 GitHub Releases 链路冒烟实测（2026-11-17）——v0.1.5 启动恢复未决记录 → 远端 check 命中同版本缓存 → ready → Toast 出现；点「立即重启更新」走 `install()` → `quitAndInstall` 真实安装，重启后版本 0.1.6、未决记录清空、下次启动检查 up-to-date。环境注意：本机 DNS 对 `release-assets.githubusercontent.com` 有污染，远端 check 失败时状态进 error，Toast 按设计不弹（恢复机制依赖一次成功的远端检查）。
-- **冒烟新发现（不属于本 change 范围，待后续提案修复）**：Windows 打包产物上托盘未创建（`tray.ts` 的 `image.isEmpty()` 提前返回，疑似 `process.resourcesPath/icons` 未随包分发），叠加「关闭挂起」默认开启，点 X 后窗口隐藏且无任何找回/退出入口，只能任务管理器结束进程。修复后再补 1.1 的「用户正常退出」形态验证。
-- **5.2–5.5（未勾选，阻塞）**：上游尚无带 `autoInstallEvent` 的稳定版本（仅 7.0.0-alpha.x，2026-11-17 复查 npm 仍无 stable），触发条件为 7.x 首个 stable 发布，结论已写入 design.md Open Questions。本 change 暂不归档。
+- **冒烟新发现（已闭环）**：Windows 打包产物上托盘未创建（`tray.ts` 的 `image.isEmpty()` 提前返回，`process.resourcesPath/icons` 未随包分发），叠加「关闭挂起」默认开启，点 X 后窗口隐藏且无任何找回/退出入口——已由 tray-exit-paths 提案修复并归档（2026-11-17，ec9ce91558 分发托盘图标资源 + 托盘缺失时关闭兜底真退出），1.1 的「用户正常退出」形态据此补验完成。
+- **5.2–5.5（未勾选，阻塞）**：上游尚无带 `autoInstallEvent` 的稳定版本（2026-11-18 复查 npm：6.x 至 6.8.12、7.x 至 7.0.0-alpha.13，仍无 stable），触发条件为 7.x 首个 stable 发布，结论已写入 design.md Open Questions。Phase 1 验证（1.1–4.2）已全部完成，本 change 保持活跃等待上游，暂不归档。
 - **自动化验证快照（2026-11-05）**：`packages/desktop` bun test 108 pass；`packages/app`（bun 1.3.14）i18n parity + updater-action 9 pass；两包 `bun typecheck` 干净；oxlint 变更文件集同模式对比基线 11=11 无新增；新增符号 grep 审计唯一实现且全部被消费。
 
 ## Workflow follow-up

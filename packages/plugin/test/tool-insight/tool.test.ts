@@ -7,13 +7,15 @@
  * 放回 pending。锁用进程内 fake，落盘用真实临时目录。
  */
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs"
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import { readToolInsightJsonl, toolInsightIssuePath, toolInsightPaths } from "@opennovel-ai/novel-store"
+import { appendSignalUnderLock } from "../../src/tool-insight/evidence-store.js"
 import { createToolInsightTool } from "../../src/tool-insight/tool.js"
 import { issueFingerprint, parseIssueDoc } from "../../src/tool-insight/issue-doc.js"
 import { organizeUnderLock } from "../../src/tool-insight/issue-store.js"
+import { listSignals } from "../../src/tool-insight/signal-store.js"
 import { toolInsightProjectSlug } from "../../src/tool-insight/settings.js"
 import { type ToolContext, type ToolSpec } from "../../src/v2/effect/tool.js"
 
@@ -52,9 +54,13 @@ function cleanup(input: { configDir: string; logRoot: string; projectDir: string
   }
 }
 
-function makeTool(configDir: string, enqueue: (fingerprint: string, sessionID?: string) => void = () => {}) {
+function makeTool(
+  configDir: string,
+  enqueue: (fingerprint: string, sessionID?: string) => void = () => {},
+  ownership?: { resolve: (sessionID: string) => Promise<{ projectID: string; directory: string } | undefined> },
+) {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- 测试桩：通用工具签名与入口实现的具体 input 泛型不同
-  return createToolInsightTool({ configDir, file, enqueue }) as unknown as ToolSpec<Record<string, unknown>>
+  return createToolInsightTool({ configDir, file, enqueue, resolveOwnership: ownership?.resolve }) as unknown as ToolSpec<Record<string, unknown>>
 }
 
 function makeContext(projectDir: string): ToolContext {
@@ -253,6 +259,113 @@ describe("tool_insight 工具（任务 3.4）", () => {
     }
   })
 
+describe("负反馈信号工具入口（任务 4.3/4.4）", () => {
+  const signal = (id: string, occurrenceID: string, targetScope: string, feedbackCategory: string) => ({
+    id,
+    ts: Date.parse("2026-01-01T00:00:00Z"),
+    projectID: "proj_signal",
+    sessionID: "ses_signal",
+    promptMessageID: `msg_${id}`,
+    targetScope,
+    feedbackCategory,
+    occurrenceID,
+  })
+
+  async function seedSignals(paths: ReturnType<typeof toolInsightPaths>, signals: unknown[]) {
+    const appended = await appendSignalUnderLock(file, paths, signals)
+    expect(appended).toEqual({ appended: true })
+  }
+
+  test("list_signals 无原文；upgrade_signal 携带发生实例与脱敏反馈", async () => {
+    const { configDir, logRoot, projectDir } = fixture("signal-list")
+    try {
+      const paths = toolInsightPaths(join(logRoot, logSlug(projectDir)))
+      await seedSignals(paths, [signal("sig_1", "oci_1", "writing", "result_rejected")])
+      const tool = makeTool(configDir)
+      const ctx = makeContext(projectDir)
+      const listed = await tool.execute({ action: "list_signals" }, ctx)
+      const listOutput = typeof listed === "string" ? listed : listed.output
+      expect(listOutput).toContain("sig_1")
+      expect(listOutput).toContain("writing/result_rejected")
+      expect(listOutput).toContain("待确认")
+      expect(listOutput).not.toContain("不对")
+
+      const upgraded = await tool.execute(
+        {
+          action: "upgrade_signal",
+          signal_ids: ["sig_1"],
+          feedback: `api_key=raw-secret ${"很长的用户影响描述。".repeat(40)}`,
+        },
+        ctx,
+      )
+      expect(typeof upgraded === "string" ? upgraded : upgraded.output).toContain("已升级 1 条信号")
+      const evidence = readToolInsightJsonl(paths.evidence).entries
+      expect(evidence).toHaveLength(1)
+      expect(evidence[0]?.occurrenceID).toBe("oci_1")
+      expect(evidence[0]?.fields.signalID).toBe("sig_1")
+      expect(evidence[0]?.fields.promptMessageID).toBe("msg_sig_1")
+      const feedback = String(evidence[0]?.fields.userFeedback)
+      expect(feedback).not.toContain("raw-secret")
+      expect(feedback.length).toBeLessThanOrEqual(210)
+
+      const again = await tool.execute({ action: "upgrade_signal", signal_ids: ["sig_1"] }, ctx)
+      expect(typeof again === "string" ? again : again.output).toContain("已升级")
+      expect(readToolInsightJsonl(paths.evidence).entries).toHaveLength(1)
+      expect(listSignals(paths).every((entry) => entry.upgraded)).toBe(true)
+    } finally {
+      cleanup({ configDir, logRoot, projectDir })
+    }
+  })
+
+  test("不同目标/类别不误并；批量包含已升级信号时整体跳过", async () => {
+    const { configDir, logRoot, projectDir } = fixture("signal-categories")
+    try {
+      const paths = toolInsightPaths(join(logRoot, logSlug(projectDir)))
+      await seedSignals(paths, [
+        signal("sig_tool", "oci_tool", "tool", "tool_misuse"),
+        signal("sig_flow", "oci_flow", "process", "flow_issue"),
+      ])
+      const tool = makeTool(configDir)
+      const ctx = makeContext(projectDir)
+      const upgraded = await tool.execute({ action: "upgrade_signal", signal_ids: ["sig_tool", "sig_flow"] }, ctx)
+      expect(typeof upgraded === "string" ? upgraded : upgraded.output).toContain("已升级 2 条信号")
+      const evidence = readToolInsightJsonl(paths.evidence).entries
+      expect(evidence).toHaveLength(2)
+      expect(new Set(evidence.map((entry) => entry.fields.signalID))).toEqual(new Set(["sig_tool", "sig_flow"]))
+      expect(evidence[0]?.fields.fingerprint).not.toBe(evidence[1]?.fields.fingerprint)
+      const issueDocs = readdirSync(paths.issuesDir).filter((name) => name.endsWith(".md"))
+      expect(issueDocs).toHaveLength(2)
+      for (const entry of evidence) {
+        const parsed = parseIssueDoc(readFileSync(toolInsightIssuePath(paths, String(entry.fields.fingerprint)), "utf-8"))
+        if (parsed.error) throw new Error("expected parseable issue doc")
+        expect(parsed.meta.occurrence_count).toBe(1)
+        expect(parsed.sections["用户目标"]).toBe("未知")
+      }
+
+      const skipped = await tool.execute({ action: "upgrade_signal", signal_ids: ["sig_tool", "sig_flow"] }, ctx)
+      expect(typeof skipped === "string" ? skipped : skipped.output).toContain("整体跳过")
+      expect(readToolInsightJsonl(paths.evidence).entries).toHaveLength(2)
+    } finally {
+      cleanup({ configDir, logRoot, projectDir })
+    }
+  })
+
+  test("归属信息不足时拒绝；列表保持无原文", async () => {
+    const { configDir, logRoot, projectDir } = fixture("signal-ownership")
+    try {
+      const paths = toolInsightPaths(join(logRoot, logSlug(projectDir)))
+      await seedSignals(paths, [signal("sig_missing", "oci_missing", "writing", "result_rejected")])
+      const tool = makeTool(configDir, () => {}, { resolve: async () => undefined })
+      const ctx = makeContext(projectDir)
+      const listed = await tool.execute({ action: "list_signals" }, ctx)
+      expect(typeof listed === "string" ? listed : listed.output).toContain("无法确认当前会话的项目归属")
+      expect(existsSync(paths.signals)).toBe(true)
+      expect(existsSync(paths.evidence)).toBe(false)
+    } finally {
+      cleanup({ configDir, logRoot, projectDir })
+    }
+  })
+})
   test("索引随建档与补充确定性更新", async () => {
     const { configDir, logRoot, projectDir } = fixture("index")
     try {

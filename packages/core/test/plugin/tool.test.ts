@@ -380,7 +380,7 @@ describe("PluginHost tool domain", () => {
       )
 
       // get 回填规范 stored.location（任务 5.3：复测隔离核验据此定位原书）
-      expect(seen).toEqual([{ id: sessionID, parentID: "ses_parent", location: "/project" }, undefined])
+      expect(seen).toEqual([{ id: sessionID, parentID: "ses_parent", location: "/project", projectID: "global", purpose: undefined }, undefined])
     }),
   )
 })
