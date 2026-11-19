@@ -20558,6 +20558,15 @@
               "type": "string"
             },
             "required": false
+          },
+          {
+            "name": "showProcessed",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "required": false
           }
         ],
         "security": [],

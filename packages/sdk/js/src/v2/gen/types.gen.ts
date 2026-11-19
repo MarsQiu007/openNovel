@@ -16366,6 +16366,7 @@ export type V2NovelReviewInboxListData = {
     source?: "candidate" | "conflict" | "staged"
     limit?: string
     offset?: string
+    showProcessed?: "true" | "false"
   }
   url: "/api/novel/{novelID}/review-inbox"
 }

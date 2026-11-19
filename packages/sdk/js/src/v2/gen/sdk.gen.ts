@@ -5841,6 +5841,7 @@ export class ReviewInbox extends HeyApiClient {
       source?: "candidate" | "conflict" | "staged"
       limit?: string
       offset?: string
+      showProcessed?: "true" | "false"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -5855,6 +5856,7 @@ export class ReviewInbox extends HeyApiClient {
             { in: "query", key: "source" },
             { in: "query", key: "limit" },
             { in: "query", key: "offset" },
+            { in: "query", key: "showProcessed" },
           ],
         },
       ],
