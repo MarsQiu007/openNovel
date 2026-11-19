@@ -33,15 +33,15 @@ CI 实测日志（v0.1.4 ~ v0.1.9 prepare）与代码定位确认三层问题：
    - 影响面：历史会话 resume 时原模型已下架将显式失败并提示换模型，优于静默替换。
 
 2. **drain 失败新增会话级终态事件 session.next.failed，而非复用 step failed。**
-   - 依据：session.next.step.failed 的 schema 强依赖 ssistantMessageID，模型解析失败发生在 assistant message 创建之前，伪造 message ID 会被 app 投影（按 message 归属更新）静默丢弃。新事件只带 session 级 error 载荷，xecution/local.ts 的 drain 非中断失败分支统一发布（覆盖模型解析、LLM 请求等一切非中断失败）；CLI run 与 app 通知各加一处消费。
-   - 契约影响：packages/schema/src/session-event.ts 新增事件后须在 packages/client 运行 un run generate 再验。
+   - 依据：session.next.step.failed 的 schema 强依赖 assistantMessageID，模型解析失败发生在 assistant message 创建之前，伪造 message ID 会被 app 投影（按 message 归属更新）静默丢弃。新事件只带 session 级 error 载荷，execution/local.ts 的 drain 非中断失败分支统一发布（覆盖模型解析、LLM 请求等一切非中断失败）；CLI run 与 app 通知各加一处消费。
+   - 契约影响：packages/schema/src/session-event.ts 新增事件后须在 packages/client 运行 bun run generate 再验。
    - 替代方案：扩展 session.wait 返回失败状态——需同步改 HttpApi 契约与所有等待方，改动面更大，不采纳。中断（interrupts only）继续走 void 分支，不发布事件。
 
 3. **V1 迁移以 `sqlite_master` 探测表存在性。**
    - 依据：`SELECT 1 FROM message` 在无表时崩是确定性 bug；先查 `sqlite_master` 再决定走存量迁移或直接 anchor，对真实存量库行为零变化。
    - 替代方案：捕获 "no such table" 错误归类为空——依赖错误字符串匹配，脆弱，不采纳。
 
-4. **changelog 命令模型更新为 `deepseek/deepseek-flash`，secret 补 key 作为运维前置。**
+4. **changelog 命令模型更新为 `deepseek/deepseek-flash`（同步 `.opennovel` 与 `.opencode` 两处同名命令），secret 补 key 作为运维前置。**
    - 依据：Flash 1017 是官方现行模型，1M 上下文/384K 输出与 Pro 相同，成本约 1/3、并发 2500 对 500，changelog 的"读 diff 写摘要"任务足够；代码侧一行 frontmatter，真正解锁 CI 的是 `OPENNOVEL_AUTH_CONTENT` 增加 deepseek key（人工步骤，无法由提交完成）。
    - 验证方式：CI prepare 日志中 changelog 会话应命中 deepseek 模型并产出文件；若 key 未配置，本提案的失败可见化会让 release 在 prepare 阶段显式失败，不再静默。
 
@@ -50,6 +50,13 @@ CI 实测日志（v0.1.4 ~ v0.1.9 prepare）与代码定位确认三层问题：
 - [显式失败可能让依赖静默回退的既有脚本失败] → 全仓 grep 回退路径的调用方，当前已知消费方是 changelog/commit 等 `.opencode` 命令，均声明可用模型；失败信息含 provider/model 标识，排障成本低于静默错跑。
 - [新事件属契约新增，可能遗漏消费方] → CLI 与 app 通知同步接入；未知事件类型在既有事件流消费中已按忽略处理，向后兼容。桌面端从"无响应"变为"显示错误"是修复而非回归。
 - [V1 迁移探测需要兼容 WAL 并发] → 探测与 anchor 写入仍在既有事务/信号量路径内，不引入新并发面。
+
+## Implementation Audit
+
+- 会话执行路径：除保留"未指定模型"的默认/最新可用回退外，已移除显式指定模型不可用后的执行回退；`.opennovel` 与 `.opencode` 中显式声明模型的同名命令（changelog、commit、issues、translate、triage、duplicate-pr）将按声明模型硬失败或正常执行。
+- 桌面端/CLI resume：发送显式 `switchModel` 后由 runner 统一校验，没有独立回退分支；历史会话模型下架时进入本 change 的显式失败语义。
+- `permission/judge.ts`：配置/会话引用未命中时仍回落默认裁判模型，但裁判不可用最终走 `ask` 的 fail-closed 语义，不会替用户执行动作；该路径的"配置裁判模型也必须硬绑定"如需收紧，应另立最小 change。
+- 桌面端 timeline 的 `getModelFallback` 只根据历史 session/agent 差异展示历史回退提示，不参与运行时选型；新会话不再产生该状态，保留用于历史会话解释。
 
 ## Migration Plan
 
