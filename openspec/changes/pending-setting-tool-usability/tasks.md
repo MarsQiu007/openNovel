@@ -31,5 +31,14 @@
 
 ## 6. 人工验证
 
-- [ ] 6.1 在实际项目中创建一个角色候选 + 一个关系候选（引用该角色），先接受角色再通过 `batch_accept_pending_settings` 接受关系，确认无 FK 异常。验证方式：人工操作并观察返回
-- [ ] 6.2 调用 `list_pending_settings` 传 `status: "all"`，确认不再报参数校验失败，返回中包含完整 ID。验证方式：人工操作并检查返回结构
+- [x] 6.1 在实际项目中创建一个角色候选 + 一个关系候选（引用该角色），先接受角色再通过 `batch_accept_pending_settings` 接受关系，确认无 FK 异常。验证方式：人工操作并观察返回
+- [x] 6.2 调用 `list_pending_settings` 传 `status: "all"`，确认不再报参数校验失败，返回中包含完整 ID。验证方式：人工操作并检查返回结构
+
+## Implementation Commits
+
+- `98787b04` fix(plugin): resolve relationship candidate FK and support prefix ID matching
+- `9e014d82` fix(server): filter inbox badge to pending-only and pass showProcessed
+- `ddd5e1b5` fix(app): show candidate status badge and show-processed toggle
+- `d3f7049c` fix(sdk): add showProcessed query param to review-inbox list types
+- `21144018` fix(core): update tool registry count for batch_accept_pending_settings
+- `92f2cd36` test(plugin,opennovel): add batch accept tool and countsOf badge filter smoke tests
