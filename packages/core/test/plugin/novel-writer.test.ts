@@ -26,7 +26,7 @@ const stubTools = createNovelWriterTools({
 })
 
 describe("novel-writer V2 入口", () => {
-  it.effect("boot 后 96 工具可见、director 为默认 agent、非小说目录零注入", () =>
+  it.effect("boot 后 97 工具可见、director 为默认 agent、非小说目录仅引导注入", () =>
     Effect.gen(function* () {
       expect(Object.keys(stubTools)).toHaveLength(97)
 
@@ -43,10 +43,12 @@ describe("novel-writer V2 入口", () => {
       const agents = yield* AgentV2.Service
       expect((yield* agents.select()).id).toBe(AgentV2.ID.make("director"))
 
-      // 非小说目录：条件注册不生效，注入源不在注册表
+      // 非小说目录：完整源不注册，仅最小引导源 baseline 注入（design D9）
       const contexts = yield* SystemContextRegistry.Service
       const generation = yield* SystemContext.initialize(yield* contexts.load())
-      expect(Object.keys(generation.snapshot).some((key) => key.startsWith("novel-writer/"))).toBe(false)
+      const keys = Object.keys(generation.snapshot)
+      expect(keys).toContain("novel-writer/bootstrap")
+      expect(keys.some((key) => key.startsWith("novel-writer/context"))).toBe(false)
     }),
   )
 
