@@ -6,7 +6,9 @@ import { AppNodeBuilder } from "@opennovel-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opennovel-ai/core/effect/layer-node"
 import { EventV2 } from "@opennovel-ai/core/event"
 import { LocationServiceMap } from "@opennovel-ai/core/location-services"
+import { ModelV2 } from "@opennovel-ai/core/model"
 import { ProjectV2 } from "@opennovel-ai/core/project"
+import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { ProjectTable } from "@opennovel-ai/core/project/sql"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import { SessionV2 } from "@opennovel-ai/core/session"
@@ -144,6 +146,31 @@ describe("SessionV2.command", () => {
 
       expect(message.prompt.text).toBe("润色 三 章的 二 多余的词 节")
       expect(wakeCalls).toEqual([])
+    }),
+  )
+
+  it.effect("applies command frontmatter model before admitting the command prompt", () =>
+    Effect.gen(function* () {
+      const { location } = yield* setup
+      const session = yield* SessionV2.Service
+      const locations = yield* LocationServiceMap.Service
+      yield* CommandV2.Service.use((commands) =>
+        commands.transform((draft) =>
+          draft.update("routed", (command) => {
+            command.template = "使用固定模型执行"
+            command.model = {
+              providerID: ProviderV2.ID.make("deepseek"),
+              id: ModelV2.ID.make("deepseek-flash"),
+            }
+          }),
+        ),
+      ).pipe(Effect.provide(locations.get(location)))
+
+      yield* session.command({ sessionID, command: "routed", resume: false })
+
+      expect(yield* session.get(sessionID)).toMatchObject({
+        model: { providerID: "deepseek", id: "deepseek-flash" },
+      })
     }),
   )
 

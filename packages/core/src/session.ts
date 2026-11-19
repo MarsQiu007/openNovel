@@ -295,6 +295,26 @@ const layer = Layer.effect(
         return { messageID, status: "queued" as const }
       })
 
+    // switchAgent/switchModel 的复用入口：命令 frontmatter 也必须在受理 prompt 前落定模型
+    const switchModel = Effect.fn("V2Session.switchModel")(function* (input: {
+      sessionID: SessionSchema.ID
+      model: ModelV2.Ref
+    }) {
+      const session = yield* result.get(input.sessionID)
+      if (
+        session.model?.providerID === input.model.providerID &&
+        session.model.id === input.model.id &&
+        (session.model.variant ?? "default") === (input.model.variant ?? "default")
+      )
+        return
+      yield* events.publish(SessionEvent.ModelSwitched, {
+        sessionID: input.sessionID,
+        messageID: SessionMessage.ID.create(),
+        timestamp: yield* DateTime.now,
+        model: input.model,
+      })
+    })
+
     const result = Service.of({
       create: Effect.fn("V2Session.create")(function* (input) {
         const sessionID = input.id ?? SessionSchema.ID.create()
@@ -549,21 +569,7 @@ const layer = Layer.effect(
           agent: input.agent,
         })
       }),
-      switchModel: Effect.fn("V2Session.switchModel")(function* (input) {
-        const session = yield* result.get(input.sessionID)
-        if (
-          session.model?.providerID === input.model.providerID &&
-          session.model.id === input.model.id &&
-          (session.model.variant ?? "default") === (input.model.variant ?? "default")
-        )
-          return
-        yield* events.publish(SessionEvent.ModelSwitched, {
-          sessionID: input.sessionID,
-          messageID: SessionMessage.ID.create(),
-          timestamp: yield* DateTime.now,
-          model: input.model,
-        })
-      }),
+      switchModel,
       compact: Effect.fn("V2Session.compact")(function* (input) {
         const session = yield* result.get(input.sessionID)
         let lock = compactionLocks.get(session.id)
@@ -610,6 +616,9 @@ const layer = Layer.effect(
                 command: input.command,
                 available: commands.map((command) => command.name),
               })
+            // 命令 frontmatter 的模型是命令级硬约束：必须先落到 session，
+            // 否则 runner 会执行实例默认模型，changelog/commit 等脚本化命令失去路由语义。
+            if (found.model !== undefined) yield* switchModel({ sessionID: input.sessionID, model: found.model })
             const prompt = Prompt.fromUserMessage({
               text: CommandV2.expandTemplate(found.template, input.arguments ?? ""),
             })
