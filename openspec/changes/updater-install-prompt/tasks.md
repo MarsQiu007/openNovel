@@ -23,13 +23,13 @@
 - [x] 4.1 在 `packages/desktop` 与 `packages/app` 分别通过 `bun typecheck`，从仓库根以同模式运行 oxlint 对比基线无新增告警。验证方式：命令退出码为 0
 - [x] 4.2 自查同类/冗余/无用代码：退出拦截新增的标志位与信号通道无第二处重复实现，未引入只服务死代码的导出。验证方式：grep 关联引用确认唯一实现且全部被消费
 
-## 5. 依赖升级调研与启动期安装（Phase 2）
+## 5. 依赖升级调研（升级执行已裁剪）
 
 - [x] 5.1 调研并记录：带 `autoInstallEvent` 的最低稳定 electron-updater 版本号、上游 v26/v27/v28 排期、`installPendingUpdateIfAvailable()` 在 per-user NSIS 下的生命周期（阻塞点、与主窗口创建的先后）。验证方式：调研结论写入 design.md 的 Open Questions 回复或本 change 的附录记录
-- [ ] 5.2 升级 electron-updater 至调研确定的稳定版本，装配 `autoInstallEvent = "onNextLaunch"`，移除 Phase 1 的 defer 兜底中对终态不再成立的假设。验证方式：`packages/desktop` 测试通过；升级后「立即重启」+ onNextLaunch 组合行为实测（对应 design 决策 D4）
-- [ ] 5.3 实现启动期安装反馈：安装执行前创建轻量 splash 窗口显示「正在完成更新 vX…」，不进主窗口恢复流程，随旧进程退出。验证方式：本地更新源走通「稍后退出 → 下次启动自动安装 → 新版本拉起」链路并观察到 splash
-- [ ] 5.4 验证待安装更新的清理与重试分支：缓存安装包校验失败 / 远端撤销版本 / 安装被关机中断后重启，三种分支均回到可控状态（清理记录恢复常规检查，或自动重试）。验证方式：本地更新源构造三种场景逐项走通
-- [ ] 5.5 beta channel 发布验证完整更新链路（下载 → 退出确认 → 启动安装 → 版本切换），回归 macOS「立即重启」与「稍后→下次启动」两条路径。验证方式：beta 用户（或内部账号）完成至少一轮真实更新并确认版本号切换
+
+## Implementation Commits
+
+- 4bf2826829 feat(desktop): 更新就绪后退出确认拦截与未决更新启动提示
 
 ## Verification 记录
 
@@ -38,7 +38,7 @@
 - **2.3（已勾选）**：打包版 v0.1.5 冒烟实测（2026-11-17）——更新就绪状态下直接注销 Windows，注销过程无弹框、无阻塞；重新登录后版本仍 0.1.5，未静默安装。
 - **3.3（已勾选）**：真实 GitHub Releases 链路冒烟实测（2026-11-17）——v0.1.5 启动恢复未决记录 → 远端 check 命中同版本缓存 → ready → Toast 出现；点「立即重启更新」走 `install()` → `quitAndInstall` 真实安装，重启后版本 0.1.6、未决记录清空、下次启动检查 up-to-date。环境注意：本机 DNS 对 `release-assets.githubusercontent.com` 有污染，远端 check 失败时状态进 error，Toast 按设计不弹（恢复机制依赖一次成功的远端检查）。
 - **冒烟新发现（已闭环）**：Windows 打包产物上托盘未创建（`tray.ts` 的 `image.isEmpty()` 提前返回，`process.resourcesPath/icons` 未随包分发），叠加「关闭挂起」默认开启，点 X 后窗口隐藏且无任何找回/退出入口——已由 tray-exit-paths 提案修复并归档（2026-11-17，ec9ce91558 分发托盘图标资源 + 托盘缺失时关闭兜底真退出），1.1 的「用户正常退出」形态据此补验完成。
-- **5.2–5.5（未勾选，阻塞）**：上游尚无带 `autoInstallEvent` 的稳定版本（2026-11-18 复查 npm：6.x 至 6.8.12、7.x 至 7.0.0-alpha.13，仍无 stable），触发条件为 7.x 首个 stable 发布，结论已写入 design.md Open Questions。Phase 1 验证（1.1–4.2）已全部完成，本 change 保持活跃等待上游，暂不归档。
+- **5.2–5.5（已裁剪，2026-11-19）**：原 Phase 2（升级 electron-updater 装配 `autoInstallEvent = "onNextLaunch"`、启动期安装反馈、清理与重试分支、beta 真实发布验证）经用户确认整体移除——当前「退出确认拦截 + 启动未决提示」已满足需求，不再等待上游 7.x stable（2026-11-19 复查 npm：latest 6.8.11、v26 6.8.12、next 7.0.0-alpha.13，仍无 stable，此状态仅作历史记录）。调研结论保留在 design.md Open Questions；未来如需启动期自动安装另立提案。Phase 1 验证（1.1–4.2）全部完成，本 change 据此归档。
 - **自动化验证快照（2026-11-05）**：`packages/desktop` bun test 108 pass；`packages/app`（bun 1.3.14）i18n parity + updater-action 9 pass；两包 `bun typecheck` 干净；oxlint 变更文件集同模式对比基线 11=11 无新增；新增符号 grep 审计唯一实现且全部被消费。
 
 ## Workflow follow-up

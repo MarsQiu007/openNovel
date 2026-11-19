@@ -63,3 +63,4 @@
   **已回答（2026-11-05，5.1 调研）**：截至当日上游**不存在**任何带 `autoInstallEvent` 的稳定版本——latest 为 6.8.11，v26 线 tag 6.8.12，均不含该 API；仅 7.0.0-alpha.x（核到 alpha.13）提供 `autoInstallEvent: "onQuit" | "onNextLaunch" | "manual"` 与 `installPendingUpdateIfAvailable(): Promise<boolean>`、`cancelQuitOnInstallFailure`。排期信号：`autoInstallOnAppQuit` 在 v7 线标记 deprecated（v27 兼容垫片），计划 v28 删除并默认 `onNextLaunch`。因此 5.2 阻塞，触发条件为「7.x 首个 stable 发布」。
 - `installPendingUpdateIfAvailable()` 在 per-user NSIS 下的精确生命周期（阻塞点、与 splash 的配合），升级后调研确认。
   **部分回答（源码与 .d.ts 文档级，2026-11-05）**：启动期自动安装仅覆盖无提权目标（per-user NSIS、AppImage），macOS（Squirrel.Mac）恒返回 `false`；调用会拿缓存安装包与远端最新元数据做 hash 对账，校验失败自动清理无效 pending 状态并返回 `false`。精确阻塞点与 splash 挂载仍需升级后实测（保留为 Phase 2 任务，不改变设计方向）。
+  **已关闭（2026-11-19）**：Phase 2 经用户确认整体裁剪——当前「退出确认拦截 + 启动未决提示」已满足需求，不再等待上游 7.x stable；未来如需启动期自动安装，另立提案重新调研。
