@@ -567,7 +567,7 @@ export function createCollectorState(input: WatchToolInsightInput): CollectorSta
       const verified = await adapter.verify({ directory: projectDirectory, identifiers })
       const ts = Date.now()
       const evidenceID = deriveEvidenceID({ projectID, eventID: envelopeID, kind: "real_state" })
-      const fingerprintInput: ToolInsightFingerprintInput = { tool, scenario: "surface_success", errorCategory: "unknown" }
+      const fingerprintInput: ToolInsightFingerprintInput = { tool, scenario: "surface_success", errorCategory: "unknown", fact: "verify-failed-after-success" }
       const fingerprintHash = issueFingerprint(fingerprintInput)
       const record: ToolInsightEvidence = {
         id: evidenceID,

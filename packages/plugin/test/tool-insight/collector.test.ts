@@ -476,18 +476,20 @@ describe("事件证据采集器（任务 3.1）", () => {
       const { entries } = readEvidence(logRoot, projectDir)
       const realState = entries.find((entry) => entry.kind === "real_state")
       expect(realState?.fields.verifyStatus).toBe("verified_failure")
-      // call 级表面成功文档 + turn 级轨迹文档
-      const callFingerprint = issueFingerprint({ tool: "update_chapter", scenario: "surface_success", errorCategory: "unknown" })
-      const turnFingerprint = issueFingerprint({
+      // 修复后 real_state 与 trajectory 使用同一指纹（含 fact），同一逻辑问题只建一个文档
+      const fingerprint = issueFingerprint({
         tool: "update_chapter",
         scenario: "surface_success",
         errorCategory: "unknown",
         fact: "verify-failed-after-success",
       })
-      const callDoc = readIssueMeta(logRoot, projectDir, callFingerprint)
-      const turnDoc = readIssueMeta(logRoot, projectDir, turnFingerprint)
-      expect(callDoc.meta.occurrence_count).toBe(1)
-      expect(turnDoc.meta.occurrence_count).toBe(1)
+      const doc = readIssueMeta(logRoot, projectDir, fingerprint)
+      // call 级 real_state + turn 级 trajectory 各自产生 occurrence，但归入同一文档
+      expect(doc.meta.occurrence_count).toBe(2)
+      expect(doc.meta.evidence_ids.length).toBe(2)
+      // 旧的无 fact 指纹不再产生文档（不再分裂）
+      const oldFingerprint = issueFingerprint({ tool: "update_chapter", scenario: "surface_success", errorCategory: "unknown" })
+      expect(() => readIssueMeta(logRoot, projectDir, oldFingerprint)).toThrow()
       expect(entries.filter((entry) => entry.kind === "trajectory")).toHaveLength(1)
     } finally {
       if (envBackup === undefined) delete process.env.OPENNOVEL_DB

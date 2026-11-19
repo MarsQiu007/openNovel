@@ -158,4 +158,10 @@ describe("resolveToolInsightRoot", () => {
     expect(a).not.toContain("alpha")
     expect(b).not.toContain("beta")
   })
+
+  test("同一目录不同分隔符形式产生相同 slug", () => {
+    expect(toolInsightProjectSlug("C:/Novels/adult")).toBe(toolInsightProjectSlug("C:\\Novels\\adult"))
+    expect(toolInsightProjectSlug("C:/Novels/../Novels/adult")).toBe(toolInsightProjectSlug("C:\\Novels\\adult"))
+    expect(toolInsightProjectSlug("C:/Novels/adult")).not.toBe(toolInsightProjectSlug("C:/Novels/audits"))
+  })
 })
