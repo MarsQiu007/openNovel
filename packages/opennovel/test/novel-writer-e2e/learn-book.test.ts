@@ -8,13 +8,11 @@ import { expect } from "bun:test"
 import { Effect } from "effect"
 import { listTechniques } from "@opennovel-ai/novel-store"
 import { provideTmpdirServer } from "../fixture/fixture"
-import { CHAPTER_ANCHORS, buildTestNovel, dbSnapshot, installFreshGlobalDb, useIsolatedBookDb } from "./fixture.js"
+import { CHAPTER_ANCHORS, buildTestNovel, dbSnapshot, useIsolatedBookDb } from "./fixture.js"
 import { driveTurn, hitCount, it, providerCfg, toolCallsOf } from "./harness.js"
 
 /** 重 e2e：默认套件跳过，避免拖慢 unit 矩阵；OPENNOVEL_TECHNIQUE_E2E=1 时由 test:technique-e2e 脚本运行。 */
 const e2e = process.env.OPENNOVEL_TECHNIQUE_E2E === "1" ? it.live : it.live.skip
-
-
 
 type TechniquePayload = Record<string, unknown>
 
@@ -82,7 +80,6 @@ e2e(
   () =>
     provideTmpdirServer(
       Effect.fnUntraced(function* ({ dir, llm }) {
-        installFreshGlobalDb()
         const restoreBookDb = useIsolatedBookDb(dir)
         yield* Effect.addFinalizer(() => Effect.sync(restoreBookDb))
         const novel = buildTestNovel(dir)

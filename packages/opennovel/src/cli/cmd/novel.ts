@@ -283,25 +283,22 @@ const ExtractTechniquesCommand = effectCmd({
 
 /**
  * 种子技法导入命令 - `opennovel novel seed-techniques`
- * 默认写入全局通用技法库（一次导入全库受益）；--local 保留写入本书库的旧行为。
+ * 技法始终写入当前书籍库；全局通用库已退役。
  */
 const SeedTechniquesCommand = effectCmd({
   command: "seed-techniques",
-  describe: "导入人工精选的种子技法（默认入全局通用库）",
+  describe: "导入人工精选的种子技法（写入本书库）",
   instance: false,
   builder: (yargs: Argv) =>
     yargs
       .option("input", { type: "string", describe: "种子技法 JSON 路径", demandOption: true })
-      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" })
-      .option("local", { type: "boolean", describe: "写入本书库而非全局通用库", default: false }),
+      .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" }),
   handler: Effect.fn("Cli.novel.seed-techniques")(function* (
-    args: { input: string; dir?: string; local?: boolean },
+    args: { input: string; dir?: string },
   ) {
     try {
-      const count = yield* Effect.promise(() =>
-        importSeedTechniques(args.input, args.dir ?? null, { local: args.local === true }),
-      )
-      console.log(`已导入 ${count} 条种子技法（verified，${args.local === true ? "本书库" : "全局通用库"}）`)
+      const count = yield* Effect.promise(() => importSeedTechniques(args.input, args.dir ?? null))
+      console.log(`已导入 ${count} 条种子技法（verified，本书库）`)
     } catch (error) {
       yield* fail(error instanceof Error ? error.message : String(error))
     }
@@ -309,18 +306,17 @@ const SeedTechniquesCommand = effectCmd({
 })
 /**
  * 技法层级重分类命令 - `opennovel novel relevel-techniques`
- * 双源（本书库+全局库）按统一判据批量重判 level，幂等可重跑。
+ * 当前书籍库按统一判据批量重判 level，幂等可重跑。
  */
 const RelevelTechniquesCommand = effectCmd({
   command: "relevel-techniques",
-  describe: "按统一判据重分类存量技法的层级（本书库+全局库，幂等可重跑）",
+  describe: "按统一判据重分类本书存量技法的层级（幂等可重跑）",
   // 需实例上下文：defaultModel 经 Config 读取默认模型，instance:false 下 InstanceRef 缺失必炸
   directory: (args: { dir?: string }) => args.dir ?? process.cwd(),
   builder: (yargs: Argv) =>
     yargs
       .option("dir", { type: "string", describe: "小说项目目录（默认当前目录）" })
-      .option("batch-size", { type: "number", describe: "每批送判条数", default: 10 })
-      .option("library", { type: "string", choices: ["all", "book", "global"], describe: "重分类范围", default: "all" }),
+      .option("batch-size", { type: "number", describe: "每批送判条数", default: 10 }),
   handler: Effect.fn("Cli.novel.relevel-techniques")(function* (args) {
     const provider = yield* Provider.Service
     const modelError = (msg: string) => (e: { _tag?: string }) =>
@@ -342,7 +338,6 @@ const RelevelTechniquesCommand = effectCmd({
       const result = yield* Effect.promise(() =>
         relevelTechniques(args.dir ?? null, llm, {
           batchSize: (args as { batchSize?: number }).batchSize ?? 10,
-          library: (args as { library?: "all" | "book" | "global" }).library ?? "all",
         }),
       )
       console.log(`重分类完成：共 ${result.total} 条，变更 ${result.changed} 条，保留 ${result.kept} 条，失败 ${result.failed} 条`)

@@ -11,13 +11,6 @@ import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
 import { ChapterTable, getDb, NovelTable, TechniqueFeedbackTable, TechniqueShadowLogTable, TechniqueTable } from "@opennovel-ai/novel-store"
 
-/** 与 packages/plugin/test/novel-writer/technique-test-env.ts 同款：调用方须在测试文件模块顶层先调用。 */
-export function installFreshGlobalDb(): string {
-  const dir = mkdtempSync(join(tmpdir(), "technique-global-e2e-"))
-  process.env.OPENNOVEL_TECHNIQUE_DB = join(dir, "techniques.db")
-  return process.env.OPENNOVEL_TECHNIQUE_DB
-}
-
 const CHAPTER_1_DIALOGUE = `第1章 茶馆夜谈
 
 城南的"听雨轩"茶馆过了戌时就没什么客人了，只剩角落里的两张桌子还亮着灯。
