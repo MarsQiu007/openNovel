@@ -51,7 +51,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
         OpenApi.annotations({
           identifier: "v2.technique.list",
           summary: "列出技法",
-          description: "列出项目技法库中的全部技法，返回顺序按置信度和更新时间排序。",
+          description: "列出当前书籍库中的全部技法，返回顺序按置信度和更新时间排序。",
         }),
       ),
   )
@@ -67,7 +67,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
         OpenApi.annotations({
           identifier: "v2.technique.create",
           summary: "创建技法",
-          description: "人工创建技法；未显式给出的字段使用默认值。",
+          description: "在当前书籍库创建技法；未显式给出的字段使用默认值。",
         }),
       ),
   )
@@ -114,7 +114,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
         OpenApi.annotations({
           identifier: "v2.technique.detail",
           summary: "技法详情",
-          description: "获取单条技法内容和反馈记录。",
+          description: "获取当前书籍库单条技法内容和反馈记录。",
         }),
       ),
   )
@@ -131,7 +131,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
         OpenApi.annotations({
           identifier: "v2.technique.update",
           summary: "更新技法",
-          description: "PATCH 语义更新技法；confidence 和使用统计由既有闭环维护。",
+          description: "在当前书籍库 PATCH 更新技法；confidence 和使用统计由既有闭环维护。",
         }),
       ),
   )
@@ -147,7 +147,7 @@ export const TechniqueGroup = HttpApiGroup.make("server.technique")
         OpenApi.annotations({
           identifier: "v2.technique.delete",
           summary: "删除技法",
-          description: "删除技法及其反馈记录。",
+          description: "删除当前书籍库技法及其反馈记录。",
         }),
       ),
   )

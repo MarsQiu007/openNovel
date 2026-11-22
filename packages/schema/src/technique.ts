@@ -20,7 +20,7 @@ export type TechniqueStatus = typeof TechniqueStatus.Type
 
 export const TechniqueScope = Schema.Literals(["general", "adult"]).annotate({
   identifier: "Novel.TechniqueScope",
-  description: "内容性质：general=通用写法（入全局库跨书共享）；adult=成人内容（留本书库）",
+  description: "内容性质：general=通用写法；adult=成人内容。只影响当前书籍库召回闸门，不决定存储位置。",
 })
 export type TechniqueScope = typeof TechniqueScope.Type
 
@@ -44,8 +44,6 @@ export const Technique = Schema.Struct({
   confidence: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(1)),
   status: TechniqueStatus,
   scope: TechniqueScope,
-  /** 来源库：book=本书库；global=全局通用库。单源接口缺省由服务端按所查库填充。 */
-  library: Schema.optional(Schema.Literals(["book", "global"])),
   usageCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   lastUsedAt: optional(Schema.Int),
   createdAt: Schema.Int,
@@ -80,8 +78,6 @@ export const CreateTechniqueInput = Schema.Struct({
   commonMisuse: Schema.optional(Schema.String),
   status: Schema.optional(TechniqueStatus),
   scope: Schema.optional(TechniqueScope),
-  /** 归属库：book=本书库（缺省）；global=全局通用库（仅允许 scope=general）。命名为 targetLibrary 以规避 httpapi-codegen 对 query/payload 同名字段的碰撞校验。 */
-  targetLibrary: Schema.optional(Schema.Literals(["book", "global"])),
 }).annotate({ identifier: "Novel.CreateTechniqueInput" })
 export interface CreateTechniqueInput extends Schema.Schema.Type<typeof CreateTechniqueInput> {}
 

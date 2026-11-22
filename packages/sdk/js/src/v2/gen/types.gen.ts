@@ -1899,8 +1899,6 @@ export type UnauthorizedError = {
   message: string
 }
 
-export type TechniqueLibrary = "book" | "global" | "all"
-
 export type SessionsResponse = {
   data: Array<SessionV2Info>
   cursor: {
@@ -6667,7 +6665,6 @@ export type NovelTechnique = {
   confidence: number
   status: NovelTechniqueStatus
   scope: NovelTechniqueScope
-  library?: "book" | "global"
   usageCount: number
   lastUsedAt?: number
   createdAt: number
@@ -6684,7 +6681,6 @@ export type NovelCreateTechniqueInput = {
   commonMisuse?: string
   status?: NovelTechniqueStatus
   scope?: NovelTechniqueScope
-  targetLibrary?: "book" | "global"
 }
 
 export type NovelTechniqueInjection = {
@@ -6755,7 +6751,7 @@ export type SyncRootInput = {
 
 export type SyncRunResult = {
   name: string
-  action: "uploaded" | "downloaded" | "deleted_remote"
+  action: "uploaded" | "downloaded" | "deleted_remote" | "cleanup_failed"
 }
 
 export type SyncPairConflict = {
@@ -10085,7 +10081,6 @@ export type V2LocationGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/location"
 }
@@ -10120,7 +10115,6 @@ export type V2AgentListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/agent"
 }
@@ -11109,7 +11103,6 @@ export type V2ModelListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/model"
 }
@@ -11151,7 +11144,6 @@ export type V2ProviderListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/provider"
 }
@@ -11195,7 +11187,6 @@ export type V2ProviderGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/provider/{providerID}"
 }
@@ -11241,7 +11232,6 @@ export type V2IntegrationListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration"
 }
@@ -11281,7 +11271,6 @@ export type V2IntegrationGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/{integrationID}"
 }
@@ -11324,7 +11313,6 @@ export type V2IntegrationConnectKeyData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/{integrationID}/connect/key"
 }
@@ -11367,7 +11355,6 @@ export type V2IntegrationConnectOauthData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/{integrationID}/connect/oauth"
 }
@@ -11408,7 +11395,6 @@ export type V2IntegrationAttemptCancelData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/attempt/{attemptID}"
 }
@@ -11446,7 +11432,6 @@ export type V2IntegrationAttemptStatusData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/attempt/{attemptID}"
 }
@@ -11489,7 +11474,6 @@ export type V2IntegrationAttemptCompleteData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/integration/attempt/{attemptID}/complete"
 }
@@ -11528,7 +11512,6 @@ export type V2CredentialRemoveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/credential/{credentialID}"
 }
@@ -11567,7 +11550,6 @@ export type V2CredentialUpdateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/credential/{credentialID}"
 }
@@ -11602,7 +11584,6 @@ export type V2PermissionRequestListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/permission/request"
 }
@@ -11870,7 +11851,6 @@ export type V2FsReadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/fs/read/*"
 }
@@ -11905,7 +11885,6 @@ export type V2FsListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     path?: string
   }
   url: "/api/fs/list"
@@ -11944,7 +11923,6 @@ export type V2FsFindData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     query: string
     type?: "file" | "directory"
     limit?: string
@@ -11985,7 +11963,6 @@ export type V2CommandListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/command"
 }
@@ -12023,7 +12000,6 @@ export type V2SkillListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/skill"
 }
@@ -12090,7 +12066,6 @@ export type V2PtyListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty"
 }
@@ -12136,7 +12111,6 @@ export type V2PtyCreateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty"
 }
@@ -12176,7 +12150,6 @@ export type V2PtyRemoveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty/{ptyID}"
 }
@@ -12217,7 +12190,6 @@ export type V2PtyGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty/{ptyID}"
 }
@@ -12267,7 +12239,6 @@ export type V2PtyUpdateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty/{ptyID}"
 }
@@ -12311,7 +12282,6 @@ export type V2PtyConnectTokenData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/pty/{ptyID}/connect-token"
 }
@@ -12401,7 +12371,6 @@ export type V2QuestionRequestListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/question/request"
 }
@@ -12548,7 +12517,6 @@ export type V2ReferenceListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/reference"
 }
@@ -12591,7 +12559,6 @@ export type V2ProjectCopyRemoveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/experimental/project/{projectID}/copy"
 }
@@ -12628,7 +12595,6 @@ export type V2ProjectCopyCreateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/experimental/project/{projectID}/copy"
 }
@@ -12661,7 +12627,6 @@ export type V2ProjectCopyRefreshData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/experimental/project/{projectID}/copy/refresh"
 }
@@ -12692,7 +12657,6 @@ export type V2NovelListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel"
 }
@@ -12727,7 +12691,6 @@ export type V2NovelCreateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel"
 }
@@ -12764,7 +12727,6 @@ export type V2NovelForSessionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/for-session/{sessionID}"
 }
@@ -12803,7 +12765,6 @@ export type V2NovelSessionBindingsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/session-bindings"
 }
@@ -12840,7 +12801,6 @@ export type V2NovelWritingBatchData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/writing-batch"
 }
@@ -12881,7 +12841,6 @@ export type V2NovelWritingBatchCancelData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/writing-batch/cancel"
 }
@@ -12923,7 +12882,6 @@ export type V2NovelDeleteData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}"
 }
@@ -12966,7 +12924,6 @@ export type V2NovelDetailData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}"
 }
@@ -13007,7 +12964,6 @@ export type V2NovelUpdateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}"
 }
@@ -13048,7 +13004,6 @@ export type V2NovelVolumesData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes"
 }
@@ -13089,7 +13044,6 @@ export type V2NovelCreateVolumeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes"
 }
@@ -13130,7 +13084,6 @@ export type V2NovelChaptersData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters"
 }
@@ -13171,7 +13124,6 @@ export type V2NovelCreateChapterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters"
 }
@@ -13213,7 +13165,6 @@ export type V2NovelDeleteChapterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}"
 }
@@ -13257,7 +13208,6 @@ export type V2NovelChapterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}"
 }
@@ -13299,7 +13249,6 @@ export type V2NovelUpdateChapterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}"
 }
@@ -13341,7 +13290,6 @@ export type V2NovelChapterVersionsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/versions"
 }
@@ -13383,7 +13331,6 @@ export type V2NovelChapterReviewsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/reviews"
 }
@@ -13425,7 +13372,6 @@ export type V2NovelRollbackData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/rollback"
 }
@@ -13467,7 +13413,6 @@ export type V2NovelUpdateContentData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/content"
 }
@@ -13509,7 +13454,6 @@ export type V2NovelApprovalData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/approval"
 }
@@ -13550,7 +13494,6 @@ export type V2NovelCharactersData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters"
 }
@@ -13591,7 +13534,6 @@ export type V2NovelCreateCharacterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters"
 }
@@ -13632,7 +13574,6 @@ export type V2NovelPlotThreadsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/plot-threads"
 }
@@ -13673,7 +13614,6 @@ export type V2NovelCreatePlotThreadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/plot-threads"
 }
@@ -13714,7 +13654,6 @@ export type V2NovelForeshadowingData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/foreshadowing"
 }
@@ -13755,7 +13694,6 @@ export type V2NovelCreateForeshadowingData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/foreshadowing"
 }
@@ -13797,7 +13735,6 @@ export type V2NovelWorldEntriesData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/world-entries"
 }
@@ -13838,7 +13775,6 @@ export type V2NovelCreateWorldEntryData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/world-entries"
 }
@@ -13879,7 +13815,6 @@ export type V2NovelOutlineData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/outline"
 }
@@ -13920,7 +13855,6 @@ export type V2NovelUpdateOutlineData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/outline"
 }
@@ -14003,7 +13937,6 @@ export type V2NovelDeleteVolumeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes/{volumeID}"
 }
@@ -14047,7 +13980,6 @@ export type V2NovelUpdateVolumeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes/{volumeID}"
 }
@@ -14089,7 +14021,6 @@ export type V2NovelRestoreVersionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/restore"
 }
@@ -14131,7 +14062,6 @@ export type V2NovelMoveChapterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/chapters/{chapterID}/move"
 }
@@ -14172,7 +14102,6 @@ export type V2NovelRelationshipsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/relationships"
 }
@@ -14213,7 +14142,6 @@ export type V2NovelCreateRelationshipData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/relationships"
 }
@@ -14256,7 +14184,6 @@ export type V2NovelDeleteRelationshipData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/relationships/{relationshipID}"
 }
@@ -14301,7 +14228,6 @@ export type V2NovelUpdateRelationshipData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/relationships/{relationshipID}"
 }
@@ -14344,7 +14270,6 @@ export type V2NovelCharacterStatesData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters/{characterID}/states"
 }
@@ -14386,7 +14311,6 @@ export type V2NovelCreateCharacterStateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters/{characterID}/states"
 }
@@ -14429,7 +14353,6 @@ export type V2NovelAllCharacterStatesData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/character-states"
 }
@@ -14472,7 +14395,6 @@ export type V2NovelDeleteCharacterStateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/character-states/{stateID}"
 }
@@ -14518,7 +14440,6 @@ export type V2NovelUpdateCharacterStateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/character-states/{stateID}"
 }
@@ -14561,7 +14482,6 @@ export type V2NovelStyleGuideData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/style-guide"
 }
@@ -14602,7 +14522,6 @@ export type V2NovelUpdateStyleGuideData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/style-guide"
 }
@@ -14643,7 +14562,6 @@ export type V2NovelSoulData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/soul"
 }
@@ -14684,7 +14602,6 @@ export type V2NovelUpdateSoulData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/soul"
 }
@@ -14766,7 +14683,6 @@ export type V2NovelTensionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/tension"
 }
@@ -14807,7 +14723,6 @@ export type V2NovelCreateTensionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/tension"
 }
@@ -14848,7 +14763,6 @@ export type V2NovelAiArtifactsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/ai-artifacts"
 }
@@ -14889,7 +14803,6 @@ export type V2NovelBindData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/bind"
 }
@@ -14931,7 +14844,6 @@ export type V2NovelDeleteCharacterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters/{characterID}"
 }
@@ -14975,7 +14887,6 @@ export type V2NovelUpdateCharacterData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/characters/{characterID}"
 }
@@ -15017,7 +14928,6 @@ export type V2NovelDeleteTensionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/tension/{pointID}"
 }
@@ -15061,7 +14971,6 @@ export type V2NovelUpdateTensionData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/tension/{pointID}"
 }
@@ -15103,7 +15012,6 @@ export type V2NovelDeletePlotThreadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/plot-threads/{threadID}"
 }
@@ -15147,7 +15055,6 @@ export type V2NovelUpdatePlotThreadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/plot-threads/{threadID}"
 }
@@ -15189,7 +15096,6 @@ export type V2NovelDeleteForeshadowingData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/foreshadowing/{entryID}"
 }
@@ -15234,7 +15140,6 @@ export type V2NovelUpdateForeshadowingData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/foreshadowing/{entryID}"
 }
@@ -15277,7 +15182,6 @@ export type V2NovelDeleteWorldEntryData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/world-entries/{entryID}"
 }
@@ -15321,7 +15225,6 @@ export type V2NovelUpdateWorldEntryData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/world-entries/{entryID}"
 }
@@ -15362,7 +15265,6 @@ export type V2NovelStructureData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/structure"
 }
@@ -15403,7 +15305,6 @@ export type V2NovelArcsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/arcs"
 }
@@ -15444,7 +15345,6 @@ export type V2NovelCreateArcData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/arcs"
 }
@@ -15486,7 +15386,6 @@ export type V2NovelDeleteArcData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/arcs/{arcID}"
 }
@@ -15530,7 +15429,6 @@ export type V2NovelUpdateArcData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/arcs/{arcID}"
 }
@@ -15572,7 +15470,6 @@ export type V2NovelArcBeatsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/arcs/{arcID}/beats"
 }
@@ -15613,7 +15510,6 @@ export type V2NovelCreateBeatData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/beats"
 }
@@ -15655,7 +15551,6 @@ export type V2NovelDeleteBeatData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/beats/{beatID}"
 }
@@ -15699,7 +15594,6 @@ export type V2NovelUpdateBeatData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/beats/{beatID}"
 }
@@ -15741,7 +15635,6 @@ export type V2NovelVolumeReviewsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes/{volumeID}/reviews"
 }
@@ -15783,7 +15676,6 @@ export type V2NovelCreateVolumeReviewData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/volumes/{volumeID}/reviews"
 }
@@ -15825,7 +15717,6 @@ export type V2NovelEditorialReportsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/editorial-reports"
 }
@@ -15866,7 +15757,6 @@ export type V2NovelCreateEditorialReportData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/editorial-reports"
 }
@@ -15909,7 +15799,6 @@ export type V2NovelAnnotationsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     targetType: "chapter" | "world_entry"
     targetId: string
   }
@@ -15952,7 +15841,6 @@ export type V2NovelCreateAnnotationData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/annotations"
 }
@@ -15994,7 +15882,6 @@ export type V2NovelDeleteAnnotationData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/annotations/{annotationID}"
 }
@@ -16038,7 +15925,6 @@ export type V2NovelUpdateAnnotationData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/annotations/{annotationID}"
 }
@@ -16079,7 +15965,6 @@ export type V2NovelAnnotationRoundsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     targetType: "chapter" | "world_entry"
     targetId: string
   }
@@ -16122,7 +16007,6 @@ export type V2NovelCreateAnnotationRoundData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/annotation-rounds"
 }
@@ -16166,7 +16050,6 @@ export type V2NovelUpdateAnnotationRoundData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/annotation-rounds/{roundID}"
 }
@@ -16209,7 +16092,6 @@ export type V2NovelSettingsOrganizationAnalyzeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/settings-organization/analyze"
 }
@@ -16256,7 +16138,6 @@ export type V2NovelSettingsOrganizationDryRunData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/settings-organization/dry-run"
 }
@@ -16303,7 +16184,6 @@ export type V2NovelSettingsOrganizationApplyData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/settings-organization/apply"
 }
@@ -16348,7 +16228,6 @@ export type V2NovelImportAnalyzeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/import/analyze"
 }
@@ -16383,7 +16262,6 @@ export type V2NovelImportApplyData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/import/apply"
 }
@@ -16420,7 +16298,6 @@ export type V2NovelReviewInboxListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     source?: "candidate" | "conflict" | "staged"
     limit?: string
     offset?: string
@@ -16469,7 +16346,6 @@ export type V2NovelReviewInboxCountsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/counts"
 }
@@ -16516,7 +16392,6 @@ export type V2NovelReviewInboxCandidateAcceptData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/accept"
 }
@@ -16564,7 +16439,6 @@ export type V2NovelReviewInboxCandidateRejectData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/candidates/{candidateID}/reject"
 }
@@ -16611,7 +16485,6 @@ export type V2NovelReviewInboxCandidateMergeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/candidates/merge"
 }
@@ -16659,7 +16532,6 @@ export type V2NovelReviewInboxConflictResolveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/conflicts/{conflictID}/resolve"
 }
@@ -16707,7 +16579,6 @@ export type V2NovelReviewInboxStagedAcceptData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/accept"
 }
@@ -16755,7 +16626,6 @@ export type V2NovelReviewInboxStagedRejectData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/staged/{stagedID}/reject"
 }
@@ -16802,7 +16672,6 @@ export type V2NovelReviewInboxBatchData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/review-inbox/batch"
 }
@@ -16847,7 +16716,6 @@ export type V2NovelMemoryFactsListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     status?: "pending" | "reviewed" | "approved" | "stale" | "retired"
     factType?: string
     chapterId?: string
@@ -16898,7 +16766,6 @@ export type V2NovelMemoryFactsCreateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts"
 }
@@ -16944,7 +16811,6 @@ export type V2NovelMemoryFactsCountsData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts/counts"
 }
@@ -16990,7 +16856,6 @@ export type V2NovelMemoryMaintenanceData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-maintenance"
 }
@@ -17037,7 +16902,6 @@ export type V2NovelMemoryFactsEditData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts/{factID}/edit"
 }
@@ -17083,7 +16947,6 @@ export type V2NovelMemoryFactsApproveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts/{factID}/approve"
 }
@@ -17130,7 +16993,6 @@ export type V2NovelMemoryFactsRetireData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts/{factID}/retire"
 }
@@ -17177,7 +17039,6 @@ export type V2NovelMemoryFactsUnmergeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/memory-facts/{factID}/unmerge"
 }
@@ -17223,7 +17084,6 @@ export type V2NovelCanvasLayoutData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/canvas-layout"
 }
@@ -17264,7 +17124,6 @@ export type V2NovelUpsertCanvasLayoutData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/canvas-layout"
 }
@@ -17306,7 +17165,6 @@ export type V2NovelCreateWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps"
 }
@@ -17343,7 +17201,6 @@ export type V2NovelActiveWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/active"
 }
@@ -17380,7 +17237,6 @@ export type V2NovelDraftWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/draft"
 }
@@ -17418,7 +17274,6 @@ export type V2NovelDeleteWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}"
 }
@@ -17458,7 +17313,6 @@ export type V2NovelUpdateWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}"
 }
@@ -17496,7 +17350,6 @@ export type V2NovelPromoteWorldMapData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/promote"
 }
@@ -17534,7 +17387,6 @@ export type V2NovelCreateWorldMapFeatureData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/features"
 }
@@ -17575,7 +17427,6 @@ export type V2NovelDeleteWorldMapFeatureData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}"
 }
@@ -17618,7 +17469,6 @@ export type V2NovelUpdateWorldMapFeatureData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/features/{featureID}"
 }
@@ -17658,7 +17508,6 @@ export type V2NovelCreateCharacterMapPinData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/pins"
 }
@@ -17699,7 +17548,6 @@ export type V2NovelDeleteCharacterMapPinData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}"
 }
@@ -17742,7 +17590,6 @@ export type V2NovelUpdateCharacterMapPinData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/maps/{mapID}/pins/{pinID}"
 }
@@ -17781,7 +17628,6 @@ export type V2NovelSaveBookMetaData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/book-meta"
 }
@@ -17822,7 +17668,6 @@ export type V2NovelSyncStatusData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/sync-status"
 }
@@ -17863,7 +17708,6 @@ export type V2NovelSyncRetryData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/sync/retry"
 }
@@ -17904,7 +17748,6 @@ export type V2NovelUpgradeStatusData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/upgrade/status"
 }
@@ -17945,7 +17788,6 @@ export type V2NovelUpgradeStartData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/upgrade/start"
 }
@@ -17986,7 +17828,6 @@ export type V2NovelUpgradeProgressData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/upgrade/progress"
 }
@@ -18027,7 +17868,6 @@ export type V2NovelUpgradePauseData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/upgrade/pause"
 }
@@ -18068,7 +17908,6 @@ export type V2NovelUpgradeResumeData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/upgrade/resume"
 }
@@ -18109,7 +17948,6 @@ export type V2NovelSettingImagesImageListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
     ownerType: "world_entry" | "character"
     ownerId: string
   }
@@ -18154,7 +17992,6 @@ export type V2NovelSettingImagesUploadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/setting-images"
 }
@@ -18197,7 +18034,6 @@ export type V2NovelSettingImagesRemoveData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/setting-images/{imageID}"
 }
@@ -18242,7 +18078,6 @@ export type V2NovelSettingImagesReadData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/setting-images/{imageID}"
 }
@@ -18285,7 +18120,6 @@ export type V2NovelSettingImagesUpdateNoteData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/setting-images/{imageID}"
 }
@@ -18328,7 +18162,6 @@ export type V2NovelSettingImagesReorderData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/{novelID}/setting-images/reorder"
 }
@@ -18369,7 +18202,6 @@ export type V2NovelModeGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/mode"
 }
@@ -18404,7 +18236,6 @@ export type V2NovelModeSetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/novel/mode"
 }
@@ -18439,7 +18270,6 @@ export type V2TechniqueListData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques"
 }
@@ -18474,7 +18304,6 @@ export type V2TechniqueCreateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques"
 }
@@ -18509,7 +18338,6 @@ export type V2TechniqueConfigGetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques/config"
 }
@@ -18544,7 +18372,6 @@ export type V2TechniqueConfigSetData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques/config"
 }
@@ -18581,7 +18408,6 @@ export type V2TechniqueDeleteData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques/{techniqueID}"
 }
@@ -18624,7 +18450,6 @@ export type V2TechniqueDetailData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques/{techniqueID}"
 }
@@ -18665,7 +18490,6 @@ export type V2TechniqueUpdateData = {
       directory?: string
       workspace?: string
     }
-    library?: TechniqueLibrary
   }
   url: "/api/techniques/{techniqueID}"
 }
