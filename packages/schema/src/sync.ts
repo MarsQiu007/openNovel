@@ -40,7 +40,7 @@ export const LibraryStatus = Schema.Struct({
   projects: Schema.Array(ProjectStatus),
 }).annotate({ identifier: "Sync.LibraryStatus" })
 
-export const RunAction = Schema.Literals(["uploaded", "downloaded", "deleted_remote"])
+export const RunAction = Schema.Literals(["uploaded", "downloaded", "deleted_remote", "cleanup_failed"])
 export type RunAction = typeof RunAction.Type
 
 export interface RunResult extends Schema.Schema.Type<typeof RunResult> {}

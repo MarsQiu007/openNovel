@@ -7,7 +7,7 @@ import type { SyncAdapter } from "./adapter"
 import { getDeviceIdentity, type DeviceIdentity } from "./device"
 import { createLocalFolderAdapter } from "./local-folder"
 import type { RegisteredProject, Registry, SyncConnection } from "./state"
-import { readConnection, readLibraryRegistry, readRegistry, removeConnection, writeConnection, writeLibraryRegistry, writeRegistry } from "./state"
+import { readConnection, readLibraryRegistry, readRegistry, removeConnection, removeLibraryRegistry, writeConnection, writeRegistry } from "./state"
 import { createWebDavAdapter, SyncError } from "./webdav"
 
 export { SyncError } from "./webdav"
@@ -67,7 +67,7 @@ export interface LibraryStatus {
 
 export interface RunResult {
   name: string
-  action: "uploaded" | "downloaded" | "deleted_remote"
+  action: "uploaded" | "downloaded" | "deleted_remote" | "cleanup_failed"
 }
 
 export type Decision =
@@ -101,11 +101,6 @@ const LIBRARY_UNIT = "@library"
 
 const dbFile = (deps: SyncDeps, directory: string) =>
   deps.dbFileFor?.(directory) ?? path.join(directory, ".novel", "novel.db")
-
-/** 同步单元的数据库文件：@library 以保留名单元名注入 dbFileFor（server 映射 globalDbPath()），书按目录路径解析 */
-function unitDb(deps: SyncDeps, rootDir: string, name: string) {
-  return name === LIBRARY_UNIT ? dbFile(deps, name) : dbFile(deps, path.join(rootDir, name))
-}
 
 /** .novel 目录（备份与下载临时文件的存放处） */
 const novelDir = (db: string) => path.dirname(db)
@@ -236,20 +231,7 @@ function parseManifest(input: unknown): RemoteManifest | undefined {
   }
 }
 
-/** 同步单元参与 content_time 抽取的表：书 = novels/chapters；全局技法库 = techniques/technique_feedback */
-function unitContentTables(name: string): string[] {
-  return name === LIBRARY_UNIT ? ["techniques", "technique_feedback"] : ["novels", "chapters"]
-}
-
-function readMeta(db: string, name: string): RemoteManifest["meta"] {
-  if (name === LIBRARY_UNIT) {
-    try {
-      const count = Number(queryAll(db, "SELECT COUNT(*) AS c FROM techniques")[0]?.c ?? 0)
-      return { novels: [], chapters: count }
-    } catch {
-      return { novels: [], chapters: 0 }
-    }
-  }
+function readMeta(db: string): RemoteManifest["meta"] {
   try {
     const novels = queryAll(db, "SELECT id, title FROM novels ORDER BY created_at").map((row) => ({
       id: String(row.id),
@@ -326,6 +308,7 @@ export async function setRootDir(deps: SyncDeps, rootDir: string): Promise<Libra
 // ─── 计划：每个项目该做什么 ───
 
 type PlannedAction =
+  | "noop"
   | "upload_new"
   | "download_new"
   | "push"
@@ -337,8 +320,8 @@ type PlannedAction =
   | "cleanup"
   | "pair_conflict"
   | "tie_conflict"
-  | "noop"
-
+  | "cleanup_library"
+  | "cleanup_library_registry"
 interface PlannedProject {
   name: string
   action: PlannedAction
@@ -381,7 +364,7 @@ async function buildPlan(
       const dir = path.join(rootDir, name)
       const db = dbFile(deps, dir)
       const localExists = localNames.includes(name) && (await stat(db).catch(() => undefined)) !== undefined
-      const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db, unitContentTables(name)) } : undefined
+      const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db, ["novels", "chapters"]) } : undefined
       const remote = parseManifest(await adapter.readJson(latestPath(remoteDir(connection, name))))
 
       // 仅本地存在 → 上传新建（也覆盖「远端被应用外删除」的自愈：重新上传）
@@ -407,11 +390,11 @@ async function buildPlan(
       return arbitratePaired(name, local!, remote!, reg)
     }),
   )
-  planned.push(await planLibraryUnit(deps, connection, adapter, libraryRegistry))
+  planned.push(await planLibraryCleanup(connection, adapter, libraryRegistry))
   return planned
 }
 
-/** 同源配对后的脏检测与时间仲裁（书项目与 @library 单元共用） */
+/** 同源配对后的脏检测与时间仲裁 */
 function arbitratePaired(
   name: string,
   local: { hash: string; contentTime: number | null },
@@ -436,42 +419,24 @@ function arbitratePaired(
   return lt! >= rt! ? { name, action: "overwrite_remote", local, remote, reg } : { name, action: "overwrite_local", local, remote, reg }
 }
 
-/**
- * 计划 @library（全局通用技法库）单元：与书同构的快照语义，但
- * 1) 本地存在性 = dbFileFor("@library") 文件存在（非目录含 .novel）；
- * 2) 删除保护——本地缺席 + 远端存在一律 download_new 恢复，永不 delete_remote；
- * 3) 登记读写走独立 library-registry.json。
- */
-async function planLibraryUnit(
-  deps: SyncDeps,
+/** 计划退役的 @library 单元：只用于清理远端目录与旧登记，绝不参与普通同步或下载恢复。 */
+async function planLibraryCleanup(
   connection: SyncConnection,
   adapter: SyncAdapter,
   libraryRegistry: Registry,
 ): Promise<PlannedProject> {
   const name = LIBRARY_UNIT
-  const reg = libraryRegistry.projects[name]
-  const db = unitDb(deps, connection.rootDir!, name)
-  const localExists = (await stat(db).catch(() => undefined)) !== undefined
-  const local = localExists ? { hash: contentHash(db), contentTime: contentTime(db, unitContentTables(name)) } : undefined
   const remote = parseManifest(await adapter.readJson(latestPath(remoteDir(connection, name))))
-
-  if (local && !remote) return { name, action: "upload_new", local, reg }
-  if (!local && remote) {
-    // 删除保护：本地文件缺失只发生于从未创建或手工误删——下载恢复总是正确处置，绝不传播删除
-    return { name, action: "download_new", remote }
-  }
-  if (!local && !remote) return { name, action: reg ? "cleanup" : "noop", reg }
-  if (!reg || reg.uuid !== remote!.uuid) {
-    if (local!.hash === remote!.content_hash) return { name, action: "adopt", local, remote, reg }
-    return { name, action: "pair_conflict", local, remote, reg }
-  }
-  return arbitratePaired(name, local!, remote!, reg)
+  if (remote) return { name, action: "cleanup_library", remote }
+  return { name, action: libraryRegistry.projects[name] ? "cleanup_library_registry" : "noop" }
 }
 
 const toProjectState: Record<PlannedAction, ProjectState | undefined> = {
   noop: "in_sync",
   adopt: "in_sync",
   cleanup: undefined,
+  cleanup_library: undefined,
+  cleanup_library_registry: undefined,
   push: "local_ahead",
   overwrite_remote: "local_ahead",
   pull: "remote_ahead",
@@ -494,7 +459,7 @@ async function uploadProject(
   uuid: string,
 ) {
   const dir = path.join(connection.rootDir!, name)
-  const db = unitDb(deps, connection.rootDir!, name)
+  const db = dbFile(deps, path.join(connection.rootDir!, name))
   if (!(await stat(db).catch(() => undefined))) throw new SyncError("io", `本地数据库不存在，无法上传：${name}`)
 
   const tmpDir = path.join(os.tmpdir(), "opennovel-sync")
@@ -510,12 +475,12 @@ async function uploadProject(
       snapshotID,
       file_sha256: (await fileSha256(tmp))!,
       content_hash: contentHash(tmp),
-      content_time: contentTime(tmp, unitContentTables(name)),
+      content_time: contentTime(tmp, ["novels", "chapters"]),
       size: (await stat(tmp)).size,
       createdAt: Date.now(),
       device: await getDeviceIdentity(deps.stateDir),
       base: remote?.snapshotID ?? null,
-      meta: readMeta(tmp, name),
+      meta: readMeta(tmp),
     }
     const dir2 = remoteDir(connection, name)
     await adapter.mkdir(`${dir2}/snapshots`)
@@ -530,16 +495,10 @@ async function uploadProject(
       uuid,
       lastSynced: { snapshotID, hash: manifest.content_hash, at: manifest.createdAt },
     }
-    await writeUnitRegistry(connection.rootDir!, name, registry)
+    await writeRegistry(connection.rootDir!, registry)
   } finally {
     await rm(tmp, { force: true })
   }
-}
-
-/** 按单元路由登记写入：@library 走独立登记文件，书走共享 registry.json */
-async function writeUnitRegistry(rootDir: string, name: string, registry: Registry) {
-  if (name === LIBRARY_UNIT) await writeLibraryRegistry(rootDir, registry)
-  else await writeRegistry(rootDir, registry)
 }
 
 const MAX_BACKUPS = 10
@@ -569,7 +528,7 @@ async function downloadProject(
 ) {
   const rootDir = connection.rootDir!
   const dir = path.join(rootDir, name)
-  const db = unitDb(deps, rootDir, name)
+  const db = dbFile(deps, path.join(rootDir, name))
   await mkdir(novelDir(db), { recursive: true })
   // 下载到 .novel 内临时文件（与目标同卷），校验后再替换
   const tmp = path.join(novelDir(db), `.sync-download-${randomUUID()}`)
@@ -596,7 +555,7 @@ async function downloadProject(
         uuid: remote.uuid,
         lastSynced: { snapshotID: remote.snapshotID, hash: remote.content_hash, at: remote.createdAt },
       }
-      await writeUnitRegistry(rootDir, name, registry)
+      await writeRegistry(rootDir, registry)
     }
   } finally {
     await rm(tmp, { force: true })
@@ -658,7 +617,7 @@ export async function getStatus(deps: SyncDeps): Promise<LibraryStatus> {
           name: p.name,
           state,
           lastSyncedAt: p.reg?.lastSynced?.at,
-          novels: p.name === LIBRARY_UNIT ? undefined : p.remote?.meta.novels.map((novel) => novel.title),
+          novels: p.remote?.meta.novels.map((novel) => novel.title),
         }
       })
       .filter((p): p is ProjectStatus => p !== undefined),
@@ -684,18 +643,30 @@ export async function syncAll(deps: SyncDeps): Promise<{ results: RunResult[]; d
       if (p.action === "noop") continue
       if (p.action === "adopt") {
         // 内容一致的同名项目：登记配对，之后按同源项目正常走增量
-        const store = p.name === LIBRARY_UNIT ? libraryRegistry : registry
-        store.projects[p.name] = {
+        registry.projects[p.name] = {
           uuid: p.remote!.uuid,
           lastSynced: { snapshotID: p.remote!.snapshotID, hash: p.remote!.content_hash, at: p.remote!.createdAt },
         }
-        await writeUnitRegistry(connection.rootDir!, p.name, store)
+        await writeRegistry(connection.rootDir!, registry)
         continue
       }
       if (p.action === "cleanup") {
-        const store = p.name === LIBRARY_UNIT ? libraryRegistry : registry
-        delete store.projects[p.name]
-        await writeUnitRegistry(connection.rootDir!, p.name, store)
+        delete registry.projects[p.name]
+        await writeRegistry(connection.rootDir!, registry)
+        continue
+      }
+      if (p.action === "cleanup_library_registry") {
+        await removeLibraryRegistry(connection.rootDir!)
+        continue
+      }
+      if (p.action === "cleanup_library") {
+        try {
+          await adapter.remove(remoteDir(connection, LIBRARY_UNIT))
+          await removeLibraryRegistry(connection.rootDir!)
+          results.push({ name: LIBRARY_UNIT, action: "deleted_remote" })
+        } catch {
+          results.push({ name: LIBRARY_UNIT, action: "cleanup_failed" })
+        }
         continue
       }
       if (p.action === "pair_conflict") {
@@ -749,8 +720,6 @@ export async function resolve(
     if (input.action === "skip") return
     if (input.action === "confirm_delete") {
       for (const name of input.names ?? []) {
-        // 防御：@library 由删除保护保证永不进入删除决策，绝不传播删除
-        if (name.startsWith("@")) continue
         await deleteRemoteProject(connection, adapter, registry, name)
       }
       return

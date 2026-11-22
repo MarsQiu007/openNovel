@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from "fs/promises"
+import { spawnSync } from "node:child_process"
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { Sync } from "../src/sync"
@@ -341,117 +342,101 @@ describe("library sync", () => {
 })
 
 /**
- * @library（全局通用技法库）保留同步单元：
- * 独立登记文件、共享 registry 隔离、双端上传/下载、删除保护、@ 前缀命名空间排除。
- * E/F 两台"机器" + 独立远端目录，避免与上方书同步用例互相污染。
+ * @library 退役清理：远端旧目录与本地旧登记在下一次同步中移除，书籍库项目不受影响。
  */
-describe("library unit sync（@library 全局技法库）", () => {
+describe("library unit retirement（@library 全局技法库清理）", () => {
   const remote2 = path.join(root, "remote-library")
   const E = machine("e")
   const F = machine("f")
+  const G = machine("g")
 
-  const libraryFile = (m: Machine) => path.join(m.rootDir, "shared", "techniques.db")
-
-  // 注入约定：书目录收绝对路径（join(rootDir, name)），@library 收保留名单元名
-  function depsLibrary(m: Machine, closed: string[] = []): Sync.SyncDeps {
-    return {
-      configDir: m.configDir,
-      stateDir: m.stateDir,
-      dbFileFor: (directory) =>
-        directory === "@library" ? libraryFile(m) : path.join(directory, ".novel", "novel.db"),
-      closeDatabase: (directory) => {
-        closed.push(directory)
-      },
-    }
+  function depsBook(m: Machine): Sync.SyncDeps {
+    return { configDir: m.configDir, stateDir: m.stateDir }
   }
 
-  async function connectLibrary(m: Machine, closed: string[] = []) {
-    const deps = depsLibrary(m, closed)
+  async function connectBook(m: Machine) {
     await mkdir(m.rootDir, { recursive: true })
     await Sync.saveConnection(
       { configDir: m.configDir, setPassword: async () => {} },
       { url: `file://${remote2.replaceAll("\\", "/")}`, username: "tester", password: "" },
     )
-    await Sync.setRootDir(deps, m.rootDir)
-    return deps
+    await Sync.setRootDir(depsBook(m), m.rootDir)
   }
 
-  async function writeTechnique(m: Machine, id: string, name: string, updatedAt: number) {
-    const file = libraryFile(m)
-    await mkdir(path.dirname(file), { recursive: true })
-    const db = new Database(file, { create: true })
-    db.exec(
-      `CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, updated_at integer NOT NULL)`,
+  async function writeRemoteLibrary() {
+    const libraryDir = path.join(remote2, "opennovel", "@library")
+    await mkdir(path.join(libraryDir, "snapshots"), { recursive: true })
+    await writeFile(
+      path.join(libraryDir, "latest.json"),
+      JSON.stringify({
+        uuid: "legacy-library-uuid",
+        name: "@library",
+        snapshotID: "legacy-snapshot",
+        file_sha256: "legacy",
+        content_hash: "legacy",
+        content_time: T1,
+        size: 1,
+        createdAt: T1,
+        device: { id: "legacy-device", name: "旧设备" },
+        base: null,
+        meta: { novels: [], chapters: 1 },
+      }),
     )
-    db.query(`INSERT INTO techniques (id, name, updated_at) VALUES (?, ?, ?)`).run(id, name, updatedAt)
-    db.close()
   }
 
-  function techniqueNames(m: Machine): string[] {
-    const db = new Database(libraryFile(m), { readonly: true })
-    const rows = db.query(`SELECT name FROM techniques ORDER BY rowid`).all() as Array<{ name: string }>
-    db.close()
-    return rows.map((row) => row.name)
-  }
-
-  test("E 上传全局库：独立登记且共享 registry 无 @library；F 下载恢复且下载前驱逐连接", async () => {
-    const eDeps = await connectLibrary(E)
+  test("同步运行清理远端 @library，并照常处理书籍库", async () => {
+    await connectBook(E)
     await writeChapter(E, "eshu", "第一章", T0)
-    await writeTechnique(E, "t1", "通用悬念钩子", T1)
+    await writeRemoteLibrary()
 
-    const before = await Sync.getStatus(eDeps)
-    expect(before.projects.find((p) => p.name === "@library")?.state).toBe("new_local")
-    expect(before.projects.find((p) => p.name === "@library")?.novels).toBeUndefined()
+    const before = await Sync.getStatus(depsBook(E))
+    expect(before.projects.some((item) => item.name === "@library")).toBe(false)
 
-    const run = await Sync.syncAll(eDeps)
-    expect(run.results).toContainEqual({ name: "@library", action: "uploaded" })
+    const run = await Sync.syncAll(depsBook(E))
+    expect(run.results).toContainEqual({ name: "eshu", action: "uploaded" })
+    expect(run.results).toContainEqual({ name: "@library", action: "deleted_remote" })
+    expect(run.results).not.toContainEqual({ name: "@library", action: "downloaded" })
 
-    const sharedRaw = JSON.parse(await readFile(path.join(E.rootDir, ".sync", "registry.json"), "utf8"))
-    expect(Object.keys(sharedRaw.projects)).toEqual(["eshu"])
-    expect(sharedRaw.projects["@library"]).toBeUndefined()
-    const libRaw = JSON.parse(
-      await readFile(path.join(E.rootDir, ".sync", "library-registry.json"), "utf8"),
-    )
-    expect(typeof libRaw.projects["@library"].uuid).toBe("string")
-
-    const fClosed: string[] = []
-    const fDeps = await connectLibrary(F, fClosed)
-    expect((await Sync.getStatus(fDeps)).projects.find((p) => p.name === "@library")?.state).toBe("new_remote")
-    const frun = await Sync.syncAll(fDeps)
-    expect(frun.results).toContainEqual({ name: "@library", action: "downloaded" })
-    expect(fClosed).toContain(path.join(F.rootDir, "@library"))
-    expect(techniqueNames(F)).toEqual(["通用悬念钩子"])
+    await expect(stat(path.join(remote2, "opennovel", "@library", "latest.json"))).rejects.toThrow()
+    const status = await Sync.getStatus(depsBook(E))
+    expect(status.projects.some((item) => item.name === "@library")).toBe(false)
+    expect(status.projects.find((item) => item.name === "eshu")?.state).toBe("in_sync")
+    await expect(stat(path.join(remote2, "opennovel", "eshu", "latest.json"))).resolves.toBeTruthy()
   })
 
-  test("删除保护：本地缺席 + 远端存在 = 下载恢复，永不 delete_remote", async () => {
-    await rm(libraryFile(F), { force: true })
-    const run = await Sync.syncAll(depsLibrary(F))
-    const libraryRun = run.results.find((r) => r.name === "@library")
-    expect(libraryRun?.action).toBe("downloaded")
-    expect(techniqueNames(F)).toEqual(["通用悬念钩子"])
+  test("远端不存在时只清理本地 @library 旧登记", async () => {
+    await connectBook(F)
+    const registryDir = path.join(F.rootDir, ".sync")
+    await mkdir(registryDir, { recursive: true })
+    await writeFile(path.join(registryDir, "library-registry.json"), JSON.stringify({ version: 1, projects: { "@library": { uuid: "legacy", lastSynced: null } } }))
+
+    const run = await Sync.syncAll(depsBook(F))
+    expect(run.results.some((item) => item.name === "@library")).toBe(false)
+    await expect(stat(path.join(registryDir, "library-registry.json"))).rejects.toThrow()
+    const status = await Sync.getStatus(depsBook(F))
+    expect(status.projects.some((item) => item.name === "@library")).toBe(false)
   })
 
-  async function updateTechniqueAt(m: Machine, id: string, name: string, updatedAt: number) {
-    const db = new Database(libraryFile(m))
-    db.query(`UPDATE techniques SET name = ?, updated_at = ? WHERE id = ?`).run(name, updatedAt, id)
-    db.close()
-  }
+  test("远端清理失败时报告 cleanup_failed，书籍库动作不回滚", async () => {
+    await connectBook(G)
+    await writeChapter(G, "gbook", "第一章", T0)
+    await writeRemoteLibrary()
+    const libraryDir = path.join(remote2, "opennovel", "@library")
+    const isWindows = process.platform === "win32"
+    if (isWindows) {
+      const denied = spawnSync("icacls", [libraryDir, "/deny", "*S-1-1-0:(D)"], { encoding: "utf8" })
+      expect(denied.status).toBe(0)
+    } else {
+      await chmod(libraryDir, 0o555)
+    }
 
-  test("双机同改全局库同一行：content_time 谁新谁赢仲裁", async () => {
-    // E 改 t1 为 T3（较旧）先行上传；F 未拉取即改同一行为 T5（较新），整文件快照下新者覆盖
-    await updateTechniqueAt(E, "t1", "E 旧改", T3)
-    await Sync.syncAll(depsLibrary(E))
-    await updateTechniqueAt(F, "t1", "F 新改", T5)
-    const run = await Sync.syncAll(depsLibrary(F))
-    expect(run.results).toContainEqual({ name: "@library", action: "uploaded" })
-    await Sync.syncAll(depsLibrary(E))
-    expect(techniqueNames(E)).toEqual(["F 新改"])
-    expect(techniqueNames(F)).toEqual(["F 新改"])
-  })
-
-  test("书发现排除 @ 前缀目录（保留命名空间）", async () => {
-    await writeChapter(E, "@junk", "秘密章", T2)
-    const status = await Sync.getStatus(depsLibrary(E))
-    expect(status.projects.some((p) => p.name === "@junk")).toBe(false)
+    try {
+      const run = await Sync.syncAll(depsBook(G))
+      expect(run.results).toContainEqual({ name: "@library", action: "cleanup_failed" })
+      expect(run.results).toContainEqual({ name: "gbook", action: "uploaded" })
+    } finally {
+      if (isWindows) spawnSync("icacls", [libraryDir, "/remove:d", "*S-1-1-0"], { encoding: "utf8" })
+      await chmod(libraryDir, 0o755)
+    }
   })
 })

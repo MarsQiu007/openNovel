@@ -92,8 +92,8 @@ export async function readLibraryRegistry(rootDir: string): Promise<Registry> {
   return { version: 1, projects: parsed.projects }
 }
 
-export async function writeLibraryRegistry(rootDir: string, registry: Registry) {
-  const file = libraryRegistryFile(rootDir)
-  await mkdir(path.dirname(file), { recursive: true })
-  await writeFile(file, JSON.stringify(registry, null, 2))
+/** 退役清理：移除 @library 的独立配对登记文件；不存在时为 no-op。 */
+export async function removeLibraryRegistry(rootDir: string): Promise<void> {
+  const { rm } = await import("fs/promises")
+  await rm(libraryRegistryFile(rootDir), { force: true })
 }

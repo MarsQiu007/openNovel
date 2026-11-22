@@ -2,7 +2,7 @@ import { Credential } from "@opennovel-ai/core/credential"
 import { Global } from "@opennovel-ai/core/global"
 import { Integration } from "@opennovel-ai/core/integration"
 import { Sync } from "@opennovel-ai/core/sync"
-import { closeDb, closeDbPath, getDbPath, globalDbPath } from "@opennovel-ai/novel-store"
+import { closeDb, getDbPath } from "@opennovel-ai/novel-store"
 import { Effect, Schema } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { SyncErrorResponse } from "@opennovel-ai/protocol/groups/sync"
@@ -49,10 +49,9 @@ export const SyncHandler = HttpApiBuilder.group(Api, "server.sync", (handlers) =
                 })
                 .pipe(Effect.asVoid),
         ),
-      // 同步注入约定：书收目录路径；@library 保留单元 dbFileFor 收单元名、closeDatabase 收 join(rootDir, "@library")
-      closeDatabase: (directory) =>
-        directory.endsWith("@library") ? closeDbPath(globalDbPath()) : closeDb(directory),
-      dbFileFor: (directory) => (directory === "@library" ? globalDbPath() : getDbPath(directory)),
+      // 同步注入约定：书籍库按项目目录解析；全局通用库不再是同步单元。
+      closeDatabase: (directory) => closeDb(directory),
+      dbFileFor: getDbPath,
     }
     return result
   })
