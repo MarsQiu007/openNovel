@@ -8,9 +8,7 @@
  * - confirmTechniques：technique.confirmed / injected / p7.trimmed
  * - save_technique 工具：technique.learn.created / merged / rejected 回流漏斗
  */
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { mkdirSync, rmSync } from "fs"
 import { join } from "path"

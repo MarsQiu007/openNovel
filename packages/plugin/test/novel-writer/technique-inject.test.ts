@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect } from "bun:test"
 import { applyP7Budget, formatTechniquesForPrompt, formatTechniquesForShadow } from "../../src/novel-writer/technique-inject.js"
 import type { RetrievedTechnique } from "../../src/novel-writer/technique.js"

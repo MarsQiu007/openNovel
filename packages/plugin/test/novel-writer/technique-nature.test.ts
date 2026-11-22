@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
@@ -53,8 +51,8 @@ async function seedNovelWithAdultTechnique(novelNature: "general" | "adult" = "g
   db.insert(NovelTable)
     .values({ id: "novel-1", title: "测试", genre: "科幻", synopsis: "一场对话", content_nature: novelNature })
     .run()
-  await upsertTechnique(makeTechnique({ name: "通用技法", scope: "general", confidence: 0.8 }), dir, "book")
-  await upsertTechnique(makeTechnique({ name: "受限技法", scope: "adult", confidence: 0.9 }), dir, "book")
+  await upsertTechnique(makeTechnique({ name: "通用技法", scope: "general", confidence: 0.8 }), dir)
+  await upsertTechnique(makeTechnique({ name: "受限技法", scope: "adult", confidence: 0.9 }), dir)
 }
 
 describe("resolveBookContentNature", () => {

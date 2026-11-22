@@ -7,13 +7,13 @@ import {
   upsertTechnique,
   findTechniquesByName,
   mergeTechniqueEvidence,
-  listAllTechniques,
+  listTechniques,
   incrementTechniqueUsage,
   retireTechniqueAsPromoted,
 } from "./technique-store.js"
 import { applyP7Budget, formatTechniquesForPrompt } from "./technique-inject.js"
 import { recordMetricsBatch } from "./evaluate/metrics.js"
-import type { TechniqueEntry, TechniqueLevel, TechniqueLibrary, TechniqueScope, TechniqueStatus } from "./technique.js"
+import type { TechniqueEntry, TechniqueLevel, TechniqueScope, TechniqueStatus } from "./technique.js"
 
 export interface SaveTechniqueInput {
   name: string
@@ -23,7 +23,7 @@ export interface SaveTechniqueInput {
   level: TechniqueLevel
   evidence: { sourceTitle: string; sourceLocation: string; excerpt: string; annotation: string }[]
   commonMisuse: string
-  /** 内容性质（必填，无缺省）：general=通用写法入全局库；adult=成人内容留本书库 */
+  /** 内容性质（必填，无缺省）：general=通用写法；adult=成人内容。只影响召回闸门，不决定存储位置。 */
   scope: TechniqueScope
 }
 
@@ -33,8 +33,8 @@ export type SaveTechniqueResult =
   | { action: "rejected"; reason: string }
 
 /**
- * save_technique 工具的核心逻辑：过滤 → 规范化 → 同名/显式合并 → 按 scope 路由入库。
- * 路由规则：general 入全局通用技法库（跨书共享）；adult 留本书库。同名合并只在目标库内进行。
+ * save_technique 工具的核心逻辑：过滤 → 规范化 → 同名/显式合并 → 写入当前书籍库。
+ * scope 只保留内容性质语义，不决定存储位置。
  */
 export async function saveTechnique(
   input: SaveTechniqueInput,
@@ -58,22 +58,21 @@ export async function saveTechnique(
   const normalized = normalizeTechniqueEvidence(entry.evidence)
   if (!normalized.ok) return { action: "rejected", reason: normalized.reason }
   const ready: TechniqueEntry = { ...entry, evidence: normalized.evidence }
-  const library = ready.scope === "general" ? "global" : "book"
 
   if (mergeTargetId) {
-    const ok = await mergeTechniqueEvidence(mergeTargetId, ready.evidence, directory, library)
+    const ok = await mergeTechniqueEvidence(mergeTargetId, ready.evidence, directory)
     if (!ok) return { action: "rejected", reason: "合并目标不存在" }
     return { action: "merged", technique_id: mergeTargetId }
   }
 
-  const sameName = await findTechniquesByName(entry.name, directory, library)
+  const sameName = await findTechniquesByName(entry.name, directory)
   if (sameName.length > 0) {
     const target = sameName[0]
-    await mergeTechniqueEvidence(target.id, ready.evidence, directory, library)
+    await mergeTechniqueEvidence(target.id, ready.evidence, directory)
     return { action: "merged", technique_id: target.id }
   }
 
-  await upsertTechnique(ready, directory, library)
+  await upsertTechnique(ready, directory)
   return { action: "created", technique_id: entry.id }
 }
 
@@ -85,46 +84,46 @@ export interface SearchTechniquesFilter {
   limit?: number
 }
 
-/** search_techniques 工具的核心逻辑（双源：本书库 + 全局库，结果标注来源） */
+/** search_techniques 工具的核心逻辑（当前书籍库单源）。 */
 export async function searchTechniques(
   filter: SearchTechniquesFilter,
   directory: string | null,
 ): Promise<{ lines: string[]; count: number; total: number; unverified: number }> {
-  const all = await listAllTechniques(directory)
+  const all = await listTechniques(directory)
   const keyword = filter.keyword?.trim().toLowerCase() ?? ""
   const matched = all
     .filter(
-      ({ entry }) =>
+      (entry) =>
         keyword === "" || `${entry.name} ${entry.principle} ${entry.instruction}`.toLowerCase().includes(keyword),
     )
-    .filter(({ entry }) => filter.sceneType === undefined || entry.sceneTypes.includes(filter.sceneType))
-    .filter(({ entry }) => filter.level === undefined || entry.level === filter.level)
-    .filter(({ entry }) => filter.status === undefined || entry.status === filter.status)
+    .filter((entry) => filter.sceneType === undefined || entry.sceneTypes.includes(filter.sceneType))
+    .filter((entry) => filter.level === undefined || entry.level === filter.level)
+    .filter((entry) => filter.status === undefined || entry.status === filter.status)
     .slice(0, filter.limit ?? 10)
 
   const lines = matched.map(
-    ({ entry, library }) =>
-      `- [${entry.id}]${library === "global" ? "[通用库]" : "[本书]"} ${entry.name}（${entry.status}/${entry.confidence.toFixed(2)}）：${entry.instruction.slice(0, 80)}`,
+    (entry) =>
+      `- [${entry.id}] ${entry.name}（${entry.status}/${entry.confidence.toFixed(2)}）：${entry.instruction.slice(0, 80)}`,
   )
   // total/unverified 为过滤前计数：空结果反馈据此区分"库为空"与"过滤后无匹配"
   return {
     lines,
     count: matched.length,
     total: all.length,
-    unverified: all.filter(({ entry }) => entry.status === "unverified").length,
+    unverified: all.filter((entry) => entry.status === "unverified").length,
   }
 }
 
-/** confirm_techniques 工具的核心逻辑：双源取条目 + 计数 + 预算裁剪 + 段落格式化 */
+/** confirm_techniques 工具的核心逻辑：本书库取条目 + 计数 + 预算裁剪 + 段落格式化。 */
 export async function confirmTechniques(
   ids: string[],
   directory: string | null,
   chapterOrder?: number,
 ): Promise<{ section: string; injected: number; injected_ids: string[] }> {
-  const all = await listAllTechniques(directory)
+  const all = await listTechniques(directory)
   const picked = all
-    .filter(({ entry }) => ids.includes(entry.id))
-    .map(({ entry, library }) => ({ entry, matchScore: entry.confidence, library }))
+    .filter((entry) => ids.includes(entry.id))
+    .map((entry) => ({ entry, matchScore: entry.confidence }))
   if (picked.length === 0) return { section: "", injected: 0, injected_ids: [] }
 
   const budgeted = applyP7Budget(picked)
@@ -141,7 +140,7 @@ export async function confirmTechniques(
   }
   for (const t of budgeted) {
     // 饱和度账本（agent-memory-system §2.2）：带章序记录按章使用分布
-    await incrementTechniqueUsage(t.entry.id, directory, t.library, chapterOrder)
+    await incrementTechniqueUsage(t.entry.id, directory, chapterOrder)
   }
   return {
     section: formatTechniquesForPrompt(budgeted),
@@ -164,13 +163,11 @@ export type PromoteTechniqueResult =
 export async function promoteTechniqueToSpec(
   id: string,
   directory: string,
-  library: TechniqueLibrary,
   layer = "book",
 ): Promise<PromoteTechniqueResult> {
-  const all = await listAllTechniques(directory)
-  const found = all.find(({ entry }) => entry.id === id)
-  if (!found) return { ok: false, error: `技法不存在：${id.slice(0, 8)}` }
-  const entry = found.entry
+  const all = await listTechniques(directory)
+  const entry = all.find((item) => item.id === id)
+  if (!entry) return { ok: false, error: `技法不存在：${id.slice(0, 8)}` }
 
   const instructionsDir = join(directory, ".novel", "instructions")
   const specPath = join(instructionsDir, `${layer}.md`)
@@ -190,7 +187,7 @@ export async function promoteTechniqueToSpec(
   const already = existsSync(specPath) && readFileSync(specPath, "utf-8").includes(`源技法 id=${entry.id}`)
   if (!already) appendFileSync(specPath, (existsSync(specPath) ? "\n" : "") + block, "utf-8")
 
-  const retired = await retireTechniqueAsPromoted(entry.id, `.novel/instructions/${layer}.md`, directory, library)
+  const retired = await retireTechniqueAsPromoted(entry.id, `.novel/instructions/${layer}.md`, directory)
   if (!retired.ok) return { ok: false, error: retired.error }
   return { ok: true, technique_id: entry.id, spec_path: `.novel/instructions/${layer}.md` }
 }

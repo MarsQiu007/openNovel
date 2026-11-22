@@ -407,7 +407,6 @@ describe("organize_settings tool", () => {
   })
 })
 
-
 describe("cross-entity organization", () => {
   async function seedEntities() {
     const db = await seed()

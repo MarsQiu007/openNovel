@@ -30,7 +30,7 @@ export function formatTechniquesForPrompt(techniques: RetrievedTechnique[]): str
 export function formatTechniqueGuidanceLines(techniques: RetrievedTechnique[]): string[] {
   if (techniques.length === 0) return []
   const lines = techniques.map(
-    (t, i) => `${i + 1}. ${t.entry.name}${t.library === "global" ? "（通用库）" : ""}: ${t.entry.instruction}`,
+    (t, i) => `${i + 1}. ${t.entry.name}: ${t.entry.instruction}`,
   )
   return ["以下是和当前场景匹配的写作技法，写作时酌情参考：", "", ...lines]
 }
@@ -42,6 +42,6 @@ export function formatTechniqueGuidanceLines(techniques: RetrievedTechnique[]): 
 export function formatTechniquesForShadow(techniques: RetrievedTechnique[]): string[] {
   return techniques.map((t) => {
     const conf = t.entry.confidence.toFixed(2)
-    return `- [${t.entry.id}]${t.library === "global" ? "[通用库]" : "[本书]"} ${t.entry.name}（置信度:${conf}）：${t.entry.instruction}`
+    return `- [${t.entry.id}] ${t.entry.name}（置信度:${conf}）：${t.entry.instruction}`
   })
 }

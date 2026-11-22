@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect, afterAll } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
@@ -9,7 +7,7 @@ import { TECHNIQUE_LEVELS, LEVEL_CRITERIA, isTechniqueLevel } from "../../src/no
 import { normalizeTechnique } from "../../src/novel-writer/technique-normalize.js"
 import { distillTechniques } from "../../src/novel-writer/technique-extract.js"
 import { directorAgent } from "../../src/novel-writer/agents/director.js"
-import { upsertTechnique, listAllTechniques, updateTechniqueLevel } from "../../src/novel-writer/technique-store.js"
+import { upsertTechnique, listTechniques, updateTechniqueLevel } from "../../src/novel-writer/technique-store.js"
 import { relevelTechniques } from "../../src/novel-writer/cli.js"
 import type { TechniqueEntry } from "../../src/novel-writer/technique.js"
 
@@ -109,56 +107,53 @@ describe("蒸馏提示词", () => {
 describe("updateTechniqueLevel", () => {
   test("仅更新 level 并触碰 updated_at，其余字段不动", async () => {
     const before = makeTechnique({ id: "tech_update_1" })
-    await upsertTechnique(before, testDir, "book")
+    await upsertTechnique(before, testDir)
     await new Promise((r) => setTimeout(r, 5))
-    await updateTechniqueLevel("tech_update_1", "transition", testDir, "book")
-    const [after] = (await listAllTechniques(testDir)).filter(({ entry }) => entry.id === "tech_update_1")
-    expect(after.entry.level).toBe("transition")
-    expect(after.entry.status).toBe(before.status)
-    expect(after.entry.confidence).toBe(before.confidence)
-    expect(after.entry.evidence).toEqual(before.evidence)
-    expect(after.entry.updatedAt).toBeGreaterThanOrEqual(before.updatedAt)
+    await updateTechniqueLevel("tech_update_1", "transition", testDir)
+    const [after] = (await listTechniques(testDir)).filter((entry) => entry.id === "tech_update_1")
+    expect(after.level).toBe("transition")
+    expect(after.status).toBe(before.status)
+    expect(after.confidence).toBe(before.confidence)
+    expect(after.evidence).toEqual(before.evidence)
+    expect(after.updatedAt).toBeGreaterThanOrEqual(before.updatedAt)
   })
 })
 
-describe("relevelTechniques 双源重分类", () => {
+describe("relevelTechniques 本书库重分类", () => {
   const relevelDir = mkdtempSync(join(tmpdir(), "technique-relevel-test-"))
-  test("双源处理 + 非法值保留 + 幂等重跑 + 解析失败计数", async () => {
-    await upsertTechnique(makeTechnique({ id: "tech_b1", name: "B1" }), relevelDir, "book")
-    await upsertTechnique(makeTechnique({ id: "tech_b2", name: "B2" }), relevelDir, "book")
-    await upsertTechnique(makeTechnique({ id: "tech_g1", name: "G1" }), relevelDir, "global")
+  test("本书库处理 + 非法值保留 + 幂等重跑 + 解析失败计数", async () => {
+    await upsertTechnique(makeTechnique({ id: "tech_b1", name: "B1" }), relevelDir)
+    await upsertTechnique(makeTechnique({ id: "tech_b2", name: "B2" }), relevelDir)
 
     const fakeLlm = async () =>
       JSON.stringify({
         judgments: [
           { id: "tech_b1", level: "dialogue" },
           { id: "tech_b2", level: "not_a_level" },
-          { id: "tech_g1", level: "description" },
         ],
       })
 
     const r1 = await relevelTechniques(relevelDir, fakeLlm, { batchSize: 10 })
-    expect(r1.total).toBe(3)
-    expect(r1.changed).toBe(2)
+    expect(r1.total).toBe(2)
+    expect(r1.changed).toBe(1)
     expect(r1.kept).toBe(1)
     expect(r1.failed).toBe(0)
-    expect(r1.before).toEqual({ paragraph: 3 })
-    expect(r1.after).toEqual({ dialogue: 1, description: 1, paragraph: 1 })
+    expect(r1.before).toEqual({ paragraph: 2 })
+    expect(r1.after).toEqual({ dialogue: 1, paragraph: 1 })
 
-    const levels = new Map((await listAllTechniques(relevelDir)).map(({ entry }) => [entry.id, entry.level]))
+    const levels = new Map((await listTechniques(relevelDir)).map((entry) => [entry.id, entry.level]))
     expect(levels.get("tech_b1")).toBe("dialogue")
     expect(levels.get("tech_b2")).toBe("paragraph")
-    expect(levels.get("tech_g1")).toBe("description")
 
     // 幂等：同一判定再跑一遍零变更
     const r2 = await relevelTechniques(relevelDir, fakeLlm, { batchSize: 10 })
     expect(r2.changed).toBe(0)
-    expect(r2.kept).toBe(3)
+    expect(r2.kept).toBe(2)
 
     // 整批解析失败：计数且不破坏数据
     const r3 = await relevelTechniques(relevelDir, async () => "not json at all", { batchSize: 10 })
-    expect(r3.failed).toBe(3)
-    const levelsAfter = new Map((await listAllTechniques(relevelDir)).map(({ entry }) => [entry.id, entry.level]))
+    expect(r3.failed).toBe(2)
+    const levelsAfter = new Map((await listTechniques(relevelDir)).map((entry) => [entry.id, entry.level]))
     expect(levelsAfter.get("tech_b1")).toBe("dialogue")
   })
 })

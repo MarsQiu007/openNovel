@@ -1,9 +1,7 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect, afterAll } from "bun:test"
 import { eq } from "drizzle-orm"
-import { getDb } from "../../src/novel-writer/session-store.js"
+import { getDb, TechniqueTable } from "../../src/novel-writer/session-store.js"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -20,7 +18,6 @@ import {
   mergeTechniqueEvidence,
   verifyTechnique,
 } from "../../src/novel-writer/technique-store.js"
-import { getGlobalDb, TechniqueTable, TechniqueFeedbackTable } from "../../src/novel-writer/session-store.js"
 
 const testDir = mkdtempSync(join(tmpdir(), "technique-test-"))
 
@@ -206,9 +203,9 @@ describe("incrementTechniqueUsage", () => {
   test("带章序记录饱和度账本：同章合并计数、新章追加按章序升序", async () => {
     const entry = makeTechnique()
     await upsertTechnique(entry, testDir)
-    await incrementTechniqueUsage(entry.id, testDir, "book", 5)
-    await incrementTechniqueUsage(entry.id, testDir, "book", 2)
-    await incrementTechniqueUsage(entry.id, testDir, "book", 5)
+    await incrementTechniqueUsage(entry.id, testDir, 5)
+    await incrementTechniqueUsage(entry.id, testDir, 2)
+    await incrementTechniqueUsage(entry.id, testDir, 5)
     const db = getDb(testDir)
     const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
     expect(row.usage_count).toBe(3)
@@ -424,7 +421,6 @@ describe("queryTechniques 场景词表空交集回退", () => {
 describe("queryTechniques general 场景跨场景召回", () => {
   test("库内全部为具体标签时 general 查询召回非空（含曝光位）", async () => {
     await withTempDir(async (dir) => {
-      installFreshGlobalDb()
       const now = Date.now()
       const verified = makeTechnique({
         name: "具体标签高置信",
@@ -444,7 +440,6 @@ describe("queryTechniques general 场景跨场景召回", () => {
 
   test("具体场景查询行为不变：仅标签命中与通用身份进入候选", async () => {
     await withTempDir(async (dir) => {
-      installFreshGlobalDb()
       const description = makeTechnique({ name: "描写技法", sceneTypes: ["description"], confidence: 0.9, status: "verified" })
       const dialogue = makeTechnique({ name: "对话技法", sceneTypes: ["dialogue"], confidence: 0.8, status: "verified" })
       await upsertTechnique(description, dir)
@@ -459,7 +454,6 @@ describe("queryTechniques general 场景跨场景召回", () => {
 describe("queryTechniques 先过滤后取数", () => {
   test("高置信不匹配条目不再挤占置信度路径名额", async () => {
     await withTempDir(async (dir) => {
-      installFreshGlobalDb()
       const now = Date.now()
       for (let i = 0; i < 3; i++) {
         await upsertTechnique(
@@ -493,7 +487,6 @@ describe("queryTechniques 先过滤后取数", () => {
 
   test("曝光位先过滤后占位：最近新品不匹配时不空占", async () => {
     await withTempDir(async (dir) => {
-      installFreshGlobalDb()
       const now = Date.now()
       for (let i = 0; i < 3; i++) {
         await upsertTechnique(
@@ -524,193 +517,6 @@ describe("queryTechniques 先过滤后取数", () => {
   })
 })
 
-describe("queryTechniques 双源合并", () => {
-  test("全局库非空时本书场景召回全局条目并标注来源", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      await upsertTechnique(
-        makeTechnique({ name: "全局对话技法", sceneTypes: ["dialogue"], status: "verified", confidence: 0.9 }),
-        dir,
-        "global",
-      )
-      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
-      const hit = result.find((r) => r.entry.name === "全局对话技法")
-      expect(hit).toBeTruthy()
-      expect(hit!.library).toBe("global")
-    })
-  })
-
-  test("反馈按 library 写入对应库", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const globalEntry = makeTechnique({ name: "全局反馈技法", sceneTypes: ["dialogue"] })
-      await upsertTechnique(globalEntry, dir, "global")
-      await recordFeedback(
-        {
-          techniqueId: globalEntry.id,
-          chapterId: "ch1",
-          score: 0.9,
-          wasUsed: true,
-          comment: "运用自然",
-          createdAt: Date.now(),
-        },
-        dir,
-        "global",
-      )
-      const globalDb = getGlobalDb()
-      const rows = await globalDb
-        .select()
-        .from(TechniqueFeedbackTable)
-        .where(eq(TechniqueFeedbackTable.technique_id, globalEntry.id))
-        .all()
-      expect(rows.length).toBe(1)
-      // 本书库不出现该反馈
-      const bookDb = getDb(testDir)
-      const bookRows = await bookDb
-        .select()
-        .from(TechniqueFeedbackTable)
-        .where(eq(TechniqueFeedbackTable.technique_id, globalEntry.id))
-        .all()
-      expect(bookRows.length).toBe(0)
-    })
-  })
-
-  test("置信度状态机按库演进（全局库）", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const entry = makeTechnique({ name: "全局状态机技法", sceneTypes: ["dialogue"], confidence: 0.7 })
-      await upsertTechnique(entry, dir, "global")
-      for (let i = 0; i < 5; i++) {
-        await recordFeedback(
-          {
-            techniqueId: entry.id,
-            chapterId: `ch${i}`,
-            score: 0.9,
-            wasUsed: true,
-            comment: "",
-            createdAt: Date.now(),
-          },
-          dir,
-          "global",
-        )
-      }
-      await updateConfidenceFromFeedback(entry.id, dir, "global")
-      const globalDb = getGlobalDb()
-      const [row] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
-      expect(row.confidence).toBeGreaterThan(0.75)
-      // agent-memory-system §2.2：全局库同样不自动转正，作者确认后才 verified
-      expect(row.status).toBe("unverified")
-      expect(await verifyTechnique(entry.id, dir, "global")).toEqual({ ok: true })
-      const [confirmed] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
-      expect(confirmed.status).toBe("verified")
-    })
-  })
-
-  test("incrementTechniqueUsage 按库递增", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const entry = makeTechnique({ name: "全局计数技法", sceneTypes: ["dialogue"] })
-      await upsertTechnique(entry, dir, "global")
-      await incrementTechniqueUsage(entry.id, dir, "global")
-      const globalDb = getGlobalDb()
-      const [row] = await globalDb.select().from(TechniqueTable).where(eq(TechniqueTable.id, entry.id)).all()
-      expect(row.usage_count).toBe(1)
-    })
-  })
-})
-
-describe("queryTechniques 双源饱和池（本书池 ≥ limit）", () => {
-  test("曝光位跨池取最近：本书池饱和时全局新品仍进候选且占尾部固定位", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const now = Date.now()
-      for (let i = 0; i < 5; i++) {
-        await upsertTechnique(
-          makeTechnique({ name: `本书技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 1000 + i }),
-          dir,
-          "book",
-        )
-      }
-      await upsertTechnique(
-        makeTechnique({ name: "全局最新新品", sceneTypes: ["dialogue"], createdAt: now }),
-        dir,
-        "global",
-      )
-      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
-      expect(result.length).toBeLessThanOrEqual(5)
-      const idx = result.findIndex((r) => r.entry.name === "全局最新新品")
-      expect(idx).toBeGreaterThanOrEqual(0)
-      expect(result[idx].library).toBe("global")
-      // 曝光位占尾部固定位（fresh 内部按入库时间降序，全局新品排 fresh 首位）
-      expect(idx).toBeGreaterThanOrEqual(result.length - 2)
-    })
-  })
-
-  test("全局高置信技法进置信度前列（不被本书并列块挤出）", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const now = Date.now()
-      for (let i = 0; i < 5; i++) {
-        await upsertTechnique(
-          makeTechnique({ name: `本书技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 1000 + i }),
-          dir,
-          "book",
-        )
-      }
-      await upsertTechnique(
-        makeTechnique({ name: "全局高置信", sceneTypes: ["dialogue"], status: "verified", confidence: 0.9, createdAt: now }),
-        dir,
-        "global",
-      )
-      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
-      expect(result[0].entry.name).toBe("全局高置信")
-      expect(result[0].library).toBe("global")
-    })
-  })
-
-  test("置信度并列时按入库时间跨池打破平局", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const now = Date.now()
-      for (let i = 0; i < 5; i++) {
-        await upsertTechnique(
-          makeTechnique({ name: `本书旧技法${i}`, sceneTypes: ["dialogue"], createdAt: now - 2000 + i }),
-          dir,
-          "book",
-        )
-      }
-      // verified 使全局条目不占曝光位，纯靠平局打破进入候选
-      await upsertTechnique(
-        makeTechnique({ name: "全局较新verified", sceneTypes: ["dialogue"], status: "verified", confidence: 0.5, createdAt: now - 1000 }),
-        dir,
-        "global",
-      )
-      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
-      expect(result.map((r) => r.entry.name)).toContain("全局较新verified")
-      // 并列 0.5 中 createdAt 最新的全局条目排置信度段首位
-      expect(result[0].entry.name).toBe("全局较新verified")
-    })
-  })
-
-  test("全局池为空时与单源行为逐条一致", async () => {
-    await withTempDir(async (dir) => {
-      installFreshGlobalDb()
-      const now = Date.now()
-      for (let i = 0; i < 7; i++) {
-        await upsertTechnique(
-          makeTechnique({ name: `单源技法${i}`, sceneTypes: ["dialogue"], confidence: 0.5 + i * 0.05, createdAt: now - 1000 + i }),
-          dir,
-          "book",
-        )
-      }
-      const result = await queryTechniques({ sceneType: "dialogue", contextText: "", limit: 5 }, dir)
-      // 确定性全序：置信度降序取前 3，尾部为跨池最近 unverified 的 2 条（本书池内）
-      expect(result.map((r) => r.entry.name)).toEqual(["单源技法4", "单源技法3", "单源技法2", "单源技法6", "单源技法5"])
-      expect(result.every((r) => r.library === "book")).toBe(true)
-    })
-  })
-})
-
 describe("queryTechniques 内容性质双闸门", () => {
   const gateDir = join(testDir, "gate")
   async function seedGateFixture() {
@@ -733,27 +539,16 @@ describe("queryTechniques 内容性质双闸门", () => {
       createdAt: base - 1000,
       updatedAt: base - 1000,
     })
-    const globalGeneral = makeTechnique({
-      name: "闸门-全局通用",
-      scope: "general",
-      status: "verified",
-      confidence: 0.85,
-      sceneTypes: ["dialogue"],
-      createdAt: base - 2000,
-      updatedAt: base - 2000,
-    })
-    await upsertTechnique(bookGeneral, gateDir, "book")
-    await upsertTechnique(bookAdult, gateDir, "book")
-    await upsertTechnique(globalGeneral, gateDir, "global")
-    return { bookGeneral, bookAdult, globalGeneral }
+    await upsertTechnique(bookGeneral, gateDir)
+    await upsertTechnique(bookAdult, gateDir)
+    return { bookGeneral, bookAdult }
   }
 
   test("闸门缺省关闭：本书 adult 不进候选且不占曝光位", async () => {
-    const { bookGeneral, bookAdult, globalGeneral } = await seedGateFixture()
+    const { bookGeneral, bookAdult } = await seedGateFixture()
     const hits = await queryTechniques({ sceneType: "dialogue", contextText: "对话", limit: 5 }, gateDir)
     const ids = hits.map((hit) => hit.entry.id)
     expect(ids).toContain(bookGeneral.id)
-    expect(ids).toContain(globalGeneral.id)
     expect(ids).not.toContain(bookAdult.id)
   })
 
@@ -764,25 +559,5 @@ describe("queryTechniques 内容性质双闸门", () => {
       gateDir,
     )
     expect(hits.some((hit) => hit.entry.id === bookAdult.id)).toBe(true)
-  })
-
-  test("全局池不受闸门影响：关闭时全局新品仍占曝光位", async () => {
-    const { bookAdult } = await seedGateFixture()
-    const base = Date.now()
-    const globalFresh = makeTechnique({
-      name: "闸门-全局新品",
-      scope: "general",
-      status: "unverified",
-      confidence: 0.5,
-      sceneTypes: ["dialogue"],
-      createdAt: base,
-      updatedAt: base,
-    })
-    await upsertTechnique(globalFresh, gateDir, "global")
-    const hits = await queryTechniques({ sceneType: "dialogue", contextText: "对话", limit: 5 }, gateDir)
-    const ids = hits.map((hit) => hit.entry.id)
-    // 本书 adult 是最新 unverified，但闸门关闭时曝光位让位给全局新品
-    expect(ids).not.toContain(bookAdult.id)
-    expect(ids).toContain(globalFresh.id)
   })
 })

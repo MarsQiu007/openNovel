@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect, afterAll } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
@@ -8,7 +6,7 @@ import { tmpdir } from "os"
 import type { TechniqueEntry, TechniqueLevel, TechniqueStatus } from "../../src/novel-writer/technique.js"
 import { saveTechnique, searchTechniques, confirmTechniques } from "../../src/novel-writer/technique-learn.js"
 import { upsertTechnique, listTechniques } from "../../src/novel-writer/technique-store.js"
-import { getGlobalDb, TechniqueTable } from "../../src/novel-writer/session-store.js"
+import { getDb, TechniqueTable } from "../../src/novel-writer/session-store.js"
 import { eq } from "drizzle-orm"
 import { createWritingTools, createToolContext } from "./runtime-assembly-helpers.js"
 
@@ -21,18 +19,6 @@ afterAll(() => {
     // Windows 上 SQLite 连接可能尚未释放，忽略清理失败
   }
 })
-
-/** 重置全局库为全新空库（每个用例独立的跨书环境） */
-function resetGlobalLibrary() {
-  installFreshGlobalDb()
-  return process.env.OPENNOVEL_TECHNIQUE_DB
-}
-
-async function globalNames(): Promise<string[]> {
-  const db = getGlobalDb()
-  const rows = await db.select({ name: TechniqueTable.name }).from(TechniqueTable).all()
-  return rows.map((r) => r.name)
-}
 
 function toolCtx(directory: string) {
   return createToolContext(directory, { sessionID: "ses-search-tool-test" })
@@ -75,7 +61,11 @@ function makeTechnique(overrides?: Partial<TechniqueEntry>): TechniqueEntry {
   }
 }
 
-describe("saveTechnique 性质路由", () => {
+function runtimeInput(patch: Record<string, unknown>): Parameters<typeof saveTechnique>[0] {
+  return JSON.parse(JSON.stringify({ ...makeInput(), ...patch }))
+}
+
+describe("saveTechnique 本书单源", () => {
   test("scope=adult 落本书库（unverified/0.5）", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-adult-"))
     const result = await saveTechnique(makeInput({ name: "成人技法甲" }), undefined, dir)
@@ -85,11 +75,9 @@ describe("saveTechnique 性质路由", () => {
     expect(entry.scope).toBe("adult")
     expect(entry.status).toBe("unverified")
     expect(entry.confidence).toBe(0.5)
-    expect(await globalNames()).not.toContain("成人技法甲")
   })
 
-  test("scope=general 落全局通用库，本书库不出现", async () => {
-    resetGlobalLibrary()
+  test("scope=general 仍落本书库", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-general-"))
     const result = await saveTechnique(
       makeInput({ name: "通用写法技法", sceneTypes: ["dialogue"], scope: "general" }),
@@ -97,8 +85,7 @@ describe("saveTechnique 性质路由", () => {
       dir,
     )
     expect(result.action).toBe("created")
-    expect(await globalNames()).toContain("通用写法技法")
-    expect((await listTechniques(dir)).length).toBe(0)
+    expect((await listTechniques(dir)).some((entry) => entry.name === "通用写法技法")).toBe(true)
   })
 
   test("缺少必填 scope 被拒绝", async () => {
@@ -107,30 +94,6 @@ describe("saveTechnique 性质路由", () => {
     const result = await saveTechnique(broken as Parameters<typeof saveTechnique>[0], undefined, testDir)
     expect(result.action).toBe("rejected")
     expect(result.reason).toContain("scope")
-  })
-
-  test("同名候选只在本库内合并：本书同名不吞并全局条目", async () => {
-    resetGlobalLibrary()
-    const dir = mkdtempSync(join(tmpdir(), "learn-cross-merge-"))
-    const globalOne = await saveTechnique(
-      makeInput({ name: "跨库同名技法", scope: "general", evidence: [{ sourceTitle: "书G", sourceLocation: "第1章", excerpt: "g1", annotation: "全局证据" }] }),
-      undefined,
-      dir,
-    )
-    expect(globalOne.action).toBe("created")
-    const bookOne = await saveTechnique(
-      makeInput({
-        name: "跨库同名技法",
-        scope: "adult",
-        evidence: [{ sourceTitle: "书B", sourceLocation: "第2章", excerpt: "b1", annotation: "本书证据" }],
-      }),
-      undefined,
-      dir,
-    )
-    // 同名但跨库：不合并，各自独立建条目
-    expect(bookOne.action).toBe("created")
-    expect(await globalNames()).toContain("跨库同名技法")
-    expect((await listTechniques(dir)).some((e) => e.name === "跨库同名技法")).toBe(true)
   })
 })
 
@@ -177,76 +140,52 @@ describe("saveTechnique 合并与过滤", () => {
   })
 })
 
-describe("searchTechniques 双源检索", () => {
-  test("空库返回空（双库皆空）", async () => {
-    resetGlobalLibrary()
+describe("searchTechniques 本书检索", () => {
+  test("空库返回空", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-search-empty-"))
     const { count } = await searchTechniques({}, dir)
     expect(count).toBe(0)
   })
 
-  test("关键词命中并标注来源库", async () => {
-    resetGlobalLibrary()
-    const dir = mkdtempSync(join(tmpdir(), "learn-search-kw-"))
-    await saveTechnique(makeInput({ name: "本书停顿技法" }), undefined, dir)
-    await saveTechnique(makeInput({ name: "全局停顿技法", scope: "general" }), undefined, dir)
-    const { lines, count } = await searchTechniques({ keyword: "停顿" }, dir)
-    expect(count).toBe(2)
-    expect(lines.some((l) => l.includes("[本书]") && l.includes("本书停顿技法"))).toBe(true)
-    expect(lines.some((l) => l.includes("[通用库]") && l.includes("全局停顿技法"))).toBe(true)
+  test("关键词命中且不标注来源库", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "learn-search-keyword-"))
+    try {
+      await saveTechnique(makeInput({ name: "本书停顿技法" }), undefined, dir)
+      const result = await searchTechniques({ keyword: "停顿" }, dir)
+      expect(result.count).toBe(1)
+      expect(result.lines[0]).toContain("本书停顿技法")
+      expect(result.lines[0]).not.toContain("[通用库]")
+    } finally {
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+      } catch {
+        // Windows 上 SQLite 连接可能尚未释放，忽略清理失败
+      }
+    }
   })
 
-  test("场景过滤跨双库计数", async () => {
-    resetGlobalLibrary()
-    const dir = mkdtempSync(join(tmpdir(), "learn-search-scene-"))
-    await saveTechnique(makeInput({ name: "本书对话技法" }), undefined, dir)
-    await saveTechnique(makeInput({ name: "全局对话技法", scope: "general" }), undefined, dir)
-    await upsertTechnique(makeTechnique({ name: "本书情绪技法", sceneTypes: ["emotion_shift"], scope: "adult" }), dir)
-    const { count } = await searchTechniques({ sceneType: "dialogue" }, dir)
-    expect(count).toBe(2)
-  })
-
-  test("状态过滤跨双库生效", async () => {
-    resetGlobalLibrary()
-    const dir = mkdtempSync(join(tmpdir(), "learn-search-status-"))
-    await upsertTechnique(makeTechnique({ name: "本书已验证", status: "verified", scope: "adult" }), dir)
-    await upsertTechnique(
-      makeTechnique({ name: "全局已验证", status: "verified", sceneTypes: ["dialogue"] }),
-      dir,
-      "global",
-    )
-    const { count } = await searchTechniques({ status: "verified" }, dir)
-    expect(count).toBe(2)
-  })
-
-  test("返回过滤前计数 total/unverified（不受过滤条件影响）", async () => {
-    resetGlobalLibrary()
+  test("返回过滤前计数 total/unverified", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-search-counts-"))
     await upsertTechnique(makeTechnique({ name: "本书已验证", status: "verified", scope: "adult" }), dir)
     await upsertTechnique(makeTechnique({ name: "本书未验证", sceneTypes: ["dialogue"] }), dir)
-    await upsertTechnique(makeTechnique({ name: "全局未验证", sceneTypes: ["dialogue"] }), dir, "global")
     const filtered = await searchTechniques({ status: "verified" }, dir)
     expect(filtered.count).toBe(1)
-    expect(filtered.total).toBe(3)
-    expect(filtered.unverified).toBe(2)
-    const unfiltered = await searchTechniques({}, dir)
-    expect(unfiltered.count).toBe(3)
+    expect(filtered.total).toBe(2)
+    expect(filtered.unverified).toBe(1)
   })
 })
 
 describe("search_techniques 空结果反馈（工具层）", () => {
-  test("双库均无条目时明确反馈技法库为空", async () => {
-    resetGlobalLibrary()
+  test("本书库为空时明确反馈技法库为空", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-tool-empty-"))
     const result = await createWritingTools().search_techniques.execute({}, toolCtx(dir))
     expect(result.output).toContain("技法库为空")
   })
 
   test("库非空但过滤后无匹配时包含总数与未验证数，不表述为库为空", async () => {
-    resetGlobalLibrary()
     const dir = mkdtempSync(join(tmpdir(), "learn-tool-nomatch-"))
     await upsertTechnique(makeTechnique({ name: "未验证技法A", sceneTypes: ["dialogue"] }), dir)
-    await upsertTechnique(makeTechnique({ name: "未验证技法B", sceneTypes: ["dialogue"] }), dir, "global")
+    await upsertTechnique(makeTechnique({ name: "未验证技法B", sceneTypes: ["dialogue"] }), dir)
     const result = await createWritingTools().search_techniques.execute({ status: "verified" }, toolCtx(dir))
     expect(result.output).toContain("库内共 2 条")
     expect(result.output).toContain("未验证 2 条")
@@ -254,39 +193,27 @@ describe("search_techniques 空结果反馈（工具层）", () => {
   })
 })
 
-describe("confirmTechniques 双源确认", () => {
+describe("confirmTechniques 本书确认", () => {
   test("空 ids 返回空段落", async () => {
     const result = await confirmTechniques([], testDir)
     expect(result.section).toBe("")
     expect(result.injected).toBe(0)
   })
 
-  test("确认后按来源库分别递增使用计数", async () => {
-    resetGlobalLibrary()
+  test("确认后递增本书使用计数", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-confirm-"))
-    const bookEntry = makeTechnique({ name: "本书确认技法", scope: "adult" })
-    await upsertTechnique(bookEntry, dir)
-    const globalEntry = makeTechnique({ name: "全局确认技法", sceneTypes: ["dialogue"] })
-    await upsertTechnique(globalEntry, dir, "global")
+    const entry = makeTechnique({ name: "本书确认技法", scope: "adult" })
+    await upsertTechnique(entry, dir)
 
-    const result = await confirmTechniques([bookEntry.id, globalEntry.id], dir)
-    expect(result.injected).toBe(2)
+    const result = await confirmTechniques([entry.id], dir)
+    expect(result.injected).toBe(1)
     expect(result.section).toContain("写作技法指导")
-    expect(result.section).toContain("（通用库）")
-
-    const [bookAfter] = (await listTechniques(dir)).filter((e) => e.id === bookEntry.id)
-    expect(bookAfter.usageCount).toBe(1)
-    const globalDb = getGlobalDb()
-    const [globalAfter] = await globalDb
-      .select()
-      .from(TechniqueTable)
-      .where(eq(TechniqueTable.id, globalEntry.id))
-      .all()
-    expect(globalAfter.usage_count).toBe(1)
+    expect(result.section).not.toContain("通用库")
+    const [after] = (await listTechniques(dir)).filter((item) => item.id === entry.id)
+    expect(after.usageCount).toBe(1)
   })
 
   test("超预算时按匹配分裁剪", async () => {
-    resetGlobalLibrary()
     const dir = mkdtempSync(join(tmpdir(), "learn-confirm-budget-"))
     try {
       const longInstruction = "写对话时每3句插入一个角色的微小动作来暗示态度变化，".repeat(20)
@@ -304,7 +231,7 @@ describe("confirmTechniques 双源确认", () => {
         )
       }
       const all = await listTechniques(dir)
-      const ids = all.map((e) => e.id)
+      const ids = all.map((entry) => entry.id)
       const result = await confirmTechniques(ids, dir)
       expect(result.injected).toBeLessThan(5)
       expect(result.injected_ids[0]).toBe(all[0].id)
@@ -317,11 +244,6 @@ describe("confirmTechniques 双源确认", () => {
     }
   })
 })
-
-/** 构造运行时脏输入：等效 LLM 传入的 JSON 负载，绕开编译期形状校验 */
-function runtimeInput(patch: Record<string, unknown>): Parameters<typeof saveTechnique>[0] {
-  return JSON.parse(JSON.stringify({ ...makeInput(), ...patch }))
-}
 
 describe("saveTechnique 证据规范化", () => {
   test("缺 sourceTitle（有 sourceLocation）的证据补全后入库", async () => {
@@ -359,10 +281,10 @@ describe("promoteTechniqueToSpec 固化通道", () => {
   test("verified 技法固化进 book.md：追加规范段落、retired + promoted_from 留痕、重复固化幂等", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-promote-"))
     const entry = makeTechnique({ name: "固化技法甲", status: "verified", confidence: 0.9 })
-    await upsertTechnique(entry, dir, "book")
+    await upsertTechnique(entry, dir)
 
     const { promoteTechniqueToSpec } = await import("../../src/novel-writer/technique-learn.js")
-    const first = await promoteTechniqueToSpec(entry.id, dir, "book")
+    const first = await promoteTechniqueToSpec(entry.id, dir)
     expect(first.ok).toBe(true)
     if (!first.ok) return
     expect(first.spec_path).toBe(".novel/instructions/book.md")
@@ -378,7 +300,7 @@ describe("promoteTechniqueToSpec 固化通道", () => {
     expect(row.promoted_from).toBe(".novel/instructions/book.md")
 
     // 重复固化：规范段落不重复追加，但 retired 行不可再次流转（状态门槛拒绝）
-    const second = await promoteTechniqueToSpec(entry.id, dir, "book")
+    const second = await promoteTechniqueToSpec(entry.id, dir)
     expect(second.ok).toBe(false)
     const specAgain = await Bun.file(join(dir, ".novel", "instructions", "book.md")).text()
     expect(specAgain.split("## 技法：固化技法甲").length).toBe(2)
@@ -387,15 +309,15 @@ describe("promoteTechniqueToSpec 固化通道", () => {
   test("unverified 技法不可固化（先过作者确认门槛），卷层落 volume-<n>.md", async () => {
     const dir = mkdtempSync(join(tmpdir(), "learn-promote-gate-"))
     const pending = makeTechnique({ name: "未转正技法" })
-    await upsertTechnique(pending, dir, "book")
+    await upsertTechnique(pending, dir)
     const { promoteTechniqueToSpec } = await import("../../src/novel-writer/technique-learn.js")
-    const blocked = await promoteTechniqueToSpec(pending.id, dir, "book")
+    const blocked = await promoteTechniqueToSpec(pending.id, dir)
     expect(blocked.ok).toBe(false)
     if (!blocked.ok) expect(blocked.error).toContain("verified")
 
     const verifiedEntry = makeTechnique({ name: "卷二固化技法", status: "verified", confidence: 0.8 })
-    await upsertTechnique(verifiedEntry, dir, "book")
-    const promoted = await promoteTechniqueToSpec(verifiedEntry.id, dir, "book", "volume-2")
+    await upsertTechnique(verifiedEntry, dir)
+    const promoted = await promoteTechniqueToSpec(verifiedEntry.id, dir, "volume-2")
     expect(promoted.ok).toBe(true)
     const spec = await Bun.file(join(dir, ".novel", "instructions", "volume-2.md")).text()
     expect(spec).toContain("## 技法：卷二固化技法")

@@ -153,7 +153,6 @@ describe("pending 工具失败类别映射", () => {
   })
 })
 
-
 describe("batch_accept_pending_settings 工具", () => {
   test("批量接受全部成功", async () => {
     await insertNovel("novel-batch-ok", "批量书")

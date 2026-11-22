@@ -10,12 +10,9 @@ import { recordMetrics } from "../evaluate/metrics.js"
 export const techniqueTools = {
   record_technique_feedback: defineTool({
     description:
-      "记录写作技法的使用反馈（auditor 专用）。对 shadow-mode 检索到的技法，评估其在本章是否被有效运用，并给出评分。library 必须与候选列表标注的来源库一致：全局库技法反馈跨书积累，本书库技法反馈留在本书。",
+      "记录写作技法的使用反馈（auditor 专用）。对 shadow-mode 检索到的技法，评估其在本章是否被有效运用，并给出评分。反馈只写入当前书籍库。",
     args: Schema.Struct({
       technique_id: Schema.String.annotate({ description: "技法 ID" }),
-      library: Schema.Literals(["book", "global"]).annotate({
-        description: "技法来源库（与快照候选列表标注一致）：book=本书库；global=全局通用库",
-      }),
       chapter_id: Schema.String.annotate({ description: "章节 ID" }),
       score: Schema.Number.annotate({ description: "技法运用效果评分 0-1，1 为效果显著" }),
       was_used: Schema.Boolean.annotate({ description: "技法是否在正文中被实际运用" }),
@@ -33,9 +30,8 @@ export const techniqueTools = {
           createdAt: Date.now(),
         },
         ctx.directory,
-        args.library,
       )
-      await updateConfidenceFromFeedback(args.technique_id, ctx.directory, args.library)
+      await updateConfidenceFromFeedback(args.technique_id, ctx.directory)
       return {
         title: "record_technique_feedback",
         output: `已记录技法 ${args.technique_id.slice(0, 8)} 反馈（score=${args.score}）`,
@@ -45,7 +41,7 @@ export const techniqueTools = {
 
   save_technique: defineTool({
     description:
-      "把提炼出的写作技法入库（对话学习流程专用）。自动执行质量过滤（模糊指令黑名单、指令长度、必须有原文证据）；与库中同名技法自动合并证据，或传 merge_target_id 显式合并到近似技法。合并只追加证据，不动已有技法的状态与置信度。scope 决定存储位置：general=通用写法入全局通用库（跨书共享），adult=成人内容留本书库——拿不准一律标 adult（宁紧勿松，错标 adult 只是少复用，错标 general 会泄漏进通用书）。",
+      "把提炼出的写作技法入库（对话学习流程专用）。自动执行质量过滤（模糊指令黑名单、指令长度、必须有原文证据）；与库中同名技法自动合并证据，或传 merge_target_id 显式合并到近似技法。合并只追加证据，不动已有技法的状态与置信度。技法始终写入当前书籍库；scope 只表示内容性质：general=通用写法，adult=成人内容。拿不准一律标 adult，因为它在普通书与普通章节会被召回闸门过滤。",
     args: Schema.Struct({
       name: Schema.String.annotate({ description: "技法名称" }),
       principle: Schema.String.annotate({ description: "抽象原则：技法本质概括" }),
@@ -68,7 +64,7 @@ export const techniqueTools = {
       common_misuse: Schema.String.annotate({ description: "常见误用方式" }),
       scope: Schema.Literals(["general", "adult"]).annotate({
         description:
-          "内容性质判断（必填）：general=通用写法（对话节奏、悬念铺设、视角控制等，入全局库跨书共享）；adult=成人内容技法（留本书库）。拿不准一律 adult",
+          "内容性质判断（必填）：general=通用写法；adult=成人内容技法。只影响当前书籍库召回闸门，不决定存储位置。拿不准一律 adult",
       }),
       merge_target_id: Schema.optional(Schema.String.annotate({ description: "显式合并目标技法 ID；不传时按同名自动合并" })),
     }),
@@ -154,7 +150,7 @@ export const techniqueTools = {
           count > 0
             ? lines.join("\n")
             : total === 0
-              ? "技法库为空（本书库与全局库均无条目）"
+              ? "本书技法库为空"
               : `过滤条件命中 0 条（无匹配条目）：库内共 ${total} 条（未验证 ${unverified} 条），可移除或放宽过滤条件后重试`,
         metadata: { count },
       }
@@ -186,13 +182,10 @@ export const techniqueTools = {
       "作者确认转正：把 unverified 技法显式流转为 verified（agent-memory-system 转正门槛——反馈积累只推置信度，状态流转必须经作者确认）。仅在作者明确表示认可该技法后调用；confirmed 后技法进入记忆注入的本书技巧卡候选。",
     args: Schema.Struct({
       technique_id: Schema.String.annotate({ description: "技法 ID（search_techniques 拿）" }),
-      library: Schema.Literals(["book", "global"]).annotate({
-        description: "技法来源库（与 search_techniques 结果标注一致）：book=本书库；global=全局通用库",
-      }),
     }),
     async execute(args, ctx) {
       const { verifyTechnique } = await import("../technique-store.js")
-      const result = await verifyTechnique(args.technique_id, ctx.directory, args.library)
+      const result = await verifyTechnique(args.technique_id, ctx.directory)
       if (!result.ok) {
         if (result.error.startsWith("技法不存在")) {
           throw toolFailure(
@@ -211,9 +204,6 @@ export const techniqueTools = {
       "技法固化：把 verified 技法晋升进分层规范文件（.novel/instructions/<layer>.md，全书层 book / 卷层 volume-<n>），固化后技法行 retired 留痕、不再进注入候选——规范通道接管（agent-instruction-layering）。仅在作者明确要求固化时调用；前提是技法已 verified（未转正先用 verify_technique 经作者确认）。",
     args: Schema.Struct({
       technique_id: Schema.String.annotate({ description: "技法 ID（search_techniques 拿）" }),
-      library: Schema.Literals(["book", "global"]).annotate({
-        description: "技法来源库（与 search_techniques 结果标注一致）：book=本书库；global=全局通用库",
-      }),
       layer: Schema.optional(
         Schema.String.annotate({ description: "目标规范层：book（默认，全书生效）或 volume-<n>（第 n 卷）" }),
       ),
@@ -224,7 +214,7 @@ export const techniqueTools = {
         throw toolFailure("param_error", `固化失败：layer 只能是 book 或 volume-<n>，收到：${layer}。请修正 layer 后重试。`)
       }
       const { promoteTechniqueToSpec } = await import("../technique-learn.js")
-      const result = await promoteTechniqueToSpec(args.technique_id, ctx.directory, args.library, layer)
+      const result = await promoteTechniqueToSpec(args.technique_id, ctx.directory, layer)
       if (!result.ok) {
         if (result.error.startsWith("技法不存在")) {
           throw toolFailure(

@@ -239,7 +239,6 @@ describe("listPendingSettingRows", () => {
   })
 })
 
-
 describe("relationship 角色 ID 解析", () => {
   test("直接 ID 命中：suggested_entity_id 非空时角色接受使用了同一 ID", async () => {
     const db = getDb()

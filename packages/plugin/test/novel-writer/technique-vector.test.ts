@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect } from "bun:test"
 import { cosineSimilarity, rankBySimilarity } from "../../src/novel-writer/technique-vector.js"
 

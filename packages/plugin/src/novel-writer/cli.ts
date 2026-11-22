@@ -186,8 +186,6 @@ ${LEVEL_CRITERIA}
 
 export interface RelevelOptions {
   batchSize?: number
-  /** all=双源；book=仅本书库；global=仅全局通用库 */
-  library?: "all" | "book" | "global"
 }
 
 export interface RelevelResult {
@@ -206,7 +204,7 @@ function levelDistribution(levels: string[]): Record<string, number> {
 }
 
 /**
- * 存量技法层级重分类：双源（本书库+全局库）扫描，按统一判据分批重判 level 并原地更新。
+ * 存量技法层级重分类：只扫描当前书籍库，按统一判据分批重判 level 并原地更新。
  * 幂等可重跑：LLM 判据缺失/非法/整批解析失败时保留原值并计数。
  */
 export async function relevelTechniques(
@@ -214,12 +212,10 @@ export async function relevelTechniques(
   llm: (prompt: string) => Promise<string>,
   options?: RelevelOptions,
 ): Promise<RelevelResult> {
-  const { listAllTechniques, updateTechniqueLevel } = await import("./technique-store.js")
-  const every = await listAllTechniques(directory)
-  const wanted = options?.library ?? "all"
-  const all = wanted === "all" ? every : every.filter(({ library }) => library === wanted)
+  const { listTechniques, updateTechniqueLevel } = await import("./technique-store.js")
+  const all = await listTechniques(directory)
   const batchSize = options?.batchSize ?? 10
-  const before = levelDistribution(all.map(({ entry }) => entry.level))
+  const before = levelDistribution(all.map((entry) => entry.level))
 
   let changed = 0
   let kept = 0
@@ -227,7 +223,7 @@ export async function relevelTechniques(
 
   for (let i = 0; i < all.length; i += batchSize) {
     const batch = all.slice(i, i + batchSize)
-    const descriptions = batch.map(({ entry }) => ({
+    const descriptions = batch.map((entry) => ({
       id: entry.id,
       name: entry.name,
       principle: entry.principle,
@@ -251,13 +247,13 @@ export async function relevelTechniques(
     for (const j of judgments) {
       if (isRecord(j) && typeof j.id === "string" && typeof j.level === "string") byId.set(j.id, j.level)
     }
-    for (const { entry, library } of batch) {
+    for (const entry of batch) {
       const judged = byId.get(entry.id)
       if (judged !== undefined && isTechniqueLevel(judged)) {
         if (judged === entry.level) {
           kept++
         } else {
-          await updateTechniqueLevel(entry.id, judged, directory, library)
+          await updateTechniqueLevel(entry.id, judged, directory)
           changed++
         }
       } else {
@@ -266,14 +262,14 @@ export async function relevelTechniques(
     }
   }
 
-  const afterAll = (await listAllTechniques(directory)).filter(({ library }) => wanted === "all" || library === wanted)
+  const afterAll = await listTechniques(directory)
   return {
     total: all.length,
     changed,
     kept,
     failed,
     before,
-    after: levelDistribution(afterAll.map(({ entry }) => entry.level)),
+    after: levelDistribution(afterAll.map((entry) => entry.level)),
   }
 }
 
@@ -325,17 +321,10 @@ export async function runTechniqueExtraction(
 
 /**
  * 导入人工精选的种子技法（JSON 数组），初始状态为 verified。
+ * 技法始终写入当前书籍库；全局通用库已退役。
  */
-/**
- * 导入人工精选的种子技法（JSON 数组），初始状态为 verified。
- * 默认写入全局通用技法库（一次导入全库受益）；传 { local: true } 保留写入本书库的旧行为。
- */
-export async function importSeedTechniques(
-  inputPath: string,
-  directory?: string | null,
-  opts?: { local?: boolean },
-): Promise<number> {
-  return importTechniquesFromJson(inputPath, directory, { seed: true, local: opts?.local === true })
+export async function importSeedTechniques(inputPath: string, directory?: string | null): Promise<number> {
+  return importTechniquesFromJson(inputPath, directory, { seed: true })
 }
 
 /**
@@ -346,13 +335,13 @@ export async function importExtractedTechniques(
   inputPath: string,
   directory?: string | null,
 ): Promise<number> {
-  return importTechniquesFromJson(inputPath, directory, { seed: false, local: true })
+  return importTechniquesFromJson(inputPath, directory, { seed: false })
 }
 
 async function importTechniquesFromJson(
   inputPath: string,
   directory: string | null | undefined,
-  opts: { seed: boolean; local?: boolean },
+  opts: { seed: boolean },
 ): Promise<number> {
   const { normalizeTechnique } = await import("./technique-normalize.js")
   const { upsertTechnique } = await import("./technique-store.js")
@@ -366,10 +355,8 @@ async function importTechniquesFromJson(
     throw new Error(`导入文件不是合法 JSON：${inputPath}`, { cause })
   }
   const items = Array.isArray(content) ? content : [content]
-  // 种子默认入全局通用库；--local 或提取导入（无人工精选语义）落本书库
-  const library = opts.local ? "book" : "global"
   for (const item of items) {
-    await upsertTechnique(normalizeTechnique(item, { seed: opts.seed }), directory, library)
+    await upsertTechnique(normalizeTechnique(item, { seed: opts.seed }), directory)
   }
   return items.length
 }

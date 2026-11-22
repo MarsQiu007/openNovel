@@ -1,6 +1,4 @@
-import { installFreshGlobalDb } from "./technique-test-env.js"
 
-installFreshGlobalDb()
 import { describe, test, expect } from "bun:test"
 import { formatHindsightDocument } from "../../src/novel-writer/technique-hindsight.js"
 

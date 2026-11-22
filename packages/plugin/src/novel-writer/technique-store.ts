@@ -1,5 +1,5 @@
 import { eq, ne, gte, desc, and } from "drizzle-orm"
-import { getDb, getGlobalDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
+import { getDb, TechniqueTable, TechniqueFeedbackTable, TechniqueShadowLogTable } from "./session-store.js"
 import type {
   TechniqueEntry,
   TechniqueEvidence,
@@ -7,17 +7,12 @@ import type {
   RetrievedTechnique,
   TechniqueFeedback,
   ShadowLogEntry,
-  TechniqueLibrary,
   TechniqueLevel,
 } from "./technique.js"
 import { canonicalSceneIntersection } from "./technique.js"
 
-export async function upsertTechnique(
-  entry: TechniqueEntry,
-  directory?: string | null,
-  library: TechniqueLibrary = "book",
-): Promise<void> {
-  const db = libDb(library, directory)
+export async function upsertTechnique(entry: TechniqueEntry, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
   await db
     .insert(TechniqueTable)
     .values({
@@ -57,11 +52,6 @@ export async function upsertTechnique(
     })
 }
 
-/** 按来源库选择连接:global=全局通用技法库;book=本书库 */
-function libDb(library: TechniqueLibrary, directory?: string | null) {
-  return library === "global" ? getGlobalDb() : getDb(directory)
-}
-
 /** 未验证新品曝光位:置信度前列之外额外纳入的最近入库 unverified 条数 */
 const UNVERIFIED_SPOTS = 2
 
@@ -82,60 +72,50 @@ export async function queryTechniques(
     return sceneMatch && (query.level === undefined || entry.level === query.level)
   }
 
-  // 双源检索：本书库 + 全局通用库各查一轮，同一场景匹配与排序规则
-  const libraries: TechniqueLibrary[] = ["book", "global"]
-  const confidenceHits: RetrievedTechnique[] = []
-  const freshHits: RetrievedTechnique[] = []
-  for (const library of libraries) {
-    const db = libDb(library, directory)
-    const conditions = []
-    if (query.minConfidence !== undefined) {
-      conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
-    }
-    // 内容性质双闸门：未显式放行时本书池排除 adult 条目（全局池不受闸门影响）
-    if (library === "book" && query.allowAdult !== true) {
-      conditions.push(ne(TechniqueTable.scope, "adult"))
-    }
-    // 先取数后过滤：SQL 层不截断到 limit（仅宽松上限防膨胀），场景过滤与跨池排序截取统一在内存进行
-    const rows = await db
-      .select()
-      .from(TechniqueTable)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(TechniqueTable.confidence))
-      .limit(QUERY_FETCH_CAP)
-      .all()
-    confidenceHits.push(
-      ...rows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
-    )
-
-    // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;先场景过滤再占位,尊重 minConfidence 门槛
-    const freshConditions = [eq(TechniqueTable.status, "unverified")]
-    if (query.minConfidence !== undefined) {
-      freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
-    }
-    if (library === "book" && query.allowAdult !== true) {
-      freshConditions.push(ne(TechniqueTable.scope, "adult"))
-    }
-    const freshRows = await db
-      .select()
-      .from(TechniqueTable)
-      .where(and(...freshConditions))
-      .orderBy(desc(TechniqueTable.created_at))
-      .limit(QUERY_FETCH_CAP)
-      .all()
-    freshHits.push(
-      ...freshRows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence, library })),
-    )
+  const db = getDb(directory)
+  const conditions = []
+  if (query.minConfidence !== undefined) {
+    conditions.push(gte(TechniqueTable.confidence, query.minConfidence))
   }
+  // 内容性质双闸门：未显式放行时排除 adult 条目
+  if (query.allowAdult !== true) {
+    conditions.push(ne(TechniqueTable.scope, "adult"))
+  }
+  // 先取数后过滤：SQL 层不截断到 limit（仅宽松上限防膨胀），场景过滤与排序截取统一在内存进行
+  const rows = await db
+    .select()
+    .from(TechniqueTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(TechniqueTable.confidence))
+    .limit(QUERY_FETCH_CAP)
+    .all()
+  const confidenceHits = rows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence }))
 
-  // 曝光位先行：跨两池按入库时间取最近 unverified 新品（落实规格"跨两池取最近"），id 兜底保证并列时全序确定
+  // 曝光位:按入库时间取最近 unverified 新品,让 shadow 反馈闭环覆盖到它们;先场景过滤再占位,尊重 minConfidence 门槛
+  const freshConditions = [eq(TechniqueTable.status, "unverified")]
+  if (query.minConfidence !== undefined) {
+    freshConditions.push(gte(TechniqueTable.confidence, query.minConfidence))
+  }
+  if (query.allowAdult !== true) {
+    freshConditions.push(ne(TechniqueTable.scope, "adult"))
+  }
+  const freshRows = await db
+    .select()
+    .from(TechniqueTable)
+    .where(and(...freshConditions))
+    .orderBy(desc(TechniqueTable.created_at))
+    .limit(QUERY_FETCH_CAP)
+    .all()
+  const freshHits = freshRows.map(rowToEntry).filter(matchesQuery).map((entry) => ({ entry, matchScore: entry.confidence }))
+
+  // 曝光位先行：按入库时间取最近 unverified 新品，id 兜底保证并列时全序确定
   const fresh = freshHits
     .sort((a, b) => b.entry.createdAt - a.entry.createdAt || a.entry.id.localeCompare(b.entry.id))
     .slice(0, UNVERIFIED_SPOTS)
-  const freshKeys = new Set(fresh.map((hit) => `${hit.library}:${hit.entry.id}`))
-  // 置信度排序剔除曝光位命中，避免新品重复占位；置信度并列按入库时间跨池打破平局，防止本书池饱和时全局库被结构性挤出
+  const freshKeys = new Set(fresh.map((hit) => hit.entry.id))
+  // 置信度排序剔除曝光位命中，避免新品重复占位；置信度并列按入库时间打破平局
   const byConfidence = confidenceHits
-    .filter((hit) => !freshKeys.has(`${hit.library}:${hit.entry.id}`))
+    .filter((hit) => !freshKeys.has(hit.entry.id))
     .sort(
       (a, b) =>
         b.entry.confidence - a.entry.confidence ||
@@ -153,19 +133,6 @@ export async function listTechniques(directory?: string | null): Promise<Techniq
   return rows.map(rowToEntry)
 }
 
-/** 双源列举：本书库 + 全局库全部技法，逐条标注来源库（search/confirm 跨库场景使用）。 */
-export async function listAllTechniques(
-  directory?: string | null,
-): Promise<Array<{ entry: TechniqueEntry; library: TechniqueLibrary }>> {
-  const book = await listTechniques(directory)
-  const globalDb = libDb("global", directory)
-  const globalRows = await globalDb.select().from(TechniqueTable).all()
-  return [
-    ...book.map((entry) => ({ entry, library: "book" as const })),
-    ...globalRows.map(rowToEntry).map((entry) => ({ entry, library: "global" as const })),
-  ]
-}
-
 /** 规范化名称匹配:trim + 空白折叠 + 大小写归一 */
 function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLowerCase()
@@ -174,10 +141,8 @@ function normalizeName(name: string): string {
 export async function findTechniquesByName(
   name: string,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<TechniqueEntry[]> {
-  // 同名合并只在本库内进行——避免把成人技法证据并进全局通用技法
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   const target = normalizeName(name)
   const rows = await db.select().from(TechniqueTable).all()
   return rows.map(rowToEntry).filter((entry) => normalizeName(entry.name) === target)
@@ -188,10 +153,8 @@ export async function mergeTechniqueEvidence(
   id: string,
   evidence: TechniqueEvidence[],
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<boolean> {
-  // 证据合并只在技法所在库内进行（跨库同名不合并）
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).all()
   if (!row) return false
   const existing: TechniqueEvidence[] = JSON.parse(row.evidence)
@@ -209,9 +172,8 @@ export async function updateTechniqueLevel(
   id: string,
   level: TechniqueLevel,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   await db.update(TechniqueTable).set({ level, updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
 }
 
@@ -219,9 +181,8 @@ export async function updateTechniqueStatus(
   id: string,
   status: string,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<void> {
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   await db.update(TechniqueTable).set({ status, updated_at: Date.now() }).where(eq(TechniqueTable.id, id))
 }
 
@@ -229,10 +190,9 @@ export async function updateTechniqueStatus(
 export async function incrementTechniqueUsage(
   id: string,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
   chapterOrder?: number,
 ): Promise<void> {
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   const [row] = await db
     .select({ usage_count: TechniqueTable.usage_count, usage_ledger: TechniqueTable.usage_ledger })
     .from(TechniqueTable)
@@ -278,9 +238,8 @@ function mergeLedgerEntry(raw: string, chapterOrder: number): string {
 export async function verifyTechnique(
   id: string,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   const [row] = await db
     .select({ status: TechniqueTable.status, confidence: TechniqueTable.confidence })
     .from(TechniqueTable)
@@ -302,9 +261,8 @@ export async function retireTechniqueAsPromoted(
   id: string,
   specPath: string,
   directory?: string | null,
-  library: TechniqueLibrary = "book",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const db = libDb(library, directory)
+  const db = getDb(directory)
   const [row] = await db
     .select({ status: TechniqueTable.status })
     .from(TechniqueTable)
@@ -319,13 +277,8 @@ export async function retireTechniqueAsPromoted(
   return { ok: true }
 }
 
-export async function recordFeedback(
-  feedback: TechniqueFeedback,
-  directory?: string | null,
-  library: TechniqueLibrary = "book",
-): Promise<void> {
-  // 反馈行写入技法所在库：全局技法反馈跨书积累，本书技法反馈留本书库
-  const db = libDb(library, directory)
+export async function recordFeedback(feedback: TechniqueFeedback, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
   await db.insert(TechniqueFeedbackTable).values({
     id: `fb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     technique_id: feedback.techniqueId,
@@ -351,12 +304,8 @@ export async function recordShadowLog(log: ShadowLogEntry, directory?: string | 
   })
 }
 
-export async function updateConfidenceFromFeedback(
-  techniqueId: string,
-  directory?: string | null,
-  library: TechniqueLibrary = "book",
-): Promise<void> {
-  const db = libDb(library, directory)
+export async function updateConfidenceFromFeedback(techniqueId: string, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
   const [technique] = await db
     .select()
     .from(TechniqueTable)
