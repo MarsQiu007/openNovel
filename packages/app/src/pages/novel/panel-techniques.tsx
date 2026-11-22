@@ -28,7 +28,6 @@ import { parseEvidenceText } from "./technique-utils"
 type TechniqueLevel = Technique["level"]
 type TechniqueStatus = Technique["status"]
 type TechniqueScope = Technique["scope"]
-type TechniqueLibrary = NonNullable<Technique["library"]>
 
 type SelectOption<T extends string> = { value: T; label: string }
 
@@ -57,11 +56,6 @@ const SCOPE_OPTIONS: SelectOption<TechniqueScope>[] = [
 ]
 
 
-const LIBRARY_OPTIONS: SelectOption<TechniqueLibrary>[] = [
-  { value: "book", label: "本书库" },
-  { value: "global", label: "通用库" },
-]
-
 function optionLabel<T extends string>(options: SelectOption<T>[], value: T | undefined, fallback = "未知") {
   return options.find((item) => item.value === value)?.label ?? fallback
 }
@@ -76,10 +70,10 @@ function naturePromptDismissKey(novelID: string) {
  * 显示条件（全为面板已有数据派生）：书为 general 且本书库技法列表存在受限分级条目且本地未忽略。
  * 确认经 novel.update 写列；暂不写本地忽略，同一书不再打扰。
  */
-function ContentNaturePrompt(props: { novelID: string; bookNature: string; techniques: Technique[] }) {
+function ContentNaturePrompt(props: { novelID: string; bookNature: string; techniques: ReadonlyArray<Technique> }) {
   const updateNovel = useUpdateNovel()
   const dismissed = createMemo(() => localStorage.getItem(naturePromptDismissKey(props.novelID)) === "1")
-  const hasAdultTechnique = createMemo(() => props.techniques.some((item) => item.scope === "adult" && item.library !== "global"))
+  const hasAdultTechnique = createMemo(() => props.techniques.some((item) => item.scope === "adult"))
   const visible = createMemo(
     () => props.bookNature === "general" && hasAdultTechnique() && !dismissed() && !updateNovel.isSuccess,
   )
@@ -209,18 +203,15 @@ function TechniqueList(props: { techniques: ReadonlyArray<Technique>; onSelect: 
   const [search, setSearch] = createSignal("")
   const [level, setLevel] = createSignal<"all" | TechniqueLevel>("all")
   const [status, setStatus] = createSignal<"all" | TechniqueStatus>("all")
-  const [libraryFilter, setLibraryFilter] = createSignal<"all" | TechniqueLibrary>("all")
 
   const levelFilterOptions = [...ERROR_OPTIONS, ...LEVEL_OPTIONS] as SelectOption<"all" | TechniqueLevel>[]
   const statusFilterOptions = [...ERROR_OPTIONS, ...STATUS_OPTIONS] as SelectOption<"all" | TechniqueStatus>[]
-  const libraryFilterOptions: SelectOption<"all" | TechniqueLibrary>[] = [{ value: "all", label: "全部来源" }, ...LIBRARY_OPTIONS]
 
   const filtered = createMemo(() => {
     const keyword = search().trim().toLowerCase()
     return props.techniques.filter((item) => {
       if (level() !== "all" && item.level !== level()) return false
       if (status() !== "all" && item.status !== status()) return false
-      if (libraryFilter() !== "all" && (item.library ?? "book") !== libraryFilter()) return false
       if (!keyword) return true
       const haystack = [item.name, item.principle, item.instruction, ...item.sceneTypes].join("\n").toLowerCase()
       return haystack.includes(keyword)
@@ -237,7 +228,7 @@ function TechniqueList(props: { techniques: ReadonlyArray<Technique>; onSelect: 
           appearance="base"
           fluid
         />
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-2 gap-2">
           <SelectV2
             options={levelFilterOptions}
             value={(item) => item.value}
@@ -251,13 +242,6 @@ function TechniqueList(props: { techniques: ReadonlyArray<Technique>; onSelect: 
             label={(item) => item.label}
             current={statusFilterOptions.find((item) => item.value === status())}
             onSelect={(item) => setStatus(item?.value ?? "all")}
-          />
-          <SelectV2
-            options={libraryFilterOptions}
-            value={(item) => item.value}
-            label={(item) => item.label}
-            current={libraryFilterOptions.find((item) => item.value === libraryFilter())}
-            onSelect={(item) => setLibraryFilter(item?.value ?? "all")}
           />
         </div>
       </div>
@@ -284,9 +268,6 @@ function TechniqueList(props: { techniques: ReadonlyArray<Technique>; onSelect: 
                 <div class="mt-2 flex flex-wrap items-center gap-1.5">
                   <span class="text-xs text-v2-text-text-muted">置信度 {Math.round(technique.confidence * 100)}%</span>
                   <span class="text-xs text-v2-text-text-muted">{optionLabel(LEVEL_OPTIONS, technique.level)}</span>
-                  <Show when={(technique.library ?? "book") === "global"}>
-                    <Tag variant="info">通用库</Tag>
-                  </Show>
                   <For each={technique.sceneTypes.slice(0, 3)}>
                     {(scene) => <Tag variant="neutral">{scene}</Tag>}
                   </For>
@@ -347,9 +328,6 @@ function TechniqueDetail(props: {
             </div>
             <div class="mt-2 flex items-center gap-2">
               <Tag variant={statusVariant(technique().status)}>{optionLabel(STATUS_OPTIONS, technique().status)}</Tag>
-              <Show when={(technique().library ?? "book") === "global"}>
-                <Tag variant="info">通用库</Tag>
-              </Show>
               <Show when={technique().scope === "adult"}>
                 <Tag variant="warning">受限分级</Tag>
               </Show>
@@ -454,7 +432,6 @@ function TechniqueForm(props: {
   const [level, setLevel] = createSignal<TechniqueLevel>(props.technique?.level ?? "paragraph")
   const [status, setStatus] = createSignal<TechniqueStatus>(props.technique?.status ?? "unverified")
   const [scope, setScope] = createSignal<TechniqueScope>(props.technique?.scope ?? "general")
-  const [targetLibrary, setTargetLibrary] = createSignal<TechniqueLibrary>("book")
   const [commonMisuse, setCommonMisuse] = createSignal(props.technique?.commonMisuse ?? "")
   const [evidence, setEvidence] = createSignal(props.technique ? formatEvidenceText(props.technique) : "")
   const [touched, setTouched] = createSignal(false)
@@ -481,7 +458,7 @@ function TechniqueForm(props: {
       evidence: parseEvidenceText(evidence()),
     }
     if (props.mode === "create") {
-      createTechnique.mutate({ ...payload, targetLibrary: scope() === "adult" ? "book" : targetLibrary() }, { onSuccess: props.onDone })
+      createTechnique.mutate(payload, { onSuccess: props.onDone })
       return
     }
     const technique = props.technique
@@ -522,7 +499,7 @@ function TechniqueForm(props: {
             value={(item) => item.value}
             label={(item) => item.label}
             current={SCOPE_OPTIONS.find((item) => item.value === scope())}
-            onSelect={(item) => { const value = item?.value; if (value) setScope(value); if (value === "adult") setTargetLibrary("book") }}
+            onSelect={(item) => { const value = item?.value; if (value) setScope(value) }}
           />
           <Show when={scope() === "adult"}>
             <p class="mt-1 text-xs text-v2-text-text-muted">
@@ -548,21 +525,9 @@ function TechniqueForm(props: {
             onSelect={(item) => { const value = item?.value; if (value) setStatus(value) }}
           />
         </FormField>
-        <Show when={props.mode === "create"}>
-          <FormField label="归属库">
-            <SelectV2
-              options={LIBRARY_OPTIONS}
-              value={(item) => item.value}
-              label={(item) => item.label}
-              current={LIBRARY_OPTIONS.find((item) => item.value === targetLibrary())}
-              disabled={scope() === "adult"}
-              onSelect={(item) => { const value = item?.value; if (value) setTargetLibrary(value) }}
-            />
-          </FormField>
-        </Show>
       </div>
       <Show when={props.mode === "edit"}>
-        <p class="text-xs text-v2-text-text-muted">保存后按内容性质自动归位：通用写法进通用库，受限分级留本书库。</p>
+        <p class="text-xs text-v2-text-text-muted">保存后按内容性质控制写作候选，所有技法都保存在本书库。</p>
       </Show>
       <FormField label="常见误用">
         <TextareaV2 value={commonMisuse()} onInput={(event) => setCommonMisuse(event.currentTarget.value)} rows={3} fluid />

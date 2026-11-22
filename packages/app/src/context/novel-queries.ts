@@ -2197,7 +2197,6 @@ export type TechniqueInput = {
   commonMisuse?: string
   status?: "unverified" | "verified" | "shadow" | "archived"
   scope?: "general" | "adult"
-  targetLibrary?: "book" | "global"
 }
 
 export function useTechniques() {
@@ -2207,9 +2206,7 @@ export function useTechniques() {
     queryKey: novelKeys.techniques(sdk().directory),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: async () => {
-      const items = await client()["server.technique"].list({ location: { directory: sdk().directory }, library: "all" })
-      // 生成客户端对可选字段给 null，归一化为 undefined 以对齐 schema Technique
-      return items.map((item) => ({ ...item, library: item.library ?? undefined }))
+      return client()["server.technique"].list({ location: { directory: sdk().directory } })
     },
     enabled: !!sdk().directory,
     staleTime: 30_000,
@@ -2261,7 +2258,6 @@ export function useCreateTechnique() {
         commonMisuse: input.commonMisuse,
         status: input.status,
         scope: input.scope,
-        targetLibrary: input.targetLibrary,
       })
     },
     onSuccess: () => {

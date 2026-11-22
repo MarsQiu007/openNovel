@@ -38,12 +38,6 @@ type SyncProject = ServerSyncStatusOutput["projects"][number]
 type SyncState = SyncProject["state"]
 type Decision = ServerSyncRunOutput["decisions"][number]
 
-/** 同步保留单元 @library（全局通用技法库）的显示名。
- *  AGENTS.md 要求不改动 i18n locale 文件，此处内联中文标签而非新增 locale 键。 */
-function displayUnitName(name: string) {
-  return name === "@library" ? "通用技法库" : name
-}
-
 const stateVariant: Record<SyncState, "success" | "warning" | "info" | "danger"> = {
   in_sync: "success",
   local_ahead: "warning",
@@ -128,6 +122,15 @@ export const SettingsSync: Component<{ v2?: boolean }> = (props) => {
     mutationFn: () => client()["server.sync"].run(),
     onSuccess: (data) => {
       void invalidate()
+      const failedCleanups = data.results.filter((result) => result.action === "cleanup_failed")
+      if (failedCleanups.length > 0) {
+        showToast({
+          variant: "error",
+          title: language.t("settings.sync.toast.syncFailed"),
+          description: failedCleanups.map((result) => result.name).join(", "),
+        })
+        return
+      }
       if (data.results.some((result) => result.action === "downloaded")) {
         void queryClient.invalidateQueries({ queryKey: novelKeys.all })
       }
@@ -399,7 +402,7 @@ export const SettingsSync: Component<{ v2?: boolean }> = (props) => {
         <SettingsRowV2
           title={
             <div class="flex items-center gap-2">
-              <span class="min-w-0 truncate">{displayUnitName(p.project.name)}</span>
+              <span class="min-w-0 truncate">{p.project.name}</span>
               {tag}
             </div>
           }
@@ -413,7 +416,7 @@ export const SettingsSync: Component<{ v2?: boolean }> = (props) => {
       <div class="flex flex-wrap items-center gap-4 py-3 border-b border-border-weak-base last:border-none sm:flex-nowrap">
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <div class="flex items-center gap-2">
-            <span class="min-w-0 truncate text-14-medium text-text-strong">{displayUnitName(p.project.name)}</span>
+            <span class="min-w-0 truncate text-14-medium text-text-strong">{p.project.name}</span>
             {tag}
           </div>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-12-regular text-text-weak">{meta}</div>
@@ -463,7 +466,7 @@ export const SettingsSync: Component<{ v2?: boolean }> = (props) => {
             <DialogTitleGroup
               title={language.t("settings.sync.decision.pair.title")}
               description={language.t("settings.sync.decision.pair.description", {
-                name: displayUnitName(decision.name),
+                name: decision.name,
                 device: decision.remote.device,
                 time: formatTime(decision.remote.at),
               })}
