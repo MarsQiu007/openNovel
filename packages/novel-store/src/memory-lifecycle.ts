@@ -207,7 +207,7 @@ export interface MemoryMaintenanceReport {
   zombieFacts: Array<{ id: string; chapterOrder: number | null; text: string }>
   /** planned 设定（角色 + 世界观条目）：按创建后新增章数降序，stalled 标记达到滞留阈值 */
   planned: Array<{ kind: "character" | "world_entry"; id: string; title: string; chaptersSince: number; stalled: boolean }>
-  /** retired 归档统计（本书库口径；全局技法库不在本书 DB 内） */
+  /** retired 归档统计（本书库口径） */
   retiredStats: { facts: number; techniques: number }
 }
 

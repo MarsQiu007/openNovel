@@ -32,7 +32,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
     // 忽略：孤儿清理是优化项，列补齐才是正确性前提
   }
 
-  // 列补齐优先于一切结构性迁移：novels 表可能由外部建表器（core 全局库迁移）以旧结构创建，
+  // 列补齐优先于一切结构性迁移：novels 表可能由外部建表器以旧结构创建，
   // 必须先补齐列，后续任何对该表的读写才不会因缺列失败
   migrateNovelMasterOutline(exec, query)
   migrateNovelContentNature(exec, query)
@@ -120,7 +120,7 @@ function migrateCharacterProfile(exec: ExecFn, query: QueryFn): void {
  *
  * characters / world_entries 补落文状态列（存量行默认 established——observer 提取自
  * 已写正文，误标 planned 会永久滞留提醒，误标 established 只是少提醒）；
- * techniques 补 usage_ledger / promoted_from / novel_id（书库与全局库同构，全局库 novel_id 恒 NULL）。
+ * techniques 补 usage_ledger / promoted_from / novel_id（历史书库同构，novel_id 可为 NULL）。
  * world_entry_conflicts 补冲突单扩展列（§4：矛盾另一方事实 + 两方向成本对比缓存）。
  * memory_fact / memory_injection_snapshot / memory_fact_fts 新表由 CREATE_TABLES_SQL 直建；
  * memory_fact 补 retired_into（§6 整理合并去向留痕）。
@@ -604,10 +604,10 @@ export function migrateTechniqueScope(exec: ExecFn, query: QueryFn): void {
  * 幂等：ALTER 与置位均只在"检测到无列"的当次执行，重复建连为纯 no-op；
  * 用户后续显式改回的值永远不会被置位翻转。注册顺序须在 migrateTechniqueScope 之后
  * （置位依赖 techniques.scope 列已就绪；旧库 scope 默认 general，因此旧库本次全部落 general）。
- * novels/techniques 表不存在时跳过（全局库无 novels 表）。
+ * novels/techniques 表不存在时跳过。
  */
 export function migrateNovelContentNature(exec: ExecFn, query: QueryFn): void {
-  // 全局库无 novels 表，显式查表存在性（PRAGMA 对缺失表返回空结果而不抛错）
+  // 兼容部分建表库：显式查表存在性（PRAGMA 对缺失表返回空结果而不抛错）
   const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='novels'")
   if (!Array.isArray(tables) || tables.length === 0) return
   try {
@@ -660,13 +660,12 @@ export function inspectEvidenceElement(element: unknown): EvidenceElementInspect
 }
 
 /**
- * techniques 证据条目补全（幂等迁移，书库与全局库建连统一执行）。
+ * techniques 证据条目补全（幂等迁移，建连统一执行）。
  *
  * save_technique 直写 DB 绕过协议校验，历史行 evidence 元素缺 sourceTitle 等必填
  * 字段，导致管理接口响应编码失败。逐行解析回填：仅当有字段实际写入时才 UPDATE，
  * 重复建连为纯 no-op、不回写已有非空值。evidence JSON 整体损坏或元素非对象时
  * 跳过该行（文件级损坏应显式暴露，由列表行级容错兜底跳过）。
- * 全局库 techniques 表结构与书库一致，仅操作该表天然安全。
  */
 export function migrateTechniqueEvidence(exec: ExecFn, query: QueryFn): void {
   try {
@@ -733,7 +732,7 @@ function migrateReviewTrail(exec: ExecFn, query: QueryFn): void {
  * 早期部分写入路径按 content.length（UTF-16 全字符，含标点空白）落库，与写作管线
  * countWords 口径不一致，表现为同一章阅读/编辑/侧边栏字数分歧。逐行重算 chapters
  * 与 chapter_versions 两表：仅当重算值与现值不同才 UPDATE，重复建连零写入（幂等）。
- * 全局库（opennovel.db）无 chapters 表，查 sqlite_master 存在性后整体跳过。
+ * 部分历史库无 chapters 表，查 sqlite_master 存在性后整体跳过。
  * 失败不阻塞 DB 打开。
  */
 export function migrateChapterWordCount(exec: ExecFn, query: QueryFn): void {

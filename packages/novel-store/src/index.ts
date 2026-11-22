@@ -21,7 +21,7 @@ import { inspectEvidenceElement } from "./migrate.js"
 import { join } from "path"
 import { homedir } from "os"
 import { xdgData } from "xdg-basedir"
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, copyFileSync, openSync, writeSync, fsyncSync, closeSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, copyFileSync, openSync, writeSync, fsyncSync, closeSync, rmSync } from "fs"
 
 // ─── DDL 表定义 ───
 
@@ -828,7 +828,7 @@ export const TechniqueTable = sqliteTable("techniques", {
   usage_ledger: text().notNull().default("[]"),
   /** 晋升来源留痕：本条目由哪条技巧固化而来（retired 不删行） */
   promoted_from: text(),
-  /** 书级归属（书库内多书分域；NULL=库级遗留行，对所有书可见）。全局库恒 NULL */
+  /** 书级归属（书库内多书分域；NULL=历史遗留行，对所有书可见） */
   novel_id: text(),
   created_at: integer().notNull().$default(() => Date.now()),
   updated_at: integer().notNull().$default(() => Date.now()),
@@ -877,16 +877,6 @@ export function getDbPath(directory?: string | null): string {
   const base = directory ?? process.cwd()
   return join(base, ".novel", "novel.db")
 }
-
-/** 全局通用技法库表结构：与书库 techniques 同构但无 novel 级外键（跨书共享，不绑定具体书；novel_id 列恒 NULL）。 */
-const GLOBAL_TECHNIQUE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, usage_ledger text DEFAULT '[]' NOT NULL, promoted_from text, novel_id text, created_at integer NOT NULL, updated_at integer NOT NULL);
-CREATE INDEX IF NOT EXISTS technique_status_idx ON techniques(status);
-CREATE INDEX IF NOT EXISTS technique_level_idx ON techniques(level);
-CREATE TABLE IF NOT EXISTS technique_feedback (id text PRIMARY KEY, technique_id text NOT NULL, chapter_id text NOT NULL, score real NOT NULL, was_used integer DEFAULT 0 NOT NULL, comment text DEFAULT '' NOT NULL, created_at integer NOT NULL);
-CREATE INDEX IF NOT EXISTS technique_feedback_technique_id_idx ON technique_feedback(technique_id);
-CREATE INDEX IF NOT EXISTS technique_feedback_chapter_id_idx ON technique_feedback(chapter_id);
-`
 
 // ─── Schema 初始化 ───
 
@@ -1016,18 +1006,25 @@ CREATE TABLE IF NOT EXISTS memory_injection_snapshot (novel_id text NOT NULL, ch
 
 // ─── DB 连接缓存 ───
 
-/**
- * 获取全局通用技法库路径 - 跨书共享的通用技法存储，单一属主（novel-store）。
- *
- * 优先级：OPENNOVEL_TECHNIQUE_DB 显式指定 > XDG 数据目录下 opennovel/techniques.db。
- * 与 core 的 opennovel.db 分文件、不分渠道——core 按安装渠道分流（opennovel-<channel>.db），
- * 共用会让不同渠道学到的通用技法互相不可见；独立文件则天然跨渠道共享。
- */
-export function globalDbPath(): string {
+/** 旧全局通用技法库路径；仅用于一次性清理，不再用于运行时读写。 */
+function legacyGlobalTechniqueDbPath(): string {
   const env = process.env.OPENNOVEL_TECHNIQUE_DB
   if (env) return env
   const base = xdgData ?? join(homedir(), ".local", "share")
   return join(base, "opennovel", "techniques.db")
+}
+
+/** 一次性删除旧全局通用技法库及其 sidecar 文件；文件不存在或删除失败都不阻断启动。 */
+export function removeLegacyGlobalTechniqueStore(): void {
+  const dbPath = legacyGlobalTechniqueDbPath()
+  closeDbPath(dbPath)
+  for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+    try {
+      rmSync(`${dbPath}${suffix}`, { force: true })
+    } catch (error) {
+      console.warn(`[novel-store] 旧全局技法库清理失败，下次启动重试: ${dbPath}${suffix}`, error)
+    }
+  }
 }
 
 const _dbCache = new Map<string, Db>()
@@ -1049,26 +1046,13 @@ export function getDb(directory?: string | null, options?: { fresh?: boolean }):
   return db
 }
 
-/** 打开全局通用技法库连接（按路径缓存，与书库连接同生命周期管理）。 */
-export function getGlobalDb(): Db {
-  const dbPath = globalDbPath()
-  const cached = _dbCache.get(dbPath)
-  if (cached) return cached
-  const dir = join(dbPath, "..")
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  const db = createDb(dbPath, GLOBAL_TECHNIQUE_TABLES_SQL)
-  _dbCache.set(dbPath, db)
-  return db
-}
-
 /**
  * 关闭并驱逐某项目的缓存连接。
  *
  * 云盘同步拉取远端快照替换 novel.db 文件前必须调用——否则替换后旧连接
  * 仍持有已失效的文件句柄，后续写入会落到被替换掉的旧文件上。
  */
-/** 按数据库文件路径直接驱逐缓存连接（全局技法库等无法经书目录解析的路径使用）。
- *  同步下载替换全局库文件前必须调用，语义同 closeDb。 */
+/** 按数据库文件路径直接驱逐缓存连接（无法经书目录解析的路径使用），语义同 closeDb。 */
 export function closeDbPath(dbPath: string): void {
   const cached = _dbCache.get(dbPath)
   if (!cached) return
@@ -1310,11 +1294,8 @@ type TechniqueStatus = "unverified" | "verified" | "shadow" | "archived"
 type TechniqueRecord = typeof TechniqueTable.$inferSelect
 type TechniqueFeedbackRecord = typeof TechniqueFeedbackTable.$inferSelect
 
-/** 技法存储库：book=本书库（随书 novel.db）；global=全局通用技法库（跨书共享）。 */
-export type TechniqueLibrary = "book" | "global"
-
-function techniqueDb(directory: string | null | undefined, library: TechniqueLibrary) {
-  return library === "global" ? getGlobalDb() : getDb(directory)
+function techniqueDb(directory?: string | null) {
+  return getDb(directory)
 }
 
 export type CreateTechniqueData = {
@@ -1397,8 +1378,8 @@ function toTechniqueFeedback(row: TechniqueFeedbackRecord) {
 }
 
 /** 列出技法库，按置信度和更新时间排序；embedding 向量不进入管理接口。 */
-export async function listTechniques(directory?: string | null, library: TechniqueLibrary = "book") {
-  const db = techniqueDb(directory, library)
+export async function listTechniques(directory?: string | null) {
+  const db = techniqueDb(directory)
   const rows = await db
     .select({
       id: TechniqueTable.id,
@@ -1424,8 +1405,8 @@ export async function listTechniques(directory?: string | null, library: Techniq
 }
 
 /** 读取单条技法及其反馈记录。 */
-export async function getTechnique(id: string, directory?: string | null, library: TechniqueLibrary = "book") {
-  const db = techniqueDb(directory, library)
+export async function getTechnique(id: string, directory?: string | null) {
+  const db = techniqueDb(directory)
   const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
   if (!row) return null
   const feedbackRows = await db
@@ -1438,8 +1419,8 @@ export async function getTechnique(id: string, directory?: string | null, librar
 }
 
 /** 人工创建技法；初始 confidence 与写作管线新技法保持一致。 */
-export async function createTechnique(input: CreateTechniqueData, directory?: string | null, library: TechniqueLibrary = "book") {
-  const db = techniqueDb(directory, library)
+export async function createTechnique(input: CreateTechniqueData, directory?: string | null) {
+  const db = techniqueDb(directory)
   const now = Date.now()
   const values = {
     id: crypto.randomUUID(),
@@ -1464,8 +1445,8 @@ export async function createTechnique(input: CreateTechniqueData, directory?: st
 }
 
 /** PATCH 语义更新技法；不修改 confidence、embedding 和使用统计。 */
-export async function updateTechnique(id: string, patch: UpdateTechniqueData, directory?: string | null, library: TechniqueLibrary = "book") {
-  const db = techniqueDb(directory, library)
+export async function updateTechnique(id: string, patch: UpdateTechniqueData, directory?: string | null) {
+  const db = techniqueDb(directory)
   const [row] = await db.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
   if (!row) return null
   const next = {
@@ -1485,8 +1466,8 @@ export async function updateTechnique(id: string, patch: UpdateTechniqueData, di
 }
 
 /** 删除技法及其反馈记录，避免孤儿反馈在 UI 中残留。 */
-export async function deleteTechnique(id: string, directory?: string | null, library: TechniqueLibrary = "book") {
-  const db = techniqueDb(directory, library)
+export async function deleteTechnique(id: string, directory?: string | null) {
+  const db = techniqueDb(directory)
   const [row] = await db
     .select({ id: TechniqueTable.id })
     .from(TechniqueTable)
@@ -1496,34 +1477,6 @@ export async function deleteTechnique(id: string, directory?: string | null, lib
   if (!row) return false
   await db.delete(TechniqueFeedbackTable).where(eq(TechniqueFeedbackTable.technique_id, id)).run()
   await db.delete(TechniqueTable).where(eq(TechniqueTable.id, id)).run()
-  return true
-}
-
-/**
- * 技法跨库迁移（scope 编辑触发）：目标库插入 + 源库删除 + 反馈行随迁，保持 id 不变。
- * 目标库已存在同 id 技法时返回 false，避免静默覆盖。
- */
-export async function moveTechniqueToLibrary(
-  id: string,
-  directory: string | null | undefined,
-  from: TechniqueLibrary,
-  to: TechniqueLibrary,
-): Promise<boolean> {
-  if (from === to) return true
-  const source = techniqueDb(directory, from)
-  const target = techniqueDb(directory, to)
-  const [row] = await source.select().from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
-  if (!row) return false
-  const [conflict] = await target.select({ id: TechniqueTable.id }).from(TechniqueTable).where(eq(TechniqueTable.id, id)).limit(1).all()
-  if (conflict) return false
-  const feedbackRows = await source.select().from(TechniqueFeedbackTable).where(eq(TechniqueFeedbackTable.technique_id, id)).all()
-  const now = Date.now()
-  await target.insert(TechniqueTable).values({ ...row, updated_at: now }).run()
-  for (const fb of feedbackRows) {
-    await target.insert(TechniqueFeedbackTable).values(fb).run()
-  }
-  await source.delete(TechniqueFeedbackTable).where(eq(TechniqueFeedbackTable.technique_id, id)).run()
-  await source.delete(TechniqueTable).where(eq(TechniqueTable.id, id)).run()
   return true
 }
 

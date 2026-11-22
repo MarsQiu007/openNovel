@@ -8,7 +8,6 @@ import {
   closeDb,
   closeDbPath,
   getDb,
-  getGlobalDb,
   MemoryFactTable,
   MemoryInjectionSnapshotTable,
   NovelTable,
@@ -190,36 +189,5 @@ describe("记忆系统数据层", () => {
     }
   }, 60000)
 
-  test("全局技法库同构补齐三列，novel_id 恒 NULL", () => {
-    const globalPath = join(projectDir, ".novel", "techniques.db")
-    process.env.OPENNOVEL_TECHNIQUE_DB = globalPath
-    const seed = new Database(globalPath)
-    seed.exec(
-      "CREATE TABLE techniques (id text PRIMARY KEY, name text NOT NULL, principle text NOT NULL, instruction text NOT NULL, scene_types text DEFAULT '[]' NOT NULL, level text NOT NULL, evidence text DEFAULT '[]' NOT NULL, common_misuse text DEFAULT '' NOT NULL, confidence real DEFAULT 0.5 NOT NULL, status text DEFAULT 'unverified' NOT NULL, scope text DEFAULT 'general' NOT NULL, embedding text, usage_count integer DEFAULT 0 NOT NULL, last_used_at integer, created_at integer NOT NULL, updated_at integer NOT NULL)",
-    )
-    seed
-      .query("INSERT INTO techniques (id, name, principle, instruction, level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run("g-1", "视角切换", "p", "i", "book", 1, 1)
-    seed.close()
 
-    expect(hasColumn("techniques", "usage_ledger", globalPath)).toBe(false)
-
-    getGlobalDb()
-    closeDbPath(globalPath)
-
-    expect(hasColumn("techniques", "usage_ledger", globalPath)).toBe(true)
-    expect(hasColumn("techniques", "promoted_from", globalPath)).toBe(true)
-    expect(hasColumn("techniques", "novel_id", globalPath)).toBe(true)
-    const raw = new Database(globalPath, { readonly: true })
-    try {
-      const row = raw.query("SELECT usage_ledger, novel_id FROM techniques WHERE id = 'g-1'").get() as {
-        usage_ledger: string
-        novel_id: string | null
-      }
-      expect(row.usage_ledger).toBe("[]")
-      expect(row.novel_id).toBeNull()
-    } finally {
-      raw.close()
-    }
-  }, 60000)
 })
