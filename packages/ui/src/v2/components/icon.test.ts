@@ -16,13 +16,16 @@ afterEach(() => {
 })
 
 describe("v2 图标注册表", () => {
-  test("delete/info 已注册且对齐 16 视窗，解析到各自 symbol id", () => {
+  test("delete/info/add 已注册且对齐 16 视窗，解析到各自 symbol id", () => {
     expect(icons.delete.viewBox).toBe("0 0 16 16")
     expect(icons.info.viewBox).toBe("0 0 16 16")
+    expect(icons.add.viewBox).toBe("0 0 16 16")
     expect(resolveIcon("delete")).toEqual({ viewBox: "0 0 16 16", missing: false })
     expect(resolveIcon("info")).toEqual({ viewBox: "0 0 16 16", missing: false })
+    expect(resolveIcon("add")).toEqual({ viewBox: "0 0 16 16", missing: false })
     expect(symbolId("delete")).toBe("opennovel-v2-icon-delete")
     expect(symbolId("info")).toBe("opennovel-v2-icon-info")
+    expect(symbolId("add")).toBe("opennovel-v2-icon-add")
     expect(warnCalls.length).toBe(0)
   })
 
