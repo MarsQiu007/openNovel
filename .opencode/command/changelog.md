@@ -1,5 +1,5 @@
 ---
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-flash
 ---
 
 Create `UPCOMING_CHANGELOG.md` from the structured changelog input below.

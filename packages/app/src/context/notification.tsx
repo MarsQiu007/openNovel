@@ -279,7 +279,7 @@ function createServerNotificationState(input: {
     })
   }
 
-  // V1 session.error 已随 legacy wire 裁撤；step.failed 是现存最接近的会话级失败信号。
+  // V1 session.error 已随 legacy wire 裁撤；step.failed 与 session.next.failed（drain 级失败，可能无 assistant message）是现存的会话级失败信号。
   const handleSessionError = (
     directory: string,
     event: { properties: { sessionID?: string; error?: SessionErrorUnknown } },
@@ -313,7 +313,7 @@ function createServerNotificationState(input: {
 
   const unsub = serverSDK().event.listen((e) => {
     const event = e.details
-    if (event.type !== "session.idle" && event.type !== "session.next.step.failed") return
+    if (event.type !== "session.idle" && event.type !== "session.next.step.failed" && event.type !== "session.next.failed") return
 
     const directory = e.name
     const time = Date.now()

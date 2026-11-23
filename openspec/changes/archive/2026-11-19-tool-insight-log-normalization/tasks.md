@@ -17,4 +17,9 @@
 
 ## 4. 人工验证
 
-- [ ] 4.1 在实际项目中触发一次工具失败并核验失败，确认新日志只写入一个规范化后的根，issue 文档只创建一个（指纹不再分裂）。验证方式：人工观察 `Logs` 目录只有一个新增 slug 且对应 issue 文档
+- [x] 4.1 在实际项目中触发一次工具失败并核验失败，确认新日志只写入一个规范化后的根，issue 文档只创建一个（指纹不再分裂）。验证方式：人工观察 `Logs` 目录只有一个新增 slug 且对应 issue 文档
+
+## Implementation Commits
+
+- `158fa18e` fix(plugin): normalize tool-insight log root path and unify surface_success fingerprint
+- `b1c78e98` fix(plugin): use platform-independent slash normalization for log slug

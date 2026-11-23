@@ -20,11 +20,11 @@ import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 import { toolDefinitions } from "./lib/tool"
-import { FSUtil } from "../src/fs-util"
-import { Credential } from "../src/credential"
 import { Database } from "../src/database/database"
 import { EventV2 } from "../src/event"
 import { Flag } from "../src/flag/flag"
+import { FSUtil } from "../src/fs-util"
+import { Credential } from "../src/credential"
 import { Global } from "../src/global"
 import { ModelsDev } from "../src/models-dev"
 import { Npm } from "../src/npm"
@@ -160,8 +160,8 @@ describe("LocationServiceMap", () => {
   )
 
   it.live("rejects an unavailable selected model during location model resolution", () =>
-    // 本用例假设目录里不存在可执行模型：models.dev 接入补上 provider 级 npm 回落后，
-    // 真实缓存目录里会出现 supported 模型并触发 fallback，因此固定空目录夹具隔离。
+    // 固定空目录夹具隔离 models.dev 拉取；回退移除后，即使目录存在其它可用模型，
+    // 指定模型不可用仍必须显式失败（changelog-ai-routing）。
     Effect.acquireUseRelease(
       Effect.sync(() => {
         const previous = {
@@ -224,6 +224,241 @@ describe("LocationServiceMap", () => {
         Effect.sync(() => {
           Flag.OPENNOVEL_MODELS_PATH = previous.path
           Flag.OPENNOVEL_DISABLE_MODELS_FETCH = previous.disabled
+        }),
+    ),
+  )
+
+  it.live("fails the selected model even when another model is available", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const previous = {
+          path: Flag.OPENNOVEL_MODELS_PATH,
+          disabled: Flag.OPENNOVEL_DISABLE_MODELS_FETCH,
+          auth: process.env.OPENNOVEL_AUTH_CONTENT,
+          configDir: process.env.OPENNOVEL_CONFIG_DIR,
+        }
+        Flag.OPENNOVEL_MODELS_PATH = path.join(import.meta.dir, "plugin", "fixtures", "models-dev.json")
+        Flag.OPENNOVEL_DISABLE_MODELS_FETCH = true
+        // 隔离本机全局配置（xdg config 目录），保证 catalog 内容可控
+        process.env.OPENNOVEL_CONFIG_DIR = path.join(import.meta.dir, "plugin", "fixtures", "empty-config")
+        process.env.OPENNOVEL_AUTH_CONTENT = JSON.stringify({
+          good: { type: "api", key: "sk-good" },
+        })
+        return previous
+      }),
+      () =>
+        Effect.acquireRelease(
+          Effect.promise(() => tmpdir()),
+          (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+        ).pipe(
+          Effect.flatMap((dir) =>
+            Effect.gen(function* () {
+              const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+              yield* Effect.promise(() =>
+                fs.writeFile(
+                  path.join(dir.path, "opennovel.json"),
+                  JSON.stringify({
+                    providers: {
+                      good: {
+                        name: "Good",
+                        api: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://good.example/v1" },
+                        models: { chat: { name: "Chat" } },
+                      },
+                      unavailable: {
+                        name: "Unavailable",
+                        api: { type: "native", settings: {} },
+                        models: { chat: { disabled: true } },
+                      },
+                    },
+                  }),
+                ),
+              )
+              const failure = yield* SessionRunnerModel.Service.use((models) =>
+                models.resolve(
+                  SessionV2.Info.make({
+                    id: SessionV2.ID.make("ses_selected_unavailable"),
+                    projectID: ProjectV2.ID.global,
+                    title: "test",
+                    model: {
+                      id: ModelV2.ID.make("chat"),
+                      providerID: ProviderV2.ID.make("unavailable"),
+                    },
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+                    location,
+                  }),
+                ),
+              ).pipe(Effect.provide(LocationServiceMap.Service.get(location)), Effect.flip)
+
+              expect(failure).toMatchObject({
+                _tag: "SessionRunnerModel.ModelUnavailableError",
+                providerID: "unavailable",
+                modelID: "chat",
+              })
+            }),
+          ),
+        ),
+      (previous) =>
+        Effect.sync(() => {
+          Flag.OPENNOVEL_MODELS_PATH = previous.path
+          Flag.OPENNOVEL_DISABLE_MODELS_FETCH = previous.disabled
+          if (previous.auth === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+          else process.env.OPENNOVEL_AUTH_CONTENT = previous.auth
+          if (previous.configDir === undefined) delete process.env.OPENNOVEL_CONFIG_DIR
+          else process.env.OPENNOVEL_CONFIG_DIR = previous.configDir
+        }),
+    ),
+  )
+
+  it.live("resolves the selected model when it is available", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const previous = {
+          path: Flag.OPENNOVEL_MODELS_PATH,
+          disabled: Flag.OPENNOVEL_DISABLE_MODELS_FETCH,
+          auth: process.env.OPENNOVEL_AUTH_CONTENT,
+          configDir: process.env.OPENNOVEL_CONFIG_DIR,
+        }
+        Flag.OPENNOVEL_MODELS_PATH = path.join(import.meta.dir, "plugin", "fixtures", "models-dev.json")
+        Flag.OPENNOVEL_DISABLE_MODELS_FETCH = true
+        // 隔离本机全局配置（xdg config 目录），保证 catalog 内容可控
+        process.env.OPENNOVEL_CONFIG_DIR = path.join(import.meta.dir, "plugin", "fixtures", "empty-config")
+        process.env.OPENNOVEL_AUTH_CONTENT = JSON.stringify({
+          good: { type: "api", key: "sk-good" },
+        })
+        return previous
+      }),
+      () =>
+        Effect.acquireRelease(
+          Effect.promise(() => tmpdir()),
+          (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+        ).pipe(
+          Effect.flatMap((dir) =>
+            Effect.gen(function* () {
+              const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+              yield* Effect.promise(() =>
+                fs.writeFile(
+                  path.join(dir.path, "opennovel.json"),
+                  JSON.stringify({
+                    providers: {
+                      good: {
+                        name: "Good",
+                        api: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://good.example/v1" },
+                        models: { chat: { name: "Chat" } },
+                      },
+                    },
+                  }),
+                ),
+              )
+              const resolved = yield* SessionRunnerModel.Service.use((models) =>
+                models.resolve(
+                  SessionV2.Info.make({
+                    id: SessionV2.ID.make("ses_selected_available"),
+                    projectID: ProjectV2.ID.global,
+                    title: "test",
+                    model: {
+                      id: ModelV2.ID.make("chat"),
+                      providerID: ProviderV2.ID.make("good"),
+                    },
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+                    location,
+                  }),
+                ),
+              ).pipe(Effect.provide(LocationServiceMap.Service.get(location)))
+
+              expect(resolved).toMatchObject({ provider: "good", id: "chat" })
+            }),
+          ),
+        ),
+      (previous) =>
+        Effect.sync(() => {
+          Flag.OPENNOVEL_MODELS_PATH = previous.path
+          Flag.OPENNOVEL_DISABLE_MODELS_FETCH = previous.disabled
+          if (previous.auth === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+          else process.env.OPENNOVEL_AUTH_CONTENT = previous.auth
+          if (previous.configDir === undefined) delete process.env.OPENNOVEL_CONFIG_DIR
+          else process.env.OPENNOVEL_CONFIG_DIR = previous.configDir
+        }),
+    ),
+  )
+
+  it.live("falls back to the newest supported model when no model is selected", () =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const previous = {
+          path: Flag.OPENNOVEL_MODELS_PATH,
+          disabled: Flag.OPENNOVEL_DISABLE_MODELS_FETCH,
+          auth: process.env.OPENNOVEL_AUTH_CONTENT,
+          configDir: process.env.OPENNOVEL_CONFIG_DIR,
+        }
+        Flag.OPENNOVEL_MODELS_PATH = path.join(import.meta.dir, "plugin", "fixtures", "models-dev.json")
+        Flag.OPENNOVEL_DISABLE_MODELS_FETCH = true
+        // 隔离本机全局配置（xdg config 目录），保证 catalog 内容可控
+        process.env.OPENNOVEL_CONFIG_DIR = path.join(import.meta.dir, "plugin", "fixtures", "empty-config")
+        process.env.OPENNOVEL_AUTH_CONTENT = JSON.stringify({
+          good: { type: "api", key: "sk-good" },
+          nativeprov: { type: "api", key: "sk-native" },
+        })
+        return previous
+      }),
+      () =>
+        Effect.acquireRelease(
+          Effect.promise(() => tmpdir()),
+          (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+        ).pipe(
+          Effect.flatMap((dir) =>
+            Effect.gen(function* () {
+              const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+              yield* Effect.promise(() =>
+                fs.writeFile(
+                  path.join(dir.path, "opennovel.json"),
+                  JSON.stringify({
+                    providers: {
+                      // 更新的模型走 native API（无 native route）：默认解析必须落到
+                      // 次新但 supported 的 good provider，而不是静默换成其它模型。
+                      good: {
+                        name: "Good",
+                        api: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://good.example/v1" },
+                        models: { chat: { name: "Chat", release_date: "2026-10-01" } },
+                      },
+                      nativeprov: {
+                        name: "Native",
+                        api: { type: "native", settings: {} },
+                        models: { chat: { name: "Native Chat", release_date: "2026-11-01" } },
+                      },
+                    },
+                  }),
+                ),
+              )
+              const resolved = yield* SessionRunnerModel.Service.use((models) =>
+                models.resolve(
+                  SessionV2.Info.make({
+                    id: SessionV2.ID.make("ses_default_model"),
+                    projectID: ProjectV2.ID.global,
+                    title: "test",
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+                    location,
+                  }),
+                ),
+              ).pipe(Effect.provide(LocationServiceMap.Service.get(location)))
+
+              expect(resolved).toMatchObject({ provider: "good", id: "chat" })
+            }),
+          ),
+        ),
+      (previous) =>
+        Effect.sync(() => {
+          Flag.OPENNOVEL_MODELS_PATH = previous.path
+          Flag.OPENNOVEL_DISABLE_MODELS_FETCH = previous.disabled
+          if (previous.auth === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+          else process.env.OPENNOVEL_AUTH_CONTENT = previous.auth
+          if (previous.configDir === undefined) delete process.env.OPENNOVEL_CONFIG_DIR
+          else process.env.OPENNOVEL_CONFIG_DIR = previous.configDir
         }),
     ),
   )

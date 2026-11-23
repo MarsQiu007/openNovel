@@ -2,7 +2,7 @@
 
 ## 1. relationship 候选接受修复
 
-- [ ] 1.1 定位 `accept_pending_setting` 的 relationship 分支实现，确认当前 INSERT 的 char_a_id/char_b_id 来源（候选 payload 临时 ID）。验证方式：在代码中标记问题行
+- [x] 1.1 定位 `accept_pending_setting` 的 relationship 分支实现，确认当前 INSERT 的 char_a_id/char_b_id 来源（候选 payload 临时 ID）。验证方式：在代码中标记问题行
 - [x] 1.2 实现多级角色 ID 解析：接受 relationship 候选时先直接按 char_a_id 在 CharacterTable 查找，失败后在 PendingSettingTable 中找 accepted 角色候选按 suggested_entity_id 反查角色名再按名查找；两级都失败时报明确错误（含候选 ID 和临时角色 ID）。验证方式：新增单测覆盖成功解析、角色不存在报错两种场景
 - [x] 1.3 验证 relationship 候选接受后引用扫描与影响面联动仍正常工作。验证方式：单测覆盖接受关系候选后的引用扫描结果
 
@@ -31,5 +31,14 @@
 
 ## 6. 人工验证
 
-- [ ] 6.1 在实际项目中创建一个角色候选 + 一个关系候选（引用该角色），先接受角色再通过 `batch_accept_pending_settings` 接受关系，确认无 FK 异常。验证方式：人工操作并观察返回
-- [ ] 6.2 调用 `list_pending_settings` 传 `status: "all"`，确认不再报参数校验失败，返回中包含完整 ID。验证方式：人工操作并检查返回结构
+- [x] 6.1 在实际项目中创建一个角色候选 + 一个关系候选（引用该角色），先接受角色再通过 `batch_accept_pending_settings` 接受关系，确认无 FK 异常。验证方式：人工操作并观察返回
+- [x] 6.2 调用 `list_pending_settings` 传 `status: "all"`，确认不再报参数校验失败，返回中包含完整 ID。验证方式：人工操作并检查返回结构
+
+## Implementation Commits
+
+- `98787b04` fix(plugin): resolve relationship candidate FK and support prefix ID matching
+- `9e014d82` fix(server): filter inbox badge to pending-only and pass showProcessed
+- `ddd5e1b5` fix(app): show candidate status badge and show-processed toggle
+- `d3f7049c` fix(sdk): add showProcessed query param to review-inbox list types
+- `21144018` fix(core): update tool registry count for batch_accept_pending_settings
+- `92f2cd36` test(plugin,opennovel): add batch accept tool and countsOf badge filter smoke tests

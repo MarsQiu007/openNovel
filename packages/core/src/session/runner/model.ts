@@ -206,16 +206,12 @@ export const locationLayer = Layer.effect(
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const available = yield* catalog.model.available()
         const defaultModel = session.model ? undefined : yield* catalog.model.default()
-        let selected = session.model
+        // 显式指定的模型不可用时必须显式失败：静默换模型会让脚本化命令执行错误的 provider
+        const selected = session.model
           ? available.find((model) => model.providerID === session.model?.providerID && model.id === session.model.id)
           : defaultModel && supported(defaultModel)
             ? defaultModel
             : available.find(supported)
-        // 回退：指定的模型不可用时，使用 catalog 中第一个可用模型
-        if (!selected && session.model) {
-          const fallbackModel = defaultModel && supported(defaultModel) ? defaultModel : available.find(supported)
-          if (fallbackModel) selected = fallbackModel
-        }
         if (!selected && session.model)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,

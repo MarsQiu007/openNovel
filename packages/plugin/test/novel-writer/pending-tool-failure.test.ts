@@ -10,6 +10,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { tmpdir } from "os"
+import { eq } from "drizzle-orm"
 import { WorldEntryTable } from "@opennovel-ai/novel-store"
 import {
   getDb,
@@ -39,6 +40,23 @@ async function insertNovel(id: string, title: string) {
     .insert(NovelTable)
     .values({ id, title, genre: "玄幻", created_at: 1, updated_at: 1 })
     .run()
+}
+
+async function insertPendingNamed(novelId: string, status: string, name: string) {
+  const id = crypto.randomUUID()
+  await getDb(projectDir)
+    .insert(PendingSettingTable)
+    .values({
+      id,
+      novel_id: novelId,
+      candidate_type: "character",
+      display_title: name,
+      payload_json: JSON.stringify({ name, description: "测试描述。" }),
+      status,
+      created_at: Date.now(),
+    })
+    .run()
+  return id
 }
 
 async function insertPending(novelId: string, status: string) {
@@ -132,5 +150,45 @@ describe("pending 工具失败类别映射", () => {
       .then(() => null, (e: Error) => e)
     expect(err?.name).toBe("param_error")
     expect(err?.message).toContain("没有受影响的章节")
+  })
+})
+
+
+describe("batch_accept_pending_settings 工具", () => {
+  test("批量接受全部成功", async () => {
+    await insertNovel("novel-batch-ok", "批量书")
+    const id1 = await insertPendingNamed("novel-batch-ok", "pending", "批量角色一")
+    const id2 = await insertPendingNamed("novel-batch-ok", "pending", "批量角色二")
+    const id3 = await insertPendingNamed("novel-batch-ok", "pending", "批量角色三")
+    const result = await tools().batch_accept_pending_settings.execute(
+      { novel_id: "novel-batch-ok", pending_ids: [id1, id2, id3] },
+      ctx(),
+    )
+    expect(result.metadata?.accepted).toBe(3)
+    const results = result.metadata?.results as { ok: boolean }[]
+    expect(results).toHaveLength(3)
+    for (const r of results) expect(r.ok).toBe(true)
+  })
+
+  test("批量接受部分失败不回滚已成功的候选", async () => {
+    await insertNovel("novel-batch-partial", "批量部分书")
+    const id1 = await insertPendingNamed("novel-batch-partial", "pending", "部分角色一")
+    const id2 = await insertPendingNamed("novel-batch-partial", "pending", "部分角色二")
+    const id3 = "no-such-id"
+    const result = await tools().batch_accept_pending_settings.execute(
+      { novel_id: "novel-batch-partial", pending_ids: [id1, id2, id3] },
+      ctx(),
+    )
+    expect(result.metadata?.accepted).toBe(2)
+    const results = result.metadata?.results as { pending_id: string; ok: boolean }[]
+    expect(results).toHaveLength(3)
+    const failed = results.filter((r) => !r.ok)
+    expect(failed).toHaveLength(1)
+    expect(failed[0]?.pending_id).toBe(id3)
+    // 已成功的候选状态应为 accepted
+    const [row1] = await getDb(projectDir).select().from(PendingSettingTable).where(eq(PendingSettingTable.id, id1)).all()
+    expect(row1?.status).toBe("accepted")
+    const [row2] = await getDb(projectDir).select().from(PendingSettingTable).where(eq(PendingSettingTable.id, id2)).all()
+    expect(row2?.status).toBe("accepted")
   })
 })

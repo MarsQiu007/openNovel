@@ -732,6 +732,25 @@ export const run: Effect.Effect<void, never, Database.Service> = lock.withPermit
       .get()
       .pipe(Effect.orDie)
     if (anchored) return
+    // fresh 数据库没有 V1 存量表：直接走 anchor 收尾，不得因表缺失报错重来；
+    // 下方 anchor 事务的 NOT IN 子查询也依赖 message 表存在，故需提前收尾。
+    const hasLegacyTable = yield* db
+      .get<{ value: number }>(sql`SELECT 1 AS value FROM sqlite_master WHERE type = 'table' AND name = 'message'`)
+      .pipe(Effect.orDie)
+    if (!hasLegacyTable) {
+      yield* db
+        .transaction(
+          (tx) =>
+            Effect.gen(function* () {
+              yield* tx.insert(DataMigrationTable).values({ name: ANCHOR, time_completed: Date.now() }).run()
+              yield* tx.delete(KVTable).where(eq(KVTable.key, CURSOR_KEY)).run()
+            }),
+          { behavior: "immediate" },
+        )
+        .pipe(Effect.orDie)
+      yield* Effect.logInfo("V1 session migration completed")
+      return
+    }
     const hasLegacy = yield* db
       .get<{ value: number }>(sql`SELECT 1 AS value FROM message LIMIT 1`)
       .pipe(Effect.orDie)
