@@ -7,7 +7,7 @@
 ## What Changes
 
 - `script/changelog.ts` 在 AI 命令结束后必须校验 `UPCOMING_CHANGELOG.md` 是否存在：文件缺失一律视为 AI 环节失败，触发 raw-changelog 机械降级，并产生与现有非零退出路径一致的显式警告（GitHub Actions warning 注解 + step summary 说明）。
-- `script/version.ts` 移除"读不到文件就写入 `No notable changes`"的静默兜底：机械降级完成后 changelog 文件仍缺失时，prepare 阶段必须以错误终止，阻止发布静默产出空内容。
+- `script/changelog.ts` 在机械降级仍未产出文件时必须以明确错误退出；`script/version.ts` 移除"读不到文件就写入 `No notable changes`"的静默兜底，作为最后一道防线终止 prepare 阶段。
 - 失败可见化不改变现有发布产物矩阵与发布流程结构（prepare → build → publish 不动）。
 
 ## Capabilities
@@ -23,7 +23,7 @@
 ## Impact
 
 - 受影响包：无 packages 运行时代码改动——仅仓库根 `script/changelog.ts`、`script/version.ts`；不触碰 `.github/workflows/release.yml` 的 job 结构与产物校验逻辑。
-- 受影响系统：GitHub Actions Release workflow 的 prepare 阶段行为——降级路径新增一次文件存在性校验与一条显式告警；机械降级彻底失败时 prepare 失败（build/publish 不再执行）。
+- 受影响系统：GitHub Actions Release workflow 的 prepare 阶段行为——降级路径新增一次文件存在性校验与一条显式告警；机械降级彻底失败时 changelog 脚本和 prepare 均失败（build/publish 不再执行）。
 - 不受影响：dev/beta preview release 的固定 test build 文案、发布说明收录规则（feat/fix 过滤、贡献者区块）、`desktop-release-publishing` 与 `release-push-resilience` 的既有要求。
 
 ## 非目标
