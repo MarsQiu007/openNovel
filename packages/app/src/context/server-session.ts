@@ -935,7 +935,7 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
       case "session.next.tool.success":
       case "session.next.step.ended": {
         const props = event.properties as { sessionID: string }
-        void fetchDiff(props.sessionID, { force: true })
+        void fetchDiff(props.sessionID, { force: true }).catch(() => {})
         break
       }
       case "session.next.agent.switched": {
