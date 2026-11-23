@@ -547,11 +547,11 @@ export function createServerSession(client: OpenNovelClient, options?: { retry?:
   const fetchMessages = async (sessionID: string, limit: number, before?: string, onAttempt?: () => void) => {
     const response = await (options?.retry ?? retry)(() => {
       onAttempt?.()
+      // 服务端拒绝 cursor 与 order 同传（order 已内嵌于 cursor），首拉才带 order
       return client.v2.session.messages({
         sessionID,
         limit,
-        order: "desc",
-        ...(before === undefined ? {} : { cursor: before }),
+        ...(before === undefined ? { order: "desc" as const } : { cursor: before }),
       })
     })
     const adapted = adaptMessages([...(response.data?.data ?? [])].reverse(), adaptContext(sessionID))

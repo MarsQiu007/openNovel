@@ -268,7 +268,7 @@ describe("server session", () => {
 
     await store.history.loadMore("child")
 
-    expect(client.requests[1]).toEqual({ sessionID: "child", limit: 200, order: "desc", cursor: "older" })
+    expect(client.requests[1]).toEqual({ sessionID: "child", limit: 200, cursor: "older" })
     expect(store.data.message.child).toEqual([
       user,
       ...assistants.map((info) => ({ ...info, parentID: user.id })),
