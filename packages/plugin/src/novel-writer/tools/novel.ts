@@ -112,6 +112,33 @@ export const novelTools = {
     },
   }),
 
+  update_novel: defineTool({
+    description:
+      "更新当前会话已绑定书籍的书籍简介（synopsis 字段），供导入整理管线的简介生成阶段与简介再生成使用。入参白名单仅 synopsis 单字段，书名/类型/内容性质不可经本工具修改；简介为可再生派生元数据，直接写入生效，重复调用覆盖旧值。当前会话未绑定书籍时报错拒绝。",
+    args: Schema.Struct({
+      synopsis: Schema.String.annotate({ description: "书籍简介（更新后完整内容，非追加）" }),
+    }),
+    async execute(args, ctx) {
+      const bound = await getNovelForSession(ctx.sessionID, ctx.directory)
+      if (!bound) throw toolFailure("param_error", "当前会话未绑定书籍，无法更新书籍简介。请先绑定书籍会话再试。")
+      const synopsis = args.synopsis.trim()
+      if (!synopsis) throw toolFailure("param_error", "书籍简介不能为空。请生成非空简介后再调用本工具。")
+      const db = getDb(ctx.directory)
+      const [existing] = await db.select().from(NovelTable).where(eq(NovelTable.id, bound)).limit(1).all()
+      if (!existing) throw toolFailure("not_found", `会话绑定的书籍（id: ${bound}）已不存在，无法更新简介。`)
+      await db
+        .update(NovelTable)
+        .set({ synopsis, updated_at: Date.now() })
+        .where(eq(NovelTable.id, bound))
+        .run()
+      return {
+        title: "update_novel",
+        output: `已更新书籍《${existing.title}》的简介（${synopsis.length} 字）。`,
+        metadata: { novelId: bound, synopsisLength: synopsis.length },
+      }
+    },
+  }),
+
   check_project_config: defineTool({
     description:
       "一键拉取项目配置文件的关键字段概览。读取 opennovel.json（model/small_model/default_agent/username/share/autoupdate/logLevel）和 .novel/config.json（name/created_at/version/writing_mode/setup_mode），供 director 路由'改模型配置/改项目名称/查看当前配置/切换写作模式'类指令使用。仅查询不修改，文件不存在或字段不在白名单时跳过。",
