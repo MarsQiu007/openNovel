@@ -7496,6 +7496,272 @@
         ]
       }
     },
+    "/api/session/{sessionID}/workrun": {
+      "get": {
+        "tags": ["sessions"],
+        "operationId": "v2.session.workrun.get",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SessionWorkRunRun"
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Retrieve the session's durable work queue with its units and statuses. Data is null when the session has no work run.",
+        "summary": "Get session work run",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.session.workrun.get({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/session/{sessionID}/workrun/pause": {
+      "post": {
+        "tags": ["sessions"],
+        "operationId": "v2.session.workrun.pause",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SessionWorkRunRun"
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Suspend the session's active work queue, preserving units and progress for later resumption. Fails with a conflict when no active run exists.",
+        "summary": "Pause session work run",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.session.workrun.pause({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/api/session/{sessionID}/workrun/resume": {
+      "post": {
+        "tags": ["sessions"],
+        "operationId": "v2.session.workrun.resume",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SessionWorkRunRun"
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Reactivate the session's paused work queue and reset its guard counters. Fails with a conflict when no paused run exists.",
+        "summary": "Resume session work run",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.session.workrun.resume({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/session/{sessionID}/message": {
       "get": {
         "tags": ["messages"],
@@ -36700,6 +36966,10 @@
             "type": "integer",
             "exclusiveMinimum": 0
           },
+          "workRunContinuationLimit": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
           "permissions": {
             "$ref": "#/components/schemas/PermissionV2Ruleset"
           }
@@ -39702,6 +39972,82 @@
           }
         },
         "required": ["id", "type", "data"],
+        "additionalProperties": false
+      },
+      "SessionWorkRunItem": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "done", "skipped", "blocked"]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": ["seq", "title", "status"],
+        "additionalProperties": false
+      },
+      "SessionWorkRunRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "paused", "complete"]
+          },
+          "progressNote": {
+            "type": "string"
+          },
+          "continuationCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "noProgressCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timeCreated": {
+            "type": "number"
+          },
+          "timeUpdated": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionWorkRunItem"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "sessionID",
+          "goal",
+          "status",
+          "progressNote",
+          "continuationCount",
+          "noProgressCount",
+          "timeCreated",
+          "timeUpdated",
+          "items"
+        ],
         "additionalProperties": false
       },
       "ModelApi": {
