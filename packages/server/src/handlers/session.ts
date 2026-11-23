@@ -1,6 +1,7 @@
 import { Location } from "@opennovel-ai/core/location"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
+import { SessionWorkRunRecovery } from "@opennovel-ai/core/session/work-run-recovery"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -331,8 +332,11 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 }),
             ),
           )
+          // location 服务：在 handle 请求上下文内 yield（sessionLocation 中间件
+          // 逐请求提供 location 单元层），group 构建期 yield 拿不到
+          const workRunRecovery = yield* SessionWorkRunRecovery.Service
           return {
-            data: yield* workrun.resume(ctx.params.sessionID).pipe(
+            data: yield* workRunRecovery.resumeWorkRun(ctx.params.sessionID).pipe(
               Effect.catchTag(
                 "SessionWorkRun.NoActiveRun",
                 () =>
