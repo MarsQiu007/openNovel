@@ -13,6 +13,7 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useTabs } from "@/context/tabs"
 import { useProviders } from "@/hooks/use-providers"
+import { showAgentSelector } from "@/context/local-agent"
 
 export function createPromptInputController(input: {
   sessionKey: Accessor<string>
@@ -24,26 +25,78 @@ export function createPromptInputController(input: {
   const sync = useSync()
   const view = layout.view(input.sessionKey)
 
-  return createMemo<PromptInputControls>(() => ({
-    agents: {
-      available: sync().data.agent,
-      options: local.agent.list().map((agent) => agent.name),
-      current: local.agent.current()?.name ?? "",
-      loading: !sync().data.controls_ready,
-      visible: local.agent.visible(),
-      select: local.agent.set,
-    },
-    model: {
-      selection: local.model,
-      paid: providers.paid().length > 0,
-      loading: !sync().data.controls_ready,
-    },
-    session: {
-      id: input.sessionID(),
-      tabs: layout.tabs(input.sessionKey),
-      reviewPanel: view.reviewPanel,
-    },
-  }))
+  // 控件就绪锁存：controls_ready 表达"初始加载完成"，但连接/子 store 在桌面 sidecar
+  // 场景会瞬时重建回落为 false，占位骨架与模型按钮随之反复互换（用户看到的"不停闪烁"）。
+  // 就绪后控件数据更新走 store 订阅通道，与该门无关，因此一旦就绪即锁存不再回落。
+  let controlsSettled = false
+  const ready = () => {
+    if (!controlsSettled && sync().data.controls_ready) controlsSettled = true
+    return controlsSettled
+  }
+
+  // 数据非空锁存（keep-previous，与查询层 keepPreviousData 同构）：控件显隐与模型按钮
+  // 文本派生自 agents/providers 数据而非 loading；桌面 sidecar 场景子 store/查询重建会让
+  // 数据瞬时翻空（选择器显隐抖动、模型解析回落「选择模型」）。新值非空即更新，空翻窗
+  // 保留上一份非空快照——真实增删照常透传，不被锁存掩盖。
+  let agentsSeen: ReturnType<typeof local.agent.list> | undefined
+  let modelSeen: ReturnType<typeof local.model.current> | undefined
+  // 会话切换（同页 params 变化）时复位锁存，避免上一会话的快照泄漏到新会话
+  let latchedSession: string | undefined
+  const stableAgentItems = () => {
+    const next = local.agent.list()
+    if (ready() && next.length > 0) agentsSeen = next
+    return agentsSeen ?? next
+  }
+  const stableAgents = () => stableAgentItems().map((agent) => agent.name)
+  const stableVisible = () => showAgentSelector(stableAgentItems())
+  const stableCurrent = () => {
+    const name = local.agent.current()?.name ?? ""
+    if (!ready() || !name) return name
+    const items = stableAgentItems()
+    return items.some((item) => item.name === name) ? name : (items[0]?.name ?? name)
+  }
+  const stablePaid = () => providers.paid().length > 0 || modelSeen !== undefined
+  const stableModelCurrent: PromptInputControls["model"]["selection"]["current"] = () => {
+    const current = local.model.current()
+    if (current) {
+      if (ready()) modelSeen = current
+      return current
+    }
+    return ready() ? modelSeen : undefined
+  }
+
+  return createMemo<PromptInputControls>(() => {
+    const sessionID = input.sessionID()
+    if (sessionID !== latchedSession) {
+      latchedSession = sessionID
+      controlsSettled = false
+      agentsSeen = undefined
+      modelSeen = undefined
+    }
+    return {
+      agents: {
+        available: sync().data.agent,
+        options: stableAgents(),
+        current: stableCurrent(),
+        loading: !ready(),
+        visible: stableVisible(),
+        select: local.agent.set,
+      },
+      model: {
+        selection: {
+          ...local.model,
+          current: stableModelCurrent,
+        } as PromptInputControls["model"]["selection"],
+        paid: stablePaid(),
+        loading: !ready(),
+      },
+      session: {
+        id: sessionID,
+        tabs: layout.tabs(input.sessionKey),
+        reviewPanel: view.reviewPanel,
+      },
+    }
+  })
 }
 
 export function createPromptProjectControls() {

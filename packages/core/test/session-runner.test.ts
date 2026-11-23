@@ -34,6 +34,7 @@ import { SessionExecution } from "@opennovel-ai/core/session/execution"
 import { SessionRunCoordinator } from "@opennovel-ai/core/session/run-coordinator"
 import { SessionRunner } from "@opennovel-ai/core/session/runner"
 import * as SessionRunnerLLM from "@opennovel-ai/core/session/runner/llm"
+import { MAX_STEPS_PROMPT } from "@opennovel-ai/core/session/runner/max-steps"
 import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
 import { ToolRegistry } from "@opennovel-ai/core/tool/registry"
 import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
@@ -50,6 +51,7 @@ import {
 } from "@opennovel-ai/core/session/sql"
 import { SessionStore } from "@opennovel-ai/core/session/store"
 import { SessionTitle } from "@opennovel-ai/core/session/title"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import { SystemContext } from "@opennovel-ai/core/system-context"
 import { SystemContextRegistry } from "@opennovel-ai/core/system-context/registry"
 import { SkillGuidance } from "@opennovel-ai/core/skill/guidance"
@@ -59,7 +61,7 @@ import { Location } from "@opennovel-ai/core/location"
 import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from "effect"
 import * as TestClock from "effect/testing/TestClock"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
 
 const requests: LLMRequest[] = []
@@ -276,6 +278,7 @@ const it = testEffect(
       QuestionV2.node,
       SessionProjector.node,
       SessionStore.node,
+      SessionWorkRun.node,
       ApplicationTools.node,
       AgentV2.node,
       ToolRegistry.node,
@@ -3718,6 +3721,284 @@ describe("SessionRunnerLLM", () => {
       expect(requests).toHaveLength(1)
       // 归因 system 段只含专用 agent 提示词与脱敏证据：Location context source 被屏蔽
       expect(JSON.stringify(requests[0]?.system)).not.toContain("Initial context")
+    }),
+  )
+
+  const queueInputRows = Effect.gen(function* () {
+    const { db } = yield* Database.Service
+    return yield* db
+      .select({ id: SessionInputTable.id })
+      .from(SessionInputTable)
+      .where(and(eq(SessionInputTable.session_id, sessionID), eq(SessionInputTable.delivery, "queue")))
+      .all()
+      .pipe(Effect.orDie)
+  })
+
+  it.effect("活动队列回合 system 注入续跑约束，熔断挂起当回合解除", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-inject-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-inject-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-inject-3", ["继续三"]).completeEvents,
+        fragmentFixture("text", "text-inject-4", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(4)
+      // 回合 1-4：active 队列 prepare 注入禁纯文本停机与复述两条约束，baseline 持续存在；
+      // 第 4 次守卫在回合 4 结算处熔断，prepare 时队列仍 active
+      for (const request of requests)
+        expect(JSON.stringify(request.system)).toContain("禁止以纯文本结束回合")
+      // 熔断转 paused 并同步失效 epoch：后续普通对话重新生成干净 baseline，约束消失
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+      requests.length = 0
+      responses = [fragmentFixture("text", "text-inject-5", ["普通回复"]).completeEvents]
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "队列挂起了吗" }), resume: false })
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      const finalSystem = JSON.stringify(requests[0]?.system)
+      expect(finalSystem).not.toContain("禁止以纯文本结束回合")
+      expect(finalSystem).not.toContain("【工作队列已停止】")
+    }),
+  )
+
+  it.effect("守卫在纯文本回合合成续跑指令，无进展熔断后放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-guard-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-guard-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-guard-3", ["继续三"]).completeEvents,
+        fragmentFixture("text", "text-guard-4", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+
+      // 三次守卫续跑后第四次守卫触发无进展熔断转挂起：四个回合、三次续跑指令提升；
+      // 提升后的续跑指令是持久历史消息，后续回合的请求全部可见
+      expect(requests).toHaveLength(4)
+      expect(userTexts(requests[0]!)).toEqual(["开始审查"])
+      expect(userTexts(requests[1]!)).toEqual(["开始审查", SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT])
+      expect(userTexts(requests[3]!)).toEqual([
+        "开始审查",
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+      ])
+      expect(yield* queueInputRows).toHaveLength(3)
+      // 续跑指令经 PromptAdmitted durable 事件落库，重放可追溯（用户入口 1 条 + 守卫续跑 3 条）
+      const { db } = yield* Database.Service
+      expect(
+        yield* db
+          .select({ type: EventTable.type })
+          .from(EventTable)
+          .where(eq(EventTable.type, "session.next.prompt.admitted.1"))
+          .all()
+          .pipe(Effect.orDie),
+      ).toHaveLength(4)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+    }),
+  )
+
+  // 用独立会话隔离：主 sessionID 已被压缩中断用例残留 queued 压缩操作，
+  // drain 会捡起残留操作挂在本用例的 streamGate 上
+  it.effect("用户打断把 active 队列转挂起，恢复后读回一致", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      const interruptSessionID = SessionV2.ID.make("ses_runner_interrupt")
+      yield* insertSession(interruptSessionID)
+      yield* workrun.create({ sessionID: interruptSessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({
+        sessionID: interruptSessionID,
+        prompt: Prompt.make({ text: "开始审查" }),
+        resume: false,
+      })
+      const gate = yield* Deferred.make<void>()
+      streamGate = gate
+      requests.length = 0
+      const runFiber = yield* session.resume(interruptSessionID).pipe(Effect.forkChild)
+      while (requests.length < 1) yield* Effect.yieldNow
+
+      // 用户打断进行中回合：active 队列经 run 的 onInterrupt 转挂起，队列数据保留
+      yield* session.interrupt(interruptSessionID)
+      expect(yield* Fiber.await(runFiber)).toMatchObject({ _tag: "Failure" })
+      streamGate = undefined
+      const paused = yield* workrun.current(interruptSessionID)
+      expect(paused?.status).toBe("paused")
+      expect(paused?.goal).toBe("逐章审查全书")
+      expect(paused?.items.map((item) => item.status)).toEqual(["pending", "pending"])
+
+      // 恢复挂起队列：转 active 且守卫计数清零，持久化读回一致
+      const resumed = yield* workrun.resume(interruptSessionID)
+      expect(resumed.status).toBe("active")
+      expect(resumed.continuationCount).toBe(0)
+      expect(resumed.noProgressCount).toBe(0)
+      const reread = yield* workrun.current(interruptSessionID)
+      expect(reread?.status).toBe("active")
+      expect(reread?.goal).toBe("逐章审查全书")
+      expect(reread?.items.map((item) => item.status)).toEqual(["pending", "pending"])
+    }),
+  )
+
+  it.effect("无队列会话守卫不引入任何行为", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "普通提问" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-plain-guard", ["回答"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect(yield* queueInputRows).toHaveLength(0)
+    }),
+  )
+
+  it.effect("provider 失败回合守卫放行不续跑", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = [LLMEvent.providerError({ message: "provider failed" })]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("active")
+    }),
+  )
+
+  it.effect("blocked-only 队列守卫放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      const run = yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* workrun.claimNext(run.id)
+      yield* workrun.blockItem(run.id, 0, "前置缺失")
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-blocked-guard", ["停机"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("active")
+    }),
+  )
+
+  it.effect("挂起队列守卫放行停机", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* workrun.pause(sessionID)
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+      requests.length = 0
+      response = fragmentFixture("text", "text-paused-guard", ["停机"]).completeEvents
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(1)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+    }),
+  )
+
+  it.effect("步数到限回合照常触发守卫续跑，配额随续跑提升重置", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const agent = yield* AgentV2.Service
+      yield* agent.transform((editor) =>
+        editor.update(AgentV2.ID.make("build"), (selected) => {
+          selected.steps = 1
+          selected.mode = "primary"
+        }),
+      )
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["a"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始" }), resume: false })
+
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-limit-1", ["总结一"]).completeEvents,
+        fragmentFixture("text", "text-limit-2", ["总结二"]).completeEvents,
+        fragmentFixture("text", "text-limit-3", ["总结三"]).completeEvents,
+        fragmentFixture("text", "text-limit-4", ["总结四"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+
+      // steps=1 的每个回合都是到限总结形态（无工具、MAX_STEPS 提示），守卫照常续跑三次后熔断
+      expect(requests).toHaveLength(4)
+      for (const request of requests) {
+        expect(request.tools).toEqual([])
+        expect(request.messages.at(-1)?.content).toEqual([{ type: "text", text: MAX_STEPS_PROMPT }])
+      }
+      expect(yield* queueInputRows).toHaveLength(3)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+    }),
+  )
+
+  it.effect("守卫续跑上限经 agent 配置生效，超限挂起恢复后计数重置续跑", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const agent = yield* AgentV2.Service
+      yield* agent.transform((editor) =>
+        editor.update(AgentV2.ID.make("build"), (selected) => {
+          selected.workRunContinuationLimit = 2
+          selected.mode = "primary"
+        }),
+      )
+      const session = yield* SessionV2.Service
+      const workrun = yield* SessionWorkRun.Service
+      yield* workrun.create({ sessionID, goal: "逐章审查全书", items: ["第 1 章", "第 2 章"] })
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "开始审查" }), resume: false })
+
+      // 上限 2：两次守卫续跑后第三次守卫熔断（无进展计数 2 < 3，命中的是续跑上限而非无进展；
+      // 若 per-agent 配置未生效，默认 100 下会走到第 4 回合由无进展熔断）
+      requests.length = 0
+      responses = [
+        fragmentFixture("text", "text-agent-limit-1", ["继续一"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-2", ["继续二"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-3", ["仍空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(3)
+      expect(yield* queueInputRows).toHaveLength(2)
+      expect((yield* workrun.current(sessionID))?.status).toBe("paused")
+
+      // 恢复重置计数：守卫照常续跑，再次达到上限转挂起
+      const resumed = yield* workrun.resume(sessionID)
+      expect(resumed.continuationCount).toBe(0)
+      expect(resumed.noProgressCount).toBe(0)
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "恢复后继续" }), resume: false })
+      responses = [
+        fragmentFixture("text", "text-agent-limit-4", ["再继续一"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-5", ["再继续二"]).completeEvents,
+        fragmentFixture("text", "text-agent-limit-6", ["又空转"]).completeEvents,
+      ]
+      yield* session.resume(sessionID)
+      expect(requests).toHaveLength(6)
+      expect(userTexts(requests[3]!)).toEqual([
+        "开始审查",
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        "恢复后继续",
+      ])
+      expect(yield* queueInputRows).toHaveLength(4)
+      const pausedAgain = yield* workrun.current(sessionID)
+      expect(pausedAgain?.status).toBe("paused")
+      expect(pausedAgain?.continuationCount).toBe(2)
     }),
   )
 })

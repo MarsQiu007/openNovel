@@ -40,6 +40,7 @@ const agentKeys = new Set([
   "color",
   "category",
   "steps",
+  "workRunContinuationLimit",
   "disabled",
   "permissions",
 ])
@@ -119,6 +120,8 @@ export const Plugin = define({
               if (item.color !== undefined) agent.color = item.color
               if (item.category !== undefined) agent.category = item.category
               if (item.steps !== undefined) agent.steps = item.steps
+              if (item.workRunContinuationLimit !== undefined)
+                agent.workRunContinuationLimit = item.workRunContinuationLimit
               if (item.permissions !== undefined) {
                 agent.permissions.push(...expandPermissions(item.permissions, global.home))
               }

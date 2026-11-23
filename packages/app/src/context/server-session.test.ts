@@ -268,7 +268,7 @@ describe("server session", () => {
 
     await store.history.loadMore("child")
 
-    expect(client.requests[1]).toEqual({ sessionID: "child", limit: 200, order: "desc", cursor: "older" })
+    expect(client.requests[1]).toEqual({ sessionID: "child", limit: 200, cursor: "older" })
     expect(store.data.message.child).toEqual([
       user,
       ...assistants.map((info) => ({ ...info, parentID: user.id })),
@@ -1738,5 +1738,61 @@ describe("server session V2 events", () => {
     expect(store.data.session_status.stale).toEqual({ type: "idle" })
     expect(store.data.session_status.retry).toEqual({ type: "retry", attempt: 1, message: "boom", next: 50 })
     expect(store.data.session_status.fresh).toEqual({ type: "busy" })
+  })
+
+  test("swallows diff failure driven by tool.success events", async () => {
+    // throwOnError client 在 HTTP 错误时抛 ApiError 对象；retry 判为非瞬时立即重抛。
+    // 事件路径 fire-and-forget 必须兜住（同文件 revert.committed 分支的 .catch(() => {}) 约定），
+    // 否则活跃会话每个 tool.success/step.ended 事件刷一次未处理拒绝（桌面端实测 ~14/s 刷屏）。
+    // 进程级监听器只统计本用例注入的错误：共享 bun 测试进程内其他计划的
+    // fire-and-forget 拒绝与本断言无关，不得让本用例假红
+    const marker = "unhandled-rejection-guard"
+    const rejected: unknown[] = []
+    const onUnhandled = (reason: unknown) => {
+      if (
+        typeof reason === "object" &&
+        reason !== null &&
+        (reason as { message?: unknown }).message === marker
+      )
+        rejected.push(reason)
+    }
+    process.on("unhandledRejection", onUnhandled)
+    const client = {
+      v2: {
+        session: {
+          get: async () => ({ data: undefined }),
+          messages: async () => response(),
+          diff: async () => {
+            throw { name: "ApiError", status: 500, message: "unhandled-rejection-guard" }
+          },
+          todo: async () => ({ data: { data: [] } }),
+          active: async () => ({ data: { data: {} } }),
+        },
+      },
+    } as unknown as OpenNovelClient
+    const store = createServerSession(client)
+
+    try {
+      store.apply({
+        type: "session.next.tool.success",
+        properties: {
+          timestamp: 1,
+          sessionID: "root",
+          tool: "read",
+          content: [],
+          structured: {},
+          callID: "call-1",
+          assistantMessageID: "msg-1",
+        },
+      })
+      store.apply({
+        type: "session.next.step.ended",
+        properties: { timestamp: 2, sessionID: "root" },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    } finally {
+      process.off("unhandledRejection", onUnhandled)
+    }
+    expect(rejected).toEqual([])
   })
 })

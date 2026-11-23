@@ -1,5 +1,7 @@
 import { Location } from "@opennovel-ai/core/location"
 import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
+import { SessionWorkRunRecovery } from "@opennovel-ai/core/session/work-run-recovery"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -20,6 +22,7 @@ const DefaultSessionHistoryLimit = 50
 export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handlers) =>
   Effect.gen(function* () {
     const session = yield* SessionV2.Service
+    const workrun = yield* SessionWorkRun.Service
 
     return handlers
       .handle(
@@ -266,6 +269,80 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                   new SessionNotFoundError({
                     sessionID: error.sessionID,
                     message: `Session not found: ${error.sessionID}`,
+                  }),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
+        "session.workrun.get",
+        Effect.fn(function* (ctx) {
+          const data = yield* session.get(ctx.params.sessionID).pipe(
+            Effect.catchTag(
+              "Session.NotFoundError",
+              (error) =>
+                new SessionNotFoundError({
+                  sessionID: error.sessionID,
+                  message: `Session not found: ${error.sessionID}`,
+                }),
+            ),
+            Effect.andThen(workrun.current(ctx.params.sessionID)),
+          )
+          return { data: data ?? null }
+        }),
+      )
+      .handle(
+        "session.workrun.pause",
+        Effect.fn(function* (ctx) {
+          yield* session.get(ctx.params.sessionID).pipe(
+            Effect.catchTag(
+              "Session.NotFoundError",
+              (error) =>
+                new SessionNotFoundError({
+                  sessionID: error.sessionID,
+                  message: `Session not found: ${error.sessionID}`,
+                }),
+            ),
+          )
+          return {
+            data: yield* workrun.pause(ctx.params.sessionID).pipe(
+              Effect.catchTag(
+                "SessionWorkRun.NoActiveRun",
+                () =>
+                  new ConflictError({
+                    message: `No active work run to pause for session: ${ctx.params.sessionID}`,
+                    resource: "work_run",
+                  }),
+              ),
+            ),
+          }
+        }),
+      )
+      .handle(
+        "session.workrun.resume",
+        Effect.fn(function* (ctx) {
+          yield* session.get(ctx.params.sessionID).pipe(
+            Effect.catchTag(
+              "Session.NotFoundError",
+              (error) =>
+                new SessionNotFoundError({
+                  sessionID: error.sessionID,
+                  message: `Session not found: ${error.sessionID}`,
+                }),
+            ),
+          )
+          // location 服务：在 handle 请求上下文内 yield（sessionLocation 中间件
+          // 逐请求提供 location 单元层），group 构建期 yield 拿不到
+          const workRunRecovery = yield* SessionWorkRunRecovery.Service
+          return {
+            data: yield* workRunRecovery.resumeWorkRun(ctx.params.sessionID).pipe(
+              Effect.catchTag(
+                "SessionWorkRun.NoActiveRun",
+                () =>
+                  new ConflictError({
+                    message: `No paused work run to resume for session: ${ctx.params.sessionID}`,
+                    resource: "work_run",
                   }),
               ),
             ),

@@ -22,6 +22,7 @@ export class Info extends Schema.Class<Info>("ConfigV2.Agent")({
   color: Color.pipe(Schema.optional),
   category: Category.pipe(Schema.optional),
   steps: PositiveInt.pipe(Schema.optional),
+  workRunContinuationLimit: PositiveInt.pipe(Schema.optional),
   disabled: Schema.Boolean.pipe(Schema.optional),
   permissions: Permission.Ruleset.pipe(Schema.optional),
 }) {}

@@ -192,7 +192,7 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
       config.onV2Messages?.({ sessionID, cursor: before, limit, phase: "start" })
       await config.beforeV2MessagesResponse?.({ sessionID, cursor: before })
       const all = config.v2Messages?.(sessionID) ?? []
-      const ordered = url.searchParams.get("order") === "desc" ? [...all].reverse() : all
+      const ordered = url.searchParams.get("order") !== "asc" ? [...all].reverse() : all
       const start = before ? ordered.findIndex((item) => item.id === before) + 1 : 0
       const pageItems = ordered.slice(start, start + limit)
       const last = pageItems[pageItems.length - 1]

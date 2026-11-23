@@ -30,6 +30,7 @@ import { SessionExecution } from "./session/execution"
 import { SessionExecutionLocal } from "./session/execution/local"
 import { SessionCompactionCandidate } from "./session/compaction-candidate"
 import { SessionCompactionRecovery } from "./session/compaction-recovery"
+import { SessionWorkRunRecovery } from "./session/work-run-recovery"
 import * as SessionRunnerLLM from "./session/runner/llm"
 import { SessionRunnerModel } from "./session/runner/model"
 import { SessionTodo } from "./session/todo"
@@ -88,6 +89,8 @@ export const locationServices = LayerNode.group([
   SessionWatermark.node,
   SessionCompactionCandidate.node,
   SessionCompactionRecovery.node,
+  SessionWorkRunRecovery.node,
+  SessionWorkRunRecovery.reconcileNode,
 ])
 
 export type LocationServices = LayerNode.Output<typeof locationServices>

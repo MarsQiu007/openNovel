@@ -120,11 +120,11 @@ export async function exportSessionJson(input: {
       const all = []
       let cursor: string | undefined
       for (;;) {
+        // 服务端拒绝 cursor 与 order 同传（order 已内嵌于 cursor），首拉才带 order
         const page = await input.client.v2.session.messages({
           sessionID: input.session.id,
           limit: 200,
-          order: "desc",
-          ...(cursor === undefined ? {} : { cursor }),
+          ...(cursor === undefined ? { order: "desc" as const } : { cursor }),
         })
         all.push(...(page.data?.data ?? []))
         const next = page.data?.cursor.next

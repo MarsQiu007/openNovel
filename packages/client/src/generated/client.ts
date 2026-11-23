@@ -49,6 +49,12 @@ import type {
   SessionsInterruptOutput,
   SessionsMessageInput,
   SessionsMessageOutput,
+  SessionsWorkrunInput,
+  SessionsWorkrunOutput,
+  SessionsPauseInput,
+  SessionsPauseOutput,
+  SessionsResumeInput,
+  SessionsResumeOutput,
   MessagesListInput,
   MessagesListOutput,
   ModelsListInput,
@@ -875,6 +881,39 @@ export function make(options: ClientOptions) {
             path: `/api/session/${encodeURIComponent(input.sessionID)}/message/${encodeURIComponent(input.messageID)}`,
             successStatus: 200,
             declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      workrun: (input: SessionsWorkrunInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsWorkrunOutput }>(
+          {
+            method: "GET",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/workrun`,
+            successStatus: 200,
+            declaredStatuses: [404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      pause: (input: SessionsPauseInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsPauseOutput }>(
+          {
+            method: "POST",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/workrun/pause`,
+            successStatus: 200,
+            declaredStatuses: [409, 404, 400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ).then((value) => value.data),
+      resume: (input: SessionsResumeInput, requestOptions?: RequestOptions) =>
+        request<{ readonly data: SessionsResumeOutput }>(
+          {
+            method: "POST",
+            path: `/api/session/${encodeURIComponent(input.sessionID)}/workrun/resume`,
+            successStatus: 200,
+            declaredStatuses: [409, 404, 400, 401],
             empty: false,
           },
           requestOptions,

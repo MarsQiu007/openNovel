@@ -23,6 +23,7 @@ import { Location } from "@opennovel-ai/schema/location"
 import { Revert, FileDiff } from "@opennovel-ai/schema/revert"
 import { SessionEvent } from "@opennovel-ai/schema/session-event"
 import { SessionTodo } from "@opennovel-ai/schema/session-todo"
+import { SessionWorkRun } from "@opennovel-ai/schema/session-work-run"
 
 const SessionsQueryFields = {
   workspace: Workspace.ID.pipe(Schema.optional),
@@ -486,6 +487,54 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, IL extend
             identifier: "v2.session.message",
             summary: "Get session message",
             description: "Retrieve one projected message owned by the Session.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.get("session.workrun.get", "/api/session/:sessionID/workrun", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: Schema.NullOr(SessionWorkRun.Run) }),
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.workrun.get",
+            summary: "Get session work run",
+            description:
+              "Retrieve the session's durable work queue with its units and statuses. Data is null when the session has no work run.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.post("session.workrun.pause", "/api/session/:sessionID/workrun/pause", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: SessionWorkRun.Run }),
+        error: [ConflictError, SessionNotFoundError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.workrun.pause",
+            summary: "Pause session work run",
+            description:
+              "Suspend the session's active work queue, preserving units and progress for later resumption. Fails with a conflict when no active run exists.",
+          }),
+        ),
+    )
+    .add(
+      HttpApiEndpoint.post("session.workrun.resume", "/api/session/:sessionID/workrun/resume", {
+        params: { sessionID: Session.ID },
+        success: Schema.Struct({ data: SessionWorkRun.Run }),
+        error: [ConflictError, SessionNotFoundError],
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.workrun.resume",
+            summary: "Resume session work run",
+            description:
+              "Reactivate the session's paused work queue and reset its guard counters. Fails with a conflict when no paused run exists.",
           }),
         ),
     )

@@ -54,6 +54,24 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   useCommands(props)
   useEditHandler(props)
 
+  // modelControl 记忆化为稳定元素身份：上层 createPromptInputController memo 每次重算都会
+  // 重建 controls 对象，若此处每次渲染都新建 JSX 元素，session-ui 的
+  // <Show when={props.modelControl}> 可能因元素身份抖动反复卸载重挂模型按钮（闪烁）。
+  // 记忆化后元素身份跨 memo 重算保持稳定，按钮不因派生数据更新而重建。
+  const modelControl = createMemo(() => (
+    <PromptInputV2ModelControl
+      loading={props.controller.model.loading}
+      paid={props.controller.model.paid}
+      title={language.t("command.model.choose")}
+      keybind={command.keybindParts("model.choose")}
+      model={props.controller.model.selection}
+      providerID={props.controller.model.selection.current()?.provider?.id}
+      modelName={props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
+      onClose={props.controller.restoreFocus}
+      onUnpaidClick={() => dialog.show(() => <DialogSelectModelUnpaidV2 model={props.controller.model.selection} />)}
+    />
+  ))
+
   return (
     <div class="flex flex-col gap-3">
       <PromptInputV2
@@ -63,21 +81,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         class={props.class}
         attachKeybind={command.keybindParts("file.attach")}
         attachShortcut={command.keybind("file.attach")}
-        modelControl={
-          <PromptInputV2ModelControl
-            loading={props.controller.model.loading}
-            paid={props.controller.model.paid}
-            title={language.t("command.model.choose")}
-            keybind={command.keybindParts("model.choose")}
-            model={props.controller.model.selection}
-            providerID={props.controller.model.selection.current()?.provider?.id}
-            modelName={props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
-            onClose={props.controller.restoreFocus}
-            onUnpaidClick={() =>
-              dialog.show(() => <DialogSelectModelUnpaidV2 model={props.controller.model.selection} />)
-            }
-          />
-        }
+        modelControl={modelControl()}
       />
     </div>
   )

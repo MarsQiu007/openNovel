@@ -32,6 +32,7 @@ function directoryState() {
     },
     session_diff: {},
     todo: {},
+    workrun: {},
     permission: {},
     question: {},
     mcp_ready: true,

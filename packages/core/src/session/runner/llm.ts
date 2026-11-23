@@ -34,10 +34,13 @@ import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
 import { SessionMessage } from "../message"
+import { Prompt } from "../prompt"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTitle } from "../title"
 import { SessionWatermark } from "../watermark"
+import { SessionWorkRun } from "../work-run"
+import { WorkRunContext } from "../work-run-context"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
@@ -97,10 +100,13 @@ import { llmClient } from "../../effect/app-node-platform"
  * explicit loop starts the next provider turn after local settlement. Configured agent step limits bound the loop.
  */
 
+// 守卫阀门默认值（design D5：续跑上限 100，无进展熔断 3）；续跑上限可经 agent 配置
+// workRunContinuationLimit 按 agent 覆盖，无进展熔断固定不配置化
+export const WORK_RUN_GUARD_LIMITS = { continuationLimit: 100, noProgressLimit: 3 }
+
 const layer = Layer.effect(
   Service,
-  Effect.gen(function* () {
-    const events = yield* EventV2.Service
+  Effect.gen(function* () {    const events = yield* EventV2.Service
     const llm = yield* LLMClient.Service
     const agents = yield* AgentV2.Service
     const pluginBoot = yield* PluginBoot.Service
@@ -116,6 +122,7 @@ const layer = Layer.effect(
     const snapshots = yield* Snapshot.Service
     const watermarks = yield* SessionWatermark.Service
     const db = (yield* Database.Service).db
+    const workrun = yield* SessionWorkRun.Service
     const compaction = SessionCompaction.make({ events, llm, config: yield* config.entries() })
     const candidates = yield* SessionCompactionCandidate.Service
     const getSession = Effect.fn("SessionRunner.getSession")(function* (sessionID: SessionSchema.ID) {
@@ -195,7 +202,9 @@ const layer = Layer.effect(
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
     // purpose 会话（工具改进归因等后台会话）屏蔽 Location 级 context source：归因请求的
-    // system 段只含专用 agent 提示词与脱敏证据，不携带原书设定、灵魂段、注入快照或引用清单
+    // system 段只含专用 agent 提示词与脱敏证据，不携带原书设定、灵魂段、注入快照或引用清单。
+    // WorkRun 条件源仅在该会话存在 active 工作队列时组合（无队列组合 empty，快照无 key 不注入），
+    // purpose 会话自身不建队列、current 查询按其 sessionID 落空，天然不受影响
     const loadSystemContext = (sessionID: SessionSchema.ID, agent: AgentV2.Selection) =>
       Effect.all(
         [
@@ -204,6 +213,11 @@ const layer = Layer.effect(
             : Effect.succeed(SystemContext.empty),
           skillGuidance.load(agent),
           referenceGuidance.load(),
+          workrun.current(sessionID).pipe(
+            Effect.map((run) =>
+              run !== undefined && run.status === "active" ? WorkRunContext.forRun(run) : SystemContext.empty,
+            ),
+          ),
         ],
         { concurrency: "unbounded" },
       ).pipe(Effect.map(SystemContext.combine))
@@ -435,6 +449,21 @@ const layer = Layer.effect(
           if (stream._tag === "Failure") return yield* Effect.failCause(stream.cause)
           if (settled._tag === "Failure" && Cause.hasInterrupts(settled.cause))
             return yield* Effect.failCause(settled.cause)
+          // 纯文本回合守卫（design D3）：正常结算且无工具续跑时判定工作队列是否续跑。
+          // provider 失败结算已被 hasProviderError 排除；压缩跳过与中断路径提前 return 不经过此处
+          if (!needsContinuation && !publisher.hasProviderError()) {
+            const decision = yield* workrun.guardDecide(sessionID, {
+              continuationLimit: agent.info?.workRunContinuationLimit ?? WORK_RUN_GUARD_LIMITS.continuationLimit,
+              noProgressLimit: WORK_RUN_GUARD_LIMITS.noProgressLimit,
+            })
+            if (decision.action === "continue")
+              yield* SessionInput.admit(db, events, {
+                id: SessionMessage.ID.create(),
+                sessionID,
+                prompt: Prompt.fromUserMessage({ text: SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT }),
+                delivery: "queue",
+              })
+          }
           return { needsContinuation: !publisher.hasProviderError() && needsContinuation, step: currentStep }
         }),
       )
@@ -593,20 +622,32 @@ const layer = Layer.effect(
       yield* drainQueuedCompactions(input.sessionID)
       let promotion: SessionInput.Delivery | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
       let shouldRun = input.force || hasSteer || hasQueue
-      while (shouldRun) {
-        let needsContinuation = true
-        let step = 1
-        while (needsContinuation) {
-          const result = yield* runTurn(input.sessionID, promotion, step)
-          yield* publishWatermark(input.sessionID)
-          needsContinuation = result.needsContinuation
-          step = result.step + 1
-          promotion = "steer"
-          if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+      yield* Effect.gen(function* () {
+        while (shouldRun) {
+          let needsContinuation = true
+          let step = 1
+          while (needsContinuation) {
+            const result = yield* runTurn(input.sessionID, promotion, step)
+            yield* publishWatermark(input.sessionID)
+            needsContinuation = result.needsContinuation
+            step = result.step + 1
+            promotion = "steer"
+            if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+          }
+          shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
+          promotion = shouldRun ? "queue" : undefined
         }
-        shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
-        promotion = shouldRun ? "queue" : undefined
-      }
+      }).pipe(
+        // 用户打断沿用 interrupt 所有权链（design D3）：active 队列转挂起保留数据，
+        // 无活动队列的中断是 no-op；恢复时 resume 清守卫计数后守卫照常续跑
+        Effect.onInterrupt(() =>
+          Effect.uninterruptible(
+            workrun.pause(input.sessionID).pipe(
+              Effect.catchTag("SessionWorkRun.NoActiveRun", () => Effect.void),
+            ),
+          ),
+        ),
+      )
     })
 
     return Service.of({
@@ -636,5 +677,6 @@ export const node = makeLocationNode({
     PluginBoot.node,
     SessionWatermark.node,
     SessionCompactionCandidate.node,
+    SessionWorkRun.node,
   ],
 })

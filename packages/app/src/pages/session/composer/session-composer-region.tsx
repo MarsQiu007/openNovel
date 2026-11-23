@@ -6,6 +6,7 @@ import { SessionQuestionDock } from "@/pages/session/composer/session-question-d
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
+import { SessionWorkRunDock } from "@/pages/session/composer/session-workrun-dock"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
 export function SessionComposerRegion(props: {
@@ -60,6 +61,17 @@ export function SessionComposerRegion(props: {
                 }}
               />
             </div>
+          )}
+        </Show>
+
+        <Show when={controller.state.workrun()}>
+          {(run) => (
+            <SessionWorkRunDock
+              run={run()}
+              busy={controller.state.workrunBusy()}
+              onPause={controller.state.pauseWorkRun}
+              onResume={controller.state.resumeWorkRun}
+            />
           )}
         </Show>
 
