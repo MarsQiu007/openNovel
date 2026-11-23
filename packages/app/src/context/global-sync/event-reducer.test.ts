@@ -94,6 +94,7 @@ const baseState = (input: Partial<State> = {}) =>
     vcs: undefined,
     limit: 10,
     message: {},
+    workrun: {},
     part: {},
     part_text_accum_delta: {},
     ...input,

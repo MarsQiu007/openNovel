@@ -457,11 +457,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       vcsCache: children.vcsCache.get(key),
       loadLsp: () => {
         if (!children.active(key)) return
-        void queryClient.fetchQuery(queryOptionsApi.lsp(key))
+        void queryClient.fetchQuery(queryOptionsApi.lsp(key)).catch(() => {})
       },
       loadReferences: () => {
         if (!children.active(key)) return
-        void queryClient.fetchQuery(queryOptionsApi.references(key))
+        void queryClient.fetchQuery(queryOptionsApi.references(key)).catch(() => {})
       },
     })
   })

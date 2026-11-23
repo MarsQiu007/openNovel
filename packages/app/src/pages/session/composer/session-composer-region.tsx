@@ -64,10 +64,10 @@ export function SessionComposerRegion(props: {
           )}
         </Show>
 
-        <Show when={controller.state.workrun()} keyed>
+        <Show when={controller.state.workrun()}>
           {(run) => (
             <SessionWorkRunDock
-              run={run}
+              run={run()}
               busy={controller.state.workrunBusy()}
               onPause={controller.state.pauseWorkRun}
               onResume={controller.state.resumeWorkRun}

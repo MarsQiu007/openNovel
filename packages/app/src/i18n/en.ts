@@ -756,6 +756,8 @@ export const dict = {
   "session.workrun.status.complete": "Completed · {{done}}/{{total}}",
   "session.workrun.pause": "Pause queue",
   "session.workrun.resume": "Resume queue",
+  "session.workrun.collapse": "Collapse queue",
+  "session.workrun.expand": "Expand queue",
   "session.todo.collapse": "Collapse",
   "session.todo.expand": "Expand",
   "session.todo.progress": "{{done}} of {{total}} todos completed",

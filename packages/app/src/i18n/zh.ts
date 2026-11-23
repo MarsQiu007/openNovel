@@ -721,6 +721,8 @@ export const dict = {
   "session.workrun.status.complete": "已完成 · {{done}}/{{total}}",
   "session.workrun.pause": "暂停队列",
   "session.workrun.resume": "恢复队列",
+  "session.workrun.collapse": "收起队列",
+  "session.workrun.expand": "展开队列",
   "session.todo.collapse": "折叠",
   "session.todo.expand": "展开",
   "session.question.minimize": "最小化问题",
