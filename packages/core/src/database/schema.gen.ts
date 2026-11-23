@@ -385,14 +385,16 @@ export default {
         );
       `)
       yield* tx.run(`
-        CREATE TABLE \`world_entries\` (
+        CREATE TABLE \`work_run_item\` (
           \`id\` text PRIMARY KEY,
-          \`novel_id\` text NOT NULL,
-          \`category\` text DEFAULT '' NOT NULL,
+          \`run_id\` text NOT NULL,
+          \`seq\` integer NOT NULL,
           \`title\` text NOT NULL,
-          \`content\` text DEFAULT '' NOT NULL,
-          \`created_at\` integer NOT NULL,
-          CONSTRAINT \`fk_world_entries_novel_id_novels_id_fk\` FOREIGN KEY (\`novel_id\`) REFERENCES \`novels\`(\`id\`) ON DELETE CASCADE
+          \`status\` text NOT NULL,
+          \`note\` text,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL,
+          CONSTRAINT \`fk_work_run_item_run_id_work_run_id_fk\` FOREIGN KEY (\`run_id\`) REFERENCES \`work_run\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`
@@ -410,16 +412,14 @@ export default {
         );
       `)
       yield* tx.run(`
-        CREATE TABLE \`work_run_item\` (
+        CREATE TABLE \`world_entries\` (
           \`id\` text PRIMARY KEY,
-          \`run_id\` text NOT NULL,
-          \`seq\` integer NOT NULL,
+          \`novel_id\` text NOT NULL,
+          \`category\` text DEFAULT '' NOT NULL,
           \`title\` text NOT NULL,
-          \`status\` text NOT NULL,
-          \`note\` text,
-          \`time_created\` integer NOT NULL,
-          \`time_updated\` integer NOT NULL,
-          CONSTRAINT \`fk_work_run_item_run_id_work_run_id_fk\` FOREIGN KEY (\`run_id\`) REFERENCES \`work_run\`(\`id\`) ON DELETE CASCADE
+          \`content\` text DEFAULT '' NOT NULL,
+          \`created_at\` integer NOT NULL,
+          CONSTRAINT \`fk_world_entries_novel_id_novels_id_fk\` FOREIGN KEY (\`novel_id\`) REFERENCES \`novels\`(\`id\`) ON DELETE CASCADE
         );
       `)
       yield* tx.run(`CREATE UNIQUE INDEX \`event_aggregate_seq_idx\` ON \`event\` (\`aggregate_id\`,\`seq\`);`)
@@ -480,10 +480,10 @@ export default {
       yield* tx.run(`CREATE INDEX \`volume_summaries_volume_id_idx\` ON \`volume_summaries\` (\`volume_id\`);`)
       yield* tx.run(`CREATE INDEX \`volumes_novel_id_idx\` ON \`volumes\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`volumes_novel_order_idx\` ON \`volumes\` (\`novel_id\`,\`order\`);`)
+      yield* tx.run(`CREATE UNIQUE INDEX \`work_run_item_run_seq_idx\` ON \`work_run_item\` (\`run_id\`,\`seq\`);`)
+      yield* tx.run(`CREATE INDEX \`work_run_session_idx\` ON \`work_run\` (\`session_id\`);`)
       yield* tx.run(`CREATE INDEX \`world_entries_novel_id_idx\` ON \`world_entries\` (\`novel_id\`);`)
       yield* tx.run(`CREATE INDEX \`world_entries_category_idx\` ON \`world_entries\` (\`novel_id\`,\`category\`);`)
-      yield* tx.run(`CREATE INDEX \`work_run_session_idx\` ON \`work_run\` (\`session_id\`);`)
-      yield* tx.run(`CREATE UNIQUE INDEX \`work_run_item_run_seq_idx\` ON \`work_run_item\` (\`run_id\`,\`seq\`);`)
     })
   },
 } satisfies Omit<DatabaseMigration.Migration, "id">

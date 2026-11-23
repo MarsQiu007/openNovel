@@ -40,6 +40,9 @@ export function createPromptInputController(input: {
   // 保留上一份非空快照——真实增删照常透传，不被锁存掩盖。
   let agentsSeen: ReturnType<typeof local.agent.list> | undefined
   let modelSeen: ReturnType<typeof local.model.current> | undefined
+  // 付费态锁存只锁「曾见过付费提供方」这一事实：数据翻空窗保留付费态防按钮抖动，
+  // 但从未见过付费列表（如全免费/模拟环境）不臆造付费态，免费弹层路由不受影响
+  let paidSeen = false
   // 会话切换（同页 params 变化）时复位锁存，避免上一会话的快照泄漏到新会话
   let latchedSession: string | undefined
   const stableAgentItems = () => {
@@ -55,7 +58,10 @@ export function createPromptInputController(input: {
     const items = stableAgentItems()
     return items.some((item) => item.name === name) ? name : (items[0]?.name ?? name)
   }
-  const stablePaid = () => providers.paid().length > 0 || modelSeen !== undefined
+  const stablePaid = () => {
+    if (providers.paid().length > 0) paidSeen = true
+    return paidSeen
+  }
   const stableModelCurrent: PromptInputControls["model"]["selection"]["current"] = () => {
     const current = local.model.current()
     if (current) {
@@ -72,6 +78,7 @@ export function createPromptInputController(input: {
       controlsSettled = false
       agentsSeen = undefined
       modelSeen = undefined
+      paidSeen = false
     }
     return {
       agents: {

@@ -883,7 +883,11 @@ export default function Page() {
       () => params.id,
       (id) => {
         if (!id) return
-        void sync().session.workrun(id)
+        // 端点为本次变更新增：旧版本服务端与未登记该路由的 e2e mock 会回退
+        // text/html 抛「not supported」，兜住按无队列处理（同文件事件分支约定）
+        void sync()
+          .session.workrun(id)
+          .catch(() => {})
       },
     ),
   )

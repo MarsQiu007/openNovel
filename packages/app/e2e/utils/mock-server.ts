@@ -28,6 +28,8 @@ export interface MockServerConfig {
   onV2Messages?: (input: { sessionID: string; cursor?: string; limit: number; phase: "start" | "end" }) => void
   beforeV2MessagesResponse?: (input: { sessionID: string; cursor?: string }) => Promise<void>
   v2Todos?: (sessionID: string) => unknown[]
+  /** workrun 队列查询覆盖：默认 null（无队列），注入形状见 WorkRun schema */
+  v2WorkRun?: (sessionID: string) => unknown
   /** active 会话集合（busy 对账的唯一来源）：键为 sessionID，值不被消费；函数形态供测试中途翻转 busy/idle */
   v2Active?: Record<string, unknown> | (() => Record<string, unknown>)
   v2Permissions?: unknown[] | (() => unknown[])
@@ -205,6 +207,11 @@ export async function mockOpenNovelServer(page: Page, config: MockServerConfig) 
 
     const todoMatch = path.match(/^\/api\/session\/([^/]+)\/todo$/)
     if (todoMatch) return json(route, { data: config.v2Todos?.(todoMatch[1]!) ?? [] })
+
+    // 会话页进入即拉工作队列：服务端端口上未登记会命中末尾「Not mocked」显式 404，
+    // 浏览器按资源错误刷 consoleErrors（smoke 断言不容），默认 null 与「无队列」同义
+    const workrunMatch = path.match(/^\/api\/session\/([^/]+)\/workrun$/)
+    if (workrunMatch) return json(route, { data: config.v2WorkRun?.(workrunMatch[1]!) ?? null })
 
     const diffMatch = path.match(/^\/api\/session\/([^/]+)\/diff$/)
     if (diffMatch) return json(route, { data: config.v2Diff ?? [] })
