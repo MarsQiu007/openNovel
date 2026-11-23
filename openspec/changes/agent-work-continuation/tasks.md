@@ -1,5 +1,25 @@
 # Tasks
 
+## Implementation Commits
+
+- 7a6c569986 feat(core): 新增 WorkRun 持久化工作队列服务与 schema
+- a2cb82e6b6 feat(core): 新增 workrun 模型工具集并注册 ToolRegistry
+- 5aa425378f feat(core): 纯文本回合守卫续跑工作队列并合成来源标记指令
+- 2863cb8ea0 feat(core): WorkRun 条件注入源接入 System Context 并以 epoch 失效同步状态迁移
+- 77a48daea7 feat(core): 用户打断经 runner run 的 onInterrupt 把 active 工作队列转挂起
+- cc66efb7ab feat(core): 守卫续跑上限接入 per-agent 配置 workRunContinuationLimit
+- 38888b5fb7 feat(protocol): 新增 WorkRun 会话队列查询与挂起恢复端点
+- 5cb721e9ed feat(app): 会话面板新增工作队列区块展示与挂起恢复
+- cec345fe19 feat(plugin): director 接入全书逐章审查工作队列路由与授权
+- ca119012f2 test(plugin): 全书审查终结与最终汇报契约断言
+- 81827ee982 feat(core): 工作队列启动对账、恢复编排与守卫指令同源
+- a10e98d77f feat(server): 工作队列恢复端点委托恢复编排
+- 7947c02acd chore(sdk): 再生成 openapi 纳入工作队列端点
+- f62bd35de6 feat(app): 工作队列面板收纳展开与事件驱动刷新兜底
+- cf97885c18 fix(app): 锁存会话控件就绪态与模型按钮身份消除闪烁
+- b7932309bc test(app): 队列 e2e 适配启动对账语义与倒序拉取
+- 7e4747ef97 fix(app): 抑制工具成功事件驱动 diff 刷新的未处理拒绝
+
 ## 1. schema 与持久化层
 
 - [x] 1.1 packages/schema 新增 WorkRun 相关 schema（run 状态 active/paused/complete、item 状态 pending/in_progress/done/skipped/blocked、目标/单元/进度笔记/连续续跑计数字段）；`bun typecheck` 通过
@@ -36,10 +56,10 @@
 ## 6. 验证收尾
 
 - [x] 6.1 聚焦测试全绿：core（WorkRun/守卫/注入源）113 pass、plugin（消费者 + agent 契约）26+4 pass、schema/protocol 相关包；core/plugin/schema/protocol 各包 `bun typecheck` 通过
-- [ ] 6.2 httpapi 练习 coverage 预检通过；协议双再生产物一致（`check:generated` 绿）
+- [x] 6.2 httpapi 练习 coverage 预检通过；协议双再生产物一致（`check:generated` 绿）——httpapi-exercise 场景随 38888b5fb7 注册并通过本地 coverage 预检；归档前本地双再生（根脚本 `./packages/sdk/js/script/build.ts` + `packages/client` generate）零漂移，漏带的 openapi.json 由 7947c02acd 补入库
 
 ## Workflow follow-up
 
-- 用户人工冒烟验收：真实书籍逐章审查场景走通建队列→续跑→挂起→恢复→完成全链路
-- 人工验收通过后执行全量回归（受影响 e2e 目录全量 + turbo typecheck 全量）
-- 按 AGENTS.md OpenSpec Completion 流程归档（收集 Implementation Commits 写入本 tasks.md）
+- [x] 用户人工冒烟验收：真实书籍逐章审查场景走通建队列→续跑→挂起→恢复→完成全链路（恢复链路用户实测确认「恢复成功了」）
+- [x] 人工验收后全量回归：受影响包 `bun test` 全量 + `bun turbo typecheck` 全量已过（4 项分支回归已修并复验；prompt-thinking-level ×2 失败经归因系环境特异性、与分支无关，CI 绿为仲裁；httpapi permission.create 为 main 既有 Windows 本机确定性失败）
+- [x] 按 AGENTS.md OpenSpec Completion 流程归档（收集 Implementation Commits 写入本 tasks.md）
