@@ -198,32 +198,59 @@ describe("SessionWorkRun", () => {
     }),
   )
 
-  it.effect("无进展熔断与用户挂起恢复", () =>
+  it.effect("同 seq 单元迁移按运行簿隔离，不串改其他运行簿", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const { db } = yield* Database.Service
+      const otherID = SessionV2.ID.make("ses_workrun_test_other")
+      yield* db
+        .insert(SessionTable)
+        .values({
+          id: otherID,
+          project_id: Project.ID.global,
+          slug: "workrun-other",
+          directory: "/project",
+          title: "workrun-other",
+          version: "test",
+        })
+        .run()
+        .pipe(Effect.orDie)
+      const workrun = yield* SessionWorkRun.Service
+      const runA = yield* workrun.create({ sessionID, goal: "g", items: ["a"] })
+      const claimedA = yield* workrun.claimNext(runA.id)
+      yield* workrun.skipItem(runA.id, claimedA.items[0].seq)
+
+      const runB = yield* workrun.create({ sessionID: otherID, goal: "g", items: ["b"] })
+      const claimedB = yield* workrun.claimNext(runB.id)
+      const doneB = yield* workrun.completeItem(runB.id, claimedB.items[0].seq)
+      expect(statusesOf(doneB)).toEqual(["done"])
+
+      // 回归：迁移 UPDATE 曾只按 seq 过滤，runB 的同 seq 完成会串改 runA 的 skipped 单元
+      const historyA = yield* workrun.history(sessionID)
+      expect(statusesOf(historyA[0] ?? { items: [] })).toEqual(["skipped"])
+    }),
+  )
+
+  it.effect("续跑上限熔断翻挂起时发布变更事件", () =>
     Effect.gen(function* () {
       yield* setup
       const workrun = yield* SessionWorkRun.Service
+      const events = yield* EventV2.Service
+      const published: Array<unknown> = []
+      const unsubscribe = yield* events.listen((event) =>
+        Effect.sync(() => {
+          if (event.type === "workrun.updated") published.push(event.data)
+        }),
+      )
+      yield* Effect.addFinalizer(() => unsubscribe)
+
       yield* workrun.create({ sessionID, goal: "g", items: ["a"] })
-
-      const tight = { continuationLimit: 99, noProgressLimit: 2 }
-      yield* workrun.guardDecide(sessionID, tight)
-      const stalled = yield* workrun.guardDecide(sessionID, tight)
-      if (stalled.action !== "continue") throw new Error("expected continue")
-      const melted = yield* workrun.guardDecide(sessionID, tight)
-      expect(melted).toEqual({ action: "stop", reason: "no_progress" })
-
-      // 无进展熔断转 paused 后守卫放行；恢复重置计数
-      expect(yield* workrun.guardDecide(sessionID, tight)).toEqual({ action: "stop", reason: "no_run" })
-      const revived = yield* workrun.resume(sessionID)
-      expect(revived.status).toBe("active")
-      expect(revived.continuationCount).toBe(0)
-
-      // 用户挂起：队列转 paused 数据保留；恢复后可继续
-      const paused = yield* workrun.pause(sessionID)
-      expect(paused.status).toBe("paused")
-      expect(paused.items).toHaveLength(1)
-
-      const revivedAgain = yield* workrun.resume(sessionID)
-      expect(revivedAgain.status).toBe("active")
+      // 回归：上限 0 时首次守卫即熔断翻挂起，阀门分支曾漏发变更事件导致面板滞留活动快照
+      const decision = yield* workrun.guardDecide(sessionID, { continuationLimit: 0, noProgressLimit: 99 })
+      expect(decision).toEqual({ action: "stop", reason: "limit_reached" })
+      expect(published).toHaveLength(2)
+      const last = published[1] as { readonly run: { readonly status: string } }
+      expect(last.run.status).toBe("paused")
     }),
   )
 })

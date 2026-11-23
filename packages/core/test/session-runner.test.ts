@@ -35,7 +35,6 @@ import { SessionRunCoordinator } from "@opennovel-ai/core/session/run-coordinato
 import { SessionRunner } from "@opennovel-ai/core/session/runner"
 import * as SessionRunnerLLM from "@opennovel-ai/core/session/runner/llm"
 import { MAX_STEPS_PROMPT } from "@opennovel-ai/core/session/runner/max-steps"
-import { WORK_RUN_CONTINUATION_PROMPT } from "@opennovel-ai/core/session/runner/llm"
 import { SessionRunnerModel } from "@opennovel-ai/core/session/runner/model"
 import { ToolRegistry } from "@opennovel-ai/core/tool/registry"
 import { ApplicationTools } from "@opennovel-ai/core/tool/application-tools"
@@ -3790,12 +3789,12 @@ describe("SessionRunnerLLM", () => {
       // 提升后的续跑指令是持久历史消息，后续回合的请求全部可见
       expect(requests).toHaveLength(4)
       expect(userTexts(requests[0]!)).toEqual(["开始审查"])
-      expect(userTexts(requests[1]!)).toEqual(["开始审查", WORK_RUN_CONTINUATION_PROMPT])
+      expect(userTexts(requests[1]!)).toEqual(["开始审查", SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT])
       expect(userTexts(requests[3]!)).toEqual([
         "开始审查",
-        WORK_RUN_CONTINUATION_PROMPT,
-        WORK_RUN_CONTINUATION_PROMPT,
-        WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
       ])
       expect(yield* queueInputRows).toHaveLength(3)
       // 续跑指令经 PromptAdmitted durable 事件落库，重放可追溯（用户入口 1 条 + 守卫续跑 3 条）
@@ -3992,8 +3991,8 @@ describe("SessionRunnerLLM", () => {
       expect(requests).toHaveLength(6)
       expect(userTexts(requests[3]!)).toEqual([
         "开始审查",
-        WORK_RUN_CONTINUATION_PROMPT,
-        WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
+        SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT,
         "恢复后继续",
       ])
       expect(yield* queueInputRows).toHaveLength(4)

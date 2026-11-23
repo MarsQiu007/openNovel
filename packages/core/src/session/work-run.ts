@@ -29,6 +29,14 @@ export type GuardDecision =
       readonly reason: "no_run" | "no_executable" | "limit_reached" | "no_progress"
     }
 
+// WorkRun 合成指令文本（design D2/D6）：同一域两条指令同源维护，出口在本模块（core session 域）
+/** 续跑守卫合成指令（design D2/D5）：queue 投递，run 循环外层在回合边界提升后获得新配额 */
+export const WORK_RUN_CONTINUATION_PROMPT =
+  "[自动续跑] 工作队列尚未完成：领取下一个待处理单元继续推进，并保持进度笔记为最新状态。"
+/** 用户显式恢复合成指令（design D6）：steer 投递，恢复编排注入并唤醒执行 */
+export const WORK_RUN_RECOVERY_PROMPT =
+  "[工作队列恢复] 队列已恢复执行：按当前注入的队列状态与进度笔记继续推进，领取下一个待处理单元；已完成单元不要重复。"
+
 export interface Interface {
   readonly create: (input: {
     readonly sessionID: SessionSchema.ID
@@ -84,40 +92,41 @@ const fromRows = (run: RunRow, items: ItemRow[]): RunSchema =>
     items: items.map(toItem),
   })
 
+const selectRun = (db: DB, runID: string) =>
+  db.select().from(WorkRunTable).where(eq(WorkRunTable.id, runID)).get().pipe(Effect.orDie)
+
+// 迁移/翻转后的重读：行刚被写入，仍 narrow undefined（die 为内部不变量破坏）
+const selectRunOrDie = (db: DB, runID: string) =>
+  Effect.gen(function* () {
+    const row = yield* selectRun(db, runID)
+    if (row === undefined) return yield* Effect.die(new NoActiveRun())
+    return row
+  })
+
+const selectItems = (db: DB, runID: string) =>
+  db
+    .select()
+    .from(WorkRunItemTable)
+    .where(eq(WorkRunItemTable.run_id, runID))
+    .orderBy(asc(WorkRunItemTable.seq))
+    .all()
+    .pipe(Effect.orDie)
+
+// 状态迁移后的统一发布：重读行（事件载荷需迁移后快照）并广播 workrun.updated
+export const publishUpdate = (db: DB, events: EventV2.Interface, runID: string) =>
+  Effect.gen(function* () {
+    const run = yield* selectRunOrDie(db, runID)
+    yield* events.publish(Event.Updated, {
+      sessionID: SessionSchema.ID.make(run.session_id),
+      run: fromRows(run, yield* selectItems(db, runID)),
+    })
+  })
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const { db } = yield* Database.Service
     const events = yield* EventV2.Service
-
-    const selectRun = (runID: string) => db.select().from(WorkRunTable).where(eq(WorkRunTable.id, runID)).get().pipe(Effect.orDie)
-
-    // 迁移/翻转后的重读：行刚被写入，仍 narrow undefined（die 为内部不变量破坏）
-    const selectRunOrDie = (runID: string) =>
-      Effect.gen(function* () {
-        const row = yield* selectRun(runID)
-        if (row === undefined) return yield* Effect.die(new NoActiveRun())
-        return row
-      })
-
-    const selectItems = (runID: string) =>
-      db
-        .select()
-        .from(WorkRunItemTable)
-        .where(eq(WorkRunItemTable.run_id, runID))
-        .orderBy(asc(WorkRunItemTable.seq))
-        .all()
-        .pipe(Effect.orDie)
-
-    const publishUpdate = (runID: string) =>
-      Effect.gen(function* () {
-        const run = yield* selectRunOrDie(runID)
-        if (run === undefined) return
-        yield* events.publish(Event.Updated, {
-          sessionID: SessionSchema.ID.make(run.session_id),
-          run: fromRows(run, yield* selectItems(runID)),
-        })
-      })
 
     const current = Effect.fn("SessionWorkRun.current")(function* (sessionID: SessionSchema.ID) {
       const row =
@@ -133,11 +142,11 @@ const layer = Layer.effect(
           .where(and(eq(WorkRunTable.session_id, sessionID), eq(WorkRunTable.status, "paused")))
           .get()
           .pipe(Effect.orDie))
-      return row === undefined ? undefined : fromRows(row, yield* selectItems(row.id))
+      return row === undefined ? undefined : fromRows(row, yield* selectItems(db, row.id))
     })
 
     const withActiveRun = Effect.fn("SessionWorkRun.withActiveRun")(function* (runID: string) {
-      const run = yield* selectRunOrDie(runID)
+      const run = yield* selectRunOrDie(db, runID)
       if (run === undefined || run.status !== "active") return yield* new NoActiveRun()
       return run
     })
@@ -162,7 +171,7 @@ const layer = Layer.effect(
       yield* db
         .update(WorkRunItemTable)
         .set({ status: to, ...(to === "blocked" ? {} : { note: null }) })
-        .where(eq(WorkRunItemTable.seq, itemSeq))
+        .where(and(eq(WorkRunItemTable.seq, itemSeq), eq(WorkRunItemTable.run_id, runID)))
         .run()
         .pipe(Effect.orDie)
       yield* db
@@ -171,9 +180,9 @@ const layer = Layer.effect(
         .where(eq(WorkRunTable.id, runID))
         .run()
         .pipe(Effect.orDie)
-      const updated = yield* selectRunOrDie(runID)
-      yield* publishUpdate(updated.id)
-      return fromRows(updated, yield* selectItems(runID))
+      const updated = yield* selectRunOrDie(db, runID)
+      yield* publishUpdate(db, events, updated.id)
+      return fromRows(updated, yield* selectItems(db, runID))
     })
 
     const interfaceImpl: Interface = {
@@ -201,9 +210,9 @@ const layer = Layer.effect(
             )
             .run()
             .pipe(Effect.orDie)
-          const created = yield* selectRunOrDie(runID)
-          yield* publishUpdate(created.id)
-          return fromRows(created, yield* selectItems(runID))
+          const created = yield* selectRunOrDie(db, runID)
+          yield* publishUpdate(db, events, created.id)
+          return fromRows(created, yield* selectItems(db, runID))
         }),
 
       current: (sessionID) => current(sessionID),
@@ -218,14 +227,14 @@ const layer = Layer.effect(
             .all()
             .pipe(Effect.orDie)
           return yield* Effect.forEach(rows, (row) =>
-            Effect.map(selectItems(row.id), (items) => fromRows(row, items)),
+            Effect.map(selectItems(db, row.id), (items) => fromRows(row, items)),
           )
         }),
 
       claimNext: (runID) =>
         Effect.gen(function* () {
           const run = yield* withActiveRun(runID)
-          const items = yield* selectItems(runID)
+          const items = yield* selectItems(db, runID)
           const inProgress = items.find((item) => item.status === "in_progress")
           if (inProgress !== undefined)
             return yield* new InvalidTransition({
@@ -255,7 +264,7 @@ const layer = Layer.effect(
           yield* db
             .update(WorkRunItemTable)
             .set({ status: "blocked", note: reason })
-            .where(eq(WorkRunItemTable.seq, itemSeq))
+            .where(and(eq(WorkRunItemTable.seq, itemSeq), eq(WorkRunItemTable.run_id, runID)))
             .run()
             .pipe(Effect.orDie)
           yield* db
@@ -264,9 +273,9 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, runID))
             .run()
             .pipe(Effect.orDie)
-          const run = yield* selectRunOrDie(runID)
-          yield* publishUpdate(run.id)
-          return fromRows(run, yield* selectItems(runID))
+          const run = yield* selectRunOrDie(db, runID)
+          yield* publishUpdate(db, events, run.id)
+          return fromRows(run, yield* selectItems(db, runID))
         }),
 
       resetItem: (runID, itemSeq) => transitionItem(runID, itemSeq, "blocked", "pending"),
@@ -280,13 +289,13 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, runID))
             .run()
             .pipe(Effect.orDie)
-          yield* publishUpdate(runID)
+          yield* publishUpdate(db, events, runID)
         }),
 
       complete: (runID) =>
         Effect.gen(function* () {
           yield* withActiveRun(runID)
-          const items = yield* selectItems(runID)
+          const items = yield* selectItems(db, runID)
           const unfinished = items.filter((item) => item.status === "pending" || item.status === "in_progress")
           if (unfinished.length > 0)
             return yield* new InvalidTransition({ reason: `还有 ${unfinished.length} 个未终结单元，不能终结队列` })
@@ -296,8 +305,8 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, runID))
             .run()
             .pipe(Effect.orDie)
-          const run = yield* selectRunOrDie(runID)
-          yield* publishUpdate(run.id)
+          const run = yield* selectRunOrDie(db, runID)
+          yield* publishUpdate(db, events, run.id)
           // 状态迁移纳入 epoch 失效语义（design D4）：终结后重置上下文 epoch，
           // 下回合 initialize 重新生成 baseline，active 注入约束随迁移当回合消失
           yield* SessionContextEpoch.reset(db, run.session_id)
@@ -315,11 +324,11 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, run.id))
             .run()
             .pipe(Effect.orDie)
-          const row = yield* selectRunOrDie(run.id)
-          yield* publishUpdate(row.id)
+          const row = yield* selectRunOrDie(db, run.id)
+          yield* publishUpdate(db, events, row.id)
           // 挂起重置上下文 epoch：下回合 baseline 不再包含续跑约束
           yield* SessionContextEpoch.reset(db, row.session_id)
-          return fromRows(row, yield* selectItems(run.id))
+          return fromRows(row, yield* selectItems(db, run.id))
         }),
 
       resume: (sessionID) =>
@@ -337,11 +346,11 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, run.id))
             .run()
             .pipe(Effect.orDie)
-          const row = yield* selectRunOrDie(run.id)
-          yield* publishUpdate(row.id)
+          const row = yield* selectRunOrDie(db, run.id)
+          yield* publishUpdate(db, events, row.id)
           // 恢复重置上下文 epoch：下回合 initialize 以 active 队列重新生成 baseline 注入约束
           yield* SessionContextEpoch.reset(db, row.session_id)
-          return fromRows(row, yield* selectItems(run.id))
+          return fromRows(row, yield* selectItems(db, run.id))
         }),
 
       // 守卫判定 + 阀门（design D5）：续跑同时递增计数（无进展熔断依赖单元迁移清零），
@@ -361,6 +370,7 @@ const layer = Layer.effect(
               .pipe(Effect.orDie)
             // 熔断挂起重置上下文 epoch：下回合 baseline 不再包含续跑约束
             yield* SessionContextEpoch.reset(db, run.sessionID)
+            yield* publishUpdate(db, events, run.id)
             return { action: "stop", reason: "limit_reached" }
           }
           if (run.noProgressCount >= limits.noProgressLimit) {
@@ -371,6 +381,7 @@ const layer = Layer.effect(
               .run()
               .pipe(Effect.orDie)
             yield* SessionContextEpoch.reset(db, run.sessionID)
+            yield* publishUpdate(db, events, run.id)
             return { action: "stop", reason: "no_progress" }
           }
           yield* db
@@ -379,11 +390,11 @@ const layer = Layer.effect(
             .where(eq(WorkRunTable.id, run.id))
             .run()
             .pipe(Effect.orDie)
-          const row = yield* selectRunOrDie(run.id)
-          yield* publishUpdate(row.id)
+          const row = yield* selectRunOrDie(db, run.id)
+          yield* publishUpdate(db, events, row.id)
           return {
             action: "continue",
-            run: fromRows(row, yield* selectItems(run.id)),
+            run: fromRows(row, yield* selectItems(db, run.id)),
           }
         }),
     }

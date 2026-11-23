@@ -103,8 +103,6 @@ import { llmClient } from "../../effect/app-node-platform"
 // 守卫阀门默认值（design D5：续跑上限 100，无进展熔断 3）；续跑上限可经 agent 配置
 // workRunContinuationLimit 按 agent 覆盖，无进展熔断固定不配置化
 export const WORK_RUN_GUARD_LIMITS = { continuationLimit: 100, noProgressLimit: 3 }
-export const WORK_RUN_CONTINUATION_PROMPT =
-  "[自动续跑] 工作队列尚未完成：领取下一个待处理单元继续推进，并保持进度笔记为最新状态。"
 
 const layer = Layer.effect(
   Service,
@@ -462,7 +460,7 @@ const layer = Layer.effect(
               yield* SessionInput.admit(db, events, {
                 id: SessionMessage.ID.create(),
                 sessionID,
-                prompt: Prompt.fromUserMessage({ text: WORK_RUN_CONTINUATION_PROMPT }),
+                prompt: Prompt.fromUserMessage({ text: SessionWorkRun.WORK_RUN_CONTINUATION_PROMPT }),
                 delivery: "queue",
               })
           }
