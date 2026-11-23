@@ -5,10 +5,11 @@
 见 proposal.md — Why（三层缺失诊断与业界调研）。本设计需要站在四块既有地基上（关键事实均已核实于 `packages/core/src/session/runner/llm.ts`）：
 
 - **durable prompt admission**：`SessionInput.Admitted`（admittedSeq / delivery / prompt）经 `SessionEvent.PromptAdmitted` 落库；`Delivery = Schema.Literals(["steer", "queue"])`。
-- **run 循环已内建队列消费**：`run` 函数外层 `while (shouldRun)` 在每轮内层回合循环退出后检查 `SessionInput.hasPending(db, sessionID, "queue")`（llm.ts:607）——有 pending queue 就以 `promotion="queue"` 重新进入回合循环。**守卫续跑不需要改循环结构**：纯文本回合结束时 admit 一条 queue 指令，外层循环自然消费。
-- **promote 重置步数配额**：queue/steer promote 时 `currentStep = 1`（llm.ts:237）——每条续跑指令提升后获得完整的回合步数配额。
-- **步数到限形态**：`isLastStep` 回合以 `toolChoice: "none"` 发送并注入 `MAX_STEPS_PROMPT`（llm.ts:250-261）——模型在到限回合**禁用工具**，只能输出文本总结；到限总结回合天然是纯文本回合（`needsContinuation=false`）。
-- **needsContinuation 语义**：provider 响应含工具调用则 true（llm.ts:325），纯文本或 provider 失败则 false（:438 的 `!publisher.hasProviderError()` 保护区分不了这两者，守卫需自行判断失败回合）。
+- **steer 合成注入已有编排原语**：`SessionV2.synthetic({sessionID, text, resume?})`（session.ts:378），详见 D6。
+- **run 循环已内建队列消费**：`run` 函数外层 `while (shouldRun)` 在每轮内层回合循环退出后检查 `SessionInput.hasPending(db, sessionID, "queue")`（llm.ts:639）——有 pending queue 就以 `promotion="queue"` 重新进入回合循环。**守卫续跑不需要改循环结构**：纯文本回合结束时 admit 一条 queue 指令，外层循环自然消费。
+- **promote 重置步数配额**：queue/steer promote 时 `currentStep = 1`（llm.ts:253）——每条续跑指令提升后获得完整的回合步数配额。
+- **步数到限形态**：`isLastStep` 回合以 `toolChoice: "none"` 发送并注入 `MAX_STEPS_PROMPT`（llm.ts:275）——模型在到限回合**禁用工具**，只能输出文本总结；到限总结回合天然是纯文本回合（`needsContinuation=false`）。
+- **needsContinuation 语义**：provider 响应含工具调用则 true（llm.ts:341），纯文本或 provider 失败则 false（:456 的 `!publisher.hasProviderError()` 保护区分不了这两者，守卫需自行判断失败回合）。
 - **系统上下文每回合重载但有 epoch 缓存**：`runTurnAttempt` 每回合走 `SessionContextEpoch.initialize/prepare`（llm.ts:224-243），baseline 未变化时复用 epoch 快照。
 
 会话域已有两种「清单」先例，但都不是本提案要的实体：SessionTodo 是会话级 UI 任务清单（全量替换、无编排语义）；tool-insight 复测运行记录是插件域的 run + 逐案例状态 + 崩溃恢复先例（形态可参考，域不同）。
@@ -23,10 +24,11 @@
 - 纯文本停机在队列未完结时被自动续跑，全程不需要新的执行模型，不改 run 循环结构。
 - 长队列不因步数到限反复停机（到限回合照常续跑，配额随 promote 重置）；失控消耗由续跑上限与无进展熔断两道阀门兜底。
 - 守卫对无队列会话严格零影响。
+- 强退/崩溃后的恢复链路闭环：重启遗留状态由启动对账收敛为「挂起 + 待处理」，用户一次显式恢复即续跑（恢复指令投回 + 执行唤醒），不丢进度、不重复已完成单元。
 
 **Non-Goals:**
 
-- 不做跨进程崩溃后自动续跑 provider work（AGENTS.md 明确要求单独设计；本设计守卫只作用于同一 drain 进程内的回合边界，跨重启恢复一律用户显式触发）。
+- 不做跨进程崩溃后自动续跑 provider work（AGENTS.md 明确要求单独设计；本设计守卫只作用于同一 drain 进程内的回合边界，跨重启恢复一律用户显式触发；启动对账只做状态收敛，绝不自动续跑 provider work）。
 - 不扩展 `Delivery` 词汇（复用 queue，见 D2）。
 - 不动 SessionTodo 与既有 BackgroundJob。
 - 不做工作队列质量门禁（敷衍滑行风险靠复述与消费者场景自身兜底，v1 接受）。
@@ -70,13 +72,17 @@ WorkRun 是 agent 执行域实体，不是小说内容域实体——落 session
 
 两道阀门替代「三重保险」旧说（旧推理依赖到限放行终止循环，与 promote 重置配额组合后不成立）。守卫续跑指令消耗的是 promote 后的新配额，上限与熔断在 admit 前判定，无竞态。
 
-### D6: 打断挂起挂 runner 的 onInterrupt，恢复翻回 active 并重置计数
+### D6: 打断挂起挂 runner 的 onInterrupt，恢复编排下沉 core（resumeWorkRun）
 
-用户打断沿既有 interrupt 所有权链传播，run 循环以 interrupt 结算退出、守卫不会执行——挂起翻转落点为 `run` 函数的 `Effect.onInterrupt` 处理器（与 queued compaction 的 onInterrupt 模式一致，llm.ts:538）：打断时把该会话 active WorkRun 置 paused，数据原样保留。恢复 = 宿主 admit 合成恢复指令（delivery="steer"，用户显式动作即时提升），同时在 admit 前把 run 状态翻回 active 并重置续跑计数；恢复指令内容指示模型从进度笔记继续，模型可按需把受阻单元重置为待处理。
+用户打断沿既有 interrupt 所有权链传播，run 循环以 interrupt 结算退出、守卫不会执行——挂起翻转落点为 `run` 函数的 `Effect.onInterrupt` 处理器（与 queued compaction 的 onInterrupt 模式一致，llm.ts:645）：打断时把该会话 active WorkRun 置 paused，数据原样保留。
+
+恢复编排落在 core session 域（独立模块 `work-run-recovery`，避免 work-run → execution 经 runner 的导入环），server handler 一行委托（server 约定 handler 薄）：`SessionWorkRunRecovery.resumeWorkRun(sessionID)` = ① `workrun.resume` 翻回 active 并重置续跑计数与上下文 epoch（队列转 active 后下一回合 initialize 才会重新注入约束）；② steer admit 合成恢复指令（带合成来源标记、对用户可见，文本指示模型按注入的队列状态与进度笔记继续，已完成单元不要重复）+ `SessionExecution.wake`——与 `SessionV2.synthetic` 同款原语组合，不依赖 session.ts；③ ②失败时补偿翻回 paused（admit/wake 与状态翻转在同一 effect 内成组，失败整体回滚，重试语义干净），错误照常上抛由端点返回。恢复后无需用户再发消息，drain 提升恢复指令后由守卫续跑接力。恢复指令常量 `WORK_RUN_RECOVERY_PROMPT` 出口在 work-run 模块（core session 域）；续跑守卫指令常量 `WORK_RUN_CONTINUATION_PROMPT` 一并迁入 work-run 模块——同一域两条合成指令文本同源维护。
+
+实现后核查修正（修订记录）：初版 resume 端点只翻状态、不投指令不唤醒，与 spec「用户显式恢复」场景（THEN 一条恢复指令投回会话）不符——点恢复后队列空转，须用户手动发消息才续跑。评审进一步发现：编排放 handler 违反 server「handler 薄」约定，且翻状态成功、投指令失败会留半提交状态。本修订把编排下沉 core 并补补偿回滚。落地形态再修正：`resumeWorkRun` 以 **location 服务**（`SessionWorkRunRecovery.Service`，决策 8 同款 makeLocationNode）挂在 work-run-recovery 模块——编排依赖的 Database/EventV2/SessionExecution 是全局节点，在 location 单元层构建期接线；handler 必须在 `.handle` 请求上下文内 yield 该服务（sessionLocation 中间件逐请求提供单元层），group 构建期 yield 拿不到（location 服务无全局实现，server typecheck 以 R 缺失直接拒编）。
 
 ### D7: 协议面与 UI 面
 
-schema/protocol 新增 WorkRun 类型与端点：`GET workRun`（按 sessionID 查询队列与单元）+ 挂起/恢复操作端点；面板挂起端点直接调用 WorkRun 服务翻 paused（不打断进行中回合，当前单元结算后守卫放行停机）。从 `packages/client` 跑 `bun run generate` 再生 SDK（根脚本 `./packages/sdk/js/script/build.ts` 一并跑，遵守双再生约定）；HttpApi 新端点同步注册 httpapi-exercise 场景（CI coverage 门）。app 会话面板新增工作队列区块（目标、单元清单、实时进度、挂起/恢复按钮）。实时更新由 WorkRun 服务在状态迁移时发布变更事件、UI 经既有会话事件流订阅实现，不引入轮询。
+schema/protocol 新增 WorkRun 类型与端点：`GET workRun`（按 sessionID 查询队列与单元）+ 挂起/恢复操作端点；面板挂起端点直接调用 WorkRun 服务翻 paused（不打断进行中回合，当前单元结算后守卫放行停机），恢复端点一行委托 core `resumeWorkRun`（见 D6）。从 `packages/client` 跑 `bun run generate` 再生 SDK（根脚本 `./packages/sdk/js/script/build.ts` 一并跑，遵守双再生约定）；HttpApi 新端点同步注册 httpapi-exercise 场景（CI coverage 门）。app 会话面板新增工作队列区块（目标、单元清单、实时进度、挂起/恢复按钮）；长队列区块支持头部 chevron 收纳/展开（条目区内滚动有界）——区块不随每次队列更新重挂载（不 keyed），收纳态在执行期推进中保持。实时更新由 WorkRun 服务在状态迁移时发布变更事件、UI 经既有会话事件流订阅实现，不引入轮询。
 
 ### D8: 逐章审查消费者挂在 novel-writer 工具集
 
@@ -101,6 +107,18 @@ schema/protocol 新增 WorkRun 类型与端点：`GET workRun`（按 sessionID �
             +------------------------------------------------------------+
 ```
 
+### D9: 启动对账挂在独立 reconcile 节点，排除本进程在跑的会话（沿用决策 8 先例）
+
+强退/崩溃后运行簿行仍写 active、被杀单元永卡 in_progress（无代码执行翻转），而 UI 侧 active 只配「挂起」按钮、resume 端点只认 paused——「点恢复队列」第一步就不存在。补偿机制 = **启动对账（reconcile）**：独立对账节点（`SessionWorkRun.reconcileNode`，随 location 层树构建执行一次的 `Layer.effectDiscard`）对本库执行一次——排除本进程仍在执行的会话后，遗留 active 运行簿翻 paused（**显式重置续跑/无进展计数**——`pause()` 本身不清计数，计数重置原实现在 resume；对账取 resume 前半截语义）、仅被翻转运行簿的 in_progress 单元集合式回退 pending（done/skipped/blocked 不动）；随后逐个被翻转运行簿重置该会话上下文 epoch 并发布变更事件。已 paused 运行簿的 in_progress 单元**不回退**——那是同进程暂停/恢复「先结算进行中单元」的蓄意标记；claimNext 对 in_progress 的拒绝不变，模型恢复后先结算再领取。对账不 admit 任何指令、不 wake 任何会话（非目标：不自动开工），幂等（第二次执行为空扫）。
+
+挂点选型（评审修正）：初版挂服务 Layer 体内、以「构建时刻同进程内必无该库 drain 在跑」论证——不成立：全局配置变更（PATCH /global/config → `invalidateAllKnownLocations`）与 LayerMap 60 分钟 TTL 都会重建 location 层树并重跑 Layer 体，而 SessionExecution 是进程全局的，旧 drain 仍在跑——构建期扫 sweep 会把**活的**运行簿翻 paused。正解沿用 `SessionCompactionRecovery.settle`（design 决策 8）先例：对账节点依赖进程全局的 `SessionExecution`，**排除 `execution.active` 中的会话**（= 本进程仍拥有 drain 的会话）再收敛——层重建后重跑对账也不会误伤在跑队列。
+
+边界备案：第二个进程或第二棵层树挂同一 session 库（如桌面端 + CLI 同开、目录正斜杠双形态 split）时对账无法感知对方的活动——多实例单库本就不在支持面内（V2 执行模型：drain 进程本地，聚类另案设计）；残余风险仅误翻对方运行簿，用户显式恢复即可无损续（计数重置无害）。
+
+备选：挂在服务 Layer 体内（否——层重建会重跑且该处拿不到执行所有权，见上）；server 启动 fiber 逐库扫（否——组装面多一处 location 枚举，与既有服务自治模式不一致）；请求时惰性检查（否——读路径引入写竞态，且首个请求之前的窗口状态仍是错的）。
+
+被回退单元的半成品处置是消费者职责：写作流程有断点续跑自检（pipeline 步骤 0）兜底半完成章节，审查类重做天然安全。
+
 ## Risks / Trade-offs
 
 - [守卫与用户消息竞争] → 续跑指令走 queue 投递，promoteNextQueued 按 admittedSeq 排序消费，与用户 queue 输入共存无竞争面；用户 steer 始终优先。
@@ -110,6 +128,9 @@ schema/protocol 新增 WorkRun 类型与端点：`GET workRun`（按 sessionID �
 - [recitation 未执行则到限时进度滞后一格] → 到限回合禁工具无法补写，丢失的只是最后一回合的进度；续跑后复述恢复，进度笔记覆盖式更新自然纠偏。
 - [条件注入与 SessionContextEpoch 缓存] → WorkRun 状态迁移未纳入 epoch 失效会导致注入滞后（D4 已列实现要点），实现时以单测覆盖「队列终结当回合注入停止」。
 - [续跑上限默认值的取舍] → 默认 100 次续跑（每次约 N 步配额）覆盖大部分书籍规模；上限可在 agent 配置调整；超限转挂起非作废，恢复即续。
+- [启动对账误伤正常 active 运行簿？] → 对账排除本进程 `execution.active` 会话（决策 8 同款机制），location 层重建后重跑也不会误伤在跑队列；跨进程同库为支持面外边界（见 D9 备案）；对账幂等空扫。
+- [进行中单元回退待处理导致半成品被重做] → 被回退单元的执行者已随进程死亡，「未完成→待处理」语义正确；半成品由消费者侧兜底（写作流程断点续跑自检、审查类重做安全）；重做单章的成本远小于永卡 in_progress 的队列死锁。
+- [恢复指令与进行中回合竞争] → steer 投递在下一安全回合边界提升，与用户 steer 同优先级语义（D2/D6 一致）；恢复编排先翻状态再投指令，首回合系统上下文必见 active 队列约束。
 
 ## Migration Plan
 
