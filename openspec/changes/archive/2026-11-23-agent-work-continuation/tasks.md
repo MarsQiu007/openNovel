@@ -25,6 +25,7 @@
 - e29054a6f9 chore(core): 补生成 work_run 工作队列数据库迁移（两表 Drizzle schema 入库时漏跑 script/migration.ts，linux-only 迁移对账测试报 ungenerated database migrations；Windows 本地 bun test 平台门控跳过该对账，故合后全量回归未捕获）
 - 2d2b0fe031 fix(app): 付费态锁存只锁曾见付费提供方（cf97885c18 用 modelSeen!==undefined 补付费态，把全免费/模拟环境误路由到付费弹层，prompt-thinking-level e2e 两用例双 OS CI 红）
 - b0c75f67b8 fix(app): 工作队列首拉兜住旧服务端不支持（workrun 查询端点为变更新增，旧服务端/未登记 mock 回退 text/html 抛 not supported，裸 void 刷 consoleErrors，session-timeline 与 novel journey 等 smoke 用例 expectNoSmokeErrors 红）
+- c221899ee1 test(app): smoke mock 登记 workrun 查询路由兜底无队列（b0c75f67b8 兜的是 SDK「not supported」异常，但 mock-server 对服务端端口未 mock 路由显式 404「Not mocked」，CI 上 PLAYWRIGHT_SERVER_PORT 与应用端口不同，workrun GET 落入该 404 以浏览器资源错误形态刷 consoleErrors，catch 无法抑制，本地 vite 同端口回退 200 复现不出；登记路由默认 `{data:null}` 与无队列同义）
 
 ## 1. schema 与持久化层
 
@@ -69,4 +70,4 @@
 - [x] 用户人工冒烟验收：真实书籍逐章审查场景走通建队列→续跑→挂起→恢复→完成全链路（恢复链路用户实测确认「恢复成功了」）
 - [x] 人工验收后全量回归：受影响包 `bun test` 全量 + `bun turbo typecheck` 全量已过（4 项分支回归已修并复验；prompt-thinking-level ×2 失败经归因系环境特异性、与分支无关，CI 绿为仲裁；httpapi permission.create 为 main 既有 Windows 本机确定性失败）
 - [x] 按 AGENTS.md OpenSpec Completion 流程归档（收集 Implementation Commits 写入本 tasks.md）
-- [x] 归档后收尾修复 3 项：CI 迁移对账红（补生成迁移）、免费弹层误路由红（付费态锁存收紧）、workrun 首拉未兜不支持端点（smoke consoleErrors 红），均已修复推送并复验
+- [x] 归档后收尾修复 4 项：CI 迁移对账红（补生成迁移）、免费弹层误路由红（付费态锁存收紧）、workrun 首拉未兜不支持端点（smoke consoleErrors 红）、smoke mock 未登记 workrun 路由致服务端端口显式 404（登记兜底无队列），均已修复推送并复验
