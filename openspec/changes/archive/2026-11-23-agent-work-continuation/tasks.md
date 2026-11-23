@@ -20,6 +20,11 @@
 - b7932309bc test(app): 队列 e2e 适配启动对账语义与倒序拉取
 - 7e4747ef97 fix(app): 抑制工具成功事件驱动 diff 刷新的未处理拒绝
 
+### 归档后收尾修复
+
+- e29054a6f9 chore(core): 补生成 work_run 工作队列数据库迁移（两表 Drizzle schema 入库时漏跑 script/migration.ts，linux-only 迁移对账测试报 ungenerated database migrations；Windows 本地 bun test 平台门控跳过该对账，故合后全量回归未捕获）
+- 2d2b0fe031 fix(app): 付费态锁存只锁曾见付费提供方（cf97885c18 用 modelSeen!==undefined 补付费态，把全免费/模拟环境误路由到付费弹层，prompt-thinking-level e2e 两用例双 OS CI 红）
+
 ## 1. schema 与持久化层
 
 - [x] 1.1 packages/schema 新增 WorkRun 相关 schema（run 状态 active/paused/complete、item 状态 pending/in_progress/done/skipped/blocked、目标/单元/进度笔记/连续续跑计数字段）；`bun typecheck` 通过
@@ -63,3 +68,4 @@
 - [x] 用户人工冒烟验收：真实书籍逐章审查场景走通建队列→续跑→挂起→恢复→完成全链路（恢复链路用户实测确认「恢复成功了」）
 - [x] 人工验收后全量回归：受影响包 `bun test` 全量 + `bun turbo typecheck` 全量已过（4 项分支回归已修并复验；prompt-thinking-level ×2 失败经归因系环境特异性、与分支无关，CI 绿为仲裁；httpapi permission.create 为 main 既有 Windows 本机确定性失败）
 - [x] 按 AGENTS.md OpenSpec Completion 流程归档（收集 Implementation Commits 写入本 tasks.md）
+- [x] 归档后收尾修复 2 项：CI 迁移对账红（补生成迁移）与免费弹层误路由红（付费态锁存收紧），均已修复推送并双再生校验
