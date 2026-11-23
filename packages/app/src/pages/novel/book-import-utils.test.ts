@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   IMPORT_SUPPORTED_EXTENSIONS,
-  buildImportTidyPrompt,
+  buildImportPipelinePrompt,
   importFilenameToTitle,
   isSupportedImportFileName,
 } from "./book-import-utils"
@@ -48,32 +48,33 @@ describe("importFilenameToTitle", () => {
   })
 })
 
-describe("buildImportTidyPrompt", () => {
+describe("buildImportPipelinePrompt", () => {
   const input = { novelID: "novel-1", title: "斗破苍穹", volumeCount: 3, chapterCount: 42 }
 
   test("指令含小说 ID、书名与卷章规模", () => {
-    const prompt = buildImportTidyPrompt(input)
+    const prompt = buildImportPipelinePrompt(input)
     expect(prompt).toContain("novel-1")
     expect(prompt).toContain("斗破苍穹")
     expect(prompt).toContain("3 卷 / 42 章")
   })
 
-  test("编排覆盖错别字校对与设定/角色抽取", () => {
-    const prompt = buildImportTidyPrompt(input)
-    expect(prompt).toContain("错别字")
-    expect(prompt).toContain("list_chapters")
-    expect(prompt).toContain("read_chapter_content")
-    expect(prompt).toContain("lint_settings")
-    expect(prompt).toContain('organize_settings(action="analyze")')
-    expect(prompt).toContain('organize_settings(action="batch")')
+  test("指令指向导入整理工作队列流程", () => {
+    const prompt = buildImportPipelinePrompt(input)
+    expect(prompt).toContain("导入后整理")
+    expect(prompt).toContain("工作队列")
+    expect(prompt).toContain("分章结构校验")
+    expect(prompt).toContain("单读三产出")
+    expect(prompt).toContain("书籍简介生成")
+    expect(prompt).toContain("汇总汇报")
   })
 
-  test("审阅流约束：产出进收件箱、禁止直改正文与旁路改设定", () => {
-    const prompt = buildImportTidyPrompt(input)
-    expect(prompt).toContain("审阅收件箱")
-    expect(prompt).toContain("禁止直接修改章节正文")
+  test("审阅流约束：纠错禁直改正文、设定禁旁路、已有队列不重复建队", () => {
+    const prompt = buildImportPipelinePrompt(input)
     expect(prompt).toContain("章节定位 + 原文/建议对照")
-    expect(prompt).toContain("旁路")
-    expect(prompt).toContain("禁止虚构 ID")
+    expect(prompt).toContain("禁止直改章节正文")
+    expect(prompt).toContain("设定审阅收件箱")
+    expect(prompt).toContain("unverified")
+    expect(prompt).toContain("update_setting / delete_setting")
+    expect(prompt).toContain("不重复建队")
   })
 })

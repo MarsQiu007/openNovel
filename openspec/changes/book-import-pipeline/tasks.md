@@ -8,8 +8,8 @@
 
 ## 2. app 入口与提示词替换
 
-- [ ] 2.1 用 `buildImportPipelinePrompt` 替换 `buildImportTidyPrompt`：新指令让 director 建导入整理队列（书名/卷章数/小说 ID 参数化，含既有白名单与禁直改约束的引用），旧函数连同其单测一并删除，报告页调用点改接新函数——`cd packages/app && bun test --preload ./happydom.ts ./src` 通过（新函数单测覆盖），`bun typecheck` 通过
-- [ ] 2.2 穷举清理替换残留：grep 确认仓库内无 `buildImportTidyPrompt` 引用；报告页相关 locale 键与「AI 整理」入口文案核对，新增/变更文案进 zh/en/zht 三语 locale 体系——`cd packages/app && bun typecheck` 通过，界面三语切换无硬编码英文
+- [x] 2.1 用 `buildImportPipelinePrompt` 替换 `buildImportTidyPrompt`：新指令让 director 建导入整理队列（书名/卷章数/小说 ID 参数化，含既有白名单与禁直改约束的引用），旧函数连同其单测一并删除，报告页调用点改接新函数——`cd packages/app && bun test --preload ./happydom.ts ./src` 通过（新函数单测覆盖），`bun typecheck` 通过
+- [x] 2.2 穷举清理替换残留：grep 确认仓库内无 `buildImportTidyPrompt` 引用；报告页相关 locale 键与「AI 整理」入口文案核对，新增/变更文案进 zh/en/zht 三语 locale 体系——`cd packages/app && bun typecheck` 通过，界面三语切换无硬编码英文
 - [ ] 2.3 补 app 侧 e2e 冒烟：报告页点击「AI 整理」后向绑定会话发出建队形态指令（novel-workspace.ts 既有 prompt POST 捕获助手断言指令文本含建队路由关键词），经 mock workrun GET 注入队列 + SSE 事件推送断言队列区块出现导入整理队列——`bun run test:e2e -- e2e/smoke/` 相关用例通过
 
 ## 3. 验证收尾
