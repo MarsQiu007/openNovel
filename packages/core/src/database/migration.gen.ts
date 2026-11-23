@@ -45,6 +45,5 @@ export const migrations = (
     import("./migration/20261021075945_kv_table"),
     import("./migration/20261027085759_memory_facts_writing_batch"),
     import("./migration/20261119000000_work_run_tables"),
-    import("./migration/20261123040419_concerned_toxin"),
   ])
 ).map((module) => module.default) satisfies DatabaseMigration.Migration[]
