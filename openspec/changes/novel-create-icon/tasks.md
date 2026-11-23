@@ -1,5 +1,9 @@
 # Tasks
 
+## Implementation Commits
+
+- eb5eb6055f fix(ui): 补齐创建小说图标
+
 ## 1. 图标补齐
 
 - [x] 1.1 在 V2 图标注册表中新增 `add` 的 16 视窗加号资产，并检查现有注册图标无重复定义
