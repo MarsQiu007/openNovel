@@ -124,13 +124,9 @@ export const novelTools = {
       const synopsis = args.synopsis.trim()
       if (!synopsis) throw toolFailure("param_error", "书籍简介不能为空。请生成非空简介后再调用本工具。")
       const db = getDb(ctx.directory)
-      const [existing] = await db.select().from(NovelTable).where(eq(NovelTable.id, bound)).limit(1).all()
+      const [existing] = db.select().from(NovelTable).where(eq(NovelTable.id, bound)).limit(1).all()
       if (!existing) throw toolFailure("not_found", `会话绑定的书籍（id: ${bound}）已不存在，无法更新简介。`)
-      await db
-        .update(NovelTable)
-        .set({ synopsis, updated_at: Date.now() })
-        .where(eq(NovelTable.id, bound))
-        .run()
+      db.update(NovelTable).set({ synopsis, updated_at: Date.now() }).where(eq(NovelTable.id, bound)).run()
       return {
         title: "update_novel",
         output: `已更新书籍《${existing.title}》的简介（${synopsis.length} 字）。`,

@@ -130,8 +130,8 @@ test("导入报告「AI 整理」发建队指令并呈现导入整理队列", as
 
   // 建队形态指令：已绑定会话存在，直发 prompt；文本含导入整理路由关键词
   await expect.poll(() => prompts.length).toBeGreaterThan(0)
-  expect(prompts[0]!.sessionID).toBe(SESSION_ID)
-  const sent = prompts[0]!
+  expect(prompts[0]?.sessionID).toBe(SESSION_ID)
+  const sent = prompts[0]
   expect(sent.text).toContain("导入后整理")
   expect(sent.text).toContain("工作队列")
   expect(sent.text).toContain("分章结构校验")

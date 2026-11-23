@@ -52,12 +52,12 @@ describe("update_novel 工具", () => {
     const output = typeof result === "string" ? result : result.output
     expect(output).toContain("已更新书籍《剑来》的简介")
 
-    const novel = await getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    const novel = getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     expect(novel?.synopsis).toBe("少年陈平安仗剑走天涯，问心无愧。")
 
     // 覆盖式：再次调用以新值替换
     await updateNovelTool().execute({ synopsis: "再生成简介" }, toolCtx("ses_bound"))
-    const updated = await getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    const updated = getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     expect(updated?.synopsis).toBe("再生成简介")
     expect(updated?.updated_at).toBeGreaterThanOrEqual(novel!.updated_at)
   })
@@ -69,7 +69,7 @@ describe("update_novel 工具", () => {
       .then(() => null, (e: Error) => e)
     expect(err?.name).toBe("param_error")
 
-    const novel = await getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
+    const novel = getDb(projectDir).select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     expect(novel?.synopsis).toBe("初始简介")
   })
 
