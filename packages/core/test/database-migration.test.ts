@@ -99,6 +99,45 @@ describe("DatabaseMigration", () => {
     )
   })
 
+  test("applies pending migrations on an existing install that predates them", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE session (id text PRIMARY KEY)`)
+        yield* db.run(sql`CREATE TABLE migration (id TEXT PRIMARY KEY, time_completed INTEGER NOT NULL)`)
+        // 模拟存量安装：work_run 表早已由 20261119000000 迁移建成并入账，journal
+        // 记录了当时存在的全部迁移。此后若新增与旧迁移重复建表的迁移（如
+        // 20261123040419_concerned_toxin 重复建 work_run 两表），applyOnly 会对其
+        // 重放并撞表现行——2026-11-23 桌面端启动崩溃的回归形态，本用例即防护。
+        yield* Effect.forEach(
+          migrations.filter((migration) => migration.id !== "20261123040419_concerned_toxin"),
+          (migration) => db.run(sql`INSERT INTO migration (id, time_completed) VALUES (${migration.id}, 1)`),
+        )
+        yield* db.run(sql`
+          CREATE TABLE work_run (
+            id text PRIMARY KEY,
+            session_id text NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+            goal text NOT NULL,
+            status text NOT NULL
+          )
+        `)
+        yield* db.run(sql`
+          CREATE TABLE work_run_item (
+            id text PRIMARY KEY,
+            run_id text NOT NULL REFERENCES work_run(id) ON DELETE CASCADE,
+            seq integer NOT NULL,
+            title text NOT NULL,
+            status text NOT NULL
+          )
+        `)
+
+        yield* DatabaseMigration.applyOnly(db, migrations)
+
+        expect(yield* db.get(sql`SELECT count(*) AS count FROM migration`)).toEqual({ count: migrations.length })
+      }),
+    )
+  })
+
   test("rejects a non-empty database without a session table", async () => {
     await expect(
       run(

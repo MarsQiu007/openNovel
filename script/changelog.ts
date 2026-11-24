@@ -87,16 +87,23 @@ const [out, err] = quiet
   ? await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()])
   : ["", ""]
 const code = await proc.exited
+const generated = await Bun.file(file).exists()
 
-if (code !== 0) {
-  // AI 生成失败（如缺少模型 key）不应阻断发版流程：降级为 raw-changelog 的机械输出
-  console.error(`[changelog] opennovel changelog command failed (exit ${code}); falling back to raw changelog`)
+if (code !== 0 || !generated) {
+  const failureReason = code !== 0
+    ? `opennovel changelog command failed (exit ${code})`
+    : `opennovel changelog command exited without creating ${path.basename(file)}`
+  // AI 生成失败（包括假成功后没有产物）不直接阻断发版：统一降级为 raw-changelog 机械输出
+  console.error(`[changelog] ${failureReason}; falling back to raw changelog`)
   // 降级必须显式可见：GitHub Actions 输出 warning 注解与 step summary，避免再次静默无人察觉
   if (process.env.GITHUB_ACTIONS) {
-    console.log(`::warning title=Changelog fallback::AI changelog 生成失败（exit ${code}），已降级为机械输出；详见 prepare 日志`)
+    console.log(`::warning title=Changelog fallback::${failureReason}，已降级为机械输出；详见 prepare 日志`)
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
-    await appendFile(process.env.GITHUB_STEP_SUMMARY, "> [!WARNING]\n> AI changelog 生成失败，已降级为机械输出（changelog AI fallback）。\n")
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      `> [!WARNING]\n> ${failureReason}，已降级为机械输出（changelog AI fallback）。\n`,
+    )
   }
   // raw-changelog 用 git log 按路径过滤 commit，本地 tag 过期会导致 bad revision，先同步
   await $`git fetch --tags --force --quiet`.nothrow().cwd(root)
@@ -107,17 +114,42 @@ if (code !== 0) {
   })
   const text = await new Response(raw.stdout).text()
   const rawCode = await raw.exited
-  if (rawCode !== 0) {
-    if (quiet) {
-      if (out) process.stdout.write(out)
-      if (err) process.stderr.write(err)
-    }
-    process.exit(rawCode)
+
+  if (rawCode !== 0 || text.trim().length === 0) {
+    const fallbackReason = rawCode !== 0
+      ? `raw changelog fallback failed (exit ${rawCode})`
+      : `raw changelog fallback produced no release notes`
+    await abortFallback(fallbackReason, rawCode !== 0 ? rawCode : 1)
   }
+
   await Bun.write(file, text)
+  const fallbackGenerated = await Bun.file(file).exists()
+
+  if (!fallbackGenerated) {
+    await abortFallback(`raw changelog fallback did not create ${path.basename(file)}`, 1)
+  }
+
   if (values.print) process.stdout.write(text)
   process.exit(0)
 }
 
 if (values.print) process.stdout.write(await Bun.file(file).text())
 process.exit(0)
+
+async function abortFallback(reason: string, exitCode: number) {
+  console.error(`[changelog] ${reason}; refusing to publish without release notes`)
+  if (process.env.GITHUB_ACTIONS) {
+    console.log(`::error title=Changelog generation failed::${reason}`)
+  }
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      `> [!CAUTION]\n> ${reason}；发布说明生成彻底失败，发布流程已终止。\n`,
+    )
+  }
+  if (quiet) {
+    if (out) process.stdout.write(out)
+    if (err) process.stderr.write(err)
+  }
+  process.exit(exitCode)
+}

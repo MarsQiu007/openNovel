@@ -1,0 +1,42 @@
+# Proposal
+
+## Why
+
+书籍导入后的「AI 整理」今天是一条单条编排指令：一次性让模型通读全书、汇报错别字、抽取设定入审阅收件箱。它没有持久化推进、断点续跑与进度可见性，书一长就不可靠——中断即丢失全部进度，用户无从知道整理到哪一步。agent-work-continuation 刚落地的 WorkRun 工作队列（持久化单元、守卫续跑、挂起恢复、队列面板 UI）正好补上这块地基：把导入整理从「一条大 prompt」升级为「一个可暂停、可恢复、逐章推进的多阶段任务流程」，让纠错、设定入库、技法学习与简介生成各自成为管线中的阶段产出。
+
+## What Changes
+
+- 导入报告页「AI 整理」升级为**导入整理工作队列**：点击后在绑定的小说会话创建 WorkRun 队列（替代现有单条整理指令 `buildImportTidyPrompt`），队列目标写明整理范围与产出，队列在工作台会话面板的队列区块可见、可挂起、可恢复。
+- 队列单元结构：一个全局「分章结构校验」单元打头（核对章节清单与边界异常，只汇报不自动重切），随后每章一个「章节整理」单元，收尾两个全局单元「书籍简介生成」与「汇总汇报」。
+- 每个章节整理单元内按 **纠错 → 设定 → 技法** 三阶段推进：同一单元只通读一次该章正文，三个产出共享这一次阅读；阶段进度编码进单元进度笔记。
+- 各阶段产出走既有闭环，不另造体系：纠错只产出建议清单（章节定位 + 原文/建议对照，禁止直改正文，修订仍走章节审批流）；设定抽取经 organize_settings 批处理进设定审阅收件箱；技法以 unverified 初始状态入技法库，同名合并保留既有状态与置信度（与对话式学习同口径）。
+- 书籍简介生成写入 `novel.synopsis`（可再生派生元数据，直接写、可在管线外再生成覆盖）；为此新增模型工具 `update_novel`（白名单仅 synopsis 字段，经 novel-store 直写，不经 HttpApi）。
+- 汇总汇报在队列终结前输出：纠错建议分布、设定候选待审数、技法新学/合并/拒绝清单、简介已生成确认。
+- director 编排提示词新增「导入整理（工作队列）」路由段：识别整理意图、建队、逐章推进（dispatch 子代理单读三产出）、受阻处理、终结汇报与恢复续跑语义，与既有「全书逐章审查（工作队列）」段并列同构。
+
+**非目标**：
+
+- 不改动确定性导入管线（analyzeImport/applyImport 的编码、清洗、正则分章保持原样）；AI 不重切章节，分章阶段只做校验汇报。
+- 不改写章节正文：纠错阶段禁止直改正文，错别字修订仍走既有章节审批流。
+- 不改动技法库（technique-* 家族）、设定中心（setting-* 家族）与 WorkRun（agent-work-continuation）的任何既有需求与行为，本变更只作为它们的消费者按既有契约汇入。
+- 不新增 HttpApi/Protocol 契约、不扩展 WorkRun 数据模型（无阶段字段），不新增配置项。
+- 不做导入前 AI 分章（上传即由 AI 切章）——本期保持确定性分章，AI 分章如需另立提案。
+- 不做免审直生效：设定候选与技法仍须用户审阅后才影响写作。
+
+## Capabilities
+
+### New Capabilities
+
+- `book-import-pipeline`: 导入后 AI 多阶段整理管线能力——一键创建持久化工作队列，按「分章校验 → 逐章（纠错/设定/技法单读三产出）→ 简介 → 汇总」推进，各阶段产出走既有审阅/入库闭环，支持断点续跑与挂起恢复。
+
+### Modified Capabilities
+
+（无：本变更只消费既有能力，不修改任何现有 spec 的需求。）
+
+## Impact
+
+- **packages/app**：`book-import.tsx` 报告页「AI 整理」入口接建队指令；`book-import-utils.ts` 以 `buildImportPipelinePrompt` 替换 `buildImportTidyPrompt`（旧函数、其单测与相关文案一并清理）；新增文案进入既有 locale 体系（zh/en/zht）。
+- **packages/plugin**：`novel-writer/agents/director.ts` 新增「导入整理（工作队列）」路由段与 `update_novel: "allow"` 授权；`novel-writer/tools/novel.ts` 新增 `update_novel` 模型工具（白名单 synopsis，经 novel-store 直写）；插件集成测试补导入整理建队与推进契约断言。
+- **无数据模型变更**：复用 WorkRun 既有两表与 novel.synopsis 既有字段，存量本地数据零迁移。
+- **无契约变更**：不新增 HttpApi/Protocol 端点，无需 SDK 再生成、无需注册 httpapi-exercise 场景。
+- 队列面板、挂起/恢复端点、守卫续跑均复用 agent-work-continuation 已落地实现，本变更不触碰 core/server 运行时。

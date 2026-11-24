@@ -12,7 +12,7 @@ import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
-import { IMPORT_SUPPORTED_EXTENSIONS, buildImportTidyPrompt, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
+import { IMPORT_SUPPORTED_EXTENSIONS, buildImportPipelinePrompt, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
 import { sendNovelSessionInstruction } from "./workspace-data"
 
 const ENCODING_OPTIONS: NovelImportEncoding[] = ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
@@ -160,7 +160,7 @@ export default function NovelImportWizard() {
   const canConfirm = () =>
     title().trim().length > 0 && title().length <= 60 && (!unrecognized() || fallbackFixedLength())
 
-  // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），指令产出进既有审阅流
+  // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），建队指令产出进既有审阅流
   async function sendTidy() {
     const current = report()
     if (!current || tidyPending()) return
@@ -171,7 +171,7 @@ export default function NovelImportWizard() {
         novel,
         bindSession,
         novelID: current.novelId,
-        prompt: buildImportTidyPrompt({
+        prompt: buildImportPipelinePrompt({
           novelID: current.novelId,
           title: current.title,
           volumeCount: current.volumeCount,
