@@ -8,7 +8,10 @@ import { defineTool } from "../../v2/effect/tool.js"
 import { toolFailure } from "../../v2/effect/tool-failure.js"
 import {
   advanceWritingBatch,
+  applyRestructure,
   beginWritingBatch,
+  ChapterReviewTable,
+  ChapterSummaryTable,
   ChapterTable,
   ChapterVersionTable,
   CharacterTable,
@@ -22,9 +25,11 @@ import {
   readNovelConfig,
   rebuildNextChapterSnapshot,
   repairChapterSequence,
+  simulateRestructure,
   updateChapter,
   WorldEntryTable,
   writingBatchCompleted,
+  type RestructureOp,
 } from "../session-store.js"
 import { scanReferences } from "../state-commit.js"
 import { detectKinshipEntityDrift, loadCharacterBindingView } from "../drift-guards.js"
@@ -38,6 +43,7 @@ import {
   getFirstUnpassedChapter,
   getTargetWordCount,
 } from "./chapter-guards.js"
+import { detectFixedSplit } from "../detect-fixed-split.js"
 import { nextVersion, projectDirFromCtx, resolveNovelId } from "./shared.js"
 import { recordMetrics, recordMetricsBatch } from "../evaluate/metrics.js"
 
@@ -452,10 +458,15 @@ export const chapterTools = {
       const lines = chapters.map(
         (c) => `第${c.chapter_number}章 | ${c.title} | ${c.word_count}字 | ${c.status} | ${c.id}`,
       )
+      // 固定分章特征（fixed-split-restructure）：命中时编排会话须先做分章体检再建整理队列
+      const fixedSplit = detectFixedSplit(chapters.map((c) => ({ title: c.title, wordCount: c.word_count })))
       return {
         title: "list_chapters",
-        output: lines.join("\n"),
-        metadata: { count: chapters.length, chapters },
+        output:
+          (fixedSplit
+            ? "检测到固定长度分章特征（fixed_split=true）：本书为机械等长分章，导入整理建队前应先做分章体检与确认式重切。\n"
+            : "") + lines.join("\n"),
+        metadata: { count: chapters.length, chapters, fixed_split: fixedSplit },
       }
     },
   }),
@@ -683,6 +694,118 @@ export const chapterTools = {
         title: "search_chapters",
         output: lines.join("\n"),
         metadata: { count: matched.length, query: args.query },
+      }
+    },
+  }),
+  restructure_chapters: defineTool({
+    description:
+      "对一本书执行章节结构重切：按锚点拆分、相邻章合并、章节改题，用于修复固定长度兜底分章等不合理边界。\n" +
+      "**两段式**：默认只校验并返回逐步预览（不写库）；用户明确同意后传 confirm=true 在单事务内应用——正文被改的既有章自动保存版本快照（可经 restore_chapter_version 回滚正文），被合并章连同关联数据删除（预览会列出警示），应用后全书序号重排为 1..N。\n" +
+      "**章节标识来源**：chapterId 必须来自 list_chapters 的真实返回，禁止自行构造；split 可用 key 声明占位，后续操作以 new:<key> 引用该拆分新章（如先拆出场景起点再并入下一章）。\n" +
+      "**锚点语义**：anchor 为「新章正文的起始片段」，必须在目标章正文中恰好出现一次；请从 read_chapter_content 的真实正文中原样摘取。",
+    args: Schema.Struct({
+      novel_id: Schema.optional(
+        Schema.String.annotate({ description: "小说 ID（可选）。不传且库内仅一本小说时自动解析；库内多本小说时必须提供。" }),
+      ),
+      operations: Schema.Array(
+        Schema.Struct({
+          op: Schema.Literals(["split", "merge", "retitle"]).annotate({ description: "操作类型：split 按锚点拆分 / merge 相邻合并 / retitle 改题" }),
+          chapterId: Schema.String.annotate({ description: "作用章 ID（split/retitle）或合并目标章 ID（merge）；须来自 list_chapters 真实返回，或 new:<key> 引用拆分新章" }),
+          anchor: Schema.optional(Schema.String.annotate({ description: "split 必填：新章正文起始片段，须在目标章正文中恰好出现一次" })),
+          newTitle: Schema.optional(Schema.String.annotate({ description: "split 可选：新章标题（缺省为「原题（续）」）" })),
+          key: Schema.optional(Schema.String.annotate({ description: "split 可选：拆分新章占位标识，后续操作用 new:<key> 引用" })),
+          nextChapterId: Schema.optional(Schema.String.annotate({ description: "merge 必填：被合并章 ID，应用时点必须紧随目标章" })),
+          title: Schema.optional(Schema.String.annotate({ description: "retitle 必填：新标题" })),
+        }),
+      ),
+      confirm: Schema.optional(Schema.Boolean.annotate({ description: "必须传 true 才应用；不传或 false 时只返回校验预览，不写库" })),
+    }),
+    execute: async (args, ctx) => {
+      if (args.operations.length === 0) {
+        throw toolFailure("param_error", "重切方案为空：请至少提供一个操作（split / merge / retitle）。")
+      }
+      const ops: RestructureOp[] = args.operations.map((operation, index) => {
+        if (operation.op === "split") {
+          if (operation.anchor === undefined || operation.anchor.length === 0) {
+            throw toolFailure("param_error", `第 ${index + 1} 个操作（split）缺少 anchor：请提供新章正文起始片段。`)
+          }
+          return {
+            op: "split",
+            chapterId: operation.chapterId,
+            anchor: operation.anchor,
+            ...(operation.newTitle !== undefined ? { newTitle: operation.newTitle } : {}),
+            ...(operation.key !== undefined ? { key: operation.key } : {}),
+          }
+        }
+        if (operation.op === "merge") {
+          if (operation.nextChapterId === undefined) {
+            throw toolFailure("param_error", `第 ${index + 1} 个操作（merge）缺少 nextChapterId：请提供被合并章 ID。`)
+          }
+          return { op: "merge", chapterId: operation.chapterId, nextChapterId: operation.nextChapterId }
+        }
+        if (operation.title === undefined || operation.title.trim().length === 0) {
+          throw toolFailure("param_error", `第 ${index + 1} 个操作（retitle）缺少 title：请提供新标题。`)
+        }
+        return { op: "retitle", chapterId: operation.chapterId, title: operation.title }
+      })
+      const db = getDb(ctx.directory)
+      const novelId = args.novel_id !== undefined ? await resolveNovelId(db, args.novel_id) : await resolveOwnedNovelId(db)
+      const chapters = db
+        .select({
+          id: ChapterTable.id,
+          title: ChapterTable.title,
+          content: ChapterTable.content,
+          order: ChapterTable.order,
+          volumeId: ChapterTable.volume_id,
+        })
+        .from(ChapterTable)
+        .where(eq(ChapterTable.novel_id, novelId))
+        .orderBy(asc(ChapterTable.order))
+        .all()
+      const simulation = simulateRestructure(chapters, ops)
+      if (!simulation.ok) {
+        throw toolFailure("param_error", `重切方案校验失败：${simulation.error.message}`, { code: "restructure_invalid" })
+      }
+      const { plan } = simulation
+      const titleOf = new Map(chapters.map((chapter) => [chapter.id, chapter.title]))
+      // 合并删除警示（design D4）：预览列出被删章及其关联数据量，确认后才执行
+      const deletionWarnings = plan.deletedChapterIds.map((chapterId) => ({
+        chapter_id: chapterId,
+        title: titleOf.get(chapterId) ?? chapterId,
+        versions: db.select({ id: ChapterVersionTable.id }).from(ChapterVersionTable).where(eq(ChapterVersionTable.chapter_id, chapterId)).all().length,
+        summaries: db.select({ id: ChapterSummaryTable.id }).from(ChapterSummaryTable).where(eq(ChapterSummaryTable.chapter_id, chapterId)).all().length,
+        reviews: db.select({ id: ChapterReviewTable.id }).from(ChapterReviewTable).where(eq(ChapterReviewTable.chapter_id, chapterId)).all().length,
+      }))
+      if (args.confirm !== true) {
+        const lines = [`重切方案预览（共 ${plan.steps.length} 步，未应用）：`]
+        for (const step of plan.steps) lines.push(`${step.index}. ${step.summary}`)
+        if (deletionWarnings.length > 0) {
+          lines.push("⚠️ 合并将删除以下章节及其关联数据：")
+          for (const warning of deletionWarnings) {
+            lines.push(`- 「${warning.title}」(${warning.chapter_id})：历史版本 ${warning.versions} 个、摘要 ${warning.summaries} 条、评审 ${warning.reviews} 条`)
+          }
+        }
+        lines.push("确认无误后传 confirm=true 应用；正文被改的既有章将自动保存版本快照，全书序号重排为 1..N。")
+        return {
+          title: "restructure_chapters（预览，未应用）",
+          output: lines.join("\n"),
+          metadata: {
+            applied: false,
+            steps: plan.steps,
+            deletion_warnings: deletionWarnings,
+            final_chapter_count: plan.finalChapters.length,
+          },
+        }
+      }
+      const result = applyRestructure(novelId, ops, ctx.directory)
+      return {
+        title: "restructure_chapters（已应用）",
+        output:
+          `已应用章节重切：新章 ${result.createdChapterIds.length} 个、合并删除 ${result.deletedChapterIds.length} 章、` +
+          `正文修改 ${result.modifiedChapterIds.length} 章（已存版本快照）、改题 ${result.retitledChapterIds.length} 章；` +
+          `全书序号已重排为 1..${plan.finalChapters.length}` +
+          (result.batchCancelled ? "；进行中的批量写作任务已作废，请重新登记批量" : ""),
+        metadata: { applied: true, ...result },
       }
     },
   }),
