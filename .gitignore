@@ -52,3 +52,6 @@ openspec/changes/archive/.openspec-archive.lock
 
 # Agent 临时工作目录（探针截图 / openspec instructions 缓存等一次性产物）
 .agent_tmp/
+
+# 应用内版本亮点兜底快照（构建期生成，不入库）
+packages/app/public/changelog-snapshot.json

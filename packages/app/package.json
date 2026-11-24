@@ -16,7 +16,7 @@
     "typecheck:e2e": "tsgo -p e2e/tsconfig.json",
     "start": "vite",
     "dev": "vite",
-    "build": "vite build",
+    "build": "bun run script/generate-changelog-snapshot.ts && vite build",
     "serve": "vite preview",
     "test": "bun run test:unit && bun run test:browser",
     "test:unit": "bun test --only-failures --preload ./happydom.ts ./src",

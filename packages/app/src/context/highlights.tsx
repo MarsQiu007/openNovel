@@ -6,8 +6,7 @@ import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { persisted } from "@/utils/persist"
 import { DialogReleaseNotes, type Highlight } from "@/components/dialog-release-notes"
-
-const CHANGELOG_URL = "https://opennovel.ai/changelog.json"
+import { fetchChangelogJson } from "./highlights-source"
 
 type Store = {
   version?: string
@@ -177,11 +176,7 @@ export const { use: useHighlights, provider: HighlightsProvider } = createSimple
         clearTimer()
       })
 
-      fetcher(CHANGELOG_URL, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-      })
-        .then((response) => (response.ok ? (response.json() as Promise<unknown>) : undefined))
+      fetchChangelogJson(fetcher, controller.signal)
         .then((json) => {
           if (!json) return
           const highlights = loadReleaseHighlights(json, platform.version, previous)
