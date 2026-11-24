@@ -58,6 +58,13 @@ describe("buildImportPipelinePrompt", () => {
     expect(prompt).toContain("3 卷 / 42 章")
   })
 
+  test("指令含固定分章建队前体检步骤", () => {
+    const prompt = buildImportPipelinePrompt(input)
+    expect(prompt).toContain("fixed_split")
+    expect(prompt).toContain("分章体检")
+    expect(prompt).toContain("重切方案")
+  })
+
   test("指令指向导入整理工作队列流程", () => {
     const prompt = buildImportPipelinePrompt(input)
     expect(prompt).toContain("导入后整理")
