@@ -10,9 +10,11 @@ const output = [`version=${Script.version}`, `commit=${sha}`]
 if (!Script.preview) {
   await $`bun script/changelog.ts --to ${sha}`.cwd(process.cwd())
   const file = `${process.cwd()}/UPCOMING_CHANGELOG.md`
-  const generatedBody = await Bun.file(file)
-    .text()
-    .catch(() => "No notable changes")
+  const generatedFile = Bun.file(file)
+  if (!(await generatedFile.exists())) {
+    throw new Error(`UPCOMING_CHANGELOG.md was not generated at ${file}; refusing to publish empty release notes`)
+  }
+  const generatedBody = await generatedFile.text()
   const body = buildProdReleaseNotes({ version: Script.version, body: generatedBody })
   const dir = process.env.RUNNER_TEMP ?? "/tmp"
   const notesFile = `${dir}/opennovel-release-notes.txt`
