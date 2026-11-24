@@ -97,6 +97,12 @@ export const { use: useNovel, provider: NovelProvider } = createSimpleContext({
       }
     }
 
+    function clearCurrentNovel() {
+      setStore("currentNovel", null)
+      setStore("error", null)
+      setStore("loading", false)
+    }
+
     async function getNovelForSession(sessionID: string) {
       setStore("loading", true)
       setStore("error", null)
@@ -144,6 +150,7 @@ export const { use: useNovel, provider: NovelProvider } = createSimpleContext({
       },
       fetchNovels,
       setCurrentNovel,
+      clearCurrentNovel,
       getNovelForSession,
       listSessionBindings,
     }

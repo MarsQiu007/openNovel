@@ -10,6 +10,7 @@ import { arrayMove } from "@dnd-kit/helpers"
 import { tabHref, tabKey, type NovelTab, type Tab } from "@/context/tabs"
 import { ServerConnection } from "@/context/server"
 import { Icon as IconV2 } from "@opennovel-ai/ui/v2/icon"
+import { isNovelNotFoundError } from "@/utils/server-errors"
 import { TabNavItem } from "@/components/titlebar-tab-nav"
 import { useGlobal, type ServerCtx } from "@/context/global"
 import { useLanguage } from "@/context/language"
@@ -67,6 +68,13 @@ function NovelTabSlot(props: {
     const title = novel.data?.title
     if (!title) return
     tabs.rememberNovelInfo(props.tab, { title })
+  })
+  // 失效书籍自愈（stale-novel-recovery）：tab 指向的小说已不存在时移除该 tab（清理路径，
+  // 不进最近关闭），避免每次启动都对同一失效 novelID 反复 404。
+  createEffect(() => {
+    if (!novel.isError) return
+    if (!isNovelNotFoundError(novel.error)) return
+    tabs.removeTab(props.index())
   })
 
   // Persisted cache wins so a restart shows the title immediately, before the

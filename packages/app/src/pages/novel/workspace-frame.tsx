@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams, useLocation, useIsRouting } from "@solidjs/router"
 import { createEffect, createSignal, createMemo, For, Show, Suspense, onCleanup, type ParentProps } from "solid-js"
-import { createStore } from "solid-js/store"
+import { createStore, produce } from "solid-js/store"
 import { useQueryClient } from "@tanstack/solid-query"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
@@ -188,6 +188,30 @@ export default function NovelWorkspaceFrame() {
     Persist.global("novel.workspace.state.v1"),
     createStore<Record<string, PerBookState>>({}),
   )
+  // 失效书籍自愈（stale-novel-recovery）：detail NotFound 归一为 null 后，清掉该书残留的
+  // 按书存档与阅读进度，避免死引用长期留在本地持久化里；随后回书架空态。
+  createEffect(() => {
+    if (!perBookStateReady() || !readingProgressReady()) return
+    if (data.loading || data.error || data.novel) return
+    const book = novelID()
+    if (!book) return
+    novel.clearCurrentNovel()
+    if (perBookState[book] !== undefined) {
+      setPerBookState(
+        produce((draft) => {
+          delete draft[book]
+        }),
+      )
+    }
+    if (readingProgress[book] !== undefined) {
+      setReadingProgress(
+        produce((draft) => {
+          delete draft[book]
+        }),
+      )
+    }
+    navigate("/", { replace: true })
+  })
   // 章节选中恢复移至下方「首帧收敛」区块：开门前完成落值 + 失效校验（僵尸进度 ID 不发单章 404）
   const selectChapter = (chapterID: string) => {
     setSelectedChapterId(chapterID)
@@ -227,9 +251,9 @@ export default function NovelWorkspaceFrame() {
     setPerBookState(novelID(), { settingsCollapsed: [...next] })
   }
   // 恢复校验的数据源：与各子组件同 queryKey，tanstack query 缓存共享，无重复请求
-  const outlineQuery = useOutline(novelID)
-  const worldQuery = useWorldEntries(novelID)
-  const charactersQuery = useCharacters(novelID)
+  const outlineQuery = useOutline(novelID, () => data.novel != null)
+  const worldQuery = useWorldEntries(novelID, () => data.novel != null)
+  const charactersQuery = useCharacters(novelID, () => data.novel != null)
   const zeroSettings = createMemo(
     () =>
       charactersQuery.isSuccess &&

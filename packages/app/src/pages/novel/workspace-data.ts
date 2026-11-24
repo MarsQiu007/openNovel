@@ -19,8 +19,11 @@ export type WorkspaceDataState = {
 
 export function useWorkspaceData(novelID: Accessor<string>) {
   const detail = useNovelDetail(novelID)
-  const volumes = useVolumes(novelID)
-  const chapters = useChapters(novelID)
+  // detail 404 被归一为 null（stale-novel-recovery）：先确认书存在，再放行下属集合查询，
+  // 避免失效 ID 首次进入工作台就触发一串必然 404。
+  const novelReady = createMemo(() => detail.data != null)
+  const volumes = useVolumes(novelID, novelReady)
+  const chapters = useChapters(novelID, novelReady)
 
   // 张力不进首帧门（book-open-transition D4）：面板挂载时自查询同一 queryKey 并带自身加载态，
   // 不因它让整个工作台多等一项网络往返。

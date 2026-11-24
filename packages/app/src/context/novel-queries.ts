@@ -14,6 +14,7 @@ import type {
   SettingImageOwnerType,
 } from "@opennovel-ai/schema/novel"
 import { authTokenFromCredentials } from "@/utils/server"
+import { isNovelNotFoundError } from "@/utils/server-errors"
 import { adaptInfo } from "@/utils/v2-adapter"
 
 // ---- Internal client helper ----
@@ -273,30 +274,39 @@ export function useNovelDetail(novelID: Accessor<string>) {
   return createQuery(() => ({
     queryKey: novelKeys.detail(sdk().directory, novelID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
-    queryFn: () => client()["server.novel"].detail({ novelID: novelID(), location: { directory: sdk().directory } }),
+    // 指向已删除小说的持久化引用（stale-novel-recovery）：NotFound 归一为 null 成功态，
+    // 调用方按空态展示并自愈引用；其余错误照常抛出保留重试与错误提示语义。
+    queryFn: async () => {
+      try {
+        return await client()["server.novel"].detail({ novelID: novelID(), location: { directory: sdk().directory } })
+      } catch (cause) {
+        if (isNovelNotFoundError(cause)) return null
+        throw cause
+      }
+    },
     enabled: !!novelID(),
   }))
 }
 
-export function useVolumes(novelID: Accessor<string>) {
+export function useVolumes(novelID: Accessor<string>, enabled?: Accessor<boolean>) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.volumes(sdk().directory, novelID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].volumes({ novelID: novelID(), location: { directory: sdk().directory } }),
-    enabled: !!novelID(),
+    enabled: !!novelID() && (enabled ? enabled() : true),
   }))
 }
 
-export function useChapters(novelID: Accessor<string>) {
+export function useChapters(novelID: Accessor<string>, enabled?: Accessor<boolean>) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.chapters(sdk().directory, novelID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].chapters({ novelID: novelID(), location: { directory: sdk().directory } }),
-    enabled: !!novelID(),
+    enabled: !!novelID() && (enabled ? enabled() : true),
   }))
 }
 
@@ -356,7 +366,7 @@ export function useChapterReviews(novelID: Accessor<string>, chapterID: Accessor
   }))
 }
 
-export function useCharacters(novelID: Accessor<string>) {
+export function useCharacters(novelID: Accessor<string>, enabled?: Accessor<boolean>) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
@@ -364,7 +374,7 @@ export function useCharacters(novelID: Accessor<string>) {
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].characters({ novelID: novelID(), location: { directory: sdk().directory } }),
-    enabled: !!novelID(),
+    enabled: !!novelID() && (enabled ? enabled() : true),
   }))
 }
 
@@ -395,7 +405,7 @@ export function useForeshadowing(novelID: Accessor<string>) {
   }))
 }
 
-export function useWorldEntries(novelID: Accessor<string>) {
+export function useWorldEntries(novelID: Accessor<string>, enabled?: Accessor<boolean>) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
@@ -406,18 +416,18 @@ export function useWorldEntries(novelID: Accessor<string>) {
         novelID: novelID(),
         location: { directory: sdk().directory },
       }),
-    enabled: !!novelID(),
+    enabled: !!novelID() && (enabled ? enabled() : true),
   }))
 }
 
-export function useOutline(novelID: Accessor<string>) {
+export function useOutline(novelID: Accessor<string>, enabled?: Accessor<boolean>) {
   const client = useNovelClient()
   const sdk = useSDK()
   return createQuery(() => ({
     queryKey: novelKeys.outline(sdk().directory, novelID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () => client()["server.novel"].outline({ novelID: novelID(), location: { directory: sdk().directory } }),
-    enabled: !!novelID(),
+    enabled: !!novelID() && (enabled ? enabled() : true),
   }))
 }
 
@@ -476,11 +486,18 @@ export function useNovelForSession(sessionID: Accessor<string>) {
   return createQuery(() => ({
     queryKey: novelKeys["for-session"](sdk().directory, sessionID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
-    queryFn: () =>
-      client()["server.novel"]["for-session"]({
-        sessionID: sessionID(),
-        location: { directory: sdk().directory },
-      }),
+    // 绑定指向已删除小说按无绑定处理（stale-novel-recovery）：NotFound 归一为 null，不呈现为错误
+    queryFn: async () => {
+      try {
+        return await client()["server.novel"]["for-session"]({
+          sessionID: sessionID(),
+          location: { directory: sdk().directory },
+        })
+      } catch (cause) {
+        if (isNovelNotFoundError(cause)) return null
+        throw cause
+      }
+    },
     enabled: !!sessionID(),
   }))
 }

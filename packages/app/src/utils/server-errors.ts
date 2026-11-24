@@ -40,7 +40,7 @@ function unwrapNamedError(error: unknown): unknown {
   const cause = error.cause as Record<string, unknown>
   if ("body" in cause) return cause.body
   // Solid 的 castError 用 cause 承载非 Error 的抛错值，命名错误体可能直接落在这一层。
-  if (typeof cause._tag === "string") return cause
+  if (typeof cause._tag === "string" || typeof cause.name === "string") return cause
   return error
 }
 
@@ -56,6 +56,14 @@ export function sessionNotFoundError(sessionID: string) {
 
 export function isLocalSessionNotFoundError(error: unknown, sessionID: string) {
   return error instanceof Error && error.message === sessionNotFoundMessage(sessionID)
+}
+
+// 服务端 novel 端点对不存在小说统一返回 NovelNotFoundError（404）；调用方据此把
+// 失效书籍引用自愈为空态（stale-novel-recovery），与普通网络/服务端错误区分开。
+export function isNovelNotFoundError(error: unknown) {
+  const unwrapped = unwrapNamedError(error)
+  if (typeof unwrapped !== "object" || unwrapped === null) return false
+  return "name" in unwrapped && unwrapped.name === "NovelNotFoundError"
 }
 
 export function isSessionNotFoundError(error: unknown, sessionID: string) {

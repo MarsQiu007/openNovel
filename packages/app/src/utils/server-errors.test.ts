@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionNotFoundError } from "@opennovel-ai/sdk/v2/client"
+import type { NovelNotFoundError, SessionNotFoundError } from "@opennovel-ai/sdk/v2/client"
 import type { ConfigInvalidError, ProviderModelNotFoundError } from "./server-errors"
-import { formatServerError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./server-errors"
+import { formatServerError, isNovelNotFoundError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./server-errors"
 
 function fill(text: string, vars?: Record<string, string | number>) {
   if (!vars) return text
@@ -141,6 +141,43 @@ describe("formatServerError", () => {
     const wrapped = new Error("ConfigInvalidError", { cause: { body, status: 400 } })
 
     expect(formatServerError(wrapped, language.t)).toBe("Arquivo de config em config invalido: Missing host")
+  })
+})
+
+describe("isNovelNotFoundError", () => {
+  test("matches an SDK-wrapped novel error", () => {
+    const body = {
+      name: "NovelNotFoundError",
+      data: {
+        message: "小说不存在",
+        novelId: "nov_missing",
+      },
+    } satisfies NovelNotFoundError
+
+    expect(isNovelNotFoundError(new Error("Request failed", { cause: { body, status: 404 } }))).toBe(true)
+  })
+
+  test("matches a named error body carried directly as the cause", () => {
+    const body = {
+      name: "NovelNotFoundError",
+      data: {
+        message: "小说不存在",
+        novelId: "nov_missing",
+      },
+    } satisfies NovelNotFoundError
+
+    expect(isNovelNotFoundError(new Error("Unknown error", { cause: body }))).toBe(true)
+  })
+
+  test("rejects other 404 responses", () => {
+    const body = {
+      _tag: "SessionNotFoundError",
+      sessionID: "ses_missing",
+      message: "Session not found",
+    } satisfies SessionNotFoundError
+
+    expect(isNovelNotFoundError(new Error(body.message, { cause: { body, status: 404 } }))).toBe(false)
+    expect(isNovelNotFoundError(new Error("Network failed"))).toBe(false)
   })
 })
 
