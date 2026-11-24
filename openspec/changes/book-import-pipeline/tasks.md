@@ -16,3 +16,11 @@
 
 - [x] 3.1 受影响包全量验证：`cd packages/plugin && bun test` 全量、`cd packages/app && bun test --preload ./happydom.ts ./src` 全量均通过
 - [x] 3.2 代码质量自查：`cd packages/plugin && bun typecheck`、`cd packages/app && bun typecheck` 通过；oxlint 从仓库根跑零新增告警；同类/冗余/无用代码检查无命中（新导出均被引用、无只服务死代码的 import）
+
+## Implementation Commits
+
+- `2b14aa3c58` feat(plugin): director 导入整理工作队列路由与 update_novel 工具
+- `a1a9d73e50` feat(app): 导入报告「AI 整理」升级为建队形态指令
+- `efdb33fc5d` test(app): 导入报告 AI 整理建队指令 e2e 冒烟
+- `37dc9fa218` chore(plugin): 清理新增代码 oxlint 告警
+- `f08263d25a` test(core): novel-writer 工具计数同步至 99
