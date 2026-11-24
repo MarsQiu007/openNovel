@@ -20,6 +20,7 @@ import { novelClientFor, novelKeys } from "@/context/novel-queries"
 import { novelTabTitle } from "@/context/tab-route"
 import { decode64 } from "@/utils/base64"
 import { canStartTabDrag, isTabCloseTarget } from "./titlebar-tab-gesture"
+import { shouldRetryNovelDetail } from "./titlebar-tab-retry"
 
 function NovelTabSlot(props: {
   tab: NovelTab
@@ -62,6 +63,7 @@ function NovelTabSlot(props: {
     },
     enabled: !!serverCtx() && !!directory(),
     staleTime: 30_000,
+    retry: shouldRetryNovelDetail,
   }))
 
   createEffect(() => {
