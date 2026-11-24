@@ -235,11 +235,16 @@ function createServerNotificationState(input: {
     if (!sessionID) return undefined
     const sync = serverSync().ensureDirSyncContext(directory)
     const session = sync.session.get(sessionID)
-    if (session) return session
+    if (session) {
+      sync.dispose?.()
+      return session
+    }
+    // 事件回调没有响应式 owner；同步查询结束后显式释放本次引用计数。
     return sync.session
       .sync(sessionID)
       .then(() => sync.session.get(sessionID))
       .catch(() => undefined)
+      .finally(() => sync.dispose?.())
   }
 
   const viewedInCurrentSession = (directory: string, sessionID?: string) => {

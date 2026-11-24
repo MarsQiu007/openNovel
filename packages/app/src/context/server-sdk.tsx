@@ -9,7 +9,7 @@ import { pathKey } from "@/utils/path-key"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
-import { createRefCountMap } from "@/utils/refcount"
+import { createRefCountMap, type RefCounted } from "@/utils/refcount"
 import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 
@@ -315,7 +315,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
 type ServerSDKBase = ReturnType<typeof createServerSdkContextBase>
 export type ServerSDK = ServerSDKBase & {
-  ensureDirSdkContext: (directory: string) => ReturnType<typeof createDirSdkContext>
+  ensureDirSdkContext: (directory: string) => RefCounted<ReturnType<typeof createDirSdkContext>>
 }
 
 export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope): ServerSDK {

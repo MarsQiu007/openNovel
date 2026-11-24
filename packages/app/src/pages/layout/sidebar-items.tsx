@@ -155,11 +155,13 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const serverSDK = useServerSDK()
 
   // 导出完整会话（含每条消息的工具调用参数与结果）为 JSON 文件，供问题排查时交给开发者分析
-  const exportSession = () =>
-    exportSessionJson({
+  const exportSession = () => {
+    const sdk = serverSDK().ensureDirSdkContext(props.session.directory)
+    return exportSessionJson({
       session: props.session,
-      client: serverSDK().ensureDirSdkContext(props.session.directory).client,
-    })
+      client: sdk.client,
+    }).finally(() => sdk.dispose?.())
+  }
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)
