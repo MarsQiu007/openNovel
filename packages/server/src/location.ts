@@ -1,3 +1,4 @@
+import { Global } from "@opennovel-ai/core/global"
 import { Location } from "@opennovel-ai/core/location"
 import { LocationServiceMap } from "@opennovel-ai/core/location-services"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
@@ -54,12 +55,19 @@ export function sharedRef(directory: string, workspaceID: WorkspaceV2.ID | undef
   return result
 }
 
+// global 是应用端全局页的保留哨兵：解析为全局数据目录，绝不作为文件系统字面路径参与解析。
+export function resolveDirectory(raw: string): string {
+  if (raw === "global") return Global.Path.data
+  return raw
+}
+
 function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
   const query = new URL(request.url, "http://localhost").searchParams
   const workspaceID = query.get("location[workspace]") || request.headers["x-opennovel-workspace"]
-  const directory =
+  const directory = resolveDirectory(
     query.get("location[directory]") ||
-    (request.headers["x-opennovel-directory"] ? decode(request.headers["x-opennovel-directory"]) : process.cwd())
+      (request.headers["x-opennovel-directory"] ? decode(request.headers["x-opennovel-directory"]) : process.cwd()),
+  )
   return sharedRef(
     directory,
     workspaceID ? WorkspaceV2.ID.make(workspaceID) : undefined,

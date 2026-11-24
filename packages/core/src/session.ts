@@ -21,6 +21,7 @@ import { AbsolutePath, PositiveInt, RelativePath } from "./schema"
 import { AgentV2 } from "./agent"
 import { CommandV2 } from "./command"
 import { InstallationVersion } from "./installation/version"
+import { Global } from "./global"
 import { Slug } from "./util/slug"
 import { ProjectTable } from "./project/sql"
 import path from "path"
@@ -66,9 +67,11 @@ const ListInputBase = {
   anchor: ListAnchor.pipe(Schema.optional),
 }
 
+// global 是应用端全局页的保留哨兵，语义为全局数据目录（见 global-directory-resolution）。
+const DirectoryFilter = Schema.Union([AbsolutePath, Schema.Literals(["global"])])
 const ListDirectoryInput = Schema.Struct({
   ...ListInputBase,
-  directory: AbsolutePath,
+  directory: DirectoryFilter,
 })
 
 const ListProjectInput = Schema.Struct({
@@ -441,7 +444,10 @@ const layer = Layer.effect(
         const order = direction === "previous" ? (requestedOrder === "asc" ? "desc" : "asc") : requestedOrder
         const sortColumn = SessionTable.time_created
         const conditions: SQL[] = []
-        if ("directory" in input) conditions.push(eq(SessionTable.directory, input.directory))
+        if ("directory" in input) {
+          const directory = input.directory === "global" ? Global.Path.data : input.directory
+          conditions.push(eq(SessionTable.directory, directory))
+        }
         if (input.workspaceID) conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
         if ("project" in input) conditions.push(eq(SessionTable.project_id, input.project))
         if (input.search) conditions.push(like(SessionTable.title, `%${input.search}%`))

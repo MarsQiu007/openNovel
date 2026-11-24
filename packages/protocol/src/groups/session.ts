@@ -39,9 +39,11 @@ const SessionsQueryFields = {
   search: Schema.optional(Schema.String),
 }
 
+// global 哨兵与 core ListDirectoryInput 对齐：全局页按保留名过滤全局数据目录下的会话。
+const DirectoryFilter = Schema.Union([AbsolutePath, Schema.Literals(["global"])])
 const SessionsDirectoryQuery = Schema.Struct({
   ...SessionsQueryFields,
-  directory: AbsolutePath,
+  directory: DirectoryFilter,
 })
 
 const SessionsProjectQuery = Schema.Struct({
