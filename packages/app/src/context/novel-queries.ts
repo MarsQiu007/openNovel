@@ -268,6 +268,19 @@ export function useNovels(directory: Accessor<string>) {
   }))
 }
 
+/**
+ * novel 读查询统一把 NotFound 归一为 null；调用方把 null 当作失效引用/无绑定空态。
+ * 放成纯函数让两类查询共享同一错误分支，也便于不用全局模块 mock 直接覆盖三类结果。
+ */
+export async function novelNotFoundAsNull<T>(fetch: () => Promise<T>) {
+  try {
+    return await fetch()
+  } catch (cause) {
+    if (isNovelNotFoundError(cause)) return null
+    throw cause
+  }
+}
+
 export function useNovelDetail(novelID: Accessor<string>) {
   const client = useNovelClient()
   const sdk = useSDK()
@@ -276,14 +289,10 @@ export function useNovelDetail(novelID: Accessor<string>) {
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     // 指向已删除小说的持久化引用（stale-novel-recovery）：NotFound 归一为 null 成功态，
     // 调用方按空态展示并自愈引用；其余错误照常抛出保留重试与错误提示语义。
-    queryFn: async () => {
-      try {
-        return await client()["server.novel"].detail({ novelID: novelID(), location: { directory: sdk().directory } })
-      } catch (cause) {
-        if (isNovelNotFoundError(cause)) return null
-        throw cause
-      }
-    },
+    queryFn: () =>
+      novelNotFoundAsNull(() =>
+        client()["server.novel"].detail({ novelID: novelID(), location: { directory: sdk().directory } }),
+      ),
     enabled: !!novelID(),
   }))
 }
@@ -487,17 +496,13 @@ export function useNovelForSession(sessionID: Accessor<string>) {
     queryKey: novelKeys["for-session"](sdk().directory, sessionID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     // 绑定指向已删除小说按无绑定处理（stale-novel-recovery）：NotFound 归一为 null，不呈现为错误
-    queryFn: async () => {
-      try {
-        return await client()["server.novel"]["for-session"]({
+    queryFn: () =>
+      novelNotFoundAsNull(() =>
+        client()["server.novel"]["for-session"]({
           sessionID: sessionID(),
           location: { directory: sdk().directory },
-        })
-      } catch (cause) {
-        if (isNovelNotFoundError(cause)) return null
-        throw cause
-      }
-    },
+        }),
+      ),
     enabled: !!sessionID(),
   }))
 }

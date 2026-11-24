@@ -4,6 +4,7 @@ import {
   boundNovelSessions,
   flattenNovelSessionOptions,
   loadBoundSessionsWithEmptyGuard,
+  novelNotFoundAsNull,
   resolveAutoAdoptTarget,
   settleRememberedSession,
   type NovelSessionBinding,
@@ -440,5 +441,40 @@ describe("loadBoundSessionsWithEmptyGuard", () => {
     })
     expect(result).toEqual([])
     expect(calls).toBe(1)
+  })
+})
+
+describe("novelNotFoundAsNull", () => {
+  const notFound = new Error("Request failed", {
+    cause: {
+      status: 404,
+      body: { name: "NovelNotFoundError", data: { message: "小说不存在", novelId: "nov_missing" } },
+    },
+  })
+  const serverError = new Error("Request failed", {
+    cause: { status: 500, body: { name: "ServerError", data: { message: "database unavailable" } } },
+  })
+
+  test("keeps a successful novel payload unchanged", async () => {
+    const novel = { id: "nov_1" }
+    let requested = false
+    await expect(novelNotFoundAsNull(() => {
+      requested = true
+      return Promise.resolve(novel)
+    })).resolves.toBe(novel)
+    expect(requested).toBe(true)
+  })
+
+  test("normalizes a detail or binding NotFound as null", async () => {
+    let requested = false
+    await expect(novelNotFoundAsNull(() => {
+      requested = true
+      return Promise.reject(notFound)
+    })).resolves.toBeNull()
+    expect(requested).toBe(true)
+  })
+
+  test("rethrows errors other than novel NotFound", async () => {
+    await expect(novelNotFoundAsNull(() => Promise.reject(serverError))).rejects.toBe(serverError)
   })
 })
