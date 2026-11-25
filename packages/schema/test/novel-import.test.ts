@@ -41,6 +41,30 @@ describe("NovelImportAnalyzeInput", () => {
     expect(decoded.fallbackFixedLength).toBe(true)
   })
 
+  test("可携带兜底分章字数范围", () => {
+    const decoded = Schema.decodeUnknownSync(NovelImportAnalyzeInput)({
+      ...analyzeSample,
+      fallbackFixedLength: true,
+      splitRange: { min: 2000, max: 3000 },
+    })
+    expect(decoded.splitRange).toEqual({ min: 2000, max: 3000 })
+  })
+
+  test("字数范围越界拒绝", () => {
+    expect(() =>
+      Schema.decodeUnknownSync(NovelImportAnalyzeInput)({
+        ...analyzeSample,
+        splitRange: { min: 100, max: 3000 },
+      }),
+    ).toThrow()
+    expect(() =>
+      Schema.decodeUnknownSync(NovelImportAnalyzeInput)({
+        ...analyzeSample,
+        splitRange: { min: 2000, max: 50000 },
+      }),
+    ).toThrow()
+  })
+
   test("空 dataUrl 拒绝", () => {
     expect(() => Schema.decodeUnknownSync(NovelImportAnalyzeInput)({ ...analyzeSample, dataUrl: "" })).toThrow()
   })

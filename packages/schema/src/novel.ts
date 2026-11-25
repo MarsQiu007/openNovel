@@ -1512,6 +1512,7 @@ export const NovelImportIssueType = Schema.Literals([
   "duplicate-number",
   "order-mismatch",
   "unrecognized-boundary",
+  "forced-cut",
 ])
 export type NovelImportIssueType = typeof NovelImportIssueType.Type
 
@@ -1522,6 +1523,13 @@ export const NovelImportIssue = Schema.Struct({
   chapterNumber: optional(NonNegativeInt),
 }).annotate({ identifier: "Novel.NovelImportIssue" })
 export interface NovelImportIssue extends Schema.Schema.Type<typeof NovelImportIssue> {}
+
+/** 兜底分章目标字数范围：除末章外各章字数落在 [min, max]（默认 2000–3000，见 server 缺省）。 */
+export const NovelImportSplitRange = Schema.Struct({
+  min: Schema.Int.check(Schema.isGreaterThanOrEqualTo(500), Schema.isLessThanOrEqualTo(20000)),
+  max: Schema.Int.check(Schema.isGreaterThanOrEqualTo(500), Schema.isLessThanOrEqualTo(20000)),
+}).annotate({ identifier: "Novel.NovelImportSplitRange" })
+export interface NovelImportSplitRange extends Schema.Schema.Type<typeof NovelImportSplitRange> {}
 
 export const NovelImportCleanSummary = Schema.Struct({
   whitespaceTrimmed: NonNegativeInt,
@@ -1541,8 +1549,10 @@ export const NovelImportAnalyzeInput = Schema.Struct({
   cleanEnabled: Schema.Boolean,
   /** 编码识别失败时由用户显式指定重试 */
   encoding: optional(NovelImportEncoding),
-  /** 未识别到章节边界时按固定长度等长分章（默认 false：如实报未识别，不静默误切） */
+  /** 未识别到章节边界时按目标字数范围边界感知分章（默认 false：如实报未识别，不静默误切） */
   fallbackFixedLength: optional(Schema.Boolean),
+  /** 兜底分章目标字数范围（仅 fallbackFixedLength 开启时生效，缺省 2000–3000；min 须小于 max） */
+  splitRange: optional(NovelImportSplitRange),
 }).annotate({ identifier: "Novel.NovelImportAnalyzeInput" })
 export interface NovelImportAnalyzeInput extends Schema.Schema.Type<typeof NovelImportAnalyzeInput> {}
 
@@ -1567,6 +1577,8 @@ export const NovelImportApplyInput = Schema.Struct({
   encoding: optional(NovelImportEncoding),
   /** 须与 analyze 一致：token 校验包含该解析参数 */
   fallbackFixedLength: optional(Schema.Boolean),
+  /** 须与 analyze 一致：token 校验包含该解析参数 */
+  splitRange: optional(NovelImportSplitRange),
 }).annotate({ identifier: "Novel.NovelImportApplyInput" })
 export interface NovelImportApplyInput extends Schema.Schema.Type<typeof NovelImportApplyInput> {}
 
