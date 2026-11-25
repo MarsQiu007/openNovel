@@ -560,6 +560,7 @@ export function updateImportJobTx(
     error: string | null
     session_id: string
     options_json: string
+    stats_json: string
   }>,
 ): void {
   tx.update(NovelImportJobTable).set({ ...fields, updated_at: Date.now() }).where(eq(NovelImportJobTable.id, jobId)).run()

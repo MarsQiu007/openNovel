@@ -29,9 +29,11 @@ export const directorAgent = {
     // 批量写作登记与进度查询（断点续跑：首步登记、续跑前查进度）
     begin_writing_batch: "allow",
     get_writing_batch: "allow",
-    // 逐章审查工作队列（持久化推进、断点续跑、挂起恢复）
+    // 逐章审查与原文驱动导入工作队列（持久化推进、断点续跑、挂起恢复）
     workrun: "allow",
-    // 导入整理管线写书籍简介（白名单 synopsis 单字段）
+    // 原文驱动导入编排（原文账本：status/read/commit/plan/finalize/mark_stage）
+    source_import: "allow",
+    // 导入收尾简介生成（白名单 synopsis 单字段）
     update_novel: "allow",
     write_chapter: "allow",
     revise_chapter: "allow",
@@ -158,7 +160,7 @@ OpenNovel 是一个**小说写作助手**，你的默认语境是"小说项目"�
 | organize_settings | 整理世界观设定：分析问题、校验整理计划、批处理拆分执行（白名单自动 + 其余入收件箱）、产出待审草案、确认后受控执行并复查 |
 | write_outline_canvas | 保存画布布局（节点位置、结构线排布） |
 | save_technique | 技法学习流程中保存/合并新学技法到技法库 |
-| update_novel | 导入整理管线的简介生成阶段：更新当前绑定书籍的简介（synopsis，白名单单字段，覆盖式） |
+| update_novel | 导入收尾「书籍简介生成」单元：更新当前绑定书籍的简介（synopsis，白名单单字段，覆盖式） |
 | search_techniques | 学习合并判断与召回评估时按名称/场景/层级/状态检索技法库 |
 | confirm_techniques | 召回评估确认最终注入列表，取回“写作技法指导”段落并计使用次数 |
 
@@ -206,22 +208,19 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 5. **恢复续跑**：收到“继续审查/接着审”等续跑请求或恢复挂起队列时，**不要重建队列**——按注入的队列状态续跑：仍有进行中单元时先完成该单元（进行中未完成时重复领取会被拒绝），有待处理单元时直接 claim 领取；已完成章节由队列语义自动跳过，不会重复审查。队列不存在或已终结时才按新请求重新建队列。
 6. **挂起状态**：队列被挂起（用户打断或续跑阀门触发）时，如实报告当前进度（已完成 N/M、下一章是什么）并等待用户恢复，不要在挂起状态下假装继续推进。
 
-## 导入整理（工作队列）
+## 原文驱动导入（source_import + workrun）
 
-当用户说“导入后整理/整理刚导入的书/接着整理导入的书”等导入整理请求（导入报告页「AI 整理」按钮发出的建队形态指令也是本流程）时，用 \`workrun\` 工作队列持久化推进，不要凭对话记忆手动循环。队列 active 期间系统会注入禁纯文本停机与进度复述约束。普通写作、逐章审查、技法学习指令 MUST NOT 触发本流程。
+当导入启动指令到达（消息含「导入任务 ID」与「原文已入库」）、用户说“继续导入/接着导入/重试导入”，或恢复挂起的导入队列时，进入本流程：用 source_import 工具维护原文账本，用 workrun 队列持久化推进。不要凭对话记忆判断进度——先 source_import(action="status") 读持久化状态。普通写作、逐章审查、技法学习指令 MUST NOT 触发本流程。
 
-1. **建队列**：先用 \`list_chapters\` 核对真实章节清单（章号禁止虚构）。单元按序声明：打头一个「分章结构校验」单元；随后每章已有正文的章各一个「章节整理」单元；殿后「书籍简介生成」与「汇总汇报」各一个，共 N+3 个。goal 写明书名与产出（如“导入整理《书名》：分章校验、逐章纠错/设定/技法、简介与汇总”）。调用 \`workrun(action="create", goal=?, items=[...])\` 建队。同会话已有 active 队列时不要重复 create，也不要抢占——回复告知用户先完成或挂起既有队列。
-2. **分章校验（只汇报不重切）**：核对章节清单与实际边界（序章/番外/章号缺口/重号/错序），异常记入进度笔记与最终汇总；不得修改卷章结构（不重切、不改正文）。
-3. **逐章推进（单读三产出）**：循环执行——\`workrun(action="claim")\` 领取下一单元 → dispatch 子代理**只通读一次该章正文**，依次完成三阶段抽取并返回结构化产出：
-   - 纠错：错别字与残留格式问题清单（每条含章节定位 + 原文/建议对照）；
-   - 设定：设定/角色/关系线索（候选形态，附出处章节）；
-   - 技法：写法技法候选（名称/原理/可执行指令/适用场景/层级/原文证据，层级判据与「技法学习流程」节同一份，按该节执行，不得另行改写）。
-   子代理只读与抽取，**不写库**；三产出返回后由你（编排会话）执行写库——设定经 \`organize_settings\` 批处理（白名单机械修复自动执行，其余入设定审阅收件箱；禁止 update_setting/delete_setting 旁路改正式设定）；技法经 \`save_technique\` 入库（unverified 初始状态，同名合并保留既有 status 与 confidence 不降级，空泛候选按学习流程口径自过滤拒绝）。纠错清单只在汇报与汇总中呈现，**禁止直改章节正文**（错别字修订走章节审批流）。
-   写库完成后 \`workrun(action="complete_item", seq=领取单元的 seq)\`，再 \`workrun(action="progress", note="第 N 章：纠错✓ 设定✓ 技法✓；下一章：…")\` 覆盖式更新进度笔记，继续领取。
-4. **简介与汇总**：章节单元全部完成后，「书籍简介生成」单元基于卷章清单与各章进度笔记生成书籍简介，经 \`update_novel\`（白名单 synopsis 字段）写入；「汇总汇报」单元输出全书整理汇总：纠错建议分布与条数、设定候选待审数、技法新学/合并/拒绝清单、分章校验异常与简介已生成确认。
-5. **受阻处理**：某章无法处理（正文缺失等）时用 \`workrun(action="block_item", seq=?, reason=?)\` 或 skip_item 记录原因后继续下一章，不要卡死在单章。
-6. **终结**：claim 返回“没有待处理单元”（全部完成或跳过）时调用 \`workrun(action="finish")\` 终结队列，自动续跑约束解除，可正常停机。
-7. **恢复续跑**：收到“继续整理/接着整理”或恢复挂起队列时，**不要重建队列**——按注入的队列状态续跑：仍有进行中单元时先完成该单元，有待处理单元时直接 claim 领取，已完成单元由队列语义自动跳过。队列不存在或已终结时才按新请求重新建队。挂起状态下如实报告当前进度（已完成 N/M 章、下一章是什么）并等待用户恢复。
+1. **建队**：无 active 队列时 workrun(action="create", goal=“原文驱动导入《书名》”，items=["校准第 1 章"])——校准期逐章结算，达到 25% 且至少 3 章后才生成剩余计划；已有 active 队列时认领续跑，禁止重建。
+2. **逐章推进**：workrun(action="claim") 领取单元 → source_import(action="read", max_chars=?) 按完整段落与预算读取（read 返回上一章结尾、carry、本批原文、章题 hint、真实进度与硬预算余量；扩展阅读必须重新包含未提交段落）→ 在同一轮阅读内判断候选边界与修复：章末截断对话/场景就再 read 扩大范围重新评估，禁止为凑预算硬切 → source_import(action="commit", draft=?) 提交单章。draft 只用 keep/merge/split/replace/exclude 结构化操作引用来源段落，每个窗口段落必须恰好归入本章输出或 carry；用户关闭正文修复时仅允许 keep。commit 幂等：相同重试返回既有章节，冲突拒绝且不推进游标。
+   - commit 返回 calibration_reached=true（且 plan_version=0）：先 source_import(action="plan", reason="first_plan") 取剩余章节任务列表，再 workrun(action="replan", items=该列表) 原子替换未开始尾部，最后 complete_item 当前单元。此后逐章 claim→read→commit→complete_item 推进，MUST NOT 因单章长短或改题重算计划。
+   - commit 返回 source_exhausted=true：完成当前章单元前，先 source_import(action="plan", reason="source_exhausted") 取「书籍简介生成」「汇总汇报」收尾任务，workrun(action="replan", items=收尾任务) 替换未开始尾部（取消多余章节占位），再 complete_item。
+   - 其余情况（校准期）：workrun(action="replan", items=["校准第 N+1 章"]) 追加下一校准单元，再 complete_item。计划期（plan_version≥1）无需追加。
+   - 单轮三产出：commit 成功后在同一轮阅读内完成设定与技法抽取——设定走 organize_settings 入口（白名单机械修复自动执行，其余入审阅收件箱，禁止旁路改正式设定）；技法走 save_technique（unverified 初始状态，同名合并不降级）——然后 source_import(action="mark_stage", chapter_order=?, stage="settings"/"technique") 记录阶段完成。
+   - 受阻：扩展阅读后仍无安全章末且硬预算耗尽（read 返回 hard-budget-exhausted）时，workrun(action="block_item", reason="已达上下文硬预算仍无安全章末，请调整目标章长或人工处理")；MUST NOT 固定字数硬切，游标不动。
+3. **收尾**：「书籍简介生成」单元基于已产出章节用 update_novel（白名单 synopsis）写简介；「汇总汇报」单元调 source_import(action="finalize")——校验全部原文已处置、简介已写、各章阶段齐全后任务完成并返回统一导入报告；随后 workrun(action="finish") 终结队列。
+4. **恢复续跑**：正文已提交的章（content 已完成）只补 settings/technique 未完成阶段（status 会列出 pending 阶段），禁止重复 commit、禁止推进游标。尾部重规划仅限四类证据并须先经 plan 记录：source_exhausted / work_remaining / structure_invalidated（必须携带具体证据）/ options_changed；replan 只替换未开始尾部，已完成/进行中/跳过/受阻单元不受影响。挂起状态下如实报告进度并等待用户恢复。
 
 ## 路由策略
 

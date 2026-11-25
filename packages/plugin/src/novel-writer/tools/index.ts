@@ -3,6 +3,7 @@
  *
  * 各域文件从 novel-writer.ts 机械转换而来；带会话归属解析（resolveSessionNovel）
  * 的域为工厂形态，注入 SessionDomain。窗口期 V1 入口保留同名 zod 版工具。
+ * source_import 为原文驱动导入编排域（2026-11 source-driven-import 新增）。
  */
 import type { SessionDomain } from "../../v2/effect/session.js"
 import { createAnnotationsTools } from "./annotations.js"
@@ -14,6 +15,7 @@ import { contextTools } from "./context.js"
 import { evaluateTools } from "./evaluate.js"
 import { foreshadowTools } from "./foreshadow.js"
 import { hooksTools } from "./hooks.js"
+import { importSourceTools } from "./import-source.js"
 import { createMiscTools } from "./misc.js"
 import { novelTools } from "./novel.js"
 import { createOutlineTools } from "./outline.js"
@@ -26,7 +28,7 @@ import { stateTools } from "./state.js"
 import { techniqueTools } from "./technique.js"
 import { versionsTools } from "./versions.js"
 
-/** 聚合全部写作工具：13 域（settings 拆查询/操作两文件），共 90 个。 */
+/** 聚合全部写作工具：14 域（settings 拆查询/操作两文件 + source_import），共 91 个。 */
 export function createNovelWriterTools(deps: { session: SessionDomain }) {
   return {
     ...chapterTools,
@@ -47,6 +49,7 @@ export function createNovelWriterTools(deps: { session: SessionDomain }) {
     ...createArcsTools(deps),
     ...createAnnotationsTools(deps),
     ...createMiscTools(deps),
+    ...importSourceTools,
     ...techniqueTools,
     ...evaluateTools,
   }
