@@ -23,9 +23,12 @@ describe("v2 图标注册表", () => {
     expect(resolveIcon("delete")).toEqual({ viewBox: "0 0 16 16", missing: false })
     expect(resolveIcon("info")).toEqual({ viewBox: "0 0 16 16", missing: false })
     expect(resolveIcon("add")).toEqual({ viewBox: "0 0 16 16", missing: false })
+    expect(icons.file.viewBox).toBe("0 0 16 16")
+    expect(resolveIcon("file")).toEqual({ viewBox: "0 0 16 16", missing: false })
     expect(symbolId("delete")).toBe("opennovel-v2-icon-delete")
     expect(symbolId("info")).toBe("opennovel-v2-icon-info")
     expect(symbolId("add")).toBe("opennovel-v2-icon-add")
+    expect(symbolId("file")).toBe("opennovel-v2-icon-file")
     expect(warnCalls.length).toBe(0)
   })
 

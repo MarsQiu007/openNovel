@@ -6,6 +6,7 @@ import { useSDK } from "@/context/sdk"
 import { useAnalyzeImport, useApplyImport, useBindSession } from "@/context/novel-queries"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
+import { canConfirmImport, importSourceInput, shouldResetImportTitle } from "./book-import-input"
 import type { NovelImportEncoding, NovelImportIssue, NovelImportPreview, NovelImportReport } from "@opennovel-ai/schema/novel"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
@@ -113,17 +114,17 @@ export default function NovelImportWizard() {
 
   async function parse() {
     const current = file()
-    if (!current) return
-    const enc = encoding()
+    if (!current || analyzeImport.isPending) return
+    const sourceInput = importSourceInput(current, {
+      cleanEnabled: cleanEnabled(),
+      encoding: encoding(),
+      fallbackFixedLength: fallbackFixedLength(),
+    })
     try {
-      const result = await analyzeImport.mutateAsync({
-        dataUrl: current.dataUrl,
-        filename: current.name,
-        cleanEnabled: cleanEnabled(),
-        ...(enc === "auto" ? {} : { encoding: enc }),
-      })
+      const result = await analyzeImport.mutateAsync(sourceInput)
+      const resetTitle = shouldResetImportTitle(preview())
       setPreview(result)
-      setTitle(result.suggestedTitle || importFilenameToTitle(current.name))
+      if (resetTitle) setTitle(result.suggestedTitle || importFilenameToTitle(current.name))
       setStep(1)
     } catch (err) {
       showToast({ variant: "error", title: language.t("novel.import.parseFailed"), description: errorMessage(err) })
@@ -139,16 +140,16 @@ export default function NovelImportWizard() {
     const current = file()
     const currentPreview = preview()
     if (!current || !currentPreview) return
-    const enc = encoding()
+    const sourceInput = importSourceInput(current, {
+      cleanEnabled: cleanEnabled(),
+      encoding: encoding(),
+      fallbackFixedLength: fallbackFixedLength(),
+    })
     try {
       const result = await applyImport.mutateAsync({
         previewToken: currentPreview.previewToken,
         title: title().trim(),
-        dataUrl: current.dataUrl,
-        filename: current.name,
-        cleanEnabled: cleanEnabled(),
-        ...(enc === "auto" ? {} : { encoding: enc }),
-        fallbackFixedLength: fallbackFixedLength(),
+        ...sourceInput,
       })
       setReport(result)
       setStep(2)
@@ -158,7 +159,13 @@ export default function NovelImportWizard() {
   }
 
   const canConfirm = () =>
-    title().trim().length > 0 && title().length <= 60 && (!unrecognized() || fallbackFixedLength())
+    canConfirmImport({
+      title: title(),
+      preview: preview(),
+      fallbackFixedLength: fallbackFixedLength(),
+      analyzing: analyzeImport.isPending,
+      applying: applyImport.isPending,
+    })
 
   // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），建队指令产出进既有审阅流
   async function sendTidy() {
@@ -283,7 +290,11 @@ export default function NovelImportWizard() {
                   <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.unrecognizedHint")}</p>
                   <Switch
                     checked={fallbackFixedLength()}
-                    onChange={(checked: boolean) => setFallbackFixedLength(checked)}
+                    disabled={analyzeImport.isPending}
+                    onChange={(checked: boolean) => {
+                      setFallbackFixedLength(checked)
+                      void parse()
+                    }}
                   >
                     {language.t("novel.import.fallbackFixedLength")}
                   </Switch>
