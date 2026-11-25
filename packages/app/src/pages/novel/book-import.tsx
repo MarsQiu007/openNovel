@@ -6,7 +6,7 @@ import { useSDK } from "@/context/sdk"
 import { useAnalyzeImport, useApplyImport, useBindSession } from "@/context/novel-queries"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
-import { canConfirmImport, importSourceInput, shouldResetImportTitle } from "./book-import-input"
+import { DEFAULT_SPLIT_RANGE, isValidSplitRange, canConfirmImport, importSourceInput, shouldResetImportTitle } from "./book-import-input"
 import type { NovelImportEncoding, NovelImportIssue, NovelImportPreview, NovelImportReport } from "@opennovel-ai/schema/novel"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
@@ -28,6 +28,7 @@ const ISSUE_TYPE_KEYS: Record<NovelImportIssue["type"], string> = {
   "duplicate-number": "novel.import.issues.duplicate-number",
   "order-mismatch": "novel.import.issues.order-mismatch",
   "unrecognized-boundary": "novel.import.issues.unrecognized-boundary",
+  "forced-cut": "novel.import.issues.forced-cut",
 }
 
 const SUMMARY_KEYS = [
@@ -72,6 +73,7 @@ export default function NovelImportWizard() {
   const [cleanEnabled, setCleanEnabled] = createSignal(true)
   const [encoding, setEncoding] = createSignal<"auto" | NovelImportEncoding>("auto")
   const [fallbackFixedLength, setFallbackFixedLength] = createSignal(false)
+  const [splitRange, setSplitRange] = createSignal(DEFAULT_SPLIT_RANGE)
   const [preview, setPreview] = createSignal<NovelImportPreview | null>(null)
   const [title, setTitle] = createSignal("")
   const [report, setReport] = createSignal<NovelImportReport | null>(null)
@@ -107,6 +109,7 @@ export default function NovelImportWizard() {
       setPreview(null)
       setReport(null)
       setFallbackFixedLength(false)
+      setSplitRange(DEFAULT_SPLIT_RANGE)
     } catch {
       showToast({ variant: "error", title: language.t("common.requestFailed") })
     }
@@ -115,10 +118,15 @@ export default function NovelImportWizard() {
   async function parse() {
     const current = file()
     if (!current || analyzeImport.isPending) return
+    if (fallbackFixedLength() && !isValidSplitRange(splitRange())) {
+      showToast({ variant: "error", title: language.t("novel.import.splitRangeInvalid") })
+      return
+    }
     const sourceInput = importSourceInput(current, {
       cleanEnabled: cleanEnabled(),
       encoding: encoding(),
       fallbackFixedLength: fallbackFixedLength(),
+      splitRange: splitRange(),
     })
     try {
       const result = await analyzeImport.mutateAsync(sourceInput)
@@ -144,6 +152,7 @@ export default function NovelImportWizard() {
       cleanEnabled: cleanEnabled(),
       encoding: encoding(),
       fallbackFixedLength: fallbackFixedLength(),
+      splitRange: splitRange(),
     })
     try {
       const result = await applyImport.mutateAsync({
@@ -298,6 +307,30 @@ export default function NovelImportWizard() {
                   >
                     {language.t("novel.import.fallbackFixedLength")}
                   </Switch>
+                  <Show when={fallbackFixedLength()}>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.splitRangeLabel")}</span>
+                      <TextInputV2
+                        type="number"
+                        numeric
+                        class="w-24"
+                        value={String(splitRange().min)}
+                        disabled={analyzeImport.isPending}
+                        onInput={(e) => setSplitRange({ ...splitRange(), min: Number(e.currentTarget.value) })}
+                        onBlur={() => void parse()}
+                      />
+                      <span class="text-xs text-v2-text-text-muted">—</span>
+                      <TextInputV2
+                        type="number"
+                        numeric
+                        class="w-24"
+                        value={String(splitRange().max)}
+                        disabled={analyzeImport.isPending}
+                        onInput={(e) => setSplitRange({ ...splitRange(), max: Number(e.currentTarget.value) })}
+                        onBlur={() => void parse()}
+                      />
+                    </div>
+                  </Show>
                 </div>
               }
             >

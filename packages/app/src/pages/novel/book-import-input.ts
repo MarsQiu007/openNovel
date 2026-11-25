@@ -9,6 +9,20 @@ export interface ImportParseOptions {
   cleanEnabled: boolean
   encoding: "auto" | NovelImportEncoding
   fallbackFixedLength: boolean
+  splitRange: { min: number; max: number }
+}
+
+export const DEFAULT_SPLIT_RANGE = { min: 2000, max: 3000 }
+
+/** 兜底分章字数范围合法性（与 server 契约一致：500–20000 且 min < max）。 */
+export function isValidSplitRange(range: { min: number; max: number }): boolean {
+  return (
+    Number.isInteger(range.min) &&
+    Number.isInteger(range.max) &&
+    range.min >= 500 &&
+    range.max <= 20000 &&
+    range.min < range.max
+  )
 }
 
 export interface ImportPreviewShape {
@@ -22,6 +36,7 @@ export function importSourceInput(file: ImportFile, options: ImportParseOptions)
     cleanEnabled: options.cleanEnabled,
     ...(options.encoding === "auto" ? {} : { encoding: options.encoding }),
     fallbackFixedLength: options.fallbackFixedLength,
+    splitRange: options.splitRange,
   }
 }
 
