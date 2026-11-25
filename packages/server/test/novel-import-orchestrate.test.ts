@@ -17,10 +17,16 @@ let projectDir: string
 
 const sessionStub = () => {
   const prompts: Array<{ sessionID: string; text: string }> = []
+  const creates: Array<Record<string, unknown>> = []
   return {
     prompts,
+    creates,
     service: {
-      create: () => Effect.succeed({ id: "ses_import_test" }),
+      create: (input: Record<string, unknown>) =>
+        Effect.sync(() => {
+          creates.push(input)
+          return { id: "ses_import_test" }
+        }),
       prompt: (input: { sessionID: string; prompt: { text: string } }) =>
         Effect.sync(() => {
           prompts.push({ sessionID: input.sessionID, text: input.prompt.text })
@@ -54,6 +60,7 @@ describe("startImport", () => {
     const progress = await Effect.runPromise(
       startImport(projectDir, stub.service, {
         dataUrl: dataUrlOf(text),
+        model: { providerID: "openai", modelID: "gpt-5.2", variant: "high" },
         filename: "book.txt",
         title: "测试书",
         repairLevel: "standard",
@@ -65,6 +72,8 @@ describe("startImport", () => {
     expect(progress.chapterCount).toBe(0)
     expect(stub.prompts).toHaveLength(1)
     expect(stub.prompts[0].text).toContain("原文驱动导入")
+    // 导入会话固定用户选择的模型，缺省会退回 catalog 默认模型（可能是别的 provider）
+    expect(stub.creates[0]).toMatchObject({ model: { id: "gpt-5.2", providerID: "openai", variant: "high" } })
     expect(getDb(projectDir).select().from(NovelTable).all()[0]).toMatchObject({ title: "测试书", status: "draft" })
   })
 

@@ -2059,6 +2059,7 @@ type Endpoint18_87Input = {
   readonly encoding?: Endpoint18_87Request["payload"]["encoding"]
   readonly targetChapterChars?: Endpoint18_87Request["payload"]["targetChapterChars"]
   readonly repairLevel?: Endpoint18_87Request["payload"]["repairLevel"]
+  readonly model?: Endpoint18_87Request["payload"]["model"]
 }
 const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87Input) =>
   raw["novel.import.start"]({
@@ -2070,6 +2071,7 @@ const Endpoint18_87 = (raw: RawClient["server.novel"]) => (input: Endpoint18_87I
       encoding: input["encoding"],
       targetChapterChars: input["targetChapterChars"],
       repairLevel: input["repairLevel"],
+      model: input["model"],
     },
   }).pipe(Effect.mapError(mapClientError))
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "@solidjs/router"
 import { showToast } from "@/utils/toast"
 import { useLanguage } from "@/context/language"
 import { SDKProvider } from "@/context/sdk"
+import { LocalProvider } from "@/context/local"
 import { NovelProvider } from "@/context/novel"
 import { DirectoryDataProvider, decodeDirectory } from "@/pages/directory-layout"
 import NovelWorkspaceFrame from "./workspace-frame"
@@ -132,9 +133,11 @@ export function NovelImportWizardLayout() {
     <Show when={resolved()} keyed>
       {(resolved) => (
         <SDKProvider directory={resolved}>
-          <NovelProvider>
-            <NovelImportWizard />
-          </NovelProvider>
+          <LocalProvider>
+            <NovelProvider>
+              <NovelImportWizard />
+            </NovelProvider>
+          </LocalProvider>
         </SDKProvider>
       )}
     </Show>
@@ -153,11 +156,13 @@ export function NovelImportTaskLayout() {
     <Show when={resolved()} keyed>
       {(resolved) => (
         <SDKProvider directory={resolved}>
-          <DirectoryDataProvider directory={resolved} novelID={() => params.novelID}>
-            <NovelProvider>
-              <NovelImportTaskPage />
-            </NovelProvider>
-          </DirectoryDataProvider>
+          <LocalProvider>
+            <DirectoryDataProvider directory={resolved} novelID={() => params.novelID}>
+              <NovelProvider>
+                <NovelImportTaskPage />
+              </NovelProvider>
+            </DirectoryDataProvider>
+          </LocalProvider>
         </SDKProvider>
       )}
     </Show>

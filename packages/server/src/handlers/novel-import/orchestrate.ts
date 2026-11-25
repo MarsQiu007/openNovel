@@ -9,6 +9,8 @@
 import { Effect } from "effect"
 import { eq } from "drizzle-orm"
 import { SessionV2 } from "@opennovel-ai/core/session"
+import { ModelV2 } from "@opennovel-ai/core/model"
+import { ProviderV2 } from "@opennovel-ai/core/provider"
 import { AbsolutePath } from "@opennovel-ai/core/schema"
 import type { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import type {
@@ -147,7 +149,19 @@ export function startImport(
     })
     withTransaction(db, (tx) => updateImportJobTx(tx, jobId, { error: null }))
 
-    const created = yield* session.create({ location: { directory: AbsolutePath.make(directory) } }).pipe(
+    const created = yield* session.create({
+      location: { directory: AbsolutePath.make(directory) },
+      // 固定用户启动时选择的模型：缺省会让 runner 退回 catalog 默认模型（可能是别的 provider）
+      ...(payload.model === undefined
+        ? {}
+        : {
+            model: {
+              id: ModelV2.ID.make(payload.model.modelID),
+              providerID: ProviderV2.ID.make(payload.model.providerID),
+              ...(payload.model.variant === undefined ? {} : { variant: ModelV2.VariantID.make(payload.model.variant) }),
+            },
+          }),
+    }).pipe(
       Effect.mapError(() => importError("创建导入会话失败，任务已保留，可重试")),
     )
     yield* Effect.tryPromise({

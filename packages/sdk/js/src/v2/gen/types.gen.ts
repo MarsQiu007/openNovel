@@ -6167,6 +6167,11 @@ export type NovelNovelImportStartInput = {
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
   targetChapterChars?: number
   repairLevel?: "off" | "standard" | "aggressive"
+  model?: {
+    providerID: string
+    modelID: string
+    variant?: string
+  }
 }
 
 export type NovelNovelImportChapterItem = {

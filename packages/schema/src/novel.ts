@@ -1502,6 +1502,14 @@ export const NovelImportStartInput = Schema.Struct({
   /** 目标章节长度倾向（字符数，Agent 软参考，不硬切） */
   targetChapterChars: optional(Schema.Int),
   repairLevel: optional(NovelImportRepairLevel),
+  /** 导入会话固定使用的模型（缺省退回 catalog 默认模型，可能与用户选择不一致） */
+  model: optional(
+    Schema.Struct({
+      providerID: Schema.String,
+      modelID: Schema.String,
+      variant: optional(Schema.String),
+    }),
+  ),
 }).annotate({ identifier: "Novel.NovelImportStartInput" })
 export interface NovelImportStartInput extends Schema.Schema.Type<typeof NovelImportStartInput> {}
 

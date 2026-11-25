@@ -7,6 +7,7 @@
 import { createSignal, For, Show } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
+import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
 import { useStartImport } from "@/context/novel-queries"
 import { showToast } from "@/utils/toast"
@@ -61,6 +62,7 @@ export default function NovelImportWizard() {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
+  const local = useLocal()
   const startImport = useStartImport()
 
   const [file, setFile] = createSignal<{ name: string; dataUrl: string } | null>(null)
@@ -107,6 +109,9 @@ export default function NovelImportWizard() {
     try {
       const enc = encoding()
       const target = parseTargetChapterChars(targetChars())
+      // 固定当前选择模型：导入会话缺省模型会退回 catalog 默认，可能是别的 provider
+      const model = local.model.current()
+      const variant = local.model.variant.current()
       const progress = await startImport.mutateAsync({
         dataUrl: current.dataUrl,
         filename: current.name,
@@ -114,6 +119,15 @@ export default function NovelImportWizard() {
         ...(enc === "auto" ? {} : { encoding: enc }),
         ...(target === undefined ? {} : { targetChapterChars: target }),
         repairLevel: cleanEnabled() ? repairLevel() : "off",
+        ...(model === undefined
+          ? {}
+          : {
+              model: {
+                providerID: model.provider.id,
+                modelID: model.id,
+                ...(variant === undefined ? {} : { variant }),
+              },
+            }),
       })
       navigate(`/${base64Encode(sdk().directory)}/novel/${progress.novelId}/import`)
     } catch (err) {

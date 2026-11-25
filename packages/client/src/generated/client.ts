@@ -2632,6 +2632,7 @@ export function make(options: ClientOptions) {
               encoding: input["encoding"],
               targetChapterChars: input["targetChapterChars"],
               repairLevel: input["repairLevel"],
+              model: input["model"],
             },
             successStatus: 200,
             declaredStatuses: [400, 401],

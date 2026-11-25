@@ -6346,6 +6346,7 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["dataUrl"]
   readonly filename: {
     readonly dataUrl: string
@@ -6354,6 +6355,7 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["filename"]
   readonly title: {
     readonly dataUrl: string
@@ -6362,6 +6364,7 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["title"]
   readonly encoding?: {
     readonly dataUrl: string
@@ -6370,6 +6373,7 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["encoding"]
   readonly targetChapterChars?: {
     readonly dataUrl: string
@@ -6378,6 +6382,7 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["targetChapterChars"]
   readonly repairLevel?: {
     readonly dataUrl: string
@@ -6386,7 +6391,17 @@ export type ServerNovelStartInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly targetChapterChars?: number
     readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
   }["repairLevel"]
+  readonly model?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly title: string
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+    readonly model?: { readonly providerID: string; readonly modelID: string; readonly variant?: string }
+  }["model"]
 }
 
 export type ServerNovelStartOutput = {
