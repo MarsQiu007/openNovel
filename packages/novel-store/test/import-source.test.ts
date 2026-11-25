@@ -267,6 +267,6 @@ describe("commitImportChapterTx", () => {
     expect(report.opCounts["exclude"]).toBe(1)
     expect(report.excluded).toHaveLength(1)
     expect(report.excluded[0].reason).toBe("广告")
-    expect(calibrationChapterCharMedian(getImportJobByNovel("novel-1", projectDir)!.id, projectDir)).not.toBeNull()
+    expect(calibrationChapterCharMedian(getImportJobByNovel("novel-1", projectDir)!.id, projectDir)).toBe(19)
   })
 })

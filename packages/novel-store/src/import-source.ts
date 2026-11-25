@@ -549,7 +549,19 @@ export function markImportChapterStageTx(tx: Tx, chapterId: string, stage: "sett
   tx.update(NovelImportChapterTable).set({ ...field, updated_at: Date.now() }).where(eq(NovelImportChapterTable.chapter_id, chapterId)).run()
 }
 
-export function updateImportJobTx(tx: Tx, jobId: string, fields: Partial<{ status: ImportJobStatus; phase: ImportJobPhase; planned_count: number | null; plan_version: number; error: string | null; session_id: string }>): void {
+export function updateImportJobTx(
+  tx: Tx,
+  jobId: string,
+  fields: Partial<{
+    status: ImportJobStatus
+    phase: ImportJobPhase
+    planned_count: number | null
+    plan_version: number
+    error: string | null
+    session_id: string
+    options_json: string
+  }>,
+): void {
   tx.update(NovelImportJobTable).set({ ...fields, updated_at: Date.now() }).where(eq(NovelImportJobTable.id, jobId)).run()
 }
 
@@ -613,12 +625,38 @@ export function getImportReport(jobId: string, directory?: string | null): Impor
   }
 }
 
-/** 校准统计：已完成章节的来源字数中位数，供首次剩余计划。 */
+/**
+ * 校准统计：已完成章节的来源字数中位数，供首次剩余计划。
+ * 章节来源字数按操作账本中该章全部来源段落的字符长度合计（含排除、不含 carry）；
+ * source_start/end 是段落索引区间，不能直接当字数用。
+ */
 export function calibrationChapterCharMedian(jobId: string, directory?: string | null): number | null {
   const db = getDb(directory)
   const chapters = db.select().from(NovelImportChapterTable).where(eq(NovelImportChapterTable.job_id, jobId)).all()
   if (chapters.length === 0) return null
-  const lengths = chapters.map((c) => c.source_end - c.source_start + 1).sort((a, b) => a - b)
+  const paragraphs = loadParagraphs(db, jobId)
+  const byIndex = new Map(paragraphs.map((p) => [p.paragraph_index, p]))
+  const ops = db.select().from(NovelImportOperationTable).where(eq(NovelImportOperationTable.job_id, jobId)).all()
+  const perChapter = new Map<string, Set<number>>()
+  for (const op of ops) {
+    const set = perChapter.get(op.chapter_id) ?? new Set<number>()
+    for (const i of JSON.parse(op.source_json) as number[]) set.add(i)
+    perChapter.set(op.chapter_id, set)
+  }
+  const lengths = chapters
+    .map((c) => {
+      const sources = perChapter.get(c.chapter_id)
+      if (!sources || sources.size === 0) return 0
+      let len = 0
+      for (const i of sources) {
+        const p = byIndex.get(i)
+        if (p) len += p.end_offset - p.start_offset
+      }
+      return len
+    })
+    .filter((l) => l > 0)
+    .sort((a, b) => a - b)
+  if (lengths.length === 0) return null
   const mid = Math.floor(lengths.length / 2)
   return lengths.length % 2 === 1 ? lengths[mid] : Math.round((lengths[mid - 1] + lengths[mid]) / 2)
 }
