@@ -6212,6 +6212,14 @@ export type NovelNovelImportReport = {
     [key: string]: number
   }
   excluded: Array<NovelNovelImportExcludedItem>
+  operations: Array<{
+    chapterId: string
+    chapterOrder: number
+    kind: string
+    reason: string
+    beforeText: string
+    afterText: string
+  }>
   moveCount: number
   unresolvedCount: number
 }

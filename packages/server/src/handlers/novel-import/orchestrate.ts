@@ -189,6 +189,7 @@ export function getImportReportEndpoint(directory: string, novelId: string): Eff
         ...(report.plannedCount === null ? {} : { plannedCount: report.plannedCount }),
         opCounts: report.opCounts,
         excluded: report.excluded,
+        operations: report.operations,
         moveCount: report.moveCount,
         unresolvedCount: report.unresolvedCount,
       }

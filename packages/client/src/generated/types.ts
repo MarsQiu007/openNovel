@@ -6461,6 +6461,14 @@ export type ServerNovelReportOutput = {
   readonly plannedCount?: number
   readonly opCounts: { readonly [x: string]: number }
   readonly excluded: ReadonlyArray<{ readonly chapterId: string; readonly reason: string; readonly beforeText: string }>
+  readonly operations: ReadonlyArray<{
+    readonly chapterId: string
+    readonly chapterOrder: number
+    readonly kind: string
+    readonly reason: string
+    readonly beforeText: string
+    readonly afterText: string
+  }>
   readonly moveCount: number
   readonly unresolvedCount: number
 }

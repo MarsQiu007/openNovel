@@ -590,12 +590,23 @@ export function listImportOperations(chapterId: string, directory?: string | nul
   return getDb(directory).select().from(NovelImportOperationTable).where(eq(NovelImportOperationTable.chapter_id, chapterId)).orderBy(asc(NovelImportOperationTable.op_index)).all()
 }
 
+/** 修复记录（原文对照视图）：前后文本截断到 500 字，避免超大报告。 */
+export interface ImportOperationItem {
+  chapterId: string
+  chapterOrder: number
+  kind: string
+  reason: string
+  beforeText: string
+  afterText: string
+}
+
 export interface ImportReport {
   chapterCount: number
   planVersion: number
   plannedCount: number | null
   opCounts: Record<string, number>
   excluded: Array<{ chapterId: string; reason: string; beforeText: string }>
+  operations: ImportOperationItem[]
   moveCount: number
   unresolvedCount: number
 }
@@ -610,8 +621,19 @@ export function getImportReport(jobId: string, directory?: string | null): Impor
       : []
   const opCounts: Record<string, number> = {}
   const excluded: ImportReport["excluded"] = []
+  const operations: ImportOperationItem[] = []
+  const orderByChapter = new Map(chapters.map((c) => [c.chapter_id, c.chapter_order]))
+  const clip = (text: string) => (text.length > 500 ? text.slice(0, 500) + "…" : text)
   for (const op of ops) {
     opCounts[op.kind] = (opCounts[op.kind] ?? 0) + 1
+    operations.push({
+      chapterId: op.chapter_id,
+      chapterOrder: orderByChapter.get(op.chapter_id) ?? 0,
+      kind: op.kind,
+      reason: op.reason,
+      beforeText: clip(op.before_text),
+      afterText: clip(op.after_text),
+    })
     // 章题/卷题归入标题的排除是结构处置，不属于用户-facing「排除内容」
     if (op.kind === "exclude" && !op.params_json.includes("\"heading\""))
       excluded.push({ chapterId: op.chapter_id, reason: op.reason, beforeText: op.before_text })
@@ -623,6 +645,7 @@ export function getImportReport(jobId: string, directory?: string | null): Impor
     plannedCount: job.planned_count,
     opCounts,
     excluded,
+    operations,
     moveCount: opCounts["move"] ?? 0,
     unresolvedCount: 0,
   }

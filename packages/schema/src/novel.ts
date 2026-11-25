@@ -1563,6 +1563,17 @@ export const NovelImportExcludedItem = Schema.Struct({
 }).annotate({ identifier: "Novel.NovelImportExcludedItem" })
 export interface NovelImportExcludedItem extends Schema.Schema.Type<typeof NovelImportExcludedItem> {}
 
+/** 修复记录（原文对照）：操作类型、理由与前后文本。 */
+export const NovelImportOperationItem = Schema.Struct({
+  chapterId: Schema.String,
+  chapterOrder: NonNegativeInt,
+  kind: Schema.String,
+  reason: Schema.String,
+  beforeText: Schema.String,
+  afterText: Schema.String,
+})
+export interface NovelImportOperationItem extends Schema.Schema.Type<typeof NovelImportOperationItem> {}
+
 /** 统一导入报告：完成态展示的结构化结果。 */
 export const NovelImportReport = Schema.Struct({
   novelId: Schema.String,
@@ -1572,6 +1583,7 @@ export const NovelImportReport = Schema.Struct({
   plannedCount: optional(NonNegativeInt),
   opCounts: Schema.Record(Schema.String, NonNegativeInt),
   excluded: Schema.Array(NovelImportExcludedItem),
+  operations: Schema.Array(NovelImportOperationItem),
   moveCount: NonNegativeInt,
   unresolvedCount: NonNegativeInt,
 }).annotate({ identifier: "Novel.NovelImportReport" })

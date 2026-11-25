@@ -96,6 +96,16 @@ describe("NovelImportProgress / NovelImportReport", () => {
       plannedCount: 12,
       opCounts: { keep: 20, merge: 3, exclude: 1 },
       excluded: [{ chapterId: "c2", reason: "广告", beforeText: "请记住本站" }],
+    operations: [
+      {
+        chapterId: "c2",
+        chapterOrder: 2,
+        kind: "replace",
+        reason: "错字",
+        beforeText: "云诵",
+        afterText: "云涌",
+      },
+    ],
       moveCount: 1,
       unresolvedCount: 0,
     }
