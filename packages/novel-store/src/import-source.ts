@@ -529,15 +529,6 @@ function titleMatches(existing: string, wanted: string): boolean {
   return existing === wanted || existing.includes(wanted) || wanted.includes(existing)
 }
 
-function computeSignal(job: ImportJobRow, totalParagraphs: number, carry: number[]): CommitSignal {
-  const calibrationReached =
-    job.total_chars > 0 && job.processed_chars / job.total_chars >= CALIBRATION_RATIO
-  return {
-    calibrationReached,
-    sourceExhausted: job.next_paragraph_index >= totalParagraphs && carry.length === 0,
-    remainingParagraphs: Math.max(0, totalParagraphs - job.next_paragraph_index),
-  }
-}
 
 
 // ─── 阶段推进 ───
@@ -586,9 +577,6 @@ export function getImportProgress(jobId: string, directory?: string | null) {
   }
 }
 
-export function listImportOperations(chapterId: string, directory?: string | null) {
-  return getDb(directory).select().from(NovelImportOperationTable).where(eq(NovelImportOperationTable.chapter_id, chapterId)).orderBy(asc(NovelImportOperationTable.op_index)).all()
-}
 
 /** 修复记录（原文对照视图）：前后文本截断到 500 字，避免超大报告。 */
 export interface ImportOperationItem {
