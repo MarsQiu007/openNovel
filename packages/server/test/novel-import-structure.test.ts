@@ -2,6 +2,7 @@
  * 书籍导入结构解析单测（book-import · 3.2 / 4.1 / 4.2）。
  */
 import { describe, expect, test } from "bun:test"
+import { countWords } from "@opennovel-ai/schema/schema"
 import { looksLikeHeadingLine, matchHeading, parseChapterNumber, parseStructure, splitByRange } from "../src/handlers/novel-import/structure"
 
 describe("parseChapterNumber", () => {
@@ -172,8 +173,8 @@ describe("splitByRange", () => {
     expect(chapters.length).toBeGreaterThanOrEqual(2)
     expect(issues).toEqual([])
     for (const chapter of chapters.slice(0, -1)) {
-      expect(chapter.content.length).toBeGreaterThanOrEqual(2000)
-      expect(chapter.content.length).toBeLessThanOrEqual(3000)
+      expect(countWords(chapter.content)).toBeGreaterThanOrEqual(2000)
+      expect(countWords(chapter.content)).toBeLessThanOrEqual(3000)
       // 段落边界切点：章尾必须是完整段落（不切断任何段落）
       expect(chapter.content.endsWith("文")).toBe(true)
     }
@@ -185,8 +186,8 @@ describe("splitByRange", () => {
     const { volumes } = splitByRange(text, { min: 500, max: 800 })
     const chapters = volumes[0]!.chapters
     for (const chapter of chapters.slice(0, -1)) {
-      expect(chapter.content.length).toBeGreaterThanOrEqual(500)
-      expect(chapter.content.length).toBeLessThanOrEqual(800)
+      expect(countWords(chapter.content)).toBeGreaterThanOrEqual(500)
+      expect(countWords(chapter.content)).toBeLessThanOrEqual(800)
     }
   })
 
@@ -229,6 +230,21 @@ describe("splitByRange", () => {
     const joined = volumes[0]!.chapters.map((chapter) => chapter.content).join("")
     // 各章拼接（去掉章间空行边界）与原文去空白后一致
     expect(joined.replace(/\s+/g, "")).toBe(text.replace(/\s+/g, ""))
+  })
+
+  test("字数口径与产品一致（countWords 不含标点）", () => {
+    // 每段约 140 个汉字 + 约 20 个标点：字符数约 160，countWords 约 140
+    const sentence = "这是一个完整的句子，里面有标点，还有停顿。"
+    const para = sentence.repeat(7)
+    const text = Array.from({ length: 30 }, () => para).join("\n\n")
+    const { volumes } = splitByRange(text, { min: 2000, max: 3000 })
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBeGreaterThanOrEqual(2)
+    for (const chapter of chapters.slice(0, -1)) {
+      // 按 countWords 口径必须落在范围内（按字符数口径会超出）
+      expect(countWords(chapter.content)).toBeGreaterThanOrEqual(2000)
+      expect(countWords(chapter.content)).toBeLessThanOrEqual(3000)
+    }
   })
 
   test("场景分隔线处优先成界", () => {

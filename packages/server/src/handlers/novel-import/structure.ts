@@ -252,6 +252,33 @@ function findSentenceCut(body: string, chapterStart: number, from: number, to: n
   return lastCut
 }
 
+/** countWords 口径的前缀字数表：prefix[i] = body[0..i) 的字数（CJK 逐字 + ASCII 词），与产品章节字数显示同口径。 */
+function buildWordPrefix(body: string): number[] {
+  const prefix = new Array<number>(body.length + 1)
+  prefix[0] = 0
+  let previousAlnum = false
+  for (let index = 0; index < body.length; index++) {
+    const char = body[index]
+    const han = /\p{Script=Han}/u.test(char)
+    const alnum = /[a-zA-Z0-9]/.test(char)
+    prefix[index + 1] = prefix[index] + (han ? 1 : 0) + (alnum && !previousAlnum ? 1 : 0)
+    previousAlnum = alnum
+  }
+  return prefix
+}
+
+/** 前缀字数表中第一个使 prefix[i] >= words 的位置（单调不减，二分）。 */
+function positionAtWords(prefix: number[], words: number, lo: number, hi: number): number {
+  let low = lo
+  let high = hi
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (prefix[mid] < words) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
 /**
  * 未识别章节边界时的边界感知兜底分章：在目标字数范围内按
  * 「场景分隔线/段落边界 > 引号闭合句末 > 受限兜底」选切点；只决定章节边界，不修改正文。
@@ -262,6 +289,10 @@ export function splitByRange(
 ): { volumes: ParsedVolume[]; issues: ParsedStructure["issues"] } {
   const body = text.trim()
   if (body.length === 0) return { volumes: [{ title: null, chapters: [] }], issues: [] }
+
+  // 字数口径与产品章节字数显示一致（countWords：CJK 逐字 + ASCII 词，不含标点空白）
+  const prefix = buildWordPrefix(body)
+  const totalWords = prefix[body.length]
 
   // 块间边界（候选切点）：reflow 后段落为单行、空行分段，切点取后续内容块的起点
   const boundaries: number[] = []
@@ -283,9 +314,10 @@ export function splitByRange(
   }
 
   let cur = 0
-  while (body.length - cur > range.max) {
-    const windowStart = cur + range.min
-    const windowEnd = cur + range.max
+  while (totalWords - prefix[cur] > range.max) {
+    const chapterBase = prefix[cur]
+    const windowStart = positionAtWords(prefix, chapterBase + range.min, cur, body.length)
+    const windowEnd = positionAtWords(prefix, chapterBase + range.max, cur, body.length)
     const boundaryCut = lastInRange(boundaries, windowStart, windowEnd)
     if (boundaryCut !== null) {
       pushChapter(body.slice(cur, boundaryCut))
@@ -298,8 +330,8 @@ export function splitByRange(
       cur = sentenceCut
       continue
     }
-    // 受限兜底：硬上限（max + min/2）内就近取第一个引号闭合句末，并标注问题清单
-    const hardEnd = Math.min(cur + range.max + Math.floor(range.min / 2), body.length)
+    // 受限兜底：硬上限（max + min/2，字数口径）内就近取第一个引号闭合句末，并标注问题清单
+    const hardEnd = Math.min(positionAtWords(prefix, chapterBase + range.max + Math.floor(range.min / 2), cur, body.length), body.length)
     const extendedCut = findSentenceCut(body, cur, windowEnd, hardEnd, "first")
     if (extendedCut !== null) {
       pushChapter(body.slice(cur, extendedCut))

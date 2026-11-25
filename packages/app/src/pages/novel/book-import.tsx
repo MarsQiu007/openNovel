@@ -291,13 +291,17 @@ export default function NovelImportWizard() {
               <FieldV2.Suffix class="text-right">{title().length}/60</FieldV2.Suffix>
             </FieldV2>
 
-            <Show
-              when={!unrecognized()}
-              fallback={
-                <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
-                  <p class="text-sm text-v2-text-text-base">{language.t("novel.import.unrecognized")}</p>
-                  <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.unrecognizedHint")}</p>
-                  <Switch
+            <Show when={unrecognized()}>
+              <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
+                <p class="text-sm text-v2-text-text-base">{language.t("novel.import.unrecognized")}</p>
+                <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.unrecognizedHint")}</p>
+              </div>
+            </Show>
+
+            {/* 兜底分章控件：未识别边界或已开启兜底时常驻，改范围失焦即重新分析 */}
+            <Show when={unrecognized() || fallbackFixedLength()}>
+              <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
+                <Switch
                     checked={fallbackFixedLength()}
                     disabled={analyzeImport.isPending}
                     onChange={(checked: boolean) => {
@@ -329,9 +333,10 @@ export default function NovelImportWizard() {
                       onBlur={() => void parse()}
                     />
                   </div>
-                </div>
-              }
-            >
+              </div>
+            </Show>
+
+            <Show when={!unrecognized()}>
               <div class="flex flex-col gap-2 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02 max-h-64 overflow-y-auto">
                 <For each={preview()?.volumes ?? []}>
                   {(volume) => (
