@@ -1,66 +1,50 @@
 /**
- * 书籍导入编排（book-import）：analyze 预览与 apply 事务化建书。
+ * 原文驱动导入编排（source-driven-import）：start 启动 / get 进度 / control 控制。
  *
- * analyze：dataUrl → 解码 →（可选清洗）→ 拆卷拆章 → 预览 + previewToken。
- * apply：重解码重解析并校验 previewToken 一致性 → 单事务建书（书/卷/章 + 初始正文）。
- * previewToken 为不透明串（base64url JSON）：解析器版本 + 原文哈希 + 解析参数
- * （清洗开关、生效编码、等长分章兜底）；analyze 不落盘任何原文或中间件。
+ * start：解码校验 → novel-store 单事务建书+任务+段落索引 → 创建专用导入会话并绑定
+ * → SessionV2 durable prompt admission（不在 HTTP 请求内执行 provider work）。
+ * 会话/提示步骤失败保留可重试任务（awaiting_queue + error），不静默回滚已落库原文。
+ * 标题 hint 逻辑由插件 source_import 工具内建（正则模块），服务端只保留编码与输入边界。
  */
-import { createHash } from "crypto"
 import { Effect } from "effect"
-import { countWords } from "@opennovel-ai/schema/schema"
+import { eq } from "drizzle-orm"
+import { SessionV2 } from "@opennovel-ai/core/session"
+import { AbsolutePath } from "@opennovel-ai/core/schema"
+import type { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import type {
-  NovelImportAnalyzeInput,
-  NovelImportApplyInput,
-  NovelImportEncoding,
-  NovelImportIssue,
-  NovelImportPreview,
+  NovelImportControlInput,
+  NovelImportProgress,
   NovelImportReport,
+  NovelImportStartInput,
 } from "@opennovel-ai/schema/novel"
 import { NovelImportError } from "@opennovel-ai/protocol/groups/novel"
 import {
   getDb,
-  NovelTable,
-  createChapterTx,
-  createVolumeTx,
   withTransaction,
+  NovelTable,
+  ChapterTable,
+  VolumeTable,
+  tagNovelSession,
+  createImportJobTx,
+  getImportJobByNovel,
+  getImportJob,
+  getImportProgress,
+  getImportReport,
+  updateImportJobTx,
 } from "@opennovel-ai/novel-store"
 import { decodeDataUrlBytes, decodeWithEncoding, detectAndDecode } from "./encoding"
-import { parseStructure, splitFixedLength, type ParsedVolume } from "./structure"
-import { cleanText, emptyCleanSummary, type CleanSummary } from "./clean"
 
-const PARSER_VERSION = "book-import-v1"
-
-/** 导入建书的默认题材（契约无题材字段，沿用既有题材表首项；建书后可再改）。 */
 const IMPORT_DEFAULT_GENRE = "玄幻"
 
-type ImportFailureReason = "encoding-failed" | "invalid-text" | "file-too-large" | "preview-expired"
+type FailureReason = "encoding-failed" | "invalid-text" | "file-too-large" | "not-found" | "invalid-state"
 
-interface ImportSource {
-  bytes: Uint8Array
-  text: string
-  encoding: NovelImportEncoding
-  cleanEnabled: boolean
-  fallbackFixedLength: boolean
+type SessionService = Effect.Success<typeof SessionV2.Service>
+type WorkRunService = Effect.Success<typeof SessionWorkRun.Service>
+
+function importError(message: string, reason?: FailureReason) {
+  return new NovelImportError({ name: "NovelImportError", data: { message, ...(reason === undefined ? {} : { reason }) } })
 }
 
-interface PreviewTokenPayload {
-  v: string
-  hash: string
-  clean: boolean
-  enc: NovelImportEncoding
-  fixed: boolean
-}
-
-function importError(message: string, reason: ImportFailureReason) {
-  return new NovelImportError({ name: "NovelImportError", data: { message, reason } })
-}
-
-function sha256Hex(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex")
-}
-
-/** 解码 dataUrl；失败以错误值返回（调用方 Effect.fail 收口为类型化错误）。 */
 function decodeBytes(dataUrl: string): { bytes: Uint8Array } | { error: NovelImportError } {
   const decoded = decodeDataUrlBytes(dataUrl)
   if (decoded.ok) return { bytes: decoded.bytes }
@@ -69,8 +53,7 @@ function decodeBytes(dataUrl: string): { bytes: Uint8Array } | { error: NovelImp
   return { error: importError(message, "invalid-text") }
 }
 
-/** 解析参数 → 生效文本：显式指定编码优先，否则评分检测；失败返回 null。 */
-function decodeSource(bytes: Uint8Array, encoding: NovelImportEncoding | undefined) {
+function decodeSource(bytes: Uint8Array, encoding: NovelImportStartInput["encoding"]) {
   if (encoding !== undefined) {
     const text = decodeWithEncoding(bytes, encoding)
     return text === null ? null : { text, encoding }
@@ -78,172 +61,200 @@ function decodeSource(bytes: Uint8Array, encoding: NovelImportEncoding | undefin
   return detectAndDecode(bytes)
 }
 
-/** 备齐解析源：解码失败返回错误值。 */
-function prepareSource(input: {
-  dataUrl: string
-  cleanEnabled: boolean
-  encoding?: NovelImportEncoding | undefined
-  fallbackFixedLength?: boolean | undefined
-}): { source: ImportSource } | { error: NovelImportError } {
-  const decodedBytes = decodeBytes(input.dataUrl)
-  if ("error" in decodedBytes) return decodedBytes
-  const decoded = decodeSource(decodedBytes.bytes, input.encoding)
-  if (decoded === null) return { error: importError("编码识别失败，请显式指定编码后重试", "encoding-failed") }
+function buildStartInstruction(input: { novelId: string; jobId: string; title: string; totalChars: number }): string {
+  return [
+    `小说 ID：${input.novelId}`,
+    `导入任务 ID：${input.jobId}`,
+    "",
+    `《${input.title}》原文已入库（约 ${input.totalChars} 字），请执行原文驱动导入：`,
+    "1. 用 workrun 创建队列，首单元为「校准第 1 章」（校准期逐章结算，达到 25% 且至少 3 章后生成剩余计划）；",
+    "2. 用 source_import(status/read/commit/plan/finalize) 顺序处理：按段落与预算流式阅读，边界不合理就追加段落，同一轮阅读完成分章、正文修复、设定与技法抽取；",
+    "3. commit 返回 source_exhausted 时在完成当前章单元前追加「书籍简介生成」「汇总汇报」收尾任务；",
+    "4. finalize 确认全部原文处置后产出统一导入报告并终结队列。",
+  ].join("\n")
+}
+
+function toProgress(directory: string, jobId: string): NovelImportProgress {
+  const progress = getImportProgress(jobId, directory)
+  const db = getDb(directory)
+  const carryCount = (JSON.parse(progress.job.carry_json) as number[]).length
+  const chapterRows = new Map(
+    db
+      .select({ id: ChapterTable.id, title: ChapterTable.title, word_count: ChapterTable.word_count })
+      .from(ChapterTable)
+      .where(eq(ChapterTable.novel_id, progress.job.novel_id))
+      .all()
+      .map((c) => [c.id, c]),
+  )
   return {
-    source: {
-      bytes: decodedBytes.bytes,
-      text: decoded.text,
-      encoding: decoded.encoding,
-      cleanEnabled: input.cleanEnabled,
-      fallbackFixedLength: input.fallbackFixedLength ?? false,
-    },
+    novelId: progress.job.novel_id,
+    jobId: progress.job.id,
+    sessionId: progress.job.session_id,
+    status: progress.job.status,
+    phase: progress.job.phase,
+    processedChars: progress.processedChars,
+    totalChars: progress.totalChars,
+    progressRatio: progress.progressRatio,
+    chapterCount: progress.chapterCount,
+    calibrationReached: progress.calibrationReached,
+    sourceExhausted: progress.sourceExhausted,
+    planVersion: progress.job.plan_version,
+    ...(progress.job.planned_count === null ? {} : { plannedCount: progress.job.planned_count }),
+    carryCount,
+    chapters: progress.chapters.map((c) => {
+      const row = chapterRows.get(c.chapter_id)
+      return {
+        chapterId: c.chapter_id,
+        order: c.chapter_order,
+        title: row?.title ?? "",
+        wordCount: row?.word_count ?? 0,
+        settingsStage: c.settings_stage,
+        techniqueStage: c.technique_stage,
+      }
+    }),
   }
 }
 
-function cleanForParse(source: ImportSource): { text: string; summary: CleanSummary } {
-  return source.cleanEnabled ? cleanText(source.text) : { text: source.text, summary: emptyCleanSummary() }
-}
-
-/** 结构解析；未识别边界且开启等长兜底时按固定字数分章（兜底成功清空问题清单）。 */
-function parseBook(source: ImportSource, cleanedText: string): {
-  volumes: ParsedVolume[]
-  issues: NovelImportIssue[]
-} {
-  const parsed = parseStructure(cleanedText)
-  if (parsed.chapterHeadingCount === 0 && source.fallbackFixedLength) {
-    return { volumes: splitFixedLength(cleanedText), issues: [] }
-  }
-  return { volumes: parsed.volumes, issues: parsed.issues }
-}
-
-function buildPreviewToken(source: ImportSource): string {
-  const payload: PreviewTokenPayload = {
-    v: PARSER_VERSION,
-    hash: sha256Hex(source.bytes),
-    clean: source.cleanEnabled,
-    enc: source.encoding,
-    fixed: source.fallbackFixedLength,
-  }
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")
-}
-
-function parsePreviewToken(token: string): PreviewTokenPayload | null {
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(token, "base64url").toString("utf8"))
-    if (typeof parsed !== "object" || parsed === null) return null
-    const candidate = parsed as Partial<PreviewTokenPayload>
-    if (typeof candidate.v !== "string" || typeof candidate.hash !== "string") return null
-    if (typeof candidate.clean !== "boolean" || typeof candidate.fixed !== "boolean") return null
-    if (typeof candidate.enc !== "string") return null
-    return {
-      v: candidate.v,
-      hash: candidate.hash,
-      clean: candidate.clean,
-      enc: candidate.enc,
-      fixed: candidate.fixed,
-    }
-  } catch {
-    return null
-  }
-}
-
-/** 校验 token 与本次重解析的输入一致性；任一参数漂移即视为预览过期。 */
-function validateToken(token: PreviewTokenPayload | null, source: ImportSource): NovelImportError | null {
-  if (
-    token === null ||
-    token.v !== PARSER_VERSION ||
-    token.hash !== sha256Hex(source.bytes) ||
-    token.clean !== source.cleanEnabled ||
-    token.fixed !== source.fallbackFixedLength ||
-    token.enc !== source.encoding
-  ) {
-    return importError("预览已过期，请重新分析后再确认导入", "preview-expired")
-  }
-  return null
-}
-
-/** 文件名去扩展名作为建议书名（取不到回退原文件名）。 */
-function suggestedTitleFromFilename(filename: string): string {
-  const base = filename.replace(/\.[^.]+$/, "")
-  return base.length > 0 ? base : filename
-}
-
-export function analyzeImport(directory: string, input: NovelImportAnalyzeInput) {
+export function startImport(
+  directory: string,
+  session: SessionService,
+  payload: NovelImportStartInput,
+): Effect.Effect<NovelImportProgress, NovelImportError> {
   return Effect.gen(function* () {
-    const prepared = prepareSource(input)
-    if ("error" in prepared) return yield* Effect.fail(prepared.error)
-    const { source } = prepared
-    const cleaned = cleanForParse(source)
-    const parsed = parseBook(source, cleaned.text)
-    const preview: NovelImportPreview = {
-      suggestedTitle: suggestedTitleFromFilename(input.filename),
-      encoding: source.encoding,
-      volumes: parsed.volumes.map((volume) => ({
-        title: volume.title,
-        chapters: volume.chapters.map((chapter) => ({
-          title: chapter.title,
-          wordCount: countWords(chapter.content),
-          contentHash: createHash("sha256").update(chapter.content, "utf8").digest("hex"),
-          ...(chapter.special === null ? {} : { special: chapter.special }),
-        })),
-      })),
-      issues: parsed.issues,
-      cleanSummary: cleaned.summary,
-      previewToken: buildPreviewToken(source),
-    }
-    return preview
+    const decoded = decodeBytes(payload.dataUrl)
+    if ("error" in decoded) return yield* Effect.fail(decoded.error)
+    const source = decodeSource(decoded.bytes, payload.encoding)
+    if (source === null) return yield* Effect.fail(importError("编码识别失败，请显式指定编码后重试", "encoding-failed"))
+
+    const novelId = crypto.randomUUID()
+    const db = getDb(directory)
+    const jobId = withTransaction(db, (tx) => {
+      const now = Date.now()
+      tx.insert(NovelTable)
+        .values({ id: novelId, title: payload.title, genre: IMPORT_DEFAULT_GENRE, synopsis: "", created_at: now, updated_at: now, status: "draft", content_nature: "general" })
+        .run()
+      return createImportJobTx(tx, {
+        novelId,
+        filename: payload.filename,
+        encoding: source.encoding,
+        sourceHash: "",
+        rawText: source.text,
+        options: {
+          ...(payload.targetChapterChars === undefined ? {} : { targetChapterChars: payload.targetChapterChars }),
+          repairLevel: payload.repairLevel ?? "standard",
+        },
+      })
+    })
+    withTransaction(db, (tx) => updateImportJobTx(tx, jobId, { error: null }))
+
+    const created = yield* session.create({ location: { directory: AbsolutePath.make(directory) } }).pipe(
+      Effect.mapError(() => importError("创建导入会话失败，任务已保留，可重试")),
+    )
+    yield* Effect.tryPromise({
+      try: () => tagNovelSession(created.id, novelId, directory),
+      catch: () => importError("绑定导入会话失败"),
+    }).pipe(Effect.mapError((error) => error))
+    yield* session
+      .prompt({ sessionID: created.id, prompt: { text: buildStartInstruction({ novelId, jobId, title: payload.title, totalChars: source.text.length }) } })
+      .pipe(Effect.mapError(() => importError("投递导入启动指令失败，任务已保留，可重试")))
+    withTransaction(db, (tx) => updateImportJobTx(tx, jobId, { session_id: created.id, status: "calibrating" }))
+    return toProgress(directory, jobId)
   })
 }
 
-export function applyImport(directory: string, input: NovelImportApplyInput) {
+function requireJob(directory: string, novelId: string) {
+  const job = getImportJobByNovel(novelId, directory)
+  if (!job) throw importError("该书籍没有导入任务", "not-found")
+  return job
+}
+
+export function getImportProgressEndpoint(directory: string, novelId: string): Effect.Effect<NovelImportProgress, NovelImportError> {
+  return Effect.try({
+    try: () => toProgress(directory, requireJob(directory, novelId).id),
+    catch: (error): NovelImportError => (error instanceof NovelImportError ? error : importError(String(error))),
+  })
+}
+
+export function getImportReportEndpoint(directory: string, novelId: string): Effect.Effect<NovelImportReport, NovelImportError> {
+  return Effect.try({
+    try: () => {
+      const job = requireJob(directory, novelId)
+      const report = getImportReport(job.id, directory)
+      const novel = getDb(directory).select({ title: NovelTable.title }).from(NovelTable).where(eq(NovelTable.id, novelId)).get()
+      return {
+        novelId,
+        title: novel?.title ?? "",
+        chapterCount: report.chapterCount,
+        planVersion: report.planVersion,
+        ...(report.plannedCount === null ? {} : { plannedCount: report.plannedCount }),
+        opCounts: report.opCounts,
+        excluded: report.excluded,
+        moveCount: report.moveCount,
+        unresolvedCount: report.unresolvedCount,
+      }
+    },
+    catch: (error) => (error instanceof NovelImportError ? error : importError(String(error))),
+  })
+}
+
+function resumePrompt(novelId: string, jobId: string, extra: string): string {
+  return [`小说 ID：${novelId}`, `导入任务 ID：${jobId}`, "", extra].join("\n")
+}
+
+export function controlImport(
+  directory: string,
+  services: { session: SessionService; workrun: WorkRunService },
+  novelId: string,
+  payload: NovelImportControlInput,
+): Effect.Effect<NovelImportProgress, NovelImportError> {
   return Effect.gen(function* () {
-    const prepared = prepareSource(input)
-    if ("error" in prepared) return yield* Effect.fail(prepared.error)
-    const { source } = prepared
-    const tokenError = validateToken(parsePreviewToken(input.previewToken), source)
-    if (tokenError !== null) return yield* Effect.fail(tokenError)
-    const cleaned = cleanForParse(source)
-    const parsed = parseBook(source, cleaned.text)
-    const chapterCount = parsed.volumes.reduce((total, volume) => total + volume.chapters.length, 0)
-    if (chapterCount === 0) {
-      return yield* Effect.fail(importError("未识别到章节边界，无法建书；可选择按固定长度分章后重试", "invalid-text"))
-    }
-    const novelId = crypto.randomUUID()
-    const now = Date.now()
+    const job = requireJob(directory, novelId)
     const db = getDb(directory)
-    const appliedChapterCount = yield* Effect.sync(() =>
-      withTransaction(db, (tx) => {
-        tx.insert(NovelTable)
-          .values({
-            id: novelId,
-            title: input.title,
-            genre: IMPORT_DEFAULT_GENRE,
-            synopsis: "",
-            created_at: now,
-            updated_at: now,
-            status: "draft",
-            content_nature: "general",
-          })
-          .run()
-        let chapterOrder = 0
-        for (const volume of parsed.volumes) {
-          const volumeId = volume.title === null ? null : createVolumeTx(tx, novelId, volume.title)
-          for (const chapter of volume.chapters) {
-            chapterOrder += 1
-            createChapterTx(tx, novelId, chapter.title, chapterOrder, volumeId, chapter.content)
-          }
-        }
-        return chapterOrder
-      }),
-    )
-    const report: NovelImportReport = {
-      novelId,
-      title: input.title,
-      volumeCount: parsed.volumes.length,
-      chapterCount: appliedChapterCount,
-      cleanSummary: cleaned.summary,
-      issues: parsed.issues,
+    if (payload.action === "pause") {
+      if (job.session_id !== null) {
+        yield* services.workrun.pause(SessionV2.ID.make(job.session_id)).pipe(Effect.ignore)
+      }
+      withTransaction(db, (tx) => updateImportJobTx(tx, job.id, { status: "paused" }))
+      return toProgress(directory, job.id)
     }
-    return report
+    if (payload.action === "resume") {
+      if (job.status !== "paused") return yield* Effect.fail(importError("仅暂停的导入可以恢复", "invalid-state"))
+      if (job.session_id !== null) {
+        yield* services.workrun.resume(SessionV2.ID.make(job.session_id)).pipe(Effect.ignore)
+        yield* services.session
+          .prompt({ sessionID: SessionV2.ID.make(job.session_id), prompt: { text: resumePrompt(novelId, job.id, "导入队列已恢复：按持久化进度继续推进未完成单元。") } })
+          .pipe(Effect.mapError(() => importError("投递恢复指令失败")))
+      }
+      withTransaction(db, (tx) => updateImportJobTx(tx, job.id, { status: job.phase === "calibration" ? "calibrating" : "planned" }))
+      return toProgress(directory, job.id)
+    }
+    if (payload.action === "retry") {
+      if (job.session_id === null) return yield* Effect.fail(importError("导入缺少会话，无法重试", "invalid-state"))
+      yield* services.session
+        .prompt({ sessionID: SessionV2.ID.make(job.session_id), prompt: { text: resumePrompt(novelId, job.id, "请重试导入：先读 source_import status 核对持久化进度，从最近未完成章节或阶段继续，不要重复已提交章节。") } })
+        .pipe(Effect.mapError(() => importError("投递重试指令失败")))
+      withTransaction(db, (tx) => updateImportJobTx(tx, job.id, { status: job.phase === "calibration" ? "calibrating" : "planned", error: null }))
+      return toProgress(directory, job.id)
+    }
+    // configure：仅 paused，更新未开始部分配置并触发尾部重规划
+    if (job.status !== "paused") return yield* Effect.fail(importError("仅暂停的导入可以修改配置", "invalid-state"))
+    const options = JSON.parse(job.options_json) as Record<string, unknown>
+    const nextOptions = {
+      ...options,
+      ...(payload.targetChapterChars === undefined ? {} : { targetChapterChars: payload.targetChapterChars }),
+      ...(payload.repairLevel === undefined ? {} : { repairLevel: payload.repairLevel }),
+    }
+    withTransaction(db, (tx) => {
+      updateImportJobTx(tx, job.id, { options_json: JSON.stringify(nextOptions) })
+    })
+    if (job.session_id !== null) {
+      yield* services.session
+        .prompt({
+          sessionID: SessionV2.ID.make(job.session_id),
+          prompt: { text: resumePrompt(novelId, job.id, "配置已更新（仅应用到未开始部分）：请对未开始尾部执行 replan，已完成与进行中单元保持不变。") },
+        })
+        .pipe(Effect.mapError(() => importError("投递配置指令失败")))
+    }
+    return toProgress(directory, job.id)
   })
 }

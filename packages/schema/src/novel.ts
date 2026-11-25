@@ -1484,98 +1484,95 @@ export const SettingImageNoteUpdateInput = Schema.Struct({
   note: Schema.String,
 }).annotate({ identifier: "Novel.SettingImageNoteUpdateInput" })
 export interface SettingImageNoteUpdateInput extends Schema.Schema.Type<typeof SettingImageNoteUpdateInput> {}
-
 export const NovelImportEncoding = Schema.Literals(["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"])
 export type NovelImportEncoding = typeof NovelImportEncoding.Type
 
-export const NovelImportSpecialChapter = Schema.Literals(["prologue", "epilogue", "extra"])
-export type NovelImportSpecialChapter = typeof NovelImportSpecialChapter.Type
+/** 正文修复强度：off=仅分章保留原文；standard=常规修复；aggressive=积极清理。 */
+export const NovelImportRepairLevel = Schema.Literals(["off", "standard", "aggressive"])
+export type NovelImportRepairLevel = typeof NovelImportRepairLevel.Type
 
-export const NovelImportChapterPreview = Schema.Struct({
-  title: Schema.String,
-  wordCount: NonNegativeInt,
-  /** 章节正文 SHA-256（hex），apply 重解析一致性校验用 */
-  contentHash: Schema.String,
-  special: optional(NovelImportSpecialChapter),
-}).annotate({ identifier: "Novel.NovelImportChapterPreview" })
-export interface NovelImportChapterPreview extends Schema.Schema.Type<typeof NovelImportChapterPreview> {}
-
-export const NovelImportVolumePreview = Schema.Struct({
-  /** 卷标题；无卷题文件为 null（归入系统默认单卷） */
-  title: Schema.NullOr(Schema.String),
-  chapters: Schema.Array(NovelImportChapterPreview),
-}).annotate({ identifier: "Novel.NovelImportVolumePreview" })
-export interface NovelImportVolumePreview extends Schema.Schema.Type<typeof NovelImportVolumePreview> {}
-
-export const NovelImportIssueType = Schema.Literals([
-  "sequence-gap",
-  "duplicate-number",
-  "order-mismatch",
-  "unrecognized-boundary",
-])
-export type NovelImportIssueType = typeof NovelImportIssueType.Type
-
-export const NovelImportIssue = Schema.Struct({
-  type: NovelImportIssueType,
-  message: Schema.String,
-  /** 问题定位的章号（可解析出时给出） */
-  chapterNumber: optional(NonNegativeInt),
-}).annotate({ identifier: "Novel.NovelImportIssue" })
-export interface NovelImportIssue extends Schema.Schema.Type<typeof NovelImportIssue> {}
-
-export const NovelImportCleanSummary = Schema.Struct({
-  whitespaceTrimmed: NonNegativeInt,
-  blankLinesCollapsed: NonNegativeInt,
-  punctuationNormalized: NonNegativeInt,
-  linesMerged: NonNegativeInt,
-  adsRemoved: NonNegativeInt,
-  duplicatesRemoved: NonNegativeInt,
-}).annotate({ identifier: "Novel.NovelImportCleanSummary" })
-export interface NovelImportCleanSummary extends Schema.Schema.Type<typeof NovelImportCleanSummary> {}
-
-export const NovelImportAnalyzeInput = Schema.Struct({
+export const NovelImportStartInput = Schema.Struct({
   /** data URL 形式的文件内容（data:text/plain;base64,...），解码后上限 50 MiB */
   dataUrl: Schema.NonEmptyString,
   filename: Schema.NonEmptyString,
-  /** 确定性清洗开关（关闭则正文原样解析） */
-  cleanEnabled: Schema.Boolean,
+  /** 书名（可编辑，默认取自文件名） */
+  title: Schema.NonEmptyString,
   /** 编码识别失败时由用户显式指定重试 */
   encoding: optional(NovelImportEncoding),
-  /** 未识别到章节边界时按固定长度等长分章（默认 false：如实报未识别，不静默误切） */
-  fallbackFixedLength: optional(Schema.Boolean),
-}).annotate({ identifier: "Novel.NovelImportAnalyzeInput" })
-export interface NovelImportAnalyzeInput extends Schema.Schema.Type<typeof NovelImportAnalyzeInput> {}
+  /** 目标章节长度倾向（字符数，Agent 软参考，不硬切） */
+  targetChapterChars: optional(Schema.Int),
+  repairLevel: optional(NovelImportRepairLevel),
+}).annotate({ identifier: "Novel.NovelImportStartInput" })
+export interface NovelImportStartInput extends Schema.Schema.Type<typeof NovelImportStartInput> {}
 
-export const NovelImportPreview = Schema.Struct({
-  suggestedTitle: Schema.String,
-  encoding: NovelImportEncoding,
-  volumes: Schema.Array(NovelImportVolumePreview),
-  issues: Schema.Array(NovelImportIssue),
-  cleanSummary: NovelImportCleanSummary,
-  /** 不透明令牌：内容哈希 + 解析参数 + 解析器版本，apply 服务端重校验用 */
-  previewToken: Schema.String,
-}).annotate({ identifier: "Novel.NovelImportPreview" })
-export interface NovelImportPreview extends Schema.Schema.Type<typeof NovelImportPreview> {}
+export const NovelImportJobStatus = Schema.Literals([
+  "awaiting_queue",
+  "calibrating",
+  "planned",
+  "paused",
+  "blocked",
+  "failed",
+  "completed",
+])
+export type NovelImportJobStatus = typeof NovelImportJobStatus.Type
 
-export const NovelImportApplyInput = Schema.Struct({
-  previewToken: Schema.String,
-  /** 用户在预览中确认/改写后的书名 */
-  title: Schema.NonEmptyString,
-  dataUrl: Schema.NonEmptyString,
-  filename: Schema.NonEmptyString,
-  cleanEnabled: Schema.Boolean,
-  encoding: optional(NovelImportEncoding),
-  /** 须与 analyze 一致：token 校验包含该解析参数 */
-  fallbackFixedLength: optional(Schema.Boolean),
-}).annotate({ identifier: "Novel.NovelImportApplyInput" })
-export interface NovelImportApplyInput extends Schema.Schema.Type<typeof NovelImportApplyInput> {}
+export const NovelImportChapterItem = Schema.Struct({
+  chapterId: Schema.String,
+  order: NonNegativeInt,
+  title: Schema.String,
+  wordCount: NonNegativeInt,
+  settingsStage: Schema.String,
+  techniqueStage: Schema.String,
+}).annotate({ identifier: "Novel.NovelImportChapterItem" })
+export interface NovelImportChapterItem extends Schema.Schema.Type<typeof NovelImportChapterItem> {}
 
+/** 实时进度：处理页轮询/订阅的事实源。 */
+export const NovelImportProgress = Schema.Struct({
+  novelId: Schema.String,
+  jobId: Schema.String,
+  sessionId: Schema.NullOr(Schema.String),
+  status: NovelImportJobStatus,
+  phase: Schema.String,
+  processedChars: NonNegativeInt,
+  totalChars: NonNegativeInt,
+  progressRatio: Schema.Number,
+  chapterCount: NonNegativeInt,
+  calibrationReached: Schema.Boolean,
+  sourceExhausted: Schema.Boolean,
+  planVersion: NonNegativeInt,
+  plannedCount: optional(NonNegativeInt),
+  carryCount: NonNegativeInt,
+  chapters: Schema.Array(NovelImportChapterItem),
+}).annotate({ identifier: "Novel.NovelImportProgress" })
+export interface NovelImportProgress extends Schema.Schema.Type<typeof NovelImportProgress> {}
+
+export const NovelImportControlAction = Schema.Literals(["pause", "resume", "retry", "configure"])
+export type NovelImportControlAction = typeof NovelImportControlAction.Type
+
+export const NovelImportControlInput = Schema.Struct({
+  action: NovelImportControlAction,
+  targetChapterChars: optional(Schema.Int),
+  repairLevel: optional(NovelImportRepairLevel),
+}).annotate({ identifier: "Novel.NovelImportControlInput" })
+export interface NovelImportControlInput extends Schema.Schema.Type<typeof NovelImportControlInput> {}
+
+export const NovelImportExcludedItem = Schema.Struct({
+  chapterId: Schema.String,
+  reason: Schema.String,
+  beforeText: Schema.String,
+}).annotate({ identifier: "Novel.NovelImportExcludedItem" })
+export interface NovelImportExcludedItem extends Schema.Schema.Type<typeof NovelImportExcludedItem> {}
+
+/** 统一导入报告：完成态展示的结构化结果。 */
 export const NovelImportReport = Schema.Struct({
   novelId: Schema.String,
   title: Schema.String,
-  volumeCount: NonNegativeInt,
   chapterCount: NonNegativeInt,
-  cleanSummary: NovelImportCleanSummary,
-  issues: Schema.Array(NovelImportIssue),
+  planVersion: NonNegativeInt,
+  plannedCount: optional(NonNegativeInt),
+  opCounts: Schema.Record(Schema.String, NonNegativeInt),
+  excluded: Schema.Array(NovelImportExcludedItem),
+  moveCount: NonNegativeInt,
+  unresolvedCount: NonNegativeInt,
 }).annotate({ identifier: "Novel.NovelImportReport" })
 export interface NovelImportReport extends Schema.Schema.Type<typeof NovelImportReport> {}

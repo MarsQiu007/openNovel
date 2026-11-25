@@ -140,7 +140,7 @@ export type NovelImportError = {
   readonly name: "NovelImportError"
   readonly data: {
     readonly message: string
-    readonly reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "preview-expired" | undefined
+    readonly reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "not-found" | "invalid-state" | undefined
   }
 }
 export const isNovelImportError = (value: unknown): value is NovelImportError =>
@@ -6335,161 +6335,180 @@ export type ServerNovelApplyOutput = {
   }>
 }
 
-export type ServerNovelAnalyzeImportInput = {
+export type ServerNovelStartInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
   readonly dataUrl: {
     readonly dataUrl: string
     readonly filename: string
-    readonly cleanEnabled: boolean
+    readonly title: string
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
   }["dataUrl"]
   readonly filename: {
     readonly dataUrl: string
     readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["filename"]
-  readonly cleanEnabled: {
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["cleanEnabled"]
-  readonly encoding?: {
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["encoding"]
-  readonly fallbackFixedLength?: {
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["fallbackFixedLength"]
-}
-
-export type ServerNovelAnalyzeImportOutput = {
-  readonly suggestedTitle: string
-  readonly encoding: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-  readonly volumes: ReadonlyArray<{
-    readonly title: string | null
-    readonly chapters: ReadonlyArray<{
-      readonly title: string
-      readonly wordCount: number
-      readonly contentHash: string
-      readonly special?: "prologue" | "epilogue" | "extra"
-    }>
-  }>
-  readonly issues: ReadonlyArray<{
-    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
-    readonly message: string
-    readonly chapterNumber?: number
-  }>
-  readonly cleanSummary: {
-    readonly whitespaceTrimmed: number
-    readonly blankLinesCollapsed: number
-    readonly punctuationNormalized: number
-    readonly linesMerged: number
-    readonly adsRemoved: number
-    readonly duplicatesRemoved: number
-  }
-  readonly previewToken: string
-}
-
-export type ServerNovelApplyImportInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
-  readonly previewToken: {
-    readonly previewToken: string
     readonly title: string
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["previewToken"]
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["filename"]
   readonly title: {
-    readonly previewToken: string
-    readonly title: string
     readonly dataUrl: string
     readonly filename: string
-    readonly cleanEnabled: boolean
+    readonly title: string
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
   }["title"]
-  readonly dataUrl: {
-    readonly previewToken: string
-    readonly title: string
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["dataUrl"]
-  readonly filename: {
-    readonly previewToken: string
-    readonly title: string
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["filename"]
-  readonly cleanEnabled: {
-    readonly previewToken: string
-    readonly title: string
-    readonly dataUrl: string
-    readonly filename: string
-    readonly cleanEnabled: boolean
-    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["cleanEnabled"]
   readonly encoding?: {
-    readonly previewToken: string
-    readonly title: string
     readonly dataUrl: string
     readonly filename: string
-    readonly cleanEnabled: boolean
+    readonly title: string
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
   }["encoding"]
-  readonly fallbackFixedLength?: {
-    readonly previewToken: string
-    readonly title: string
+  readonly targetChapterChars?: {
     readonly dataUrl: string
     readonly filename: string
-    readonly cleanEnabled: boolean
+    readonly title: string
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-    readonly fallbackFixedLength?: boolean
-  }["fallbackFixedLength"]
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["targetChapterChars"]
+  readonly repairLevel?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly title: string
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["repairLevel"]
 }
 
-export type ServerNovelApplyImportOutput = {
+export type ServerNovelStartOutput = {
+  readonly novelId: string
+  readonly jobId: string
+  readonly sessionId: string | null
+  readonly status: "awaiting_queue" | "calibrating" | "planned" | "paused" | "blocked" | "failed" | "completed"
+  readonly phase: string
+  readonly processedChars: number
+  readonly totalChars: number
+  readonly progressRatio: number | "Infinity" | "-Infinity" | "NaN"
+  readonly chapterCount: number
+  readonly calibrationReached: boolean
+  readonly sourceExhausted: boolean
+  readonly planVersion: number
+  readonly plannedCount?: number
+  readonly carryCount: number
+  readonly chapters: ReadonlyArray<{
+    readonly chapterId: string
+    readonly order: number
+    readonly title: string
+    readonly wordCount: number
+    readonly settingsStage: string
+    readonly techniqueStage: string
+  }>
+}
+
+export type ServerNovelGetInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelGetOutput = {
+  readonly novelId: string
+  readonly jobId: string
+  readonly sessionId: string | null
+  readonly status: "awaiting_queue" | "calibrating" | "planned" | "paused" | "blocked" | "failed" | "completed"
+  readonly phase: string
+  readonly processedChars: number
+  readonly totalChars: number
+  readonly progressRatio: number | "Infinity" | "-Infinity" | "NaN"
+  readonly chapterCount: number
+  readonly calibrationReached: boolean
+  readonly sourceExhausted: boolean
+  readonly planVersion: number
+  readonly plannedCount?: number
+  readonly carryCount: number
+  readonly chapters: ReadonlyArray<{
+    readonly chapterId: string
+    readonly order: number
+    readonly title: string
+    readonly wordCount: number
+    readonly settingsStage: string
+    readonly techniqueStage: string
+  }>
+}
+
+export type ServerNovelReportInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelReportOutput = {
   readonly novelId: string
   readonly title: string
-  readonly volumeCount: number
   readonly chapterCount: number
-  readonly cleanSummary: {
-    readonly whitespaceTrimmed: number
-    readonly blankLinesCollapsed: number
-    readonly punctuationNormalized: number
-    readonly linesMerged: number
-    readonly adsRemoved: number
-    readonly duplicatesRemoved: number
-  }
-  readonly issues: ReadonlyArray<{
-    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
-    readonly message: string
-    readonly chapterNumber?: number
+  readonly planVersion: number
+  readonly plannedCount?: number
+  readonly opCounts: { readonly [x: string]: number }
+  readonly excluded: ReadonlyArray<{ readonly chapterId: string; readonly reason: string; readonly beforeText: string }>
+  readonly moveCount: number
+  readonly unresolvedCount: number
+}
+
+export type ServerNovelControlInput = {
+  readonly novelID: { readonly novelID: string }["novelID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly action: {
+    readonly action: "pause" | "resume" | "retry" | "configure"
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["action"]
+  readonly targetChapterChars?: {
+    readonly action: "pause" | "resume" | "retry" | "configure"
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["targetChapterChars"]
+  readonly repairLevel?: {
+    readonly action: "pause" | "resume" | "retry" | "configure"
+    readonly targetChapterChars?: number
+    readonly repairLevel?: "off" | "standard" | "aggressive"
+  }["repairLevel"]
+}
+
+export type ServerNovelControlOutput = {
+  readonly novelId: string
+  readonly jobId: string
+  readonly sessionId: string | null
+  readonly status: "awaiting_queue" | "calibrating" | "planned" | "paused" | "blocked" | "failed" | "completed"
+  readonly phase: string
+  readonly processedChars: number
+  readonly totalChars: number
+  readonly progressRatio: number | "Infinity" | "-Infinity" | "NaN"
+  readonly chapterCount: number
+  readonly calibrationReached: boolean
+  readonly sourceExhausted: boolean
+  readonly planVersion: number
+  readonly plannedCount?: number
+  readonly carryCount: number
+  readonly chapters: ReadonlyArray<{
+    readonly chapterId: string
+    readonly order: number
+    readonly title: string
+    readonly wordCount: number
+    readonly settingsStage: string
+    readonly techniqueStage: string
   }>
 }
 

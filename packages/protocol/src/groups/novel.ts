@@ -116,9 +116,9 @@ import {
   ManualEditSyncQueryResult,
   ManualEditSyncRetryInput,
   ManualEditSyncRetryResult,
-  NovelImportAnalyzeInput,
-  NovelImportPreview,
-  NovelImportApplyInput,
+  NovelImportStartInput,
+  NovelImportProgress,
+  NovelImportControlInput,
   NovelImportReport,
   UpgradeStatusResult,
   UpgradeStartResult,
@@ -201,7 +201,7 @@ export class NovelImportError extends Schema.ErrorClass<NovelImportError>("Novel
     data: Schema.Struct({
       message: Schema.String,
       reason: Schema.optional(
-        Schema.Literals(["encoding-failed", "invalid-text", "file-too-large", "preview-expired"]),
+        Schema.Literals(["encoding-failed", "invalid-text", "file-too-large", "not-found", "invalid-state"]),
       ),
     }),
   },
@@ -1353,34 +1353,67 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
       ),
   )
   .add(
-    HttpApiEndpoint.post("novel.import.analyze", `${root}/import/analyze`, {
+    HttpApiEndpoint.post("novel.import.start", `${root}/import/start`, {
       query: LocationQuery,
-      payload: NovelImportAnalyzeInput,
-      success: NovelImportPreview,
+      payload: NovelImportStartInput,
+      success: NovelImportProgress,
       error: [NovelImportError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
         OpenApi.annotations({
-          identifier: "v2.novel.import.analyze",
-          summary: "Analyze a book import file",
-          description: "Detect encoding, split volumes and chapters, clean content and return a structured import preview.",
+          identifier: "v2.novel.import.start",
+          summary: "Start a source-driven book import",
+          description: "Persist the raw source and import job, create a dedicated import session, and admit a durable start prompt. Returns immediately; the agent processes the book asynchronously.",
         }),
       ),
   )
   .add(
-    HttpApiEndpoint.post("novel.import.apply", `${root}/import/apply`, {
+    HttpApiEndpoint.get("novel.import.get", `${root}/:novelID/import`, {
+      params: { novelID: Schema.String },
       query: LocationQuery,
-      payload: NovelImportApplyInput,
+      success: NovelImportProgress,
+      error: [NovelImportError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.import.get",
+          summary: "Get source-driven import progress",
+          description: "Read the persisted import job progress, produced chapters and plan state.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.import.report", `${root}/:novelID/import/report`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
       success: NovelImportReport,
       error: [NovelImportError],
     })
       .annotateMerge(locationQueryOpenApi)
       .annotateMerge(
         OpenApi.annotations({
-          identifier: "v2.novel.import.apply",
-          summary: "Apply a confirmed book import",
-          description: "Revalidate the preview token against a fresh parse, then create the book, volumes and chapters in one transaction.",
+          identifier: "v2.novel.import.report",
+          summary: "Get the unified import report",
+          description: "Aggregated repair statistics, excluded content, plan revisions and unresolved items.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("novel.import.control", `${root}/:novelID/import/control`, {
+      params: { novelID: Schema.String },
+      query: LocationQuery,
+      payload: NovelImportControlInput,
+      success: NovelImportProgress,
+      error: [NovelImportError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.import.control",
+          summary: "Control a source-driven import",
+          description: "Pause, resume, retry or configure (paused only) the import. Configure applies to not-yet-started units only.",
         }),
       ),
   )

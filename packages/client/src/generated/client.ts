@@ -304,10 +304,14 @@ import type {
   ServerNovelDryRunOutput,
   ServerNovelApplyInput,
   ServerNovelApplyOutput,
-  ServerNovelAnalyzeImportInput,
-  ServerNovelAnalyzeImportOutput,
-  ServerNovelApplyImportInput,
-  ServerNovelApplyImportOutput,
+  ServerNovelStartInput,
+  ServerNovelStartOutput,
+  ServerNovelGetInput,
+  ServerNovelGetOutput,
+  ServerNovelReportInput,
+  ServerNovelReportOutput,
+  ServerNovelControlInput,
+  ServerNovelControlOutput,
   ServerNovelItemsInput,
   ServerNovelItemsOutput,
   ServerNovelCountsInput,
@@ -2615,18 +2619,19 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      analyzeImport: (input: ServerNovelAnalyzeImportInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelAnalyzeImportOutput>(
+      start: (input: ServerNovelStartInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelStartOutput>(
           {
             method: "POST",
-            path: `/api/novel/import/analyze`,
+            path: `/api/novel/import/start`,
             query: { location: input["location"] },
             body: {
               dataUrl: input["dataUrl"],
               filename: input["filename"],
-              cleanEnabled: input["cleanEnabled"],
+              title: input["title"],
               encoding: input["encoding"],
-              fallbackFixedLength: input["fallbackFixedLength"],
+              targetChapterChars: input["targetChapterChars"],
+              repairLevel: input["repairLevel"],
             },
             successStatus: 200,
             declaredStatuses: [400, 401],
@@ -2634,20 +2639,40 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      applyImport: (input: ServerNovelApplyImportInput, requestOptions?: RequestOptions) =>
-        request<ServerNovelApplyImportOutput>(
+      get: (input: ServerNovelGetInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelGetOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/import`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      report: (input: ServerNovelReportInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelReportOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/import/report`,
+            query: { location: input["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      control: (input: ServerNovelControlInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelControlOutput>(
           {
             method: "POST",
-            path: `/api/novel/import/apply`,
+            path: `/api/novel/${encodeURIComponent(input.novelID)}/import/control`,
             query: { location: input["location"] },
             body: {
-              previewToken: input["previewToken"],
-              title: input["title"],
-              dataUrl: input["dataUrl"],
-              filename: input["filename"],
-              cleanEnabled: input["cleanEnabled"],
-              encoding: input["encoding"],
-              fallbackFixedLength: input["fallbackFixedLength"],
+              action: input["action"],
+              targetChapterChars: input["targetChapterChars"],
+              repairLevel: input["repairLevel"],
             },
             successStatus: 200,
             declaredStatuses: [400, 401],

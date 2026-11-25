@@ -3,7 +3,7 @@ import { Effect, Option } from "effect"
 import type { ExportFormat } from "@opennovel-ai/schema/novel"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildNovelExport } from "./novel-export"
-import { analyzeImport, applyImport } from "./novel-import/orchestrate"
+import { startImport, getImportProgressEndpoint, getImportReportEndpoint, controlImport } from "./novel-import/orchestrate"
 import { SettingOrganization } from "../setting-organization"
 import { SettingReviewInbox, type ReviewInboxListQuery } from "../setting-review-inbox"
 import {
@@ -194,6 +194,7 @@ import {
   rebuildNextChapterSnapshot,
 } from "@opennovel-ai/novel-store"
 import { SessionV2 } from "@opennovel-ai/core/session"
+import { SessionWorkRun } from "@opennovel-ai/core/session/work-run"
 import { and, eq, asc, desc, isNull, like, or, inArray, ne } from "drizzle-orm"
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
 import { rm } from "fs/promises"
@@ -2994,16 +2995,31 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
           return yield* settingOrganizationApply(ctx.params.novelID, location.directory, ctx.payload)
         }),
       )
-      .handle("novel.import.analyze", (ctx) =>
+      .handle("novel.import.start", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* analyzeImport(location.directory, ctx.payload)
+          const session = yield* SessionV2.Service
+          return yield* startImport(location.directory, session, ctx.payload)
         }),
       )
-      .handle("novel.import.apply", (ctx) =>
+      .handle("novel.import.get", (ctx) =>
         Effect.gen(function* () {
           const location = yield* Location.Service
-          return yield* applyImport(location.directory, ctx.payload)
+          return yield* getImportProgressEndpoint(location.directory, ctx.params.novelID)
+        }),
+      )
+      .handle("novel.import.report", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* getImportReportEndpoint(location.directory, ctx.params.novelID)
+        }),
+      )
+      .handle("novel.import.control", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          const session = yield* SessionV2.Service
+          const workrun = yield* SessionWorkRun.Service
+          return yield* controlImport(location.directory, { session, workrun }, ctx.params.novelID, ctx.payload)
         }),
       )
       .handle("novel.create-world-map", (ctx) =>

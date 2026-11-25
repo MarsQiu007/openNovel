@@ -41,6 +41,8 @@ import { GlobalBus, type GlobalEvent } from "../../../src/bus/global"
 import { type Scenario, type ScenarioContext } from "./types"
 import {
   beginWritingBatch,
+  createImportJobTx,
+  withTransaction,
   createCharacterMapPin,
   createWorldMap,
   createWorldMapFeature,
@@ -1537,6 +1539,27 @@ function seedNovel(ctx: ScenarioContext, title = "种子小说") {
   )
 }
 
+// 原文驱动导入种子：一书 + 一任务（awaiting_queue），供 get/report/control 场景共用
+const IMPORT_SEED_TEXT = "种子段落一。\n种子段落二。\n种子段落三。"
+function seedImportJob(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.map(seedNovel(ctx, "导入种子"), (state) => {
+      const directory = novelDirectory(ctx)
+      withTransaction(getDb(directory), (tx) =>
+        createImportJobTx(tx, {
+          novelId: state.novelID,
+          filename: "seed.txt",
+          encoding: "utf-8",
+          sourceHash: "seed-hash",
+          rawText: IMPORT_SEED_TEXT,
+          options: {},
+        }),
+      )
+      return state
+    }),
+  )
+}
+
 // sessionId 用随机 UUID（非活跃会话），interrupted 派生为 true 的 running 批量
 function seedWritingBatch(ctx: ScenarioContext) {
   return Effect.orDie(
@@ -2794,87 +2817,82 @@ function novelScenarios(): Scenario[] {
         check((body as Record<string, unknown>).ok === false, "摘要不匹配的 apply 应被拒绝")
       }),
     http.protected
-      .post("/api/novel/import/analyze", "novel.import.analyze")
+      .post("/api/novel/import/start", "novel.import.start")
+      .mutating()
       .at((ctx) => ({
-        path: "/api/novel/import/analyze",
+        path: "/api/novel/import/start",
         headers: jsonHeaders(ctx),
         body: {
           dataUrl: EXERCISE_IMPORT_DATA_URL,
           filename: "exercise-import.txt",
-          cleanEnabled: true,
+          title: "练习导入书",
+          encoding: "utf-8",
         },
       }))
       .json(200, (body) => {
         object(body)
-        const preview = body as Record<string, unknown>
-        check(preview.suggestedTitle === "exercise-import", "建议书名应取文件名去扩展名")
-        check(preview.encoding === "utf-8", "UTF-8 样例应识别为 utf-8")
-        array(preview.volumes)
-        check((preview.volumes as unknown[]).length === 1, "单卷样例应解析出一个卷")
-        check(
-          typeof preview.previewToken === "string" && (preview.previewToken as string).length > 0,
-          "预览应携带 previewToken",
-        )
+        const progress = body as Record<string, unknown>
+        check(typeof progress.novelId === "string" && (progress.novelId as string).length > 0, "启动应返回新书 ID")
+        check(typeof progress.jobId === "string" && (progress.jobId as string).length > 0, "启动应返回任务 ID")
+        check(progress.status === "calibrating", "启动后任务应为 calibrating")
+        check(progress.chapterCount === 0, "启动时尚无章节")
+        check(progress.totalChars === EXERCISE_IMPORT_TEXT.length, "总字数应与原文一致")
       }),
     http.protected
-      .post("/api/novel/import/analyze", "novel.import.analyze.encoding-failed")
+      .get("/api/novel/{novelID}/import", "novel.import.get")
+      .seeded((ctx) => seedImportJob(ctx))
       .at((ctx) => ({
-        path: "/api/novel/import/analyze",
+        path: route("/api/novel/{novelID}/import", { novelID: ctx.state.novelID }),
         headers: jsonHeaders(ctx),
-        body: {
-          // 确定性伪随机噪声字节（固定 LCG 种子），任何候选编码评分都不达标
-          dataUrl: `data:text/plain;base64,${exerciseGarbageBytes().toString("base64")}`,
-          filename: "garbage.bin",
-          cleanEnabled: false,
-        },
       }))
-      .json(400, (body) => {
+      .json(200, (body) => {
         object(body)
-        const error = body as Record<string, unknown>
-        check(error.name === "NovelImportError", "编码失败应返回 NovelImportError")
-        check((error.data as Record<string, unknown>).reason === "encoding-failed", "噪声字节应报编码识别失败")
+        const progress = body as Record<string, unknown>
+        check(progress.status === "awaiting_queue", "种子任务应为 awaiting_queue")
+        check(progress.chapterCount === 0, "种子任务尚无章节")
+        check(progress.totalChars === IMPORT_SEED_TEXT.length, "总字数应与种子原文一致")
       }),
     http.protected
-      .post("/api/novel/import/apply", "novel.import.apply")
-      .mutating()
+      .get("/api/novel/{novelID}/import/report", "novel.import.report")
+      .seeded((ctx) => seedImportJob(ctx))
       .at((ctx) => ({
-        path: "/api/novel/import/apply",
+        path: route("/api/novel/{novelID}/import/report", { novelID: ctx.state.novelID }),
         headers: jsonHeaders(ctx),
-        body: {
-          // golden token：对固定样例字节经真实 analyze 管线产出（解析器版本/参数变更时需同步更新）
-          previewToken: "eyJ2IjoiYm9vay1pbXBvcnQtdjEiLCJoYXNoIjoiODFlMzU5ODY5MTE2NjRmYWJlYjdlNDBmNjQzY2IyMmFhNTY3YmIwYTg1MTg4M2YwZDM5MmU2YWY3ZDIxMDBkYiIsImNsZWFuIjp0cnVlLCJlbmMiOiJ1dGYtOCIsImZpeGVkIjpmYWxzZX0",
-          title: "练习导入书",
-          dataUrl: EXERCISE_IMPORT_DATA_URL,
-          filename: "exercise-import.txt",
-          cleanEnabled: true,
-        },
       }))
       .json(200, (body) => {
         object(body)
         const report = body as Record<string, unknown>
-        check(report.title === "练习导入书", "报告应回显确认书名")
-        check(report.volumeCount === 1 && report.chapterCount === 1, "样例应导入为一卷一章")
-        check(typeof report.novelId === "string" && (report.novelId as string).length > 0, "报告应携带新书 ID")
+        check(report.chapterCount === 0, "种子任务报告章节数应为 0")
+        check(report.title === "导入种子", "报告应携带书名")
       }),
     http.protected
-      .post("/api/novel/import/apply", "novel.import.apply.preview-expired")
+      .post("/api/novel/{novelID}/import/control", "novel.import.control.pause")
+      .seeded((ctx) => seedImportJob(ctx))
+      .mutating()
       .at((ctx) => ({
-        path: "/api/novel/import/apply",
+        path: route("/api/novel/{novelID}/import/control", { novelID: ctx.state.novelID }),
         headers: jsonHeaders(ctx),
-        body: {
-          previewToken: "not-a-valid-token",
-          title: "不应建成",
-          dataUrl: EXERCISE_IMPORT_DATA_URL,
-          filename: "exercise-import.txt",
-          cleanEnabled: true,
-        },
+        body: { action: "pause" },
+      }))
+      .json(200, (body) => {
+        object(body)
+        check((body as Record<string, unknown>).status === "paused", "暂停后状态应为 paused")
+      }),
+    http.protected
+      .post("/api/novel/{novelID}/import/control", "novel.import.control.configure-invalid")
+      .seeded((ctx) => seedImportJob(ctx))
+      .at((ctx) => ({
+        path: route("/api/novel/{novelID}/import/control", { novelID: ctx.state.novelID }),
+        headers: jsonHeaders(ctx),
+        body: { action: "configure", repairLevel: "off" },
       }))
       .json(400, (body) => {
         object(body)
         const error = body as Record<string, unknown>
-        check(error.name === "NovelImportError", "非法 token 应返回 NovelImportError")
-        check((error.data as Record<string, unknown>).reason === "preview-expired", "非法 token 应报预览过期")
+        check(error.name === "NovelImportError", "非暂停态 configure 应返回 NovelImportError")
+        check((error.data as Record<string, unknown>).reason === "invalid-state", "非暂停态 configure 应报 invalid-state")
       }),
+
     http.protected
       .get("/api/novel/{novelID}/review-inbox", "novel.review-inbox.items")
       .seeded((ctx) => seedReviewInbox(ctx))

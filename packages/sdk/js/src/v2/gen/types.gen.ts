@@ -2195,7 +2195,7 @@ export type NovelImportError = {
   name: "NovelImportError"
   data: {
     message: string
-    reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "preview-expired"
+    reason?: "encoding-failed" | "invalid-text" | "file-too-large" | "not-found" | "invalid-state"
   }
 }
 
@@ -6160,67 +6160,66 @@ export type NovelSettingOrganizationApplyResult = {
   remaining: Array<NovelSettingOrganizationRemainingOperation>
 }
 
-export type NovelNovelImportAnalyzeInput = {
+export type NovelNovelImportStartInput = {
   dataUrl: string
   filename: string
-  cleanEnabled: boolean
+  title: string
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-  fallbackFixedLength?: boolean
+  targetChapterChars?: number
+  repairLevel?: "off" | "standard" | "aggressive"
 }
 
-export type NovelNovelImportChapterPreview = {
+export type NovelNovelImportChapterItem = {
+  chapterId: string
+  order: number
   title: string
   wordCount: number
-  contentHash: string
-  special?: "prologue" | "epilogue" | "extra"
+  settingsStage: string
+  techniqueStage: string
 }
 
-export type NovelNovelImportVolumePreview = {
-  title: string
-  chapters: Array<NovelNovelImportChapterPreview>
+export type NovelNovelImportProgress = {
+  novelId: string
+  jobId: string
+  sessionId: string
+  status: "awaiting_queue" | "calibrating" | "planned" | "paused" | "blocked" | "failed" | "completed"
+  phase: string
+  processedChars: number
+  totalChars: number
+  progressRatio: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  chapterCount: number
+  calibrationReached: boolean
+  sourceExhausted: boolean
+  planVersion: number
+  plannedCount?: number
+  carryCount: number
+  chapters: Array<NovelNovelImportChapterItem>
 }
 
-export type NovelNovelImportIssue = {
-  type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
-  message: string
-  chapterNumber?: number
-}
-
-export type NovelNovelImportCleanSummary = {
-  whitespaceTrimmed: number
-  blankLinesCollapsed: number
-  punctuationNormalized: number
-  linesMerged: number
-  adsRemoved: number
-  duplicatesRemoved: number
-}
-
-export type NovelNovelImportPreview = {
-  suggestedTitle: string
-  encoding: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-  volumes: Array<NovelNovelImportVolumePreview>
-  issues: Array<NovelNovelImportIssue>
-  cleanSummary: NovelNovelImportCleanSummary
-  previewToken: string
-}
-
-export type NovelNovelImportApplyInput = {
-  previewToken: string
-  title: string
-  dataUrl: string
-  filename: string
-  cleanEnabled: boolean
-  encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
-  fallbackFixedLength?: boolean
+export type NovelNovelImportExcludedItem = {
+  chapterId: string
+  reason: string
+  beforeText: string
 }
 
 export type NovelNovelImportReport = {
   novelId: string
   title: string
-  volumeCount: number
   chapterCount: number
-  cleanSummary: NovelNovelImportCleanSummary
-  issues: Array<NovelNovelImportIssue>
+  planVersion: number
+  plannedCount?: number
+  opCounts: {
+    [key: string]: number
+  }
+  excluded: Array<NovelNovelImportExcludedItem>
+  moveCount: number
+  unresolvedCount: number
+}
+
+export type NovelNovelImportControlInput = {
+  action: "pause" | "resume" | "retry" | "configure"
+  targetChapterChars?: number
+  repairLevel?: "off" | "standard" | "aggressive"
 }
 
 export type NovelReviewInboxItem = {
@@ -16360,8 +16359,8 @@ export type V2NovelSettingsOrganizationApplyResponses = {
 export type V2NovelSettingsOrganizationApplyResponse =
   V2NovelSettingsOrganizationApplyResponses[keyof V2NovelSettingsOrganizationApplyResponses]
 
-export type V2NovelImportAnalyzeData = {
-  body: NovelNovelImportAnalyzeInput
+export type V2NovelImportStartData = {
+  body: NovelNovelImportStartInput
   path?: never
   query?: {
     location?: {
@@ -16369,10 +16368,10 @@ export type V2NovelImportAnalyzeData = {
       workspace?: string
     }
   }
-  url: "/api/novel/import/analyze"
+  url: "/api/novel/import/start"
 }
 
-export type V2NovelImportAnalyzeErrors = {
+export type V2NovelImportStartErrors = {
   /**
    * NovelImportError | InvalidRequestError
    */
@@ -16383,30 +16382,32 @@ export type V2NovelImportAnalyzeErrors = {
   401: UnauthorizedError
 }
 
-export type V2NovelImportAnalyzeError = V2NovelImportAnalyzeErrors[keyof V2NovelImportAnalyzeErrors]
+export type V2NovelImportStartError = V2NovelImportStartErrors[keyof V2NovelImportStartErrors]
 
-export type V2NovelImportAnalyzeResponses = {
+export type V2NovelImportStartResponses = {
   /**
-   * Novel.NovelImportPreview
+   * Novel.NovelImportProgress
    */
-  200: NovelNovelImportPreview
+  200: NovelNovelImportProgress
 }
 
-export type V2NovelImportAnalyzeResponse = V2NovelImportAnalyzeResponses[keyof V2NovelImportAnalyzeResponses]
+export type V2NovelImportStartResponse = V2NovelImportStartResponses[keyof V2NovelImportStartResponses]
 
-export type V2NovelImportApplyData = {
-  body: NovelNovelImportApplyInput
-  path?: never
+export type V2NovelImportGetData = {
+  body?: never
+  path: {
+    novelID: string
+  }
   query?: {
     location?: {
       directory?: string
       workspace?: string
     }
   }
-  url: "/api/novel/import/apply"
+  url: "/api/novel/{novelID}/import"
 }
 
-export type V2NovelImportApplyErrors = {
+export type V2NovelImportGetErrors = {
   /**
    * NovelImportError | InvalidRequestError
    */
@@ -16417,16 +16418,88 @@ export type V2NovelImportApplyErrors = {
   401: UnauthorizedError
 }
 
-export type V2NovelImportApplyError = V2NovelImportApplyErrors[keyof V2NovelImportApplyErrors]
+export type V2NovelImportGetError = V2NovelImportGetErrors[keyof V2NovelImportGetErrors]
 
-export type V2NovelImportApplyResponses = {
+export type V2NovelImportGetResponses = {
+  /**
+   * Novel.NovelImportProgress
+   */
+  200: NovelNovelImportProgress
+}
+
+export type V2NovelImportGetResponse = V2NovelImportGetResponses[keyof V2NovelImportGetResponses]
+
+export type V2NovelImportReportData = {
+  body?: never
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/import/report"
+}
+
+export type V2NovelImportReportErrors = {
+  /**
+   * NovelImportError | InvalidRequestError
+   */
+  400: NovelImportError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelImportReportError = V2NovelImportReportErrors[keyof V2NovelImportReportErrors]
+
+export type V2NovelImportReportResponses = {
   /**
    * Novel.NovelImportReport
    */
   200: NovelNovelImportReport
 }
 
-export type V2NovelImportApplyResponse = V2NovelImportApplyResponses[keyof V2NovelImportApplyResponses]
+export type V2NovelImportReportResponse = V2NovelImportReportResponses[keyof V2NovelImportReportResponses]
+
+export type V2NovelImportControlData = {
+  body: NovelNovelImportControlInput
+  path: {
+    novelID: string
+  }
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/{novelID}/import/control"
+}
+
+export type V2NovelImportControlErrors = {
+  /**
+   * NovelImportError | InvalidRequestError
+   */
+  400: NovelImportError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelImportControlError = V2NovelImportControlErrors[keyof V2NovelImportControlErrors]
+
+export type V2NovelImportControlResponses = {
+  /**
+   * Novel.NovelImportProgress
+   */
+  200: NovelNovelImportProgress
+}
+
+export type V2NovelImportControlResponse = V2NovelImportControlResponses[keyof V2NovelImportControlResponses]
 
 export type V2NovelReviewInboxListData = {
   body?: never

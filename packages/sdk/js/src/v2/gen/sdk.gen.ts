@@ -133,8 +133,8 @@ import type {
   NovelMemoryFactCreateInput,
   NovelMemoryFactEditInput,
   NovelMoveChapterInput,
-  NovelNovelImportAnalyzeInput,
-  NovelNovelImportApplyInput,
+  NovelNovelImportControlInput,
+  NovelNovelImportStartInput,
   NovelNovelModePatch,
   NovelOutlineUpdateInput,
   NovelRestoreVersionInput,
@@ -371,10 +371,14 @@ import type {
   V2NovelForeshadowingResponses,
   V2NovelForSessionErrors,
   V2NovelForSessionResponses,
-  V2NovelImportAnalyzeErrors,
-  V2NovelImportAnalyzeResponses,
-  V2NovelImportApplyErrors,
-  V2NovelImportApplyResponses,
+  V2NovelImportControlErrors,
+  V2NovelImportControlResponses,
+  V2NovelImportGetErrors,
+  V2NovelImportGetResponses,
+  V2NovelImportReportErrors,
+  V2NovelImportReportResponses,
+  V2NovelImportStartErrors,
+  V2NovelImportStartResponses,
   V2NovelListErrors,
   V2NovelListResponses,
   V2NovelMemoryFactsApproveErrors,
@@ -5641,17 +5645,17 @@ export class SettingsOrganization extends HeyApiClient {
 
 export class Import extends HeyApiClient {
   /**
-   * Analyze a book import file
+   * Start a source-driven book import
    *
-   * Detect encoding, split volumes and chapters, clean content and return a structured import preview.
+   * Persist the raw source and import job, create a dedicated import session, and admit a durable start prompt. Returns immediately; the agent processes the book asynchronously.
    */
-  public analyze<ThrowOnError extends boolean = false>(
+  public start<ThrowOnError extends boolean = false>(
     parameters: {
       location?: {
         directory?: string
         workspace?: string
       }
-      novelNovelImportAnalyzeInput: NovelNovelImportAnalyzeInput
+      novelNovelImportStartInput: NovelNovelImportStartInput
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -5661,17 +5665,13 @@ export class Import extends HeyApiClient {
         {
           args: [
             { in: "query", key: "location" },
-            { key: "novelNovelImportAnalyzeInput", map: "body" },
+            { key: "novelNovelImportStartInput", map: "body" },
           ],
         },
       ],
     )
-    return (options?.client ?? this.client).post<
-      V2NovelImportAnalyzeResponses,
-      V2NovelImportAnalyzeErrors,
-      ThrowOnError
-    >({
-      url: "/api/novel/import/analyze",
+    return (options?.client ?? this.client).post<V2NovelImportStartResponses, V2NovelImportStartErrors, ThrowOnError>({
+      url: "/api/novel/import/start",
       ...options,
       ...params,
       headers: {
@@ -5683,17 +5683,17 @@ export class Import extends HeyApiClient {
   }
 
   /**
-   * Apply a confirmed book import
+   * Get source-driven import progress
    *
-   * Revalidate the preview token against a fresh parse, then create the book, volumes and chapters in one transaction.
+   * Read the persisted import job progress, produced chapters and plan state.
    */
-  public apply<ThrowOnError extends boolean = false>(
+  public get<ThrowOnError extends boolean = false>(
     parameters: {
+      novelID: string
       location?: {
         directory?: string
         workspace?: string
       }
-      novelNovelImportApplyInput: NovelNovelImportApplyInput
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -5702,14 +5702,86 @@ export class Import extends HeyApiClient {
       [
         {
           args: [
+            { in: "path", key: "novelID" },
             { in: "query", key: "location" },
-            { key: "novelNovelImportApplyInput", map: "body" },
           ],
         },
       ],
     )
-    return (options?.client ?? this.client).post<V2NovelImportApplyResponses, V2NovelImportApplyErrors, ThrowOnError>({
-      url: "/api/novel/import/apply",
+    return (options?.client ?? this.client).get<V2NovelImportGetResponses, V2NovelImportGetErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/import",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get the unified import report
+   *
+   * Aggregated repair statistics, excluded content, plan revisions and unresolved items.
+   */
+  public report<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<V2NovelImportReportResponses, V2NovelImportReportErrors, ThrowOnError>({
+      url: "/api/novel/{novelID}/import/report",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Control a source-driven import
+   *
+   * Pause, resume, retry or configure (paused only) the import. Configure applies to not-yet-started units only.
+   */
+  public control<ThrowOnError extends boolean = false>(
+    parameters: {
+      novelID: string
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+      novelNovelImportControlInput: NovelNovelImportControlInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "novelID" },
+            { in: "query", key: "location" },
+            { key: "novelNovelImportControlInput", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      V2NovelImportControlResponses,
+      V2NovelImportControlErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/{novelID}/import/control",
       ...options,
       ...params,
       headers: {
