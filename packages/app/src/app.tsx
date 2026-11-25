@@ -68,7 +68,7 @@ import { createSessionLineage } from "@/pages/session/session-lineage"
 import { SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
 import { SessionRedirect } from "@/pages/session-redirect"
 import { NewHome, LegacyHome } from "@/pages/home"
-import NovelWorkspaceLayout, { NovelImportWizardLayout, NovelWizardLayout } from "@/pages/novel/layout"
+import NovelWorkspaceLayout, { NovelImportTaskLayout, NovelImportWizardLayout, NovelWizardLayout } from "@/pages/novel/layout"
 
 // 旧独立会话路由已退役为重定向入口：目录直接取路由段（base64），统一交由
 // SessionRedirect 决策（绑定进书、未绑定降级书架）；无 id 的草稿形态不再存在。
@@ -556,6 +556,8 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/:dir/novel/wizard" component={NovelWizardLayout} />
         {/* 书籍导入向导须先于 :novelID 段注册，避免 "import" 被当作书 ID */}
         <Route path="/:dir/novel/import" component={NovelImportWizardLayout} />
+        {/* 导入任务页（处理/完成两态）：须先于带可选段的 workspace 路由注册 */}
+        <Route path="/:dir/novel/:novelID/import" component={NovelImportTaskLayout} />
         {/* 单 Route 承载工作台主页与会话两种形态（:seg?/:id? 相邻可选段）：
             切换器切换会话时仅 params 变化、路由分支不变，工作台不 remount */}
         <Route path="/:dir/novel/:novelID/:seg?/:id?" component={NovelWorkspaceLayout} />

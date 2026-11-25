@@ -9,7 +9,9 @@ import type {
   CharacterProfile,
   ExportFormat,
   MemoryFactStatus,
+  NovelImportControlAction,
   NovelImportEncoding,
+  NovelImportRepairLevel,
   ReviewInboxSource,
   SettingImageOwnerType,
 } from "@opennovel-ai/schema/novel"
@@ -230,6 +232,8 @@ export const novelKeys = {
     ["novel", "upgrade-progress", directory, novelID] as const,
   "writing-batch": (directory: string, novelID: string) =>
     ["novel", "writing-batch", directory, novelID] as const,
+  import: (directory: string, novelID: string) => ["novel", "import", directory, novelID] as const,
+  "import-report": (directory: string, novelID: string) => ["novel", "import-report", directory, novelID] as const,
   "review-inbox-counts": (directory: string, novelID: string) =>
     ["novel", "review-inbox-counts", directory, novelID] as const,
   "review-inbox-items": (directory: string, novelID: string, source: string, limit: number, showProcessed: boolean) =>
@@ -763,41 +767,23 @@ export function useCreateNovel() {
   }))
 }
 
-// ---- 书籍导入（book-import）----
+// ---- 书籍导入（原文驱动导入 source-driven-import）----
 
-export function useAnalyzeImport() {
-  const client = useNovelClient()
-  const sdk = useSDK()
-  return useMutation(() => ({
-    mutationFn: (input: {
-      dataUrl: string
-      filename: string
-      cleanEnabled: boolean
-      encoding?: NovelImportEncoding
-      fallbackFixedLength?: boolean
-    }) => {
-      const dir = sdk().directory
-      return client()["server.novel"].analyzeImport({ location: { directory: dir }, ...input })
-    },
-  }))
-}
-
-export function useApplyImport() {
+export function useStartImport() {
   const client = useNovelClient()
   const queryClient = useQueryClient()
   const sdk = useSDK()
   return useMutation(() => ({
     mutationFn: (input: {
-      previewToken: string
-      title: string
       dataUrl: string
       filename: string
-      cleanEnabled: boolean
+      title: string
       encoding?: NovelImportEncoding
-      fallbackFixedLength?: boolean
+      targetChapterChars?: number
+      repairLevel?: NovelImportRepairLevel
     }) => {
       const dir = sdk().directory
-      return client()["server.novel"].applyImport({ location: { directory: dir }, ...input })
+      return client()["server.novel"].start({ location: { directory: dir }, ...input })
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: novelKeys.list(sdk().directory) })
@@ -805,6 +791,73 @@ export function useApplyImport() {
   }))
 }
 
+export function useImportProgress(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys.import(sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"].get({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+    // 活动状态高频轮询；暂停/受阻低频对账；终态停止。离开页面重进由持久化任务恢复。
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === "awaiting_queue" || status === "calibrating" || status === "planned") return 3000
+      if (status === "paused" || status === "blocked") return 10_000
+      return false
+    },
+  }))
+}
+
+export function useImportReport(novelID: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["import-report"](sdk().directory, novelID()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"].report({
+        novelID: novelID(),
+        location: { directory: sdk().directory },
+      }),
+    enabled: !!novelID(),
+  }))
+}
+
+export function useImportControl() {
+  const client = useNovelClient()
+  const queryClient = useQueryClient()
+  const sdk = useSDK()
+  return useMutation(() => ({
+    mutationFn: (input: {
+      novelID: string
+      action: NovelImportControlAction
+      targetChapterChars?: number
+      repairLevel?: NovelImportRepairLevel
+    }) => {
+      const dir = sdk().directory
+      return client()["server.novel"].control({
+        novelID: input.novelID,
+        location: { directory: dir },
+        action: input.action,
+        ...(input.targetChapterChars === undefined ? {} : { targetChapterChars: input.targetChapterChars }),
+        ...(input.repairLevel === undefined ? {} : { repairLevel: input.repairLevel }),
+      })
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys.import(sdk().directory, variables.novelID),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: novelKeys["import-report"](sdk().directory, variables.novelID),
+      })
+    },
+  }))
+}
 export function useUpdateChapterContent() {
   const client = useNovelClient()
   const queryClient = useQueryClient()

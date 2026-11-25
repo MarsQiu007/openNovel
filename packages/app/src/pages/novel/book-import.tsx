@@ -1,20 +1,23 @@
+/**
+ * 书籍导入配置态（原文驱动导入）：文件、编码、书名、目标章长与正文修复强度。
+ * 启动后跳转到同一任务的处理页 /:dir/novel/:novelID/import（jobID 稳定键，
+ * 离开重进由持久化任务恢复）。无固定长度开关、无机械预览令牌。
+ * 新固定文案用简体中文直写：locale 冻结（AGENTS.md），既有 key 继续走 language.t。
+ */
 import { createSignal, For, Show } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
-import { useNovel } from "@/context/novel"
 import { useSDK } from "@/context/sdk"
-import { useAnalyzeImport, useApplyImport, useBindSession } from "@/context/novel-queries"
+import { useStartImport } from "@/context/novel-queries"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
-import { canConfirmImport, importSourceInput, shouldResetImportTitle } from "./book-import-input"
-import type { NovelImportEncoding, NovelImportIssue, NovelImportPreview, NovelImportReport } from "@opennovel-ai/schema/novel"
+import type { NovelImportEncoding, NovelImportRepairLevel } from "@opennovel-ai/schema/novel"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
-import { IMPORT_SUPPORTED_EXTENSIONS, buildImportPipelinePrompt, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
-import { sendNovelSessionInstruction } from "./workspace-data"
+import { IMPORT_SUPPORTED_EXTENSIONS, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
 
 const ENCODING_OPTIONS: NovelImportEncoding[] = ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
 
@@ -23,21 +26,17 @@ function parseEncodingSelect(value: string): "auto" | NovelImportEncoding {
   return ENCODING_OPTIONS.find((option) => option === value) ?? "auto"
 }
 
-const ISSUE_TYPE_KEYS: Record<NovelImportIssue["type"], string> = {
-  "sequence-gap": "novel.import.issues.sequence-gap",
-  "duplicate-number": "novel.import.issues.duplicate-number",
-  "order-mismatch": "novel.import.issues.order-mismatch",
-  "unrecognized-boundary": "novel.import.issues.unrecognized-boundary",
+function parseRepairLevelSelect(value: string): NovelImportRepairLevel {
+  return value === "aggressive" || value === "off" ? value : "standard"
 }
 
-const SUMMARY_KEYS = [
-  ["whitespaceTrimmed", "novel.import.summary.whitespaceTrimmed"],
-  ["blankLinesCollapsed", "novel.import.summary.blankLinesCollapsed"],
-  ["punctuationNormalized", "novel.import.summary.punctuationNormalized"],
-  ["linesMerged", "novel.import.summary.linesMerged"],
-  ["adsRemoved", "novel.import.summary.adsRemoved"],
-  ["duplicatesRemoved", "novel.import.summary.duplicatesRemoved"],
-] as const
+function parseTargetChapterChars(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return undefined
+  const value = Number.parseInt(trimmed, 10)
+  if (!Number.isFinite(value) || value < 500 || value > 100_000) return undefined
+  return value
+}
 
 function readFileDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -62,32 +61,14 @@ export default function NovelImportWizard() {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
-  const novel = useNovel()
-  const bindSession = useBindSession()
-  const analyzeImport = useAnalyzeImport()
-  const applyImport = useApplyImport()
+  const startImport = useStartImport()
 
-  const [step, setStep] = createSignal(0)
   const [file, setFile] = createSignal<{ name: string; dataUrl: string } | null>(null)
   const [cleanEnabled, setCleanEnabled] = createSignal(true)
   const [encoding, setEncoding] = createSignal<"auto" | NovelImportEncoding>("auto")
-  const [fallbackFixedLength, setFallbackFixedLength] = createSignal(false)
-  const [preview, setPreview] = createSignal<NovelImportPreview | null>(null)
   const [title, setTitle] = createSignal("")
-  const [report, setReport] = createSignal<NovelImportReport | null>(null)
-  const [tidy, setTidy] = createSignal<{ kind: "ok" | "error"; text: string } | null>(null)
-  const [tidyPending, setTidyPending] = createSignal(false)
-
-  const steps = [
-    { title: language.t("novel.import.step.file") },
-    { title: language.t("novel.import.step.preview") },
-    { title: language.t("novel.import.step.report") },
-  ]
-
-  const unrecognized = () => {
-    const current = preview()
-    return current !== null && current.volumes.length === 0
-  }
+  const [targetChars, setTargetChars] = createSignal("")
+  const [repairLevel, setRepairLevel] = createSignal<NovelImportRepairLevel>("standard")
 
   let fileInput: HTMLInputElement | undefined
 
@@ -104,92 +85,39 @@ export default function NovelImportWizard() {
     try {
       const dataUrl = await readFileDataUrl(selected)
       setFile({ name: selected.name, dataUrl })
-      setPreview(null)
-      setReport(null)
-      setFallbackFixedLength(false)
+      if (title().trim().length === 0) setTitle(importFilenameToTitle(selected.name))
     } catch {
       showToast({ variant: "error", title: language.t("common.requestFailed") })
     }
   }
 
-  async function parse() {
-    const current = file()
-    if (!current || analyzeImport.isPending) return
-    const sourceInput = importSourceInput(current, {
-      cleanEnabled: cleanEnabled(),
-      encoding: encoding(),
-      fallbackFixedLength: fallbackFixedLength(),
-    })
-    try {
-      const result = await analyzeImport.mutateAsync(sourceInput)
-      const resetTitle = shouldResetImportTitle(preview())
-      setPreview(result)
-      if (resetTitle) setTitle(result.suggestedTitle || importFilenameToTitle(current.name))
-      setStep(1)
-    } catch (err) {
-      showToast({ variant: "error", title: language.t("novel.import.parseFailed"), description: errorMessage(err) })
-    }
-  }
-
   function cancel() {
-    // 取消不产生任何书籍数据：解析/确认全程不落库，直接离开即可
+    // 启动前取消不产生任何书籍/原文/任务数据，直接离开
     navigate(`/${base64Encode(sdk().directory)}/`)
   }
 
-  async function confirm() {
+  async function start() {
     const current = file()
-    const currentPreview = preview()
-    if (!current || !currentPreview) return
-    const sourceInput = importSourceInput(current, {
-      cleanEnabled: cleanEnabled(),
-      encoding: encoding(),
-      fallbackFixedLength: fallbackFixedLength(),
-    })
+    if (!current || startImport.isPending) return
+    const normalizedTitle = title().trim()
+    if (normalizedTitle.length === 0) {
+      showToast({ variant: "error", title: language.t("novel.import.bookTitle") })
+      return
+    }
     try {
-      const result = await applyImport.mutateAsync({
-        previewToken: currentPreview.previewToken,
-        title: title().trim(),
-        ...sourceInput,
+      const enc = encoding()
+      const target = parseTargetChapterChars(targetChars())
+      const progress = await startImport.mutateAsync({
+        dataUrl: current.dataUrl,
+        filename: current.name,
+        title: normalizedTitle,
+        ...(enc === "auto" ? {} : { encoding: enc }),
+        ...(target === undefined ? {} : { targetChapterChars: target }),
+        repairLevel: cleanEnabled() ? repairLevel() : "off",
       })
-      setReport(result)
-      setStep(2)
+      navigate(`/${base64Encode(sdk().directory)}/novel/${progress.novelId}/import`)
     } catch (err) {
       showToast({ variant: "error", title: language.t("novel.import.applyFailed"), description: errorMessage(err) })
-    }
-  }
-
-  const canConfirm = () =>
-    canConfirmImport({
-      title: title(),
-      preview: preview(),
-      fallbackFixedLength: fallbackFixedLength(),
-      analyzing: analyzeImport.isPending,
-      applying: applyImport.isPending,
-    })
-
-  // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），建队指令产出进既有审阅流
-  async function sendTidy() {
-    const current = report()
-    if (!current || tidyPending()) return
-    setTidyPending(true)
-    try {
-      await sendNovelSessionInstruction({
-        sdk,
-        novel,
-        bindSession,
-        novelID: current.novelId,
-        prompt: buildImportPipelinePrompt({
-          novelID: current.novelId,
-          title: current.title,
-          volumeCount: current.volumeCount,
-          chapterCount: current.chapterCount,
-        }),
-      })
-      setTidy({ kind: "ok", text: language.t("novel.import.tidySent") })
-    } catch (err) {
-      setTidy({ kind: "error", text: errorMessage(err) })
-    } finally {
-      setTidyPending(false)
     }
   }
 
@@ -201,244 +129,90 @@ export default function NovelImportWizard() {
             ← {language.t("novel.bookshelf.open")}
           </ButtonV2>
         </div>
-        {/* Step indicator */}
-        <div class="flex items-center gap-2 mb-8">
-          <For each={steps}>
-            {(s, i) => (
-              <>
-                <div class="flex items-center gap-2">
-                  <div
-                    class={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      i() <= step()
-                        ? "bg-v2-background-bg-accent text-v2-text-text-contrast"
-                        : "bg-v2-background-bg-layer-02 text-v2-text-text-muted"
-                    }`}
-                  >
-                    {i() + 1}
-                  </div>
-                  <span class={`text-sm ${i() <= step() ? "text-v2-text-text-base" : "text-v2-text-text-muted"}`}>
-                    {s.title}
-                  </span>
-                </div>
-                {i() < steps.length - 1 && (
-                  <div
-                    class={`flex-1 h-px ${i() < step() ? "bg-v2-background-bg-accent" : "bg-v2-border-border-base"}`}
-                  />
-                )}
-              </>
-            )}
-          </For>
-        </div>
-
-        {/* Step 0: 选择文件与解析选项 */}
-        <Show when={step() === 0}>
-          <div class="flex flex-col gap-4">
-            <input
-              ref={fileInput}
-              type="file"
-              accept={IMPORT_SUPPORTED_EXTENSIONS.join(",")}
-              class="hidden"
-              onChange={(e) => void pickFile(e.currentTarget.files?.[0])}
-            />
-            <button
-              type="button"
-              onClick={() => fileInput?.click()}
-              class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-v2-border-border-base bg-v2-background-bg-layer-02 px-6 py-10 text-v2-text-text-muted hover:border-v2-border-border-focus transition-colors"
-            >
-              <Icon name="file" size="large" />
-              <span class="text-sm">{file()?.name ?? language.t("novel.import.pick")}</span>
-              <span class="text-xs">{language.t("novel.import.pickHint")}</span>
-            </button>
-
-            <FieldV2>
-              <FieldV2.Label>{language.t("novel.import.encoding")}</FieldV2.Label>
-              <select
-                value={encoding()}
-                onChange={(e) => setEncoding(parseEncodingSelect(e.currentTarget.value))}
-                class="h-8 px-2 rounded-[6px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base text-sm outline-none focus:border-v2-border-border-focus transition-colors cursor-pointer"
-              >
-                <option value="auto">{language.t("novel.import.encoding.auto")}</option>
-                <For each={ENCODING_OPTIONS}>
-                  {(option) => <option value={option}>{language.t(`novel.import.encodings.${option}`)}</option>}
-                </For>
-              </select>
-            </FieldV2>
-
-            <div class="flex items-center gap-3">
-              <Switch checked={cleanEnabled()} onChange={(checked: boolean) => setCleanEnabled(checked)}>
-                {language.t("novel.import.clean")}
-              </Switch>
-              <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.cleanHint")}</span>
-            </div>
-          </div>
-        </Show>
-
-        {/* Step 1: 预览确认 */}
-        <Show when={step() === 1}>
-          <div class="flex flex-col gap-4">
-            <FieldV2>
-              <FieldV2.Label>{language.t("novel.import.bookTitle")}</FieldV2.Label>
-              <TextInputV2 fluid value={title()} onInput={(e) => setTitle(e.currentTarget.value)} maxLength={60} />
-              <FieldV2.Suffix class="text-right">{title().length}/60</FieldV2.Suffix>
-            </FieldV2>
-
-            <Show
-              when={!unrecognized()}
-              fallback={
-                <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
-                  <p class="text-sm text-v2-text-text-base">{language.t("novel.import.unrecognized")}</p>
-                  <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.unrecognizedHint")}</p>
-                  <Switch
-                    checked={fallbackFixedLength()}
-                    disabled={analyzeImport.isPending}
-                    onChange={(checked: boolean) => {
-                      setFallbackFixedLength(checked)
-                      void parse()
-                    }}
-                  >
-                    {language.t("novel.import.fallbackFixedLength")}
-                  </Switch>
-                </div>
-              }
-            >
-              <div class="flex flex-col gap-2 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02 max-h-64 overflow-y-auto">
-                <For each={preview()?.volumes ?? []}>
-                  {(volume) => (
-                    <div class="flex flex-col gap-1">
-                      <div class="text-sm font-medium text-v2-text-text-base">
-                        {volume.title ?? language.t("novel.import.defaultVolume")}
-                        <span class="text-xs text-v2-text-text-muted ml-2">
-                          {language.t("novel.import.chapterCount", { count: volume.chapters.length })}
-                        </span>
-                      </div>
-                      <For each={volume.chapters}>
-                        {(chapter) => (
-                          <div class="flex items-center justify-between pl-4 text-sm text-v2-text-text-muted">
-                            <span class="truncate">{chapter.title}</span>
-                            <span class="shrink-0 ml-2 text-xs">
-                              {language.t("novel.import.wordCount", { count: chapter.wordCount })}
-                            </span>
-                          </div>
-                        )}
-                      </For>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-
-            {/* 问题清单 */}
-            <Show when={(preview()?.issues.length ?? 0) > 0}>
-              <div class="flex flex-col gap-1 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
-                <div class="text-sm font-medium text-v2-text-text-base">{language.t("novel.import.issues")}</div>
-                <For each={preview()?.issues ?? []}>
-                  {(issue) => (
-                    <div class="text-sm text-v2-text-text-muted">
-                      {language.t(ISSUE_TYPE_KEYS[issue.type])}：{issue.message}
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-
-            {/* 清洗摘要 */}
-            <Show when={cleanEnabled()}>
-              <div class="flex flex-col gap-1 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
-                <div class="text-sm font-medium text-v2-text-text-base">{language.t("novel.import.summary.title")}</div>
-                <For each={SUMMARY_KEYS}>
-                  {([key, labelKey]) => (
-                    <div class="flex items-center justify-between text-sm">
-                      <span class="text-v2-text-text-muted">{language.t(labelKey)}</span>
-                      <span class="text-v2-text-text-base">{preview()?.cleanSummary[key] ?? 0}</span>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-          </div>
-        </Show>
-
-        {/* Step 2: 导入报告 */}
-        <Show when={step() === 2}>
-          <div class="flex flex-col gap-4 p-6 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
-            <h3 class="text-base font-medium text-v2-text-text-base">{language.t("novel.import.report.title")}</h3>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-v2-text-text-muted">{language.t("novel.import.bookTitle")}:</span>
-              <span class="text-sm font-medium text-v2-text-text-base">{report()?.title}</span>
-            </div>
-            <div class="flex items-center gap-4">
-              <span class="text-sm text-v2-text-text-muted">
-                {language.t("novel.import.report.volumes", { count: report()?.volumeCount ?? 0 })}
-              </span>
-              <span class="text-sm text-v2-text-text-muted">
-                {language.t("novel.import.report.chapters", { count: report()?.chapterCount ?? 0 })}
-              </span>
-            </div>
-            <Show when={(report()?.issues.length ?? 0) > 0}>
-              <div class="flex flex-col gap-1">
-                <div class="text-sm font-medium text-v2-text-text-base">{language.t("novel.import.issues")}</div>
-                <For each={report()?.issues ?? []}>
-                  {(issue) => (
-                    <div class="text-sm text-v2-text-text-muted">
-                      {language.t(ISSUE_TYPE_KEYS[issue.type])}：{issue.message}
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
-
-            <Show when={tidy()}>
-              {(data) => (
-                <div
-                  class={`text-sm ${data().kind === "ok" ? "text-v2-state-fg-success" : "text-v2-state-fg-danger"}`}
-                >
-                  {data().text}
-                </div>
-              )}
-            </Show>
-          </div>
-        </Show>
-
-        {/* Navigation */}
-        <div class="flex items-center justify-between mt-8">
-          <Show
-            when={step() === 1}
-            fallback={
-              <ButtonV2 variant="outline" size="large" onClick={cancel}>
-                {language.t("novel.import.cancel")}
-              </ButtonV2>
-            }
+        <h2 class="text-lg font-medium text-v2-text-text-base mb-6">导入书稿</h2>
+        <div class="flex flex-col gap-4">
+          <input
+            ref={fileInput}
+            type="file"
+            accept={IMPORT_SUPPORTED_EXTENSIONS.join(",")}
+            class="hidden"
+            onChange={(e) => void pickFile(e.currentTarget.files?.[0])}
+          />
+          <button
+            type="button"
+            onClick={() => fileInput?.click()}
+            class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-v2-border-border-base bg-v2-background-bg-layer-02 px-6 py-10 text-v2-text-text-muted hover:border-v2-border-border-focus transition-colors"
           >
-            <ButtonV2 variant="outline" size="large" onClick={() => setStep(0)}>
-              {language.t("common.goBack")}
-            </ButtonV2>
-          </Show>
-          <Show when={step() === 0}>
-            <ButtonV2 variant="contrast" size="large" onClick={() => void parse()} disabled={!file() || analyzeImport.isPending}>
-              {analyzeImport.isPending ? language.t("novel.import.parsing") : language.t("novel.import.parse")}
-            </ButtonV2>
-          </Show>
-          <Show when={step() === 1}>
-            <ButtonV2 variant="contrast" size="large" onClick={() => void confirm()} disabled={!canConfirm() || applyImport.isPending}>
-              {applyImport.isPending ? language.t("novel.import.applying") : language.t("novel.import.confirm")}
-            </ButtonV2>
-          </Show>
-          <Show when={step() === 2}>
-            <div class="flex items-center gap-2">
-              <ButtonV2 variant="outline" size="large" onClick={() => void sendTidy()} disabled={tidyPending()}>
-                {tidyPending() ? language.t("novel.import.tidySending") : language.t("novel.import.tidy")}
-              </ButtonV2>
-              <ButtonV2
-                variant="contrast"
-                size="large"
-                onClick={() => navigate(`/${base64Encode(sdk().directory)}/novel/${report()?.novelId}`)}
+            <Icon name="file" size="large" />
+            <span class="text-sm">{file()?.name ?? language.t("novel.import.pick")}</span>
+            <span class="text-xs">{language.t("novel.import.pickHint")}</span>
+          </button>
+
+          <FieldV2>
+            <FieldV2.Label>{language.t("novel.import.bookTitle")}</FieldV2.Label>
+            <TextInputV2 fluid value={title()} onInput={(e) => setTitle(e.currentTarget.value)} maxLength={60} />
+            <FieldV2.Suffix class="text-right">{title().length}/60</FieldV2.Suffix>
+          </FieldV2>
+
+          <FieldV2>
+            <FieldV2.Label>{language.t("novel.import.encoding")}</FieldV2.Label>
+            <select
+              value={encoding()}
+              onChange={(e) => setEncoding(parseEncodingSelect(e.currentTarget.value))}
+              class="h-8 px-2 rounded-[6px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base text-sm outline-none focus:border-v2-border-border-focus transition-colors cursor-pointer"
+            >
+              <option value="auto">{language.t("novel.import.encoding.auto")}</option>
+              <For each={ENCODING_OPTIONS}>
+                {(option) => <option value={option}>{language.t(`novel.import.encodings.${option}`)}</option>}
+              </For>
+            </select>
+          </FieldV2>
+
+          <FieldV2>
+            <FieldV2.Label>目标章长（字符）</FieldV2.Label>
+            <TextInputV2
+              fluid
+              value={targetChars()}
+              onInput={(e) => setTargetChars(e.currentTarget.value)}
+              placeholder="3000"
+            />
+            <FieldV2.Suffix class="text-xs text-v2-text-text-muted">
+              Agent 软参考，不硬切
+            </FieldV2.Suffix>
+          </FieldV2>
+
+          <div class="flex items-center gap-3">
+            <Switch checked={cleanEnabled()} onChange={(checked: boolean) => setCleanEnabled(checked)}>
+              {language.t("novel.import.clean")}
+            </Switch>
+            <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.cleanHint")}</span>
+          </div>
+
+          <Show when={cleanEnabled()}>
+            <div class="flex items-center gap-2 pl-1">
+              <span class="text-xs text-v2-text-text-muted">修复强度</span>
+              <select
+                value={repairLevel()}
+                onChange={(e) => setRepairLevel(parseRepairLevelSelect(e.currentTarget.value))}
+                class="h-7 px-2 rounded-[6px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base text-xs outline-none focus:border-v2-border-border-focus transition-colors cursor-pointer"
               >
-                {language.t("novel.import.report.open")}
-              </ButtonV2>
+                <option value="standard">常规修复</option>
+                <option value="aggressive">积极清理</option>
+              </select>
             </div>
           </Show>
+
+          <div class="flex items-center justify-between mt-4">
+            <ButtonV2 variant="outline" size="large" onClick={cancel}>
+              {language.t("novel.import.cancel")}
+            </ButtonV2>
+            <ButtonV2 variant="contrast" size="large" onClick={() => void start()} disabled={!file() || startImport.isPending}>
+              {startImport.isPending ? language.t("novel.import.applying") : "开始导入"}
+            </ButtonV2>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+

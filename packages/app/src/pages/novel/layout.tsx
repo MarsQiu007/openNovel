@@ -8,6 +8,7 @@ import { DirectoryDataProvider, decodeDirectory } from "@/pages/directory-layout
 import NovelWorkspaceFrame from "./workspace-frame"
 import NovelWizard from "./wizard"
 import NovelImportWizard from "./book-import"
+import NovelImportTaskPage from "./book-import-task"
 
 export default function NovelWorkspaceLayout() {
   const params = useParams()
@@ -134,6 +135,29 @@ export function NovelImportWizardLayout() {
           <NovelProvider>
             <NovelImportWizard />
           </NovelProvider>
+        </SDKProvider>
+      )}
+    </Show>
+  )
+}
+
+export function NovelImportTaskLayout() {
+  const params = useParams()
+  const navigate = useNavigate()
+  const resolved = createMemo(() => {
+    if (!params.dir) return ""
+    return decodeDirectory(params.dir) ?? ""
+  })
+
+  return (
+    <Show when={resolved()} keyed>
+      {(resolved) => (
+        <SDKProvider directory={resolved}>
+          <DirectoryDataProvider directory={resolved} novelID={() => params.novelID}>
+            <NovelProvider>
+              <NovelImportTaskPage />
+            </NovelProvider>
+          </DirectoryDataProvider>
         </SDKProvider>
       )}
     </Show>

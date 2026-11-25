@@ -4,7 +4,6 @@
 import { describe, expect, test } from "bun:test"
 import {
   IMPORT_SUPPORTED_EXTENSIONS,
-  buildImportPipelinePrompt,
   importFilenameToTitle,
   isSupportedImportFileName,
 } from "./book-import-utils"
@@ -45,36 +44,5 @@ describe("importFilenameToTitle", () => {
 
   test("多点文件名只去末段", () => {
     expect(importFilenameToTitle("卷一.修订版.txt")).toBe("卷一.修订版")
-  })
-})
-
-describe("buildImportPipelinePrompt", () => {
-  const input = { novelID: "novel-1", title: "斗破苍穹", volumeCount: 3, chapterCount: 42 }
-
-  test("指令含小说 ID、书名与卷章规模", () => {
-    const prompt = buildImportPipelinePrompt(input)
-    expect(prompt).toContain("novel-1")
-    expect(prompt).toContain("斗破苍穹")
-    expect(prompt).toContain("3 卷 / 42 章")
-  })
-
-  test("指令指向导入整理工作队列流程", () => {
-    const prompt = buildImportPipelinePrompt(input)
-    expect(prompt).toContain("导入后整理")
-    expect(prompt).toContain("工作队列")
-    expect(prompt).toContain("分章结构校验")
-    expect(prompt).toContain("单读三产出")
-    expect(prompt).toContain("书籍简介生成")
-    expect(prompt).toContain("汇总汇报")
-  })
-
-  test("审阅流约束：纠错禁直改正文、设定禁旁路、已有队列不重复建队", () => {
-    const prompt = buildImportPipelinePrompt(input)
-    expect(prompt).toContain("章节定位 + 原文/建议对照")
-    expect(prompt).toContain("禁止直改章节正文")
-    expect(prompt).toContain("设定审阅收件箱")
-    expect(prompt).toContain("unverified")
-    expect(prompt).toContain("update_setting / delete_setting")
-    expect(prompt).toContain("不重复建队")
   })
 })
