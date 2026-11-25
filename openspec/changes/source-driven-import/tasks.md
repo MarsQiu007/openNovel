@@ -15,20 +15,20 @@
 
 ## 3. 导入契约与服务端
 
-- [ ] 3.1 替换 Schema 与 Protocol 的旧 analyze/apply、Preview、previewToken、fallbackFixedLength 和旧清洗摘要契约为 import.start/get/control 及实时进度、修复记录和报告模型
-- [ ] 3.2 实现服务端导入启动、状态查询、暂停/恢复/重试/配置控制，验证启动仅持久化并 admission durable prompt、不在请求内执行 provider work，重复启动与跨库部分失败可幂等恢复
-- [ ] 3.3 重构服务端导入解析边界，保留编码/文件校验与标题 hint，删除 analyze/apply 编排、previewToken、cleanText 前置清洗和 splitFixedLength 正式分章及旧测试
-- [ ] 3.4 在 packages/client 重新生成 SDK 并运行 legacy JavaScript SDK 生成脚本，检查生成差异仅来自本 change，禁止手改生成文件
-- [ ] 3.5 新增 import.start/get/control 的 HttpApi 练习场景与错误路径，覆盖启动异步返回、进度读取、paused configure、非法状态迁移和旧端点移除
+- [x] 3.1 替换 Schema 与 Protocol 的旧 analyze/apply、Preview、previewToken、fallbackFixedLength 和旧清洗摘要契约为 import.start/get/control 及实时进度、修复记录和报告模型
+- [x] 3.2 实现服务端导入启动、状态查询、暂停/恢复/重试/配置控制，验证启动仅持久化并 admission durable prompt、不在请求内执行 provider work，重复启动与跨库部分失败可幂等恢复
+- [x] 3.3 重构服务端导入解析边界，保留编码/文件校验与标题 hint，删除 analyze/apply 编排、previewToken、cleanText 前置清洗和 splitFixedLength 正式分章及旧测试
+- [x] 3.4 在 packages/client 重新生成 SDK 并运行 legacy JavaScript SDK 生成脚本，检查生成差异仅来自本 change，禁止手改生成文件
+- [x] 3.5 新增 import.start/get/control 的 HttpApi 练习场景与错误路径，覆盖启动异步返回、进度读取、paused configure、非法状态迁移和旧端点移除
 
 ## 4. Agent 流式导入编排
 
-- [ ] 4.1 实现 source_import 的 status/read 工具，按完整段落与模型预算返回上一章衔接、carry、下一批原文、标题 hint、真实进度和硬预算上限，验证扩展阅读不丢失未提交段落
-- [ ] 4.2 实现 source_import 的 commit 工具并接入账本校验与事务，验证不合理边界继续 read、硬预算耗尽 block 且游标不动、批次后半章保留为 carry
-- [ ] 4.3 实现校准期逐章结算、25% 且至少三章的校准判定、首次剩余计划与四类受限尾部重规划，覆盖短书、长章样本不足、校准期真实进展、正常章长偏差不重排、原文提前耗尽与任务不足
-- [ ] 4.4 实现同一轮阅读的章节正文、修复、设定与技法产出及阶段恢复，复用 organize_settings 与技法既有入口，验证正文已提交后崩溃只补未完成阶段
-- [ ] 4.5 实现 finalize 的原文全处置检查、简介、统一报告与 WorkRun 收尾，存在未消费原文时禁止完成
-- [ ] 4.6 更新 director 路由、工具权限与工具计数，以新导入状态机替换旧「导入整理」静态 N+3 提示，保持普通写作、逐章审查和其他 WorkRun 路由不变
+- [x] 4.1 实现 source_import 的 status/read 工具，按完整段落与模型预算返回上一章衔接、carry、下一批原文、标题 hint、真实进度和硬预算上限，验证扩展阅读不丢失未提交段落
+- [x] 4.2 实现 source_import 的 commit 工具并接入账本校验与事务，验证不合理边界继续 read、硬预算耗尽 block 且游标不动、批次后半章保留为 carry
+- [x] 4.3 实现校准期逐章结算、25% 且至少三章的校准判定、首次剩余计划与四类受限尾部重规划，覆盖短书、长章样本不足、校准期真实进展、正常章长偏差不重排、原文提前耗尽与任务不足
+- [x] 4.4 实现同一轮阅读的章节正文、修复、设定与技法产出及阶段恢复，复用 organize_settings 与技法既有入口，验证正文已提交后崩溃只补未完成阶段
+- [x] 4.5 实现 finalize 的原文全处置检查、简介、统一报告与 WorkRun 收尾，存在未消费原文时禁止完成
+- [x] 4.6 更新 director 路由、工具权限与工具计数，以新导入状态机替换旧「导入整理」静态 N+3 提示，保持普通写作、逐章审查和其他 WorkRun 路由不变
 
 ## 5. 导入 UI 重构
 
