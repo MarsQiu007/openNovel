@@ -44565,6 +44565,23 @@
         "required": ["ok", "errors", "results", "remaining"],
         "additionalProperties": false
       },
+      "NovelNovelImportSplitRange": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 20000
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 20000
+          }
+        },
+        "required": ["min", "max"],
+        "additionalProperties": false
+      },
       "NovelNovelImportAnalyzeInput": {
         "type": "object",
         "properties": {
@@ -44585,6 +44602,9 @@
           },
           "fallbackFixedLength": {
             "type": "boolean"
+          },
+          "splitRange": {
+            "$ref": "#/components/schemas/NovelNovelImportSplitRange"
           }
         },
         "required": ["dataUrl", "filename", "cleanEnabled"],
@@ -44632,7 +44652,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["sequence-gap", "duplicate-number", "order-mismatch", "unrecognized-boundary"]
+            "enum": ["sequence-gap", "duplicate-number", "order-mismatch", "unrecognized-boundary", "forced-cut"]
           },
           "message": {
             "type": "string"
@@ -44742,6 +44762,9 @@
           },
           "fallbackFixedLength": {
             "type": "boolean"
+          },
+          "splitRange": {
+            "$ref": "#/components/schemas/NovelNovelImportSplitRange"
           }
         },
         "required": ["previewToken", "title", "dataUrl", "filename", "cleanEnabled"],

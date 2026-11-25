@@ -6345,6 +6345,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["dataUrl"]
   readonly filename: {
     readonly dataUrl: string
@@ -6352,6 +6353,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["filename"]
   readonly cleanEnabled: {
     readonly dataUrl: string
@@ -6359,6 +6361,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["cleanEnabled"]
   readonly encoding?: {
     readonly dataUrl: string
@@ -6366,6 +6369,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["encoding"]
   readonly fallbackFixedLength?: {
     readonly dataUrl: string
@@ -6373,7 +6377,16 @@ export type ServerNovelAnalyzeImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["fallbackFixedLength"]
+  readonly splitRange?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
+  }["splitRange"]
 }
 
 export type ServerNovelAnalyzeImportOutput = {
@@ -6389,7 +6402,7 @@ export type ServerNovelAnalyzeImportOutput = {
     }>
   }>
   readonly issues: ReadonlyArray<{
-    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary" | "forced-cut"
     readonly message: string
     readonly chapterNumber?: number
   }>
@@ -6416,6 +6429,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["previewToken"]
   readonly title: {
     readonly previewToken: string
@@ -6425,6 +6439,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["title"]
   readonly dataUrl: {
     readonly previewToken: string
@@ -6434,6 +6449,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["dataUrl"]
   readonly filename: {
     readonly previewToken: string
@@ -6443,6 +6459,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["filename"]
   readonly cleanEnabled: {
     readonly previewToken: string
@@ -6452,6 +6469,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["cleanEnabled"]
   readonly encoding?: {
     readonly previewToken: string
@@ -6461,6 +6479,7 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["encoding"]
   readonly fallbackFixedLength?: {
     readonly previewToken: string
@@ -6470,7 +6489,18 @@ export type ServerNovelApplyImportInput = {
     readonly cleanEnabled: boolean
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
   }["fallbackFixedLength"]
+  readonly splitRange?: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
+  }["splitRange"]
 }
 
 export type ServerNovelApplyImportOutput = {
@@ -6487,7 +6517,7 @@ export type ServerNovelApplyImportOutput = {
     readonly duplicatesRemoved: number
   }
   readonly issues: ReadonlyArray<{
-    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+    readonly type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary" | "forced-cut"
     readonly message: string
     readonly chapterNumber?: number
   }>

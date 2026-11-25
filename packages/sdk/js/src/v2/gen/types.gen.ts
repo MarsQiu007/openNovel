@@ -6160,12 +6160,18 @@ export type NovelSettingOrganizationApplyResult = {
   remaining: Array<NovelSettingOrganizationRemainingOperation>
 }
 
+export type NovelNovelImportSplitRange = {
+  min: number
+  max: number
+}
+
 export type NovelNovelImportAnalyzeInput = {
   dataUrl: string
   filename: string
   cleanEnabled: boolean
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
   fallbackFixedLength?: boolean
+  splitRange?: NovelNovelImportSplitRange
 }
 
 export type NovelNovelImportChapterPreview = {
@@ -6181,7 +6187,7 @@ export type NovelNovelImportVolumePreview = {
 }
 
 export type NovelNovelImportIssue = {
-  type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"
+  type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary" | "forced-cut"
   message: string
   chapterNumber?: number
 }
@@ -6212,6 +6218,7 @@ export type NovelNovelImportApplyInput = {
   cleanEnabled: boolean
   encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
   fallbackFixedLength?: boolean
+  splitRange?: NovelNovelImportSplitRange
 }
 
 export type NovelNovelImportReport = {
