@@ -400,7 +400,8 @@ function planAction(
     .orderBy(asc(NovelImportParagraphTable.paragraph_index))
     .all()
   const remainingParas: SourceParagraph[] = paragraphs
-    .filter((p) => p.paragraph_index >= job.next_paragraph_index && !carrySet.has(p.paragraph_index))
+    // 未消费段落 = 游标起的新段落 + carry（carry 已读但留给下一章，同属未处置）
+    .filter((p) => p.paragraph_index >= job.next_paragraph_index || carrySet.has(p.paragraph_index))
     .map((p) => ({ index: p.paragraph_index, startOffset: p.start_offset, endOffset: p.end_offset, text: job.raw_text.slice(p.start_offset, p.end_offset) }))
   const chapterHints = headingHints(remainingParas).filter((h) => h.kind !== "volume")
   const median = calibrationChapterCharMedian(job.id, directory)

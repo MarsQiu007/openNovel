@@ -612,7 +612,9 @@ export function getImportReport(jobId: string, directory?: string | null): Impor
   const excluded: ImportReport["excluded"] = []
   for (const op of ops) {
     opCounts[op.kind] = (opCounts[op.kind] ?? 0) + 1
-    if (op.kind === "exclude") excluded.push({ chapterId: op.chapter_id, reason: op.reason, beforeText: op.before_text })
+    // 章题/卷题归入标题的排除是结构处置，不属于用户-facing「排除内容」
+    if (op.kind === "exclude" && !op.params_json.includes("\"heading\""))
+      excluded.push({ chapterId: op.chapter_id, reason: op.reason, beforeText: op.before_text })
   }
   const job = getImportJob(jobId, directory)!
   return {
