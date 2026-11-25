@@ -792,17 +792,22 @@ export function useStartImport() {
 }
 
 export function useImportProgress(novelID: Accessor<string>) {
-  const client = useNovelClient()
   const sdk = useSDK()
+  return useImportProgressAt(() => sdk().directory, novelID)
+}
+
+/** 目录显式版：书架等无 workspace SDKProvider 的页面查询书籍导入任务。 */
+export function useImportProgressAt(directory: Accessor<string>, novelID: Accessor<string>) {
+  const client = useNovelClient()
   return createQuery(() => ({
-    queryKey: novelKeys.import(sdk().directory, novelID()),
+    queryKey: novelKeys.import(directory(), novelID()),
     gcTime: NOVEL_READ_QUERY_GC_TIME,
     queryFn: () =>
       client()["server.novel"].get({
         novelID: novelID(),
-        location: { directory: sdk().directory },
+        location: { directory: directory() },
       }),
-    enabled: !!novelID(),
+    enabled: !!directory() && !!novelID(),
     // 活动状态高频轮询；暂停/受阻低频对账；终态停止。离开页面重进由持久化任务恢复。
     refetchInterval: (query) => {
       const status = query.state.data?.status

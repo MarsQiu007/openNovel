@@ -7,6 +7,7 @@ import {
   Match,
   Show,
   Switch,
+  type Accessor,
 } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Button } from "@opennovel-ai/ui/button"
@@ -55,7 +56,7 @@ import { type ServerHealth } from "@/utils/server-health"
 import { Persist, persisted } from "@/utils/persist"
 import { showToast } from "@/utils/toast"
 import { fileManagerApp } from "@/utils/file-manager"
-import { useNovels, useDeleteNovel, useNovelClient } from "@/context/novel-queries"
+import { useImportProgressAt, useNovels, useDeleteNovel, useNovelClient } from "@/context/novel-queries"
 import { useQueryClient } from "@tanstack/solid-query"
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { archiveSessionCascade, openSessionRouted, type NovelSessionBinding } from "./novel-sessions"
@@ -488,6 +489,7 @@ export function NewHome() {
                                   <span class="shrink-0 rounded-[3px] bg-v2-background-bg-layer-03 px-1.5 py-0.5 text-[10px] leading-none text-v2-text-text-muted [font-weight:530]">
                                     {language.t(`novel.wizard.genres.${novel.genre}` as any)}
                                   </span>
+                                  <BookImportBadge novelID={novel.id} directory={bookshelfDirectory} />
                                 </div>
                                 <p class="line-clamp-2 text-xs leading-relaxed text-v2-text-text-muted">
                                   {novel.synopsis}
@@ -1147,5 +1149,42 @@ export function LegacyHome() {
         </Match>
       </Switch>
     </div>
+  )
+}
+
+/** 导入任务徽标：存在进行中/暂停/受阻导入任务时展示，点击回到任务面板（locale 冻结，文案中文直写）。 */
+function BookImportBadge(props: { novelID: string; directory: Accessor<string> }) {
+  const navigate = useNavigate()
+  const progress = useImportProgressAt(props.directory, () => props.novelID)
+  const state = () => progress.data
+  const active = () => {
+    const status = state()?.status
+    return status === "awaiting_queue" || status === "calibrating" || status === "planned"
+  }
+  const label = () => {
+    if (active()) {
+      const raw = state()?.progressRatio
+      const ratio = typeof raw === "number" ? raw : Number(raw)
+      return `导入中 ${Math.round((Number.isFinite(ratio) ? ratio : 0) * 100)}%`
+    }
+    if (state()?.status === "paused") return "导入已暂停"
+    if (state()?.status === "blocked") return "导入受阻"
+    return ""
+  }
+  return (
+    <Show when={label()}>
+      {(text) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/${base64Encode(props.directory())}/novel/${props.novelID}/import`)
+          }}
+          class="shrink-0 rounded-[3px] bg-v2-background-bg-accent px-1.5 py-0.5 text-[10px] leading-none text-v2-text-text-contrast [font-weight:590] hover:opacity-90"
+        >
+          {text()}
+        </button>
+      )}
+    </Show>
   )
 }
