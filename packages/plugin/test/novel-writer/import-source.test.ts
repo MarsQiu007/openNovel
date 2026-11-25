@@ -182,6 +182,18 @@ describe("source_import plan", () => {
     await expect(call("plan", { reason: "first_plan" })).rejects.toThrow("校准阈值")
   })
 
+  test("处置比例达 25% 但不足 3 章时仍不校准", async () => {
+    // 两章吃完全书（每章 10 段 × 10 字）：比例 100% ≥ 25%，但章节数 < 3
+    const twoChapterRaw = Array.from({ length: 20 }, (_, i) => PARA + i).join("\n")
+    await createBook(twoChapterRaw)
+    await call("commit", { draft: draft(1, 0, 10) })
+    const second = parsed(await call("commit", { draft: draft(2, 10, 10) }))
+    expect(second.signal.calibrationReached).toBe(false)
+    const status = parsed(await call("status"))
+    expect(status.calibration_reached).toBe(false)
+    expect(status.source_exhausted).toBe(true)
+    await expect(call("plan", { reason: "first_plan" })).rejects.toThrow("校准阈值")
+  })
   test("达到 25% 且至少 3 章后 first_plan 生成剩余任务并记录版本", async () => {
     await createBook(BOOK_20)
     await call("commit", { draft: draft(1, 0, 2) })

@@ -245,6 +245,31 @@ export default function NovelImportTaskPage() {
                         <span>乱序调整 {item().moveCount} 处</span>
                       </Show>
                     </div>
+                    <Show when={(item().operations.length ?? 0) > 0}>
+                      <div class="flex flex-col gap-1">
+                        <div class="text-sm font-medium text-v2-text-text-base">修复记录</div>
+                        <div class="flex flex-col gap-1 max-h-56 overflow-y-auto">
+                          <For each={item().operations}>
+                            {(op) => (
+                              <div class="text-xs text-v2-text-text-muted">
+                                <span class="text-v2-text-text-base">
+                                  {op.chapterOrder} 章 · {OP_LABELS[op.kind] ?? op.kind}
+                                </span>
+                                <Show when={op.reason}>
+                                  <span class="ml-2">{op.reason}</span>
+                                </Show>
+                                <Show when={op.beforeText !== op.afterText}>
+                                  <div class="mt-0.5 pl-2 border-l border-v2-border-border-base">
+                                    <span class="line-through">{op.beforeText.slice(0, 80)}</span>
+                                    <span class="ml-2">{op.afterText.slice(0, 80)}</span>
+                                  </div>
+                                </Show>
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      </div>
+                    </Show>
                     <Show when={(item().excluded.length ?? 0) > 0}>
                       <div class="flex flex-col gap-1">
                         <div class="text-sm font-medium text-v2-text-text-base">已排除内容</div>
