@@ -307,30 +307,28 @@ export default function NovelImportWizard() {
                   >
                     {language.t("novel.import.fallbackFixedLength")}
                   </Switch>
-                  <Show when={fallbackFixedLength()}>
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.splitRangeLabel")}</span>
-                      <TextInputV2
-                        type="number"
-                        numeric
-                        class="w-24"
-                        value={String(splitRange().min)}
-                        disabled={analyzeImport.isPending}
-                        onInput={(e) => setSplitRange({ ...splitRange(), min: Number(e.currentTarget.value) })}
-                        onBlur={() => void parse()}
-                      />
-                      <span class="text-xs text-v2-text-text-muted">—</span>
-                      <TextInputV2
-                        type="number"
-                        numeric
-                        class="w-24"
-                        value={String(splitRange().max)}
-                        disabled={analyzeImport.isPending}
-                        onInput={(e) => setSplitRange({ ...splitRange(), max: Number(e.currentTarget.value) })}
-                        onBlur={() => void parse()}
-                      />
-                    </div>
-                  </Show>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.splitRangeLabel")}</span>
+                    <TextInputV2
+                      type="number"
+                      numeric
+                      class="w-24"
+                      value={String(splitRange().min)}
+                      disabled={!fallbackFixedLength() || analyzeImport.isPending}
+                      onInput={(e) => setSplitRange({ ...splitRange(), min: Number(e.currentTarget.value) })}
+                      onBlur={() => void parse()}
+                    />
+                    <span class="text-xs text-v2-text-text-muted">—</span>
+                    <TextInputV2
+                      type="number"
+                      numeric
+                      class="w-24"
+                      value={String(splitRange().max)}
+                      disabled={!fallbackFixedLength() || analyzeImport.isPending}
+                      onInput={(e) => setSplitRange({ ...splitRange(), max: Number(e.currentTarget.value) })}
+                      onBlur={() => void parse()}
+                    />
+                  </div>
                 </div>
               }
             >
