@@ -43,14 +43,14 @@ novel-store 是原文、处理游标、章节来源和导入报告的唯一事�
 
 新增四组 snake_case 表：
 
-- `novel_import_job`：任务 ID、novel_id、session_id、文件名、编码、原始字节哈希、完整解码原文、总字符数、状态、阶段、next_paragraph_index、consumed_chars、carry_json、计划章数、计划版本、配置 JSON、统计 JSON、错误与时间戳。
+- `novel_import_job`：任务 ID、novel_id、session_id、文件名、编码、原始字节哈希、完整解码原文、总字符数、状态、阶段、next_paragraph_index、processed_chars、carry_json、计划章数、计划版本、配置 JSON、统计 JSON、错误与时间戳。
 - `novel_import_paragraph`：job_id、paragraph_index、start_offset、end_offset，联合主键为 job_id + paragraph_index；只存偏移，不重复存段落正文。
 - `novel_import_chapter`：job_id、chapter_id、chapter_order、来源起止段落、输入指纹、提交指纹、内容/设定/技法阶段状态、创建与更新时间。
 - `novel_import_operation`：job_id、chapter_id、操作序号、类型、来源段落 JSON、输出段落序号、操作参数、理由、操作前后文本与时间戳。
 
 原文保存解码后的完整字符串，不执行标点、空白、广告或断行清洗；原始字节哈希用于识别同一文件。段落扫描仅建立地址，不修改原文。偏移采用与 Bun/JavaScript 字符串切片一致的 UTF-16 code unit，Agent 只使用段落 ID，避免模型生成字符偏移。每个非空原始行初始即为一个可索引段落，导入器不先按空行或标点合并；空行作为段落间格式信息保留在原文中，不参与语义段落编号。
 
-物理原文只随书籍删除级联清理。游标表示首个尚未最终处置的段落；carry_json 显式保存已读但留给下一章的段落，不能用“删除前缀”表达进度。
+物理原文只随书籍删除级联清理。游标表示首个尚未读取的段落；carry_json 显式保存已读取但留给下一章的段落，二者共同表达进度，不能用“删除原文前缀”代替。排除段落一次性计入 processed_chars，不再回到游标或 carry。
 
 备选：每段另存全文——被否，原文 + 偏移即可重建所有输入，避免大书额外翻倍存储。
 
@@ -94,7 +94,7 @@ status/read → 候选边界与修复 → 需要更多上下文则再次 read
 1. 重读任务与账本，验证候选基于最新 next_paragraph_index、carry 和 plan_version。
 2. 重跑 D4 校验并构造正文。
 3. 以 job_id + chapter_order + 来源起止段落计算幂等键：已存在且提交指纹相同则返回既有章节；指纹不同则冲突拒绝。
-4. 创建卷/章、来源映射、操作账本和导入章节阶段记录，推进游标与 consumed_chars，更新任务统计。
+4. 创建卷/章、来源映射、操作账本和导入章节阶段记录，推进游标与 processed_chars，更新任务统计。
 5. 提交后才允许完成对应 WorkRun 单元。章节内容已成功但响应丢失时，Agent 重读状态后恢复，不依赖重复调用恰好发生。
 
 初次建章直接写最终内容，不伪造修订版本。用户对已完成章节发起重新处理时，先通过既有 ChapterVersionTable 保存当前正文，再以 `import-reprocess` 来源写新版本；原始快照和操作账本不被改写。
@@ -103,7 +103,7 @@ status/read → 候选边界与修复 → 需要更多上下文则再次 read
 
 ### D6 百分之二十五校准与稳定计划
 
-校准进度按 consumed_chars / total_chars 计算，exclude 也计入已处置字数，carry 不计入。只在安全章节提交后判断是否达到阈值，因此实际校准点可能略超过 25%。
+校准进度按 processed_chars / total_chars 计算，exclude 也计入已处置字数，carry 不计入。只在安全章节提交后判断是否达到阈值，因此实际校准点可能略超过 25%。
 
 阈值规则固定为：达到或超过 25% 且已完成至少 3 章；不足 3 章则继续到第 3 章或原文结束。短书原文耗尽时不生成虚假章节任务，只保留收尾。
 
