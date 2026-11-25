@@ -987,7 +987,14 @@ CREATE INDEX IF NOT EXISTS upgrade_run_chapter_chapter_idx ON upgrade_run_chapte
 CREATE TABLE IF NOT EXISTS story_spine_entries (id text PRIMARY KEY, novel_id text NOT NULL, chapter_id text, chapter_order integer, content text NOT NULL, kind text NOT NULL DEFAULT 'chapter', source_fingerprint text, status text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL);
 CREATE INDEX IF NOT EXISTS story_spine_entries_novel_idx ON story_spine_entries(novel_id);
 CREATE INDEX IF NOT EXISTS story_spine_entries_chapter_idx ON story_spine_entries(novel_id, chapter_id);
-CREATE TABLE IF NOT EXISTS writing_batch (novel_id text PRIMARY KEY, session_id text NOT NULL, start_chapter integer NOT NULL, total integer NOT NULL, last_completed_chapter integer, status text DEFAULT 'running' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);`
+CREATE TABLE IF NOT EXISTS writing_batch (novel_id text PRIMARY KEY, session_id text NOT NULL, start_chapter integer NOT NULL, total integer NOT NULL, last_completed_chapter integer, status text DEFAULT 'running' NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS novel_import_job (id text PRIMARY KEY, novel_id text NOT NULL UNIQUE, session_id text, filename text NOT NULL, encoding text NOT NULL, source_hash text NOT NULL, raw_text text NOT NULL, total_chars integer NOT NULL, status text NOT NULL DEFAULT 'awaiting_queue', phase text NOT NULL DEFAULT 'calibration', next_paragraph_index integer NOT NULL DEFAULT 0, processed_chars integer NOT NULL DEFAULT 0, carry_json text NOT NULL DEFAULT '[]', planned_count integer, plan_version integer NOT NULL DEFAULT 0, options_json text NOT NULL DEFAULT '{}', stats_json text NOT NULL DEFAULT '{}', error text, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS novel_import_job_status_idx ON novel_import_job(status);
+CREATE TABLE IF NOT EXISTS novel_import_paragraph (job_id text NOT NULL, paragraph_index integer NOT NULL, start_offset integer NOT NULL, end_offset integer NOT NULL, PRIMARY KEY (job_id, paragraph_index), FOREIGN KEY (job_id) REFERENCES novel_import_job(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS novel_import_chapter (id text PRIMARY KEY, job_id text NOT NULL, chapter_id text NOT NULL UNIQUE, chapter_order integer NOT NULL, source_start integer NOT NULL, source_end integer NOT NULL, input_fingerprint text NOT NULL, commit_fingerprint text NOT NULL, content_stage text NOT NULL DEFAULT 'done', settings_stage text NOT NULL DEFAULT 'pending', technique_stage text NOT NULL DEFAULT 'pending', created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (job_id) REFERENCES novel_import_job(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS novel_import_chapter_job_idx ON novel_import_chapter(job_id, chapter_order);
+CREATE TABLE IF NOT EXISTS novel_import_operation (id text PRIMARY KEY, job_id text NOT NULL, chapter_id text NOT NULL, op_index integer NOT NULL, kind text NOT NULL, source_json text NOT NULL DEFAULT '[]', output_index integer NOT NULL DEFAULT -1, params_json text NOT NULL DEFAULT '{}', reason text NOT NULL DEFAULT '', before_text text NOT NULL DEFAULT '', after_text text NOT NULL DEFAULT '', created_at integer NOT NULL, FOREIGN KEY (job_id) REFERENCES novel_import_job(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS novel_import_operation_chapter_idx ON novel_import_operation(chapter_id, op_index);`
 
 // agent-memory-system §2.1/§2.4：自由事实补全层 + 物化注入包。
 // FTS 同步沿用仓库惯例走应用级（写入点显式 delete+insert，见 state-commit），此处只做存量回填。
@@ -3648,6 +3655,99 @@ export function cancelWritingBatchTx(tx: Tx, novelId: string): void {
 export async function cancelWritingBatch(novelId: string, directory?: string | null): Promise<void> {
   withTransaction(getDb(directory), (tx) => cancelWritingBatchTx(tx, novelId))
 }
+
+// ─── 原文驱动导入（source-driven-import） ───
+
+/** 导入任务：不可变原文与处理状态的唯一事实源。 */
+export const NovelImportJobTable = sqliteTable("novel_import_job", {
+  id: text().primaryKey(),
+  novel_id: text().notNull().unique(),
+  session_id: text(),
+  filename: text().notNull(),
+  encoding: text().notNull(),
+  source_hash: text().notNull(),
+  raw_text: text().notNull(),
+  total_chars: integer().notNull(),
+  status: text().notNull().default("awaiting_queue"),
+  phase: text().notNull().default("calibration"),
+  next_paragraph_index: integer().notNull().default(0),
+  processed_chars: integer().notNull().default(0),
+  carry_json: text().notNull().default("[]"),
+  planned_count: integer(),
+  plan_version: integer().notNull().default(0),
+  options_json: text().notNull().default("{}"),
+  stats_json: text().notNull().default("{}"),
+  error: text(),
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+})
+
+/** 原文段落索引：只存 UTF-16 偏移，不重复存正文。 */
+export const NovelImportParagraphTable = sqliteTable(
+  "novel_import_paragraph",
+  {
+    job_id: text().notNull(),
+    paragraph_index: integer().notNull(),
+    start_offset: integer().notNull(),
+    end_offset: integer().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.job_id, table.paragraph_index] }),
+  ],
+)
+
+/** 导入章节提交记录：幂等键、来源范围与三阶段状态。 */
+export const NovelImportChapterTable = sqliteTable(
+  "novel_import_chapter",
+  {
+    id: text().primaryKey(),
+    job_id: text().notNull(),
+    chapter_id: text().notNull().unique(),
+    chapter_order: integer().notNull(),
+    source_start: integer().notNull(),
+    source_end: integer().notNull(),
+    input_fingerprint: text().notNull(),
+    commit_fingerprint: text().notNull(),
+    content_stage: text().notNull().default("done"),
+    settings_stage: text().notNull().default("pending"),
+    technique_stage: text().notNull().default("pending"),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+    updated_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [index("novel_import_chapter_job_idx").on(table.job_id, table.chapter_order)],
+)
+
+/** 结构化修复操作账本：全文可追溯。 */
+export const NovelImportOperationTable = sqliteTable(
+  "novel_import_operation",
+  {
+    id: text().primaryKey(),
+    job_id: text().notNull(),
+    chapter_id: text().notNull(),
+    op_index: integer().notNull(),
+    kind: text().notNull(),
+    source_json: text().notNull().default("[]"),
+    output_index: integer().notNull().default(-1),
+    params_json: text().notNull().default("{}"),
+    reason: text().notNull().default(""),
+    before_text: text().notNull().default(""),
+    after_text: text().notNull().default(""),
+    created_at: integer()
+      .notNull()
+      .$default(() => Date.now()),
+  },
+  (table) => [index("novel_import_operation_chapter_idx").on(table.chapter_id, table.op_index)],
+)
+
+export * from "./import-source.js"
 
 export * from "./manual-edit-sync.js"
 export * from "./segment-rollup.js"
