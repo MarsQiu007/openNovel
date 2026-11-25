@@ -10,8 +10,8 @@
 
 ## 2. WorkRun 尾部重规划
 
-- [ ] 2.1 扩展 WorkRun 服务与 workrun 工具的 replan 动作，在单事务内仅替换 pending 尾部并分配单调 seq，覆盖 active/paused、非空校验、完成队列拒绝与写入回滚测试
-- [ ] 2.2 验证 replan 对 done/in_progress/skipped/blocked 的字段与笔记零修改、paused 不唤醒且不合成恢复消息、active 正常续跑，并跑既有 WorkRun 恢复和其他消费者聚焦测试
+- [x] 2.1 扩展 WorkRun 服务与 workrun 工具的 replan 动作，在单事务内仅替换 pending 尾部并分配单调 seq，覆盖 active/paused、非空校验、完成队列拒绝与写入回滚测试
+- [x] 2.2 验证 replan 对 done/in_progress/skipped/blocked 的字段与笔记零修改、paused 不唤醒且不合成恢复消息、active 正常续跑，并跑既有 WorkRun 恢复和其他消费者聚焦测试
 
 ## 3. 导入契约与服务端
 

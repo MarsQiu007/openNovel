@@ -23,6 +23,7 @@ export const Input = Schema.Struct({
     "block_item",
     "reset_item",
     "progress",
+    "replan",
     "finish",
   ]),
   goal: optional(Schema.String).annotate({ description: "create: the queue goal" }),
@@ -60,6 +61,14 @@ const dispatch = (
     if (input.goal === undefined || input.items === undefined || input.items.length === 0)
       return yield* new SessionWorkRun.InvalidTransition({ reason: "create 需要 goal 与至少一个单元标题" })
     return yield* workrun.create({ sessionID, goal: input.goal, items: input.items })
+  }
+  if (input.action === "replan") {
+    // 显式接受 active/paused（current 语义）：挂起队列重规划不唤醒，active 照常推进
+    if (input.items === undefined || input.items.length === 0)
+      return yield* new SessionWorkRun.InvalidTransition({ reason: "replan 需要至少一个单元标题" })
+    const currentRun = yield* workrun.current(sessionID)
+    if (currentRun === undefined) return yield* new SessionWorkRun.NoActiveRun()
+    return yield* workrun.replanPending(currentRun.id, input.items)
   }
   const run = yield* activeRun(workrun, sessionID)
   if (input.action === "claim") return yield* workrun.claimNext(run.id)

@@ -54,6 +54,10 @@ export interface Interface {
     reason: string,
   ) => Effect.Effect<RunSchema, NoActiveRun | InvalidTransition>
   readonly resetItem: (runID: string, itemSeq: number) => Effect.Effect<RunSchema, NoActiveRun | InvalidTransition>
+  readonly replanPending: (
+    runID: string,
+    items: ReadonlyArray<string>,
+  ) => Effect.Effect<RunSchema, NoActiveRun | InvalidTransition>
   readonly recordProgress: (runID: string, note: string) => Effect.Effect<void, NoActiveRun>
   readonly complete: (runID: string) => Effect.Effect<RunSchema, NoActiveRun | InvalidTransition>
   readonly pause: (sessionID: SessionSchema.ID) => Effect.Effect<RunSchema, NoActiveRun>
@@ -279,6 +283,52 @@ const layer = Layer.effect(
         }),
 
       resetItem: (runID, itemSeq) => transitionItem(runID, itemSeq, "blocked", "pending"),
+
+      replanPending: (runID, items) =>
+        Effect.gen(function* () {
+          if (items.length === 0) return yield* new InvalidTransition({ reason: "重规划需要至少一个单元" })
+          const run = yield* selectRun(db, runID)
+          if (run === undefined) return yield* new NoActiveRun()
+          if (run.status === "complete") return yield* new InvalidTransition({ reason: "队列已终结，不能重规划" })
+          // 单事务：删除 pending 尾部 + 单调 seq 追加新尾部 + 清零无进展计数（触发 time_updated）
+          yield* db
+            .transaction((tx) =>
+              Effect.gen(function* () {
+                const remaining = yield* tx
+                  .select()
+                  .from(WorkRunItemTable)
+                  .where(eq(WorkRunItemTable.run_id, runID))
+                  .orderBy(asc(WorkRunItemTable.seq))
+                  .all()
+                const maxSeq = remaining.reduce((m, r) => Math.max(m, r.seq), -1)
+                yield* tx
+                  .delete(WorkRunItemTable)
+                  .where(and(eq(WorkRunItemTable.run_id, runID), eq(WorkRunItemTable.status, "pending")))
+                  .run()
+                yield* tx
+                  .insert(WorkRunItemTable)
+                  .values(
+                    items.map((title, i) => ({
+                      id: randomUUID(),
+                      run_id: runID,
+                      seq: maxSeq + 1 + i,
+                      title,
+                      status: "pending" as const,
+                    })),
+                  )
+                  .run()
+                yield* tx
+                  .update(WorkRunTable)
+                  .set({ no_progress_count: 0 })
+                  .where(eq(WorkRunTable.id, runID))
+                  .run()
+              }),
+            )
+            .pipe(Effect.orDie)
+          const updated = yield* selectRunOrDie(db, runID)
+          yield* publishUpdate(db, events, updated.id)
+          return fromRows(updated, yield* selectItems(db, runID))
+        }),
 
       recordProgress: (runID, note) =>
         Effect.gen(function* () {
