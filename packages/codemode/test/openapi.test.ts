@@ -177,13 +177,13 @@ describe("OpenAPI.fromSpec", () => {
     const spec = await opennovelSpec()
     const result = OpenAPI.fromSpec({ spec, baseUrl })
 
-    expect(result.skipped).toHaveLength(4)
+    expect(result.skipped).toHaveLength(6)
     expect(result.skipped).toContainEqual({
       method: "GET",
       path: "/api/pty/{ptyID}/connect",
       reason: "WebSocket operations are not supported",
     })
-    expect(result.skipped.filter((item) => item.reason === "SSE operations are not supported")).toHaveLength(2)
+    expect(result.skipped.filter((item) => item.reason === "SSE operations are not supported")).toHaveLength(4)
     expect(result.skipped).toContainEqual({
       method: "GET",
       path: "/api/fs/read/*",
@@ -379,7 +379,7 @@ describe("OpenAPI.fromSpec", () => {
       runtime
         .execute(
           `
-        return await tools.$codemode.search({ query: "health", namespace: "opennovel", limit: 1 })
+        return await tools.$codemode.search({ query: "health", namespace: "opennovel", limit: 2 })
       `,
         )
         .pipe(Effect.provide(layer)),
@@ -390,8 +390,13 @@ describe("OpenAPI.fromSpec", () => {
     expect(result.value).toMatchObject({
       items: [
         {
-          path: "tools.opennovel.v2.health.get",
-          description: "Check whether the API server is ready to accept requests.",
+          path: "tools.opennovel.global.config.health",
+          description:
+            "Read-only health check of the global configuration: external plugin load failures, stale agent model overrides, and legacy agent definition leftovers.",
+        },
+        {
+          path: "tools.opennovel.global.health",
+          description: "Get health information about the OpenNovel server.",
         },
       ],
     })
