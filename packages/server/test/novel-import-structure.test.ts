@@ -2,7 +2,7 @@
  * 书籍导入结构解析单测（book-import · 3.2 / 4.1 / 4.2）。
  */
 import { describe, expect, test } from "bun:test"
-import { looksLikeHeadingLine, matchHeading, parseChapterNumber, parseStructure, splitFixedLength } from "../src/handlers/novel-import/structure"
+import { looksLikeHeadingLine, matchHeading, parseChapterNumber, parseStructure, splitByRange } from "../src/handlers/novel-import/structure"
 
 describe("parseChapterNumber", () => {
   test("阿拉伯与全角数字", () => {
@@ -153,19 +153,94 @@ describe("parseStructure", () => {
   })
 })
 
-describe("splitFixedLength", () => {
-  test("按固定字数等长分章", () => {
-    const text = "字".repeat(7000)
-    const volumes = splitFixedLength(text, 3000)
-    expect(volumes).toHaveLength(1)
-    expect(volumes[0]!.chapters).toHaveLength(3)
-    expect(volumes[0]!.chapters[0]!.title).toBe("第1部分")
-    expect(volumes[0]!.chapters[0]!.content).toHaveLength(3000)
-    expect(volumes[0]!.chapters[2]!.content).toHaveLength(1000)
-  })
+describe("splitByRange", () => {
+  /** 造 n 个段落，每段约 charsPerPara 字，段间空行分隔。 */
+  const makeParagraphs = (count: number, charsPerPara: number) =>
+    Array.from({ length: count }, (_, i) => `第${i + 1}段${"文".repeat(charsPerPara)}`).join("\n\n")
 
   test("空文本返回空章列表", () => {
-    const volumes = splitFixedLength("   ")
+    const { volumes, issues } = splitByRange("   ")
     expect(volumes[0]!.chapters).toEqual([])
+    expect(issues).toEqual([])
+  })
+
+  test("默认范围 2000–3000，切点落在段落边界", () => {
+    // 20 段 × 约 155 字 ≈ 3100 字正文 + 空行，总长约 3200
+    const text = makeParagraphs(20, 150)
+    const { volumes, issues } = splitByRange(text)
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBeGreaterThanOrEqual(2)
+    expect(issues).toEqual([])
+    for (const chapter of chapters.slice(0, -1)) {
+      expect(chapter.content.length).toBeGreaterThanOrEqual(2000)
+      expect(chapter.content.length).toBeLessThanOrEqual(3000)
+      // 段落边界切点：章尾必须是完整段落（不切断任何段落）
+      expect(chapter.content.endsWith("文")).toBe(true)
+    }
+    expect(chapters[0]!.title).toBe("第1部分")
+  })
+
+  test("自定义范围生效", () => {
+    const text = makeParagraphs(10, 150)
+    const { volumes } = splitByRange(text, { min: 500, max: 800 })
+    const chapters = volumes[0]!.chapters
+    for (const chapter of chapters.slice(0, -1)) {
+      expect(chapter.content.length).toBeGreaterThanOrEqual(500)
+      expect(chapter.content.length).toBeLessThanOrEqual(800)
+    }
+  })
+
+  test("无段落边界时取引号闭合句末，引号不被切开", () => {
+    // 单段 2600 字，无空行；每约 90 字一句，对话引号成对出现
+    const unit = `他往前走。${"路".repeat(40)}“你来了。”${"影".repeat(40)}。`
+    const text = unit.repeat(20)
+    const { volumes, issues } = splitByRange(text, { min: 1000, max: 1500 })
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBeGreaterThanOrEqual(2)
+    expect(issues).toEqual([])
+    for (const chapter of chapters.slice(0, -1)) {
+      const tail = chapter.content.at(-1)!
+      expect(["。", "”"]).toContain(tail)
+      // 章内引号各自平衡
+      expect(chapter.content.split("“").length).toBe(chapter.content.split("”").length)
+    }
+  })
+
+  test("末章为剩余全部（可短于下限）", () => {
+    const text = makeParagraphs(15, 150) // 约 2400 字
+    const { volumes } = splitByRange(text, { min: 2000, max: 3000 })
+    const chapters = volumes[0]!.chapters
+    expect(chapters).toHaveLength(1)
+    expect(chapters[0]!.content.length).toBeGreaterThan(2000)
+  })
+
+  test("窗口内无任何合法切点时受限硬切并标注问题清单", () => {
+    const text = "字".repeat(5000) // 无段落、无句末标点
+    const { volumes, issues } = splitByRange(text, { min: 2000, max: 3000 })
+    const chapters = volumes[0]!.chapters
+    expect(issues.length).toBeGreaterThanOrEqual(1)
+    expect(issues[0]!.type).toBe("forced-cut")
+    expect(chapters[0]!.content.length).toBe(3000)
+  })
+
+  test("拆分只决定边界，不修改正文字符", () => {
+    const text = makeParagraphs(20, 150)
+    const { volumes } = splitByRange(text)
+    const joined = volumes[0]!.chapters.map((chapter) => chapter.content).join("")
+    // 各章拼接（去掉章间空行边界）与原文去空白后一致
+    expect(joined.replace(/\s+/g, "")).toBe(text.replace(/\s+/g, ""))
+  })
+
+  test("场景分隔线处优先成界", () => {
+    const before = `上一幕${"幕".repeat(1150)}。`
+    const after = `下一幕${"幕".repeat(1150)}。`
+    const text = `${before}\n\n***\n\n${after}`
+    const { volumes } = splitByRange(text, { min: 1000, max: 1500 })
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBe(2)
+    // 切点落在场景分隔线边界：分隔线完整归属其中一章，不被切开
+    const withBreak = chapters.find((chapter) => chapter.content.includes("***"))
+    expect(withBreak).toBeDefined()
+    expect(chapters[0]!.content.endsWith("***") || chapters[1]!.content.startsWith("***")).toBe(true)
   })
 })

@@ -55,10 +55,10 @@ describe("cleanText", () => {
     expect(summary.adsRemoved).toBe(0)
   })
 
-  test("逐行机械重复清除", () => {
+  test("逐行机械重复清除，残留短行随段内句间聚合", () => {
     const raw = "正文行。\n重复行\n重复行\n重复行\n\n结尾行。"
     const { text, summary } = cleanText(raw)
-    expect(text).toBe("正文行。\n重复行\n\n结尾行。")
+    expect(text).toBe("正文行。重复行\n\n结尾行。")
     expect(summary.duplicatesRemoved).toBe(2)
   })
 
@@ -70,6 +70,66 @@ describe("cleanText", () => {
     expect(summary.punctuationNormalized).toBe(1)
     expect(summary.duplicatesRemoved).toBe(1)
     expect(summary.adsRemoved).toBe(1)
+  })
+
+  test("硬换行书段内句末碎行聚合为完整段落", () => {
+    const raw = "　　他站起身，走到窗前。天色已经暗了下来。\n远处的灯火次第亮起。他转身回到桌前。\n\n　　第二段从这里开始。"
+    const { text, summary } = cleanText(raw)
+    expect(text).toBe("他站起身，走到窗前。天色已经暗了下来。远处的灯火次第亮起。他转身回到桌前。\n\n第二段从这里开始。")
+    expect(summary.linesMerged).toBe(1)
+  })
+
+  test("缩进新段不被并入上一段", () => {
+    const raw = "　　第一段结束。\n　　第二段开始。"
+    const { text } = cleanText(raw)
+    expect(text).toBe("第一段结束。\n第二段开始。")
+  })
+
+  test("右引号结尾的对话段保护（无缩进书）", () => {
+    const raw = "“你来了。”\n他点头。\n“我来了。”"
+    const { text, summary } = cleanText(raw)
+    expect(text).toBe("“你来了。”\n他点头。\n“我来了。”")
+    expect(summary.linesMerged).toBe(0)
+  })
+
+  test("对话段后接叙述行不粘连（信号有效书）", () => {
+    const raw = "　　“你来了。”\n他点头致意，\n　　“我来了。”\n\n　　下一段。"
+    const { text } = cleanText(raw)
+    expect(text).toBe("“你来了。”\n他点头致意，\n“我来了。”\n\n下一段。")
+  })
+
+  test("护栏回退：无段落信号的书句末不合并", () => {
+    const raw = "第一句结束了。\n第二句也结束了。\n第三句。"
+    const { text, summary } = cleanText(raw)
+    expect(text).toBe("第一句结束了。\n第二句也结束了。\n第三句。")
+    expect(summary.linesMerged).toBe(0)
+  })
+
+  test("护栏回退：逐行缩进的诗歌版式不误判聚合", () => {
+    const raw = "　　床前明月光。\n　　疑是地上霜。\n　　举头望明月。\n　　低头思故乡。"
+    const { text, summary } = cleanText(raw)
+    expect(text).toBe("床前明月光。\n疑是地上霜。\n举头望明月。\n低头思故乡。")
+    expect(summary.linesMerged).toBe(0)
+  })
+
+  test("中英文混排合并补空格", () => {
+    const raw = "　　他说 Hello\nworld 然后离开。"
+    const { text } = cleanText(raw)
+    expect(text).toBe("他说 Hello world 然后离开。")
+  })
+
+  test("场景分隔线独立成段", () => {
+    const raw = "　　上一幕结束。\n***\n　　下一幕开始。"
+    const { text } = cleanText(raw)
+    expect(text).toBe("上一幕结束。\n***\n下一幕开始。")
+  })
+
+  test("网址广告行清除且不粘连正文", () => {
+    const raw = "本书下载自搜书吧：www.soushu2022.com\n备用地址：www.soushu2023.com\n　　正文第一段开始，\n没有缩进的续行。"
+    const { text, summary } = cleanText(raw)
+    expect(text).not.toContain("soushu")
+    expect(summary.adsRemoved).toBe(2)
+    expect(text.startsWith("正文第一段开始，没有缩进的续行。")).toBe(true)
   })
 
   test("空文本安全返回", () => {

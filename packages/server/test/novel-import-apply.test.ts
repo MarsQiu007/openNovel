@@ -251,7 +251,7 @@ describe("novel.import.apply", () => {
     expect(after).toBe(before)
   })
 
-  test("等长兜底：未识别边界按固定长度分章建书", async () => {
+  test("兜底分章：无边界无标点文本受限硬切建书", async () => {
     const body = "字".repeat(7000)
     const dataUrl = toDataUrl(body)
     const preview = await analyze({
@@ -274,6 +274,95 @@ describe("novel.import.apply", () => {
     const report = await readJson(res)
     expect(report.chapterCount).toBe(3)
     expect(report.volumeCount).toBe(1)
+  })
+
+  test("兜底分章默认范围 2000–3000 生效", async () => {
+    const body = Array.from({ length: 20 }, (_, i) => `第${i + 1}段${"文".repeat(150)}`).join("\n\n")
+    const preview = await analyze({
+      dataUrl: toDataUrl(body),
+      filename: "default-range.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+    })
+    const volumes = preview.volumes as Array<{ chapters: Array<{ wordCount: number }> }>
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBeGreaterThanOrEqual(2)
+    for (const chapter of chapters.slice(0, -1)) {
+      expect(chapter.wordCount).toBeGreaterThanOrEqual(2000)
+      expect(chapter.wordCount).toBeLessThanOrEqual(3000)
+    }
+  })
+
+  test("自定义兜底范围建书（splitRange 透传）", async () => {
+    const body = Array.from({ length: 12 }, (_, i) => `第${i + 1}段${"文".repeat(150)}`).join("\n\n")
+    const dataUrl = toDataUrl(body)
+    const range = { min: 500, max: 800 }
+    const preview = await analyze({
+      dataUrl,
+      filename: "custom-range.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: range,
+    })
+    const volumes = preview.volumes as Array<{ chapters: Array<{ wordCount: number }> }>
+    const chapters = volumes[0]!.chapters
+    expect(chapters.length).toBeGreaterThanOrEqual(3)
+    const res = await post("/api/novel/import/apply", {
+      dataUrl,
+      filename: "custom-range.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: range,
+      previewToken: preview.previewToken,
+      title: "自定义范围书",
+    })
+    expect(res.status).toBe(200)
+    const report = await readJson(res)
+    expect(report.chapterCount).toBe(chapters.length)
+  })
+
+  test("兜底分章范围漂移（splitRange 变更）返回预览过期", async () => {
+    const body = Array.from({ length: 20 }, (_, i) => `第${i + 1}段${"文".repeat(150)}`).join("\n\n")
+    const dataUrl = toDataUrl(body)
+    const preview = await analyze({
+      dataUrl,
+      filename: "drift.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: { min: 1000, max: 1500 },
+    })
+    const res = await post("/api/novel/import/apply", {
+      dataUrl,
+      filename: "drift.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: { min: 2000, max: 3000 },
+      previewToken: preview.previewToken,
+      title: "不应建成",
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("非法字数范围（min 不小于 max）返回 400", async () => {
+    const res = await post("/api/novel/import/analyze", {
+      dataUrl: toDataUrl("正文内容。"),
+      filename: "bad-range.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: { min: 3000, max: 2000 },
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("字数范围越界（低于 500）由契约校验拒绝", async () => {
+    const res = await post("/api/novel/import/analyze", {
+      dataUrl: toDataUrl("正文内容。"),
+      filename: "bad-range.txt",
+      cleanEnabled: false,
+      fallbackFixedLength: true,
+      splitRange: { min: 100, max: 3000 },
+    })
+    expect(res.status).toBe(400)
   })
 })
 

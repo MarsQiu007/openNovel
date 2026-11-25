@@ -121,7 +121,7 @@ export interface ParsedVolume {
 
 export interface ParsedStructure {
   volumes: ParsedVolume[]
-  issues: { type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary"; message: string; chapterNumber?: number }[]
+  issues: { type: "sequence-gap" | "duplicate-number" | "order-mismatch" | "unrecognized-boundary" | "forced-cut"; message: string; chapterNumber?: number }[]
   /** 命中章题数；为 0 表示未识别到章节边界 */
   chapterHeadingCount: number
 }
@@ -212,19 +212,106 @@ function trimBlankEdges(lines: string[]): string[] {
   return lines.slice(start, end)
 }
 
-/** 未识别章节边界时的显式兜底：按固定字数等长分章（默认 3000 字/章）。 */
-export function splitFixedLength(text: string, size = 3000): ParsedVolume[] {
-  const body = text.trim()
-  if (body.length === 0) return [{ title: null, chapters: [] }]
-  const chapters: ParsedChapter[] = []
-  for (let start = 0; start < body.length; start += size) {
-    const index = chapters.length + 1
-    chapters.push({
-      title: `第${index}部分`,
-      content: body.slice(start, start + size),
-      special: null,
-      number: index,
-    })
+/** 兜底分章默认目标字数范围（design D2）。 */
+export const DEFAULT_SPLIT_RANGE = { min: 2000, max: 3000 }
+
+/** 句末切点字符：句末标点与右引号（对话结束）。 */
+const SENTENCE_CUT_CHARS = new Set(["。", "！", "？", "…", "》", "）", "”", "’", "」", "』"])
+const QUOTE_PAIRS: [string, string][] = [
+  ["“", "”"],
+  ["「", "」"],
+  ["『", "』"],
+]
+
+/** 候选位置列表中最后一个落入 [from, to] 的位置。 */
+function lastInRange(candidates: number[], from: number, to: number): number | null {
+  let found: number | null = null
+  for (const position of candidates) {
+    if (position < from) continue
+    if (position > to) break
+    found = position
   }
-  return [{ title: null, chapters }]
+  return found
+}
+
+/** [chapterStart, to) 内引号闭合的句末切点（切点在句末字符之后）；pick 控制取首个或最后一个。 */
+function findSentenceCut(body: string, chapterStart: number, from: number, to: number, pick: "first" | "last"): number | null {
+  const balances = QUOTE_PAIRS.map(() => 0)
+  let lastCut: number | null = null
+  for (let index = chapterStart; index < to; index++) {
+    const char = body[index]
+    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
+      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
+      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
+    }
+    if (index + 1 < from || !SENTENCE_CUT_CHARS.has(char)) continue
+    if (!balances.every((balance) => balance === 0)) continue
+    if (pick === "first") return index + 1
+    lastCut = index + 1
+  }
+  return lastCut
+}
+
+/**
+ * 未识别章节边界时的边界感知兜底分章：在目标字数范围内按
+ * 「场景分隔线/段落边界 > 引号闭合句末 > 受限兜底」选切点；只决定章节边界，不修改正文。
+ */
+export function splitByRange(
+  text: string,
+  range: { min: number; max: number } = DEFAULT_SPLIT_RANGE,
+): { volumes: ParsedVolume[]; issues: ParsedStructure["issues"] } {
+  const body = text.trim()
+  if (body.length === 0) return { volumes: [{ title: null, chapters: [] }], issues: [] }
+
+  // 块间边界（候选切点）：reflow 后段落为单行、空行分段，切点取后续内容块的起点
+  const boundaries: number[] = []
+  let offset = 0
+  let seenContent = false
+  for (const line of body.split("\n")) {
+    if (line.trim().length > 0) {
+      if (seenContent) boundaries.push(offset)
+      seenContent = true
+    }
+    offset += line.length + 1
+  }
+
+  const issues: ParsedStructure["issues"] = []
+  const chapters: ParsedChapter[] = []
+  const pushChapter = (content: string) => {
+    const index = chapters.length + 1
+    chapters.push({ title: `第${index}部分`, content: content.trim(), special: null, number: index })
+  }
+
+  let cur = 0
+  while (body.length - cur > range.max) {
+    const windowStart = cur + range.min
+    const windowEnd = cur + range.max
+    const boundaryCut = lastInRange(boundaries, windowStart, windowEnd)
+    if (boundaryCut !== null) {
+      pushChapter(body.slice(cur, boundaryCut))
+      cur = boundaryCut
+      continue
+    }
+    const sentenceCut = findSentenceCut(body, cur, windowStart, windowEnd, "last")
+    if (sentenceCut !== null) {
+      pushChapter(body.slice(cur, sentenceCut))
+      cur = sentenceCut
+      continue
+    }
+    // 受限兜底：硬上限（max + min/2）内就近取第一个引号闭合句末，并标注问题清单
+    const hardEnd = Math.min(cur + range.max + Math.floor(range.min / 2), body.length)
+    const extendedCut = findSentenceCut(body, cur, windowEnd, hardEnd, "first")
+    if (extendedCut !== null) {
+      pushChapter(body.slice(cur, extendedCut))
+      issues.push({ type: "forced-cut", message: `第 ${chapters.length} 部分在目标范围外就近取句末切点`, chapterNumber: chapters.length })
+      cur = extendedCut
+      continue
+    }
+    pushChapter(body.slice(cur, windowEnd))
+    issues.push({ type: "forced-cut", message: `第 ${chapters.length} 部分无合法切点，按上限硬切`, chapterNumber: chapters.length })
+    cur = windowEnd
+  }
+  pushChapter(body.slice(cur))
+
+  return { volumes: [{ title: null, chapters }], issues }
 }

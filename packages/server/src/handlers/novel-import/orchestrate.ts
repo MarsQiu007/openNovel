@@ -4,7 +4,7 @@
  * analyze：dataUrl → 解码 →（可选清洗）→ 拆卷拆章 → 预览 + previewToken。
  * apply：重解码重解析并校验 previewToken 一致性 → 单事务建书（书/卷/章 + 初始正文）。
  * previewToken 为不透明串（base64url JSON）：解析器版本 + 原文哈希 + 解析参数
- * （清洗开关、生效编码、等长分章兜底）；analyze 不落盘任何原文或中间件。
+ * （清洗开关、生效编码、兜底分章开关与字数范围）；analyze 不落盘任何原文或中间件。
  */
 import { createHash } from "crypto"
 import { Effect } from "effect"
@@ -26,10 +26,10 @@ import {
   withTransaction,
 } from "@opennovel-ai/novel-store"
 import { decodeDataUrlBytes, decodeWithEncoding, detectAndDecode } from "./encoding"
-import { parseStructure, splitFixedLength, type ParsedVolume } from "./structure"
+import { DEFAULT_SPLIT_RANGE, parseStructure, splitByRange, type ParsedVolume } from "./structure"
 import { cleanText, emptyCleanSummary, type CleanSummary } from "./clean"
 
-const PARSER_VERSION = "book-import-v1"
+const PARSER_VERSION = "book-import-v2"
 
 /** 导入建书的默认题材（契约无题材字段，沿用既有题材表首项；建书后可再改）。 */
 const IMPORT_DEFAULT_GENRE = "玄幻"
@@ -42,6 +42,7 @@ interface ImportSource {
   encoding: NovelImportEncoding
   cleanEnabled: boolean
   fallbackFixedLength: boolean
+  splitRange: { min: number; max: number }
 }
 
 interface PreviewTokenPayload {
@@ -50,6 +51,7 @@ interface PreviewTokenPayload {
   clean: boolean
   enc: NovelImportEncoding
   fixed: boolean
+  range: { min: number; max: number }
 }
 
 function importError(message: string, reason: ImportFailureReason) {
@@ -84,11 +86,14 @@ function prepareSource(input: {
   cleanEnabled: boolean
   encoding?: NovelImportEncoding | undefined
   fallbackFixedLength?: boolean | undefined
+  splitRange?: { min: number; max: number } | undefined
 }): { source: ImportSource } | { error: NovelImportError } {
   const decodedBytes = decodeBytes(input.dataUrl)
   if ("error" in decodedBytes) return decodedBytes
   const decoded = decodeSource(decodedBytes.bytes, input.encoding)
   if (decoded === null) return { error: importError("编码识别失败，请显式指定编码后重试", "encoding-failed") }
+  const splitRange = input.splitRange ?? DEFAULT_SPLIT_RANGE
+  if (splitRange.min >= splitRange.max) return { error: importError("字数范围无效：下限须小于上限", "invalid-text") }
   return {
     source: {
       bytes: decodedBytes.bytes,
@@ -96,6 +101,7 @@ function prepareSource(input: {
       encoding: decoded.encoding,
       cleanEnabled: input.cleanEnabled,
       fallbackFixedLength: input.fallbackFixedLength ?? false,
+      splitRange,
     },
   }
 }
@@ -111,7 +117,7 @@ function parseBook(source: ImportSource, cleanedText: string): {
 } {
   const parsed = parseStructure(cleanedText)
   if (parsed.chapterHeadingCount === 0 && source.fallbackFixedLength) {
-    return { volumes: splitFixedLength(cleanedText), issues: [] }
+    return splitByRange(cleanedText, source.splitRange)
   }
   return { volumes: parsed.volumes, issues: parsed.issues }
 }
@@ -123,6 +129,7 @@ function buildPreviewToken(source: ImportSource): string {
     clean: source.cleanEnabled,
     enc: source.encoding,
     fixed: source.fallbackFixedLength,
+    range: source.splitRange,
   }
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")
 }
@@ -135,12 +142,15 @@ function parsePreviewToken(token: string): PreviewTokenPayload | null {
     if (typeof candidate.v !== "string" || typeof candidate.hash !== "string") return null
     if (typeof candidate.clean !== "boolean" || typeof candidate.fixed !== "boolean") return null
     if (typeof candidate.enc !== "string") return null
+    if (typeof candidate.range !== "object" || candidate.range === null) return null
+    if (typeof candidate.range.min !== "number" || typeof candidate.range.max !== "number") return null
     return {
       v: candidate.v,
       hash: candidate.hash,
       clean: candidate.clean,
       enc: candidate.enc,
       fixed: candidate.fixed,
+      range: { min: candidate.range.min, max: candidate.range.max },
     }
   } catch {
     return null
@@ -155,7 +165,9 @@ function validateToken(token: PreviewTokenPayload | null, source: ImportSource):
     token.hash !== sha256Hex(source.bytes) ||
     token.clean !== source.cleanEnabled ||
     token.fixed !== source.fallbackFixedLength ||
-    token.enc !== source.encoding
+    token.enc !== source.encoding ||
+    token.range.min !== source.splitRange.min ||
+    token.range.max !== source.splitRange.max
   ) {
     return importError("预览已过期，请重新分析后再确认导入", "preview-expired")
   }
