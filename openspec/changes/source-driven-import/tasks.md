@@ -32,23 +32,35 @@
 
 ## 5. 导入 UI 重构
 
-- [ ] 5.1 重构导入配置态与查询控制层，移除 analyze/apply、固定长度开关、机械预览令牌和 sendTidy，接入 import.start/get/control 与持久化任务路由
-- [ ] 5.2 实现处理态的真实原文比例、校准/计划状态、当前阅读范围、已产出章节、WorkRun、修复统计及暂停/恢复/重试控件，校准前不得显示精确总章数
-- [ ] 5.3 实现暂停中“应用到未开始部分”的配置交互，验证只触发未开始尾部重规划，不回改已完成章节或隐式唤醒挂起队列
-- [ ] 5.4 实现完成态统一报告、章节/修复/设定/技法视图、原文对照、排除内容和未解决项，移除旧报告「AI 整理」二次入口
-- [ ] 5.5 更新 app 单测与浏览器测试，覆盖配置/处理/完成三态、离开重进恢复、长队列收纳、各控制操作和报告数据可见性，保持既有语言与桌面文件选择行为
+- [x] 5.1 重构导入配置态与查询控制层，移除 analyze/apply、固定长度开关、机械预览令牌和 sendTidy，接入 import.start/get/control 与持久化任务路由
+- [x] 5.2 实现处理态的真实原文比例、校准/计划状态、当前阅读范围、已产出章节、WorkRun、修复统计及暂停/恢复/重试控件，校准前不得显示精确总章数
+- [x] 5.3 实现暂停中“应用到未开始部分”的配置交互，验证只触发未开始尾部重规划，不回改已完成章节或隐式唤醒挂起队列
+- [x] 5.4 实现完成态统一报告、章节/修复/设定/技法视图、原文对照、排除内容和未解决项，移除旧报告「AI 整理」二次入口
+- [x] 5.5 更新 app 单测与浏览器测试，覆盖配置/处理/完成三态、离开重进恢复、长队列收纳、各控制操作和报告数据可见性，保持既有语言与桌面文件选择行为
 
 ## 6. 关联面清理与集成验证
 
-- [ ] 6.1 建立真实书稿集成夹具，端到端验证常规章题、无章题、连续对话断段、局部乱序、错字与噪声、25% 校准、两类尾部任务修正和最终原文覆盖
-- [ ] 6.2 模拟响应丢失、章节提交后退出、队列挂起与进程重启，验证不重复建章、不重复消费原文、可从设定/技法阶段恢复且已完成任务不被重规划
-- [ ] 6.3 全局检索并清理旧 analyze/apply、fallbackFixedLength、previewToken、buildImportPipelinePrompt、sendTidy 和固定分章分诊引用，连同无用组件、查询、导出、测试夹具与文档一并处理
+- [x] 6.1 建立真实书稿集成夹具，端到端验证常规章题、无章题、连续对话断段、局部乱序、错字与噪声、25% 校准、两类尾部任务修正和最终原文覆盖
+- [x] 6.2 模拟响应丢失、章节提交后退出、队列挂起与进程重启，验证不重复建章、不重复消费原文、可从设定/技法阶段恢复且已完成任务不被重规划
+- [x] 6.3 全局检索并清理旧 analyze/apply、fallbackFixedLength、previewToken、buildImportPipelinePrompt、sendTidy 和固定分章分诊引用，连同无用组件、查询、导出、测试夹具与文档一并处理
 
 ## 7. 迭代期质量门
 
-- [ ] 7.1 在 packages/novel-store、packages/core、packages/schema、packages/protocol、packages/server、packages/plugin、packages/app 分别运行本 change 聚焦测试并修复全部失败
-- [ ] 7.2 在上述各包目录分别运行 bun typecheck 与受影响文件 oxlint，确认无新增类型或 lint 问题
-- [ ] 7.3 自查新增长期无人引用导出、只被死代码使用的 import、未消费查询通道与重复实现，运行 openspec validate source-driven-import --strict 并核对三份 delta 与实现场景一致
+- [x] 7.1 在 packages/novel-store、packages/core、packages/schema、packages/protocol、packages/server、packages/plugin、packages/app 分别运行本 change 聚焦测试并修复全部失败
+- [x] 7.2 在上述各包目录分别运行 bun typecheck 与受影响文件 oxlint，确认无新增类型或 lint 问题
+- [x] 7.3 自查新增长期无人引用导出、只被死代码使用的 import、未消费查询通道与重复实现，运行 openspec validate source-driven-import --strict 并核对三份 delta 与实现场景一致
+
+## Implementation Commits
+
+- b34d5b89d7 feat(novel-store): 原文驱动导入数据层
+- 2fcfcd8766 feat(core): WorkRun 待处理尾部重规划
+- a4eb2e9af1 fix(novel-store): 校准统计按账本来源字数取中位数
+- b662e55e76 feat(schema,protocol,server): 导入契约替换为原文驱动 start/get/control/report
+- e32a28be97 feat(plugin): source_import 工具与原文驱动导入队列编排
+- 7705b1a019 feat(app): 原文驱动导入三态页面与查询控制层
+- 97621d829f test(plugin): 原文驱动导入集成夹具与恢复验证
+- bc28537898 feat(novel-store): 统一报告携带修复记录明细
+- e90b3b0c2e feat(app): 完成态修复记录视图与特殊章提示
 
 ## Workflow follow-up
 
