@@ -496,4 +496,183 @@ describe("LocationServiceMap", () => {
       ),
     ),
   )
+
+  describe("agent model fallback", () => {
+    const agentFallbackFixture = <A, E, R>(use: (dir: { path: string }) => Effect.Effect<A, E, R>) =>
+      Effect.acquireUseRelease(
+        Effect.sync(() => {
+          const previous = {
+            path: Flag.OPENNOVEL_MODELS_PATH,
+            disabled: Flag.OPENNOVEL_DISABLE_MODELS_FETCH,
+            auth: process.env.OPENNOVEL_AUTH_CONTENT,
+            configDir: process.env.OPENNOVEL_CONFIG_DIR,
+          }
+          Flag.OPENNOVEL_MODELS_PATH = path.join(import.meta.dir, "plugin", "fixtures", "models-dev.json")
+          Flag.OPENNOVEL_DISABLE_MODELS_FETCH = true
+          // 隔离本机全局配置（xdg config 目录），保证 catalog 内容可控
+          process.env.OPENNOVEL_CONFIG_DIR = path.join(import.meta.dir, "plugin", "fixtures", "empty-config")
+          process.env.OPENNOVEL_AUTH_CONTENT = JSON.stringify({
+            good: { type: "api", key: "sk-good" },
+            other: { type: "api", key: "sk-other" },
+          })
+          return previous
+        }),
+        () =>
+          Effect.acquireRelease(
+            Effect.promise(() => tmpdir()),
+            (dir) => Effect.promise(() => dir[Symbol.asyncDispose]()),
+          ).pipe(
+            Effect.flatMap((dir) =>
+              Effect.promise(() =>
+                fs.writeFile(
+                  path.join(dir.path, "opennovel.json"),
+                  JSON.stringify({
+                    providers: {
+                      good: {
+                        name: "Good",
+                        api: { type: "aisdk", package: "@ai-sdk/openai-compatible", url: "https://good.example/v1" },
+                        models: { chat: { name: "Chat" } },
+                      },
+                      other: {
+                        name: "Other",
+                        api: {
+                          type: "aisdk",
+                          package: "@ai-sdk/openai-compatible",
+                          url: "https://other.example/v1",
+                        },
+                        models: { chat: { name: "Other Chat" } },
+                      },
+                    },
+                  }),
+                ),
+              ).pipe(Effect.flatMap(() => use(dir))),
+            ),
+          ),
+        (previous) =>
+          Effect.sync(() => {
+            Flag.OPENNOVEL_MODELS_PATH = previous.path
+            Flag.OPENNOVEL_DISABLE_MODELS_FETCH = previous.disabled
+            if (previous.auth === undefined) delete process.env.OPENNOVEL_AUTH_CONTENT
+            else process.env.OPENNOVEL_AUTH_CONTENT = previous.auth
+            if (previous.configDir === undefined) delete process.env.OPENNOVEL_CONFIG_DIR
+            else process.env.OPENNOVEL_CONFIG_DIR = previous.configDir
+          }),
+      )
+
+    const sessionInfo = (location: Location.Ref, id: string, model?: { id: string; providerID: string }) =>
+      SessionV2.Info.make({
+        id: SessionV2.ID.make(id),
+        projectID: ProjectV2.ID.global,
+        title: "test",
+        agent: AgentV2.ID.make("build"),
+        ...(model
+          ? { model: { id: ModelV2.ID.make(model.id), providerID: ProviderV2.ID.make(model.providerID) } }
+          : {}),
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+        location,
+      })
+
+    it.live("falls back to the agent-configured model with its variant", () =>
+      agentFallbackFixture((dir) =>
+        Effect.gen(function* () {
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const resolved = yield* Effect.gen(function* () {
+            const catalog = yield* Catalog.Service
+            yield* catalog.transform((editor) => {
+              editor.model.update(ProviderV2.ID.make("good"), ModelV2.ID.make("chat"), (model) => {
+                model.variants.push({
+                  id: ModelV2.VariantID.make("high"),
+                  headers: {},
+                  body: { service_tier: "priority" },
+                })
+              })
+            })
+            const agents = yield* AgentV2.Service
+            yield* agents.transform((editor) => {
+              editor.update(AgentV2.ID.make("build"), (agent) => {
+                agent.model = {
+                  id: ModelV2.ID.make("chat"),
+                  providerID: ProviderV2.ID.make("good"),
+                  variant: ModelV2.VariantID.make("high"),
+                }
+              })
+            })
+            return yield* SessionRunnerModel.Service.use((models) =>
+              models.resolve(sessionInfo(location, "ses_agent_model")),
+            )
+          }).pipe(Effect.provide(LocationServiceMap.Service.get(location)))
+
+          expect(resolved).toMatchObject({ provider: "good", id: "chat" })
+          expect(resolved.route.defaults.http?.body).toMatchObject({ service_tier: "priority" })
+        }),
+      ),
+    )
+
+    it.live("fails explicitly when the agent-configured model is unavailable", () =>
+      agentFallbackFixture((dir) =>
+        Effect.gen(function* () {
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const failure = yield* Effect.gen(function* () {
+            const agents = yield* AgentV2.Service
+            yield* agents.transform((editor) => {
+              editor.update(AgentV2.ID.make("build"), (agent) => {
+                agent.model = { id: ModelV2.ID.make("chat"), providerID: ProviderV2.ID.make("ghost") }
+              })
+            })
+            return yield* SessionRunnerModel.Service.use((models) =>
+              models.resolve(sessionInfo(location, "ses_agent_model_unavailable")),
+            )
+          }).pipe(Effect.provide(LocationServiceMap.Service.get(location)), Effect.flip)
+
+          expect(failure).toMatchObject({
+            _tag: "SessionRunnerModel.ModelUnavailableError",
+            providerID: "ghost",
+            modelID: "chat",
+          })
+        }),
+      ),
+    )
+
+    it.live("prefers the session model over the agent-configured model", () =>
+      agentFallbackFixture((dir) =>
+        Effect.gen(function* () {
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const resolved = yield* Effect.gen(function* () {
+            const agents = yield* AgentV2.Service
+            yield* agents.transform((editor) => {
+              editor.update(AgentV2.ID.make("build"), (agent) => {
+                agent.model = { id: ModelV2.ID.make("chat"), providerID: ProviderV2.ID.make("good") }
+              })
+            })
+            return yield* SessionRunnerModel.Service.use((models) =>
+              models.resolve(sessionInfo(location, "ses_session_model_priority", { id: "chat", providerID: "other" })),
+            )
+          }).pipe(Effect.provide(LocationServiceMap.Service.get(location)))
+
+          expect(resolved).toMatchObject({ provider: "other", id: "chat" })
+        }),
+      ),
+    )
+
+    it.live("resolves the catalog default when the agent has no model configured", () =>
+      agentFallbackFixture((dir) =>
+        Effect.gen(function* () {
+          const location = Location.Ref.make({ directory: AbsolutePath.make(dir.path) })
+          const resolved = yield* Effect.gen(function* () {
+            const catalog = yield* Catalog.Service
+            yield* catalog.transform((editor) => {
+              editor.model.default.set(ProviderV2.ID.make("good"), ModelV2.ID.make("chat"))
+            })
+            return yield* SessionRunnerModel.Service.use((models) =>
+              models.resolve(sessionInfo(location, "ses_agent_model_default")),
+            )
+          }).pipe(Effect.provide(LocationServiceMap.Service.get(location)))
+
+          expect(resolved).toMatchObject({ provider: "good", id: "chat" })
+        }),
+      ),
+    )
+  })
 })

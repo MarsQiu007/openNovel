@@ -8,6 +8,7 @@ import * as OpenAIResponses from "@opennovel-ai/llm/protocols/openai-responses"
 import { Auth, type AnyRoute } from "@opennovel-ai/llm/route"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { produce } from "immer"
+import { AgentV2 } from "../../agent"
 import { Catalog } from "../../catalog"
 import { Credential } from "../../credential"
 import { Integration } from "../../integration"
@@ -179,8 +180,13 @@ export const fromCatalogModel = (
   )
 }
 
-export const resolve = (session: SessionSchema.Info, model: ModelV2.Info, credential?: Credential.Value) =>
-  withVariant(model, session.model?.variant).pipe(
+export const resolve = (
+  session: SessionSchema.Info,
+  model: ModelV2.Info,
+  credential?: Credential.Value,
+  agentVariant?: ModelV2.VariantID,
+) =>
+  withVariant(model, session.model?.variant ?? agentVariant).pipe(
     Effect.flatMap(({ model: resolved, providerOptions }) => fromCatalogModel(resolved, credential, providerOptions)),
   )
 
@@ -197,6 +203,7 @@ export const locationLayer = Layer.effect(
     const catalog = yield* Catalog.Service
     const integrations = yield* Integration.Service
     const pluginBoot = yield* PluginBoot.Service
+    const agents = yield* AgentV2.Service
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session) {
         // 内置插件的 catalog 注册在层启动后异步进行（PluginInternal.boot fork），且
@@ -205,17 +212,27 @@ export const locationLayer = Layer.effect(
         yield* pluginBoot.ready
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         const available = yield* catalog.model.available()
-        const defaultModel = session.model ? undefined : yield* catalog.model.default()
+        // 代理级回落：会话未显式指定模型时，使用其代理解析结果（含默认代理解析）配置的模型；
+        // 代理配置的模型不在可用目录时显式失败，不静默回落目录默认（与显式模型失败语义对齐）
+        const agentModel = session.model ? undefined : (yield* agents.select(session.agent)).info?.model
+        const defaultModel = session.model || agentModel ? undefined : yield* catalog.model.default()
         // 显式指定的模型不可用时必须显式失败：静默换模型会让脚本化命令执行错误的 provider
         const selected = session.model
           ? available.find((model) => model.providerID === session.model?.providerID && model.id === session.model.id)
-          : defaultModel && supported(defaultModel)
-            ? defaultModel
-            : available.find(supported)
+          : agentModel
+            ? available.find((model) => model.providerID === agentModel.providerID && model.id === agentModel.id)
+            : defaultModel && supported(defaultModel)
+              ? defaultModel
+              : available.find(supported)
         if (!selected && session.model)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,
             modelID: session.model.id,
+          })
+        if (!selected && agentModel)
+          return yield* new ModelUnavailableError({
+            providerID: agentModel.providerID,
+            modelID: agentModel.id,
           })
         if (!selected) return yield* new ModelNotSelectedError({ sessionID: session.id })
         const provider = yield* catalog.provider.get(selected.providerID)
@@ -226,6 +243,7 @@ export const locationLayer = Layer.effect(
           session,
           selected,
           connection ? yield* integrations.connection.resolve(connection) : undefined,
+          agentModel?.variant,
         )
       }),
     })
@@ -235,5 +253,5 @@ export const locationLayer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer: locationLayer,
-  deps: [Catalog.node, Integration.node, PluginBoot.node],
+  deps: [AgentV2.node, Catalog.node, Integration.node, PluginBoot.node],
 })
