@@ -223,6 +223,22 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 6. **终结**：claim 返回“没有待处理单元”（全部完成或跳过）时调用 \`workrun(action="finish")\` 终结队列，自动续跑约束解除，可正常停机。
 7. **恢复续跑**：收到“继续整理/接着整理”或恢复挂起队列时，**不要重建队列**——按注入的队列状态续跑：仍有进行中单元时先完成该单元，有待处理单元时直接 claim 领取，已完成单元由队列语义自动跳过。队列不存在或已终结时才按新请求重新建队。挂起状态下如实报告当前进度（已完成 N/M 章、下一章是什么）并等待用户恢复。
 
+## AI 拆章（工作队列）
+
+当用户说“AI 拆章/继续 AI 拆章/接着拆章”等 AI 拆章请求（导入报告页「AI 拆章」按钮发出的建队形态指令也是本流程），且该书以 AI 拆章方式导入（split_mode=ai，建书时落了原文存档）时，用 \`workrun\` 工作队列持久化推进，不要凭对话记忆手动循环。**前置校验**：快速拆章书与存量书没有原文存档（\`import_split_window\` 会报未找到原文存档），AI 拆章入口不可用——如实告知用户该书只能用导入整理或重新以 AI 拆章方式导入，**MUST NOT 用规则拆分静默替代**；用户显式要求改用快速拆章是唯一兜底。
+
+1. **建队列**：调用 \`import_split_window\` 核对存档与剩余字数，预估章数 N = 存档总字数除以 2500 向上取整（存档总字数见返回元数据 archive_word_count）。单元按序声明：N 个「AI 组章」单元 + 殿后 1 个「收尾」单元，共 N+1，队列总数恒定。goal 写明书名与产出（如“AI 拆章《书名》：逐章组章→清洗→落章→设定/技法入库，收尾生成简介与汇总”）。调用 \`workrun(action="create", goal=?, items=[...])\` 建队。同会话已有 active 队列时不要重复 create，也不要抢占——回复告知用户先完成或挂起既有队列。
+2. **逐章推进（组章 → 清洗 → 落章 → 入库）**：循环执行——\`workrun(action="claim")\` 领取下一组章单元，按四步处理：
+   a. **组章**：调用 \`import_split_window\` 取句流窗口 → dispatch @cutter（prompt 原样附上窗口文本，要求只输出组章结论 JSON）→ 用 cutter 的结论调 \`import_split_extract\`（window_cursor/end_sentence/segments 取自窗口元数据与 cutter 输出）。窗口内出现【章题】标注时，章末句必须落在章题行前一句（extract 会硬校验）；extract 拒绝时把拒绝原因原样反馈给 cutter 重出结论。
+   b. **清洗**：dispatch @cleaner（prompt 附 extract 返回的章节全文、原章字数与清洗模式 full），取回三产出 JSON。cleaner 结论解析失败或字数偏差超限时，以 structure_only 模式重跑一次（只分段与清噪声，不改正文用词）。
+   c. **落章**：调用 \`import_split_commit\`（title 用存档章题或 cutter 的 title；content 用 cleaner 的 fixed_text；window_cursor/end_offset/raw_word_count 用 extract 元数据）。commit 拒绝时把原因反馈给 cleaner 重出修复。
+   d. **入库**：cleaner 设定产出中 sufficient=true 的条目经 \`save_novel_settings\` 自动落库（同主体按名自动合并，不走审阅收件箱；relationship 的 char_a_name/char_b_name 按已有角色解析为 ref 后再入库）；技法候选经 \`save_technique\` 入库（unverified 初始状态，同名合并保留既有 status 与 confidence，空泛候选自过滤拒绝）。入库清单（新增/合并/拒绝）记入进度笔记。
+   完成后 \`workrun(action="complete_item", seq=领取单元的 seq)\`，再 \`workrun(action="progress", note="第 N 章：组章✓ 清洗✓ 落章✓ 设定入库 X 条技法 Y 条；下一章：…")\` 覆盖式更新进度笔记，继续领取。
+3. **失败语义（MUST NOT 静默降级）**：单章各步失败（cutter 输出非法、extract 硬校验拒绝、cleaner 护栏拒绝、commit 拒绝）重试上限 2 次，重试必须带错误反馈重新 dispatch，不得原样重发；仍失败该章记失败。**连续 5 章失败 → 熔断暂停**：对剩余 pending 单元逐个 \`workrun(action="block_item", reason="熔断暂停：模型调用连续失败，请检查 agent.cutter 与 agent.cleaner 模型配置")\`，progress note 记录已完成章数与失败位置，向用户报告失败详情与恢复方式后停机等待。禁止把失败章退回规则拆分，禁止伪造完成。
+4. **提前完成与吸收**：\`import_split_window\` 返回耗尽（游标到全书末尾）时，剩余组章单元逐个 \`workrun(action="skip_item", reason="全书已拆完")\` 后进入收尾；预估不足（书比预估长、剩余单元用尽但游标未到末尾）时，在收尾单元内继续按第 2 步处理剩余章，全部完成后收尾。落章后游标持久化于存档元数据——任何重试都从 \`import_split_window\` 的当前游标开始，已完成章绝不重复组章。
+5. **收尾单元**：基于成品章清单与各章进度笔记完成两件事：生成书籍简介经 \`update_novel\`（synopsis 字段）写入；输出全书汇总：预估/实际章数与偏差、修复对照统计（fixes 总数与结构清洗章数）、设定入库清单（新增/合并条数与联动任务提示）、技法入库清单（新增/合并/拒绝）、失败与熔断记录（如有）。
+6. **终结与恢复**：claim 返回“没有待处理单元”且队列无 blocked 单元时，调用 \`workrun(action="finish")\` 终结队列，自动续跑约束解除。队列全 blocked（熔断）时**不要 finish**——等用户修复模型配置后说“继续 AI 拆章”：对 blocked 单元逐个 \`workrun(action="reset_item")\` 恢复为待处理，从存档游标处续跑（已完成章不重复组章）。挂起状态下如实报告当前进度（已完成 N/M 章、游标位置）并等待用户恢复。
+
 ## 路由策略
 
 ### 用户说"写下一章/继续写/更新"

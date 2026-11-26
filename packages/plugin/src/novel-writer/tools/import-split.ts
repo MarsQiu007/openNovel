@@ -40,6 +40,7 @@ interface SplitUnit {
 
 interface SplitContext {
   readonly novelId: string
+  readonly archive: { readonly word_count: number }
   readonly cursor: number
   readonly text: string
   readonly prefix: number[]
@@ -128,7 +129,7 @@ async function loadSplitContext(novelIdArg: string, directory: string | null | u
   const text = readFileSync(absolute, "utf8")
   if (archive.split_cursor > text.length)
     throw toolFailure("gate_blocked", "拆章游标超出存档文本长度，存档文件与元数据不一致，无法继续组章。", { code: "archive_cursor_corrupt" })
-  return { novelId, cursor: archive.split_cursor, text, prefix: buildWordPrefix(text), units: buildSentenceUnits(text) }
+  return { novelId, archive, cursor: archive.split_cursor, text, prefix: buildWordPrefix(text), units: buildSentenceUnits(text) }
 }
 
 /** 游标对齐校验：返回窗口起始单元下标；游标必须精确落在句流单元边界。 */
@@ -237,6 +238,7 @@ export const importSplitTools = {
           window_cursor: context.cursor,
           sentence_count: range.endIdx - range.startIdx + 1,
           window_word_count: windowWordCount,
+          archive_word_count: context.archive.word_count,
           remaining_word_count: remaining,
           exhausted: false,
         },
