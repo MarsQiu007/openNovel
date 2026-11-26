@@ -56,6 +56,26 @@ export const NovelTable = sqliteTable("novels", {
   status: text().notNull().default("draft"),
   story_spine: text(),
   content_nature: text().notNull().default("general"),
+  /** 拆章方式（narrative-unit-split）：fast=快速拆章（脚本） | ai=AI 拆章 */
+  split_mode: text().notNull().default("fast"),
+})
+
+/** 原文存档元数据（narrative-unit-split）：AI 拆章书建书时落档，随书级联删除 */
+export const NovelArchiveTable = sqliteTable("novel_archives", {
+  id: text().primaryKey(),
+  novel_id: text().notNull().unique(),
+  content_hash: text().notNull(),
+  encoding: text().notNull(),
+  word_count: integer().notNull(),
+  file_path: text().notNull(),
+  /** 拆章游标（archive 文本字符偏移）：组章续跑的事实来源 */
+  split_cursor: integer().notNull().default(0),
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
 })
 
 export const CharacterTable = sqliteTable("characters", {
@@ -1002,7 +1022,8 @@ FROM memory_fact f
 WHERE NOT EXISTS (
   SELECT 1 FROM memory_fact_fts t WHERE t.fact_id = f.id
 );
-CREATE TABLE IF NOT EXISTS memory_injection_snapshot (novel_id text NOT NULL, chapter_id text NOT NULL, payload text DEFAULT '{}' NOT NULL, budget_used integer DEFAULT 0 NOT NULL, built_at integer NOT NULL, PRIMARY KEY (novel_id, chapter_id), FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);`
+CREATE TABLE IF NOT EXISTS memory_injection_snapshot (novel_id text NOT NULL, chapter_id text NOT NULL, payload text DEFAULT '{}' NOT NULL, budget_used integer DEFAULT 0 NOT NULL, built_at integer NOT NULL, PRIMARY KEY (novel_id, chapter_id), FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE, FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS novel_archives (id text PRIMARY KEY, novel_id text NOT NULL UNIQUE, content_hash text NOT NULL, encoding text NOT NULL, word_count integer NOT NULL, file_path text NOT NULL, split_cursor integer DEFAULT 0 NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL, FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE);`
 
 // ─── DB 连接缓存 ───
 
@@ -1885,6 +1906,66 @@ export async function updateNovel(
 export async function deleteNovel(novelId: string, directory?: string | null): Promise<void> {
   const db = getDb(directory)
   await db.delete(NovelTable).where(eq(NovelTable.id, novelId)).run()
+}
+
+/** 读取原文存档元数据；无存档（存量书/快速拆章书）返回 undefined。 */
+export async function getNovelArchive(novelId: string, directory?: string | null) {
+  const db = getDb(directory)
+  return db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.novel_id, novelId)).get()
+}
+
+/**
+ * 写入原文存档元数据（novelID 唯一）。重复保存覆盖元数据并重置拆章游标——
+ * 存档内容变化意味着此前组章结果作废，续跑必须从头评估。
+ */
+export async function saveNovelArchive(
+  novelId: string,
+  input: { contentHash: string; encoding: string; wordCount: number; filePath: string },
+  directory?: string | null,
+): Promise<typeof NovelArchiveTable.$inferSelect> {
+  const db = getDb(directory)
+  const now = Date.now()
+  const existing = db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.novel_id, novelId)).get()
+  if (existing) {
+    await db
+      .update(NovelArchiveTable)
+      .set({
+        content_hash: input.contentHash,
+        encoding: input.encoding,
+        word_count: input.wordCount,
+        file_path: input.filePath,
+        split_cursor: 0,
+        updated_at: now,
+      })
+      .where(eq(NovelArchiveTable.novel_id, novelId))
+      .run()
+    return db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.novel_id, novelId)).get()!
+  }
+  const id = crypto.randomUUID()
+  await db
+    .insert(NovelArchiveTable)
+    .values({
+      id,
+      novel_id: novelId,
+      content_hash: input.contentHash,
+      encoding: input.encoding,
+      word_count: input.wordCount,
+      file_path: input.filePath,
+      created_at: now,
+      updated_at: now,
+    })
+    .run()
+  return db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.id, id)).get()!
+}
+
+/** 推进拆章游标（组章落章后调用；续跑从该偏移继续）。 */
+export async function advanceSplitCursor(novelId: string, cursor: number, directory?: string | null): Promise<void> {
+  const db = getDb(directory)
+  await db
+    .update(NovelArchiveTable)
+    .set({ split_cursor: cursor, updated_at: Date.now() })
+    .where(eq(NovelArchiveTable.novel_id, novelId))
+    .run()
 }
 
 export async function createCharacter(

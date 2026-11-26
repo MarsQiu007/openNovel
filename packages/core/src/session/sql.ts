@@ -202,6 +202,8 @@ export const NovelTable = sqliteTable(
     status: text().notNull().default("draft"),
     story_spine: text(),
     content_nature: text().notNull().default("general"),
+    /** 拆章方式（narrative-unit-split）：fast=快速拆章（脚本） | ai=AI 拆章 */
+    split_mode: text().notNull().default("fast"),
   },
   (table) => [index("novels_status_idx").on(table.status)],
 )

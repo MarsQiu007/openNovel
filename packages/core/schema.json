@@ -1,9 +1,9 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "af91eef4-8327-47c0-a0af-f72f36fba82f",
+  "id": "a2b69ecf-0a83-4783-9578-fa6896813065",
   "prevIds": [
-    "1e0bc8b6-4842-4e4f-87c3-2d0151822f19"
+    "af91eef4-8327-47c0-a0af-f72f36fba82f"
   ],
   "ddl": [
     {
@@ -1449,6 +1449,16 @@
       "default": "'general'",
       "generated": null,
       "name": "content_nature",
+      "entityType": "columns",
+      "table": "novels"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'fast'",
+      "generated": null,
+      "name": "split_mode",
       "entityType": "columns",
       "table": "novels"
     },

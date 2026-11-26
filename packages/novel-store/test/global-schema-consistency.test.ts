@@ -127,8 +127,12 @@ describe("全局库 novels 表结构一致性", () => {
     expect(describeMismatch("core schema.gen.ts novels CREATE", baseline, created)).toBeNull()
   })
 
-  test("新增迁移补列集合恰为旧建表缺失的三列且定义一致", () => {
-    const added = parseAddColumns(readCore("database/migration/20261010032350_global_novels_columns.ts"))
+  test("新增迁移补列集合恰为旧建表缺失的列且定义一致", () => {
+    // 聚合全部 novels 补列迁移：20261010032350（三列）+ 20261126103321（split_mode，narrative-unit-split）
+    const added = [
+      ...parseAddColumns(readCore("database/migration/20261010032350_global_novels_columns.ts")),
+      ...parseAddColumns(readCore("database/migration/20261126103321_global_novels_split_mode.ts")),
+    ]
     const oldNames = new Set(
       parseCreateTable(readCore("database/migration/20260721152252_novel_writing_tables.ts"), "novels").map(
         (column) => column.name,
@@ -137,7 +141,7 @@ describe("全局库 novels 表结构一致性", () => {
     const expectedNames = new Set(baseline.map((column) => column.name).filter((name) => !oldNames.has(name)))
     const addedNames = new Set(added.map((column) => column.name))
     expect(addedNames).toEqual(expectedNames)
-    expect(addedNames).toEqual(new Set(["master_outline", "story_spine", "content_nature"]))
+    expect(addedNames).toEqual(new Set(["master_outline", "story_spine", "content_nature", "split_mode"]))
     expect(describeMismatch("补列迁移", baseline.filter((column) => addedNames.has(column.name)), added)).toBeNull()
   })
 

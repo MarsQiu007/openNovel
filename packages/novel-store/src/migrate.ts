@@ -36,6 +36,7 @@ export function runMigrations(exec: ExecFn, query: QueryFn): void {
   // 必须先补齐列，后续任何对该表的读写才不会因缺列失败
   migrateNovelMasterOutline(exec, query)
   migrateNovelContentNature(exec, query)
+  migrateNovelSplitMode(exec, query)
 
   // 2. 修复 session_novel 悬空外键
   try {
@@ -606,6 +607,24 @@ export function migrateTechniqueScope(exec: ExecFn, query: QueryFn): void {
  * （置位依赖 techniques.scope 列已就绪；旧库 scope 默认 general，因此旧库本次全部落 general）。
  * novels/techniques 表不存在时跳过。
  */
+/**
+ * novels.split_mode 列补齐（narrative-unit-split）：存量库缺列时补 fast 默认。
+ */
+export function migrateNovelSplitMode(exec: ExecFn, query: QueryFn): void {
+  // 兼容部分建表库：显式查表存在性（PRAGMA 对缺失表返回空结果而不抛错）
+  const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='novels'")
+  if (!Array.isArray(tables) || tables.length === 0) return
+  try {
+    const result = query("PRAGMA table_info(novels)")
+    const cols = Array.isArray(result) ? result : []
+    const hasSplitMode = cols.some((c) => typeof c === "object" && c !== null && "name" in c && c.name === "split_mode")
+    if (hasSplitMode) return
+    exec("ALTER TABLE novels ADD COLUMN split_mode text NOT NULL DEFAULT 'fast'")
+  } catch {
+    // 加列失败不阻塞 DB 打开（与既有列迁移一致）：下次建连重试
+  }
+}
+
 export function migrateNovelContentNature(exec: ExecFn, query: QueryFn): void {
   // 兼容部分建表库：显式查表存在性（PRAGMA 对缺失表返回空结果而不抛错）
   const tables = query("SELECT name FROM sqlite_master WHERE type='table' AND name='novels'")

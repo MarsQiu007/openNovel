@@ -231,7 +231,8 @@ export default {
           \`updated_at\` integer NOT NULL,
           \`status\` text DEFAULT 'draft' NOT NULL,
           \`story_spine\` text,
-          \`content_nature\` text DEFAULT 'general' NOT NULL
+          \`content_nature\` text DEFAULT 'general' NOT NULL,
+          \`split_mode\` text DEFAULT 'fast' NOT NULL
         );
       `)
       yield* tx.run(`
