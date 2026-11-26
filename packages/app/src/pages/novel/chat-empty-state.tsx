@@ -2,7 +2,7 @@
  * 书内对话面板空态（0 绑定会话，design D6）：极简 composer + 建议 chip。
  * 首条消息提交时走懒创建三步（createAndBindSession），成功后切入该会话；
  * 失败时 toast 报错并保留已输入文本。不复用通用重型 composer——面板场景
- * 只有"首条消息"一个职责，模型与 agent 走项目默认。
+ * 只有"首条消息"一个职责，agent 走项目默认，模型钉住输入控件栏当前选择。
  */
 import { Show, createSignal } from "solid-js"
 import { useNavigate } from "@solidjs/router"
@@ -11,9 +11,10 @@ import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { useLanguage } from "@/context/language"
+import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
 import { useBindSession } from "@/context/novel-queries"
-import { createAndBindSession } from "./workspace-data"
+import { createAndBindSession, currentModelRef } from "./workspace-data"
 import { buildBootstrapPrompt } from "./book-bootstrap"
 import { buildBatchWritingPrompt } from "./batch-writing"
 import type { ServerNovelDetailOutput } from "@opennovel-ai/client"
@@ -39,6 +40,7 @@ export function NovelChatEmptyState(props: {
   const language = useLanguage()
   const navigate = useNavigate()
   const sdk = useSDK()
+  const local = useLocal()
   const bindSession = useBindSession()
   const [text, setText] = createSignal("")
   const [sending, setSending] = createSignal(false)
@@ -52,7 +54,13 @@ export function NovelChatEmptyState(props: {
     if (!prompt || sending()) return
     setSending(true)
     try {
-      const sessionID = await createAndBindSession({ sdk, bindSession, novelID: props.novelID, prompt })
+      const sessionID = await createAndBindSession({
+        sdk,
+        bindSession,
+        novelID: props.novelID,
+        prompt,
+        model: currentModelRef(local),
+      })
       // 成功才清空输入；失败路径保留原文以待修改重发
       setText("")
       navigateToSession(sessionID)

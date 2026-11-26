@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { createAndBindSession, findBoundNovelSession, formatRejectionRewritePrompt, sendNovelSessionInstruction } from "./workspace-data"
+import {
+  createAndBindSession,
+  currentModelRef,
+  findBoundNovelSession,
+  formatRejectionRewritePrompt,
+  sendNovelSessionInstruction,
+} from "./workspace-data"
+import type { useLocal } from "@/context/local"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import type { useBindSession } from "@/context/novel-queries"
@@ -7,6 +14,7 @@ import type { useBindSession } from "@/context/novel-queries"
 type Deps = {
   calls: string[]
   listArgs: unknown[]
+  createArgs: unknown[]
   sdk: ReturnType<typeof useSDK>
   novel: ReturnType<typeof useNovel>
   bindSession: ReturnType<typeof useBindSession>
@@ -15,6 +23,7 @@ type Deps = {
 function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string; sessions?: unknown[] } = {}): Deps {
   const calls: string[] = []
   const listArgs: unknown[] = []
+  const createArgs: unknown[] = []
   const novel = {
     listSessionBindings: async () => (opts.boundSessionID ? [{ novelID: "novel-1", sessionID: opts.boundSessionID }] : []),
   } as unknown as ReturnType<typeof useNovel>
@@ -39,8 +48,9 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
               },
             }
           },
-          create: async () => {
+          create: async (args?: unknown) => {
             calls.push("create")
+            createArgs.push(args)
             if (opts.failAt === "create") throw new Error("create failed")
             return { data: { data: { id: "s-new" } } }
           },
@@ -52,7 +62,7 @@ function createDeps(opts: { failAt?: "create" | "bind"; boundSessionID?: string;
       },
     },
   })) as unknown as ReturnType<typeof useSDK>
-  return { calls, listArgs, sdk, novel, bindSession }
+  return { calls, listArgs, createArgs, sdk, novel, bindSession }
 }
 
 describe("createAndBindSession", () => {
@@ -82,6 +92,53 @@ describe("createAndBindSession", () => {
       createAndBindSession({ sdk: deps.sdk, bindSession: deps.bindSession, novelID: "novel-1", prompt: "hi" }),
     ).rejects.toThrow("bind failed")
     expect(deps.calls).toEqual(["create", "bind:novel-1:s-new"])
+  })
+
+  test("传入 model 时原样透传到 session.create", async () => {
+    const deps = createDeps()
+    await createAndBindSession({
+      sdk: deps.sdk,
+      bindSession: deps.bindSession,
+      novelID: "novel-1",
+      prompt: "hi",
+      model: { id: "chat", providerID: "good", variant: "high" },
+    })
+    expect(deps.createArgs).toEqual([
+      {
+        location: { directory: "dir-1" },
+        model: { id: "chat", providerID: "good", variant: "high" },
+      },
+    ])
+  })
+
+  test("不传 model 时创建入参不含 model 字段（走服务端回落链）", async () => {
+    const deps = createDeps()
+    await createAndBindSession({ sdk: deps.sdk, bindSession: deps.bindSession, novelID: "novel-1", prompt: "hi" })
+    expect(deps.createArgs).toEqual([{ location: { directory: "dir-1" } }])
+  })
+})
+
+describe("currentModelRef", () => {
+  const localWith = (model: { id: string; provider: { id: string } } | undefined, variant?: string) =>
+    ({
+      model: {
+        current: () => model,
+        variant: { current: () => variant },
+      },
+    }) as unknown as ReturnType<typeof useLocal>
+
+  test("有模型选择与档位时返回完整引用", () => {
+    const local = localWith({ id: "chat", provider: { id: "good" } }, "high")
+    expect(currentModelRef(local)).toEqual({ id: "chat", providerID: "good", variant: "high" })
+  })
+
+  test("无档位时引用不含 variant 字段", () => {
+    const local = localWith({ id: "chat", provider: { id: "good" } })
+    expect(currentModelRef(local)).toEqual({ id: "chat", providerID: "good" })
+  })
+
+  test("无模型选择时返回 undefined", () => {
+    expect(currentModelRef(localWith(undefined))).toBeUndefined()
   })
 })
 

@@ -3,7 +3,9 @@ import { createEffect, createMemo, createSignal, onCleanup, type Accessor, Show 
 import { Dialog } from "@opennovel-ai/ui/dialog"
 import { useDialog } from "@opennovel-ai/ui/context/dialog"
 import { useBindSession, useNovelClient } from "@/context/novel-queries"
+import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
+import { currentModelRef } from "./workspace-data"
 import { buildMapLayerModel } from "./map/view-model"
 import { LocalPlaneMap, type MapSelection } from "./map/local-plane-map"
 import { MapEditorPanel } from "./map/map-editor-panel"
@@ -29,6 +31,7 @@ import type {
 export default function MapView(props: { novelID: Accessor<string> }) {
   const client = useNovelClient()
   const sdk = useSDK()
+  const local = useLocal()
   const queryClient = useQueryClient()
   const dialog = useDialog()
   const [view, setView] = createSignal<"active" | "draft">("active")
@@ -511,7 +514,10 @@ export default function MapView(props: { novelID: Accessor<string> }) {
     setAiError(undefined)
     const before = draftSignature(draftQuery.data)
     try {
-      const sessionResponse = await sdk().client.v2.session.create({ location: { directory: directory() } })
+      const sessionResponse = await sdk().client.v2.session.create({
+        location: { directory: directory() },
+        model: currentModelRef(local),
+      })
       const session = sessionResponse.data?.data
       if (!session) throw new Error("创建生成会话失败")
       await bindSession.mutateAsync({ novelID: props.novelID(), sessionID: session.id })

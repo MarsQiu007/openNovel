@@ -16,6 +16,7 @@ import { IconButtonV2 } from "@opennovel-ai/ui/v2/icon-button-v2"
 import { MenuV2 } from "@opennovel-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opennovel-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
+import { useLocal } from "@/context/local"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import {
@@ -27,7 +28,7 @@ import {
   type NovelSessionBinding,
   type NovelSessionOption,
 } from "@/context/novel-queries"
-import { switcherChildrenVisible, switcherNodeContainsActive, switcherWorkingDot } from "./workspace-data"
+import { currentModelRef, switcherChildrenVisible, switcherNodeContainsActive, switcherWorkingDot } from "./workspace-data"
 import { archiveSessionCascade, exportSessionJson } from "@/pages/novel-sessions"
 import { useConfirmDelete } from "./confirm-dialog"
 import { collectDescendants } from "@/utils/session-descendants"
@@ -41,6 +42,7 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
   const navigate = useNavigate()
   const params = useParams()
   const sdk = useSDK()
+  const local = useLocal()
   const sync = useSync()
   const queryClient = useQueryClient()
   const confirm = useConfirmDelete()
@@ -78,7 +80,10 @@ export function NovelSessionSwitcher(props: { dir: string; novelID: string }) {
     if (creating()) return
     setCreating(true)
     try {
-      const result = await sdk().client.v2.session.create({ location: { directory: sdk().directory } })
+      const result = await sdk().client.v2.session.create({
+        location: { directory: sdk().directory },
+        model: currentModelRef(local),
+      })
       if (!result.data?.data) throw new Error("No session data returned")
       await bindSession.mutateAsync({ novelID: props.novelID, sessionID: result.data.data.id })
       switchTo(result.data.data.id)

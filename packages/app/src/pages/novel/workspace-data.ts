@@ -1,5 +1,6 @@
 import { type Accessor, createMemo } from "solid-js"
 import { bookSessionListParams, useNovelDetail, useVolumes, useChapters, useBindSession } from "@/context/novel-queries"
+import type { useLocal } from "@/context/local"
 import type { useNovel } from "@/context/novel"
 import type { useSDK } from "@/context/sdk"
 import { sessionTitle } from "@/utils/session-title"
@@ -137,6 +138,22 @@ export async function findBoundNovelSession(
 }
 
 /**
+ * 从输入控件栏的当前模型选择构造 session.create 的 model 引用（agent-model-fallback D2）：
+ * 编程式创建入口与用户手动提交共用同一事实来源，保证「看到什么模型就用什么模型」；
+ * 无有效选择时返回 undefined，创建时不传 model，走服务端回落链。
+ */
+export function currentModelRef(local: ReturnType<typeof useLocal>) {
+  const model = local.model.current()
+  if (!model) return undefined
+  const variant = local.model.variant.current()
+  return {
+    id: model.id,
+    providerID: model.provider.id,
+    ...(variant === undefined ? {} : { variant }),
+  }
+}
+
+/**
  * 懒创建三步：创建会话 → 绑定书籍 → 以首条消息原文发送 prompt。
  * prompt 内容由调用方给定（用户输入或建议 chip 文本），本函数不做任何包装；
  * 任一步失败即抛出，由调用方负责 toast 与输入保留。
@@ -146,8 +163,14 @@ export async function createAndBindSession(input: {
   bindSession: ReturnType<typeof useBindSession>
   novelID: string
   prompt: string
+  model?: { id: string; providerID: string; variant?: string }
 }): Promise<string> {
-  const result = await input.sdk().client.v2.session.create({ location: { directory: input.sdk().directory } })
+  // 钉住当前模型选择（agent-model-fallback D2）：编程式创建的会话不带模型会回落到
+  // 目录默认模型，与用户在输入控件栏看到的选择不一致；为空则不传，走服务端回落链。
+  const result = await input.sdk().client.v2.session.create({
+    location: { directory: input.sdk().directory },
+    ...(input.model ? { model: input.model } : {}),
+  })
   if (!result.data?.data) throw new Error("No session data returned")
   await input.bindSession.mutateAsync({ novelID: input.novelID, sessionID: result.data.data.id })
   await input.sdk().client.v2.session.prompt({
