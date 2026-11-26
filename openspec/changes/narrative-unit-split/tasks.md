@@ -5,7 +5,7 @@
 - [x] 1.1 在 `packages/novel-store` 新增存档元数据表（novelID 唯一、内容哈希、编码、字数、存档时间、拆章游标进度）与随书删除级联；书级 `split_mode` 标记
 - [x] 1.2 在 `packages/schema`/`packages/server` 增加导入拆章方式契约；AI 模式 analyze 仅输出预估（章数折算、任务量与 token 量级），不创建章节
 - [x] 1.3 AI 模式 apply 建书事务内写存档文件（`.opennovel/sources/<novelID>.txt`，UTF-8 归一）与元数据，文件写失败整体回滚；提供存档读取接口
-- [ ] 1.4 在 `packages/app` 导入确认页新增拆章方式选择；AI 模式预览展示估算说明（进既有 locale 体系 zh/en/zht）
+- [x] 1.4 在 `packages/app` 导入确认页新增拆章方式选择；AI 模式预览展示估算说明（进既有 locale 体系 zh/en/zht）
 - [ ] 1.5 新增/更新测试：双模式契约、建书即存档、删除级联、无存档书读取返回空、快速模式行为不变
 
 ## 2. `cutter` 组章 agent 与执行器

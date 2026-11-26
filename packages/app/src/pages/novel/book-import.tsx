@@ -13,7 +13,13 @@ import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
 import { Switch } from "@opennovel-ai/ui/v2/switch-v2"
 import { Icon } from "@opennovel-ai/ui/v2/icon"
-import { IMPORT_SUPPORTED_EXTENSIONS, buildImportPipelinePrompt, importFilenameToTitle, isSupportedImportFileName } from "./book-import-utils"
+import {
+  IMPORT_SUPPORTED_EXTENSIONS,
+  buildAiSplitPrompt,
+  buildImportPipelinePrompt,
+  importFilenameToTitle,
+  isSupportedImportFileName,
+} from "./book-import-utils"
 import { sendNovelSessionInstruction } from "./workspace-data"
 
 const ENCODING_OPTIONS: NovelImportEncoding[] = ["utf-8", "utf-16le", "utf-16be", "gb18030", "big5"]
@@ -74,6 +80,8 @@ export default function NovelImportWizard() {
   const [encoding, setEncoding] = createSignal<"auto" | NovelImportEncoding>("auto")
   const [fallbackFixedLength, setFallbackFixedLength] = createSignal(false)
   const [splitRange, setSplitRange] = createSignal(DEFAULT_SPLIT_RANGE)
+  /** 拆章方式（narrative-unit-split）：fast=脚本拆章（现状） | ai=AI 逐章组章 */
+  const [splitMode, setSplitMode] = createSignal<"fast" | "ai">("fast")
   const [preview, setPreview] = createSignal<NovelImportPreview | null>(null)
   const [title, setTitle] = createSignal("")
   const [report, setReport] = createSignal<NovelImportReport | null>(null)
@@ -86,9 +94,12 @@ export default function NovelImportWizard() {
     { title: language.t("novel.import.step.report") },
   ]
 
+  const isAi = () => (preview()?.splitMode ?? "fast") === "ai"
+
   const unrecognized = () => {
     const current = preview()
-    return current !== null && current.volumes.length === 0
+    // AI 拆章预览无卷章树（估算代替），不触发未识别兜底语义
+    return current !== null && !isAi() && current.volumes.length === 0
   }
 
   let fileInput: HTMLInputElement | undefined
@@ -110,6 +121,7 @@ export default function NovelImportWizard() {
       setReport(null)
       setFallbackFixedLength(false)
       setSplitRange(DEFAULT_SPLIT_RANGE)
+      setSplitMode("fast")
     } catch {
       showToast({ variant: "error", title: language.t("common.requestFailed") })
     }
@@ -127,6 +139,7 @@ export default function NovelImportWizard() {
       encoding: encoding(),
       fallbackFixedLength: fallbackFixedLength(),
       splitRange: splitRange(),
+      splitMode: splitMode(),
     })
     try {
       const result = await analyzeImport.mutateAsync(sourceInput)
@@ -153,6 +166,7 @@ export default function NovelImportWizard() {
       encoding: encoding(),
       fallbackFixedLength: fallbackFixedLength(),
       splitRange: splitRange(),
+      splitMode: splitMode(),
     })
     try {
       const result = await applyImport.mutateAsync({
@@ -162,6 +176,14 @@ export default function NovelImportWizard() {
       })
       setReport(result)
       setStep(2)
+      // AI 拆章（narrative-unit-split）：建书成功即自动经绑定会话建队启动逐章组章管线
+      if ((result.splitMode ?? "fast") === "ai") {
+        void startAiSplit(
+          result.novelId,
+          result.title,
+          currentPreview.aiEstimate?.estimatedChapters ?? 0,
+        )
+      }
     } catch (err) {
       showToast({ variant: "error", title: language.t("novel.import.applyFailed"), description: errorMessage(err) })
     }
@@ -174,6 +196,7 @@ export default function NovelImportWizard() {
       fallbackFixedLength: fallbackFixedLength(),
       analyzing: analyzeImport.isPending,
       applying: applyImport.isPending,
+      splitMode: splitMode(),
     })
 
   // AI 整理：复用绑定会话委托链路（无未归档绑定会话则创建绑定），建队指令产出进既有审阅流
@@ -195,6 +218,26 @@ export default function NovelImportWizard() {
         }),
       })
       setTidy({ kind: "ok", text: language.t("novel.import.tidySent") })
+    } catch (err) {
+      setTidy({ kind: "error", text: errorMessage(err) })
+    } finally {
+      setTidyPending(false)
+    }
+  }
+
+  // AI 拆章建队（narrative-unit-split）：建书后自动调用，亦可手动重试
+  async function startAiSplit(novelId: string, bookTitle: string, estimatedChapters: number) {
+    if (tidyPending()) return
+    setTidyPending(true)
+    try {
+      await sendNovelSessionInstruction({
+        sdk,
+        novel,
+        bindSession,
+        novelID: novelId,
+        prompt: buildAiSplitPrompt({ novelID: novelId, title: bookTitle, estimatedChapters }),
+      })
+      setTidy({ kind: "ok", text: language.t("novel.import.aiSplitStarted") })
     } catch (err) {
       setTidy({ kind: "error", text: errorMessage(err) })
     } finally {
@@ -279,6 +322,21 @@ export default function NovelImportWizard() {
               </Switch>
               <span class="text-xs text-v2-text-text-muted">{language.t("novel.import.cleanHint")}</span>
             </div>
+
+            <FieldV2>
+              <FieldV2.Label>{language.t("novel.import.splitMode")}</FieldV2.Label>
+              <select
+                value={splitMode()}
+                onChange={(e) => setSplitMode(e.currentTarget.value === "ai" ? "ai" : "fast")}
+                class="h-8 px-2 rounded-[6px] border border-v2-border-border-base bg-v2-background-bg-layer-01 text-v2-text-text-base text-sm outline-none focus:border-v2-border-border-focus transition-colors cursor-pointer"
+              >
+                <option value="fast">{language.t("novel.import.splitMode.fast")}</option>
+                <option value="ai">{language.t("novel.import.splitMode.ai")}</option>
+              </select>
+            </FieldV2>
+            <Show when={splitMode() === "ai"}>
+              <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.splitModeHint")}</p>
+            </Show>
           </div>
         </Show>
 
@@ -291,15 +349,15 @@ export default function NovelImportWizard() {
               <FieldV2.Suffix class="text-right">{title().length}/60</FieldV2.Suffix>
             </FieldV2>
 
-            <Show when={unrecognized()}>
+            <Show when={!isAi() && unrecognized()}>
               <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
                 <p class="text-sm text-v2-text-text-base">{language.t("novel.import.unrecognized")}</p>
                 <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.unrecognizedHint")}</p>
               </div>
             </Show>
 
-            {/* 兜底分章控件：未识别边界或已开启兜底时常驻，改范围失焦即重新分析 */}
-            <Show when={unrecognized() || fallbackFixedLength()}>
+            {/* 兜底分章控件：未识别边界或已开启兜底时常驻，改范围失焦即重新分析；AI 拆章不适用 */}
+            <Show when={!isAi() && (unrecognized() || fallbackFixedLength())}>
               <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
                 <Switch
                     checked={fallbackFixedLength()}
@@ -336,7 +394,29 @@ export default function NovelImportWizard() {
               </div>
             </Show>
 
-            <Show when={!unrecognized()}>
+            {/* AI 拆章估算卡片：章数/调用量/token 量级，非最终章数 */}
+            <Show when={isAi()}>
+              <div class="flex flex-col gap-2 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02">
+                <div class="text-sm font-medium text-v2-text-text-base">
+                  {language.t("novel.import.aiEstimate.title")}
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-v2-text-text-muted">{language.t("novel.import.aiEstimate.chapters")}</span>
+                  <span class="text-v2-text-text-base">{preview()?.aiEstimate?.estimatedChapters ?? 0}</span>
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-v2-text-text-muted">{language.t("novel.import.aiEstimate.llmCalls")}</span>
+                  <span class="text-v2-text-text-base">{preview()?.aiEstimate?.llmCalls ?? 0}</span>
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-v2-text-text-muted">{language.t("novel.import.aiEstimate.tokens")}</span>
+                  <span class="text-v2-text-text-base">{preview()?.aiEstimate?.tokenEstimate ?? 0}</span>
+                </div>
+                <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.aiEstimate.hint")}</p>
+              </div>
+            </Show>
+
+            <Show when={!isAi() && !unrecognized()}>
               <div class="flex flex-col gap-2 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-02 max-h-64 overflow-y-auto">
                 <For each={preview()?.volumes ?? []}>
                   {(volume) => (
@@ -423,6 +503,10 @@ export default function NovelImportWizard() {
               </div>
             </Show>
 
+            <Show when={report()?.splitMode === "ai"}>
+              <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.report.aiPipeline")}</p>
+            </Show>
+
             <Show when={tidy()}>
               {(data) => (
                 <div
@@ -461,9 +545,30 @@ export default function NovelImportWizard() {
           </Show>
           <Show when={step() === 2}>
             <div class="flex items-center gap-2">
-              <ButtonV2 variant="outline" size="large" onClick={() => void sendTidy()} disabled={tidyPending()}>
-                {tidyPending() ? language.t("novel.import.tidySending") : language.t("novel.import.tidy")}
-              </ButtonV2>
+              {/* AI 拆章书不提供既有 AI 整理入口，改为启动/重试 AI 拆章建队 */}
+              <Show
+                when={report()?.splitMode === "ai"}
+                fallback={
+                  <ButtonV2 variant="outline" size="large" onClick={() => void sendTidy()} disabled={tidyPending()}>
+                    {tidyPending() ? language.t("novel.import.tidySending") : language.t("novel.import.tidy")}
+                  </ButtonV2>
+                }
+              >
+                <ButtonV2
+                  variant="outline"
+                  size="large"
+                  onClick={() =>
+                    void startAiSplit(
+                      report()?.novelId ?? "",
+                      report()?.title ?? "",
+                      preview()?.aiEstimate?.estimatedChapters ?? 0,
+                    )
+                  }
+                  disabled={tidyPending()}
+                >
+                  {tidyPending() ? language.t("novel.import.tidySending") : language.t("novel.import.aiSplitStart")}
+                </ButtonV2>
+              </Show>
               <ButtonV2
                 variant="contrast"
                 size="large"

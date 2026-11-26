@@ -4,10 +4,12 @@
 import { describe, expect, test } from "bun:test"
 import {
   IMPORT_SUPPORTED_EXTENSIONS,
+  buildAiSplitPrompt,
   buildImportPipelinePrompt,
   importFilenameToTitle,
   isSupportedImportFileName,
 } from "./book-import-utils"
+import { canConfirmImport } from "./book-import-input"
 
 describe("isSupportedImportFileName", () => {
   test("TXT 与 Markdown 支持（含大写扩展名）", () => {
@@ -45,6 +47,42 @@ describe("importFilenameToTitle", () => {
 
   test("多点文件名只去末段", () => {
     expect(importFilenameToTitle("卷一.修订版.txt")).toBe("卷一.修订版")
+  })
+})
+
+describe("canConfirmImport（AI 拆章）", () => {
+  const base = {
+    title: "测试书",
+    fallbackFixedLength: false,
+    analyzing: false,
+    applying: false,
+  }
+
+  test("AI 拆章预览无卷章树也允许确认", () => {
+    expect(canConfirmImport({ ...base, splitMode: "ai", preview: { volumes: [] } })).toBe(true)
+  })
+
+  test("快速拆章预览无卷章且未开兜底时仍拒绝", () => {
+    expect(canConfirmImport({ ...base, preview: { volumes: [] } })).toBe(false)
+  })
+})
+
+describe("buildAiSplitPrompt", () => {
+  test("指令含小说 ID、书名、预估章数与队列形态", () => {
+    const prompt = buildAiSplitPrompt({ novelID: "nv-1", title: "测试书", estimatedChapters: 12 })
+    expect(prompt).toContain("nv-1")
+    expect(prompt).toContain("《测试书》")
+    expect(prompt).toContain("12")
+    expect(prompt).toContain("AI 组章")
+    expect(prompt).toContain("@cutter")
+    expect(prompt).toContain("@cleaner")
+  })
+
+  test("约束覆盖失败暂停、清洗护栏与设定自动入库", () => {
+    const prompt = buildAiSplitPrompt({ novelID: "nv-1", title: "测试书", estimatedChapters: 3 })
+    expect(prompt).toContain("MUST NOT 静默改用脚本拆分")
+    expect(prompt).toContain("10%")
+    expect(prompt).toContain("自动入库")
   })
 })
 

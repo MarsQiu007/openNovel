@@ -10,6 +10,8 @@ export interface ImportParseOptions {
   encoding: "auto" | NovelImportEncoding
   fallbackFixedLength: boolean
   splitRange: { min: number; max: number }
+  /** 拆章方式（narrative-unit-split）：缺省 fast，ai 时透传给 analyze/apply */
+  splitMode?: "fast" | "ai"
 }
 
 export const DEFAULT_SPLIT_RANGE = { min: 2000, max: 3000 }
@@ -37,6 +39,7 @@ export function importSourceInput(file: ImportFile, options: ImportParseOptions)
     ...(options.encoding === "auto" ? {} : { encoding: options.encoding }),
     fallbackFixedLength: options.fallbackFixedLength,
     splitRange: options.splitRange,
+    ...(options.splitMode === "ai" ? { splitMode: "ai" as const } : {}),
   }
 }
 
@@ -50,10 +53,13 @@ export function canConfirmImport(input: {
   fallbackFixedLength: boolean
   analyzing: boolean
   applying: boolean
+  splitMode?: "fast" | "ai"
 }) {
   if (input.analyzing || input.applying) return false
   if (input.preview === null) return false
   const normalizedTitle = input.title.trim()
   if (normalizedTitle.length === 0 || input.title.length > 60) return false
+  // AI 拆章预览无卷章树（估算代替），允许确认
+  if (input.splitMode === "ai") return true
   return input.preview.volumes.length > 0 || input.fallbackFixedLength
 }
