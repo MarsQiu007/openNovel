@@ -247,7 +247,7 @@ export default function NovelImportWizard() {
 
   return (
     <div class="flex flex-col h-full items-center justify-center p-8">
-      <div class="w-full max-w-2xl">
+      <div class="w-full max-w-2xl max-h-full overflow-y-auto">
         <div class="mb-6 flex">
           <ButtonV2 variant="ghost-muted" size="small" onClick={cancel}>
             ← {language.t("novel.bookshelf.open")}
