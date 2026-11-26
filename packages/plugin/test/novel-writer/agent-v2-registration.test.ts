@@ -22,6 +22,7 @@ const WRITING_AGENTS = [
   "reviser",
   "outliner",
   "cutter",
+  "cleaner",
   "librarian",
   "ideator",
   "research",
@@ -64,7 +65,7 @@ describe("novel-writer V2 入口", () => {
     expect(typeof novelWriterV2.effect).toBe("function")
   })
 
-  test("注册 13 个写作 agent 并设置 director 为默认", () => {
+  test("注册 14 个写作 agent 并设置 director 为默认", () => {
     const { draft, selected } = fakeDraft()
     registerWritingAgents(draft)
     const ids = draft.list().map((agent) => agent.id)
@@ -87,6 +88,17 @@ describe("novel-writer V2 入口", () => {
     expect(research?.mode).toBe("subagent")
     expect(research?.category).toBe("research")
     expect(research?.permissions).toContainEqual({ action: "browser", resource: "*", effect: "allow" })
+  })
+
+  test("AI 拆章清洗器 cleaner：hidden 不可选且 deny * 无工具", () => {
+    const { draft } = fakeDraft()
+    registerWritingAgents(draft)
+    const cleaner = draft.get("cleaner")
+    expect(cleaner).toBeDefined()
+    expect(cleaner?.mode).toBe("subagent")
+    expect(cleaner?.hidden).toBe(true)
+    expect(cleaner?.category).toBe("creation")
+    expect(cleaner?.permissions).toContainEqual({ action: "*", resource: "*", effect: "deny" })
   })
 
   test("AI 拆章组章器 cutter：hidden 不可选且 deny * 无工具", () => {

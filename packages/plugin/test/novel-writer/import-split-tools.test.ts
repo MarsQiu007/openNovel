@@ -10,6 +10,7 @@ import { mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { ChapterTable, getDb, getNovelArchive, NovelArchiveTable, NovelTable } from "../../src/novel-writer/session-store.js"
+import { parseCleanerOutput } from "../../src/novel-writer/cleaner-contract.js"
 import { parseCutterOutput } from "../../src/novel-writer/cutter-contract.js"
 import { importSplitTools } from "../../src/novel-writer/tools/import-split.js"
 import { createToolContext } from "./runtime-assembly-helpers.js"
@@ -308,5 +309,122 @@ describe("parseCutterOutput", () => {
     expect(() =>
       parseCutterOutput(JSON.stringify({ endSentence: 10, title: "越界段", segments: [11] }), 50),
     ).toThrow("segments 项非法")
+  })
+})
+
+describe("parseCleanerOutput", () => {
+  const chapterText = "他推开门。屋内一片漆黑。\n\n雨下了一整夜。他始终没有说话。"
+  const rawWordCount = countWords(chapterText)
+  const fullInput = { rawWordCount, chapterText, mode: "full" as const }
+
+  test("合法三产出解析：修复对照、设定、技法", () => {
+    const payload = {
+      fixed_text: "他推开门。屋内一片漆黑。\n\n雨下了一整夜。他始终没有说话。",
+      fixes: [{ original: "漆黑", fixed: "漆黑", reason: "段落" }],
+      structure_only: false,
+      settings: [{ type: "character", data: { name: "他", role: "主角", description: "深夜访客" }, sufficient: true, source_quote: "他推开门。" }],
+      techniques: [
+        {
+          name: "环境氛围短句收束",
+          principle: "以环境短句收束场景",
+          instruction: "场景结束时用不超过十字的环境描写短句收尾",
+          scene_types: ["description"],
+          level: "paragraph",
+          evidence: [{ source_title: "", source_location: "", excerpt: "屋内一片漆黑。", annotation: "环境短句收束" }],
+          common_misuse: "连续多段使用",
+          scope: "general",
+        },
+      ],
+      reason: "无错字，抽取设定 1 条技法 1 条",
+    }
+    const output = parseCleanerOutput(JSON.stringify(payload), fullInput)
+    expect(output.fixedText).toContain("他推开门。")
+    expect(output.fixes).toHaveLength(1)
+    expect(output.settings).toHaveLength(1)
+    expect(output.settings[0].type).toBe("character")
+    expect(output.techniques).toHaveLength(1)
+    expect(output.techniques[0].evidence[0].excerpt).toBe("屋内一片漆黑。")
+  })
+
+  test("修复后字数偏差超 10% 拒绝", () => {
+    const payload = {
+      fixed_text: "他推开了门。屋内一片漆黑，伸手不见五指，他摸索着找到了墙上的开关，灯亮了起来，照亮了整个房间。",
+      fixes: [],
+      settings: [],
+      techniques: [],
+    }
+    expect(() => parseCleanerOutput(JSON.stringify(payload), fullInput)).toThrow("超过 10% 上限")
+  })
+
+  test("fixes 原文片段逐字校验：不存在的片段拒绝", () => {
+    const payload = {
+      fixed_text: chapterText,
+      fixes: [{ original: "不存在的片段", fixed: "x", reason: "错别字" }],
+      settings: [],
+      techniques: [],
+    }
+    expect(() => parseCleanerOutput(JSON.stringify(payload), fullInput)).toThrow("不存在于章全文")
+  })
+
+  test("结构清洗模式改正文拒绝，纯结构调整通过", () => {
+    const mangled = "他推开了门。屋内一片漆黑。\n\n雨下了一整夜。他始终没有说话。"
+    expect(() =>
+      parseCleanerOutput(JSON.stringify({ fixed_text: mangled, fixes: [], settings: [], techniques: [] }), {
+        rawWordCount,
+        chapterText,
+        mode: "structure_only",
+      }),
+    ).toThrow("不得改动正文字符")
+    const ok = parseCleanerOutput(
+      JSON.stringify({ fixed_text: "他推开门。\n\n屋内一片漆黑。\n\n雨下了一整夜。他始终没有说话。", fixes: [], settings: [], techniques: [] }),
+      { rawWordCount, chapterText, mode: "structure_only" },
+    )
+    expect(ok.structureOnly).toBe(false)
+  })
+
+  test("非法设定类型与非法技法字段拒绝", () => {
+    const base = { fixed_text: chapterText, fixes: [] }
+    expect(() =>
+      parseCleanerOutput(JSON.stringify({ ...base, settings: [{ type: "magic", data: {} }] }), fullInput),
+    ).toThrow("settings.type 非法")
+    expect(() =>
+      parseCleanerOutput(
+        JSON.stringify({
+          ...base,
+          techniques: [{ name: "x", principle: "p", instruction: "i", scene_types: ["description"], level: "chapter", evidence: [{ excerpt: "他推开门。", annotation: "a" }], common_misuse: "m", scope: "general" }],
+        }),
+        fullInput,
+      ),
+    ).toThrow("techniques.level 非法")
+    expect(() =>
+      parseCleanerOutput(
+        JSON.stringify({
+          ...base,
+          techniques: [{ name: "x", principle: "p", instruction: "i", scene_types: ["description"], level: "paragraph", evidence: [], common_misuse: "m", scope: "general" }],
+        }),
+        fullInput,
+      ),
+    ).toThrow("至少一条")
+  })
+
+  test("技法证据逐字校验：excerpt 不在原文拒绝", () => {
+    const payload = {
+      fixed_text: chapterText,
+      fixes: [],
+      settings: [],
+      techniques: [
+        {
+          name: "x",
+          principle: "p",
+          instruction: "i",
+          scene_types: ["general"],
+          level: "paragraph",
+          evidence: [{ source_title: "", source_location: "", excerpt: "虚构的句子", annotation: "a" }],
+          common_misuse: "m",
+          scope: "general",
+        },
+      ],
+    }
+    expect(() => parseCleanerOutput(JSON.stringify(payload), fullInput)).toThrow("不存在于章全文")
   })
 })

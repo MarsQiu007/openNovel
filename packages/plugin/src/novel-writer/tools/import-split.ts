@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildWordPrefix, isQuoteBalanced, SENTENCE_CUT_CHARS, splitSentenceSpans } from "@opennovel-ai/novel-store/text-split"
 import { looksLikeHeadingLine } from "@opennovel-ai/novel-store/heading"
+import { CLEAN_WORD_DEVIATION } from "../cleaner-contract.js"
 import { defineTool } from "../../v2/effect/tool.js"
 import { toolFailure } from "../../v2/effect/tool-failure.js"
 import { ChapterTable, createChapterTx, getDb, getNovelArchive, NovelArchiveTable, withTransaction } from "../session-store.js"
@@ -28,8 +29,6 @@ const BUFFER_WORD_CAP = 500
 /** 章字数软约束区间（design D1/D3）：只做提示，硬校验由 extract/commit 负责。 */
 const SOFT_MIN_WORDS = 2000
 const SOFT_MAX_WORDS = 3000
-/** cleaner 修复后字数与原章偏差硬校验上限（design D4）：超限拒绝落章。 */
-const CLEAN_WORD_DEVIATION = 0.1
 
 /** 句流单元：[start, end) 字符偏移；heading 单元为章题行（强边界信号）。 */
 interface SplitUnit {
