@@ -11,6 +11,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./heading": "./src/heading.ts",
     "./text-split": "./src/text-split.ts"
   },
   "imports": {
