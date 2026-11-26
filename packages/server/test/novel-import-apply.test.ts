@@ -8,13 +8,14 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { Layer } from "effect"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
-import { mkdtempSync, rmSync } from "fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { eq } from "drizzle-orm"
 import {
   closeDb,
   getDb,
+  NovelArchiveTable,
   NovelTable,
   VolumeTable,
   ChapterTable,
@@ -363,6 +364,84 @@ describe("novel.import.apply", () => {
       splitRange: { min: 100, max: 3000 },
     })
     expect(res.status).toBe(400)
+  })
+})
+
+describe("novel.import AI 拆章（narrative-unit-split）", () => {
+  const AI_TEXT = [
+    "清晨的风从东方吹来，带着一丝凉意。",
+    "他推开柴门，院里的老槐树落了满地黄叶。",
+    "「你终于回来了。」屋里的人低声说。",
+    "他没有回答，只是把行囊放在了桌上。",
+    "夜色渐深，油灯的火苗跳了一下。",
+    "明日，就要启程去北境了。",
+  ].join("\n")
+
+  test("analyze AI 模式仅输出预估，不含章节清单", async () => {
+    const preview = await analyze({ dataUrl: toDataUrl(AI_TEXT), filename: "ai-book.txt", cleanEnabled: true, splitMode: "ai" })
+    expect(preview.splitMode).toBe("ai")
+    expect((preview.volumes as unknown[]).length).toBe(0)
+    const estimate = preview.aiEstimate as Record<string, number>
+    expect(estimate.estimatedChapters).toBeGreaterThanOrEqual(1)
+    expect(estimate.llmCalls).toBe(estimate.estimatedChapters * 2 + 1)
+    expect(estimate.tokenEstimate).toBeGreaterThan(0)
+    expect(typeof preview.previewToken).toBe("string")
+  })
+
+  test("apply AI 模式建书带存档：无卷章、split_mode 落库、文件与元数据一致", async () => {
+    const preview = await analyze({ dataUrl: toDataUrl(AI_TEXT), filename: "ai-book.txt", cleanEnabled: true, splitMode: "ai" })
+    const res = await post("/api/novel/import/apply", {
+      previewToken: preview.previewToken,
+      title: "AI 拆章书",
+      dataUrl: toDataUrl(AI_TEXT),
+      filename: "ai-book.txt",
+      cleanEnabled: true,
+      splitMode: "ai",
+    })
+    expect(res.status).toBe(200)
+    const report = await readJson(res)
+    expect(report).toMatchObject({ volumeCount: 0, chapterCount: 0, splitMode: "ai" })
+    const novelId = report.novelId as string
+
+    const db = getDb(tempDir)
+    const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelId)).get()
+    expect(novel?.split_mode).toBe("ai")
+    expect(db.select().from(ChapterTable).where(eq(ChapterTable.novel_id, novelId)).all().length).toBe(0)
+    expect(db.select().from(VolumeTable).where(eq(VolumeTable.novel_id, novelId)).all().length).toBe(0)
+
+    const archivePath = join(tempDir, ".opennovel", "sources", `${novelId}.txt`)
+    expect(existsSync(archivePath)).toBe(true)
+    expect(readFileSync(archivePath, "utf8")).toBe(AI_TEXT)
+    const archive = db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.novel_id, novelId)).get()
+    expect(archive).toMatchObject({
+      encoding: "utf-8",
+      file_path: `.opennovel/sources/${novelId}.txt`,
+      split_cursor: 0,
+    })
+    expect(archive?.word_count).toBeGreaterThan(0)
+    expect(archive?.content_hash).toBeTypeOf("string")
+
+    // 删除书籍级联清理：存档行（FK）与存档文件一并移除
+    const del = await api(`/api/novel/${novelId}`, { method: "DELETE" })
+    expect(del.status).toBe(200)
+    expect((await del.json())).toMatchObject({ deleted: true })
+    expect(existsSync(archivePath)).toBe(false)
+    expect(db.select().from(NovelArchiveTable).where(eq(NovelArchiveTable.novel_id, novelId)).all().length).toBe(0)
+  })
+
+  test("apply AI 模式拆章方式漂移（缺 splitMode 默认 fast）返回预览过期且不建书", async () => {
+    const preview = await analyze({ dataUrl: toDataUrl(AI_TEXT), filename: "ai-book.txt", cleanEnabled: true, splitMode: "ai" })
+    const res = await post("/api/novel/import/apply", {
+      previewToken: preview.previewToken,
+      title: "漂移书",
+      dataUrl: toDataUrl(AI_TEXT),
+      filename: "ai-book.txt",
+      cleanEnabled: true,
+    })
+    expect(res.status).toBe(400)
+    const error = await readJson(res)
+    expect((error.data as Record<string, unknown>).reason).toBe("preview-expired")
+    expect(getDb(tempDir).select().from(NovelTable).where(eq(NovelTable.title, "漂移书")).all().length).toBe(0)
   })
 })
 

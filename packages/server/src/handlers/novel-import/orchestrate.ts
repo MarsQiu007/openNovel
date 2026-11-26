@@ -4,22 +4,30 @@
  * analyze：dataUrl → 解码 →（可选清洗）→ 拆卷拆章 → 预览 + previewToken。
  * apply：重解码重解析并校验 previewToken 一致性 → 单事务建书（书/卷/章 + 初始正文）。
  * previewToken 为不透明串（base64url JSON）：解析器版本 + 原文哈希 + 解析参数
- * （清洗开关、生效编码、兜底分章开关与字数范围）；analyze 不落盘任何原文或中间件。
+ * （清洗开关、生效编码、兜底分章开关与字数范围、拆章方式）；analyze 不落盘任何原文或中间件。
+ *
+ * AI 拆章（narrative-unit-split）：analyze 仅输出预估（不创建章节）；apply 单事务建书
+ * （书 + 原文存档文件 + 存档元数据，无卷章），章节由 AI 拆章队列逐章产出。
  */
 import { createHash } from "crypto"
+import { mkdirSync, writeFileSync } from "fs"
+import { join } from "path"
 import { Effect } from "effect"
 import { countWords } from "@opennovel-ai/schema/schema"
 import type {
+  NovelImportAiEstimate,
   NovelImportAnalyzeInput,
   NovelImportApplyInput,
   NovelImportEncoding,
   NovelImportIssue,
   NovelImportPreview,
   NovelImportReport,
+  NovelSplitMode,
 } from "@opennovel-ai/schema/novel"
 import { NovelImportError } from "@opennovel-ai/protocol/groups/novel"
 import {
   getDb,
+  NovelArchiveTable,
   NovelTable,
   createChapterTx,
   createVolumeTx,
@@ -29,7 +37,7 @@ import { decodeDataUrlBytes, decodeWithEncoding, detectAndDecode } from "./encod
 import { DEFAULT_SPLIT_RANGE, parseStructure, splitByRange, type ParsedVolume } from "./structure"
 import { cleanText, emptyCleanSummary, type CleanSummary } from "./clean"
 
-const PARSER_VERSION = "book-import-v2"
+const PARSER_VERSION = "book-import-v3"
 
 /** 导入建书的默认题材（契约无题材字段，沿用既有题材表首项；建书后可再改）。 */
 const IMPORT_DEFAULT_GENRE = "玄幻"
@@ -43,6 +51,7 @@ interface ImportSource {
   cleanEnabled: boolean
   fallbackFixedLength: boolean
   splitRange: { min: number; max: number }
+  splitMode: NovelSplitMode
 }
 
 interface PreviewTokenPayload {
@@ -52,6 +61,7 @@ interface PreviewTokenPayload {
   enc: NovelImportEncoding
   fixed: boolean
   range: { min: number; max: number }
+  mode: NovelSplitMode
 }
 
 function importError(message: string, reason: ImportFailureReason) {
@@ -87,11 +97,14 @@ function prepareSource(input: {
   encoding?: NovelImportEncoding | undefined
   fallbackFixedLength?: boolean | undefined
   splitRange?: { min: number; max: number } | undefined
+  splitMode?: NovelSplitMode | undefined
 }): { source: ImportSource } | { error: NovelImportError } {
   const decodedBytes = decodeBytes(input.dataUrl)
   if ("error" in decodedBytes) return decodedBytes
   const decoded = decodeSource(decodedBytes.bytes, input.encoding)
   if (decoded === null) return { error: importError("编码识别失败，请显式指定编码后重试", "encoding-failed") }
+  const splitMode = input.splitMode ?? "fast"
+  // AI 拆章不做脚本分章，兜底开关与字数范围仅快速拆章生效；默认值仍进 source 供 token 一致性校验
   const splitRange = input.splitRange ?? DEFAULT_SPLIT_RANGE
   if (splitRange.min >= splitRange.max) return { error: importError("字数范围无效：下限须小于上限", "invalid-text") }
   return {
@@ -102,8 +115,20 @@ function prepareSource(input: {
       cleanEnabled: input.cleanEnabled,
       fallbackFixedLength: input.fallbackFixedLength ?? false,
       splitRange,
+      splitMode,
     },
   }
+}
+
+/** AI 拆章预估：章节按目标字数中值折算，非最终章数（最终章数由 LLM 组章决定）。 */
+function aiEstimate(cleanedText: string): NovelImportAiEstimate {
+  const targetMid = (DEFAULT_SPLIT_RANGE.min + DEFAULT_SPLIT_RANGE.max) / 2
+  const estimatedChapters = Math.max(1, Math.round(countWords(cleanedText) / targetMid))
+  // 每章两次 LLM 调用（组章边界窗口 + 清洗全章读改），收尾一次（简介 + 汇总）
+  const llmCalls = estimatedChapters * 2 + 1
+  // 量级估算：组章窗口约 4.5k 输入、清洗全章读改约 5k 出入，收尾固定量级
+  const tokenEstimate = estimatedChapters * 9500 + 4000
+  return { estimatedChapters, llmCalls, tokenEstimate }
 }
 
 function cleanForParse(source: ImportSource): { text: string; summary: CleanSummary } {
@@ -130,6 +155,7 @@ function buildPreviewToken(source: ImportSource): string {
     enc: source.encoding,
     fixed: source.fallbackFixedLength,
     range: source.splitRange,
+    mode: source.splitMode,
   }
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")
 }
@@ -144,6 +170,7 @@ function parsePreviewToken(token: string): PreviewTokenPayload | null {
     if (typeof candidate.enc !== "string") return null
     if (typeof candidate.range !== "object" || candidate.range === null) return null
     if (typeof candidate.range.min !== "number" || typeof candidate.range.max !== "number") return null
+    if (candidate.mode !== "fast" && candidate.mode !== "ai") return null
     return {
       v: candidate.v,
       hash: candidate.hash,
@@ -151,6 +178,7 @@ function parsePreviewToken(token: string): PreviewTokenPayload | null {
       enc: candidate.enc,
       fixed: candidate.fixed,
       range: { min: candidate.range.min, max: candidate.range.max },
+      mode: candidate.mode,
     }
   } catch {
     return null
@@ -166,6 +194,7 @@ function validateToken(token: PreviewTokenPayload | null, source: ImportSource):
     token.clean !== source.cleanEnabled ||
     token.fixed !== source.fallbackFixedLength ||
     token.enc !== source.encoding ||
+    token.mode !== source.splitMode ||
     token.range.min !== source.splitRange.min ||
     token.range.max !== source.splitRange.max
   ) {
@@ -186,6 +215,20 @@ export function analyzeImport(directory: string, input: NovelImportAnalyzeInput)
     if ("error" in prepared) return yield* Effect.fail(prepared.error)
     const { source } = prepared
     const cleaned = cleanForParse(source)
+    if (source.splitMode === "ai") {
+      // AI 拆章（narrative-unit-split）：不做脚本分章，仅输出预估；volumes 为空
+      const preview: NovelImportPreview = {
+        suggestedTitle: suggestedTitleFromFilename(input.filename),
+        encoding: source.encoding,
+        volumes: [],
+        issues: [],
+        cleanSummary: cleaned.summary,
+        previewToken: buildPreviewToken(source),
+        splitMode: "ai",
+        aiEstimate: aiEstimate(cleaned.text),
+      }
+      return preview
+    }
     const parsed = parseBook(source, cleaned.text)
     const preview: NovelImportPreview = {
       suggestedTitle: suggestedTitleFromFilename(input.filename),
@@ -202,6 +245,7 @@ export function analyzeImport(directory: string, input: NovelImportAnalyzeInput)
       issues: parsed.issues,
       cleanSummary: cleaned.summary,
       previewToken: buildPreviewToken(source),
+      splitMode: "fast",
     }
     return preview
   })
@@ -215,6 +259,56 @@ export function applyImport(directory: string, input: NovelImportApplyInput) {
     const tokenError = validateToken(parsePreviewToken(input.previewToken), source)
     if (tokenError !== null) return yield* Effect.fail(tokenError)
     const cleaned = cleanForParse(source)
+    if (source.splitMode === "ai") {
+      // AI 拆章建书（narrative-unit-split）：单事务建书（书行 + 原文存档文件 + 存档元数据），无卷章。
+      // 存档文件写入在事务回调内同步执行，任一步失败整体回滚，工作区不留半成品。
+      const novelId = crypto.randomUUID()
+      const now = Date.now()
+      const db = getDb(directory)
+      const archiveRelativePath = `.opennovel/sources/${novelId}.txt`
+      yield* Effect.sync(() =>
+        withTransaction(db, (tx) => {
+          tx.insert(NovelTable)
+            .values({
+              id: novelId,
+              title: input.title,
+              genre: IMPORT_DEFAULT_GENRE,
+              synopsis: "",
+              created_at: now,
+              updated_at: now,
+              status: "draft",
+              content_nature: "general",
+              split_mode: "ai",
+            })
+            .run()
+          const archivePath = join(directory, archiveRelativePath)
+          mkdirSync(join(archivePath, ".."), { recursive: true })
+          writeFileSync(archivePath, source.text, "utf8")
+          tx.insert(NovelArchiveTable)
+            .values({
+              id: crypto.randomUUID(),
+              novel_id: novelId,
+              content_hash: sha256Hex(source.bytes),
+              encoding: source.encoding,
+              word_count: countWords(source.text),
+              file_path: archiveRelativePath,
+              created_at: now,
+              updated_at: now,
+            })
+            .run()
+        }),
+      )
+      const report: NovelImportReport = {
+        novelId,
+        title: input.title,
+        volumeCount: 0,
+        chapterCount: 0,
+        cleanSummary: cleaned.summary,
+        issues: [],
+        splitMode: "ai",
+      }
+      return report
+    }
     const parsed = parseBook(source, cleaned.text)
     const chapterCount = parsed.volumes.reduce((total, volume) => total + volume.chapters.length, 0)
     if (chapterCount === 0) {
@@ -235,6 +329,7 @@ export function applyImport(directory: string, input: NovelImportApplyInput) {
             updated_at: now,
             status: "draft",
             content_nature: "general",
+            split_mode: "fast",
           })
           .run()
         let chapterOrder = 0
@@ -255,6 +350,7 @@ export function applyImport(directory: string, input: NovelImportApplyInput) {
       chapterCount: appliedChapterCount,
       cleanSummary: cleaned.summary,
       issues: parsed.issues,
+      splitMode: "fast",
     }
     return report
   })

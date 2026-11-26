@@ -1541,6 +1541,10 @@ export const NovelImportCleanSummary = Schema.Struct({
 }).annotate({ identifier: "Novel.NovelImportCleanSummary" })
 export interface NovelImportCleanSummary extends Schema.Schema.Type<typeof NovelImportCleanSummary> {}
 
+/** 导入拆章方式（narrative-unit-split）：fast=快速拆章（脚本） | ai=AI 拆章（存档 + LLM 逐章组章） */
+export const NovelSplitMode = Schema.Literals(["fast", "ai"])
+export type NovelSplitMode = typeof NovelSplitMode.Type
+
 export const NovelImportAnalyzeInput = Schema.Struct({
   /** data URL 形式的文件内容（data:text/plain;base64,...），解码后上限 50 MiB */
   dataUrl: Schema.NonEmptyString,
@@ -1553,8 +1557,18 @@ export const NovelImportAnalyzeInput = Schema.Struct({
   fallbackFixedLength: optional(Schema.Boolean),
   /** 兜底分章目标字数范围（仅 fallbackFixedLength 开启时生效，缺省 2000–3000；min 须小于 max） */
   splitRange: optional(NovelImportSplitRange),
+  /** 拆章方式（缺省 fast）：ai 时导入不做脚本拆章，仅输出预估 */
+  splitMode: optional(NovelSplitMode),
 }).annotate({ identifier: "Novel.NovelImportAnalyzeInput" })
 export interface NovelImportAnalyzeInput extends Schema.Schema.Type<typeof NovelImportAnalyzeInput> {}
+
+/** AI 拆章预估：章节按目标字数折算，非最终章数（最终章数由 LLM 组章决定） */
+export const NovelImportAiEstimate = Schema.Struct({
+  estimatedChapters: NonNegativeInt,
+  llmCalls: NonNegativeInt,
+  tokenEstimate: NonNegativeInt,
+}).annotate({ identifier: "Novel.NovelImportAiEstimate" })
+export interface NovelImportAiEstimate extends Schema.Schema.Type<typeof NovelImportAiEstimate> {}
 
 export const NovelImportPreview = Schema.Struct({
   suggestedTitle: Schema.String,
@@ -1564,6 +1578,10 @@ export const NovelImportPreview = Schema.Struct({
   cleanSummary: NovelImportCleanSummary,
   /** 不透明令牌：内容哈希 + 解析参数 + 解析器版本，apply 服务端重校验用 */
   previewToken: Schema.String,
+  /** 拆章方式（缺省 fast，与 analyze 输入一致） */
+  splitMode: optional(NovelSplitMode),
+  /** AI 拆章预估（仅 splitMode=ai 时存在，此时 volumes 为空） */
+  aiEstimate: optional(NovelImportAiEstimate),
 }).annotate({ identifier: "Novel.NovelImportPreview" })
 export interface NovelImportPreview extends Schema.Schema.Type<typeof NovelImportPreview> {}
 
@@ -1579,6 +1597,8 @@ export const NovelImportApplyInput = Schema.Struct({
   fallbackFixedLength: optional(Schema.Boolean),
   /** 须与 analyze 一致：token 校验包含该解析参数 */
   splitRange: optional(NovelImportSplitRange),
+  /** 须与 analyze 一致：token 校验包含该解析参数 */
+  splitMode: optional(NovelSplitMode),
 }).annotate({ identifier: "Novel.NovelImportApplyInput" })
 export interface NovelImportApplyInput extends Schema.Schema.Type<typeof NovelImportApplyInput> {}
 
@@ -1589,5 +1609,7 @@ export const NovelImportReport = Schema.Struct({
   chapterCount: NonNegativeInt,
   cleanSummary: NovelImportCleanSummary,
   issues: Schema.Array(NovelImportIssue),
+  /** 拆章方式（缺省 fast）：ai 时卷章计数为 0，章节由 AI 拆章队列逐章产出 */
+  splitMode: optional(NovelSplitMode),
 }).annotate({ identifier: "Novel.NovelImportReport" })
 export interface NovelImportReport extends Schema.Schema.Type<typeof NovelImportReport> {}

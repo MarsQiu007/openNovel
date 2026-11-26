@@ -6346,6 +6346,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["dataUrl"]
   readonly filename: {
     readonly dataUrl: string
@@ -6354,6 +6355,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["filename"]
   readonly cleanEnabled: {
     readonly dataUrl: string
@@ -6362,6 +6364,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["cleanEnabled"]
   readonly encoding?: {
     readonly dataUrl: string
@@ -6370,6 +6373,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["encoding"]
   readonly fallbackFixedLength?: {
     readonly dataUrl: string
@@ -6378,6 +6382,7 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["fallbackFixedLength"]
   readonly splitRange?: {
     readonly dataUrl: string
@@ -6386,7 +6391,17 @@ export type ServerNovelAnalyzeImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["splitRange"]
+  readonly splitMode?: {
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
+  }["splitMode"]
 }
 
 export type ServerNovelAnalyzeImportOutput = {
@@ -6415,6 +6430,12 @@ export type ServerNovelAnalyzeImportOutput = {
     readonly duplicatesRemoved: number
   }
   readonly previewToken: string
+  readonly splitMode?: "fast" | "ai"
+  readonly aiEstimate?: {
+    readonly estimatedChapters: number
+    readonly llmCalls: number
+    readonly tokenEstimate: number
+  }
 }
 
 export type ServerNovelApplyImportInput = {
@@ -6430,6 +6451,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["previewToken"]
   readonly title: {
     readonly previewToken: string
@@ -6440,6 +6462,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["title"]
   readonly dataUrl: {
     readonly previewToken: string
@@ -6450,6 +6473,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["dataUrl"]
   readonly filename: {
     readonly previewToken: string
@@ -6460,6 +6484,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["filename"]
   readonly cleanEnabled: {
     readonly previewToken: string
@@ -6470,6 +6495,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["cleanEnabled"]
   readonly encoding?: {
     readonly previewToken: string
@@ -6480,6 +6506,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["encoding"]
   readonly fallbackFixedLength?: {
     readonly previewToken: string
@@ -6490,6 +6517,7 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["fallbackFixedLength"]
   readonly splitRange?: {
     readonly previewToken: string
@@ -6500,7 +6528,19 @@ export type ServerNovelApplyImportInput = {
     readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
     readonly fallbackFixedLength?: boolean
     readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
   }["splitRange"]
+  readonly splitMode?: {
+    readonly previewToken: string
+    readonly title: string
+    readonly dataUrl: string
+    readonly filename: string
+    readonly cleanEnabled: boolean
+    readonly encoding?: "utf-8" | "utf-16le" | "utf-16be" | "gb18030" | "big5"
+    readonly fallbackFixedLength?: boolean
+    readonly splitRange?: { readonly min: number; readonly max: number }
+    readonly splitMode?: "fast" | "ai"
+  }["splitMode"]
 }
 
 export type ServerNovelApplyImportOutput = {
@@ -6521,6 +6561,7 @@ export type ServerNovelApplyImportOutput = {
     readonly message: string
     readonly chapterNumber?: number
   }>
+  readonly splitMode?: "fast" | "ai"
 }
 
 export type ServerNovelItemsInput = {

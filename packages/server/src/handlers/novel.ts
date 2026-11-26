@@ -97,6 +97,7 @@ import {
   createChapter as storeCreateChapter,
   updateNovel as storeUpdateNovel,
   deleteNovel as storeDeleteNovel,
+  getNovelArchive,
   createCharacter as storeCreateCharacter,
   updateCharacter as storeUpdateCharacter,
   deleteCharacter as storeDeleteCharacter,
@@ -195,7 +196,7 @@ import {
 } from "@opennovel-ai/novel-store"
 import { SessionV2 } from "@opennovel-ai/core/session"
 import { and, eq, asc, desc, isNull, like, or, inArray, ne } from "drizzle-orm"
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "fs"
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, rmSync } from "fs"
 import { rm } from "fs/promises"
 import { join, dirname } from "path"
 
@@ -1711,7 +1712,22 @@ export function deleteNovel(novelID: string, directory: string) {
     const db = getDb(directory)
     const novel = db.select().from(NovelTable).where(eq(NovelTable.id, novelID)).get()
     if (!novel) yield* Effect.fail(novelNotFound(novelID))
+    // 原文存档文件随书删除（narrative-unit-split）：行由 FK 级联清理，文件此处尽力删除
+    const archive = yield* Effect.promise(() => getNovelArchive(novelID, directory))
     yield* Effect.promise(() => storeDeleteNovel(novelID, directory))
+    if (archive !== undefined && archive.file_path.length > 0) {
+      const archivePath = join(directory, archive.file_path)
+      if (existsSync(archivePath)) {
+        yield* Effect.promise(async () => {
+          try {
+            await rm(archivePath, { force: true })
+          } catch (error) {
+            // 文件清理失败不阻塞删除结果
+            console.warn("[novel] archive cleanup failed:", error instanceof Error ? error.message : error)
+          }
+        })
+      }
+    }
     // 大纲 Markdown 文件按项目目录共享存放（volume-N.md / chapter-N.md 不按书籍隔离），
     // 多书共存时无法安全归属到某本书，仅当目录下已无任何书籍时整体清理
     const remaining = db.select({ id: NovelTable.id }).from(NovelTable).limit(1).get()
