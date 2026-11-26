@@ -3,7 +3,7 @@
  *
  * 以 `default { id, effect }` 契约把写作面注册进 V2 宿主：禁用编程内置
  * agent（build/plan）、注册 13 个写作 agent、默认 agent 设为 director；
- * 经 ctx.tool.transform 一次注册 89 个写作工具（从 V1 机械转换的 effect-Schema
+ * 经 ctx.tool.transform 一次注册 92 个写作工具（从 V1 机械转换的 effect-Schema
  * 版，窗口期 V1 入口保留同名 zod 版）；`.novel/` 存在的 Location 条件注册
  * novel-writer/context SystemContext 源（非小说目录注册最小引导源，design D9）、
  * 会话事件惰性计数

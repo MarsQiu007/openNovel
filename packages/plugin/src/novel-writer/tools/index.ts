@@ -14,6 +14,7 @@ import { contextTools } from "./context.js"
 import { evaluateTools } from "./evaluate.js"
 import { foreshadowTools } from "./foreshadow.js"
 import { hooksTools } from "./hooks.js"
+import { importSplitTools } from "./import-split.js"
 import { createMiscTools } from "./misc.js"
 import { novelTools } from "./novel.js"
 import { createOutlineTools } from "./outline.js"
@@ -43,6 +44,7 @@ export function createNovelWriterTools(deps: { session: SessionDomain }) {
     ...novelTools,
     ...foreshadowTools,
     ...hooksTools,
+    ...importSplitTools,
     ...cascadeTools,
     ...createArcsTools(deps),
     ...createAnnotationsTools(deps),

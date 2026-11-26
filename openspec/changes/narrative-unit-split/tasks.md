@@ -13,7 +13,7 @@
 - [x] 2.1 新增 `packages/plugin/src/novel-writer/agents/cutter.ts`（subagent）：衔接上下文 + 句流窗口输入契约、结构化输出（endSentence/title/segments/reason）、窗口硬上限、章题行强边界信号
 - [x] 2.2 接入既有 `agent.cutter.model` 配置链与继承回落
 - [x] 2.3 将句末切分原语（句末集合、引号闭合切点）下沉 `packages/novel-store` 共享模块，`packages/server` 的 novel-import/structure.ts 重构为同一来源
-- [ ] 2.4 实现确定性执行器工具：句流窗口提取、游标管理（存档元数据持久化）、输出硬校验（句末/引号闭合/单调/非空）、导入语义落章（与 write_chapter 写作门禁分离，标题/正文/分段）、字数软约束提示
+- [x] 2.4 实现确定性执行器工具：句流窗口提取、游标管理（存档元数据持久化）、输出硬校验（句末/引号闭合/单调/非空）、导入语义落章（与 write_chapter 写作门禁分离，标题/正文/分段）、字数软约束提示
 - [ ] 2.5 新增测试：输出契约解析、非法输出重试与失败计数、硬校验拒绝、游标单调、分段不改正文、章题书强边界落章
 
 ## 3. `cleaner` 清洗修复与设定自动入库
