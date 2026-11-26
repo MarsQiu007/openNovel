@@ -29,10 +29,10 @@
 
 ## 5. 验证与收尾
 
-- [ ] 5.1 检查未引入同类、冗余、无用代码（新导出均被引用、无只服务死代码的 import、无未消费查询通道），命中即在本 change 内清理
-- [ ] 5.2 在 `packages/server`、`packages/schema`、`packages/app` 分别通过 `bun typecheck` 与 oxlint，受影响包 `bun test` 全量通过；在 `packages/opennovel` 运行 `bun run test:httpapi`（至少 coverage 模式）验证 HttpApi 行为
-- [ ] 5.3 用实测书籍（2.8 万字无章题 GB18030 TXT）人工冒烟验收：段落重组正确、切点不切断句子与引号、各章字数落在范围内
-- [ ] 5.4 人工验收通过后执行全量回归（turbo typecheck 全量 + 受影响包全量测试），按 Workflow follow-up 完成提交、同步 specs、归档与推送
+- [x] 5.1 检查未引入同类、冗余、无用代码（新导出均被引用、无只服务死代码的 import、无未消费查询通道），命中即在本 change 内清理
+- [x] 5.2 在 `packages/server`、`packages/schema`、`packages/app` 分别通过 `bun typecheck` 与 oxlint，受影响包 `bun test` 全量通过；在 `packages/opennovel` 运行 `bun run test:httpapi`（至少 coverage 模式）验证 HttpApi 行为
+- [x] 5.3 用实测书籍（2.8 万字无章题 GB18030 TXT）人工冒烟验收：段落重组正确、切点不切断句子与引号、各章字数落在范围内
+- [x] 5.4 人工验收通过后执行全量回归（turbo typecheck 全量 + 受影响包全量测试），按 Workflow follow-up 完成提交、同步 specs、归档与推送
 
 ## Implementation Commits
 
