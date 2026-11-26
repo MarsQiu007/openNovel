@@ -223,17 +223,6 @@ const QUOTE_PAIRS: [string, string][] = [
   ["『", "』"],
 ]
 
-/** 候选位置列表中最后一个落入 [from, to] 的位置。 */
-function lastInRange(candidates: number[], from: number, to: number): number | null {
-  let found: number | null = null
-  for (const position of candidates) {
-    if (position < from) continue
-    if (position > to) break
-    found = position
-  }
-  return found
-}
-
 /** [chapterStart, to) 内引号闭合的句末切点（切点在句末字符之后）；pick 控制取首个或最后一个。 */
 function findSentenceCut(body: string, chapterStart: number, from: number, to: number, pick: "first" | "last"): number | null {
   const balances = QUOTE_PAIRS.map(() => 0)
@@ -313,21 +302,46 @@ export function splitByRange(
     chapters.push({ title: `第${index}部分`, content: content.trim(), special: null, number: index })
   }
 
+  // 全局均分：在 [ceil(W/max), floor(W/min)] 内取使每章字数最接近区间中值的章数，
+  // 避免贪心切到末章只剩零头；无解（范围相对总字数过窄）时退化为最近章数并标注。
+  const target = (range.min + range.max) / 2
+  const nMin = Math.max(1, Math.ceil(totalWords / range.max))
+  const nMax = Math.max(1, Math.floor(totalWords / range.min))
+  let chapterCount = nMin
+  if (nMin <= nMax) {
+    let best = Number.POSITIVE_INFINITY
+    for (let n = nMin; n <= nMax; n++) {
+      const distance = Math.abs(totalWords / n - target)
+      if (distance < best) {
+        best = distance
+        chapterCount = n
+      }
+    }
+  } else {
+    chapterCount = Math.max(1, Math.round(totalWords / target))
+    issues.push({ type: "forced-cut", message: "总字数无法均分到目标范围，末章可能超出上限", chapterNumber: chapterCount })
+  }
+
   let cur = 0
-  while (totalWords - prefix[cur] > range.max) {
+  for (let k = 1; k < chapterCount; k++) {
     const chapterBase = prefix[cur]
+    // 动态均分目标：剩余字数 / 剩余章数——前章切点的偏差在后续章自动摊回，末章不吃过量误差
+    const goal = chapterBase + (totalWords - chapterBase) / (chapterCount - k + 1)
     const windowStart = positionAtWords(prefix, chapterBase + range.min, cur, body.length)
     const windowEnd = positionAtWords(prefix, chapterBase + range.max, cur, body.length)
-    const boundaryCut = lastInRange(boundaries, windowStart, windowEnd)
-    if (boundaryCut !== null) {
-      pushChapter(body.slice(cur, boundaryCut))
-      cur = boundaryCut
-      continue
-    }
-    const sentenceCut = findSentenceCut(body, cur, windowStart, windowEnd, "last")
-    if (sentenceCut !== null) {
-      pushChapter(body.slice(cur, sentenceCut))
-      cur = sentenceCut
+    // 切点可行性：切后剩余字数须能由剩余章数在目标范围内装下（防末章越界）
+    const remainingChapters = chapterCount - k
+    const feasibleLo = totalWords - remainingChapters * range.max
+    const feasibleHi = totalWords - remainingChapters * range.min
+    // 窗口内最接近动态均分目标的可行切点：段落边界优先，其次引号闭合句末；无可行切点再放宽
+    const cut =
+      nearestInRange(boundaries, prefix, goal, windowStart, windowEnd, feasibleLo, feasibleHi) ??
+      nearestSentenceCut(body, cur, prefix, goal, windowStart, windowEnd, feasibleLo, feasibleHi) ??
+      nearestInRange(boundaries, prefix, goal, windowStart, windowEnd) ??
+      nearestSentenceCut(body, cur, prefix, goal, windowStart, windowEnd)
+    if (cut !== null) {
+      pushChapter(body.slice(cur, cut))
+      cur = cut
       continue
     }
     // 受限兜底：硬上限（max + min/2，字数口径）内就近取第一个引号闭合句末，并标注问题清单
@@ -346,4 +360,61 @@ export function splitByRange(
   pushChapter(body.slice(cur))
 
   return { volumes: [{ title: null, chapters }], issues }
+}
+
+/** 候选位置中「prefix 字数最接近 goal」且字符位置落入 [from, to]、prefix 值落入可行区间的点。 */
+function nearestInRange(
+  candidates: number[],
+  prefix: number[],
+  goal: number,
+  from: number,
+  to: number,
+  feasibleLo = Number.NEGATIVE_INFINITY,
+  feasibleHi = Number.POSITIVE_INFINITY,
+): number | null {
+  let best: number | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (const position of candidates) {
+    if (position < from) continue
+    if (position > to) break
+    if (prefix[position] < feasibleLo || prefix[position] > feasibleHi) continue
+    const distance = Math.abs(prefix[position] - goal)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = position
+    }
+  }
+  return best
+}
+
+/** [from, to] 内「prefix 字数最接近 goal」的引号闭合句末切点，prefix 值须落入可行区间。 */
+function nearestSentenceCut(
+  body: string,
+  chapterStart: number,
+  prefix: number[],
+  goal: number,
+  from: number,
+  to: number,
+  feasibleLo = Number.NEGATIVE_INFINITY,
+  feasibleHi = Number.POSITIVE_INFINITY,
+): number | null {
+  const balances = QUOTE_PAIRS.map(() => 0)
+  let best: number | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (let index = chapterStart; index < to; index++) {
+    const char = body[index]
+    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
+      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
+      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
+    }
+    if (index + 1 < from || !SENTENCE_CUT_CHARS.has(char)) continue
+    if (!balances.every((balance) => balance === 0)) continue
+    if (prefix[index + 1] < feasibleLo || prefix[index + 1] > feasibleHi) continue
+    const distance = Math.abs(prefix[index + 1] - goal)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = index + 1
+    }
+  }
+  return best
 }

@@ -166,11 +166,11 @@ describe("splitByRange", () => {
   })
 
   test("默认范围 2000–3000，切点落在段落边界", () => {
-    // 20 段 × 约 155 字 ≈ 3100 字正文 + 空行，总长约 3200
-    const text = makeParagraphs(20, 150)
+    // 30 段 × 约 153 字 ≈ 4590 字：n=2 均分有解
+    const text = makeParagraphs(30, 150)
     const { volumes, issues } = splitByRange(text)
     const chapters = volumes[0]!.chapters
-    expect(chapters.length).toBeGreaterThanOrEqual(2)
+    expect(chapters).toHaveLength(2)
     expect(issues).toEqual([])
     for (const chapter of chapters.slice(0, -1)) {
       expect(countWords(chapter.content)).toBeGreaterThanOrEqual(2000)
@@ -194,7 +194,7 @@ describe("splitByRange", () => {
   test("无段落边界时取引号闭合句末，引号不被切开", () => {
     // 单段 2600 字，无空行；每约 90 字一句，对话引号成对出现
     const unit = `他往前走。${"路".repeat(40)}“你来了。”${"影".repeat(40)}。`
-    const text = unit.repeat(20)
+    const text = unit.repeat(50)
     const { volumes, issues } = splitByRange(text, { min: 1000, max: 1500 })
     const chapters = volumes[0]!.chapters
     expect(chapters.length).toBeGreaterThanOrEqual(2)

@@ -277,7 +277,7 @@ describe("novel.import.apply", () => {
   })
 
   test("兜底分章默认范围 2000–3000 生效", async () => {
-    const body = Array.from({ length: 20 }, (_, i) => `第${i + 1}段${"文".repeat(150)}`).join("\n\n")
+    const body = Array.from({ length: 30 }, (_, i) => `第${i + 1}段${"文".repeat(150)}`).join("\n\n")
     const preview = await analyze({
       dataUrl: toDataUrl(body),
       filename: "default-range.txt",
