@@ -104,6 +104,16 @@ describe("import_split_window", () => {
     )
   })
 
+  test("原文引号缺陷：无平衡切点时输出存档警示且游标保留", async () => {
+    // 游标后缺失右引号：所有句末 balance 不归零，句流只剩单一巨型单元
+    await setupAiBook("“整段没有闭合引号一直说到结尾也没有右引号，句号也全在引号里面。")
+    const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(result.output).toContain("存档警示")
+    expect(result.output).toContain("缺失的右引号")
+    expect(result.output).toContain("先修复原文再继续")
+    expect(result.metadata?.window_cursor).toBe(0)
+  })
+
   test("游标与句流不对齐时拒绝组章", async () => {
     await setupAiBook(TEXT_PLAIN, 3)
     await expectFailure(

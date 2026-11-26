@@ -230,6 +230,9 @@ export const importSplitTools = {
             ? "提示：窗口仅约 " + windowWordCount + " 字，低于目标下限 " + SOFT_MIN_WORDS + "，可能临近全书结尾。"
             : "提示：窗口后仍剩约 " + remaining + " 字。",
       )
+      if (startIdx === context.units.length - 1 && context.units[startIdx].end === context.text.length && !context.units[startIdx].heading) {
+        lines.push("⚠ 存档警示：拆章游标之后没有任何引号闭合的句末切点——原文可能存在缺失的右引号（引号未闭合），后续组章会被硬校验拒绝。请先修复原文再继续，或确认后跳过该缺陷段。")
+      }
       return {
         title: "import_split_window",
         output: lines.join("\n"),
