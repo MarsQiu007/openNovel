@@ -33,8 +33,8 @@
 
 ## 5. 验证与收尾
 
-- [ ] 5.1 检查未引入同类、冗余、无用代码；契约变更时在 `packages/client` 运行 `bun run generate` 并同步 codemode fixture
-- [ ] 5.2 受影响包 `bun typecheck` 与 oxlint 通过、`bun test` 全量通过；`packages/opennovel` 运行 `bun run test:httpapi`（至少 coverage 模式）
+- [x] 5.1 检查未引入同类、冗余、无用代码；契约变更时在 `packages/client` 运行 `bun run generate` 并同步 codemode fixture
+- [x] 5.2 受影响包 `bun typecheck` 与 oxlint 通过、`bun test` 全量通过；`packages/opennovel` 运行 `bun run test:httpapi`（至少 coverage 模式）
 - [ ] 5.3 用实测书籍（2.8 万字无章题 GB18030 TXT）人工冒烟：AI 模式存档可查、逐章组章章界落在叙事单元、分段合理、清洗修复对照可查、设定自动入库与合并、失败暂停续跑可用
 - [ ] 5.4 人工验收通过后执行全量回归（turbo typecheck 全量 + 受影响包全量测试），按 Workflow follow-up 完成提交、同步 specs、归档与推送
 
