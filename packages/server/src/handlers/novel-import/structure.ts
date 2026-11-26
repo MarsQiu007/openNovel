@@ -5,6 +5,7 @@
  * 卷题覆盖「第N卷/部」「卷N」「Volume N」；N 支持阿拉伯数字（含全角）与中文数字。
  * 候选标题行须满足行独占性（去空白 ≤40 字符且不含句读标点），防正文误切。
  */
+import { buildWordPrefix, findSentenceCut, positionAtWords, QUOTE_PAIRS, SENTENCE_CUT_CHARS } from "@opennovel-ai/novel-store/text-split"
 
 const CHINESE_DIGITS: Record<string, number> = {
   零: 0,
@@ -214,59 +215,6 @@ function trimBlankEdges(lines: string[]): string[] {
 
 /** 兜底分章默认目标字数范围（design D2）。 */
 export const DEFAULT_SPLIT_RANGE = { min: 2000, max: 3000 }
-
-/** 句末切点字符：句末标点与右引号（对话结束）。 */
-const SENTENCE_CUT_CHARS = new Set(["。", "！", "？", "…", "》", "）", "”", "’", "」", "』"])
-const QUOTE_PAIRS: [string, string][] = [
-  ["“", "”"],
-  ["「", "」"],
-  ["『", "』"],
-]
-
-/** [chapterStart, to) 内引号闭合的句末切点（切点在句末字符之后）；pick 控制取首个或最后一个。 */
-function findSentenceCut(body: string, chapterStart: number, from: number, to: number, pick: "first" | "last"): number | null {
-  const balances = QUOTE_PAIRS.map(() => 0)
-  let lastCut: number | null = null
-  for (let index = chapterStart; index < to; index++) {
-    const char = body[index]
-    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
-      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
-      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
-    }
-    if (index + 1 < from || !SENTENCE_CUT_CHARS.has(char)) continue
-    if (!balances.every((balance) => balance === 0)) continue
-    if (pick === "first") return index + 1
-    lastCut = index + 1
-  }
-  return lastCut
-}
-
-/** countWords 口径的前缀字数表：prefix[i] = body[0..i) 的字数（CJK 逐字 + ASCII 词），与产品章节字数显示同口径。 */
-function buildWordPrefix(body: string): number[] {
-  const prefix = new Array<number>(body.length + 1)
-  prefix[0] = 0
-  let previousAlnum = false
-  for (let index = 0; index < body.length; index++) {
-    const char = body[index]
-    const han = /\p{Script=Han}/u.test(char)
-    const alnum = /[a-zA-Z0-9]/.test(char)
-    prefix[index + 1] = prefix[index] + (han ? 1 : 0) + (alnum && !previousAlnum ? 1 : 0)
-    previousAlnum = alnum
-  }
-  return prefix
-}
-
-/** 前缀字数表中第一个使 prefix[i] >= words 的位置（单调不减，二分）。 */
-function positionAtWords(prefix: number[], words: number, lo: number, hi: number): number {
-  let low = lo
-  let high = hi
-  while (low < high) {
-    const mid = (low + high) >> 1
-    if (prefix[mid] < words) low = mid + 1
-    else high = mid
-  }
-  return low
-}
 
 /**
  * 未识别章节边界时的边界感知兜底分章：在目标字数范围内按

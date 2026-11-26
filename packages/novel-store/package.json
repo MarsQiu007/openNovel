@@ -10,7 +10,8 @@
     "build": "tsc"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./text-split": "./src/text-split.ts"
   },
   "imports": {
     "#driver": {
