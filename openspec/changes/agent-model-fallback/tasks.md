@@ -18,7 +18,12 @@
 
 - [x] 3.1 在 packages/core 与 packages/app 通过 `bun typecheck` 与 oxlint；core/app 聚焦测试全绿
 - [x] 3.2 自查同类、冗余、无用代码（新增导出被引用、无只服务死代码的 import、无未消费的查询通道）
-- [ ] 3.3 执行手动冒烟：仅配置 `agent.director.model`（全局 `model` 留空），工作台首发消息、「+」新建、AI 地图草稿均以 director 配置的 provider 执行；改为不可用 provider 后显式报错
+- [x] 3.3 执行手动冒烟：仅配置 `agent.director.model`（全局 `model` 留空），工作台首发消息、「+」新建、AI 地图草稿均以 director 配置的 provider 执行；改为不可用 provider 后显式报错
+
+## Implementation Commits
+
+- 1b04ebb18b fix(core): 会话未指定模型时回落到代理解析模型
+- c8bacf872e fix(app): 编程式建会话入口钉住当前模型选择
 
 ## Workflow follow-up
 
