@@ -2842,7 +2842,7 @@ function novelScenarios(): Scenario[] {
         headers: jsonHeaders(ctx),
         body: {
           // golden token：对固定样例字节经真实 analyze 管线产出（解析器版本/参数变更时需同步更新）
-          previewToken: "eyJ2IjoiYm9vay1pbXBvcnQtdjEiLCJoYXNoIjoiODFlMzU5ODY5MTE2NjRmYWJlYjdlNDBmNjQzY2IyMmFhNTY3YmIwYTg1MTg4M2YwZDM5MmU2YWY3ZDIxMDBkYiIsImNsZWFuIjp0cnVlLCJlbmMiOiJ1dGYtOCIsImZpeGVkIjpmYWxzZX0",
+          previewToken: "eyJ2IjoiYm9vay1pbXBvcnQtdjIiLCJoYXNoIjoiODFlMzU5ODY5MTE2NjRmYWJlYjdlNDBmNjQzY2IyMmFhNTY3YmIwYTg1MTg4M2YwZDM5MmU2YWY3ZDIxMDBkYiIsImNsZWFuIjp0cnVlLCJlbmMiOiJ1dGYtOCIsImZpeGVkIjpmYWxzZSwicmFuZ2UiOnsibWluIjoyMDAwLCJtYXgiOjMwMDB9fQ",
           title: "练习导入书",
           dataUrl: EXERCISE_IMPORT_DATA_URL,
           filename: "exercise-import.txt",
