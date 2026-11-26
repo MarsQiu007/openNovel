@@ -65,8 +65,8 @@ export const cleanerAgent = {
     "AI 拆章清洗修复器（内部专用）。单读一章正文产出修复后全文、逐条修复对照、设定抽取与技法候选 JSON；只修确定性错误，护栏超限自动降级结构清洗；不使用任何工具。",
   mode: "subagent" as const,
   category: "creation" as const,
-  // hidden + subagent：不出现在用户可选列表，也不参与默认 agent 轮换
-  hidden: true as const,
+  // subagent：出现在智能体设置中可配模型；通常由 AI 拆章队列自动调度
+  hidden: false as const,
   // 先 deny *：清洗会话 materialize 后工具集合精确为空，权限继承不扩大清洗能力
   permission: {
     "*": "deny",

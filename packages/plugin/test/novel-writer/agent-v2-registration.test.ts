@@ -90,24 +90,24 @@ describe("novel-writer V2 入口", () => {
     expect(research?.permissions).toContainEqual({ action: "browser", resource: "*", effect: "allow" })
   })
 
-  test("AI 拆章清洗器 cleaner：hidden 不可选且 deny * 无工具", () => {
+  test("AI 拆章清洗器 cleaner：可配置模型且 deny * 无工具", () => {
     const { draft } = fakeDraft()
     registerWritingAgents(draft)
     const cleaner = draft.get("cleaner")
     expect(cleaner).toBeDefined()
     expect(cleaner?.mode).toBe("subagent")
-    expect(cleaner?.hidden).toBe(true)
+    expect(cleaner?.hidden).toBe(false)
     expect(cleaner?.category).toBe("creation")
     expect(cleaner?.permissions).toContainEqual({ action: "*", resource: "*", effect: "deny" })
   })
 
-  test("AI 拆章组章器 cutter：hidden 不可选且 deny * 无工具", () => {
+  test("AI 拆章组章器 cutter：可配置模型且 deny * 无工具", () => {
     const { draft } = fakeDraft()
     registerWritingAgents(draft)
     const cutter = draft.get("cutter")
     expect(cutter).toBeDefined()
     expect(cutter?.mode).toBe("subagent")
-    expect(cutter?.hidden).toBe(true)
+    expect(cutter?.hidden).toBe(false)
     expect(cutter?.category).toBe("creation")
     expect(cutter?.permissions).toContainEqual({ action: "*", resource: "*", effect: "deny" })
   })

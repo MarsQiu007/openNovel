@@ -3,9 +3,9 @@
  *
  * 仅供 AI 拆章编排会话使用：先 `deny *`，不开放任何工具——句流窗口、前文衔接、
  * 后文缓冲与章题信号全部由执行器在指令消息中给定，模型只返回组章结论 JSON。
- * hidden + subagent 使其不出现在用户可选列表，也不参与默认 agent 轮换；
- * 模型经 `agent.cutter.model` 配置链解析（config-agent 先合并路由、插件后注册
- * upsert 保留 model，未配置按继承链回落，导入全程零配置）。
+ * subagent 出现在智能体设置中可配置模型（agent.cutter.model，config-agent 先
+ * 合并路由、插件后注册 upsert 保留 model），未配置按继承链回落；通常由
+ * AI 拆章队列自动调度，不参与默认 agent 轮换。
  */
 
 const CUTTER_PROMPT = `# 角色定位
@@ -48,8 +48,8 @@ export const cutterAgent = {
     "AI 拆章组章器（内部专用）。基于执行器给定的句流窗口、前文衔接与后文缓冲选出章末句，输出章题、分段点与边界依据 JSON；不使用任何工具。",
   mode: "subagent" as const,
   category: "creation" as const,
-  // hidden + subagent：不出现在用户可选列表，也不参与默认 agent 轮换
-  hidden: true as const,
+  // subagent：出现在智能体设置中可配模型；通常由 AI 拆章队列自动调度
+  hidden: false as const,
   // 先 deny *：组章会话 materialize 后工具集合精确为空，权限继承不扩大组章能力
   permission: {
     "*": "deny",
