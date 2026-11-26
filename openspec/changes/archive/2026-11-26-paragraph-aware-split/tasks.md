@@ -41,3 +41,7 @@
 - `a74a728bb4` chore(sdk): 再生成 openapi 与客户端纳入导入字数范围
 - `e2de0714b4` feat(app): 导入预览兜底分章字数范围输入
 - `208bd8d4ff` test(codemode): 同步 OpenAPI fixture 与预存在漂移期望
+
+### 归档后收尾修复
+
+- `3fdea7c28e` 修复练习器 golden token 至解析器 v2（PARSER_VERSION 升级与令牌 range 字段致 CI novel.import.apply 400，按场景注释同步点重新生成）
