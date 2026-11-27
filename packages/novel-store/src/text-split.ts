@@ -24,7 +24,9 @@ export const STRAIGHT_QUOTES = new Set(['"', "'", "＂", "＇"])
 
 /**
  * 引号配平状态机：异形对计数 + 同形直引号奇偶翻转。
- * 配平从创建时（或上一平衡切点）起算；balance 为负（右引号先于左引号）同样判不平衡。
+ * 配平从创建时（或上一平衡切点）起算；配对计数下限钳到 0——无左引号配对的
+ * 孤儿右引号忽略不传染后续判定（容错采集重叠残段/缺左引号错字），
+ * 左引号未闭合（计数停正）仍判不平衡。
  */
 export function makeQuoteTracker() {
   const balances = QUOTE_PAIRS.map(() => 0)
@@ -33,7 +35,7 @@ export function makeQuoteTracker() {
     feed(char: string) {
       for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
         if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
-        if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
+        if (char === QUOTE_PAIRS[pair][1]) balances[pair] = Math.max(0, balances[pair] - 1)
       }
       if (STRAIGHT_QUOTES.has(char)) straight.set(char, !straight.get(char))
     },

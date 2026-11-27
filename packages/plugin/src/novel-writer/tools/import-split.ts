@@ -177,7 +177,7 @@ function diagnoseQuotes(text: string): string | null {
     if (count % 2 !== 0) problems.push(char + " 奇数个（" + count + "）")
   }
   if (problems.length === 0) return null
-  return "存档引号不配对：" + problems.join("；") + "。组章在引号处卡点时先核对这些位置（多余右引号/缺失左引号会被硬校验拒绝）。"
+  return "存档引号不配对：" + problems.join("；") + "。组章在引号处卡点时先核对这些位置（缺失右引号导致引号未闭合会被硬校验拒绝；多余右引号已被配平容错忽略，清洗时应顺手修复）。"
 }
 
 /** 前文衔接：游标前最多 2 个句流单元的原文（design D3）。 */

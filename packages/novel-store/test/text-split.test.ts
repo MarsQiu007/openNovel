@@ -57,8 +57,25 @@ describe("直引号与同形引号", () => {
     expect(isQuoteBalanced("他说＂你好。", 0, 6)).toBe(false)
   })
 
-  test("多余右引号判不平衡（负 balance）", () => {
-    expect(isQuoteBalanced("你好。」", 0, 4)).toBe(false)
+  test("孤儿右引号容错钳位：不再判不平衡", () => {
+    expect(isQuoteBalanced("你好。」", 0, 4)).toBe(true)
+  })
+
+  test("孤儿右引号不传染后续切分（采集重叠残段）", () => {
+    const text = "他说完了。」她点头。然后离开。"
+    const spans = splitSentenceSpans(text)
+    expect(spans.map((span) => text.slice(span.start, span.end))).toEqual(["他说完了。", "」", "她点头。", "然后离开。"])
+    expect(isQuoteBalanced(text, 0, text.length)).toBe(true)
+  })
+
+  test("成对引号后多一个右引号仍可切分", () => {
+    const text = "「你好。」他走了。」"
+    const spans = splitSentenceSpans(text)
+    expect(spans.map((span) => text.slice(span.start, span.end))).toEqual(["「你好。」", "他走了。", "」"])
+  })
+
+  test("左右引号颠倒（」…「）仍判不平衡", () => {
+    expect(isQuoteBalanced("」你好「", 0, 4)).toBe(false)
   })
 })
 
