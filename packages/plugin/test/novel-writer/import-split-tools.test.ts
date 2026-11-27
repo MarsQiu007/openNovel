@@ -415,7 +415,7 @@ describe("import_split_commit", () => {
     expect(archive?.split_cursor).toBe(0)
   })
 
-  test("存档章题书原样采用存档章题", async () => {
+  test("存档章题书按全书连续章序重排（原序号不保留）", async () => {
     await setupAiBook(TEXT_HEADED)
     const extract = await importSplitTools.import_split_extract.execute(
       { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 3 },
@@ -427,7 +427,7 @@ describe("import_split_commit", () => {
       toolCtx(),
     )
     const [row] = getDb(projectDir).select().from(ChapterTable).all()
-    expect(row?.title).toBe("第一章 启程")
+    expect(row?.title).toBe("第1章 启程")
   })
 
   test("修复后字数偏差超 10% 拒绝落章", async () => {
@@ -686,7 +686,7 @@ describe("import_split_commit 分卷归属", () => {
     expect(volumes[1]?.title).toBe("第二卷 远航")
     expect(volumes[1]?.order).toBe(2)
     const chapters = db.select().from(ChapterTable).all()
-    expect(chapters.map((row) => row.title)).toEqual(["第一章 启程", "第二章 遇险", "第三章 出海"])
+    expect(chapters.map((row) => row.title)).toEqual(["第1章 启程", "第2章 遇险", "第3章 出海"])
     expect(chapters[0]?.volume_id).toBe(volumes[0]?.id)
     expect(chapters[1]?.volume_id).toBe(volumes[0]?.id)
     expect(chapters[2]?.volume_id).toBe(volumes[1]?.id)
@@ -760,7 +760,55 @@ describe("import_split_commit 裸数字与纯序号章题", () => {
     expect(rows.map((row) => row.title)).toEqual(["第1章 觉醒", "第2章 遇险"])
   })
 
-  test("纯序号第N章存档章题：保留原序号拟名合成", async () => {
+  test("原文跳号与中文数字序号：落章按全书章序连贯重排", async () => {
+    await setupAiBook(["第三十一章", "清晨出发。山路难行。", "第三十五章", "夜宿破庙。忽闻异响。"].join("\n\n"))
+    const first = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 3 },
+      toolCtx(),
+    )
+    const firstMeta = first.metadata
+    await importSplitTools.import_split_commit.execute(
+      { novel_id: NOVEL_ID, title: "夜雨", content: "第三十一章\n\n清晨出发。\n\n山路难行。", window_cursor: 0, end_offset: Number(firstMeta?.end_offset), raw_word_count: Number(firstMeta?.raw_word_count) },
+      toolCtx(),
+    )
+    const second = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: Number(firstMeta?.end_offset), end_sentence: 3 },
+      toolCtx(),
+    )
+    const secondMeta = second.metadata
+    await importSplitTools.import_split_commit.execute(
+      { novel_id: NOVEL_ID, title: "破庙", content: "第三十五章\n\n夜宿破庙。\n\n忽闻异响。", window_cursor: Number(firstMeta?.end_offset), end_offset: Number(secondMeta?.end_offset), raw_word_count: Number(secondMeta?.raw_word_count) },
+      toolCtx(),
+    )
+    const rows = getDb(projectDir).select().from(ChapterTable).all()
+    expect(rows.map((row) => row.title)).toEqual(["第1章 夜雨", "第2章 破庙"])
+  })
+
+  test("特殊章题原样保留且不占数字章序", async () => {
+    await setupAiBook(["序章", "引子内容。开场白。", "第一章 启程", "清晨出发。山路难行。"].join("\n\n"))
+    const first = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 3 },
+      toolCtx(),
+    )
+    const firstMeta = first.metadata
+    await importSplitTools.import_split_commit.execute(
+      { novel_id: NOVEL_ID, title: "序章", content: "序章\n\n引子内容。\n\n开场白。", window_cursor: 0, end_offset: Number(firstMeta?.end_offset), raw_word_count: Number(firstMeta?.raw_word_count) },
+      toolCtx(),
+    )
+    const second = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: Number(firstMeta?.end_offset), end_sentence: 3 },
+      toolCtx(),
+    )
+    const secondMeta = second.metadata
+    await importSplitTools.import_split_commit.execute(
+      { novel_id: NOVEL_ID, title: "模型自拟", content: "第一章 启程\n\n清晨出发。\n\n山路难行。", window_cursor: Number(firstMeta?.end_offset), end_offset: Number(secondMeta?.end_offset), raw_word_count: Number(secondMeta?.raw_word_count) },
+      toolCtx(),
+    )
+    const rows = getDb(projectDir).select().from(ChapterTable).all()
+    expect(rows.map((row) => row.title)).toEqual(["序章", "第1章 启程"])
+  })
+
+  test("纯序号存档章题拟名合成并按全书章序重排", async () => {
     await setupAiBook(TEXT_ORDINAL)
     const extract = await importSplitTools.import_split_extract.execute(
       { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 3 },
@@ -774,6 +822,6 @@ describe("import_split_commit 裸数字与纯序号章题", () => {
       toolCtx(),
     )
     const [row] = getDb(projectDir).select().from(ChapterTable).all()
-    expect(row?.title).toBe("第三十一章 夜雨")
+    expect(row?.title).toBe("第1章 夜雨")
   })
 })

@@ -201,26 +201,46 @@ function parseChapterName(title: string): string {
   return trimmed.replace(TITLE_ORDINAL_PREFIX, "").replace(TITLE_SELF_NUMBER, "").trim()
 }
 
-/**
- * 拟题书章题统一编排（design D3）：「第N章 名字」，N 为全书章序号；
- * 与上一章同名（同一叙事单元连续章）时统一编号（1）（2）…，上一章未编号时回溯归一其章题。
- */
-function composeImportTitle(
-  rawTitle: string,
-  nextOrder: number,
+/** 既有章题的数字章序（「第N章」前缀，中文数字可解析）：特殊章题（序章/番外）无编号返回 null。 */
+function titleNumber(title: string): number | null {
+  const match = /^第([0-9０-９一二两三四五六七八九十百千万]+)章/.exec(title.trim())
+  return match === null ? null : parseChapterNumber(match[1] ?? "")
+}
+
+/** 校验名字部分并统一合成「第N章 名字」：N 为全书连续数字章序；与上一章同名（同一叙事单元连续章）时统一编号（1）（2）…，上一章未编号时回溯归一其章题。 */
+function composeNumberedTitle(
+  name: string,
+  nextNumber: number,
   previous: { readonly order: number; readonly title: string } | null,
 ): { readonly title: string; readonly previousTitle: string | null } {
+  if (previous === null || parseChapterName(previous.title) !== name)
+    return { title: "第" + nextNumber + "章 " + name, previousTitle: null }
+  const suffix = TITLE_SELF_NUMBER.exec(previous.title)
+  if (suffix !== null)
+    return { title: "第" + nextNumber + "章 " + name + "（" + (Number(suffix[1]) + 1) + "）", previousTitle: null }
+  const previousNumber = titleNumber(previous.title) ?? previous.order
+  return { title: "第" + nextNumber + "章 " + name + "（2）", previousTitle: "第" + previousNumber + "章 " + name + "（1）" }
+}
+
+/** 名字部分硬校验：非空（纯序号拒绝）且不超过 30 字。 */
+function requireChapterName(rawTitle: string): string {
   const name = parseChapterName(rawTitle)
   if (name.length === 0)
     throw toolFailure("content_rejected", "章题只有序号没有名字：请为本章拟 4-12 字的名字部分（「第N章」序号与同名编号由执行器统一编排），如「雨夜初醒」。")
   if (name.length > 30)
     throw toolFailure("content_rejected", "章题名字部分约 " + name.length + " 字超过 30 字上限：请压缩为 4-12 字的简洁名字。")
-  if (previous === null || parseChapterName(previous.title) !== name)
-    return { title: "第" + nextOrder + "章 " + name, previousTitle: null }
-  const suffix = TITLE_SELF_NUMBER.exec(previous.title)
-  if (suffix !== null)
-    return { title: "第" + nextOrder + "章 " + name + "（" + (Number(suffix[1]) + 1) + "）", previousTitle: null }
-  return { title: "第" + nextOrder + "章 " + name + "（2）", previousTitle: "第" + previous.order + "章 " + name + "（1）" }
+  return name
+}
+
+/**
+ * 拟题书章题统一编排（design D3）：cutter 只给名字，序号与同名编号由执行器统一编排。
+ */
+function composeImportTitle(
+  rawTitle: string,
+  nextNumber: number,
+  previous: { readonly order: number; readonly title: string } | null,
+): { readonly title: string; readonly previousTitle: string | null } {
+  return composeNumberedTitle(requireChapterName(rawTitle), nextNumber, previous)
 }
 
 /** 存档章题行是否纯序号（裸数字行或「第N章」无名字）：需要 cutter 拟名后合成。 */
@@ -228,24 +248,28 @@ function isPureOrdinalHeading(line: string): boolean {
   return BARE_NUMBER_HEADING.test(line) || parseChapterName(line).length === 0
 }
 
-/** 纯序号章题行的序号部分：裸数字归一为「第N章」，「第N章」式保留原文。 */
-function archiveOrdinal(line: string): string {
-  return BARE_NUMBER_HEADING.test(line) ? "第" + parseChapterNumber(line) + "章" : line
-}
-
 /**
- * 存档章题落章标题：带名字的章题原样采用；纯序号章题（裸数字/第N章）以
- * cutter 拟的名字合成「序号 名字」，cutter 未拟名（仍只给序号）时拒绝。
+ * 存档章题落章标题（design D3）：序号一律按全书连续章序以阿拉伯数字重排（原文序号不保留，
+ * 章序必须连贯）；名字取存档章题的名字部分，纯序号章题（裸数字/第N章）取 cutter 拟名，
+ * cutter 未拟名（仍只给序号）时拒绝；序章/楔子/番外/尾声等特殊章题原样保留，不占数字章序。
  */
-function composeFromArchiveHeading(headingLine: string, cutterTitle: string): { readonly title: string; readonly previousTitle: string | null } {
-  if (!isPureOrdinalHeading(headingLine)) return { title: headingLine, previousTitle: null }
-  const ordinal = archiveOrdinal(headingLine)
+function composeFromArchiveHeading(
+  headingLine: string,
+  cutterTitle: string,
+  nextNumber: number,
+  previous: { readonly order: number; readonly title: string } | null,
+): { readonly title: string; readonly previousTitle: string | null } {
+  const match = matchHeadingLine(headingLine)
+  if (match !== null && match.kind === "chapter" && match.special !== null)
+    return { title: headingLine, previousTitle: null }
+  const archived = parseChapterName(headingLine)
+  if (archived.length > 0) return composeNumberedTitle(archived, nextNumber, previous)
   const name = parseChapterName(cutterTitle)
   if (name.length === 0)
-    throw toolFailure("content_rejected", "存档章题为纯序号（" + headingLine + "）：title 请拟 4-12 字名字部分，执行器将合成「" + ordinal + " 名字」。")
+    throw toolFailure("content_rejected", "存档章题为纯序号（" + headingLine + "）：title 请拟 4-12 字名字部分，执行器将按全书连续章序合成「第N章 名字」。")
   if (name.length > 30)
     throw toolFailure("content_rejected", "章题名字部分约 " + name.length + " 字超过 30 字上限：请压缩为 4-12 字的简洁名字。")
-  return { title: ordinal + " " + name, previousTitle: null }
+  return composeNumberedTitle(name, nextNumber, previous)
 }
 
 /** 前文衔接：游标前最多 2 个句流单元的原文（design D3）。 */
@@ -463,7 +487,7 @@ export const importSplitTools = {
           ...(startUnit.volumeHeading ? ["本窗口以卷题「" + startUnit.headingTitle + "」开篇：卷由执行器自动创建并归属本章，卷题行保留在章文本中。"] : []),
           titleHint !== null
             ? isPureOrdinalHeading(titleHint)
-              ? "存档章题（title_hint）：" + titleHint + "（纯序号章题：title 拟 4-12 字名字部分，执行器将合成「" + archiveOrdinal(titleHint) + " 名字」）。"
+              ? "存档章题（title_hint）：" + titleHint + "（纯序号章题：title 拟 4-12 字名字部分，执行器将按全书连续章序合成「第N章 名字」）。"
               : "存档章题（title_hint）：" + titleHint
             : "本窗口无存档章题，章题由 cutter 拟定（只传 4-12 字名字部分，「第N章」序号与同名编号由执行器统一编排）。",
           "落章参数（import_split_commit 直接使用，逐字照抄不要估算）：window_cursor=" + cursor + "，end_offset=" + chapterEnd + "，raw_word_count=" + rawWordCount + "。",
@@ -548,18 +572,20 @@ export const importSplitTools = {
         if (unit.volumeHeading) governingVolumeTitle = unit.headingTitle
       }
       const chapter = withTransaction(getDb(ctx.directory), (tx) => {
-        const previous = tx
+        const existing = tx
           .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
           .from(ChapterTable)
           .where(eq(ChapterTable.novel_id, context.novelId))
           .all()
-          .reduce<{ id: string; order: number; title: string } | null>((max, row) => (row.order > (max?.order ?? 0) ? row : max), null)
+        const previous = existing.reduce<{ id: string; order: number; title: string } | null>((max, row) => (row.order > (max?.order ?? 0) ? row : max), null)
         const nextOrder = (previous?.order ?? 0) + 1
-        // 章题统一编排：存档章题书原样采用存档章题；拟题书由执行器编排序号与同名编号
+        // 数字章序取既有章题最大编号 +1：序章/番外等特殊章题不占号，全书章序连贯
+        const nextNumber = existing.reduce((max, row) => Math.max(max, titleNumber(row.title) ?? 0), 0) + 1
+        // 章题统一编排：存档章题取名字按全书章序重排（特殊章题原样）；拟题书由执行器编排序号与同名编号
         const composed =
           chapterHeadingUnit !== undefined
-            ? composeFromArchiveHeading(chapterHeadingUnit.headingTitle, title)
-            : composeImportTitle(title, nextOrder, previous)
+            ? composeFromArchiveHeading(chapterHeadingUnit.headingTitle, title, nextNumber, previous)
+            : composeImportTitle(title, nextNumber, previous)
         // 分卷归属：卷题行懒创建（同书同名卷复用），卷前章保持无卷归属
         const volumeId =
           governingVolumeTitle === null
