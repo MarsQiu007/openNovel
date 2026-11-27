@@ -37,6 +37,31 @@ describe("splitSentenceSpans", () => {
   })
 })
 
+describe("直引号与同形引号", () => {
+  test("英文直引号对话：闭合后切分", () => {
+    const text = '他说"今天来。明天走。"然后离开。'
+    const spans = splitSentenceSpans(text)
+    expect(spans.map((span) => text.slice(span.start, span.end))).toEqual(['他说"今天来。明天走。"', "然后离开。"])
+  })
+
+  test("英文直引号未闭合：不切分且不平衡", () => {
+    const text = '他说"今天来。明天走。'
+    const spans = splitSentenceSpans(text)
+    expect(spans).toEqual([{ start: 0, end: text.length }])
+    expect(isQuoteBalanced(text, 0, text.length)).toBe(false)
+  })
+
+  test("全角直引号与单弯引号配对", () => {
+    expect(isQuoteBalanced("他说＂你好。＂", 0, 7)).toBe(true)
+    expect(isQuoteBalanced("他说‘你好。’", 0, 7)).toBe(true)
+    expect(isQuoteBalanced("他说＂你好。", 0, 6)).toBe(false)
+  })
+
+  test("多余右引号判不平衡（负 balance）", () => {
+    expect(isQuoteBalanced("你好。」", 0, 4)).toBe(false)
+  })
+})
+
 describe("isQuoteBalanced", () => {
   test("引号闭合区间为真", () => {
     expect(isQuoteBalanced("他说：“你好。”", 0, 8)).toBe(true)

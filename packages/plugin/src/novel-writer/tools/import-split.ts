@@ -14,7 +14,7 @@ import { join } from "path"
 import { Schema } from "effect"
 import { eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
-import { buildWordPrefix, isQuoteBalanced, SENTENCE_CUT_CHARS, splitSentenceSpans } from "@opennovel-ai/novel-store/text-split"
+import { buildWordPrefix, isQuoteBalanced, QUOTE_PAIRS, SENTENCE_CUT_CHARS, splitSentenceSpans, STRAIGHT_QUOTES } from "@opennovel-ai/novel-store/text-split"
 import { looksLikeHeadingLine } from "@opennovel-ai/novel-store/heading"
 import { CLEAN_WORD_DEVIATION } from "../cleaner-contract.js"
 import { defineTool } from "../../v2/effect/tool.js"
@@ -26,9 +26,14 @@ import { projectDirFromCtx, resolveNovelId } from "./shared.js"
 const WINDOW_WORD_CAP = 4500
 /** 后文缓冲字数上限：供 cutter 判断边界后情节走向，不属于本章（design D3）。 */
 const BUFFER_WORD_CAP = 500
-/** 章字数软约束区间（design D1/D3）：只做提示，硬校验由 extract/commit 负责。 */
+/** 章字数软约束区间（design D1/D3）：提示口径，硬闸门为 HARD 区间。 */
 const SOFT_MIN_WORDS = 2000
 const SOFT_MAX_WORDS = 3000
+/** 章字数硬闸门：软区间 ±500 容差；低于下限仅在后文充足时拒绝（临近结尾允许小章）。 */
+const HARD_MIN_WORDS = 1500
+const HARD_MAX_WORDS = 3500
+/** 落章单段字数上限：超过则要求 cleaner 细分（分段不改正文）。 */
+const MAX_PARAGRAPH_WORDS = 1000
 
 /** 句流单元：[start, end) 字符偏移；heading 单元为章题行（强边界信号）。 */
 interface SplitUnit {
@@ -154,6 +159,27 @@ function displayUnit(text: string, unit: SplitUnit): string {
   return text.slice(unit.start, unit.end).trim().replace(/\s+/g, " ")
 }
 
+/** 存档引号诊断：统计各引号字符配平，不配对时返回缺陷描述（组章卡点时供定位）。 */
+function diagnoseQuotes(text: string): string | null {
+  const counts = new Map<string, number>()
+  for (const char of text) {
+    if (STRAIGHT_QUOTES.has(char) || QUOTE_PAIRS.some(([open, close]) => char === open || char === close))
+      counts.set(char, (counts.get(char) ?? 0) + 1)
+  }
+  const problems: string[] = []
+  for (const [open, close] of QUOTE_PAIRS) {
+    const left = counts.get(open) ?? 0
+    const right = counts.get(close) ?? 0
+    if (left !== right) problems.push(open + close + " 左" + left + "/右" + right)
+  }
+  for (const char of STRAIGHT_QUOTES) {
+    const count = counts.get(char) ?? 0
+    if (count % 2 !== 0) problems.push(char + " 奇数个（" + count + "）")
+  }
+  if (problems.length === 0) return null
+  return "存档引号不配对：" + problems.join("；") + "。组章在引号处卡点时先核对这些位置（多余右引号/缺失左引号会被硬校验拒绝）。"
+}
+
 /** 前文衔接：游标前最多 2 个句流单元的原文（design D3）。 */
 function recentText(text: string, units: SplitUnit[], startIdx: number): string {
   const parts: string[] = []
@@ -216,7 +242,11 @@ export const importSplitTools = {
       for (let index = range.startIdx; index <= range.endIdx; index++) {
         const unit = context.units[index]
         const number = index - range.startIdx + 1
-        lines.push(unit.heading ? "【章题】" + number + ". " + unit.headingTitle : number + ". " + displayUnit(context.text, unit))
+        const cumulative = context.prefix[unit.end] - context.prefix[context.units[range.startIdx].start]
+        lines.push(
+          (unit.heading ? "【章题】" + number + ". " + unit.headingTitle : number + ". " + displayUnit(context.text, unit)) +
+            "（累计约 " + cumulative + " 字）",
+        )
       }
       lines.push("", "【后文缓冲】（不属于本章）")
       lines.push(
@@ -240,6 +270,8 @@ export const importSplitTools = {
       if (startIdx === context.units.length - 1 && context.units[startIdx].end === context.text.length && !context.units[startIdx].heading) {
         lines.push("⚠ 存档警示：拆章游标之后没有任何引号闭合的句末切点——原文可能存在缺失的右引号（引号未闭合），后续组章会被硬校验拒绝。请先修复原文再继续，或确认后跳过该缺陷段。")
       }
+      const quoteDiagnosis = diagnoseQuotes(context.text)
+      if (quoteDiagnosis !== null) lines.push("", "⚠ " + quoteDiagnosis)
       lines.push("", "拆章游标 window_cursor=" + context.cursor + "（import_split_extract 与 import_split_commit 的 window_cursor 参数都使用此值，不要估算）。")
       return {
         title: "import_split_window",
@@ -311,6 +343,19 @@ export const importSplitTools = {
       const rawWordCount = countWords(chapterText)
       if (rawWordCount === 0)
         throw toolFailure("content_rejected", "切出的章文本为空，无法组章。")
+      // 字数硬闸门（用户要求按单章字数区间限定）：超上限一律重切；低于下限仅在后文充足时拒绝，
+      // 临近结尾（后文不足下限）允许小章收尾。拒绝原因反馈给 cutter 重选边界。
+      const afterChapter = context.prefix[context.text.length] - context.prefix[chapterEnd]
+      if (rawWordCount > HARD_MAX_WORDS)
+        throw toolFailure(
+          "content_rejected",
+          "章字数约 " + rawWordCount + " 超出硬上限 " + HARD_MAX_WORDS + "：请重选更早的章末句（更小的 end_sentence），把超出部分留给下一章。",
+        )
+      if (rawWordCount < HARD_MIN_WORDS && afterChapter >= HARD_MIN_WORDS)
+        throw toolFailure(
+          "content_rejected",
+          "章字数约 " + rawWordCount + " 低于硬下限 " + HARD_MIN_WORDS + " 且后文仍有约 " + afterChapter + " 字：请重选更晚的章末句（更大的 end_sentence）。",
+        )
       const softHint =
         rawWordCount < SOFT_MIN_WORDS
           ? "章字数约 " + rawWordCount + "，低于软约束下限 " + SOFT_MIN_WORDS + "：若非临近结尾，请重选边界。"
@@ -371,8 +416,17 @@ export const importSplitTools = {
         throw toolFailure("param_error", "raw_word_count 与存档切片字数不符：应为 " + sliceWordCount + "，收到 " + rawWordCount + "。请使用 import_split_extract 返回的元数据。")
       const title = args.title.trim()
       if (title.length === 0) throw toolFailure("param_error", "章题不能为空。")
-      const content = args.content.trim()
-      if (content.length === 0) throw toolFailure("param_error", "章正文不能为空。")
+      const rawContent = args.content.trim()
+      if (rawContent.length === 0) throw toolFailure("param_error", "章正文不能为空。")
+      // 段落归一：换行即段落边界（与存档归一约定一致），统一为空行分段，段间空行必须保留
+      const paragraphs = rawContent.split(/\n+/).map((paragraph) => paragraph.trim()).filter((paragraph) => paragraph.length > 0)
+      const content = paragraphs.join("\n\n")
+      const longestParagraph = Math.max(...paragraphs.map((paragraph) => countWords(paragraph)))
+      if (longestParagraph > MAX_PARAGRAPH_WORDS)
+        throw toolFailure(
+          "content_rejected",
+          "落章段落校验失败：最长段约 " + longestParagraph + " 字超过 " + MAX_PARAGRAPH_WORDS + "。请让 cleaner 按对话轮次与场景转换细分段落（分段不改正文文字）后重新提交。",
+        )
       const wordCount = countWords(content)
       const deviation = Math.abs(wordCount - rawWordCount) / rawWordCount
       if (deviation > CLEAN_WORD_DEVIATION)

@@ -7,7 +7,7 @@
  */
 import { type HeadingMatch, looksLikeHeadingLine, matchHeading } from "@opennovel-ai/novel-store/heading"
 export { looksLikeHeadingLine, matchHeading, parseChapterNumber } from "@opennovel-ai/novel-store/heading"
-import { buildWordPrefix, findSentenceCut, positionAtWords, QUOTE_PAIRS, SENTENCE_CUT_CHARS } from "@opennovel-ai/novel-store/text-split"
+import { buildWordPrefix, findSentenceCut, makeQuoteTracker, positionAtWords, SENTENCE_CUT_CHARS } from "@opennovel-ai/novel-store/text-split"
 
 export interface ParsedChapter {
   title: string
@@ -249,17 +249,14 @@ function nearestSentenceCut(
   feasibleLo = Number.NEGATIVE_INFINITY,
   feasibleHi = Number.POSITIVE_INFINITY,
 ): number | null {
-  const balances = QUOTE_PAIRS.map(() => 0)
+  const tracker = makeQuoteTracker()
   let best: number | null = null
   let bestDistance = Number.POSITIVE_INFINITY
   for (let index = chapterStart; index < to; index++) {
     const char = body[index]
-    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
-      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
-      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
-    }
+    tracker.feed(char)
     if (index + 1 < from || !SENTENCE_CUT_CHARS.has(char)) continue
-    if (!balances.every((balance) => balance === 0)) continue
+    if (!tracker.balanced()) continue
     if (prefix[index + 1] < feasibleLo || prefix[index + 1] > feasibleHi) continue
     const distance = Math.abs(prefix[index + 1] - goal)
     if (distance < bestDistance) {

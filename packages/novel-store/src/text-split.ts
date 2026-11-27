@@ -7,13 +7,41 @@
  */
 
 /** 句末切点字符：句末标点与右引号（对话结束）。 */
-export const SENTENCE_CUT_CHARS = new Set(["。", "！", "？", "…", "》", "）", "”", "’", "」", "』"])
+export const SENTENCE_CUT_CHARS = new Set(["。", "！", "？", "…", "》", "）", "”", "’", "」", "』", '"', "＂"])
 
+/** 异形引号对（开闭不同字符）：计数配平。 */
 export const QUOTE_PAIRS: [string, string][] = [
   ["“", "”"],
+  ["‘", "’"],
   ["「", "」"],
   ["『", "』"],
+  ["«", "»"],
+  ["‹", "›"],
 ]
+
+/** 同形直引号（开闭同字符）：无法用计数配平，用奇偶翻转判定。 */
+export const STRAIGHT_QUOTES = new Set(['"', "'", "＂", "＇"])
+
+/**
+ * 引号配平状态机：异形对计数 + 同形直引号奇偶翻转。
+ * 配平从创建时（或上一平衡切点）起算；balance 为负（右引号先于左引号）同样判不平衡。
+ */
+export function makeQuoteTracker() {
+  const balances = QUOTE_PAIRS.map(() => 0)
+  const straight = new Map<string, boolean>()
+  return {
+    feed(char: string) {
+      for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
+        if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
+        if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
+      }
+      if (STRAIGHT_QUOTES.has(char)) straight.set(char, !straight.get(char))
+    },
+    balanced() {
+      return balances.every((balance) => balance === 0) && [...straight.values()].every((open) => !open)
+    },
+  }
+}
 
 /**
  * [chapterStart, to) 内引号闭合的句末切点（切点在句末字符之后）；pick 控制取首个或最后一个。
@@ -28,16 +56,13 @@ export function findSentenceCut(
   to: number,
   pick: "first" | "last",
 ): number | null {
-  const balances = QUOTE_PAIRS.map(() => 0)
+  const tracker = makeQuoteTracker()
   let lastCut: number | null = null
   for (let index = chapterStart; index < to; index++) {
     const char = body[index]
-    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
-      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
-      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
-    }
+    tracker.feed(char)
     if (index + 1 < from || !SENTENCE_CUT_CHARS.has(char)) continue
-    if (!balances.every((balance) => balance === 0)) continue
+    if (!tracker.balanced()) continue
     if (pick === "first") return index + 1
     lastCut = index + 1
   }
@@ -99,13 +124,7 @@ export function splitSentenceSpans(text: string): SentenceSpan[] {
 
 /** [start, end) 区间内三组引号是否全部闭合。 */
 export function isQuoteBalanced(text: string, start: number, end: number): boolean {
-  const balances = QUOTE_PAIRS.map(() => 0)
-  for (let index = start; index < end; index++) {
-    const char = text[index]
-    for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
-      if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
-      if (char === QUOTE_PAIRS[pair][1]) balances[pair]--
-    }
-  }
-  return balances.every((balance) => balance === 0)
+  const tracker = makeQuoteTracker()
+  for (let index = start; index < end; index++) tracker.feed(text[index])
+  return tracker.balanced()
 }

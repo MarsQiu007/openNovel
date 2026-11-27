@@ -157,6 +157,84 @@ describe("import_split_window", () => {
   })
 })
 
+describe("import_split_extract 字数硬闸门", () => {
+  const sentence = "这是一个用来凑字数的测试句子。"
+  const makeText = (count: number) => Array.from({ length: count }, () => sentence).join("")
+
+  test("窗口每行标注累计字数", async () => {
+    await setupAiBook(makeText(20))
+    const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(result.output).toContain("累计约")
+  })
+
+  test("超出硬上限 3500 拒绝并要求重选更早边界", async () => {
+    await setupAiBook(makeText(300))
+    await expectFailure(
+      importSplitTools.import_split_extract.execute({ novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 260 }, toolCtx()),
+      "content_rejected",
+      "超出硬上限",
+    )
+  })
+
+  test("低于硬下限且后文充足时拒绝并要求重选更晚边界", async () => {
+    await setupAiBook(makeText(300))
+    await expectFailure(
+      importSplitTools.import_split_extract.execute({ novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 50 }, toolCtx()),
+      "content_rejected",
+      "低于硬下限",
+    )
+  })
+
+  test("临近全书结尾允许小章收尾", async () => {
+    await setupAiBook(makeText(100))
+    const result = await importSplitTools.import_split_extract.execute({ novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 30 }, toolCtx())
+    expect(Number(result.metadata?.raw_word_count)).toBeGreaterThan(0)
+  })
+
+  test("引号不配对时窗口输出诊断", async () => {
+    await setupAiBook("他说「你好。她答「嗯。」然后他走了。")
+    const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(result.output).toContain("引号不配对")
+  })
+})
+
+describe("import_split_commit 段落归一与单段上限", () => {
+  test("单换行归一为空行分段，段间空行保留", async () => {
+    await setupAiBook(TEXT_PLAIN)
+    const extract = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 2 },
+      toolCtx(),
+    )
+    const metadata = extract.metadata
+    // cleaner 输出用单换行连写段落：落章必须归一为空行分段
+    await importSplitTools.import_split_commit.execute(
+      { novel_id: NOVEL_ID, title: "第一章", content: "他推开门。\n屋内一片漆黑。", window_cursor: 0, end_offset: Number(metadata?.end_offset), raw_word_count: Number(metadata?.raw_word_count) },
+      toolCtx(),
+    )
+    const [chapter] = getDb(projectDir).select().from(ChapterTable).all()
+    expect(chapter?.content).toBe("他推开门。\n\n屋内一片漆黑。")
+  })
+
+  test("单段超过 1000 字拒绝并要求细分", async () => {
+    const sentence = "这是一个用来凑字数的测试句子。"
+    const long = Array.from({ length: 80 }, () => sentence).join("") + "\n\n结尾。"
+    await setupAiBook(long)
+    const extract = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 81 },
+      toolCtx(),
+    )
+    const metadata = extract.metadata
+    await expectFailure(
+      importSplitTools.import_split_commit.execute(
+        { novel_id: NOVEL_ID, title: "长段", content: Array.from({ length: 80 }, () => sentence).join("") + "结尾。", window_cursor: 0, end_offset: Number(metadata?.end_offset), raw_word_count: Number(metadata?.raw_word_count) },
+        toolCtx(),
+      ),
+      "content_rejected",
+      "最长段",
+    )
+  })
+})
+
 describe("import_split_extract", () => {
   test("切章 + 分段点重排，且分段不改正文", async () => {
     await setupAiBook(TEXT_PLAIN)
