@@ -8,6 +8,7 @@ import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opennovel-ai/core/util/encode"
 import { DEFAULT_SPLIT_RANGE, isValidSplitRange, canConfirmImport, importSourceInput, shouldResetImportTitle } from "./book-import-input"
 import type { NovelImportEncoding, NovelImportIssue, NovelImportPreview, NovelImportReport } from "@opennovel-ai/schema/novel"
+import { Spinner } from "@opennovel-ai/ui/spinner"
 import { ButtonV2 } from "@opennovel-ai/ui/v2/button-v2"
 import { FieldV2 } from "@opennovel-ai/ui/v2/field-v2"
 import { TextInputV2 } from "@opennovel-ai/ui/v2/text-input-v2"
@@ -87,6 +88,8 @@ export default function NovelImportWizard() {
   const [report, setReport] = createSignal<NovelImportReport | null>(null)
   const [tidy, setTidy] = createSignal<{ kind: "ok" | "error"; text: string } | null>(null)
   const [tidyPending, setTidyPending] = createSignal(false)
+  const [aiSplitState, setAiSplitState] = createSignal<"sending" | "running" | "error">()
+  const [aiSplitSessionID, setAiSplitSessionID] = createSignal<string>()
 
   const steps = [
     { title: language.t("novel.import.step.file") },
@@ -229,16 +232,22 @@ export default function NovelImportWizard() {
   async function startAiSplit(novelId: string, bookTitle: string, estimatedChapters: number) {
     if (tidyPending()) return
     setTidyPending(true)
+    setAiSplitState("sending")
     try {
-      await sendNovelSessionInstruction({
+      const sessionID = await sendNovelSessionInstruction({
         sdk,
         novel,
         bindSession,
         novelID: novelId,
         prompt: buildAiSplitPrompt({ novelID: novelId, title: bookTitle, estimatedChapters }),
       })
+      setAiSplitSessionID(sessionID)
+      setAiSplitState("running")
       setTidy({ kind: "ok", text: language.t("novel.import.aiSplitStarted") })
+      navigate("/" + base64Encode(sdk().directory) + "/novel/" + novelId + "/session/" + sessionID)
     } catch (err) {
+      setAiSplitSessionID(undefined)
+      setAiSplitState("error")
       setTidy({ kind: "error", text: errorMessage(err) })
     } finally {
       setTidyPending(false)
@@ -505,6 +514,43 @@ export default function NovelImportWizard() {
 
             <Show when={report()?.splitMode === "ai"}>
               <p class="text-xs text-v2-text-text-muted">{language.t("novel.import.report.aiPipeline")}</p>
+              <Show when={aiSplitState()}>
+                {(state) => (
+                  <div class="flex flex-col gap-3 p-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01">
+                    <div class="flex items-center gap-2">
+                      <Show when={state() === "sending"}>
+                        <Spinner class="h-4 w-4 text-v2-text-text-muted" />
+                      </Show>
+                      <span
+                        class={
+                          state() === "error"
+                            ? "text-sm font-medium text-v2-state-fg-danger"
+                            : state() === "sending"
+                              ? "text-sm font-medium text-v2-text-text-muted"
+                              : "text-sm font-medium text-v2-state-fg-success"
+                        }
+                      >
+                        {language.t("novel.import.aiSplitStatus." + state())}
+                      </span>
+                    </div>
+                    <Show when={aiSplitSessionID()}>
+                      {(sessionID) => (
+                        <ButtonV2
+                          variant="outline"
+                          size="small"
+                          onClick={() =>
+                            navigate(
+                              "/" + base64Encode(sdk().directory) + "/novel/" + report()?.novelId + "/session/" + sessionID(),
+                            )
+                          }
+                        >
+                          {language.t("novel.import.aiSplitWorkspace")}
+                        </ButtonV2>
+                      )}
+                    </Show>
+                  </div>
+                )}
+              </Show>
             </Show>
 
             <Show when={tidy()}>

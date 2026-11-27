@@ -1421,6 +1421,10 @@ export const dict = {
   "novel.import.report.aiPipeline": "AI split queue created automatically: chapters will be produced, auto-cleaned and stored one by one. Track progress in the bound session.",
   "novel.import.aiSplitStart": "Start AI split",
   "novel.import.aiSplitStarted": "AI split queue instruction sent. Chapters will be produced and auto-cleaned one by one.",
+  "novel.import.aiSplitStatus.sending": "Creating AI split queue…",
+  "novel.import.aiSplitStatus.running": "AI split started. Chapters are being generated and cleaned.",
+  "novel.import.aiSplitStatus.error": "AI split failed to start.",
+  "novel.import.aiSplitWorkspace": "View session progress",
 
   "novel.workspace.title": "Workspace",
   "novel.workspace.back": "Back",

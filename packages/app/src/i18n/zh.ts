@@ -1387,6 +1387,10 @@ export const dict = {
   "novel.import.report.aiPipeline": "AI 拆章队列已自动创建：章节将逐章生成并自动清洗、设定自动入库，可在绑定会话查看进度。",
   "novel.import.aiSplitStart": "启动 AI 拆章",
   "novel.import.aiSplitStarted": "已发送 AI 拆章建队指令，章节将逐章生成并自动清洗入库。",
+  "novel.import.aiSplitStatus.sending": "正在创建 AI 拆章队列…",
+  "novel.import.aiSplitStatus.running": "AI 拆章已启动，正在逐章生成与清洗。",
+  "novel.import.aiSplitStatus.error": "AI 拆章启动失败。",
+  "novel.import.aiSplitWorkspace": "查看书籍会话进度",
 
   "novel.workspace.title": "创作空间",
   "novel.workspace.back": "返回",
