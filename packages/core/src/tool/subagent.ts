@@ -215,7 +215,7 @@ const layer = Layer.effectDiscard(
 
               const override = model === undefined ? undefined : yield* resolveModel(model)
               // Continuing with a different agent switches the child, mirroring create semantics
-              // where an explicit model wins over the agent's configured model, which wins over the inherited one.
+              // where an explicit model wins over the agent's configured model, which wins over the parent's effective model.
               if (existing !== undefined) {
                 const switched = existing.agent !== agent.id
                 const nextModel = override ?? (switched ? agent.model : undefined)
@@ -231,7 +231,13 @@ const layer = Layer.effectDiscard(
                 )
               }
 
-              const childModel = override ?? agent.model ?? parent.model
+              // 父会话未显式钉模型时，其生效模型可能来自父 agent 配置；子代理必须继承这条
+              // 模型，否则会绕过 director 配置静默滑向目录默认（如发布时间最新的 openai/o3）。
+              const parentAgentModel =
+                parent.model === undefined
+                  ? (yield* agents.select(parent.agent ?? undefined)).info?.model
+                  : undefined
+              const childModel = override ?? agent.model ?? parent.model ?? parentAgentModel
               const child =
                 existing ??
                 (yield* sessions

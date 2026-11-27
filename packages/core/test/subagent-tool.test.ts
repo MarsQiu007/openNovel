@@ -365,6 +365,37 @@ describe("SubagentTool", () => {
     }),
   )
 
+  it.effect("inherits the parent agent model when the parent session is unpinned", () =>
+    Effect.gen(function* () {
+      assertions.length = 0
+      wakeCalls.length = 0
+      configEntries.length = 0
+      const directorModel = ModelV2.Ref.make({ providerID: ProviderV2.ID.make("prov"), id: ModelV2.ID.make("director-model") })
+      const subagentModel = ModelV2.Ref.make({ providerID: ProviderV2.ID.make("prov"), id: ModelV2.ID.make("subagent-model") })
+      yield* addAgent("director", "primary", { model: directorModel })
+      yield* addAgent("unconfigured", "subagent")
+      yield* addAgent("configured", "subagent", { model: subagentModel })
+      availableModels.length = 0
+      availableModels.push(ModelV2.Info.empty(ProviderV2.ID.make("prov"), ModelV2.ID.make("override-model")))
+      const sessions = yield* SessionV2.Service
+      const parent = yield* sessions.create({ location, agent: AgentV2.ID.make("director") })
+
+      const inherited = yield* settleSubagent(parent.id, { agent: "unconfigured", description: "继承", prompt: "继承" })
+      expect((yield* sessionRow(SessionV2.ID.make(childIDOf(inherited))))?.model).toMatchObject({ id: "director-model" })
+
+      const viaAgent = yield* settleSubagent(parent.id, { agent: "configured", description: "子代理配置", prompt: "子代理配置" })
+      expect((yield* sessionRow(SessionV2.ID.make(childIDOf(viaAgent))))?.model).toMatchObject({ id: "subagent-model" })
+
+      const viaOverride = yield* settleSubagent(parent.id, {
+        agent: "unconfigured",
+        description: "显式覆盖",
+        prompt: "显式覆盖",
+        model: "prov/override-model",
+      })
+      expect((yield* sessionRow(SessionV2.ID.make(childIDOf(viaOverride))))?.model).toMatchObject({ id: "override-model" })
+    }),
+  )
+
   it.effect("asserts permission for the resolved agent and surfaces denials", () =>
     Effect.gen(function* () {
       assertions.length = 0
