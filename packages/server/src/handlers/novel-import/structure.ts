@@ -5,7 +5,7 @@
  * 卷题覆盖「第N卷/部」「卷N」「Volume N」；N 支持阿拉伯数字（含全角）与中文数字。
  * 候选标题行须满足行独占性（去空白 ≤40 字符且不含句读标点），防正文误切。
  */
-import { type HeadingMatch, looksLikeHeadingLine, matchHeading } from "@opennovel-ai/novel-store/heading"
+import { BARE_NUMBER_HEADING, type HeadingMatch, looksLikeHeadingLine, matchHeading } from "@opennovel-ai/novel-store/heading"
 export { looksLikeHeadingLine, matchHeading, parseChapterNumber } from "@opennovel-ai/novel-store/heading"
 import { buildWordPrefix, findSentenceCut, makeQuoteTracker, positionAtWords, SENTENCE_CUT_CHARS } from "@opennovel-ai/novel-store/text-split"
 
@@ -31,20 +31,37 @@ export interface ParsedStructure {
 }
 
 interface HeadingIndex {
+  /** 标题块首行（前言与上一章正文边界） */
   lineIndex: number
+  /** 正文起始行：标题块末行 +1（相邻同文重复行并入标题块） */
+  bodyLineIndex: number
   match: HeadingMatch
 }
 
 /** 拆分卷章结构；无章节边界时 issues 携带 unrecognized-boundary 且 volumes 为空。 */
 export function parseStructure(text: string): ParsedStructure {
   const lines = text.split(/\r?\n/)
-  const headings: HeadingIndex[] = []
+  const headings: { lineIndex: number; match: HeadingMatch }[] = []
   lines.forEach((line, index) => {
     if (!looksLikeHeadingLine(line)) return
     const match = matchHeading(line.trim())
     if (match) headings.push({ lineIndex: index, match })
   })
-  const chapterHeadings = headings.filter((heading) => heading.match.kind === "chapter")
+  // 相邻同文标题行（采集重复，如顶格「１」+ 缩进「１」）：并入前一标题块——
+  // 前言/章间边界仍取首行，正文从最后一个重复行之后起，避免重复行落入正文或产生空章
+  const dedupedHeadings: HeadingIndex[] = []
+  for (const heading of headings) {
+    const previous = dedupedHeadings.at(-1)
+    if (previous !== undefined && previous.match.title === heading.match.title) {
+      const between = lines.slice(previous.bodyLineIndex, heading.lineIndex)
+      if (!between.some((line) => line.trim().length > 0)) {
+        previous.bodyLineIndex = heading.lineIndex + 1
+        continue
+      }
+    }
+    dedupedHeadings.push({ lineIndex: heading.lineIndex, bodyLineIndex: heading.lineIndex + 1, match: heading.match })
+  }
+  const chapterHeadings = dedupedHeadings.filter((heading) => heading.match.kind === "chapter")
   if (chapterHeadings.length === 0) {
     return {
       volumes: [],
@@ -62,16 +79,19 @@ export function parseStructure(text: string): ParsedStructure {
   const issues: ParsedStructure["issues"] = []
   const chapterNumbers: { number: number; lineIndex: number }[] = []
 
-  headings.forEach((heading, position) => {
+  dedupedHeadings.forEach((heading, position) => {
     if (heading.match.kind === "volume") {
       volumes.push({ title: heading.match.title, chapters: [] })
       return
     }
-    const next = headings[position + 1]
-    const body = lines.slice(heading.lineIndex + 1, next?.lineIndex ?? lines.length)
+    const next = dedupedHeadings[position + 1]
+    const body = lines.slice(heading.bodyLineIndex, next?.lineIndex ?? lines.length)
     const content = trimBlankEdges(body).join("\n")
     const chapter: ParsedChapter = {
-      title: heading.match.title,
+      title:
+        heading.match.kind === "chapter" && heading.match.number !== null && BARE_NUMBER_HEADING.test(heading.match.title)
+          ? "第" + heading.match.number + "章"
+          : heading.match.title,
       content,
       special: heading.match.special,
       number: heading.match.number,
@@ -81,7 +101,7 @@ export function parseStructure(text: string): ParsedStructure {
   })
 
   // 首个章题前的卷前言并入第一章，避免内容丢失
-  const preamble = trimBlankEdges(lines.slice(0, headings[0].lineIndex))
+  const preamble = trimBlankEdges(lines.slice(0, dedupedHeadings[0].lineIndex))
   if (preamble.length > 0 && volumes.length > 0) {
     const first = volumes.find((volume) => volume.chapters.length > 0)?.chapters[0]
     if (first) {

@@ -72,6 +72,8 @@ const CHAPTER_HEADING_EN = /^[Cc]hapter\s+([0-9]+)\s*[.、．\-—]?\s*(.*)$/
 const VOLUME_HEADING = new RegExp(`^第${NUMBER_SOURCE}[卷部]\\s*[：:、.．\\-—]?\\s*(.*)$`)
 const VOLUME_HEADING_BARE = new RegExp(`^卷\\s*${NUMBER_SOURCE}\\s*[：:、.．\\-—]?\\s*(.*)$`)
 const VOLUME_HEADING_EN = /^Volume\s+([0-9]+)\s*[.、．\-—]?\s*(.*)$/i
+/** 裸数字章题行（全角/半角 ≤4 位）：采集文本常见的无「章」字章号，如「１２」。 */
+export const BARE_NUMBER_HEADING = /^[0-9０-９]{1,4}$/
 const PROLOGUE_HEADING = /^(序章|序言|楔子|前言|引言|序)$/
 const EPILOGUE_HEADING = /^(尾声|后记|完结篇)$/
 const EXTRA_HEADING = /^番外(?:篇|章|章节)?\s*[：:、.．]?\s*(.*)$/
@@ -93,6 +95,9 @@ export function matchHeading(trimmed: string): HeadingMatch | null {
   const chapter = CHAPTER_HEADING.exec(trimmed) ?? CHAPTER_HEADING_EN.exec(trimmed)
   if (chapter) {
     return { kind: "chapter", number: parseChapterNumber(chapter[1] ?? ""), title: trimmed, special: null }
+  }
+  if (BARE_NUMBER_HEADING.test(trimmed)) {
+    return { kind: "chapter", number: parseChapterNumber(trimmed), title: trimmed, special: null }
   }
   return null
 }

@@ -15,7 +15,7 @@ import { Schema } from "effect"
 import { and, eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildWordPrefix, isQuoteBalanced, QUOTE_MAX_OPEN_CHARS, QUOTE_PAIRS, SENTENCE_CUT_CHARS, splitSentenceSpans, STRAIGHT_QUOTES } from "@opennovel-ai/novel-store/text-split"
-import { looksLikeHeadingLine, matchHeadingLine } from "@opennovel-ai/novel-store/heading"
+import { BARE_NUMBER_HEADING, looksLikeHeadingLine, matchHeadingLine, parseChapterNumber } from "@opennovel-ai/novel-store/heading"
 import { CLEAN_WORD_DEVIATION } from "../cleaner-contract.js"
 import { defineTool } from "../../v2/effect/tool.js"
 import { toolFailure } from "../../v2/effect/tool-failure.js"
@@ -81,6 +81,13 @@ function buildSentenceUnits(text: string): SplitUnit[] {
     const trimmed = text.slice(cursor, lineEnd).trim()
     const heading = trimmed.length > 0 ? matchHeadingLine(trimmed) : null
     if (heading !== null) {
+      const last = units.at(-1)
+      // 相邻同文标题行（采集重复，如顶格「１」+ 缩进「１」）：仅空白相隔时并入上一单元，避免产生空章
+      if (last !== undefined && last.heading && last.headingTitle === trimmed && text.slice(last.end, cursor).trim().length === 0) {
+        units[units.length - 1] = { ...last, end: lineEnd }
+        cursor = lineEnd
+        continue
+      }
       units.push({ start: pendingStart ?? cursor, end: lineEnd, heading: true, headingTitle: trimmed, volumeHeading: heading.kind === "volume" })
       pendingStart = null
       cursor = lineEnd
@@ -187,9 +194,11 @@ function diagnoseQuotes(text: string): string | null {
 const TITLE_ORDINAL_PREFIX = /^\s*第\s*[0-9０-９一二三四五六七八九十百千]+\s*[章回节卷部]\s*[：:、.．\-—·\s]*/
 const TITLE_SELF_NUMBER = /[（(]\s*(\d+)\s*[）)]\s*$/
 
-/** 剥离章题的序号前缀与同名编号，取名字部分。 */
+/** 剥离章题的序号前缀与同名编号，取名字部分；裸数字行整体视为序号（名字为空）。 */
 function parseChapterName(title: string): string {
-  return title.replace(TITLE_ORDINAL_PREFIX, "").replace(TITLE_SELF_NUMBER, "").trim()
+  const trimmed = title.trim()
+  if (BARE_NUMBER_HEADING.test(trimmed)) return ""
+  return trimmed.replace(TITLE_ORDINAL_PREFIX, "").replace(TITLE_SELF_NUMBER, "").trim()
 }
 
 /**
@@ -212,6 +221,31 @@ function composeImportTitle(
   if (suffix !== null)
     return { title: "第" + nextOrder + "章 " + name + "（" + (Number(suffix[1]) + 1) + "）", previousTitle: null }
   return { title: "第" + nextOrder + "章 " + name + "（2）", previousTitle: "第" + previous.order + "章 " + name + "（1）" }
+}
+
+/** 存档章题行是否纯序号（裸数字行或「第N章」无名字）：需要 cutter 拟名后合成。 */
+function isPureOrdinalHeading(line: string): boolean {
+  return BARE_NUMBER_HEADING.test(line) || parseChapterName(line).length === 0
+}
+
+/** 纯序号章题行的序号部分：裸数字归一为「第N章」，「第N章」式保留原文。 */
+function archiveOrdinal(line: string): string {
+  return BARE_NUMBER_HEADING.test(line) ? "第" + parseChapterNumber(line) + "章" : line
+}
+
+/**
+ * 存档章题落章标题：带名字的章题原样采用；纯序号章题（裸数字/第N章）以
+ * cutter 拟的名字合成「序号 名字」，cutter 未拟名（仍只给序号）时拒绝。
+ */
+function composeFromArchiveHeading(headingLine: string, cutterTitle: string): { readonly title: string; readonly previousTitle: string | null } {
+  if (!isPureOrdinalHeading(headingLine)) return { title: headingLine, previousTitle: null }
+  const ordinal = archiveOrdinal(headingLine)
+  const name = parseChapterName(cutterTitle)
+  if (name.length === 0)
+    throw toolFailure("content_rejected", "存档章题为纯序号（" + headingLine + "）：title 请拟 4-12 字名字部分，执行器将合成「" + ordinal + " 名字」。")
+  if (name.length > 30)
+    throw toolFailure("content_rejected", "章题名字部分约 " + name.length + " 字超过 30 字上限：请压缩为 4-12 字的简洁名字。")
+  return { title: ordinal + " " + name, previousTitle: null }
 }
 
 /** 前文衔接：游标前最多 2 个句流单元的原文（design D3）。 */
@@ -427,7 +461,11 @@ export const importSplitTools = {
           "已切出章文本：约 " + rawWordCount + " 字、" + paragraphs.length + " 段。",
           softHint,
           ...(startUnit.volumeHeading ? ["本窗口以卷题「" + startUnit.headingTitle + "」开篇：卷由执行器自动创建并归属本章，卷题行保留在章文本中。"] : []),
-          titleHint !== null ? "存档章题（title_hint）：" + titleHint : "本窗口无存档章题，章题由 cutter 拟定（只传 4-12 字名字部分，「第N章」序号与同名编号由执行器统一编排）。",
+          titleHint !== null
+            ? isPureOrdinalHeading(titleHint)
+              ? "存档章题（title_hint）：" + titleHint + "（纯序号章题：title 拟 4-12 字名字部分，执行器将合成「" + archiveOrdinal(titleHint) + " 名字」）。"
+              : "存档章题（title_hint）：" + titleHint
+            : "本窗口无存档章题，章题由 cutter 拟定（只传 4-12 字名字部分，「第N章」序号与同名编号由执行器统一编排）。",
           "落章参数（import_split_commit 直接使用，逐字照抄不要估算）：window_cursor=" + cursor + "，end_offset=" + chapterEnd + "，raw_word_count=" + rawWordCount + "。",
           "下一步：将章节全文交给 cleaner 单读修复（错字/噪声/段落，保留段落结构），修复后以上述落章参数调用 import_split_commit 落章；commit 校验修复后字数偏差不超过 10%。",
         ].join("\n"),
@@ -520,7 +558,7 @@ export const importSplitTools = {
         // 章题统一编排：存档章题书原样采用存档章题；拟题书由执行器编排序号与同名编号
         const composed =
           chapterHeadingUnit !== undefined
-            ? { title: chapterHeadingUnit.headingTitle, previousTitle: null }
+            ? composeFromArchiveHeading(chapterHeadingUnit.headingTitle, title)
             : composeImportTitle(title, nextOrder, previous)
         // 分卷归属：卷题行懒创建（同书同名卷复用），卷前章保持无卷归属
         const volumeId =

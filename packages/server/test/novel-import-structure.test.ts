@@ -41,6 +41,13 @@ describe("matchHeading / looksLikeHeadingLine", () => {
     expect(matchHeading("Chapter 12 开局")?.kind).toBe("chapter")
   })
 
+  test("裸数字章题行", () => {
+    expect(matchHeading("１")?.kind).toBe("chapter")
+    expect(matchHeading("12")?.kind).toBe("chapter")
+    expect(matchHeading("１２３")?.kind).toBe("chapter")
+    expect(matchHeading("１２３４５")).toBeNull()
+  })
+
   test("卷题模式族", () => {
     expect(matchHeading("第三卷")?.kind).toBe("volume")
     expect(matchHeading("第2部 风起")?.kind).toBe("volume")
@@ -258,5 +265,18 @@ describe("splitByRange", () => {
     const withBreak = chapters.find((chapter) => chapter.content.includes("***"))
     expect(withBreak).toBeDefined()
     expect(chapters[0]!.content.endsWith("***") || chapters[1]!.content.startsWith("***")).toBe(true)
+  })
+})
+
+describe("裸数字章题与相邻重复标题行", () => {
+  test("相邻同文标题行并入前一标题，裸数字章题归一第N章", () => {
+    const text = ["１", "    １", "清晨出发。山路难行。", "２", "    ２", "夜宿破庙。忽闻异响。"].join("\n")
+    const parsed = parseStructure(text)
+    expect(parsed.chapterHeadingCount).toBe(2)
+    const chapters = parsed.volumes[0]?.chapters ?? []
+    expect(chapters.map((chapter) => chapter.title)).toEqual(["第1章", "第2章"])
+    expect(chapters[0]?.content).toBe("清晨出发。山路难行。")
+    expect(chapters[1]?.content).toBe("夜宿破庙。忽闻异响。")
+    expect(parsed.issues.filter((issue) => issue.type === "duplicate-number").length).toBe(0)
   })
 })
