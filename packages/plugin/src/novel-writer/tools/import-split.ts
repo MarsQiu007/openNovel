@@ -180,6 +180,37 @@ function diagnoseQuotes(text: string): string | null {
   return "存档引号不配对：" + problems.join("；") + "。组章在引号处卡点时先核对这些位置（缺失右引号导致引号未闭合会被硬校验拒绝；多余右引号已被配平容错忽略，清洗时应顺手修复）。"
 }
 
+/** 章题序号前缀（第N章/回/节/卷/部）与同名自编号（k）：拟题书的序号与同名编号由执行器统一编排，模型输出一律剥离。 */
+const TITLE_ORDINAL_PREFIX = /^\s*第\s*[0-9０-９一二三四五六七八九十百千]+\s*[章回节卷部]\s*[：:、.．\-—·\s]*/
+const TITLE_SELF_NUMBER = /[（(]\s*(\d+)\s*[）)]\s*$/
+
+/** 剥离章题的序号前缀与同名编号，取名字部分。 */
+function parseChapterName(title: string): string {
+  return title.replace(TITLE_ORDINAL_PREFIX, "").replace(TITLE_SELF_NUMBER, "").trim()
+}
+
+/**
+ * 拟题书章题统一编排（design D3）：「第N章 名字」，N 为全书章序号；
+ * 与上一章同名（同一叙事单元连续章）时统一编号（1）（2）…，上一章未编号时回溯归一其章题。
+ */
+function composeImportTitle(
+  rawTitle: string,
+  nextOrder: number,
+  previous: { readonly order: number; readonly title: string } | null,
+): { readonly title: string; readonly previousTitle: string | null } {
+  const name = parseChapterName(rawTitle)
+  if (name.length === 0)
+    throw toolFailure("content_rejected", "章题只有序号没有名字：请为本章拟 4-12 字的名字部分（「第N章」序号与同名编号由执行器统一编排），如「雨夜初醒」。")
+  if (name.length > 30)
+    throw toolFailure("content_rejected", "章题名字部分约 " + name.length + " 字超过 30 字上限：请压缩为 4-12 字的简洁名字。")
+  if (previous === null || parseChapterName(previous.title) !== name)
+    return { title: "第" + nextOrder + "章 " + name, previousTitle: null }
+  const suffix = TITLE_SELF_NUMBER.exec(previous.title)
+  if (suffix !== null)
+    return { title: "第" + nextOrder + "章 " + name + "（" + (Number(suffix[1]) + 1) + "）", previousTitle: null }
+  return { title: "第" + nextOrder + "章 " + name + "（2）", previousTitle: "第" + previous.order + "章 " + name + "（1）" }
+}
+
 /** 前文衔接：游标前最多 2 个句流单元的原文（design D3）。 */
 function recentText(text: string, units: SplitUnit[], startIdx: number): string {
   const parts: string[] = []
@@ -237,7 +268,14 @@ export const importSplitTools = {
       const remaining = context.prefix[context.text.length] - context.prefix[context.units[range.endIdx].end]
       const nextUnit = range.endIdx + 1 < context.units.length ? context.units[range.endIdx + 1] : undefined
       const nextUnitWordCount = nextUnit === undefined ? 0 : context.prefix[nextUnit.end] - context.prefix[nextUnit.start]
+      const previousChapter = getDb(ctx.directory)
+        .select({ order: ChapterTable.order, title: ChapterTable.title })
+        .from(ChapterTable)
+        .where(eq(ChapterTable.novel_id, context.novelId))
+        .all()
+        .reduce<{ order: number; title: string } | null>((max, row) => (row.order > (max?.order ?? 0) ? row : max), null)
       const lines: string[] = ["【前文衔接】", recentText(context.text, context.units, startIdx)]
+      lines.push("上一章章题：" + (previousChapter === null ? "无（全书第一章）" : previousChapter.title + "（同一叙事单元的连续章请沿用此名字）"))
       lines.push("", "【句流窗口】（句号 1-" + (range.endIdx - range.startIdx + 1) + "，约 " + windowWordCount + " 字）")
       for (let index = range.startIdx; index <= range.endIdx; index++) {
         const unit = context.units[index]
@@ -371,7 +409,7 @@ export const importSplitTools = {
         output: [
           "已切出章文本：约 " + rawWordCount + " 字、" + paragraphs.length + " 段。",
           softHint,
-          titleHint !== null ? "存档章题（title_hint）：" + titleHint : "本窗口无存档章题，章题由 cutter 拟定。",
+          titleHint !== null ? "存档章题（title_hint）：" + titleHint : "本窗口无存档章题，章题由 cutter 拟定（只传 4-12 字名字部分，「第N章」序号与同名编号由执行器统一编排）。",
           "落章参数（import_split_commit 直接使用，逐字照抄不要估算）：window_cursor=" + cursor + "，end_offset=" + chapterEnd + "，raw_word_count=" + rawWordCount + "。",
           "下一步：将章节全文交给 cleaner 单读修复（错字/噪声/段落，保留段落结构），修复后以上述落章参数调用 import_split_commit 落章；commit 校验修复后字数偏差不超过 10%。",
         ].join("\n"),
@@ -393,7 +431,7 @@ export const importSplitTools = {
       "AI 拆章第三步：以 cleaner 修复后的章文本落章（导入语义：不分组、draft、初始正文直接计字数），校验字数偏差不超过 10% 与游标一致性，同事务推进拆章游标。",
     args: Schema.Struct({
       novel_id: Schema.optional(Schema.String.annotate({ description: "小说 ID；绑定会话可不传，单书自动解析" })),
-      title: Schema.String.annotate({ description: "章题" }),
+      title: Schema.String.annotate({ description: "章题：存档章题书以存档章题为准；拟题书只传 4-12 字名字部分，「第N章」序号与同名（k）编号由执行器统一编排" }),
       content: Schema.String.annotate({ description: "cleaner 修复后的章正文（保留 extract 返回的段落结构）" }),
       window_cursor: Schema.Number.annotate({ description: "import_split_extract 元数据中的窗口游标" }),
       end_offset: Schema.Number.annotate({ description: "import_split_extract 元数据中的章末偏移" }),
@@ -437,30 +475,49 @@ export const importSplitTools = {
           "content_rejected",
           "修复后字数偏差 " + (deviation * 100).toFixed(1) + "% 超过 10% 上限（原章约 " + rawWordCount + " 字，修复后约 " + wordCount + " 字）。请降级为仅结构清洗（分段与噪声，不改正文用词）后重新提交。",
         )
-      const chapterId = withTransaction(getDb(ctx.directory), (tx) => {
-        const id = createChapterTx(tx, context.novelId, title, undefined, null, content)
+      const startUnit = context.units.find((unit) => unit.start === cursor)
+      const chapter = withTransaction(getDb(ctx.directory), (tx) => {
+        const previous = tx
+          .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
+          .from(ChapterTable)
+          .where(eq(ChapterTable.novel_id, context.novelId))
+          .all()
+          .reduce<{ id: string; order: number; title: string } | null>((max, row) => (row.order > (max?.order ?? 0) ? row : max), null)
+        const nextOrder = (previous?.order ?? 0) + 1
+        // 章题统一编排：存档章题书原样采用存档章题；拟题书由执行器编排序号与同名编号
+        const composed =
+          startUnit !== undefined && startUnit.heading
+            ? { title: startUnit.headingTitle, previousTitle: null }
+            : composeImportTitle(title, nextOrder, previous)
+        if (composed.previousTitle !== null && previous !== null)
+          tx.update(ChapterTable)
+            .set({ title: composed.previousTitle, updated_at: Date.now() })
+            .where(eq(ChapterTable.id, previous.id))
+            .run()
+        const id = createChapterTx(tx, context.novelId, composed.title, nextOrder, null, content)
         tx.update(NovelArchiveTable)
           .set({ split_cursor: endOffset, updated_at: Date.now() })
           .where(eq(NovelArchiveTable.novel_id, context.novelId))
           .run()
-        return id
+        return { id, title: composed.title, renumbered: composed.previousTitle !== null }
       })
-      const [chapter] = getDb(ctx.directory)
+      const [row] = getDb(ctx.directory)
         .select({ order: ChapterTable.order, word_count: ChapterTable.word_count })
         .from(ChapterTable)
-        .where(eq(ChapterTable.id, chapterId))
+        .where(eq(ChapterTable.id, chapter.id))
         .all()
       const remaining = context.prefix[context.text.length] - context.prefix[endOffset]
       return {
         title: "import_split_commit",
         output: [
-          "第 " + (chapter?.order ?? "?") + " 章已创建（不分组、draft）：" + title + "，约 " + wordCount + " 字。",
+          "第 " + (row?.order ?? "?") + " 章已创建（不分组、draft）：" + chapter.title + "，约 " + wordCount + " 字。" +
+            (chapter.renumbered ? "上一章与本章同名，已统一编号为（1）（2）。" : ""),
           "拆章游标推进至 " + endOffset + "，剩余约 " + remaining + " 字" + (remaining === 0 ? "，全书组章完成。" : "。"),
         ].join("\n"),
         metadata: {
           novel_id: context.novelId,
-          chapter_id: chapterId,
-          order: chapter?.order ?? null,
+          chapter_id: chapter.id,
+          order: row?.order ?? null,
           word_count: wordCount,
           split_cursor: endOffset,
           remaining_word_count: remaining,
