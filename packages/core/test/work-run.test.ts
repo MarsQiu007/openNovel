@@ -147,6 +147,23 @@ describe("SessionWorkRun", () => {
     }),
   )
 
+  it.effect("未领取的 pending 单元可直接跳过（AI 拆章全书已拆完）", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const workrun = yield* SessionWorkRun.Service
+      const run = yield* workrun.create({ sessionID, goal: "g", items: ["a", "b", "c"] })
+
+      // AI 拆章「全书已拆完」语义：剩余 pending 单元无需先 claim 即可跳过
+      const skipped = yield* workrun.skipItem(run.id, 1)
+      expect(statusesOf(skipped)).toEqual(["pending", "skipped", "pending"])
+      yield* workrun.skipItem(run.id, 2)
+      yield* workrun.claimNext(run.id)
+      yield* workrun.completeItem(run.id, 0)
+      const finished = yield* workrun.complete(run.id)
+      expect(finished.status).toBe("complete")
+    }),
+  )
+
   it.effect("守卫续跑递增计数且单元迁移清零无进展计数", () =>
     Effect.gen(function* () {
       yield* setup

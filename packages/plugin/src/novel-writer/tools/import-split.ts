@@ -240,6 +240,7 @@ export const importSplitTools = {
       if (startIdx === context.units.length - 1 && context.units[startIdx].end === context.text.length && !context.units[startIdx].heading) {
         lines.push("⚠ 存档警示：拆章游标之后没有任何引号闭合的句末切点——原文可能存在缺失的右引号（引号未闭合），后续组章会被硬校验拒绝。请先修复原文再继续，或确认后跳过该缺陷段。")
       }
+      lines.push("", "拆章游标 window_cursor=" + context.cursor + "（import_split_extract 与 import_split_commit 的 window_cursor 参数都使用此值，不要估算）。")
       return {
         title: "import_split_window",
         output: lines.join("\n"),
@@ -323,7 +324,8 @@ export const importSplitTools = {
           "已切出章文本：约 " + rawWordCount + " 字、" + paragraphs.length + " 段。",
           softHint,
           titleHint !== null ? "存档章题（title_hint）：" + titleHint : "本窗口无存档章题，章题由 cutter 拟定。",
-          "下一步：将章节全文交给 cleaner 单读修复（错字/噪声/段落，保留段落结构），修复后以 extract 元数据调用 import_split_commit 落章；commit 校验修复后字数偏差不超过 10%。",
+          "落章参数（import_split_commit 直接使用，逐字照抄不要估算）：window_cursor=" + cursor + "，end_offset=" + chapterEnd + "，raw_word_count=" + rawWordCount + "。",
+          "下一步：将章节全文交给 cleaner 单读修复（错字/噪声/段落，保留段落结构），修复后以上述落章参数调用 import_split_commit 落章；commit 校验修复后字数偏差不超过 10%。",
         ].join("\n"),
         metadata: {
           novel_id: context.novelId,

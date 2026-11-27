@@ -165,6 +165,10 @@ describe("import_split_extract", () => {
       toolCtx(),
     )
     const metadata = result.metadata
+    // 落章参数必须模型可见：commit 的 window_cursor/end_offset/raw_word_count 写进输出文本
+    expect(result.output).toContain("window_cursor=0")
+    expect(result.output).toContain("end_offset=" + Number(metadata?.end_offset))
+    expect(result.output).toContain("raw_word_count=" + Number(metadata?.raw_word_count))
     expect(metadata?.chapter_text).toBe("他推开门。\n\n屋内一片漆黑。")
     expect(Number(metadata?.raw_word_count)).toBe(countWords("他推开门。屋内一片漆黑。"))
     // 分段不改正文：去空白后与原文切片逐字一致

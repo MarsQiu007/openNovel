@@ -247,7 +247,35 @@ const layer = Layer.effect(
 
       completeItem: (runID, itemSeq) => transitionItem(runID, itemSeq, "in_progress", "done"),
 
-      skipItem: (runID, itemSeq) => transitionItem(runID, itemSeq, "in_progress", "skipped"),
+      // 跳过与 blockItem 对齐允许 pending：AI 拆章「全书已拆完」需跳过未领取的剩余单元
+      skipItem: (runID, itemSeq) =>
+        Effect.gen(function* () {
+          yield* withActiveRun(runID)
+          const item = yield* db
+            .select()
+            .from(WorkRunItemTable)
+            .where(and(eq(WorkRunItemTable.seq, itemSeq), eq(WorkRunItemTable.run_id, runID)))
+            .get()
+            .pipe(Effect.orDie)
+          if (item === undefined) return yield* new InvalidTransition({ reason: "单元不存在" })
+          if (item.status !== "in_progress" && item.status !== "pending")
+            return yield* new InvalidTransition({ reason: `单元状态为 ${item.status}，不能转为 skipped` })
+          yield* db
+            .update(WorkRunItemTable)
+            .set({ status: "skipped" })
+            .where(and(eq(WorkRunItemTable.seq, itemSeq), eq(WorkRunItemTable.run_id, runID)))
+            .run()
+            .pipe(Effect.orDie)
+          yield* db
+            .update(WorkRunTable)
+            .set({ no_progress_count: 0 })
+            .where(eq(WorkRunTable.id, runID))
+            .run()
+            .pipe(Effect.orDie)
+          const run = yield* selectRunOrDie(db, runID)
+          yield* publishUpdate(db, events, run.id)
+          return fromRows(run, yield* selectItems(db, runID))
+        }),
 
       blockItem: (runID, itemSeq, reason) =>
         Effect.gen(function* () {

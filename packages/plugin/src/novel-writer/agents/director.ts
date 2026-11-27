@@ -229,9 +229,9 @@ ${FEEDBACK_INTENT_DISPATCHER_PROMPT}
 
 1. **建队列**：调用 \`import_split_window\` 核对存档与剩余字数，预估章数 N = 存档总字数除以 2500 向上取整（存档总字数见返回元数据 archive_word_count）。单元按序声明：N 个「AI 组章」单元 + 殿后 1 个「收尾」单元，共 N+1，队列总数恒定。goal 写明书名与产出（如“AI 拆章《书名》：逐章组章→清洗→落章→设定/技法入库，收尾生成简介与汇总”）。调用 \`workrun(action="create", goal=?, items=[...])\` 建队。同会话已有 active 队列时不要重复 create，也不要抢占——回复告知用户先完成或挂起既有队列。
 2. **逐章推进（组章 → 清洗 → 落章 → 入库）**：循环执行——\`workrun(action="claim")\` 领取下一组章单元，按四步处理：
-   a. **组章**：调用 \`import_split_window\` 取句流窗口 → dispatch @cutter（prompt 原样附上窗口文本，要求只输出组章结论 JSON）→ 用 cutter 的结论调 \`import_split_extract\`（window_cursor/end_sentence/segments 取自窗口元数据与 cutter 输出）。窗口内出现【章题】标注时，章末句必须落在章题行前一句（extract 会硬校验）；extract 拒绝时把拒绝原因原样反馈给 cutter 重出结论。
+   a. **组章**：调用 \`import_split_window\` 取句流窗口 → dispatch @cutter（prompt 原样附上窗口文本，要求只输出组章结论 JSON）→ 用 cutter 的结论调 \`import_split_extract\`（window_cursor 用窗口输出文本末尾给出的值，end_sentence/segments 取自 cutter 输出）。窗口内出现【章题】标注时，章末句必须落在章题行前一句（extract 会硬校验）；extract 拒绝时把拒绝原因原样反馈给 cutter 重出结论。
    b. **清洗**：dispatch @cleaner（prompt 附 extract 返回的章节全文、原章字数与清洗模式 full），取回三产出 JSON。cleaner 结论解析失败或字数偏差超限时，以 structure_only 模式重跑一次（只分段与清噪声，不改正文用词）。
-   c. **落章**：调用 \`import_split_commit\`（title 用存档章题或 cutter 的 title；content 用 cleaner 的 fixed_text；window_cursor/end_offset/raw_word_count 用 extract 元数据）。commit 拒绝时把原因反馈给 cleaner 重出修复。
+   c. **落章**：调用 \`import_split_commit\`（title 用存档章题或 cutter 的 title；content 用 cleaner 的 fixed_text；window_cursor/end_offset/raw_word_count 逐字照抄 extract 输出文本中的「落章参数」行，不要估算）。commit 拒绝时把原因反馈给 cleaner 重出修复。
    d. **入库**：cleaner 设定产出中 sufficient=true 的条目经 \`save_novel_settings\` 自动落库（同主体按名自动合并，不走审阅收件箱；relationship 的 char_a_name/char_b_name 按已有角色解析为 ref 后再入库）；技法候选经 \`save_technique\` 入库（unverified 初始状态，同名合并保留既有 status 与 confidence，空泛候选自过滤拒绝）。入库清单（新增/合并/拒绝）记入进度笔记。
    完成后 \`workrun(action="complete_item", seq=领取单元的 seq)\`，再 \`workrun(action="progress", note="第 N 章：组章✓ 清洗✓ 落章✓ 设定入库 X 条技法 Y 条；下一章：…")\` 覆盖式更新进度笔记，继续领取。
 3. **失败语义（MUST NOT 静默降级）**：单章各步失败（cutter 输出非法、extract 硬校验拒绝、cleaner 护栏拒绝、commit 拒绝）重试上限 2 次，重试必须带错误反馈重新 dispatch，不得原样重发；仍失败该章记失败。**连续 5 章失败 → 熔断暂停**：对剩余 pending 单元逐个 \`workrun(action="block_item", reason="熔断暂停：连续失败，请检查 agent.cutter 与 agent.cleaner 模型配置；若 import_split_window 给出存档警示，则为原文引号缺陷（缺右引号），需先修复原文")\`，progress note 记录已完成章数与失败位置，向用户报告失败详情与恢复方式后停机等待。禁止把失败章退回规则拆分，禁止伪造完成。
