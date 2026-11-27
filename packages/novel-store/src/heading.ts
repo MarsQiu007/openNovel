@@ -97,10 +97,15 @@ export function matchHeading(trimmed: string): HeadingMatch | null {
   return null
 }
 
+/** 行独占性校验 + 模式命中：候选行去空白 ≤40 字符、不含句读标点且能命中模式时返回卷/章匹配结果。 */
+export function matchHeadingLine(line: string): HeadingMatch | null {
+  const trimmed = line.trim()
+  if (trimmed.length === 0 || trimmed.length > HEADING_MAX_LENGTH) return null
+  if (PROSE_PUNCTUATION.test(trimmed)) return null
+  return matchHeading(trimmed)
+}
+
 /** 行独占性校验：候选行去空白 ≤40 字符、不含句读标点且能命中模式。 */
 export function looksLikeHeadingLine(line: string): boolean {
-  const trimmed = line.trim()
-  if (trimmed.length === 0 || trimmed.length > HEADING_MAX_LENGTH) return false
-  if (PROSE_PUNCTUATION.test(trimmed)) return false
-  return matchHeading(trimmed) !== null
+  return matchHeadingLine(line) !== null
 }

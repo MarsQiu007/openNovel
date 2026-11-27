@@ -9,7 +9,7 @@ import { join } from "path"
 import { mkdirSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { countWords } from "@opennovel-ai/schema/schema"
-import { ChapterTable, getDb, getNovelArchive, NovelArchiveTable, NovelTable } from "../../src/novel-writer/session-store.js"
+import { ChapterTable, getDb, getNovelArchive, NovelArchiveTable, NovelTable, VolumeTable } from "../../src/novel-writer/session-store.js"
 import { parseCleanerOutput } from "../../src/novel-writer/cleaner-contract.js"
 import { parseCutterOutput } from "../../src/novel-writer/cutter-contract.js"
 import { importSplitTools } from "../../src/novel-writer/tools/import-split.js"
@@ -22,6 +22,17 @@ const ARCHIVE_PATH = ".opennovel/sources/" + NOVEL_ID + ".txt"
 const TEXT_PLAIN = ["他推开门。屋内一片漆黑。", "雨下了一整夜。他始终没有说话。"].join("\n\n")
 // 章题书：两个章题行 + 每章两句
 const TEXT_HEADED = ["第一章 启程", "清晨出发。山路难行。", "第二章 遇险", "夜宿破庙。忽闻异响。"].join("\n\n")
+// 卷章书：两卷三章，卷题/章题行各独占一行
+const TEXT_VOLUMED = [
+  "第一卷 风起",
+  "第一章 启程",
+  "清晨出发。山路难行。",
+  "第二章 遇险",
+  "夜宿破庙。忽闻异响。",
+  "第二卷 远航",
+  "第三章 出海",
+  "风平浪静。船行千里。",
+].join("\n\n")
 
 let projectDir: string
 
@@ -328,7 +339,7 @@ describe("import_split_extract", () => {
 })
 
 describe("import_split_commit", () => {
-  test("落章导入语义：不分组、draft、计字数、游标同事务推进", async () => {
+  test("落章导入语义：draft、计字数、游标同事务推进", async () => {
     await setupAiBook(TEXT_PLAIN)
     const extract = await importSplitTools.import_split_extract.execute(
       { novel_id: NOVEL_ID, window_cursor: 0, end_sentence: 2, segments: [2] },
@@ -620,5 +631,85 @@ describe("parseCleanerOutput", () => {
       ],
     }
     expect(() => parseCleanerOutput(JSON.stringify(payload), fullInput)).toThrow("不存在于章全文")
+  })
+})
+
+describe("import_split_commit 分卷归属", () => {
+  async function commitChapter(cursor: number, endSentence: number, title: string, content: string) {
+    const extract = await importSplitTools.import_split_extract.execute(
+      { novel_id: NOVEL_ID, window_cursor: cursor, end_sentence: endSentence },
+      toolCtx(),
+    )
+    const metadata = extract.metadata
+    const committed = await importSplitTools.import_split_commit.execute(
+      {
+        novel_id: NOVEL_ID,
+        title,
+        content,
+        window_cursor: cursor,
+        end_offset: Number(metadata?.end_offset),
+        raw_word_count: Number(metadata?.raw_word_count),
+      },
+      toolCtx(),
+    )
+    return { metadata, committed }
+  }
+
+  test("卷题书自动建卷并归属，同名卷复用", async () => {
+    await setupAiBook(TEXT_VOLUMED)
+    const first = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(first.output).toContain("【卷题】1. 第一卷 风起")
+
+    // 第一章：起点为卷题 + 章题标题块，章题取章题行，卷自动创建
+    const ch1 = await commitChapter(0, 4, "模型自拟", "第一卷 风起\n\n第一章 启程\n\n清晨出发。\n\n山路难行。")
+    expect(ch1.metadata?.title_hint).toBe("第一章 启程")
+    expect(ch1.committed.output).toContain("归属卷「第一卷 风起」")
+
+    // 第二章：同一卷复用，不重复建卷
+    const ch2 = await commitChapter(Number(ch1.metadata?.end_offset), 3, "模型自拟", "第二章 遇险\n\n夜宿破庙。\n\n忽闻异响。")
+    expect(ch2.committed.output).toContain("归属卷「第一卷 风起」")
+
+    // 第三章：起点为第二卷卷题，建第二卷并归属
+    const ch3 = await commitChapter(Number(ch2.metadata?.end_offset), 4, "模型自拟", "第二卷 远航\n\n第三章 出海\n\n风平浪静。\n\n船行千里。")
+    expect(ch3.metadata?.title_hint).toBe("第三章 出海")
+    expect(ch3.committed.output).toContain("归属卷「第二卷 远航」")
+
+    const db = getDb(projectDir)
+    const volumes = db.select().from(VolumeTable).all()
+    expect(volumes.length).toBe(2)
+    expect(volumes[0]?.title).toBe("第一卷 风起")
+    expect(volumes[0]?.order).toBe(1)
+    expect(volumes[1]?.title).toBe("第二卷 远航")
+    expect(volumes[1]?.order).toBe(2)
+    const chapters = db.select().from(ChapterTable).all()
+    expect(chapters.map((row) => row.title)).toEqual(["第一章 启程", "第二章 遇险", "第三章 出海"])
+    expect(chapters[0]?.volume_id).toBe(volumes[0]?.id)
+    expect(chapters[1]?.volume_id).toBe(volumes[0]?.id)
+    expect(chapters[2]?.volume_id).toBe(volumes[1]?.id)
+  })
+
+  test("卷题强边界：章不得跨卷题收章", async () => {
+    await setupAiBook(TEXT_VOLUMED)
+    const ch1 = await commitChapter(0, 4, "模型自拟", "第一卷 风起\n\n第一章 启程\n\n清晨出发。\n\n山路难行。")
+    // 第二章窗口含第二卷卷题（窗口第 4 句）：跨卷题收章被拒绝
+    await expectFailure(
+      importSplitTools.import_split_extract.execute(
+        { novel_id: NOVEL_ID, window_cursor: Number(ch1.metadata?.end_offset), end_sentence: 4 },
+        toolCtx(),
+      ),
+      "content_rejected",
+      "章题强边界",
+    )
+  })
+
+  test("首个卷题之前的章保持无卷归属", async () => {
+    await setupAiBook(["引子内容。开场白。", "第一卷 风起", "第一章 启程", "清晨出发。"].join("\n\n"))
+    const ch1 = await commitChapter(0, 2, "引子", "引子内容。\n\n开场白。")
+    expect(ch1.committed.output).not.toContain("归属卷")
+    const db = getDb(projectDir)
+    const [row] = db.select().from(ChapterTable).all()
+    expect(row?.title).toBe("第1章 引子")
+    expect(row?.volume_id).toBeNull()
+    expect(db.select().from(VolumeTable).all().length).toBe(0)
   })
 })

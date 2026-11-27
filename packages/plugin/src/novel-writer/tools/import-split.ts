@@ -12,14 +12,14 @@
 import { existsSync, readFileSync } from "fs"
 import { join } from "path"
 import { Schema } from "effect"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
 import { buildWordPrefix, isQuoteBalanced, QUOTE_MAX_OPEN_CHARS, QUOTE_PAIRS, SENTENCE_CUT_CHARS, splitSentenceSpans, STRAIGHT_QUOTES } from "@opennovel-ai/novel-store/text-split"
-import { looksLikeHeadingLine } from "@opennovel-ai/novel-store/heading"
+import { looksLikeHeadingLine, matchHeadingLine } from "@opennovel-ai/novel-store/heading"
 import { CLEAN_WORD_DEVIATION } from "../cleaner-contract.js"
 import { defineTool } from "../../v2/effect/tool.js"
 import { toolFailure } from "../../v2/effect/tool-failure.js"
-import { ChapterTable, createChapterTx, getDb, getNovelArchive, NovelArchiveTable, withTransaction } from "../session-store.js"
+import { ChapterTable, createChapterTx, createVolumeTx, getDb, getNovelArchive, NovelArchiveTable, VolumeTable, withTransaction } from "../session-store.js"
 import { projectDirFromCtx, resolveNovelId } from "./shared.js"
 
 /** 句流窗口字数硬上限：目标章上限 3000 字 + 50% 缓冲（design D3）。 */
@@ -41,6 +41,8 @@ interface SplitUnit {
   readonly end: number
   readonly heading: boolean
   readonly headingTitle: string
+  /** 卷题行（第N卷/部、卷N、Volume N）：分卷强边界，落章时据此建卷归属。 */
+  readonly volumeHeading: boolean
 }
 
 interface SplitContext {
@@ -77,8 +79,9 @@ function buildSentenceUnits(text: string): SplitUnit[] {
   while (cursor < text.length) {
     const lineEnd = nextLineEnd(text, cursor)
     const trimmed = text.slice(cursor, lineEnd).trim()
-    if (trimmed.length > 0 && looksLikeHeadingLine(trimmed)) {
-      units.push({ start: pendingStart ?? cursor, end: lineEnd, heading: true, headingTitle: trimmed })
+    const heading = trimmed.length > 0 ? matchHeadingLine(trimmed) : null
+    if (heading !== null) {
+      units.push({ start: pendingStart ?? cursor, end: lineEnd, heading: true, headingTitle: trimmed, volumeHeading: heading.kind === "volume" })
       pendingStart = null
       cursor = lineEnd
       continue
@@ -102,7 +105,7 @@ function buildSentenceUnits(text: string): SplitUnit[] {
         else pendingStart = pendingStart ?? start
         continue
       }
-      units.push({ start: pendingStart ?? start, end, heading: false, headingTitle: "" })
+      units.push({ start: pendingStart ?? start, end, heading: false, headingTitle: "", volumeHeading: false })
       pendingStart = null
     }
     cursor = regionEnd
@@ -282,7 +285,7 @@ export const importSplitTools = {
         const number = index - range.startIdx + 1
         const cumulative = context.prefix[unit.end] - context.prefix[context.units[range.startIdx].start]
         lines.push(
-          (unit.heading ? "【章题】" + number + ". " + unit.headingTitle : number + ". " + displayUnit(context.text, unit)) +
+          (unit.heading ? (unit.volumeHeading ? "【卷题】" : "【章题】") + number + ". " + unit.headingTitle : number + ". " + displayUnit(context.text, unit)) +
             "（累计约 " + cumulative + " 字）",
         )
       }
@@ -354,9 +357,15 @@ export const importSplitTools = {
           throw toolFailure("param_error", "segments 须严格递增：" + value + " 不大于前值 " + previousSegment)
         previousSegment = value
       }
-      // 章题强边界（design D3）：窗口内第一个章题单元（句号至少为 2）处必须收章
+      // 章题强边界（design D3）：窗口内第一个章题单元（句号至少为 2）处必须收章；
+      // 起点卷题行与其后首个章题行同属本章标题块，强边界扫描从其后再开始
+      let scanStart = range.startIdx + 1
+      if (context.units[range.startIdx].volumeHeading) {
+        const following = context.units[range.startIdx + 1]
+        if (following !== undefined && following.heading && !following.volumeHeading) scanStart = range.startIdx + 2
+      }
       let headingSentence: number | null = null
-      for (let index = range.startIdx + 1; index <= range.endIdx; index++) {
+      for (let index = scanStart; index <= range.endIdx; index++) {
         if (context.units[index].heading) {
           headingSentence = index - range.startIdx + 1
           break
@@ -403,12 +412,21 @@ export const importSplitTools = {
           : rawWordCount > SOFT_MAX_WORDS
             ? "章字数约 " + rawWordCount + "，超出软约束上限 " + SOFT_MAX_WORDS + "：叙事完整性优先，但优先考虑再拆。"
             : "章字数约 " + rawWordCount + "，在软约束区间内。"
-      const titleHint = context.units[range.startIdx].heading ? context.units[range.startIdx].headingTitle : null
+      const startUnit = context.units[range.startIdx]
+      const nextUnit = context.units[range.startIdx + 1]
+      const chapterHeadingUnit =
+        startUnit.heading && !startUnit.volumeHeading
+          ? startUnit
+          : startUnit.volumeHeading && nextUnit !== undefined && nextUnit.heading && !nextUnit.volumeHeading
+            ? nextUnit
+            : undefined
+      const titleHint = chapterHeadingUnit?.headingTitle ?? null
       return {
         title: "import_split_extract",
         output: [
           "已切出章文本：约 " + rawWordCount + " 字、" + paragraphs.length + " 段。",
           softHint,
+          ...(startUnit.volumeHeading ? ["本窗口以卷题「" + startUnit.headingTitle + "」开篇：卷由执行器自动创建并归属本章，卷题行保留在章文本中。"] : []),
           titleHint !== null ? "存档章题（title_hint）：" + titleHint : "本窗口无存档章题，章题由 cutter 拟定（只传 4-12 字名字部分，「第N章」序号与同名编号由执行器统一编排）。",
           "落章参数（import_split_commit 直接使用，逐字照抄不要估算）：window_cursor=" + cursor + "，end_offset=" + chapterEnd + "，raw_word_count=" + rawWordCount + "。",
           "下一步：将章节全文交给 cleaner 单读修复（错字/噪声/段落，保留段落结构），修复后以上述落章参数调用 import_split_commit 落章；commit 校验修复后字数偏差不超过 10%。",
@@ -428,7 +446,7 @@ export const importSplitTools = {
 
   import_split_commit: defineTool({
     description:
-      "AI 拆章第三步：以 cleaner 修复后的章文本落章（导入语义：不分组、draft、初始正文直接计字数），校验字数偏差不超过 10% 与游标一致性，同事务推进拆章游标。",
+      "AI 拆章第三步：以 cleaner 修复后的章文本落章（导入语义：draft、初始正文直接计字数，卷题行自动建卷归属），校验字数偏差不超过 10% 与游标一致性，同事务推进拆章游标。",
     args: Schema.Struct({
       novel_id: Schema.optional(Schema.String.annotate({ description: "小说 ID；绑定会话可不传，单书自动解析" })),
       title: Schema.String.annotate({ description: "章题：存档章题书以存档章题为准；拟题书只传 4-12 字名字部分，「第N章」序号与同名（k）编号由执行器统一编排" }),
@@ -475,7 +493,22 @@ export const importSplitTools = {
           "content_rejected",
           "修复后字数偏差 " + (deviation * 100).toFixed(1) + "% 超过 10% 上限（原章约 " + rawWordCount + " 字，修复后约 " + wordCount + " 字）。请降级为仅结构清洗（分段与噪声，不改正文用词）后重新提交。",
         )
-      const startUnit = context.units.find((unit) => unit.start === cursor)
+      const startIdx = context.units.findIndex((unit) => unit.start === cursor)
+      const startUnit = startIdx >= 0 ? context.units[startIdx] : undefined
+      // 章题单元：起点为章题行，或起点为卷题行时紧随其后首个章题行
+      const followingUnit = startIdx >= 0 ? context.units[startIdx + 1] : undefined
+      const chapterHeadingUnit =
+        startUnit !== undefined && startUnit.heading && !startUnit.volumeHeading
+          ? startUnit
+          : startUnit !== undefined && startUnit.volumeHeading && followingUnit !== undefined && followingUnit.heading && !followingUnit.volumeHeading
+            ? followingUnit
+            : undefined
+      // 治理卷：章起点之前（含起点）最近的卷题行；章不得跨卷题（强边界），故起点前最近卷题即所属卷
+      let governingVolumeTitle: string | null = null
+      for (const unit of context.units) {
+        if (unit.start > cursor) break
+        if (unit.volumeHeading) governingVolumeTitle = unit.headingTitle
+      }
       const chapter = withTransaction(getDb(ctx.directory), (tx) => {
         const previous = tx
           .select({ id: ChapterTable.id, order: ChapterTable.order, title: ChapterTable.title })
@@ -486,20 +519,29 @@ export const importSplitTools = {
         const nextOrder = (previous?.order ?? 0) + 1
         // 章题统一编排：存档章题书原样采用存档章题；拟题书由执行器编排序号与同名编号
         const composed =
-          startUnit !== undefined && startUnit.heading
-            ? { title: startUnit.headingTitle, previousTitle: null }
+          chapterHeadingUnit !== undefined
+            ? { title: chapterHeadingUnit.headingTitle, previousTitle: null }
             : composeImportTitle(title, nextOrder, previous)
+        // 分卷归属：卷题行懒创建（同书同名卷复用），卷前章保持无卷归属
+        const volumeId =
+          governingVolumeTitle === null
+            ? null
+            : (tx
+                .select({ id: VolumeTable.id })
+                .from(VolumeTable)
+                .where(and(eq(VolumeTable.novel_id, context.novelId), eq(VolumeTable.title, governingVolumeTitle)))
+                .all()[0]?.id ?? createVolumeTx(tx, context.novelId, governingVolumeTitle))
         if (composed.previousTitle !== null && previous !== null)
           tx.update(ChapterTable)
             .set({ title: composed.previousTitle, updated_at: Date.now() })
             .where(eq(ChapterTable.id, previous.id))
             .run()
-        const id = createChapterTx(tx, context.novelId, composed.title, nextOrder, null, content)
+        const id = createChapterTx(tx, context.novelId, composed.title, nextOrder, volumeId, content)
         tx.update(NovelArchiveTable)
           .set({ split_cursor: endOffset, updated_at: Date.now() })
           .where(eq(NovelArchiveTable.novel_id, context.novelId))
           .run()
-        return { id, title: composed.title, renumbered: composed.previousTitle !== null }
+        return { id, title: composed.title, renumbered: composed.previousTitle !== null, volumeId, volumeTitle: governingVolumeTitle }
       })
       const [row] = getDb(ctx.directory)
         .select({ order: ChapterTable.order, word_count: ChapterTable.word_count })
@@ -510,13 +552,15 @@ export const importSplitTools = {
       return {
         title: "import_split_commit",
         output: [
-          "第 " + (row?.order ?? "?") + " 章已创建（不分组、draft）：" + chapter.title + "，约 " + wordCount + " 字。" +
+          "第 " + (row?.order ?? "?") + " 章已创建（draft）：" + chapter.title + "，约 " + wordCount + " 字" +
+            (chapter.volumeTitle !== null ? "，归属卷「" + chapter.volumeTitle + "」" : "") + "。" +
             (chapter.renumbered ? "上一章与本章同名，已统一编号为（1）（2）。" : ""),
           "拆章游标推进至 " + endOffset + "，剩余约 " + remaining + " 字" + (remaining === 0 ? "，全书组章完成。" : "。"),
         ].join("\n"),
         metadata: {
           novel_id: context.novelId,
           chapter_id: chapter.id,
+          volume_id: chapter.volumeId,
           order: row?.order ?? null,
           word_count: wordCount,
           split_cursor: endOffset,
