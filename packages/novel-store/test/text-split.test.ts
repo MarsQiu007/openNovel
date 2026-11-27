@@ -77,6 +77,29 @@ describe("直引号与同形引号", () => {
   test("左右引号颠倒（」…「）仍判不平衡", () => {
     expect(isQuoteBalanced("」你好「", 0, 4)).toBe(false)
   })
+
+  test("未闭合左引号超过 500 字自动闭合，句流恢复切分", () => {
+    const text = "「" + "啊".repeat(600) + "。下一句。"
+    const spans = splitSentenceSpans(text)
+    expect(spans.length).toBe(2)
+    expect(spans[0].end).toBe(602)
+    expect(text.slice(spans[1].start, spans[1].end)).toBe("下一句。")
+    expect(isQuoteBalanced(text, 0, text.length)).toBe(true)
+  })
+
+  test("引号开放未超过 500 字仍按未闭合处理", () => {
+    const text = "「" + "啊".repeat(480) + "。" + "啊".repeat(10) + "」尾句。"
+    const spans = splitSentenceSpans(text)
+    expect(text.slice(spans[0].start, spans[0].end)).toBe("「" + "啊".repeat(480) + "。" + "啊".repeat(10) + "」")
+    expect(text.slice(spans[1].start, spans[1].end)).toBe("尾句。")
+  })
+
+  test("直引号开放超过 500 字自动闭合", () => {
+    const text = '"' + "啊".repeat(600) + "。收尾。"
+    const spans = splitSentenceSpans(text)
+    expect(spans.length).toBe(2)
+    expect(isQuoteBalanced(text, 0, text.length)).toBe(true)
+  })
 })
 
 describe("isQuoteBalanced", () => {

@@ -114,9 +114,19 @@ describe("import_split_window", () => {
     expect(result.metadata?.window_cursor).toBe(0)
   })
 
+  test("引号缺陷超过单句长度上限自动闭合，窗口正常组章", async () => {
+    // 未闭合左引号开放超过 500 字判定为丢失右引号的错字，引号内句末恢复切点资格
+    const text = "他推开门。屋内一片漆黑。\n\n“" + "这一段一直没有闭合引号。".repeat(60) + "雨停了。"
+    await setupAiBook(text)
+    const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(result.output).not.toContain("超大句流单元")
+    expect(result.output).toContain("雨停了。")
+    expect(result.output).toContain("存档引号不配对")
+  })
+
   test("后文超大句流单元时不得误导为全书末尾", async () => {
-    // 前几句很短，后文因引号缺陷被并成超大单元：窗口受硬上限截断但全书未耗尽
-    const text = "他推开门。屋内一片漆黑。雨停了。\n\n“" + "这一段一直没有闭合引号。".repeat(1200)
+    // 前几句很短，后文无句末标点被并成超大单元：窗口受硬上限截断但全书未耗尽
+    const text = "他推开门。屋内一片漆黑。雨停了。\n\n" + "完全没有句末标点的残留噪声".repeat(400)
     await setupAiBook(text)
     const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
     expect(Number(result.metadata?.remaining_word_count)).toBeGreaterThan(0)

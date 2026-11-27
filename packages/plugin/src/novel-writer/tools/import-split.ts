@@ -14,7 +14,7 @@ import { join } from "path"
 import { Schema } from "effect"
 import { eq } from "drizzle-orm"
 import { countWords } from "@opennovel-ai/schema/schema"
-import { buildWordPrefix, isQuoteBalanced, QUOTE_PAIRS, SENTENCE_CUT_CHARS, splitSentenceSpans, STRAIGHT_QUOTES } from "@opennovel-ai/novel-store/text-split"
+import { buildWordPrefix, isQuoteBalanced, QUOTE_MAX_OPEN_CHARS, QUOTE_PAIRS, SENTENCE_CUT_CHARS, splitSentenceSpans, STRAIGHT_QUOTES } from "@opennovel-ai/novel-store/text-split"
 import { looksLikeHeadingLine } from "@opennovel-ai/novel-store/heading"
 import { CLEAN_WORD_DEVIATION } from "../cleaner-contract.js"
 import { defineTool } from "../../v2/effect/tool.js"
@@ -265,11 +265,14 @@ export const importSplitTools = {
             : "提示：窗口仅约 " + windowWordCount + " 字，低于目标下限 " + SOFT_MIN_WORDS + "；后文仍有约 " + remaining + " 字，请继续组章。",
       )
       if (remaining > 0 && nextUnitWordCount > WINDOW_WORD_CAP) {
-        lines.push("⚠ 存档警示：窗口后的剩余内容包含超大句流单元（约 " + nextUnitWordCount + " 字），可能是引号未闭合或残留噪声；这不是全书末尾，需继续组章或先修复原文。")
+        lines.push("⚠ 存档警示：窗口后的剩余内容包含超大句流单元（约 " + nextUnitWordCount + " 字），可能是句末标点缺失或残留噪声；这不是全书末尾，需继续组章或先修复原文。")
       }
       if (startIdx === context.units.length - 1 && context.units[startIdx].end === context.text.length && !context.units[startIdx].heading) {
         lines.push("⚠ 存档警示：拆章游标之后没有任何引号闭合的句末切点——原文可能存在缺失的右引号（引号未闭合），后续组章会被硬校验拒绝。请先修复原文再继续，或确认后跳过该缺陷段。")
       }
+      const oversizeSentence = context.units.slice(range.startIdx, range.endIdx + 1).find((unit) => unit.end - unit.start > QUOTE_MAX_OPEN_CHARS)
+      if (oversizeSentence !== undefined)
+        lines.push("⚠ 存档警示：窗口内存在超长句流单元（约 " + (oversizeSentence.end - oversizeSentence.start) + " 字，单句正常不超过 " + QUOTE_MAX_OPEN_CHARS + " 字），可能是句末标点缺失；落章后建议人工复核该段。")
       const quoteDiagnosis = diagnoseQuotes(context.text)
       if (quoteDiagnosis !== null) lines.push("", "⚠ " + quoteDiagnosis)
       lines.push("", "拆章游标 window_cursor=" + context.cursor + "（import_split_extract 与 import_split_commit 的 window_cursor 参数都使用此值，不要估算）。")

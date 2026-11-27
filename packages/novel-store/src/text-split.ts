@@ -22,25 +22,44 @@ export const QUOTE_PAIRS: [string, string][] = [
 /** 同形直引号（开闭同字符）：无法用计数配平，用奇偶翻转判定。 */
 export const STRAIGHT_QUOTES = new Set(['"', "'", "＂", "＇"])
 
+/** 引号最长开放字符数：单句不可能超过 500 字，左引号开放超过该长度即判定为丢失右引号的错字并自动闭合。 */
+export const QUOTE_MAX_OPEN_CHARS = 500
+
 /**
  * 引号配平状态机：异形对计数 + 同形直引号奇偶翻转。
  * 配平从创建时（或上一平衡切点）起算；配对计数下限钳到 0——无左引号配对的
- * 孤儿右引号忽略不传染后续判定（容错采集重叠残段/缺左引号错字），
- * 左引号未闭合（计数停正）仍判不平衡。
+ * 孤儿右引号忽略不传染后续判定（容错采集重叠残段/缺左引号错字）；
+ * 左引号开放超过 QUOTE_MAX_OPEN_CHARS 判定为丢失右引号的错字并自动闭合，
+ * 引号内句末恢复切点资格；其余左引号未闭合（计数停正）仍判不平衡。
  */
 export function makeQuoteTracker() {
   const balances = QUOTE_PAIRS.map(() => 0)
-  const straight = new Map<string, boolean>()
+  const openedAt = QUOTE_PAIRS.map(() => -1)
+  const straight = new Map<string, number>()
+  let fed = 0
   return {
     feed(char: string) {
+      fed++
       for (let pair = 0; pair < QUOTE_PAIRS.length; pair++) {
         if (char === QUOTE_PAIRS[pair][0]) balances[pair]++
         if (char === QUOTE_PAIRS[pair][1]) balances[pair] = Math.max(0, balances[pair] - 1)
+        if (balances[pair] === 0) openedAt[pair] = -1
+        else {
+          if (openedAt[pair] < 0) openedAt[pair] = fed
+          if (fed - openedAt[pair] >= QUOTE_MAX_OPEN_CHARS) {
+            balances[pair] = 0
+            openedAt[pair] = -1
+          }
+        }
       }
-      if (STRAIGHT_QUOTES.has(char)) straight.set(char, !straight.get(char))
+      if (STRAIGHT_QUOTES.has(char)) {
+        if (straight.has(char)) straight.delete(char)
+        else straight.set(char, fed)
+      }
+      for (const [quote, at] of straight) if (fed - at >= QUOTE_MAX_OPEN_CHARS) straight.delete(quote)
     },
     balanced() {
-      return balances.every((balance) => balance === 0) && [...straight.values()].every((open) => !open)
+      return balances.every((balance) => balance === 0) && straight.size === 0
     },
   }
 }
