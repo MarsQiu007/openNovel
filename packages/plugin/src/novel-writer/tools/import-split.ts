@@ -209,6 +209,8 @@ export const importSplitTools = {
       const range = locateWindow(context.prefix, context.units, startIdx)
       const windowWordCount = context.prefix[context.units[range.endIdx].end] - context.prefix[context.units[range.startIdx].start]
       const remaining = context.prefix[context.text.length] - context.prefix[context.units[range.endIdx].end]
+      const nextUnit = range.endIdx + 1 < context.units.length ? context.units[range.endIdx + 1] : undefined
+      const nextUnitWordCount = nextUnit === undefined ? 0 : context.prefix[nextUnit.end] - context.prefix[nextUnit.start]
       const lines: string[] = ["【前文衔接】", recentText(context.text, context.units, startIdx)]
       lines.push("", "【句流窗口】（句号 1-" + (range.endIdx - range.startIdx + 1) + "，约 " + windowWordCount + " 字）")
       for (let index = range.startIdx; index <= range.endIdx; index++) {
@@ -220,16 +222,21 @@ export const importSplitTools = {
       lines.push(
         range.bufferEndIdx > range.endIdx
           ? context.text.slice(context.units[range.endIdx].end, context.units[range.bufferEndIdx].end).trim().replace(/\s+/g, " ")
-          : "无（已到全书末尾）",
+          : remaining === 0
+            ? "无（已到全书末尾）"
+            : "无（后文单元超出缓冲上限，剩余约 " + remaining + " 字）",
       )
       lines.push(
         "",
         remaining === 0
           ? "提示：窗口已覆盖到全书末尾。"
-          : windowWordCount < SOFT_MIN_WORDS
-            ? "提示：窗口仅约 " + windowWordCount + " 字，低于目标下限 " + SOFT_MIN_WORDS + "，可能临近全书结尾。"
-            : "提示：窗口后仍剩约 " + remaining + " 字。",
+          : remaining < SOFT_MIN_WORDS
+            ? "提示：窗口仅约 " + windowWordCount + " 字，低于目标下限 " + SOFT_MIN_WORDS + "；后文仅剩约 " + remaining + " 字，可能临近全书结尾。"
+            : "提示：窗口仅约 " + windowWordCount + " 字，低于目标下限 " + SOFT_MIN_WORDS + "；后文仍有约 " + remaining + " 字，请继续组章。",
       )
+      if (remaining > 0 && nextUnitWordCount > WINDOW_WORD_CAP) {
+        lines.push("⚠ 存档警示：窗口后的剩余内容包含超大句流单元（约 " + nextUnitWordCount + " 字），可能是引号未闭合或残留噪声；这不是全书末尾，需继续组章或先修复原文。")
+      }
       if (startIdx === context.units.length - 1 && context.units[startIdx].end === context.text.length && !context.units[startIdx].heading) {
         lines.push("⚠ 存档警示：拆章游标之后没有任何引号闭合的句末切点——原文可能存在缺失的右引号（引号未闭合），后续组章会被硬校验拒绝。请先修复原文再继续，或确认后跳过该缺陷段。")
       }

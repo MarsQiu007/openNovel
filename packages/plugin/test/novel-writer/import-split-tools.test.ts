@@ -114,6 +114,17 @@ describe("import_split_window", () => {
     expect(result.metadata?.window_cursor).toBe(0)
   })
 
+  test("后文超大句流单元时不得误导为全书末尾", async () => {
+    // 前几句很短，后文因引号缺陷被并成超大单元：窗口受硬上限截断但全书未耗尽
+    const text = "他推开门。屋内一片漆黑。雨停了。\n\n“" + "这一段一直没有闭合引号。".repeat(1200)
+    await setupAiBook(text)
+    const result = await importSplitTools.import_split_window.execute({ novel_id: NOVEL_ID }, toolCtx())
+    expect(Number(result.metadata?.remaining_word_count)).toBeGreaterThan(0)
+    expect(result.output).not.toContain("已到全书末尾")
+    expect(result.output).toContain("后文仍有约")
+    expect(result.output).toContain("超大句流单元")
+  })
+
   test("游标与句流不对齐时拒绝组章", async () => {
     await setupAiBook(TEXT_PLAIN, 3)
     await expectFailure(

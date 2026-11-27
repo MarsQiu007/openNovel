@@ -36,7 +36,7 @@ export function buildAiSplitPrompt(input: {
     `《${input.title}》以 AI 拆章方式导入完成（整书原文已存档，当前无正文章节），请执行 AI 拆章编排（工作队列流程）：`,
     `1. 用 list_chapters 核对该书当前无正文章节；按预估章数 ${input.estimatedChapters} 声明「AI 组章」单元，收尾「简介与汇总」单元一个，调用 workrun(action="create", goal=?, items=[...]) 建队；`,
     "2. 逐章推进：claim 领取单元 → 用拆章工具从存档游标处取句流窗口并 dispatch @cutter 组章（章末句/章题/章内分段点）→ 执行器校验落章并推进游标 → dispatch @cleaner 单读全章产出修复后全文、设定与技法 → 修复后文本直写该章、设定自动入库合并、技法按学习口径入库 → complete_item 并 progress 记录（含修复对照与设定入库轨迹）；",
-    "3. 全书处理完而单元未用完时剩余单元直接跳过；预估不足时由收尾单元继续组章至游标到底，再生成书籍简介（update_novel）与全书汇总（预估/实际章数偏差、修复对照统计、设定入库与合并清单），最后 finish。",
+    "3. 只有拆章工具明确返回游标耗尽（remaining_word_count=0 / exhausted=true）时才可把剩余单元跳过；预估不足时由收尾单元继续组章至游标到底，再生成书籍简介（update_novel）与全书汇总（预估/实际章数偏差、修复对照统计、设定入库与合并清单），最后 finish。",
     "",
     "约束：",
     "- 单章组章/清洗失败最多重试 2 次，连续 5 章失败暂停队列并提示检查 cutter/cleaner 模型配置；MUST NOT 静默改用脚本拆分；",
