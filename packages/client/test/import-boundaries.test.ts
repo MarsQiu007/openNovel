@@ -4,7 +4,22 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
 const directory = resolve(import.meta.dir, "..")
-const effect = realpathSync(resolve(import.meta.dir, "../node_modules/effect"))
+// effect 的安装位置随包管理布局变化：bun 隔离链接布局在包内 node_modules（符号链接），
+// CI hoisted 安装在仓库根 node_modules；两种布局下解析到真实路径即可
+function realpathExisting(...candidates: Array<string>): string {
+  for (const candidate of candidates) {
+    try {
+      return realpathSync(candidate)
+    } catch {
+      // 该布局下不存在，尝试下一候选
+    }
+  }
+  throw new Error(`effect 安装位置不可解析：${candidates.join(", ")}`)
+}
+const effect = realpathExisting(
+  resolve(import.meta.dir, "../node_modules/effect"),
+  resolve(directory, "../../node_modules/effect"),
+)
 const schema = resolve(import.meta.dir, "../../schema")
 const protocol = resolve(import.meta.dir, "../../protocol")
 const core = resolve(import.meta.dir, "../../core")

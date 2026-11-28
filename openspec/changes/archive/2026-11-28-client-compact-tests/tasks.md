@@ -19,3 +19,7 @@
 
 - `8a919602d4` docs(openspec): 建立 client-compact-tests 提案
 - `bc64d9b3e5` test(client): compact mock 对齐 CompactionAdmission 契约并补 CI 盲区
+
+### 归档后收尾修复
+
+- 修复 import-boundaries.test.ts 的 effect 安装路径解析（CI hoisted 布局下 `packages/client/node_modules` 不存在导致模块顶层 realpathSync ENOENT；候选回退至仓库根 node_modules）——client 纳入 CI 后首次暴露的既有问题
