@@ -39,9 +39,10 @@ describe("导入整理工作队列", () => {
   })
 
   test("director 纠错阶段禁止直改正文", () => {
-    expect(section).toContain("原文/建议对照")
+    expect(section).toContain("原文逐字引用")
+    expect(section).toContain("propose_cleanup")
     expect(section).toContain("**禁止直改章节正文**")
-    expect(section).toContain("章节审批流")
+    expect(section).toContain("审阅面板接受后的确定性应用")
   })
 
   test("director 设定阶段禁止旁路改正式设定", () => {
@@ -71,7 +72,7 @@ describe("导入整理工作队列", () => {
   test("director 简介与汇总收尾", () => {
     expect(section).toContain("update_novel")
     expect(section).toContain("synopsis")
-    expect(section).toContain("纠错建议分布与条数")
+    expect(section).toContain("纠错修订提案实数")
     expect(section).toContain("设定候选待审数")
     expect(section).toContain("技法新学/合并/拒绝清单")
     expect(section).toContain('workrun(action="finish")')
