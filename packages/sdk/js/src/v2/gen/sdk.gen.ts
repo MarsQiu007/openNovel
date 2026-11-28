@@ -414,6 +414,8 @@ import type {
   V2NovelMoveChapterResponses,
   V2NovelOutlineErrors,
   V2NovelOutlineResponses,
+  V2NovelPendingSummaryErrors,
+  V2NovelPendingSummaryResponses,
   V2NovelPlotThreadsErrors,
   V2NovelPlotThreadsResponses,
   V2NovelPromoteWorldMapErrors,
@@ -6953,6 +6955,32 @@ export class Novel extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Aggregate per-novel pending counts
+   *
+   * Aggregate review-inbox and cleanup-proposal pending counts per novel for the shelf badges.
+   */
+  public pendingSummary<ThrowOnError extends boolean = false>(
+    parameters?: {
+      location?: {
+        directory?: string
+        workspace?: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "location" }] }])
+    return (options?.client ?? this.client).get<
+      V2NovelPendingSummaryResponses,
+      V2NovelPendingSummaryErrors,
+      ThrowOnError
+    >({
+      url: "/api/novel/pending-summary",
+      ...options,
+      ...params,
     })
   }
 

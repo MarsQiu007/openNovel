@@ -102,6 +102,7 @@ import {
   CleanupProposalCounts,
   CleanupProposalBatchAcceptInput,
   CleanupProposalOperationResult,
+  NovelPendingSummaryResult,
   MemoryFactStatus,
   MemoryFactListResult,
   MemoryFactCounts,
@@ -225,6 +226,21 @@ export const NovelGroup = HttpApiGroup.make("server.novel")
           identifier: "v2.novel.list",
           summary: "List novels",
           description: "List all novels with their stats.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("novel.pending-summary", `${root}/pending-summary`, {
+      query: LocationQuery,
+      success: NovelPendingSummaryResult,
+      error: [NovelValidationError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.novel.pending-summary",
+          summary: "Aggregate per-novel pending counts",
+          description: "Aggregate review-inbox and cleanup-proposal pending counts per novel for the shelf badges.",
         }),
       ),
   )

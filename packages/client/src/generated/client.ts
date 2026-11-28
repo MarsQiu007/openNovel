@@ -132,6 +132,8 @@ import type {
   ProjectCopiesRefreshOutput,
   ServerNovelListInput,
   ServerNovelListOutput,
+  ServerNovelPendingSummaryInput,
+  ServerNovelPendingSummaryOutput,
   ServerNovelCreateInput,
   ServerNovelCreateOutput,
   ServerNovelForSessionInput,
@@ -1431,6 +1433,18 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/novel`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      "pending-summary": (input?: ServerNovelPendingSummaryInput, requestOptions?: RequestOptions) =>
+        request<ServerNovelPendingSummaryOutput>(
+          {
+            method: "GET",
+            path: `/api/novel/pending-summary`,
             query: { location: input?.["location"] },
             successStatus: 200,
             declaredStatuses: [400, 401],

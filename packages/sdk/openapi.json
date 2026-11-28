@@ -11535,6 +11535,81 @@
         ]
       }
     },
+    "/api/novel/pending-summary": {
+      "get": {
+        "tags": ["novel"],
+        "operationId": "v2.novel.pending-summary",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "workspace": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Novel.PendingSummaryResult",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NovelPendingSummaryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "NovelValidationError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NovelValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Aggregate review-inbox and cleanup-proposal pending counts per novel for the shelf badges.",
+        "summary": "Aggregate per-novel pending counts",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpenNovelClient } from \"@opennovel-ai/sdk\"\n\nconst client = createOpenNovelClient()\nawait client.v2.novel.pending-summary({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/api/novel/for-session/{sessionID}": {
       "get": {
         "tags": ["novel"],
@@ -42816,6 +42891,38 @@
           }
         },
         "required": ["id", "title", "genre", "synopsis", "status", "createdAt", "updatedAt", "contentNature"],
+        "additionalProperties": false
+      },
+      "NovelPendingSummaryItem": {
+        "type": "object",
+        "properties": {
+          "novelId": {
+            "type": "string"
+          },
+          "inboxPending": {
+            "type": "integer"
+          },
+          "cleanupPending": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": ["novelId", "inboxPending", "cleanupPending", "total"],
+        "additionalProperties": false
+      },
+      "NovelPendingSummaryResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NovelPendingSummaryItem"
+            }
+          }
+        },
+        "required": ["items"],
         "additionalProperties": false
       },
       "NovelCreateNovelInput": {

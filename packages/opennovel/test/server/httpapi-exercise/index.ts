@@ -1993,6 +1993,47 @@ function seedMemoryFacts(ctx: ScenarioContext) {
   )
 }
 
+// 书级待审聚合种子：一书两源 pending（收件箱 1 + 清理修订 2）
+function seedPendingSummary(ctx: ScenarioContext) {
+  return Effect.orDie(
+    Effect.gen(function* () {
+      const { novelID } = yield* seedNovel(ctx, "待审聚合小说")
+      const chapter = yield* createChapterEndpoint(novelID, { title: "第一章" }, novelDirectory(ctx))
+      yield* updateChapterContent(novelID, chapter.id, { content: "第一段正文。\n第二段正文。" }, novelDirectory(ctx))
+      yield* Effect.try({
+        try: () => {
+          const db = getDb(novelDirectory(ctx))
+          db.insert(PendingSettingTable)
+            .values({
+              id: crypto.randomUUID(),
+              novel_id: novelID,
+              candidate_type: "world_entry",
+              suggested_entity_id: "",
+              payload_json: JSON.stringify({ category: "势力", title: "青云门", content: "青云门内海滨势力。" }),
+              display_title: "青云门",
+              importance: 2,
+            })
+            .run()
+          createCleanupProposals(
+            {
+              novelId: novelID,
+              chapterId: chapter.id,
+              proposals: [
+                { kind: "typo_replace", paragraph_index: 0, start_offset: 0, end_offset: 2, quote: "第一", replacement: "首选", reason: "错别字", confidence: 0.98 },
+                { kind: "typo_replace", paragraph_index: 1, start_offset: 0, end_offset: 2, quote: "第二", replacement: "次选", reason: "错别字", confidence: 0.97 },
+              ],
+            },
+            novelDirectory(ctx),
+          )
+          return null
+        },
+        catch: (error) => new Error(`待审聚合种子写入失败：${String(error)}`),
+      })
+      return { novelID }
+    }),
+  )
+}
+
 // 清理修订种子：一章含错字、格式残留与噪声段，落库三条提案（两条低风险 + 一条删除类）
 const CLEANUP_SEED_CONTENT = [
   "他说道：“今天天气不错。”",
@@ -3176,6 +3217,25 @@ function novelScenarios(): Scenario[] {
         object(body)
         const record = body as Record<string, unknown>
         check(record.ok === true, "撤销已应用提案应成功")
+      }),
+    // 书级待审聚合（import-quality-visibility）：一次返回全书两源 pending
+    http.protected
+      .get("/api/novel/pending-summary", "novel.pending-summary")
+      .seeded((ctx) => seedPendingSummary(ctx))
+      .at((ctx) => ({
+        path: "/api/novel/pending-summary",
+        headers: ctx.headers(),
+      }))
+      .json(200, (body) => {
+        object(body)
+        const record = body as Record<string, unknown>
+        array(record.items)
+        const items = record.items as Array<Record<string, unknown>>
+        check(items.length === 1, "聚合应只含种子书一行")
+        const item = items[0]!
+        check(item.inboxPending === 1, "收件箱待审计数应为 1")
+        check(item.cleanupPending === 2, "清理修订待审计数应为 2")
+        check(item.total === 3, "合计应为 3")
       }),
     // 记忆卡端点组（agent-memory-ui）：列表/计数/维护报告/手记/单卡流转
     http.protected

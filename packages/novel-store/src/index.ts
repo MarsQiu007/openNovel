@@ -3652,6 +3652,35 @@ export async function cancelWritingBatch(novelId: string, directory?: string | n
   withTransaction(getDb(directory), (tx) => cancelWritingBatchTx(tx, novelId))
 }
 
+/** 书级待审聚合（import-quality-visibility）：同库两源 pending 按书合并，书架角标一次取全。 */
+export function aggregatePendingSummary(
+  directory?: string | null,
+): Array<{ novelId: string; inboxPending: number; cleanupPending: number; total: number }> {
+  const db = getDb(directory)
+  const inbox = db
+    .select({ novel_id: PendingSettingTable.novel_id, n: sql<number>`count(*)` })
+    .from(PendingSettingTable)
+    .where(eq(PendingSettingTable.status, "pending"))
+    .groupBy(PendingSettingTable.novel_id)
+    .all()
+  const cleanup = db
+    .select({ novel_id: ChapterCleanupProposalTable.novel_id, n: sql<number>`count(*)` })
+    .from(ChapterCleanupProposalTable)
+    .where(eq(ChapterCleanupProposalTable.status, "pending"))
+    .groupBy(ChapterCleanupProposalTable.novel_id)
+    .all()
+  const merged = new Map<string, { novelId: string; inboxPending: number; cleanupPending: number }>()
+  for (const row of inbox) {
+    merged.set(row.novel_id, { novelId: row.novel_id, inboxPending: Number(row.n), cleanupPending: 0 })
+  }
+  for (const row of cleanup) {
+    const existing = merged.get(row.novel_id) ?? { novelId: row.novel_id, inboxPending: 0, cleanupPending: 0 }
+    existing.cleanupPending = Number(row.n)
+    merged.set(row.novel_id, existing)
+  }
+  return [...merged.values()].map((item) => ({ ...item, total: item.inboxPending + item.cleanupPending }))
+}
+
 /** 章节清理修订提案（chapter-cleanup-review）：导入整理纠错建议的可审批落库实体。 */
 export const ChapterCleanupProposalTable = sqliteTable(
   "chapter_cleanup_proposals",

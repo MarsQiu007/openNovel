@@ -3486,6 +3486,21 @@ export type ServerNovelListOutput = ReadonlyArray<{
   readonly contentNature: string
 }>
 
+export type ServerNovelPendingSummaryInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ServerNovelPendingSummaryOutput = {
+  readonly items: ReadonlyArray<{
+    readonly novelId: string
+    readonly inboxPending: number
+    readonly cleanupPending: number
+    readonly total: number
+  }>
+}
+
 export type ServerNovelCreateInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined

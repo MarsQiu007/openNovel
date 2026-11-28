@@ -23,7 +23,9 @@ import {
   ChapterTable,
   ChapterVersionTable,
   NovelTable,
+  PendingSettingTable,
   withTransaction,
+  aggregatePendingSummary,
   applyCleanupProposals,
   applyCleanupProposalsTx,
   countCleanupProposals,
@@ -255,6 +257,32 @@ describe("章节清理修订提案", () => {
       expect(counts["rejected"]).toBe(1)
       expect(counts["pending"]).toBe(1)
       expect(idC).toBeTruthy()
+    })
+  })
+
+  describe("书级待审聚合", () => {
+    test("两源 pending 按书合并，无书返回空", () => {
+      expect(aggregatePendingSummary(projectDir)).toEqual([])
+      const db = getDb(projectDir)
+      db.insert(PendingSettingTable)
+        .values({
+          id: "ps-1",
+          novel_id: "novel-1",
+          candidate_type: "world_entry",
+          payload_json: "{}",
+          importance: 2,
+        })
+        .run()
+      createCleanupProposals({ novelId: "novel-1", chapterId, proposals: [typoProposal()] }, projectDir)
+      const summary = aggregatePendingSummary(projectDir)
+      expect(summary).toHaveLength(1)
+      expect(summary[0]).toEqual({ novelId: "novel-1", inboxPending: 1, cleanupPending: 1, total: 2 })
+      // 已应用/已拒绝不进入 pending 聚合
+      const [id] = createCleanupProposals({ novelId: "novel-1", chapterId, proposals: [typoProposal()] }, projectDir)
+      applyCleanupProposals([id!], projectDir)
+      const after = aggregatePendingSummary(projectDir)[0]!
+      expect(after.cleanupPending).toBe(1)
+      expect(after.total).toBe(2)
     })
   })
 })

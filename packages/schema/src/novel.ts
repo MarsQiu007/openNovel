@@ -1124,6 +1124,21 @@ export const CleanupProposalOperationResult = Schema.Struct({
 }).annotate({ identifier: "Novel.CleanupProposalOperationResult" })
 export interface CleanupProposalOperationResult extends Schema.Schema.Type<typeof CleanupProposalOperationResult> {}
 
+// ─── 书级待审聚合（import-quality-visibility）：书架角标一次取全 ───
+
+export const NovelPendingSummaryItem = Schema.Struct({
+  novelId: Schema.String,
+  inboxPending: Schema.Int,
+  cleanupPending: Schema.Int,
+  total: Schema.Int,
+}).annotate({ identifier: "Novel.PendingSummaryItem" })
+export interface NovelPendingSummaryItem extends Schema.Schema.Type<typeof NovelPendingSummaryItem> {}
+
+export const NovelPendingSummaryResult = Schema.Struct({
+  items: Schema.Array(NovelPendingSummaryItem),
+}).annotate({ identifier: "Novel.PendingSummaryResult" })
+export interface NovelPendingSummaryResult extends Schema.Schema.Type<typeof NovelPendingSummaryResult> {}
+
 // ─── 记忆卡（memory-panel）：memory_fact 作者侧列表 / 手记 / 流转契约 ───
 
 export const MemoryFactStatus = Schema.Literals(["pending", "reviewed", "approved", "stale", "retired"])

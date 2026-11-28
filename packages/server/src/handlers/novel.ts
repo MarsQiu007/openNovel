@@ -76,6 +76,7 @@ import {
   rejectCleanupProposal,
   revertCleanupProposal,
   isLowRiskCleanup,
+  aggregatePendingSummary,
   ChapterCleanupProposalTable,
   type ChapterCleanupProposal,
 } from "@opennovel-ai/novel-store"
@@ -800,6 +801,21 @@ export function cleanupProposalRevert(novelID: string, directory: string, propos
       return { ok: true, accepted: [], failed: [], skipped: [] }
     } catch (error) {
       return { ok: false, accepted: [], failed: [], skipped: [], error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+}
+
+/** 书级待审聚合（import-quality-visibility）：同库两源 pending 按书合并，书架角标一次取全。 */
+export function pendingSummary(directory: string) {
+  return Effect.gen(function* () {
+    const rows = aggregatePendingSummary(directory)
+    return {
+      items: rows.map((row) => ({
+        novelId: row.novelId,
+        inboxPending: row.inboxPending,
+        cleanupPending: row.cleanupPending,
+        total: row.total,
+      })),
     }
   })
 }
@@ -3413,6 +3429,12 @@ export const NovelHandler = HttpApiBuilder.group(Api, "server.novel", (handlers)
         Effect.gen(function* () {
           const location = yield* Location.Service
           return yield* cleanupProposalRevert(ctx.params.novelID, location.directory, ctx.params.proposalID)
+        }),
+      )
+      .handle("novel.pending-summary", (ctx) =>
+        Effect.gen(function* () {
+          const location = yield* Location.Service
+          return yield* pendingSummary(location.directory)
         }),
       )
       .handle("novel.memory-facts.fact-list", (ctx) =>

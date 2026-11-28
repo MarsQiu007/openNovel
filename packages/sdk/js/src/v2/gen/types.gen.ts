@@ -5425,6 +5425,17 @@ export type NovelNovel = {
   contentNature: string
 }
 
+export type NovelPendingSummaryItem = {
+  novelId: string
+  inboxPending: number
+  cleanupPending: number
+  total: number
+}
+
+export type NovelPendingSummaryResult = {
+  items: Array<NovelPendingSummaryItem>
+}
+
 export type NovelCreateNovelInput = {
   title: string
   genre: "玄幻" | "都市" | "仙侠" | "历史" | "科幻" | "悬疑" | "言情" | "游戏"
@@ -12916,6 +12927,40 @@ export type V2NovelCreateResponses = {
 }
 
 export type V2NovelCreateResponse = V2NovelCreateResponses[keyof V2NovelCreateResponses]
+
+export type V2NovelPendingSummaryData = {
+  body?: never
+  path?: never
+  query?: {
+    location?: {
+      directory?: string
+      workspace?: string
+    }
+  }
+  url: "/api/novel/pending-summary"
+}
+
+export type V2NovelPendingSummaryErrors = {
+  /**
+   * NovelValidationError | InvalidRequestError
+   */
+  400: NovelValidationError | InvalidRequestError
+  /**
+   * UnauthorizedError
+   */
+  401: UnauthorizedError
+}
+
+export type V2NovelPendingSummaryError = V2NovelPendingSummaryErrors[keyof V2NovelPendingSummaryErrors]
+
+export type V2NovelPendingSummaryResponses = {
+  /**
+   * Novel.PendingSummaryResult
+   */
+  200: NovelPendingSummaryResult
+}
+
+export type V2NovelPendingSummaryResponse = V2NovelPendingSummaryResponses[keyof V2NovelPendingSummaryResponses]
 
 export type V2NovelForSessionData = {
   body?: never
