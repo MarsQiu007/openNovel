@@ -1290,6 +1290,7 @@ export const dict = {
   "novel.bookshelf.total": "总计",
   "novel.bookshelf.progress": "进度",
   "novel.bookshelf.confirmDelete": "确定要删除这部小说吗？书籍内容及其关联对话将一并移除，且不可恢复。",
+  "novel.bookshelf.pendingBadge": "{{count}} 条待审，点击直达审阅面板",
   "novel.bookshelf.deleting": "删除中…",
 
   "novel.wizard.title": "创建小说",

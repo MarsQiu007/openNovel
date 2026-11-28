@@ -55,7 +55,7 @@ import { type ServerHealth } from "@/utils/server-health"
 import { Persist, persisted } from "@/utils/persist"
 import { showToast } from "@/utils/toast"
 import { fileManagerApp } from "@/utils/file-manager"
-import { useNovels, useDeleteNovel, useNovelClient } from "@/context/novel-queries"
+import { useNovels, useDeleteNovel, useNovelClient, usePendingSummary } from "@/context/novel-queries"
 import { useQueryClient } from "@tanstack/solid-query"
 import { Binary } from "@opennovel-ai/core/util/binary"
 import { archiveSessionCascade, openSessionRouted, type NovelSessionBinding } from "./novel-sessions"
@@ -103,6 +103,23 @@ export function NewHome() {
   )
   const novelsQuery = useNovels(bookshelfDirectory)
   const novels = () => novelsQuery.data ?? []
+  // 书级待审聚合（import-quality-visibility）：书架角标一次取全，点击角标预写工作台
+  // settingsNode 存档后导航——工作台挂载时由恢复链路自动选中目标审阅面板
+  const pendingSummaryQuery = usePendingSummary(bookshelfDirectory)
+  const [workspaceState, setWorkspaceState] = persisted(
+    Persist.global("novel.workspace.state.v1"),
+    createStore<Record<string, { settingsNode?: string }>>({}),
+  )
+  const pendingByNovel = createMemo(
+    () => new Map((pendingSummaryQuery.data?.items ?? []).map((item) => [item.novelId, item])),
+  )
+
+  function openNovelReviewPanel(novelId: string) {
+    const summary = pendingByNovel().get(novelId)
+    if (!summary) return
+    setWorkspaceState(novelId, { settingsNode: summary.cleanupPending > 0 ? "cleanup" : "organization" })
+    navigate(`/${base64Encode(bookshelfDirectory())}/novel/${novelId}`)
+  }
 
   const GENRES = ["玄幻", "都市", "仙侠", "历史", "科幻", "悬疑", "言情", "游戏"] as const
 
@@ -480,6 +497,24 @@ export function NewHome() {
                               <div class="flex h-28 items-center justify-center rounded-[4px] bg-v2-background-bg-layer-03">
                                 <IconV2 name="book" size="large" class="text-v2-icon-icon-muted opacity-30" />
                               </div>
+                              <Show when={pendingByNovel().get(novel.id)} keyed>
+                                {(summary) =>
+                                  summary.total > 0 ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openNovelReviewPanel(novel.id)
+                                      }}
+                                      class="absolute left-2 top-2 z-10 rounded-full bg-v2-icon-icon-critical px-1.5 py-0.5 text-[10px] leading-none text-white [font-weight:560] transition-opacity hover:opacity-90"
+                                      type="button"
+                                      title={language.t("novel.bookshelf.pendingBadge", { count: summary.total })}
+                                      aria-label={language.t("novel.bookshelf.pendingBadge", { count: summary.total })}
+                                    >
+                                      {summary.total}
+                                    </button>
+                                  ) : null
+                                }
+                              </Show>
                               <div class="flex min-w-0 flex-col gap-1.5">
                                 <div class="flex items-center gap-2">
                                   <span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-base [font-weight:590]">

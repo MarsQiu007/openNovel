@@ -1321,6 +1321,7 @@ export const dict = {
   "novel.bookshelf.stats": "{{count}} novels, {{chapters}} chapters",
   "novel.bookshelf.total": "Total",
   "novel.bookshelf.progress": "Progress",
+  "novel.bookshelf.pendingBadge": "{{count}} pending reviews, click to open the review panel",
   "novel.bookshelf.confirmDelete":
     "Delete this novel? Its content and linked chats will be removed. This cannot be undone.",
   "novel.bookshelf.deleting": "Deleting…",

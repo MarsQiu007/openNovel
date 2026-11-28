@@ -238,6 +238,7 @@ export const novelKeys = {
     ["novel", "cleanup-proposal-counts", directory, novelID] as const,
   "cleanup-proposal-items": (directory: string, novelID: string, status: string) =>
     ["novel", "cleanup-proposal-items", directory, novelID, status] as const,
+  "pending-summary": (directory: string) => ["novel", "pending-summary", directory] as const,
   "memory-fact-counts": (directory: string, novelID: string) =>
     ["novel", "memory-fact-counts", directory, novelID] as const,
   "memory-fact-items": (directory: string, novelID: string, filter: string, limit: number) =>
@@ -2553,6 +2554,21 @@ export function useCleanupProposals(novelID: Accessor<string>, status: Accessor<
         status: status() ?? undefined,
       }),
     enabled: !!novelID(),
+  }))
+}
+
+/** 书级待审聚合（import-quality-visibility）：一次请求覆盖该目录全部书的书架角标数据。 */
+export function usePendingSummary(bookshelfDirectory: Accessor<string>) {
+  const client = useNovelClient()
+  const sdk = useSDK()
+  return createQuery(() => ({
+    queryKey: novelKeys["pending-summary"](bookshelfDirectory()),
+    gcTime: NOVEL_READ_QUERY_GC_TIME,
+    queryFn: () =>
+      client()["server.novel"]["pending-summary"]({
+        location: { directory: bookshelfDirectory() },
+      }),
+    enabled: !!bookshelfDirectory(),
   }))
 }
 
