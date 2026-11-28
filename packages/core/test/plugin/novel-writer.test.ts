@@ -26,9 +26,9 @@ const stubTools = createNovelWriterTools({
 })
 
 describe("novel-writer V2 入口", () => {
-  it.effect("boot 后 99 工具可见、director 为默认 agent、非小说目录仅引导注入", () =>
+  it.effect("boot 后 101 工具可见、director 为默认 agent、非小说目录仅引导注入", () =>
     Effect.gen(function* () {
-      expect(Object.keys(stubTools)).toHaveLength(99)
+      expect(Object.keys(stubTools)).toHaveLength(101)
 
       const plugins = yield* PluginV2.Service
       yield* plugins.add(PluginV2.ID.make("novel-writer"), novelWriterV2.effect)
